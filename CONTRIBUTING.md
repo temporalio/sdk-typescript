@@ -50,7 +50,7 @@ See [sdk-structure.md](./docs/sdk-structure.md)
 
 ### Environment setup
 
-- Install Node 16 and [Temporal Server](https://github.com/temporalio/docker-compose#temporal-server-docker-compose-files)
+- Install Node 18 and [Temporal Server](https://github.com/temporalio/docker-compose#temporal-server-docker-compose-files)
 - Install the [Rust toolchain](https://rustup.rs/)
 - Install [Protocol Buffers](https://github.com/protocolbuffers/protobuf/releases/)
 - Clone the [sdk-typescript](https://github.com/temporalio/sdk-typescript) repo:
@@ -142,6 +142,43 @@ chore(samples): upgrade commander module
 ```
 
 The `scope` options are listed in [commitlint.config.js](https://github.com/temporalio/sdk-typescript/blob/main/commitlint.config.js).
+
+## Updating and pruning dependencies
+
+There are various tools out there to help with updating and pruning NPM dependencies. Unfortunately,
+most of these tools don't work well in older lerna-style monorepos, such as this one, and updating
+to NPM 7 workspace would break support for Node 14.x. We must therefore rely on a more manual
+approach.
+
+I personally use the following commands to find NPM packages that needs to be updated. It runs
+interactively on each package of the repo, making it easy to select and apply packages to be updated.
+
+```
+for i in ./package.json packages/*/package.json ; do
+  (
+    cd "${i%%package.json}"
+    pwd
+    npm-check-updates -i
+  )
+done
+```
+
+To identify unused dependencies, I run the following script. Note that `npm-check` may report
+false-positive. Search the code before actually deleting any dependency. Also note that runtime
+dependencies MUST be added on the actual packages that use them to ensure proper execution in PNPM
+and YARN 2+ setups.
+
+```
+for i in ./package.json packages/*/package.json ; do
+  (
+    cd "${i%%package.json}"
+    pwd
+    npm-check
+  )
+done
+```
+
+To install both tools: `npm i -g npm-check npm-check-updates`.
 
 ## Publishing
 
