@@ -87,7 +87,7 @@ async function main() {
   // DO NOT MERGE THIS - JWH
   console.log(`protoBaseDir: ${protoBaseDir}`);
 
-  const protoFiles = glob.sync('**/*.proto', { cwd: protoBaseDir });
+  const protoFiles = glob.sync('**/*.proto', { cwd: protoBaseDir, absolute: true, root: '' });
 
   // DO NOT MERGE THIS - JWH
   console.log(`protoFiles: ${protoFiles.join(', ')}`);
