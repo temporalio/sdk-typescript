@@ -35,7 +35,6 @@
     "@types/async-retry": "^1.4.8",
     "@types/cross-spawn": "^6.0.6",
     "@types/got": "^9.6.12",
-    "@types/node": "^20.10.7",
     "@types/prompts": "2.4.9",
     "@types/tar": "^6.1.10",
     "@types/validate-npm-package-name": "^4.0.2",

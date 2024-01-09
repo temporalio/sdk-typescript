@@ -21,7 +21,6 @@
     "@temporalio/proto": "file:../proto",
     "@temporalio/workflow": "file:../workflow",
     "abort-controller": "^3.0.0",
-    "cargo-cp-artifact": "^0.1.8",
     "heap-js": "^2.3.0",
     "memfs": "^4.6.0",
     "rxjs": "^7.8.1",
