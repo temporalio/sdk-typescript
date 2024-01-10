@@ -307,8 +307,8 @@ test("Worker doesn't request Eager Activity Dispatch if no activities are regist
   t.is(activityTaskStarted?.[0]?.activityTaskStartedEventAttributes?.attempt, 1);
 });
 
-export const finishSignal = defineSignal('finish');
-export const getBuildIdQuery = defineQuery<string>('getBuildId');
+const finishSignal = defineSignal('finish');
+const getBuildIdQuery = defineQuery<string>('getBuildId');
 
 export async function buildIdTester(): Promise<void> {
   const { echo } = workflow.proxyActivities({ startToCloseTimeout: '5s' });
@@ -343,20 +343,14 @@ test('Build Id appropriately set in workflow info', async (t) => {
     buildId: '1.0',
     activities,
   });
-  const worker1Prom = worker1.run();
-  worker1Prom.catch((err) => {
-    t.fail('Worker 1.0 run error: ' + JSON.stringify(err));
-  });
 
-  const wf1 = await client.workflow.start(buildIdTester, {
-    taskQueue,
-    workflowId: wfid,
+  await worker1.runUntil(async () => {
+    const handle = await client.workflow.start(buildIdTester, {
+      taskQueue,
+      workflowId: wfid,
+    });
+    t.is(await handle.query(getBuildIdQuery), '1.0');
   });
-  let bid = await wf1.query(getBuildIdQuery);
-  t.is(bid, '1.0');
-
-  worker1.shutdown();
-  await worker1Prom;
 
   await client.workflowService.resetStickyTaskQueue({
     namespace: worker1.options.namespace,
@@ -367,19 +361,15 @@ test('Build Id appropriately set in workflow info', async (t) => {
     buildId: '1.1',
     activities,
   });
-  const worker2Prom = worker2.run();
-  worker2Prom.catch((err) => {
-    t.fail('Worker 1.1 run error: ' + JSON.stringify(err));
+
+  await worker2.runUntil(async () => {
+    const handle = await client.workflow.getHandle(wfid);
+
+    t.is(await handle.query(getBuildIdQuery), '1.0');
+
+    await handle.signal(finishSignal);
+    await handle.result();
+
+    t.is(await handle.query(getBuildIdQuery), '1.1');
   });
-  bid = await wf1.query(getBuildIdQuery);
-  t.is(bid, '1.0');
-
-  await wf1.signal(finishSignal);
-  await wf1.result();
-  bid = await wf1.query(getBuildIdQuery);
-  t.is(bid, '1.1');
-
-  worker2.shutdown();
-  await worker2Prom;
-  t.pass();
 });
