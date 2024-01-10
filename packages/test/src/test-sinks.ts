@@ -116,7 +116,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
 
     // Capture volatile values that are hard to predict
-    const { historySize, startTime, runStartTime } = recordedCalls[0].info;
+    const { historySize, startTime, runStartTime, currentBuildId } = recordedCalls[0].info;
     t.true(historySize > 300);
 
     const info: WorkflowInfo = {
@@ -146,6 +146,7 @@ if (RUN_INTEGRATION_TESTS) {
       historySize,
       startTime,
       runStartTime,
+      currentBuildId,
       // unsafe.now() doesn't make it through serialization, but .now is required, so we need to cast
       unsafe: {
         isReplaying: false,
