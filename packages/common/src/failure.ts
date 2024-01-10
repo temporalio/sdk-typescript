@@ -51,7 +51,10 @@ export class TemporalFailure extends Error {
    */
   public failure?: ProtoFailure;
 
-  constructor(message?: string | undefined | null, public readonly cause?: Error) {
+  constructor(
+    message?: string | undefined | null,
+    public readonly cause?: Error
+  ) {
     super(message ?? undefined);
   }
 }
@@ -59,7 +62,11 @@ export class TemporalFailure extends Error {
 /** Exceptions originated at the Temporal service. */
 @SymbolBasedInstanceOfError('ServerFailure')
 export class ServerFailure extends TemporalFailure {
-  constructor(message: string | undefined, public readonly nonRetryable: boolean, cause?: Error) {
+  constructor(
+    message: string | undefined,
+    public readonly nonRetryable: boolean,
+    cause?: Error
+  ) {
     super(message, cause);
   }
 }
@@ -188,7 +195,11 @@ export interface ApplicationFailureOptions {
  */
 @SymbolBasedInstanceOfError('CancelledFailure')
 export class CancelledFailure extends TemporalFailure {
-  constructor(message: string | undefined, public readonly details: unknown[] = [], cause?: Error) {
+  constructor(
+    message: string | undefined,
+    public readonly details: unknown[] = [],
+    cause?: Error
+  ) {
     super(message, cause);
   }
 }

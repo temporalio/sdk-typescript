@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/no-named-as-default
 import got from 'got';
 import { headers } from './headers.js';
 

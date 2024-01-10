@@ -48,7 +48,10 @@ export function timeOfDayToBigint(timeOfDay: [number, number]): bigint {
 export class DefaultLogger implements Logger {
   protected readonly severity: number;
 
-  constructor(public readonly level: LogLevel = 'INFO', protected readonly logFunction = defaultLogFunction) {
+  constructor(
+    public readonly level: LogLevel = 'INFO',
+    protected readonly logFunction = defaultLogFunction
+  ) {
     this.severity = severities.indexOf(this.level);
   }
 

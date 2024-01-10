@@ -17,7 +17,10 @@ import { Runtime } from './runtime';
 export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterceptor {
   protected readonly logger: Logger;
 
-  constructor(protected readonly ctx: Context, logger?: Logger | undefined) {
+  constructor(
+    protected readonly ctx: Context,
+    logger?: Logger | undefined
+  ) {
     const runtimeLogger = Runtime.instance().logger;
     this.logger = logger ?? runtimeLogger;
 

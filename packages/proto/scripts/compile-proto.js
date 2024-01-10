@@ -86,7 +86,7 @@ async function compileProtos(dtsOutputFile, ...args) {
 async function main() {
   mkdirSync(outputDir, { recursive: true });
 
-  const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
+  const protoFiles = glob.sync('**/*.proto', { cwd: protoBaseDir, absolute: true, root: '' });
   const protosMTime = Math.max(...protoFiles.map(mtime));
   const genMTime = mtime(jsOutputFile);
 

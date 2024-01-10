@@ -2,7 +2,7 @@ const path = require('path');
 const glob = require('glob');
 
 function markdownFiles() {
-  return glob.sync(path.join(__dirname, 'docs/api/*/*.md'));
+  return glob.sync('docs/api/*/*.md', { cwd: __dirname, absolute: true, root: '' });
 }
 
 function titleCase(str) {
