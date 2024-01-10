@@ -1244,7 +1244,7 @@ export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<R
 export function setHandler<
   Ret,
   Args extends any[],
-T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>,
+  T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>,
 >(def: T, handler: Handler<Ret, Args, T> | undefined, options?: AnyHandlerOptions<Args>): void {
   const activator = assertInWorkflowContext('Workflow.setHandler(...) may only be used from a Workflow Execution.');
   const description = options?.description;
