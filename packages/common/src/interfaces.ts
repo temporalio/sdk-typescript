@@ -6,7 +6,13 @@ export type Payload = temporal.api.common.v1.IPayload;
 export type WorkflowReturnType = Promise<any>;
 export type WorkflowUpdateType = (...args: any[]) => Promise<any> | any;
 export type WorkflowUpdateValidatorType = (...args: any[]) => void;
+export type WorkflowUpdateAnnotatedType = {
+  handler: WorkflowUpdateType;
+  validator?: WorkflowUpdateValidatorType;
+  description?: string;
+};
 export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;
+export type WorkflowSignalAnnotatedType = { handler: WorkflowSignalType; description?: string };
 export type WorkflowQueryType = (...args: any[]) => any;
 
 /**

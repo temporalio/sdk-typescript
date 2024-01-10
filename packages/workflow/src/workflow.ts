@@ -32,6 +32,7 @@ import {
   TimerInput,
 } from './interceptors';
 import {
+  AnyHandlerOptions,
   ChildWorkflowCancellationType,
   ChildWorkflowOptions,
   ChildWorkflowOptionsWithDefaults,
@@ -40,7 +41,8 @@ import {
   DefaultSignalHandler,
   EnhancedStackTrace,
   Handler,
-  UpdateValidator,
+  SignalOrQueryHandlerOptions,
+  UpdateHandlerOptions,
   WorkflowInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
@@ -1149,12 +1151,12 @@ export function defineQuery<Ret, Args extends any[] = [], Name extends string = 
 export function setHandler<Ret, Args extends any[], T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>>(
   def: T,
   handler: Handler<Ret, Args, T> | undefined,
-  options?: { description?: string }
+  options?: SignalOrQueryHandlerOptions
 ): void;
 export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<Ret, Args>>(
   def: T,
   handler: Handler<Ret, Args, T> | undefined,
-  options?: { validator?: UpdateValidator<Args>; description?: string }
+  options?: UpdateHandlerOptions<Args>
 ): void;
 
 // For Updates and Signals we want to make a public guarantee something like the
@@ -1243,11 +1245,7 @@ export function setHandler<
   Ret,
   Args extends any[],
   T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>
->(
-  def: T,
-  handler: Handler<Ret, Args, T> | undefined,
-  options?: { validator?: UpdateValidator<Args>; description?: string }
-): void {
+>(def: T, handler: Handler<Ret, Args, T> | undefined, options?: AnyHandlerOptions<Args>): void {
   const activator = assertInWorkflowContext('Workflow.setHandler(...) may only be used from a Workflow Execution.');
   const description = options?.description;
   if (def.type === 'update') {

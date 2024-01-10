@@ -11,10 +11,9 @@ import {
   Workflow,
   WorkflowExecutionAlreadyStartedError,
   WorkflowQueryType,
-  WorkflowSignalType,
-  WorkflowUpdateType,
+  WorkflowSignalAnnotatedType,
+  WorkflowUpdateAnnotatedType,
   ProtoFailure,
-  WorkflowUpdateValidatorType,
   ApplicationFailure,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -125,15 +124,12 @@ export class Activator implements ActivationHandler {
   /**
    * Mapping of update name to handler and validator
    */
-  readonly updateHandlers = new Map<
-    string,
-    { handler: WorkflowUpdateType; validator?: WorkflowUpdateValidatorType; description?: string }
-  >();
+  readonly updateHandlers = new Map<string, WorkflowUpdateAnnotatedType>();
 
   /**
    * Mapping of signal name to handler
    */
-  readonly signalHandlers = new Map<string, { handler: WorkflowSignalType; description?: string }>();
+  readonly signalHandlers = new Map<string, WorkflowSignalAnnotatedType>();
 
   /**
    * A signal handler that catches calls for non-registered signal names.
