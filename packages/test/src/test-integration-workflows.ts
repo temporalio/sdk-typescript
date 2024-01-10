@@ -263,20 +263,6 @@ test('Query workflow metadata returns handler descriptions', async (t) => {
   });
 });
 
-test('Query workflow metadata returns workflow description', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
-
-  const worker = await createWorker();
-
-  await worker.runUntil(async () => {
-    const handle = await startWorkflow(queryWorkflowMetadata, {
-      memo: { __temporal_workflow_description: 'my workflow' },
-    });
-    const meta = await handle.query(workflow.workflowMetadataQuery);
-    t.is(meta.definition?.description, 'my workflow');
-  });
-});
-
 export async function executeEagerActivity(): Promise<void> {
   const scheduleActivity = () =>
     workflow

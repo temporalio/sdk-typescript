@@ -201,7 +201,6 @@ export class Activator implements ActivationHandler {
       {
         handler: (): temporal.api.sdk.v1.IWorkflowMetadata => {
           const workflowType = this.info.workflowType;
-          const description = this.info?.memo?.__temporal_workflow_description;
           const queryDefinitions = Array.from(this.queryHandlers.entries()).map(([name, value]) => ({
             name,
             description: value.description,
@@ -217,15 +216,14 @@ export class Activator implements ActivationHandler {
           return {
             definition: {
               type: workflowType,
-              description: typeof description === 'string' ? description : null,
+              description: null, // For now, do not set the workflow description in the TS SDK.
               queryDefinitions,
               signalDefinitions,
               updateDefinitions,
             },
           };
         },
-        description:
-          'Returns metadata associated with this workflow. Use `memo.__temporal_workflow_description` to add a workflow description.',
+        description: 'Returns metadata associated with this workflow.',
       },
     ],
   ]);
