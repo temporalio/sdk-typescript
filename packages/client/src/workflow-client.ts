@@ -1283,7 +1283,10 @@ export class QueryRejectedError extends Error {
 
 @SymbolBasedInstanceOfError('QueryNotRegisteredError')
 export class QueryNotRegisteredError extends Error {
-  constructor(message: string, public readonly code: grpcStatus) {
+  constructor(
+    message: string,
+    public readonly code: grpcStatus
+  ) {
     super(message);
   }
 }

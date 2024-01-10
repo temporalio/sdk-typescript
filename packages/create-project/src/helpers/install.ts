@@ -46,7 +46,7 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
 
     const packageExists = await isUrlOk(`https://registry.npmjs.org/${packageName}`);
     if (packageExists) {
-      const fileNames = await glob([`${root}/**/package.json`, `${root}/**/tsconfig.json`]);
+      const fileNames = await glob(['**/package.json', '**/tsconfig.json'], { cwd: root, absolute: true, root: '' });
 
       for (const fileName of fileNames) {
         const fileString = (await readFile(fileName)).toString();

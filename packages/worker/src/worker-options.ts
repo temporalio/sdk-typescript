@@ -632,7 +632,7 @@ export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
  *
  * @deprecated Calling `appendDefaultInterceptors()` is no longer required. To configure a custom logger, set the
- *             {@see Runtime.logger} property instead.
+ *             {@link Runtime.logger} property instead.
  */
 export function appendDefaultInterceptors(
   interceptors: WorkerInterceptors,

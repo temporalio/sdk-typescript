@@ -4,7 +4,11 @@ import { ChildProcess } from 'node:child_process';
 export class ChildProcessError extends Error {
   public readonly name = 'ChildProcessError';
 
-  constructor(message: string, public readonly code: number | null, public readonly signal: NodeJS.Signals | null) {
+  constructor(
+    message: string,
+    public readonly code: number | null,
+    public readonly signal: NodeJS.Signals | null
+  ) {
     super(message);
   }
 }

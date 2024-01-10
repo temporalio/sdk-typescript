@@ -4,7 +4,10 @@ import { defaultDataConverter, LoadedDataConverter } from '@temporalio/common';
 import { ActivityExecuteInput, ActivityInboundCallsInterceptor, Next } from '@temporalio/worker';
 
 export class ConnectionInjectorInterceptor implements ActivityInboundCallsInterceptor {
-  constructor(public readonly connection: ConnectionLike, public readonly dataConverter = defaultDataConverter) {}
+  constructor(
+    public readonly connection: ConnectionLike,
+    public readonly dataConverter = defaultDataConverter
+  ) {}
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
     Object.assign(activity.Context.current(), {
       connection: this.connection,

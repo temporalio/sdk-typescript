@@ -24,8 +24,8 @@
   "dependencies": {
     "@temporalio/common": "file:../common",
     "arg": "^5.0.2",
-    "cargo-cp-artifact": "^0.1.6",
-    "which": "^2.0.2"
+    "cargo-cp-artifact": "^0.1.8",
+    "which": "^4.0.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

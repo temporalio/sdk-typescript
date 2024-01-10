@@ -20,8 +20,12 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "long": "^5.2.0",
+    "long": "^5.2.3",
     "protobufjs": "^7.2.5"
+  },
+  "devDependencies": {
+    "glob": "^10.3.10",
+    "protobufjs-cli": "^1.1.2"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

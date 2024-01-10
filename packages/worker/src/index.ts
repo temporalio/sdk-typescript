@@ -67,7 +67,7 @@ export {
 export {
   /**
    * @deprecated Including `appendDefaultInterceptors()` in the worker options is no longer required. To configure a
-   *             custom logger, set the {@see Runtime.logger} property instead.
+   *             custom logger, set the {@link Runtime.logger} property instead.
    */
   appendDefaultInterceptors, // eslint-disable-line deprecation/deprecation
   /**

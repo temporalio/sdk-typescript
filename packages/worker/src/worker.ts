@@ -222,7 +222,10 @@ export class NativeWorker implements NativeWorkerLike {
     };
   }
 
-  protected constructor(protected readonly runtime: Runtime, protected readonly nativeWorker: native.Worker) {
+  protected constructor(
+    protected readonly runtime: Runtime,
+    protected readonly nativeWorker: native.Worker
+  ) {
     this.pollWorkflowActivation = promisify(native.workerPollWorkflowActivation).bind(undefined, nativeWorker);
     this.pollActivityTask = promisify(native.workerPollActivityTask).bind(undefined, nativeWorker);
     this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);

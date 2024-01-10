@@ -259,7 +259,6 @@ export class TestWorkflowEnvironment {
    * yourself.
    */
   static async createLocal(opts?: LocalTestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
-    // eslint-disable-next-line deprecation/deprecation
     return await this.create({
       server: { type: 'dev-server', ...opts?.server },
       client: opts?.client,

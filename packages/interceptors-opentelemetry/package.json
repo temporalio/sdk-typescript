@@ -14,10 +14,19 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@opentelemetry/api": "^1.4.1",
-    "@opentelemetry/core": "^1.12.0",
-    "@opentelemetry/resources": "^1.12.0",
-    "@opentelemetry/sdk-trace-base": "^1.12.0",
+    "@opentelemetry/api": "^1.7.0",
+    "@opentelemetry/core": "^1.19.0",
+    "@opentelemetry/resources": "^1.19.0",
+    "@opentelemetry/sdk-trace-base": "^1.19.0"
+  },
+  "devDependencies": {
+    "@temporalio/activity": "file:../activity",
+    "@temporalio/client": "file:../client",
+    "@temporalio/common": "file:../common",
+    "@temporalio/worker": "file:../worker",
+    "@temporalio/workflow": "file:../workflow"
+  },
+  "peerDependencies": {
     "@temporalio/activity": "file:../activity",
     "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",
