@@ -446,14 +446,14 @@ export interface WorkflowCreateOptionsInternal extends WorkflowCreateOptions {
 export type Handler<
   Ret,
   Args extends any[],
-  T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>
+  T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>,
 > = T extends UpdateDefinition<infer R, infer A>
   ? (...args: A) => R | Promise<R>
   : T extends SignalDefinition<infer A>
-  ? (...args: A) => void | Promise<void>
-  : T extends QueryDefinition<infer R, infer A>
-  ? (...args: A) => R
-  : never;
+    ? (...args: A) => void | Promise<void>
+    : T extends QueryDefinition<infer R, infer A>
+      ? (...args: A) => R
+      : never;
 
 /**
  * A handler function accepting signal calls for non-registered signal names.

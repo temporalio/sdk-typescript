@@ -6,7 +6,11 @@ export class ChildProcessError extends Error {
   public command?: string;
   public args?: ReadonlyArray<string>;
 
-  constructor(message: string, public readonly code: number | null, public readonly signal: string | null) {
+  constructor(
+    message: string,
+    public readonly code: number | null,
+    public readonly signal: string | null
+  ) {
     super(message);
   }
 }

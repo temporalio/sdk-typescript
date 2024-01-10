@@ -6,7 +6,10 @@ import { SymbolBasedInstanceOfError } from './type-helpers';
  */
 @SymbolBasedInstanceOfError('ValueError')
 export class ValueError extends Error {
-  constructor(message: string | undefined, public readonly cause?: unknown) {
+  constructor(
+    message: string | undefined,
+    public readonly cause?: unknown
+  ) {
     super(message ?? undefined);
   }
 }
@@ -33,7 +36,11 @@ export class IllegalStateError extends Error {}
  */
 @SymbolBasedInstanceOfError('WorkflowExecutionAlreadyStartedError')
 export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
-  constructor(message: string, public readonly workflowId: string, public readonly workflowType: string) {
+  constructor(
+    message: string,
+    public readonly workflowId: string,
+    public readonly workflowType: string
+  ) {
     super(message);
   }
 }
@@ -47,7 +54,11 @@ export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
  */
 @SymbolBasedInstanceOfError('WorkflowNotFoundError')
 export class WorkflowNotFoundError extends Error {
-  constructor(message: string, public readonly workflowId: string, public readonly runId: string | undefined) {
+  constructor(
+    message: string,
+    public readonly workflowId: string,
+    public readonly runId: string | undefined
+  ) {
     super(message);
   }
 }

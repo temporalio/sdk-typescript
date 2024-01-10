@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { rm, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import * as tar from 'tar';
+// eslint-disable-next-line import/no-named-as-default
 import got from 'got';
 import chalk from 'chalk';
 import { getErrorCode } from './get-error-code.js';
