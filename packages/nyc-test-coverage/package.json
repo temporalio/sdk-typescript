@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/nyc-test-coverage",
-  "version": "1.9.0-rc.0",
+  "version": "1.9.0",
   "description": "Temporal.io SDK code coverage integration",
   "keywords": [
     "temporal",
@@ -32,13 +32,13 @@
     "ts-loader": "^9.5.1"
   },
   "devDependencies": {
+    "@temporalio/common": "file:../common",
+    "@temporalio/worker": "file:../worker",
+    "@temporalio/workflow": "file:../workflow",
     "@types/convert-source-map": "^2.0.3",
     "@types/istanbul-lib-coverage": "^2.0.6",
     "@types/istanbul-lib-instrument": "^1.7.7",
     "@types/webpack": "^5.28.5",
-    "@temporalio/common": "file:../common",
-    "@temporalio/worker": "file:../worker",
-    "@temporalio/workflow": "file:../workflow",
     "webpack": "5.89.0"
   },
   "peerDependencies": {

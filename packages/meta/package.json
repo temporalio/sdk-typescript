@@ -1,6 +1,6 @@
 {
   "name": "temporalio",
-  "version": "1.9.0-rc.0",
+  "version": "1.9.0",
   "description": "Temporal.io SDK meta-package",
   "dependencies": {
     "@temporalio/activity": "file:../activity",
