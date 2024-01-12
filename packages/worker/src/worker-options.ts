@@ -179,6 +179,9 @@ export interface WorkerOptions {
 
   /**
    * Provide a custom {@link DataConverter}.
+   *
+   * When bundling workflows ahead of time, make sure to provide custom payload and failure
+   * converter paths as options to `bundleWorkflowCode`.
    */
   dataConverter?: DataConverter;
 
