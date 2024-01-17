@@ -5,6 +5,7 @@ import * as activity from '@temporalio/activity';
 import { tsToMs } from '@temporalio/common/lib/time';
 import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
+import { defineQuery, defineSignal } from '@temporalio/workflow';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
@@ -266,7 +267,10 @@ test('Query workflow metadata returns handler descriptions', async (t) => {
 export async function executeEagerActivity(): Promise<void> {
   const scheduleActivity = () =>
     workflow
-      .proxyActivities({ scheduleToCloseTimeout: '5s', allowEagerDispatch: true })
+      .proxyActivities({
+        scheduleToCloseTimeout: '5s',
+        allowEagerDispatch: true,
+      })
       .testActivity()
       .then((res) => {
         if (res !== 'workflow-and-activity-worker')
@@ -344,4 +348,54 @@ test("Worker doesn't request Eager Activity Dispatch if no activities are regist
   const activityTaskStarted = events?.filter?.((ev) => ev.activityTaskStartedEventAttributes);
   t.is(activityTaskStarted?.length, 1);
   t.is(activityTaskStarted?.[0]?.activityTaskStartedEventAttributes?.attempt, 1);
+});
+
+const unblockSignal = defineSignal('unblock');
+const getBuildIdQuery = defineQuery<string>('getBuildId');
+
+export async function buildIdTester(): Promise<void> {
+  let blocked = true;
+  workflow.setHandler(unblockSignal, () => {
+    blocked = false;
+  });
+
+  workflow.setHandler(getBuildIdQuery, () => {
+    return workflow.workflowInfo().currentBuildId ?? '';
+  });
+
+  // The unblock signal will only be sent once we are in Worker 1.1.
+  // Therefore, up to this point, we are runing in Worker 1.0
+  await workflow.condition(() => !blocked);
+  // From this point on, we are runing in Worker 1.1
+
+  // Prevent workflow completion
+  await workflow.condition(() => false);
+}
+
+test('Build Id appropriately set in workflow info', async (t) => {
+  const { taskQueue, createWorker } = helpers(t);
+  const wfid = `${taskQueue}-` + randomUUID();
+  const client = t.context.env.client;
+
+  const worker1 = await createWorker({ buildId: '1.0' });
+  await worker1.runUntil(async () => {
+    const handle = await client.workflow.start(buildIdTester, {
+      taskQueue,
+      workflowId: wfid,
+    });
+    t.is(await handle.query(getBuildIdQuery), '1.0');
+  });
+
+  await client.workflowService.resetStickyTaskQueue({
+    namespace: worker1.options.namespace,
+    execution: { workflowId: wfid },
+  });
+
+  const worker2 = await createWorker({ buildId: '1.1' });
+  await worker2.runUntil(async () => {
+    const handle = await client.workflow.getHandle(wfid);
+    t.is(await handle.query(getBuildIdQuery), '1.0');
+    await handle.signal(unblockSignal);
+    t.is(await handle.query(getBuildIdQuery), '1.1');
+  });
 });

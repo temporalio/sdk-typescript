@@ -11,8 +11,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics};
-use temporal_sdk_core::api::telemetry::metrics::CoreMeter;
-use temporal_sdk_core::api::telemetry::{CoreTelemetry, TelemetryOptions};
+use temporal_sdk_core::api::telemetry::CoreTelemetry;
 use temporal_sdk_core::CoreRuntime;
 use temporal_sdk_core::{
     ephemeral_server::EphemeralServer as CoreEphemeralServer,
@@ -117,10 +116,7 @@ pub enum RuntimeRequest {
 /// Bridges requests from JS to core and sends responses back to JS using a neon::Channel.
 /// Blocks current thread until a [Shutdown] request is received in channel.
 pub fn start_bridge_loop(
-    telemetry_options: (
-        TelemetryOptions,
-        Option<Box<dyn FnOnce() -> Arc<dyn CoreMeter> + Send>>,
-    ),
+    telemetry_options: TelemOptsRes,
     channel: Arc<Channel>,
     receiver: &mut UnboundedReceiver<RuntimeRequest>,
 ) {
