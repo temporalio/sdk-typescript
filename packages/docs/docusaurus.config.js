@@ -129,6 +129,9 @@ module.exports = {
         excludeProtected: true,
         hideGenerator: true,
         disableSources: true,
+        jsDocCompatibility: {
+          exampleTag: false,
+        },
         readme: 'none',
         watch,
         frontmatter: {
