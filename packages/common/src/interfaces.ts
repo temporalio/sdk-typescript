@@ -14,6 +14,7 @@ export type WorkflowUpdateAnnotatedType = {
 export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;
 export type WorkflowSignalAnnotatedType = { handler: WorkflowSignalType; description?: string };
 export type WorkflowQueryType = (...args: any[]) => any;
+export type WorkflowQueryAnnotatedType = { handler: WorkflowQueryType; description?: string };
 
 /**
  * Broad Workflow function definition, specific Workflows will typically use a narrower type definition, e.g:

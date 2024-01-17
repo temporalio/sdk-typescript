@@ -32,7 +32,6 @@ import {
   TimerInput,
 } from './interceptors';
 import {
-  AnyHandlerOptions,
   ChildWorkflowCancellationType,
   ChildWorkflowOptions,
   ChildWorkflowOptionsWithDefaults,
@@ -41,7 +40,8 @@ import {
   DefaultSignalHandler,
   EnhancedStackTrace,
   Handler,
-  SignalOrQueryHandlerOptions,
+  QueryHandlerOptions,
+  SignalHandlerOptions,
   UpdateHandlerOptions,
   WorkflowInfo,
 } from './interfaces';
@@ -1148,10 +1148,15 @@ export function defineQuery<Ret, Args extends any[] = [], Name extends string = 
  * @param handler a compatible handler function for the given definition or `undefined` to unset the handler.
  * @param options an optional `description` of the handler and an optional update `validator` function.
  */
-export function setHandler<Ret, Args extends any[], T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>>(
+export function setHandler<Ret, Args extends any[], T extends QueryDefinition<Ret, Args>>(
   def: T,
   handler: Handler<Ret, Args, T> | undefined,
-  options?: SignalOrQueryHandlerOptions
+  options?: QueryHandlerOptions
+): void;
+export function setHandler<Ret, Args extends any[], T extends SignalDefinition<Args>>(
+  def: T,
+  handler: Handler<Ret, Args, T> | undefined,
+  options?: SignalHandlerOptions
 ): void;
 export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<Ret, Args>>(
   def: T,
@@ -1245,12 +1250,17 @@ export function setHandler<
   Ret,
   Args extends any[],
   T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>,
->(def: T, handler: Handler<Ret, Args, T> | undefined, options?: AnyHandlerOptions<Args>): void {
+>(
+  def: T,
+  handler: Handler<Ret, Args, T> | undefined,
+  options?: QueryHandlerOptions | SignalHandlerOptions | UpdateHandlerOptions<Args>
+): void {
   const activator = assertInWorkflowContext('Workflow.setHandler(...) may only be used from a Workflow Execution.');
   const description = options?.description;
   if (def.type === 'update') {
     if (typeof handler === 'function') {
-      const validator = options?.validator as WorkflowUpdateValidatorType | undefined;
+      const updateOptions = options as UpdateHandlerOptions<Args> | undefined;
+      const validator = updateOptions?.validator as WorkflowUpdateValidatorType | undefined;
       activator.updateHandlers.set(def.name, { handler, validator, description });
       activator.dispatchBufferedUpdates();
     } else if (handler == null) {

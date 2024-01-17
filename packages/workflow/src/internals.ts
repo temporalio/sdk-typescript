@@ -10,7 +10,7 @@ import {
   TemporalFailure,
   Workflow,
   WorkflowExecutionAlreadyStartedError,
-  WorkflowQueryType,
+  WorkflowQueryAnnotatedType,
   WorkflowSignalAnnotatedType,
   WorkflowUpdateAnnotatedType,
   ProtoFailure,
@@ -156,7 +156,7 @@ export class Activator implements ActivationHandler {
   /**
    * Mapping of query name to handler
    */
-  public readonly queryHandlers = new Map<string, { handler: WorkflowQueryType; description?: string }>([
+  public readonly queryHandlers = new Map<string, WorkflowQueryAnnotatedType>([
     [
       '__stack_trace',
       {
