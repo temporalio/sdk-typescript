@@ -224,6 +224,46 @@ test('Start of workflow with signal is delayed', async (t) => {
   t.is(tsToMs(startDelay), 4678000);
 });
 
+export async function queryWorkflowMetadata(): Promise<void> {
+  const dummyQuery1 = workflow.defineQuery<void>('dummyQuery1');
+  const dummyQuery2 = workflow.defineQuery<void>('dummyQuery2');
+  const dummyQuery3 = workflow.defineQuery<void>('dummyQuery3');
+  const dummySignal1 = workflow.defineSignal('dummySignal1');
+  const dummyUpdate1 = workflow.defineUpdate<void>('dummyUpdate1');
+
+  workflow.setHandler(dummyQuery1, () => void {}, { description: 'ignore' });
+  // Override description
+  workflow.setHandler(dummyQuery1, () => void {}, { description: 'query1' });
+  workflow.setHandler(dummyQuery2, () => void {}, { description: 'query2' });
+  workflow.setHandler(dummyQuery3, () => void {}, { description: 'query3' });
+  // Remove handler
+  workflow.setHandler(dummyQuery3, undefined);
+  workflow.setHandler(dummySignal1, () => void {}, { description: 'signal1' });
+  workflow.setHandler(dummyUpdate1, () => void {}, { description: 'update1' });
+  await workflow.condition(() => false);
+}
+
+test('Query workflow metadata returns handler descriptions', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const worker = await createWorker();
+
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(queryWorkflowMetadata);
+    const meta = await handle.query(workflow.workflowMetadataQuery);
+    t.is(meta.definition?.type, 'queryWorkflowMetadata');
+    const queryDefinitions = meta.definition?.queryDefinitions;
+    // Three built-in ones plus dummyQuery1 and dummyQuery2
+    t.is(queryDefinitions?.length, 5);
+    t.deepEqual(queryDefinitions?.[3], { name: 'dummyQuery1', description: 'query1' });
+    t.deepEqual(queryDefinitions?.[4], { name: 'dummyQuery2', description: 'query2' });
+    const signalDefinitions = meta.definition?.signalDefinitions;
+    t.deepEqual(signalDefinitions, [{ name: 'dummySignal1', description: 'signal1' }]);
+    const updateDefinitions = meta.definition?.updateDefinitions;
+    t.deepEqual(updateDefinitions, [{ name: 'dummyUpdate1', description: 'update1' }]);
+  });
+});
+
 export async function executeEagerActivity(): Promise<void> {
   const scheduleActivity = () =>
     workflow

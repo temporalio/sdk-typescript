@@ -464,3 +464,18 @@ export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => v
  * A validation function capable of accepting the arguments for a given UpdateDefinition.
  */
 export type UpdateValidator<Args extends any[]> = (...args: Args) => void;
+
+/**
+ * A description of a query handler.
+ */
+export type QueryHandlerOptions = { description?: string };
+
+/**
+ * A description of a signal handler.
+ */
+export type SignalHandlerOptions = { description?: string };
+
+/**
+ * A validator and description of an update handler.
+ */
+export type UpdateHandlerOptions<Args extends any[]> = { validator?: UpdateValidator<Args>; description?: string };

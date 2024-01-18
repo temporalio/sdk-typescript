@@ -1922,10 +1922,10 @@ test('query not found - successString', async (t) => {
           queryId: 'qid',
           failed: {
             message:
-              'Workflow did not register a handler for not-found. Registered queries: [__stack_trace __enhanced_stack_trace]',
+              'Workflow did not register a handler for not-found. Registered queries: [__stack_trace __enhanced_stack_trace __temporal_workflow_metadata]',
             source: 'TypeScriptSDK',
             stackTrace:
-              'ReferenceError: Workflow did not register a handler for not-found. Registered queries: [__stack_trace __enhanced_stack_trace]',
+              'ReferenceError: Workflow did not register a handler for not-found. Registered queries: [__stack_trace __enhanced_stack_trace __temporal_workflow_metadata]',
             applicationFailureInfo: {
               type: 'ReferenceError',
               nonRetryable: false,
