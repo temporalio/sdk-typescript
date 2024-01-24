@@ -22,7 +22,7 @@ test.serial(
         () => Runtime.install({ telemetryOptions: { metrics: { prometheus: { bindAddress: `127.0.0.1:${port}` } } } }),
         {
           instanceOf: Error,
-          message: /Address already in use/,
+          message: /(Address already in use|socket address)/,
         }
       );
     });
