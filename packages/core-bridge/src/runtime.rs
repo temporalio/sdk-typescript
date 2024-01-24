@@ -2,7 +2,6 @@ use crate::{conversions::*, errors::*, helpers::*, worker::*};
 use neon::context::Context;
 use neon::prelude::*;
 use parking_lot::RwLock;
-use tokio::sync::oneshot;
 use std::cell::Cell;
 use std::{
     cell::RefCell,
@@ -20,6 +19,7 @@ use temporal_sdk_core::{
     replay::{HistoryForReplay, ReplayWorkerInput},
     ClientOptions, RetryClient, WorkerConfig,
 };
+use tokio::sync::oneshot;
 use tokio::sync::{
     mpsc::{channel, unbounded_channel, Sender, UnboundedReceiver, UnboundedSender},
     Mutex,
@@ -130,21 +130,24 @@ pub fn start_bridge_loop(
         CoreRuntime::new(telem_opts, tokio_builder).expect("Failed to create CoreRuntime");
 
     core_runtime.tokio_handle().block_on(async {
-
         if let Some(meter_maker) = meter_maker {
             match meter_maker() {
                 Ok(meter) => {
-                    core_runtime
-                        .telemetry_mut()
-                        .attach_late_init_metrics(meter);
+                    core_runtime.telemetry_mut().attach_late_init_metrics(meter);
                 }
                 Err(err) => {
-                    result_sender.send(Err(format!("Failed to create meter: {}", err))).unwrap_or_else(|_| panic!("Failed to report runtime start error: {}", err));
+                    result_sender
+                        .send(Err(format!("Failed to create meter: {}", err)))
+                        .unwrap_or_else(|_| {
+                            panic!("Failed to report runtime start error: {}", err)
+                        });
                     return;
                 }
             }
         }
-        result_sender.send(Ok(())).expect("Failed to report runtime start success");
+        result_sender
+            .send(Ok(()))
+            .expect("Failed to report runtime start success");
 
         loop {
             let request_option = receiver.recv().await;
@@ -405,7 +408,9 @@ pub fn runtime_new(mut cx: FunctionContext) -> JsResult<BoxedRuntime> {
     //        on runtime shutdown, so let's use this hack until we can dig deeper.
     let (result_sender, result_receiver) = oneshot::channel::<Result<(), String>>();
 
-    std::thread::spawn(move || start_bridge_loop(telemetry_options, channel, &mut receiver, result_sender));
+    std::thread::spawn(move || {
+        start_bridge_loop(telemetry_options, channel, &mut receiver, result_sender)
+    });
 
     if let Ok(Err(e)) = result_receiver.blocking_recv() {
         Err(cx.throw_error::<_, String>(e).unwrap_err())?;
