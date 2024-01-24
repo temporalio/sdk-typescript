@@ -1,3 +1,4 @@
+import * as net from 'net';
 import path from 'path';
 import StackUtils from 'stack-utils';
 import ava, { TestFn } from 'ava';
@@ -93,6 +94,7 @@ export const bundlerOptions = {
     '@grpc/grpc-js',
     'async-retry',
     'uuid',
+    'net',
   ],
 };
 
@@ -182,4 +184,19 @@ export async function registerDefaultCustomSearchAttributes(connection: Connecti
   );
   const timeTaken = Date.now() - startTime;
   console.log(`... Registered (took ${timeTaken / 1000} sec)!`);
+}
+
+export async function getRandomPort(fn = (_port: number) => Promise.resolve()): Promise<number> {
+  return new Promise<number>((resolve, reject) => {
+    const srv = net.createServer();
+    srv.listen({ port: 0, host: '127.0.0.1' }, () => {
+      const addr = srv.address();
+      if (typeof addr === 'string' || addr === null) {
+        throw new Error('Unexpected server address type');
+      }
+      fn(addr.port)
+        .catch((e) => reject(e))
+        .finally(() => srv.close((_) => resolve(addr.port)));
+    });
+  });
 }

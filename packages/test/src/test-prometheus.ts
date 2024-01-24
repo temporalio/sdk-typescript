@@ -1,51 +1,57 @@
-import * as net from 'net';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import fetch from 'node-fetch';
 import { WorkflowClient } from '@temporalio/client';
-import { NativeConnection, Runtime } from '@temporalio/worker';
-import * as activities from './activities';
-import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { Runtime } from '@temporalio/worker';
+import { TestWorkflowEnvironment } from '@temporalio/testing';
+import { Worker, getRandomPort } from './helpers';
 import * as workflows from './workflows';
 
-async function getRandomPort(): Promise<number> {
-  return new Promise<number>((res) => {
-    const srv = net.createServer();
-    srv.listen(0, () => {
-      const addr = srv.address();
-      if (typeof addr === 'string' || addr === null) {
-        throw new Error('Unexpected server address type');
-      }
-      srv.close((_) => res(addr.port));
-    });
+test.serial('Runtime.install() throws meaningful error when passed invalid metrics.prometheus.bindAddress', (t) => {
+  t.throws(() => Runtime.install({ telemetryOptions: { metrics: { prometheus: { bindAddress: ':invalid' } } } }), {
+    instanceOf: TypeError,
+    message: 'Invalid telemetryOptions.metrics.prometheus.bindAddress',
   });
-}
+});
 
-if (RUN_INTEGRATION_TESTS) {
-  test.serial('Prometheus metrics work', async (t) => {
-    const port = await getRandomPort();
-    Runtime.install({
-      telemetryOptions: {
-        metrics: {
-          prometheus: {
-            bindAddress: `127.0.0.1:${port}`,
-          },
+test.serial(
+  'Runtime.install() throws meaningful error when metrics.prometheus.bindAddress port is already taken',
+  async (t) => {
+    await getRandomPort(async (port: number) => {
+      t.throws(
+        () => Runtime.install({ telemetryOptions: { metrics: { prometheus: { bindAddress: `127.0.0.1:${port}` } } } }),
+        {
+          instanceOf: Error,
+          message: /Address already in use/,
+        }
+      );
+    });
+  }
+);
+
+test.serial('Exporting Prometheus metrics from Core works', async (t) => {
+  const port = await getRandomPort();
+  Runtime.install({
+    telemetryOptions: {
+      metrics: {
+        prometheus: {
+          bindAddress: `127.0.0.1:${port}`,
         },
       },
-    });
-    const connection = await NativeConnection.connect({
-      address: '127.0.0.1:7233',
-    });
+    },
+  });
+  const localEnv = await TestWorkflowEnvironment.createLocal();
+  try {
     const worker = await Worker.create({
-      connection,
+      connection: localEnv.nativeConnection,
       workflowsPath: require.resolve('./workflows'),
-      activities,
       taskQueue: 'test-prometheus',
     });
-
-    const client = new WorkflowClient();
+    const client = new WorkflowClient({
+      connection: localEnv.connection,
+    });
     await worker.runUntil(async () => {
-      await client.execute(workflows.cancelFakeProgress, {
+      await client.execute(workflows.successString, {
         taskQueue: 'test-prometheus',
         workflowId: uuid4(),
       });
@@ -54,7 +60,7 @@ if (RUN_INTEGRATION_TESTS) {
       const text = await resp.text();
       t.assert(text.includes('task_slots'));
     });
-
-    t.pass();
-  });
-}
+  } finally {
+    await localEnv.teardown();
+  }
+});

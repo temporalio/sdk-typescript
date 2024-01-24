@@ -198,12 +198,12 @@ export class Runtime {
    * Factory function for creating a new Core instance, not exposed because Core is meant to be used as a singleton
    */
   protected static create(options: RuntimeOptions, instantiator: 'install' | 'instance'): Runtime {
+    const compiledOptions = this.compileOptions(options);
+    const runtime = newRuntime(compiledOptions.telemetryOptions);
+
     // Remember the provided options in case Core is reinstantiated after being shut down
     this.defaultOptions = options;
     this.instantiator = instantiator;
-
-    const compiledOptions = this.compileOptions(options);
-    const runtime = newRuntime(compiledOptions.telemetryOptions);
     this._instance = new this(runtime, compiledOptions);
     return this._instance;
   }
@@ -239,7 +239,7 @@ export class Runtime {
             ? {
                 otel: {
                   url: metrics.otel.url,
-                  headers: metrics.otel.headers,
+                  headers: metrics.otel.headers ?? {},
                   metricsExportInterval: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
                 },
               }

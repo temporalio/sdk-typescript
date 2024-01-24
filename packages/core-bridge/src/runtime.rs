@@ -119,6 +119,7 @@ pub fn start_bridge_loop(
     telemetry_options: TelemOptsRes,
     channel: Arc<Channel>,
     receiver: &mut UnboundedReceiver<RuntimeRequest>,
+    result_sender: UnboundedSender<Result<(), String>>,
 ) {
     let mut tokio_builder = tokio::runtime::Builder::new_multi_thread();
     tokio_builder.enable_all().thread_name("core");
@@ -128,11 +129,22 @@ pub fn start_bridge_loop(
         CoreRuntime::new(telem_opts, tokio_builder).expect("Failed to create CoreRuntime");
 
     core_runtime.tokio_handle().block_on(async {
+
         if let Some(meter_maker) = meter_maker {
-            core_runtime
-                .telemetry_mut()
-                .attach_late_init_metrics(meter_maker());
+            match meter_maker() {
+                Ok(meter) => {
+                    core_runtime
+                        .telemetry_mut()
+                        .attach_late_init_metrics(meter);
+                }
+                Err(err) => {
+                    result_sender.send(Err(format!("Failed to create meter: {}", err))).unwrap_or_else(|_| panic!("Failed to report runtime start error: {}", err));
+                    return;
+                }
+            }
         }
+        result_sender.send(Ok(())).expect("Failed to report runtime start success");
+
         loop {
             let request_option = receiver.recv().await;
             let request = match request_option {
@@ -386,7 +398,18 @@ pub fn runtime_new(mut cx: FunctionContext) -> JsResult<BoxedRuntime> {
     let channel = Arc::new(cx.channel());
     let (sender, mut receiver) = unbounded_channel::<RuntimeRequest>();
 
-    std::thread::spawn(move || start_bridge_loop(telemetry_options, channel, &mut receiver));
+    // FIXME: This is a temporary fix to get sync notifications of errors while initializing the runtime.
+    //        The proper fix would be to avoid spawning a new thread here, so that start_bridge_loop
+    //        can simply yeild back a Result. But early attempts to do just that caused panics
+    //        on runtime shutdown, so let's use this hack until we can dig deeper.
+    let (result_sender, mut result_receiver) = unbounded_channel::<Result<(), String>>();
+
+    std::thread::spawn(move || start_bridge_loop(telemetry_options, channel, &mut receiver, result_sender));
+
+    if let Some(Err(e)) = result_receiver.blocking_recv() {
+        Err(cx.throw_error::<_, String>(e).unwrap_err())?;
+    }
+    result_receiver.close();
 
     Ok(cx.boxed(Arc::new(RuntimeHandle { sender })))
 }

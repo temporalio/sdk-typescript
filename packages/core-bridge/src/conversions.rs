@@ -44,9 +44,11 @@ impl ArrayHandleConversionsExt for Handle<'_, JsArray> {
     }
 }
 
+type BoxedMeterMaker = Box<dyn FnOnce() -> Result<Arc<dyn CoreMeter>, String>  + Send + Sync>;
+
 pub(crate) type TelemOptsRes = (
     TelemetryOptions,
-    Option<Box<dyn FnOnce() -> Arc<dyn CoreMeter> + Send>>,
+    Option<BoxedMeterMaker>,
 );
 
 pub trait ObjectHandleConversionsExt {
@@ -221,19 +223,25 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 })?;
 
                 meter_maker = Some(Box::new(move || {
-                    let prom_info = start_prometheus_metric_exporter(options)
-                        .expect("Failed creating prometheus exporter");
-                    prom_info.meter as Arc<dyn CoreMeter>
-                })
-                    as Box<dyn FnOnce() -> Arc<dyn CoreMeter> + Send>);
+                    match start_prometheus_metric_exporter(options) {
+                        Ok(prom_info) => Ok(prom_info.meter as Arc<dyn CoreMeter>),
+                        Err(e) => {
+                            Err(format!(
+                                "Failed to start prometheus exporter: {}",
+                                e
+                            ))
+                        }
+                    }
+                }) as  BoxedMeterMaker);
+
             } else if let Some(ref otel) = js_optional_getter!(cx, metrics, "otel", JsObject) {
                 let mut options = OtelCollectorOptionsBuilder::default();
 
                 let url = js_value_getter!(cx, otel, "url", JsString);
                 match Url::parse(&url) {
                     Ok(url) => options.url(url),
-                    Err(_) => {
-                        return cx.throw_type_error("Invalid telemetryOptions.metrics.otel.url");
+                    Err(e) => {
+                        return cx.throw_type_error(format!("Invalid telemetryOptions.metrics.otel.url: {}", e))?;
                     }
                 };
 
@@ -269,11 +277,18 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     .unwrap_err()
                 })?;
 
-                meter_maker = Some(Box::new(move || {
-                    let otlp_exporter =
-                        build_otlp_metric_exporter(options).expect("Failed to build otlp exporter");
-                    Arc::new(otlp_exporter) as Arc<dyn CoreMeter>
-                }));
+                meter_maker = Some(Box::new (move || {
+                    match build_otlp_metric_exporter(options) {
+                        Ok(otlp_exporter) => Ok(Arc::new(otlp_exporter) as Arc<dyn CoreMeter>),
+                        Err(e) => {
+                            Err(format!(
+                                "Failed to start otlp exporter: {}",
+                                e
+                            ))
+                        }
+                    }
+                }) as BoxedMeterMaker);
+
             } else {
                 cx.throw_type_error(
                     "Invalid telemetryOptions.metrics, missing `prometheus` or `otel` option",
