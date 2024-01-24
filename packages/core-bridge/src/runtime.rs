@@ -2,6 +2,7 @@ use crate::{conversions::*, errors::*, helpers::*, worker::*};
 use neon::context::Context;
 use neon::prelude::*;
 use parking_lot::RwLock;
+use tokio::sync::oneshot;
 use std::cell::Cell;
 use std::{
     cell::RefCell,
@@ -119,7 +120,7 @@ pub fn start_bridge_loop(
     telemetry_options: TelemOptsRes,
     channel: Arc<Channel>,
     receiver: &mut UnboundedReceiver<RuntimeRequest>,
-    result_sender: UnboundedSender<Result<(), String>>,
+    result_sender: oneshot::Sender<Result<(), String>>,
 ) {
     let mut tokio_builder = tokio::runtime::Builder::new_multi_thread();
     tokio_builder.enable_all().thread_name("core");
@@ -402,14 +403,13 @@ pub fn runtime_new(mut cx: FunctionContext) -> JsResult<BoxedRuntime> {
     //        The proper fix would be to avoid spawning a new thread here, so that start_bridge_loop
     //        can simply yeild back a Result. But early attempts to do just that caused panics
     //        on runtime shutdown, so let's use this hack until we can dig deeper.
-    let (result_sender, mut result_receiver) = unbounded_channel::<Result<(), String>>();
+    let (result_sender, result_receiver) = oneshot::channel::<Result<(), String>>();
 
     std::thread::spawn(move || start_bridge_loop(telemetry_options, channel, &mut receiver, result_sender));
 
-    if let Some(Err(e)) = result_receiver.blocking_recv() {
+    if let Ok(Err(e)) = result_receiver.blocking_recv() {
         Err(cx.throw_error::<_, String>(e).unwrap_err())?;
     }
-    result_receiver.close();
 
     Ok(cx.boxed(Arc::new(RuntimeHandle { sender })))
 }
