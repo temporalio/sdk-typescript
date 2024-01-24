@@ -630,9 +630,13 @@ export class Worker {
       if (compiledOptions.bundlerOptions) {
         logger.warn('Ignoring WorkerOptions.bundlerOptions because WorkerOptions.workflowBundle is set');
       }
-      const modules = compiledOptions.interceptors.workflowModules;
+      const modules = new Set(compiledOptions.interceptors.workflowModules);
       // Warn if user tries to customize the default set of workflow interceptor modules
-      if (modules && new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== modules.length) {
+
+      if (
+        modules &&
+        new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== defaultWorkflowInterceptorModules.length
+      ) {
         logger.warn(
           'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
             'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'

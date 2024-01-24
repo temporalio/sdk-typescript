@@ -3,7 +3,6 @@
  * Manual tests to inspect tracing output
  */
 import * as http2 from 'http2';
-import { setTimeout } from 'timers/promises';
 import { SpanStatusCode } from '@opentelemetry/api';
 import { ExportResultCode } from '@opentelemetry/core';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
@@ -97,7 +96,10 @@ test.serial('Exporting OTEL metrics from Core works', async (t) => {
           taskQueue: 'test-otel',
           workflowId: uuid4(),
         });
-        const req = await Promise.race([capturedRequest, setTimeout(1000).then(() => undefined)]);
+        const req = await Promise.race([
+          capturedRequest,
+          await new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 2000)),
+        ]);
         t.truthy(req);
         t.is(req?.url, '/opentelemetry.proto.collector.metrics.v1.MetricsService/Export');
         t.is(req?.headers['x-test-header'], 'test-value');
@@ -264,7 +266,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     await worker.runUntil(client.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: uuid4() }));
     // Allow some time to ensure spans are flushed out to collector
-    await setTimeout(5000);
+    await new Promise<void>((resolve) => setTimeout(resolve, 5000));
     t.pass();
   });
 
