@@ -269,7 +269,7 @@ exports.importInterceptors = function importInterceptors() {
             if (hasError) {
               reject(
                 new Error(
-                  "Webpack finished with errors, if you're unsure what went wrong, visit our troubleshooting page at https://docs.temporal.io/typescript/troubleshooting#webpack-errors"
+                  "Webpack finished with errors, if you're unsure what went wrong, visit our troubleshooting page at https://docs.temporal.io/dev-guide/typescript/debugging#webpack-errors"
                 )
               );
             }
