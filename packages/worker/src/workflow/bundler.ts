@@ -238,6 +238,7 @@ exports.importInterceptors = function importInterceptors() {
       entry: [entry],
       mode: 'development',
       devtool: 'inline-source-map',
+      target: 'node',
       output: {
         path: distDir,
         filename: 'workflow-bundle-[fullhash].js',
