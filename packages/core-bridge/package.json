@@ -10,7 +10,7 @@
     "build-rust-release": "npm run build-rust -- --release",
     "install": "node ./scripts/build.js",
     "format": "cargo fmt",
-    "lint": "cargo clippy --fix",
+    "lint": "cargo clippy --fix --allow-dirty",
     "lint.check": "cargo clippy"
   },
   "keywords": [

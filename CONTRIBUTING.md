@@ -50,7 +50,8 @@ See [sdk-structure.md](./docs/sdk-structure.md)
 
 ### Environment setup
 
-- Install Node 18 and [Temporal Server](https://github.com/temporalio/docker-compose#temporal-server-docker-compose-files)
+- The TS SDK can be executed on Node 14.18+, 16, 18 and 20. However, for SDK development, we recommend using Node 20. For easier testing, you may want to use a version manager, such as: [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md) or [volta](https://volta.sh/)
+- To run tests, you will need access to a local Temporal server. You may use either the [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server) or a [Docker container](https://github.com/temporalio/docker-compose#temporal-server-docker-compose-files),
 - Install the [Rust toolchain](https://rustup.rs/)
 - Install [Protocol Buffers](https://github.com/protocolbuffers/protobuf/releases/)
 - Clone the [sdk-typescript](https://github.com/temporalio/sdk-typescript) repo:
@@ -109,7 +110,7 @@ described [here](https://doc.rust-lang.org/cargo/reference/overriding-dependenci
 
 In order to run integration tests:
 
-1. Run the temporal server using [docker-compose](https://github.com/temporalio/docker-compose).
+1. Run the temporal server using either the [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server) or a [Docker container](https://github.com/temporalio/docker-compose#temporal-server-docker-compose-files)
 1. Export `RUN_INTEGRATION_TESTS=true`
 
 #### test-npm-init
