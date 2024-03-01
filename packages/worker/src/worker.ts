@@ -1,4 +1,4 @@
-import crypto from 'node:crypto';
+import crypto, { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vm from 'node:vm';
@@ -50,7 +50,7 @@ import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
-import { Logger } from './logger';
+import { Logger, withMetadata } from './logger';
 import pkg from './pkg';
 import {
   EvictionReason,
@@ -63,7 +63,6 @@ import { History, Runtime } from './runtime';
 import { CloseableGroupedObservable, closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
 import { byteArrayToBuffer, convertToParentWorkflowType } from './utils';
 import {
-  addDefaultWorkerOptions,
   CompiledWorkerOptions,
   compileWorkerOptions,
   isCodeBundleOption,
@@ -165,7 +164,6 @@ export interface NativeWorkerLike {
   completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
   recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
-  logger: Logger;
 }
 
 export interface NativeReplayHandle {
@@ -240,10 +238,6 @@ export class NativeWorker implements NativeWorkerLike {
 
   public async finalizeShutdown(): Promise<void> {
     await this.runtime.deregisterWorker(this.nativeWorker);
-  }
-
-  public get logger(): Logger {
-    return this.runtime.logger;
   }
 }
 
@@ -425,9 +419,14 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
+    const logger = withMetadata(Runtime.instance().logger, {
+      subsystem: 'worker',
+      // A random workerId to make it easier to correlate logs
+      workerId: randomUUID(),
+    });
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
-    const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
-    Runtime.instance().logger.info('Creating worker', {
+    const compiledOptions = compileWorkerOptions(options, logger);
+    logger.info('Creating worker', {
       options: {
         ...compiledOptions,
         ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
@@ -440,7 +439,7 @@ export class Worker {
           : {}),
       },
     });
-    const bundle = await this.getOrCreateBundle(compiledOptions, Runtime.instance().logger);
+    const bundle = await this.getOrCreateBundle(compiledOptions, logger);
     let workflowCreator: WorkflowCreator | undefined = undefined;
     if (bundle) {
       workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
@@ -460,7 +459,7 @@ export class Worker {
       throw err;
     }
     extractReferenceHolders(connection).add(nativeWorker);
-    return new this(nativeWorker, workflowCreator, compiledOptionsWithBuildId, connection);
+    return new this(nativeWorker, workflowCreator, compiledOptionsWithBuildId, logger, connection);
   }
 
   protected static async createWorkflowCreator(
@@ -599,6 +598,11 @@ export class Worker {
   }
 
   private static async constructReplayWorker(options: ReplayWorkerOptions): Promise<[Worker, native.HistoryPusher]> {
+    const logger = withMetadata(Runtime.instance().logger, {
+      subsystem: 'worker',
+      // A random workerId to make it easier to correlate logs
+      workerId: randomUUID(),
+    });
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const fixedUpOptions: WorkerOptions = {
       taskQueue: (options.replayName ?? 'fake_replay_queue') + '-' + this.replayWorkerCount,
@@ -606,15 +610,15 @@ export class Worker {
       ...options,
     };
     this.replayWorkerCount++;
-    const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(fixedUpOptions));
-    const bundle = await this.getOrCreateBundle(compiledOptions, Runtime.instance().logger);
+    const compiledOptions = compileWorkerOptions(fixedUpOptions, logger);
+    const bundle = await this.getOrCreateBundle(compiledOptions, logger);
     if (!bundle) {
       throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
     }
     const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
     const replayHandle = await nativeWorkerCtor.createReplay(addBuildIdIfMissing(compiledOptions, bundle.code));
     return [
-      new this(replayHandle.worker, workflowCreator, compiledOptions, undefined, true),
+      new this(replayHandle.worker, workflowCreator, compiledOptions, logger, undefined, true),
       replayHandle.historyPusher,
     ];
   }
@@ -653,7 +657,7 @@ export class Worker {
       }
     } else if (compiledOptions.workflowsPath) {
       const bundler = new WorkflowCodeBundler({
-        logger,
+        logger: withMetadata(logger, { subsystem: 'worker/bundler' }),
         workflowsPath: compiledOptions.workflowsPath,
         workflowInterceptorModules: compiledOptions.interceptors.workflowModules,
         failureConverterPath: compiledOptions.dataConverter?.failureConverterPath,
@@ -678,6 +682,7 @@ export class Worker {
      */
     protected readonly workflowCreator: WorkflowCreator | undefined,
     public readonly options: CompiledWorkerOptions,
+    protected readonly log: Logger,
     protected readonly connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
@@ -703,10 +708,6 @@ export class Worker {
    */
   public get numRunningWorkflowInstances$(): Observable<number> {
     return this.numCachedWorkflowsSubject;
-  }
-
-  protected get log(): Logger {
-    return this.nativeWorker.logger;
   }
 
   /**
@@ -771,7 +772,10 @@ export class Worker {
           this.state = 'DRAINING';
         }
       })
-      .catch((error) => this.unexpectedErrorSubject.error(error));
+      .catch((error) => {
+        this.log.warn('Failed to initiate shutdown', { error });
+        this.unexpectedErrorSubject.error(error);
+      });
   }
 
   /**

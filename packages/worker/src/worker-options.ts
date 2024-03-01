@@ -9,7 +9,7 @@ import { Context } from '@temporalio/activity';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
-import { Logger } from './logger';
+import { Logger, withMetadata } from './logger';
 import { initLoggerSink } from './workflow/logger';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
@@ -646,7 +646,7 @@ export function appendDefaultInterceptors(
   return {
     activityInbound: [
       // eslint-disable-next-line deprecation/deprecation
-      (ctx) => new ActivityInboundLogInterceptor(ctx, logger),
+      (ctx) => new ActivityInboundLogInterceptor(ctx, withMetadata(logger, { subsystem: 'activity' })),
       // eslint-disable-next-line deprecation/deprecation
       ...(interceptors.activityInbound ?? []),
     ],
@@ -666,7 +666,7 @@ export function compileWorkerInterceptors({
   };
 }
 
-export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
+function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): WorkerOptionsWithDefaults {
   const {
     buildId,
     useVersioning,
@@ -720,7 +720,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     },
     nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
     sinks: {
-      ...initLoggerSink(Runtime.instance().logger),
+      ...initLoggerSink(logger),
       // Fix deprecated registration of the 'defaultWorkerLogger' sink
       ...(sinks?.defaultWorkerLogger ? { __temporal_logger: sinks.defaultWorkerLogger } : {}),
       ...sinks,
@@ -738,21 +738,20 @@ function isSet(env: string | undefined): boolean {
   return env === '1' || env === 't' || env === 'true';
 }
 
-export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledWorkerOptions {
+export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): CompiledWorkerOptions {
+  const opts = addDefaultWorkerOptions(rawOpts, logger);
   if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
-    Runtime.instance().logger.warn(
-      'maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.'
-    );
+    logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
     opts.maxCachedWorkflows = 2;
   }
   if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions > opts.maxCachedWorkflows) {
-    Runtime.instance().logger.warn(
+    logger.warn(
       "maxConcurrentWorkflowTaskExecutions can't exceed maxCachedWorkflows (unless cache is disabled). Defaulting to maxCachedWorkflows."
     );
     opts.maxConcurrentWorkflowTaskExecutions = opts.maxCachedWorkflows;
   }
   if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions < 2) {
-    Runtime.instance().logger.warn(
+    logger.warn(
       "maxConcurrentWorkflowTaskExecutions can't be lower than 2 if maxCachedWorkflows is non-zero. Defaulting to 2."
     );
     opts.maxConcurrentWorkflowTaskExecutions = 2;

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { lastValueFrom } from 'rxjs';
 import { defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
@@ -6,12 +7,8 @@ import { coresdk } from '@temporalio/proto';
 import { DefaultLogger, Runtime, ShutdownError } from '@temporalio/worker';
 import { byteArrayToBuffer } from '@temporalio/worker/lib/utils';
 import { NativeReplayHandle, NativeWorkerLike, Worker as RealWorker } from '@temporalio/worker/lib/worker';
-import {
-  addDefaultWorkerOptions,
-  CompiledWorkerOptions,
-  compileWorkerOptions,
-  WorkerOptions,
-} from '@temporalio/worker/lib/worker-options';
+import { withMetadata } from '@temporalio/worker/lib/logger';
+import { CompiledWorkerOptions, compileWorkerOptions, WorkerOptions } from '@temporalio/worker/lib/worker-options';
 import type { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';
 import * as activities from './activities';
 
@@ -163,11 +160,13 @@ export class Worker extends RealWorker {
   }
 
   public constructor(workflowCreator: WorkflowCreator, opts: CompiledWorkerOptions) {
-    // Worker.create() accesses Runtime.instance(), which has some side effects that would not happen (or that would
-    // happen too late) when creating a MockWorker. Force the singleton to be created now, if it doesn't already exist.
-    Runtime.instance();
+    const logger = withMetadata(Runtime.instance().logger, {
+      subsystem: 'worker',
+      // A random workerId to make it easier to correlate logs
+      workerId: randomUUID(),
+    });
     const nativeWorker = new MockNativeWorker();
-    super(nativeWorker, workflowCreator, opts);
+    super(nativeWorker, workflowCreator, opts, logger);
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
@@ -183,6 +182,11 @@ export const defaultOptions: WorkerOptions = {
 };
 
 export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Worker {
+  const logger = withMetadata(Runtime.instance().logger, {
+    subsystem: 'worker',
+    // A random workerId to make it easier to correlate logs
+    workerId: randomUUID(),
+  });
   return new Worker(
     {
       async createWorkflow() {
@@ -192,6 +196,6 @@ export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Work
         /* Nothing to destroy */
       },
     },
-    compileWorkerOptions(addDefaultWorkerOptions(options))
+    compileWorkerOptions(options, logger)
   );
 }
