@@ -308,7 +308,7 @@ export interface WorkerOptions {
    * `maxConcurrentActivityTaskExecutions` slots despite a backlog of Activity
    * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
    * `maxConcurrentActivityTaskExecutions`.
-   * @default min(2, maxConcurrentActivityTaskExecutions)
+   * @default min(10, maxConcurrentActivityTaskExecutions)
    */
   maxConcurrentActivityTaskPolls?: number;
 
