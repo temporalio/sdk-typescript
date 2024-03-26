@@ -122,6 +122,10 @@ export interface OtelCollectorExporter {
      * @defaults 1 second
      */
     metricsExportInterval?: Duration;
+    /**
+     * If set to true, the exporter will use seconds for durations instead of milliseconds.
+     */
+    useSecondsForDurations?: boolean;
   };
 }
 

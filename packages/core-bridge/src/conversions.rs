@@ -256,6 +256,12 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     }
                 };
 
+                if let Some(use_seconds_for_durations) =
+                    js_optional_value_getter!(cx, otel, "useSecondsForDurations", JsBoolean)
+                {
+                    options.use_seconds_for_durations(use_seconds_for_durations);
+                }
+
                 if let Some(ref headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
                     options.headers(headers.as_hash_map_of_string_to_string(cx)?);
                 };
