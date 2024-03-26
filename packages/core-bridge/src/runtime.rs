@@ -1,28 +1,23 @@
 use crate::{conversions::*, errors::*, helpers::*, worker::*};
-use neon::context::Context;
-use neon::prelude::*;
-use parking_lot::RwLock;
-use std::cell::Cell;
+use neon::{context::Context, prelude::*};
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::HashMap,
     ops::Deref,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics};
-use temporal_sdk_core::api::telemetry::CoreTelemetry;
-use temporal_sdk_core::CoreRuntime;
 use temporal_sdk_core::{
+    api::telemetry::CoreTelemetry,
     ephemeral_server::EphemeralServer as CoreEphemeralServer,
     init_replay_worker, init_worker,
     replay::{HistoryForReplay, ReplayWorkerInput},
-    ClientOptions, RetryClient, WorkerConfig,
+    ClientOptions, CoreRuntime, RetryClient, WorkerConfig,
 };
-use tokio::sync::oneshot;
 use tokio::sync::{
     mpsc::{channel, unbounded_channel, Sender, UnboundedReceiver, UnboundedSender},
-    Mutex,
+    oneshot, Mutex,
 };
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -33,7 +28,9 @@ pub struct EphemeralServer {
     pub(crate) runtime: Arc<RuntimeHandle>,
     pub(crate) core_server: Arc<Mutex<CoreEphemeralServer>>,
 }
+
 pub type BoxedEphemeralServer = JsBox<RefCell<Option<EphemeralServer>>>;
+
 impl Finalize for EphemeralServer {}
 
 pub struct RuntimeHandle {
@@ -42,6 +39,7 @@ pub struct RuntimeHandle {
 
 /// Box it so we can use the runtime from JS
 pub type BoxedRuntime = JsBox<Arc<RuntimeHandle>>;
+
 impl Finalize for RuntimeHandle {}
 
 #[derive(Clone)]
@@ -51,6 +49,7 @@ pub struct Client {
 }
 
 pub type BoxedClient = JsBox<RefCell<Option<Client>>>;
+
 impl Finalize for Client {}
 
 /// A request from JS to bridge to core
@@ -172,7 +171,7 @@ pub fn start_bridge_loop(
                     let mm = core_runtime.telemetry().get_metric_meter();
                     core_runtime.tokio_handle().spawn(async move {
                         match options
-                            .connect_no_namespace(mm, headers.map(|h| Arc::new(RwLock::new(h))))
+                            .connect_no_namespace(mm)
                             .await
                         {
                             Err(err) => {
@@ -193,6 +192,9 @@ pub fn start_bridge_loop(
                                 });
                             }
                             Ok(client) => {
+                                if let Some(headers) = headers {
+                                    client.get_client().set_headers(headers);
+                                }
                                 send_result(channel.clone(), callback, |cx| {
                                     Ok(cx.boxed(RefCell::new(Some(Client {
                                         runtime,
@@ -337,8 +339,7 @@ pub fn start_bridge_loop(
                                     format!("Failed to start test server: {}", err),
                                 )
                             },
-                        )
-                        .await
+                        ).await
                     });
                 }
                 RuntimeRequest::PushReplayHistory {
@@ -350,8 +351,8 @@ pub fn start_bridge_loop(
                         let sendfut = async move {
                             tx.send(pushme).await.map_err(|e| {
                                 format!(
-                    "Receive side of history replay channel is gone. This is an sdk bug. {:?}",
-                    e
+                                    "Receive side of history replay channel is gone. This is an sdk bug. {:?}",
+                                    e
                                 )
                             })
                         };
@@ -361,8 +362,7 @@ pub fn start_bridge_loop(
                                 UNEXPECTED_ERROR,
                                 format!("Error pushing replay history {}", err),
                             )
-                        })
-                        .await
+                        }).await
                     });
                 }
             }
@@ -521,6 +521,7 @@ pub(crate) struct HistoryForReplayTunnel {
     pub(crate) runtime: Arc<RuntimeHandle>,
     sender: Cell<Option<Sender<HistoryForReplay>>>,
 }
+
 impl HistoryForReplayTunnel {
     fn new(runtime: Arc<RuntimeHandle>) -> (Self, ReceiverStream<HistoryForReplay>) {
         let (sender, rx) = channel(1);
@@ -545,4 +546,5 @@ impl HistoryForReplayTunnel {
         self.sender.take();
     }
 }
+
 impl Finalize for HistoryForReplayTunnel {}
