@@ -1702,7 +1702,7 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
   setTimeout(() => {
     script = undefined;
     context = undefined;
-  }, 10000);
+  }, 10000).unref();
 
   return { code, sourceMap, filename };
 }
