@@ -111,7 +111,10 @@ class BufferedLogger extends DefaultLogger {
   /** Flush all buffered logs into the logger supplied to the constructor */
   flush(): void {
     for (const entry of this.buffer) {
-      this.next.log(entry.level, entry.message, { ...entry.meta, [LogTimestamp]: entry.timestampNanos });
+      this.next.log(entry.level, entry.message, {
+        ...entry.meta,
+        [LogTimestamp]: entry.timestampNanos,
+      });
     }
     this.buffer.clear();
   }
@@ -145,10 +148,7 @@ export class Runtime {
    */
   static defaultOptions: RuntimeOptions = {};
 
-  protected constructor(
-    public readonly native: native.Runtime,
-    public readonly options: CompiledRuntimeOptions
-  ) {
+  protected constructor(public readonly native: native.Runtime, public readonly options: CompiledRuntimeOptions) {
     if (this.isForwardingLogs()) {
       const logger = (this.logger = new BufferedLogger(this.options.logger));
       this.logPollPromise = this.initLogPolling(logger);
@@ -213,12 +213,22 @@ export class Runtime {
     // eslint-disable-next-line deprecation/deprecation
     const { logging, metrics, tracingFilter, ...otherTelemetryOpts } = options.telemetryOptions ?? {};
 
-    const defaultFilter = tracingFilter ?? makeTelemetryFilterString({ core: 'WARN', other: 'ERROR' });
+    const defaultFilter =
+      tracingFilter ??
+      makeTelemetryFilterString({
+        core: 'WARN',
+        other: 'ERROR',
+      });
     const loggingFilter = logging?.filter;
 
     // eslint-disable-next-line deprecation/deprecation
     const forwardLevel = (logging as ForwardLogger | undefined)?.forward?.level;
-    const forwardLevelFilter = forwardLevel && makeTelemetryFilterString({ core: forwardLevel, other: forwardLevel });
+    const forwardLevelFilter =
+      forwardLevel &&
+      makeTelemetryFilterString({
+        core: forwardLevel,
+        other: forwardLevel,
+      });
 
     return {
       shutdownSignals: options.shutdownSignals ?? ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
@@ -246,6 +256,9 @@ export class Runtime {
             : {
                 prometheus: {
                   bindAddress: metrics.prometheus.bindAddress,
+                  unitSuffix: metrics.prometheus.unitSuffix,
+                  countersTotalSuffix: metrics.prometheus.countersTotalSuffix,
+                  useSecondsForDurations: metrics.prometheus.useSecondsForDurations,
                 },
               }),
         },
@@ -422,7 +435,7 @@ export class Runtime {
   protected async createNative<
     R extends TrackedNativeObject,
     Args extends any[],
-    F extends (...args: Args) => Promise<R>,
+    F extends (...args: Args) => Promise<R>
   >(f: F, ...args: Args): Promise<R> {
     return this.createNativeNoBackRef(async () => {
       const ref = await f(...args);

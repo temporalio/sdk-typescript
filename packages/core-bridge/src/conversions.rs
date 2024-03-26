@@ -211,6 +211,22 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     }
                 };
 
+                if let Some(counters_total_suffix) =
+                    js_optional_value_getter!(cx, prom, "countersTotalSuffix", JsBoolean)
+                {
+                    options.counters_total_suffix(counters_total_suffix);
+                }
+                if let Some(unit_suffix) =
+                    js_optional_value_getter!(cx, prom, "unitSuffix", JsBoolean)
+                {
+                    options.unit_suffix(unit_suffix);
+                }
+                if let Some(use_seconds_for_durations) =
+                    js_optional_value_getter!(cx, prom, "useSecondsForDurations", JsBoolean)
+                {
+                    options.use_seconds_for_durations(use_seconds_for_durations);
+                }
+
                 let options = options.build().map_err(|e| {
                     cx.throw_type_error::<_, TelemetryOptions>(format!(
                         "Failed to build prometheus exporter options: {:?}",
