@@ -148,7 +148,10 @@ export class Runtime {
    */
   static defaultOptions: RuntimeOptions = {};
 
-  protected constructor(public readonly native: native.Runtime, public readonly options: CompiledRuntimeOptions) {
+  protected constructor(
+    public readonly native: native.Runtime,
+    public readonly options: CompiledRuntimeOptions
+  ) {
     if (this.isForwardingLogs()) {
       const logger = (this.logger = new BufferedLogger(this.options.logger));
       this.logPollPromise = this.initLogPolling(logger);
@@ -436,7 +439,7 @@ export class Runtime {
   protected async createNative<
     R extends TrackedNativeObject,
     Args extends any[],
-    F extends (...args: Args) => Promise<R>
+    F extends (...args: Args) => Promise<R>,
   >(f: F, ...args: Args): Promise<R> {
     return this.createNativeNoBackRef(async () => {
       const ref = await f(...args);
