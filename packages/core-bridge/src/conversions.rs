@@ -158,6 +158,17 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         if let Some(tls_cfg) = tls_cfg {
             client_options.tls_cfg(tls_cfg);
         }
+        let headers = match js_optional_getter!(cx, self, "metadata", JsObject) {
+            None => None,
+            Some(h) => Some(h.as_hash_map_of_string_to_string(cx).map_err(|reason| {
+                cx.throw_type_error::<_, HashMap<String, String>>(format!(
+                    "Invalid metadata: {}",
+                    reason
+                ))
+                .unwrap_err()
+            })?),
+        };
+        client_options.headers(headers);
 
         Ok(client_options
             .client_name("temporal-typescript".to_string())

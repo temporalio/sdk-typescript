@@ -63,7 +63,6 @@ pub enum RuntimeRequest {
     CreateClient {
         runtime: Arc<RuntimeHandle>,
         options: ClientOptions,
-        headers: Option<HashMap<String, String>>,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -165,7 +164,6 @@ pub fn start_bridge_loop(
                 RuntimeRequest::CreateClient {
                     runtime,
                     options,
-                    headers,
                     callback,
                 } => {
                     let mm = core_runtime.telemetry().get_metric_meter();
@@ -192,9 +190,6 @@ pub fn start_bridge_loop(
                                 });
                             }
                             Ok(client) => {
-                                if let Some(headers) = headers {
-                                    client.get_client().set_headers(headers);
-                                }
                                 send_result(channel.clone(), callback, |cx| {
                                     Ok(cx.boxed(RefCell::new(Some(Client {
                                         runtime,
@@ -453,24 +448,10 @@ pub fn client_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let callback = cx.argument::<JsFunction>(2)?;
 
     let client_options = opts.as_client_options(&mut cx)?;
-    let headers = match js_optional_getter!(&mut cx, &opts, "metadata", JsObject) {
-        None => None,
-        Some(h) => Some(
-            h.as_hash_map_of_string_to_string(&mut cx)
-                .map_err(|reason| {
-                    cx.throw_type_error::<_, HashMap<String, String>>(format!(
-                        "Invalid metadata: {}",
-                        reason
-                    ))
-                    .unwrap_err()
-                })?,
-        ),
-    };
 
     let request = RuntimeRequest::CreateClient {
         runtime: (**runtime).clone(),
         options: client_options,
-        headers,
         callback: callback.root(&mut cx),
     };
     if let Err(err) = runtime.sender.send(request) {
