@@ -169,6 +169,8 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             })?),
         };
         client_options.headers(headers);
+        let api_key = js_optional_value_getter!(cx, self, "apiKey", JsString);
+        client_options.api_key(api_key);
 
         Ok(client_options
             .client_name("temporal-typescript".to_string())

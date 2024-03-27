@@ -66,6 +66,12 @@ export interface ClientOptions {
    * Set statically at connection time, can be replaced later using {@link clientUpdateHeaders}.
    */
   metadata?: Record<string, string>;
+
+  /**
+   * API key for Temporal. This becomes the "Authorization" HTTP header with "Bearer " prepended.
+   * This is only set if RPC metadata doesn't already have an "authorization" key.
+   */
+  apiKey?: string;
 }
 
 /**
@@ -130,7 +136,12 @@ export interface OtelCollectorExporter {
 }
 
 /** @experimental */
-export type CompiledOtelMetricsExporter = Shadow<OtelCollectorExporter, { otel: { metricsExportInterval: number } }>;
+export type CompiledOtelMetricsExporter = Shadow<
+  OtelCollectorExporter,
+  {
+    otel: { metricsExportInterval: number };
+  }
+>;
 
 /**
  * Prometheus metrics exporter options
@@ -447,18 +458,23 @@ export type EphemeralServerConfig = TimeSkippingServerConfig | DevServerConfig;
 export interface Worker {
   type: 'Worker';
 }
+
 export interface Runtime {
   type: 'Runtime';
 }
+
 export interface Client {
   type: 'Client';
 }
+
 export interface EphemeralServer {
   type: 'EphemeralServer';
 }
+
 export interface HistoryPusher {
   type: 'HistoryPusher';
 }
+
 export interface ReplayWorker {
   type: 'ReplayWorker';
   worker: Worker;
@@ -474,47 +490,69 @@ export declare type VoidCallback = (err: Error, result: void) => void;
 export declare type LogsCallback = (err: Error, result: LogEntry[]) => void;
 
 export declare function newRuntime(telemOptions: CompiledTelemetryOptions): Runtime;
+
 export declare function newClient(runtime: Runtime, clientOptions: ClientOptions, callback: ClientCallback): void;
+
 export declare function newWorker(client: Client, workerOptions: WorkerOptions, callback: WorkerCallback): void;
+
 export declare function newReplayWorker(
   runtime: Runtime,
   workerOptions: WorkerOptions,
   callback: ReplayWorkerCallback
 ): void;
+
 export declare function pushHistory(
   pusher: HistoryPusher,
   workflowId: string,
   history: ArrayBuffer,
   callback: VoidCallback
 ): void;
+
 export declare function closeHistoryStream(pusher: HistoryPusher): void;
+
 export declare function workerInitiateShutdown(worker: Worker, callback: VoidCallback): void;
+
 export declare function workerFinalizeShutdown(worker: Worker): void;
+
 export declare function clientUpdateHeaders(
   client: Client,
   headers: Record<string, string>,
   callback: VoidCallback
 ): void;
+
+export declare function clientUpdateApiKey(client: Client, apiKey: string, callback: VoidCallback): void;
+
 export declare function clientClose(client: Client): void;
+
 export declare function runtimeShutdown(runtime: Runtime, callback: VoidCallback): void;
+
 export declare function pollLogs(runtime: Runtime, callback: LogsCallback): void;
+
 export declare function workerPollWorkflowActivation(worker: Worker, callback: PollCallback): void;
+
 export declare function workerCompleteWorkflowActivation(
   worker: Worker,
   result: ArrayBuffer,
   callback: VoidCallback
 ): void;
+
 export declare function workerPollActivityTask(worker: Worker, callback: PollCallback): void;
+
 export declare function workerCompleteActivityTask(worker: Worker, result: ArrayBuffer, callback: VoidCallback): void;
+
 export declare function workerRecordActivityHeartbeat(worker: Worker, heartbeat: ArrayBuffer): void;
+
 export declare function getTimeOfDay(): [number, number];
+
 export declare function startEphemeralServer(
   runtime: Runtime,
   config: EphemeralServerConfig,
   sdkVersion: string,
   callback: Callback<EphemeralServer>
 ): void;
+
 export declare function shutdownEphemeralServer(server: EphemeralServer, callback: Callback<EphemeralServer>): void;
+
 export declare function getEphemeralServerTarget(server: EphemeralServer): string;
 
 export { ShutdownError, TransportError, UnexpectedError } from './errors';
