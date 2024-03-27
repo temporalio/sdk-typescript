@@ -122,6 +122,10 @@ export interface OtelCollectorExporter {
      * @defaults 1 second
      */
     metricsExportInterval?: Duration;
+    /**
+     * If set to true, the exporter will use seconds for durations instead of milliseconds.
+     */
+    useSecondsForDurations?: boolean;
   };
 }
 
@@ -142,6 +146,19 @@ export interface PrometheusMetricsExporter {
      * Metrics will be available for scraping under the standard `/metrics` route.
      */
     bindAddress: string;
+    /**
+     * If set to true, all counter names will include a "_total" suffix.
+     */
+    countersTotalSuffix?: boolean;
+    /**
+     * If set to true, all histograms will include the unit in their name as a suffix.
+     * EX: "_milliseconds"
+     */
+    unitSuffix?: boolean;
+    /**
+     * If set to true, the exporter will use seconds for durations instead of milliseconds.
+     */
+    useSecondsForDurations?: boolean;
   };
 }
 

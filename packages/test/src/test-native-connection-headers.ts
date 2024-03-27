@@ -33,6 +33,7 @@ test('NativeConnection passes headers provided in options', async (t) => {
       callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
     ) {
       const [value] = call.metadata.get('initial');
+      console.log(call.metadata);
       if (value === 'true') {
         gotInitialHeader = true;
       }

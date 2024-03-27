@@ -241,11 +241,15 @@ export class Runtime {
                   url: metrics.otel.url,
                   headers: metrics.otel.headers ?? {},
                   metricsExportInterval: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
+                  useSecondsForDurations: metrics.otel.useSecondsForDurations,
                 },
               }
             : {
                 prometheus: {
                   bindAddress: metrics.prometheus.bindAddress,
+                  unitSuffix: metrics.prometheus.unitSuffix,
+                  countersTotalSuffix: metrics.prometheus.countersTotalSuffix,
+                  useSecondsForDurations: metrics.prometheus.useSecondsForDurations,
                 },
               }),
         },
