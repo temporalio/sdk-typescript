@@ -28,9 +28,7 @@ pub struct EphemeralServer {
     pub(crate) runtime: Arc<RuntimeHandle>,
     pub(crate) core_server: Arc<Mutex<CoreEphemeralServer>>,
 }
-
 pub type BoxedEphemeralServer = JsBox<RefCell<Option<EphemeralServer>>>;
-
 impl Finalize for EphemeralServer {}
 
 pub struct RuntimeHandle {
@@ -39,7 +37,6 @@ pub struct RuntimeHandle {
 
 /// Box it so we can use the runtime from JS
 pub type BoxedRuntime = JsBox<Arc<RuntimeHandle>>;
-
 impl Finalize for RuntimeHandle {}
 
 #[derive(Clone)]
@@ -49,7 +46,6 @@ pub struct Client {
 }
 
 pub type BoxedClient = JsBox<RefCell<Option<Client>>>;
-
 impl Finalize for Client {}
 
 /// A request from JS to bridge to core
@@ -521,7 +517,6 @@ pub(crate) struct HistoryForReplayTunnel {
     pub(crate) runtime: Arc<RuntimeHandle>,
     sender: Cell<Option<Sender<HistoryForReplay>>>,
 }
-
 impl HistoryForReplayTunnel {
     fn new(runtime: Arc<RuntimeHandle>) -> (Self, ReceiverStream<HistoryForReplay>) {
         let (sender, rx) = channel(1);
@@ -546,5 +541,4 @@ impl HistoryForReplayTunnel {
         self.sender.take();
     }
 }
-
 impl Finalize for HistoryForReplayTunnel {}

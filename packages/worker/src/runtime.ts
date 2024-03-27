@@ -111,10 +111,7 @@ class BufferedLogger extends DefaultLogger {
   /** Flush all buffered logs into the logger supplied to the constructor */
   flush(): void {
     for (const entry of this.buffer) {
-      this.next.log(entry.level, entry.message, {
-        ...entry.meta,
-        [LogTimestamp]: entry.timestampNanos,
-      });
+      this.next.log(entry.level, entry.message, { ...entry.meta, [LogTimestamp]: entry.timestampNanos });
     }
     this.buffer.clear();
   }
@@ -216,22 +213,12 @@ export class Runtime {
     // eslint-disable-next-line deprecation/deprecation
     const { logging, metrics, tracingFilter, ...otherTelemetryOpts } = options.telemetryOptions ?? {};
 
-    const defaultFilter =
-      tracingFilter ??
-      makeTelemetryFilterString({
-        core: 'WARN',
-        other: 'ERROR',
-      });
+    const defaultFilter = tracingFilter ?? makeTelemetryFilterString({ core: 'WARN', other: 'ERROR' });
     const loggingFilter = logging?.filter;
 
     // eslint-disable-next-line deprecation/deprecation
     const forwardLevel = (logging as ForwardLogger | undefined)?.forward?.level;
-    const forwardLevelFilter =
-      forwardLevel &&
-      makeTelemetryFilterString({
-        core: forwardLevel,
-        other: forwardLevel,
-      });
+    const forwardLevelFilter = forwardLevel && makeTelemetryFilterString({ core: forwardLevel, other: forwardLevel });
 
     return {
       shutdownSignals: options.shutdownSignals ?? ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
