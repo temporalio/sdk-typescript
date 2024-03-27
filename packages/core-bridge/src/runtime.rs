@@ -105,6 +105,11 @@ pub enum RuntimeRequest {
         pushme: HistoryForReplay,
         callback: Root<JsFunction>,
     },
+    UpdateClientApiKey {
+        client: Arc<RawClient>,
+        key: String,
+        callback: Root<JsFunction>,
+    },
 }
 
 /// Builds a tokio runtime and starts polling on [RuntimeRequest]s via an internal channel.
@@ -202,6 +207,10 @@ pub fn start_bridge_loop(
                     callback,
                 } => {
                     client.get_client().set_headers(headers);
+                    send_result(channel.clone(), callback, |cx| Ok(cx.undefined()));
+                }
+                RuntimeRequest::UpdateClientApiKey { client, key, callback } => {
+                    client.get_client().set_api_key(Some(key));
                     send_result(channel.clone(), callback, |cx| Ok(cx.undefined()));
                 }
                 RuntimeRequest::PollLogs { callback } => {
@@ -483,6 +492,31 @@ pub fn client_update_headers(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             let request = RuntimeRequest::UpdateClientHeaders {
                 client: client.core_client.clone(),
                 headers,
+                callback: callback.root(&mut cx),
+            };
+            if let Err(err) = client.runtime.sender.send(request) {
+                callback_with_unexpected_error(&mut cx, callback, err)?;
+            };
+        }
+    }
+
+    Ok(cx.undefined())
+}
+
+/// Update a Client's API key
+pub fn client_update_api_key(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let client = cx.argument::<BoxedClient>(0)?;
+    let key = cx.argument::<JsString>(1)?.value(&mut cx);
+    let callback = cx.argument::<JsFunction>(2)?;
+
+    match client.borrow().as_ref() {
+        None => {
+            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Client")?;
+        }
+        Some(client) => {
+            let request = RuntimeRequest::UpdateClientApiKey {
+                client: client.core_client.clone(),
+                key,
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = client.runtime.sender.send(request) {

@@ -1,7 +1,7 @@
 import util from 'node:util';
 import path from 'node:path';
 import test from 'ava';
-import { Subject, firstValueFrom } from 'rxjs';
+import { Subject, firstValueFrom, skip } from 'rxjs';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { NativeConnection } from '@temporalio/worker';
@@ -20,7 +20,8 @@ test('NativeConnection passes headers provided in options', async (t) => {
 
   const server = new grpc.Server();
   let gotInitialHeader = false;
-  const updateSubject = new Subject<void>();
+  let gotApiKey = false;
+  const newValuesSubject = new Subject<void>();
 
   // Create a mock server to verify headers are actually sent
   server.addService(protoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
@@ -33,9 +34,12 @@ test('NativeConnection passes headers provided in options', async (t) => {
       callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
     ) {
       const [value] = call.metadata.get('initial');
-      console.log(call.metadata);
       if (value === 'true') {
         gotInitialHeader = true;
+      }
+      const [apiVal] = call.metadata.get('authorization');
+      if (apiVal === 'Bearer enchi_cat') {
+        gotApiKey = true;
       }
       callback(null, {});
     },
@@ -47,9 +51,14 @@ test('NativeConnection passes headers provided in options', async (t) => {
       >,
       callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IPollActivityTaskQueueResponse>
     ) {
+      console.log(call.metadata);
       const [value] = call.metadata.get('update');
       if (value === 'true') {
-        updateSubject.next();
+        newValuesSubject.next();
+      }
+      const [apiVal] = call.metadata.get('authorization');
+      if (apiVal === 'Bearer cute_kitty') {
+        newValuesSubject.next();
       }
       callback(new Error());
     },
@@ -63,11 +72,15 @@ test('NativeConnection passes headers provided in options', async (t) => {
   const connection = await NativeConnection.connect({
     address: `127.0.0.1:${port}`,
     metadata: { initial: 'true' },
+    apiKey: 'enchi_cat',
   });
   t.true(gotInitialHeader);
+  t.true(gotApiKey);
 
   await connection.setMetadata({ update: 'true' });
-  // Create a worker so it starts polling for activities so we can check our mock server got the "update" header
+  await connection.setApiKey('cute_kitty');
+  // Create a worker so it starts polling for activities so we can check our mock server got the "update" header &
+  // new api key
   const worker = await Worker.create({
     connection,
     taskQueue: 'tq',
@@ -77,5 +90,5 @@ test('NativeConnection passes headers provided in options', async (t) => {
       },
     },
   });
-  await Promise.all([firstValueFrom(updateSubject).then(() => worker.shutdown()), worker.run()]);
+  await Promise.all([firstValueFrom(newValuesSubject.pipe(skip(1))).then(() => worker.shutdown()), worker.run()]);
 });

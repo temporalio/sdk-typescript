@@ -101,6 +101,14 @@ export interface ConnectionOptions {
   metadata?: Metadata;
 
   /**
+   * API key for Temporal. This becomes the "Authorization" HTTP header with "Bearer " prepended.
+   * This is only set if RPC metadata doesn't already have an "authorization" key.
+   *
+   * In order to dynamically set metadata, use {@link Connection.withApiKey}
+   */
+  apiKey?: string;
+
+  /**
    * Milliseconds to wait until establishing a connection with the server.
    *
    * Used either when connecting eagerly with {@link Connection.connect} or
@@ -113,7 +121,7 @@ export interface ConnectionOptions {
 }
 
 export type ConnectionOptionsWithDefaults = Required<
-  Omit<ConnectionOptions, 'tls' | 'connectTimeout' | 'callCredentials'>
+  Omit<ConnectionOptions, 'tls' | 'connectTimeout' | 'callCredentials' | 'apiKey'>
 > & {
   connectTimeoutMs: number;
 };
@@ -142,9 +150,16 @@ function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults 
  * - Convert {@link ConnectionOptions.tls} to {@link grpc.ChannelCredentials}
  * - Add the grpc.ssl_target_name_override GRPC {@link ConnectionOptions.channelArgs | channel arg}
  * - Add default port to address if port not specified
+ * - Set `Authorization` header based on API key (and not already set explicitly)
  */
 function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
   const { tls: tlsFromConfig, credentials, callCredentials, ...rest } = options || {};
+  if (rest.apiKey && !rest.metadata?.['Authorization']) {
+    if (!rest.metadata) {
+      rest.metadata = {};
+    }
+    rest.metadata['Authorization'] = `Bearer ${rest.apiKey}`;
+  }
   if (rest.address) {
     // eslint-disable-next-line prefer-const
     let [host, port] = rest.address.split(':', 2);
@@ -451,7 +466,39 @@ export class Connection {
    */
   async withMetadata<ReturnType>(metadata: Metadata, fn: () => Promise<ReturnType>): Promise<ReturnType> {
     const cc = this.callContextStorage.getStore();
-    return await this.callContextStorage.run({ ...cc, metadata: { ...cc?.metadata, ...metadata } }, fn);
+    return await this.callContextStorage.run(
+      {
+        ...cc,
+        metadata: { ...cc?.metadata, ...metadata },
+      },
+      fn
+    );
+  }
+
+  /**
+   * Set the apiKey for any service requests executed in `fn`'s scope.
+   *
+   * The provided api key will only be set if the current metadata does not already have an "authorization" key.
+   *
+   * @returns value returned from `fn`
+   *
+   * @example
+   *
+   * ```ts
+   * const workflowHandle = await conn.withApiKey('secret', () =>
+   *   conn.withMetadata({ otherKey: 'set' }, () => client.start(options)))
+   * );
+   * ```
+   */
+  async withApiKey<ReturnType>(apiKey: string, fn: () => Promise<ReturnType>): Promise<ReturnType> {
+    const cc = this.callContextStorage.getStore();
+    return await this.callContextStorage.run(
+      {
+        ...cc,
+        metadata: { Authorization: `Bearer ${apiKey}`, ...cc?.metadata },
+      },
+      fn
+    );
   }
 
   /**
