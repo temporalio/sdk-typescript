@@ -3,7 +3,7 @@ import { untrackPromise } from './stack-helpers';
 import { type Sink, type Sinks, proxySinks } from './sinks';
 import { isCancellation } from './errors';
 import { WorkflowInfo, ContinueAsNew } from './interfaces';
-import { assertInWorkflowContext } from './global-attributes';
+import { assertInWorkflowContext, getActivator } from './global-attributes';
 
 export interface WorkflowLogger extends Sink {
   trace(message: string, attrs?: Record<string, unknown>): void;
@@ -77,24 +77,32 @@ export const log: WorkflowLogger = Object.fromEntries(
 
 export function executeWithLifecycleLogging(fn: () => Promise<unknown>): Promise<unknown> {
   log.debug('Workflow started');
+  const activator = getActivator();
+  const startTime = activator.getTimeOfDay();
+
+  const calcDration = (): number => {
+    const durationNanos = activator.getTimeOfDay() - startTime;
+    return Number(durationNanos / 1_000_000n);
+  };
   const p = fn().then(
     (res) => {
-      log.debug('Workflow completed');
+      log.debug('Workflow completed', { durationMs: calcDration() });
       return res;
     },
     (error) => {
+      const durationMs = calcDration();
       // Avoid using instanceof checks in case the modules they're defined in loaded more than once,
       // e.g. by jest or when multiple versions are installed.
       if (typeof error === 'object' && error != null) {
         if (isCancellation(error)) {
-          log.debug('Workflow completed as cancelled');
+          log.debug('Workflow completed as cancelled', { durationMs });
           throw error;
         } else if (error instanceof ContinueAsNew) {
-          log.debug('Workflow continued as new');
+          log.debug('Workflow continued as new', { durationMs });
           throw error;
         }
       }
-      log.warn('Workflow failed', { error });
+      log.warn('Workflow failed', { error, durationMs });
       throw error;
     }
   );
