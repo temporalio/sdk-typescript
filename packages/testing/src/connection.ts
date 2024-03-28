@@ -25,6 +25,7 @@ export class Connection extends BaseConnection {
       callContextStorage: ctorOptions.callContextStorage,
       interceptors: ctorOptions.options.interceptors,
       staticMetadata: ctorOptions.options.metadata,
+      apiKeyFnRef: {},
     });
     const testService = TestService.create(rpcImpl, false, false);
     return { ...ctorOptions, testService };

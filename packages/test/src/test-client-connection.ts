@@ -42,7 +42,7 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
   const server = new grpc.Server();
   let gotTestHeaders = false;
   let gotDeadline = false;
-  let gotUpdatedKey = false;
+  const authTokens: string[] = [];
   const deadline = Date.now() + 10000;
 
   server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
@@ -53,6 +53,7 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
       >,
       callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse>
     ) {
+      console.log(call.metadata);
       const [testValue] = call.metadata.get('test');
       const [otherValue] = call.metadata.get('otherKey');
       const [staticValue] = call.metadata.get('staticKey');
@@ -77,11 +78,8 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
       callback(null, {});
     },
     startWorkflowExecution(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
-      // Make sure withApiKey works
       const [auth] = call.metadata.get('Authorization');
-      if (auth === 'Bearer test-token-2') {
-        gotUpdatedKey = true;
-      }
+      authTokens.push(auth.toString());
       callback(null, {});
     },
     updateNamespace() {
@@ -102,8 +100,14 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
   );
   t.true(gotTestHeaders);
   t.true(gotDeadline);
-  await conn.withApiKey('test-token-2', () => conn.workflowService.startWorkflowExecution({}));
-  t.true(gotUpdatedKey);
+  await conn.withApiKey('tt-2', () => conn.workflowService.startWorkflowExecution({}));
+  conn.setApiKey('tt-3');
+  await conn.workflowService.startWorkflowExecution({});
+  const nextTTs = ['tt-4', 'tt-5'];
+  conn.setApiKey(() => nextTTs.shift()!);
+  await conn.workflowService.startWorkflowExecution({});
+  await conn.workflowService.startWorkflowExecution({});
+  t.deepEqual(authTokens, ['Bearer tt-2', 'Bearer tt-3', 'Bearer tt-4', 'Bearer tt-5']);
   const ctrl = new AbortController();
   setTimeout(() => ctrl.abort(), 10);
   const err = await t.throwsAsync(conn.withAbortSignal(ctrl.signal, () => conn.workflowService.updateNamespace({})));

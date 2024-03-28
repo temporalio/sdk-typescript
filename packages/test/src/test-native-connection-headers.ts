@@ -51,7 +51,6 @@ test('NativeConnection passes headers provided in options', async (t) => {
       >,
       callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IPollActivityTaskQueueResponse>
     ) {
-      console.log(call.metadata);
       const [value] = call.metadata.get('update');
       if (value === 'true') {
         newValuesSubject.next();

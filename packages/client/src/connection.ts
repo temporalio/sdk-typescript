@@ -104,7 +104,7 @@ export interface ConnectionOptions {
    * API key for Temporal. This becomes the "Authorization" HTTP header with "Bearer " prepended.
    * This is only set if RPC metadata doesn't already have an "authorization" key.
    *
-   * In order to dynamically set metadata, use {@link Connection.withApiKey}
+   * In order to dynamically set metadata, use {@link Connection.withApiKey} or {@link Connection.setApiKey}
    */
   apiKey?: string;
 
@@ -150,15 +150,21 @@ function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults 
  * - Convert {@link ConnectionOptions.tls} to {@link grpc.ChannelCredentials}
  * - Add the grpc.ssl_target_name_override GRPC {@link ConnectionOptions.channelArgs | channel arg}
  * - Add default port to address if port not specified
- * - Set `Authorization` header based on API key (and not already set explicitly)
+ * - Set `Authorization` header based on {@link ConnectionOptions.apiKey}
  */
 function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
   const { tls: tlsFromConfig, credentials, callCredentials, ...rest } = options || {};
-  if (rest.apiKey && !rest.metadata?.['Authorization']) {
-    if (!rest.metadata) {
-      rest.metadata = {};
+  if (rest.apiKey) {
+    if (rest.metadata?.['Authorization']) {
+      throw new TypeError(
+        'Both `apiKey` option and `Authorization` header were provided. Only one makes sense to use at a time.'
+      );
     }
-    rest.metadata['Authorization'] = `Bearer ${rest.apiKey}`;
+    if (credentials !== undefined) {
+      throw new TypeError(
+        'Both `apiKey` and `credentials` ConnectionOptions were provided. Only one makes sense to use at a time.'
+      );
+    }
   }
   if (rest.address) {
     // eslint-disable-next-line prefer-const
@@ -204,6 +210,7 @@ export interface RPCImplOptions {
   callContextStorage: AsyncLocalStorage<CallContext>;
   interceptors?: grpc.Interceptor[];
   staticMetadata: Metadata;
+  apiKeyFnRef: { fn?: () => string };
 }
 
 export interface ConnectionCtorOptions {
@@ -224,6 +231,7 @@ export interface ConnectionCtorOptions {
    */
   readonly healthService: HealthService;
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
+  readonly apiKeyFnRef: { fn?: () => string };
 }
 
 /**
@@ -265,9 +273,16 @@ export class Connection {
   public readonly operatorService: OperatorService;
   public readonly healthService: HealthService;
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
+  private readonly apiKeyFnRef: { fn?: () => string };
 
   protected static createCtorOptions(options?: ConnectionOptions): ConnectionCtorOptions {
-    const optionsWithDefaults = addDefaults(normalizeGRPCConfig(options));
+    const normalizedOptions = normalizeGRPCConfig(options);
+    const apiKeyFnRef: { fn?: () => string } = {};
+    if (normalizedOptions.apiKey) {
+      const apiKey = normalizedOptions.apiKey;
+      apiKeyFnRef.fn = () => apiKey;
+    }
+    const optionsWithDefaults = addDefaults(normalizedOptions);
     // Allow overriding this
     optionsWithDefaults.metadata['client-name'] ??= 'temporal-typescript';
     optionsWithDefaults.metadata['client-version'] ??= pkg.version;
@@ -285,6 +300,7 @@ export class Connection {
       callContextStorage,
       interceptors: optionsWithDefaults?.interceptors,
       staticMetadata: optionsWithDefaults.metadata,
+      apiKeyFnRef,
     });
     const workflowService = WorkflowService.create(workflowRpcImpl, false, false);
     const operatorRpcImpl = this.generateRPCImplementation({
@@ -293,6 +309,7 @@ export class Connection {
       callContextStorage,
       interceptors: optionsWithDefaults?.interceptors,
       staticMetadata: optionsWithDefaults.metadata,
+      apiKeyFnRef,
     });
     const operatorService = OperatorService.create(operatorRpcImpl, false, false);
     const healthRpcImpl = this.generateRPCImplementation({
@@ -301,6 +318,7 @@ export class Connection {
       callContextStorage,
       interceptors: optionsWithDefaults?.interceptors,
       staticMetadata: optionsWithDefaults.metadata,
+      apiKeyFnRef,
     });
     const healthService = HealthService.create(healthRpcImpl, false, false);
 
@@ -311,6 +329,7 @@ export class Connection {
       operatorService,
       healthService,
       options: optionsWithDefaults,
+      apiKeyFnRef,
     };
   }
 
@@ -374,6 +393,7 @@ export class Connection {
     operatorService,
     healthService,
     callContextStorage,
+    apiKeyFnRef,
   }: ConnectionCtorOptions) {
     this.options = options;
     this.client = client;
@@ -381,6 +401,7 @@ export class Connection {
     this.operatorService = operatorService;
     this.healthService = healthService;
     this.callContextStorage = callContextStorage;
+    this.apiKeyFnRef = apiKeyFnRef;
   }
 
   protected static generateRPCImplementation({
@@ -389,10 +410,14 @@ export class Connection {
     callContextStorage,
     interceptors,
     staticMetadata,
+    apiKeyFnRef,
   }: RPCImplOptions): RPCImpl {
     return (method: { name: string }, requestData: any, callback: grpc.requestCallback<any>) => {
       const metadataContainer = new grpc.Metadata();
       const { metadata, deadline, abortSignal } = callContextStorage.getStore() ?? {};
+      if (apiKeyFnRef.fn) {
+        metadataContainer.set('Authorization', `Bearer ${apiKeyFnRef.fn()}`);
+      }
       for (const [k, v] of Object.entries(staticMetadata)) {
         metadataContainer.set(k, v);
       }
@@ -476,9 +501,7 @@ export class Connection {
   }
 
   /**
-   * Set the apiKey for any service requests executed in `fn`'s scope.
-   *
-   * The provided api key will only be set if the current metadata does not already have an "authorization" key.
+   * Set the apiKey for any service requests executed in `fn`'s scope (thus changing the `Authorization` header).
    *
    * @returns value returned from `fn`
    *
@@ -495,10 +518,25 @@ export class Connection {
     return await this.callContextStorage.run(
       {
         ...cc,
-        metadata: { Authorization: `Bearer ${apiKey}`, ...cc?.metadata },
+        metadata: { ...cc?.metadata, Authorization: `Bearer ${apiKey}` },
       },
       fn
     );
+  }
+
+  /**
+   * Set the {@link ConnectionOptions.apiKey} for all subsequent requests. A static string or a
+   * callback function may be provided.
+   */
+  setApiKey(apiKey: string | (() => string)): void {
+    if (typeof apiKey === 'string') {
+      if (apiKey === '') {
+        throw new TypeError('`apiKey` must not be an empty string');
+      }
+      this.apiKeyFnRef.fn = () => apiKey;
+    } else {
+      this.apiKeyFnRef.fn = apiKey;
+    }
   }
 
   /**
