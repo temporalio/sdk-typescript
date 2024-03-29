@@ -95,6 +95,7 @@ export interface ConnectionOptions {
 
   /**
    * Optional mapping of gRPC metadata (HTTP headers) to send with each request to the server.
+   * Setting the `Authorization` header is mutually exclusive with the {@link apiKey} option.
    *
    * In order to dynamically set metadata, use {@link Connection.withMetadata}
    */
@@ -102,11 +103,12 @@ export interface ConnectionOptions {
 
   /**
    * API key for Temporal. This becomes the "Authorization" HTTP header with "Bearer " prepended.
-   * This is only set if RPC metadata doesn't already have an "authorization" key.
+   * This is mutually exclusive with the `Authorization` header in {@link ConnectionOptions.metadata}.
    *
-   * In order to dynamically set metadata, use {@link Connection.withApiKey} or {@link Connection.setApiKey}
+   * You may provide a static string or a callback. Also see {@link Connection.withApiKey} or
+   * {@link Connection.setApiKey}
    */
-  apiKey?: string;
+  apiKey?: string | (() => string);
 
   /**
    * Milliseconds to wait until establishing a connection with the server.
@@ -157,12 +159,12 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
   if (rest.apiKey) {
     if (rest.metadata?.['Authorization']) {
       throw new TypeError(
-        'Both `apiKey` option and `Authorization` header were provided. Only one makes sense to use at a time.'
+        'Both `apiKey` option and `Authorization` header were provided, but only one makes sense to use at a time.'
       );
     }
     if (credentials !== undefined) {
       throw new TypeError(
-        'Both `apiKey` and `credentials` ConnectionOptions were provided. Only one makes sense to use at a time.'
+        'Both `apiKey` and `credentials` ConnectionOptions were provided, but only one makes sense to use at a time'
       );
     }
   }
@@ -279,8 +281,12 @@ export class Connection {
     const normalizedOptions = normalizeGRPCConfig(options);
     const apiKeyFnRef: { fn?: () => string } = {};
     if (normalizedOptions.apiKey) {
-      const apiKey = normalizedOptions.apiKey;
-      apiKeyFnRef.fn = () => apiKey;
+      if (typeof normalizedOptions.apiKey === 'string') {
+        const apiKey = normalizedOptions.apiKey;
+        apiKeyFnRef.fn = () => apiKey;
+      } else {
+        apiKeyFnRef.fn = normalizedOptions.apiKey;
+      }
     }
     const optionsWithDefaults = addDefaults(normalizedOptions);
     // Allow overriding this
