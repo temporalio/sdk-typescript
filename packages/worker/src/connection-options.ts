@@ -28,11 +28,18 @@ export interface NativeConnectionOptions {
    * Set statically at connection time, can be replaced later using {@link NativeConnection.setMetadata}.
    */
   metadata?: Record<string, string>;
+
+  /**
+   * API key for Temporal. This becomes the "Authorization" HTTP header with "Bearer " prepended.
+   * This is only set if RPC metadata doesn't already have an "authorization" key.
+   */
+  apiKey?: string;
 }
 
-export type RequiredNativeConnectionOptions = Omit<Required<NativeConnectionOptions>, 'tls' | 'metadata'> & {
+export type RequiredNativeConnectionOptions = Omit<Required<NativeConnectionOptions>, 'tls' | 'metadata' | 'apiKey'> & {
   tls?: NativeConnectionOptions['tls'];
   metadata?: NativeConnectionOptions['metadata'];
+  apiKey?: NativeConnectionOptions['apiKey'];
   sdkVersion: string;
 };
 

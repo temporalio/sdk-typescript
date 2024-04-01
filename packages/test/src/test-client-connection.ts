@@ -42,6 +42,7 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
   const server = new grpc.Server();
   let gotTestHeaders = false;
   let gotDeadline = false;
+  const authTokens: string[] = [];
   const deadline = Date.now() + 10000;
 
   server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
@@ -52,17 +53,20 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
       >,
       callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse>
     ) {
+      console.log(call.metadata);
       const [testValue] = call.metadata.get('test');
       const [otherValue] = call.metadata.get('otherKey');
       const [staticValue] = call.metadata.get('staticKey');
       const [clientName] = call.metadata.get('client-name');
       const [clientVersion] = call.metadata.get('client-version');
+      const [auth] = call.metadata.get('Authorization');
       if (
         testValue === 'true' &&
         otherValue === 'set' &&
         staticValue === 'set' &&
         clientName === 'temporal-typescript' &&
-        clientVersion === pkg.version
+        clientVersion === pkg.version &&
+        auth === 'Bearer test-token'
       ) {
         gotTestHeaders = true;
       }
@@ -73,13 +77,22 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
       }
       callback(null, {});
     },
+    startWorkflowExecution(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
+      const [auth] = call.metadata.get('Authorization');
+      authTokens.push(auth.toString());
+      callback(null, {});
+    },
     updateNamespace() {
       // Simulate a hanging call to test abort signal support.
     },
   });
   const port = await bindLocalhost(server);
   server.start();
-  const conn = await Connection.connect({ address: `127.0.0.1:${port}`, metadata: { staticKey: 'set' } });
+  const conn = await Connection.connect({
+    address: `127.0.0.1:${port}`,
+    metadata: { staticKey: 'set' },
+    apiKey: 'test-token',
+  });
   await conn.withMetadata({ test: 'true' }, () =>
     conn.withMetadata({ otherKey: 'set' }, () =>
       conn.withDeadline(deadline, () => conn.workflowService.registerNamespace({}))
@@ -87,6 +100,14 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
   );
   t.true(gotTestHeaders);
   t.true(gotDeadline);
+  await conn.withApiKey('tt-2', () => conn.workflowService.startWorkflowExecution({}));
+  conn.setApiKey('tt-3');
+  await conn.workflowService.startWorkflowExecution({});
+  const nextTTs = ['tt-4', 'tt-5'];
+  conn.setApiKey(() => nextTTs.shift()!);
+  await conn.workflowService.startWorkflowExecution({});
+  await conn.workflowService.startWorkflowExecution({});
+  t.deepEqual(authTokens, ['Bearer tt-2', 'Bearer tt-3', 'Bearer tt-4', 'Bearer tt-5']);
   const ctrl = new AbortController();
   setTimeout(() => ctrl.abort(), 10);
   const err = await t.throwsAsync(conn.withAbortSignal(ctrl.signal, () => conn.workflowService.updateNamespace({})));
