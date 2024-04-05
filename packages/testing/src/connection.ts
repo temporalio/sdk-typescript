@@ -1,4 +1,3 @@
-import * as grpc from '@grpc/grpc-js';
 import { Connection as BaseConnection, ConnectionOptions } from '@temporalio/client';
 import { ConnectionCtorOptions as BaseConnectionCtorOptions } from '@temporalio/client/lib/connection';
 import { temporal } from '@temporalio/proto';
@@ -14,7 +13,6 @@ interface ConnectionCtorOptions extends BaseConnectionCtorOptions {
  * A Connection class that can be used to interact with both the test server's TestService and WorkflowService
  */
 export class Connection extends BaseConnection {
-  public static readonly TestServiceClient = grpc.makeGenericClientConstructor({}, 'TestService', {});
   public readonly testService: TestService;
 
   protected static createCtorOptions(options?: ConnectionOptions): ConnectionCtorOptions {

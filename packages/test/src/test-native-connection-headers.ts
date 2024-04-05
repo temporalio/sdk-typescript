@@ -66,8 +66,6 @@ test('NativeConnection passes headers provided in options', async (t) => {
     '127.0.0.1:0',
     grpc.ServerCredentials.createInsecure()
   );
-  server.start();
-
   const connection = await NativeConnection.connect({
     address: `127.0.0.1:${port}`,
     metadata: { initial: 'true' },
