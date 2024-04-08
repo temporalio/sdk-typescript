@@ -415,7 +415,12 @@ test('No 10s delay on close due to grpc-js', async (t) => {
     const startTime = Date.now();
     await new Promise((resolve, reject) => {
       try {
-        const childProcess = fork('-e', [script]);
+        const childProcess = fork('-e', [script], {
+          env: {
+            GRPC_VERBOSITY: 'DEBUG',
+            GRPC_TRACE: 'all',
+          },
+        });
         childProcess.on('exit', resolve);
         childProcess.on('error', reject);
       } catch (e) {
