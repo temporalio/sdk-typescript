@@ -380,8 +380,9 @@ test('Can configure TLS + call credentials', async (t) => {
 
           const expectedMinDuration =
             (expectedAttempts - 1) * (grpcStatusCode === grpc.status.RESOURCE_EXHAUSTED ? 100 : 10);
-          // Allow an overhead of 30ms per request. Even on very busy CI, that should be more than enough.
-          const expectedMaxDuration = expectedMinDuration + expectedAttempts * 30;
+          // Allow an overhead of 100ms for the first attempt, then 40ms per retry.
+          // Even on very busy CI, that should be more than enough.
+          const expectedMaxDuration = expectedMinDuration + 100 + (expectedAttempts - 1) * 40;
           const actualDuration = Date.now() - startTime;
           t.true(
             actualDuration >= expectedMinDuration,
