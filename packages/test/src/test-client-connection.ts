@@ -406,7 +406,17 @@ test('Can configure TLS + call credentials', async (t) => {
 test('No 10s delay on close due to grpc-js', async (t) => {
   const server = new grpc.Server();
   try {
-    server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {});
+    server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
+      getSystemInfo(
+        call: grpc.ServerUnaryCall<
+          temporal.api.workflowservice.v1.IGetSystemInfoRequest,
+          temporal.api.workflowservice.v1.IGetSystemInfoResponse
+        >,
+        callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+      ) {
+        callback(null, { serverVersion: 'test', capabilities: undefined });
+      },
+    });
     const port = await bindLocalhostTls(server);
     const script = `
       const { Connection } = require("@temporalio/client");
