@@ -1,7 +1,7 @@
 import { type LoggerSinksInternal } from '@temporalio/workflow/lib/logs';
 import { type InjectedSinks } from '../sinks';
 import { Runtime } from '../runtime';
-import { type Logger } from '../logger';
+import { withMetadata, type Logger } from '../logger';
 
 /**
  * Injects a logger sink that forwards to the worker's logger
@@ -11,7 +11,7 @@ export function initLoggerSink(logger?: Logger): InjectedSinks<LoggerSinksIntern
     __temporal_logger: {
       trace: {
         fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
+          logger ??= withMetadata(Runtime.instance().logger);
           logger.trace(message, attrs);
         },
       },
