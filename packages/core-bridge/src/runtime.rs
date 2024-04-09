@@ -233,7 +233,7 @@ pub fn start_bridge_loop(
                             let fieldsobj = hashmap_to_js_value(cx, cl.fields);
                             logobj.set(cx, "fields", fieldsobj.unwrap()).unwrap();
 
-                            let target = cx.string(cl.target);
+                            let target = cx.string(rust_package_to_js_style(cl.target.as_str()));
                             logobj.set(cx, "target", target).unwrap();
 
                             logarr.set(cx, i as u32, logobj).unwrap();

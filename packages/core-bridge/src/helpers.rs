@@ -226,23 +226,64 @@ pub fn hashmap_to_js_value<'a>(
 fn snake_to_camel(input: String) -> String {
     match input.find('_') {
         None => input,
-        Some(first) => {
+        Some(_) => {
             let mut result = String::with_capacity(input.len());
+            snake_to_camel_mut(&input, &mut result);
+            result
+        }
+    }
+}
+
+// Convert from Core's "target" values (actually full module name, like "temporal_sdk_core::worker::workflow"),
+// to the format used in our JavaScript side logger (like "core/worker/workflow").
+pub fn rust_package_to_js_style(input: &str) -> String {
+    let mut input = input;
+    let mut result = String::with_capacity(input.len());
+
+    if input.starts_with("temporal_sdk_core") {
+        result.push_str("core");
+        input = &input["temporal_sdk_core".len()..];
+        if input.starts_with("::") {
+            input = &input[2..];
+        }
+    } else if input.starts_with("temporal_client") {
+        result.push_str("core/client");
+        input = &input["temporal_client".len()..];
+        if input.starts_with("::") {
+            input = &input[2..];
+        }
+    }
+    if !input.is_empty() {
+        for part in input.split("::") {
+            if !result.is_empty() {
+                result.push('/');
+            }
+            snake_to_camel_mut(part, &mut result);
+        }
+    }
+    result
+}
+
+fn snake_to_camel_mut(input: &str, output: &mut String) {
+    match input.find('_') {
+        None => {
+            output.push_str(input);
+        }
+        Some(first) => {
             if first > 0 {
-                result.push_str(&input[..first]);
+                output.push_str(&input[..first]);
             }
             let mut capitalize = true;
             for c in input[first + 1..].chars() {
                 if c == '_' {
                     capitalize = true;
                 } else if capitalize {
-                    result.push(c.to_ascii_uppercase());
+                    output.push(c.to_ascii_uppercase());
                     capitalize = false;
                 } else {
-                    result.push(c.to_ascii_lowercase());
+                    output.push(c.to_ascii_lowercase());
                 }
             }
-            result
         }
     }
 }
@@ -258,6 +299,19 @@ mod tests {
         assert_eq!(
             snake_to_camel("éàç_this_is_a_test".into()),
             "éàçThisIsATest"
+        );
+    }
+
+    #[test]
+    fn rust_package_to_js_style_works() {
+        assert_eq!(
+            rust_package_to_js_style("temporal_sdk_core::worker::workflow::workflow_stream"),
+            "core/worker/workflow/workflowStream"
+        );
+        assert_eq!(rust_package_to_js_style("temporal_sdk_core"), "core");
+        assert_eq!(
+            rust_package_to_js_style("temporal_client::worker_registry"),
+            "core/client/workerRegistry"
         );
     }
 }

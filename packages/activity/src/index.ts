@@ -254,8 +254,8 @@ export class Context {
    * The logger for this Activity.
    *
    * This defaults to the `Runtime`'s Logger (see {@link Runtime.logger}). Attributes from the current Activity context
-   * will automatically be included as metadata on every log entries, and some key events of the Activity's lifecycle
-   * will automatically be logged (at 'DEBUG' level for most messages; 'WARN' for failures).
+   * will automatically be included as metadata on every log entries. An extra `logSource` metadata attribute will also
+   * be added, with value `activity`; this can be used for fine-grained filtering of log entries further downstream.
    *
    * To customize log attributes, register a {@link ActivityOutboundCallsInterceptor} that intercepts the
    * `getLogAttributes()` method.

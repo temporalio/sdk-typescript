@@ -8,6 +8,7 @@ import {
   FAILURE_SOURCE,
   IllegalStateError,
   LoadedDataConverter,
+  LogSource,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -19,7 +20,6 @@ import {
   ActivityInterceptorsFactory,
   ActivityOutboundCallsInterceptor,
 } from './interceptors';
-import { Runtime } from './runtime';
 import { Logger } from './logger';
 
 const UNINITIALIZED = Symbol('UNINITIALIZED');
@@ -44,6 +44,7 @@ export class Activity {
     public readonly fn: ActivityFunction<any[], any> | undefined,
     public readonly dataConverter: LoadedDataConverter,
     public readonly heartbeatCallback: Context['heartbeat'],
+    parentLogger: Logger,
     interceptors: ActivityInterceptorsFactory[]
   ) {
     const promise = new Promise<never>((_, reject) => {
@@ -58,7 +59,7 @@ export class Activity {
       promise,
       this.abortController.signal,
       this.heartbeatCallback,
-      this.makeActivityLogger()
+      this.makeActivityLogger(parentLogger)
     );
     // Prevent unhandled rejection
     promise.catch(() => undefined);
@@ -78,8 +79,7 @@ export class Activity {
     return composeInterceptors(this.interceptors.outbound, 'getLogAttributes', (a) => a)(logAttributes);
   }
 
-  protected makeActivityLogger(): Logger {
-    const parentLogger = Runtime.instance().logger;
+  protected makeActivityLogger(parentLogger: Logger): Logger {
     return {
       log: (level, message, attrs) => {
         return parentLogger.log(level, message, { ...this.getLogAttributes(), ...attrs });
@@ -110,7 +110,7 @@ export class Activity {
   protected async execute(fn: ActivityFunction<any[], any>, input: ActivityExecuteInput): Promise<unknown> {
     let error: any = UNINITIALIZED; // In case someone decides to throw undefined...
     const startTime = process.hrtime.bigint();
-    this.context.log.debug('Activity started');
+    this.context.log.debug('Activity started', { logSource: LogSource.activityWorker });
     try {
       const executeNextHandler = ({ args }: any) => fn(...args);
       const executeWithInterceptors = composeInterceptors(this.interceptors.inbound, 'execute', executeNextHandler);
@@ -123,16 +123,19 @@ export class Activity {
       const durationMs = Number(durationNanos / 1_000_000n);
 
       if (error === UNINITIALIZED) {
-        this.context.log.debug('Activity completed', { durationMs });
+        this.context.log.debug('Activity completed', { durationMs, logSource: LogSource.activityWorker });
       } else if (
         (error instanceof CancelledFailure || isAbortError(error)) &&
         this.context.cancellationSignal.aborted
       ) {
-        this.context.log.debug('Activity completed as cancelled', { durationMs });
+        this.context.log.debug('Activity completed as cancelled', { durationMs, logSource: LogSource.activityWorker });
       } else if (error instanceof CompleteAsyncError) {
-        this.context.log.debug('Activity will complete asynchronously', { durationMs });
+        this.context.log.debug('Activity will complete asynchronously', {
+          durationMs,
+          logSource: LogSource.activityWorker,
+        });
       } else {
-        this.context.log.warn('Activity failed', { error, durationMs });
+        this.context.log.warn('Activity failed', { error, durationMs, logSource: LogSource.activityWorker });
       }
     }
   }
@@ -198,5 +201,6 @@ export function activityLogAttributes(info: Info): Record<string, unknown> {
     activityId: info.activityId,
     activityType: info.activityType,
     taskQueue: info.taskQueue,
+    logSource: LogSource.activity,
   };
 }
