@@ -406,31 +406,16 @@ test('Can configure TLS + call credentials', async (t) => {
 test('No 10s delay on close due to grpc-js', async (t) => {
   const server = new grpc.Server();
   try {
-    server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
-      getSystemInfo(
-        call: grpc.ServerUnaryCall<
-          temporal.api.workflowservice.v1.IGetSystemInfoRequest,
-          temporal.api.workflowservice.v1.IGetSystemInfoResponse
-        >,
-        callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
-      ) {
-        callback(null, { serverVersion: 'test', capabilities: undefined });
-      },
-    });
-    const port = await bindLocalhostTls(server);
+    server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {});
+    const port = await bindLocalhost(server);
     const script = `
       const { Connection } = require("@temporalio/client");
-      Connection.connect({ address: '127.0.0.1:${port}' }).then(() => console.log("Connected"), (e) => console.log(e));
+      Connection.connect({ address: '127.0.0.1:${port}' }).catch(console.log);
     `;
     const startTime = Date.now();
     await new Promise((resolve, reject) => {
       try {
-        const childProcess = fork('-e', [script], {
-          env: {
-            GRPC_VERBOSITY: 'DEBUG',
-            GRPC_TRACE: 'all',
-          },
-        });
+        const childProcess = fork('-e', [script]);
         childProcess.on('exit', resolve);
         childProcess.on('error', reject);
       } catch (e) {
@@ -438,7 +423,7 @@ test('No 10s delay on close due to grpc-js', async (t) => {
       }
     });
     const duration = Date.now() - startTime;
-    t.true(duration < 2000, `Expected duration to be less than 2s, got ${duration / 1000}ms`);
+    t.true(duration < 2000, `Expected duration to be less than 2s, got ${duration / 1000}s`);
   } finally {
     server.forceShutdown();
   }
