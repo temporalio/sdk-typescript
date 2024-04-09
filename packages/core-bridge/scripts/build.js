@@ -86,7 +86,7 @@ function compile(requestedTarget) {
     stdio: 'inherit',
   });
   if (status !== 0) {
-    throw new Error(`Failed to build${target ? ' for ' + target : ''}`);
+    throw new Error(`Failed to build${target ? ' for ' + target : ''}: status code ${status}`);
   }
 }
 
