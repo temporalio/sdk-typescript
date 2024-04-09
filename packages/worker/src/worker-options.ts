@@ -615,7 +615,7 @@ export interface ReplayWorkerOptions
  * Build the sink used internally by the SDK to forwards log messages from the Workflow sandbox to an actual logger.
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
- *
+
  * @deprecated Calling `defaultSink()` is no longer required. To configure a custom logger, set the
  *             {@link Runtime.logger} property instead.
  */
@@ -625,6 +625,13 @@ export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
   // code that is still calling defaultSinks() expects return type to match the deprecated LoggerSinks API. Silently
   // cast just to mask type checking issues, even though we know this is wrong. Users shouldn't call functions directly
   // on the returned object anyway.
+
+  // If no logger was provided, the legacy behavior was to _lazyly_ set the sink's logger to the Runtime's logger.
+  // This was required because may call defaultSinks() before the Runtime is initialized. We preserve that behavior
+  // here by silently not initializing the sink if no logger is provided.
+  // eslint-disable-next-line deprecation/deprecation
+  if (!logger) return {} as InjectedSinks<LoggerSinks>;
+
   // eslint-disable-next-line deprecation/deprecation
   return initLoggerSink(logger) as unknown as InjectedSinks<LoggerSinks>;
 }
