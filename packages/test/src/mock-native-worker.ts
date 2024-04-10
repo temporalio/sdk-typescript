@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { lastValueFrom } from 'rxjs';
 import { LogSource, defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';

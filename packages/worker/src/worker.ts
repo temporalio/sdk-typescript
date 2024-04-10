@@ -1,4 +1,4 @@
-import crypto, { randomUUID } from 'node:crypto';
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vm from 'node:vm';
