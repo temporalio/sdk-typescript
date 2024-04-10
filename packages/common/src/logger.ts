@@ -26,14 +26,14 @@ export interface Logger {
  */
 export enum LogSource {
   /**
-   * Log Source value for messages emited from Workflow code, using the Workflow
-   * context logger. The SDK itself never publishes messages with this source.
+   * Log Source value for messages emited from Workflow code, using the {@link Workflow
+   * context logger|workflow.log}. The SDK itself never publishes messages with this source.
    */
   workflow = 'workflow',
 
   /**
-   * Log Source value for messages emited from an activity, using the activity
-   * context logger. The SDK itself never publishes messages with this source.
+   * Log Source value for messages emited from an activity, using the {@link activity
+   * context logger|Context.log}. The SDK itself never publishes messages with this source.
    */
   activity = 'activity',
 
@@ -55,7 +55,7 @@ export enum LogSource {
   activityWorker = 'worker/activity',
 
   /**
-   * Log Source value for messages emited from an Activity Worker.
+   * Log Source value for messages emited from a Workflow Worker.
    * This includes:
    * - Workflow Lifecycle events;
    * - Workflow Activations processing events;

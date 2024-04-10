@@ -662,7 +662,7 @@ export function appendDefaultInterceptors(
   };
 }
 
-export function compileWorkerInterceptors({
+function compileWorkerInterceptors({
   activity,
   activityInbound, // eslint-disable-line deprecation/deprecation
   workflowModules,
@@ -739,12 +739,6 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
   };
 }
 
-function isSet(env: string | undefined): boolean {
-  if (env === undefined) return false;
-  env = env.toLocaleLowerCase();
-  return env === '1' || env === 't' || env === 'true';
-}
-
 export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): CompiledWorkerOptions {
   const opts = addDefaultWorkerOptions(rawOpts, logger);
   if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
@@ -779,4 +773,10 @@ export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): Co
     activities,
     enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,
   };
+}
+
+function isSet(env: string | undefined): boolean {
+  if (env === undefined) return false;
+  env = env.toLocaleLowerCase();
+  return env === '1' || env === 't' || env === 'true';
 }

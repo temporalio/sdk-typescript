@@ -162,8 +162,7 @@ export class Worker extends RealWorker {
   public constructor(workflowCreator: WorkflowCreator, opts: CompiledWorkerOptions) {
     const logger = withMetadata(Runtime.instance().logger, {
       logSource: LogSource.worker,
-      // A random workerId to make it easier to correlate logs
-      workerId: randomUUID(),
+      taskQueue: opts.taskQueue ?? 'default',
     });
     const nativeWorker = new MockNativeWorker();
     super(nativeWorker, workflowCreator, opts, logger);
@@ -184,8 +183,7 @@ export const defaultOptions: WorkerOptions = {
 export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Worker {
   const logger = withMetadata(Runtime.instance().logger, {
     logSource: LogSource.worker,
-    // A random workerId to make it easier to correlate logs
-    workerId: randomUUID(),
+    taskQueue: options.taskQueue ?? 'default',
   });
   return new Worker(
     {

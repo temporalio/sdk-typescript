@@ -167,7 +167,6 @@ if (RUN_INTEGRATION_TESTS) {
         meta: {
           ...x.meta,
           workflowInfo: fixWorkflowInfoDates(x.meta?.workflowInfo),
-          workerId: 'ignore',
         },
         timestampNanos: undefined,
       })),
@@ -180,7 +179,7 @@ if (RUN_INTEGRATION_TESTS) {
           fnName: error.fnName,
           workflowInfo: info,
           logSource: LogSource.worker,
-          workerId: 'ignore',
+          taskQueue,
         },
         timestampNanos: undefined,
       }))

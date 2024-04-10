@@ -234,8 +234,8 @@ fn snake_to_camel(input: String) -> String {
     }
 }
 
-// Convert from Core's "target" values (actually full module name, like "temporal_sdk_core::worker::workflow"),
-// to the format used in our JavaScript side logger (like "core/worker/workflow").
+// Convert from Core's log "targets" (actually full module name, like "temporal_sdk_core::worker::workflow"),
+// to the format used in our JavaScript side logger (i.e. "core/worker/workflow").
 pub fn rust_package_to_js_style(input: &str) -> String {
     let mut input = input;
     let mut result = String::with_capacity(input.len());

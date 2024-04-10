@@ -422,8 +422,7 @@ export class Worker {
   public static async create(options: WorkerOptions): Promise<Worker> {
     const logger = withMetadata(Runtime.instance().logger, {
       logSource: LogSource.worker,
-      // A random workerId to make it easier to correlate logs
-      workerId: randomUUID(),
+      taskQueue: options.taskQueue ?? 'default',
     });
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(options, logger);
@@ -599,11 +598,6 @@ export class Worker {
   }
 
   private static async constructReplayWorker(options: ReplayWorkerOptions): Promise<[Worker, native.HistoryPusher]> {
-    const logger = withMetadata(Runtime.instance().logger, {
-      logSource: 'worker',
-      // A random workerId to make it easier to correlate logs
-      workerId: randomUUID(),
-    });
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
     const fixedUpOptions: WorkerOptions = {
       taskQueue: (options.replayName ?? 'fake_replay_queue') + '-' + this.replayWorkerCount,
@@ -611,6 +605,10 @@ export class Worker {
       ...options,
     };
     this.replayWorkerCount++;
+    const logger = withMetadata(Runtime.instance().logger, {
+      logSource: 'worker',
+      taskQueue: fixedUpOptions.taskQueue,
+    });
     const compiledOptions = compileWorkerOptions(fixedUpOptions, logger);
     const bundle = await this.getOrCreateBundle(compiledOptions, logger);
     if (!bundle) {
