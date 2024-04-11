@@ -146,8 +146,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                         )),
                     };
 
-                println!("{:?}", basic_auth);
-
                 Some(HttpConnectProxyOptions {
                     target_addr,
                     basic_auth
