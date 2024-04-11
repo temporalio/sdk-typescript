@@ -2,8 +2,9 @@ import * as native from '@temporalio/core-bridge';
 import pkg from './pkg';
 
 type TLSConfig = native.TLSConfig;
+type ProxyConfig = native.ProxyConfig;
 
-export { TLSConfig };
+export { TLSConfig, ProxyConfig };
 
 export interface NativeConnectionOptions {
   /**
@@ -22,6 +23,8 @@ export interface NativeConnectionOptions {
    */
   tls?: TLSConfig | boolean | null;
 
+  proxy?: ProxyConfig | boolean | null;
+
   /**
    * Optional mapping of gRPC metadata (HTTP headers) to send with each request to the server.
    *
@@ -36,8 +39,9 @@ export interface NativeConnectionOptions {
   apiKey?: string;
 }
 
-export type RequiredNativeConnectionOptions = Omit<Required<NativeConnectionOptions>, 'tls' | 'metadata' | 'apiKey'> & {
+export type RequiredNativeConnectionOptions = Omit<Required<NativeConnectionOptions>, 'tls' | 'proxy' | 'metadata' | 'apiKey'> & {
   tls?: NativeConnectionOptions['tls'];
+  proxy?: NativeConnectionOptions['proxy'];
   metadata?: NativeConnectionOptions['metadata'];
   apiKey?: NativeConnectionOptions['apiKey'];
   sdkVersion: string;

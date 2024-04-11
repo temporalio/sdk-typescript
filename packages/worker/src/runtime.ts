@@ -350,6 +350,7 @@ export class Runtime {
     const clientOptions = {
       ...compiledServerOptions,
       tls: normalizeTlsConfig(compiledServerOptions.tls),
+      proxy: compiledServerOptions.proxy,
       url: options?.tls ? `https://${compiledServerOptions.address}` : `http://${compiledServerOptions.address}`,
     };
     return await this.createNative(promisify(newClient), this.native, clientOptions);

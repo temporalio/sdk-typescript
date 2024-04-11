@@ -3,7 +3,12 @@ import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as grpc from '@grpc/grpc-js';
 import type { RPCImpl } from 'protobufjs';
-import { filterNullAndUndefined, normalizeTlsConfig, TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
+import {
+  filterNullAndUndefined,
+  normalizeTlsConfig,
+  TLSConfig,
+  HttpConnectProxyConfig,
+} from '@temporalio/common/lib/internal-non-workflow';
 import { Duration, msOptionalToNumber } from '@temporalio/common/lib/time';
 import { isGrpcServiceError, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
@@ -34,6 +39,8 @@ export interface ConnectionOptions {
    * @default TLS is disabled
    */
   tls?: TLSConfig | boolean | null;
+
+  proxy?: HttpConnectProxyConfig | boolean | null;
 
   /**
    * gRPC channel credentials.
@@ -123,7 +130,7 @@ export interface ConnectionOptions {
 }
 
 export type ConnectionOptionsWithDefaults = Required<
-  Omit<ConnectionOptions, 'tls' | 'connectTimeout' | 'callCredentials' | 'apiKey'>
+  Omit<ConnectionOptions, 'tls' | 'proxy' | 'connectTimeout' | 'callCredentials' | 'apiKey'>
 > & {
   connectTimeoutMs: number;
 };
@@ -139,6 +146,7 @@ function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults 
       'grpc.keepalive_permit_without_calls': 1,
       'grpc.keepalive_time_ms': 30_000,
       'grpc.keepalive_timeout_ms': 15_000,
+      'grpc.enable_http_proxy': 1,
       ...channelArgs,
     },
     interceptors: interceptors ?? [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
