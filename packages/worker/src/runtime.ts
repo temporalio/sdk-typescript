@@ -363,9 +363,13 @@ export class Runtime {
    * @hidden
    */
   public async closeNativeClient(client: native.Client): Promise<void> {
+    console.log('111 Runtime.closeNativeClient');
     native.clientClose(client);
+    console.log('112 Runtime.closeNativeClient');
     this.backRefs.delete(client);
+    console.log('113 Runtime.closeNativeClient');
     await this.shutdownIfIdle();
+    console.log('114 Runtime.closeNativeClient');
   }
 
   /**
@@ -440,9 +444,13 @@ export class Runtime {
    * @hidden
    */
   public async shutdownEphemeralServer(server: native.EphemeralServer): Promise<void> {
+    console.log('210 Runtime.shutdownEphemeralServer');
     await promisify(native.shutdownEphemeralServer)(server);
+    console.log('220 Runtime.shutdownEphemeralServer');
     this.backRefs.delete(server);
+    console.log('230 Runtime.shutdownEphemeralServer');
     await this.shutdownIfIdle();
+    console.log('240 Runtime.shutdownEphemeralServer');
   }
 
   protected async createNative<

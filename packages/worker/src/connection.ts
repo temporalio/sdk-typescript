@@ -65,7 +65,9 @@ export class NativeConnection {
     if (this.referenceHolders.size > 0) {
       throw new IllegalStateError('Cannot close connection while Workers hold a reference to it');
     }
+    console.log('110 NativeConnection.close');
     await Runtime.instance().closeNativeClient(this.nativeClient);
+    console.log('120 NativeConnection.close');
   }
 
   /**

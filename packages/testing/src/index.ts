@@ -298,8 +298,11 @@ export class TestWorkflowEnvironment {
    */
   async teardown(): Promise<void> {
     await this.connection.close();
+    console.log('100 TestWorkflowEnvironment.teardown');
     await this.nativeConnection.close();
+    console.log('200 teardown');
     await Runtime.instance().shutdownEphemeralServer(this.server);
+    console.log('300 teardown');
   }
 
   /**
