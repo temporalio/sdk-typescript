@@ -481,7 +481,8 @@ export class Runtime {
   }
 
   protected async shutdownIfIdle(): Promise<void> {
-    this.logger.info('Checking if runtime is idle', { logSource: LogSource.runtime });
+    const stack = new Error().stack;
+    this.logger.info('Checking if runtime is idle', { logSource: LogSource.runtime, stack });
     if (this.isIdle()) {
       this.logger.info('... Idle! Shuting runtime down.', { logSource: LogSource.runtime });
       await this.shutdown();
