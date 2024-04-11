@@ -2536,6 +2536,7 @@ dependencies = [
  "temporal-sdk-core",
  "tokio",
  "tokio-stream",
+ "tracing",
 ]
 
 [[package]]

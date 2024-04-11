@@ -324,22 +324,31 @@ pub fn start_bridge_loop(
                     });
                 }
                 RuntimeRequest::ShutdownEphemeralServer { server, callback } => {
+                    info!("2141 ShutdownEphemeralServer");
                     core_runtime.tokio_handle().spawn(async move {
-                        void_future_to_js(
+                        info!("2142 ShutdownEphemeralServer");
+                        let x = void_future_to_js(
                             channel,
                             callback,
                             async move {
+                                info!("2143 ShutdownEphemeralServer");
                                 let mut guard = server.lock().await;
-                                guard.shutdown().await
+                                info!("2144 ShutdownEphemeralServer");
+                                let x = guard.shutdown().await;
+                                info!("2145 ShutdownEphemeralServer");
+                                x
                             },
                             |cx, err| {
+                                info!("2146 ShutdownEphemeralServer");
                                 make_named_error_from_string(
                                     cx,
                                     UNEXPECTED_ERROR,
                                     format!("Failed to start test server: {}", err),
                                 )
                             },
-                        ).await
+                        ).await;
+                        info!("2147 ShutdownEphemeralServer");
+                        x
                     });
                 }
                 RuntimeRequest::PushReplayHistory {

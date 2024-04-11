@@ -10,6 +10,9 @@ use crate::worker::*;
 use neon::prelude::*;
 use testing::*;
 
+#[macro_use]
+extern crate tracing;
+
 #[neon::main]
 fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("getTimeOfDay", get_time_of_day)?;
