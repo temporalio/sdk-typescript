@@ -15,7 +15,7 @@ import {
   MetricsExporter,
   OtelCollectorExporter,
 } from '@temporalio/core-bridge';
-import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/common/lib/internal-non-workflow';
+import { filterNullAndUndefined, normalizeTlsConfig, normalizeProxyConfig } from '@temporalio/common/lib/internal-non-workflow';
 import { IllegalStateError, LogMetadata } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
@@ -347,6 +347,7 @@ export class Runtime {
     const clientOptions = {
       ...compiledServerOptions,
       tls: normalizeTlsConfig(compiledServerOptions.tls),
+      proxy: normalizeProxyConfig(compiledServerOptions.proxy),
       url: options?.tls ? `https://${compiledServerOptions.address}` : `http://${compiledServerOptions.address}`,
     };
     return await this.createNative(promisify(newClient), this.native, clientOptions);

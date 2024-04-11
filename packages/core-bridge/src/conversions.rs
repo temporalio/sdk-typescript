@@ -19,8 +19,9 @@ use temporal_sdk_core::{
         TestServerConfigBuilder,
     },
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
-    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TlsConfig, Url,
+    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TlsConfig, Url, 
 };
+use temporal_client::HttpConnectProxyOptions;
 
 pub enum EphemeralServerConfig {
     TestServer(TestServerConfig),
@@ -121,6 +122,39 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             }
         };
 
+        let proxy_cfg = match js_optional_getter!(cx, self, "proxy", JsObject) {
+            None => None,
+            Some(proxy) => {
+                let target_addr = js_value_getter!(cx, &proxy, "targetHost", JsString);
+
+                let basic_auth =
+                    match js_optional_getter!(cx, &proxy, "basicAuth", JsObject) {
+                        None => None,
+                        Some(proxy_obj) => Some((
+                            js_value_getter!(
+                                cx,
+                                &proxy_obj,
+                                "username",
+                                JsString
+                            ),
+                            js_value_getter!(
+                                cx,
+                                &proxy_obj,
+                                "password",
+                                JsString
+                            ),
+                        )),
+                    };
+
+                println!("{:?}", basic_auth);
+
+                Some(HttpConnectProxyOptions {
+                    target_addr,
+                    basic_auth
+                })
+            }
+        };
+
         let retry_config = match js_optional_getter!(cx, self, "retry", JsObject) {
             None => RetryConfig::default(),
             Some(ref retry_config) => RetryConfig {
@@ -157,6 +191,9 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let mut client_options = ClientOptionsBuilder::default();
         if let Some(tls_cfg) = tls_cfg {
             client_options.tls_cfg(tls_cfg);
+        }
+        if let Some(proxy_cfg) = proxy_cfg {
+            client_options.http_connect_proxy(Some(proxy_cfg));
         }
         let headers = match js_optional_getter!(cx, self, "metadata", JsObject) {
             None => None,

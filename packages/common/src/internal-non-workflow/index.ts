@@ -6,5 +6,6 @@
 export * from './codec-helpers';
 export * from './codec-types';
 export * from './data-converter-helpers';
+export * from './proxy-config';
 export * from './tls-config';
 export * from './utils';
