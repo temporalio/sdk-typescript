@@ -481,7 +481,15 @@ export class Runtime {
   }
 
   protected async shutdownIfIdle(): Promise<void> {
-    if (this.isIdle()) await this.shutdown();
+    this.logger.info('Checking if runtime is idle', { logSource: LogSource.runtime });
+    if (this.isIdle()) {
+      this.logger.info('... Idle! Shuting runtime down.', { logSource: LogSource.runtime });
+      await this.shutdown();
+    } else {
+      this.logger.info(`... Not idle; pendingCreations: ${this.pendingCreations}; backRefs: ${this.backRefs.size}`, {
+        logSource: LogSource.runtime,
+      });
+    }
   }
 
   /**
@@ -493,13 +501,17 @@ export class Runtime {
    * @hidden
    */
   public async shutdown(): Promise<void> {
+    this.logger.info('Shutting down runtime', { logSource: LogSource.runtime });
     delete Runtime._instance;
     this.teardownShutdownHook();
     this.stopPollingForLogs = true;
     this.stopPollingForLogsCallback?.();
+    this.logger.info('Waiting for logs to drain', { logSource: LogSource.runtime });
     // This will effectively drain all logs
     await this.logPollPromise;
+    this.logger.info('Call native runtimeShutdown()', { logSource: LogSource.runtime });
     await promisify(runtimeShutdown)(this.native);
+    this.logger.info('Shutdown completed', { logSource: LogSource.runtime });
   }
 
   /**
