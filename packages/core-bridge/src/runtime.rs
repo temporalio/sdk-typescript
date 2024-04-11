@@ -324,22 +324,22 @@ pub fn start_bridge_loop(
                     });
                 }
                 RuntimeRequest::ShutdownEphemeralServer { server, callback } => {
-                    info!("2141 ShutdownEphemeralServer");
+                    error!("2141 ShutdownEphemeralServer");
                     core_runtime.tokio_handle().spawn(async move {
-                        info!("2142 ShutdownEphemeralServer");
+                        error!("2142 ShutdownEphemeralServer");
                         let x = void_future_to_js(
                             channel,
                             callback,
                             async move {
-                                info!("2143 ShutdownEphemeralServer");
+                                error!("2143 ShutdownEphemeralServer");
                                 let mut guard = server.lock().await;
-                                info!("2144 ShutdownEphemeralServer");
+                                error!("2144 ShutdownEphemeralServer");
                                 let x = guard.shutdown().await;
-                                info!("2145 ShutdownEphemeralServer");
+                                error!("2145 ShutdownEphemeralServer");
                                 x
                             },
                             |cx, err| {
-                                info!("2146 ShutdownEphemeralServer");
+                                error!("2146 ShutdownEphemeralServer");
                                 make_named_error_from_string(
                                     cx,
                                     UNEXPECTED_ERROR,
@@ -347,7 +347,7 @@ pub fn start_bridge_loop(
                                 )
                             },
                         ).await;
-                        info!("2147 ShutdownEphemeralServer");
+                        error!("2147 ShutdownEphemeralServer");
                         x
                     });
                 }

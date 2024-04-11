@@ -46,17 +46,17 @@ pub fn get_ephemeral_server_target(mut cx: FunctionContext) -> JsResult<JsString
 
 /// Shutdown an ephemeral server - consumes the server
 pub fn shutdown_ephemeral_server(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    info!("211 shutdown_ephemeral_server");
+    error!("211 shutdown_ephemeral_server");
     let server = cx.argument::<BoxedEphemeralServer>(0)?;
     let callback = cx.argument::<JsFunction>(1)?;
     // Drop the ref
     match server.replace(None) {
         None => {
-            info!("212 shutdown_ephemeral_server - Closed server");
+            error!("212 shutdown_ephemeral_server - Closed server");
             callback_with_unexpected_error(&mut cx, callback, "Tried to use closed test server")?;
         }
         Some(server) => {
-            info!("214 shutdown_ephemeral_server");
+            error!("214 shutdown_ephemeral_server");
             if let Err(err) = server
                 .runtime
                 .sender
@@ -65,11 +65,11 @@ pub fn shutdown_ephemeral_server(mut cx: FunctionContext) -> JsResult<JsUndefine
                     callback: callback.root(&mut cx),
                 })
             {
-                info!("216 shutdown_ephemeral_server - Failed");
+                error!("216 shutdown_ephemeral_server - Failed");
                 callback_with_unexpected_error(&mut cx, callback, err)?;
             };
         }
     }
-    info!("218 shutdown_ephemeral_server - OK");
+    error!("218 shutdown_ephemeral_server - OK");
     Ok(cx.undefined())
 }

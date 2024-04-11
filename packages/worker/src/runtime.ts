@@ -97,7 +97,7 @@ export interface MakeTelemetryFilterStringOptions {
  */
 export function makeTelemetryFilterString(options: MakeTelemetryFilterStringOptions): string {
   const { core, other } = { other: 'INFO', ...options };
-  return `${other},temporal_sdk_core=${core},temporal_client=${core},temporal_sdk=${core}`;
+  return `${other},temporal_sdk_core=${core},temporal_client=${core},temporal_sdk=${core},temporal_sdk_typescript_bridge=${core}`;
 }
 
 /** A logger that buffers logs from both Node.js and Rust Core and emits logs in the right order */
