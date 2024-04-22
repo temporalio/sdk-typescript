@@ -1,7 +1,7 @@
 const { resolve, dirname } = require('path');
 const { writeFileSync } = require('fs');
 const { withRegistry, getArgs } = require('./registry');
-const { spawnNpx } = require('./utils');
+const { spawnNpx, shell } = require('./utils');
 
 async function main() {
   const { registryDir, targetDir, initArgs } = await getArgs();
