@@ -1,4 +1,5 @@
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import { LogSource } from '@temporalio/common';
 import { untrackPromise } from './stack-helpers';
 import { type Sink, type Sinks, proxySinks } from './sinks';
 import { isCancellation } from './errors';
@@ -50,6 +51,13 @@ const LogTimestamp = Symbol.for('log_timestamp');
  * This logger is replay-aware and will omit log messages on workflow replay. Messages emitted by this logger are
  * funnelled through a sink that forwards them to the logger registered on {@link Runtime.logger}.
  *
+ * Attributes from the current Workflow Execution context will automatically be included as metadata on every log
+ * entries. An extra `logSource` metadata attribute will also be added, with value `workflow`; this can be used for
+ * fine-grained filtering of log entries further downstream.
+ *
+ * To customize log attributes, register a {@link WorkflowOutboundCallsInterceptor} that intercepts the
+ * `getLogAttributes()` method.
+ *
  * Notice that since sinks are used to power this logger, any log attributes must be transferable via the
  * {@link https://nodejs.org/api/worker_threads.html#worker_threads_port_postmessage_value_transferlist | postMessage}
  * API.
@@ -76,10 +84,10 @@ export const log: WorkflowLogger = Object.fromEntries(
 ) as any;
 
 export function executeWithLifecycleLogging(fn: () => Promise<unknown>): Promise<unknown> {
-  log.debug('Workflow started');
+  log.debug('Workflow started', { logSource: LogSource.worker });
   const p = fn().then(
     (res) => {
-      log.debug('Workflow completed');
+      log.debug('Workflow completed', { logSource: LogSource.worker });
       return res;
     },
     (error) => {
@@ -87,14 +95,14 @@ export function executeWithLifecycleLogging(fn: () => Promise<unknown>): Promise
       // e.g. by jest or when multiple versions are installed.
       if (typeof error === 'object' && error != null) {
         if (isCancellation(error)) {
-          log.debug('Workflow completed as cancelled');
+          log.debug('Workflow completed as cancelled', { logSource: LogSource.worker });
           throw error;
         } else if (error instanceof ContinueAsNew) {
-          log.debug('Workflow continued as new');
+          log.debug('Workflow continued as new', { logSource: LogSource.worker });
           throw error;
         }
       }
-      log.warn('Workflow failed', { error });
+      log.warn('Workflow failed', { error, logSource: LogSource.worker });
       throw error;
     }
   );
@@ -114,5 +122,6 @@ export function workflowLogAttributes(info: WorkflowInfo): Record<string, unknow
     workflowId: info.workflowId,
     runId: info.runId,
     workflowType: info.workflowType,
+    logSource: 'workflow',
   };
 }

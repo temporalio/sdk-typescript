@@ -87,3 +87,38 @@ export class DefaultLogger implements Logger {
     this.log('ERROR', message, meta);
   }
 }
+
+export function withMetadata(logger: Logger, meta: LogMetadata): Logger {
+  return new LoggerWithMetadata(logger, meta);
+}
+
+class LoggerWithMetadata implements Logger {
+  constructor(
+    public readonly logger: Logger,
+    public readonly meta: LogMetadata
+  ) {}
+
+  log(level: LogLevel, message: string, meta?: LogMetadata): void {
+    this.logger.log(level, message, { ...this.meta, ...meta });
+  }
+
+  trace(message: string, meta?: LogMetadata): void {
+    this.logger.trace(message, { ...this.meta, ...meta });
+  }
+
+  debug(message: string, meta?: LogMetadata): void {
+    this.logger.debug(message, { ...this.meta, ...meta });
+  }
+
+  info(message: string, meta?: LogMetadata): void {
+    this.logger.info(message, { ...this.meta, ...meta });
+  }
+
+  warn(message: string, meta?: LogMetadata): void {
+    this.logger.warn(message, { ...this.meta, ...meta });
+  }
+
+  error(message: string, meta?: LogMetadata): void {
+    this.logger.error(message, { ...this.meta, ...meta });
+  }
+}
