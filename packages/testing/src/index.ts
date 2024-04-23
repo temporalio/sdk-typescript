@@ -273,7 +273,7 @@ export class TestWorkflowEnvironment {
    */
   static async createLocal(opts?: LocalTestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
     return await this.create({
-      server: { type: 'dev-server', ...opts?.server },
+      server: { type: 'dev-server', ...opts?.server, executable: { type: 'cached-download', version: 'v0.12.0-rc.3' } },
       client: opts?.client,
       namespace: opts?.server?.namespace,
       supportsTimeSkipping: false,
