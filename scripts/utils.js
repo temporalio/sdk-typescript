@@ -9,9 +9,6 @@ class ChildProcessError extends Error {
   }
 }
 
-const shell = /^win/.test(process.platform);
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 async function waitOnChild(child) {
   return new Promise((resolve, reject) => {
     child.on('exit', (code, signal) => {
@@ -47,7 +44,10 @@ async function kill(child, signal = 'SIGINT') {
 async function spawnNpx(args, opts) {
   const npx = /^win/.test(process.platform) ? 'npx.cmd' : 'npx';
   const npxArgs = ['--prefer-offline', '--timing=true', '--yes', '--', ...args];
-  await waitOnChild(spawn(npx, npxArgs, { ...opts, shell }));
+  await waitOnChild(spawn(npx, npxArgs, opts));
 }
+
+const shell = /^win/.test(process.platform);
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 module.exports = { kill, spawnNpx, ChildProcessError, shell, sleep };

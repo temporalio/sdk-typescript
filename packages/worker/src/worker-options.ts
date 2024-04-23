@@ -1,7 +1,7 @@
 import * as os from 'node:os';
 import * as v8 from 'node:v8';
 import type { Configuration as WebpackConfiguration } from 'webpack';
-import { ActivityFunction, DataConverter, LoadedDataConverter, LogSource } from '@temporalio/common';
+import { ActivityFunction, DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
@@ -9,7 +9,7 @@ import { Context } from '@temporalio/activity';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
-import { Logger, withMetadata } from './logger';
+import { Logger } from './logger';
 import { initLoggerSink } from './workflow/logger';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
@@ -615,7 +615,7 @@ export interface ReplayWorkerOptions
  * Build the sink used internally by the SDK to forwards log messages from the Workflow sandbox to an actual logger.
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
-
+ *
  * @deprecated Calling `defaultSink()` is no longer required. To configure a custom logger, set the
  *             {@link Runtime.logger} property instead.
  */
@@ -625,13 +625,6 @@ export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
   // code that is still calling defaultSinks() expects return type to match the deprecated LoggerSinks API. Silently
   // cast just to mask type checking issues, even though we know this is wrong. Users shouldn't call functions directly
   // on the returned object anyway.
-
-  // If no logger was provided, the legacy behavior was to _lazily_ set the sink's logger to the Runtime's logger.
-  // This was required because may call defaultSinks() before the Runtime is initialized. We preserve that behavior
-  // here by silently not initializing the sink if no logger is provided.
-  // eslint-disable-next-line deprecation/deprecation
-  if (!logger) return {} as InjectedSinks<LoggerSinks>;
-
   // eslint-disable-next-line deprecation/deprecation
   return initLoggerSink(logger) as unknown as InjectedSinks<LoggerSinks>;
 }
@@ -653,7 +646,7 @@ export function appendDefaultInterceptors(
   return {
     activityInbound: [
       // eslint-disable-next-line deprecation/deprecation
-      (ctx) => new ActivityInboundLogInterceptor(ctx, withMetadata(logger, { logSource: LogSource.activity })),
+      (ctx) => new ActivityInboundLogInterceptor(ctx, logger),
       // eslint-disable-next-line deprecation/deprecation
       ...(interceptors.activityInbound ?? []),
     ],
@@ -662,7 +655,7 @@ export function appendDefaultInterceptors(
   };
 }
 
-function compileWorkerInterceptors({
+export function compileWorkerInterceptors({
   activity,
   activityInbound, // eslint-disable-line deprecation/deprecation
   workflowModules,
@@ -673,7 +666,7 @@ function compileWorkerInterceptors({
   };
 }
 
-function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): WorkerOptionsWithDefaults {
+export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
   const {
     buildId,
     useVersioning,
@@ -727,7 +720,7 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
     },
     nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
     sinks: {
-      ...initLoggerSink(logger),
+      ...initLoggerSink(Runtime.instance().logger),
       // Fix deprecated registration of the 'defaultWorkerLogger' sink
       ...(sinks?.defaultWorkerLogger ? { __temporal_logger: sinks.defaultWorkerLogger } : {}),
       ...sinks,
@@ -739,20 +732,27 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
   };
 }
 
-export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): CompiledWorkerOptions {
-  const opts = addDefaultWorkerOptions(rawOpts, logger);
+function isSet(env: string | undefined): boolean {
+  if (env === undefined) return false;
+  env = env.toLocaleLowerCase();
+  return env === '1' || env === 't' || env === 'true';
+}
+
+export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledWorkerOptions {
   if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
-    logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
+    Runtime.instance().logger.warn(
+      'maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.'
+    );
     opts.maxCachedWorkflows = 2;
   }
   if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions > opts.maxCachedWorkflows) {
-    logger.warn(
+    Runtime.instance().logger.warn(
       "maxConcurrentWorkflowTaskExecutions can't exceed maxCachedWorkflows (unless cache is disabled). Defaulting to maxCachedWorkflows."
     );
     opts.maxConcurrentWorkflowTaskExecutions = opts.maxCachedWorkflows;
   }
   if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions < 2) {
-    logger.warn(
+    Runtime.instance().logger.warn(
       "maxConcurrentWorkflowTaskExecutions can't be lower than 2 if maxCachedWorkflows is non-zero. Defaulting to 2."
     );
     opts.maxConcurrentWorkflowTaskExecutions = 2;
@@ -773,10 +773,4 @@ export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): Co
     activities,
     enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,
   };
-}
-
-function isSet(env: string | undefined): boolean {
-  if (env === undefined) return false;
-  env = env.toLocaleLowerCase();
-  return env === '1' || env === 't' || env === 'true';
 }
