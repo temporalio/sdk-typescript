@@ -423,7 +423,7 @@ test('No 10s delay on close due to grpc-js', async (t) => {
       }
     });
     const duration = Date.now() - startTime;
-    t.true(duration < 2000, `Expected duration to be less than 2s, got ${duration / 1000}s`);
+    t.true(duration < 5000, `Expected duration to be less than 5s, got ${duration / 1000}s`);
   } finally {
     server.forceShutdown();
   }

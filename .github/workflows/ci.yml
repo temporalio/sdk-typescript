@@ -72,6 +72,10 @@ jobs:
           RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
+      - name: Assert there is no zombie processes
+        run: ps aux | grep -v 'auto-setup.sh' | awk '{if($8=="Z") print}' | grep . && exit 1 || exit 0
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
+
       - uses: actions/upload-artifact@v3
         if: ${{ failure() }}
         with:
