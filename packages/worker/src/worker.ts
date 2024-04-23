@@ -656,7 +656,7 @@ export class Worker {
       }
     } else if (compiledOptions.workflowsPath) {
       const bundler = new WorkflowCodeBundler({
-        logger: withMetadata(logger, { logSource: 'worker/bundler' }),
+        logger: withMetadata(logger, { logSource: LogSource.worker }),
         workflowsPath: compiledOptions.workflowsPath,
         workflowInterceptorModules: compiledOptions.interceptors.workflowModules,
         failureConverterPath: compiledOptions.dataConverter?.failureConverterPath,
@@ -1083,10 +1083,7 @@ export class Worker {
       }
       activation.jobs = jobs;
       if (jobs.length === 0) {
-        this.log.trace('Disposing workflow', {
-          ...(workflow ? workflow.logAttributes : { runId: activation.runId }),
-          logSource: 'worker/workflow',
-        });
+        this.log.trace('Disposing workflow', workflow ? workflow.logAttributes : { runId: activation.runId });
         await workflow?.workflow.dispose();
         if (!close) {
           throw new IllegalStateError('Got a Workflow activation with no jobs');
@@ -1117,7 +1114,7 @@ export class Worker {
         const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
         const unencodedCompletion = await workflow.workflow.activate(decodedActivation);
         const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
-        this.log.trace('Completed activation', { ...workflow.logAttributes, logSource: 'worker/workflow' });
+        this.log.trace('Completed activation', workflow.logAttributes);
 
         return { state: workflow, output: { close, completion } };
       } catch (err) {
@@ -1136,7 +1133,7 @@ export class Worker {
           const isReplaying = activation.isReplaying || this.isReplayWorker;
 
           const calls = await workflow.workflow.getAndResetSinkCalls();
-          await this.processSinkCalls(calls, isReplaying);
+          await this.processSinkCalls(calls, isReplaying, workflow.logAttributes);
         }
       }
     } catch (error) {
@@ -1148,7 +1145,6 @@ export class Worker {
         ...(workflow ? workflow.logAttributes : { runId: activation.runId }),
         error,
         workflowExists: workflow !== undefined,
-        logSource: 'worker/workflow',
       });
       const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
@@ -1241,7 +1237,7 @@ export class Worker {
       },
     };
     const logAttributes = workflowLogAttributes(workflowInfo);
-    this.log.trace('Creating workflow', { logAttributes, logSource: 'worker/workflow' });
+    this.log.trace('Creating workflow', logAttributes);
     const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
     const patches = patchJobs.map(({ notifyHasPatch }) => {
       const { patchId } = notifyHasPatch;
@@ -1271,7 +1267,11 @@ export class Worker {
    * This function does not throw, it will log in case of missing sinks
    * or failed sink function invocations.
    */
-  protected async processSinkCalls(externalCalls: SinkCall[], isReplaying: boolean): Promise<void> {
+  protected async processSinkCalls(
+    externalCalls: SinkCall[],
+    isReplaying: boolean,
+    logAttributes: Record<string, unknown>
+  ): Promise<void> {
     const { sinks } = this.options;
 
     const filteredCalls = externalCalls
@@ -1283,9 +1283,9 @@ export class Worker {
       .filter(({ call: { ifaceName, fnName }, sink }) => {
         if (sink !== undefined) return true;
         this.log.error('Workflow referenced an unregistered external sink', {
+          ...logAttributes,
           ifaceName,
           fnName,
-          logSource: LogSource.worker,
         });
         return false;
       })
@@ -1299,6 +1299,7 @@ export class Worker {
           await sink?.fn(call.workflowInfo, ...call.args);
         } catch (error) {
           this.log.error('External sink function threw an error', {
+            ...logAttributes,
             ifaceName: call.ifaceName,
             fnName: call.fnName,
             error,
@@ -1361,10 +1362,7 @@ export class Worker {
 
               switch (input.type) {
                 case 'heartbeat':
-                  this.log.trace('Got activity heartbeat', {
-                    ...activityLogAttributes(input.info),
-                    logSource: LogSource.worker,
-                  });
+                  this.log.trace('Got activity heartbeat', activityLogAttributes(input.info));
                   if (state.processing) {
                     // We're already processing a heartbeat, mark this one as pending
                     return storePending(state, input);
@@ -1433,7 +1431,6 @@ export class Worker {
                 this.log.warn('Failed to encode heartbeat details, cancelling Activity', {
                   error,
                   ...activityLogAttributes(info),
-                  logSource: LogSource.worker,
                 });
                 onError();
                 return;
@@ -1469,7 +1466,7 @@ export class Worker {
         this.hasOutstandingWorkflowPoll = false;
       }
       const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(buffer));
-      this.log.trace('Got workflow activation', { ...activation, logSource: LogSource.worker });
+      this.log.trace('Got workflow activation', activation);
 
       return activation;
     }).pipe(
@@ -1490,7 +1487,7 @@ export class Worker {
   protected workflow$(): Observable<void> {
     // This Worker did not register any workflows, return early
     if (this.workflowCreator === undefined) {
-      this.log.warn('No workflows registered, not polling for workflow tasks', { logSource: LogSource.worker });
+      this.log.warn('No workflows registered, not polling for workflow tasks');
       this.workflowPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
     }
@@ -1502,7 +1499,7 @@ export class Worker {
       }),
       tap({
         complete: () => {
-          this.log.debug('Workflows complete', { logSource: LogSource.worker });
+          this.log.debug('Workflow Worker terminated');
         },
       })
     );
@@ -1560,7 +1557,7 @@ export class Worker {
       mergeMap(async (completion) => {
         await this.nativeWorker.completeActivityTask(completion.buffer.slice(completion.byteOffset));
       }),
-      tap({ complete: () => this.log.debug('Activities complete', { logSource: LogSource.worker }) })
+      tap({ complete: () => this.log.debug('Activity Worker terminated') })
     );
   }
 
