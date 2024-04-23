@@ -153,12 +153,12 @@ test('HistorySize is visible in WorkflowExecutionInfo', async (t) => {
 
 export async function suggestedCAN(): Promise<boolean> {
   const maxEvents = 40_000;
-  const batchSize = 100;
+  const batchSize = 1000;
   if (workflow.workflowInfo().continueAsNewSuggested) {
     return false;
   }
   while (workflow.workflowInfo().historyLength < maxEvents) {
-    await Promise.all(new Array(batchSize).fill(undefined).map((_) => workflow.sleep(1)));
+    await Promise.all(Array.from({ length: batchSize }, (_) => workflow.sleep(1)));
     if (workflow.workflowInfo().continueAsNewSuggested) {
       return true;
     }
