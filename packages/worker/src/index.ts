@@ -107,6 +107,12 @@ export {
    */
   workflowLogAttributes,
 } from '@temporalio/workflow/lib/logs';
+export {
+  /**
+   * @deprecated This function is meant for internal usage. Don't use it.
+   */
+  timeOfDayToBigint,
+} from './logger';
 /**
  * @deprecated Including `defaultWorkflowInterceptorModules` in BundlerOptions.workflowInterceptorModules is no longer required.
  */

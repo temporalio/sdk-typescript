@@ -13,6 +13,7 @@ import {
 import { LoggerSinksInternal as DefaultLoggerSinks } from '@temporalio/workflow/lib/logs';
 import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
+import { LogSource } from '@temporalio/common';
 import { RUN_INTEGRATION_TESTS, Worker, registerDefaultCustomSearchAttributes } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
@@ -177,6 +178,8 @@ if (RUN_INTEGRATION_TESTS) {
           ifaceName: error.ifaceName,
           fnName: error.fnName,
           workflowInfo: info,
+          logSource: LogSource.worker,
+          taskQueue,
         },
         timestampNanos: undefined,
       }))
