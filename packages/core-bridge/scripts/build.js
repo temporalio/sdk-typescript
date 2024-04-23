@@ -82,12 +82,11 @@ function compile(requestedTarget) {
   const cmd = which.sync('cargo-cp-artifact');
 
   console.log('Running', cmd, argv);
-  const { status, error } = spawnSync(cmd, argv, {
+  const { status } = spawnSync(cmd, argv, {
     stdio: 'inherit',
-    shell: process.platform === 'win32',
   });
-  if (status !== 0 || error) {
-    throw new Error(`Failed to build${target ? ' for ' + target : ''}: status code ${status}`, error);
+  if (status !== 0) {
+    throw new Error(`Failed to build${target ? ' for ' + target : ''}`);
   }
 }
 

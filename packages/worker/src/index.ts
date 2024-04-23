@@ -24,7 +24,7 @@ export { IllegalStateError } from '@temporalio/common';
 export { ShutdownError, TransportError, UnexpectedError } from '@temporalio/core-bridge';
 export { GracefulShutdownPeriodExpiredError, errors } from './errors'; // eslint-disable-line deprecation/deprecation
 export * from './interceptors';
-export { DefaultLogger, LogEntry, LogLevel, LogMetadata, LogTimestamp, Logger, withMetadata } from './logger';
+export * from './logger';
 export { History, Runtime, RuntimeOptions, makeTelemetryFilterString } from './runtime';
 export * from './sinks';
 export {
@@ -107,12 +107,6 @@ export {
    */
   workflowLogAttributes,
 } from '@temporalio/workflow/lib/logs';
-export {
-  /**
-   * @deprecated This function is meant for internal usage. Don't use it.
-   */
-  timeOfDayToBigint,
-} from './logger';
 /**
  * @deprecated Including `defaultWorkflowInterceptorModules` in BundlerOptions.workflowInterceptorModules is no longer required.
  */
