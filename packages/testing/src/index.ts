@@ -20,22 +20,9 @@ import {
   WorkflowClientOptions,
   WorkflowResultOptions,
 } from '@temporalio/client';
-import {
-  ActivityFunction,
-  Duration,
-  LogSource,
-  Logger,
-  defaultFailureConverter,
-  defaultPayloadConverter,
-} from '@temporalio/common';
+import { ActivityFunction, Duration, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
-import {
-  ActivityInterceptorsFactory,
-  DefaultLogger,
-  NativeConnection,
-  Runtime,
-  withMetadata,
-} from '@temporalio/worker';
+import { ActivityInterceptorsFactory, NativeConnection, Runtime } from '@temporalio/worker';
 import { Activity } from '@temporalio/worker/lib/activity';
 import {
   EphemeralServer,
@@ -379,7 +366,6 @@ export class TestWorkflowEnvironment {
 
 export interface MockActivityEnvironmentOptions {
   interceptors?: ActivityInterceptorsFactory[];
-  logger?: Logger;
 }
 
 /**
@@ -432,7 +418,6 @@ export class MockActivityEnvironment extends events.EventEmitter {
       undefined,
       loadedDataConverter,
       heartbeatCallback,
-      withMetadata(opts?.logger ?? new DefaultLogger(), { logSource: LogSource.worker }),
       opts?.interceptors ?? []
     );
     this.context = this.activity.context;
