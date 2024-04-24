@@ -3,6 +3,7 @@ import { ActivityInboundCallsInterceptor, ActivityExecuteInput, Next } from './i
 import { Logger } from './logger';
 import { activityLogAttributes } from './activity';
 import { Runtime } from './runtime';
+import { LogSource } from '@temporalio/common';
 
 /**
  * This interceptor was previously used to log Activity execution starts and their completions. It is now deprecated
@@ -40,6 +41,7 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
           level,
           (message: string, attrs: Record<string, unknown>) => {
             return this.logger[level](message, {
+              logSource: LogSource.activity,
               ...this.logAttributes(),
               ...attrs,
             });

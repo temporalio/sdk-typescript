@@ -652,7 +652,7 @@ export function appendDefaultInterceptors(
   return {
     activityInbound: [
       // eslint-disable-next-line deprecation/deprecation
-      (ctx) => new ActivityInboundLogInterceptor(ctx, withMetadata(logger, { logSource: LogSource.activity })),
+      (ctx) => new ActivityInboundLogInterceptor(ctx, logger),
       // eslint-disable-next-line deprecation/deprecation
       ...(interceptors.activityInbound ?? []),
     ],

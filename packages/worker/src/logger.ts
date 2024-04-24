@@ -89,11 +89,14 @@ export class DefaultLogger implements Logger {
 }
 
 export function withMetadata(logger: Logger, meta: LogMetadata | (() => LogMetadata)): Logger {
-  // Flaten recursive LoggerWithMetadata; we create many of these internally.
+  // Flatten consecutive LoggerWithMetadata instances
   if (logger instanceof LoggerWithMetadata) {
-    if (typeof logger.meta !== 'function' && typeof meta !== 'function')
-      return new LoggerWithMetadata(logger.logger, resolveMetadata(logger.meta, meta));
-    else return new LoggerWithMetadata(logger.logger, () => resolveMetadata(logger.meta, meta));
+    const { meta: parentMeta } = logger;
+    meta =
+      typeof parentMeta !== 'function' && typeof meta !== 'function'
+        ? resolveMetadata(parentMeta, meta)
+        : () => resolveMetadata(parentMeta, meta);
+    logger = logger.logger;
   }
   return new LoggerWithMetadata(logger, meta);
 }

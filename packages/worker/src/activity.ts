@@ -8,7 +8,6 @@ import {
   FAILURE_SOURCE,
   IllegalStateError,
   LoadedDataConverter,
-  LogSource,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
