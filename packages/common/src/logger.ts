@@ -43,14 +43,14 @@ export enum LogSource {
    * - Issues with worker or runtime configuration, or the JS execution environment;
    * - Worker's, Activity's, and Workflow's lifecycle events;
    * - Workflow Activation and Activity Task processing events;
-   * - Workflow Bundling messages;
+   * - Workflow bundling messages;
    * - Sink processing issues;
-   * - Issues in interracting with the Core SDK library.
+   * - Issues when interacting with the Core SDK library.
    */
   worker = 'worker',
 
   /**
-   * Log Source value for all messages emited by the Core SDK library.
+   * Log Source value for all messages emitted by the Rust Core SDK library.
    */
   core = 'core',
 }

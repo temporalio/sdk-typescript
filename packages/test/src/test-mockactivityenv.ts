@@ -3,7 +3,7 @@ import { MockActivityEnvironment } from '@temporalio/testing';
 import * as activity from '@temporalio/activity';
 import { Runtime } from '@temporalio/worker';
 
-test("MockActivityEnvironment doesn't implicitly instanciate Runtime", async (t) => {
+test("MockActivityEnvironment doesn't implicitly instantiate Runtime", async (t) => {
   t.is(Runtime._instance, undefined);
   const env = new MockActivityEnvironment();
   await env.run(async (): Promise<void> => {
