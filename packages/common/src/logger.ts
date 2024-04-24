@@ -25,14 +25,13 @@ export interface Logger {
  */
 export enum LogSource {
   /**
-   * Log Source value for messages emited from Workflow code, using the {@link Workflow
-   * context logger|workflow.log}. The SDK itself never publishes messages with this source.
+   * Log Source value for messages emited from Workflow code, using the {@link Workflow context logger|workflow.log}.
+   * The SDK itself never publishes messages with this source.
    */
   workflow = 'workflow',
 
   /**
-   * Log Source value for messages emited from an activity, using the {@link activity
-   * context logger|Context.log}. The SDK itself never publishes messages with this source.
+   * Log Source value for messages emited from an activity, using the {@link activity context logger|Context.log}. The SDK itself never publishes messages with this source.
    */
   activity = 'activity',
 
@@ -40,7 +39,7 @@ export enum LogSource {
    * Log Source value for messages emited from a Temporal Worker instance.
    *
    * This notably includes:
-   * - Issues with worker or runtime configuration, or the JS execution environment;
+   * - Issues with Worker or runtime configuration, or the JS execution environment;
    * - Worker's, Activity's, and Workflow's lifecycle events;
    * - Workflow Activation and Activity Task processing events;
    * - Workflow bundling messages;

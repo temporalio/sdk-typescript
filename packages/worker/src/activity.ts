@@ -38,8 +38,13 @@ export class Activity {
     inbound: ActivityInboundCallsInterceptor[];
     outbound: ActivityOutboundCallsInterceptor[];
   };
-  /** Logger bound to `logSource: worker`, with metadata from this Activity */
-  private readonly logger;
+  /**
+   * Logger bound to `logSource: worker`, with metadata from this activity.
+   * This is the logger to use for all log messages emitted by the activity
+   * worker. Note this is not exactly the same thing as the activity context
+   * logger, which is bound to `logSource: activity`.
+   */
+  private readonly workerLogger;
 
   constructor(
     public readonly info: Info,
@@ -49,7 +54,7 @@ export class Activity {
     workerLogger: Logger,
     interceptors: ActivityInterceptorsFactory[]
   ) {
-    this.logger = withMetadata(workerLogger, () => this.getLogAttributes());
+    this.workerLogger = withMetadata(workerLogger, () => this.getLogAttributes());
     const promise = new Promise<never>((_, reject) => {
       this.cancel = (reason: CancelReason) => {
         this.cancelReason = reason;
@@ -62,7 +67,8 @@ export class Activity {
       promise,
       this.abortController.signal,
       this.heartbeatCallback,
-      withMetadata(this.logger, { logSource: LogSource.activity })
+      // This is the activity context logger
+      withMetadata(this.workerLogger, { logSource: LogSource.activity })
     );
     // Prevent unhandled rejection
     promise.catch(() => undefined);
@@ -90,7 +96,7 @@ export class Activity {
   protected async execute(fn: ActivityFunction<any[], any>, input: ActivityExecuteInput): Promise<unknown> {
     let error: any = UNINITIALIZED; // In case someone decides to throw undefined...
     const startTime = process.hrtime.bigint();
-    this.logger.debug('Activity started');
+    this.workerLogger.debug('Activity started');
     try {
       const executeNextHandler = ({ args }: any) => fn(...args);
       const executeWithInterceptors = composeInterceptors(this.interceptors.inbound, 'execute', executeNextHandler);
@@ -103,16 +109,16 @@ export class Activity {
       const durationMs = Number(durationNanos / 1_000_000n);
 
       if (error === UNINITIALIZED) {
-        this.logger.debug('Activity completed', { durationMs });
+        this.workerLogger.debug('Activity completed', { durationMs });
       } else if (
         (error instanceof CancelledFailure || isAbortError(error)) &&
         this.context.cancellationSignal.aborted
       ) {
-        this.logger.debug('Activity completed as cancelled', { durationMs });
+        this.workerLogger.debug('Activity completed as cancelled', { durationMs });
       } else if (error instanceof CompleteAsyncError) {
-        this.logger.debug('Activity will complete asynchronously', { durationMs });
+        this.workerLogger.debug('Activity will complete asynchronously', { durationMs });
       } else {
-        this.logger.warn('Activity failed', { error, durationMs });
+        this.workerLogger.warn('Activity failed', { error, durationMs });
       }
     }
   }

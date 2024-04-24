@@ -161,7 +161,7 @@ export class Worker extends RealWorker {
   public constructor(workflowCreator: WorkflowCreator, opts: CompiledWorkerOptions) {
     const logger = withMetadata(Runtime.instance().logger, {
       logSource: LogSource.worker,
-      taskQueue: opts.taskQueue ?? 'default',
+      taskQueue: opts.taskQueue,
     });
     const nativeWorker = new MockNativeWorker();
     super(nativeWorker, workflowCreator, opts, logger);
