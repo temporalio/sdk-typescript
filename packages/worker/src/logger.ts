@@ -89,54 +89,66 @@ export class DefaultLogger implements Logger {
 }
 
 export function withMetadata(logger: Logger, meta: LogMetadata | (() => LogMetadata)): Logger {
-  // Flatten consecutive LoggerWithMetadata instances
-  if (logger instanceof LoggerWithMetadata) {
-    const { meta: parentMeta } = logger;
-    meta =
-      typeof parentMeta !== 'function' && typeof meta !== 'function'
-        ? resolveMetadata(parentMeta, meta)
-        : () => resolveMetadata(parentMeta, meta);
-    logger = logger.logger;
-  }
   return new LoggerWithMetadata(logger, meta);
 }
 
 class LoggerWithMetadata implements Logger {
-  constructor(
-    public readonly logger: Logger,
-    public readonly meta: LogMetadata | (() => LogMetadata)
-  ) {}
+  private parentLogger: Logger;
+  private metaChain: (LogMetadata | (() => LogMetadata))[];
+
+  constructor(parent: Logger, meta: LogMetadata | (() => LogMetadata)) {
+    // Flatten recusive LoggerWithMetadata instances
+    if (parent instanceof LoggerWithMetadata) {
+      this.parentLogger = parent.parentLogger;
+      this.metaChain = LoggerWithMetadata.appendToChain(parent.metaChain, meta);
+    } else {
+      this.parentLogger = parent;
+      this.metaChain = [meta];
+    }
+  }
 
   log(level: LogLevel, message: string, meta?: LogMetadata): void {
-    this.logger.log(level, message, resolveMetadata(this.meta, meta));
+    this.parentLogger.log(level, message, this.resolveMetadata(meta));
   }
 
   trace(message: string, meta?: LogMetadata): void {
-    this.logger.trace(message, resolveMetadata(this.meta, meta));
+    this.parentLogger.trace(message, this.resolveMetadata(meta));
   }
 
   debug(message: string, meta?: LogMetadata): void {
-    this.logger.debug(message, resolveMetadata(this.meta, meta));
+    this.parentLogger.debug(message, this.resolveMetadata(meta));
   }
 
   info(message: string, meta?: LogMetadata): void {
-    this.logger.info(message, resolveMetadata(this.meta, meta));
+    this.parentLogger.info(message, this.resolveMetadata(meta));
   }
 
   warn(message: string, meta?: LogMetadata): void {
-    this.logger.warn(message, resolveMetadata(this.meta, meta));
+    this.parentLogger.warn(message, this.resolveMetadata(meta));
   }
 
   error(message: string, meta?: LogMetadata): void {
-    this.logger.error(message, resolveMetadata(this.meta, meta));
+    this.parentLogger.error(message, this.resolveMetadata(meta));
   }
-}
 
-function resolveMetadata(
-  a: LogMetadata | (() => LogMetadata) | undefined,
-  b: LogMetadata | (() => LogMetadata) | undefined
-): LogMetadata {
-  if (typeof a === 'function') a = a();
-  if (typeof b === 'function') b = b();
-  return { ...a, ...b };
+  private resolveMetadata(meta?: LogMetadata): LogMetadata {
+    const resolved = {};
+    for (const contributor of this.metaChain) {
+      Object.assign(resolved, typeof contributor === 'function' ? contributor() : contributor);
+    }
+    Object.assign(resolved, meta);
+    return resolved;
+  }
+
+  /**
+   * Append a metadata contributor to the chain, merging it with the former last contributor if both are plain objects
+   */
+  private static appendToChain(chain: (LogMetadata | (() => LogMetadata))[], meta: LogMetadata | (() => LogMetadata)) {
+    if (chain.length === 0) return [meta];
+    const last = chain[chain.length - 1];
+    if (typeof last === 'object' && typeof meta === 'object') {
+      return [...chain.slice(0, -1), { ...last, ...meta }];
+    }
+    return [...chain, meta];
+  }
 }

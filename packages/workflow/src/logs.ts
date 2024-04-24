@@ -75,6 +75,7 @@ export const log: WorkflowLogger = Object.fromEntries(
         return loggerSink[level](message, {
           // Inject the call time in nanosecond resolution as expected by the worker logger.
           [LogTimestamp]: activator.getTimeOfDay(),
+          logSource: LogSource.workflow,
           ...getLogAttributes(workflowLogAttributes(activator.info)),
           ...attrs,
         });
@@ -122,6 +123,5 @@ export function workflowLogAttributes(info: WorkflowInfo): Record<string, unknow
     workflowId: info.workflowId,
     runId: info.runId,
     workflowType: info.workflowType,
-    logSource: 'workflow',
   };
 }

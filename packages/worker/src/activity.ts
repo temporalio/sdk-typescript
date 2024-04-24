@@ -8,6 +8,7 @@ import {
   FAILURE_SOURCE,
   IllegalStateError,
   LoadedDataConverter,
+  LogSource,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -56,7 +57,13 @@ export class Activity {
         reject(new CancelledFailure(reason));
       };
     });
-    this.context = new Context(info, promise, this.abortController.signal, this.heartbeatCallback, this.logger);
+    this.context = new Context(
+      info,
+      promise,
+      this.abortController.signal,
+      this.heartbeatCallback,
+      withMetadata(this.logger, { logSource: LogSource.activity })
+    );
     // Prevent unhandled rejection
     promise.catch(() => undefined);
     this.interceptors = { inbound: [], outbound: [] };

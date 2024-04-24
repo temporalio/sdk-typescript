@@ -1,7 +1,7 @@
 import * as os from 'node:os';
 import * as v8 from 'node:v8';
 import type { Configuration as WebpackConfiguration } from 'webpack';
-import { ActivityFunction, DataConverter, LoadedDataConverter, LogSource } from '@temporalio/common';
+import { ActivityFunction, DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
@@ -9,7 +9,7 @@ import { Context } from '@temporalio/activity';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
-import { Logger, withMetadata } from './logger';
+import { Logger } from './logger';
 import { initLoggerSink } from './workflow/logger';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';

@@ -167,6 +167,10 @@ if (RUN_INTEGRATION_TESTS) {
         meta: {
           ...x.meta,
           workflowInfo: fixWorkflowInfoDates(x.meta?.workflowInfo),
+          namespace: info.namespace,
+          runId: info.runId,
+          workflowId: info.workflowId,
+          workflowType: info.workflowType,
         },
         timestampNanos: undefined,
       })),
@@ -180,6 +184,10 @@ if (RUN_INTEGRATION_TESTS) {
           workflowInfo: info,
           logSource: LogSource.worker,
           taskQueue,
+          namespace: info.namespace,
+          runId: info.runId,
+          workflowId: info.workflowId,
+          workflowType: info.workflowType,
         },
         timestampNanos: undefined,
       }))

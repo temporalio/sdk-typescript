@@ -1,9 +1,9 @@
 import { Context } from '@temporalio/activity';
+import { LogSource } from '@temporalio/common';
 import { ActivityInboundCallsInterceptor, ActivityExecuteInput, Next } from './interceptors';
 import { Logger } from './logger';
 import { activityLogAttributes } from './activity';
 import { Runtime } from './runtime';
-import { LogSource } from '@temporalio/common';
 
 /**
  * This interceptor was previously used to log Activity execution starts and their completions. It is now deprecated
