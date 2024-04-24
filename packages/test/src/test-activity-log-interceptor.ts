@@ -5,7 +5,7 @@ import { MockActivityEnvironment, defaultActivityInfo } from '@temporalio/testin
 import { isCancellation } from '@temporalio/workflow';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import * as activity from '@temporalio/activity';
-import { LogSource } from '@temporalio/common';
+import { SdkComponent } from '@temporalio/common';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import { cancellableFetch } from './activities';
 
@@ -34,7 +34,7 @@ test('Activity Context logger funnel through the parent Logger', async (t) => {
   const logs = (env.context as MyTestActivityContext).logs;
   const entry = logs.find((x) => x.level === 'DEBUG' && x.message === 'log message from activity');
   t.not(entry, undefined);
-  t.deepEqual(entry?.meta, { ...activityLogAttributes(defaultActivityInfo), logSource: LogSource.activity });
+  t.deepEqual(entry?.meta, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.activity });
 });
 
 test('Activity Worker logs when activity starts', async (t) => {
@@ -45,7 +45,7 @@ test('Activity Worker logs when activity starts', async (t) => {
   const logs = (env.context as MyTestActivityContext).logs;
   const entry = logs.find((x) => x.level === 'DEBUG' && x.message === 'Activity started');
   t.not(entry, undefined);
-  t.deepEqual(entry?.meta, { ...activityLogAttributes(defaultActivityInfo), logSource: LogSource.worker });
+  t.deepEqual(entry?.meta, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 
 test('Activity Worker logs warning when activity fails', async (t) => {
@@ -65,7 +65,7 @@ test('Activity Worker logs warning when activity fails', async (t) => {
   const { durationMs, error, ...rest } = entry?.meta ?? {};
   t.true(Number.isInteger(durationMs));
   t.is(err, error);
-  t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), logSource: LogSource.worker });
+  t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 
 test('Activity Worker logs when activity completes async', async (t) => {
@@ -82,7 +82,7 @@ test('Activity Worker logs when activity completes async', async (t) => {
   t.not(entry, undefined);
   const { durationMs, ...rest } = entry?.meta ?? {};
   t.true(Number.isInteger(durationMs));
-  t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), logSource: LogSource.worker });
+  t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 
 test('Activity Worker logs when activity is cancelled with promise', async (t) => {
@@ -101,7 +101,7 @@ test('Activity Worker logs when activity is cancelled with promise', async (t) =
   t.not(entry, undefined);
   const { durationMs, ...rest } = entry?.meta ?? {};
   t.true(Number.isInteger(durationMs));
-  t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), logSource: LogSource.worker });
+  t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 
 test('Activity Worker logs when activity is cancelled with signal', async (t) => {
@@ -121,7 +121,7 @@ test('Activity Worker logs when activity is cancelled with signal', async (t) =>
   t.not(entry, undefined);
   const { durationMs, ...rest } = entry?.meta ?? {};
   t.true(Number.isInteger(durationMs));
-  t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), logSource: LogSource.worker });
+  t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 
 test('(Legacy) ActivityInboundLogInterceptor does not override Context.log by default', async (t) => {

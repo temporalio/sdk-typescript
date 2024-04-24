@@ -1,5 +1,5 @@
 import { Context } from '@temporalio/activity';
-import { LogSource } from '@temporalio/common';
+import { SdkComponent } from '@temporalio/common';
 import { ActivityInboundCallsInterceptor, ActivityExecuteInput, Next } from './interceptors';
 import { Logger } from './logger';
 import { activityLogAttributes } from './activity';
@@ -41,7 +41,7 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
           level,
           (message: string, attrs: Record<string, unknown>) => {
             return this.logger[level](message, {
-              logSource: LogSource.activity,
+              sdkComponent: SdkComponent.activity,
               ...this.logAttributes(),
               ...attrs,
             });

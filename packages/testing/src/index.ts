@@ -23,7 +23,7 @@ import {
 import {
   ActivityFunction,
   Duration,
-  LogSource,
+  SdkComponent,
   Logger,
   defaultFailureConverter,
   defaultPayloadConverter,
@@ -427,7 +427,7 @@ export class MockActivityEnvironment extends events.EventEmitter {
       undefined,
       loadedDataConverter,
       heartbeatCallback,
-      withMetadata(opts?.logger ?? new DefaultLogger(), { logSource: LogSource.worker }),
+      withMetadata(opts?.logger ?? new DefaultLogger(), { sdkComponent: SdkComponent.worker }),
       opts?.interceptors ?? []
     );
     this.context = this.activity.context;

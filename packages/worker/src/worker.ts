@@ -26,7 +26,7 @@ import {
   defaultPayloadConverter,
   IllegalStateError,
   LoadedDataConverter,
-  LogSource,
+  SdkComponent,
   mapFromPayloads,
   Payload,
   searchAttributePayloadConverter,
@@ -421,7 +421,7 @@ export class Worker {
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
     const logger = withMetadata(Runtime.instance().logger, {
-      logSource: LogSource.worker,
+      sdkComponent: SdkComponent.worker,
       taskQueue: options.taskQueue ?? 'default',
     });
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
@@ -606,7 +606,7 @@ export class Worker {
     };
     this.replayWorkerCount++;
     const logger = withMetadata(Runtime.instance().logger, {
-      logSource: 'worker',
+      sdkComponent: 'worker',
       taskQueue: fixedUpOptions.taskQueue,
     });
     const compiledOptions = compileWorkerOptions(fixedUpOptions, logger);
@@ -681,7 +681,7 @@ export class Worker {
      */
     protected readonly workflowCreator: WorkflowCreator | undefined,
     public readonly options: CompiledWorkerOptions,
-    /** Logger bound to 'logSource: worker' */
+    /** Logger bound to 'sdkComponent: worker' */
     protected readonly logger: Logger,
     protected readonly connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false

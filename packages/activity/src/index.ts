@@ -254,7 +254,7 @@ export class Context {
    * The logger for this Activity.
    *
    * This defaults to the `Runtime`'s Logger (see {@link Runtime.logger}). Attributes from the current Activity context
-   * are automatically included as metadata on every log entries. An extra `logSource` metadata attribute is also
+   * are automatically included as metadata on every log entries. An extra `sdkComponent` metadata attribute is also
    * added, with value `activity`; this can be used for fine-grained filtering of log entries further downstream.
    *
    * To customize log attributes, register a {@link ActivityOutboundCallsInterceptor} that intercepts the

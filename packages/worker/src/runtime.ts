@@ -16,7 +16,7 @@ import {
   OtelCollectorExporter,
 } from '@temporalio/core-bridge';
 import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/common/lib/internal-non-workflow';
-import { IllegalStateError, LogMetadata, LogSource } from '@temporalio/common';
+import { IllegalStateError, LogMetadata, SdkComponent } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { msToNumber } from '@temporalio/common/lib/time';
@@ -283,7 +283,7 @@ export class Runtime {
       for (const log of logs) {
         const meta: LogMetadata = {
           [LogTimestamp]: timeOfDayToBigint(log.timestamp),
-          logSource: LogSource.core,
+          sdkComponent: SdkComponent.core,
           ...log.fields,
         };
         logger.log(log.level, log.message, meta);
@@ -306,7 +306,7 @@ export class Runtime {
       // Log using the original logger instead of buffering
       this.options.logger.warn('Error gathering forwarded logs from core', {
         error,
-        logSource: LogSource.worker,
+        sdkComponent: SdkComponent.worker,
       });
     } finally {
       logger.flush();
@@ -593,7 +593,7 @@ export class Runtime {
             `adding '--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node arguments. ` +
             `Refer to https://docs.temporal.io/dev-guide/typescript/foundations#run-a-worker-on-docker ` +
             `for more advice on tuning your Workers.`,
-          { logSource: LogSource.worker }
+          { sdkComponent: SdkComponent.worker }
         );
       }
     }

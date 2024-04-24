@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { lastValueFrom } from 'rxjs';
-import { LogSource, defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
+import { SdkComponent, defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
 import { DefaultLogger, Runtime, ShutdownError } from '@temporalio/worker';
@@ -160,7 +160,7 @@ export class Worker extends RealWorker {
 
   public constructor(workflowCreator: WorkflowCreator, opts: CompiledWorkerOptions) {
     const logger = withMetadata(Runtime.instance().logger, {
-      logSource: LogSource.worker,
+      sdkComponent: SdkComponent.worker,
       taskQueue: opts.taskQueue,
     });
     const nativeWorker = new MockNativeWorker();
@@ -181,7 +181,7 @@ export const defaultOptions: WorkerOptions = {
 
 export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Worker {
   const logger = withMetadata(Runtime.instance().logger, {
-    logSource: LogSource.worker,
+    sdkComponent: SdkComponent.worker,
     taskQueue: options.taskQueue ?? 'default',
   });
   return new Worker(

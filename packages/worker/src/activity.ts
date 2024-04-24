@@ -8,7 +8,7 @@ import {
   FAILURE_SOURCE,
   IllegalStateError,
   LoadedDataConverter,
-  LogSource,
+  SdkComponent,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -39,10 +39,10 @@ export class Activity {
     outbound: ActivityOutboundCallsInterceptor[];
   };
   /**
-   * Logger bound to `logSource: worker`, with metadata from this activity.
+   * Logger bound to `sdkComponent: worker`, with metadata from this activity.
    * This is the logger to use for all log messages emitted by the activity
    * worker. Note this is not exactly the same thing as the activity context
-   * logger, which is bound to `logSource: activity`.
+   * logger, which is bound to `sdkComponent: activity`.
    */
   private readonly workerLogger;
 
@@ -68,7 +68,7 @@ export class Activity {
       this.abortController.signal,
       this.heartbeatCallback,
       // This is the activity context logger
-      withMetadata(this.workerLogger, { logSource: LogSource.activity })
+      withMetadata(this.workerLogger, { sdkComponent: SdkComponent.activity })
     );
     // Prevent unhandled rejection
     promise.catch(() => undefined);
