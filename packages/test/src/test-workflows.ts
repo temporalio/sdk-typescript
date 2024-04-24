@@ -1594,7 +1594,7 @@ test('logAndTimeout', async (t) => {
           taskQueue: 'test',
           workflowId: 'test-workflowId',
           workflowType: 'logAndTimeout',
-          logSource: 'workflow',
+          logSource: LogSource.workflow,
         },
       ],
     },

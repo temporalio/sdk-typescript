@@ -51,8 +51,8 @@ const LogTimestamp = Symbol.for('log_timestamp');
  * This logger is replay-aware and will omit log messages on workflow replay. Messages emitted by this logger are
  * funnelled through a sink that forwards them to the logger registered on {@link Runtime.logger}.
  *
- * Attributes from the current Workflow Execution context will automatically be included as metadata on every log
- * entries. An extra `logSource` metadata attribute will also be added, with value `workflow`; this can be used for
+ * Attributes from the current Workflow Execution context are automatically included as metadata on every log
+ * entries. An extra `logSource` metadata attribute is also added, with value `workflow`; this can be used for
  * fine-grained filtering of log entries further downstream.
  *
  * To customize log attributes, register a {@link WorkflowOutboundCallsInterceptor} that intercepts the

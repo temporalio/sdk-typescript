@@ -24,7 +24,7 @@ export { IllegalStateError } from '@temporalio/common';
 export { ShutdownError, TransportError, UnexpectedError } from '@temporalio/core-bridge';
 export { GracefulShutdownPeriodExpiredError, errors } from './errors'; // eslint-disable-line deprecation/deprecation
 export * from './interceptors';
-export * from './logger';
+export { DefaultLogger, LogEntry, LogLevel, LogMetadata, LogTimestamp, Logger } from './logger';
 export { History, Runtime, RuntimeOptions, makeTelemetryFilterString } from './runtime';
 export * from './sinks';
 export {

@@ -88,37 +88,52 @@ export class DefaultLogger implements Logger {
   }
 }
 
-export function withMetadata(logger: Logger, meta: LogMetadata): Logger {
+export function withMetadata(logger: Logger, meta: LogMetadata | (() => LogMetadata)): Logger {
+  // Flaten recursive LoggerWithMetadata; we create many of these internally.
+  if (logger instanceof LoggerWithMetadata) {
+    if (typeof logger.meta !== 'function' && typeof meta !== 'function')
+      return new LoggerWithMetadata(logger.logger, resolveMetadata(logger.meta, meta));
+    else return new LoggerWithMetadata(logger.logger, () => resolveMetadata(logger.meta, meta));
+  }
   return new LoggerWithMetadata(logger, meta);
 }
 
 class LoggerWithMetadata implements Logger {
   constructor(
     public readonly logger: Logger,
-    public readonly meta: LogMetadata
+    public readonly meta: LogMetadata | (() => LogMetadata)
   ) {}
 
   log(level: LogLevel, message: string, meta?: LogMetadata): void {
-    this.logger.log(level, message, { ...this.meta, ...meta });
+    this.logger.log(level, message, resolveMetadata(this.meta, meta));
   }
 
   trace(message: string, meta?: LogMetadata): void {
-    this.logger.trace(message, { ...this.meta, ...meta });
+    this.logger.trace(message, resolveMetadata(this.meta, meta));
   }
 
   debug(message: string, meta?: LogMetadata): void {
-    this.logger.debug(message, { ...this.meta, ...meta });
+    this.logger.debug(message, resolveMetadata(this.meta, meta));
   }
 
   info(message: string, meta?: LogMetadata): void {
-    this.logger.info(message, { ...this.meta, ...meta });
+    this.logger.info(message, resolveMetadata(this.meta, meta));
   }
 
   warn(message: string, meta?: LogMetadata): void {
-    this.logger.warn(message, { ...this.meta, ...meta });
+    this.logger.warn(message, resolveMetadata(this.meta, meta));
   }
 
   error(message: string, meta?: LogMetadata): void {
-    this.logger.error(message, { ...this.meta, ...meta });
+    this.logger.error(message, resolveMetadata(this.meta, meta));
   }
+}
+
+function resolveMetadata(
+  a: LogMetadata | (() => LogMetadata) | undefined,
+  b: LogMetadata | (() => LogMetadata) | undefined
+): LogMetadata {
+  if (typeof a === 'function') a = a();
+  if (typeof b === 'function') b = b();
+  return { ...a, ...b };
 }

@@ -656,7 +656,7 @@ export class Worker {
       }
     } else if (compiledOptions.workflowsPath) {
       const bundler = new WorkflowCodeBundler({
-        logger: withMetadata(logger, { logSource: LogSource.worker }),
+        logger,
         workflowsPath: compiledOptions.workflowsPath,
         workflowInterceptorModules: compiledOptions.interceptors.workflowModules,
         failureConverterPath: compiledOptions.dataConverter?.failureConverterPath,
@@ -681,7 +681,8 @@ export class Worker {
      */
     protected readonly workflowCreator: WorkflowCreator | undefined,
     public readonly options: CompiledWorkerOptions,
-    protected readonly log: Logger,
+    /** Logger bound to 'logSource: worker' */
+    protected readonly logger: Logger,
     protected readonly connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
@@ -739,7 +740,7 @@ export class Worker {
   }
 
   protected set state(state: State) {
-    this.log.info('Worker state changed', { state });
+    this.logger.info('Worker state changed', { state });
     this.stateSubject.next(state);
   }
 
@@ -772,7 +773,7 @@ export class Worker {
         }
       })
       .catch((error) => {
-        this.log.warn('Failed to initiate shutdown', { error });
+        this.logger.warn('Failed to initiate shutdown', { error });
         this.unexpectedErrorSubject.error(error);
       });
   }
@@ -910,7 +911,7 @@ export class Worker {
                     headers,
                   };
 
-                  this.log.trace('Starting activity', activityLogAttributes(info));
+                  this.logger.trace('Starting activity', activityLogAttributes(info));
 
                   activity = new Activity(
                     info,
@@ -927,7 +928,7 @@ export class Worker {
                           activity?.cancel('HEARTBEAT_DETAILS_CONVERSION_FAILED'); // activity must be defined
                         },
                       }),
-                    this.log,
+                    this.logger,
                     this.options.interceptors.activity
                   );
                   output = { type: 'run', activity, input };
@@ -936,13 +937,13 @@ export class Worker {
                 case 'cancel': {
                   output = { type: 'ignore' };
                   if (activity === undefined) {
-                    this.log.error('Tried to cancel a non-existing activity', {
+                    this.logger.error('Tried to cancel a non-existing activity', {
                       taskToken: base64TaskToken,
                     });
                     break;
                   }
                   // NOTE: activity will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
-                  this.log.trace('Cancelling activity', activityLogAttributes(activity.info));
+                  this.logger.trace('Cancelling activity', activityLogAttributes(activity.info));
                   const reason = task.cancel?.reason;
                   if (reason === undefined || reason === null) {
                     // Special case of Lang side cancellation during shutdown (see `activity.shutdown.evict` above)
@@ -984,7 +985,7 @@ export class Worker {
 
             if (status === 'failed') {
               // Make sure to flush the last heartbeat
-              this.log.trace('Activity failed, waiting for heartbeats to be flushed', {
+              this.logger.trace('Activity failed, waiting for heartbeats to be flushed', {
                 ...activityLogAttributes(output.activity.info),
                 status,
               });
@@ -1005,7 +1006,7 @@ export class Worker {
                 callback: () => undefined,
               });
             }
-            this.log.trace('Activity resolved', {
+            this.logger.trace('Activity resolved', {
               ...activityLogAttributes(output.activity.info),
               status,
             });
@@ -1083,7 +1084,7 @@ export class Worker {
       }
       activation.jobs = jobs;
       if (jobs.length === 0) {
-        this.log.trace('Disposing workflow', workflow ? workflow.logAttributes : { runId: activation.runId });
+        this.logger.trace('Disposing workflow', workflow ? workflow.logAttributes : { runId: activation.runId });
         await workflow?.workflow.dispose();
         if (!close) {
           throw new IllegalStateError('Got a Workflow activation with no jobs');
@@ -1114,7 +1115,6 @@ export class Worker {
         const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
         const unencodedCompletion = await workflow.workflow.activate(decodedActivation);
         const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
-        this.log.trace('Completed activation', workflow.logAttributes);
 
         return { state: workflow, output: { close, completion } };
       } catch (err) {
@@ -1135,14 +1135,16 @@ export class Worker {
           const calls = await workflow.workflow.getAndResetSinkCalls();
           await this.processSinkCalls(calls, isReplaying, workflow.logAttributes);
         }
+        this.logger.trace('Completed activation', workflow.logAttributes);
       }
     } catch (error) {
       if (error instanceof UnexpectedError) {
         // rethrow and fail the worker
         throw error;
       }
-      this.log.error('Failed to activate workflow', {
-        ...(workflow ? workflow.logAttributes : { runId: activation.runId }),
+      this.logger.error('Failed to activate workflow', {
+        runId: activation.runId,
+        ...workflow?.logAttributes,
         error,
         workflowExists: workflow !== undefined,
       });
@@ -1237,7 +1239,7 @@ export class Worker {
       },
     };
     const logAttributes = workflowLogAttributes(workflowInfo);
-    this.log.trace('Creating workflow', logAttributes);
+    this.logger.trace('Creating workflow', logAttributes);
     const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
     const patches = patchJobs.map(({ notifyHasPatch }) => {
       const { patchId } = notifyHasPatch;
@@ -1282,7 +1284,7 @@ export class Worker {
       // Reject calls to undefined sink definitions
       .filter(({ call: { ifaceName, fnName }, sink }) => {
         if (sink !== undefined) return true;
-        this.log.error('Workflow referenced an unregistered external sink', {
+        this.logger.error('Workflow referenced an unregistered external sink', {
           ...logAttributes,
           ifaceName,
           fnName,
@@ -1298,7 +1300,7 @@ export class Worker {
         try {
           await sink?.fn(call.workflowInfo, ...call.args);
         } catch (error) {
-          this.log.error('External sink function threw an error', {
+          this.logger.error('External sink function threw an error', {
             ...logAttributes,
             ifaceName: call.ifaceName,
             fnName: call.fnName,
@@ -1342,7 +1344,7 @@ export class Worker {
       // The only way for this observable to be closed is by state changing to DRAINED meaning that all in-flight activities have been resolved and thus there should not be any heartbeats to send.
       this.takeUntilState('DRAINED'),
       tap({
-        complete: () => this.log.debug('Heartbeats complete', { logSource: LogSource.worker }),
+        complete: () => this.logger.debug('Heartbeats complete'),
       }),
       closeableGroupBy(({ base64TaskToken }) => base64TaskToken),
       mergeMap((group$) =>
@@ -1362,7 +1364,7 @@ export class Worker {
 
               switch (input.type) {
                 case 'heartbeat':
-                  this.log.trace('Got activity heartbeat', activityLogAttributes(input.info));
+                  this.logger.trace('Got activity heartbeat', activityLogAttributes(input.info));
                   if (state.processing) {
                     // We're already processing a heartbeat, mark this one as pending
                     return storePending(state, input);
@@ -1428,7 +1430,7 @@ export class Worker {
               try {
                 payload = await encodeToPayload(this.options.loadedDataConverter, details);
               } catch (error: any) {
-                this.log.warn('Failed to encode heartbeat details, cancelling Activity', {
+                this.logger.warn('Failed to encode heartbeat details, cancelling Activity', {
                   error,
                   ...activityLogAttributes(info),
                 });
@@ -1466,7 +1468,7 @@ export class Worker {
         this.hasOutstandingWorkflowPoll = false;
       }
       const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(buffer));
-      this.log.trace('Got workflow activation', activation);
+      this.logger.trace('Got workflow activation', activation);
 
       return activation;
     }).pipe(
@@ -1487,7 +1489,7 @@ export class Worker {
   protected workflow$(): Observable<void> {
     // This Worker did not register any workflows, return early
     if (this.workflowCreator === undefined) {
-      this.log.warn('No workflows registered, not polling for workflow tasks');
+      this.logger.warn('No workflows registered, not polling for workflow tasks');
       this.workflowPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
     }
@@ -1499,7 +1501,7 @@ export class Worker {
       }),
       tap({
         complete: () => {
-          this.log.debug('Workflow Worker terminated');
+          this.logger.debug('Workflow Worker terminated');
         },
       })
     );
@@ -1520,10 +1522,9 @@ export class Worker {
       const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
       const { taskToken, ...rest } = task;
       const base64TaskToken = formatTaskToken(taskToken);
-      this.log.trace('Got activity task', {
+      this.logger.trace('Got activity task', {
         taskToken: base64TaskToken,
         ...rest,
-        logSource: LogSource.worker,
       });
       const { variant } = task;
       if (variant === undefined) {
@@ -1545,10 +1546,7 @@ export class Worker {
   protected activity$(): Observable<void> {
     // This Worker did not register any activities, return early
     if (!this.options.activities?.size) {
-      if (!this.isReplayWorker)
-        this.log.warn('No activities registered, not polling for activity tasks', {
-          logSource: LogSource.worker,
-        });
+      if (!this.isReplayWorker) this.logger.warn('No activities registered, not polling for activity tasks');
       this.activityPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
     }
@@ -1557,7 +1555,7 @@ export class Worker {
       mergeMap(async (completion) => {
         await this.nativeWorker.completeActivityTask(completion.buffer.slice(completion.byteOffset));
       }),
-      tap({ complete: () => this.log.debug('Activity Worker terminated') })
+      tap({ complete: () => this.logger.debug('Activity Worker terminated') })
     );
   }
 
@@ -1651,7 +1649,7 @@ export class Worker {
                 this.state = 'STOPPED';
               },
               error: (error) => {
-                this.log.error('Worker failed', { error });
+                this.logger.error('Worker failed', { error });
                 this.state = 'FAILED';
               },
             })

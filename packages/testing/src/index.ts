@@ -29,13 +29,8 @@ import {
   defaultPayloadConverter,
 } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
-import {
-  ActivityInterceptorsFactory,
-  DefaultLogger,
-  NativeConnection,
-  Runtime,
-  withMetadata,
-} from '@temporalio/worker';
+import { ActivityInterceptorsFactory, DefaultLogger, NativeConnection, Runtime } from '@temporalio/worker';
+import { withMetadata } from '@temporalio/worker/lib/logger';
 import { Activity } from '@temporalio/worker/lib/activity';
 import {
   EphemeralServer,

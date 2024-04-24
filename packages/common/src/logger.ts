@@ -40,7 +40,7 @@ export enum LogSource {
    * Log Source value for messages emited from a Temporal Worker instance.
    *
    * This notably includes:
-   * - Issues with worker or runtime options or the JS execution environment;
+   * - Issues with worker or runtime configuration, or the JS execution environment;
    * - Worker's, Activity's, and Workflow's lifecycle events;
    * - Workflow Activation and Activity Task processing events;
    * - Workflow Bundling messages;
