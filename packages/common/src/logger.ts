@@ -26,13 +26,13 @@ export interface Logger {
 export enum SdkComponent {
   /**
    * Component name for messages emited from Workflow code, using the {@link Workflow context logger|workflow.log}.
-   * The SDK itself never publishes messages with this source.
+   * The SDK itself never publishes messages with this component name.
    */
   workflow = 'workflow',
 
   /**
    * Component name for messages emited from an activity, using the {@link activity context logger|Context.log}.
-   * The SDK itself never publishes messages with this source.
+   * The SDK itself never publishes messages with this component name.
    */
   activity = 'activity',
 
@@ -44,8 +44,7 @@ export enum SdkComponent {
    * - Worker's, Activity's, and Workflow's lifecycle events;
    * - Workflow Activation and Activity Task processing events;
    * - Workflow bundling messages;
-   * - Sink processing issues;
-   * - Issues when interacting with the Core SDK library.
+   * - Sink processing issues.
    */
   worker = 'worker',
 
