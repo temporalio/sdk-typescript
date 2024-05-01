@@ -7,6 +7,7 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     ops::Deref,
+    process::Stdio,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -297,11 +298,15 @@ pub fn start_bridge_loop(
                     callback,
                 } => {
                     core_runtime.tokio_handle().spawn(async move {
+                        let stdout = Stdio::from(std::io::stdout());
+                        let stderr = Stdio::from(std::io::stderr());
                         let result = match config {
                             EphemeralServerConfig::TestServer(config) => {
-                                config.start_server().await
+                                config.start_server_with_output(stdout, stderr).await
                             }
-                            EphemeralServerConfig::DevServer(config) => config.start_server().await,
+                            EphemeralServerConfig::DevServer(config) => {
+                                config.start_server_with_output(stdout, stderr).await
+                            }
                         };
                         match result {
                             Err(err) => {
