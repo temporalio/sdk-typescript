@@ -1,10 +1,17 @@
+import { fork } from 'node:child_process';
 import util from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import test from 'ava';
+import test, { TestFn } from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
-import { Connection, defaultGrpcRetryOptions, isGrpcServiceError, makeGrpcRetryInterceptor } from '@temporalio/client';
+import {
+  Connection,
+  defaultGrpcRetryOptions,
+  isGrpcServiceError,
+  isRetryableError,
+  makeGrpcRetryInterceptor,
+} from '@temporalio/client';
 import pkg from '@temporalio/client/lib/pkg';
 import { temporal, grpc as grpcProto } from '@temporalio/proto';
 
@@ -39,11 +46,12 @@ async function bindLocalhostTls(server: grpc.Server): Promise<number> {
 }
 
 test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC call', async (t) => {
-  const server = new grpc.Server();
   let gotTestHeaders = false;
   let gotDeadline = false;
+  const authTokens: string[] = [];
   const deadline = Date.now() + 10000;
 
+  const server = new grpc.Server();
   server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
     registerNamespace(
       call: grpc.ServerUnaryCall<
@@ -57,12 +65,14 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
       const [staticValue] = call.metadata.get('staticKey');
       const [clientName] = call.metadata.get('client-name');
       const [clientVersion] = call.metadata.get('client-version');
+      const [auth] = call.metadata.get('Authorization');
       if (
         testValue === 'true' &&
         otherValue === 'set' &&
         staticValue === 'set' &&
         clientName === 'temporal-typescript' &&
-        clientVersion === pkg.version
+        clientVersion === pkg.version &&
+        auth === 'Bearer test-token'
       ) {
         gotTestHeaders = true;
       }
@@ -73,13 +83,21 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
       }
       callback(null, {});
     },
+    startWorkflowExecution(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
+      const [auth] = call.metadata.get('Authorization');
+      authTokens.push(auth.toString());
+      callback(null, {});
+    },
     updateNamespace() {
       // Simulate a hanging call to test abort signal support.
     },
   });
   const port = await bindLocalhost(server);
-  server.start();
-  const conn = await Connection.connect({ address: `127.0.0.1:${port}`, metadata: { staticKey: 'set' } });
+  const conn = await Connection.connect({
+    address: `127.0.0.1:${port}`,
+    metadata: { staticKey: 'set' },
+    apiKey: 'test-token',
+  });
   await conn.withMetadata({ test: 'true' }, () =>
     conn.withMetadata({ otherKey: 'set' }, () =>
       conn.withDeadline(deadline, () => conn.workflowService.registerNamespace({}))
@@ -87,6 +105,14 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
   );
   t.true(gotTestHeaders);
   t.true(gotDeadline);
+  await conn.withApiKey('tt-2', () => conn.workflowService.startWorkflowExecution({}));
+  conn.setApiKey('tt-3');
+  await conn.workflowService.startWorkflowExecution({});
+  const nextTTs = ['tt-4', 'tt-5'];
+  conn.setApiKey(() => nextTTs.shift()!);
+  await conn.workflowService.startWorkflowExecution({});
+  await conn.workflowService.startWorkflowExecution({});
+  t.deepEqual(authTokens, ['Bearer tt-2', 'Bearer tt-3', 'Bearer tt-4', 'Bearer tt-5']);
   const ctrl = new AbortController();
   setTimeout(() => ctrl.abort(), 10);
   const err = await t.throwsAsync(conn.withAbortSignal(ctrl.signal, () => conn.workflowService.updateNamespace({})));
@@ -100,7 +126,6 @@ test('healthService works', async (t) => {
   const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
 
   const server = new grpc.Server();
-
   server.addService(protoDescriptor.grpc.health.v1.Health.service, {
     check(
       _call: grpc.ServerUnaryCall<grpcProto.health.v1.HealthCheckRequest, grpcProto.health.v1.HealthCheckResponse>,
@@ -115,7 +140,6 @@ test('healthService works', async (t) => {
     },
   });
   const port = await bindLocalhost(server);
-  server.start();
   const conn = await Connection.connect({ address: `127.0.0.1:${port}` });
   const response = await conn.healthService.check({});
   t.is(response.status, grpcProto.health.v1.HealthCheckResponse.ServingStatus.SERVING);
@@ -129,7 +153,6 @@ test('grpc retry passes request and headers on retry, propagates responses', asy
   const namespaces = Array<string>();
 
   const server = new grpc.Server();
-
   server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
     describeWorkflowExecution(
       call: grpc.ServerUnaryCall<
@@ -159,8 +182,6 @@ test('grpc retry passes request and headers on retry, propagates responses', asy
     },
   });
   const port = await bindLocalhost(server);
-  server.start();
-
   // Default interceptor config with backoff factor of 1 to speed things up
   const interceptor = makeGrpcRetryInterceptor(defaultGrpcRetryOptions({ factor: 1 }));
   const conn = await Connection.connect({
@@ -202,7 +223,6 @@ test('Can configure TLS + call credentials', async (t) => {
   const meta = Array<string[]>();
 
   const server = new grpc.Server();
-
   server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
     getSystemInfo(
       call: grpc.ServerUnaryCall<
@@ -244,8 +264,6 @@ test('Can configure TLS + call credentials', async (t) => {
     },
   });
   const port = await bindLocalhostTls(server);
-  server.start();
-
   let callNumber = 0;
   const oauth2Client: grpc.OAuth2Client = {
     getRequestHeaders: async () => {
@@ -282,4 +300,131 @@ test('Can configure TLS + call credentials', async (t) => {
     ['bc', 'Bearer oauth2-access-token-3'],
     ['bc', 'Bearer oauth2-access-token-4'],
   ]);
+});
+
+{
+  const testWithRejectingServer = test as TestFn<{
+    rejectingServer: {
+      server: grpc.Server;
+      port: number;
+      attemptsPerRequestId: Record<string, number>;
+    };
+  }>;
+
+  testWithRejectingServer.before(async (t) => {
+    const server = new grpc.Server();
+    server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
+      describeWorkflowExecution(
+        call: grpc.ServerUnaryCall<
+          temporal.api.workflowservice.v1.IDescribeWorkflowExecutionRequest,
+          temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse
+        >,
+        callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse>
+      ) {
+        const [requestId] = call.metadata.get('request-id') as string[];
+        const [statusCode] = call.metadata.get('status-code') as string[];
+        t.context.rejectingServer.attemptsPerRequestId[requestId] =
+          (t.context.rejectingServer.attemptsPerRequestId[requestId] ?? 0) + 1;
+        callback({ code: Number(statusCode) });
+      },
+    });
+    const port = await bindLocalhost(server);
+    t.context.rejectingServer = { server, port, attemptsPerRequestId: {} };
+  });
+
+  testWithRejectingServer.after((t) => {
+    t.context.rejectingServer.server.forceShutdown();
+  });
+
+  // Refer to grpc.status for list and description of status codes.
+  for (let grpcStatusCode = 1; grpcStatusCode < 16; grpcStatusCode++) {
+    testWithRejectingServer(
+      `Retry policy is correctly applied on Client Connection (gRPC status code ${grpcStatusCode})`,
+      async (t) => {
+        const requestId = `request-${grpcStatusCode}`;
+
+        const conn = await Connection.connect({
+          address: `127.0.0.1:${t.context.rejectingServer.port}`,
+          interceptors: [
+            makeGrpcRetryInterceptor(
+              // initialInterval divided by 10 compared to actual defaults, and backoff factor set to 1,
+              // both to speed things up. Also, no jitter, to make the test slightly more predictable.
+              defaultGrpcRetryOptions({
+                factor: 1,
+                maxJitter: 0,
+                maxAttempts: 10,
+                initialIntervalMs(status) {
+                  return status.code === grpc.status.RESOURCE_EXHAUSTED ? 100 : 10;
+                },
+              })
+            ),
+          ],
+          metadata: {
+            'request-id': requestId,
+            'status-code': String(grpcStatusCode),
+          },
+        });
+
+        try {
+          const startTime = Date.now();
+          const err = await t.throwsAsync(() => conn.workflowService.describeWorkflowExecution({}), {
+            message: (s) => s.startsWith(String(grpcStatusCode)),
+          });
+          if (!err || !isGrpcServiceError(err)) {
+            return t.fail(`Expected a grpc service error, got ${err}`);
+          }
+
+          const expectedAttempts = isRetryableError(err) ? 10 : 1;
+          const actualAttempts = t.context.rejectingServer.attemptsPerRequestId[requestId];
+          t.is(actualAttempts, expectedAttempts);
+
+          const expectedMinDuration =
+            (expectedAttempts - 1) * (grpcStatusCode === grpc.status.RESOURCE_EXHAUSTED ? 100 : 10);
+          // Here, we really just want to confirm that gRPC is not playing tricks on us by adding
+          // extra wait time over our own retry policy's backoff. But being too strict may cause
+          // flakes on very busy CI. Hence, we allow for very generous overhead.
+          // Allow an overhead of 500ms for the first attempt, then 200ms per retry.
+          const expectedMaxDuration = expectedMinDuration + 500 + (expectedAttempts - 1) * 200;
+          const actualDuration = Date.now() - startTime;
+          t.true(
+            actualDuration >= expectedMinDuration,
+            `Expected total duration to be less than ${expectedMinDuration}ms; got ${actualDuration}ms`
+          );
+          t.true(
+            actualDuration <= expectedMaxDuration,
+            `Expected total duration to be at most ${expectedMaxDuration}ms; got ${actualDuration}ms`
+          );
+        } finally {
+          await conn.close();
+        }
+      }
+    );
+  }
+}
+
+// See https://github.com/temporalio/sdk-typescript/issues/1023
+test('No 10s delay on close due to grpc-js', async (t) => {
+  const server = new grpc.Server();
+  try {
+    server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {});
+    const port = await bindLocalhost(server);
+    const script = `
+      const { Connection } = require("@temporalio/client");
+      Connection.connect({ address: '127.0.0.1:${port}' }).catch(console.log);
+    `;
+    const startTime = Date.now();
+    await new Promise((resolve, reject) => {
+      try {
+        const childProcess = fork('-e', [script]);
+        childProcess.on('exit', resolve);
+        childProcess.on('error', reject);
+      } catch (e) {
+        reject(e);
+      }
+    });
+    const duration = Date.now() - startTime;
+    t.true(duration < 5000, `Expected duration to be less than 5s, got ${duration / 1000}s`);
+  } finally {
+    server.forceShutdown();
+  }
 });

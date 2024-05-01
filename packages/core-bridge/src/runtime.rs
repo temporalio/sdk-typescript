@@ -1,10 +1,7 @@
 use crate::{conversions::*, errors::*, helpers::*, worker::*};
-use neon::context::Context;
-use neon::prelude::*;
-use parking_lot::RwLock;
-use std::cell::Cell;
+use neon::{context::Context, prelude::*};
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::HashMap,
     ops::Deref,
     process::Stdio,
@@ -12,18 +9,16 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics};
-use temporal_sdk_core::api::telemetry::CoreTelemetry;
-use temporal_sdk_core::CoreRuntime;
 use temporal_sdk_core::{
+    api::telemetry::CoreTelemetry,
     ephemeral_server::EphemeralServer as CoreEphemeralServer,
     init_replay_worker, init_worker,
     replay::{HistoryForReplay, ReplayWorkerInput},
-    ClientOptions, RetryClient, WorkerConfig,
+    ClientOptions, CoreRuntime, RetryClient, WorkerConfig,
 };
-use tokio::sync::oneshot;
 use tokio::sync::{
     mpsc::{channel, unbounded_channel, Sender, UnboundedReceiver, UnboundedSender},
-    Mutex,
+    oneshot, Mutex,
 };
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -65,7 +60,6 @@ pub enum RuntimeRequest {
     CreateClient {
         runtime: Arc<RuntimeHandle>,
         options: ClientOptions,
-        headers: Option<HashMap<String, String>>,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -110,6 +104,11 @@ pub enum RuntimeRequest {
     PushReplayHistory {
         tx: Sender<HistoryForReplay>,
         pushme: HistoryForReplay,
+        callback: Root<JsFunction>,
+    },
+    UpdateClientApiKey {
+        client: Arc<RawClient>,
+        key: String,
         callback: Root<JsFunction>,
     },
 }
@@ -167,13 +166,12 @@ pub fn start_bridge_loop(
                 RuntimeRequest::CreateClient {
                     runtime,
                     options,
-                    headers,
                     callback,
                 } => {
                     let mm = core_runtime.telemetry().get_metric_meter();
                     core_runtime.tokio_handle().spawn(async move {
                         match options
-                            .connect_no_namespace(mm, headers.map(|h| Arc::new(RwLock::new(h))))
+                            .connect_no_namespace(mm)
                             .await
                         {
                             Err(err) => {
@@ -210,6 +208,10 @@ pub fn start_bridge_loop(
                     callback,
                 } => {
                     client.get_client().set_headers(headers);
+                    send_result(channel.clone(), callback, |cx| Ok(cx.undefined()));
+                }
+                RuntimeRequest::UpdateClientApiKey { client, key, callback } => {
+                    client.get_client().set_api_key(Some(key));
                     send_result(channel.clone(), callback, |cx| Ok(cx.undefined()));
                 }
                 RuntimeRequest::PollLogs { callback } => {
@@ -342,8 +344,7 @@ pub fn start_bridge_loop(
                                     format!("Failed to start test server: {}", err),
                                 )
                             },
-                        )
-                        .await
+                        ).await
                     });
                 }
                 RuntimeRequest::PushReplayHistory {
@@ -355,8 +356,8 @@ pub fn start_bridge_loop(
                         let sendfut = async move {
                             tx.send(pushme).await.map_err(|e| {
                                 format!(
-                    "Receive side of history replay channel is gone. This is an sdk bug. {:?}",
-                    e
+                                    "Receive side of history replay channel is gone. This is an sdk bug. {:?}",
+                                    e
                                 )
                             })
                         };
@@ -366,8 +367,7 @@ pub fn start_bridge_loop(
                                 UNEXPECTED_ERROR,
                                 format!("Error pushing replay history {}", err),
                             )
-                        })
-                        .await
+                        }).await
                     });
                 }
             }
@@ -458,24 +458,10 @@ pub fn client_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let callback = cx.argument::<JsFunction>(2)?;
 
     let client_options = opts.as_client_options(&mut cx)?;
-    let headers = match js_optional_getter!(&mut cx, &opts, "metadata", JsObject) {
-        None => None,
-        Some(h) => Some(
-            h.as_hash_map_of_string_to_string(&mut cx)
-                .map_err(|reason| {
-                    cx.throw_type_error::<_, HashMap<String, String>>(format!(
-                        "Invalid metadata: {}",
-                        reason
-                    ))
-                    .unwrap_err()
-                })?,
-        ),
-    };
 
     let request = RuntimeRequest::CreateClient {
         runtime: (**runtime).clone(),
         options: client_options,
-        headers,
         callback: callback.root(&mut cx),
     };
     if let Err(err) = runtime.sender.send(request) {
@@ -511,6 +497,31 @@ pub fn client_update_headers(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             let request = RuntimeRequest::UpdateClientHeaders {
                 client: client.core_client.clone(),
                 headers,
+                callback: callback.root(&mut cx),
+            };
+            if let Err(err) = client.runtime.sender.send(request) {
+                callback_with_unexpected_error(&mut cx, callback, err)?;
+            };
+        }
+    }
+
+    Ok(cx.undefined())
+}
+
+/// Update a Client's API key
+pub fn client_update_api_key(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let client = cx.argument::<BoxedClient>(0)?;
+    let key = cx.argument::<JsString>(1)?.value(&mut cx);
+    let callback = cx.argument::<JsFunction>(2)?;
+
+    match client.borrow().as_ref() {
+        None => {
+            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Client")?;
+        }
+        Some(client) => {
+            let request = RuntimeRequest::UpdateClientApiKey {
+                client: client.core_client.clone(),
+                key,
                 callback: callback.root(&mut cx),
             };
             if let Err(err) = client.runtime.sender.send(request) {

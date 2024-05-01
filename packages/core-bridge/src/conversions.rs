@@ -158,6 +158,19 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         if let Some(tls_cfg) = tls_cfg {
             client_options.tls_cfg(tls_cfg);
         }
+        let headers = match js_optional_getter!(cx, self, "metadata", JsObject) {
+            None => None,
+            Some(h) => Some(h.as_hash_map_of_string_to_string(cx).map_err(|reason| {
+                cx.throw_type_error::<_, HashMap<String, String>>(format!(
+                    "Invalid metadata: {}",
+                    reason
+                ))
+                .unwrap_err()
+            })?),
+        };
+        client_options.headers(headers);
+        let api_key = js_optional_value_getter!(cx, self, "apiKey", JsString);
+        client_options.api_key(api_key);
 
         Ok(client_options
             .client_name("temporal-typescript".to_string())
@@ -211,6 +224,22 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     }
                 };
 
+                if let Some(counters_total_suffix) =
+                    js_optional_value_getter!(cx, prom, "countersTotalSuffix", JsBoolean)
+                {
+                    options.counters_total_suffix(counters_total_suffix);
+                }
+                if let Some(unit_suffix) =
+                    js_optional_value_getter!(cx, prom, "unitSuffix", JsBoolean)
+                {
+                    options.unit_suffix(unit_suffix);
+                }
+                if let Some(use_seconds_for_durations) =
+                    js_optional_value_getter!(cx, prom, "useSecondsForDurations", JsBoolean)
+                {
+                    options.use_seconds_for_durations(use_seconds_for_durations);
+                }
+
                 let options = options.build().map_err(|e| {
                     cx.throw_type_error::<_, TelemetryOptions>(format!(
                         "Failed to build prometheus exporter options: {:?}",
@@ -239,6 +268,12 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                         ))?;
                     }
                 };
+
+                if let Some(use_seconds_for_durations) =
+                    js_optional_value_getter!(cx, otel, "useSecondsForDurations", JsBoolean)
+                {
+                    options.use_seconds_for_durations(use_seconds_for_durations);
+                }
 
                 if let Some(ref headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
                     options.headers(headers.as_hash_map_of_string_to_string(cx)?);

@@ -112,7 +112,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(typeof failingWftEntry.meta?.['failure'], 'string');
       t.is(typeof failingWftEntry.meta?.['runId'], 'string');
       t.is(typeof failingWftEntry.meta?.['workflowId'], 'string');
-      t.is(typeof failingWftEntry.meta?.['subsystem'], 'string');
+      t.is(typeof failingWftEntry.meta?.['sdkComponent'], 'string');
     } finally {
       await Runtime.instance().shutdown();
     }

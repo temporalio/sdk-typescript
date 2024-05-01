@@ -38,7 +38,6 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
   /**
    * Amount of time to wait before starting the workflow.
    *
-   * @experimental
    */
   startDelay?: Duration;
 }

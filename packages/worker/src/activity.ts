@@ -8,6 +8,7 @@ import {
   FAILURE_SOURCE,
   IllegalStateError,
   LoadedDataConverter,
+  SdkComponent,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -19,8 +20,7 @@ import {
   ActivityInterceptorsFactory,
   ActivityOutboundCallsInterceptor,
 } from './interceptors';
-import { Runtime } from './runtime';
-import { Logger } from './logger';
+import { Logger, withMetadata } from './logger';
 
 const UNINITIALIZED = Symbol('UNINITIALIZED');
 
@@ -38,14 +38,23 @@ export class Activity {
     inbound: ActivityInboundCallsInterceptor[];
     outbound: ActivityOutboundCallsInterceptor[];
   };
+  /**
+   * Logger bound to `sdkComponent: worker`, with metadata from this activity.
+   * This is the logger to use for all log messages emitted by the activity
+   * worker. Note this is not exactly the same thing as the activity context
+   * logger, which is bound to `sdkComponent: activity`.
+   */
+  private readonly workerLogger;
 
   constructor(
     public readonly info: Info,
     public readonly fn: ActivityFunction<any[], any> | undefined,
     public readonly dataConverter: LoadedDataConverter,
     public readonly heartbeatCallback: Context['heartbeat'],
+    workerLogger: Logger,
     interceptors: ActivityInterceptorsFactory[]
   ) {
+    this.workerLogger = withMetadata(workerLogger, () => this.getLogAttributes());
     const promise = new Promise<never>((_, reject) => {
       this.cancel = (reason: CancelReason) => {
         this.cancelReason = reason;
@@ -58,7 +67,8 @@ export class Activity {
       promise,
       this.abortController.signal,
       this.heartbeatCallback,
-      this.makeActivityLogger()
+      // This is the activity context logger
+      withMetadata(this.workerLogger, { sdkComponent: SdkComponent.activity })
     );
     // Prevent unhandled rejection
     promise.catch(() => undefined);
@@ -78,30 +88,6 @@ export class Activity {
     return composeInterceptors(this.interceptors.outbound, 'getLogAttributes', (a) => a)(logAttributes);
   }
 
-  protected makeActivityLogger(): Logger {
-    const parentLogger = Runtime.instance().logger;
-    return {
-      log: (level, message, attrs) => {
-        return parentLogger.log(level, message, { ...this.getLogAttributes(), ...attrs });
-      },
-      trace: (message, attrs) => {
-        return parentLogger.trace(message, { ...this.getLogAttributes(), ...attrs });
-      },
-      debug: (message, attrs) => {
-        return parentLogger.debug(message, { ...this.getLogAttributes(), ...attrs });
-      },
-      info: (message, attrs) => {
-        return parentLogger.info(message, { ...this.getLogAttributes(), ...attrs });
-      },
-      warn: (message, attrs) => {
-        return parentLogger.warn(message, { ...this.getLogAttributes(), ...attrs });
-      },
-      error: (message, attrs) => {
-        return parentLogger.error(message, { ...this.getLogAttributes(), ...attrs });
-      },
-    };
-  }
-
   /**
    * Actually executes the function.
    *
@@ -110,7 +96,7 @@ export class Activity {
   protected async execute(fn: ActivityFunction<any[], any>, input: ActivityExecuteInput): Promise<unknown> {
     let error: any = UNINITIALIZED; // In case someone decides to throw undefined...
     const startTime = process.hrtime.bigint();
-    this.context.log.debug('Activity started');
+    this.workerLogger.debug('Activity started');
     try {
       const executeNextHandler = ({ args }: any) => fn(...args);
       const executeWithInterceptors = composeInterceptors(this.interceptors.inbound, 'execute', executeNextHandler);
@@ -123,16 +109,16 @@ export class Activity {
       const durationMs = Number(durationNanos / 1_000_000n);
 
       if (error === UNINITIALIZED) {
-        this.context.log.debug('Activity completed', { durationMs });
+        this.workerLogger.debug('Activity completed', { durationMs });
       } else if (
         (error instanceof CancelledFailure || isAbortError(error)) &&
         this.context.cancellationSignal.aborted
       ) {
-        this.context.log.debug('Activity completed as cancelled', { durationMs });
+        this.workerLogger.debug('Activity completed as cancelled', { durationMs });
       } else if (error instanceof CompleteAsyncError) {
-        this.context.log.debug('Activity will complete asynchronously', { durationMs });
+        this.workerLogger.debug('Activity will complete asynchronously', { durationMs });
       } else {
-        this.context.log.warn('Activity failed', { error, durationMs });
+        this.workerLogger.warn('Activity failed', { error, durationMs });
       }
     }
   }

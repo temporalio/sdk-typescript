@@ -21,7 +21,7 @@ import {
 } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-import { Worker, test as anyTest, bundlerOptions } from './helpers';
+import { Worker, test as anyTest, bundlerOptions, registerDefaultCustomSearchAttributes } from './helpers';
 
 export interface Context {
   env: TestWorkflowEnvironment;
@@ -59,6 +59,7 @@ export function makeTestFunction(opts: {
         ],
       },
     });
+    await registerDefaultCustomSearchAttributes(env.connection);
     const workflowBundle = await bundleWorkflowCode({
       ...bundlerOptions,
       workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])],
