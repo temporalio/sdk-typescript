@@ -1,29 +1,3 @@
-## HTTP CONNECT Example
-
-Workers set the proxy details on the connection configuration, eg;
-
-```js
-  const connection = await NativeConnection.connect({
-    address: 'localhost:7233',
-    proxy: {
-      targetHost: '127.0.0.1:8888',
-      basicAuth: {
-        'username': 'user',
-        'password': 'password',
-      }
-    },
-  });
-```
-
-Clients set the proxy details using the `http_proxy` environment variable, eg
-
-```
-http_proxy=http://user:password@127.0.0.1:8888 ts-node src/client.ts
-```
-
----
-
-
 <p align="center">
   <img src="https://assets.temporal.io/w/ts.png" alt="Temporal TypeScript SDK" />
 </p>

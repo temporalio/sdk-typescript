@@ -23,7 +23,12 @@ export interface NativeConnectionOptions {
    */
   tls?: TLSConfig | boolean | null;
 
-  proxy?: ProxyConfig | boolean | null;
+  /**
+   * Proxying configuration.
+   *
+   * @experimental
+   */
+  proxy?: ProxyConfig;
 
   /**
    * Optional mapping of gRPC metadata (HTTP headers) to send with each request to the server.
@@ -39,7 +44,10 @@ export interface NativeConnectionOptions {
   apiKey?: string;
 }
 
-export type RequiredNativeConnectionOptions = Omit<Required<NativeConnectionOptions>, 'tls' | 'proxy' | 'metadata' | 'apiKey'> & {
+export type RequiredNativeConnectionOptions = Omit<
+  Required<NativeConnectionOptions>,
+  'tls' | 'proxy' | 'metadata' | 'apiKey'
+> & {
   tls?: NativeConnectionOptions['tls'];
   proxy?: NativeConnectionOptions['proxy'];
   metadata?: NativeConnectionOptions['metadata'];

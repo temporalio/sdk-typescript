@@ -7,7 +7,7 @@ import {
   filterNullAndUndefined,
   normalizeTlsConfig,
   TLSConfig,
-  HttpConnectProxyConfig,
+  ProxyConfig,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { Duration, msOptionalToNumber } from '@temporalio/common/lib/time';
 import { isGrpcServiceError, ServiceError } from './errors';
@@ -40,7 +40,12 @@ export interface ConnectionOptions {
    */
   tls?: TLSConfig | boolean | null;
 
-  proxy?: HttpConnectProxyConfig | boolean | null;
+  /**
+   * Proxying configuration.
+   *
+   * @experimental
+   */
+  proxy?: ProxyConfig;
 
   /**
    * gRPC channel credentials.
@@ -146,7 +151,6 @@ function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults 
       'grpc.keepalive_permit_without_calls': 1,
       'grpc.keepalive_time_ms': 30_000,
       'grpc.keepalive_timeout_ms': 15_000,
-      'grpc.enable_http_proxy': 1,
       ...channelArgs,
     },
     interceptors: interceptors ?? [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
@@ -163,7 +167,7 @@ function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults 
  * - Set `Authorization` header based on {@link ConnectionOptions.apiKey}
  */
 function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
-  const { tls: tlsFromConfig, credentials, callCredentials, ...rest } = options || {};
+  const { tls: tlsFromConfig, proxy, credentials, callCredentials, ...rest } = options || {};
   if (rest.apiKey) {
     if (rest.metadata?.['Authorization']) {
       throw new TypeError(
@@ -183,6 +187,12 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
     rest.address = `${host}:${port}`;
   }
   const tls = normalizeTlsConfig(tlsFromConfig);
+  if (proxy) {
+    const { targetHost: host, basicAuth: auth } = proxy;
+    const authString = auth ? `${auth.username}:${auth.password}@` : '';
+    process.env.grpc_proxy = `http://${authString}${host}`;
+    console.log('Proxy set to:', process.env.grpc_proxy);
+  }
   if (tls) {
     if (credentials) {
       throw new TypeError('Both `tls` and `credentials` ConnectionOptions were provided');

@@ -19,7 +19,7 @@ use temporal_sdk_core::{
         TestServerConfigBuilder,
     },
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
-    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TlsConfig, Url, 
+    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TlsConfig, Url,
 };
 use temporal_client::HttpConnectProxyOptions;
 
@@ -190,9 +190,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         if let Some(tls_cfg) = tls_cfg {
             client_options.tls_cfg(tls_cfg);
         }
-        if let Some(proxy_cfg) = proxy_cfg {
-            client_options.http_connect_proxy(Some(proxy_cfg));
-        }
+        client_options.http_connect_proxy(proxy_cfg);
         let headers = match js_optional_getter!(cx, self, "metadata", JsObject) {
             None => None,
             Some(h) => Some(h.as_hash_map_of_string_to_string(cx).map_err(|reason| {

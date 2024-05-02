@@ -1,5 +1,9 @@
-/** Configuration for HTTP CONNECT proxying. */
+/**
+ * Configuration for HTTP CONNECT proxying.
+ */
 export interface HttpConnectProxyConfig {
+  type: 'http-connect';
+
   /**
    * Target host:port for the HTTP CONNECT proxy.
    */
@@ -13,3 +17,5 @@ export interface HttpConnectProxyConfig {
     password: string;
   };
 }
+
+export type ProxyConfig = HttpConnectProxyConfig;
