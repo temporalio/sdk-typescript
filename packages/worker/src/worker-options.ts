@@ -480,7 +480,7 @@ export interface WorkerOptions {
    *
    * Workflow execution time will not be limited by the Worker in `debugMode`.
    *
-   * @default false
+   * @default false unless the `TEMPORAL_DEBUG` environment variable is set.
    */
   debugMode?: boolean;
 
