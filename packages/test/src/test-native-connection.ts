@@ -1,7 +1,24 @@
+import util from 'node:util';
+import path from 'node:path';
 import test from 'ava';
-
+import * as grpc from '@grpc/grpc-js';
+import * as protoLoader from '@grpc/proto-loader';
 import { IllegalStateError, NativeConnection, TransportError } from '@temporalio/worker';
+import { temporal } from '@temporalio/proto';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+
+const workflowServicePackageDefinition = protoLoader.loadSync(
+  path.resolve(
+    __dirname,
+    '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream/temporal/api/workflowservice/v1/service.proto'
+  ),
+  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream')] }
+);
+const workflowServiceProtoDescriptor = grpc.loadPackageDefinition(workflowServicePackageDefinition) as any;
+
+async function bindLocalhost(server: grpc.Server): Promise<number> {
+  return await util.promisify(server.bindAsync.bind(server))('localhost:0', grpc.ServerCredentials.createInsecure());
+}
 
 test('NativeConnection.connect() throws meaningful error when passed invalid address', async (t) => {
   await t.throwsAsync(NativeConnection.connect({ address: ':invalid' }), {
@@ -58,3 +75,27 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 }
+
+test('NativeConnection can connect using "[ipv6]:port" address', async (t) => {
+  let gotRequest = false;
+  const server = new grpc.Server();
+  server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
+    getSystemInfo(
+      call: grpc.ServerUnaryCall<
+        temporal.api.workflowservice.v1.IGetSystemInfoRequest,
+        temporal.api.workflowservice.v1.IGetSystemInfoResponse
+      >,
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+    ) {
+      gotRequest = true;
+      callback(null, {});
+    },
+  });
+  const port = await bindLocalhost(server);
+  const connection = await NativeConnection.connect({
+    address: `[::1]:${port}`,
+  });
+  t.true(gotRequest);
+  await connection.close();
+  await server.forceShutdown();
+});

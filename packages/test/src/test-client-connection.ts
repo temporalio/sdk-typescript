@@ -120,7 +120,7 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
   t.true(isGrpcServiceError(err) && err.code === grpc.status.CANCELLED);
 });
 
-test('IPv6', async (t) => {
+test('Connection can connect using "[ipv6]:port" address', async (t) => {
   let gotRequest = false;
   const server = new grpc.Server();
   server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
