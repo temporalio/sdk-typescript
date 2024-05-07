@@ -262,10 +262,8 @@ exports.importInterceptors = function importInterceptors() {
             const hasError = stats.hasErrors();
             // To debug webpack build:
             // const lines = stats.toString({ preset: 'verbose' }).split('\n');
-            const lines = stats.toString({ chunks: false, colors: true, errorDetails: true }).split('\n');
-            for (const line of lines) {
-              this.logger[hasError ? 'error' : 'info'](line);
-            }
+            const webpackOutput = stats.toString({ chunks: false, colors: false, errorDetails: true });
+            this.logger[hasError ? 'error' : 'info'](webpackOutput);
             if (hasError) {
               reject(
                 new Error(
