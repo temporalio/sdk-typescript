@@ -302,6 +302,7 @@ jobs:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
       version: ${{github.event.pull_request.head.ref}}
       version-is-repo-ref: true
+      features-repo-ref: http-connect-proxy-typescript
 
   stress-tests:
     uses: ./.github/workflows/stress.yml
