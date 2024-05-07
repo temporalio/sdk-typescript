@@ -7,12 +7,20 @@ export interface HttpConnectProxyConfig {
   type: 'http-connect';
 
   /**
-   * Target host:port for the HTTP CONNECT proxy.
+   * Address of the HTTP CONNECT proxy server, in either `hostname:port` or `http://hostname:port` formats.
+   *
+   * Port is required, and only the `http` scheme is supported. Raw IPv6 addresses must be wrapped in square brackets
+   * (e.g. `[ipv6]:port`).
    */
   targetHost: string;
 
   /**
    * Basic auth for the HTTP CONNECT proxy, if any.
+   *
+   * Neither username nor password may contain `:` or `@`.
+   *
+   * Note that these credentials will be exposed through environment variables, and will be exchanged in non-encrypted
+   * form ovrer the network. The connection to the proxy server is not encrypted.
    */
   basicAuth?: {
     username: string;

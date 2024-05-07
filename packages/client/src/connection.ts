@@ -22,8 +22,10 @@ import { CallContext, HealthService, Metadata, OperatorService, WorkflowService 
  */
 export interface ConnectionOptions {
   /**
-   * Server hostname and optional port.
-   * Port defaults to 7233 if address contains only host.
+  /**
+   * The address of the Temporal server to connect to, in `hostname:port` format.
+   *
+   * Port defaults to 7233. Raw IPv6 addresses must be wrapped in square brackets (e.g. `[ipv6]:port`).
    *
    * @default localhost:7233
    */

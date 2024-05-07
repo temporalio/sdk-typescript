@@ -13,8 +13,9 @@ export { TLSConfig, ProxyConfig };
 
 export interface NativeConnectionOptions {
   /**
-   * The host and optional port of the Temporal server to connect to.
-   * Port defaults to 7233 if address contains only host.
+   * The address of the Temporal server to connect to, in `hostname:port` format.
+   *
+   * Port defaults to 7233. Raw IPv6 addresses must be wrapped in square brackets (e.g. `[ipv6]:port`).
    *
    * @default localhost:7233
    */
