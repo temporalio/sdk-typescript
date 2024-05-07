@@ -6,7 +6,7 @@ import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 test('NativeConnection.connect() throws meaningful error when passed invalid address', async (t) => {
   await t.throwsAsync(NativeConnection.connect({ address: ':invalid' }), {
     instanceOf: TypeError,
-    message: 'Invalid serverOptions.address',
+    message: /Invalid address for Temporal gRPC endpoint.*/,
   });
 });
 

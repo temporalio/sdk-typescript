@@ -1,4 +1,9 @@
 import * as native from '@temporalio/core-bridge';
+import {
+  normalizeTemporalGrpcEndpointAddress,
+  joinProtoHostPort,
+  parseHttpConnectProxyAddress,
+} from '@temporalio/common/lib/internal-non-workflow';
 import pkg from './pkg';
 
 type TLSConfig = native.TLSConfig;
@@ -64,8 +69,19 @@ export function getDefaultConnectionOptions(): RequiredNativeConnectionOptions {
 
 export function compileConnectionOptions(options: RequiredNativeConnectionOptions): RequiredNativeConnectionOptions {
   const { address, ...rest } = options;
-  // eslint-disable-next-line prefer-const
-  let [host, port] = address.split(':', 2);
-  port = port || '7233';
-  return { ...rest, address: `${host}:${port}` };
+  const proxyOpts: Partial<RequiredNativeConnectionOptions> = {};
+  if (options.proxy?.targetHost) {
+    const { targetHost: target, basicAuth } = options.proxy;
+    const { hostname: host, port } = parseHttpConnectProxyAddress(target);
+    proxyOpts.proxy = {
+      type: 'http-connect',
+      targetHost: joinProtoHostPort({ hostname: host, port }),
+      basicAuth,
+    };
+  }
+  return {
+    ...rest,
+    address: normalizeTemporalGrpcEndpointAddress(address),
+    ...proxyOpts,
+  };
 }

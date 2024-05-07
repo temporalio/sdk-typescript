@@ -8,6 +8,8 @@ import {
   normalizeTlsConfig,
   TLSConfig,
   ProxyConfig,
+  normalizeTemporalGrpcEndpointAddress,
+  parseHttpConnectProxyAddress,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { Duration, msOptionalToNumber } from '@temporalio/common/lib/time';
 import { isGrpcServiceError, ServiceError } from './errors';
@@ -181,17 +183,14 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
     }
   }
   if (rest.address) {
-    // eslint-disable-next-line prefer-const
-    let [host, port] = rest.address.split(':', 2);
-    port = port || '7233';
-    rest.address = `${host}:${port}`;
+    rest.address = normalizeTemporalGrpcEndpointAddress(rest.address);
   }
   const tls = normalizeTlsConfig(tlsFromConfig);
   if (proxy) {
-    const { targetHost: host, basicAuth: auth } = proxy;
+    const { targetHost: target, basicAuth: auth } = proxy;
+    const { scheme, hostname: host, port } = parseHttpConnectProxyAddress(target);
     const authString = auth ? `${auth.username}:${auth.password}@` : '';
-    process.env.grpc_proxy = `http://${authString}${host}`;
-    console.log('Proxy set to:', process.env.grpc_proxy);
+    process.env.grpc_proxy = `${scheme}://${authString}${host}:${port}`;
   }
   if (tls) {
     if (credentials) {

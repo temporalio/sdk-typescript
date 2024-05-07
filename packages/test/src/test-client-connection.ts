@@ -6,6 +6,7 @@ import test, { TestFn } from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import {
+  Client,
   Connection,
   defaultGrpcRetryOptions,
   isGrpcServiceError,
@@ -25,7 +26,7 @@ const workflowServicePackageDefinition = protoLoader.loadSync(
 const workflowServiceProtoDescriptor = grpc.loadPackageDefinition(workflowServicePackageDefinition) as any;
 
 async function bindLocalhost(server: grpc.Server): Promise<number> {
-  return await util.promisify(server.bindAsync.bind(server))('127.0.0.1:0', grpc.ServerCredentials.createInsecure());
+  return await util.promisify(server.bindAsync.bind(server))('localhost:0', grpc.ServerCredentials.createInsecure());
 }
 
 async function bindLocalhostTls(server: grpc.Server): Promise<number> {
@@ -94,7 +95,7 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
   });
   const port = await bindLocalhost(server);
   const conn = await Connection.connect({
-    address: `127.0.0.1:${port}`,
+    address: `localhost:${port}`,
     metadata: { staticKey: 'set' },
     apiKey: 'test-token',
   });
@@ -119,6 +120,29 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
   t.true(isGrpcServiceError(err) && err.code === grpc.status.CANCELLED);
 });
 
+test('IPv6', async (t) => {
+  let gotRequest = false;
+  const server = new grpc.Server();
+  server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
+    getSystemInfo(
+      call: grpc.ServerUnaryCall<
+        temporal.api.workflowservice.v1.IGetSystemInfoRequest,
+        temporal.api.workflowservice.v1.IGetSystemInfoResponse
+      >,
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+    ) {
+      gotRequest = true;
+      callback(null, {});
+    },
+  });
+  const port = await bindLocalhost(server);
+  const connection = await Connection.connect({
+    address: `[::1]:${port}`,
+  });
+  await new Client({ connection });
+  t.true(gotRequest);
+});
+
 test('healthService works', async (t) => {
   const packageDefinition = protoLoader.loadSync(
     path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/grpc/health/v1/health.proto')
@@ -140,7 +164,7 @@ test('healthService works', async (t) => {
     },
   });
   const port = await bindLocalhost(server);
-  const conn = await Connection.connect({ address: `127.0.0.1:${port}` });
+  const conn = await Connection.connect({ address: `localhost:${port}` });
   const response = await conn.healthService.check({});
   t.is(response.status, grpcProto.health.v1.HealthCheckResponse.ServingStatus.SERVING);
 });
@@ -185,7 +209,7 @@ test('grpc retry passes request and headers on retry, propagates responses', asy
   // Default interceptor config with backoff factor of 1 to speed things up
   const interceptor = makeGrpcRetryInterceptor(defaultGrpcRetryOptions({ factor: 1 }));
   const conn = await Connection.connect({
-    address: `127.0.0.1:${port}`,
+    address: `localhost:${port}`,
     metadata: { a: 'bc' },
     interceptors: [interceptor],
   });
@@ -344,7 +368,7 @@ test('Can configure TLS + call credentials', async (t) => {
         const requestId = `request-${grpcStatusCode}`;
 
         const conn = await Connection.connect({
-          address: `127.0.0.1:${t.context.rejectingServer.port}`,
+          address: `localhost:${t.context.rejectingServer.port}`,
           interceptors: [
             makeGrpcRetryInterceptor(
               // initialInterval divided by 10 compared to actual defaults, and backoff factor set to 1,
@@ -410,7 +434,7 @@ test('No 10s delay on close due to grpc-js', async (t) => {
     const port = await bindLocalhost(server);
     const script = `
       const { Connection } = require("@temporalio/client");
-      Connection.connect({ address: '127.0.0.1:${port}' }).catch(console.log);
+      Connection.connect({ address: 'localhost:${port}' }).catch(console.log);
     `;
     const startTime = Date.now();
     await new Promise((resolve, reject) => {
