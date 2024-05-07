@@ -6,6 +6,7 @@ use neon::{
     types::{JsBoolean, JsNumber, JsString},
 };
 use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
+use temporal_client::HttpConnectProxyOptions;
 use temporal_sdk_core::{
     api::telemetry::{Logger, MetricTemporality, TelemetryOptions, TelemetryOptionsBuilder},
     api::{
@@ -21,7 +22,6 @@ use temporal_sdk_core::{
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
     ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TlsConfig, Url,
 };
-use temporal_client::HttpConnectProxyOptions;
 
 pub enum EphemeralServerConfig {
     TestServer(TestServerConfig),
@@ -127,28 +127,17 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             Some(proxy) => {
                 let target_addr = js_value_getter!(cx, &proxy, "targetHost", JsString);
 
-                let basic_auth =
-                    match js_optional_getter!(cx, &proxy, "basicAuth", JsObject) {
-                        None => None,
-                        Some(proxy_obj) => Some((
-                            js_value_getter!(
-                                cx,
-                                &proxy_obj,
-                                "username",
-                                JsString
-                            ),
-                            js_value_getter!(
-                                cx,
-                                &proxy_obj,
-                                "password",
-                                JsString
-                            ),
-                        )),
-                    };
+                let basic_auth = match js_optional_getter!(cx, &proxy, "basicAuth", JsObject) {
+                    None => None,
+                    Some(proxy_obj) => Some((
+                        js_value_getter!(cx, &proxy_obj, "username", JsString),
+                        js_value_getter!(cx, &proxy_obj, "password", JsString),
+                    )),
+                };
 
                 Some(HttpConnectProxyOptions {
                     target_addr,
-                    basic_auth
+                    basic_auth,
                 })
             }
         };
