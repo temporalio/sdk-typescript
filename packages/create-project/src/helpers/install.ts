@@ -35,7 +35,7 @@ export function install({ root, useYarn }: InstallArgs): Promise<void> {
 export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
   const currentNodeVersion = +process.versions.node.split('.')[0];
   const versionAlreadyInPackageJson = 16;
-  const minimumValidVersion = 14;
+  const minimumValidVersion = 16;
 
   // The @tsconfig/node20 sets "--lib es2023", which require TypeScript 5.x.
   // FIXME: Remove this once samples have been updated to TypeScript ^5.0.0.
