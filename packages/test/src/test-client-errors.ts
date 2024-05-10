@@ -9,7 +9,7 @@ import {
   WorkflowClientInterceptor,
   WorkflowTerminateInput,
 } from '@temporalio/client';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
+import { TestWorkflowEnvironment } from './helpers';
 
 interface Context {
   testEnv: TestWorkflowEnvironment;

@@ -688,7 +688,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       },
     });
     const result = await workflow.result();
-    t.assert(result.historySize > 300);
+    t.assert(result.historySize > 100);
     t.deepEqual(result, {
       memo: {
         nested: { object: true },

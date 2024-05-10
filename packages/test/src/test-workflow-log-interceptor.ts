@@ -9,10 +9,9 @@ import {
   Runtime,
   defaultSinks,
 } from '@temporalio/worker';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { WorkflowInfo } from '@temporalio/workflow';
 import * as workflows from './workflows';
-import { Worker } from './helpers';
+import { Worker, TestWorkflowEnvironment } from './helpers';
 
 interface Context {
   testEnv: TestWorkflowEnvironment;
