@@ -3,8 +3,7 @@
  */
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { Worker } from './helpers';
+import { TestWorkflowEnvironment, Worker } from './helpers';
 import { existing } from './workflows/default-workflow-function';
 
 test('Default workflow handler is used if requested workflow does not exist', async (t) => {

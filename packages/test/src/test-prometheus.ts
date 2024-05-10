@@ -3,8 +3,7 @@ import { v4 as uuid4 } from 'uuid';
 import fetch from 'node-fetch';
 import { WorkflowClient } from '@temporalio/client';
 import { Runtime } from '@temporalio/worker';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { Worker, getRandomPort } from './helpers';
+import { Worker, getRandomPort, TestWorkflowEnvironment } from './helpers';
 import * as workflows from './workflows';
 
 test.serial('Runtime.install() throws meaningful error when passed invalid metrics.prometheus.bindAddress', (t) => {

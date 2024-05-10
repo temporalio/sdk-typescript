@@ -12,7 +12,7 @@ import {
 import { LocalActivityOptions } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
-import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
+import { workflowInterceptorModules } from '@temporalio/testing';
 import {
   bundleWorkflowCode,
   DefaultLogger,
@@ -22,7 +22,7 @@ import {
   WorkerOptions,
 } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
-import { test as anyTest, bundlerOptions, Worker } from './helpers';
+import { test as anyTest, bundlerOptions, Worker, TestWorkflowEnvironment } from './helpers';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
 
 // FIXME MOVE THIS SECTION SOMEWHERE IT CAN BE SHARED //
