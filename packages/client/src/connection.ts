@@ -171,7 +171,7 @@ function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults 
  * - Set `Authorization` header based on {@link ConnectionOptions.apiKey}
  */
 function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
-  const { tls: tlsFromConfig, proxy, credentials, callCredentials, ...rest } = options || {};
+  const { tls: tlsFromConfig, credentials, callCredentials, ...rest } = options || {};
   if (rest.apiKey) {
     if (rest.metadata?.['Authorization']) {
       throw new TypeError(
@@ -188,12 +188,6 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
     rest.address = normalizeTemporalGrpcEndpointAddress(rest.address);
   }
   const tls = normalizeTlsConfig(tlsFromConfig);
-  if (proxy) {
-    const { targetHost: target, basicAuth: auth } = proxy;
-    const { scheme, hostname: host, port } = parseHttpConnectProxyAddress(target);
-    const authString = auth ? `${auth.username}:${auth.password}@` : '';
-    process.env.grpc_proxy = `${scheme}://${authString}${host}:${port}`;
-  }
   if (tls) {
     if (credentials) {
       throw new TypeError('Both `tls` and `credentials` ConnectionOptions were provided');
@@ -312,11 +306,23 @@ export class Connection {
     optionsWithDefaults.metadata['client-name'] ??= 'temporal-typescript';
     optionsWithDefaults.metadata['client-version'] ??= pkg.version;
 
+    const originalGrpcProxy = process.env.grpc_proxy;
+    if (options.proxy) {
+      const { targetHost: target, basicAuth: auth } = options.proxy;
+      const { scheme, hostname: host, port } = parseHttpConnectProxyAddress(target);
+      const authString = auth ? `${auth.username}:${auth.password}@` : '';
+      process.env.grpc_proxy = `${scheme}://${authString}${host}:${port}`;
+    }
     const client = new this.Client(
       optionsWithDefaults.address,
       optionsWithDefaults.credentials,
       optionsWithDefaults.channelArgs
     );
+    if (options.proxy) {
+      if (originalGrpcProxy === undefined) delete process.env.grpc_proxy;
+      else process.env.grpc_proxy = originalGrpcProxy;
+    }
+
     const callContextStorage = new AsyncLocalStorage<CallContext>();
 
     const workflowRpcImpl = this.generateRPCImplementation({
