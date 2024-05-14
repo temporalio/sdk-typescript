@@ -6,6 +6,7 @@ use neon::{
     types::{JsBoolean, JsNumber, JsString},
 };
 use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
+use temporal_client::HttpConnectProxyOptions;
 use temporal_sdk_core::{
     api::telemetry::{Logger, MetricTemporality, TelemetryOptions, TelemetryOptionsBuilder},
     api::{
@@ -121,6 +122,26 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             }
         };
 
+        let proxy_cfg = match js_optional_getter!(cx, self, "proxy", JsObject) {
+            None => None,
+            Some(proxy) => {
+                let target_addr = js_value_getter!(cx, &proxy, "targetHost", JsString);
+
+                let basic_auth = match js_optional_getter!(cx, &proxy, "basicAuth", JsObject) {
+                    None => None,
+                    Some(proxy_obj) => Some((
+                        js_value_getter!(cx, &proxy_obj, "username", JsString),
+                        js_value_getter!(cx, &proxy_obj, "password", JsString),
+                    )),
+                };
+
+                Some(HttpConnectProxyOptions {
+                    target_addr,
+                    basic_auth,
+                })
+            }
+        };
+
         let retry_config = match js_optional_getter!(cx, self, "retry", JsObject) {
             None => RetryConfig::default(),
             Some(ref retry_config) => RetryConfig {
@@ -158,6 +179,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         if let Some(tls_cfg) = tls_cfg {
             client_options.tls_cfg(tls_cfg);
         }
+        client_options.http_connect_proxy(proxy_cfg);
         let headers = match js_optional_getter!(cx, self, "metadata", JsObject) {
             None => None,
             Some(h) => Some(h.as_hash_map_of_string_to_string(cx).map_err(|reason| {

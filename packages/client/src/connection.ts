@@ -1,7 +1,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as grpc from '@grpc/grpc-js';
 import type { RPCImpl } from 'protobufjs';
-import { filterNullAndUndefined, normalizeTlsConfig, TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
+import {
+  filterNullAndUndefined,
+  normalizeTlsConfig,
+  TLSConfig,
+  normalizeTemporalGrpcEndpointAddress,
+} from '@temporalio/common/lib/internal-non-workflow';
 import { Duration, msOptionalToNumber } from '@temporalio/common/lib/time';
 import { isGrpcServiceError, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
@@ -13,8 +18,9 @@ import { CallContext, HealthService, Metadata, OperatorService, WorkflowService 
  */
 export interface ConnectionOptions {
   /**
-   * Server hostname and optional port.
-   * Port defaults to 7233 if address contains only host.
+   * The address of the Temporal server to connect to, in `hostname:port` format.
+   *
+   * Port defaults to 7233. Raw IPv6 addresses must be wrapped in square brackets (e.g. `[ipv6]:port`).
    *
    * @default localhost:7233
    */
@@ -167,10 +173,7 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
     }
   }
   if (rest.address) {
-    // eslint-disable-next-line prefer-const
-    let [host, port] = rest.address.split(':', 2);
-    port = port || '7233';
-    rest.address = `${host}:${port}`;
+    rest.address = normalizeTemporalGrpcEndpointAddress(rest.address);
   }
   const tls = normalizeTlsConfig(tlsFromConfig);
   if (tls) {

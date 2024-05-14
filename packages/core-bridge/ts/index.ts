@@ -1,7 +1,7 @@
 import { LogLevel, Duration } from '@temporalio/common';
-import type { TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
+import type { TLSConfig, ProxyConfig, HttpConnectProxyConfig } from '@temporalio/common/lib/internal-non-workflow';
 
-export { TLSConfig };
+export type { TLSConfig, ProxyConfig, HttpConnectProxyConfig };
 
 /** @deprecated Import from @temporalio/common instead */
 export { LogLevel };
@@ -54,6 +54,13 @@ export interface ClientOptions {
    * connect with TLS without any customization.
    */
   tls?: TLSConfig;
+
+  /**
+   * Proxying configuration.
+   *
+   * @experimental
+   */
+  proxy?: ProxyConfig;
 
   /**
    * Optional retry options for server requests.

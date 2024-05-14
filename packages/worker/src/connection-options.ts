@@ -1,14 +1,21 @@
 import * as native from '@temporalio/core-bridge';
+import {
+  normalizeTemporalGrpcEndpointAddress,
+  joinProtoHostPort,
+  parseHttpConnectProxyAddress,
+} from '@temporalio/common/lib/internal-non-workflow';
 import pkg from './pkg';
 
 type TLSConfig = native.TLSConfig;
+type ProxyConfig = native.ProxyConfig;
 
-export { TLSConfig };
+export { TLSConfig, ProxyConfig };
 
 export interface NativeConnectionOptions {
   /**
-   * The host and optional port of the Temporal server to connect to.
-   * Port defaults to 7233 if address contains only host.
+   * The address of the Temporal server to connect to, in `hostname:port` format.
+   *
+   * Port defaults to 7233. Raw IPv6 addresses must be wrapped in square brackets (e.g. `[ipv6]:port`).
    *
    * @default localhost:7233
    */
@@ -21,6 +28,13 @@ export interface NativeConnectionOptions {
    * connect with TLS without any customization.
    */
   tls?: TLSConfig | boolean | null;
+
+  /**
+   * Proxying configuration.
+   *
+   * @experimental
+   */
+  proxy?: ProxyConfig;
 
   /**
    * Optional mapping of gRPC metadata (HTTP headers) to send with each request to the server.
@@ -36,8 +50,12 @@ export interface NativeConnectionOptions {
   apiKey?: string;
 }
 
-export type RequiredNativeConnectionOptions = Omit<Required<NativeConnectionOptions>, 'tls' | 'metadata' | 'apiKey'> & {
+export type RequiredNativeConnectionOptions = Omit<
+  Required<NativeConnectionOptions>,
+  'tls' | 'proxy' | 'metadata' | 'apiKey'
+> & {
   tls?: NativeConnectionOptions['tls'];
+  proxy?: NativeConnectionOptions['proxy'];
   metadata?: NativeConnectionOptions['metadata'];
   apiKey?: NativeConnectionOptions['apiKey'];
   sdkVersion: string;
@@ -52,8 +70,19 @@ export function getDefaultConnectionOptions(): RequiredNativeConnectionOptions {
 
 export function compileConnectionOptions(options: RequiredNativeConnectionOptions): RequiredNativeConnectionOptions {
   const { address, ...rest } = options;
-  // eslint-disable-next-line prefer-const
-  let [host, port] = address.split(':', 2);
-  port = port || '7233';
-  return { ...rest, address: `${host}:${port}` };
+  const proxyOpts: Partial<RequiredNativeConnectionOptions> = {};
+  if (options.proxy?.targetHost) {
+    const { targetHost: target, basicAuth } = options.proxy;
+    const { hostname: host, port } = parseHttpConnectProxyAddress(target);
+    proxyOpts.proxy = {
+      type: 'http-connect',
+      targetHost: joinProtoHostPort({ hostname: host, port }),
+      basicAuth,
+    };
+  }
+  return {
+    ...rest,
+    address: normalizeTemporalGrpcEndpointAddress(address),
+    ...proxyOpts,
+  };
 }

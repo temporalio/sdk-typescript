@@ -99,7 +99,7 @@ jobs:
           prefix-key: corebridge-buildcache
           shared-key: linux-intel
           env-vars: ''
-          save-if: ${{ env.IS_MAIN_BRANCH }}
+          save-if: env.IS_MAIN_BRANCH == 'true'
 
       - name: Download dependencies
         # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors
@@ -126,16 +126,16 @@ jobs:
           timeout ${{ inputs.test-timeout-minutes }}m npm run ${{ inputs.test-type }}
 
       - run: for f in $TEMPORAL_TESTING_LOG_DIR/*.log; do tail -20000 $f > $TEMPORAL_TESTING_LOG_DIR/tails/$(basename $f); done
-        if: ${{ always() }}
+        if: always()
 
       - uses: actions/upload-artifact@v4
-        if: ${{ always() }}
+        if: always()
         with:
           name: worker-logs-${{ inputs.reuse-v8-context && 'reuse-v8' || 'no-reuse-v8' }}
           path: ${{ env.TEMPORAL_TESTING_LOG_DIR }}/tails
 
       - uses: actions/upload-artifact@v4
-        if: ${{ always() }}
+        if: always()
         with:
           name: worker-mem-logs-${{ inputs.reuse-v8-context && 'reuse-v8' || 'no-reuse-v8' }}
           path: ${{ env.TEMPORAL_TESTING_MEM_LOG_DIR }}
