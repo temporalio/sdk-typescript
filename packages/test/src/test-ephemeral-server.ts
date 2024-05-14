@@ -1,8 +1,7 @@
 import anyTest, { ExecutionContext, TestFn } from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { bundleWorkflowCode, WorkflowBundle } from '@temporalio/worker';
-import { Worker } from './helpers';
+import { Worker, TestWorkflowEnvironment, testTimeSkipping as anyTestTimeSkipping } from './helpers';
 
 interface Context {
   bundle: WorkflowBundle;
@@ -10,6 +9,7 @@ interface Context {
 }
 
 const test = anyTest as TestFn<Context>;
+const testTimeSkipping = anyTestTimeSkipping as TestFn<Context>;
 
 test.before(async (t) => {
   t.context.bundle = await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') });
@@ -41,7 +41,7 @@ async function runSimpleWorkflow(t: ExecutionContext<Context>, testEnv: TestWork
   t.pass();
 }
 
-test('TestEnvironment sets up test server and is able to run a single workflow', async (t) => {
+testTimeSkipping('TestEnvironment sets up test server and is able to run a single workflow', async (t) => {
   const testEnv = await TestWorkflowEnvironment.createTimeSkipping();
   await runSimpleWorkflow(t, testEnv);
 });

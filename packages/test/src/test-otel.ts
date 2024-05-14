@@ -18,10 +18,9 @@ import {
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
 import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
 import { DefaultLogger, InjectedSinks, Runtime } from '@temporalio/worker';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
 import * as activities from './activities';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
 import * as workflows from './workflows';
 
 async function withHttp2Server(

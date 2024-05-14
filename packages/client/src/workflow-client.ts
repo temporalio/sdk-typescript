@@ -901,7 +901,7 @@ export class WorkflowClient extends BaseClient {
       signalName,
       signalInput: { payloads: await encodeToPayloads(this.dataConverter, ...signalArgs) },
       taskQueue: {
-        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
+        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: options.taskQueue,
       },
       workflowExecutionTimeout: options.workflowExecutionTimeout,
@@ -949,7 +949,7 @@ export class WorkflowClient extends BaseClient {
       workflowType: { name: workflowType },
       input: { payloads: await encodeToPayloads(this.dataConverter, ...opts.args) },
       taskQueue: {
-        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
+        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: opts.taskQueue,
       },
       workflowExecutionTimeout: opts.workflowExecutionTimeout,

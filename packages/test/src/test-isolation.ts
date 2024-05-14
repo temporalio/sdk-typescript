@@ -1,11 +1,10 @@
 import { randomUUID } from 'crypto';
 import { TestFn, ImplementationFn } from 'ava';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { ApplicationFailure, arrayFromPayloads } from '@temporalio/common';
 import { bundleWorkflowCode, WorkflowBundle } from '@temporalio/worker';
 import { sleep } from '@temporalio/workflow';
 import { WorkflowFailedError } from '@temporalio/client';
-import { test as anyTest, bundlerOptions, Worker, REUSE_V8_CONTEXT } from './helpers';
+import { test as anyTest, bundlerOptions, Worker, REUSE_V8_CONTEXT, TestWorkflowEnvironment } from './helpers';
 
 interface Context {
   env: TestWorkflowEnvironment;

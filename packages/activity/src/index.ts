@@ -69,8 +69,6 @@
  * @module
  */
 
-// Keep this around until we drop support for Node 14.
-import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Logger, Duration, LogLevel, LogMetadata } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
@@ -204,7 +202,7 @@ export class Context {
   /**
    * Gets the context of the current Activity.
    *
-   * Uses {@link https://nodejs.org/docs/latest-v14.x/api/async_hooks.html#async_hooks_class_asynclocalstorage | AsyncLocalStorage} under the hood to make it accessible in nested callbacks and promises.
+   * Uses {@link https://nodejs.org/docs/latest-v16.x/api/async_context.html#class-asynclocalstorage | AsyncLocalStorage} under the hood to make it accessible in nested callbacks and promises.
    */
   public static current(): Context {
     const store = asyncLocalStorage.getStore();
