@@ -5,9 +5,7 @@ import {
   filterNullAndUndefined,
   normalizeTlsConfig,
   TLSConfig,
-  ProxyConfig,
   normalizeTemporalGrpcEndpointAddress,
-  parseHttpConnectProxyAddress,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { Duration, msOptionalToNumber } from '@temporalio/common/lib/time';
 import { isGrpcServiceError, ServiceError } from './errors';
