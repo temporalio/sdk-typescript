@@ -305,8 +305,8 @@ export class Connection {
     optionsWithDefaults.metadata['client-version'] ??= pkg.version;
 
     const originalGrpcProxy = process.env.grpc_proxy;
-    if (options.proxy) {
-      const { targetHost: target, basicAuth: auth } = options.proxy;
+    if (normalizedOptions.proxy) {
+      const { targetHost: target, basicAuth: auth } = normalizedOptions.proxy;
       const { scheme, hostname: host, port } = parseHttpConnectProxyAddress(target);
       const authString = auth ? `${auth.username}:${auth.password}@` : '';
       process.env.grpc_proxy = `${scheme}://${authString}${host}:${port}`;
@@ -316,7 +316,7 @@ export class Connection {
       optionsWithDefaults.credentials,
       optionsWithDefaults.channelArgs
     );
-    if (options.proxy) {
+    if (normalizedOptions.proxy) {
       if (originalGrpcProxy === undefined) delete process.env.grpc_proxy;
       else process.env.grpc_proxy = originalGrpcProxy;
     }
