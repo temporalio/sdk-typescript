@@ -20,7 +20,6 @@ import { CallContext, HealthService, Metadata, OperatorService, WorkflowService 
  */
 export interface ConnectionOptions {
   /**
-  /**
    * The address of the Temporal server to connect to, in `hostname:port` format.
    *
    * Port defaults to 7233. Raw IPv6 addresses must be wrapped in square brackets (e.g. `[ipv6]:port`).
@@ -41,13 +40,6 @@ export interface ConnectionOptions {
    * @default TLS is disabled
    */
   tls?: TLSConfig | boolean | null;
-
-  /**
-   * Proxying configuration.
-   *
-   * @experimental
-   */
-  proxy?: ProxyConfig;
 
   /**
    * gRPC channel credentials.
@@ -137,7 +129,7 @@ export interface ConnectionOptions {
 }
 
 export type ConnectionOptionsWithDefaults = Required<
-  Omit<ConnectionOptions, 'tls' | 'proxy' | 'connectTimeout' | 'callCredentials' | 'apiKey'>
+  Omit<ConnectionOptions, 'tls' | 'connectTimeout' | 'callCredentials' | 'apiKey'>
 > & {
   connectTimeoutMs: number;
 };
@@ -304,23 +296,11 @@ export class Connection {
     optionsWithDefaults.metadata['client-name'] ??= 'temporal-typescript';
     optionsWithDefaults.metadata['client-version'] ??= pkg.version;
 
-    const originalGrpcProxy = process.env.grpc_proxy;
-    if (normalizedOptions.proxy) {
-      const { targetHost: target, basicAuth: auth } = normalizedOptions.proxy;
-      const { scheme, hostname: host, port } = parseHttpConnectProxyAddress(target);
-      const authString = auth ? `${auth.username}:${auth.password}@` : '';
-      process.env.grpc_proxy = `${scheme}://${authString}${host}:${port}`;
-    }
     const client = new this.Client(
       optionsWithDefaults.address,
       optionsWithDefaults.credentials,
       optionsWithDefaults.channelArgs
     );
-    if (normalizedOptions.proxy) {
-      if (originalGrpcProxy === undefined) delete process.env.grpc_proxy;
-      else process.env.grpc_proxy = originalGrpcProxy;
-    }
-
     const callContextStorage = new AsyncLocalStorage<CallContext>();
 
     const workflowRpcImpl = this.generateRPCImplementation({
