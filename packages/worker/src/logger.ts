@@ -1,4 +1,5 @@
 import { formatWithOptions } from 'node:util';
+import * as supportsColor from 'supports-color';
 import { getTimeOfDay } from '@temporalio/core-bridge';
 import { LogLevel, LogMetadata, Logger } from '@temporalio/common';
 
@@ -17,7 +18,12 @@ export const LogTimestamp = Symbol.for('log_timestamp');
 
 const severities: LogLevel[] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
 
-const format = formatWithOptions.bind(undefined, { colors: true });
+/**
+ * @experimental This is a temporary fix until
+ */
+const loggerHasColorsSymbol = Symbol.for('logger_has_colors');
+const stderrHasColors = !!supportsColor.stderr;
+const format = formatWithOptions.bind(undefined, { colors: stderrHasColors });
 
 /**
  * Log messages to `stderr` using basic formatting
@@ -53,6 +59,7 @@ export class DefaultLogger implements Logger {
     protected readonly logFunction = defaultLogFunction
   ) {
     this.severity = severities.indexOf(this.level);
+    (this as any)[loggerHasColorsSymbol] = (logFunction === defaultLogFunction && stderrHasColors) ?? false;
   }
 
   log(level: LogLevel, message: string, meta?: LogMetadata): void {
@@ -88,6 +95,13 @@ export class DefaultLogger implements Logger {
   }
 }
 
+/**
+ * @internal
+ */
+export function hasColorSupport(logger: Logger): boolean {
+  return (logger as any)[loggerHasColorsSymbol] ?? false;
+}
+
 export function withMetadata(logger: Logger, meta: LogMetadata | (() => LogMetadata)): Logger {
   return new LoggerWithMetadata(logger, meta);
 }
@@ -105,6 +119,7 @@ class LoggerWithMetadata implements Logger {
       this.parentLogger = parent;
       this.metaChain = [meta];
     }
+    (this as any)[loggerHasColorsSymbol] = hasColorSupport(parent);
   }
 
   log(level: LogLevel, message: string, meta?: LogMetadata): void {
