@@ -14,12 +14,19 @@ export interface LogEntry {
   meta?: LogMetadata;
 }
 
+/**
+ * @internal
+ */
+interface LoggerWithColorSupport extends Logger {
+  [loggerHasColorsSymbol]?: boolean;
+}
+
 export const LogTimestamp = Symbol.for('log_timestamp');
 
 const severities: LogLevel[] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
 
 /**
- * @experimental This is a temporary fix until
+ * @internal
  */
 const loggerHasColorsSymbol = Symbol.for('logger_has_colors');
 const stderrHasColors = !!supportsColor.stderr;
@@ -59,7 +66,8 @@ export class DefaultLogger implements Logger {
     protected readonly logFunction = defaultLogFunction
   ) {
     this.severity = severities.indexOf(this.level);
-    (this as any)[loggerHasColorsSymbol] = (logFunction === defaultLogFunction && stderrHasColors) ?? false;
+    (this as LoggerWithColorSupport)[loggerHasColorsSymbol] =
+      (logFunction === defaultLogFunction && stderrHasColors) ?? false;
   }
 
   log(level: LogLevel, message: string, meta?: LogMetadata): void {
@@ -99,7 +107,7 @@ export class DefaultLogger implements Logger {
  * @internal
  */
 export function hasColorSupport(logger: Logger): boolean {
-  return (logger as any)[loggerHasColorsSymbol] ?? false;
+  return (logger as LoggerWithColorSupport)[loggerHasColorsSymbol] ?? false;
 }
 
 export function withMetadata(logger: Logger, meta: LogMetadata | (() => LogMetadata)): Logger {
@@ -119,7 +127,7 @@ class LoggerWithMetadata implements Logger {
       this.parentLogger = parent;
       this.metaChain = [meta];
     }
-    (this as any)[loggerHasColorsSymbol] = hasColorSupport(parent);
+    (this as LoggerWithColorSupport)[loggerHasColorsSymbol] = hasColorSupport(parent);
   }
 
   log(level: LogLevel, message: string, meta?: LogMetadata): void {
