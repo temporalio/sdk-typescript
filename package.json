@@ -70,15 +70,29 @@
     "eslint-plugin-tsdoc": "^0.2.17",
     "fs-extra": "^11.2.0",
     "json5": "^2.2.3",
-    "lerna": "^6.6.2",
+    "lerna": "^7.4.2",
     "prettier": "^3.1.1",
     "ts-prune": "^0.10.3",
     "typescript": "^5.3.3",
-    "verdaccio": "^5.29.0"
+    "verdaccio": "^5.31.0"
   },
+  "workspaces": [
+    "packages/activity",
+    "packages/client",
+    "packages/common",
+    "packages/core-bridge",
+    "packages/create-project",
+    "packages/interceptors-opentelemetry",
+    "packages/nyc-test-coverage",
+    "packages/proto",
+    "packages/test",
+    "packages/testing",
+    "packages/worker",
+    "packages/workflow"
+  ],
   "engines": {
-    "node": ">= 16.0.0",
-    "npm": ">= 6.0.0",
+    "node": ">= 16.15.0",
+    "npm": ">= 7.0.0",
     "rustc": ">= 1.53.0"
   }
 }
