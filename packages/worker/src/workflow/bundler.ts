@@ -5,7 +5,7 @@ import util from 'node:util';
 import * as unionfs from 'unionfs';
 import * as memfs from 'memfs';
 import { Configuration, webpack } from 'webpack';
-import { DefaultLogger, Logger } from '../logger';
+import { DefaultLogger, Logger, hasColorSupport } from '../logger';
 import { toMB } from '../utils';
 
 export const defaultWorkflowInterceptorModules = [require.resolve('../workflow-log-interceptor')];
@@ -262,10 +262,12 @@ exports.importInterceptors = function importInterceptors() {
             const hasError = stats.hasErrors();
             // To debug webpack build:
             // const lines = stats.toString({ preset: 'verbose' }).split('\n');
-            const lines = stats.toString({ chunks: false, colors: true, errorDetails: true }).split('\n');
-            for (const line of lines) {
-              this.logger[hasError ? 'error' : 'info'](line);
-            }
+            const webpackOutput = stats.toString({
+              chunks: false,
+              colors: hasColorSupport(this.logger),
+              errorDetails: true,
+            });
+            this.logger[hasError ? 'error' : 'info'](webpackOutput);
             if (hasError) {
               reject(
                 new Error(

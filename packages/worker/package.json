@@ -26,9 +26,13 @@
     "rxjs": "^7.8.1",
     "source-map": "^0.7.4",
     "source-map-loader": "^4.0.2",
+    "supports-color": "^8.1.1",
     "swc-loader": "^0.2.3",
     "unionfs": "^4.5.1",
     "webpack": "^5.89.0"
+  },
+  "devDependencies": {
+    "@types/supports-color": "^8.1.3"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
