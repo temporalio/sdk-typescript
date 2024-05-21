@@ -153,10 +153,7 @@ The `scope` options are listed in [commitlint.config.js](https://github.com/temp
 
 ## Updating and pruning dependencies
 
-There are various tools out there to help with updating and pruning NPM dependencies. Unfortunately,
-most of these tools don't work well in older lerna-style monorepos, such as this one, and updating
-to NPM 7 workspace would break support for Node 14.x. We must therefore rely on a more manual
-approach.
+There are various tools out there to help with updating and pruning NPM dependencies.
 
 I personally use the following commands to find NPM packages that needs to be updated. It runs
 interactively on each package of the repo, making it easy to select and apply packages to be updated.
