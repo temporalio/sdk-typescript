@@ -13,32 +13,29 @@ open artifacts
 echo -e 'Please do the following:'
 echo -e ' 1. Open the \e]8;;https://github.com/temporalio/sdk-typescript/actions/workflows/ci.yml?query=branch%3Amain\e\\GHA status page\e]8;;\e\\ for the "Continuous Integration" workflow, on branch main.'
 echo -e ' 2. From there, select the latest execution'
-echo -e ' 3. Download all packages-* artifacts to the "artifacts" directory that just opened'
+echo -e ' 3. Download all corebridge-native-* artifacts to the "artifacts" directory that just opened'
 
 echo
 echo -e 'Press ENTER once this is completed.'
 read enterKey
 
-local count=$( find artifacts -type f -name "packages-*.zip" | wc -l )
+local count=$( find artifacts -type f -name "corebridge-native-*.zip" | wc -l )
 if [ $count -ne 5 ]; then
-    echo "The 'artifacts' directory does not contain exactly 5 files named 'packages-*.zip'"
+    echo "The 'artifacts' directory does not contain exactly 5 files named 'corebridge-native-*.zip'"
     echo "Aborting"
     exit 1
 fi
 
-# Extract native libs and organize them correctly
-for name in artifacts/*.zip ; do
-    unzip -cq ${name} '@temporalio/core-bridge/core-bridge-*.tgz' |
-        tar -xvz package/releases/
-done
-
 git clone --depth 1 --shallow-submodules --recurse-submodules https://github.com/temporalio/sdk-typescript.git
 cd sdk-typescript
 
+# Extract native libs and organize them correctly
+for name in ../artifacts/*.zip ; do
+    unzip -q ${name} -d packages/core-bridge/releases/
+done
+
 npm ci  --ignore-scripts
 npm run build -- --ignore @temporalio/core-bridge
-
-cp -r ../package/releases packages/core-bridge/releases
 
 echo
 echo 'Does this look correct?'
@@ -54,7 +51,7 @@ echo 'Publishing...'
 
 # User will be asked to indicate which type of release and to confirm,
 # then the Publish commit will be created and pushed to the main branch.
-npx lerna version patch --force-publish='*'
+npx lerna version --force-publish='*'
 
 local version=$( jq -r '.version' < lerna.json )
 
