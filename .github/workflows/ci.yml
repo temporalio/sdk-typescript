@@ -31,13 +31,14 @@ jobs:
         include:
           # For Linux targets, use Buildjet's builders to get the oldest supported glibc version
           - platform: linux-x64
-            runner: buildjet-4vcpu-ubuntu-2004
+            runner: buildjet-4vcpu-ubuntu-2204
             target: x86_64-unknown-linux-gnu
-            container: quay.io/pypa/manylinux_2_28_x86_64
+            container: quay.io/pypa/manylinux_2_24_x86_64
             out-file: libtemporal_sdk_typescript_bridge.so
           - platform: linux-arm
             runner: buildjet-4vcpu-ubuntu-2204-arm
             target: aarch64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_24_aarch64
             out-file: libtemporal_sdk_typescript_bridge.so
           - platform: macos-x64
             runner: macos-12
@@ -63,14 +64,12 @@ jobs:
         with:
           submodules: recursive
 
-      # FIXME: Temporarily disable caching to properly test buildeing in containers
       - name: 'Cache index.node'
         id: cached-artifact
-        uses: actions/cache/restore@v4
+        uses: actions/cache@v4
         with:
           path: ./packages/core-bridge/releases
-          key: disabled-corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
-
+          key: corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
 
       - name: Install Rust
         if: steps.cached-artifact.outputs.cache-hit != 'true'
@@ -110,10 +109,7 @@ jobs:
         working-directory: ./packages/core-bridge
         run: |
           objdump -T ./releases/${{ matrix.target }}/index.node |
-              grep GLIBC |
-              sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' |
-              sort -Vu |
-              tail -1
+              grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -V | tail -1
 
       - uses: actions/upload-artifact@v4
         with:
