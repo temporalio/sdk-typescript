@@ -107,6 +107,7 @@ jobs:
 
       - name: Print required GLIBC version
         if: startsWith(matrix.platform, 'linux')
+        working-directory: ./packages/core-bridge
         run: |
           objdump -T ./releases/${{ matrix.target }}/index.node |
               grep GLIBC |
