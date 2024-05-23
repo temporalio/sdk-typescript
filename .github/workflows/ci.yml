@@ -64,9 +64,10 @@ jobs:
         with:
           submodules: recursive
 
+      # FIXME: Temporarily disable caching to properly test buildeing in containers
       - name: 'Cache index.node'
         id: cached-artifact
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ./packages/core-bridge/releases
           key: corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
