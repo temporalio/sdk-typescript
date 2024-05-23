@@ -66,7 +66,7 @@ jobs:
         shell: bash
     steps:
       - name: 'Checkout code'
-        # v4+ requires Node 20
+        # FIXME: v4+ requires Node 20
         uses: actions/checkout@v3
         with:
           submodules: recursive
@@ -74,7 +74,7 @@ jobs:
       # FIXME: Temporarily disable caching to properly test buildeing in containers
       - name: 'Cache index.node'
         id: cached-artifact
-        # v4+ requires Node 20
+        # FIXME: v4+ requires Node 20
         uses: actions/cache/restore@v3
         with:
           path: ./packages/core-bridge/releases
@@ -154,7 +154,8 @@ jobs:
           submodules: recursive
 
       - name: Download core-bridge native libraries
-        uses: actions/download-artifact@v4
+        # Need v3 here to stay compatible with the compile-native-binaries job.
+        uses: actions/download-artifact@v3-node20
         with:
           path: ./packages/core-bridge/releases/tmp
 
@@ -241,7 +242,8 @@ jobs:
           submodules: recursive
 
       - name: Download core-bridge native libraries
-        uses: actions/download-artifact@v4
+        # Need v3 here to stay compatible with the compile-native-binaries job.
+        uses: actions/download-artifact@v3-node20
         with:
           name: corebridge-native-${{ matrix.platform }}
           path: ./packages/core-bridge/releases
