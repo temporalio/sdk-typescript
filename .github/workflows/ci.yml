@@ -34,23 +34,23 @@ jobs:
             runner: buildjet-4vcpu-ubuntu-2004
             target: x86_64-unknown-linux-gnu
             container: quay.io/pypa/manylinux_2_28_x86_64
-            out-file: libtemporal_sdk_bridge.so
+            out-file: libtemporal_sdk_typescript_bridge.so
           - platform: linux-arm
             runner: buildjet-4vcpu-ubuntu-2204-arm
             target: aarch64-unknown-linux-gnu
-            out-file: libtemporal_sdk_bridge.so
+            out-file: libtemporal_sdk_typescript_bridge.so
           - platform: macos-x64
             runner: macos-12
             target: x86_64-apple-darwin
-            out-file: libtemporal_sdk_bridge.dylib
+            out-file: libtemporal_sdk_typescript_bridge.dylib
           - platform: macos-arm
             runner: macos-14
             target: aarch64-apple-darwin
-            out-file: libtemporal_sdk_bridge.dylib
+            out-file: libtemporal_sdk_typescript_bridge.dylib
           - platform: windows-x64
             runner: windows-latest
             target: x86_64-pc-windows-msvc
-            out-file: temporal_sdk_bridge.dll
+            out-file: temporal_sdk_typescript_bridge.dll
     name: Compile Native Binaries (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.container }}
@@ -555,7 +555,9 @@ jobs:
         if: env.IS_MAIN_OR_RELEASE == 'true'
         run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --prod --yes
 
-      - name: Deploy draft docs
-        # Don't run on forks, since secrets won't be available, and command will fail
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.ref != 'refs/heads/main'
-        run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes
+      # FIXME: This is not working properly, and should probably be done only from the main branch anyway
+      # (and "Deploy prod docs" should only be done when we publish a new release)
+      # - name: Deploy draft docs
+      #   # Don't run on forks, since secrets won't be available, and command will fail
+      #   if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.ref != 'refs/heads/main'
+      #   run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes
