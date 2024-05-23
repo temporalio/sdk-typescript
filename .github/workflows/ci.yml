@@ -55,19 +55,27 @@ jobs:
     name: Compile Native Binaries (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.container }}
+    env:
+      # This is required to allow continuing usage of Node 16 for actions,
+      # as Node 20 won't run on the docker image we use for linux builds
+      # (Node 20 require glibc 2.28+, but container image has glibc 2.24).
+      # https://github.blog/changelog/2024-05-17-updated-dates-for-actions-runner-using-node20-instead-of-node16-by-default/
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     defaults:
       run:
         shell: bash
     steps:
       - name: 'Checkout code'
-        uses: actions/checkout@v4
+        # v4+ requires Node 20
+        uses: actions/checkout@v3
         with:
           submodules: recursive
 
       # FIXME: Temporarily disable caching to properly test buildeing in containers
       - name: 'Cache index.node'
         id: cached-artifact
-        uses: actions/cache/restore@v4
+        # v4+ requires Node 20
+        uses: actions/cache/restore@v3
         with:
           path: ./packages/core-bridge/releases
           key: corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
@@ -80,7 +88,8 @@ jobs:
 
       - name: Install protoc
         if: steps.cached-artifact.outputs.cache-hit != 'true'
-        uses: arduino/setup-protoc@v3
+        # v3+ requires Node 20
+        uses: arduino/setup-protoc@v2
         with:
           # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
           version: '23.x'
@@ -88,7 +97,8 @@ jobs:
 
       - name: Rust Cargo and Build cache
         if: steps.cached-artifact.outputs.cache-hit != 'true'
-        uses: Swatinem/rust-cache@v2
+        # v2.7.2+ requires Node 20
+        uses: Swatinem/rust-cache@v2.7.1
         with:
           workspaces: packages/core-bridge -> target
           prefix-key: corebridge-buildcache
@@ -112,7 +122,8 @@ jobs:
           objdump -T ./releases/${{ matrix.target }}/index.node |
               grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -V | tail -1
 
-      - uses: actions/upload-artifact@v4
+      # v4+ requires Node 20
+      - uses: actions/upload-artifact@v3
         with:
           name: corebridge-native-${{ matrix.platform }}
           # Actual file will be named ${{ matrix.target }}/index.node
