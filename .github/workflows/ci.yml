@@ -33,20 +33,27 @@ jobs:
           - platform: linux-x64
             runner: buildjet-4vcpu-ubuntu-2004
             target: x86_64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_28_x86_64
+            out-file: libtemporal_sdk_bridge.so
           - platform: linux-arm
             runner: buildjet-4vcpu-ubuntu-2204-arm
             target: aarch64-unknown-linux-gnu
+            out-file: libtemporal_sdk_bridge.so
           - platform: macos-x64
             runner: macos-12
             target: x86_64-apple-darwin
+            out-file: libtemporal_sdk_bridge.dylib
           - platform: macos-arm
             runner: macos-14
             target: aarch64-apple-darwin
+            out-file: libtemporal_sdk_bridge.dylib
           - platform: windows-x64
             runner: windows-latest
             target: x86_64-pc-windows-msvc
+            out-file: temporal_sdk_bridge.dll
     name: Compile Native Binaries (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
     defaults:
       run:
         shell: bash
@@ -56,12 +63,14 @@ jobs:
         with:
           submodules: recursive
 
+      # FIXME: Temporarily disable caching to properly test buildeing in containers
       - name: 'Cache index.node'
         id: cached-artifact
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ./packages/core-bridge/releases
           key: corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
+
 
       - name: Install Rust
         if: steps.cached-artifact.outputs.cache-hit != 'true'
@@ -76,10 +85,6 @@ jobs:
           # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
           version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Print libc version
-        if: (steps.cached-artifact.outputs.cache-hit != 'true') && startsWith(matrix.platform, 'linux')
-        run: ldd --version
 
       - name: Rust Cargo and Build cache
         if: steps.cached-artifact.outputs.cache-hit != 'true'
@@ -98,11 +103,16 @@ jobs:
           set -x
           cargo build --release --target ${{ matrix.target }}
           mkdir -p ./releases/${{ matrix.target }}
-          # FIXME: This is aweful. Surely there's a better way, but I'm out of ideas.
-          native_lib_file=$(
-            ls target/${{ matrix.target }}/release/{lib,}temporal_sdk_typescript_bridge.{dylib,so,dll} 2>/dev/null || true
-          )
-          cp $native_lib_file ./releases/${{ matrix.target }}/index.node
+          cp target/${{ matrix.target }}/release/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
+
+      - name: Print required GLIBC version
+        if: startsWith(matrix.platform, 'linux')
+        run: |
+          objdump -T ./releases/${{ matrix.target }}/index.node |
+              grep GLIBC |
+              sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' |
+              sort -Vu |
+              tail -1
 
       - uses: actions/upload-artifact@v4
         with:
