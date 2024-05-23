@@ -69,7 +69,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ./packages/core-bridge/releases
-          key: corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
+          key: disabled-corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
 
 
       - name: Install Rust
