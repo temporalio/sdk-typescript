@@ -71,11 +71,10 @@ jobs:
         with:
           submodules: recursive
 
-      # FIXME: Temporarily disable caching to properly test buildeing in containers
       - name: 'Cache index.node'
         id: cached-artifact
         # FIXME: v4+ requires Node 20
-        uses: actions/cache/restore@v3
+        uses: actions/cache@v3
         with:
           path: ./packages/core-bridge/releases
           key: corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
@@ -88,7 +87,7 @@ jobs:
 
       - name: Install protoc
         if: steps.cached-artifact.outputs.cache-hit != 'true'
-        # v3+ requires Node 20
+        # FIXME: v3+ requires Node 20
         uses: arduino/setup-protoc@v2
         with:
           # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
@@ -97,7 +96,7 @@ jobs:
 
       - name: Rust Cargo and Build cache
         if: steps.cached-artifact.outputs.cache-hit != 'true'
-        # v2.7.2+ requires Node 20
+        # FIXME: v2.7.2+ requires Node 20
         uses: Swatinem/rust-cache@v2.7.1
         with:
           workspaces: packages/core-bridge -> target
@@ -122,7 +121,7 @@ jobs:
           objdump -T ./releases/${{ matrix.target }}/index.node |
               grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -V | tail -1
 
-      # v4+ requires Node 20
+      # FIXME: v4+ requires Node 20
       - uses: actions/upload-artifact@v3
         with:
           name: corebridge-native-${{ matrix.platform }}
