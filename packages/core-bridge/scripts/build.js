@@ -55,6 +55,10 @@ const forceBuild = args['--force'];
 const buildRelease = args['--release'] || process.env.BUILD_CORE_RELEASE !== undefined;
 
 function compile(requestedTarget) {
+  if (!fs.existsSync('sdk-core/Cargo.toml')) {
+    throw new Error('Missing sdk-core/Cargo.toml. Did you forget to run `git submodule update --init --recursive`?');
+  }
+
   const target = requestedTarget ?? getPrebuiltTargetName();
   console.log('Compiling bridge', { target, buildRelease });
 
