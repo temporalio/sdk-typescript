@@ -38,7 +38,7 @@ export interface CancellationScopeOptions {
  * Scopes are created using the `CancellationScope` constructor or the static helper methods
  * {@link cancellable}, {@link nonCancellable} and {@link withTimeout}.
  *
- * When a `CancellationScope` is cancelled, it will propagate cancellation any child scopes and any cancellable
+ * When a `CancellationScope` is cancelled, it will propagate cancellation to any child scopes and any cancellable
  * operations created within it, such as:
  *
  * - Activities
