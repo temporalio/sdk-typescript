@@ -15,6 +15,8 @@ import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
+import { isResourceBasedTuner, isTunerHolder, WorkerTuner } from './worker-tuner';
+import { WorkerTuner as NativeWorkerTuner } from '@temporalio/core-bridge';
 
 export type { WebpackConfiguration };
 
@@ -186,16 +188,30 @@ export interface WorkerOptions {
   dataConverter?: DataConverter;
 
   /**
+   * Provide a custom {@link WorkerTuner}.
+   *
+   * Mutually exclusive with the {@link maxConcurrentWorkflowTaskExecutions}, {@link
+   * maxConcurrentActivityTaskExecutions}, and {@link maxConcurrentLocalActivityExecutions} options.
+   */
+  tuner?: WorkerTuner;
+
+  /**
    * Maximum number of Activity tasks to execute concurrently.
    * Adjust this to improve Worker resource consumption.
-   * @default 100
+   *
+   * Mutually exclusive with the {@link tuner} option.
+   *
+   * @default 100 if no {@link tuner} is set
    */
   maxConcurrentActivityTaskExecutions?: number;
 
   /**
    * Maximum number of Activity tasks to execute concurrently.
    * Adjust this to improve Worker resource consumption.
-   * @default 100
+   *
+   * Mutually exclusive with the {@link tuner} option.
+   *
+   * @default 100 if no {@link tuner} is set
    */
   maxConcurrentLocalActivityExecutions?: number;
 
@@ -258,7 +274,10 @@ export interface WorkerOptions {
    * Your millage may vary.
    *
    * Can't be lower than 2 if `maxCachedWorkflows` is non-zero.
-   * @default 40
+   *
+   * Mutually exclusive with the {@link tuner} option.
+   *
+   * @default 40 if no {@link tuner} is set
    */
   maxConcurrentWorkflowTaskExecutions?: number;
 
@@ -529,9 +548,6 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'identity'
       | 'useVersioning'
       | 'shutdownGraceTime'
-      | 'maxConcurrentActivityTaskExecutions'
-      | 'maxConcurrentLocalActivityExecutions'
-      | 'maxConcurrentWorkflowTaskExecutions'
       | 'maxConcurrentWorkflowTaskPolls'
       | 'maxConcurrentActivityTaskPolls'
       | 'nonStickyToStickyPollRatio'
@@ -547,6 +563,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
     >
   > & {
     interceptors: Required<WorkerInterceptors>;
+
+    tuner: NativeWorkerTuner;
 
     /**
      * Time to wait for result when calling a Workflow isolate function.
@@ -586,6 +604,7 @@ export interface ReplayWorkerOptions
     | 'namespace'
     | 'taskQueue'
     | 'activities'
+    | 'tuner'
     | 'maxConcurrentActivityTaskExecutions'
     | 'maxConcurrentLocalActivityExecutions'
     | 'maxConcurrentWorkflowTaskExecutions'
@@ -682,11 +701,12 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
     sinks,
     nonStickyToStickyPollRatio,
     interceptors,
+    maxConcurrentActivityTaskExecutions,
+    maxConcurrentLocalActivityExecutions,
+    maxConcurrentWorkflowTaskExecutions,
     ...rest
   } = options;
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
-  const maxConcurrentWorkflowTaskExecutions = options.maxConcurrentWorkflowTaskExecutions ?? 40;
-  const maxConcurrentActivityTaskExecutions = options.maxConcurrentActivityTaskExecutions ?? 100;
 
   const reuseV8Context = options.reuseV8Context ?? true;
 
@@ -699,16 +719,74 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
     throw new TypeError('Must provide a buildId if useVersioning is true');
   }
 
+  let tuner: NativeWorkerTuner;
+  let maxWFTPolls = 10;
+  let maxATPolls = 10;
+  if (rest.tuner !== undefined) {
+    if (maxConcurrentActivityTaskExecutions !== undefined) {
+      throw new TypeError('Cannot set both tuner and maxConcurrentActivityTaskExecutions');
+    }
+    if (maxConcurrentLocalActivityExecutions !== undefined) {
+      throw new TypeError('Cannot set both tuner and maxConcurrentLocalActivityExecutions');
+    }
+    if (maxConcurrentWorkflowTaskExecutions !== undefined) {
+      throw new TypeError('Cannot set both tuner and maxConcurrentWorkflowTaskExecutions');
+    }
+
+    if (isTunerHolder(rest.tuner)) {
+      tuner = rest.tuner;
+    } else if (isResourceBasedTuner(rest.tuner)) {
+      const wftSO = rest.tuner.workflowTaskSlotOptions ?? {
+        minimumSlots: 2,
+        maximumSlots: 1000,
+        rampThrottle: 0,
+      };
+      const atSO = rest.tuner.activityTaskSlotOptions ?? {
+        minimumSlots: 1,
+        maximumSlots: 2000,
+        rampThrottle: 50,
+      };
+      const latSO = rest.tuner.localActivityTaskSlotOptions ?? {
+        minimumSlots: 1,
+        maximumSlots: 2000,
+        rampThrottle: 50,
+      };
+      tuner = {
+        workflowTaskSlotSupplier: { tunerOptions: rest.tuner.tunerOptions, ...wftSO },
+        activityTaskSlotSupplier: { tunerOptions: rest.tuner.tunerOptions, ...atSO },
+        localActivityTaskSlotSupplier: { tunerOptions: rest.tuner.tunerOptions, ...latSO },
+      };
+    } else {
+      throw new TypeError('Invalid worker tuner configuration');
+    }
+  } else {
+    const maxWft = maxConcurrentWorkflowTaskExecutions ?? 40;
+    maxWFTPolls = Math.min(10, maxWft);
+    const maxAT = maxConcurrentActivityTaskExecutions ?? 100;
+    maxATPolls = Math.min(10, maxAT);
+    const maxLAT = maxConcurrentLocalActivityExecutions ?? 100;
+    tuner = {
+      workflowTaskSlotSupplier: {
+        numSlots: maxWft,
+      },
+      activityTaskSlotSupplier: {
+        numSlots: maxAT,
+      },
+      localActivityTaskSlotSupplier: {
+        numSlots: maxLAT,
+      },
+    };
+  }
+
   return {
     namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
     useVersioning: useVersioning ?? false,
     buildId,
     shutdownGraceTime: 0,
-    maxConcurrentLocalActivityExecutions: 100,
     enableNonLocalActivities: true,
-    maxConcurrentWorkflowTaskPolls: Math.min(10, maxConcurrentWorkflowTaskExecutions),
-    maxConcurrentActivityTaskPolls: Math.min(10, maxConcurrentActivityTaskExecutions),
+    maxConcurrentWorkflowTaskPolls: maxWFTPolls,
+    maxConcurrentActivityTaskPolls: maxATPolls,
     stickyQueueScheduleToStartTimeout: '10s',
     maxHeartbeatThrottleInterval: '60s',
     defaultHeartbeatThrottleInterval: '30s',
@@ -732,9 +810,8 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
       ...sinks,
     },
     ...rest,
+    tuner,
     reuseV8Context,
-    maxConcurrentWorkflowTaskExecutions,
-    maxConcurrentActivityTaskExecutions,
   };
 }
 
@@ -744,18 +821,18 @@ export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): Co
     logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
     opts.maxCachedWorkflows = 2;
   }
-  if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions > opts.maxCachedWorkflows) {
-    logger.warn(
-      "maxConcurrentWorkflowTaskExecutions can't exceed maxCachedWorkflows (unless cache is disabled). Defaulting to maxCachedWorkflows."
-    );
-    opts.maxConcurrentWorkflowTaskExecutions = opts.maxCachedWorkflows;
-  }
-  if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions < 2) {
-    logger.warn(
-      "maxConcurrentWorkflowTaskExecutions can't be lower than 2 if maxCachedWorkflows is non-zero. Defaulting to 2."
-    );
-    opts.maxConcurrentWorkflowTaskExecutions = 2;
-  }
+  // if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions > opts.maxCachedWorkflows) {
+  //   logger.warn(
+  //     "maxConcurrentWorkflowTaskExecutions can't exceed maxCachedWorkflows (unless cache is disabled). Defaulting to maxCachedWorkflows."
+  //   );
+  //   opts.maxConcurrentWorkflowTaskExecutions = opts.maxCachedWorkflows;
+  // }
+  // if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions < 2) {
+  //   logger.warn(
+  //     "maxConcurrentWorkflowTaskExecutions can't be lower than 2 if maxCachedWorkflows is non-zero. Defaulting to 2."
+  //   );
+  //   opts.maxConcurrentWorkflowTaskExecutions = 2;
+  // }
 
   const activities = new Map(Object.entries(opts.activities ?? {}).filter(([_, v]) => typeof v === 'function'));
 

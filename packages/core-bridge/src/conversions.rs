@@ -20,7 +20,8 @@ use temporal_sdk_core::{
         TestServerConfigBuilder,
     },
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
-    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TlsConfig, Url,
+    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, ResourceBasedSlots, ResourceBasedTuner,
+    ResourceSlotOptions, RetryConfig, TlsConfig, Url,
 };
 
 pub enum EphemeralServerConfig {
@@ -401,14 +402,28 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let nonsticky_to_sticky_poll_ratio =
             js_value_getter!(cx, self, "nonStickyToStickyPollRatio", JsNumber) as f32;
 
+        let mut tuner = ResourceBasedTuner::new(ResourceBasedSlots::new(0.9, 1.0));
+        tuner
+            .with_workflow_slots_options(ResourceSlotOptions::new(
+                10,
+                500,
+                Duration::from_millis(0),
+            ))
+            .with_activity_slots_options(ResourceSlotOptions::new(
+                5,
+                1000,
+                Duration::from_millis(50),
+            ));
+
         match WorkerConfigBuilder::default()
             .worker_build_id(js_value_getter!(cx, self, "buildId", JsString))
             .client_identity_override(Some(js_value_getter!(cx, self, "identity", JsString)))
             .use_worker_versioning(js_value_getter!(cx, self, "useVersioning", JsBoolean))
             .no_remote_activities(!enable_remote_activities)
-            .max_outstanding_workflow_tasks(max_outstanding_workflow_tasks)
-            .max_outstanding_activities(max_outstanding_activities)
-            .max_outstanding_local_activities(max_outstanding_local_activities)
+            .tuner(Arc::new(tuner))
+            // .max_outstanding_workflow_tasks(max_outstanding_workflow_tasks)
+            // .max_outstanding_activities(30)
+            // .max_outstanding_local_activities(max_outstanding_local_activities)
             .max_concurrent_wft_polls(max_concurrent_wft_polls)
             .max_concurrent_at_polls(max_concurrent_at_polls)
             .nonsticky_to_sticky_poll_ratio(nonsticky_to_sticky_poll_ratio)
