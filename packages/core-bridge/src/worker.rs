@@ -158,10 +158,6 @@ async fn handle_poll_workflow_activation_request(
             send_error(channel, callback, move |cx| match err {
                 PollWfError::ShutDown => make_named_error_from_error(cx, SHUTDOWN_ERROR, err),
                 PollWfError::TonicError(_) => make_named_error_from_error(cx, TRANSPORT_ERROR, err),
-                PollWfError::AutocompleteError(CompleteWfError::MalformedWorkflowCompletion {
-                    reason,
-                    ..
-                }) => Ok(JsError::type_error(cx, reason)?),
             });
         }
     }
