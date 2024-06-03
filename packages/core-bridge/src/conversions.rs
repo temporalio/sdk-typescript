@@ -7,6 +7,7 @@ use neon::{
 };
 use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use temporal_client::HttpConnectProxyOptions;
+use temporal_sdk_core::api::worker::{SlotKind, SlotSupplier};
 use temporal_sdk_core::{
     api::telemetry::{Logger, MetricTemporality, TelemetryOptions, TelemetryOptionsBuilder},
     api::{
@@ -20,8 +21,9 @@ use temporal_sdk_core::{
         TestServerConfigBuilder,
     },
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
-    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, ResourceBasedSlots, ResourceBasedTuner,
-    ResourceSlotOptions, RetryConfig, TlsConfig, Url,
+    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, FixedSizeSlotSupplier, RealSysInfo,
+    ResourceBasedSlots, ResourceBasedSlotsOptions, ResourceBasedSlotsOptionsBuilder,
+    ResourceSlotOptions, RetryConfig, TlsConfig, TunerBuilder, Url,
 };
 
 pub enum EphemeralServerConfig {
@@ -50,7 +52,7 @@ type BoxedMeterMaker = Box<dyn FnOnce() -> Result<Arc<dyn CoreMeter>, String> + 
 
 pub(crate) type TelemOptsRes = (TelemetryOptions, Option<BoxedMeterMaker>);
 
-pub trait ObjectHandleConversionsExt {
+pub(crate) trait ObjectHandleConversionsExt {
     fn set_default(&self, cx: &mut FunctionContext, key: &str, value: &str) -> NeonResult<()>;
     fn as_client_options(&self, ctx: &mut FunctionContext) -> NeonResult<ClientOptions>;
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemOptsRes>;
@@ -64,6 +66,7 @@ pub trait ObjectHandleConversionsExt {
         &self,
         cx: &mut FunctionContext,
     ) -> NeonResult<HashMap<String, String>>;
+    fn as_slot_supplier(&self, cx: &mut FunctionContext) -> NeonResult<SlotSupplierOptions>;
 }
 
 impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
@@ -355,12 +358,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let task_queue = js_value_getter!(cx, self, "taskQueue", JsString);
         let enable_remote_activities =
             js_value_getter!(cx, self, "enableNonLocalActivities", JsBoolean);
-        let max_outstanding_activities =
-            js_value_getter!(cx, self, "maxConcurrentActivityTaskExecutions", JsNumber) as usize;
-        let max_outstanding_local_activities =
-            js_value_getter!(cx, self, "maxConcurrentLocalActivityExecutions", JsNumber) as usize;
-        let max_outstanding_workflow_tasks =
-            js_value_getter!(cx, self, "maxConcurrentWorkflowTaskExecutions", JsNumber) as usize;
         let max_concurrent_wft_polls =
             js_value_getter!(cx, self, "maxConcurrentWorkflowTaskPolls", JsNumber) as usize;
         let max_concurrent_at_polls =
@@ -402,28 +399,68 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let nonsticky_to_sticky_poll_ratio =
             js_value_getter!(cx, self, "nonStickyToStickyPollRatio", JsNumber) as f32;
 
-        let mut tuner = ResourceBasedTuner::new(ResourceBasedSlots::new(0.9, 1.0));
-        tuner
-            .with_workflow_slots_options(ResourceSlotOptions::new(
-                10,
-                500,
-                Duration::from_millis(0),
-            ))
-            .with_activity_slots_options(ResourceSlotOptions::new(
-                5,
-                1000,
-                Duration::from_millis(50),
-            ));
+        let tuner = if let Some(tuner) = js_optional_getter!(cx, self, "tuner", JsObject) {
+            let mut tuner_holder = TunerBuilder::default();
+            let mut rbslots = None;
+
+            fn to_slot_supplier<SK>(
+                opts: SlotSupplierOptions,
+                maybe_rbslots: &mut Option<Arc<ResourceBasedSlots<RealSysInfo>>>,
+            ) -> Arc<dyn SlotSupplier<SlotKind = SK> + Send + Sync>
+            where
+                SK: SlotKind + Send + Sync + 'static,
+            {
+                match opts {
+                    SlotSupplierOptions::FixedSize(num_slots) => {
+                        Arc::new(FixedSizeSlotSupplier::new(num_slots))
+                    }
+                    SlotSupplierOptions::Resource(opts, rbs) => {
+                        let rbslots_ref = if let Some(ref rbslots) = maybe_rbslots {
+                            rbslots
+                        } else {
+                            let rbslots = Arc::new(ResourceBasedSlots::new_from_options(rbs));
+                            maybe_rbslots.insert(rbslots)
+                        };
+                        rbslots_ref.as_kind(opts)
+                    }
+                }
+            }
+
+            if let Some(wf_slot_supp) =
+                js_optional_getter!(cx, &tuner, "workflowTaskSlotSupplier", JsObject)
+            {
+                tuner_holder.workflow_slot_supplier(to_slot_supplier(
+                    wf_slot_supp.as_slot_supplier(cx)?,
+                    &mut rbslots,
+                ));
+            }
+            if let Some(act_slot_supp) =
+                js_optional_getter!(cx, &tuner, "activityTaskSlotSupplier", JsObject)
+            {
+                tuner_holder.activity_slot_supplier(to_slot_supplier(
+                    act_slot_supp.as_slot_supplier(cx)?,
+                    &mut rbslots,
+                ));
+            }
+            if let Some(local_act_slot_supp) =
+                js_optional_getter!(cx, &tuner, "localActivityTaskSlotSupplier", JsObject)
+            {
+                tuner_holder.local_activity_slot_supplier(to_slot_supplier(
+                    local_act_slot_supp.as_slot_supplier(cx)?,
+                    &mut rbslots,
+                ));
+            }
+            tuner_holder.build()
+        } else {
+            return cx.throw_error("Missing tuner");
+        };
 
         match WorkerConfigBuilder::default()
             .worker_build_id(js_value_getter!(cx, self, "buildId", JsString))
             .client_identity_override(Some(js_value_getter!(cx, self, "identity", JsString)))
             .use_worker_versioning(js_value_getter!(cx, self, "useVersioning", JsBoolean))
             .no_remote_activities(!enable_remote_activities)
-            .tuner(Arc::new(tuner))
-            // .max_outstanding_workflow_tasks(max_outstanding_workflow_tasks)
-            // .max_outstanding_activities(30)
-            // .max_outstanding_local_activities(max_outstanding_local_activities)
+            .tuner(tuner)
             .max_concurrent_wft_polls(max_concurrent_wft_polls)
             .max_concurrent_at_polls(max_concurrent_at_polls)
             .nonsticky_to_sticky_poll_ratio(nonsticky_to_sticky_poll_ratio)
@@ -548,4 +585,43 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             )),
         }
     }
+
+    fn as_slot_supplier(&self, cx: &mut FunctionContext) -> NeonResult<SlotSupplierOptions> {
+        if let Some(num_slots) = js_optional_value_getter!(cx, self, "numSlots", JsNumber) {
+            Ok(SlotSupplierOptions::FixedSize(num_slots as usize))
+        } else if let Some(min_slots) =
+            js_optional_value_getter!(cx, self, "minimumSlots", JsNumber)
+        {
+            let max_slots = js_value_getter!(cx, self, "maximumSlots", JsNumber);
+            let ramp_throttle = js_value_getter!(cx, self, "rampThrottleMs", JsNumber) as u64;
+            let opts = if let Some(tuner_opts) =
+                js_optional_getter!(cx, self, "tunerOptions", JsObject)
+            {
+                let target_mem = js_value_getter!(cx, &tuner_opts, "targetMemoryUsage", JsNumber);
+                let target_cpu = js_value_getter!(cx, &tuner_opts, "targetCpuUsage", JsNumber);
+                ResourceBasedSlotsOptionsBuilder::default()
+                    .target_cpu_usage(target_cpu)
+                    .target_mem_usage(target_mem)
+                    .build()
+                    .expect("Building ResourceBasedSlotsOptions can't fail")
+            } else {
+                return cx.throw_type_error("Resource based slot supplier requires tunerOptions");
+            };
+            Ok(SlotSupplierOptions::Resource(
+                ResourceSlotOptions::new(
+                    min_slots as usize,
+                    max_slots as usize,
+                    Duration::from_millis(ramp_throttle),
+                ),
+                opts,
+            ))
+        } else {
+            cx.throw_type_error("Invalid slot supplier configuration")
+        }
+    }
+}
+
+pub(crate) enum SlotSupplierOptions {
+    FixedSize(usize),
+    Resource(ResourceSlotOptions, ResourceBasedSlotsOptions),
 }

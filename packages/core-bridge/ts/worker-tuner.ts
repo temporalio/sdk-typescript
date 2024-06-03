@@ -1,5 +1,3 @@
-import { Duration } from '@temporalio/common';
-
 /**
  * @experimental
  *
@@ -34,8 +32,8 @@ export interface ResourceBasedSlotOptions {
   // Maximum amount of slots permitted
   maximumSlots: number;
   // Minimum time we will wait (after passing the minimum slots number) between handing out new
-  // slots
-  rampThrottle: Duration;
+  // slots in milliseconds.
+  rampThrottleMs: number;
 }
 
 type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {

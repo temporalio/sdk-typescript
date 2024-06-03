@@ -1,11 +1,41 @@
-import { ResourceBasedSlotOptions, ResourceBasedTunerOptions, SlotSupplier } from '@temporalio/core-bridge';
+import {
+  FixedSizeSlotSupplier,
+  ResourceBasedTunerOptions,
+  WorkerTuner as NativeWorkerTuner,
+  SlotSupplier as NativeSlotSupplier,
+} from '@temporalio/core-bridge';
+import { Duration, msToNumber } from '@temporalio/common/lib/time';
 
 export type WorkerTuner = ResourceBasedTuner | TunerHolder;
 
-export const isResourceBasedTuner = (tuner: WorkerTuner): tuner is ResourceBasedTuner =>
-  tuner.hasOwnProperty('tunerOptions');
-export const isTunerHolder = (tuner: WorkerTuner): tuner is TunerHolder =>
-  tuner.hasOwnProperty('workflowTaskSlotSupplier');
+type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
+  tunerOptions: ResourceBasedTunerOptions;
+};
+
+/**
+ * @experimental
+ *
+ * Controls how slots are handed out for a specific task type.
+ *
+ * For now, only {@link ResourceBasedSlotOptions} and {@link FixedSizeSlotSupplier} are supported,
+ * but we may add support for custom tuners in the future.
+ */
+export type SlotSupplier = ResourceBasedSlotsForType | FixedSizeSlotSupplier;
+
+/**
+ * @experimental
+ *
+ * Options for a specific slot type within a {@link ResourceBasedSlotsForType}
+ */
+export interface ResourceBasedSlotOptions {
+  // Amount of slots that will be issued regardless of any other checks
+  minimumSlots: number;
+  // Maximum amount of slots permitted
+  maximumSlots: number;
+  // Minimum time we will wait (after passing the minimum slots number) between handing out new
+  // slots
+  rampThrottle: Duration;
+}
 
 /**
  * @experimental
@@ -36,4 +66,63 @@ export interface TunerHolder {
   workflowTaskSlotSupplier: SlotSupplier;
   activityTaskSlotSupplier: SlotSupplier;
   localActivityTaskSlotSupplier: SlotSupplier;
+}
+
+export function asNativeTuner(tuner: WorkerTuner): NativeWorkerTuner {
+  if (isTunerHolder(tuner)) {
+    return {
+      workflowTaskSlotSupplier: convertRampThrottleIfNeeded(tuner.workflowTaskSlotSupplier),
+      activityTaskSlotSupplier: convertRampThrottleIfNeeded(tuner.activityTaskSlotSupplier),
+      localActivityTaskSlotSupplier: convertRampThrottleIfNeeded(tuner.localActivityTaskSlotSupplier),
+    };
+  } else if (isResourceBasedTuner(tuner)) {
+    const wftSO = tuner.workflowTaskSlotOptions ?? {
+      minimumSlots: 2,
+      maximumSlots: 1000,
+      rampThrottle: 0,
+    };
+    const atSO = tuner.activityTaskSlotOptions ?? {
+      minimumSlots: 1,
+      maximumSlots: 2000,
+      rampThrottle: 50,
+    };
+    const latSO = tuner.localActivityTaskSlotOptions ?? {
+      minimumSlots: 1,
+      maximumSlots: 2000,
+      rampThrottle: 50,
+    };
+    return {
+      workflowTaskSlotSupplier: {
+        tunerOptions: tuner.tunerOptions,
+        ...wftSO,
+        rampThrottleMs: msToNumber(wftSO.rampThrottle),
+      },
+      activityTaskSlotSupplier: {
+        tunerOptions: tuner.tunerOptions,
+        ...atSO,
+        rampThrottleMs: msToNumber(atSO.rampThrottle),
+      },
+      localActivityTaskSlotSupplier: {
+        tunerOptions: tuner.tunerOptions,
+        ...latSO,
+        rampThrottleMs: msToNumber(latSO.rampThrottle),
+      },
+    };
+  } else {
+    throw new TypeError('Invalid worker tuner configuration');
+  }
+}
+
+const isResourceBasedTuner = (tuner: WorkerTuner): tuner is ResourceBasedTuner => tuner.hasOwnProperty('tunerOptions');
+const isTunerHolder = (tuner: WorkerTuner): tuner is TunerHolder => tuner.hasOwnProperty('workflowTaskSlotSupplier');
+const isResourceBased = (sup: SlotSupplier): sup is ResourceBasedSlotsForType => sup.hasOwnProperty('rampThrottle');
+
+function convertRampThrottleIfNeeded(supplier: SlotSupplier): NativeSlotSupplier {
+  if (isResourceBased(supplier)) {
+    return {
+      ...supplier,
+      rampThrottleMs: msToNumber(supplier.rampThrottle),
+    };
+  }
+  return supplier;
 }

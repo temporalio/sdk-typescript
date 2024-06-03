@@ -15,7 +15,7 @@ import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
-import { isResourceBasedTuner, isTunerHolder, WorkerTuner } from './worker-tuner';
+import { asNativeTuner, WorkerTuner } from './worker-tuner';
 import { WorkerTuner as NativeWorkerTuner } from '@temporalio/core-bridge';
 
 export type { WebpackConfiguration };
@@ -560,11 +560,10 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'showStackTraceSources'
       | 'debugMode'
       | 'reuseV8Context'
+      | 'tuner'
     >
   > & {
     interceptors: Required<WorkerInterceptors>;
-
-    tuner: NativeWorkerTuner;
 
     /**
      * Time to wait for result when calling a Workflow isolate function.
@@ -582,7 +581,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
  * formatted strings to numbers.
  */
 export interface CompiledWorkerOptions
-  extends Omit<WorkerOptionsWithDefaults, 'serverOptions' | 'interceptors' | 'activities'> {
+  extends Omit<WorkerOptionsWithDefaults, 'serverOptions' | 'interceptors' | 'activities' | 'tuner'> {
   interceptors: CompiledWorkerInterceptors;
   shutdownGraceTimeMs: number;
   shutdownForceTimeMs?: number;
@@ -592,6 +591,7 @@ export interface CompiledWorkerOptions
   defaultHeartbeatThrottleIntervalMs: number;
   loadedDataConverter: LoadedDataConverter;
   activities: Map<string, ActivityFunction>;
+  tuner: NativeWorkerTuner;
 }
 
 /**
@@ -719,9 +719,10 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
     throw new TypeError('Must provide a buildId if useVersioning is true');
   }
 
-  let tuner: NativeWorkerTuner;
+  // Difficult to predict appropriate poll numbers for resource based slots
   let maxWFTPolls = 10;
   let maxATPolls = 10;
+  let setTuner: WorkerTuner;
   if (rest.tuner !== undefined) {
     if (maxConcurrentActivityTaskExecutions !== undefined) {
       throw new TypeError('Cannot set both tuner and maxConcurrentActivityTaskExecutions');
@@ -732,40 +733,14 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
     if (maxConcurrentWorkflowTaskExecutions !== undefined) {
       throw new TypeError('Cannot set both tuner and maxConcurrentWorkflowTaskExecutions');
     }
-
-    if (isTunerHolder(rest.tuner)) {
-      tuner = rest.tuner;
-    } else if (isResourceBasedTuner(rest.tuner)) {
-      const wftSO = rest.tuner.workflowTaskSlotOptions ?? {
-        minimumSlots: 2,
-        maximumSlots: 1000,
-        rampThrottle: 0,
-      };
-      const atSO = rest.tuner.activityTaskSlotOptions ?? {
-        minimumSlots: 1,
-        maximumSlots: 2000,
-        rampThrottle: 50,
-      };
-      const latSO = rest.tuner.localActivityTaskSlotOptions ?? {
-        minimumSlots: 1,
-        maximumSlots: 2000,
-        rampThrottle: 50,
-      };
-      tuner = {
-        workflowTaskSlotSupplier: { tunerOptions: rest.tuner.tunerOptions, ...wftSO },
-        activityTaskSlotSupplier: { tunerOptions: rest.tuner.tunerOptions, ...atSO },
-        localActivityTaskSlotSupplier: { tunerOptions: rest.tuner.tunerOptions, ...latSO },
-      };
-    } else {
-      throw new TypeError('Invalid worker tuner configuration');
-    }
+    setTuner = rest.tuner;
   } else {
     const maxWft = maxConcurrentWorkflowTaskExecutions ?? 40;
     maxWFTPolls = Math.min(10, maxWft);
     const maxAT = maxConcurrentActivityTaskExecutions ?? 100;
     maxATPolls = Math.min(10, maxAT);
     const maxLAT = maxConcurrentLocalActivityExecutions ?? 100;
-    tuner = {
+    setTuner = {
       workflowTaskSlotSupplier: {
         numSlots: maxWft,
       },
@@ -810,7 +785,7 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
       ...sinks,
     },
     ...rest,
-    tuner,
+    tuner: setTuner,
     reuseV8Context,
   };
 }
@@ -835,6 +810,7 @@ export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): Co
   // }
 
   const activities = new Map(Object.entries(opts.activities ?? {}).filter(([_, v]) => typeof v === 'function'));
+  const tuner = asNativeTuner(opts.tuner);
 
   return {
     ...opts,
@@ -848,6 +824,7 @@ export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): Co
     loadedDataConverter: loadDataConverter(opts.dataConverter),
     activities,
     enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,
+    tuner,
   };
 }
 

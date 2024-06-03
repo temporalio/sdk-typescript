@@ -10,13 +10,14 @@ if (RUN_INTEGRATION_TESTS) {
   // TODO: Verify can't build resource tuner with multiple different tuner options
 
   test('Worker can run with resource based tuner', async (t) => {
+    const taskQueue = 'test-resource-based';
     const resourceBasedTunerOptions: ResourceBasedTunerOptions = {
       targetCpuUsage: 0.5,
       targetMemoryUsage: 0.5,
     };
     const worker = await Worker.create({
       ...defaultOptions,
-      taskQueue: 'test-resource-based',
+      taskQueue,
       tuner: {
         tunerOptions: resourceBasedTunerOptions,
         activityTaskSlotOptions: {
@@ -30,20 +31,21 @@ if (RUN_INTEGRATION_TESTS) {
     const result = await worker.runUntil(
       client.execute(successString, {
         workflowId: uuid4(),
-        taskQueue: 'only-workflows',
+        taskQueue,
       })
     );
     t.is(result, 'success');
   });
 
   test('Worker can run with mixed slot suppliers in tuner', async (t) => {
+    const taskQueue = 'test-resource-based-mixed-slots';
     const resourceBasedTunerOptions: ResourceBasedTunerOptions = {
       targetCpuUsage: 0.5,
       targetMemoryUsage: 0.5,
     };
     const worker = await Worker.create({
       ...defaultOptions,
-      taskQueue: 'test-resource-based',
+      taskQueue,
       tuner: {
         activityTaskSlotSupplier: {
           minimumSlots: 2,
@@ -63,7 +65,7 @@ if (RUN_INTEGRATION_TESTS) {
     const result = await worker.runUntil(
       client.execute(successString, {
         workflowId: uuid4(),
-        taskQueue: 'only-workflows',
+        taskQueue,
       })
     );
     t.is(result, 'success');
