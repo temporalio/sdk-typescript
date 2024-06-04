@@ -250,15 +250,12 @@ pub fn start_bridge_loop(
                     let client = (*client).clone();
                     match init_worker(&core_runtime, config, client.into_inner()) {
                         Ok(worker) => {
-                            let (tx, rx) = unbounded_channel();
                             core_runtime.tokio_handle().spawn(start_worker_loop(
                                 worker,
-                                rx,
-                                channel.clone(),
+                                channel,
+                                callback,
+                                None
                             ));
-                            send_result(channel.clone(), callback, |cx| {
-                                Ok(cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx }))))
-                            });
                         }
                         Err(err) => send_error(channel.clone(), callback, move |cx| {
                             make_named_error_from_error(cx, UNEXPECTED_ERROR, err.deref())
@@ -273,21 +270,12 @@ pub fn start_bridge_loop(
                     let (tunnel, stream) = HistoryForReplayTunnel::new(runtime);
                     match init_replay_worker(ReplayWorkerInput::new(config, Box::pin(stream))) {
                         Ok(worker) => {
-                            let (tx, rx) = unbounded_channel();
                             core_runtime.tokio_handle().spawn(start_worker_loop(
                                 worker,
-                                rx,
                                 channel.clone(),
+                                callback,
+                                Some(tunnel)
                             ));
-                            send_result(channel.clone(), callback, |cx| {
-                                let worker =
-                                    cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx })));
-                                let tunnel = cx.boxed(tunnel);
-                                let retme = cx.empty_object();
-                                retme.set(cx, "worker", worker)?;
-                                retme.set(cx, "pusher", tunnel)?;
-                                Ok(retme)
-                            })
                         }
                         Err(err) => send_error(channel.clone(), callback, move |cx| {
                             make_named_error_from_error(cx, UNEXPECTED_ERROR, err.deref())
