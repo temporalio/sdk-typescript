@@ -113,9 +113,12 @@ export function asNativeTuner(tuner: WorkerTuner): NativeWorkerTuner {
   }
 }
 
-const isResourceBasedTuner = (tuner: WorkerTuner): tuner is ResourceBasedTuner => tuner.hasOwnProperty('tunerOptions');
-const isTunerHolder = (tuner: WorkerTuner): tuner is TunerHolder => tuner.hasOwnProperty('workflowTaskSlotSupplier');
-const isResourceBased = (sup: SlotSupplier): sup is ResourceBasedSlotsForType => sup.hasOwnProperty('rampThrottle');
+const isResourceBasedTuner = (tuner: WorkerTuner): tuner is ResourceBasedTuner =>
+  Object.hasOwnProperty.call(tuner, 'tunerOptions');
+const isTunerHolder = (tuner: WorkerTuner): tuner is TunerHolder =>
+  Object.hasOwnProperty.call(tuner, 'workflowTaskSlotSupplier');
+const isResourceBased = (sup: SlotSupplier): sup is ResourceBasedSlotsForType =>
+  Object.hasOwnProperty.call(sup, 'rampThrottle');
 
 function convertRampThrottleIfNeeded(supplier: SlotSupplier): NativeSlotSupplier {
   if (isResourceBased(supplier)) {

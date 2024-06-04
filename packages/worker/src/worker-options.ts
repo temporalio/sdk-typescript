@@ -6,6 +6,7 @@ import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
 import { Context } from '@temporalio/activity';
+import { WorkerTuner as NativeWorkerTuner } from '@temporalio/core-bridge';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
@@ -16,7 +17,6 @@ import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 import { asNativeTuner, WorkerTuner } from './worker-tuner';
-import { WorkerTuner as NativeWorkerTuner } from '@temporalio/core-bridge';
 
 export type { WebpackConfiguration };
 

@@ -1,10 +1,10 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
+import { ResourceBasedTunerOptions } from '@temporalio/core-bridge';
 import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { successString } from './workflows';
-import { ResourceBasedTunerOptions } from '@temporalio/core-bridge';
 
 if (RUN_INTEGRATION_TESTS) {
   // TODO: Verify can't build resource tuner with multiple different tuner options
