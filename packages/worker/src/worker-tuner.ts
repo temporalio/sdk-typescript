@@ -9,6 +9,7 @@ import { Duration, msToNumber } from '@temporalio/common/lib/time';
 export type WorkerTuner = ResourceBasedTuner | TunerHolder;
 
 type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
+  type: 'resource-based';
   tunerOptions: ResourceBasedTunerOptions;
 };
 
@@ -93,16 +94,19 @@ export function asNativeTuner(tuner: WorkerTuner): NativeWorkerTuner {
     };
     return {
       workflowTaskSlotSupplier: {
+        type: 'resource-based',
         tunerOptions: tuner.tunerOptions,
         ...wftSO,
         rampThrottleMs: msToNumber(wftSO.rampThrottle),
       },
       activityTaskSlotSupplier: {
+        type: 'resource-based',
         tunerOptions: tuner.tunerOptions,
         ...atSO,
         rampThrottleMs: msToNumber(atSO.rampThrottle),
       },
       localActivityTaskSlotSupplier: {
+        type: 'resource-based',
         tunerOptions: tuner.tunerOptions,
         ...latSO,
         rampThrottleMs: msToNumber(latSO.rampThrottle),

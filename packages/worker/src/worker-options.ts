@@ -742,12 +742,15 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
     const maxLAT = maxConcurrentLocalActivityExecutions ?? 100;
     setTuner = {
       workflowTaskSlotSupplier: {
+        type: 'fixed-size',
         numSlots: maxWft,
       },
       activityTaskSlotSupplier: {
+        type: 'fixed-size',
         numSlots: maxAT,
       },
       localActivityTaskSlotSupplier: {
+        type: 'fixed-size',
         numSlots: maxLAT,
       },
     };

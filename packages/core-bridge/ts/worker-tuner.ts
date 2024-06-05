@@ -37,6 +37,7 @@ export interface ResourceBasedSlotOptions {
 }
 
 type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
+  type: 'resource-based';
   tunerOptions: ResourceBasedTunerOptions;
 };
 
@@ -56,6 +57,7 @@ export interface ResourceBasedTunerOptions {
 }
 
 export interface FixedSizeSlotSupplier {
+  type: 'fixed-size';
   // The maximum number of slots that can be issued
   numSlots: number;
 }

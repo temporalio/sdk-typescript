@@ -1,6 +1,6 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { WorkflowClient } from '@temporalio/client';
+import { Client } from '@temporalio/client';
 import { ResourceBasedTunerOptions } from '@temporalio/core-bridge';
 import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -27,9 +27,9 @@ if (RUN_INTEGRATION_TESTS) {
         },
       },
     });
-    const client = new WorkflowClient();
+    const client = new Client();
     const result = await worker.runUntil(
-      client.execute(successString, {
+      client.workflow.execute(successString, {
         workflowId: uuid4(),
         taskQueue,
       })
@@ -48,22 +48,25 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       tuner: {
         activityTaskSlotSupplier: {
+          type: 'resource-based',
           minimumSlots: 2,
           maximumSlots: 10,
           rampThrottle: 20,
           tunerOptions: resourceBasedTunerOptions,
         },
         workflowTaskSlotSupplier: {
+          type: 'fixed-size',
           numSlots: 10,
         },
         localActivityTaskSlotSupplier: {
+          type: 'fixed-size',
           numSlots: 10,
         },
       },
     });
-    const client = new WorkflowClient();
+    const client = new Client();
     const result = await worker.runUntil(
-      client.execute(successString, {
+      client.workflow.execute(successString, {
         workflowId: uuid4(),
         taskQueue,
       })
