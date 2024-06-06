@@ -1068,8 +1068,10 @@ export class WorkflowClient extends BaseClient {
         output.outcome
       );
       if (
+        !output.outcome &&
         waitForStage ===
-        temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_COMPLETED
+          temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage
+            .UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_COMPLETED
       ) {
         await this._pollForUpdateOutcome(handle.updateId, input.workflowExecution);
       }
