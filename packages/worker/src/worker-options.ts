@@ -799,18 +799,21 @@ export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): Co
     logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
     opts.maxCachedWorkflows = 2;
   }
-  // if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions > opts.maxCachedWorkflows) {
-  //   logger.warn(
-  //     "maxConcurrentWorkflowTaskExecutions can't exceed maxCachedWorkflows (unless cache is disabled). Defaulting to maxCachedWorkflows."
-  //   );
-  //   opts.maxConcurrentWorkflowTaskExecutions = opts.maxCachedWorkflows;
-  // }
-  // if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions < 2) {
-  //   logger.warn(
-  //     "maxConcurrentWorkflowTaskExecutions can't be lower than 2 if maxCachedWorkflows is non-zero. Defaulting to 2."
-  //   );
-  //   opts.maxConcurrentWorkflowTaskExecutions = 2;
-  // }
+
+  if (opts.maxConcurrentWorkflowTaskExecutions !== undefined) {
+    if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions > opts.maxCachedWorkflows) {
+      logger.warn(
+        "maxConcurrentWorkflowTaskExecutions can't exceed maxCachedWorkflows (unless cache is disabled). Defaulting to maxCachedWorkflows."
+      );
+      opts.maxConcurrentWorkflowTaskExecutions = opts.maxCachedWorkflows;
+    }
+    if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions < 2) {
+      logger.warn(
+        "maxConcurrentWorkflowTaskExecutions can't be lower than 2 if maxCachedWorkflows is non-zero. Defaulting to 2."
+      );
+      opts.maxConcurrentWorkflowTaskExecutions = 2;
+    }
+  }
 
   const activities = new Map(Object.entries(opts.activities ?? {}).filter(([_, v]) => typeof v === 'function'));
   const tuner = asNativeTuner(opts.tuner);
