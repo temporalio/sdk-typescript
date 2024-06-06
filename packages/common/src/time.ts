@@ -2,6 +2,7 @@ import Long from 'long'; // eslint-disable-line import/no-named-as-default
 import ms, { StringValue } from 'ms';
 import type { google } from '@temporalio/proto';
 import { ValueError } from './errors';
+import { Duration } from './time-base';
 
 // NOTE: these are the same interface in JS
 // google.protobuf.IDuration;
