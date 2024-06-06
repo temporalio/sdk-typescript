@@ -1,5 +1,6 @@
 import type { temporal } from '@temporalio/proto';
 import { checkExtends, errorMessage, isRecord, SymbolBasedInstanceOfError } from './type-helpers';
+import { Duration } from './time-base';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';
 export type ProtoFailure = temporal.api.failure.v1.IFailure;
@@ -103,7 +104,8 @@ export class ApplicationFailure extends TemporalFailure {
     public readonly type?: string | undefined | null,
     public readonly nonRetryable?: boolean | undefined | null,
     public readonly details?: unknown[] | undefined | null,
-    cause?: Error
+    cause?: Error,
+    public readonly nextRetryDelay?: Duration | undefined | null
   ) {
     super(message, cause);
   }
@@ -126,8 +128,8 @@ export class ApplicationFailure extends TemporalFailure {
    * By default, will be retryable (unless its `type` is included in {@link RetryPolicy.nonRetryableErrorTypes}).
    */
   public static create(options: ApplicationFailureOptions): ApplicationFailure {
-    const { message, type, nonRetryable = false, details, cause } = options;
-    return new this(message, type, nonRetryable, details, cause);
+    const { message, type, nonRetryable = false, details, nextRetryDelay, cause } = options;
+    return new this(message, type, nonRetryable, details, cause, nextRetryDelay);
   }
 
   /**
@@ -179,6 +181,15 @@ export interface ApplicationFailureOptions {
    * Details about the failure. Serialized by the Worker's {@link PayloadConverter}.
    */
   details?: unknown[];
+
+  /**
+   * If set, overrides the delay until the next retry of this Activity (this field is ignored if
+   * this error does not originate from an Activity).
+   *
+   * Retry attempts will still be subject to the maximum retries limit and total time limit defined
+   * by the policy.
+   */
+  nextRetryDelay?: Duration;
 
   /**
    * Cause of the failure

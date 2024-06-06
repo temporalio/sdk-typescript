@@ -10,11 +10,7 @@ import { ValueError } from './errors';
 
 export type Timestamp = google.protobuf.ITimestamp;
 
-/**
- * A duration, expressed either as a number of milliseconds, or as a {@link https://www.npmjs.com/package/ms | ms-formatted string}.
- */
-export type Duration = StringValue | number;
-
+export { Duration } from './time-base';
 export type { StringValue } from 'ms';
 
 /**
@@ -55,7 +51,7 @@ export function msToTs(str: Duration): Timestamp {
   return msNumberToTs(msToNumber(str));
 }
 
-export function msOptionalToTs(str: Duration | undefined): Timestamp | undefined {
+export function msOptionalToTs(str: Duration | undefined | null): Timestamp | undefined {
   return str ? msToTs(str) : undefined;
 }
 
