@@ -423,6 +423,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     local_act_slot_supp.as_slot_supplier(cx, &mut rbo)?,
                 );
             }
+            dbg!(&rbo);
             if let Some(rbo) = rbo {
                 tuner_holder.resource_based_options(rbo);
             }
@@ -572,37 +573,38 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         cx: &mut FunctionContext,
         rbo: &mut Option<ResourceBasedSlotsOptions>,
     ) -> NeonResult<SlotSupplierOptions> {
-        if let Some(num_slots) = js_optional_value_getter!(cx, self, "numSlots", JsNumber) {
-            Ok(SlotSupplierOptions::FixedSize {
-                slots: num_slots as usize,
-            })
-        } else if let Some(min_slots) =
-            js_optional_value_getter!(cx, self, "minimumSlots", JsNumber)
-        {
-            let max_slots = js_value_getter!(cx, self, "maximumSlots", JsNumber);
-            let ramp_throttle = js_value_getter!(cx, self, "rampThrottleMs", JsNumber) as u64;
-            if let Some(tuner_opts) = js_optional_getter!(cx, self, "tunerOptions", JsObject) {
-                let target_mem = js_value_getter!(cx, &tuner_opts, "targetMemoryUsage", JsNumber);
-                let target_cpu = js_value_getter!(cx, &tuner_opts, "targetCpuUsage", JsNumber);
-                *rbo = Some(
-                    ResourceBasedSlotsOptionsBuilder::default()
-                        .target_cpu_usage(target_cpu)
-                        .target_mem_usage(target_mem)
-                        .build()
-                        .expect("Building ResourceBasedSlotsOptions can't fail"),
-                )
-            } else {
-                return cx.throw_type_error("Resource based slot supplier requires tunerOptions");
-            };
-            Ok(SlotSupplierOptions::ResourceBased(
-                ResourceSlotOptions::new(
-                    min_slots as usize,
-                    max_slots as usize,
-                    Duration::from_millis(ramp_throttle),
-                ),
-            ))
-        } else {
-            cx.throw_type_error("Invalid slot supplier configuration")
+        match js_value_getter!(cx, self, "type", JsString).as_str() {
+            "fixed-size" => Ok(SlotSupplierOptions::FixedSize {
+                slots: js_value_getter!(cx, self, "numSlots", JsNumber) as usize,
+            }),
+            "resource-based" => {
+                let min_slots = js_value_getter!(cx, self, "minimumSlots", JsNumber);
+                let max_slots = js_value_getter!(cx, self, "maximumSlots", JsNumber);
+                let ramp_throttle = js_value_getter!(cx, self, "rampThrottleMs", JsNumber) as u64;
+                if let Some(tuner_opts) = js_optional_getter!(cx, self, "tunerOptions", JsObject) {
+                    let target_mem =
+                        js_value_getter!(cx, &tuner_opts, "targetMemoryUsage", JsNumber);
+                    let target_cpu = js_value_getter!(cx, &tuner_opts, "targetCpuUsage", JsNumber);
+                    *rbo = Some(
+                        ResourceBasedSlotsOptionsBuilder::default()
+                            .target_cpu_usage(target_cpu)
+                            .target_mem_usage(target_mem)
+                            .build()
+                            .expect("Building ResourceBasedSlotsOptions can't fail"),
+                    )
+                } else {
+                    return cx
+                        .throw_type_error("Resource based slot supplier requires tunerOptions");
+                };
+                Ok(SlotSupplierOptions::ResourceBased(
+                    ResourceSlotOptions::new(
+                        min_slots as usize,
+                        max_slots as usize,
+                        Duration::from_millis(ramp_throttle),
+                    ),
+                ))
+            }
+            _ => cx.throw_type_error("Invalid slot supplier type"),
         }
     }
 }

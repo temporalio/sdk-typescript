@@ -12,8 +12,8 @@ if (RUN_INTEGRATION_TESTS) {
   test('Worker can run with resource based tuner', async (t) => {
     const taskQueue = 'test-resource-based';
     const resourceBasedTunerOptions: ResourceBasedTunerOptions = {
-      targetCpuUsage: 0.5,
-      targetMemoryUsage: 0.5,
+      targetCpuUsage: 0.6,
+      targetMemoryUsage: 0.6,
     };
     const worker = await Worker.create({
       ...defaultOptions,
