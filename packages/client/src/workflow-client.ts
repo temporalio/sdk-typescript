@@ -778,7 +778,7 @@ export class WorkflowClient extends BaseClient {
       },
     };
 
-    // Repeatedly send UpdateWorkflowExecution until update is >= Accepted or >= requested stage (if
+    // Repeatedly send UpdateWorkflowExecution until update is >= Accepted or >= `waitForStage` (if
     // the server receives a request with an update ID that already exists, it responds with
     // information for the existing update).
     let response: temporal.api.workflowservice.v1.UpdateWorkflowExecutionResponse;
