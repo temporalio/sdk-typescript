@@ -3,7 +3,21 @@ import { isGrpcServiceError } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
-const test = makeTestFunction({ workflowsPath: __filename });
+// Use a reduced server long-poll expiration timeout, in order to confirm that client
+// polling/retry strategies result in the expected behavior
+const LONG_POLL_EXPIRATION_INTERVAL_SECONDS = 1.0;
+
+const test = makeTestFunction({
+  workflowsPath: __filename,
+  workflowEnvironmentOpts: {
+    server: {
+      extraArgs: [
+        '--dynamic-config-value',
+        `history.longPollExpirationInterval="${LONG_POLL_EXPIRATION_INTERVAL_SECONDS}s"`,
+      ],
+    },
+  },
+});
 
 export const update = wf.defineUpdate<string[], [string]>('update');
 export const doneUpdate = wf.defineUpdate<void, []>('done-update');
@@ -11,6 +25,9 @@ export const doneUpdate = wf.defineUpdate<void, []>('done-update');
 export async function workflowWithUpdates(): Promise<string[]> {
   const state: string[] = [];
   const updateHandler = async (arg: string): Promise<string[]> => {
+    if (arg === 'wait-for-longer-than-server-long-poll-timeout') {
+      await wf.sleep(500 + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000);
+    }
     state.push(arg);
     return state;
   };
@@ -414,5 +431,34 @@ test('Update/Signal/Query example in WorkflowHandle docstrings works', async (t)
     t.is(secondUpdateResult, 8);
     await wfHandle.cancel();
     await assertWorkflowFailedError(wfHandle.result(), wf.CancelledFailure);
+  });
+});
+
+test('startUpdate does not return handle before update has reached requested stage', async (t) => {
+  const { startWorkflow } = helpers(t);
+  const wfHandle = await startWorkflow(workflowWithUpdates);
+  const updatePromise = wfHandle.startUpdate(update, { args: ['1'] }).then(() => 'update');
+  const timeoutPromise = new Promise<string>((f) =>
+    setTimeout(() => f('timeout'), 500 + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000)
+  );
+
+  t.is(
+    await Promise.race([updatePromise, timeoutPromise]),
+    'timeout',
+    'The update call should never return, since it should be waiting until Accepted, yet there is no worker.'
+  );
+});
+
+test('Interruption of update by server long-poll timeout is invisible to client', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const wfHandle = await startWorkflow(workflowWithUpdates);
+    const arg = 'wait-for-longer-than-server-long-poll-timeout';
+    const updateResult = await wfHandle.executeUpdate(update, { args: [arg] });
+    t.deepEqual(updateResult, [arg]);
+    await wfHandle.executeUpdate(doneUpdate);
+    const wfResult = await wfHandle.result();
+    t.deepEqual(wfResult, [arg, 'done', '$']);
   });
 });
