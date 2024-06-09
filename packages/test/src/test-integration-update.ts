@@ -441,7 +441,6 @@ test('startUpdate does not return handle before update has reached requested sta
   const timeoutPromise = new Promise<string>((f) =>
     setTimeout(() => f('timeout'), 500 + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000)
   );
-
   t.is(
     await Promise.race([updatePromise, timeoutPromise]),
     'timeout',
