@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
 import { WorkflowFailedError } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
@@ -6,10 +7,12 @@ import { tsToMs } from '@temporalio/common/lib/time';
 import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
 import { defineQuery, defineSignal } from '@temporalio/workflow';
+import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
-import { helpers, makeTestFunction } from './helpers-integration';
+import { Context, helpers, makeTestFunction } from './helpers-integration';
+import { overrideSdkInternalFlag } from './mock-internal-flags-interceptor';
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
@@ -397,5 +400,292 @@ test('Build Id appropriately set in workflow info', async (t) => {
     t.is(await handle.query(getBuildIdQuery), '1.0');
     await handle.signal(unblockSignal);
     t.is(await handle.query(getBuildIdQuery), '1.1');
+  });
+});
+
+// Repro for https://github.com/temporalio/sdk-typescript/issues/1423
+export async function issue1423Workflow(legacyCompatibility: boolean): Promise<'threw' | 'didnt-threw'> {
+  overrideSdkInternalFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation, !legacyCompatibility);
+  try {
+    workflow.CancellationScope.current().cancel();
+    // This will throw a CancellationException
+    await workflow.sleep(1);
+    throw workflow.ApplicationFailure.nonRetryable('sleep in cancelled scope didnt throw'); // Shouldn't happen
+  } catch (err) {
+    return await workflow.CancellationScope.nonCancellable(async () => {
+      try {
+        await workflow.condition(() => false, 1);
+        return 'didnt-threw';
+      } catch (error) {
+        if (workflow.isCancellation(error)) {
+          return 'threw';
+        }
+        throw error; // Shouldn't happen
+      }
+    });
+  }
+}
+
+// Validate that issue #1423 is fixed in 1.10.3+
+test('issue-1423 - 1.10.3+', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker({});
+  const conditionResult = await worker.runUntil(async () => {
+    return await executeWorkflow(issue1423Workflow, { args: [false] });
+  });
+  t.is('didnt-threw', conditionResult);
+});
+
+// Validate that issue #1423 behavior is maintained in 1.10.2 in replay mode
+test('issue-1423 - legacy', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker();
+  const conditionResult = await worker.runUntil(async () => {
+    return await executeWorkflow(issue1423Workflow, { args: [true] });
+  });
+  t.is('threw', conditionResult);
+});
+
+// The following workflow is used to extensively test CancellationScopes cancellation propagation in various scenarios
+export async function cancellableScopesExtensiveChecksWorkflow(
+  parentCancellable: boolean,
+  childCancellable: boolean,
+  legacyCompatibility: boolean
+): Promise<CancellableScopesExtensiveChecks> {
+  overrideSdkInternalFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation, !legacyCompatibility);
+
+  function expectCancellation(p: Promise<unknown>): () => boolean {
+    let cancelled = false;
+    let exception: Error | undefined = undefined;
+    p.catch((e) => {
+      if (workflow.isCancellation(e)) {
+        cancelled = true;
+      } else {
+        exception = e;
+      }
+    });
+    return () => {
+      if (exception) throw exception;
+      return cancelled;
+    };
+  }
+
+  // A non-existant child workflow that we'll use to send (and cancel) signals
+  const signalTargetWorkflow = await workflow.startChild('not-existant', {
+    taskQueue: 'not-existant',
+    workflowRunTimeout: '60s',
+  });
+
+  const { someActivity } = workflow.proxyActivities({ scheduleToCloseTimeout: 5000, taskQueue: 'non-existant' });
+  const { sleepLA } = workflow.proxyLocalActivities({ scheduleToCloseTimeout: 5000 });
+
+  const checks: { [k in keyof CancellableScopesExtensiveChecks]?: ReturnType<typeof expectCancellation> } = {};
+
+  // This will not block/throw, as the run function itself doesn't actually await on promises created inside
+  const parentScope = new workflow.CancellationScope({ cancellable: parentCancellable });
+  await parentScope.run(async () => {
+    checks.parentScope_timerCancelled = expectCancellation(workflow.sleep(2000));
+    checks.parentScope_activityCancelled = expectCancellation(someActivity());
+    checks.parentScope_localActivityCancelled = expectCancellation(sleepLA(2000));
+    checks.parentScope_signalExtWorkflowCancelled = expectCancellation(signalTargetWorkflow.signal('signal'));
+  });
+  checks.parentScope_cancelRequestedCancelled = expectCancellation(parentScope.cancelRequested);
+
+  // This will not block/throw, as the run function itself doesn't actually await on promises created inside
+  const childScope = new workflow.CancellationScope({ cancellable: childCancellable, parent: parentScope });
+  await childScope.run(async () => {
+    checks.childScope_timerCancelled = expectCancellation(workflow.sleep(2000));
+    checks.childScope_activityCancelled = expectCancellation(someActivity());
+    checks.childScope_localActivityCancelled = expectCancellation(sleepLA(2000));
+    checks.childScope_signalExtWorkflowCancelled = expectCancellation(signalTargetWorkflow.signal('signal'));
+  });
+  checks.childScope_cancelRequestedCancelled = expectCancellation(childScope.cancelRequested);
+
+  parentScope.cancel();
+
+  // Wait for all cancellations to be processed
+  await sleepLA(1);
+  await Promise.resolve();
+
+  return {
+    ...Object.fromEntries(Object.entries(checks).map(([k, v]) => [k, v()] as const)),
+    parentScope_consideredCancelled: parentScope.consideredCancelled,
+    childScope_consideredCancelled: childScope.consideredCancelled,
+  } as unknown as CancellableScopesExtensiveChecks;
+}
+
+interface CancellableScopesExtensiveChecks {
+  parentScope_cancelRequestedCancelled: boolean;
+  parentScope_timerCancelled: boolean;
+  parentScope_activityCancelled: boolean;
+  parentScope_localActivityCancelled: boolean;
+  parentScope_signalExtWorkflowCancelled: boolean;
+  parentScope_consideredCancelled: boolean;
+  childScope_cancelRequestedCancelled: boolean;
+  childScope_timerCancelled: boolean;
+  childScope_activityCancelled: boolean;
+  childScope_localActivityCancelled: boolean;
+  childScope_signalExtWorkflowCancelled: boolean;
+  childScope_consideredCancelled: boolean;
+}
+
+async function cancellableScopesExtensiveChecksHelper(
+  t: ExecutionContext<Context>,
+  parentCancellable: boolean,
+  childCancellable: boolean,
+  legacyCompatibility: boolean,
+  expected: CancellableScopesExtensiveChecks
+) {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      sleepLA: activity.sleep,
+    },
+  });
+
+  await worker.runUntil(async () => {
+    // cancellable/cancellable
+    t.deepEqual(
+      await executeWorkflow(cancellableScopesExtensiveChecksWorkflow, {
+        args: [parentCancellable, childCancellable, legacyCompatibility],
+      }),
+      expected
+    );
+  });
+}
+
+test('CancellableScopes extensive checks - cancelleable/cancellable - 1.10.3+', async (t) => {
+  await cancellableScopesExtensiveChecksHelper(t, true, true, false, {
+    parentScope_cancelRequestedCancelled: true,
+    parentScope_timerCancelled: true,
+    parentScope_activityCancelled: true,
+    parentScope_localActivityCancelled: true,
+    parentScope_signalExtWorkflowCancelled: true,
+    parentScope_consideredCancelled: true,
+    childScope_cancelRequestedCancelled: true,
+    childScope_timerCancelled: true,
+    childScope_activityCancelled: true,
+    childScope_localActivityCancelled: true,
+    childScope_signalExtWorkflowCancelled: true,
+    childScope_consideredCancelled: true,
+  });
+});
+
+test('CancellableScopes extensive checks - cancelleable/cancellable - legacy', async (t) => {
+  await cancellableScopesExtensiveChecksHelper(t, true, true, true, {
+    parentScope_cancelRequestedCancelled: true,
+    parentScope_timerCancelled: true,
+    parentScope_activityCancelled: true,
+    parentScope_localActivityCancelled: true,
+    parentScope_signalExtWorkflowCancelled: true,
+    parentScope_consideredCancelled: true,
+    childScope_cancelRequestedCancelled: true,
+    childScope_timerCancelled: true,
+    childScope_activityCancelled: true,
+    childScope_localActivityCancelled: true,
+    childScope_signalExtWorkflowCancelled: true,
+    childScope_consideredCancelled: true,
+  });
+});
+
+test('CancellableScopes extensive checks - cancelleable/non-cancellable - 1.10.3+', async (t) => {
+  await cancellableScopesExtensiveChecksHelper(t, true, false, false, {
+    parentScope_cancelRequestedCancelled: true,
+    parentScope_timerCancelled: true,
+    parentScope_activityCancelled: true,
+    parentScope_localActivityCancelled: true,
+    parentScope_signalExtWorkflowCancelled: true,
+    parentScope_consideredCancelled: true,
+    childScope_cancelRequestedCancelled: true,
+    childScope_timerCancelled: false,
+    childScope_activityCancelled: false,
+    childScope_localActivityCancelled: false,
+    childScope_signalExtWorkflowCancelled: false,
+    childScope_consideredCancelled: false,
+  });
+});
+
+test('CancellableScopes extensive checks - cancelleable/non-cancellable - legacy', async (t) => {
+  await cancellableScopesExtensiveChecksHelper(t, true, false, true, {
+    parentScope_cancelRequestedCancelled: true,
+    parentScope_timerCancelled: true,
+    parentScope_activityCancelled: true,
+    parentScope_localActivityCancelled: true,
+    parentScope_signalExtWorkflowCancelled: true,
+    parentScope_consideredCancelled: true,
+    childScope_cancelRequestedCancelled: true,
+    childScope_timerCancelled: false,
+    childScope_activityCancelled: false,
+    childScope_localActivityCancelled: false,
+    childScope_signalExtWorkflowCancelled: false,
+    childScope_consideredCancelled: false,
+  });
+});
+
+test('CancellableScopes extensive checks - non-cancelleable/cancellable - 1.10.3+', async (t) => {
+  await cancellableScopesExtensiveChecksHelper(t, false, true, false, {
+    parentScope_cancelRequestedCancelled: true,
+    parentScope_timerCancelled: false,
+    parentScope_activityCancelled: false,
+    parentScope_localActivityCancelled: false,
+    parentScope_signalExtWorkflowCancelled: false,
+    parentScope_consideredCancelled: false,
+    childScope_cancelRequestedCancelled: false,
+    childScope_timerCancelled: false,
+    childScope_activityCancelled: false,
+    childScope_localActivityCancelled: false,
+    childScope_signalExtWorkflowCancelled: false,
+    childScope_consideredCancelled: false,
+  });
+});
+
+test('CancellableScopes extensive checks - non-cancelleable/cancellable - legacy', async (t) => {
+  await cancellableScopesExtensiveChecksHelper(t, false, true, true, {
+    parentScope_cancelRequestedCancelled: true,
+    parentScope_timerCancelled: false,
+    parentScope_activityCancelled: false,
+    parentScope_localActivityCancelled: false,
+    parentScope_signalExtWorkflowCancelled: false,
+    parentScope_consideredCancelled: false,
+    childScope_cancelRequestedCancelled: true, // These were incorrect before 1.10.3
+    childScope_timerCancelled: true,
+    childScope_activityCancelled: true,
+    childScope_localActivityCancelled: true,
+    childScope_signalExtWorkflowCancelled: true,
+    childScope_consideredCancelled: true,
+  });
+});
+
+test('CancellableScopes extensive checks - non-cancelleable/non-cancellable - 1.10.3+', async (t) => {
+  await cancellableScopesExtensiveChecksHelper(t, false, false, false, {
+    parentScope_cancelRequestedCancelled: true,
+    parentScope_timerCancelled: false,
+    parentScope_activityCancelled: false,
+    parentScope_localActivityCancelled: false,
+    parentScope_signalExtWorkflowCancelled: false,
+    parentScope_consideredCancelled: false,
+    childScope_cancelRequestedCancelled: false,
+    childScope_timerCancelled: false,
+    childScope_activityCancelled: false,
+    childScope_localActivityCancelled: false,
+    childScope_signalExtWorkflowCancelled: false,
+    childScope_consideredCancelled: false,
+  });
+});
+
+test('CancellableScopes extensive checks - non-cancelleable/non-cancellable - legacy', async (t) => {
+  await cancellableScopesExtensiveChecksHelper(t, false, false, true, {
+    parentScope_cancelRequestedCancelled: true,
+    parentScope_timerCancelled: false,
+    parentScope_activityCancelled: false,
+    parentScope_localActivityCancelled: false,
+    parentScope_signalExtWorkflowCancelled: false,
+    parentScope_consideredCancelled: false,
+    childScope_cancelRequestedCancelled: true,
+    childScope_timerCancelled: false,
+    childScope_activityCancelled: false,
+    childScope_localActivityCancelled: false,
+    childScope_signalExtWorkflowCancelled: false,
+    childScope_consideredCancelled: false,
   });
 });
