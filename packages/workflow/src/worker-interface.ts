@@ -190,6 +190,7 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
         // timestamp will not be updated for activation that contain only queries
         activator.now = tsToMs(activation.timestamp);
       }
+      activator.addKnownFlags(activation.availableInternalFlags ?? []);
 
       // The Rust Core ensures that these activation fields are not null
       activator.mutateWorkflowInfo((info) => ({
@@ -249,11 +250,12 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
   activator.rejectBufferedUpdates();
   const intercept = composeInterceptors(activator.interceptors.internals, 'concludeActivation', (input) => input);
   const { info } = activator;
-  const { commands } = intercept({ commands: activator.getAndResetCommands() });
+  const activationCompletion = activator.concludeActivation();
+  const { commands } = intercept({ commands: activationCompletion.commands });
 
   return {
     runId: info.runId,
-    successful: { commands },
+    successful: { ...activationCompletion, commands },
   };
 }
 

@@ -62,7 +62,7 @@ export function addDefaultWorkflowOptions<T extends Workflow>(
   const { args, workflowId, ...rest } = opts;
   return {
     workflowId: workflowId ?? uuid4(),
-    args: args ?? [],
+    args: (args ?? []) as unknown[],
     cancellationType: ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
     ...rest,
   };
@@ -987,7 +987,10 @@ export function uuid4(): string {
  * calls with the same ID, which means all such calls will always return the same value.
  */
 export function patched(patchId: string): boolean {
-  return patchInternal(patchId, false);
+  const activator = assertInWorkflowContext(
+    'Workflow.patch(...) and Workflow.deprecatePatch may only be used from a Workflow Execution.'
+  );
+  return activator.patchInternal(patchId, false);
 }
 
 /**
@@ -1008,29 +1011,10 @@ export function patched(patchId: string): boolean {
  * calls with the same ID, which means all such calls will always return the same value.
  */
 export function deprecatePatch(patchId: string): void {
-  patchInternal(patchId, true);
-}
-
-function patchInternal(patchId: string, deprecated: boolean): boolean {
   const activator = assertInWorkflowContext(
     'Workflow.patch(...) and Workflow.deprecatePatch may only be used from a Workflow Execution.'
   );
-  // Patch operation does not support interception at the moment, if it did,
-  // this would be the place to start the interception chain
-
-  if (activator.workflow === undefined) {
-    throw new IllegalStateError('Patches cannot be used before Workflow starts');
-  }
-  const usePatch = !activator.info.unsafe.isReplaying || activator.knownPresentPatches.has(patchId);
-  // Avoid sending commands for patches core already knows about.
-  // This optimization enables development of automatic patching tools.
-  if (usePatch && !activator.sentPatches.has(patchId)) {
-    activator.pushCommand({
-      setPatchMarker: { patchId, deprecated },
-    });
-    activator.sentPatches.add(patchId);
-  }
-  return usePatch;
+  activator.patchInternal(patchId, true);
 }
 
 /**

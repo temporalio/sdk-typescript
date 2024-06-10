@@ -32,11 +32,13 @@ import {
   FileLocation,
   WorkflowInfo,
   WorkflowCreateOptionsInternal,
+  ActivationCompletion,
 } from './interfaces';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
 import { executeWithLifecycleLogging } from './logs';
+import { SdkFlag, assertValidFlag } from './flags';
 
 enum StartChildWorkflowExecutionFailedCause {
   START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
@@ -304,12 +306,15 @@ export class Activator implements ActivationHandler {
   /**
    * Patches we know the status of for this workflow, as in {@link patched}
    */
-  public readonly knownPresentPatches = new Set<string>();
+  private readonly knownPresentPatches = new Set<string>();
 
   /**
    * Patches we sent to core {@link patched}
    */
-  public readonly sentPatches = new Set<string>();
+  private readonly sentPatches = new Set<string>();
+
+  private readonly knownFlags = new Set<number>();
+  private readonly newlyUsedFlags = new Set<number>();
 
   /**
    * Buffered sink calls per activation
@@ -394,10 +399,11 @@ export class Activator implements ActivationHandler {
     }
   }
 
-  getAndResetCommands(): coresdk.workflow_commands.IWorkflowCommand[] {
-    const commands = this.commands;
-    this.commands = [];
-    return commands;
+  concludeActivation(): ActivationCompletion {
+    const commands = this.commands.splice(0);
+    const usedInternalFlags = [...this.newlyUsedFlags];
+    this.newlyUsedFlags.clear();
+    return { commands, usedInternalFlags };
   }
 
   public async startWorkflowNextHandler({ args }: WorkflowExecuteInput): Promise<any> {
@@ -778,6 +784,41 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Notify has patch missing patch name');
     }
     this.knownPresentPatches.add(activation.patchId);
+  }
+
+  public patchInternal(patchId: string, deprecated: boolean): boolean {
+    if (this.workflow === undefined) {
+      throw new IllegalStateError('Patches cannot be used before Workflow starts');
+    }
+    const usePatch = !this.info.unsafe.isReplaying || this.knownPresentPatches.has(patchId);
+    // Avoid sending commands for patches core already knows about.
+    // This optimization enables development of automatic patching tools.
+    if (usePatch && !this.sentPatches.has(patchId)) {
+      this.pushCommand({
+        setPatchMarker: { patchId, deprecated },
+      });
+      this.sentPatches.add(patchId);
+    }
+    return usePatch;
+  }
+
+  // Called early while handling an activation to register known flags
+  public addKnownFlags(flags: number[]): void {
+    for (const flag of flags) {
+      assertValidFlag(flag);
+      this.knownFlags.add(flag);
+    }
+  }
+
+  public hasFlag(flag: SdkFlag): boolean {
+    if (this.knownFlags.has(flag.id) || this.newlyUsedFlags.has(flag.id)) {
+      return true;
+    }
+    if (!this.info.unsafe.isReplaying && flag.default) {
+      this.newlyUsedFlags.add(flag.id);
+      return true;
+    }
+    return false;
   }
 
   public removeFromCache(): void {
