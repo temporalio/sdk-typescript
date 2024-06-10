@@ -1,6 +1,6 @@
 import type { temporal } from '@temporalio/proto';
 import { checkExtends, errorMessage, isRecord, SymbolBasedInstanceOfError } from './type-helpers';
-import { Duration } from './time-base';
+import { Duration } from './time';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';
 export type ProtoFailure = temporal.api.failure.v1.IFailure;
@@ -275,6 +275,25 @@ export class ChildWorkflowFailure extends TemporalFailure {
     cause?: Error
   ) {
     super('Child Workflow execution failed', cause);
+  }
+}
+
+/**
+ * This exception is thrown in the following cases:
+ *  - Workflow with the same Workflow Id is currently running
+ *  - There is a closed Workflow with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
+ *    is `WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE`
+ *  - There is closed Workflow in the `Completed` state with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
+ *    is `WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY`
+ */
+@SymbolBasedInstanceOfError('WorkflowExecutionAlreadyStartedError')
+export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
+  constructor(
+    message: string,
+    public readonly workflowId: string,
+    public readonly workflowType: string
+  ) {
+    super(message);
   }
 }
 

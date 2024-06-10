@@ -2,7 +2,6 @@ import Long from 'long'; // eslint-disable-line import/no-named-as-default
 import ms, { StringValue } from 'ms';
 import type { google } from '@temporalio/proto';
 import { ValueError } from './errors';
-import { Duration } from './time-base';
 
 // NOTE: these are the same interface in JS
 // google.protobuf.IDuration;
@@ -11,7 +10,11 @@ import { Duration } from './time-base';
 
 export type Timestamp = google.protobuf.ITimestamp;
 
-export { Duration } from './time-base';
+/**
+ * A duration, expressed either as a number of milliseconds, or as a {@link https://www.npmjs.com/package/ms | ms-formatted string}.
+ */
+export type Duration = StringValue | number;
+
 export type { StringValue } from 'ms';
 
 /**

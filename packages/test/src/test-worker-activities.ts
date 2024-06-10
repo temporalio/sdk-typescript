@@ -4,11 +4,11 @@ import dedent from 'dedent';
 import { v4 as uuid4 } from 'uuid';
 import { TemporalFailure, defaultPayloadConverter, toPayloads, ApplicationFailure } from '@temporalio/common';
 import { coresdk, google } from '@temporalio/proto';
+import { msToTs } from '@temporalio/common/lib/time';
 import { httpGet } from './activities';
 import { cleanOptionalStackTrace } from './helpers';
 import { defaultOptions, isolateFreeWorker, Worker } from './mock-native-worker';
 import { withZeroesHTTPServer } from './zeroes-http-server';
-import { msToTs } from '@temporalio/common/lib/time';
 import Duration = google.protobuf.Duration;
 
 export interface Context {
