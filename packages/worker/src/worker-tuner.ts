@@ -76,11 +76,28 @@ export interface TunerHolder {
 
 export function asNativeTuner(tuner: WorkerTuner): NativeWorkerTuner {
   if (isTunerHolder(tuner)) {
-    return {
+    let tunerOptions = undefined;
+    const retme = {
       workflowTaskSlotSupplier: fixupResourceBasedOptions(tuner.workflowTaskSlotSupplier, 'workflow'),
       activityTaskSlotSupplier: fixupResourceBasedOptions(tuner.activityTaskSlotSupplier, 'activity'),
       localActivityTaskSlotSupplier: fixupResourceBasedOptions(tuner.localActivityTaskSlotSupplier, 'activity'),
     };
+    for (const supplier of [
+      retme.workflowTaskSlotSupplier,
+      retme.activityTaskSlotSupplier,
+      retme.localActivityTaskSlotSupplier,
+    ]) {
+      if (isResourceBased(supplier)) {
+        if (tunerOptions !== undefined) {
+          if (tunerOptions !== supplier.tunerOptions) {
+            throw new TypeError('Cannot construct worker tuner with multiple different tuner options');
+          }
+        } else {
+          tunerOptions = supplier.tunerOptions;
+        }
+      }
+    }
+    return retme;
   } else if (isResourceBasedTuner(tuner)) {
     const wftSO = addResourceBasedSlotDefaults(tuner.workflowTaskSlotOptions ?? {}, 'workflow');
     const atSO = addResourceBasedSlotDefaults(tuner.activityTaskSlotOptions ?? {}, 'activity');
@@ -114,8 +131,7 @@ const isResourceBasedTuner = (tuner: WorkerTuner): tuner is ResourceBasedTuner =
   Object.hasOwnProperty.call(tuner, 'tunerOptions');
 const isTunerHolder = (tuner: WorkerTuner): tuner is TunerHolder =>
   Object.hasOwnProperty.call(tuner, 'workflowTaskSlotSupplier');
-const isResourceBased = (sup: SlotSupplier): sup is ResourceBasedSlotsForType =>
-  Object.hasOwnProperty.call(sup, 'rampThrottle');
+const isResourceBased = (sup: SlotSupplier): sup is ResourceBasedSlotsForType => sup.type === 'resource-based';
 
 type ActOrWorkflow = 'activity' | 'workflow';
 

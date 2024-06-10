@@ -7,8 +7,6 @@ import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { successString } from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
-  // TODO: Verify can't build resource tuner with multiple different tuner options
-
   test('Worker can run with resource based tuner', async (t) => {
     const taskQueue = 'test-resource-based';
     const resourceBasedTunerOptions: ResourceBasedTunerOptions = {
@@ -72,5 +70,85 @@ if (RUN_INTEGRATION_TESTS) {
       })
     );
     t.is(result, 'success');
+  });
+
+  test('Can assume defaults for resource based options', async (t) => {
+    const taskQueue = 'test-resource-based';
+    const resourceBasedTunerOptions: ResourceBasedTunerOptions = {
+      targetCpuUsage: 0.6,
+      targetMemoryUsage: 0.6,
+    };
+    // With explicit tuner type
+    await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      tuner: {
+        tunerOptions: resourceBasedTunerOptions,
+        activityTaskSlotOptions: {
+          minimumSlots: 1,
+        },
+        localActivityTaskSlotOptions: {
+          maximumSlots: 10,
+        },
+        workflowTaskSlotOptions: {
+          rampThrottle: 20,
+        },
+      },
+    });
+    // With mixed slot suppliers
+    await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      tuner: {
+        activityTaskSlotSupplier: {
+          type: 'resource-based',
+          tunerOptions: resourceBasedTunerOptions,
+          minimumSlots: 3,
+        },
+        workflowTaskSlotSupplier: {
+          type: 'fixed-size',
+          numSlots: 40,
+        },
+        localActivityTaskSlotSupplier: {
+          type: 'resource-based',
+          tunerOptions: resourceBasedTunerOptions,
+          maximumSlots: 50,
+        },
+      },
+    });
+    t.pass();
+  });
+
+  test('Cannot construct worker tuner with multiple different tuner options', async (t) => {
+    const taskQueue = 'test-resource-based-mixed-slots';
+    const tunerOptions1: ResourceBasedTunerOptions = {
+      targetCpuUsage: 0.5,
+      targetMemoryUsage: 0.5,
+    };
+    const tunerOptions2: ResourceBasedTunerOptions = {
+      targetCpuUsage: 0.9,
+      targetMemoryUsage: 0.9,
+    };
+    const error = await t.throwsAsync(() =>
+      Worker.create({
+        ...defaultOptions,
+        taskQueue,
+        tuner: {
+          activityTaskSlotSupplier: {
+            type: 'resource-based',
+            tunerOptions: tunerOptions1,
+          },
+          workflowTaskSlotSupplier: {
+            type: 'resource-based',
+            tunerOptions: tunerOptions2,
+          },
+          localActivityTaskSlotSupplier: {
+            type: 'fixed-size',
+            numSlots: 10,
+          },
+        },
+      })
+    );
+    t.is(error?.message, 'Cannot construct worker tuner with multiple different tuner options');
   });
 }
