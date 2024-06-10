@@ -6,6 +6,8 @@ import {
 } from '@temporalio/core-bridge';
 import { Duration, msToNumber } from '@temporalio/common/lib/time';
 
+export { FixedSizeSlotSupplier, ResourceBasedTunerOptions };
+
 export type WorkerTuner = ResourceBasedTuner | TunerHolder;
 
 type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {

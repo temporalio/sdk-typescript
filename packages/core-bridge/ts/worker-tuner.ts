@@ -56,6 +56,11 @@ export interface ResourceBasedTunerOptions {
   targetCpuUsage: number;
 }
 
+/**
+ * @experimental
+ *
+ * A fixed-size slot supplier that will never issue more than a fixed number of slots.
+ */
 export interface FixedSizeSlotSupplier {
   type: 'fixed-size';
   // The maximum number of slots that can be issued
