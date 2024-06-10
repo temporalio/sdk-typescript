@@ -34,7 +34,7 @@ export interface CancellationScopeOptions {
 }
 
 /**
- * Cancellation Scopes provide the mechanic by which a Workflow may gracefully handle incoming requests for Cancellation
+ * Cancellation Scopes provide the mechanic by which a Workflow may gracefully handle incoming requests for cancellation
  * (e.g. in response to {@link WorkflowHandle.cancel} or through the UI or CLI), as well as request cancelation of
  * cancellable operations it owns (e.g. Activities, Timers, Child Workflows, etc).
  *
@@ -45,7 +45,7 @@ export interface CancellationScopeOptions {
  *
  * Scopes are created using the `CancellationScope` constructor or the static helper methods {@link cancellable},
  * {@link nonCancellable} and {@link withTimeout}. `withTimeout` creates a scope that automatically cancels itself after
- * some time.
+ * some duration.
  *
  * Cancellation of a cancellable scope results in all operations contained directly in that scope to throw a
  * {@link CancelledFailure}s exception. Further attempt to create new cancellable scopes or cancellable operations
@@ -68,12 +68,14 @@ export interface CancellationScopeOptions {
  *         await CancellationScope.nonCancellable(async () => {
  *           await cleanupActivity();
  *         }
+ *       } else {
+ *         throw e;
  *       }
  *     }
  *   }
  * ```
  *
- * A cancellable scope man be programatically cancelled by calling {@link cancel|`scope.cancel()`}`. This may be used,
+ * A cancellable scope may be programatically cancelled by calling {@link cancel|`scope.cancel()`}`. This may be used,
  * for example, to explicitly request cancellation of an Activity or Child Workflow:
  *
  * ```ts
@@ -109,7 +111,7 @@ export class CancellationScope {
    * A Promise that throws when a cancellable scope receives a cancellation request, either directly
    * (i.e. `scope.cancel()`), or indirectly (by cancelling a cancellable parent scope).
    *
-   * Note a non-cancellable scope may receive cancellation requests, resulting in the `cancelRequested` Promise for
+   * Note that a non-cancellable scope may receive cancellation requests, resulting in the `cancelRequested` promise for
    * that scope to throw, though the scope will not effectively get cancelled (i.e. `consideredCancelled` will still
    * return `false`, and cancellation will not be propagated to child scopes and contained operations).
    */

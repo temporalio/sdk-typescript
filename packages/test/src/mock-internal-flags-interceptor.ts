@@ -18,6 +18,10 @@ function maybeInstallMock() {
   };
   mockInstalled = true;
 }
+
+// Override the default value of an SDK flag. That is, assuming a workflow execution is not in
+// replay mode and that `f` has not already been recorded, then `hasFlag(f)` will return
+// `defaultValue`, and record the flag to history if `defaultValue` is `true`.
 export function overrideSdkInternalFlag(flag: SdkFlag, defaultValue: boolean): void {
   maybeInstallMock();
   defaultValueOverrides.set(flag.id, defaultValue);

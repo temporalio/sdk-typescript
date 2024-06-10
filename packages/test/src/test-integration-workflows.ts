@@ -415,10 +415,10 @@ export async function issue1423Workflow(legacyCompatibility: boolean): Promise<'
     return await workflow.CancellationScope.nonCancellable(async () => {
       try {
         await workflow.condition(() => false, 1);
-        return 'didnt-threw';
+        return 'didnt-threw'; // that's the correct behavior
       } catch (error) {
         if (workflow.isCancellation(error)) {
-          return 'threw';
+          return 'threw'; // that's what would happen until 1.10.2
         }
         throw error; // Shouldn't happen
       }
@@ -521,6 +521,7 @@ interface CancellableScopesExtensiveChecks {
   parentScope_localActivityCancelled: boolean;
   parentScope_signalExtWorkflowCancelled: boolean;
   parentScope_consideredCancelled: boolean;
+
   childScope_cancelRequestedCancelled: boolean;
   childScope_timerCancelled: boolean;
   childScope_activityCancelled: boolean;
@@ -562,6 +563,7 @@ test('CancellableScopes extensive checks - cancelleable/cancellable - 1.10.3+', 
     parentScope_localActivityCancelled: true,
     parentScope_signalExtWorkflowCancelled: true,
     parentScope_consideredCancelled: true,
+
     childScope_cancelRequestedCancelled: true,
     childScope_timerCancelled: true,
     childScope_activityCancelled: true,
@@ -579,6 +581,7 @@ test('CancellableScopes extensive checks - cancelleable/cancellable - legacy', a
     parentScope_localActivityCancelled: true,
     parentScope_signalExtWorkflowCancelled: true,
     parentScope_consideredCancelled: true,
+
     childScope_cancelRequestedCancelled: true,
     childScope_timerCancelled: true,
     childScope_activityCancelled: true,
@@ -596,6 +599,7 @@ test('CancellableScopes extensive checks - cancelleable/non-cancellable - 1.10.3
     parentScope_localActivityCancelled: true,
     parentScope_signalExtWorkflowCancelled: true,
     parentScope_consideredCancelled: true,
+
     childScope_cancelRequestedCancelled: true,
     childScope_timerCancelled: false,
     childScope_activityCancelled: false,
@@ -613,6 +617,7 @@ test('CancellableScopes extensive checks - cancelleable/non-cancellable - legacy
     parentScope_localActivityCancelled: true,
     parentScope_signalExtWorkflowCancelled: true,
     parentScope_consideredCancelled: true,
+
     childScope_cancelRequestedCancelled: true,
     childScope_timerCancelled: false,
     childScope_activityCancelled: false,
@@ -630,6 +635,7 @@ test('CancellableScopes extensive checks - non-cancelleable/cancellable - 1.10.3
     parentScope_localActivityCancelled: false,
     parentScope_signalExtWorkflowCancelled: false,
     parentScope_consideredCancelled: false,
+
     childScope_cancelRequestedCancelled: false,
     childScope_timerCancelled: false,
     childScope_activityCancelled: false,
@@ -647,6 +653,7 @@ test('CancellableScopes extensive checks - non-cancelleable/cancellable - legacy
     parentScope_localActivityCancelled: false,
     parentScope_signalExtWorkflowCancelled: false,
     parentScope_consideredCancelled: false,
+
     childScope_cancelRequestedCancelled: true, // These were incorrect before 1.10.3
     childScope_timerCancelled: true,
     childScope_activityCancelled: true,
@@ -664,6 +671,7 @@ test('CancellableScopes extensive checks - non-cancelleable/non-cancellable - 1.
     parentScope_localActivityCancelled: false,
     parentScope_signalExtWorkflowCancelled: false,
     parentScope_consideredCancelled: false,
+
     childScope_cancelRequestedCancelled: false,
     childScope_timerCancelled: false,
     childScope_activityCancelled: false,
@@ -681,6 +689,7 @@ test('CancellableScopes extensive checks - non-cancelleable/non-cancellable - le
     parentScope_localActivityCancelled: false,
     parentScope_signalExtWorkflowCancelled: false,
     parentScope_consideredCancelled: false,
+
     childScope_cancelRequestedCancelled: true,
     childScope_timerCancelled: false,
     childScope_activityCancelled: false,
