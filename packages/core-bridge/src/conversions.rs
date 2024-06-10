@@ -423,7 +423,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     local_act_slot_supp.as_slot_supplier(cx, &mut rbo)?,
                 );
             }
-            dbg!(&rbo);
             if let Some(rbo) = rbo {
                 tuner_holder.resource_based_options(rbo);
             }
