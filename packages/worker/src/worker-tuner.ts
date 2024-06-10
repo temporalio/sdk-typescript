@@ -31,13 +31,16 @@ export type SlotSupplier = ResourceBasedSlotsForType | FixedSizeSlotSupplier;
  * Options for a specific slot type within a {@link ResourceBasedSlotsForType}
  */
 export interface ResourceBasedSlotOptions {
-  // Amount of slots that will be issued regardless of any other checks
-  minimumSlots: number;
+  // Amount of slots that will be issued regardless of any other checks.
+  // Defaults to 2 for workflow tasks and 1 for activity tasks.
+  minimumSlots?: number;
   // Maximum amount of slots permitted
-  maximumSlots: number;
+  // Defaults to 1000 for workflow tasks and 2000 for activity tasks.
+  maximumSlots?: number;
   // Minimum time we will wait (after passing the minimum slots number) between handing out new
   // slots
-  rampThrottle: Duration;
+  // Defaults to 10ms for workflow tasks and 50ms for activity tasks.
+  rampThrottle?: Duration;
 }
 
 /**
@@ -74,26 +77,14 @@ export interface TunerHolder {
 export function asNativeTuner(tuner: WorkerTuner): NativeWorkerTuner {
   if (isTunerHolder(tuner)) {
     return {
-      workflowTaskSlotSupplier: convertRampThrottleIfNeeded(tuner.workflowTaskSlotSupplier),
-      activityTaskSlotSupplier: convertRampThrottleIfNeeded(tuner.activityTaskSlotSupplier),
-      localActivityTaskSlotSupplier: convertRampThrottleIfNeeded(tuner.localActivityTaskSlotSupplier),
+      workflowTaskSlotSupplier: fixupResourceBasedOptions(tuner.workflowTaskSlotSupplier, 'workflow'),
+      activityTaskSlotSupplier: fixupResourceBasedOptions(tuner.activityTaskSlotSupplier, 'activity'),
+      localActivityTaskSlotSupplier: fixupResourceBasedOptions(tuner.localActivityTaskSlotSupplier, 'activity'),
     };
   } else if (isResourceBasedTuner(tuner)) {
-    const wftSO = tuner.workflowTaskSlotOptions ?? {
-      minimumSlots: 2,
-      maximumSlots: 1000,
-      rampThrottle: 0,
-    };
-    const atSO = tuner.activityTaskSlotOptions ?? {
-      minimumSlots: 1,
-      maximumSlots: 2000,
-      rampThrottle: 50,
-    };
-    const latSO = tuner.localActivityTaskSlotOptions ?? {
-      minimumSlots: 1,
-      maximumSlots: 2000,
-      rampThrottle: 50,
-    };
+    const wftSO = addResourceBasedSlotDefaults(tuner.workflowTaskSlotOptions ?? {}, 'workflow');
+    const atSO = addResourceBasedSlotDefaults(tuner.activityTaskSlotOptions ?? {}, 'activity');
+    const latSO = addResourceBasedSlotDefaults(tuner.localActivityTaskSlotOptions ?? {}, 'activity');
     return {
       workflowTaskSlotSupplier: {
         type: 'resource-based',
@@ -126,12 +117,37 @@ const isTunerHolder = (tuner: WorkerTuner): tuner is TunerHolder =>
 const isResourceBased = (sup: SlotSupplier): sup is ResourceBasedSlotsForType =>
   Object.hasOwnProperty.call(sup, 'rampThrottle');
 
-function convertRampThrottleIfNeeded(supplier: SlotSupplier): NativeSlotSupplier {
+type ActOrWorkflow = 'activity' | 'workflow';
+
+function fixupResourceBasedOptions(supplier: SlotSupplier, kind: ActOrWorkflow): NativeSlotSupplier {
   if (isResourceBased(supplier)) {
+    const tunerOptions = supplier.tunerOptions;
+    const defaulted = addResourceBasedSlotDefaults(supplier, kind);
     return {
-      ...supplier,
-      rampThrottleMs: msToNumber(supplier.rampThrottle),
+      ...defaulted,
+      type: 'resource-based',
+      tunerOptions,
+      rampThrottleMs: msToNumber(defaulted.rampThrottle),
     };
   }
   return supplier;
+}
+
+function addResourceBasedSlotDefaults(
+  slotOptions: ResourceBasedSlotOptions,
+  kind: ActOrWorkflow
+): Required<ResourceBasedSlotOptions> {
+  if (kind === 'workflow') {
+    return {
+      minimumSlots: slotOptions.minimumSlots ?? 2,
+      maximumSlots: slotOptions.maximumSlots ?? 1000,
+      rampThrottle: slotOptions.rampThrottle ?? 10,
+    };
+  } else {
+    return {
+      minimumSlots: slotOptions.minimumSlots ?? 1,
+      maximumSlots: slotOptions.maximumSlots ?? 2000,
+      rampThrottle: slotOptions.rampThrottle ?? 50,
+    };
+  }
 }
