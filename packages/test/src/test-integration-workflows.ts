@@ -3,7 +3,7 @@ import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
 import { WorkflowFailedError } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
-import { tsToMs } from '@temporalio/common/lib/time';
+import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
 import { defineQuery, defineSignal } from '@temporalio/workflow';
@@ -446,6 +446,38 @@ test('issue-1423 - legacy', async (t) => {
   t.is('threw', conditionResult);
 });
 
+export async function nonCancellableScopesBeforeAndAfterWorkflow(): Promise<[boolean, boolean]> {
+  // Start in legacy mode, similar to replaying an execution from a pre-1.10.3 workflow
+  overrideSdkInternalFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation, false);
+
+  const parentScope1 = new workflow.CancellationScope({ cancellable: false });
+  const childScope1 = new workflow.CancellationScope({ cancellable: true, parent: parentScope1 });
+  const parentScope2 = new workflow.CancellationScope({ cancellable: false });
+  const childScope2 = new workflow.CancellationScope({ cancellable: true, parent: parentScope2 });
+
+  parentScope1.cancel();
+  await Promise.resolve();
+  const childScope1Cancelled = childScope1.consideredCancelled;
+
+  // Now enable the fix
+  overrideSdkInternalFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation, true);
+  parentScope2.cancel();
+  await Promise.resolve();
+  const childScope2Cancelled = childScope2.consideredCancelled;
+
+  return [childScope1Cancelled, childScope2Cancelled];
+}
+
+test('Propagation of cancellation from non-cancellable scopes - before vs after', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker();
+  const [childScope1Cancelled, childScope2Cancelled] = await worker.runUntil(
+    executeWorkflow(nonCancellableScopesBeforeAndAfterWorkflow)
+  );
+  t.true(childScope1Cancelled);
+  t.false(childScope2Cancelled);
+});
+
 // The following workflow is used to extensively test CancellationScopes cancellation propagation in various scenarios
 export async function cancellableScopesExtensiveChecksWorkflow(
   parentCancellable: boolean,
@@ -696,4 +728,100 @@ test('CancellableScopes extensive checks - non-cancelleable/non-cancellable - le
     childScope_signalExtWorkflowCancelled: false,
     childScope_consideredCancelled: false,
   });
+});
+
+export async function cancellationScopeWithTimeoutTimerGetsCancelled(): Promise<[boolean, boolean]> {
+  const { activitySleep } = workflow.proxyActivities({ scheduleToCloseTimeout: '7s' });
+
+  // Start in legacy mode, similar to replaying an execution from a pre-1.10.3 workflow
+  overrideSdkInternalFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation, false);
+
+  let scope1: workflow.CancellationScope;
+  await workflow.CancellationScope.withTimeout('11s', async () => {
+    scope1 = workflow.CancellationScope.current();
+    await activitySleep(1);
+    // Legacy mode: this timer will not be cancelled
+  });
+
+  let scope2: workflow.CancellationScope;
+  await workflow.CancellationScope.withTimeout('12s', async () => {
+    scope2 = workflow.CancellationScope.current();
+    await activitySleep(1);
+    overrideSdkInternalFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation, true);
+    // Fix enabled: this timer will get cancelled
+  });
+
+  // Timer cancelation won't appear in history if it sent in the same WFT as workflow complete
+  await activitySleep(1);
+
+  //@ts-expect-error TSC can't see that scope variables will be initialized synchronously
+  return [scope1.consideredCancelled, scope2.consideredCancelled];
+}
+
+test('CancellationScope.withTimeout() - timer gets cancelled', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      activitySleep: activity.sleep,
+    },
+  });
+  const handle = await startWorkflow(cancellationScopeWithTimeoutTimerGetsCancelled);
+  const [scope1Cancelled, scope2Cancelled] = await worker.runUntil(handle.result());
+
+  t.false(scope1Cancelled);
+  t.false(scope2Cancelled);
+
+  const { events } = await handle.fetchHistory();
+
+  const timerCanceledEvents = events?.filter((ev) => ev.timerCanceledEventAttributes) ?? [];
+  t.is(timerCanceledEvents?.length, 1);
+
+  const timerStartedEventId = timerCanceledEvents[0].timerCanceledEventAttributes?.startedEventId;
+  const timerStartedEvent = events?.find((ev) => ev.eventId?.toNumber() === timerStartedEventId?.toNumber());
+  t.is(tsToMs(timerStartedEvent?.timerStartedEventAttributes?.startToFireTimeout), msToNumber('12s'));
+});
+
+export async function cancellationScopeWithTimeoutScopeGetCancelledOnTimeout(): Promise<[boolean, boolean]> {
+  const { activitySleep } = workflow.proxyActivities({ scheduleToCloseTimeout: '10s' });
+
+  // Start in legacy mode, similar to replaying an execution from a pre-1.10.3 workflow
+  overrideSdkInternalFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation, false);
+  let scope1: workflow.CancellationScope;
+  await workflow.CancellationScope.withTimeout(1, async () => {
+    scope1 = workflow.CancellationScope.current();
+    await activitySleep(7000);
+  }).catch(() => undefined);
+
+  let scope2: workflow.CancellationScope;
+  await workflow.CancellationScope.withTimeout(1, async () => {
+    scope2 = workflow.CancellationScope.current();
+    // Turn on CancellationScopeMultipleFixes to confirm that behavior didn't change
+    overrideSdkInternalFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation, true);
+    await activitySleep(7000);
+  }).catch(() => undefined);
+
+  // Activity cancelation won't appear in history if it sent in the same WFT as workflow complete
+  await activitySleep(1);
+
+  //@ts-expect-error TSC can't see that scope variables will be initialized synchronously
+  return [scope1.consideredCancelled, scope2.consideredCancelled];
+}
+
+test('CancellationScope.withTimeout() - scope gets cancelled on timeout', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      activitySleep: activity.sleep,
+    },
+  });
+  const handle = await startWorkflow(cancellationScopeWithTimeoutScopeGetCancelledOnTimeout);
+  const [scope1Cancelled, scope2Cancelled] = await worker.runUntil(handle.result());
+
+  t.true(scope1Cancelled);
+  t.true(scope2Cancelled);
+
+  const { events } = await handle.fetchHistory();
+
+  const activityCancelledEvents = events?.filter((ev) => ev.activityTaskCancelRequestedEventAttributes) ?? [];
+  t.is(activityCancelledEvents?.length, 2);
 });

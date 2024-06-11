@@ -188,17 +188,27 @@ export class CancellationScope {
    * Could have been written as anonymous function, made into a method for improved stack traces.
    */
   protected async runInContext<T>(fn: () => Promise<T>): Promise<T> {
+    let timerScope: CancellationScope | undefined;
     if (this.timeout) {
+      timerScope = new CancellationScope();
       untrackPromise(
-        sleep(this.timeout).then(
-          () => this.cancel(),
-          () => {
-            // scope was already cancelled, ignore
-          }
-        )
+        timerScope
+          .run(() => sleep(this.timeout as number))
+          .then(
+            () => this.cancel(),
+            () => {
+              // scope was already cancelled, ignore
+            }
+          )
       );
     }
-    return await fn();
+    try {
+      return await fn();
+    } finally {
+      if (timerScope && getActivator().hasFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation)) {
+        timerScope.cancel();
+      }
+    }
   }
 
   /**
@@ -227,7 +237,7 @@ export class CancellationScope {
   }
 
   /** Alias to `new CancellationScope({ cancellable: true, timeout }).run(fn)` */
-  static withTimeout<T>(timeout: number, fn: () => Promise<T>): Promise<T> {
+  static withTimeout<T>(timeout: Duration, fn: () => Promise<T>): Promise<T> {
     return new this({ cancellable: true, timeout }).run(fn);
   }
 }

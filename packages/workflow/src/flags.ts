@@ -7,8 +7,12 @@ const flagsRegistry: Map<number, SdkFlag> = new Map();
 
 export const SdkFlags = {
   /**
-   * Until 1.10.2, cancellation of a non-cancellable scope would propagate to children scopes, which was incorrect.
-   * See https://github.com/temporalio/sdk-typescript/issues/1423.
+   * This flag gates multiple fixes related to cancellation scopes and timers introduced in 1.10.2/1.10.3:
+   * - Cancellation of a non-cancellable scope no longer propagates to children scopes
+   *   (see https://github.com/temporalio/sdk-typescript/issues/1423).
+   * - CancellationScope.withTimeout(fn) now cancel the timer if `fn` completes before expiration
+   *   of the timeout, similar to how `condition(fn, timeout)` works.
+   * -
    *
    * @since Introduced in 1.10.2/1.10.3.
    */
