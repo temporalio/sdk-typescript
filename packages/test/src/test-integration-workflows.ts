@@ -404,7 +404,7 @@ test('Build Id appropriately set in workflow info', async (t) => {
 });
 
 // Repro for https://github.com/temporalio/sdk-typescript/issues/1423
-export async function issue1423Workflow(legacyCompatibility: boolean): Promise<'threw' | 'didnt-threw'> {
+export async function issue1423Workflow(legacyCompatibility: boolean): Promise<'threw' | 'didnt-throw'> {
   overrideSdkInternalFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation, !legacyCompatibility);
   try {
     workflow.CancellationScope.current().cancel();
@@ -415,7 +415,7 @@ export async function issue1423Workflow(legacyCompatibility: boolean): Promise<'
     return await workflow.CancellationScope.nonCancellable(async () => {
       try {
         await workflow.condition(() => false, 1);
-        return 'didnt-threw'; // that's the correct behavior
+        return 'didnt-throw'; // that's the correct behavior
       } catch (error) {
         if (workflow.isCancellation(error)) {
           return 'threw'; // that's what would happen until 1.10.2
@@ -433,7 +433,7 @@ test('issue-1423 - 1.10.3+', async (t) => {
   const conditionResult = await worker.runUntil(async () => {
     return await executeWorkflow(issue1423Workflow, { args: [false] });
   });
-  t.is('didnt-threw', conditionResult);
+  t.is('didnt-throw', conditionResult);
 });
 
 // Validate that issue #1423 behavior is maintained in 1.10.2 in replay mode
@@ -503,9 +503,8 @@ export async function cancellableScopesExtensiveChecksWorkflow(
 
   parentScope.cancel();
 
-  // Wait for all cancellations to be processed
+  // Flush all commands to Core, so that cancellations get a chance to be processed
   await sleepLA(1);
-  await Promise.resolve();
 
   return {
     ...Object.fromEntries(Object.entries(checks).map(([k, v]) => [k, v()] as const)),

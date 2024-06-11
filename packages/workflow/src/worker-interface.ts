@@ -74,7 +74,7 @@ export function overrideGlobals(): void {
 
   global.clearTimeout = function (handle: number): void {
     const activator = getActivator();
-    activator.nextSeqs.timer++;
+    activator.nextSeqs.timer++; // Shouldn't increase seq number
     activator.completions.timer.delete(handle);
     activator.pushCommand({
       cancelTimer: {

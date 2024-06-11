@@ -3,7 +3,6 @@ import {
   ActivityOptions,
   compileRetryPolicy,
   extractWorkflowType,
-  IllegalStateError,
   LocalActivityOptions,
   mapToPayloads,
   QueryDefinition,

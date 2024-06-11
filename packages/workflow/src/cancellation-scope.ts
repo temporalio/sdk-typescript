@@ -47,11 +47,12 @@ export interface CancellationScopeOptions {
  * {@link nonCancellable} and {@link withTimeout}. `withTimeout` creates a scope that automatically cancels itself after
  * some duration.
  *
- * Cancellation of a cancellable scope results in all operations contained directly in that scope to throw a
- * {@link CancelledFailure}s exception. Further attempt to create new cancellable scopes or cancellable operations
- * within a scope that has already been cancelled will also immediately throw a {@link CancelledFailure} exception.
- * It is however possible to create a non-cancellable scope at that point; this is often used to execute rollback
- * or cleanup operations. For example:
+ * Cancellation of a cancellable scope results in all operations created directly in that scope to throw a
+ * {@link CancelledFailure} (either directly, or as the `cause` of an {@link ActivityFailure} or a
+ * {@link ChildWorkflowFailure}). Further attempt to create new cancellable scopes or cancellable operations within a
+ * scope that has already been cancelled will also immediately throw a {@link CancelledFailure} exception. It is however
+ * possible to create a non-cancellable scope at that point; this is often used to execute rollback or cleanup
+ * operations. For example:
  *
  * ```ts
  *   async function myWorkflow(...): Promise<void> {
@@ -139,11 +140,25 @@ export class CancellationScope {
     untrackPromise(this.cancelRequested.catch(() => undefined));
     if (options?.parent !== NO_PARENT) {
       this.parent = options?.parent || CancellationScope.current();
-      if (this.parent.cancellable || !getActivator().hasFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation)) {
+      if (
+        this.parent.cancellable ||
+        (this.parent.#cancelRequested &&
+          !getActivator().hasFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation))
+      ) {
         this.#cancelRequested = this.parent.#cancelRequested;
-        this.parent.cancelRequested.catch((err) => {
-          this.reject(err);
-        });
+        untrackPromise(
+          this.parent.cancelRequested.catch((err) => {
+            this.reject(err);
+          })
+        );
+      } else {
+        untrackPromise(
+          this.parent.cancelRequested.catch((err) => {
+            if (!getActivator().hasFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation)) {
+              this.reject(err);
+            }
+          })
+        );
       }
     }
   }

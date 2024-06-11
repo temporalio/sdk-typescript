@@ -314,7 +314,6 @@ export class Activator implements ActivationHandler {
   private readonly sentPatches = new Set<string>();
 
   private readonly knownFlags = new Set<number>();
-  private readonly newlyUsedFlags = new Set<number>();
 
   /**
    * Buffered sink calls per activation
@@ -400,10 +399,10 @@ export class Activator implements ActivationHandler {
   }
 
   concludeActivation(): ActivationCompletion {
-    const commands = this.commands.splice(0);
-    const usedInternalFlags = [...this.newlyUsedFlags];
-    this.newlyUsedFlags.clear();
-    return { commands, usedInternalFlags };
+    return {
+      commands: this.commands.splice(0),
+      usedInternalFlags: [...this.knownFlags],
+    };
   }
 
   public async startWorkflowNextHandler({ args }: WorkflowExecuteInput): Promise<any> {
@@ -811,11 +810,11 @@ export class Activator implements ActivationHandler {
   }
 
   public hasFlag(flag: SdkFlag): boolean {
-    if (this.knownFlags.has(flag.id) || this.newlyUsedFlags.has(flag.id)) {
+    if (this.knownFlags.has(flag.id)) {
       return true;
     }
     if (!this.info.unsafe.isReplaying && flag.default) {
-      this.newlyUsedFlags.add(flag.id);
+      this.knownFlags.add(flag.id);
       return true;
     }
     return false;
