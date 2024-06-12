@@ -1,5 +1,14 @@
 import { LogLevel, Duration } from '@temporalio/common';
 import type { TLSConfig, ProxyConfig, HttpConnectProxyConfig } from '@temporalio/common/lib/internal-non-workflow';
+import { WorkerTuner } from './worker-tuner';
+
+export {
+  WorkerTuner,
+  SlotSupplier,
+  ResourceBasedSlotOptions,
+  ResourceBasedTunerOptions,
+  FixedSizeSlotSupplier,
+} from './worker-tuner';
 
 export type { TLSConfig, ProxyConfig, HttpConnectProxyConfig };
 
@@ -287,9 +296,11 @@ export interface WorkerOptions {
    */
   taskQueue: string;
 
-  maxConcurrentActivityTaskExecutions: number;
-  maxConcurrentWorkflowTaskExecutions: number;
-  maxConcurrentLocalActivityExecutions: number;
+  /**
+   * The tuner the worker will use
+   */
+  tuner: WorkerTuner;
+
   nonStickyToStickyPollRatio: number;
 
   /**
