@@ -2,12 +2,14 @@
 import anyTest, { ExecutionContext, TestFn } from 'ava';
 import dedent from 'dedent';
 import { v4 as uuid4 } from 'uuid';
-import { TemporalFailure, defaultPayloadConverter, toPayloads } from '@temporalio/common';
-import { coresdk } from '@temporalio/proto';
+import { TemporalFailure, defaultPayloadConverter, toPayloads, ApplicationFailure } from '@temporalio/common';
+import { coresdk, google } from '@temporalio/proto';
+import { msToTs } from '@temporalio/common/lib/time';
 import { httpGet } from './activities';
 import { cleanOptionalStackTrace } from './helpers';
 import { defaultOptions, isolateFreeWorker, Worker } from './mock-native-worker';
 import { withZeroesHTTPServer } from './zeroes-http-server';
+import Duration = google.protobuf.Duration;
 
 export interface Context {
   worker: Worker;
@@ -118,7 +120,13 @@ test('Worker cancels activity and reports cancellation', async (t) => {
       },
     });
     compareCompletion(t, completion.result, {
-      cancelled: { failure: { source: 'TypeScriptSDK', message: 'CANCELLED', canceledFailureInfo: {} } },
+      cancelled: {
+        failure: {
+          source: 'TypeScriptSDK',
+          message: 'CANCELLED',
+          canceledFailureInfo: {},
+        },
+      },
     });
   });
 });
@@ -244,5 +252,33 @@ test('Non ApplicationFailure TemporalFailures thrown from Activity are wrapped w
       },
     });
     t.is(result?.failed?.failure?.applicationFailureInfo?.type, 'TemporalFailure');
+  });
+});
+
+test('nextRetryDelay in activity failures is propagated to Core', async (t) => {
+  const worker = isolateFreeWorker({
+    ...defaultOptions,
+    activities: {
+      async throwNextDelayFail() {
+        throw ApplicationFailure.create({
+          message: 'Enchi cat',
+          nextRetryDelay: '1s',
+        });
+      },
+    },
+  });
+  t.context.worker = worker;
+
+  await runWorker(t, async () => {
+    const taskToken = Buffer.from(uuid4());
+    const { result } = await worker.native.runActivityTask({
+      taskToken,
+      start: {
+        activityType: 'throwNextDelayFail',
+        workflowExecution: { workflowId: 'wfid', runId: 'runId' },
+        input: toPayloads(defaultPayloadConverter),
+      },
+    });
+    t.deepEqual(result?.failed?.failure?.applicationFailureInfo?.nextRetryDelay, Duration.create(msToTs('1s')));
   });
 });
