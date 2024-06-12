@@ -13,6 +13,7 @@ import {
   TimeoutType,
 } from '../failure';
 import { isError } from '../type-helpers';
+import { msOptionalToTs } from '../time';
 import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './payload-converter';
 
 function combineRegExp(...regexps: RegExp[]): RegExp {
@@ -66,6 +67,7 @@ export interface FailureConverter {
    * Converts a caught error to a Failure proto message.
    */
   errorToFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure;
+
   /**
    * Converts a Failure proto message to a JS Error object.
    *
@@ -266,6 +268,7 @@ export class DefaultFailureConverter implements FailureConverter {
               err.details && err.details.length
                 ? { payloads: toPayloads(payloadConverter, ...err.details) }
                 : undefined,
+            nextRetryDelay: msOptionalToTs(err.nextRetryDelay),
           },
         };
       }

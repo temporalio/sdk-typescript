@@ -55,7 +55,7 @@ export function msToTs(str: Duration): Timestamp {
   return msNumberToTs(msToNumber(str));
 }
 
-export function msOptionalToTs(str: Duration | undefined): Timestamp | undefined {
+export function msOptionalToTs(str: Duration | undefined | null): Timestamp | undefined {
   return str ? msToTs(str) : undefined;
 }
 
