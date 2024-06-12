@@ -8,27 +8,37 @@ import { Duration, msToNumber } from '@temporalio/common/lib/time';
 
 export { FixedSizeSlotSupplier, ResourceBasedTunerOptions };
 
+/**
+ * Controls how slots for different task types will be handed out.
+ *
+ * @experimental
+ */
 export type WorkerTuner = ResourceBasedTuner | TunerHolder;
 
+/**
+ * Resource based slot supplier options for a specific kind of slot.
+ *
+ * @experimental
+ */
 type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
   type: 'resource-based';
   tunerOptions: ResourceBasedTunerOptions;
 };
 
 /**
- * @experimental
- *
  * Controls how slots are handed out for a specific task type.
  *
  * For now, only {@link ResourceBasedSlotOptions} and {@link FixedSizeSlotSupplier} are supported,
  * but we may add support for custom tuners in the future.
+ *
+ * @experimental
  */
 export type SlotSupplier = ResourceBasedSlotsForType | FixedSizeSlotSupplier;
 
 /**
- * @experimental
- *
  * Options for a specific slot type within a {@link ResourceBasedSlotsForType}
+ *
+ * @experimental
  */
 export interface ResourceBasedSlotOptions {
   // Amount of slots that will be issued regardless of any other checks.
@@ -44,10 +54,10 @@ export interface ResourceBasedSlotOptions {
 }
 
 /**
- * @experimental
- *
  * This tuner attempts to maintain certain levels of resource usage when under load. You do not
  * need more than one instance of this when using it for multiple slot types.
+ *
+ * @experimental
  */
 export interface ResourceBasedTuner {
   // Options for the tuner
@@ -64,9 +74,9 @@ export interface ResourceBasedTuner {
 }
 
 /**
- * @experimental
- *
  * This tuner allows for different slot suppliers for different slot types.
+ *
+ * @experimental
  */
 export interface TunerHolder {
   workflowTaskSlotSupplier: SlotSupplier;
