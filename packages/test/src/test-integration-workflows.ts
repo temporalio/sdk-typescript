@@ -11,10 +11,10 @@ import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
-import { Context, helpers, makeTestFunction } from './helpers-integration';
+import { Context, helpers, helpersTimeSkipping, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags-interceptor';
 
-const test = makeTestFunction({ workflowsPath: __filename });
+const test = makeTestFunction({ workflowsPath: __filename, workflowInterceptorModules: [__filename] });
 
 export async function parent(): Promise<void> {
   await workflow.startChild(child, { workflowId: 'child' });
@@ -213,7 +213,7 @@ test('Start of workflow is delayed', async (t) => {
 test('Start of workflow with signal is delayed', async (t) => {
   const { taskQueue } = helpers(t);
   // This workflow never runs
-  const handle = await t.context.env.client.workflow.signalWithStart(workflows.interruptableWorkflow, {
+  const handle = await t.context.envLocal.client.workflow.signalWithStart(workflows.interruptableWorkflow, {
     workflowId: randomUUID(),
     taskQueue,
     startDelay: '4678s',
@@ -378,7 +378,7 @@ export async function buildIdTester(): Promise<void> {
 test('Build Id appropriately set in workflow info', async (t) => {
   const { taskQueue, createWorker } = helpers(t);
   const wfid = `${taskQueue}-` + randomUUID();
-  const client = t.context.env.client;
+  const client = t.context.envLocal.client;
 
   const worker1 = await createWorker({ buildId: '1.0' });
   await worker1.runUntil(async () => {
@@ -825,3 +825,88 @@ test('CancellationScope.withTimeout() - scope gets cancelled on timeout', async 
   const activityCancelledEvents = events?.filter((ev) => ev.activityTaskCancelRequestedEventAttributes) ?? [];
   t.is(activityCancelledEvents?.length, 2);
 });
+
+export async function setAndClearTimeout(): Promise<boolean[]> {
+  const { activitySleep } = workflow.proxyActivities({ scheduleToCloseTimeout: '10m' });
+
+  // Start in legacy mode, similar to replaying an execution from a pre-1.10.3 workflow
+  overrideSdkInternalFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation, false);
+
+  const timerFired: boolean[] = [false, false, false, false, false];
+
+  // This timer will get cleared immediately; it should never fires
+  const timer0Handle = setTimeout(() => (timerFired[0] = true), 20_000);
+  await activitySleep(1);
+  clearTimeout(timer0Handle);
+
+  // This timer will never get cancelled; it should fire
+  setTimeout(() => (timerFired[1] = true), 21_000);
+  await activitySleep(1);
+
+  // This timer will get cleared after enabling the fix; it should never fire
+  const timer2Handle = setTimeout(() => (timerFired[2] = true), 22_000);
+  await activitySleep(1);
+  overrideSdkInternalFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation, true);
+  clearTimeout(timer2Handle);
+
+  // This timer will get cancelled immediately; it should never fire
+  const timer3Handle = setTimeout(() => (timerFired[3] = true), 23_000);
+  await activitySleep(1);
+  clearTimeout(timer3Handle);
+
+  // This timer will never get cancelled; it should fire
+  setTimeout(() => (timerFired[4] = true), 24_000);
+
+  // Give time for timers to fire
+  await activitySleep('2m');
+
+  return timerFired;
+}
+
+export function setAndClearTimeoutInterceptors(): workflow.WorkflowInterceptors {
+  return {
+    outbound: [
+      {
+        async startTimer(input, next): Promise<void> {
+          // Add 500ms to the duration of the timer; we'll look for that
+          return next({ ...input, durationMs: input.durationMs + 500 });
+        },
+      },
+    ],
+  };
+}
+
+test('setTimeout and clearTimeout - works before and after 1.10.3', async (t) => {
+  const { createWorker, startWorkflow } = helpersTimeSkipping(t);
+  const worker = await createWorker({
+    activities: {
+      activitySleep: t.context.envTimeSkipping.sleep,
+    },
+  });
+  const handle = await startWorkflow(setAndClearTimeout);
+  const timerFired: boolean[] = await worker.runUntil(handle.result());
+
+  t.false(timerFired[0]);
+  t.true(timerFired[1]);
+  t.false(timerFired[2]);
+  t.false(timerFired[3]);
+  t.true(timerFired[4]);
+
+  const { events } = await handle.fetchHistory();
+  const timerStartedEvents = events?.filter((ev) => ev.timerStartedEventAttributes);
+  t.is(timerStartedEvents?.length, 5);
+  // Durations that ends with 500ms are the ones that were intercepted
+  t.is(tsToMs(timerStartedEvents?.[0].timerStartedEventAttributes?.startToFireTimeout), 20_000);
+  t.is(tsToMs(timerStartedEvents?.[1].timerStartedEventAttributes?.startToFireTimeout), 21_000);
+  t.is(tsToMs(timerStartedEvents?.[2].timerStartedEventAttributes?.startToFireTimeout), 22_000);
+  t.is(tsToMs(timerStartedEvents?.[3].timerStartedEventAttributes?.startToFireTimeout), 23_500);
+  t.is(tsToMs(timerStartedEvents?.[4].timerStartedEventAttributes?.startToFireTimeout), 24_500);
+});
+
+export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
+  const interceptorsFactoryFunc = module.exports[`${workflow.workflowInfo().workflowType}Interceptors`];
+  if (typeof interceptorsFactoryFunc === 'function') {
+    return interceptorsFactoryFunc();
+  }
+  return {};
+};

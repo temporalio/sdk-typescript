@@ -29,7 +29,8 @@ import {
 } from './helpers';
 
 export interface Context {
-  env: TestWorkflowEnvironment;
+  envLocal: TestWorkflowEnvironment;
+  envTimeSkipping: TestWorkflowEnvironment;
   workflowBundle: WorkflowBundle;
 }
 
@@ -47,36 +48,46 @@ const defaultDynamicConfigOptions = [
 
 export function makeTestFunction(opts: {
   workflowsPath: string;
-  workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
+  localWorkflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
+  timeSkippingWorkflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
   workflowInterceptorModules?: string[];
 }): TestFn<Context> {
   const test = anyTest as TestFn<Context>;
   test.before(async (t) => {
     // Ignore invalid log levels
     Runtime.install({ logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel) });
-    const env = await TestWorkflowEnvironment.createLocal({
-      ...opts.workflowEnvironmentOpts,
+    const envLocal = await TestWorkflowEnvironment.createLocal({
+      ...opts.localWorkflowEnvironmentOpts,
       server: {
-        ...opts.workflowEnvironmentOpts?.server,
+        ...opts.localWorkflowEnvironmentOpts?.server,
         extraArgs: [
           ...defaultDynamicConfigOptions.flatMap((opt) => ['--dynamic-config-value', opt]),
-          ...(opts.workflowEnvironmentOpts?.server?.extraArgs ?? []),
+          ...(opts.localWorkflowEnvironmentOpts?.server?.extraArgs ?? []),
         ],
       },
     });
-    await registerDefaultCustomSearchAttributes(env.connection);
+    await registerDefaultCustomSearchAttributes(envLocal.connection);
+    const envTimeSkipping = await TestWorkflowEnvironment.createTimeSkipping({
+      ...opts.timeSkippingWorkflowEnvironmentOpts,
+      server: {
+        ...opts.timeSkippingWorkflowEnvironmentOpts?.server,
+        extraArgs: [...(opts.timeSkippingWorkflowEnvironmentOpts?.server?.extraArgs ?? [])],
+      },
+    });
     const workflowBundle = await bundleWorkflowCode({
       ...bundlerOptions,
       workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])],
       workflowsPath: opts.workflowsPath,
     });
     t.context = {
-      env,
+      envLocal,
+      envTimeSkipping,
       workflowBundle,
     };
   });
   test.after.always(async (t) => {
-    await t.context.env.teardown();
+    await t.context.envLocal.teardown();
+    await t.context.envTimeSkipping.teardown();
   });
   return test;
 }
@@ -105,11 +116,11 @@ export function helpers(t: ExecutionContext<Context>): Helpers {
     taskQueue,
     async createWorker(opts?: Partial<WorkerOptions>): Promise<Worker> {
       return await Worker.create({
-        connection: t.context.env.nativeConnection,
+        connection: t.context.envLocal.nativeConnection,
         workflowBundle: t.context.workflowBundle,
         taskQueue,
         interceptors: {
-          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(t.context.env.connection) })],
+          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(t.context.envLocal.connection) })],
         },
         showStackTraceSources: true,
         ...opts,
@@ -119,7 +130,7 @@ export function helpers(t: ExecutionContext<Context>): Helpers {
       fn: workflow.Workflow,
       opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
     ): Promise<any> {
-      return await t.context.env.client.workflow.execute(fn, {
+      return await t.context.envLocal.client.workflow.execute(fn, {
         taskQueue,
         workflowId: randomUUID(),
         ...opts,
@@ -129,11 +140,103 @@ export function helpers(t: ExecutionContext<Context>): Helpers {
       fn: workflow.Workflow,
       opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
     ): Promise<WorkflowHandle<workflow.Workflow>> {
-      return await t.context.env.client.workflow.start(fn, {
+      return await t.context.envLocal.client.workflow.start(fn, {
         taskQueue,
         workflowId: randomUUID(),
         ...opts,
       });
+    },
+    async assertWorkflowUpdateFailed(
+      p: Promise<any>,
+      causeConstructor: ErrorConstructor,
+      message?: string
+    ): Promise<void> {
+      const err: WorkflowUpdateFailedError = (await t.throwsAsync(p, {
+        instanceOf: WorkflowUpdateFailedError,
+      })) as WorkflowUpdateFailedError;
+      t.true(err.cause instanceof causeConstructor);
+      if (message !== undefined) {
+        t.is(err.cause?.message, message);
+      }
+    },
+    async assertWorkflowFailedError(
+      p: Promise<any>,
+      causeConstructor: ErrorConstructor,
+      message?: string
+    ): Promise<void> {
+      const err: WorkflowFailedError = (await t.throwsAsync(p, {
+        instanceOf: WorkflowFailedError,
+      })) as WorkflowFailedError;
+      t.true(err.cause instanceof causeConstructor);
+      if (message !== undefined) {
+        t.is(err.cause?.message, message);
+      }
+    },
+  };
+}
+
+export interface HelpersTimeSkipping extends Helpers {
+  taskQueue: string;
+  createWorker(opts?: Partial<WorkerOptions>): Promise<Worker>;
+  executeWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<workflow.WorkflowResultType<T>>;
+  executeWorkflow<T extends workflow.Workflow>(
+    fn: T,
+    opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
+  ): Promise<workflow.WorkflowResultType<T>>;
+  startWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<WorkflowHandle<T>>;
+  startWorkflow<T extends workflow.Workflow>(
+    fn: T,
+    opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
+  ): Promise<WorkflowHandle<T>>;
+  assertWorkflowUpdateFailed(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
+  assertWorkflowFailedError(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
+  sleep(ms: number): Promise<void>;
+}
+
+/**
+ * Similar to `helpers`, but for use with the time-skipping test environment.
+ * Note that time-skipping is global to the test environment, so it is generally
+ * preferable to run time-skipping tests serially.
+ */
+export function helpersTimeSkipping(t: ExecutionContext<Context>): HelpersTimeSkipping {
+  const taskQueue = t.title.replace(/ /g, '_');
+
+  return {
+    taskQueue,
+    async createWorker(opts?: Partial<WorkerOptions>): Promise<Worker> {
+      return await Worker.create({
+        connection: t.context.envTimeSkipping.nativeConnection,
+        workflowBundle: t.context.workflowBundle,
+        taskQueue,
+        interceptors: {
+          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(t.context.envTimeSkipping.connection) })],
+        },
+        showStackTraceSources: true,
+        ...opts,
+      });
+    },
+    async executeWorkflow(
+      fn: workflow.Workflow,
+      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
+    ): Promise<any> {
+      return await t.context.envTimeSkipping.client.workflow.execute(fn, {
+        taskQueue,
+        workflowId: randomUUID(),
+        ...opts,
+      });
+    },
+    async startWorkflow(
+      fn: workflow.Workflow,
+      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
+    ): Promise<WorkflowHandle<workflow.Workflow>> {
+      return await t.context.envTimeSkipping.client.workflow.start(fn, {
+        taskQueue,
+        workflowId: randomUUID(),
+        ...opts,
+      });
+    },
+    async sleep(ms: number): Promise<void> {
+      await t.context.envTimeSkipping.sleep(ms);
     },
     async assertWorkflowUpdateFailed(
       p: Promise<any>,

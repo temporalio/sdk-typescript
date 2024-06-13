@@ -6,7 +6,7 @@ import { helpers, makeTestFunction } from './helpers-integration';
 const test = makeTestFunction({
   workflowsPath: __filename,
   workflowInterceptorModules: [__filename],
-  workflowEnvironmentOpts: {
+  localWorkflowEnvironmentOpts: {
     client: {
       interceptors: {
         workflow: [

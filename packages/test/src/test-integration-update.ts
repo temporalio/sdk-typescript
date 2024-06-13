@@ -75,12 +75,12 @@ test('Update handle can be created from identifiers and used to obtain result', 
 
     // Obtain update handle on manually-created workflow handle with no run id.
     t.truthy(updateHandleFromStartUpdate.workflowRunId);
-    const freshWorkflowHandleWithoutRunId = t.context.env.client.workflow.getHandle(wfHandle.workflowId);
+    const freshWorkflowHandleWithoutRunId = t.context.envLocal.client.workflow.getHandle(wfHandle.workflowId);
     const updateHandle2 = freshWorkflowHandleWithoutRunId.getUpdateHandle(updateId);
     t.deepEqual(await updateHandle2.result(), ['1']);
 
     // Obtain update handle on manually-created workflow handle with run id.
-    const freshWorkflowHandleWithRunId = t.context.env.client.workflow.getHandle(
+    const freshWorkflowHandleWithRunId = t.context.envLocal.client.workflow.getHandle(
       wfHandle.workflowId,
       updateHandleFromStartUpdate.workflowRunId
     );
@@ -88,7 +88,10 @@ test('Update handle can be created from identifiers and used to obtain result', 
     t.deepEqual(await updateHandle3.result(), ['1']);
 
     // Obtain update handle on manually-created workflow handle with incorrect run id.
-    const workflowHandleWithIncorrectRunId = t.context.env.client.workflow.getHandle(wfHandle.workflowId, wf.uuid4());
+    const workflowHandleWithIncorrectRunId = t.context.envLocal.client.workflow.getHandle(
+      wfHandle.workflowId,
+      wf.uuid4()
+    );
     const updateHandle4 = workflowHandleWithIncorrectRunId.getUpdateHandle(updateId);
     const err = await t.throwsAsync(updateHandle4.result());
     t.true(isGrpcServiceError(err) && err.code === grpcStatus.NOT_FOUND);

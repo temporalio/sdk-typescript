@@ -151,10 +151,10 @@ export class WorkflowCodeBundler {
 
     const code = `
 const api = require('@temporalio/workflow/lib/worker-interface.js');
-
-api.overrideGlobals();
-
 exports.api = api;
+
+const { overrideGlobals } = require('@temporalio/workflow/lib/global-overrides.js');
+overrideGlobals();
 
 exports.importWorkflows = function importWorkflows() {
   return require(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});

@@ -12,7 +12,7 @@ export const SdkFlags = {
    *   (see https://github.com/temporalio/sdk-typescript/issues/1423).
    * - CancellationScope.withTimeout(fn) now cancel the timer if `fn` completes before expiration
    *   of the timeout, similar to how `condition(fn, timeout)` works.
-   * -
+   * - Timers created using setTimeout can now be intercepted.
    *
    * @since Introduced in 1.10.2/1.10.3.
    */
