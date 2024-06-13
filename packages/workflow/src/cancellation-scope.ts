@@ -205,7 +205,11 @@ export class CancellationScope {
     try {
       return await fn();
     } finally {
-      if (timerScope && getActivator().hasFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation)) {
+      if (
+        timerScope &&
+        !timerScope.consideredCancelled &&
+        getActivator().hasFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation)
+      ) {
         timerScope.cancel();
       }
     }
