@@ -63,11 +63,13 @@ export interface PromiseStackStore {
 
 export interface Completion {
   resolve(val: unknown): unknown;
+
   reject(reason: unknown): unknown;
 }
 
 export interface Condition {
   fn(): boolean;
+
   resolve(): void;
 }
 
@@ -218,7 +220,6 @@ export class Activator implements ActivationHandler {
           return {
             definition: {
               type: workflowType,
-              description: null, // For now, do not set the workflow description in the TS SDK.
               queryDefinitions,
               signalDefinitions,
               updateDefinitions,
@@ -233,7 +234,11 @@ export class Activator implements ActivationHandler {
   /**
    * Loaded in {@link initRuntime}
    */
-  public readonly interceptors: Required<WorkflowInterceptors> = { inbound: [], outbound: [], internals: [] };
+  public readonly interceptors: Required<WorkflowInterceptors> = {
+    inbound: [],
+    outbound: [],
+    internals: [],
+  };
 
   /**
    * Buffer that stores all generated commands, reset after each activation

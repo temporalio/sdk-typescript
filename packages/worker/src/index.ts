@@ -21,7 +21,15 @@ export { NativeConnection } from './connection';
 export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
 export { startDebugReplayer } from './debug-replayer';
 export { IllegalStateError } from '@temporalio/common';
-export { ShutdownError, TransportError, UnexpectedError } from '@temporalio/core-bridge';
+export {
+  ShutdownError,
+  TransportError,
+  UnexpectedError,
+  SlotSupplier,
+  ResourceBasedSlotOptions,
+  ResourceBasedTunerOptions,
+  FixedSizeSlotSupplier,
+} from '@temporalio/core-bridge';
 export { GracefulShutdownPeriodExpiredError, errors } from './errors'; // eslint-disable-line deprecation/deprecation
 export * from './interceptors';
 export { DefaultLogger, LogEntry, LogLevel, LogMetadata, LogTimestamp, Logger } from './logger';
@@ -46,6 +54,7 @@ export {
 } from './worker-options';
 export { ReplayError, ReplayHistoriesIterable, ReplayResult } from './replay';
 export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
+export { WorkerTuner } from './worker-tuner';
 
 // Anything below this line is deprecated
 

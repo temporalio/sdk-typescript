@@ -22,7 +22,7 @@ use tokio::sync::{
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-pub type RawClient = RetryClient<ConfiguredClient<TemporalServiceClientWithMetrics>>;
+pub type CoreClient = RetryClient<ConfiguredClient<TemporalServiceClientWithMetrics>>;
 
 #[derive(Clone)]
 pub struct EphemeralServer {
@@ -43,7 +43,7 @@ impl Finalize for RuntimeHandle {}
 #[derive(Clone)]
 pub struct Client {
     pub(crate) runtime: Arc<RuntimeHandle>,
-    pub(crate) core_client: Arc<RawClient>,
+    pub(crate) core_client: Arc<CoreClient>,
 }
 
 pub type BoxedClient = JsBox<RefCell<Option<Client>>>;
@@ -65,7 +65,7 @@ pub enum RuntimeRequest {
     },
     /// A request to update a client's HTTP request headers
     UpdateClientHeaders {
-        client: Arc<RawClient>,
+        client: Arc<CoreClient>,
         headers: HashMap<String, String>,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
@@ -75,7 +75,7 @@ pub enum RuntimeRequest {
         /// Worker configuration e.g. limits and task queue
         config: WorkerConfig,
         /// A client created with a [CreateClient] request
-        client: Arc<RawClient>,
+        client: Arc<CoreClient>,
         /// Used to send the result back into JS
         callback: Root<JsFunction>,
     },
@@ -107,7 +107,7 @@ pub enum RuntimeRequest {
         callback: Root<JsFunction>,
     },
     UpdateClientApiKey {
-        client: Arc<RawClient>,
+        client: Arc<CoreClient>,
         key: String,
         callback: Root<JsFunction>,
     },
@@ -168,7 +168,7 @@ pub fn start_bridge_loop(
                     options,
                     callback,
                 } => {
-                    let mm = core_runtime.telemetry().get_metric_meter();
+                    let mm = core_runtime.telemetry().get_temporal_metric_meter();
                     core_runtime.tokio_handle().spawn(async move {
                         match options
                             .connect_no_namespace(mm)
@@ -248,17 +248,14 @@ pub fn start_bridge_loop(
                     callback,
                 } => {
                     let client = (*client).clone();
-                    match init_worker(&core_runtime, config, client.into_inner()) {
+                    match init_worker(&core_runtime, config, client) {
                         Ok(worker) => {
-                            let (tx, rx) = unbounded_channel();
                             core_runtime.tokio_handle().spawn(start_worker_loop(
                                 worker,
-                                rx,
-                                channel.clone(),
+                                channel,
+                                callback,
+                                None
                             ));
-                            send_result(channel.clone(), callback, |cx| {
-                                Ok(cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx }))))
-                            });
                         }
                         Err(err) => send_error(channel.clone(), callback, move |cx| {
                             make_named_error_from_error(cx, UNEXPECTED_ERROR, err.deref())
@@ -273,21 +270,12 @@ pub fn start_bridge_loop(
                     let (tunnel, stream) = HistoryForReplayTunnel::new(runtime);
                     match init_replay_worker(ReplayWorkerInput::new(config, Box::pin(stream))) {
                         Ok(worker) => {
-                            let (tx, rx) = unbounded_channel();
                             core_runtime.tokio_handle().spawn(start_worker_loop(
                                 worker,
-                                rx,
                                 channel.clone(),
+                                callback,
+                                Some(tunnel)
                             ));
-                            send_result(channel.clone(), callback, |cx| {
-                                let worker =
-                                    cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx })));
-                                let tunnel = cx.boxed(tunnel);
-                                let retme = cx.empty_object();
-                                retme.set(cx, "worker", worker)?;
-                                retme.set(cx, "pusher", tunnel)?;
-                                Ok(retme)
-                            })
                         }
                         Err(err) => send_error(channel.clone(), callback, move |cx| {
                             make_named_error_from_error(cx, UNEXPECTED_ERROR, err.deref())

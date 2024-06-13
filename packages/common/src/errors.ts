@@ -1,4 +1,3 @@
-import { TemporalFailure } from './failure';
 import { SymbolBasedInstanceOfError } from './type-helpers';
 
 /**
@@ -25,25 +24,6 @@ export class PayloadConverterError extends ValueError {}
  */
 @SymbolBasedInstanceOfError('IllegalStateError')
 export class IllegalStateError extends Error {}
-
-/**
- * This exception is thrown in the following cases:
- *  - Workflow with the same Workflow Id is currently running
- *  - There is a closed Workflow with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
- *    is `WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE`
- *  - There is closed Workflow in the `Completed` state with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
- *    is `WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY`
- */
-@SymbolBasedInstanceOfError('WorkflowExecutionAlreadyStartedError')
-export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
-  constructor(
-    message: string,
-    public readonly workflowId: string,
-    public readonly workflowType: string
-  ) {
-    super(message);
-  }
-}
 
 /**
  * Thrown when a Workflow with the given Id is not known to Temporal Server.

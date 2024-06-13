@@ -8,6 +8,7 @@ import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
 import { defineQuery, defineSignal } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
+import { ApplicationFailure } from '@temporalio/common';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
@@ -401,6 +402,40 @@ test('Build Id appropriately set in workflow info', async (t) => {
     await handle.signal(unblockSignal);
     t.is(await handle.query(getBuildIdQuery), '1.1');
   });
+});
+
+export async function runDelayedRetryActivities(): Promise<void> {
+  const startTime = Date.now();
+  const localActs = workflow.proxyLocalActivities({
+    startToCloseTimeout: '20s',
+    retry: { initialInterval: '1ms', maximumInterval: '1ms', maximumAttempts: 2 },
+  });
+  const normalActs = workflow.proxyActivities({
+    startToCloseTimeout: '20s',
+    retry: { initialInterval: '1ms', maximumInterval: '1ms', maximumAttempts: 2 },
+  });
+  await Promise.all([localActs.testActivity(), normalActs.testActivity()]);
+  const endTime = Date.now();
+  if (endTime - startTime < 2000) {
+    throw ApplicationFailure.nonRetryable('Expected workflow to take at least 2 seconds to complete');
+  }
+}
+
+test('nextRetryDelay for activities', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      async testActivity() {
+        // Need to fail on first try
+        if (activity.activityInfo().attempt === 1) {
+          throw ApplicationFailure.create({ message: 'ahh', nextRetryDelay: '2s' });
+        }
+      },
+    },
+  });
+  const handle = await startWorkflow(runDelayedRetryActivities);
+  await worker.runUntil(handle.result());
+  t.pass();
 });
 
 // Repro for https://github.com/temporalio/sdk-typescript/issues/1423
