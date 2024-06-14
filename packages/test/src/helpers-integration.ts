@@ -26,11 +26,13 @@ import {
   test as anyTest,
   bundlerOptions,
   registerDefaultCustomSearchAttributes,
+  RUN_TIME_SKIPPING_TESTS,
 } from './helpers';
 
 export interface Context {
   envLocal: TestWorkflowEnvironment;
-  envTimeSkipping: TestWorkflowEnvironment;
+  // Not supported on Linux ARM64
+  envTimeSkipping: TestWorkflowEnvironment | undefined;
   workflowBundle: WorkflowBundle;
 }
 
@@ -67,13 +69,15 @@ export function makeTestFunction(opts: {
       },
     });
     await registerDefaultCustomSearchAttributes(envLocal.connection);
-    const envTimeSkipping = await TestWorkflowEnvironment.createTimeSkipping({
-      ...opts.timeSkippingWorkflowEnvironmentOpts,
-      server: {
-        ...opts.timeSkippingWorkflowEnvironmentOpts?.server,
-        extraArgs: [...(opts.timeSkippingWorkflowEnvironmentOpts?.server?.extraArgs ?? [])],
-      },
-    });
+    const envTimeSkipping = RUN_TIME_SKIPPING_TESTS
+      ? await TestWorkflowEnvironment.createTimeSkipping({
+          ...opts.timeSkippingWorkflowEnvironmentOpts,
+          server: {
+            ...opts.timeSkippingWorkflowEnvironmentOpts?.server,
+            extraArgs: [...(opts.timeSkippingWorkflowEnvironmentOpts?.server?.extraArgs ?? [])],
+          },
+        })
+      : undefined;
     const workflowBundle = await bundleWorkflowCode({
       ...bundlerOptions,
       workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])],
@@ -87,7 +91,9 @@ export function makeTestFunction(opts: {
   });
   test.after.always(async (t) => {
     await t.context.envLocal.teardown();
-    await t.context.envTimeSkipping.teardown();
+    if (t.context.envTimeSkipping) {
+      await t.context.envTimeSkipping.teardown();
+    }
   });
   return test;
 }
@@ -200,12 +206,15 @@ export interface HelpersTimeSkipping extends Helpers {
  */
 export function helpersTimeSkipping(t: ExecutionContext<Context>): HelpersTimeSkipping {
   const taskQueue = t.title.replace(/ /g, '_');
+  if (!t.context.envTimeSkipping) {
+    throw new Error('Time skipping environment not available');
+  }
 
   return {
     taskQueue,
     async createWorker(opts?: Partial<WorkerOptions>): Promise<Worker> {
       return await Worker.create({
-        connection: t.context.envTimeSkipping.nativeConnection,
+        connection: t.context.envTimeSkipping!.nativeConnection,
         workflowBundle: t.context.workflowBundle,
         taskQueue,
         interceptors: {
@@ -219,7 +228,7 @@ export function helpersTimeSkipping(t: ExecutionContext<Context>): HelpersTimeSk
       fn: workflow.Workflow,
       opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
     ): Promise<any> {
-      return await t.context.envTimeSkipping.client.workflow.execute(fn, {
+      return await t.context.envTimeSkipping!.client.workflow.execute(fn, {
         taskQueue,
         workflowId: randomUUID(),
         ...opts,
@@ -229,14 +238,14 @@ export function helpersTimeSkipping(t: ExecutionContext<Context>): HelpersTimeSk
       fn: workflow.Workflow,
       opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
     ): Promise<WorkflowHandle<workflow.Workflow>> {
-      return await t.context.envTimeSkipping.client.workflow.start(fn, {
+      return await t.context.envTimeSkipping!.client.workflow.start(fn, {
         taskQueue,
         workflowId: randomUUID(),
         ...opts,
       });
     },
     async sleep(ms: number): Promise<void> {
-      await t.context.envTimeSkipping.sleep(ms);
+      await t.context.envTimeSkipping!.sleep(ms);
     },
     async assertWorkflowUpdateFailed(
       p: Promise<any>,
