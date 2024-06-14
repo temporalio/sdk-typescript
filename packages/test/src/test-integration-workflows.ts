@@ -14,8 +14,10 @@ import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { Context, helpers, helpersTimeSkipping, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags-interceptor';
+import { RUN_TIME_SKIPPING_TESTS, noopTest } from './helpers';
 
 const test = makeTestFunction({ workflowsPath: __filename, workflowInterceptorModules: [__filename] });
+const testTimeSkipping = RUN_TIME_SKIPPING_TESTS ? test : noopTest;
 
 export async function parent(): Promise<void> {
   await workflow.startChild(child, { workflowId: 'child' });
@@ -911,7 +913,7 @@ export function setAndClearTimeoutInterceptors(): workflow.WorkflowInterceptors 
   };
 }
 
-test('setTimeout and clearTimeout - works before and after 1.10.3', async (t) => {
+testTimeSkipping('setTimeout and clearTimeout - works before and after 1.10.3', async (t) => {
   const { createWorker, startWorkflow } = helpersTimeSkipping(t);
   const worker = await createWorker({
     activities: {
