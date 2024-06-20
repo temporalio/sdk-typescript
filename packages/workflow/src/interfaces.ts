@@ -190,6 +190,21 @@ export interface UnsafeWorkflowInfo {
   readonly isReplaying: boolean;
 }
 
+/**
+ * Information about a workflow update.
+ */
+export interface UpdateInfo {
+  /**
+   *  A workflow-unique identifier for this update.
+   */
+  readonly id: string;
+
+  /**
+   *  The update type name.
+   */
+  readonly name: string;
+}
+
 export interface ParentWorkflowInfo {
   workflowId: string;
   runId: string;

@@ -8,6 +8,7 @@ import { msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
+import { disableUpdateStorage } from './update-scope';
 import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowCreateOptionsInternal } from './interfaces';
@@ -295,6 +296,7 @@ export function shouldUnblockConditions(job: coresdk.workflow_activation.IWorkfl
 export function dispose(): void {
   const dispose = composeInterceptors(getActivator().interceptors.internals, 'dispose', async () => {
     disableStorage();
+    disableUpdateStorage();
   });
   dispose({});
 }
