@@ -103,3 +103,30 @@ test('Can call signal on any WorkflowHandle', async (t) => {
 
   t.pass();
 });
+
+test('startUpdate and executeUpdate call signatures require `args` iff update takes args', async (t) => {
+  const nullaryUpdate = defineUpdate<string>('my-update');
+  const unaryUpdate = defineUpdate<string, [number]>('my-update');
+
+  async function _assertion<T extends Workflow>(handle: WorkflowHandle<T>) {
+    await handle.startUpdate(nullaryUpdate);
+    await handle.startUpdate(nullaryUpdate, {});
+    await handle.startUpdate(nullaryUpdate, { args: [] });
+    await handle.executeUpdate(nullaryUpdate);
+    await handle.executeUpdate(nullaryUpdate, {});
+    await handle.executeUpdate(nullaryUpdate, { args: [] });
+    // @ts-expect-error
+    await handle.startUpdate(unaryUpdate);
+    // @ts-expect-error
+    await handle.startUpdate(unaryUpdate, {});
+    // @ts-expect-error
+    await handle.startUpdate(unaryUpdate, { args: [] });
+    // @ts-expect-error
+    await handle.executeUpdate(unaryUpdate);
+    // @ts-expect-error
+    await handle.executeUpdate(unaryUpdate, {});
+    // @ts-expect-error
+    await handle.executeUpdate(unaryUpdate, { args: [] });
+  }
+  t.pass();
+});
