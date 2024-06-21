@@ -40,8 +40,8 @@ export const interceptors: WorkflowInterceptorsFactory = () => ({
       },
       async startChildWorkflowExecution(input, next) {
         const [startPromise, completePromise] = await next(input);
-        startPromise.finally(notifyRunner);
-        completePromise.finally(notifyRunner);
+        startPromise.finally(notifyRunner).catch(() => {});
+        completePromise.finally(notifyRunner).catch(() => {});
         return [startPromise, completePromise];
       },
     },

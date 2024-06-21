@@ -162,6 +162,14 @@ export interface WorkflowInfo {
    */
   readonly cronScheduleToScheduleInterval?: number;
 
+  /**
+   * The Build ID of the worker which executed the current Workflow Task. May be undefined if the
+   * task was completed by a worker without a Build ID. If this worker is the one executing this
+   * task for the first time and has a Build ID set, then its ID will be used. This value may change
+   * over the lifetime of the workflow run, but is deterministic and safe to use for branching.
+   */
+  readonly currentBuildId?: string;
+
   readonly unsafe: UnsafeWorkflowInfo;
 }
 
@@ -438,14 +446,14 @@ export interface WorkflowCreateOptionsInternal extends WorkflowCreateOptions {
 export type Handler<
   Ret,
   Args extends any[],
-  T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>
+  T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>,
 > = T extends UpdateDefinition<infer R, infer A>
   ? (...args: A) => R | Promise<R>
   : T extends SignalDefinition<infer A>
-  ? (...args: A) => void | Promise<void>
-  : T extends QueryDefinition<infer R, infer A>
-  ? (...args: A) => R
-  : never;
+    ? (...args: A) => void | Promise<void>
+    : T extends QueryDefinition<infer R, infer A>
+      ? (...args: A) => R
+      : never;
 
 /**
  * A handler function accepting signal calls for non-registered signal names.
@@ -456,3 +464,18 @@ export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => v
  * A validation function capable of accepting the arguments for a given UpdateDefinition.
  */
 export type UpdateValidator<Args extends any[]> = (...args: Args) => void;
+
+/**
+ * A description of a query handler.
+ */
+export type QueryHandlerOptions = { description?: string };
+
+/**
+ * A description of a signal handler.
+ */
+export type SignalHandlerOptions = { description?: string };
+
+/**
+ * A validator and description of an update handler.
+ */
+export type UpdateHandlerOptions<Args extends any[]> = { validator?: UpdateValidator<Args>; description?: string };

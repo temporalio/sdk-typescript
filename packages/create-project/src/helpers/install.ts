@@ -20,20 +20,22 @@ interface InstallArgs {
  * @returns A Promise that resolves once the installation is finished.
  */
 export function install({ root, useYarn }: InstallArgs): Promise<void> {
-  const npm = /^win/.test(process.platform) ? 'npm.cmd' : 'npm';
+  const isWindows = process.platform === 'win32';
+  const npm = isWindows ? 'npm.cmd' : 'npm';
   const command: string = useYarn ? 'yarn' : npm;
 
   return spawn(command, ['install'], {
     cwd: root,
     stdio: 'inherit',
     env: { ...process.env, ADBLOCK: '1', DISABLE_OPENCOLLECTIVE: '1' },
+    shell: isWindows,
   });
 }
 
 export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
   const currentNodeVersion = +process.versions.node.split('.')[0];
   const versionAlreadyInPackageJson = 16;
-  const minimumValidVersion = 14;
+  const minimumValidVersion = 16;
 
   // The @tsconfig/node20 sets "--lib es2023", which require TypeScript 5.x.
   // FIXME: Remove this once samples have been updated to TypeScript ^5.0.0.
@@ -46,7 +48,7 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
 
     const packageExists = await isUrlOk(`https://registry.npmjs.org/${packageName}`);
     if (packageExists) {
-      const fileNames = await glob([`${root}/**/package.json`, `${root}/**/tsconfig.json`]);
+      const fileNames = await glob(['**/package.json', '**/tsconfig.json'], { cwd: root, absolute: true, root: '' });
 
       for (const fileName of fileNames) {
         const fileString = (await readFile(fileName)).toString();

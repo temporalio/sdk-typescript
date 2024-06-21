@@ -1,11 +1,10 @@
 import { randomUUID } from 'crypto';
 import { TestFn, ImplementationFn } from 'ava';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { ApplicationFailure, arrayFromPayloads } from '@temporalio/common';
 import { bundleWorkflowCode, WorkflowBundle } from '@temporalio/worker';
 import { sleep } from '@temporalio/workflow';
 import { WorkflowFailedError } from '@temporalio/client';
-import { test as anyTest, bundlerOptions, Worker, REUSE_V8_CONTEXT } from './helpers';
+import { test as anyTest, bundlerOptions, Worker, REUSE_V8_CONTEXT, TestWorkflowEnvironment } from './helpers';
 
 interface Context {
   env: TestWorkflowEnvironment;
@@ -64,7 +63,7 @@ test('Global state is isolated and maintained between activations', async (t) =>
   });
 });
 
-export async function propertyMutator(): Promise<void> {
+export async function sdkPropertyMutator(): Promise<void> {
   try {
     (arrayFromPayloads as any).a = 1;
   } catch (err) {
@@ -72,13 +71,35 @@ export async function propertyMutator(): Promise<void> {
   }
 }
 
-test('Module state is frozen', withReusableContext, async (t) => {
+test('SDK Module state is frozen', withReusableContext, async (t) => {
   const { createWorker, taskQueue, env } = t.context;
   const worker = await createWorker();
   const err = (await worker.runUntil(
-    t.throwsAsync(env.client.workflow.execute(propertyMutator, { taskQueue, workflowId: randomUUID() }))
+    t.throwsAsync(env.client.workflow.execute(sdkPropertyMutator, { taskQueue, workflowId: randomUUID() }))
   )) as WorkflowFailedError;
   t.is(err.cause?.message, 'Cannot add property a, object is not extensible');
+});
+
+const someArr: number[] = [];
+
+export async function modulePropertyMutator(): Promise<number[]> {
+  someArr.push(1);
+  await sleep(1);
+  someArr.push(2);
+  return someArr;
+}
+
+test('Module state is isolated and maintained between activations', async (t) => {
+  const { createWorker, taskQueue, env } = t.context;
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const [res1, res2] = await Promise.all([
+      env.client.workflow.execute(modulePropertyMutator, { taskQueue, workflowId: randomUUID() }),
+      env.client.workflow.execute(modulePropertyMutator, { taskQueue, workflowId: randomUUID() }),
+    ]);
+    t.deepEqual(res1, [1, 2]);
+    t.deepEqual(res2, [1, 2]);
+  });
 });
 
 export async function sharedGlobalMutator(): Promise<void> {

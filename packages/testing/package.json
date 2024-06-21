@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/testing",
-  "version": "1.9.0-rc.0",
+  "version": "1.10.1",
   "description": "Temporal.io SDK Testing sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -12,7 +12,6 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@grpc/grpc-js": "~1.7.3",
     "@temporalio/activity": "file:../activity",
     "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",

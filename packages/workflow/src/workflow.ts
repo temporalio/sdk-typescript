@@ -22,6 +22,7 @@ import {
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
 import { Duration, msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import { temporal } from '@temporalio/proto';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import {
   ActivityInput,
@@ -39,7 +40,9 @@ import {
   DefaultSignalHandler,
   EnhancedStackTrace,
   Handler,
-  UpdateValidator,
+  QueryHandlerOptions,
+  SignalHandlerOptions,
+  UpdateHandlerOptions,
   WorkflowInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
@@ -1143,15 +1146,22 @@ export function defineQuery<Ret, Args extends any[] = [], Name extends string = 
  *
  * @param def an {@link UpdateDefinition}, {@link SignalDefinition}, or {@link QueryDefinition} as returned by {@link defineUpdate}, {@link defineSignal}, or {@link defineQuery} respectively.
  * @param handler a compatible handler function for the given definition or `undefined` to unset the handler.
+ * @param options an optional `description` of the handler and an optional update `validator` function.
  */
-export function setHandler<Ret, Args extends any[], T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>>(
+export function setHandler<Ret, Args extends any[], T extends QueryDefinition<Ret, Args>>(
   def: T,
-  handler: Handler<Ret, Args, T> | undefined
+  handler: Handler<Ret, Args, T> | undefined,
+  options?: QueryHandlerOptions
+): void;
+export function setHandler<Ret, Args extends any[], T extends SignalDefinition<Args>>(
+  def: T,
+  handler: Handler<Ret, Args, T> | undefined,
+  options?: SignalHandlerOptions
 ): void;
 export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<Ret, Args>>(
   def: T,
   handler: Handler<Ret, Args, T> | undefined,
-  options?: { validator: UpdateValidator<Args> }
+  options?: UpdateHandlerOptions<Args>
 ): void;
 
 // For Updates and Signals we want to make a public guarantee something like the
@@ -1239,13 +1249,19 @@ export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<R
 export function setHandler<
   Ret,
   Args extends any[],
-  T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>
->(def: T, handler: Handler<Ret, Args, T> | undefined, options?: { validator: UpdateValidator<Args> }): void {
+  T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>,
+>(
+  def: T,
+  handler: Handler<Ret, Args, T> | undefined,
+  options?: QueryHandlerOptions | SignalHandlerOptions | UpdateHandlerOptions<Args>
+): void {
   const activator = assertInWorkflowContext('Workflow.setHandler(...) may only be used from a Workflow Execution.');
+  const description = options?.description;
   if (def.type === 'update') {
     if (typeof handler === 'function') {
-      const validator = options?.validator as WorkflowUpdateValidatorType | undefined;
-      activator.updateHandlers.set(def.name, { handler, validator });
+      const updateOptions = options as UpdateHandlerOptions<Args> | undefined;
+      const validator = updateOptions?.validator as WorkflowUpdateValidatorType | undefined;
+      activator.updateHandlers.set(def.name, { handler, validator, description });
       activator.dispatchBufferedUpdates();
     } else if (handler == null) {
       activator.updateHandlers.delete(def.name);
@@ -1254,7 +1270,7 @@ export function setHandler<
     }
   } else if (def.type === 'signal') {
     if (typeof handler === 'function') {
-      activator.signalHandlers.set(def.name, handler as any);
+      activator.signalHandlers.set(def.name, { handler: handler as any, description });
       activator.dispatchBufferedSignals();
     } else if (handler == null) {
       activator.signalHandlers.delete(def.name);
@@ -1263,7 +1279,7 @@ export function setHandler<
     }
   } else if (def.type === 'query') {
     if (typeof handler === 'function') {
-      activator.queryHandlers.set(def.name, handler as any);
+      activator.queryHandlers.set(def.name, { handler: handler as any, description });
     } else if (handler == null) {
       activator.queryHandlers.delete(def.name);
     } else {
@@ -1404,3 +1420,4 @@ export function upsertMemo(memo: Record<string, unknown>): void {
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');
 export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanced_stack_trace');
+export const workflowMetadataQuery = defineQuery<temporal.api.sdk.v1.IWorkflowMetadata>('__temporal_workflow_metadata');

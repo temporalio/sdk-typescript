@@ -16,7 +16,7 @@ import {
   OtelCollectorExporter,
 } from '@temporalio/core-bridge';
 import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/common/lib/internal-non-workflow';
-import { IllegalStateError, LogMetadata } from '@temporalio/common';
+import { IllegalStateError, LogMetadata, SdkComponent } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { msToNumber } from '@temporalio/common/lib/time';
@@ -111,7 +111,10 @@ class BufferedLogger extends DefaultLogger {
   /** Flush all buffered logs into the logger supplied to the constructor */
   flush(): void {
     for (const entry of this.buffer) {
-      this.next.log(entry.level, entry.message, { ...entry.meta, [LogTimestamp]: entry.timestampNanos });
+      this.next.log(entry.level, entry.message, {
+        ...entry.meta,
+        [LogTimestamp]: entry.timestampNanos,
+      });
     }
     this.buffer.clear();
   }
@@ -145,7 +148,10 @@ export class Runtime {
    */
   static defaultOptions: RuntimeOptions = {};
 
-  protected constructor(public readonly native: native.Runtime, public readonly options: CompiledRuntimeOptions) {
+  protected constructor(
+    public readonly native: native.Runtime,
+    public readonly options: CompiledRuntimeOptions
+  ) {
     if (this.isForwardingLogs()) {
       const logger = (this.logger = new BufferedLogger(this.options.logger));
       this.logPollPromise = this.initLogPolling(logger);
@@ -195,12 +201,12 @@ export class Runtime {
    * Factory function for creating a new Core instance, not exposed because Core is meant to be used as a singleton
    */
   protected static create(options: RuntimeOptions, instantiator: 'install' | 'instance'): Runtime {
+    const compiledOptions = this.compileOptions(options);
+    const runtime = newRuntime(compiledOptions.telemetryOptions);
+
     // Remember the provided options in case Core is reinstantiated after being shut down
     this.defaultOptions = options;
     this.instantiator = instantiator;
-
-    const compiledOptions = this.compileOptions(options);
-    const runtime = newRuntime(compiledOptions.telemetryOptions);
     this._instance = new this(runtime, compiledOptions);
     return this._instance;
   }
@@ -210,12 +216,22 @@ export class Runtime {
     // eslint-disable-next-line deprecation/deprecation
     const { logging, metrics, tracingFilter, ...otherTelemetryOpts } = options.telemetryOptions ?? {};
 
-    const defaultFilter = tracingFilter ?? makeTelemetryFilterString({ core: 'WARN', other: 'ERROR' });
+    const defaultFilter =
+      tracingFilter ??
+      makeTelemetryFilterString({
+        core: 'WARN',
+        other: 'ERROR',
+      });
     const loggingFilter = logging?.filter;
 
     // eslint-disable-next-line deprecation/deprecation
     const forwardLevel = (logging as ForwardLogger | undefined)?.forward?.level;
-    const forwardLevelFilter = forwardLevel && makeTelemetryFilterString({ core: forwardLevel, other: forwardLevel });
+    const forwardLevelFilter =
+      forwardLevel &&
+      makeTelemetryFilterString({
+        core: forwardLevel,
+        other: forwardLevel,
+      });
 
     return {
       shutdownSignals: options.shutdownSignals ?? ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
@@ -236,13 +252,17 @@ export class Runtime {
             ? {
                 otel: {
                   url: metrics.otel.url,
-                  headers: metrics.otel.headers,
+                  headers: metrics.otel.headers ?? {},
                   metricsExportInterval: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
+                  useSecondsForDurations: metrics.otel.useSecondsForDurations,
                 },
               }
             : {
                 prometheus: {
                   bindAddress: metrics.prometheus.bindAddress,
+                  unitSuffix: metrics.prometheus.unitSuffix,
+                  countersTotalSuffix: metrics.prometheus.countersTotalSuffix,
+                  useSecondsForDurations: metrics.prometheus.useSecondsForDurations,
                 },
               }),
         },
@@ -263,7 +283,7 @@ export class Runtime {
       for (const log of logs) {
         const meta: LogMetadata = {
           [LogTimestamp]: timeOfDayToBigint(log.timestamp),
-          subsystem: log.target,
+          sdkComponent: SdkComponent.core,
           ...log.fields,
         };
         logger.log(log.level, log.message, meta);
@@ -284,7 +304,10 @@ export class Runtime {
       }
     } catch (error) {
       // Log using the original logger instead of buffering
-      this.options.logger.warn('Error gathering forwarded logs from core', { error });
+      this.options.logger.warn('Error gathering forwarded logs from core', {
+        error,
+        sdkComponent: SdkComponent.worker,
+      });
     } finally {
       logger.flush();
     }
@@ -319,6 +342,11 @@ export class Runtime {
       ...getDefaultConnectionOptions(),
       ...filterNullAndUndefined(options ?? {}),
     });
+    if (options?.apiKey && compiledServerOptions.metadata?.['Authorization']) {
+      throw new TypeError(
+        'Both `apiKey` option and `Authorization` header were provided. Only one makes sense to use at a time.'
+      );
+    }
     const clientOptions = {
       ...compiledServerOptions,
       tls: normalizeTlsConfig(compiledServerOptions.tls),
@@ -419,7 +447,7 @@ export class Runtime {
   protected async createNative<
     R extends TrackedNativeObject,
     Args extends any[],
-    F extends (...args: Args) => Promise<R>
+    F extends (...args: Args) => Promise<R>,
   >(f: F, ...args: Args): Promise<R> {
     return this.createNativeNoBackRef(async () => {
       const ref = await f(...args);
@@ -564,7 +592,8 @@ export class Runtime {
             `the process will crash due to running out of memory. To increase reliability, we recommend ` +
             `adding '--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node arguments. ` +
             `Refer to https://docs.temporal.io/dev-guide/typescript/foundations#run-a-worker-on-docker ` +
-            `for more advice on tuning your Workers.`
+            `for more advice on tuning your Workers.`,
+          { sdkComponent: SdkComponent.worker }
         );
       }
     }

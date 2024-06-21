@@ -26,7 +26,7 @@ export interface BackoffOptions {
   /**
    * Exponential backoff factor
    *
-   * @default 2
+   * @default 1.7
    */
   factor: number;
 
@@ -39,20 +39,20 @@ export interface BackoffOptions {
   /**
    * Maximum amount of jitter to apply
    *
-   * @default 0.1
+   * @default 0.2
    */
   maxJitter: number;
   /**
    * Function that returns the "initial" backoff interval based on the returned status.
    *
-   * The default is 1 second for RESOURCE_EXHAUSTED errors and 20 millis for other retryable errors.
+   * The default is 1 second for RESOURCE_EXHAUSTED errors and 100 millis for other retryable errors.
    */
   initialIntervalMs(status: StatusObject): number;
 
   /**
    * Function that returns the "maximum" backoff interval based on the returned status.
    *
-   * The default is 10 seconds regardless of the status.
+   * The default is 5 seconds regardless of the status.
    */
   maxIntervalMs(status: StatusObject): number;
 }
@@ -68,11 +68,11 @@ function withDefaultBackoffOptions({
 }: Partial<BackoffOptions>): BackoffOptions {
   return {
     maxAttempts: maxAttempts ?? 10,
-    factor: factor ?? 2,
-    maxJitter: maxJitter ?? 0.1,
+    factor: factor ?? 1.7,
+    maxJitter: maxJitter ?? 0.2,
     initialIntervalMs: initialIntervalMs ?? defaultInitialIntervalMs,
     maxIntervalMs() {
-      return 10_000;
+      return 5_000;
     },
   };
 }
@@ -125,7 +125,7 @@ function defaultInitialIntervalMs({ code }: StatusObject) {
   if (code === grpc.status.RESOURCE_EXHAUSTED) {
     return 1000;
   }
-  return 20;
+  return 100;
 }
 
 /**

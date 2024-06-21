@@ -50,9 +50,14 @@ See [sdk-structure.md](./docs/sdk-structure.md)
 
 ### Environment setup
 
-- Install Node 16 and [Temporal Server](https://github.com/temporalio/docker-compose#temporal-server-docker-compose-files)
-- Install the [Rust toolchain](https://rustup.rs/)
-- Install [Protocal Buffers](https://github.com/protocolbuffers/protobuf/releases/)
+- The TS SDK can be executed on 16, 18 and 20. However, for SDK development, we recommend
+  using Node 20. For easier testing, you may want to use a version manager, such as:
+  [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md) or [volta](https://volta.sh/).
+
+- To run tests, you will need access to a local Temporal server, e.g. using the
+  [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server).
+- Install the [Rust toolchain](https://rustup.rs/).
+- Install [Protocol Buffers](https://github.com/protocolbuffers/protobuf/releases/).
 - Clone the [sdk-typescript](https://github.com/temporalio/sdk-typescript) repo:
   ```sh
   git clone https://github.com/temporalio/sdk-typescript.git
@@ -62,7 +67,8 @@ See [sdk-structure.md](./docs/sdk-structure.md)
   ```sh
   git submodule update --init --recursive
   ```
-  > If you get a `The authenticity of host 'github.com (192.30.252.123)' can't be established.` error, run `ssh-keyscan github.com >> ~/.ssh/known_hosts` and retry.
+  > If you get a `The authenticity of host 'github.com (192.30.252.123)' can't be established.`
+  > error, run `ssh-keyscan github.com >> ~/.ssh/known_hosts` and retry.
 - Install the dependencies:
   ```sh
   npm ci
@@ -79,11 +85,13 @@ If building fails, resetting your environment may help:
 npx lerna clean -y && npm ci
 ```
 
-If `npm ci` fails in `@temporalio/core-bridge` on the command `node ./scripts/build.js`, you may need to do `rustup update`.
+If `npm ci` fails in `@temporalio/core-bridge` on the command `node ./scripts/build.js`, you may
+need to do `rustup update`.
 
 To update to the latest version of the Core SDK, run `git submodule update` followed by `npm run build` to recompile.
 
-> For cross compilation on MacOS follow [these instructions](https://github.com/temporalio/sdk-typescript/blob/main/docs/building.md) (only required for publishing packages).
+> For cross compilation on MacOS follow [these instructions](https://github.com/temporalio/sdk-typescript/blob/main/docs/building.md)
+> (only required for publishing packages).
 
 ## Development
 
@@ -109,7 +117,7 @@ described [here](https://doc.rust-lang.org/cargo/reference/overriding-dependenci
 
 In order to run integration tests:
 
-1. Run the temporal server using [docker-compose](https://github.com/temporalio/docker-compose).
+1. Run the Temporal server, e.g. using the [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server)
 1. Export `RUN_INTEGRATION_TESTS=true`
 
 #### test-npm-init
@@ -142,6 +150,40 @@ chore(samples): upgrade commander module
 ```
 
 The `scope` options are listed in [commitlint.config.js](https://github.com/temporalio/sdk-typescript/blob/main/commitlint.config.js).
+
+## Updating and pruning dependencies
+
+There are various tools out there to help with updating and pruning NPM dependencies.
+
+I personally use the following commands to find NPM packages that needs to be updated. It runs
+interactively on each package of the repo, making it easy to select and apply packages to be updated.
+
+```
+for i in ./package.json packages/*/package.json ; do
+  (
+    cd "${i%%package.json}"
+    pwd
+    npm-check-updates -i
+  )
+done
+```
+
+To identify unused dependencies, I run the following script. Note that `npm-check` may report
+false-positive. Search the code before actually deleting any dependency. Also note that runtime
+dependencies MUST be added on the actual packages that use them to ensure proper execution in PNPM
+and YARN 2+ setups.
+
+```
+for i in ./package.json packages/*/package.json ; do
+  (
+    cd "${i%%package.json}"
+    pwd
+    npm-check
+  )
+done
+```
+
+To install both tools: `npm i -g npm-check npm-check-updates`.
 
 ## Publishing
 

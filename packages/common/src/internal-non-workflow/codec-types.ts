@@ -22,13 +22,13 @@ export type DecodedProtoFailure = Decoded<ProtoFailure>;
 export type ReplaceNested<T, ToReplace, ReplaceWith> = T extends (...args: any[]) => any
   ? T
   : [keyof T] extends [never]
-  ? T
-  : T extends { [k: string]: ToReplace }
-  ? {
-      [P in keyof T]: ReplaceNested<T[P], ToReplace, ReplaceWith>;
-    }
-  : T extends ToReplace
-  ? ReplaceWith | Exclude<T, ToReplace>
-  : {
-      [P in keyof T]: ReplaceNested<T[P], ToReplace, ReplaceWith>;
-    };
+    ? T
+    : T extends { [k: string]: ToReplace }
+      ? {
+          [P in keyof T]: ReplaceNested<T[P], ToReplace, ReplaceWith>;
+        }
+      : T extends ToReplace
+        ? ReplaceWith | Exclude<T, ToReplace>
+        : {
+            [P in keyof T]: ReplaceNested<T[P], ToReplace, ReplaceWith>;
+          };

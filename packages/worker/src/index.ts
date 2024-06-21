@@ -21,10 +21,18 @@ export { NativeConnection } from './connection';
 export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
 export { startDebugReplayer } from './debug-replayer';
 export { IllegalStateError } from '@temporalio/common';
-export { ShutdownError, TransportError, UnexpectedError } from '@temporalio/core-bridge';
+export {
+  ShutdownError,
+  TransportError,
+  UnexpectedError,
+  SlotSupplier,
+  ResourceBasedSlotOptions,
+  ResourceBasedTunerOptions,
+  FixedSizeSlotSupplier,
+} from '@temporalio/core-bridge';
 export { GracefulShutdownPeriodExpiredError, errors } from './errors'; // eslint-disable-line deprecation/deprecation
 export * from './interceptors';
-export * from './logger';
+export { DefaultLogger, LogEntry, LogLevel, LogMetadata, LogTimestamp, Logger } from './logger';
 export { History, Runtime, RuntimeOptions, makeTelemetryFilterString } from './runtime';
 export * from './sinks';
 export {
@@ -46,6 +54,7 @@ export {
 } from './worker-options';
 export { ReplayError, ReplayHistoriesIterable, ReplayResult } from './replay';
 export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
+export { WorkerTuner } from './worker-tuner';
 
 // Anything below this line is deprecated
 
@@ -67,7 +76,7 @@ export {
 export {
   /**
    * @deprecated Including `appendDefaultInterceptors()` in the worker options is no longer required. To configure a
-   *             custom logger, set the {@see Runtime.logger} property instead.
+   *             custom logger, set the {@link Runtime.logger} property instead.
    */
   appendDefaultInterceptors, // eslint-disable-line deprecation/deprecation
   /**
@@ -107,6 +116,12 @@ export {
    */
   workflowLogAttributes,
 } from '@temporalio/workflow/lib/logs';
+export {
+  /**
+   * @deprecated This function is meant for internal usage. Don't use it.
+   */
+  timeOfDayToBigint,
+} from './logger';
 /**
  * @deprecated Including `defaultWorkflowInterceptorModules` in BundlerOptions.workflowInterceptorModules is no longer required.
  */

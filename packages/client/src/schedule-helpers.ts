@@ -267,7 +267,7 @@ export async function encodeScheduleAction(
       },
       input: { payloads: await encodeToPayloads(dataConverter, ...action.args) },
       taskQueue: {
-        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
+        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: action.taskQueue,
       },
       workflowExecutionTimeout: msOptionalToTs(action.workflowExecutionTimeout),

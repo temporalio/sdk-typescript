@@ -777,10 +777,19 @@ export class WorkflowClient extends BaseClient {
         },
       },
     };
-    let response: temporal.api.workflowservice.v1.UpdateWorkflowExecutionResponse;
 
+    // Repeatedly send UpdateWorkflowExecution until update is >= Accepted or >= `waitForStage` (if
+    // the server receives a request with an update ID that already exists, it responds with
+    // information for the existing update).
+    let response: temporal.api.workflowservice.v1.UpdateWorkflowExecutionResponse;
     try {
-      response = await this.workflowService.updateWorkflowExecution(req);
+      do {
+        response = await this.workflowService.updateWorkflowExecution(req);
+      } while (
+        response.stage < waitForStage &&
+        response.stage <
+          temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED
+      );
     } catch (err) {
       this.rethrowGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
@@ -835,26 +844,10 @@ export class WorkflowClient extends BaseClient {
             .UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_COMPLETED,
       },
     };
-
-    // TODO: Users should be able to use client.withDeadline(timestamp) with a
-    // Date (as opposed to a duration) to control the total amount of time
-    // allowed for polling. However, this requires a server change such that the
-    // server swallows the gRPC timeout and instead responds with a well-formed
-    // PollWorkflowExecutionUpdateResponse, indicating that the requested
-    // lifecycle stage has not yet been reached at the time of the deadline
-    // expiry. See https://github.com/temporalio/temporal/issues/4742
-
-    // TODO: When temporal#4742 is released, stop catching DEADLINE_EXCEEDED.
     for (;;) {
-      try {
-        const response = await this.workflowService.pollWorkflowExecutionUpdate(req);
-        if (response.outcome) {
-          return response.outcome;
-        }
-      } catch (err) {
-        if (!(isGrpcServiceError(err) && err.code === grpcStatus.DEADLINE_EXCEEDED)) {
-          throw err;
-        }
+      const response = await this.workflowService.pollWorkflowExecutionUpdate(req);
+      if (response.outcome) {
+        return response.outcome;
       }
     }
   }
@@ -901,7 +894,7 @@ export class WorkflowClient extends BaseClient {
       signalName,
       signalInput: { payloads: await encodeToPayloads(this.dataConverter, ...signalArgs) },
       taskQueue: {
-        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
+        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: options.taskQueue,
       },
       workflowExecutionTimeout: options.workflowExecutionTimeout,
@@ -949,7 +942,7 @@ export class WorkflowClient extends BaseClient {
       workflowType: { name: workflowType },
       input: { payloads: await encodeToPayloads(this.dataConverter, ...opts.args) },
       taskQueue: {
-        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
+        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: opts.taskQueue,
       },
       workflowExecutionTimeout: opts.workflowExecutionTimeout,
@@ -1050,7 +1043,6 @@ export class WorkflowClient extends BaseClient {
     runIdForResult,
     ...resultOptions
   }: WorkflowHandleOptions): WorkflowHandle<T> {
-    // TODO (dan): Convert to class with this as a protected method
     const _startUpdate = async <Ret, Args extends unknown[]>(
       def: UpdateDefinition<Ret, Args> | string,
       waitForStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage,
@@ -1069,12 +1061,21 @@ export class WorkflowClient extends BaseClient {
         options: opts,
       };
       const output = await fn(input);
-      return this.createWorkflowUpdateHandle<Ret>(
+      const handle = this.createWorkflowUpdateHandle<Ret>(
         output.updateId,
         input.workflowExecution.workflowId,
         output.workflowRunId,
         output.outcome
       );
+      if (
+        !output.outcome &&
+        waitForStage ===
+          temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage
+            .UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_COMPLETED
+      ) {
+        await this._pollForUpdateOutcome(handle.updateId, input.workflowExecution);
+      }
+      return handle;
     };
 
     return {
@@ -1283,7 +1284,10 @@ export class QueryRejectedError extends Error {
 
 @SymbolBasedInstanceOfError('QueryNotRegisteredError')
 export class QueryNotRegisteredError extends Error {
-  constructor(message: string, public readonly code: grpcStatus) {
+  constructor(
+    message: string,
+    public readonly code: grpcStatus
+  ) {
     super(message);
   }
 }

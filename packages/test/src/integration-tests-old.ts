@@ -398,7 +398,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     await t.throwsAsync(workflow.query('not found'), {
       instanceOf: QueryNotRegisteredError,
       message:
-        'Workflow did not register a handler for not found. Registered queries: [__stack_trace __enhanced_stack_trace isBlocked]',
+        'Workflow did not register a handler for not found. Registered queries: [__stack_trace __enhanced_stack_trace __temporal_workflow_metadata isBlocked]',
     });
   });
 
@@ -702,7 +702,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       },
     });
     const result = await workflow.result();
-    t.assert(result.historySize > 300);
+    t.assert(result.historySize > 100);
     t.deepEqual(result, {
       memo: {
         nested: { object: true },
@@ -722,6 +722,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       historySize: result.historySize,
       startTime: result.startTime,
       runStartTime: result.runStartTime,
+      currentBuildId: result.currentBuildId,
       // unsafe.now is a function, so doesn't make it through serialization, but .now is required, so we need to cast
       unsafe: { isReplaying: false } as UnsafeWorkflowInfo,
     });

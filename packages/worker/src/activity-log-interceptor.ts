@@ -1,4 +1,5 @@
 import { Context } from '@temporalio/activity';
+import { SdkComponent } from '@temporalio/common';
 import { ActivityInboundCallsInterceptor, ActivityExecuteInput, Next } from './interceptors';
 import { Logger } from './logger';
 import { activityLogAttributes } from './activity';
@@ -17,7 +18,10 @@ import { Runtime } from './runtime';
 export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterceptor {
   protected readonly logger: Logger;
 
-  constructor(protected readonly ctx: Context, logger?: Logger | undefined) {
+  constructor(
+    protected readonly ctx: Context,
+    logger?: Logger | undefined
+  ) {
     const runtimeLogger = Runtime.instance().logger;
     this.logger = logger ?? runtimeLogger;
 
@@ -37,6 +41,7 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
           level,
           (message: string, attrs: Record<string, unknown>) => {
             return this.logger[level](message, {
+              sdkComponent: SdkComponent.activity,
               ...this.logAttributes(),
               ...attrs,
             });

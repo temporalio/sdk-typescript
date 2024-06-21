@@ -8,7 +8,6 @@ import {
 } from '@temporalio/client';
 import {
   LocalTestWorkflowEnvironmentOptions,
-  TestWorkflowEnvironment,
   workflowInterceptorModules as defaultWorkflowInterceptorModules,
 } from '@temporalio/testing';
 import {
@@ -21,12 +20,30 @@ import {
 } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-import { Worker, test as anyTest, bundlerOptions } from './helpers';
+import {
+  Worker,
+  TestWorkflowEnvironment,
+  test as anyTest,
+  bundlerOptions,
+  registerDefaultCustomSearchAttributes,
+} from './helpers';
 
 export interface Context {
   env: TestWorkflowEnvironment;
   workflowBundle: WorkflowBundle;
 }
+
+const defaultDynamicConfigOptions = [
+  'frontend.enableUpdateWorkflowExecution=true',
+  'frontend.enableUpdateWorkflowExecutionAsyncAccepted=true',
+  'frontend.workerVersioningDataAPIs=true',
+  'frontend.workerVersioningWorkflowAPIs=true',
+  'system.enableActivityEagerExecution=true',
+  'system.enableEagerWorkflowStart=true',
+  'system.forceSearchAttributesCacheRefreshOnRead=true',
+  'worker.buildIdScavengerEnabled=true',
+  'worker.removableBuildIdDurationSinceDefault=1',
+];
 
 export function makeTestFunction(opts: {
   workflowsPath: string;
@@ -37,7 +54,17 @@ export function makeTestFunction(opts: {
   test.before(async (t) => {
     // Ignore invalid log levels
     Runtime.install({ logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel) });
-    const env = await TestWorkflowEnvironment.createLocal(opts.workflowEnvironmentOpts);
+    const env = await TestWorkflowEnvironment.createLocal({
+      ...opts.workflowEnvironmentOpts,
+      server: {
+        ...opts.workflowEnvironmentOpts?.server,
+        extraArgs: [
+          ...defaultDynamicConfigOptions.flatMap((opt) => ['--dynamic-config-value', opt]),
+          ...(opts.workflowEnvironmentOpts?.server?.extraArgs ?? []),
+        ],
+      },
+    });
+    await registerDefaultCustomSearchAttributes(env.connection);
     const workflowBundle = await bundleWorkflowCode({
       ...bundlerOptions,
       workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])],

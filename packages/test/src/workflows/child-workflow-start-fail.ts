@@ -3,7 +3,8 @@
  * @module
  */
 
-import { startChild, WorkflowExecutionAlreadyStartedError, WorkflowIdReusePolicy } from '@temporalio/workflow';
+import { startChild, WorkflowIdReusePolicy } from '@temporalio/workflow';
+import { WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
 import { successString } from './success-string';
 
 export async function childWorkflowStartFail(): Promise<void> {

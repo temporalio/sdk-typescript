@@ -26,6 +26,7 @@ import {
   defaultPayloadConverter,
   IllegalStateError,
   LoadedDataConverter,
+  SdkComponent,
   mapFromPayloads,
   Payload,
   searchAttributePayloadConverter,
@@ -50,7 +51,7 @@ import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
-import { Logger } from './logger';
+import { Logger, withMetadata } from './logger';
 import pkg from './pkg';
 import {
   EvictionReason,
@@ -60,10 +61,9 @@ import {
   ReplayResult,
 } from './replay';
 import { History, Runtime } from './runtime';
-import { closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
+import { CloseableGroupedObservable, closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
 import { byteArrayToBuffer, convertToParentWorkflowType } from './utils';
 import {
-  addDefaultWorkerOptions,
   CompiledWorkerOptions,
   compileWorkerOptions,
   isCodeBundleOption,
@@ -110,6 +110,7 @@ type Promisify<T> = T extends (...args: any[]) => void
   : never;
 
 type PatchJob = NonNullableObject<Pick<coresdk.workflow_activation.IWorkflowActivationJob, 'notifyHasPatch'>>;
+type StartWorkflowJob = NonNullableObject<Pick<coresdk.workflow_activation.IWorkflowActivationJob, 'startWorkflow'>>;
 
 type WorkflowActivation = coresdk.workflow_activation.WorkflowActivation;
 
@@ -164,7 +165,6 @@ export interface NativeWorkerLike {
   completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
   completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
   recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
-  logger: Logger;
 }
 
 export interface NativeReplayHandle {
@@ -175,6 +175,11 @@ export interface NativeReplayHandle {
 export interface WorkerConstructor {
   create(connection: NativeConnection, options: CompiledWorkerOptionsWithBuildId): Promise<NativeWorkerLike>;
   createReplay(options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle>;
+}
+
+interface WorkflowWithLogAttributes {
+  workflow: Workflow;
+  logAttributes: Record<string, unknown>;
 }
 
 function isOptionsWithBuildId<T extends CompiledWorkerOptions>(options: T): options is T & { buildId: string } {
@@ -216,7 +221,10 @@ export class NativeWorker implements NativeWorkerLike {
     };
   }
 
-  protected constructor(protected readonly runtime: Runtime, protected readonly nativeWorker: native.Worker) {
+  protected constructor(
+    protected readonly runtime: Runtime,
+    protected readonly nativeWorker: native.Worker
+  ) {
     this.pollWorkflowActivation = promisify(native.workerPollWorkflowActivation).bind(undefined, nativeWorker);
     this.pollActivityTask = promisify(native.workerPollActivityTask).bind(undefined, nativeWorker);
     this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
@@ -231,10 +239,6 @@ export class NativeWorker implements NativeWorkerLike {
 
   public async finalizeShutdown(): Promise<void> {
     await this.runtime.deregisterWorker(this.nativeWorker);
-  }
-
-  public get logger(): Logger {
-    return this.runtime.logger;
   }
 }
 
@@ -416,9 +420,13 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
+    const logger = withMetadata(Runtime.instance().logger, {
+      sdkComponent: SdkComponent.worker,
+      taskQueue: options.taskQueue ?? 'default',
+    });
     const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
-    const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(options));
-    Runtime.instance().logger.info('Creating worker', {
+    const compiledOptions = compileWorkerOptions(options, logger);
+    logger.info('Creating worker', {
       options: {
         ...compiledOptions,
         ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
@@ -431,7 +439,7 @@ export class Worker {
           : {}),
       },
     });
-    const bundle = await this.getOrCreateBundle(compiledOptions, Runtime.instance().logger);
+    const bundle = await this.getOrCreateBundle(compiledOptions, logger);
     let workflowCreator: WorkflowCreator | undefined = undefined;
     if (bundle) {
       workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
@@ -451,18 +459,14 @@ export class Worker {
       throw err;
     }
     extractReferenceHolders(connection).add(nativeWorker);
-    return new this(nativeWorker, workflowCreator, compiledOptionsWithBuildId, connection);
+    return new this(nativeWorker, workflowCreator, compiledOptionsWithBuildId, logger, connection);
   }
 
   protected static async createWorkflowCreator(
     workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     compiledOptions: CompiledWorkerOptions
   ): Promise<WorkflowCreator> {
-    const registeredActivityNames = new Set(
-      Object.entries(compiledOptions.activities ?? {})
-        .filter(([_, v]) => typeof v === 'function')
-        .map(([k]) => k)
-    );
+    const registeredActivityNames = new Set(compiledOptions.activities.keys());
     // This isn't required for vscode, only for Chrome Dev Tools which doesn't support debugging worker threads.
     // We also rely on this in debug-replayer where we inject a global variable to be read from workflow context.
     if (compiledOptions.debugMode) {
@@ -601,15 +605,19 @@ export class Worker {
       ...options,
     };
     this.replayWorkerCount++;
-    const compiledOptions = compileWorkerOptions(addDefaultWorkerOptions(fixedUpOptions));
-    const bundle = await this.getOrCreateBundle(compiledOptions, Runtime.instance().logger);
+    const logger = withMetadata(Runtime.instance().logger, {
+      sdkComponent: 'worker',
+      taskQueue: fixedUpOptions.taskQueue,
+    });
+    const compiledOptions = compileWorkerOptions(fixedUpOptions, logger);
+    const bundle = await this.getOrCreateBundle(compiledOptions, logger);
     if (!bundle) {
       throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
     }
     const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
     const replayHandle = await nativeWorkerCtor.createReplay(addBuildIdIfMissing(compiledOptions, bundle.code));
     return [
-      new this(replayHandle.worker, workflowCreator, compiledOptions, undefined, true),
+      new this(replayHandle.worker, workflowCreator, compiledOptions, logger, undefined, true),
       replayHandle.historyPusher,
     ];
   }
@@ -625,9 +633,13 @@ export class Worker {
       if (compiledOptions.bundlerOptions) {
         logger.warn('Ignoring WorkerOptions.bundlerOptions because WorkerOptions.workflowBundle is set');
       }
-      const modules = compiledOptions.interceptors.workflowModules;
+      const modules = new Set(compiledOptions.interceptors.workflowModules);
       // Warn if user tries to customize the default set of workflow interceptor modules
-      if (modules && new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== modules.length) {
+
+      if (
+        modules &&
+        new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== defaultWorkflowInterceptorModules.length
+      ) {
         logger.warn(
           'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
             'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
@@ -669,6 +681,8 @@ export class Worker {
      */
     protected readonly workflowCreator: WorkflowCreator | undefined,
     public readonly options: CompiledWorkerOptions,
+    /** Logger bound to 'sdkComponent: worker' */
+    protected readonly logger: Logger,
     protected readonly connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
@@ -694,10 +708,6 @@ export class Worker {
    */
   public get numRunningWorkflowInstances$(): Observable<number> {
     return this.numCachedWorkflowsSubject;
-  }
-
-  protected get log(): Logger {
-    return this.nativeWorker.logger;
   }
 
   /**
@@ -730,7 +740,7 @@ export class Worker {
   }
 
   protected set state(state: State) {
-    this.log.info('Worker state changed', { state });
+    this.logger.info('Worker state changed', { state });
     this.stateSubject.next(state);
   }
 
@@ -762,7 +772,10 @@ export class Worker {
           this.state = 'DRAINING';
         }
       })
-      .catch((error) => this.unexpectedErrorSubject.error(error));
+      .catch((error) => {
+        this.logger.warn('Failed to initiate shutdown', { error });
+        this.unexpectedErrorSubject.error(error);
+      });
   }
 
   /**
@@ -852,8 +865,7 @@ export class Worker {
                   );
 
                   const { activityType } = info;
-                  // activities is of type "object" which does not support string indexes
-                  const fn = (this.options.activities as any)?.[activityType];
+                  const fn = this.options.activities.get(activityType);
                   if (typeof fn !== 'function') {
                     output = {
                       type: 'result',
@@ -861,7 +873,7 @@ export class Worker {
                         failed: {
                           failure: {
                             message: `Activity function ${activityType} is not registered on this Worker, available activities: ${JSON.stringify(
-                              Object.keys(this.options.activities ?? {})
+                              [...this.options.activities.keys()]
                             )}`,
                             applicationFailureInfo: {
                               type: 'NotFoundError',
@@ -899,7 +911,7 @@ export class Worker {
                     headers,
                   };
 
-                  this.log.trace('Starting activity', activityLogAttributes(info));
+                  this.logger.trace('Starting activity', activityLogAttributes(info));
 
                   activity = new Activity(
                     info,
@@ -916,6 +928,7 @@ export class Worker {
                           activity?.cancel('HEARTBEAT_DETAILS_CONVERSION_FAILED'); // activity must be defined
                         },
                       }),
+                    this.logger,
                     this.options.interceptors.activity
                   );
                   output = { type: 'run', activity, input };
@@ -924,13 +937,13 @@ export class Worker {
                 case 'cancel': {
                   output = { type: 'ignore' };
                   if (activity === undefined) {
-                    this.log.error('Tried to cancel a non-existing activity', {
+                    this.logger.error('Tried to cancel a non-existing activity', {
                       taskToken: base64TaskToken,
                     });
                     break;
                   }
                   // NOTE: activity will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
-                  this.log.trace('Cancelling activity', activityLogAttributes(activity.info));
+                  this.logger.trace('Cancelling activity', activityLogAttributes(activity.info));
                   const reason = task.cancel?.reason;
                   if (reason === undefined || reason === null) {
                     // Special case of Lang side cancellation during shutdown (see `activity.shutdown.evict` above)
@@ -972,7 +985,7 @@ export class Worker {
 
             if (status === 'failed') {
               // Make sure to flush the last heartbeat
-              this.log.trace('Activity failed, waiting for heartbeats to be flushed', {
+              this.logger.trace('Activity failed, waiting for heartbeats to be flushed', {
                 ...activityLogAttributes(output.activity.info),
                 status,
               });
@@ -993,7 +1006,7 @@ export class Worker {
                 callback: () => undefined,
               });
             }
-            this.log.trace('Activity resolved', {
+            this.logger.trace('Activity resolved', {
               ...activityLogAttributes(output.activity.info),
               status,
             });
@@ -1007,270 +1020,245 @@ export class Worker {
   }
 
   /**
-   * Process Workflow activations
+   * Process activations from the same workflow execution to an observable of completions.
+   *
+   * Injects a synthetic eviction activation when the worker transitions to no longer polling.
    */
-  protected workflowOperator(): OperatorFunction<WorkflowActivation, Uint8Array> {
-    const { workflowCreator } = this;
-    if (workflowCreator === undefined) {
-      throw new IllegalStateError('Cannot process workflows without a WorkflowCreator');
-    }
-    interface WorkflowWithLogAttributes {
-      workflow: Workflow;
-      logAttributes: Record<string, unknown>;
-    }
-    return pipe(
-      closeableGroupBy((activation) => activation.runId),
-      mergeMap((group$) => {
-        return merge(
-          group$.pipe(map((activation) => ({ activation, synthetic: false }))),
-          this.workflowPollerStateSubject.pipe(
-            // Core has indicated that it will not return any more poll results, evict all cached WFs
-            filter((state) => state !== 'POLLING'),
-            first(),
-            map(
-              (): {
-                activation: coresdk.workflow_activation.WorkflowActivation;
-                synthetic: true;
-              } => {
-                return {
-                  activation: coresdk.workflow_activation.WorkflowActivation.create({
-                    runId: group$.key,
-                    jobs: [
-                      {
-                        removeFromCache: Worker.SELF_INDUCED_SHUTDOWN_EVICTION,
-                      },
-                    ],
-                  }),
-                  synthetic: true,
-                };
-              }
-            ),
-            takeUntil(group$.pipe(last(undefined, null)))
-          )
-        ).pipe(
-          tap(() => {
-            this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value + 1);
-          }),
-          mergeMapWithState(
-            async (
-              state: WorkflowWithLogAttributes | undefined,
-              { activation, synthetic }
-            ): Promise<{
-              state: WorkflowWithLogAttributes | undefined;
-              output: { completion?: Uint8Array; close: boolean };
-            }> => {
-              try {
-                const removeFromCacheIx = activation.jobs.findIndex(({ removeFromCache }) => removeFromCache);
-                const close = removeFromCacheIx !== -1;
-                const jobs = activation.jobs;
-                if (close) {
-                  const asEvictJob = jobs.splice(removeFromCacheIx, 1)[0].removeFromCache;
-                  if (asEvictJob) {
-                    this.evictionsEmitter.emit('eviction', {
-                      runId: activation.runId,
-                      evictJob: asEvictJob,
-                    } as EvictionWithRunID);
-                  }
-                }
-                activation.jobs = jobs;
-                if (jobs.length === 0) {
-                  this.log.trace('Disposing workflow', {
-                    ...(state ? state.logAttributes : { runId: activation.runId }),
-                  });
-                  await state?.workflow.dispose();
-                  if (!close) {
-                    throw new IllegalStateError('Got a Workflow activation with no jobs');
-                  }
-                  const completion = synthetic
-                    ? undefined
-                    : coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
-                        runId: activation.runId,
-                        successful: {},
-                      }).finish();
-                  return { state: undefined, output: { close, completion } };
-                }
-
-                if (state === undefined) {
-                  // Find a workflow start job in the activation jobs list
-                  const maybeStartWorkflow = activation.jobs.find((j) => j.startWorkflow);
-                  if (maybeStartWorkflow !== undefined) {
-                    const startWorkflow = maybeStartWorkflow.startWorkflow;
-                    if (
-                      !(
-                        startWorkflow &&
-                        startWorkflow.workflowId != null &&
-                        startWorkflow.workflowType != null &&
-                        startWorkflow.randomnessSeed != null &&
-                        startWorkflow.firstExecutionRunId != null &&
-                        startWorkflow.attempt != null &&
-                        startWorkflow.startTime != null
-                      )
-                    ) {
-                      throw new TypeError(`Malformed StartWorkflow activation: ${JSON.stringify(maybeStartWorkflow)}`);
-                    }
-                    if (activation.timestamp == null) {
-                      throw new TypeError('Got activation with no timestamp, cannot create a new Workflow instance');
-                    }
-                    const {
-                      workflowId,
-                      randomnessSeed,
-                      workflowType,
-                      parentWorkflowInfo,
-                      workflowExecutionTimeout,
-                      workflowRunTimeout,
-                      workflowTaskTimeout,
-                      continuedFromExecutionRunId,
-                      continuedFailure,
-                      lastCompletionResult,
-                      firstExecutionRunId,
-                      retryPolicy,
-                      attempt,
-                      cronSchedule,
-                      workflowExecutionExpirationTime,
-                      cronScheduleToScheduleInterval,
-                      memo,
-                      searchAttributes,
-                    } = startWorkflow;
-
-                    const workflowInfo: WorkflowInfo = {
-                      workflowId,
-                      runId: activation.runId,
-                      workflowType,
-                      searchAttributes:
-                        (mapFromPayloads(
-                          searchAttributePayloadConverter,
-                          searchAttributes?.indexedFields
-                        ) as SearchAttributes) || {},
-                      memo: await decodeMapFromPayloads(this.options.loadedDataConverter, memo?.fields),
-                      parent: convertToParentWorkflowType(parentWorkflowInfo),
-                      lastResult: await decodeFromPayloadsAtIndex(
-                        this.options.loadedDataConverter,
-                        0,
-                        lastCompletionResult?.payloads
-                      ),
-                      lastFailure: await decodeOptionalFailureToOptionalError(
-                        this.options.loadedDataConverter,
-                        continuedFailure
-                      ),
-                      taskQueue: this.options.taskQueue,
-                      namespace: this.options.namespace,
-                      firstExecutionRunId,
-                      continuedFromExecutionRunId: continuedFromExecutionRunId || undefined,
-                      startTime: tsToDate(startWorkflow.startTime),
-                      runStartTime: tsToDate(activation.timestamp),
-                      executionTimeoutMs: optionalTsToMs(workflowExecutionTimeout),
-                      executionExpirationTime: optionalTsToDate(workflowExecutionExpirationTime),
-                      runTimeoutMs: optionalTsToMs(workflowRunTimeout),
-                      taskTimeoutMs: tsToMs(workflowTaskTimeout),
-                      retryPolicy: decompileRetryPolicy(retryPolicy),
-                      attempt,
-                      cronSchedule: cronSchedule || undefined,
-                      // 0 is the default, and not a valid value, since crons are at least a minute apart
-                      cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval) || undefined,
-                      historyLength: activation.historyLength,
-                      // Exact truncation for multi-petabyte histories
-                      // A zero value means that it was not set by the server
-                      historySize: activation.historySizeBytes.toNumber(),
-                      continueAsNewSuggested: activation.continueAsNewSuggested,
-                      unsafe: {
-                        now: () => Date.now(), // re-set in initRuntime
-                        isReplaying: activation.isReplaying,
-                      },
-                    };
-                    const logAttributes = workflowLogAttributes(workflowInfo);
-                    this.log.trace('Creating workflow', logAttributes);
-                    const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
-                    const patches = patchJobs.map(({ notifyHasPatch }) => {
-                      const { patchId } = notifyHasPatch;
-                      if (!patchId) {
-                        throw new TypeError('Got a patch without a patchId');
-                      }
-                      return patchId;
-                    });
-
-                    const workflow = await workflowCreator.createWorkflow({
-                      info: workflowInfo,
-                      randomnessSeed: randomnessSeed.toBytes(),
-                      now: tsToMs(activation.timestamp),
-                      patches,
-                      showStackTraceSources: this.options.showStackTraceSources,
-                    });
-
-                    state = { workflow, logAttributes };
-                    this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
-                  } else {
-                    throw new IllegalStateError(
-                      'Received workflow activation for an untracked workflow with no start workflow job'
-                    );
-                  }
-                }
-
-                let isFatalError = false;
-                try {
-                  const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
-                  const unencodedCompletion = await state.workflow.activate(decodedActivation);
-                  const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
-                  this.log.trace('Completed activation', state.logAttributes);
-
-                  return { state, output: { close, completion } };
-                } catch (err) {
-                  if (err instanceof UnexpectedError) {
-                    isFatalError = true;
-                  }
-                  throw err;
-                } finally {
-                  // Fatal error means we cannot call into this workflow again unfortunately
-                  if (!isFatalError) {
-                    // When processing workflows through runReplayHistories, Core may still send non-replay
-                    // activations on the very last Workflow Task in some cases. Though Core is technically exact
-                    // here, the fact that sinks marked with callDuringReplay = false may get called on a replay
-                    // worker is definitely a surprising behavior. For that reason, we extend the isReplaying flag in
-                    // this case to also include anything running under in a replay worker.
-                    const isReplaying = activation.isReplaying || this.isReplayWorker;
-
-                    const calls = await state.workflow.getAndResetSinkCalls();
-                    await this.processSinkCalls(calls, isReplaying);
-                  }
-                }
-              } catch (error) {
-                if (error instanceof UnexpectedError) {
-                  // rethrow and fail the worker
-                  throw error;
-                }
-                this.log.error('Failed to activate workflow', {
-                  ...(state ? state.logAttributes : { runId: activation.runId }),
-                  error,
-                  workflowExists: state !== undefined,
-                });
-                const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
-                  runId: activation.runId,
-                  failed: {
-                    failure: await encodeErrorToFailure(this.options.loadedDataConverter, error),
-                  },
-                }).finish();
-                // We do not dispose of the Workflow yet, wait to be evicted from Core.
-                // This is done to simplify the Workflow lifecycle so Core is the sole driver.
-                return {
-                  state: undefined,
-                  output: { close: true, completion },
-                };
-              }
-            },
-            undefined
-          ),
-          tap(({ close }) => {
-            this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value - 1);
-            if (close) {
-              group$.close();
-              this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value - 1);
-            }
-          }),
-          takeWhile(({ close }) => !close, true /* inclusive */)
-        );
+  protected handleWorkflowActivations(
+    activations$: CloseableGroupedObservable<string, coresdk.workflow_activation.WorkflowActivation>
+  ): Observable<Uint8Array> {
+    const syntheticEvictionActivations$ = this.workflowPollerStateSubject.pipe(
+      // Core has indicated that it will not return any more poll results; evict all cached WFs.
+      filter((state) => state !== 'POLLING'),
+      first(),
+      map(() => ({
+        activation: coresdk.workflow_activation.WorkflowActivation.create({
+          runId: activations$.key,
+          jobs: [{ removeFromCache: Worker.SELF_INDUCED_SHUTDOWN_EVICTION }],
+        }),
+        synthetic: true,
+      })),
+      takeUntil(activations$.pipe(last(undefined, null)))
+    );
+    const activations$$ = activations$.pipe(map((activation) => ({ activation, synthetic: false })));
+    return merge(activations$$, syntheticEvictionActivations$).pipe(
+      tap(() => {
+        this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value + 1);
       }),
+      mergeMapWithState(this.handleActivation.bind(this), undefined),
+      tap(({ close }) => {
+        this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value - 1);
+        if (close) {
+          activations$.close();
+          this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value - 1);
+        }
+      }),
+      takeWhile(({ close }) => !close, true /* inclusive */),
       map(({ completion }) => completion),
       filter((result): result is Uint8Array => result !== undefined)
     );
+  }
+
+  /**
+   * Process a single activation to a completion.
+   */
+  protected async handleActivation(
+    workflow: WorkflowWithLogAttributes | undefined,
+    { activation, synthetic }: { activation: coresdk.workflow_activation.WorkflowActivation; synthetic: boolean }
+  ): Promise<{
+    state: WorkflowWithLogAttributes | undefined;
+    output: { completion?: Uint8Array; close: boolean };
+  }> {
+    try {
+      const removeFromCacheIx = activation.jobs.findIndex(({ removeFromCache }) => removeFromCache);
+      const close = removeFromCacheIx !== -1;
+      const jobs = activation.jobs;
+      if (close) {
+        const asEvictJob = jobs.splice(removeFromCacheIx, 1)[0].removeFromCache;
+        if (asEvictJob) {
+          this.evictionsEmitter.emit('eviction', {
+            runId: activation.runId,
+            evictJob: asEvictJob,
+          } as EvictionWithRunID);
+        }
+      }
+      activation.jobs = jobs;
+      if (jobs.length === 0) {
+        this.logger.trace('Disposing workflow', workflow ? workflow.logAttributes : { runId: activation.runId });
+        await workflow?.workflow.dispose();
+        if (!close) {
+          throw new IllegalStateError('Got a Workflow activation with no jobs');
+        }
+        const completion = synthetic
+          ? undefined
+          : coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
+              runId: activation.runId,
+              successful: {},
+            }).finish();
+        return { state: undefined, output: { close, completion } };
+      }
+
+      if (workflow === undefined) {
+        // Find a workflow start job in the activation jobs list
+        const maybeStartWorkflow = activation.jobs.find((j): j is StartWorkflowJob => j.startWorkflow != null);
+        if (maybeStartWorkflow !== undefined) {
+          workflow = await this.createWorkflow(activation, maybeStartWorkflow.startWorkflow);
+        } else {
+          throw new IllegalStateError(
+            'Received workflow activation for an untracked workflow with no start workflow job'
+          );
+        }
+      }
+
+      let isFatalError = false;
+      try {
+        const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
+        const unencodedCompletion = await workflow.workflow.activate(decodedActivation);
+        const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
+
+        return { state: workflow, output: { close, completion } };
+      } catch (err) {
+        if (err instanceof UnexpectedError) {
+          isFatalError = true;
+        }
+        throw err;
+      } finally {
+        // Fatal error means we cannot call into this workflow again unfortunately
+        if (!isFatalError) {
+          // When processing workflows through runReplayHistories, Core may still send non-replay
+          // activations on the very last Workflow Task in some cases. Though Core is technically exact
+          // here, the fact that sinks marked with callDuringReplay = false may get called on a replay
+          // worker is definitely a surprising behavior. For that reason, we extend the isReplaying flag in
+          // this case to also include anything running under in a replay worker.
+          const isReplaying = activation.isReplaying || this.isReplayWorker;
+
+          const calls = await workflow.workflow.getAndResetSinkCalls();
+          await this.processSinkCalls(calls, isReplaying, workflow.logAttributes);
+        }
+        this.logger.trace('Completed activation', workflow.logAttributes);
+      }
+    } catch (error) {
+      if (error instanceof UnexpectedError) {
+        // rethrow and fail the worker
+        throw error;
+      }
+      this.logger.error('Failed to activate workflow', {
+        runId: activation.runId,
+        ...workflow?.logAttributes,
+        error,
+        workflowExists: workflow !== undefined,
+      });
+      const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
+        runId: activation.runId,
+        failed: {
+          failure: await encodeErrorToFailure(this.options.loadedDataConverter, error),
+        },
+      }).finish();
+      // We do not dispose of the Workflow yet, wait to be evicted from Core.
+      // This is done to simplify the Workflow lifecycle so Core is the sole driver.
+      return { state: undefined, output: { close: true, completion } };
+    }
+  }
+
+  protected async createWorkflow(
+    activation: coresdk.workflow_activation.WorkflowActivation,
+    startWorkflow: coresdk.workflow_activation.IStartWorkflow
+  ): Promise<WorkflowWithLogAttributes> {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const workflowCreator = this.workflowCreator!;
+    if (
+      !(
+        startWorkflow.workflowId != null &&
+        startWorkflow.workflowType != null &&
+        startWorkflow.randomnessSeed != null &&
+        startWorkflow.firstExecutionRunId != null &&
+        startWorkflow.attempt != null &&
+        startWorkflow.startTime != null
+      )
+    ) {
+      throw new TypeError(`Malformed StartWorkflow activation: ${JSON.stringify(startWorkflow)}`);
+    }
+    if (activation.timestamp == null) {
+      throw new TypeError('Got activation with no timestamp, cannot create a new Workflow instance');
+    }
+    const {
+      workflowId,
+      randomnessSeed,
+      workflowType,
+      parentWorkflowInfo,
+      workflowExecutionTimeout,
+      workflowRunTimeout,
+      workflowTaskTimeout,
+      continuedFromExecutionRunId,
+      continuedFailure,
+      lastCompletionResult,
+      firstExecutionRunId,
+      retryPolicy,
+      attempt,
+      cronSchedule,
+      workflowExecutionExpirationTime,
+      cronScheduleToScheduleInterval,
+      memo,
+      searchAttributes,
+    } = startWorkflow;
+
+    const workflowInfo: WorkflowInfo = {
+      workflowId,
+      runId: activation.runId,
+      workflowType,
+      searchAttributes:
+        (mapFromPayloads(searchAttributePayloadConverter, searchAttributes?.indexedFields) as SearchAttributes) || {},
+      memo: await decodeMapFromPayloads(this.options.loadedDataConverter, memo?.fields),
+      parent: convertToParentWorkflowType(parentWorkflowInfo),
+      lastResult: await decodeFromPayloadsAtIndex(this.options.loadedDataConverter, 0, lastCompletionResult?.payloads),
+      lastFailure: await decodeOptionalFailureToOptionalError(this.options.loadedDataConverter, continuedFailure),
+      taskQueue: this.options.taskQueue,
+      namespace: this.options.namespace,
+      firstExecutionRunId,
+      continuedFromExecutionRunId: continuedFromExecutionRunId || undefined,
+      startTime: tsToDate(startWorkflow.startTime),
+      runStartTime: tsToDate(activation.timestamp),
+      executionTimeoutMs: optionalTsToMs(workflowExecutionTimeout),
+      executionExpirationTime: optionalTsToDate(workflowExecutionExpirationTime),
+      runTimeoutMs: optionalTsToMs(workflowRunTimeout),
+      taskTimeoutMs: tsToMs(workflowTaskTimeout),
+      retryPolicy: decompileRetryPolicy(retryPolicy),
+      attempt,
+      cronSchedule: cronSchedule || undefined,
+      // 0 is the default, and not a valid value, since crons are at least a minute apart
+      cronScheduleToScheduleInterval: optionalTsToMs(cronScheduleToScheduleInterval) || undefined,
+      historyLength: activation.historyLength,
+      // Exact truncation for multi-petabyte histories
+      // A zero value means that it was not set by the server
+      historySize: activation.historySizeBytes.toNumber(),
+      continueAsNewSuggested: activation.continueAsNewSuggested,
+      currentBuildId: activation.buildIdForCurrentTask,
+      unsafe: {
+        now: () => Date.now(), // re-set in initRuntime
+        isReplaying: activation.isReplaying,
+      },
+    };
+    const logAttributes = workflowLogAttributes(workflowInfo);
+    this.logger.trace('Creating workflow', logAttributes);
+    const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
+    const patches = patchJobs.map(({ notifyHasPatch }) => {
+      const { patchId } = notifyHasPatch;
+      if (!patchId) {
+        throw new TypeError('Got a patch without a patchId');
+      }
+      return patchId;
+    });
+
+    const workflow = await workflowCreator.createWorkflow({
+      info: workflowInfo,
+      randomnessSeed: randomnessSeed.toBytes(),
+      now: tsToMs(activation.timestamp),
+      patches,
+      showStackTraceSources: this.options.showStackTraceSources,
+    });
+
+    this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
+    return { workflow, logAttributes };
   }
 
   /**
@@ -1281,7 +1269,11 @@ export class Worker {
    * This function does not throw, it will log in case of missing sinks
    * or failed sink function invocations.
    */
-  protected async processSinkCalls(externalCalls: SinkCall[], isReplaying: boolean): Promise<void> {
+  protected async processSinkCalls(
+    externalCalls: SinkCall[],
+    isReplaying: boolean,
+    logAttributes: Record<string, unknown>
+  ): Promise<void> {
     const { sinks } = this.options;
 
     const filteredCalls = externalCalls
@@ -1292,7 +1284,8 @@ export class Worker {
       // Reject calls to undefined sink definitions
       .filter(({ call: { ifaceName, fnName }, sink }) => {
         if (sink !== undefined) return true;
-        this.log.error('Workflow referenced an unregistered external sink', {
+        this.logger.error('Workflow referenced an unregistered external sink', {
+          ...logAttributes,
           ifaceName,
           fnName,
         });
@@ -1307,7 +1300,8 @@ export class Worker {
         try {
           await sink?.fn(call.workflowInfo, ...call.args);
         } catch (error) {
-          this.log.error('External sink function threw an error', {
+          this.logger.error('External sink function threw an error', {
+            ...logAttributes,
             ifaceName: call.ifaceName,
             fnName: call.fnName,
             error,
@@ -1350,7 +1344,7 @@ export class Worker {
       // The only way for this observable to be closed is by state changing to DRAINED meaning that all in-flight activities have been resolved and thus there should not be any heartbeats to send.
       this.takeUntilState('DRAINED'),
       tap({
-        complete: () => this.log.debug('Heartbeats complete'),
+        complete: () => this.logger.debug('Heartbeats complete'),
       }),
       closeableGroupBy(({ base64TaskToken }) => base64TaskToken),
       mergeMap((group$) =>
@@ -1370,7 +1364,7 @@ export class Worker {
 
               switch (input.type) {
                 case 'heartbeat':
-                  this.log.trace('Got activity heartbeat', activityLogAttributes(input.info));
+                  this.logger.trace('Got activity heartbeat', activityLogAttributes(input.info));
                   if (state.processing) {
                     // We're already processing a heartbeat, mark this one as pending
                     return storePending(state, input);
@@ -1436,7 +1430,7 @@ export class Worker {
               try {
                 payload = await encodeToPayload(this.options.loadedDataConverter, details);
               } catch (error: any) {
-                this.log.warn('Failed to encode heartbeat details, cancelling Activity', {
+                this.logger.warn('Failed to encode heartbeat details, cancelling Activity', {
                   error,
                   ...activityLogAttributes(info),
                 });
@@ -1474,7 +1468,7 @@ export class Worker {
         this.hasOutstandingWorkflowPoll = false;
       }
       const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(buffer));
-      this.log.trace('Got workflow activation', activation);
+      this.logger.trace('Got workflow activation', activation);
 
       return activation;
     }).pipe(
@@ -1495,18 +1489,19 @@ export class Worker {
   protected workflow$(): Observable<void> {
     // This Worker did not register any workflows, return early
     if (this.workflowCreator === undefined) {
-      this.log.warn('No workflows registered, not polling for workflow tasks');
+      this.logger.warn('No workflows registered, not polling for workflow tasks');
       this.workflowPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
     }
     return this.workflowPoll$().pipe(
-      this.workflowOperator(),
+      closeableGroupBy((activation) => activation.runId),
+      mergeMap(this.handleWorkflowActivations.bind(this)),
       mergeMap(async (completion) => {
         await this.nativeWorker.completeWorkflowActivation(completion.buffer.slice(completion.byteOffset));
       }),
       tap({
         complete: () => {
-          this.log.debug('Workflows complete');
+          this.logger.debug('Workflow Worker terminated');
         },
       })
     );
@@ -1527,7 +1522,7 @@ export class Worker {
       const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
       const { taskToken, ...rest } = task;
       const base64TaskToken = formatTaskToken(taskToken);
-      this.log.trace('Got activity task', {
+      this.logger.trace('Got activity task', {
         taskToken: base64TaskToken,
         ...rest,
       });
@@ -1550,8 +1545,8 @@ export class Worker {
 
   protected activity$(): Observable<void> {
     // This Worker did not register any activities, return early
-    if (this.options.activities === undefined || Object.keys(this.options.activities).length === 0) {
-      if (!this.isReplayWorker) this.log.warn('No activities registered, not polling for activity tasks');
+    if (!this.options.activities?.size) {
+      if (!this.isReplayWorker) this.logger.warn('No activities registered, not polling for activity tasks');
       this.activityPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
     }
@@ -1560,7 +1555,7 @@ export class Worker {
       mergeMap(async (completion) => {
         await this.nativeWorker.completeActivityTask(completion.buffer.slice(completion.byteOffset));
       }),
-      tap({ complete: () => this.log.debug('Activities complete') })
+      tap({ complete: () => this.logger.debug('Activity Worker terminated') })
     );
   }
 
@@ -1654,7 +1649,7 @@ export class Worker {
                 this.state = 'STOPPED';
               },
               error: (error) => {
-                this.log.error('Worker failed', { error });
+                this.logger.error('Worker failed', { error });
                 this.state = 'FAILED';
               },
             })
@@ -1717,7 +1712,7 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
   setTimeout(() => {
     script = undefined;
     context = undefined;
-  }, 10000);
+  }, 10000).unref();
 
   return { code, sourceMap, filename };
 }

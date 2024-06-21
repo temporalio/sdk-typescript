@@ -19,7 +19,10 @@ export interface InterceptorOptions {
 export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundCallsInterceptor {
   protected readonly tracer: otel.Tracer;
 
-  constructor(protected readonly ctx: ActivityContext, options?: InterceptorOptions) {
+  constructor(
+    protected readonly ctx: ActivityContext,
+    options?: InterceptorOptions
+  ) {
     this.tracer = options?.tracer ?? otel.trace.getTracer('@temporalio/interceptor-activity');
   }
 

@@ -15,6 +15,7 @@ const coreProtoPath = resolve(protoBaseDir, 'local/temporal/sdk/core/core_interf
 const workflowServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/workflowservice/v1/service.proto');
 const operatorServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/operatorservice/v1/service.proto');
 const errorDetailsProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/errordetails/v1/message.proto');
+const workflowMetadataProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/sdk/v1/workflow_metadata.proto');
 const testServiceRRProtoPath = resolve(
   protoBaseDir,
   'testsrv_upstream/temporal/api/testservice/v1/request_response.proto'
@@ -51,6 +52,7 @@ async function compileProtos(dtsOutputFile, ...args) {
     workflowServiceProtoPath,
     operatorServiceProtoPath,
     errorDetailsProtoPath,
+    workflowMetadataProtoPath,
     testServiceRRProtoPath,
     testServiceProtoPath,
     healthServiceProtoPath,
@@ -84,7 +86,7 @@ async function compileProtos(dtsOutputFile, ...args) {
 async function main() {
   mkdirSync(outputDir, { recursive: true });
 
-  const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
+  const protoFiles = glob.sync('**/*.proto', { cwd: protoBaseDir, absolute: true, root: '' });
   const protosMTime = Math.max(...protoFiles.map(mtime));
   const genMTime = mtime(jsOutputFile);
 

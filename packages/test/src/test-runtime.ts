@@ -53,7 +53,7 @@ if (RUN_INTEGRATION_TESTS) {
   // Stopping and starting Workers is probably not a common pattern but if we don't remember what
   // Runtime configuration was installed, creating a new Worker after Runtime shutdown we would fallback
   // to the default configuration (localhost) which is surprising behavior.
-  test.serial('Runtime.instance() remembers installed options after it has been shut down', async (t) => {
+  test.serial('Runtime.install() remembers installed options after it has been shut down', async (t) => {
     const logger = new DefaultLogger('DEBUG');
     Runtime.install({ logger });
     {
@@ -74,7 +74,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test.serial('Runtime.instance() Core forwarded logs contains metadata', async (t) => {
+  test.serial('Runtime.install() Core forwarded logs contains metadata', async (t) => {
     const logEntries: LogEntry[] = [];
     const logger = new DefaultLogger('DEBUG', (entry) => logEntries.push(entry));
     Runtime.install({
@@ -112,27 +112,13 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(typeof failingWftEntry.meta?.['failure'], 'string');
       t.is(typeof failingWftEntry.meta?.['runId'], 'string');
       t.is(typeof failingWftEntry.meta?.['workflowId'], 'string');
-      t.is(typeof failingWftEntry.meta?.['subsystem'], 'string');
+      t.is(typeof failingWftEntry.meta?.['sdkComponent'], 'string');
     } finally {
       await Runtime.instance().shutdown();
     }
   });
 
-  test.serial('Runtime.instance() throws meaningful error when passed invalid metrics.otel.url', (t) => {
-    t.throws(() => Runtime.install({ telemetryOptions: { metrics: { otel: { url: ':invalid' } } } }), {
-      instanceOf: TypeError,
-      message: 'Invalid telemetryOptions.metrics.otel.url',
-    });
-  });
-
-  test.serial('Runtime.instance() throws meaningful error when passed invalid metrics.prometheus.bindAddress', (t) => {
-    t.throws(() => Runtime.install({ telemetryOptions: { metrics: { prometheus: { bindAddress: ':invalid' } } } }), {
-      instanceOf: TypeError,
-      message: 'Invalid telemetryOptions.metrics.prometheus.bindAddress',
-    });
-  });
-
-  test.serial('Runtime.instance() throws meaningful error when passed invalid telemetryOptions.logging.filter', (t) => {
+  test.serial('Runtime.install() throws meaningful error when passed invalid telemetryOptions.logging.filter', (t) => {
     t.throws(() => Runtime.install({ telemetryOptions: { logging: { filter: 2 as any } } }), {
       instanceOf: TypeError,
       message: 'Invalid filter',

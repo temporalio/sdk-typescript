@@ -1,5 +1,6 @@
 import type { temporal } from '@temporalio/proto';
 import { checkExtends, errorMessage, isRecord, SymbolBasedInstanceOfError } from './type-helpers';
+import { Duration } from './time';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';
 export type ProtoFailure = temporal.api.failure.v1.IFailure;
@@ -51,7 +52,10 @@ export class TemporalFailure extends Error {
    */
   public failure?: ProtoFailure;
 
-  constructor(message?: string | undefined | null, public readonly cause?: Error) {
+  constructor(
+    message?: string | undefined | null,
+    public readonly cause?: Error
+  ) {
     super(message ?? undefined);
   }
 }
@@ -59,7 +63,11 @@ export class TemporalFailure extends Error {
 /** Exceptions originated at the Temporal service. */
 @SymbolBasedInstanceOfError('ServerFailure')
 export class ServerFailure extends TemporalFailure {
-  constructor(message: string | undefined, public readonly nonRetryable: boolean, cause?: Error) {
+  constructor(
+    message: string | undefined,
+    public readonly nonRetryable: boolean,
+    cause?: Error
+  ) {
     super(message, cause);
   }
 }
@@ -96,7 +104,8 @@ export class ApplicationFailure extends TemporalFailure {
     public readonly type?: string | undefined | null,
     public readonly nonRetryable?: boolean | undefined | null,
     public readonly details?: unknown[] | undefined | null,
-    cause?: Error
+    cause?: Error,
+    public readonly nextRetryDelay?: Duration | undefined | null
   ) {
     super(message, cause);
   }
@@ -119,8 +128,8 @@ export class ApplicationFailure extends TemporalFailure {
    * By default, will be retryable (unless its `type` is included in {@link RetryPolicy.nonRetryableErrorTypes}).
    */
   public static create(options: ApplicationFailureOptions): ApplicationFailure {
-    const { message, type, nonRetryable = false, details, cause } = options;
-    return new this(message, type, nonRetryable, details, cause);
+    const { message, type, nonRetryable = false, details, nextRetryDelay, cause } = options;
+    return new this(message, type, nonRetryable, details, cause, nextRetryDelay);
   }
 
   /**
@@ -174,6 +183,15 @@ export interface ApplicationFailureOptions {
   details?: unknown[];
 
   /**
+   * If set, overrides the delay until the next retry of this Activity (this field is ignored if
+   * this error does not originate from an Activity).
+   *
+   * Retry attempts will still be subject to the maximum retries limit and total time limit defined
+   * by the policy.
+   */
+  nextRetryDelay?: Duration;
+
+  /**
    * Cause of the failure
    */
   cause?: Error;
@@ -188,7 +206,11 @@ export interface ApplicationFailureOptions {
  */
 @SymbolBasedInstanceOfError('CancelledFailure')
 export class CancelledFailure extends TemporalFailure {
-  constructor(message: string | undefined, public readonly details: unknown[] = [], cause?: Error) {
+  constructor(
+    message: string | undefined,
+    public readonly details: unknown[] = [],
+    cause?: Error
+  ) {
     super(message, cause);
   }
 }
@@ -253,6 +275,25 @@ export class ChildWorkflowFailure extends TemporalFailure {
     cause?: Error
   ) {
     super('Child Workflow execution failed', cause);
+  }
+}
+
+/**
+ * This exception is thrown in the following cases:
+ *  - Workflow with the same Workflow Id is currently running
+ *  - There is a closed Workflow with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
+ *    is `WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE`
+ *  - There is closed Workflow in the `Completed` state with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
+ *    is `WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY`
+ */
+@SymbolBasedInstanceOfError('WorkflowExecutionAlreadyStartedError')
+export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
+  constructor(
+    message: string,
+    public readonly workflowId: string,
+    public readonly workflowType: string
+  ) {
+    super(message);
   }
 }
 

@@ -519,7 +519,10 @@ export class ScheduleClient extends BaseClient {
  */
 @SymbolBasedInstanceOfError('ScheduleAlreadyRunning')
 export class ScheduleAlreadyRunning extends Error {
-  constructor(message: string, public readonly scheduleId: string) {
+  constructor(
+    message: string,
+    public readonly scheduleId: string
+  ) {
     super(message);
   }
 }
@@ -532,7 +535,10 @@ export class ScheduleAlreadyRunning extends Error {
  */
 @SymbolBasedInstanceOfError('ScheduleNotFoundError')
 export class ScheduleNotFoundError extends Error {
-  constructor(message: string, public readonly scheduleId: string) {
+  constructor(
+    message: string,
+    public readonly scheduleId: string
+  ) {
     super(message);
   }
 }

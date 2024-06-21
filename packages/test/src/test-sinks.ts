@@ -13,12 +13,16 @@ import {
 import { LoggerSinksInternal as DefaultLoggerSinks } from '@temporalio/workflow/lib/logs';
 import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
+import { SdkComponent } from '@temporalio/common';
 import { RUN_INTEGRATION_TESTS, Worker, registerDefaultCustomSearchAttributes } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 
 class DependencyError extends Error {
-  constructor(public readonly ifaceName: string, public readonly fnName: string) {
+  constructor(
+    public readonly ifaceName: string,
+    public readonly fnName: string
+  ) {
     super(`${ifaceName}.${fnName}`);
   }
 }
@@ -113,7 +117,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
 
     // Capture volatile values that are hard to predict
-    const { historySize, startTime, runStartTime } = recordedCalls[0].info;
+    const { historySize, startTime, runStartTime, currentBuildId } = recordedCalls[0].info;
     t.true(historySize > 300);
 
     const info: WorkflowInfo = {
@@ -143,6 +147,7 @@ if (RUN_INTEGRATION_TESTS) {
       historySize,
       startTime,
       runStartTime,
+      currentBuildId,
       // unsafe.now() doesn't make it through serialization, but .now is required, so we need to cast
       unsafe: {
         isReplaying: false,
@@ -162,6 +167,10 @@ if (RUN_INTEGRATION_TESTS) {
         meta: {
           ...x.meta,
           workflowInfo: fixWorkflowInfoDates(x.meta?.workflowInfo),
+          namespace: info.namespace,
+          runId: info.runId,
+          workflowId: info.workflowId,
+          workflowType: info.workflowType,
         },
         timestampNanos: undefined,
       })),
@@ -173,6 +182,12 @@ if (RUN_INTEGRATION_TESTS) {
           ifaceName: error.ifaceName,
           fnName: error.fnName,
           workflowInfo: info,
+          sdkComponent: SdkComponent.worker,
+          taskQueue,
+          namespace: info.namespace,
+          runId: info.runId,
+          workflowId: info.workflowId,
+          workflowType: info.workflowType,
         },
         timestampNanos: undefined,
       }))
