@@ -140,8 +140,8 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
   ): Promise<Ret>;
 
   /**
-   * Start an Update and receive a handle to the Update.
-   * The Update validator (if present) is run before the handle is returned.
+   * Start an Update and receive a handle to the Update. The Update validator (if present) is run
+   * before the handle is returned.
    *
    * @experimental Update is an experimental feature.
    *
@@ -150,22 +150,41 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    *  mean the update itself was timed out or cancelled.
    *
    * @param def an Update definition as returned from {@link defineUpdate}
-   * @param options Update arguments
+   * @param options update arguments, and update lifecycle stage to wait for
+   *
+   * Currently, startUpdate always waits until a worker is accepting tasks for the workflow and the
+   * update is accepted or rejected, and the options object must be at least
+   * ```ts
+   * {
+   *   waitForStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED
+   * }
+   * ```
+   * If the update takes arguments, then the options object must additionally contain an `args`
+   * property with an array of argument values.
    *
    * @example
    * ```ts
-   * const updateHandle = await handle.startUpdate(incrementAndGetValueUpdate, { args: [2] });
+   * const updateHandle = await handle.startUpdate(incrementAndGetValueUpdate, {
+   *   args: [2],
+   *   waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+   * });
    * const updateResult = await updateHandle.result();
    * ```
    */
   startUpdate<Ret, Args extends [any, ...any[]], Name extends string = string>(
     def: UpdateDefinition<Ret, Args, Name> | string,
-    options: WorkflowUpdateOptions & { args: Args }
+    options: WorkflowUpdateOptions & {
+      args: Args;
+      waitForStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED;
+    }
   ): Promise<WorkflowUpdateHandle<Ret>>;
 
   startUpdate<Ret, Args extends [], Name extends string = string>(
     def: UpdateDefinition<Ret, Args, Name> | string,
-    options?: WorkflowUpdateOptions & { args?: Args }
+    options: WorkflowUpdateOptions & {
+      args?: Args;
+      waitForStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED;
+    }
   ): Promise<WorkflowUpdateHandle<Ret>>;
 
   /**
@@ -1162,14 +1181,12 @@ export class WorkflowClient extends BaseClient {
       },
       async startUpdate<Ret, Args extends any[]>(
         def: UpdateDefinition<Ret, Args> | string,
-        options?: WorkflowUpdateOptions & { args?: Args }
+        options: WorkflowUpdateOptions & {
+          args?: Args;
+          waitForStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED;
+        }
       ): Promise<WorkflowUpdateHandle<Ret>> {
-        return await _startUpdate(
-          def,
-          temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage
-            .UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
-          options
-        );
+        return await _startUpdate(def, options.waitForStage, options);
       },
       async executeUpdate<Ret, Args extends any[]>(
         def: UpdateDefinition<Ret, Args> | string,
