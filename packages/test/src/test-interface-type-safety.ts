@@ -8,6 +8,7 @@ import {
   defineUpdate,
 } from '@temporalio/workflow';
 import { WorkflowHandle } from '@temporalio/client';
+import { temporal } from '@temporalio/proto';
 
 test('SignalDefinition Name type safety', (t) => {
   // @ts-expect-error Assert expect a type error when generic and concrete names do not match
@@ -104,29 +105,79 @@ test('Can call signal on any WorkflowHandle', async (t) => {
   t.pass();
 });
 
-test('startUpdate and executeUpdate call signatures require `args` iff update takes args', async (t) => {
-  const nullaryUpdate = defineUpdate<string>('my-update');
-  const unaryUpdate = defineUpdate<string, [number]>('my-update');
+test('startUpdate and executeUpdate call signatures', async (t) => {
+  // startUpdate and executeUpdate call signatures both require `args` iff update takes args.
+  // startUpdate requires `waitForStage=Accepted`.
+  // executeUpdate does not accept `waitForStage`.
+  const nullaryUpdate = defineUpdate<string>('my-nullary-update');
+  const unaryUpdate = defineUpdate<string, [number]>('my-unary-update');
+  const UpdateWorkflowExecutionLifecycleStage = temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
 
   async function _assertion<T extends Workflow>(handle: WorkflowHandle<T>) {
+    // @ts-expect-error: waitForStage required
     await handle.startUpdate(nullaryUpdate);
+    // @ts-expect-error: waitForStage required
     await handle.startUpdate(nullaryUpdate, {});
+    // @ts-expect-error: waitForStage required
     await handle.startUpdate(nullaryUpdate, { args: [] });
-    await handle.executeUpdate(nullaryUpdate);
+    // @ts-expect-error: waitForStage must be ACCEPTED
+    await handle.startUpdate(nullaryUpdate, {
+      waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ADMITTED,
+    });
+    // @ts-expect-error: waitForStage must be ACCEPTED
+    await handle.startUpdate(nullaryUpdate, {
+      waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_COMPLETED,
+    });
+    // @ts-expect-error: waitForStage must be ACCEPTED
+    await handle.startUpdate(nullaryUpdate, {
+      waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_UNSPECIFIED,
+    });
+    // @ts-expect-error: args must be empty if present
+    await handle.startUpdate(nullaryUpdate, {
+      args: [1],
+      waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+    });
+    // valid
+    await handle.startUpdate(nullaryUpdate, {
+      waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+    });
+    await handle.startUpdate(nullaryUpdate, {
+      args: [],
+      waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+    });
+    // @ts-expect-error:executeUpdate doesn't accept waitForStage
+    await handle.executeUpdate(nullaryUpdate, {
+      waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+    });
+    // @ts-expect-error:executeUpdate doesn't accept waitForStage
+    await handle.executeUpdate(nullaryUpdate, {
+      waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_COMPLETED,
+    });
+    // valid
     await handle.executeUpdate(nullaryUpdate, {});
     await handle.executeUpdate(nullaryUpdate, { args: [] });
-    // @ts-expect-error
-    await handle.startUpdate(unaryUpdate);
-    // @ts-expect-error
-    await handle.startUpdate(unaryUpdate, {});
-    // @ts-expect-error
-    await handle.startUpdate(unaryUpdate, { args: [] });
-    // @ts-expect-error
-    await handle.executeUpdate(unaryUpdate);
-    // @ts-expect-error
-    await handle.executeUpdate(unaryUpdate, {});
-    // @ts-expect-error
-    await handle.executeUpdate(unaryUpdate, { args: [] });
+
+    // @ts-expect-error: args required
+    await handle.startUpdate(unaryUpdate, {
+      waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+    });
+    // @ts-expect-error: args required
+    await handle.startUpdate(unaryUpdate, {
+      args: [],
+      waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+    });
+    // valid
+    await handle.startUpdate(unaryUpdate, {
+      args: [1],
+      waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+    });
+    // @ts-expect-error:executeUpdate doesn't accept waitForStage
+    await handle.executeUpdate(unaryUpdate, {
+      args: [1],
+      waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+    });
+    // valid
+    await handle.executeUpdate(unaryUpdate, { args: [1] });
   }
   t.pass();
 });
