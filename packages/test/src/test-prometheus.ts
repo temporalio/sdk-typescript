@@ -105,6 +105,8 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
       );
       // Verify 'total' suffix
       t.assert(text.includes('temporal_worker_start_total'));
+      // Verify prefix exists on client request metrics
+      t.assert(text.includes('temporal_long_request'));
     });
   } finally {
     await localEnv.teardown();

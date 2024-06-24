@@ -8,6 +8,7 @@
  */
 import test from 'ava';
 import { Runtime } from '@temporalio/worker';
+import { TransportError } from '@temporalio/core-bridge';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 
@@ -40,6 +41,20 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(worker.getState(), 'RUNNING');
     await p;
     t.is(worker.getState(), 'STOPPED');
+  });
+
+  test.serial('Worker fails validation against unknown namespace', async (t) => {
+    await t.throwsAsync(
+      Worker.create({
+        ...defaultOptions,
+        taskQueue: 'shutdown-test',
+        namespace: 'oogabooga',
+      }),
+      {
+        instanceOf: TransportError,
+        message: /Namespace oogabooga is not found/,
+      }
+    );
   });
 }
 

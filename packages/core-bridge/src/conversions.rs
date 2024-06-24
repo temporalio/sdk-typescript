@@ -20,7 +20,9 @@ use temporal_sdk_core::{
         TestServerConfigBuilder,
     },
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
-    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TlsConfig, Url,
+    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, ResourceBasedSlotsOptions,
+    ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions, RetryConfig, SlotSupplierOptions,
+    TlsConfig, TunerHolderOptionsBuilder, Url,
 };
 
 pub enum EphemeralServerConfig {
@@ -49,7 +51,7 @@ type BoxedMeterMaker = Box<dyn FnOnce() -> Result<Arc<dyn CoreMeter>, String> + 
 
 pub(crate) type TelemOptsRes = (TelemetryOptions, Option<BoxedMeterMaker>);
 
-pub trait ObjectHandleConversionsExt {
+pub(crate) trait ObjectHandleConversionsExt {
     fn set_default(&self, cx: &mut FunctionContext, key: &str, value: &str) -> NeonResult<()>;
     fn as_client_options(&self, ctx: &mut FunctionContext) -> NeonResult<ClientOptions>;
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemOptsRes>;
@@ -63,6 +65,11 @@ pub trait ObjectHandleConversionsExt {
         &self,
         cx: &mut FunctionContext,
     ) -> NeonResult<HashMap<String, String>>;
+    fn as_slot_supplier(
+        &self,
+        cx: &mut FunctionContext,
+        rbo: &mut Option<ResourceBasedSlotsOptions>,
+    ) -> NeonResult<SlotSupplierOptions>;
 }
 
 impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
@@ -354,12 +361,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let task_queue = js_value_getter!(cx, self, "taskQueue", JsString);
         let enable_remote_activities =
             js_value_getter!(cx, self, "enableNonLocalActivities", JsBoolean);
-        let max_outstanding_activities =
-            js_value_getter!(cx, self, "maxConcurrentActivityTaskExecutions", JsNumber) as usize;
-        let max_outstanding_local_activities =
-            js_value_getter!(cx, self, "maxConcurrentLocalActivityExecutions", JsNumber) as usize;
-        let max_outstanding_workflow_tasks =
-            js_value_getter!(cx, self, "maxConcurrentWorkflowTaskExecutions", JsNumber) as usize;
         let max_concurrent_wft_polls =
             js_value_getter!(cx, self, "maxConcurrentWorkflowTaskPolls", JsNumber) as usize;
         let max_concurrent_at_polls =
@@ -401,14 +402,46 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let nonsticky_to_sticky_poll_ratio =
             js_value_getter!(cx, self, "nonStickyToStickyPollRatio", JsNumber) as f32;
 
+        let tuner = if let Some(tuner) = js_optional_getter!(cx, self, "tuner", JsObject) {
+            let mut tuner_holder = TunerHolderOptionsBuilder::default();
+            let mut rbo = None;
+
+            if let Some(wf_slot_supp) =
+                js_optional_getter!(cx, &tuner, "workflowTaskSlotSupplier", JsObject)
+            {
+                tuner_holder.workflow_slot_options(wf_slot_supp.as_slot_supplier(cx, &mut rbo)?);
+            }
+            if let Some(act_slot_supp) =
+                js_optional_getter!(cx, &tuner, "activityTaskSlotSupplier", JsObject)
+            {
+                tuner_holder.activity_slot_options(act_slot_supp.as_slot_supplier(cx, &mut rbo)?);
+            }
+            if let Some(local_act_slot_supp) =
+                js_optional_getter!(cx, &tuner, "localActivityTaskSlotSupplier", JsObject)
+            {
+                tuner_holder.local_activity_slot_options(
+                    local_act_slot_supp.as_slot_supplier(cx, &mut rbo)?,
+                );
+            }
+            if let Some(rbo) = rbo {
+                tuner_holder.resource_based_options(rbo);
+            }
+            match tuner_holder.build_tuner_holder() {
+                Err(e) => {
+                    return cx.throw_error(format!("Invalid tuner options: {:?}", e));
+                }
+                Ok(th) => Arc::new(th),
+            }
+        } else {
+            return cx.throw_error("Missing tuner");
+        };
+
         match WorkerConfigBuilder::default()
             .worker_build_id(js_value_getter!(cx, self, "buildId", JsString))
             .client_identity_override(Some(js_value_getter!(cx, self, "identity", JsString)))
             .use_worker_versioning(js_value_getter!(cx, self, "useVersioning", JsBoolean))
             .no_remote_activities(!enable_remote_activities)
-            .max_outstanding_workflow_tasks(max_outstanding_workflow_tasks)
-            .max_outstanding_activities(max_outstanding_activities)
-            .max_outstanding_local_activities(max_outstanding_local_activities)
+            .tuner(tuner)
             .max_concurrent_wft_polls(max_concurrent_wft_polls)
             .max_concurrent_at_polls(max_concurrent_at_polls)
             .nonsticky_to_sticky_poll_ratio(nonsticky_to_sticky_poll_ratio)
@@ -531,6 +564,46 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 "Invalid ephemeral server type: {}, expected 'dev-server' or 'time-skipping'",
                 s
             )),
+        }
+    }
+
+    fn as_slot_supplier(
+        &self,
+        cx: &mut FunctionContext,
+        rbo: &mut Option<ResourceBasedSlotsOptions>,
+    ) -> NeonResult<SlotSupplierOptions> {
+        match js_value_getter!(cx, self, "type", JsString).as_str() {
+            "fixed-size" => Ok(SlotSupplierOptions::FixedSize {
+                slots: js_value_getter!(cx, self, "numSlots", JsNumber) as usize,
+            }),
+            "resource-based" => {
+                let min_slots = js_value_getter!(cx, self, "minimumSlots", JsNumber);
+                let max_slots = js_value_getter!(cx, self, "maximumSlots", JsNumber);
+                let ramp_throttle = js_value_getter!(cx, self, "rampThrottleMs", JsNumber) as u64;
+                if let Some(tuner_opts) = js_optional_getter!(cx, self, "tunerOptions", JsObject) {
+                    let target_mem =
+                        js_value_getter!(cx, &tuner_opts, "targetMemoryUsage", JsNumber);
+                    let target_cpu = js_value_getter!(cx, &tuner_opts, "targetCpuUsage", JsNumber);
+                    *rbo = Some(
+                        ResourceBasedSlotsOptionsBuilder::default()
+                            .target_cpu_usage(target_cpu)
+                            .target_mem_usage(target_mem)
+                            .build()
+                            .expect("Building ResourceBasedSlotsOptions can't fail"),
+                    )
+                } else {
+                    return cx
+                        .throw_type_error("Resource based slot supplier requires tunerOptions");
+                };
+                Ok(SlotSupplierOptions::ResourceBased(
+                    ResourceSlotOptions::new(
+                        min_slots as usize,
+                        max_slots as usize,
+                        Duration::from_millis(ramp_throttle),
+                    ),
+                ))
+            }
+            _ => cx.throw_type_error("Invalid slot supplier type"),
         }
     }
 }
