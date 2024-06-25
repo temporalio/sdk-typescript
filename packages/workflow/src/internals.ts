@@ -660,9 +660,7 @@ export class Activator implements ActivationHandler {
       untrackPromise(res);
       return res;
     };
-    untrackPromise(
-      UpdateScope.updateWithInfo(updateId, name, doUpdateImpl)
-    );
+    untrackPromise(UpdateScope.updateWithInfo(updateId, name, doUpdateImpl));
   }
 
   protected async updateNextHandler({ name, args }: UpdateInput): Promise<unknown> {
