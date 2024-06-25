@@ -661,9 +661,7 @@ export class Activator implements ActivationHandler {
       return res;
     };
     untrackPromise(
-      UpdateScope.updateWithInfo(updateId, name, doUpdateImpl).catch((error: any) => {
-        throw error;
-      })
+      UpdateScope.updateWithInfo(updateId, name, doUpdateImpl)
     );
   }
 
