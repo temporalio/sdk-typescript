@@ -461,3 +461,74 @@ test('Interruption of update by server long-poll timeout is invisible to client'
     t.deepEqual(wfResult, [arg, 'done', '$']);
   });
 });
+
+export const currentInfoUpdate = wf.defineUpdate<string, []>('current-info-update');
+
+export async function workflowWithCurrentUpdateInfo(): Promise<string[]> {
+  const state: Promise<string>[] = [];
+  const getUpdateId = async (): Promise<string> => {
+    await wf.sleep(10);
+    const info = wf.currentUpdateInfo();
+    if (info === undefined) {
+      throw new Error('No current update info');
+    }
+    return info.id;
+  };
+  const updateHandler = async (): Promise<string> => {
+    const info = wf.currentUpdateInfo();
+    if (info === undefined || info.name !== 'current-info-update') {
+      throw new Error(`Invalid current update info in updateHandler: info ${info?.name}`);
+    }
+    const id = await getUpdateId();
+    if (info.id !== id) {
+      throw new Error(`Update id changed: before ${info.id} after ${id}`);
+    }
+
+    state.push(getUpdateId());
+    // Re-fetch and return
+    const infoAfter = wf.currentUpdateInfo();
+    if (infoAfter === undefined) {
+      throw new Error('Invalid current update info in updateHandler - after');
+    }
+    return infoAfter.id;
+  };
+
+  const validator = (): void => {
+    const info = wf.currentUpdateInfo();
+    if (info === undefined || info.name !== 'current-info-update') {
+      throw new Error(`Invalid current update info in validator: info ${info?.name}`);
+    }
+  };
+
+  wf.setHandler(currentInfoUpdate, updateHandler, { validator });
+
+  if (wf.currentUpdateInfo() !== undefined) {
+    throw new Error('Current update info not undefined outside handler');
+  }
+
+  await wf.condition(() => state.length === 5);
+
+  if (wf.currentUpdateInfo() !== undefined) {
+    throw new Error('Current update info not undefined outside handler - after');
+  }
+
+  return await Promise.all(state);
+}
+
+test('currentUpdateInfo returns the update id', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const wfHandle = await startWorkflow(workflowWithCurrentUpdateInfo);
+    const updateIds = await Promise.all([
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update1' }),
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update2' }),
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update3' }),
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update4' }),
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update5' }),
+    ]);
+    t.deepEqual(updateIds, ['update1', 'update2', 'update3', 'update4', 'update5']);
+    const wfResults = await wfHandle.result();
+    t.deepEqual(wfResults.sort(), ['update1', 'update2', 'update3', 'update4', 'update5']);
+  });
+});
