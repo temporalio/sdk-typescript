@@ -50,6 +50,20 @@ export class WorkflowUpdateFailedError extends Error {
 }
 
 /**
+ * Thrown by the client if the Update call timed out or was cancelled.
+ * This doesn't mean the update itself was timed out or cancelled.
+ */
+@SymbolBasedInstanceOfError('WorkflowUpdateRPCTimeoutOrCancelledError')
+export class WorkflowUpdateRPCTimeoutOrCancelledError extends Error {
+  public readonly cause?: Error;
+
+  public constructor(message: string, opts?: { cause: Error }) {
+    super(message);
+    this.cause = opts?.cause;
+  }
+}
+
+/**
  * Thrown the by client while waiting on Workflow execution result if Workflow
  * continues as new.
  *

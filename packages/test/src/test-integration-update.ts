@@ -1,5 +1,4 @@
-import { status as grpcStatus } from '@grpc/grpc-js';
-import { isGrpcServiceError } from '@temporalio/client';
+import { WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
@@ -108,7 +107,7 @@ test('Update handle can be created from identifiers and used to obtain result', 
     const workflowHandleWithIncorrectRunId = t.context.env.client.workflow.getHandle(wfHandle.workflowId, wf.uuid4());
     const updateHandle4 = workflowHandleWithIncorrectRunId.getUpdateHandle(updateId);
     const err = await t.throwsAsync(updateHandle4.result());
-    t.true(isGrpcServiceError(err) && err.code === grpcStatus.NOT_FOUND);
+    t.true(err instanceof wf.WorkflowNotFoundError);
   });
 });
 
@@ -459,5 +458,41 @@ test('Interruption of update by server long-poll timeout is invisible to client'
     await wfHandle.executeUpdate(doneUpdate);
     const wfResult = await wfHandle.result();
     t.deepEqual(wfResult, [arg, 'done', '$']);
+  });
+});
+
+test('startUpdate throws WorkflowUpdateRPCTimeoutOrCancelledError with no worker', async (t) => {
+  const { startWorkflow } = helpers(t);
+  const wfHandle = await startWorkflow(workflowWithUpdates);
+  await t.context.env.client.withDeadline(Date.now() + 100, async () => {
+    const err = await t.throwsAsync(wfHandle.startUpdate(update, { args: ['1'] }));
+    t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
+  });
+
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), 10);
+  await t.context.env.client.withAbortSignal(ctrl.signal, async () => {
+    const err = await t.throwsAsync(wfHandle.startUpdate(update, { args: ['1'] }));
+    t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
+  });
+});
+
+test('update result poll throws WorkflowUpdateRPCTimeoutOrCancelledError', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const wfHandle = await startWorkflow(workflowWithUpdates);
+    const arg = 'wait-for-longer-than-server-long-poll-timeout';
+    await t.context.env.client.withDeadline(Date.now() + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000, async () => {
+      const err = await t.throwsAsync(wfHandle.executeUpdate(update, { args: [arg] }));
+      t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
+    });
+
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000);
+    await t.context.env.client.withAbortSignal(ctrl.signal, async () => {
+      const err = await t.throwsAsync(wfHandle.executeUpdate(update, { args: [arg] }));
+      t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
+    });
   });
 });

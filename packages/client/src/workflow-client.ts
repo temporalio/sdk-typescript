@@ -38,6 +38,7 @@ import {
   WorkflowContinuedAsNewError,
   WorkflowFailedError,
   WorkflowUpdateFailedError,
+  WorkflowUpdateRPCTimeoutOrCancelledError,
   isGrpcServiceError,
 } from './errors';
 import {
@@ -118,7 +119,8 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    * @experimental Update is an experimental feature.
    *
    * @throws {@link WorkflowUpdateFailedError} if Update validation fails or if ApplicationFailure is thrown in the Update handler.
-   *
+   * @throws {@link WorkflowUpdateRPCTimeoutOrCancelledError} if this Update call timed out or was cancelled. This doesn't
+   *  mean the update itself was timed out or cancelled.
    * @param def an Update definition as returned from {@link defineUpdate}
    * @param options Update arguments
    *
@@ -144,6 +146,8 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    * @experimental Update is an experimental feature.
    *
    * @throws {@link WorkflowUpdateFailedError} if Update validation fails.
+   * @throws {@link WorkflowUpdateRPCTimeoutOrCancelledError} if this Update call timed out or was cancelled. This doesn't
+   *  mean the update itself was timed out or cancelled.
    *
    * @param def an Update definition as returned from {@link defineUpdate}
    * @param options Update arguments
@@ -692,6 +696,28 @@ export class WorkflowClient extends BaseClient {
     }
   }
 
+  protected rethrowUpdateGrpcError(
+    err: unknown,
+    fallbackMessage: string,
+    workflowExecution?: WorkflowExecution
+  ): never {
+    if (isGrpcServiceError(err)) {
+      if (err.code === grpcStatus.DEADLINE_EXCEEDED || err.code === grpcStatus.CANCELLED) {
+        throw new WorkflowUpdateRPCTimeoutOrCancelledError(err.details ?? 'Workflow update call timeout or cancelled', {
+          cause: err,
+        });
+      }
+    }
+
+    if (err instanceof CancelledFailure) {
+      throw new WorkflowUpdateRPCTimeoutOrCancelledError(err.message ?? 'Workflow update call timeout or cancelled', {
+        cause: err,
+      });
+    }
+
+    this.rethrowGrpcError(err, fallbackMessage, workflowExecution);
+  }
+
   protected rethrowGrpcError(err: unknown, fallbackMessage: string, workflowExecution?: WorkflowExecution): never {
     if (isGrpcServiceError(err)) {
       rethrowKnownErrorTypes(err);
@@ -791,7 +817,7 @@ export class WorkflowClient extends BaseClient {
           temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED
       );
     } catch (err) {
-      this.rethrowGrpcError(err, 'Workflow Update failed', input.workflowExecution);
+      this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
     return {
       updateId,
@@ -845,9 +871,14 @@ export class WorkflowClient extends BaseClient {
       },
     };
     for (;;) {
-      const response = await this.workflowService.pollWorkflowExecutionUpdate(req);
-      if (response.outcome) {
-        return response.outcome;
+      try {
+        const response = await this.workflowService.pollWorkflowExecutionUpdate(req);
+        if (response.outcome) {
+          return response.outcome;
+        }
+      } catch (err) {
+        const wE = typeof workflowExecution.workflowId === 'string' ? workflowExecution : undefined;
+        this.rethrowUpdateGrpcError(err, 'Workflow Update Poll failed', wE as WorkflowExecution);
       }
     }
   }
