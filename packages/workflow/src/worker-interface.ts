@@ -101,7 +101,7 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
       unsafe: { ...options.info.unsafe, now: OriginalDate.now },
     }),
   });
-  // There's on activator per workflow instance, set it globally on the context.
+  // There's one activator per workflow instance, set it globally on the context.
   // We do this before importing any user code so user code can statically reference @temporalio/workflow functions
   // as well as Date and Math.random.
   setActivatorUntyped(activator);
