@@ -382,7 +382,7 @@ export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, '
 
 export type ChildWorkflowOptionsWithDefaults = ChildWorkflowOptions & RequiredChildWorkflowOptions;
 
-export interface SDKInfo {
+export interface StackTraceSDKInfo {
   name: string;
   version: string;
 }
@@ -390,26 +390,26 @@ export interface SDKInfo {
 /**
  * Represents a slice of a file starting at lineOffset
  */
-export interface FileSlice {
+export interface StackTraceFileSlice {
+  /**
+   * Only used possible to trim the file without breaking syntax highlighting.
+   */
+  line_offset: number;
   /**
    * slice of a file with `\n` (newline) line terminator.
    */
   content: string;
-  /**
-   * Only used possible to trim the file without breaking syntax highlighting.
-   */
-  lineOffset: number;
 }
 
 /**
  * A pointer to a location in a file
  */
-export interface FileLocation {
+export interface StackTraceFileLocation {
   /**
    * Path to source file (absolute or relative).
    * When using a relative path, make sure all paths are relative to the same root.
    */
-  filePath?: string;
+  file_path?: string;
   /**
    * If possible, SDK should send this, required for displaying the code location.
    */
@@ -422,24 +422,28 @@ export interface FileLocation {
    * Function name this line belongs to (if applicable).
    * Used for falling back to stack trace view.
    */
-  functionName?: string;
+  function_name?: string;
+  /**
+   * Flag to mark this as internal SDK code and hide by default in the UI.
+   */
+  internal_code: boolean;
 }
 
 export interface StackTrace {
-  locations: FileLocation[];
+  locations: StackTraceFileLocation[];
 }
 
 /**
  * Used as the result for the enhanced stack trace query
  */
 export interface EnhancedStackTrace {
-  sdk: SDKInfo;
+  sdk: StackTraceSDKInfo;
   /**
    * Mapping of file path to file contents.
    * SDK may choose to send no, some or all sources.
    * Sources might be trimmed, and some time only the file(s) of the top element of the trace will be sent.
    */
-  sources: Record<string, FileSlice[]>;
+  sources: Record<string, StackTraceFileSlice[]>;
   stacks: StackTrace[];
 }
 
@@ -464,13 +468,14 @@ export type Handler<
   Ret,
   Args extends any[],
   T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>,
-> = T extends UpdateDefinition<infer R, infer A>
-  ? (...args: A) => R | Promise<R>
-  : T extends SignalDefinition<infer A>
-    ? (...args: A) => void | Promise<void>
-    : T extends QueryDefinition<infer R, infer A>
-      ? (...args: A) => R
-      : never;
+> =
+  T extends UpdateDefinition<infer R, infer A>
+    ? (...args: A) => R | Promise<R>
+    : T extends SignalDefinition<infer A>
+      ? (...args: A) => void | Promise<void>
+      : T extends QueryDefinition<infer R, infer A>
+        ? (...args: A) => R
+        : never;
 
 /**
  * A handler function accepting signal calls for non-registered signal names.
