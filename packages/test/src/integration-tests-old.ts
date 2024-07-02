@@ -1381,6 +1381,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
           locations: [
             {
               function_name: 'Promise.then',
+              internal_code: false,
             },
             {
               file_path: '/packages/workflow/src/trigger.ts',
