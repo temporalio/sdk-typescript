@@ -218,7 +218,7 @@ export function helpersTimeSkipping(t: ExecutionContext<Context>): HelpersTimeSk
         workflowBundle: t.context.workflowBundle,
         taskQueue,
         interceptors: {
-          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(t.context.envTimeSkipping.connection) })],
+          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(t.context.envTimeSkipping!.connection) })],
         },
         showStackTraceSources: true,
         ...opts,

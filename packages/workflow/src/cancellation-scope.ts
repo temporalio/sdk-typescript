@@ -55,35 +55,35 @@ export interface CancellationScopeOptions {
  * operations. For example:
  *
  * ```ts
- *   async function myWorkflow(...): Promise<void> {
- *     try {
- *       // This activity runs in the root cancellation scope. Therefore, a cancelation request on
- *       // the Workflow execution (e.g. through the UI or CLI) automatically propagates to this
- *       // activity. Assuming that the activity properly handle the cancellation request, then the
- *       // call below will throw an `ActivityFailure` exception, with `cause` sets to an
- *       // instance of `CancelledFailure`.
- *       await someActivity();
- *     } catch (e) {
- *       if (isCancellation(e)) {
- *         // Run cleanup activity in a non-cancellable scope
- *         await CancellationScope.nonCancellable(async () => {
- *           await cleanupActivity();
- *         }
- *       } else {
- *         throw e;
+ * async function myWorkflow(...): Promise<void> {
+ *   try {
+ *     // This activity runs in the root cancellation scope. Therefore, a cancelation request on
+ *     // the Workflow execution (e.g. through the UI or CLI) automatically propagates to this
+ *     // activity. Assuming that the activity properly handle the cancellation request, then the
+ *     // call below will throw an `ActivityFailure` exception, with `cause` sets to an
+ *     // instance of `CancelledFailure`.
+ *     await someActivity();
+ *   } catch (e) {
+ *     if (isCancellation(e)) {
+ *       // Run cleanup activity in a non-cancellable scope
+ *       await CancellationScope.nonCancellable(async () => {
+ *         await cleanupActivity();
  *       }
+ *     } else {
+ *       throw e;
  *     }
  *   }
+ * }
  * ```
  *
  * A cancellable scope may be programatically cancelled by calling {@link cancel|`scope.cancel()`}`. This may be used,
  * for example, to explicitly request cancellation of an Activity or Child Workflow:
  *
  * ```ts
- *   const cancellableActivityScope = new CancellationScope();
- *   const activityPromise = cancellableActivityScope.run(() => someActivity());
- *   cancellableActivityScope.cancel(); // Cancels the activity
- *   await activityPromise; // Throws `ActivityFailure` with `cause` set to `CancelledFailure`
+ * const cancellableActivityScope = new CancellationScope();
+ * const activityPromise = cancellableActivityScope.run(() => someActivity());
+ * cancellableActivityScope.cancel(); // Cancels the activity
+ * await activityPromise; // Throws `ActivityFailure` with `cause` set to `CancelledFailure`
  * ```
  */
 export class CancellationScope {

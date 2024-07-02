@@ -13,7 +13,7 @@ import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { Context, helpers, helpersTimeSkipping, makeTestFunction } from './helpers-integration';
-import { overrideSdkInternalFlag } from './mock-internal-flags-interceptor';
+import { overrideSdkInternalFlag } from './mock-internal-flags';
 import { RUN_TIME_SKIPPING_TESTS, noopTest } from './helpers';
 
 const test = makeTestFunction({ workflowsPath: __filename, workflowInterceptorModules: [__filename] });
@@ -917,7 +917,7 @@ testTimeSkipping('setTimeout and clearTimeout - works before and after 1.10.3', 
   const { createWorker, startWorkflow } = helpersTimeSkipping(t);
   const worker = await createWorker({
     activities: {
-      activitySleep: t.context.envTimeSkipping.sleep,
+      activitySleep: t.context.envTimeSkipping!.sleep,
     },
   });
   const handle = await startWorkflow(setAndClearTimeout);
