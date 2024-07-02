@@ -562,14 +562,18 @@ test('startUpdate throws WorkflowUpdateRPCTimeoutOrCancelledError with no worker
   const { startWorkflow } = helpers(t);
   const wfHandle = await startWorkflow(workflowWithUpdates);
   await t.context.env.client.withDeadline(Date.now() + 100, async () => {
-    const err = await t.throwsAsync(wfHandle.startUpdate(update, { args: ['1'] }));
+    const err = await t.throwsAsync(
+      wfHandle.startUpdate(update, { args: ['1'], waitForStage: WorkflowUpdateStage.ACCEPTED })
+    );
     t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
   });
 
   const ctrl = new AbortController();
   setTimeout(() => ctrl.abort(), 10);
   await t.context.env.client.withAbortSignal(ctrl.signal, async () => {
-    const err = await t.throwsAsync(wfHandle.startUpdate(update, { args: ['1'] }));
+    const err = await t.throwsAsync(
+      wfHandle.startUpdate(update, { args: ['1'], waitForStage: WorkflowUpdateStage.ACCEPTED })
+    );
     t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
   });
 });
