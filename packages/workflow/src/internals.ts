@@ -21,6 +21,7 @@ import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk, temporal } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
+import { UpdateScope } from './update-scope';
 import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
 import { QueryInput, SignalInput, UpdateInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
 import {
@@ -634,25 +635,25 @@ export class Activator implements ActivationHandler {
     //
     // Note that there is a deliberately unhandled promise rejection below.
     // These are caught elsewhere and fail the corresponding activation.
-    let input: UpdateInput;
-    try {
-      if (runValidator && this.updateHandlers.get(name)?.validator) {
-        const validate = composeInterceptors(
-          this.interceptors.inbound,
-          'validateUpdate',
-          this.validateUpdateNextHandler.bind(this)
-        );
-        validate(makeInput());
+    const doUpdateImpl = async () => {
+      let input: UpdateInput;
+      try {
+        if (runValidator && this.updateHandlers.get(name)?.validator) {
+          const validate = composeInterceptors(
+            this.interceptors.inbound,
+            'validateUpdate',
+            this.validateUpdateNextHandler.bind(this)
+          );
+          validate(makeInput());
+        }
+        input = makeInput();
+      } catch (error) {
+        this.rejectUpdate(protocolInstanceId, error);
+        return;
       }
-      input = makeInput();
-    } catch (error) {
-      this.rejectUpdate(protocolInstanceId, error);
-      return;
-    }
-    const execute = composeInterceptors(this.interceptors.inbound, 'handleUpdate', this.updateNextHandler.bind(this));
-    this.acceptUpdate(protocolInstanceId);
-    untrackPromise(
-      execute(input)
+      const execute = composeInterceptors(this.interceptors.inbound, 'handleUpdate', this.updateNextHandler.bind(this));
+      this.acceptUpdate(protocolInstanceId);
+      const res = execute(input)
         .then((result) => this.completeUpdate(protocolInstanceId, result))
         .catch((error) => {
           if (error instanceof TemporalFailure) {
@@ -660,8 +661,11 @@ export class Activator implements ActivationHandler {
           } else {
             throw error;
           }
-        })
-    );
+        });
+      untrackPromise(res);
+      return res;
+    };
+    untrackPromise(UpdateScope.updateWithInfo(updateId, name, doUpdateImpl));
   }
 
   protected async updateNextHandler({ name, args }: UpdateInput): Promise<unknown> {

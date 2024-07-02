@@ -8,6 +8,8 @@ import { tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
+import { disableUpdateStorage } from './update-scope';
+import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowCreateOptionsInternal } from './interfaces';
 import { Activator } from './internals';
@@ -33,7 +35,7 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
       unsafe: { ...options.info.unsafe, now: OriginalDate.now },
     }),
   });
-  // There's on activator per workflow instance, set it globally on the context.
+  // There's one activator per workflow instance, set it globally on the context.
   // We do this before importing any user code so user code can statically reference @temporalio/workflow functions
   // as well as Date and Math.random.
   setActivatorUntyped(activator);
@@ -230,6 +232,7 @@ export function shouldUnblockConditions(job: coresdk.workflow_activation.IWorkfl
 export function dispose(): void {
   const dispose = composeInterceptors(getActivator().interceptors.internals, 'dispose', async () => {
     disableStorage();
+    disableUpdateStorage();
   });
   dispose({});
 }

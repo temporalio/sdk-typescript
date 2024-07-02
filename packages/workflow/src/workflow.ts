@@ -23,6 +23,7 @@ import { Duration, msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporali
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
+import { UpdateScope } from './update-scope';
 import {
   ActivityInput,
   LocalActivityInput,
@@ -43,6 +44,7 @@ import {
   SignalHandlerOptions,
   UpdateHandlerOptions,
   WorkflowInfo,
+  UpdateInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
@@ -865,6 +867,19 @@ export async function executeChild<T extends Workflow>(
 export function workflowInfo(): WorkflowInfo {
   const activator = assertInWorkflowContext('Workflow.workflowInfo(...) may only be used from a Workflow Execution.');
   return activator.info;
+}
+
+/**
+ * Get information about the current update if any.
+ *
+ * @return Info for the current update handler the code calling this is executing
+ * within if any.
+ *
+ * @experimental
+ */
+export function currentUpdateInfo(): UpdateInfo | undefined {
+  assertInWorkflowContext('Workflow.currentUpdateInfo(...) may only be used from a Workflow Execution.');
+  return UpdateScope.current();
 }
 
 /**
