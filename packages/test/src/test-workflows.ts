@@ -1117,7 +1117,7 @@ test('nestedCancellation', async (t) => {
   }
 });
 
-test('sharedScopes', async (t) => {
+test('sharedCancellationScopes', async (t) => {
   const { workflowType } = t.context;
   const result = { some: 'data' };
   {
@@ -1156,7 +1156,7 @@ test('sharedScopes', async (t) => {
   }
 });
 
-test('shieldAwaitedInRootScope', async (t) => {
+test('nonCancellableAwaitedInRootScope', async (t) => {
   const { workflowType } = t.context;
   const result = { some: 'data' };
   {
@@ -1243,7 +1243,7 @@ test('cancellationScopes', async (t) => {
   ]);
 });
 
-test('childAndShield', async (t) => {
+test('childAndNonCancellable', async (t) => {
   const { workflowType } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(workflowType));
@@ -1255,7 +1255,7 @@ test('childAndShield', async (t) => {
   }
 });
 
-test('partialShield', async (t) => {
+test('partialNonCancellable', async (t) => {
   const { workflowType, logs } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(workflowType));
@@ -1294,7 +1294,7 @@ test('partialShield', async (t) => {
   t.deepEqual(logs, [['Workflow cancelled']]);
 });
 
-test('shieldInShield', async (t) => {
+test('nonCancellableInNonCancellable', async (t) => {
   const { workflowType, logs } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(workflowType));

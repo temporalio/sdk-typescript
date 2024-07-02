@@ -1,6 +1,6 @@
 import { CancelledFailure, CancellationScope, sleep } from '@temporalio/workflow';
 
-export async function partialShield(): Promise<void> {
+export async function partialNonCancellable(): Promise<void> {
   try {
     await Promise.all([
       CancellationScope.nonCancellable(async () => {

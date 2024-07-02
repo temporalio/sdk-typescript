@@ -1,6 +1,6 @@
 import { CancellationScope, sleep } from '@temporalio/workflow';
 
-export async function shieldInShield(): Promise<void> {
+export async function nonCancellableInNonCancellable(): Promise<void> {
   await CancellationScope.nonCancellable(async () => {
     const timer = sleep(2);
     const child = CancellationScope.nonCancellable(async () => {

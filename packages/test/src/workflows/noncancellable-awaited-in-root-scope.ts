@@ -1,10 +1,10 @@
-// @@@SNIPSTART typescript-shield-awaited-in-root-scope
+// @@@SNIPSTART typescript-noncancellable-awaited-in-root-scope
 import { CancellationScope, proxyActivities } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
 const { httpGetJSON } = proxyActivities<typeof activities>({ startToCloseTimeout: '10m' });
 
-export async function shieldAwaitedInRootScope(): Promise<any> {
+export async function nonCancellableAwaitedInRootScope(): Promise<any> {
   let p: Promise<any> | undefined = undefined;
 
   await CancellationScope.nonCancellable(async () => {

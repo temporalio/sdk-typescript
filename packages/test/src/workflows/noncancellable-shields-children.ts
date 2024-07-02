@@ -1,4 +1,4 @@
-// @@@SNIPSTART typescript-non-cancellable-shields-children
+// @@@SNIPSTART typescript-noncancellable-shields-children
 import { CancellationScope, proxyActivities } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
