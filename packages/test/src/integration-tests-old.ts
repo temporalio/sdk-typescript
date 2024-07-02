@@ -1343,8 +1343,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       const stacks = enhancedStack.stacks.map((s) => ({
         locations: s.locations.map((l) => ({
           ...l,
-          ...(l.filePath
-            ? { filePath: l.filePath.replace(path.resolve(__dirname, '../../../'), '').replace(/\\/g, '/') }
+          ...(l.file_path
+            ? { file_path: l.file_path.replace(path.resolve(__dirname, '../../../'), '').replace(/\\/g, '/') }
             : undefined),
         })),
       }));
