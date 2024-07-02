@@ -1354,36 +1354,40 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
         {
           locations: [
             {
-              functionName: 'Function.all',
+              function_name: 'Function.all',
+              internal_code: false,
             },
             {
-              filePath: '/packages/test/src/workflows/stack-tracer.ts',
-              functionName: 'enhancedStackTracer',
+              file_path: '/packages/test/src/workflows/stack-tracer.ts',
+              function_name: 'enhancedStackTracer',
               line: 32,
               column: 35,
+              internal_code: false,
             },
           ],
         },
         {
           locations: [
             {
-              filePath: '/packages/test/src/workflows/stack-tracer.ts',
-              functionName: 'enhancedStackTracer',
+              file_path: '/packages/test/src/workflows/stack-tracer.ts',
+              function_name: 'enhancedStackTracer',
               line: 32,
               column: 35,
+              internal_code: false,
             },
           ],
         },
         {
           locations: [
             {
-              functionName: 'Promise.then',
+              function_name: 'Promise.then',
             },
             {
-              filePath: '/packages/workflow/src/trigger.ts',
-              functionName: 'Trigger.then',
+              file_path: '/packages/workflow/src/trigger.ts',
+              function_name: 'Trigger.then',
               line: 47,
               column: 24,
+              internal_code: false,
             },
           ],
         },
