@@ -677,6 +677,20 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     );
   });
 
+  test('Workflow can upsert memo', async (t) => {
+    const { client } = t.context;
+    const workflow = await client.start(workflows.upsertAndReadMemo, {
+      taskQueue: 'test',
+      workflowId: uuid4(),
+      args: [{ note2: 'bar' }],
+    });
+    const result = await workflow.result();
+    t.deepEqual(result, {
+      note: 'foo',
+      note2: 'bar',
+    });
+  });
+
   test('Workflow can read WorkflowInfo', async (t) => {
     const { client } = t.context;
     const workflowId = uuid4();
