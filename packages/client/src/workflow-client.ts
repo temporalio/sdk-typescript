@@ -81,6 +81,8 @@ import {
   WithDefaults,
 } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
+import { WorkflowUpdateStage } from './workflow-update-stage';
+import * as workflowUpdateStage from './workflow-update-stage';
 
 /**
  * A client side handle to a single Workflow instance.
@@ -156,7 +158,7 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    * update is accepted or rejected, and the options object must be at least
    * ```ts
    * {
-   *   waitForStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED
+   *   waitForStage: WorkflowUpdateStage.ACCEPTED
    * }
    * ```
    * If the update takes arguments, then the options object must additionally contain an `args`
@@ -166,7 +168,7 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    * ```ts
    * const updateHandle = await handle.startUpdate(incrementAndGetValueUpdate, {
    *   args: [2],
-   *   waitForStage: UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+   *   waitForStage: WorkflowUpdateStage.ACCEPTED,
    * });
    * const updateResult = await updateHandle.result();
    * ```
@@ -175,7 +177,7 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
     def: UpdateDefinition<Ret, Args, Name> | string,
     options: WorkflowUpdateOptions & {
       args: Args;
-      waitForStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED;
+      waitForStage: WorkflowUpdateStage.ACCEPTED;
     }
   ): Promise<WorkflowUpdateHandle<Ret>>;
 
@@ -183,7 +185,7 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
     def: UpdateDefinition<Ret, Args, Name> | string,
     options: WorkflowUpdateOptions & {
       args?: Args;
-      waitForStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED;
+      waitForStage: WorkflowUpdateStage.ACCEPTED;
     }
   ): Promise<WorkflowUpdateHandle<Ret>>;
 
@@ -801,7 +803,7 @@ export class WorkflowClient extends BaseClient {
    * Used as the final function of the interceptor chain during startUpdate and executeUpdate.
    */
   protected async _startUpdateHandler(
-    waitForStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage,
+    waitForStage: WorkflowUpdateStage,
     input: WorkflowStartUpdateInput
   ): Promise<WorkflowStartUpdateOutput> {
     const updateId = input.options?.updateId ?? uuid4();
@@ -809,7 +811,9 @@ export class WorkflowClient extends BaseClient {
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
       firstExecutionRunId: input.firstExecutionRunId,
-      waitPolicy: { lifecycleStage: waitForStage },
+      waitPolicy: {
+        lifecycleStage: workflowUpdateStage.toProtoEnum(waitForStage),
+      },
       request: {
         meta: {
           updateId,
@@ -830,11 +834,7 @@ export class WorkflowClient extends BaseClient {
     try {
       do {
         response = await this.workflowService.updateWorkflowExecution(req);
-      } while (
-        response.stage < waitForStage &&
-        response.stage <
-          temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED
-      );
+      } while (response.stage < waitForStage && response.stage < WorkflowUpdateStage.ACCEPTED);
     } catch (err) {
       this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
@@ -884,9 +884,7 @@ export class WorkflowClient extends BaseClient {
       updateRef: { workflowExecution, updateId },
       identity: this.options.identity,
       waitPolicy: {
-        lifecycleStage:
-          temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage
-            .UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_COMPLETED,
+        lifecycleStage: workflowUpdateStage.toProtoEnum(WorkflowUpdateStage.COMPLETED),
       },
     };
     for (;;) {
@@ -1095,7 +1093,7 @@ export class WorkflowClient extends BaseClient {
   }: WorkflowHandleOptions): WorkflowHandle<T> {
     const _startUpdate = async <Ret, Args extends unknown[]>(
       def: UpdateDefinition<Ret, Args> | string,
-      waitForStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage,
+      waitForStage: WorkflowUpdateStage,
       options?: WorkflowUpdateOptions & { args?: Args }
     ): Promise<WorkflowUpdateHandle<Ret>> => {
       const next = this._startUpdateHandler.bind(this, waitForStage);
@@ -1117,12 +1115,7 @@ export class WorkflowClient extends BaseClient {
         output.workflowRunId,
         output.outcome
       );
-      if (
-        !output.outcome &&
-        waitForStage ===
-          temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage
-            .UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_COMPLETED
-      ) {
+      if (!output.outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
         await this._pollForUpdateOutcome(handle.updateId, input.workflowExecution);
       }
       return handle;
@@ -1183,7 +1176,7 @@ export class WorkflowClient extends BaseClient {
         def: UpdateDefinition<Ret, Args> | string,
         options: WorkflowUpdateOptions & {
           args?: Args;
-          waitForStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED;
+          waitForStage: WorkflowUpdateStage.ACCEPTED;
         }
       ): Promise<WorkflowUpdateHandle<Ret>> {
         return await _startUpdate(def, options.waitForStage, options);
@@ -1192,12 +1185,7 @@ export class WorkflowClient extends BaseClient {
         def: UpdateDefinition<Ret, Args> | string,
         options?: WorkflowUpdateOptions & { args?: Args }
       ): Promise<Ret> {
-        const handle = await _startUpdate(
-          def,
-          temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage
-            .UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_COMPLETED,
-          options
-        );
+        const handle = await _startUpdate(def, WorkflowUpdateStage.COMPLETED, options);
         return await handle.result();
       },
       getUpdateHandle<Ret>(updateId: string): WorkflowUpdateHandle<Ret> {

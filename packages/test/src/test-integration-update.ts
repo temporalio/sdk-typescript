@@ -1,5 +1,4 @@
-import { WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
-import { temporal } from '@temporalio/proto';
+import { WorkflowUpdateStage, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
@@ -67,15 +66,13 @@ test('Update can be executed via startUpdate() and handle.result()', async (t) =
 
     const updateHandle = await wfHandle.startUpdate(update, {
       args: ['1'],
-      waitForStage:
-        temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
     });
     const updateResult = await updateHandle.result();
     t.deepEqual(updateResult, ['1']);
 
     const doneUpdateHandle = await wfHandle.startUpdate(doneUpdate, {
-      waitForStage:
-        temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
     });
     const doneUpdateResult = await doneUpdateHandle.result();
     t.is(doneUpdateResult, undefined);
@@ -94,8 +91,7 @@ test('Update handle can be created from identifiers and used to obtain result', 
     const updateHandleFromStartUpdate = await wfHandle.startUpdate(update, {
       args: ['1'],
       updateId,
-      waitForStage:
-        temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
     });
 
     // Obtain update handle on workflow handle from start update.
@@ -190,14 +186,12 @@ test('Update validator can reject when using handle.result() but handle can be o
     const wfHandle = await startWorkflow(workflowWithUpdateValidator);
     let updateHandle = await wfHandle.startUpdate(stringToStringUpdate, {
       args: ['arg'],
-      waitForStage:
-        temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
     });
     t.is(await updateHandle.result(), 'update-result');
     updateHandle = await wfHandle.startUpdate(stringToStringUpdate, {
       args: ['bad-arg'],
-      waitForStage:
-        temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
     });
     await assertWorkflowUpdateFailed(updateHandle.result(), wf.ApplicationFailure, 'Validation failed');
   });
@@ -269,8 +263,7 @@ test('Update id can be assigned and is present on returned handle', async (t) =>
     const wfHandle = await startWorkflow(workflowWithUpdates);
     const updateHandle = await wfHandle.startUpdate(doneUpdate, {
       updateId: 'my-update-id',
-      waitForStage:
-        temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
     });
     t.is(updateHandle.updateId, 'my-update-id');
   });
@@ -452,8 +445,7 @@ test('Update/Signal/Query example in WorkflowHandle docstrings works', async (t)
     t.is(updateResult, 6);
     const secondUpdateHandle = await wfHandle.startUpdate(incrementAndGetValueUpdate, {
       args: [2],
-      waitForStage:
-        temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
     });
     const secondUpdateResult = await secondUpdateHandle.result();
     t.is(secondUpdateResult, 8);
@@ -468,8 +460,7 @@ test('startUpdate does not return handle before update has reached requested sta
   const updatePromise = wfHandle
     .startUpdate(update, {
       args: ['1'],
-      waitForStage:
-        temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
     })
     .then(() => 'update');
   const timeoutPromise = new Promise<string>((f) =>

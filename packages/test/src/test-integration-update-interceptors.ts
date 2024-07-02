@@ -1,5 +1,4 @@
-import { WorkflowStartUpdateInput, WorkflowStartUpdateOutput } from '@temporalio/client';
-import { temporal } from '@temporalio/proto';
+import { WorkflowStartUpdateInput, WorkflowStartUpdateOutput, WorkflowUpdateStage } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { Next, UpdateInput, WorkflowInboundCallsInterceptor, WorkflowInterceptors } from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
@@ -69,8 +68,7 @@ test('Update client and inbound interceptors work for startUpdate', async (t) =>
 
     const updateHandle = await wfHandle.startUpdate(update, {
       args: ['1'],
-      waitForStage:
-        temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
     });
     const updateResult = await updateHandle.result();
     t.deepEqual(updateResult, '1-clientIntercepted-inboundIntercepted');
