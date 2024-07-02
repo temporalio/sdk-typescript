@@ -100,6 +100,7 @@ export function defaultGrpcRetryOptions(options: Partial<BackoffOptions> = {}): 
 const retryableCodes = new Set([
   grpc.status.UNKNOWN,
   grpc.status.RESOURCE_EXHAUSTED,
+  grpc.status.INTERNAL,
   grpc.status.UNAVAILABLE,
   grpc.status.ABORTED,
   grpc.status.DATA_LOSS,
