@@ -1395,7 +1395,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       ]);
       const expectedSources = ['../src/workflows/stack-tracer.ts', '../../workflow/src/trigger.ts'].map((p) => [
         path.resolve(__dirname, p),
-        [{ content: readFileSync(path.resolve(__dirname, p), 'utf8'), lineOffset: 0 }],
+        [{ content: readFileSync(path.resolve(__dirname, p), 'utf8'), line_offset: 0 }],
       ]);
       t.deepEqual(Object.entries(enhancedStack.sources), expectedSources);
     });
