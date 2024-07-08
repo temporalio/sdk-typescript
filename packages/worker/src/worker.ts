@@ -49,7 +49,7 @@ import { ShutdownError, UnexpectedError } from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
-import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
+import { extractNativeClient, extractAttachedWorkers, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
 import { Logger, withMetadata } from './logger';
 import pkg from './pkg';
@@ -458,7 +458,7 @@ export class Worker {
       }
       throw err;
     }
-    extractReferenceHolders(connection).add(nativeWorker);
+    extractAttachedWorkers(connection).set(nativeWorker, new Error('Worker created'));
     return new this(nativeWorker, workflowCreator, compiledOptionsWithBuildId, logger, connection);
   }
 
@@ -759,6 +759,32 @@ export class Worker {
    * `'STOPPED'`.
    */
   shutdown(): void {
+    if (this.state === 'INITIALIZED') {
+      (async () => {
+        try {
+          // Worker never reached the RUNNING state, so there's nothing to drain.
+          await this.nativeWorker.finalizeShutdown();
+          this.state = 'STOPPED';
+        } finally {
+          try {
+            // Only exists in non-replay Worker
+            if (this.connection) {
+              extractAttachedWorkers(this.connection).delete(this.nativeWorker);
+              // Only close if this worker is the creator of the connection
+              if (this.connection instanceof InternalNativeConnection) {
+                await this.connection.close();
+              }
+            }
+            await this.workflowCreator?.destroy();
+          } finally {
+            this.nativeWorker.flushCoreLogs();
+          }
+        }
+      })().catch((err) => {
+        this.logger.error('Failed to finalize shutdown', { error: err });
+      });
+      return;
+    }
     if (this.state !== 'RUNNING') {
       throw new IllegalStateError(`Not running. Current state: ${this.state}`);
     }
@@ -1582,6 +1608,7 @@ export class Worker {
     const workerRunPromise = this.run();
     const innerPromise = (async () => {
       try {
+        this.logger.trace("Calling 'runUntil' function");
         const p = typeof fnOrPromise === 'function' ? fnOrPromise() : fnOrPromise;
         return await p;
       } finally {
@@ -1668,7 +1695,7 @@ export class Worker {
       try {
         // Only exists in non-replay Worker
         if (this.connection) {
-          extractReferenceHolders(this.connection).delete(this.nativeWorker);
+          extractAttachedWorkers(this.connection).delete(this.nativeWorker);
           // Only close if this worker is the creator of the connection
           if (this.connection instanceof InternalNativeConnection) {
             await this.connection.close();
@@ -1679,6 +1706,14 @@ export class Worker {
         this.nativeWorker.flushCoreLogs();
       }
     }
+  }
+
+  /**
+   * @hidden
+   * @internal
+   */
+  async waitForShutdown(): Promise<void> {
+    await this.takeUntilState('STOPPED');
   }
 }
 

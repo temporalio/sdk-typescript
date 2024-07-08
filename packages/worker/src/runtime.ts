@@ -131,7 +131,7 @@ export class Runtime {
   /** Track the number of pending creation calls into the tokio runtime to prevent shut down */
   protected pendingCreations = 0;
   /** Track the registered native objects to automatically shutdown when all have been deregistered */
-  protected readonly backRefs = new Set<TrackedNativeObject>();
+  protected readonly backRefs = new Map<TrackedNativeObject, string>();
   protected stopPollingForLogs = false;
   protected stopPollingForLogsCallback?: () => void;
   protected readonly logPollPromise: Promise<void>;
@@ -352,7 +352,7 @@ export class Runtime {
       tls: normalizeTlsConfig(compiledServerOptions.tls),
       url: options?.tls ? `https://${compiledServerOptions.address}` : `http://${compiledServerOptions.address}`,
     };
-    return await this.createNative(promisify(newClient), this.native, clientOptions);
+    return await this.createNative('client', promisify(newClient), this.native, clientOptions);
   }
 
   /**
@@ -374,7 +374,7 @@ export class Runtime {
    * @hidden
    */
   public async registerWorker(client: native.Client, options: native.WorkerOptions): Promise<native.Worker> {
-    return await this.createNative(promisify(native.newWorker), client, options);
+    return await this.createNative('worker', promisify(native.newWorker), client, options);
   }
 
   /** @hidden */
@@ -382,7 +382,7 @@ export class Runtime {
     return await this.createNativeNoBackRef(async () => {
       const fn = promisify(native.newReplayWorker);
       const replayWorker = await fn(this.native, options);
-      this.backRefs.add(replayWorker.worker);
+      this.backRefs.set(replayWorker.worker, 'ReplayWorker');
       return replayWorker;
     });
   }
@@ -417,9 +417,11 @@ export class Runtime {
    * @hidden
    */
   public async deregisterWorker(worker: native.Worker): Promise<void> {
+    this.logger.warn('Deregistering Worker', { sdkComponent: SdkComponent.worker });
     native.workerFinalizeShutdown(worker);
     this.backRefs.delete(worker);
     await this.shutdownIfIdle();
+    this.logger.warn('Done deregistering Worker', { sdkComponent: SdkComponent.worker });
   }
 
   /**
@@ -429,7 +431,13 @@ export class Runtime {
    * @hidden
    */
   public async createEphemeralServer(options: native.EphemeralServerConfig): Promise<native.EphemeralServer> {
-    return await this.createNative(promisify(native.startEphemeralServer), this.native, options, pkg.version);
+    return await this.createNative(
+      'ephemeralserver',
+      promisify(native.startEphemeralServer),
+      this.native,
+      options,
+      pkg.version
+    );
   }
 
   /**
@@ -448,10 +456,10 @@ export class Runtime {
     R extends TrackedNativeObject,
     Args extends any[],
     F extends (...args: Args) => Promise<R>,
-  >(f: F, ...args: Args): Promise<R> {
+  >(type: string, f: F, ...args: Args): Promise<R> {
     return this.createNativeNoBackRef(async () => {
       const ref = await f(...args);
-      this.backRefs.add(ref);
+      this.backRefs.set(ref, type);
       return ref;
     });
   }
@@ -480,7 +488,20 @@ export class Runtime {
   }
 
   protected async shutdownIfIdle(): Promise<void> {
-    if (this.isIdle()) await this.shutdown();
+    if (this.isIdle()) {
+      this.logger.warn('Shutting down Core runtime', { sdkComponent: SdkComponent.worker });
+      await this.shutdown();
+    } else {
+      const countPerType = new Map<string, number>();
+      for (const [k, v] of this.backRefs) {
+        countPerType.set(v, (countPerType.get(v) ?? 0) + 1);
+      }
+      this.logger.warn(
+        `Not shutting down, pendingCreations: ${this.pendingCreations}, backRefs[]: ${[...countPerType.entries()]
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(', ')}, Total: ${this.backRefs.size}`
+      );
+    }
   }
 
   /**

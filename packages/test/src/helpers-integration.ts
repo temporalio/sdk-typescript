@@ -17,6 +17,7 @@ import {
   WorkerOptions,
   WorkflowBundle,
   bundleWorkflowCode,
+  makeTelemetryFilterString,
 } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
@@ -43,6 +44,8 @@ const defaultDynamicConfigOptions = [
   'system.forceSearchAttributesCacheRefreshOnRead=true',
   'worker.buildIdScavengerEnabled=true',
   'worker.removableBuildIdDurationSinceDefault=1',
+  'matching.numTaskqueueReadPartitions=1',
+  'matching.numTaskqueueWritePartitions=1',
 ];
 
 export function makeTestFunction(opts: {
@@ -52,8 +55,22 @@ export function makeTestFunction(opts: {
 }): TestFn<Context> {
   const test = anyTest as TestFn<Context>;
   test.before(async (t) => {
+    const workflowBundle = await bundleWorkflowCode({
+      ...bundlerOptions,
+      workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])],
+      workflowsPath: opts.workflowsPath,
+    });
     // Ignore invalid log levels
-    Runtime.install({ logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel) });
+    Runtime.install({
+      logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel),
+      telemetryOptions: {
+        logging: {
+          filter: makeTelemetryFilterString({
+            core: (process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel,
+          }),
+        },
+      },
+    });
     const env = await TestWorkflowEnvironment.createLocal({
       ...opts.workflowEnvironmentOpts,
       server: {
@@ -65,11 +82,6 @@ export function makeTestFunction(opts: {
       },
     });
     await registerDefaultCustomSearchAttributes(env.connection);
-    const workflowBundle = await bundleWorkflowCode({
-      ...bundlerOptions,
-      workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])],
-      workflowsPath: opts.workflowsPath,
-    });
     t.context = {
       env,
       workflowBundle,
@@ -99,12 +111,31 @@ export interface Helpers {
 }
 
 export function helpers(t: ExecutionContext<Context>): Helpers {
+  const ownedWorkers = new Set<Worker>();
   const taskQueue = t.title.replace(/ /g, '_');
+  t.teardown(async () => {
+    console.log(`Tearing down test ${t.title}`);
+    for (const worker of ownedWorkers) {
+      if (worker.getState() === 'INITIALIZED' || worker.getState() === 'RUNNING') {
+        try {
+          console.log(`Shutting down leftover worker...`);
+          worker.shutdown();
+          console.log(`Waiting for shutting down leftover worker...`);
+          await worker.waitForShutdown();
+          console.log(`Done shutting down leftover worker!`);
+        } catch (e) {
+          console.log(`Failed to shutdown worker: ${e}`);
+          t.log(`Failed to shutdown worker: ${e}`);
+        }
+      }
+      ownedWorkers.delete(worker);
+    }
+  });
 
   return {
     taskQueue,
     async createWorker(opts?: Partial<WorkerOptions>): Promise<Worker> {
-      return await Worker.create({
+      const worker = await Worker.create({
         connection: t.context.env.nativeConnection,
         workflowBundle: t.context.workflowBundle,
         taskQueue,
@@ -114,6 +145,8 @@ export function helpers(t: ExecutionContext<Context>): Helpers {
         showStackTraceSources: true,
         ...opts,
       });
+      ownedWorkers.add(worker);
+      return worker;
     },
     async executeWorkflow(
       fn: workflow.Workflow,

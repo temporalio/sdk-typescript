@@ -110,6 +110,7 @@ export const bundlerOptions = {
     'async-retry',
     'uuid',
     'net',
+    'timers/promises',
   ],
 };
 

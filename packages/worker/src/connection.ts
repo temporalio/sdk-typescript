@@ -16,9 +16,10 @@ const updateApiKey = util.promisify(clientUpdateApiKey);
  */
 export class NativeConnection {
   /**
-   * referenceHolders is used internally by the framework, it can be accessed with `extractReferenceHolders` (below)
+   * attachedWorkers is used internally by the framework, it can be accessed with `extractAttachedWorkers` (below).
+   * The associated error gives the stacktrace to where that Worker was instanciated.
    */
-  private readonly referenceHolders = new Set<Worker>();
+  private readonly attachedWorkers = new Map<Worker, Error>();
 
   /**
    * nativeClient is intentionally left private, framework code can access it with `extractNativeClient` (below)
@@ -62,7 +63,14 @@ export class NativeConnection {
    * this method or it will throw an {@link IllegalStateError}
    */
   async close(): Promise<void> {
-    if (this.referenceHolders.size > 0) {
+    if (this.attachedWorkers.size > 0) {
+      const logger = Runtime.instance().logger;
+      logger.error('Cannot close connection while Workers hold a reference to it.');
+      logger.error('Attached workers created at:');
+      for (const [_, error] of this.attachedWorkers) {
+        logger.error(String(error.stack));
+      }
+
       throw new IllegalStateError('Cannot close connection while Workers hold a reference to it');
     }
     await Runtime.instance().closeNativeClient(this.nativeClient);
@@ -98,12 +106,12 @@ export function extractNativeClient(conn: NativeConnection): Client {
 }
 
 /**
- * Extract the private referenceHolders set from a `NativeConnection` instance.
+ * Extract the private attachedWorkers set from a `NativeConnection` instance.
  *
  * Only meant to be used by the framework.
  */
-export function extractReferenceHolders(conn: NativeConnection): Set<Worker> {
-  return (conn as any).referenceHolders;
+export function extractAttachedWorkers(conn: NativeConnection): Map<Worker, Error> {
+  return (conn as any).attachedWorkers;
 }
 
 /**
