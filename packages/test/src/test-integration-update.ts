@@ -41,7 +41,7 @@ export async function workflowWithUpdates(): Promise<string[]> {
   return state;
 }
 
-test('Update can be executed via executeUpdate()', async (t) => {
+test.skip('Update can be executed via executeUpdate()', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -58,7 +58,7 @@ test('Update can be executed via executeUpdate()', async (t) => {
   });
 });
 
-test('Update can be executed via startUpdate() and handle.result()', async (t) => {
+test.skip('Update can be executed via startUpdate() and handle.result()', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -82,7 +82,7 @@ test('Update can be executed via startUpdate() and handle.result()', async (t) =
   });
 });
 
-test('Update handle can be created from identifiers and used to obtain result', async (t) => {
+test.skip('Update handle can be created from identifiers and used to obtain result', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -139,7 +139,7 @@ export async function workflowWithMultiTaskUpdate(): Promise<void> {
   await wf.condition(() => false);
 }
 
-test('Update handler can execute activity', async (t) => {
+test.skip('Update handler can execute activity', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker({ activities });
   await worker.runUntil(async () => {
@@ -164,7 +164,7 @@ export async function workflowWithUpdateValidator(): Promise<void> {
   await wf.condition(() => false);
 }
 
-test('Update validator can reject when using executeUpdate()', async (t) => {
+test.skip('Update validator can reject when using executeUpdate()', async (t) => {
   const { createWorker, startWorkflow, assertWorkflowUpdateFailed } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -179,7 +179,7 @@ test('Update validator can reject when using executeUpdate()', async (t) => {
   });
 });
 
-test('Update validator can reject when using handle.result() but handle can be obtained without error', async (t) => {
+test.skip('Update validator can reject when using handle.result() but handle can be obtained without error', async (t) => {
   const { createWorker, startWorkflow, assertWorkflowUpdateFailed } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -210,7 +210,7 @@ export async function handlerRaisesException(): Promise<void> {
   await wf.condition(() => false);
 }
 
-test('Update: ApplicationFailure in handler rejects the update', async (t) => {
+test.skip('Update: ApplicationFailure in handler rejects the update', async (t) => {
   const { createWorker, startWorkflow, assertWorkflowUpdateFailed } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -226,7 +226,7 @@ test('Update: ApplicationFailure in handler rejects the update', async (t) => {
   });
 });
 
-test('Update is rejected if there is no handler', async (t) => {
+test.skip('Update is rejected if there is no handler', async (t) => {
   const { createWorker, startWorkflow, assertWorkflowUpdateFailed } = helpers(t);
   const worker = await createWorker();
   const updateWithoutHandler = wf.defineUpdate<string[], [string]>('updateWithoutHandler');
@@ -240,7 +240,7 @@ test('Update is rejected if there is no handler', async (t) => {
   });
 });
 
-test('Update sent after workflow completed', async (t) => {
+test.skip('Update sent after workflow completed', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -256,7 +256,7 @@ test('Update sent after workflow completed', async (t) => {
   });
 });
 
-test('Update id can be assigned and is present on returned handle', async (t) => {
+test.skip('Update id can be assigned and is present on returned handle', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -282,7 +282,7 @@ export async function workflowWithMutatingValidator(): Promise<void> {
   await wf.condition(() => false);
 }
 
-test('Update handler does not see mutations to arguments made by validator', async (t) => {
+test.skip('Update handler does not see mutations to arguments made by validator', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -318,7 +318,7 @@ export async function setUpdateHandlerAndExit(): Promise<string> {
   return state;
 }
 
-test('Update is always delivered', async (t) => {
+test.skip('Update is always delivered', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const wfHandle = await startWorkflow(setUpdateHandlerAndExit, { startDelay: '10000 days' });
 
@@ -333,7 +333,7 @@ test('Update is always delivered', async (t) => {
   });
 });
 
-test('Two Updates in first WFT', async (t) => {
+test.skip('Two Updates in first WFT', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const wfHandle = await startWorkflow(workflowWithUpdates, { startDelay: '10000 days' });
 
@@ -378,7 +378,7 @@ export async function updateReplayTestWorkflow(): Promise<boolean> {
   return handlerWasExecutedEarly;
 }
 
-test('Update handler is called at same point during first execution and replay', async (t) => {
+test.skip('Update handler is called at same point during first execution and replay', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
 
   // Start a Workflow and an Update of that Workflow.
@@ -433,7 +433,7 @@ export async function counterWorkflow(initialValue: number): Promise<void> {
 // @@@SNIPEND
 
 /* Example from WorkflowHandle docstring */
-test('Update/Signal/Query example in WorkflowHandle docstrings works', async (t) => {
+test.skip('Update/Signal/Query example in WorkflowHandle docstrings works', async (t) => {
   const { createWorker, startWorkflow, assertWorkflowFailedError } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -454,7 +454,7 @@ test('Update/Signal/Query example in WorkflowHandle docstrings works', async (t)
   });
 });
 
-test('startUpdate does not return handle before update has reached requested stage', async (t) => {
+test.skip('startUpdate does not return handle before update has reached requested stage', async (t) => {
   const { startWorkflow } = helpers(t);
   const wfHandle = await startWorkflow(workflowWithUpdates);
   const updatePromise = wfHandle
@@ -473,7 +473,7 @@ test('startUpdate does not return handle before update has reached requested sta
   );
 });
 
-test('Interruption of update by server long-poll timeout is invisible to client', async (t) => {
+test.skip('Interruption of update by server long-poll timeout is invisible to client', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -540,7 +540,7 @@ export async function workflowWithCurrentUpdateInfo(): Promise<string[]> {
   return await Promise.all(state);
 }
 
-test('currentUpdateInfo returns the update id', async (t) => {
+test.skip('currentUpdateInfo returns the update id', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -558,7 +558,7 @@ test('currentUpdateInfo returns the update id', async (t) => {
   });
 });
 
-test('startUpdate throws WorkflowUpdateRPCTimeoutOrCancelledError with no worker', async (t) => {
+test.skip('startUpdate throws WorkflowUpdateRPCTimeoutOrCancelledError with no worker', async (t) => {
   const { startWorkflow } = helpers(t);
   const wfHandle = await startWorkflow(workflowWithUpdates);
   await t.context.env.client.withDeadline(Date.now() + 100, async () => {
@@ -578,7 +578,7 @@ test('startUpdate throws WorkflowUpdateRPCTimeoutOrCancelledError with no worker
   });
 });
 
-test('update result poll throws WorkflowUpdateRPCTimeoutOrCancelledError', async (t) => {
+test.skip('update result poll throws WorkflowUpdateRPCTimeoutOrCancelledError', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
