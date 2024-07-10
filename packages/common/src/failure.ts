@@ -183,8 +183,7 @@ export interface ApplicationFailureOptions {
   details?: unknown[];
 
   /**
-   * If set, overrides the delay until the next retry of this Activity (this field is ignored if
-   * this error does not originate from an Activity).
+   * If set, overrides the delay until the next retry of this Activity / Workflow Task.
    *
    * Retry attempts will still be subject to the maximum retries limit and total time limit defined
    * by the policy.
