@@ -66,7 +66,7 @@ export function makeTestFunction(opts: {
       telemetryOptions: {
         logging: {
           filter: makeTelemetryFilterString({
-            core: (process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel,
+            core: (process.env.TEST_LOG_LEVEL || 'INFO').toUpperCase() as LogLevel,
           }),
         },
       },
