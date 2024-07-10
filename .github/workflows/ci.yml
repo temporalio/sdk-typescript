@@ -6,7 +6,6 @@ on: # rebuild any PRs and main branch changes
     branches:
       - main
       - 'releases/*'
-      - investigate-multiple-flakes
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -21,7 +20,7 @@ env:
         && github.event_name != 'pull_request'
     }}
   # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
-  # TESTS_CLI_VERSION: 'v0.12.0'
+  TESTS_CLI_VERSION: 'v0.13.2'
   # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
