@@ -8,7 +8,6 @@ import {
   defineUpdate,
 } from '@temporalio/workflow';
 import { WorkflowHandle, WorkflowUpdateStage } from '@temporalio/client';
-import { temporal } from '@temporalio/proto';
 
 test('SignalDefinition Name type safety', (t) => {
   // @ts-expect-error Assert expect a type error when generic and concrete names do not match
