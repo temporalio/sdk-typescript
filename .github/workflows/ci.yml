@@ -33,12 +33,12 @@ jobs:
         include:
           # For Linux targets, use Buildjet's builders to get the oldest supported glibc version
           - platform: linux-x64
-            runner: ubuntu-24.04-8-core
+            runner: buildjet-4vcpu-ubuntu-2204
             target: x86_64-unknown-linux-gnu
             container: quay.io/pypa/manylinux_2_24_x86_64
             out-file: libtemporal_sdk_typescript_bridge.so
-          - platform: linux-arm-8-core
-            runner: ubuntu-24.04-arm64
+          - platform: linux-arm
+            runner: buildjet-4vcpu-ubuntu-2204-arm
             target: aarch64-unknown-linux-gnu
             container: quay.io/pypa/manylinux_2_24_aarch64
             out-file: libtemporal_sdk_typescript_bridge.so
@@ -142,7 +142,7 @@ jobs:
       matrix:
         include:
           - platform: linux-x64
-            runner: ubuntu-24.04-8-core
+            runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -222,9 +222,9 @@ jobs:
         server: [cli] # FIXME: Add 'cloud'
         include:
           - platform: linux-x64
-            runner: ubuntu-24.04
+            runner: ubuntu-latest
           - platform: linux-arm
-            runner: ubuntu-24.04-arm64
+            runner: buildjet-4vcpu-ubuntu-2204-arm
           - platform: macos-x64
             runner: macos-12
           - platform: macos-arm
@@ -331,9 +331,9 @@ jobs:
           - server: ${{ vars.TEMPORAL_CLIENT_NAMESPACE == '' && 'cloud' || '' }}
         include:
           - platform: linux-x64
-            runner: ubuntu-24.04
+            runner: ubuntu-latest
           - platform: linux-arm
-            runner: ubuntu-24.04-arm64
+            runner: buildjet-4vcpu-ubuntu-2204-arm
           - platform: macos-x64
             runner: macos-12
           - platform: macos-arm
@@ -462,7 +462,7 @@ jobs:
       matrix:
         include:
           - platform: linux-x64
-            runner: ubuntu-24.04
+            runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     steps:
@@ -529,7 +529,7 @@ jobs:
       matrix:
         include:
           - platform: linux-x64
-            runner: ubuntu-24.04
+            runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     steps:
