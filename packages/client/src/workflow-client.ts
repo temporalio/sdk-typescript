@@ -806,13 +806,15 @@ export class WorkflowClient extends BaseClient {
     waitForStage: WorkflowUpdateStage,
     input: WorkflowStartUpdateInput
   ): Promise<WorkflowStartUpdateOutput> {
+    waitForStage = waitForStage >= WorkflowUpdateStage.ACCEPTED ? waitForStage : WorkflowUpdateStage.ACCEPTED;
+    const waitForStageProto = workflowUpdateStage.toProtoEnum(waitForStage);
     const updateId = input.options?.updateId ?? uuid4();
     const req: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest = {
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
       firstExecutionRunId: input.firstExecutionRunId,
       waitPolicy: {
-        lifecycleStage: workflowUpdateStage.toProtoEnum(waitForStage),
+        lifecycleStage: waitForStageProto,
       },
       request: {
         meta: {
@@ -834,7 +836,7 @@ export class WorkflowClient extends BaseClient {
     try {
       do {
         response = await this.workflowService.updateWorkflowExecution(req);
-      } while (response.stage < waitForStage && response.stage < WorkflowUpdateStage.ACCEPTED);
+      } while (response.stage < waitForStageProto);
     } catch (err) {
       this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
