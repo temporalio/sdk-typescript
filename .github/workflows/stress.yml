@@ -54,7 +54,7 @@ env:
 
 jobs:
   stress-test:
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: ubuntu-24.04-arm64-8-core
     steps:
       - name: Print build info
         run: 'echo test-type: ${{ inputs.test-type }}, test-timeout-minutes: ${{ inputs.test-timeout-minutes }}, reuse-v8-context: $REUSE_V8_CONTEXT'
