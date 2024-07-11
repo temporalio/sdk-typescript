@@ -1293,9 +1293,7 @@ export class WorkflowClient extends BaseClient {
           this._list(options),
           async ({ workflowId, runId }) => ({
             workflowId,
-            history: await this.getHandle(workflowId, runId)
-              .fetchHistory()
-              .catch((_) => undefined),
+            history: await this.getHandle(workflowId, runId).fetchHistory(),
           }),
           { concurrency: intoHistoriesOptions?.concurrency ?? 5 }
         );

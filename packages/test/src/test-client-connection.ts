@@ -1,4 +1,5 @@
 import { fork } from 'node:child_process';
+import * as http2 from 'node:http2';
 import util from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -452,3 +453,107 @@ test('No 10s delay on close due to grpc-js', async (t) => {
     server.forceShutdown();
   }
 });
+
+test('Retry on "RST_STREAM with code 0"', async (t) => {
+  let receivedRequests = 0;
+  const requestHandler = (_req: http2.Http2ServerRequest, res: http2.Http2ServerResponse) => {
+    if (++receivedRequests < 4) {
+      // Just a 200 OK response, without the mandatory gRPC headers
+      res.writeHead(200);
+      res.end();
+    } else {
+      // This time, send a complete gRPC response
+      res.statusCode = 200;
+      res.addTrailers({
+        'grpc-status': '0',
+        'grpc-message': 'OK',
+      });
+      res.write(
+        // This is a raw gRPC response, of length 0
+        Buffer.from([
+          // Frame Type: Data; Not Compressed
+          0,
+          // Message Length: 0
+          0, 0, 0, 0,
+        ])
+      );
+      res.end();
+    }
+  };
+
+  await withHttp2Server(async (port) => {
+    const connection = await Connection.connect({ address: `localhost:${port}` });
+    try {
+      await new Client({ connection });
+      t.is(receivedRequests, 4);
+    } finally {
+      await connection.close();
+    }
+  }, requestHandler);
+});
+
+test('Retry on "RST_STREAM with code 2"', async (t) => {
+  let receivedRequests = 0;
+
+  const requestHandler = (_req: http2.Http2ServerRequest, res: http2.Http2ServerResponse) => {
+    if (++receivedRequests < 4) {
+      // Sends a RST_STREAM with code 2
+      res.stream.close(http2.constants.NGHTTP2_INTERNAL_ERROR);
+    } else {
+      // This time, send a complete gRPC response
+      res.statusCode = 200;
+      res.addTrailers({
+        'grpc-status': '0',
+        'grpc-message': 'OK',
+      });
+      res.write(
+        // This is a raw gRPC response, of length 0
+        Buffer.from([
+          // Frame Type: Data; Not Compressed
+          0,
+          // Message Length: 0
+          0, 0, 0, 0,
+        ])
+      );
+      res.end();
+    }
+  };
+
+  await withHttp2Server(async (port) => {
+    const connection = await Connection.connect({
+      address: `localhost:${port}`,
+    });
+    try {
+      await new Client({ connection });
+      t.is(receivedRequests, 4);
+    } finally {
+      await connection.close();
+    }
+  }, requestHandler);
+});
+
+async function withHttp2Server(
+  fn: (port: number) => Promise<void>,
+  requestListener?: (request: http2.Http2ServerRequest, response: http2.Http2ServerResponse) => void
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const srv = http2.createServer();
+    srv.listen({ port: 0, host: '127.0.0.1' }, () => {
+      const addr = srv.address();
+      if (typeof addr === 'string' || addr === null) {
+        throw new Error('Unexpected server address type');
+      }
+      srv.on('request', async (req, res) => {
+        if (requestListener) await requestListener(req, res);
+        try {
+          res.end();
+        } catch (e) {
+          // requestListener may have messed up the HTTP2 connection. Just ignore.
+        }
+      });
+      fn(addr.port)
+        .catch((e) => reject(e))
+        .finally(() => srv.close((_) => resolve()));
+    });
+  });
+}
