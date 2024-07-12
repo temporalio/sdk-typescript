@@ -27,10 +27,10 @@ import { QueryInput, SignalInput, UpdateInput, WorkflowExecuteInput, WorkflowInt
 import {
   ContinueAsNew,
   DefaultSignalHandler,
-  SDKInfo,
-  FileSlice,
+  StackTraceSDKInfo,
+  StackTraceFileSlice,
   EnhancedStackTrace,
-  FileLocation,
+  StackTraceFileLocation,
   WorkflowInfo,
   WorkflowCreateOptionsInternal,
   ActivationCompletion,
@@ -51,7 +51,7 @@ checkExtends<StartChildWorkflowExecutionFailedCause, coresdk.child_workflow.Star
 
 export interface Stack {
   formatted: string;
-  structured: FileLocation[];
+  structured: StackTraceFileLocation[];
 }
 
 /**
@@ -178,19 +178,19 @@ export class Activator implements ActivationHandler {
       {
         handler: (): EnhancedStackTrace => {
           const { sourceMap } = this;
-          const sdk: SDKInfo = { name: 'typescript', version: pkg.version };
+          const sdk: StackTraceSDKInfo = { name: 'typescript', version: pkg.version };
           const stacks = this.getStackTraces().map(({ structured: locations }) => ({ locations }));
-          const sources: Record<string, FileSlice[]> = {};
+          const sources: Record<string, StackTraceFileSlice[]> = {};
           if (this.showStackTraceSources) {
             for (const { locations } of stacks) {
-              for (const { filePath } of locations) {
-                if (!filePath) continue;
-                const content = sourceMap?.sourcesContent?.[sourceMap?.sources.indexOf(filePath)];
+              for (const { file_path } of locations) {
+                if (!file_path) continue;
+                const content = sourceMap?.sourcesContent?.[sourceMap?.sources.indexOf(file_path)];
                 if (!content) continue;
-                sources[filePath] = [
+                sources[file_path] = [
                   {
+                    line_offset: 0,
                     content,
-                    lineOffset: 0,
                   },
                 ];
               }

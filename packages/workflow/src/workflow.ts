@@ -55,7 +55,7 @@ import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 registerSleepImplementation(sleep);
 
 /**
- * Adds default values to `workflowId` and `workflowIdReusePolicy` to given workflow options.
+ * Adds default values of `workflowId` and `cancellationType` to given workflow options.
  */
 export function addDefaultWorkflowOptions<T extends Workflow>(
   opts: WithWorkflowArgs<T, ChildWorkflowOptions>
