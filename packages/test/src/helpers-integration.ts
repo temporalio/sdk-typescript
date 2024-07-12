@@ -108,8 +108,7 @@ export interface Helpers {
   assertWorkflowFailedError(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
 }
 
-export function helpers(t: ExecutionContext<Context>, testEnv?: TestWorkflowEnvironment): Helpers {
-  testEnv = testEnv ?? t.context.env;
+export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment = t.context.env): Helpers {
   const taskQueue = t.title.replace(/ /g, '_');
 
   return {
