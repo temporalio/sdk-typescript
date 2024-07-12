@@ -17,6 +17,7 @@ import {
   WorkerOptions,
   WorkflowBundle,
   bundleWorkflowCode,
+  makeTelemetryFilterString,
 } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
@@ -52,8 +53,22 @@ export function makeTestFunction(opts: {
 }): TestFn<Context> {
   const test = anyTest as TestFn<Context>;
   test.before(async (t) => {
+    const workflowBundle = await bundleWorkflowCode({
+      ...bundlerOptions,
+      workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])],
+      workflowsPath: opts.workflowsPath,
+    });
     // Ignore invalid log levels
-    Runtime.install({ logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel) });
+    Runtime.install({
+      logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel),
+      telemetryOptions: {
+        logging: {
+          filter: makeTelemetryFilterString({
+            core: (process.env.TEST_LOG_LEVEL || 'INFO').toUpperCase() as LogLevel,
+          }),
+        },
+      },
+    });
     const env = await TestWorkflowEnvironment.createLocal({
       ...opts.workflowEnvironmentOpts,
       server: {
@@ -65,11 +80,6 @@ export function makeTestFunction(opts: {
       },
     });
     await registerDefaultCustomSearchAttributes(env.connection);
-    const workflowBundle = await bundleWorkflowCode({
-      ...bundlerOptions,
-      workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])],
-      workflowsPath: opts.workflowsPath,
-    });
     t.context = {
       env,
       workflowBundle,

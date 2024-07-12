@@ -19,7 +19,9 @@ env:
             || startsWith(github.ref, 'refs/heads/releases'))
         && github.event_name != 'pull_request'
     }}
-  TESTS_CLI_VERSION: 'v0.12.0'
+  # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
+  # TESTS_CLI_VERSION: 'v0.13.2'
+  # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
   # Compile native bridge code for each target platform.
@@ -281,7 +283,7 @@ jobs:
         if: matrix.server == 'cli'
         shell: bash
         run: |
-          temporal server start-dev --headless &
+          temporal server start-dev --headless &> /tmp/devserver.log &
 
       - name: Run Tests
         run: npm test
@@ -289,12 +291,19 @@ jobs:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
-      - name: Upload logs
+      - name: Upload NPM logs
         uses: actions/upload-artifact@v4
-        if: failure()
+        if: failure() || cancelled()
         with:
           name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.server }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-logs
           path: ${{ startsWith(matrix.platform, 'windows') && 'C:\\npm\\_logs\\' || '~/.npm/_logs/' }}
+
+      - name: Upload Dev Server logs
+        uses: actions/upload-artifact@v4
+        if: failure() || cancelled()
+        with:
+          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.server }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
+          path: /tmp/devserver.log
 
   # Tests that npm init @temporalio results in a working worker and client
   test-npm-init:
@@ -424,6 +433,7 @@ jobs:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
       version: ${{github.event.pull_request.head.ref}}
       version-is-repo-ref: true
+      features-repo-ref: sdk-1403-ts-startUpdate-require-wait-stage
 
   stress-tests-no-reuse-context:
     name: Stress Tests (No Reuse V8 Context)

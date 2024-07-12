@@ -1,5 +1,3 @@
-/* eslint-disable no-duplicate-imports */
-// ^ needed for lint passing in CI
 /**
  * Test the various states of a Worker.
  * Most tests use a mocked core, some tests run serially because they emit signals to the process
@@ -16,7 +14,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.serial('Worker shuts down gracefully', async (t) => {
     const worker = await Worker.create({
       ...defaultOptions,
-      taskQueue: 'shutdown-test',
+      taskQueue: t.title.replace(/ /g, '_'),
     });
     t.is(worker.getState(), 'INITIALIZED');
     const p = worker.run();
@@ -33,7 +31,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.serial('Worker shuts down gracefully if interrupted before running', async (t) => {
     const worker = await Worker.create({
       ...defaultOptions,
-      taskQueue: 'shutdown-test',
+      taskQueue: t.title.replace(/ /g, '_'),
     });
     t.is(worker.getState(), 'INITIALIZED');
     process.emit('SIGINT', 'SIGINT');
@@ -47,7 +45,7 @@ if (RUN_INTEGRATION_TESTS) {
     await t.throwsAsync(
       Worker.create({
         ...defaultOptions,
-        taskQueue: 'shutdown-test',
+        taskQueue: t.title.replace(/ /g, '_'),
         namespace: 'oogabooga',
       }),
       {
@@ -61,7 +59,7 @@ if (RUN_INTEGRATION_TESTS) {
 test.serial('Mocked run shuts down gracefully', async (t) => {
   try {
     const worker = isolateFreeWorker({
-      taskQueue: 'shutdown-test',
+      taskQueue: t.title.replace(/ /g, '_'),
     });
     t.is(worker.getState(), 'INITIALIZED');
     const p = worker.run();
@@ -78,7 +76,7 @@ test.serial('Mocked run shuts down gracefully', async (t) => {
 test.serial('Mocked run shuts down gracefully if interrupted before running', async (t) => {
   try {
     const worker = isolateFreeWorker({
-      taskQueue: 'shutdown-test',
+      taskQueue: t.title.replace(/ /g, '_'),
     });
     // worker.native.initiateShutdown = () => new Promise(() => undefined);
     t.is(worker.getState(), 'INITIALIZED');
@@ -95,7 +93,7 @@ test.serial('Mocked run shuts down gracefully if interrupted before running', as
 test.serial('Mocked run throws if not shut down gracefully', async (t) => {
   const worker = isolateFreeWorker({
     shutdownForceTime: '5ms',
-    taskQueue: 'shutdown-test',
+    taskQueue: t.title.replace(/ /g, '_'),
   });
   t.is(worker.getState(), 'INITIALIZED');
   const p = worker.run();
@@ -113,7 +111,7 @@ test.serial('Mocked run throws if not shut down gracefully', async (t) => {
 test.serial('Mocked throws combined error in runUntil', async (t) => {
   const worker = isolateFreeWorker({
     shutdownForceTime: '5ms',
-    taskQueue: 'shutdown-test',
+    taskQueue: t.title.replace(/ /g, '_'),
   });
   worker.native.initiateShutdown = () => new Promise(() => undefined);
   const err = await t.throwsAsync(
