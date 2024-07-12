@@ -72,7 +72,7 @@ export function cleanStackTrace(ostack: string): string {
   return normalizedStack ? `${firstLine}\n${normalizedStack}` : firstLine;
 }
 
-export function noopTest(): void {
+function noopTest(): void {
   // eslint: this function body is empty and it's okay.
 }
 
