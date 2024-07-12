@@ -8,7 +8,7 @@ const LONG_POLL_EXPIRATION_INTERVAL_SECONDS = 1.0;
 
 const test = makeTestFunction({
   workflowsPath: __filename,
-  workflowEnvironmentOpts: {
+  localWorkflowEnvironmentOpts: {
     server: {
       extraArgs: [
         '--dynamic-config-value',
@@ -564,7 +564,7 @@ test('currentUpdateInfo returns the update id', async (t) => {
 test('startUpdate throws WorkflowUpdateRPCTimeoutOrCancelledError with no worker', async (t) => {
   const { startWorkflow } = helpers(t);
   const wfHandle = await startWorkflow(workflowWithUpdates);
-  await t.context.env.client.withDeadline(Date.now() + 100, async () => {
+  await t.context.envLocal.client.withDeadline(Date.now() + 100, async () => {
     const err = await t.throwsAsync(
       wfHandle.startUpdate(update, { args: ['1'], waitForStage: WorkflowUpdateStage.ACCEPTED })
     );
@@ -573,7 +573,7 @@ test('startUpdate throws WorkflowUpdateRPCTimeoutOrCancelledError with no worker
 
   const ctrl = new AbortController();
   setTimeout(() => ctrl.abort(), 10);
-  await t.context.env.client.withAbortSignal(ctrl.signal, async () => {
+  await t.context.envLocal.client.withAbortSignal(ctrl.signal, async () => {
     const err = await t.throwsAsync(
       wfHandle.startUpdate(update, { args: ['1'], waitForStage: WorkflowUpdateStage.ACCEPTED })
     );
@@ -587,14 +587,17 @@ test('update result poll throws WorkflowUpdateRPCTimeoutOrCancelledError', async
   await worker.runUntil(async () => {
     const wfHandle = await startWorkflow(workflowWithUpdates);
     const arg = 'wait-for-longer-than-server-long-poll-timeout';
-    await t.context.env.client.withDeadline(Date.now() + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000, async () => {
-      const err = await t.throwsAsync(wfHandle.executeUpdate(update, { args: [arg] }));
-      t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
-    });
+    await t.context.envLocal.client.withDeadline(
+      Date.now() + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000,
+      async () => {
+        const err = await t.throwsAsync(wfHandle.executeUpdate(update, { args: [arg] }));
+        t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
+      }
+    );
 
     const ctrl = new AbortController();
     setTimeout(() => ctrl.abort(), LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000);
-    await t.context.env.client.withAbortSignal(ctrl.signal, async () => {
+    await t.context.envLocal.client.withAbortSignal(ctrl.signal, async () => {
       const err = await t.throwsAsync(wfHandle.executeUpdate(update, { args: [arg] }));
       t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
     });
