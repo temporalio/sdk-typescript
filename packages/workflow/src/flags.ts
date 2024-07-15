@@ -7,16 +7,16 @@ const flagsRegistry: Map<number, SdkFlag> = new Map();
 
 export const SdkFlags = {
   /**
-   * This flag gates multiple fixes related to cancellation scopes and timers introduced in 1.10.2/1.10.3:
+   * This flag gates multiple fixes related to cancellation scopes and timers introduced in 1.10.2/1.11.0:
    * - Cancellation of a non-cancellable scope no longer propagates to children scopes
    *   (see https://github.com/temporalio/sdk-typescript/issues/1423).
    * - CancellationScope.withTimeout(fn) now cancel the timer if `fn` completes before expiration
    *   of the timeout, similar to how `condition(fn, timeout)` works.
    * - Timers created using setTimeout can now be intercepted.
    *
-   * @since Introduced in 1.10.2/1.10.3.
+   * @since Introduced in 1.10.2/1.11.0.
    */
-  NonCancellableScopesAreShieldedFromPropagation: defineFlag(1, false),
+  NonCancellableScopesAreShieldedFromPropagation: defineFlag(1, true),
 } as const;
 
 function defineFlag(id: number, def: boolean): SdkFlag {
