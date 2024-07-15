@@ -18,6 +18,7 @@ import { coresdk } from '@temporalio/proto';
 import { LogTimestamp } from '@temporalio/worker';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import { SdkFlag, SdkFlags } from '@temporalio/workflow/src/flags';
 import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
@@ -148,9 +149,15 @@ function compareCompletion(
 }
 
 function makeSuccess(
-  commands: coresdk.workflow_commands.IWorkflowCommand[] = [makeCompleteWorkflowExecution()]
+  commands: coresdk.workflow_commands.IWorkflowCommand[] = [makeCompleteWorkflowExecution()],
+  usedInternalFlags: SdkFlag[] = []
 ): coresdk.workflow_completion.IWorkflowActivationCompletion {
-  return { successful: { commands } };
+  return {
+    successful: {
+      commands,
+      usedInternalFlags: usedInternalFlags.map((x) => x.id),
+    },
+  };
 }
 
 function makeStartWorkflow(
@@ -487,7 +494,14 @@ test('tasksAndMicrotasks', async (t) => {
   const { logs, workflowType } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(workflowType));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) })]));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess(
+        [makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) })],
+        [SdkFlags.NonCancellableScopesAreShieldedFromPropagation]
+      )
+    );
   }
   {
     const req = await activate(t, makeFireTimer(1));
@@ -573,7 +587,14 @@ test('importer', async (t) => {
   const { logs, workflowType } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(workflowType));
-    compareCompletion(t, req, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(10) })]));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess(
+        [makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(10) })],
+        [SdkFlags.NonCancellableScopesAreShieldedFromPropagation]
+      )
+    );
   }
   {
     const req = await activate(t, makeFireTimer(1));
@@ -1200,7 +1221,14 @@ test('cancellationScopesWithCallbacks', async (t) => {
   const { workflowType } = t.context;
   {
     const completion = await activate(t, makeStartWorkflow(workflowType));
-    compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(10) })]));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess(
+        [makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(10) })],
+        [SdkFlags.NonCancellableScopesAreShieldedFromPropagation]
+      )
+    );
   }
   {
     const completion = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
