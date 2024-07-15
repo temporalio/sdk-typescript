@@ -93,7 +93,7 @@ export function overrideGlobals(): void {
       timeoutCancelationScopes.delete(handle);
       timerScope.cancel();
     } else {
-      activator.nextSeqs.timer++; // Shouldn't increase seq number
+      activator.nextSeqs.timer++; // Shouldn't increase seq number, but that's the legacy behavior
       activator.completions.timer.delete(handle);
       activator.pushCommand({
         cancelTimer: {

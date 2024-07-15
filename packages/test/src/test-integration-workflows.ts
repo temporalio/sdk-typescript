@@ -445,9 +445,9 @@ export async function issue1423Workflow(legacyCompatibility: boolean): Promise<'
   overrideSdkInternalFlag(SdkFlags.NonCancellableScopesAreShieldedFromPropagation, !legacyCompatibility);
   try {
     workflow.CancellationScope.current().cancel();
-    // This will throw a CancellationException
+    // We expect this to throw a CancellationException
     await workflow.sleep(1);
-    throw workflow.ApplicationFailure.nonRetryable('sleep in cancelled scope didnt throw'); // Shouldn't happen
+    throw workflow.ApplicationFailure.nonRetryable("sleep in cancelled scope didn't throw");
   } catch (err) {
     return await workflow.CancellationScope.nonCancellable(async () => {
       try {
