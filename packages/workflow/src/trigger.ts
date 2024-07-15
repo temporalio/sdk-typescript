@@ -26,7 +26,7 @@ export class Trigger<T> implements PromiseLike<T> {
   constructor() {
     this.promise = new Promise<T>((resolve, reject) => {
       const scope = CancellationScope.current();
-      if (scope.consideredCancelled || scope.cancellable) {
+      if (scope.cancellable) {
         untrackPromise(scope.cancelRequested.catch(reject));
       }
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment

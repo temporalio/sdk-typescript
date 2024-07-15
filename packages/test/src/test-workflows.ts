@@ -18,6 +18,7 @@ import { coresdk } from '@temporalio/proto';
 import { LogTimestamp } from '@temporalio/worker';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import { SdkFlag } from '@temporalio/workflow/lib/flags';
 import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
@@ -148,9 +149,15 @@ function compareCompletion(
 }
 
 function makeSuccess(
-  commands: coresdk.workflow_commands.IWorkflowCommand[] = [makeCompleteWorkflowExecution()]
+  commands: coresdk.workflow_commands.IWorkflowCommand[] = [makeCompleteWorkflowExecution()],
+  usedInternalFlags: SdkFlag[] = []
 ): coresdk.workflow_completion.IWorkflowActivationCompletion {
-  return { successful: { commands } };
+  return {
+    successful: {
+      commands,
+      usedInternalFlags: usedInternalFlags.map((x) => x.id),
+    },
+  };
 }
 
 function makeStartWorkflow(
@@ -491,7 +498,7 @@ test('tasksAndMicrotasks', async (t) => {
   }
   {
     const req = await activate(t, makeFireTimer(1));
-    compareCompletion(t, req, makeSuccess());
+    compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution()]));
   }
   t.deepEqual(logs, [['script start'], ['script end'], ['promise1'], ['promise2'], ['setTimeout']]);
 });
@@ -577,7 +584,7 @@ test('importer', async (t) => {
   }
   {
     const req = await activate(t, makeFireTimer(1));
-    compareCompletion(t, req, makeSuccess());
+    compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution()]));
   }
   t.deepEqual(logs, [['slept']]);
 });
@@ -1117,7 +1124,7 @@ test('nestedCancellation', async (t) => {
   }
 });
 
-test('sharedScopes', async (t) => {
+test('sharedCancellationScopes', async (t) => {
   const { workflowType } = t.context;
   const result = { some: 'data' };
   {
@@ -1156,7 +1163,7 @@ test('sharedScopes', async (t) => {
   }
 });
 
-test('shieldAwaitedInRootScope', async (t) => {
+test('nonCancellableAwaitedInRootScope', async (t) => {
   const { workflowType } = t.context;
   const result = { some: 'data' };
   {
@@ -1243,7 +1250,7 @@ test('cancellationScopes', async (t) => {
   ]);
 });
 
-test('childAndShield', async (t) => {
+test('childAndNonCancellable', async (t) => {
   const { workflowType } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(workflowType));
@@ -1255,7 +1262,7 @@ test('childAndShield', async (t) => {
   }
 });
 
-test('partialShield', async (t) => {
+test('partialNonCancellable', async (t) => {
   const { workflowType, logs } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(workflowType));
@@ -1294,7 +1301,7 @@ test('partialShield', async (t) => {
   t.deepEqual(logs, [['Workflow cancelled']]);
 });
 
-test('shieldInShield', async (t) => {
+test('nonCancellableInNonCancellable', async (t) => {
   const { workflowType, logs } = t.context;
   {
     const req = await activate(t, makeStartWorkflow(workflowType));

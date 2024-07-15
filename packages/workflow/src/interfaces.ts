@@ -479,3 +479,8 @@ export type SignalHandlerOptions = { description?: string };
  * A validator and description of an update handler.
  */
 export type UpdateHandlerOptions<Args extends any[]> = { validator?: UpdateValidator<Args>; description?: string };
+
+export interface ActivationCompletion {
+  commands: coresdk.workflow_commands.IWorkflowCommand[];
+  usedInternalFlags: number[];
+}
