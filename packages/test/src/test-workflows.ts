@@ -505,7 +505,11 @@ test('tasksAndMicrotasks', async (t) => {
   }
   {
     const req = await activate(t, makeFireTimer(1));
-    compareCompletion(t, req, makeSuccess());
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([makeCompleteWorkflowExecution()], [SdkFlags.NonCancellableScopesAreShieldedFromPropagation])
+    );
   }
   t.deepEqual(logs, [['script start'], ['script end'], ['promise1'], ['promise2'], ['setTimeout']]);
 });
@@ -598,7 +602,11 @@ test('importer', async (t) => {
   }
   {
     const req = await activate(t, makeFireTimer(1));
-    compareCompletion(t, req, makeSuccess());
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([makeCompleteWorkflowExecution()], [SdkFlags.NonCancellableScopesAreShieldedFromPropagation])
+    );
   }
   t.deepEqual(logs, [['slept']]);
 });
@@ -1232,7 +1240,14 @@ test('cancellationScopesWithCallbacks', async (t) => {
   }
   {
     const completion = await activate(t, makeActivation(undefined, { cancelWorkflow: {} }));
-    compareCompletion(t, completion, makeSuccess([{ cancelWorkflowExecution: {} }]));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess(
+        [{ cancelTimer: { seq: 1 } }, { cancelWorkflowExecution: {} }],
+        [SdkFlags.NonCancellableScopesAreShieldedFromPropagation]
+      )
+    );
   }
 });
 
