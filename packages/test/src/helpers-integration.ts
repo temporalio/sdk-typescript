@@ -98,18 +98,18 @@ export interface Helpers {
   assertWorkflowFailedError(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
 }
 
-export function helpers(t: ExecutionContext<Context>): Helpers {
+export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment = t.context.env): Helpers {
   const taskQueue = t.title.replace(/ /g, '_');
 
   return {
     taskQueue,
     async createWorker(opts?: Partial<WorkerOptions>): Promise<Worker> {
       return await Worker.create({
-        connection: t.context.env.nativeConnection,
+        connection: testEnv.nativeConnection,
         workflowBundle: t.context.workflowBundle,
         taskQueue,
         interceptors: {
-          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(t.context.env.connection) })],
+          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(testEnv.connection) })],
         },
         showStackTraceSources: true,
         ...opts,
@@ -119,7 +119,7 @@ export function helpers(t: ExecutionContext<Context>): Helpers {
       fn: workflow.Workflow,
       opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
     ): Promise<any> {
-      return await t.context.env.client.workflow.execute(fn, {
+      return await testEnv.client.workflow.execute(fn, {
         taskQueue,
         workflowId: randomUUID(),
         ...opts,
@@ -129,7 +129,7 @@ export function helpers(t: ExecutionContext<Context>): Helpers {
       fn: workflow.Workflow,
       opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
     ): Promise<WorkflowHandle<workflow.Workflow>> {
-      return await t.context.env.client.workflow.start(fn, {
+      return await testEnv.client.workflow.start(fn, {
         taskQueue,
         workflowId: randomUUID(),
         ...opts,

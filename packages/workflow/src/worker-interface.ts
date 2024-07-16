@@ -4,11 +4,10 @@
  * @module
  */
 import { IllegalStateError } from '@temporalio/common';
-import { msToTs, tsToMs } from '@temporalio/common/lib/time';
+import { tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
-import { DeterminismViolationError } from './errors';
 import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowCreateOptionsInternal } from './interfaces';
 import { Activator } from './internals';
@@ -20,72 +19,6 @@ export { PromiseStackStore } from './internals';
 
 const global = globalThis as any;
 const OriginalDate = globalThis.Date;
-
-export function overrideGlobals(): void {
-  // Mock any weak reference because GC is non-deterministic and the effect is observable from the Workflow.
-  // Workflow developer will get a meaningful exception if they try to use these.
-  global.WeakRef = function () {
-    throw new DeterminismViolationError('WeakRef cannot be used in Workflows because v8 GC is non-deterministic');
-  };
-  global.FinalizationRegistry = function () {
-    throw new DeterminismViolationError(
-      'FinalizationRegistry cannot be used in Workflows because v8 GC is non-deterministic'
-    );
-  };
-
-  global.Date = function (...args: unknown[]) {
-    if (args.length > 0) {
-      return new (OriginalDate as any)(...args);
-    }
-    return new OriginalDate(getActivator().now);
-  };
-
-  global.Date.now = function () {
-    return getActivator().now;
-  };
-
-  global.Date.parse = OriginalDate.parse.bind(OriginalDate);
-  global.Date.UTC = OriginalDate.UTC.bind(OriginalDate);
-
-  global.Date.prototype = OriginalDate.prototype;
-
-  /**
-   * @param ms sleep duration -  number of milliseconds. If given a negative number, value will be set to 1.
-   */
-  global.setTimeout = function (cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
-    const activator = getActivator();
-    ms = Math.max(1, ms);
-    const seq = activator.nextSeqs.timer++;
-    // Create a Promise for AsyncLocalStorage to be able to track this completion using promise hooks.
-    new Promise((resolve, reject) => {
-      activator.completions.timer.set(seq, { resolve, reject });
-      activator.pushCommand({
-        startTimer: {
-          seq,
-          startToFireTimeout: msToTs(ms),
-        },
-      });
-    }).then(
-      () => cb(...args),
-      () => undefined /* ignore cancellation */
-    );
-    return seq;
-  };
-
-  global.clearTimeout = function (handle: number): void {
-    const activator = getActivator();
-    activator.nextSeqs.timer++;
-    activator.completions.timer.delete(handle);
-    activator.pushCommand({
-      cancelTimer: {
-        seq: handle,
-      },
-    });
-  };
-
-  // activator.random is mutable, don't hardcode its reference
-  Math.random = () => getActivator().random();
-}
 
 /**
  * Initialize the isolate runtime.
@@ -190,6 +123,7 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
         // timestamp will not be updated for activation that contain only queries
         activator.now = tsToMs(activation.timestamp);
       }
+      activator.addKnownFlags(activation.availableInternalFlags ?? []);
 
       // The Rust Core ensures that these activation fields are not null
       activator.mutateWorkflowInfo((info) => ({
@@ -249,11 +183,12 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
   activator.rejectBufferedUpdates();
   const intercept = composeInterceptors(activator.interceptors.internals, 'concludeActivation', (input) => input);
   const { info } = activator;
-  const { commands } = intercept({ commands: activator.getAndResetCommands() });
+  const activationCompletion = activator.concludeActivation();
+  const { commands } = intercept({ commands: activationCompletion.commands });
 
   return {
     runId: info.runId,
-    successful: { commands },
+    successful: { ...activationCompletion, commands },
   };
 }
 
