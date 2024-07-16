@@ -17,6 +17,7 @@ import {
   WorkerOptions,
   WorkflowBundle,
   bundleWorkflowCode,
+  makeTelemetryFilterString,
 } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
@@ -52,8 +53,22 @@ export function makeTestFunction(opts: {
 }): TestFn<Context> {
   const test = anyTest as TestFn<Context>;
   test.before(async (t) => {
+    const workflowBundle = await bundleWorkflowCode({
+      ...bundlerOptions,
+      workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])],
+      workflowsPath: opts.workflowsPath,
+    });
     // Ignore invalid log levels
-    Runtime.install({ logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel) });
+    Runtime.install({
+      logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel),
+      telemetryOptions: {
+        logging: {
+          filter: makeTelemetryFilterString({
+            core: (process.env.TEST_LOG_LEVEL || 'INFO').toUpperCase() as LogLevel,
+          }),
+        },
+      },
+    });
     const env = await TestWorkflowEnvironment.createLocal({
       ...opts.workflowEnvironmentOpts,
       server: {
@@ -65,11 +80,6 @@ export function makeTestFunction(opts: {
       },
     });
     await registerDefaultCustomSearchAttributes(env.connection);
-    const workflowBundle = await bundleWorkflowCode({
-      ...bundlerOptions,
-      workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])],
-      workflowsPath: opts.workflowsPath,
-    });
     t.context = {
       env,
       workflowBundle,
@@ -98,18 +108,18 @@ export interface Helpers {
   assertWorkflowFailedError(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
 }
 
-export function helpers(t: ExecutionContext<Context>): Helpers {
+export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment = t.context.env): Helpers {
   const taskQueue = t.title.replace(/ /g, '_');
 
   return {
     taskQueue,
     async createWorker(opts?: Partial<WorkerOptions>): Promise<Worker> {
       return await Worker.create({
-        connection: t.context.env.nativeConnection,
+        connection: testEnv.nativeConnection,
         workflowBundle: t.context.workflowBundle,
         taskQueue,
         interceptors: {
-          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(t.context.env.connection) })],
+          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(testEnv.connection) })],
         },
         showStackTraceSources: true,
         ...opts,
@@ -119,7 +129,7 @@ export function helpers(t: ExecutionContext<Context>): Helpers {
       fn: workflow.Workflow,
       opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
     ): Promise<any> {
-      return await t.context.env.client.workflow.execute(fn, {
+      return await testEnv.client.workflow.execute(fn, {
         taskQueue,
         workflowId: randomUUID(),
         ...opts,
@@ -129,7 +139,7 @@ export function helpers(t: ExecutionContext<Context>): Helpers {
       fn: workflow.Workflow,
       opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
     ): Promise<WorkflowHandle<workflow.Workflow>> {
-      return await t.context.env.client.workflow.start(fn, {
+      return await testEnv.client.workflow.start(fn, {
         taskQueue,
         workflowId: randomUUID(),
         ...opts,

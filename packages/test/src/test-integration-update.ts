@@ -1,5 +1,4 @@
-import { status as grpcStatus } from '@grpc/grpc-js';
-import { isGrpcServiceError } from '@temporalio/client';
+import { WorkflowUpdateStage, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
@@ -65,11 +64,16 @@ test('Update can be executed via startUpdate() and handle.result()', async (t) =
   await worker.runUntil(async () => {
     const wfHandle = await startWorkflow(workflowWithUpdates);
 
-    const updateHandle = await wfHandle.startUpdate(update, { args: ['1'] });
+    const updateHandle = await wfHandle.startUpdate(update, {
+      args: ['1'],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
     const updateResult = await updateHandle.result();
     t.deepEqual(updateResult, ['1']);
 
-    const doneUpdateHandle = await wfHandle.startUpdate(doneUpdate);
+    const doneUpdateHandle = await wfHandle.startUpdate(doneUpdate, {
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
     const doneUpdateResult = await doneUpdateHandle.result();
     t.is(doneUpdateResult, undefined);
 
@@ -84,7 +88,11 @@ test('Update handle can be created from identifiers and used to obtain result', 
   await worker.runUntil(async () => {
     const updateId = 'my-update-id';
     const wfHandle = await startWorkflow(workflowWithUpdates);
-    const updateHandleFromStartUpdate = await wfHandle.startUpdate(update, { args: ['1'], updateId });
+    const updateHandleFromStartUpdate = await wfHandle.startUpdate(update, {
+      args: ['1'],
+      updateId,
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
 
     // Obtain update handle on workflow handle from start update.
     const updateHandle = wfHandle.getUpdateHandle(updateId);
@@ -108,7 +116,7 @@ test('Update handle can be created from identifiers and used to obtain result', 
     const workflowHandleWithIncorrectRunId = t.context.env.client.workflow.getHandle(wfHandle.workflowId, wf.uuid4());
     const updateHandle4 = workflowHandleWithIncorrectRunId.getUpdateHandle(updateId);
     const err = await t.throwsAsync(updateHandle4.result());
-    t.true(isGrpcServiceError(err) && err.code === grpcStatus.NOT_FOUND);
+    t.true(err instanceof wf.WorkflowNotFoundError);
   });
 });
 
@@ -176,9 +184,15 @@ test('Update validator can reject when using handle.result() but handle can be o
   const worker = await createWorker();
   await worker.runUntil(async () => {
     const wfHandle = await startWorkflow(workflowWithUpdateValidator);
-    let updateHandle = await wfHandle.startUpdate(stringToStringUpdate, { args: ['arg'] });
+    let updateHandle = await wfHandle.startUpdate(stringToStringUpdate, {
+      args: ['arg'],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
     t.is(await updateHandle.result(), 'update-result');
-    updateHandle = await wfHandle.startUpdate(stringToStringUpdate, { args: ['bad-arg'] });
+    updateHandle = await wfHandle.startUpdate(stringToStringUpdate, {
+      args: ['bad-arg'],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
     await assertWorkflowUpdateFailed(updateHandle.result(), wf.ApplicationFailure, 'Validation failed');
   });
 });
@@ -247,7 +261,10 @@ test('Update id can be assigned and is present on returned handle', async (t) =>
   const worker = await createWorker();
   await worker.runUntil(async () => {
     const wfHandle = await startWorkflow(workflowWithUpdates);
-    const updateHandle = await wfHandle.startUpdate(doneUpdate, { updateId: 'my-update-id' });
+    const updateHandle = await wfHandle.startUpdate(doneUpdate, {
+      updateId: 'my-update-id',
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
     t.is(updateHandle.updateId, 'my-update-id');
   });
 });
@@ -426,7 +443,10 @@ test('Update/Signal/Query example in WorkflowHandle docstrings works', async (t)
     t.is(queryResult, 4);
     const updateResult = await wfHandle.executeUpdate(incrementAndGetValueUpdate, { args: [2] });
     t.is(updateResult, 6);
-    const secondUpdateHandle = await wfHandle.startUpdate(incrementAndGetValueUpdate, { args: [2] });
+    const secondUpdateHandle = await wfHandle.startUpdate(incrementAndGetValueUpdate, {
+      args: [2],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
     const secondUpdateResult = await secondUpdateHandle.result();
     t.is(secondUpdateResult, 8);
     await wfHandle.cancel();
@@ -437,7 +457,12 @@ test('Update/Signal/Query example in WorkflowHandle docstrings works', async (t)
 test('startUpdate does not return handle before update has reached requested stage', async (t) => {
   const { startWorkflow } = helpers(t);
   const wfHandle = await startWorkflow(workflowWithUpdates);
-  const updatePromise = wfHandle.startUpdate(update, { args: ['1'] }).then(() => 'update');
+  const updatePromise = wfHandle
+    .startUpdate(update, {
+      args: ['1'],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    })
+    .then(() => 'update');
   const timeoutPromise = new Promise<string>((f) =>
     setTimeout(() => f('timeout'), 500 + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000)
   );
@@ -459,5 +484,116 @@ test('Interruption of update by server long-poll timeout is invisible to client'
     await wfHandle.executeUpdate(doneUpdate);
     const wfResult = await wfHandle.result();
     t.deepEqual(wfResult, [arg, 'done', '$']);
+  });
+});
+
+export const currentInfoUpdate = wf.defineUpdate<string, []>('current-info-update');
+
+export async function workflowWithCurrentUpdateInfo(): Promise<string[]> {
+  const state: Promise<string>[] = [];
+  const getUpdateId = async (): Promise<string> => {
+    await wf.sleep(10);
+    const info = wf.currentUpdateInfo();
+    if (info === undefined) {
+      throw new Error('No current update info');
+    }
+    return info.id;
+  };
+  const updateHandler = async (): Promise<string> => {
+    const info = wf.currentUpdateInfo();
+    if (info === undefined || info.name !== 'current-info-update') {
+      throw new Error(`Invalid current update info in updateHandler: info ${info?.name}`);
+    }
+    const id = await getUpdateId();
+    if (info.id !== id) {
+      throw new Error(`Update id changed: before ${info.id} after ${id}`);
+    }
+
+    state.push(getUpdateId());
+    // Re-fetch and return
+    const infoAfter = wf.currentUpdateInfo();
+    if (infoAfter === undefined) {
+      throw new Error('Invalid current update info in updateHandler - after');
+    }
+    return infoAfter.id;
+  };
+
+  const validator = (): void => {
+    const info = wf.currentUpdateInfo();
+    if (info === undefined || info.name !== 'current-info-update') {
+      throw new Error(`Invalid current update info in validator: info ${info?.name}`);
+    }
+  };
+
+  wf.setHandler(currentInfoUpdate, updateHandler, { validator });
+
+  if (wf.currentUpdateInfo() !== undefined) {
+    throw new Error('Current update info not undefined outside handler');
+  }
+
+  await wf.condition(() => state.length === 5);
+
+  if (wf.currentUpdateInfo() !== undefined) {
+    throw new Error('Current update info not undefined outside handler - after');
+  }
+
+  return await Promise.all(state);
+}
+
+test('currentUpdateInfo returns the update id', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const wfHandle = await startWorkflow(workflowWithCurrentUpdateInfo);
+    const updateIds = await Promise.all([
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update1' }),
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update2' }),
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update3' }),
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update4' }),
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update5' }),
+    ]);
+    t.deepEqual(updateIds, ['update1', 'update2', 'update3', 'update4', 'update5']);
+    const wfResults = await wfHandle.result();
+    t.deepEqual(wfResults.sort(), ['update1', 'update2', 'update3', 'update4', 'update5']);
+  });
+});
+
+test('startUpdate throws WorkflowUpdateRPCTimeoutOrCancelledError with no worker', async (t) => {
+  const { startWorkflow } = helpers(t);
+  const wfHandle = await startWorkflow(workflowWithUpdates);
+  await t.context.env.client.withDeadline(Date.now() + 100, async () => {
+    const err = await t.throwsAsync(
+      wfHandle.startUpdate(update, { args: ['1'], waitForStage: WorkflowUpdateStage.ACCEPTED })
+    );
+    t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
+  });
+
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), 10);
+  await t.context.env.client.withAbortSignal(ctrl.signal, async () => {
+    const err = await t.throwsAsync(
+      wfHandle.startUpdate(update, { args: ['1'], waitForStage: WorkflowUpdateStage.ACCEPTED })
+    );
+    t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
+  });
+});
+
+test('update result poll throws WorkflowUpdateRPCTimeoutOrCancelledError', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const wfHandle = await startWorkflow(workflowWithUpdates);
+    const arg = 'wait-for-longer-than-server-long-poll-timeout';
+    await t.context.env.client.withDeadline(Date.now() + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000, async () => {
+      const err = await t.throwsAsync(wfHandle.executeUpdate(update, { args: [arg] }));
+      t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
+    });
+
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000);
+    await t.context.env.client.withAbortSignal(ctrl.signal, async () => {
+      const err = await t.throwsAsync(wfHandle.executeUpdate(update, { args: [arg] }));
+      t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
+    });
   });
 });

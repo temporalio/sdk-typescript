@@ -1357,8 +1357,8 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
       const stacks = enhancedStack.stacks.map((s) => ({
         locations: s.locations.map((l) => ({
           ...l,
-          ...(l.filePath
-            ? { filePath: l.filePath.replace(path.resolve(__dirname, '../../../'), '').replace(/\\/g, '/') }
+          ...(l.file_path
+            ? { file_path: l.file_path.replace(path.resolve(__dirname, '../../../'), '').replace(/\\/g, '/') }
             : undefined),
         })),
       }));
@@ -1368,43 +1368,48 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
         {
           locations: [
             {
-              functionName: 'Function.all',
+              function_name: 'Function.all',
+              internal_code: false,
             },
             {
-              filePath: '/packages/test/src/workflows/stack-tracer.ts',
-              functionName: 'enhancedStackTracer',
+              file_path: '/packages/test/src/workflows/stack-tracer.ts',
+              function_name: 'enhancedStackTracer',
               line: 32,
               column: 35,
+              internal_code: false,
             },
           ],
         },
         {
           locations: [
             {
-              filePath: '/packages/test/src/workflows/stack-tracer.ts',
-              functionName: 'enhancedStackTracer',
+              file_path: '/packages/test/src/workflows/stack-tracer.ts',
+              function_name: 'enhancedStackTracer',
               line: 32,
               column: 35,
+              internal_code: false,
             },
           ],
         },
         {
           locations: [
             {
-              functionName: 'Promise.then',
+              function_name: 'Promise.then',
+              internal_code: false,
             },
             {
-              filePath: '/packages/workflow/src/trigger.ts',
-              functionName: 'Trigger.then',
+              file_path: '/packages/workflow/src/trigger.ts',
+              function_name: 'Trigger.then',
               line: 47,
               column: 24,
+              internal_code: false,
             },
           ],
         },
       ]);
       const expectedSources = ['../src/workflows/stack-tracer.ts', '../../workflow/src/trigger.ts'].map((p) => [
         path.resolve(__dirname, p),
-        [{ content: readFileSync(path.resolve(__dirname, p), 'utf8'), lineOffset: 0 }],
+        [{ content: readFileSync(path.resolve(__dirname, p), 'utf8'), line_offset: 0 }],
       ]);
       t.deepEqual(Object.entries(enhancedStack.sources), expectedSources);
     });

@@ -3,7 +3,6 @@ import {
   ActivityOptions,
   compileRetryPolicy,
   extractWorkflowType,
-  IllegalStateError,
   LocalActivityOptions,
   mapToPayloads,
   QueryDefinition,
@@ -24,6 +23,7 @@ import { Duration, msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporali
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
+import { UpdateScope } from './update-scope';
 import {
   ActivityInput,
   LocalActivityInput,
@@ -44,6 +44,7 @@ import {
   SignalHandlerOptions,
   UpdateHandlerOptions,
   WorkflowInfo,
+  UpdateInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
@@ -54,7 +55,7 @@ import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 registerSleepImplementation(sleep);
 
 /**
- * Adds default values to `workflowId` and `workflowIdReusePolicy` to given workflow options.
+ * Adds default values of `workflowId` and `cancellationType` to given workflow options.
  */
 export function addDefaultWorkflowOptions<T extends Workflow>(
   opts: WithWorkflowArgs<T, ChildWorkflowOptions>
@@ -62,7 +63,7 @@ export function addDefaultWorkflowOptions<T extends Workflow>(
   const { args, workflowId, ...rest } = opts;
   return {
     workflowId: workflowId ?? uuid4(),
-    args: args ?? [],
+    args: (args ?? []) as unknown[],
     cancellationType: ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
     ...rest,
   };
@@ -869,6 +870,19 @@ export function workflowInfo(): WorkflowInfo {
 }
 
 /**
+ * Get information about the current update if any.
+ *
+ * @return Info for the current update handler the code calling this is executing
+ * within if any.
+ *
+ * @experimental
+ */
+export function currentUpdateInfo(): UpdateInfo | undefined {
+  assertInWorkflowContext('Workflow.currentUpdateInfo(...) may only be used from a Workflow Execution.');
+  return UpdateScope.current();
+}
+
+/**
  * Returns whether or not code is executing in workflow context
  */
 export function inWorkflowContext(): boolean {
@@ -987,7 +1001,10 @@ export function uuid4(): string {
  * calls with the same ID, which means all such calls will always return the same value.
  */
 export function patched(patchId: string): boolean {
-  return patchInternal(patchId, false);
+  const activator = assertInWorkflowContext(
+    'Workflow.patch(...) and Workflow.deprecatePatch may only be used from a Workflow Execution.'
+  );
+  return activator.patchInternal(patchId, false);
 }
 
 /**
@@ -1008,29 +1025,10 @@ export function patched(patchId: string): boolean {
  * calls with the same ID, which means all such calls will always return the same value.
  */
 export function deprecatePatch(patchId: string): void {
-  patchInternal(patchId, true);
-}
-
-function patchInternal(patchId: string, deprecated: boolean): boolean {
   const activator = assertInWorkflowContext(
     'Workflow.patch(...) and Workflow.deprecatePatch may only be used from a Workflow Execution.'
   );
-  // Patch operation does not support interception at the moment, if it did,
-  // this would be the place to start the interception chain
-
-  if (activator.workflow === undefined) {
-    throw new IllegalStateError('Patches cannot be used before Workflow starts');
-  }
-  const usePatch = !activator.info.unsafe.isReplaying || activator.knownPresentPatches.has(patchId);
-  // Avoid sending commands for patches core already knows about.
-  // This optimization enables development of automatic patching tools.
-  if (usePatch && !activator.sentPatches.has(patchId)) {
-    activator.pushCommand({
-      setPatchMarker: { patchId, deprecated },
-    });
-    activator.sentPatches.add(patchId);
-  }
-  return usePatch;
+  activator.patchInternal(patchId, true);
 }
 
 /**

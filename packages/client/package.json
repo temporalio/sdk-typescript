@@ -13,7 +13,7 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@grpc/grpc-js": "^1.10.6",
+    "@grpc/grpc-js": "^1.10.7",
     "@temporalio/common": "file:../common",
     "@temporalio/proto": "file:../proto",
     "abort-controller": "^3.0.0",

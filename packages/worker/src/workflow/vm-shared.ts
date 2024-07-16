@@ -3,7 +3,7 @@ import vm from 'node:vm';
 import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import type { WorkflowInfo, FileLocation } from '@temporalio/workflow';
+import type { WorkflowInfo, StackTraceFileLocation } from '@temporalio/workflow';
 import { type SinkCall } from '@temporalio/workflow/lib/sinks';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { Activator } from '@temporalio/workflow/lib/internals';
@@ -36,18 +36,18 @@ export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string)
 /**
  * Variant of {@link cutoffStackTrace} that works with FileLocation, keep this in sync with the original implementation
  */
-function cutoffStructuredStackTrace(stackTrace: FileLocation[]): void {
+function cutoffStructuredStackTrace(stackTrace: StackTraceFileLocation[]): void {
   stackTrace.shift();
-  if (stackTrace[0].functionName === 'initAll' && stackTrace[0].filePath === 'node:internal/promise_hooks') {
+  if (stackTrace[0].function_name === 'initAll' && stackTrace[0].file_path === 'node:internal/promise_hooks') {
     stackTrace.shift();
   }
-  const idx = stackTrace.findIndex(({ functionName, filePath }) => {
+  const idx = stackTrace.findIndex(({ function_name, file_path }) => {
     return (
-      functionName &&
-      filePath &&
-      ((/^Activator\.\S+NextHandler$/.test(functionName) &&
-        /.*[\\/]workflow[\\/](?:src|lib)[\\/]internals\.[jt]s$/.test(filePath)) ||
-        (/Script\.runInContext/.test(functionName) && /^node:vm|vm\.js$/.test(filePath)))
+      function_name &&
+      file_path &&
+      ((/^Activator\.\S+NextHandler$/.test(function_name) &&
+        /.*[\\/]workflow[\\/](?:src|lib)[\\/]internals\.[jt]s$/.test(file_path)) ||
+        (/Script\.runInContext/.test(function_name) && /^node:vm|vm\.js$/.test(file_path)))
     );
   });
   if (idx > -1) {
@@ -98,7 +98,7 @@ export function injectConsole(context: vm.Context): void {
  * Global handlers for overriding stack trace preparation and promise hooks
  */
 export class GlobalHandlers {
-  currentStackTrace: FileLocation[] | undefined = undefined;
+  currentStackTrace: StackTraceFileLocation[] | undefined = undefined;
   bundleFilenameToSourceMapConsumer = new Map<string, SourceMapConsumer>();
   origPrepareStackTrace = Error.prepareStackTrace;
   private stopPromiseHook = () => {
@@ -163,10 +163,11 @@ export class GlobalHandlers {
 
           const name = pos.name || formatCallsiteName(callsite);
           this.currentStackTrace?.push({
-            filePath: pos.source ?? undefined,
-            functionName: name ?? undefined,
+            file_path: pos.source ?? undefined,
+            function_name: name ?? undefined,
             line: pos.line ?? undefined,
             column: pos.column ?? undefined,
+            internal_code: false,
           });
 
           return name
@@ -176,10 +177,11 @@ export class GlobalHandlers {
           const name = formatCallsiteName(callsite);
 
           this.currentStackTrace?.push({
-            filePath: filename ?? undefined,
-            functionName: name ?? undefined,
+            file_path: filename ?? undefined,
+            function_name: name ?? undefined,
             line: line ?? undefined,
             column: column ?? undefined,
+            internal_code: false,
           });
           return `    at ${callsite}`;
         }
@@ -219,7 +221,7 @@ export class GlobalHandlers {
           if (this.currentStackTrace === undefined) {
             return;
           }
-          const structured = this.currentStackTrace as FileLocation[];
+          const structured = this.currentStackTrace as StackTraceFileLocation[];
           cutoffStructuredStackTrace(structured);
           let stackTrace = { formatted, structured };
 
