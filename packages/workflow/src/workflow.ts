@@ -1385,7 +1385,6 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
  * upsertMemo({
  *   key2: value
  *   key3: { subkey2: value }
- *   key3: value2,
  *   key4: undefined,
  * });
  * ```
