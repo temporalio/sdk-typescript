@@ -5,6 +5,10 @@ local workdir=$( mktemp -d -t sdk-typescript-release )
 trap 'cd / && rm -rf "$workdir"' EXIT
 cd "$workdir"
 
+# FIXME Make this a parameter
+# e.g. 'main' or 'releases/1.10.x'
+source_branch=main
+
 # Manually download all native artifacts from the latest main build
 
 mkdir -p artifacts package/releases
@@ -26,7 +30,7 @@ if [ $count -ne 5 ]; then
     exit 1
 fi
 
-git clone --depth 1 --shallow-submodules --recurse-submodules https://github.com/temporalio/sdk-typescript.git
+git clone --branch $source_branch --depth 1 --shallow-submodules --recurse-submodules https://github.com/temporalio/sdk-typescript.git
 cd sdk-typescript
 
 # Extract native libs and organize them correctly
@@ -89,15 +93,58 @@ read enterKey
 cd "$workdir"
 
 if [[ $version =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
-  git clone --depth 1 --shallow-submodules --recurse-submodules https://github.com/temporalio/features.git
-  cd features
 
-  # Update typescript_latest in ci.yaml
-  sed -i '' 's%^\([ ]*typescript_latest: \).*$%\1\''"$version"'\'%' .github/workflows/ci.yaml
+  ##
+  # Update the features repo
+  ##
 
-  # Update @temporalio/* dependencies in package.json
-  sed -i '' 's#\("@temporalio/.*": "^\)[^"]*\(",\)#\1'"$version"'\2#' package.json
+  (
+    git clone --depth 1 --shallow-submodules --recurse-submodules https://github.com/temporalio/features.git
+    cd features
 
-  # Update package-lock.json
-  npm i
+    # Update typescript_latest in ci.yaml
+    sed -i '' 's%^\([ ]*typescript_latest: \).*$%\1'"'$version'"'%' .github/workflows/ci.yaml
+
+    # Update @temporalio/* dependencies in package.json
+    sed -i '' 's#\("@temporalio/.*": "^\)[^"]*\(",\)#\1'"$version"'\2#' package.json
+
+    # Update package-lock.json
+    npm i
+
+    git checkout -b "typescript-${version}"
+    git add --all
+    git commit -m "Update TS SDK to ${version}"
+
+    gh pr create \
+        --title "Update TS SDK to ${version}" \
+        --body "## What changed"$'\n\n'"- Update TS SDK to ${version}" \
+        --head "typescript-${version}"
+  )
+
+  ##
+  # Update the samples repo
+  ##
+
+  (
+    git clone --depth 1 --shallow-submodules --recurse-submodules https://github.com/temporalio/samples-typescript.git
+    cd samples-typescript
+
+    npm i
+
+    # Update all samples
+    zx .scripts/upgrade-versions.mjs "^1.10.2"
+
+    # Update the package.json file
+    npm i
+
+    git checkout -b "typescript-${version}"
+    git add --all
+    git commit -m "Update TS SDK to ${version}"
+    git push
+
+    gh pr create \
+        --title "Update TS SDK to ${version}" \
+        --body "## What changed"$'\n\n'"- Update TS SDK to ${version}" \
+        --head "typescript-${version}"
+  )
 fi
