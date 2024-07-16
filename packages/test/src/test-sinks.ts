@@ -2,19 +2,11 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Connection, WorkflowClient } from '@temporalio/client';
-import {
-  DefaultLogger,
-  InjectedSinks,
-  Runtime,
-  InjectedSinkFunction,
-  WorkerOptions,
-  LogEntry,
-} from '@temporalio/worker';
-import { LoggerSinksInternal as DefaultLoggerSinks } from '@temporalio/workflow/lib/logs';
+import { DefaultLogger, InjectedSinks, Runtime, WorkerOptions, LogEntry } from '@temporalio/worker';
 import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
 import { SdkComponent } from '@temporalio/common';
-import { RUN_INTEGRATION_TESTS, Worker, registerDefaultCustomSearchAttributes } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker, asSdkLoggerSink, registerDefaultCustomSearchAttributes } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 
@@ -25,21 +17,6 @@ class DependencyError extends Error {
   ) {
     super(`${ifaceName}.${fnName}`);
   }
-}
-
-function asSdkLoggerSink(
-  fn: (info: WorkflowInfo, message: string, attrs?: Record<string, unknown>) => Promise<void>,
-  opts?: Omit<InjectedSinkFunction<any>, 'fn'>
-): InjectedSinks<DefaultLoggerSinks> {
-  return {
-    __temporal_logger: {
-      trace: { fn, ...opts },
-      debug: { fn, ...opts },
-      info: { fn, ...opts },
-      warn: { fn, ...opts },
-      error: { fn, ...opts },
-    },
-  };
 }
 
 if (RUN_INTEGRATION_TESTS) {
@@ -428,44 +405,6 @@ if (RUN_INTEGRATION_TESTS) {
           CustomDatetimeField: [date],
           CustomDoubleField: [3.14],
         },
-      },
-    ]);
-  });
-
-  test('Sink functions contains upserted memo', async (t) => {
-    const taskQueue = `${__filename}-${t.title}`;
-
-    const recordedMessages = Array<{ message: string; memo: Record<string, unknown> | undefined }>();
-    const sinks = asSdkLoggerSink(async (info, message, _attrs) => {
-      recordedMessages.push({
-        message,
-        memo: info.memo,
-      });
-    });
-
-    const client = new WorkflowClient();
-
-    const worker = await Worker.create({
-      ...defaultOptions,
-      taskQueue,
-      sinks,
-    });
-    await worker.runUntil(
-      client.execute(workflows.upsertAndReadMemo, {
-        taskQueue,
-        workflowId: uuid4(),
-        args: [{ note: 'foo' }],
-      })
-    );
-
-    t.deepEqual(recordedMessages, [
-      {
-        message: 'Workflow started',
-        memo: undefined,
-      },
-      {
-        message: 'Workflow completed',
-        memo: { note: 'foo' },
       },
     ]);
   });
