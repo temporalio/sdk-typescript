@@ -1367,17 +1367,26 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
 }
 
 /**
- * Updates this Workflow's Memo by merging the provided `memo` with the existing Memo,
- * `workflowInfo().memo`.
+ * Updates this Workflow's Memos by merging the provided `memo` with existing
+ * Memos (as returned by `workflowInfo().memo`).
  *
- * For example, this Workflow code:
+ * New memo is merged by replacing properties of the same name _at the first
+ * level only_. Setting a property to value `undefined` or `null` clears that
+ * key from the Memo.
+ *
+ * For example:
  *
  * ```ts
  * upsertMemo({
  *   key1: value,
+ *   key3: { subkey1: value }
+ *   key4: value,
  * });
  * upsertMemo({
- *   key2: value,
+ *   key2: value
+ *   key3: { subkey2: value }
+ *   key3: value2,
+ *   key4: undefined,
  * });
  * ```
  *
@@ -1387,10 +1396,12 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
  * {
  *   key1: value,
  *   key2: value,
+ *   key3: { subkey2: value }  // Note this object was completely replaced
+ *   // Note that key4 was completely removed
  * }
  * ```
  *
- * @param memo The Record to merge. Use a value of `null` to clear a key from the Memo.
+ * @param memo The Record to merge.
  */
 export function upsertMemo(memo: Record<string, unknown>): void {
   const activator = assertInWorkflowContext('Workflow.upsertMemo(...) may only be used from a Workflow Execution.');
@@ -1401,17 +1412,25 @@ export function upsertMemo(memo: Record<string, unknown>): void {
 
   activator.pushCommand({
     modifyWorkflowProperties: {
-      upsertedMemo: mapToPayloads(activator.payloadConverter, memo),
+      upsertedMemo: {
+        fields: mapToPayloads(
+          activator.payloadConverter,
+          // Convert null to undefined
+          Object.fromEntries(Object.entries(memo).map(([k, v]) => [k, v ?? undefined]))
+        ),
+      },
     },
   });
 
   activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
     return {
       ...info,
-      memo: {
-        ...info.memo,
-        ...memo,
-      },
+      memo: Object.fromEntries(
+        Object.entries({
+          ...info.memo,
+          ...memo,
+        }).filter(([_, v]) => v != null)
+      ),
     };
   });
 }

@@ -947,6 +947,48 @@ if (RUN_TIME_SKIPPING_TESTS) {
   });
 }
 
+export async function upsertAndReadMemo(memo: Record<string, unknown>): Promise<Record<string, unknown> | undefined> {
+  workflow.upsertMemo(memo);
+  return workflow.workflowInfo().memo;
+}
+
+test('Workflow can upsert memo', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(upsertAndReadMemo, {
+      memo: {
+        alpha: 'bar1',
+        bravo: 'bar3',
+        charlie: { delta: 'bar2', echo: 12 },
+        foxtrot: 'bar4',
+      },
+      args: [
+        {
+          alpha: 'bar11',
+          bravo: null,
+          charlie: { echo: 34, golf: 'bar5' },
+          hotel: 'bar6',
+        },
+      ],
+    });
+    const result = await handle.result();
+    t.deepEqual(result, {
+      alpha: 'bar11',
+      charlie: { echo: 34, golf: 'bar5' },
+      foxtrot: 'bar4',
+      hotel: 'bar6',
+    });
+    const { memo } = await handle.describe();
+    t.deepEqual(memo, {
+      alpha: 'bar11',
+      charlie: { echo: 34, golf: 'bar5' },
+      foxtrot: 'bar4',
+      hotel: 'bar6',
+    });
+  });
+});
+
 export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
   const interceptorsFactoryFunc = module.exports[`${workflow.workflowInfo().workflowType}Interceptors`];
   if (typeof interceptorsFactoryFunc === 'function') {
