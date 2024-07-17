@@ -3,6 +3,7 @@ import {
   ActivityOptions,
   compileRetryPolicy,
   extractWorkflowType,
+  HandlerUnfinishedPolicy,
   LocalActivityOptions,
   mapToPayloads,
   QueryDefinition,
@@ -1258,8 +1259,10 @@ export function setHandler<
   if (def.type === 'update') {
     if (typeof handler === 'function') {
       const updateOptions = options as UpdateHandlerOptions<Args> | undefined;
+
       const validator = updateOptions?.validator as WorkflowUpdateValidatorType | undefined;
-      activator.updateHandlers.set(def.name, { handler, validator, description });
+      const unfinishedPolicy = updateOptions?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
+      activator.updateHandlers.set(def.name, { handler, validator, description, unfinishedPolicy });
       activator.dispatchBufferedUpdates();
     } else if (handler == null) {
       activator.updateHandlers.delete(def.name);
@@ -1268,7 +1271,9 @@ export function setHandler<
     }
   } else if (def.type === 'signal') {
     if (typeof handler === 'function') {
-      activator.signalHandlers.set(def.name, { handler: handler as any, description });
+      const signalOptions = options as SignalHandlerOptions | undefined;
+      const unfinishedPolicy = signalOptions?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
+      activator.signalHandlers.set(def.name, { handler: handler as any, description, unfinishedPolicy });
       activator.dispatchBufferedSignals();
     } else if (handler == null) {
       activator.signalHandlers.delete(def.name);
@@ -1432,6 +1437,11 @@ export function upsertMemo(memo: Record<string, unknown>): void {
       ),
     };
   });
+}
+
+export function allHandlersFinished(): boolean {
+  const activator = assertInWorkflowContext('allHandlersFinished() may only be used from a Workflow Execution.');
+  return activator.inProgressSignals.size === 0 && activator.inProgressUpdates.size === 0;
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');

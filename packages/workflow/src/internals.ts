@@ -6,6 +6,7 @@ import {
   arrayFromPayloads,
   defaultPayloadConverter,
   ensureTemporalFailure,
+  HandlerUnfinishedPolicy,
   IllegalStateError,
   TemporalFailure,
   Workflow,
@@ -38,8 +39,8 @@ import {
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
-import { executeWithLifecycleLogging } from './logs';
 import { SdkFlag, assertValidFlag } from './flags';
+import { executeWithLifecycleLogging, log } from './logs';
 
 enum StartChildWorkflowExecutionFailedCause {
   START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
@@ -84,6 +85,15 @@ export type ActivationHandlerFunction<K extends keyof coresdk.workflow_activatio
 export type ActivationHandler = {
   [P in keyof coresdk.workflow_activation.IWorkflowActivationJob]: ActivationHandlerFunction<P>;
 };
+
+/**
+ * Information about an update or signal handler execution.
+ */
+interface MessageHandlerExecution {
+  name: string;
+  unfinishedPolicy: HandlerUnfinishedPolicy;
+  id?: string;
+}
 
 /**
  * Keeps all of the Workflow runtime state like pending completions for activities and timers.
@@ -135,6 +145,21 @@ export class Activator implements ActivationHandler {
    * Mapping of signal name to handler
    */
   readonly signalHandlers = new Map<string, WorkflowSignalAnnotatedType>();
+
+  /**
+   * Mapping of in-progress updates to handler execution information.
+   */
+  readonly inProgressUpdates = new Map<string, MessageHandlerExecution>();
+
+  /**
+   * Mapping of in-progress signals to handler execution information.
+   */
+  readonly inProgressSignals = new Map<number, MessageHandlerExecution>();
+
+  /**
+   * A sequence number providing unique identifiers for signal handler executions.
+   */
+  protected signalHandlerExecutionSeq = 0;
 
   /**
    * A signal handler that catches calls for non-registered signal names.
@@ -651,10 +676,21 @@ export class Activator implements ActivationHandler {
         this.rejectUpdate(protocolInstanceId, error);
         return;
       }
+
+      const entry = this.updateHandlers.get(name);
+      if (!entry) {
+        return Promise.reject(new IllegalStateError(`No registered update handler for update: ${name}`));
+      }
+      const { unfinishedPolicy } = entry;
+
       const execute = composeInterceptors(this.interceptors.inbound, 'handleUpdate', this.updateNextHandler.bind(this));
       this.acceptUpdate(protocolInstanceId);
+      this.inProgressUpdates.set(updateId, { name, unfinishedPolicy, id: updateId });
       const res = execute(input)
         .then((result) => this.completeUpdate(protocolInstanceId, result))
+        .then(() => {
+          this.inProgressUpdates.delete(updateId);
+        })
         .catch((error) => {
           if (error instanceof TemporalFailure) {
             this.rejectUpdate(protocolInstanceId, error);
@@ -732,6 +768,14 @@ export class Activator implements ActivationHandler {
       return;
     }
 
+    // If we fall through to the default signal handler then the unfinished
+    // policy is WARN_AND_ABANDON; users currently have no way to silence any
+    // ensuing warnings.
+    const unfinishedPolicy =
+      this.signalHandlers.get(signalName)?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
+
+    const signalExecutionNum = this.signalHandlerExecutionSeq++;
+    this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
     const execute = composeInterceptors(
       this.interceptors.inbound,
       'handleSignal',
@@ -741,7 +785,9 @@ export class Activator implements ActivationHandler {
       args: arrayFromPayloads(this.payloadConverter, activation.input),
       signalName,
       headers: headers ?? {},
-    }).catch(this.handleWorkflowFailure.bind(this));
+    })
+      .then(() => this.inProgressSignals.delete(signalExecutionNum))
+      .catch(this.handleWorkflowFailure.bind(this));
   }
 
   public dispatchBufferedSignals(): void {
@@ -777,6 +823,24 @@ export class Activator implements ActivationHandler {
       reject(this.failureToError(activation.failure));
     } else {
       resolve(undefined);
+    }
+  }
+
+  public warnIfUnfinishedHandlers(): void {
+    const getWarnable = (handlerExecutions: Iterable<MessageHandlerExecution>): MessageHandlerExecution[] => {
+      return Array.from(handlerExecutions).filter(
+        (ex) => ex.unfinishedPolicy === HandlerUnfinishedPolicy.WARN_AND_ABANDON
+      );
+    };
+
+    const warnableUpdates = getWarnable(this.inProgressUpdates.values());
+    if (warnableUpdates.length > 0) {
+      log.warn(makeUnfinishedUpdateHandlerMessage(warnableUpdates));
+    }
+
+    const warnableSignals = getWarnable(this.inProgressSignals.values());
+    if (warnableSignals.length > 0) {
+      log.warn(makeUnfinishedSignalHandlerMessage(warnableSignals));
     }
   }
 
@@ -938,4 +1002,46 @@ function getSeq<T extends { seq?: number | null }>(activation: T): number {
     throw new TypeError(`Got activation with no seq attribute`);
   }
   return seq;
+}
+
+function makeUnfinishedUpdateHandlerMessage(handlerExecutions: MessageHandlerExecution[]): string {
+  const message = `
+Workflow finished while an update handler was still running. This may have interrupted work that the
+update handler was doing, and the client that sent the update will receive a 'workflow execution
+already completed' RPCError instead of the update result. You can wait for all update and signal
+handlers to complete by using \`await workflow.condition(() => workflow.allHandlersFinished())\`.
+Alternatively, if both you and the clients sending the update are okay with interrupting running handlers
+when the workflow finishes, and causing clients to receive errors, then you can disable this warning by
+passing an option when setting the handler:
+\`workflow.setHandler(myUpdate, myUpdateHandler, {unfinishedPolicy: HandlerUnfinishedPolicy.ABANDON});\`.`
+    .replace(/\n/g, ' ')
+    .trim();
+
+  return `${message} The following updates were unfinished (and warnings were not disabled for their handler): ${JSON.stringify(
+    handlerExecutions.map((ex) => ({ name: ex.name, id: ex.id }))
+  )}`;
+}
+
+function makeUnfinishedSignalHandlerMessage(handlerExecutions: MessageHandlerExecution[]): string {
+  const message = `
+Workflow finished while a signal handler was still running. This may have interrupted work that the
+signal handler was doing. You can wait for all update and signal handlers to complete by using
+\`await workflow.condition(() => workflow.allHandlersFinished())\`. Alternatively, if both you and the
+clients sending the update are okay with interrupting running handlers when the workflow finishes, and
+causing clients to receive errors, then you can disable this warning by passing an option when setting
+the handler:
+\`workflow.setHandler(mySignal, mySignalHandler, {unfinishedPolicy: HandlerUnfinishedPolicy.ABANDON});\`.`
+
+    .replace(/\n/g, ' ')
+    .trim();
+
+  const names = new Map<string, number>();
+  for (const ex of handlerExecutions) {
+    const count = names.get(ex.name) || 0;
+    names.set(ex.name, count + 1);
+  }
+
+  return `${message} The following signals were unfinished (and warnings were not disabled for their handler): ${JSON.stringify(
+    Array.from(names.entries()).map(([name, count]) => ({ name, count }))
+  )}`;
 }

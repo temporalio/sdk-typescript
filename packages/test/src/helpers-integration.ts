@@ -12,6 +12,7 @@ import {
 } from '@temporalio/testing';
 import {
   DefaultLogger,
+  LogEntry,
   LogLevel,
   Runtime,
   WorkerOptions,
@@ -50,6 +51,7 @@ export function makeTestFunction(opts: {
   workflowsPath: string;
   workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
   workflowInterceptorModules?: string[];
+  recordedLogs?: { [workflowId: string]: LogEntry[] };
 }): TestFn<Context> {
   const test = anyTest as TestFn<Context>;
   test.before(async (t) => {
@@ -59,9 +61,15 @@ export function makeTestFunction(opts: {
       workflowsPath: opts.workflowsPath,
       logger: new DefaultLogger('WARN'),
     });
-    // Ignore invalid log levels
+    const logger = opts.recordedLogs
+      ? new DefaultLogger('DEBUG', (entry) => {
+          const workflowId = (entry.meta as any)?.workflowInfo?.workflowId ?? (entry.meta as any)?.workflowId;
+          opts.recordedLogs![workflowId] ??= [];
+          opts.recordedLogs![workflowId].push(entry);
+        })
+      : new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel);
     Runtime.install({
-      logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel),
+      logger,
       telemetryOptions: {
         logging: {
           filter: makeTelemetryFilterString({
