@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
+import { status as grpcStatus } from '@grpc/grpc-js';
 import { ErrorConstructor, ExecutionContext, TestFn } from 'ava';
 import {
+  isGrpcServiceError,
   WorkflowFailedError,
   WorkflowHandle,
   WorkflowStartOptions,
@@ -115,6 +117,7 @@ export interface Helpers {
   ): Promise<WorkflowHandle<T>>;
   assertWorkflowUpdateFailed(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
   assertWorkflowFailedError(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
+  updateHasBeenAdmitted(handle: WorkflowHandle<workflow.Workflow>, updateId: string): Promise<boolean>;
 }
 
 export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment = t.context.env): Helpers {
@@ -178,6 +181,23 @@ export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvir
       t.true(err.cause instanceof causeConstructor);
       if (message !== undefined) {
         t.is(err.cause?.message, message);
+      }
+    },
+    async updateHasBeenAdmitted(handle: WorkflowHandle<workflow.Workflow>, updateId: string): Promise<boolean> {
+      try {
+        await testEnv.client.workflowService.pollWorkflowExecutionUpdate({
+          namespace: testEnv.client.options.namespace,
+          updateRef: {
+            workflowExecution: { workflowId: handle.workflowId },
+            updateId,
+          },
+        });
+        return true;
+      } catch (err) {
+        if (isGrpcServiceError(err) && err.code === grpcStatus.NOT_FOUND) {
+          return false;
+        }
+        throw err;
       }
     },
   };

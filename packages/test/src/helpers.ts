@@ -45,6 +45,23 @@ export async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export async function waitUntil(
+  condition: () => Promise<boolean>,
+  timeoutMs: number,
+  intervalMs: number = 100
+): Promise<void> {
+  const endTime = Date.now() + timeoutMs;
+  for (;;) {
+    if (await condition()) {
+      return;
+    } else if (Date.now() >= endTime) {
+      throw new Error('timed out waiting for condition');
+    } else {
+      await sleep(intervalMs);
+    }
+  }
+}
+
 export function cleanOptionalStackTrace(stackTrace: string | undefined | null): string | undefined {
   return stackTrace ? cleanStackTrace(stackTrace) : undefined;
 }

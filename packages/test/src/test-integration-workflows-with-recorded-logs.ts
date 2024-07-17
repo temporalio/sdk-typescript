@@ -1,8 +1,10 @@
 import { ExecutionContext } from 'ava';
 import * as workflow from '@temporalio/workflow';
-import { HandlerUnfinishedPolicy } from '@temporalio/common';
+import { HandlerUnfinishedPolicy, WorkflowNotFoundError } from '@temporalio/common';
 import { LogEntry } from '@temporalio/worker';
+import { WorkflowFailedError, WorkflowUpdateFailedError } from '@temporalio/client';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
+import { waitUntil } from './helpers';
 
 const recordedLogs: { [workflowId: string]: LogEntry[] } = {};
 const test = makeTestFunction({
@@ -160,6 +162,130 @@ class UnfinishedHandlersTest {
         recordedLogs[handle.workflowId] &&
         recordedLogs[handle.workflowId].findIndex((e) => this.isUnfinishedHandlerWarning(e)) >= 0;
       return [handlerFinished, unfinishedHandlerWarningEmitted];
+    });
+  }
+
+  isUnfinishedHandlerWarning(logEntry: LogEntry): boolean {
+    return (
+      logEntry.level === 'WARN' &&
+      new RegExp(`^Workflow finished while an? ${this.handlerType} handler was still running\\.`).test(logEntry.message)
+    );
+  }
+}
+
+export const unfinishedHandlersWithCancellationOrFailureUpdate = workflow.defineUpdate<void>(
+  'unfinishedHandlersWithCancellationOrFailureUpdate'
+);
+export const unfinishedHandlersWithCancellationOrFailureSignal = workflow.defineSignal(
+  'unfinishedHandlersWithCancellationOrFailureSignal'
+);
+
+export async function runUnfinishedHandlersWithCancellationOrFailureWorkflow(
+  workflowTerminationType: 'cancellation' | 'failure'
+): Promise<never> {
+  workflow.setHandler(unfinishedHandlersWithCancellationOrFailureUpdate, async () => {
+    await workflow.condition(() => false);
+    throw new Error('unreachable');
+  });
+
+  workflow.setHandler(unfinishedHandlersWithCancellationOrFailureSignal, async () => {
+    await workflow.condition(() => false);
+    throw new Error('unreachable');
+  });
+
+  if (workflowTerminationType === 'failure') {
+    throw new workflow.ApplicationFailure('Deliberately failing workflow with an unfinished handler');
+  }
+  await workflow.condition(() => false);
+  throw new Error('unreachable');
+}
+
+test('unfinished update handler with workflow cancellation', async (t) => {
+  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'update', 'cancellation').testWarningIsIssued();
+});
+
+test('unfinished signal handler with workflow cancellation', async (t) => {
+  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'signal', 'cancellation').testWarningIsIssued();
+});
+
+test('unfinished update handler with workflow failure', async (t) => {
+  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'update', 'failure').testWarningIsIssued();
+});
+
+test('unfinished signal handler with workflow failure', async (t) => {
+  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'signal', 'failure').testWarningIsIssued();
+});
+
+class UnfinishedHandlersWithCancellationOrFailureTest {
+  constructor(
+    private readonly t: ExecutionContext<Context>,
+    private readonly handlerType: 'update' | 'signal',
+    private readonly workflowTerminationType: 'cancellation' | 'failure'
+  ) {}
+
+  async testWarningIsIssued() {
+    this.t.true(await this.runWorkflowAndGetWarning());
+  }
+
+  async runWorkflowAndGetWarning(): Promise<boolean> {
+    const { createWorker, startWorkflow, updateHasBeenAdmitted: workflowUpdateExists } = helpers(this.t);
+
+    // We require a startWorkflow, an update, and maybe a cancellation request,
+    // to be delivered in the same WFT. To do this we start the worker after
+    // they've all been accepted by the server.
+    const updateId = 'update-id';
+
+    const handle = await startWorkflow(runUnfinishedHandlersWithCancellationOrFailureWorkflow, {
+      args: [this.workflowTerminationType],
+    });
+    if (this.workflowTerminationType === 'cancellation') {
+      await handle.cancel();
+    }
+    let executeUpdate: Promise<void>;
+
+    switch (this.handlerType) {
+      case 'update':
+        executeUpdate = handle.executeUpdate(unfinishedHandlersWithCancellationOrFailureUpdate, { updateId });
+        await waitUntil(() => workflowUpdateExists(handle, updateId), 500);
+        break;
+      case 'signal':
+        await handle.signal(unfinishedHandlersWithCancellationOrFailureSignal);
+        break;
+    }
+
+    const worker = await createWorker();
+    return await worker.runUntil(async () => {
+      if (this.handlerType === 'update') {
+        switch (this.workflowTerminationType) {
+          case 'cancellation': {
+            const err: WorkflowUpdateFailedError = (await this.t.throwsAsync(executeUpdate, {
+              instanceOf: WorkflowUpdateFailedError,
+            })) as WorkflowUpdateFailedError;
+            this.t.is(err.message, 'Workflow Update failed');
+            break;
+          }
+          case 'failure': {
+            const err: WorkflowNotFoundError = (await this.t.throwsAsync(executeUpdate, {
+              instanceOf: WorkflowNotFoundError,
+            })) as WorkflowNotFoundError;
+            this.t.is(err.message, 'workflow execution already completed');
+            break;
+          }
+        }
+      }
+
+      const err = (await this.t.throwsAsync(handle.result(), {
+        instanceOf: WorkflowFailedError,
+      })) as WorkflowFailedError;
+      this.t.is(
+        err.message,
+        'Workflow execution ' + (this.workflowTerminationType === 'cancellation' ? 'cancelled' : 'failed')
+      );
+
+      const unfinishedHandlerWarningEmitted =
+        recordedLogs[handle.workflowId] &&
+        recordedLogs[handle.workflowId].findIndex((e) => this.isUnfinishedHandlerWarning(e)) >= 0;
+      return unfinishedHandlerWarningEmitted;
     });
   }
 
