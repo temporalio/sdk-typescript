@@ -245,7 +245,7 @@ test('Worker fails activity with proper message if activity info contains null S
     t.is(worker.getState(), 'RUNNING');
     t.is(result?.failed?.failure?.applicationFailureInfo?.type, 'TypeError');
     t.is(result?.failed?.failure?.message, 'Expected scheduledTime to be a timestamp, got null');
-    t.true(result?.failed?.failure?.stackTrace?.includes('worker.ts'));
+    t.true(/worker\.[jt]s/.test(result?.failed?.failure?.stackTrace ?? ''));
   });
 });
 
@@ -278,7 +278,7 @@ test('Worker fails activity task if interceptor factory throws', async (t) => {
     t.is(worker.getState(), 'RUNNING');
     t.is(result?.failed?.failure?.applicationFailureInfo?.type, 'Error');
     t.is(result?.failed?.failure?.message, 'I am a bad interceptor');
-    t.true(result?.failed?.failure?.stackTrace?.includes('test-worker-activities.ts'));
+    t.true(/test-worker-activities\.[tj]s/.test(result?.failed?.failure?.stackTrace ?? '');
   });
 });
 
