@@ -278,7 +278,7 @@ test('Worker fails activity task if interceptor factory throws', async (t) => {
     t.is(worker.getState(), 'RUNNING');
     t.is(result?.failed?.failure?.applicationFailureInfo?.type, 'Error');
     t.is(result?.failed?.failure?.message, 'I am a bad interceptor');
-    t.true(/test-worker-activities\.[tj]s/.test(result?.failed?.failure?.stackTrace ?? '');
+    t.true(/test-worker-activities\.[tj]s/.test(result?.failed?.failure?.stackTrace ?? ''));
   });
 });
 
