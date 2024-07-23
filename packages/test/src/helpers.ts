@@ -5,7 +5,7 @@ import ava, { TestFn } from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
 import { v4 as uuid4 } from 'uuid';
-import { inWorkflowContext } from '@temporalio/workflow';
+import { inWorkflowContext, WorkflowInfo } from '@temporalio/workflow';
 import { Payload, PayloadCodec } from '@temporalio/common';
 import { Worker as RealWorker, WorkerOptions } from '@temporalio/worker';
 import * as worker from '@temporalio/worker';
@@ -16,6 +16,7 @@ import {
   TestWorkflowEnvironment as RealTestWorkflowEnvironment,
   TimeSkippingTestWorkflowEnvironmentOptions,
 } from '@temporalio/testing';
+import { LoggerSinksInternal as DefaultLoggerSinks } from '@temporalio/workflow/lib/logs';
 
 export function u8(s: string): Uint8Array {
   // TextEncoder requires lib "dom"
@@ -259,4 +260,19 @@ export async function getRandomPort(fn = (_port: number) => Promise.resolve()): 
         .finally(() => srv.close((_) => resolve(addr.port)));
     });
   });
+}
+
+export function asSdkLoggerSink(
+  fn: (info: WorkflowInfo, message: string, attrs?: Record<string, unknown>) => Promise<void>,
+  opts?: Omit<worker.InjectedSinkFunction<any>, 'fn'>
+): worker.InjectedSinks<DefaultLoggerSinks> {
+  return {
+    __temporal_logger: {
+      trace: { fn, ...opts },
+      debug: { fn, ...opts },
+      info: { fn, ...opts },
+      warn: { fn, ...opts },
+      error: { fn, ...opts },
+    },
+  };
 }

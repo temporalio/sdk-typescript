@@ -15,7 +15,7 @@ import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
-import { RUN_TIME_SKIPPING_TESTS } from './helpers';
+import { RUN_TIME_SKIPPING_TESTS, asSdkLoggerSink } from './helpers';
 
 const test = makeTestFunction({ workflowsPath: __filename, workflowInterceptorModules: [__filename] });
 
@@ -946,6 +946,95 @@ if (RUN_TIME_SKIPPING_TESTS) {
     }
   });
 }
+
+export async function upsertAndReadMemo(memo: Record<string, unknown>): Promise<Record<string, unknown> | undefined> {
+  workflow.upsertMemo(memo);
+  return workflow.workflowInfo().memo;
+}
+
+test('Workflow can upsert memo', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(upsertAndReadMemo, {
+      memo: {
+        alpha: 'bar1',
+        bravo: 'bar3',
+        charlie: { delta: 'bar2', echo: 12 },
+        foxtrot: 'bar4',
+      },
+      args: [
+        {
+          alpha: 'bar11',
+          bravo: null,
+          charlie: { echo: 34, golf: 'bar5' },
+          hotel: 'bar6',
+        },
+      ],
+    });
+    const result = await handle.result();
+    t.deepEqual(result, {
+      alpha: 'bar11',
+      charlie: { echo: 34, golf: 'bar5' },
+      foxtrot: 'bar4',
+      hotel: 'bar6',
+    });
+    const { memo } = await handle.describe();
+    t.deepEqual(memo, {
+      alpha: 'bar11',
+      charlie: { echo: 34, golf: 'bar5' },
+      foxtrot: 'bar4',
+      hotel: 'bar6',
+    });
+  });
+});
+
+test('Sink functions contains upserted memo', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const recordedMessages = Array<{ message: string; memo: Record<string, unknown> | undefined }>();
+  const sinks = asSdkLoggerSink(async (info, message, _attrs) => {
+    recordedMessages.push({
+      message,
+      memo: info.memo,
+    });
+  });
+  const worker = await createWorker({ sinks });
+  await worker.runUntil(async () => {
+    await executeWorkflow(upsertAndReadMemo, {
+      memo: {
+        note1: 'aaa',
+        note2: 'bbb',
+        note4: 'eee',
+      },
+      args: [
+        {
+          note2: 'ccc',
+          note3: 'ddd',
+          note4: null,
+        },
+      ],
+    });
+  });
+
+  t.deepEqual(recordedMessages, [
+    {
+      message: 'Workflow started',
+      memo: {
+        note1: 'aaa',
+        note2: 'bbb',
+        note4: 'eee',
+      },
+    },
+    {
+      message: 'Workflow completed',
+      memo: {
+        note1: 'aaa',
+        note2: 'ccc',
+        note3: 'ddd',
+      },
+    },
+  ]);
+});
 
 export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
   const interceptorsFactoryFunc = module.exports[`${workflow.workflowInfo().workflowType}Interceptors`];
