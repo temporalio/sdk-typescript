@@ -24,7 +24,6 @@ import {
   optionalTsToDate,
   optionalTsToMs,
   requiredTsToDate,
-  tsToDate,
 } from '@temporalio/common/lib/time';
 import {
   CalendarSpec,

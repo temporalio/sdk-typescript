@@ -315,7 +315,7 @@ export async function scheduleLocalActivity<R>(
       })) as Promise<R>;
     } catch (err) {
       if (err instanceof LocalActivityDoBackoff) {
-        await sleep(requiredTsToMs(err.backoff.backoffDuration, 'backoff.backoffDuration'));
+        await sleep(requiredTsToMs(err.backoff.backoffDuration, 'backoffDuration'));
         if (typeof err.backoff.attempt !== 'number') {
           throw new TypeError('Invalid backoff attempt type');
         }

@@ -4,7 +4,7 @@
  * @module
  */
 import { IllegalStateError } from '@temporalio/common';
-import { requiredTsToMs } from '@temporalio/common/lib/time';
+import { tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
@@ -121,7 +121,7 @@ export function activate(activation: coresdk.workflow_activation.WorkflowActivat
       }
       if (activation.timestamp != null) {
         // timestamp will not be updated for activation that contain only queries
-        activator.now = requiredTsToMs(activation.timestamp, 'activation.timestamp');
+        activator.now = tsToMs(activation.timestamp);
       }
       activator.addKnownFlags(activation.availableInternalFlags ?? []);
 

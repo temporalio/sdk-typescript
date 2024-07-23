@@ -43,7 +43,7 @@ import {
   encodeToPayload,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
-import { optionalTsToDate, optionalTsToMs, requiredTsToMs, tsToDate } from '@temporalio/common/lib/time';
+import { optionalTsToDate, optionalTsToMs, requiredTsToMs, tsToDate, tsToMs } from '@temporalio/common/lib/time';
 import { errorMessage, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
 import * as native from '@temporalio/core-bridge';
@@ -1248,7 +1248,7 @@ export class Worker {
     const workflow = await workflowCreator.createWorkflow({
       info: workflowInfo,
       randomnessSeed: randomnessSeed.toBytes(),
-      now: requiredTsToMs(activation.timestamp, 'activation.timestamp'),
+      now: tsToMs(activation.timestamp),
       patches,
       showStackTraceSources: this.options.showStackTraceSources,
     });
