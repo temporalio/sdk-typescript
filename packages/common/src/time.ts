@@ -32,7 +32,6 @@ export function optionalTsToMs(ts: Timestamp | null | undefined): number | undef
  * Lossy conversion function from Timestamp to number due to possible overflow.
  * If ts is null or undefined, throws a TypeError, with error message including the name of the field.
  */
-// ts-prune-ignore-next
 export function requiredTsToMs(ts: Timestamp | null | undefined, fieldName: string): number {
   if (ts === undefined || ts === null) {
     throw new TypeError(`Expected ${fieldName} to be a timestamp, got ${ts}`);
@@ -95,6 +94,7 @@ export function tsToDate(ts: Timestamp): Date {
   return new Date(tsToMs(ts));
 }
 
+// ts-prune-ignore-next
 export function requiredTsToDate(ts: Timestamp | null | undefined, fieldName: string): Date {
   return new Date(requiredTsToMs(ts, fieldName));
 }
