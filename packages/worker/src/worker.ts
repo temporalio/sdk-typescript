@@ -31,6 +31,8 @@ import {
   Payload,
   searchAttributePayloadConverter,
   SearchAttributes,
+  ApplicationFailure,
+  ensureApplicationFailure,
 } from '@temporalio/common';
 import {
   decodeArrayFromPayloads,
@@ -41,8 +43,8 @@ import {
   encodeToPayload,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
-import { optionalTsToDate, optionalTsToMs, tsToDate, tsToMs } from '@temporalio/common/lib/time';
-import { errorMessage, isError, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { optionalTsToDate, optionalTsToMs, requiredTsToMs, tsToDate } from '@temporalio/common/lib/time';
+import { errorMessage, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
 import * as native from '@temporalio/core-bridge';
 import { ShutdownError, UnexpectedError } from '@temporalio/core-bridge';
@@ -854,85 +856,79 @@ export class Worker {
                 | { type: 'ignore' };
               switch (variant) {
                 case 'start': {
-                  if (activity !== undefined) {
-                    throw new IllegalStateError(`Got start event for an already running activity: ${base64TaskToken}`);
-                  }
-                  const info = await extractActivityInfo(
-                    task,
-                    this.options.loadedDataConverter,
-                    this.options.namespace,
-                    this.options.taskQueue
-                  );
-
-                  const { activityType } = info;
-                  const fn = this.options.activities.get(activityType);
-                  if (typeof fn !== 'function') {
-                    output = {
-                      type: 'result',
-                      result: {
-                        failed: {
-                          failure: {
-                            message: `Activity function ${activityType} is not registered on this Worker, available activities: ${JSON.stringify(
-                              [...this.options.activities.keys()]
-                            )}`,
-                            applicationFailureInfo: {
-                              type: 'NotFoundError',
-                              nonRetryable: false,
-                            },
-                          },
-                        },
-                      },
-                    };
-                    break;
-                  }
-                  let args: unknown[];
                   try {
-                    args = await decodeArrayFromPayloads(this.options.loadedDataConverter, task.start?.input);
-                  } catch (err) {
+                    if (activity !== undefined) {
+                      throw new IllegalStateError(
+                        `Got start event for an already running activity: ${base64TaskToken}`
+                      );
+                    }
+                    const info = await extractActivityInfo(
+                      task,
+                      this.options.loadedDataConverter,
+                      this.options.namespace,
+                      this.options.taskQueue
+                    );
+
+                    const { activityType } = info;
+                    const fn = this.options.activities.get(activityType);
+                    if (typeof fn !== 'function') {
+                      throw ApplicationFailure.create({
+                        type: 'NotFoundError',
+                        message: `Activity function ${activityType} is not registered on this Worker, available activities: ${JSON.stringify(
+                          [...this.options.activities.keys()]
+                        )}`,
+                        nonRetryable: false,
+                      });
+                    }
+                    let args: unknown[];
+                    try {
+                      args = await decodeArrayFromPayloads(this.options.loadedDataConverter, task.start?.input);
+                    } catch (err) {
+                      throw ApplicationFailure.fromError(err, {
+                        message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(err)}`,
+                        nonRetryable: false,
+                      });
+                    }
+                    const headers = task.start?.headerFields ?? {};
+                    const input = {
+                      args,
+                      headers,
+                    };
+
+                    this.logger.trace('Starting activity', activityLogAttributes(info));
+
+                    activity = new Activity(
+                      info,
+                      fn,
+                      this.options.loadedDataConverter,
+                      (details) =>
+                        this.activityHeartbeatSubject.next({
+                          type: 'heartbeat',
+                          info,
+                          taskToken,
+                          base64TaskToken,
+                          details,
+                          onError() {
+                            activity?.cancel('HEARTBEAT_DETAILS_CONVERSION_FAILED'); // activity must be defined
+                          },
+                        }),
+                      this.logger,
+                      this.options.interceptors.activity
+                    );
+                    output = { type: 'run', activity, input };
+                    break;
+                  } catch (e) {
+                    const error = ensureApplicationFailure(e);
                     output = {
                       type: 'result',
                       result: {
                         failed: {
-                          failure: {
-                            message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(err)}`,
-                            applicationFailureInfo: {
-                              type: isError(err) ? err.name : undefined,
-                              nonRetryable: false,
-                            },
-                          },
+                          failure: await encodeErrorToFailure(this.options.loadedDataConverter, error),
                         },
                       },
                     };
                     break;
                   }
-                  const headers = task.start?.headerFields ?? {};
-                  const input = {
-                    args,
-                    headers,
-                  };
-
-                  this.logger.trace('Starting activity', activityLogAttributes(info));
-
-                  activity = new Activity(
-                    info,
-                    fn,
-                    this.options.loadedDataConverter,
-                    (details) =>
-                      this.activityHeartbeatSubject.next({
-                        type: 'heartbeat',
-                        info,
-                        taskToken,
-                        base64TaskToken,
-                        details,
-                        onError() {
-                          activity?.cancel('HEARTBEAT_DETAILS_CONVERSION_FAILED'); // activity must be defined
-                        },
-                      }),
-                    this.logger,
-                    this.options.interceptors.activity
-                  );
-                  output = { type: 'run', activity, input };
-                  break;
                 }
                 case 'cancel': {
                   output = { type: 'ignore' };
@@ -1221,7 +1217,7 @@ export class Worker {
       executionTimeoutMs: optionalTsToMs(workflowExecutionTimeout),
       executionExpirationTime: optionalTsToDate(workflowExecutionExpirationTime),
       runTimeoutMs: optionalTsToMs(workflowRunTimeout),
-      taskTimeoutMs: tsToMs(workflowTaskTimeout),
+      taskTimeoutMs: requiredTsToMs(workflowTaskTimeout, 'workflowTaskTimeout'),
       retryPolicy: decompileRetryPolicy(retryPolicy),
       attempt,
       cronSchedule: cronSchedule || undefined,
@@ -1252,7 +1248,7 @@ export class Worker {
     const workflow = await workflowCreator.createWorkflow({
       info: workflowInfo,
       randomnessSeed: randomnessSeed.toBytes(),
-      now: tsToMs(activation.timestamp),
+      now: requiredTsToMs(activation.timestamp, 'activation.timestamp'),
       patches,
       showStackTraceSources: this.options.showStackTraceSources,
     });
@@ -1746,6 +1742,14 @@ async function extractActivityInfo(
   const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
   const activityId = start.activityId;
+  let heartbeatDetails = undefined;
+  try {
+    heartbeatDetails = await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails);
+  } catch (e) {
+    throw ApplicationFailure.fromError(e, {
+      message: `Failed to parse heartbeat details for activity ${activityId}: ${errorMessage(e)}`,
+    });
+  }
   return {
     taskToken,
     taskQueue,
@@ -1756,13 +1760,16 @@ async function extractActivityInfo(
     isLocal: start.isLocal,
     activityType: start.activityType,
     workflowType: start.workflowType,
-    heartbeatTimeoutMs: start.heartbeatTimeout ? tsToMs(start.heartbeatTimeout) : undefined,
-    heartbeatDetails: await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails),
+    heartbeatTimeoutMs: optionalTsToMs(start.heartbeatTimeout),
+    heartbeatDetails,
     activityNamespace,
     workflowNamespace: start.workflowNamespace,
-    scheduledTimestampMs: tsToMs(start.scheduledTime),
-    startToCloseTimeoutMs: tsToMs(start.startToCloseTimeout),
-    scheduleToCloseTimeoutMs: tsToMs(start.scheduleToCloseTimeout),
-    currentAttemptScheduledTimestampMs: tsToMs(start.currentAttemptScheduledTime),
+    scheduledTimestampMs: requiredTsToMs(start.scheduledTime, 'scheduledTime'),
+    startToCloseTimeoutMs: requiredTsToMs(start.startToCloseTimeout, 'startToCloseTimeout'),
+    scheduleToCloseTimeoutMs: requiredTsToMs(start.scheduleToCloseTimeout, 'scheduleToCloseTimeout'),
+    currentAttemptScheduledTimestampMs: requiredTsToMs(
+      start.currentAttemptScheduledTime,
+      'currentAttemptScheduledTime'
+    ),
   };
 }

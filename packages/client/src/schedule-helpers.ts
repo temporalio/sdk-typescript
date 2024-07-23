@@ -23,6 +23,7 @@ import {
   optionalDateToTs,
   optionalTsToDate,
   optionalTsToMs,
+  requiredTsToDate,
   tsToDate,
 } from '@temporalio/common/lib/time';
 import {
@@ -405,10 +406,8 @@ export function decodeScheduleRecentActions(
       } else throw new TypeError('Unsupported schedule action');
 
       return {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        scheduledAt: tsToDate(executionResult.scheduleTime!),
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        takenAt: tsToDate(executionResult.actualTime!),
+        scheduledAt: requiredTsToDate(executionResult.scheduleTime, 'scheduleTime'),
+        takenAt: requiredTsToDate(executionResult.actualTime, 'actualTime'),
         action,
       };
     }
