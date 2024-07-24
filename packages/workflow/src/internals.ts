@@ -688,16 +688,14 @@ export class Activator implements ActivationHandler {
       this.inProgressUpdates.set(updateId, { name, unfinishedPolicy, id: updateId });
       const res = execute(input)
         .then((result) => this.completeUpdate(protocolInstanceId, result))
-        .then(() => {
-          this.inProgressUpdates.delete(updateId);
-        })
         .catch((error) => {
           if (error instanceof TemporalFailure) {
             this.rejectUpdate(protocolInstanceId, error);
           } else {
             throw error;
           }
-        });
+        })
+        .finally(() => this.inProgressUpdates.delete(updateId));
       untrackPromise(res);
       return res;
     };
@@ -786,8 +784,8 @@ export class Activator implements ActivationHandler {
       signalName,
       headers: headers ?? {},
     })
-      .then(() => this.inProgressSignals.delete(signalExecutionNum))
-      .catch(this.handleWorkflowFailure.bind(this));
+      .catch(this.handleWorkflowFailure.bind(this))
+      .finally(() => this.inProgressSignals.delete(signalExecutionNum));
   }
 
   public dispatchBufferedSignals(): void {
