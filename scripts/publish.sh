@@ -9,13 +9,13 @@ cd "$workdir"
 # e.g. 'main' or 'releases/1.10.x'
 source_branch=main
 
-# Manually download all native artifacts from the latest main build
+# Manually download all native artifacts from the latest build
 
 mkdir -p artifacts package/releases
 open artifacts
 
 echo -e 'Please do the following:'
-echo -e ' 1. Open the \e]8;;https://github.com/temporalio/sdk-typescript/actions/workflows/ci.yml?query=branch%3Amain\e\\GHA status page\e]8;;\e\\ for the "Continuous Integration" workflow, on branch main.'
+echo -e ' 1. Open the \e]8;;https://github.com/temporalio/sdk-typescript/actions/workflows/ci.yml?query=branch%3A'"$source_branch"'\e\\GHA status page\e]8;;\e\\ for the "Continuous Integration" workflow, on branch main.'
 echo -e ' 2. From there, select the latest execution'
 echo -e ' 3. Download all corebridge-native-* artifacts to the "artifacts" directory that just opened'
 
@@ -73,7 +73,7 @@ fi
 npm deprecate "temporalio@^${version}" "Instead of installing temporalio, we recommend directly installing our packages: npm remove temporalio; npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity"
 
 echo -e 'Please do the following:'
-echo -e ' 1. Open the \e]8;https://github.com/temporalio/sdk-typescript/releases/new?tag=v'"$version"'\e\\GitHub New Release page\e]8;;\e\\ and select the '"$version"' tag.'
+echo -e ' 1. Open the \e]8;https://github.com/temporalio/sdk-typescript/releases/new?tag=v'"$version"'\e\\GitHub New Release page\e]8;;\e\\ and select the 'v"$version"' tag.'
 echo -e ' 2. In the Release Title field, enter '"$version"''
 echo -e ' 3. Paste the release notes inkto the description field'
 if [[ $version =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
@@ -97,7 +97,7 @@ if [[ $version =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
   ##
   # Update the features repo
   ##
-
+# pull request create failed: GraphQL: Head sha can't be blank, Base sha can't be blank, No commits between main and typescript-1.10.3, Head ref must be a branch (createPullRequest)
   (
     git clone --depth 1 --shallow-submodules --recurse-submodules https://github.com/temporalio/features.git
     cd features
@@ -114,6 +114,7 @@ if [[ $version =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
     git checkout -b "typescript-${version}"
     git add --all
     git commit -m "Update TS SDK to ${version}"
+    git push
 
     gh pr create \
         --title "Update TS SDK to ${version}" \
@@ -132,7 +133,7 @@ if [[ $version =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
     npm i
 
     # Update all samples
-    zx .scripts/upgrade-versions.mjs "^1.10.2"
+    zx .scripts/upgrade-versions.mjs "^${version}"
 
     # Update the package.json file
     npm i
