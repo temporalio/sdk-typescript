@@ -222,6 +222,66 @@ test('Worker fails activity with proper message when it is not registered', asyn
   });
 });
 
+test('Worker fails activity with proper message if activity info contains null ScheduledTime', async (t) => {
+  const worker = isolateFreeWorker({
+    ...defaultOptions,
+    activities: {
+      async dummy(): Promise<void> {},
+    },
+  });
+  t.context.worker = worker;
+
+  await runWorker(t, async () => {
+    const taskToken = Buffer.from(uuid4());
+    const { result } = await worker.native.runActivityTask({
+      taskToken,
+      start: {
+        activityType: 'dummy',
+        workflowExecution: { workflowId: 'wfid', runId: 'runId' },
+        input: toPayloads(defaultPayloadConverter),
+        scheduledTime: null,
+      },
+    });
+    t.is(worker.getState(), 'RUNNING');
+    t.is(result?.failed?.failure?.applicationFailureInfo?.type, 'TypeError');
+    t.is(result?.failed?.failure?.message, 'Expected scheduledTime to be a timestamp, got null');
+    t.true(/worker\.[jt]s/.test(result?.failed?.failure?.stackTrace ?? ''));
+  });
+});
+
+test('Worker fails activity task if interceptor factory throws', async (t) => {
+  const worker = isolateFreeWorker({
+    ...defaultOptions,
+    activities: {
+      async dummy(): Promise<void> {},
+    },
+    interceptors: {
+      activity: [
+        () => {
+          throw new Error('I am a bad interceptor');
+        },
+      ],
+    },
+  });
+  t.context.worker = worker;
+
+  await runWorker(t, async () => {
+    const taskToken = Buffer.from(uuid4());
+    const { result } = await worker.native.runActivityTask({
+      taskToken,
+      start: {
+        activityType: 'dummy',
+        workflowExecution: { workflowId: 'wfid', runId: 'runId' },
+        input: toPayloads(defaultPayloadConverter),
+      },
+    });
+    t.is(worker.getState(), 'RUNNING');
+    t.is(result?.failed?.failure?.applicationFailureInfo?.type, 'Error');
+    t.is(result?.failed?.failure?.message, 'I am a bad interceptor');
+    t.true(/test-worker-activities\.[tj]s/.test(result?.failed?.failure?.stackTrace ?? ''));
+  });
+});
+
 test('Non ApplicationFailure TemporalFailures thrown from Activity are wrapped with ApplicationFailure', async (t) => {
   const worker = isolateFreeWorker({
     ...defaultOptions,
