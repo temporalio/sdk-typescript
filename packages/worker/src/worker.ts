@@ -111,6 +111,7 @@ type Promisify<T> = T extends (...args: any[]) => void
   ? (...args: OmitLast<Parameters<T>>) => ExtractToPromise<LastParameter<T>>
   : never;
 
+type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
 type PatchJob = NonNullableObject<Pick<coresdk.workflow_activation.IWorkflowActivationJob, 'notifyHasPatch'>>;
 type StartWorkflowJob = NonNullableObject<Pick<coresdk.workflow_activation.IWorkflowActivationJob, 'startWorkflow'>>;
 
@@ -119,6 +120,10 @@ type WorkflowActivation = coresdk.workflow_activation.WorkflowActivation;
 export type ActivityTaskWithBase64Token = {
   task: coresdk.activity_task.ActivityTask;
   base64TaskToken: string;
+
+  // The unaltered protobuf-encoded ActivityTask; kept so that it can be printed
+  // out for analysis if decoding fails at a later step.
+  protobufEncodedTask: ArrayBuffer;
 };
 
 type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
@@ -833,7 +838,7 @@ export class Worker {
       mergeMap((group$) => {
         return group$.pipe(
           mergeMapWithState(
-            async (activity: Activity | undefined, { task, base64TaskToken }) => {
+            async (activity: Activity | undefined, { task, base64TaskToken, protobufEncodedTask }) => {
               const { taskToken, variant } = task;
               if (!variant) {
                 throw new TypeError('Got an activity task without a "variant" attribute');
@@ -856,13 +861,14 @@ export class Worker {
                 | { type: 'ignore' };
               switch (variant) {
                 case 'start': {
+                  let info: ActivityInfo | undefined = undefined;
                   try {
                     if (activity !== undefined) {
                       throw new IllegalStateError(
                         `Got start event for an already running activity: ${base64TaskToken}`
                       );
                     }
-                    const info = await extractActivityInfo(
+                    info = await extractActivityInfo(
                       task,
                       this.options.loadedDataConverter,
                       this.options.namespace,
@@ -904,7 +910,7 @@ export class Worker {
                       (details) =>
                         this.activityHeartbeatSubject.next({
                           type: 'heartbeat',
-                          info,
+                          info: info!,
                           taskToken,
                           base64TaskToken,
                           details,
@@ -919,6 +925,12 @@ export class Worker {
                     break;
                   } catch (e) {
                     const error = ensureApplicationFailure(e);
+                    this.logger.error(`Error while processing ActivityTask.start: ${errorMessage(error)}`, {
+                      ...(info ? activityLogAttributes(info) : {}),
+                      error: e,
+                      task: JSON.stringify(task.toJSON()),
+                      taskEncoded: Buffer.from(protobufEncodedTask).toString('base64'),
+                    });
                     output = {
                       type: 'result',
                       result: {
@@ -1526,7 +1538,7 @@ export class Worker {
       if (variant === undefined) {
         throw new TypeError('Got an activity task without a "variant" attribute');
       }
-      return { task, base64TaskToken };
+      return { task, base64TaskToken, protobufEncodedTask: buffer };
     }).pipe(
       tap({
         complete: () => {
@@ -1727,13 +1739,11 @@ function extractSourceMap(code: string) {
   throw new Error("Can't extract inlined source map from the provided Workflow Bundle");
 }
 
-type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
-
 /**
  * Transform an ActivityTask into ActivityInfo to pass on into an Activity
  */
 async function extractActivityInfo(
-  task: coresdk.activity_task.IActivityTask,
+  task: coresdk.activity_task.ActivityTask,
   dataConverter: LoadedDataConverter,
   activityNamespace: string,
   taskQueue: string
