@@ -19,7 +19,7 @@ import {
   WorkflowUpdateValidatorType,
 } from '@temporalio/common';
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
-import { Duration, msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
+import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
@@ -317,7 +317,7 @@ export async function scheduleLocalActivity<R>(
       })) as Promise<R>;
     } catch (err) {
       if (err instanceof LocalActivityDoBackoff) {
-        await sleep(tsToMs(err.backoff.backoffDuration));
+        await sleep(requiredTsToMs(err.backoff.backoffDuration, 'backoffDuration'));
         if (typeof err.backoff.attempt !== 'number') {
           throw new TypeError('Invalid backoff attempt type');
         }
