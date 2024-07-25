@@ -201,19 +201,19 @@ export async function runUnfinishedHandlersWithCancellationOrFailureWorkflow(
 }
 
 test('unfinished update handler with workflow cancellation', async (t) => {
-  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'update', 'cancellation').testWarningIsIssued();
+  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'update', 'cancellation').testWarningIsIssued(false);
 });
 
 test('unfinished signal handler with workflow cancellation', async (t) => {
-  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'signal', 'cancellation').testWarningIsIssued();
+  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'signal', 'cancellation').testWarningIsIssued(false);
 });
 
 test('unfinished update handler with workflow failure', async (t) => {
-  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'update', 'failure').testWarningIsIssued();
+  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'update', 'failure').testWarningIsIssued(true);
 });
 
 test('unfinished signal handler with workflow failure', async (t) => {
-  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'signal', 'failure').testWarningIsIssued();
+  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'signal', 'failure').testWarningIsIssued(true);
 });
 
 class UnfinishedHandlersWithCancellationOrFailureTest {
@@ -223,8 +223,8 @@ class UnfinishedHandlersWithCancellationOrFailureTest {
     private readonly workflowTerminationType: 'cancellation' | 'failure'
   ) {}
 
-  async testWarningIsIssued() {
-    this.t.true(await this.runWorkflowAndGetWarning());
+  async testWarningIsIssued(expectWarning: boolean) {
+    this.t.is(await this.runWorkflowAndGetWarning(), expectWarning);
   }
 
   async runWorkflowAndGetWarning(): Promise<boolean> {
