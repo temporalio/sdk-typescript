@@ -421,12 +421,16 @@ export interface TimeSkippingServerConfig {
   port?: number;
   /**
    * Extra args to pass to the executable command.
+   *
+   * Note that the Test Server implementation may be changed to another one in the future. Therefore, there is
+   * no guarantee that server options, and particularly those provided through the `extraArgs` array, will continue to
+   * be supported in the future.
    */
   extraArgs?: string[];
 }
 
 /**
- * Configuration for the Temporal CLI dev server.
+ * Configuration for the Temporal CLI Dev Server.
  */
 export interface DevServerConfig {
   type: 'dev-server';
@@ -464,6 +468,10 @@ export interface DevServerConfig {
   port?: number;
   /**
    * Extra args to pass to the executable command.
+   *
+   * Note that the Dev Server implementation may be changed to another one in the future. Therefore, there is no
+   * guarantee that Dev Server options, and particularly those provided through the `extraArgs` array, will continue to
+   * be supported in the future.
    */
   extraArgs?: string[];
 }
@@ -471,7 +479,7 @@ export interface DevServerConfig {
 /**
  * Configuration for spawning an ephemeral Temporal server.
  *
- * Both the time-skipping test server and Temporal CLI dev server are supported.
+ * Both the time-skipping Test Server and Temporal CLI dev server are supported.
  */
 export type EphemeralServerConfig = TimeSkippingServerConfig | DevServerConfig;
 
