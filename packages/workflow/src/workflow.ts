@@ -3,7 +3,6 @@ import {
   ActivityOptions,
   compileRetryPolicy,
   extractWorkflowType,
-  IllegalStateError,
   LocalActivityOptions,
   mapToPayloads,
   QueryDefinition,
@@ -20,7 +19,7 @@ import {
   WorkflowUpdateValidatorType,
 } from '@temporalio/common';
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
-import { Duration, msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
+import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
@@ -56,7 +55,7 @@ import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 registerSleepImplementation(sleep);
 
 /**
- * Adds default values to `workflowId` and `workflowIdReusePolicy` to given workflow options.
+ * Adds default values of `workflowId` and `cancellationType` to given workflow options.
  */
 export function addDefaultWorkflowOptions<T extends Workflow>(
   opts: WithWorkflowArgs<T, ChildWorkflowOptions>
@@ -64,7 +63,7 @@ export function addDefaultWorkflowOptions<T extends Workflow>(
   const { args, workflowId, ...rest } = opts;
   return {
     workflowId: workflowId ?? uuid4(),
-    args: args ?? [],
+    args: (args ?? []) as unknown[],
     cancellationType: ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
     ...rest,
   };
@@ -318,7 +317,7 @@ export async function scheduleLocalActivity<R>(
       })) as Promise<R>;
     } catch (err) {
       if (err instanceof LocalActivityDoBackoff) {
-        await sleep(tsToMs(err.backoff.backoffDuration));
+        await sleep(requiredTsToMs(err.backoff.backoffDuration, 'backoffDuration'));
         if (typeof err.backoff.attempt !== 'number') {
           throw new TypeError('Invalid backoff attempt type');
         }
@@ -1002,7 +1001,10 @@ export function uuid4(): string {
  * calls with the same ID, which means all such calls will always return the same value.
  */
 export function patched(patchId: string): boolean {
-  return patchInternal(patchId, false);
+  const activator = assertInWorkflowContext(
+    'Workflow.patch(...) and Workflow.deprecatePatch may only be used from a Workflow Execution.'
+  );
+  return activator.patchInternal(patchId, false);
 }
 
 /**
@@ -1023,29 +1025,10 @@ export function patched(patchId: string): boolean {
  * calls with the same ID, which means all such calls will always return the same value.
  */
 export function deprecatePatch(patchId: string): void {
-  patchInternal(patchId, true);
-}
-
-function patchInternal(patchId: string, deprecated: boolean): boolean {
   const activator = assertInWorkflowContext(
     'Workflow.patch(...) and Workflow.deprecatePatch may only be used from a Workflow Execution.'
   );
-  // Patch operation does not support interception at the moment, if it did,
-  // this would be the place to start the interception chain
-
-  if (activator.workflow === undefined) {
-    throw new IllegalStateError('Patches cannot be used before Workflow starts');
-  }
-  const usePatch = !activator.info.unsafe.isReplaying || activator.knownPresentPatches.has(patchId);
-  // Avoid sending commands for patches core already knows about.
-  // This optimization enables development of automatic patching tools.
-  if (usePatch && !activator.sentPatches.has(patchId)) {
-    activator.pushCommand({
-      setPatchMarker: { patchId, deprecated },
-    });
-    activator.sentPatches.add(patchId);
-  }
-  return usePatch;
+  activator.patchInternal(patchId, true);
 }
 
 /**
@@ -1379,6 +1362,74 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
         ...info.searchAttributes,
         ...searchAttributes,
       },
+    };
+  });
+}
+
+/**
+ * Updates this Workflow's Memos by merging the provided `memo` with existing
+ * Memos (as returned by `workflowInfo().memo`).
+ *
+ * New memo is merged by replacing properties of the same name _at the first
+ * level only_. Setting a property to value `undefined` or `null` clears that
+ * key from the Memo.
+ *
+ * For example:
+ *
+ * ```ts
+ * upsertMemo({
+ *   key1: value,
+ *   key3: { subkey1: value }
+ *   key4: value,
+ * });
+ * upsertMemo({
+ *   key2: value
+ *   key3: { subkey2: value }
+ *   key4: undefined,
+ * });
+ * ```
+ *
+ * would result in the Workflow having these Memo:
+ *
+ * ```ts
+ * {
+ *   key1: value,
+ *   key2: value,
+ *   key3: { subkey2: value }  // Note this object was completely replaced
+ *   // Note that key4 was completely removed
+ * }
+ * ```
+ *
+ * @param memo The Record to merge.
+ */
+export function upsertMemo(memo: Record<string, unknown>): void {
+  const activator = assertInWorkflowContext('Workflow.upsertMemo(...) may only be used from a Workflow Execution.');
+
+  if (memo == null) {
+    throw new Error('memo must be a non-null Record');
+  }
+
+  activator.pushCommand({
+    modifyWorkflowProperties: {
+      upsertedMemo: {
+        fields: mapToPayloads(
+          activator.payloadConverter,
+          // Convert null to undefined
+          Object.fromEntries(Object.entries(memo).map(([k, v]) => [k, v ?? undefined]))
+        ),
+      },
+    },
+  });
+
+  activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
+    return {
+      ...info,
+      memo: Object.fromEntries(
+        Object.entries({
+          ...info.memo,
+          ...memo,
+        }).filter(([_, v]) => v != null)
+      ),
     };
   });
 }

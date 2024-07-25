@@ -39,6 +39,7 @@ export * from './workflow-options';
 export * from './schedule-types';
 export * from './schedule-client';
 export * from './task-queue-client';
+export { WorkflowUpdateStage } from './workflow-update-stage';
 export {
   WorkerBuildIdVersionSets,
   BuildIdVersionSet,

@@ -27,17 +27,19 @@ import { QueryInput, SignalInput, UpdateInput, WorkflowExecuteInput, WorkflowInt
 import {
   ContinueAsNew,
   DefaultSignalHandler,
-  SDKInfo,
-  FileSlice,
+  StackTraceSDKInfo,
+  StackTraceFileSlice,
   EnhancedStackTrace,
-  FileLocation,
+  StackTraceFileLocation,
   WorkflowInfo,
   WorkflowCreateOptionsInternal,
+  ActivationCompletion,
 } from './interfaces';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
 import { executeWithLifecycleLogging } from './logs';
+import { SdkFlag, assertValidFlag } from './flags';
 
 enum StartChildWorkflowExecutionFailedCause {
   START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
@@ -49,7 +51,7 @@ checkExtends<StartChildWorkflowExecutionFailedCause, coresdk.child_workflow.Star
 
 export interface Stack {
   formatted: string;
-  structured: FileLocation[];
+  structured: StackTraceFileLocation[];
 }
 
 /**
@@ -176,19 +178,19 @@ export class Activator implements ActivationHandler {
       {
         handler: (): EnhancedStackTrace => {
           const { sourceMap } = this;
-          const sdk: SDKInfo = { name: 'typescript', version: pkg.version };
+          const sdk: StackTraceSDKInfo = { name: 'typescript', version: pkg.version };
           const stacks = this.getStackTraces().map(({ structured: locations }) => ({ locations }));
-          const sources: Record<string, FileSlice[]> = {};
+          const sources: Record<string, StackTraceFileSlice[]> = {};
           if (this.showStackTraceSources) {
             for (const { locations } of stacks) {
-              for (const { filePath } of locations) {
-                if (!filePath) continue;
-                const content = sourceMap?.sourcesContent?.[sourceMap?.sources.indexOf(filePath)];
+              for (const { file_path } of locations) {
+                if (!file_path) continue;
+                const content = sourceMap?.sourcesContent?.[sourceMap?.sources.indexOf(file_path)];
                 if (!content) continue;
-                sources[filePath] = [
+                sources[file_path] = [
                   {
+                    line_offset: 0,
                     content,
-                    lineOffset: 0,
                   },
                 ];
               }
@@ -310,12 +312,14 @@ export class Activator implements ActivationHandler {
   /**
    * Patches we know the status of for this workflow, as in {@link patched}
    */
-  public readonly knownPresentPatches = new Set<string>();
+  private readonly knownPresentPatches = new Set<string>();
 
   /**
    * Patches we sent to core {@link patched}
    */
-  public readonly sentPatches = new Set<string>();
+  private readonly sentPatches = new Set<string>();
+
+  private readonly knownFlags = new Set<number>();
 
   /**
    * Buffered sink calls per activation
@@ -400,10 +404,11 @@ export class Activator implements ActivationHandler {
     }
   }
 
-  getAndResetCommands(): coresdk.workflow_commands.IWorkflowCommand[] {
-    const commands = this.commands;
-    this.commands = [];
-    return commands;
+  concludeActivation(): ActivationCompletion {
+    return {
+      commands: this.commands.splice(0),
+      usedInternalFlags: [...this.knownFlags],
+    };
   }
 
   public async startWorkflowNextHandler({ args }: WorkflowExecuteInput): Promise<any> {
@@ -787,6 +792,41 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Notify has patch missing patch name');
     }
     this.knownPresentPatches.add(activation.patchId);
+  }
+
+  public patchInternal(patchId: string, deprecated: boolean): boolean {
+    if (this.workflow === undefined) {
+      throw new IllegalStateError('Patches cannot be used before Workflow starts');
+    }
+    const usePatch = !this.info.unsafe.isReplaying || this.knownPresentPatches.has(patchId);
+    // Avoid sending commands for patches core already knows about.
+    // This optimization enables development of automatic patching tools.
+    if (usePatch && !this.sentPatches.has(patchId)) {
+      this.pushCommand({
+        setPatchMarker: { patchId, deprecated },
+      });
+      this.sentPatches.add(patchId);
+    }
+    return usePatch;
+  }
+
+  // Called early while handling an activation to register known flags
+  public addKnownFlags(flags: number[]): void {
+    for (const flag of flags) {
+      assertValidFlag(flag);
+      this.knownFlags.add(flag);
+    }
+  }
+
+  public hasFlag(flag: SdkFlag): boolean {
+    if (this.knownFlags.has(flag.id)) {
+      return true;
+    }
+    if (!this.info.unsafe.isReplaying && flag.default) {
+      this.knownFlags.add(flag.id);
+      return true;
+    }
+    return false;
   }
 
   public removeFromCache(): void {

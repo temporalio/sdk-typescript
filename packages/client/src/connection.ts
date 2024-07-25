@@ -143,6 +143,7 @@ function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults 
       'grpc.keepalive_permit_without_calls': 1,
       'grpc.keepalive_time_ms': 30_000,
       'grpc.keepalive_timeout_ms': 15_000,
+      max_receive_message_length: 128 * 1024 * 1024, // 128 MB
       ...channelArgs,
     },
     interceptors: interceptors ?? [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],

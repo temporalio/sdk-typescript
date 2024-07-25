@@ -226,22 +226,32 @@ export class TestWorkflowEnvironment {
   /**
    * Start a time skipping workflow environment.
    *
-   * By default, this environment will automatically skip to the next events in time when a workflow handle's `result`
-   * is awaited on (which includes {@link WorkflowClient.execute}). Before the result is awaited on, time can be
-   * manually skipped forward using {@link sleep}. The currently known time can be obtained via {@link currentTimeMs}.
+   * This environment automatically skips to the next events in time when a workflow handle's `result` is awaited on
+   * (which includes {@link WorkflowClient.execute}). Before the result is awaited on, time can be manually skipped
+   * forward using {@link sleep}. The currently known time can be obtained via {@link currentTimeMs}.
    *
-   * Internally, this environment lazily downloads a test-server binary for the current OS/arch from the [Java SDK
-   * releases](https://github.com/temporalio/sdk-java/releases) into the temp directory if it is not already there.
-   * Then the executable is started and will be killed when {@link teardown} is called.
+   * This environment will be powered by the Temporal Time Skipping Test Server (part of the [Java SDK](https://github.com/temporalio/sdk-java)).
+   * Note that the Time Skipping Test Server does not support full capabilities of the regular Temporal Server, and may
+   * occasionally present different behaviors. For general Workflow testing, it is generally preferable to use {@link createLocal}
+   * instead.
    *
    * Users can reuse this environment for testing multiple independent workflows, but not concurrently. Time skipping,
    * which is automatically done when awaiting a workflow result and manually done on sleep, is global to the
-   * environment, not to the workflow under test.
+   * environment, not to the workflow under test. We highly recommend running tests serially when using a single
+   * environment or creating a separate environment per test.
    *
-   * We highly recommend, running tests serially when using a single environment or creating a separate environment per
-   * test.
+   * By default, the latest release of the Test Serveer will be downloaded and cached to a temporary directory
+   * (e.g. `$TMPDIR/temporal-test-server-sdk-typescript-*` or `%TEMP%/temporal-test-server-sdk-typescript-*.exe`). Note
+   * that existing cached binairies will be reused without validation that they are still up-to-date, until the SDK
+   * itself is updated. Alternatively, a specific version number of the Test Server may be provided, or the path to an
+   * existing Test Server binary may be supplied; see {@link LocalTestWorkflowEnvironmentOptions.server.executable}.
    *
-   * In the future, the test server implementation may be changed to another implementation.
+   * Note that the Test Server implementation may be changed to another one in the future. Therefore, there is no
+   * guarantee that Test Server options, and particularly those provided through the `extraArgs` array, will continue to
+   * be supported in the future.
+   *
+   * IMPORTANT: At this time, the Time Skipping Test Server is not supported on ARM platforms. Execution on Apple
+   * silicon Macs will work if Rosetta 2 is installed.
    */
   static async createTimeSkipping(opts?: TimeSkippingTestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
     return await this.create({
@@ -252,7 +262,7 @@ export class TestWorkflowEnvironment {
   }
 
   /**
-   * Start a full Temporal server locally, downloading if necessary.
+   * Start a full Temporal server locally.
    *
    * This environment is good for testing full server capabilities, but does not support time skipping like
    * {@link createTimeSkipping} does. {@link supportsTimeSkipping} will always return `false` for this environment.
@@ -260,11 +270,17 @@ export class TestWorkflowEnvironment {
    *
    * This local environment will be powered by [Temporal CLI](https://github.com/temporalio/cli), which is a
    * self-contained executable for Temporal. By default, Temporal's database will not be persisted to disk, and no UI
-   * will be started.
+   * will be launched.
    *
-   * The CLI executable will be downloaded and cached to a temporary directory. See
-   * {@link LocalTestWorkflowEnvironmentOptions.server.executable.type} if you'd prefer to provide the CLI executable
-   * yourself.
+   * By default, the latest release of the CLI will be downloaded and cached to a temporary directory
+   * (e.g. `$TMPDIR/temporal-sdk-typescript-*` or `%TEMP%/temporal-sdk-typescript-*.exe`). Note that existing cached
+   * binairies will be reused without validation that they are still up-to-date, until the SDK itself is updated.
+   * Alternatively, a specific version number of the CLI may be provided, or the path to an existing CLI binary may be
+   * supplied; see {@link LocalTestWorkflowEnvironmentOptions.server.executable}.
+   *
+   * Note that the Dev Server implementation may be changed to another one in the future. Therefore, there is no
+   * guarantee that Dev Server options, and particularly those provided through the `extraArgs` array, will continue to
+   * be supported in the future.
    */
   static async createLocal(opts?: LocalTestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
     return await this.create({
