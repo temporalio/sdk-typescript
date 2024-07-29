@@ -168,7 +168,9 @@ class UnfinishedHandlersTest {
   isUnfinishedHandlerWarning(logEntry: LogEntry): boolean {
     return (
       logEntry.level === 'WARN' &&
-      new RegExp(`^Workflow finished while an? ${this.handlerType} handler was still running\\.`).test(logEntry.message)
+      new RegExp(`^\\[TMPRL1102\\] Workflow finished while an? ${this.handlerType} handler was still running\\.`).test(
+        logEntry.message
+      )
     );
   }
 }
