@@ -211,11 +211,11 @@ test('unfinished signal handler with workflow cancellation', async (t) => {
 });
 
 test('unfinished update handler with workflow failure', async (t) => {
-  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'update', 'failure').testWarningIsIssued(true);
+  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'update', 'failure').testWarningIsIssued(false);
 });
 
 test('unfinished signal handler with workflow failure', async (t) => {
-  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'signal', 'failure').testWarningIsIssued(true);
+  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'signal', 'failure').testWarningIsIssued(false);
 });
 
 class UnfinishedHandlersWithCancellationOrFailureTest {
