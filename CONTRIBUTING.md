@@ -17,7 +17,7 @@
     - [test-npm-init](#test-npm-init)
   - [Style Guide](#style-guide)
 - [Publishing](#publishing)
-- [Updating the Java test server proto files](#updating-the-java-test-server-proto-files)
+- [Updating published packages](#updating-published-packages)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
