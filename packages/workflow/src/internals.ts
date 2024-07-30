@@ -689,8 +689,7 @@ export class Activator implements ActivationHandler {
       const res = execute(input)
         .then((result) => this.completeUpdate(protocolInstanceId, result))
         .catch((error) => {
-          // is this failing updates on WFT failure?
-          if (error instanceof ApplicationFailure) {
+          if (error instanceof TemporalFailure) {
             this.rejectUpdate(protocolInstanceId, error);
           } else {
             throw error;
