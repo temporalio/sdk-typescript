@@ -175,54 +175,74 @@ class UnfinishedHandlersTest {
   }
 }
 
-export const unfinishedHandlersWithCancellationOrFailureUpdate = workflow.defineUpdate<void>(
+export const unfinishedHandlersWithCancellationOrFailureOrCANUpdate = workflow.defineUpdate<void>(
   'unfinishedHandlersWithCancellationOrFailureUpdate'
 );
-export const unfinishedHandlersWithCancellationOrFailureSignal = workflow.defineSignal(
+export const unfinishedHandlersWithCancellationOrFailureOrCANSignal = workflow.defineSignal(
   'unfinishedHandlersWithCancellationOrFailureSignal'
 );
 
-export async function runUnfinishedHandlersWithCancellationOrFailureWorkflow(
-  workflowTerminationType: 'cancellation' | 'failure'
+export async function runUnfinishedHandlersWithCancellationOrFailureOrCANWorkflow(
+  workflowTerminationType: 'cancellation' | 'continue-as-new' | 'failure'
 ): Promise<never> {
-  workflow.setHandler(unfinishedHandlersWithCancellationOrFailureUpdate, async () => {
+  workflow.setHandler(unfinishedHandlersWithCancellationOrFailureOrCANUpdate, async () => {
     await workflow.condition(() => false);
     throw new Error('unreachable');
   });
 
-  workflow.setHandler(unfinishedHandlersWithCancellationOrFailureSignal, async () => {
+  workflow.setHandler(unfinishedHandlersWithCancellationOrFailureOrCANSignal, async () => {
     await workflow.condition(() => false);
     throw new Error('unreachable');
   });
 
-  if (workflowTerminationType === 'failure') {
-    throw new workflow.ApplicationFailure('Deliberately failing workflow with an unfinished handler');
+  switch (workflowTerminationType) {
+    case 'cancellation':
+      await workflow.condition(() => false);
+    case 'continue-as-new':
+      await workflow.continueAsNew();
+    case 'failure':
+      throw new workflow.ApplicationFailure('Deliberately failing workflow with an unfinished handler');
   }
-  await workflow.condition(() => false);
   throw new Error('unreachable');
 }
 
 test('unfinished update handler with workflow cancellation', async (t) => {
-  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'update', 'cancellation').testWarningIsIssued(false);
+  await new UnfinishedHandlersWithCancellationOrFailureOrCANTest(t, 'update', 'cancellation').testWarningIsIssued(
+    false
+  );
 });
 
 test('unfinished signal handler with workflow cancellation', async (t) => {
-  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'signal', 'cancellation').testWarningIsIssued(false);
+  await new UnfinishedHandlersWithCancellationOrFailureOrCANTest(t, 'signal', 'cancellation').testWarningIsIssued(
+    false
+  );
+});
+
+test('unfinished update handler with continue-as-new', async (t) => {
+  await new UnfinishedHandlersWithCancellationOrFailureOrCANTest(t, 'update', 'continue-as-new').testWarningIsIssued(
+    false
+  );
+});
+
+test('unfinished signal handler with continue-as-new', async (t) => {
+  await new UnfinishedHandlersWithCancellationOrFailureOrCANTest(t, 'signal', 'continue-as-new').testWarningIsIssued(
+    false
+  );
 });
 
 test('unfinished update handler with workflow failure', async (t) => {
-  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'update', 'failure').testWarningIsIssued(false);
+  await new UnfinishedHandlersWithCancellationOrFailureOrCANTest(t, 'update', 'failure').testWarningIsIssued(false);
 });
 
 test('unfinished signal handler with workflow failure', async (t) => {
-  await new UnfinishedHandlersWithCancellationOrFailureTest(t, 'signal', 'failure').testWarningIsIssued(false);
+  await new UnfinishedHandlersWithCancellationOrFailureOrCANTest(t, 'signal', 'failure').testWarningIsIssued(false);
 });
 
-class UnfinishedHandlersWithCancellationOrFailureTest {
+class UnfinishedHandlersWithCancellationOrFailureOrCANTest {
   constructor(
     private readonly t: ExecutionContext<Context>,
     private readonly handlerType: 'update' | 'signal',
-    private readonly workflowTerminationType: 'cancellation' | 'failure'
+    private readonly workflowTerminationType: 'cancellation' | 'continue-as-new' | 'failure'
   ) {}
 
   async testWarningIsIssued(expectWarning: boolean) {
@@ -237,7 +257,7 @@ class UnfinishedHandlersWithCancellationOrFailureTest {
     // they've all been accepted by the server.
     const updateId = 'update-id';
 
-    const handle = await startWorkflow(runUnfinishedHandlersWithCancellationOrFailureWorkflow, {
+    const handle = await startWorkflow(runUnfinishedHandlersWithCancellationOrFailureOrCANWorkflow, {
       args: [this.workflowTerminationType],
     });
     if (this.workflowTerminationType === 'cancellation') {
@@ -247,15 +267,23 @@ class UnfinishedHandlersWithCancellationOrFailureTest {
 
     switch (this.handlerType) {
       case 'update':
-        executeUpdate = handle.executeUpdate(unfinishedHandlersWithCancellationOrFailureUpdate, { updateId });
+        executeUpdate = handle.executeUpdate(unfinishedHandlersWithCancellationOrFailureOrCANUpdate, { updateId });
         await waitUntil(() => workflowUpdateExists(handle, updateId), 500);
         break;
       case 'signal':
-        await handle.signal(unfinishedHandlersWithCancellationOrFailureSignal);
+        await handle.signal(unfinishedHandlersWithCancellationOrFailureOrCANSignal);
         break;
     }
 
     const worker = await createWorker();
+
+    const continueAsNewOrFailureAssertion = async () => {
+      const err: WorkflowNotFoundError = (await this.t.throwsAsync(executeUpdate, {
+        instanceOf: WorkflowNotFoundError,
+      })) as WorkflowNotFoundError;
+      this.t.is(err.message, 'workflow execution already completed');
+    };
+
     return await worker.runUntil(async () => {
       if (this.handlerType === 'update') {
         switch (this.workflowTerminationType) {
@@ -266,11 +294,12 @@ class UnfinishedHandlersWithCancellationOrFailureTest {
             this.t.is(err.message, 'Workflow Update failed');
             break;
           }
+          case 'continue-as-new': {
+            await continueAsNewOrFailureAssertion();
+            break;
+          }
           case 'failure': {
-            const err: WorkflowNotFoundError = (await this.t.throwsAsync(executeUpdate, {
-              instanceOf: WorkflowNotFoundError,
-            })) as WorkflowNotFoundError;
-            this.t.is(err.message, 'workflow execution already completed');
+            await continueAsNewOrFailureAssertion();
             break;
           }
         }
