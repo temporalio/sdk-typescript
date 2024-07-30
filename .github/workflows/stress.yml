@@ -117,7 +117,7 @@ jobs:
       - name: Run Temporal CLI
         shell: bash
         run: |
-          temporal server start-dev --headless &> /tmp/devserver.log &
+          temporal server start-dev --headless --db-filename /tmp/temporal.sqlite3 &> /tmp/devserver.log &
 
       - name: Run tests
         run: |
