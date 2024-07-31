@@ -210,7 +210,15 @@ export async function runUnfinishedHandlersWorkflowTerminationTypeWorkflow(
 }
 
 // These tests confirm that the warning is issued / not issued as appropriate for workflow
-// termination via cancellation, failure, and continue-as-new.
+// termination via cancellation, continue-as-new, failure, and return.
+test('unfinished update handler with workflow return', async (t) => {
+  await new UnfinishedHandlersWorkflowTerminationTypeTest(t, 'update', 'return').testWarningIsIssued(false);
+});
+
+test('unfinished signal handler with workflow return', async (t) => {
+  await new UnfinishedHandlersWorkflowTerminationTypeTest(t, 'signal', 'return').testWarningIsIssued(false);
+});
+
 test('unfinished update handler with workflow cancellation', async (t) => {
   await new UnfinishedHandlersWorkflowTerminationTypeTest(t, 'update', 'cancellation').testWarningIsIssued(false);
 });
@@ -239,7 +247,7 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
   constructor(
     private readonly t: ExecutionContext<Context>,
     private readonly handlerType: 'update' | 'signal',
-    private readonly workflowTerminationType: 'cancellation' | 'continue-as-new' | 'failure'
+    private readonly workflowTerminationType: 'cancellation' | 'continue-as-new' | 'failure' | 'return'
   ) {}
 
   async testWarningIsIssued(expectWarning: boolean) {
@@ -289,10 +297,14 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
             await this.assertWorkflowNotFoundError(executeUpdate);
             break;
           }
+          case 'return': {
+            await this.assertWorkflowNotFoundError(executeUpdate);
+            break;
+          }
         }
       }
 
-      if (this.workflowTerminationType !== 'continue-as-new') {
+      if (this.workflowTerminationType === 'cancellation' || this.workflowTerminationType === 'failure') {
         await this.assertWorkflowFailedError(
           handle.result(),
           this.workflowTerminationType === 'cancellation' ? 'cancelled' : 'failed'
