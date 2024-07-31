@@ -300,7 +300,7 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
       }
 
       const unfinishedHandlerWarningEmitted =
-        recordedLogs[handle.workflowId] &&
+        handle.workflowId in recordedLogs &&
         recordedLogs[handle.workflowId].findIndex((e) => this.isUnfinishedHandlerWarning(e)) >= 0;
       return unfinishedHandlerWarningEmitted;
     });
