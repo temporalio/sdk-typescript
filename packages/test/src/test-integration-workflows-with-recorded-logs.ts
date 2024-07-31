@@ -185,8 +185,8 @@ export const unfinishedHandlersWorkflowTerminationTypeSignal = workflow.defineSi
 );
 
 export async function runUnfinishedHandlersWorkflowTerminationTypeWorkflow(
-  workflowTerminationType: 'cancellation' | 'continue-as-new' | 'failure'
-): Promise<never> {
+  workflowTerminationType: 'cancellation' | 'continue-as-new' | 'failure' | 'return'
+): Promise<void> {
   workflow.setHandler(unfinishedHandlersWorkflowTerminationTypeUpdate, async () => {
     await workflow.condition(() => false);
     throw new Error('unreachable');
@@ -201,11 +201,12 @@ export async function runUnfinishedHandlersWorkflowTerminationTypeWorkflow(
     case 'cancellation':
       await workflow.condition(() => false);
     case 'continue-as-new':
-      await workflow.continueAsNew();
+      await workflow.continueAsNew('return');
     case 'failure':
       throw new workflow.ApplicationFailure('Deliberately failing workflow with an unfinished handler');
+    case 'return':
+      break;
   }
-  throw new Error('unreachable');
 }
 
 // These tests confirm that the warning is issued / not issued as appropriate for workflow
