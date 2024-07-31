@@ -62,6 +62,8 @@ export async function unfinishedHandlersWorkflow(waitAllHandlersFinished: boolea
   return handlerFinished;
 }
 
+// These tests confirms that the unfinished-handler warning is issued, and respects the policy, and
+// can be avoided by waiting for the `allHandlersFinished` condition.
 test('unfinished update handler', async (t) => {
   await new UnfinishedHandlersTest(t, 'update').testWaitAllHandlersFinishedAndUnfinishedHandlersWarning();
 });
@@ -206,6 +208,8 @@ export async function runUnfinishedHandlersWorkflowTerminationTypeWorkflow(
   throw new Error('unreachable');
 }
 
+// These tests confirm that the warning is issued / not issued as appropriate for workflow
+// termination via cancellation, failure, and continue-as-new.
 test('unfinished update handler with workflow cancellation', async (t) => {
   await new UnfinishedHandlersWorkflowTerminationTypeTest(t, 'update', 'cancellation').testWarningIsIssued(false);
 });
@@ -215,11 +219,11 @@ test('unfinished signal handler with workflow cancellation', async (t) => {
 });
 
 test('unfinished update handler with continue-as-new', async (t) => {
-  await new UnfinishedHandlersWorkflowTerminationTypeTest(t, 'update', 'continue-as-new').testWarningIsIssued(false);
+  await new UnfinishedHandlersWorkflowTerminationTypeTest(t, 'update', 'continue-as-new').testWarningIsIssued(true);
 });
 
 test('unfinished signal handler with continue-as-new', async (t) => {
-  await new UnfinishedHandlersWorkflowTerminationTypeTest(t, 'signal', 'continue-as-new').testWarningIsIssued(false);
+  await new UnfinishedHandlersWorkflowTerminationTypeTest(t, 'signal', 'continue-as-new').testWarningIsIssued(true);
 });
 
 test('unfinished update handler with workflow failure', async (t) => {
