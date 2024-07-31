@@ -39,9 +39,9 @@ export type WorkflowExecution = temporal.api.common.v1.IWorkflowExecution;
 /**
  * Represents failures that can cross Workflow and Activity boundaries.
  *
- * The only child class you should ever throw from your code is {@link ApplicationFailure}.
+ * **Never extend this class or any of its children.**
  *
- * **Never extend this class or any of its children other than {@link ApplicationFailure}.**
+ * The only child class you should ever throw from your code is {@link ApplicationFailure}.
  */
 @SymbolBasedInstanceOfError('TemporalFailure')
 export class TemporalFailure extends Error {
