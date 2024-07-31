@@ -273,47 +273,57 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
 
     const worker = await createWorker();
 
-    const continueAsNewOrFailureAssertion = async () => {
-      const err: WorkflowNotFoundError = (await this.t.throwsAsync(executeUpdate, {
-        instanceOf: WorkflowNotFoundError,
-      })) as WorkflowNotFoundError;
-      this.t.is(err.message, 'workflow execution already completed');
-    };
-
     return await worker.runUntil(async () => {
       if (this.handlerType === 'update') {
         switch (this.workflowTerminationType) {
           case 'cancellation': {
-            const err: WorkflowUpdateFailedError = (await this.t.throwsAsync(executeUpdate, {
-              instanceOf: WorkflowUpdateFailedError,
-            })) as WorkflowUpdateFailedError;
-            this.t.is(err.message, 'Workflow Update failed');
+            await this.assertWorkflowUpdateFailedError(executeUpdate);
             break;
           }
           case 'continue-as-new': {
-            await continueAsNewOrFailureAssertion();
+            await this.assertWorkflowNotFoundError(executeUpdate);
             break;
           }
           case 'failure': {
-            await continueAsNewOrFailureAssertion();
+            await this.assertWorkflowNotFoundError(executeUpdate);
             break;
           }
         }
       }
 
-      const err = (await this.t.throwsAsync(handle.result(), {
-        instanceOf: WorkflowFailedError,
-      })) as WorkflowFailedError;
-      this.t.is(
-        err.message,
-        'Workflow execution ' + (this.workflowTerminationType === 'cancellation' ? 'cancelled' : 'failed')
-      );
+      if (this.workflowTerminationType !== 'continue-as-new') {
+        await this.assertWorkflowFailedError(
+          handle.result(),
+          this.workflowTerminationType === 'cancellation' ? 'cancelled' : 'failed'
+        );
+      }
 
       const unfinishedHandlerWarningEmitted =
         recordedLogs[handle.workflowId] &&
         recordedLogs[handle.workflowId].findIndex((e) => this.isUnfinishedHandlerWarning(e)) >= 0;
       return unfinishedHandlerWarningEmitted;
     });
+  }
+
+  async assertWorkflowUpdateFailedError(p: Promise<any>) {
+    const err: WorkflowUpdateFailedError = (await this.t.throwsAsync(p, {
+      instanceOf: WorkflowUpdateFailedError,
+    })) as WorkflowUpdateFailedError;
+    this.t.is(err.message, 'Workflow Update failed');
+  }
+
+  async assertWorkflowFailedError(p: Promise<any>, howFailed: 'cancelled' | 'failed') {
+    const err = (await this.t.throwsAsync(p, {
+      instanceOf: WorkflowFailedError,
+    })) as WorkflowFailedError;
+    this.t.is(err.message, 'Workflow execution ' + howFailed);
+  }
+
+  async assertWorkflowNotFoundError(p: Promise<any>) {
+    const err: WorkflowNotFoundError = (await this.t.throwsAsync(p, {
+      instanceOf: WorkflowNotFoundError,
+    })) as WorkflowNotFoundError;
+    this.t.is(err.message, 'workflow execution already completed');
   }
 
   isUnfinishedHandlerWarning(logEntry: LogEntry): boolean {
