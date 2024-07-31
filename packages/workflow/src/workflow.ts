@@ -1096,8 +1096,8 @@ function conditionInner(fn: () => boolean): Promise<void> {
 /**
  * Define an update method for a Workflow.
  *
- * Definitions are used to register handler in the Workflow via {@link setHandler} and to update Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
- * Definitions can be reused in multiple Workflows.
+ * A definition is used to register a handler in the Workflow via {@link setHandler} and to update a Workflow using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
+ * A definition can be reused in multiple Workflows.
  */
 export function defineUpdate<Ret, Args extends any[] = [], Name extends string = string>(
   name: Name
@@ -1111,8 +1111,8 @@ export function defineUpdate<Ret, Args extends any[] = [], Name extends string =
 /**
  * Define a signal method for a Workflow.
  *
- * Definitions are used to register handler in the Workflow via {@link setHandler} and to signal Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
- * Definitions can be reused in multiple Workflows.
+ * A definition is used to register a handler in the Workflow via {@link setHandler} and to signal a Workflow using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
+ * A definition can be reused in multiple Workflows.
  */
 export function defineSignal<Args extends any[] = [], Name extends string = string>(
   name: Name
@@ -1126,8 +1126,8 @@ export function defineSignal<Args extends any[] = [], Name extends string = stri
 /**
  * Define a query method for a Workflow.
  *
- * Definitions are used to register handler in the Workflow via {@link setHandler} and to query Workflows using a {@link WorkflowHandle}.
- * Definitions can be reused in multiple Workflows.
+ * A definition is used to register a handler in the Workflow via {@link setHandler} and to query a Workflow using a {@link WorkflowHandle}.
+ * A definition can be reused in multiple Workflows.
  */
 export function defineQuery<Ret, Args extends any[] = [], Name extends string = string>(
   name: Name
@@ -1194,7 +1194,7 @@ export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<R
 // 1. sdk-core sorts Signal and Update jobs (and Patches) ahead of all other
 //    jobs. Thus if the handler is available at the start of the Activation then
 //    the Signal/Update will be executed before Workflow code is executed. If it
-//    is not, then the Signal/Update calls is pushed to a buffer.
+//    is not, then the Signal/Update calls are pushed to a buffer.
 //
 // 2. On each call to setHandler for a given Signal/Update, we make a pass
 //    through the buffer list. If a buffered job is associated with the just-set
@@ -1242,7 +1242,7 @@ export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<R
 //    Worker polling until after they have verified that both requests have
 //    succeeded.)
 //
-// 5. If an Update has a validation function then it is executed immediately
+// 4. If an Update has a validation function then it is executed immediately
 //    prior to the handler. (Note that the validation function is required to be
 //    synchronous).
 export function setHandler<
