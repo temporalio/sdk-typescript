@@ -284,23 +284,10 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
 
     return await worker.runUntil(async () => {
       if (this.handlerType === 'update') {
-        switch (this.workflowTerminationType) {
-          case 'cancellation': {
-            await this.assertWorkflowUpdateFailedError(executeUpdate);
-            break;
-          }
-          case 'continue-as-new': {
-            await this.assertWorkflowNotFoundError(executeUpdate);
-            break;
-          }
-          case 'failure': {
-            await this.assertWorkflowNotFoundError(executeUpdate);
-            break;
-          }
-          case 'return': {
-            await this.assertWorkflowNotFoundError(executeUpdate);
-            break;
-          }
+        if (this.workflowTerminationType === 'cancellation') {
+          await this.assertWorkflowUpdateFailedError(executeUpdate);
+        } else {
+          await this.assertWorkflowNotFoundError(executeUpdate);
         }
       }
 
