@@ -202,12 +202,14 @@ export async function runUnfinishedHandlersWorkflowTerminationTypeWorkflow(
   switch (workflowTerminationType) {
     case 'cancellation':
       await workflow.condition(() => false);
+      throw new Error('unreachable');
     case 'continue-as-new':
       if (waitAllHandlersFinished) {
         handlerMayReturn = true;
         await workflow.condition(workflow.allHandlersFinished);
       }
       await workflow.continueAsNew('return');
+      throw new Error('unreachable');
     case 'failure':
       throw new workflow.ApplicationFailure('Deliberately failing workflow with an unfinished handler');
     case 'return':
@@ -215,6 +217,7 @@ export async function runUnfinishedHandlersWorkflowTerminationTypeWorkflow(
         handlerMayReturn = true;
         await workflow.condition(workflow.allHandlersFinished);
       }
+      break;
   }
 }
 
@@ -303,20 +306,15 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
 
   async runWorkflowAndGetWarning(): Promise<boolean> {
     const { createWorker, startWorkflow, updateHasBeenAdmitted: workflowUpdateExists } = helpers(this.t);
-
-    // We require a startWorkflow, an update/signal, and maybe a cancellation request, to be
-    // delivered in the same WFT. To do this we start the worker after they've all been accepted by
-    // the server.
     const updateId = 'update-id';
 
+    // We require a startWorkflow, an update/signal, and maybe a cancellation request, to be
+    // delivered in the same WFT: ensure they've all been accepted by the server before starting the
+    // worker.
     const w = await startWorkflow(runUnfinishedHandlersWorkflowTerminationTypeWorkflow, {
       args: [this.workflowTerminationType, this.waitAllHandlersFinished],
     });
-    if (this.workflowTerminationType === 'cancellation') {
-      await w.cancel();
-    }
     let executeUpdate: Promise<string>;
-
     switch (this.handlerType) {
       case 'update':
         executeUpdate = w.executeUpdate(unfinishedHandlersWorkflowTerminationTypeUpdate, { updateId });
@@ -325,6 +323,9 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
       case 'signal':
         await w.signal(unfinishedHandlersWorkflowTerminationTypeSignal);
         break;
+    }
+    if (this.workflowTerminationType === 'cancellation') {
+      await w.cancel();
     }
 
     const worker = await createWorker();
@@ -339,16 +340,15 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
           await this.assertWorkflowNotFoundError(executeUpdate);
         }
       }
-
-      if (this.workflowTerminationType === 'cancellation' || this.workflowTerminationType === 'failure') {
-        await this.assertWorkflowFailedError(
-          w.result(),
-          this.workflowTerminationType === 'cancellation' ? 'cancelled' : 'failed'
-        );
-      } else {
-        await w.result();
+      switch (this.workflowTerminationType) {
+        case 'cancellation':
+        case 'failure':
+          await this.assertWorkflowFailedError(w.result(), this.workflowTerminationType);
+          break;
+        case 'return':
+        case 'continue-as-new':
+          await w.result();
       }
-
       return (
         w.workflowId in recordedLogs &&
         recordedLogs[w.workflowId].findIndex((e) => this.isUnfinishedHandlerWarning(e)) >= 0
@@ -363,10 +363,11 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
     this.t.is(err.message, 'Workflow Update failed');
   }
 
-  async assertWorkflowFailedError(p: Promise<any>, howFailed: 'cancelled' | 'failed') {
+  async assertWorkflowFailedError(p: Promise<any>, workflowTerminationType: 'cancellation' | 'failure') {
     const err = (await this.t.throwsAsync(p, {
       instanceOf: WorkflowFailedError,
     })) as WorkflowFailedError;
+    const howFailed = { cancellation: 'cancelled', failure: 'failed' }[workflowTerminationType];
     this.t.is(err.message, 'Workflow execution ' + howFailed);
   }
 
