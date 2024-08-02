@@ -910,7 +910,10 @@ export class Activator implements ActivationHandler {
         // preventing it from completing.
         throw error;
       }
-
+      // Fail the workflow. We do not want to issue unfinishedHandlers warnings. To achieve that, we
+      // mark all handlers as completed now.
+      this.inProgressSignals.clear();
+      this.inProgressUpdates.clear();
       this.pushCommand(
         {
           failWorkflowExecution: {
