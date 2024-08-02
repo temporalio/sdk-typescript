@@ -208,7 +208,15 @@ export async function runUnfinishedHandlersWorkflowTerminationTypeWorkflow(
         handlerMayReturn = true;
         await workflow.condition(workflow.allHandlersFinished);
       }
-      await workflow.continueAsNew('return');
+      // If we do not pass waitAllHandlersFinished here then the test occasionally fails. Recall
+      // that this test causes the worker to send a WFT response containing commands
+      // [completeUpdate, CAN]. Usually, that results in the update completing, the caller getting
+      // the update result, and the workflow CANing. However occasionally (~1/30) there is a server
+      // level=ERROR msg="service failures" operation=UpdateWorkflowExecution wf-namespace=default error="unable to locate current workflow execution"
+      // the update caller does not get a response, and the update is included again in the first
+      // WFT sent to the post-CAN workflow run. (This causes the current test to fail unless the
+      // post-CAN run waits for handlers to finish).
+      await workflow.continueAsNew('return', waitAllHandlersFinished);
       throw new Error('unreachable');
     case 'failure':
       throw new workflow.ApplicationFailure('Deliberately failing workflow with an unfinished handler');
