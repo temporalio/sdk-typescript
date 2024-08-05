@@ -216,10 +216,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [16, 18, 20]
-        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
-        reuse-v8-context: [true, false]
-        server: [cli] # FIXME: Add 'cloud'
+        node: [ 16, 18, 20 ]
+        platform: [ linux-x64, linux-arm, macos-x64, macos-arm, windows-x64 ]
+        reuse-v8-context: [ true, false ]
+        server: [ cli ] # FIXME: Add 'cloud'
         include:
           - platform: linux-x64
             runner: ubuntu-latest
@@ -311,10 +311,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [16, 18, 20]
-        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
-        sample: [hello-world, fetch-esm, hello-world-mtls]
-        server: [cli, cloud]
+        node: [ 16, 18, 20 ]
+        platform: [ linux-x64, linux-arm, macos-x64, macos-arm, windows-x64 ]
+        sample: [ hello-world, fetch-esm, hello-world-mtls ]
+        server: [ cli, cloud ]
         exclude:
           # Exclude non-mtls tests on cloud
           - sample: hello-world
@@ -580,3 +580,16 @@ jobs:
       #   # Don't run on forks, since secrets won't be available, and command will fail
       #   if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.ref != 'refs/heads/main'
       #   run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes
+
+  omes-image-build:
+    needs:
+      - integration-tests
+    uses: temporalio/omes/.github/workflows/docker-images.yml@main
+    secrets: inherit
+    with:
+      lang: typescript
+      sdk-repo-url: ${{ github.event.pull_request.head.repo.full_name || 'temporalio/sdk-typescript' }}
+      sdk-repo-ref: ${{ github.event.pull_request.head.ref || github.ref }}
+      # TODO: Remove once we have a good way of cleaning up sha-based pushed images
+      docker-tag-ext: ci-latest
+      do-push: true
