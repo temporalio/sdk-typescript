@@ -216,10 +216,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [ 16, 18, 20 ]
-        platform: [ linux-x64, linux-arm, macos-x64, macos-arm, windows-x64 ]
-        reuse-v8-context: [ true, false ]
-        server: [ cli ] # FIXME: Add 'cloud'
+        node: [16, 18, 20]
+        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
+        reuse-v8-context: [true, false]
+        server: [cli] # FIXME: Add 'cloud'
         include:
           - platform: linux-x64
             runner: ubuntu-latest
@@ -311,10 +311,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [ 16, 18, 20 ]
-        platform: [ linux-x64, linux-arm, macos-x64, macos-arm, windows-x64 ]
-        sample: [ hello-world, fetch-esm, hello-world-mtls ]
-        server: [ cli, cloud ]
+        node: [16, 18, 20]
+        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
+        sample: [hello-world, fetch-esm, hello-world-mtls]
+        server: [cli, cloud]
         exclude:
           # Exclude non-mtls tests on cloud
           - sample: hello-world
