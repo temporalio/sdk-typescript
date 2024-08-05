@@ -57,6 +57,7 @@ export function makeTestFunction(opts: {
       ...bundlerOptions,
       workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])],
       workflowsPath: opts.workflowsPath,
+      logger: new DefaultLogger('WARN'),
     });
     // Ignore invalid log levels
     Runtime.install({
