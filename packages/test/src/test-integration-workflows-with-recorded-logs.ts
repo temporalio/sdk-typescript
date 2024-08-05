@@ -326,7 +326,7 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
     switch (this.handlerType) {
       case 'update':
         executeUpdate = w.executeUpdate(unfinishedHandlersWorkflowTerminationTypeUpdate, { updateId });
-        await waitUntil(() => workflowUpdateExists(w, updateId), 500);
+        await waitUntil(() => workflowUpdateExists(w, updateId), 2000);
         break;
       case 'signal':
         await w.signal(unfinishedHandlersWorkflowTerminationTypeSignal);
