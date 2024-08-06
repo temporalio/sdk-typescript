@@ -1001,7 +1001,7 @@ function makeUnfinishedUpdateHandlerMessage(handlerExecutions: MessageHandlerExe
 [TMPRL1102] Workflow finished while an update handler was still running. This may have interrupted work that the
 update handler was doing, and the client that sent the update will receive a 'workflow execution
 already completed' RPCError instead of the update result. You can wait for all update and signal
-handlers to complete by using \`await workflow.condition(() => workflow.allHandlersFinished())\`.
+handlers to complete by using \`await workflow.condition(workflow.allHandlersFinished)\`.
 Alternatively, if both you and the clients sending the update are okay with interrupting running handlers
 when the workflow finishes, and causing clients to receive errors, then you can disable this warning by
 passing an option when setting the handler:
@@ -1018,7 +1018,7 @@ function makeUnfinishedSignalHandlerMessage(handlerExecutions: MessageHandlerExe
   const message = `
 [TMPRL1102] Workflow finished while a signal handler was still running. This may have interrupted work that the
 signal handler was doing. You can wait for all update and signal handlers to complete by using
-\`await workflow.condition(() => workflow.allHandlersFinished())\`. Alternatively, if both you and the
+\`await workflow.condition(workflow.allHandlersFinished)\`. Alternatively, if both you and the
 clients sending the update are okay with interrupting running handlers when the workflow finishes,
 then you can disable this warning by passing an option when setting the handler:
 \`workflow.setHandler(mySignal, mySignalHandler, {unfinishedPolicy: HandlerUnfinishedPolicy.ABANDON});\`.`
