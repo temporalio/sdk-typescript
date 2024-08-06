@@ -130,7 +130,7 @@ export interface HistoryAndWorkflowId {
  */
 export enum HandlerUnfinishedPolicy {
   /**
-   * Issue a warning in addition to abandoning the handler execution.
+   * Issue a warning in addition to abandoning the handler execution. The warning will not be issued if the workflow fails.
    */
   WARN_AND_ABANDON = 1,
 
