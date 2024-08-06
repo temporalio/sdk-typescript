@@ -662,8 +662,9 @@ export class Activator implements ActivationHandler {
     // These are caught elsewhere and fail the corresponding activation.
     const doUpdateImpl = async () => {
       let input: UpdateInput;
+      const entry = this.updateHandlers.get(name);
       try {
-        if (runValidator && this.updateHandlers.get(name)?.validator) {
+        if (runValidator && entry?.validator) {
           const validate = composeInterceptors(
             this.interceptors.inbound,
             'validateUpdate',
@@ -676,15 +677,12 @@ export class Activator implements ActivationHandler {
         this.rejectUpdate(protocolInstanceId, error);
         return;
       }
-
-      const entry = this.updateHandlers.get(name);
+      this.acceptUpdate(protocolInstanceId);
+      const execute = composeInterceptors(this.interceptors.inbound, 'handleUpdate', this.updateNextHandler.bind(this));
       if (!entry) {
         return Promise.reject(new IllegalStateError(`No registered update handler for update: ${name}`));
       }
       const { unfinishedPolicy } = entry;
-
-      const execute = composeInterceptors(this.interceptors.inbound, 'handleUpdate', this.updateNextHandler.bind(this));
-      this.acceptUpdate(protocolInstanceId);
       this.inProgressUpdates.set(updateId, { name, unfinishedPolicy, id: updateId });
       const res = execute(input)
         .then((result) => this.completeUpdate(protocolInstanceId, result))
@@ -703,11 +701,7 @@ export class Activator implements ActivationHandler {
   }
 
   protected async updateNextHandler({ name, args }: UpdateInput): Promise<unknown> {
-    const entry = this.updateHandlers.get(name);
-    if (!entry) {
-      return Promise.reject(new IllegalStateError(`No registered update handler for update: ${name}`));
-    }
-    const { handler } = entry;
+    const { handler } = this.updateHandlers.get(name)!;
     return await handler(...args);
   }
 
