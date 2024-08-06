@@ -1439,6 +1439,18 @@ export function upsertMemo(memo: Record<string, unknown>): void {
   });
 }
 
+/**
+ * Whether update and signal handlers have finished executing.
+ *
+ * Consider waiting on this condition before workflow return or continue-as-new, to prevent
+ * interruption of in-progress handlers by workflow exit:
+ *
+ * ```ts
+ * await workflow.condition(workflow.allHandlersFinished)
+ * ```
+ *
+ * @returns true if there are no in-progress update or signal handler executions.
+ */
 export function allHandlersFinished(): boolean {
   const activator = assertInWorkflowContext('allHandlersFinished() may only be used from a Workflow Execution.');
   return activator.inProgressSignals.size === 0 && activator.inProgressUpdates.size === 0;
