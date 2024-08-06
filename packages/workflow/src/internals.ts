@@ -621,7 +621,8 @@ export class Activator implements ActivationHandler {
     if (!protocolInstanceId) {
       throw new TypeError('Missing activation update protocolInstanceId');
     }
-    if (!this.updateHandlers.has(name)) {
+    const entry = this.updateHandlers.get(name);
+    if (!entry) {
       this.bufferedUpdates.push(activation);
       return;
     }
@@ -662,9 +663,8 @@ export class Activator implements ActivationHandler {
     // These are caught elsewhere and fail the corresponding activation.
     const doUpdateImpl = async () => {
       let input: UpdateInput;
-      const entry = this.updateHandlers.get(name);
       try {
-        if (runValidator && entry?.validator) {
+        if (runValidator && entry.validator) {
           const validate = composeInterceptors(
             this.interceptors.inbound,
             'validateUpdate',
@@ -679,9 +679,6 @@ export class Activator implements ActivationHandler {
       }
       this.acceptUpdate(protocolInstanceId);
       const execute = composeInterceptors(this.interceptors.inbound, 'handleUpdate', this.updateNextHandler.bind(this));
-      if (!entry) {
-        return Promise.reject(new IllegalStateError(`No registered update handler for update: ${name}`));
-      }
       const { unfinishedPolicy } = entry;
       this.inProgressUpdates.set(updateId, { name, unfinishedPolicy, id: updateId });
       const res = execute(input)
