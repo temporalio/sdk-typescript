@@ -57,7 +57,7 @@ export async function unfinishedHandlersWorkflow(waitAllHandlersFinished: boolea
   await workflow.condition(() => startedHandler);
   if (waitAllHandlersFinished) {
     handlerMayReturn = true;
-    await workflow.condition(() => workflow.allHandlersFinished());
+    await workflow.condition(workflow.allHandlersFinished);
   }
   return handlerFinished;
 }
@@ -185,22 +185,38 @@ export const unfinishedHandlersWorkflowTerminationTypeSignal = workflow.defineSi
 );
 
 export async function runUnfinishedHandlersWorkflowTerminationTypeWorkflow(
-  workflowTerminationType: 'cancellation' | 'continue-as-new' | 'failure' | 'return',
+  workflowTerminationType:
+    | 'cancellation'
+    | 'cancellation-with-shielded-handler'
+    | 'continue-as-new'
+    | 'failure'
+    | 'return',
   waitAllHandlersFinished?: 'wait-all-handlers-finished'
 ): Promise<void> {
   let handlerMayReturn = false;
 
+  const waitHandlerMayReturn = async () => {
+    if (workflowTerminationType === 'cancellation-with-shielded-handler') {
+      await workflow.CancellationScope.nonCancellable(async () => {
+        await workflow.condition(() => handlerMayReturn);
+      });
+    } else {
+      await workflow.condition(() => handlerMayReturn);
+    }
+  };
+
   workflow.setHandler(unfinishedHandlersWorkflowTerminationTypeUpdate, async () => {
-    await workflow.condition(() => handlerMayReturn);
+    await waitHandlerMayReturn();
     return 'update-result';
   });
 
   workflow.setHandler(unfinishedHandlersWorkflowTerminationTypeSignal, async () => {
-    await workflow.condition(() => handlerMayReturn);
+    await waitHandlerMayReturn();
   });
 
   switch (workflowTerminationType) {
     case 'cancellation':
+    case 'cancellation-with-shielded-handler':
       await workflow.condition(() => false);
       throw new Error('unreachable');
     case 'continue-as-new':
@@ -232,6 +248,10 @@ export async function runUnfinishedHandlersWorkflowTerminationTypeWorkflow(
 // These tests confirm that the warning is issued / not issued as appropriate for workflow
 // termination via cancellation, continue-as-new, failure, and return, and that there is no warning
 // when waiting on allHandlersFinished before return or continue-as-new.
+
+// We issue the warning if the workflow exited due to workflow return and there were unfinished
+// handlers. Reason: the workflow author could/should have avoided this.
+
 test('unfinished update handler with workflow return', async (t) => {
   await new UnfinishedHandlersWorkflowTerminationTypeTest(t, 'update', 'return').testWarningIsIssued(true);
 });
@@ -258,13 +278,38 @@ test('unfinished signal handler with workflow return waiting for all handlers to
   ).testWarningIsIssued(false);
 });
 
-test('unfinished update handler with workflow cancellation', async (t) => {
+// We issue the warning if the workflow exited due to workflow cancellation and there were
+// unfinished handlers. Reason: workflow cancellation causes handler cancellation, so a workflow
+// author is able to write a workflow that handles cancellation without leaving unfinished handlers.
+
+test('workflow cancellation does not cause unfinished update handler warnings because handler is cancelled', async (t) => {
   await new UnfinishedHandlersWorkflowTerminationTypeTest(t, 'update', 'cancellation').testWarningIsIssued(false);
 });
 
-test('unfinished signal handler with workflow cancellation', async (t) => {
+test('workflow cancellation does not cause unfinished signal handler warnings because handler is cancelled', async (t) => {
   await new UnfinishedHandlersWorkflowTerminationTypeTest(t, 'signal', 'cancellation').testWarningIsIssued(false);
 });
+
+test('workflow cancellation causes unfinished update handler warnings when handler is not cancelled', async (t) => {
+  await new UnfinishedHandlersWorkflowTerminationTypeTest(
+    t,
+    'update',
+    'cancellation-with-shielded-handler'
+  ).testWarningIsIssued(true);
+});
+
+test('workflow cancellation causes unfinished signal handler warnings when handler is not cancelled', async (t) => {
+  await new UnfinishedHandlersWorkflowTerminationTypeTest(
+    t,
+    'signal',
+    'cancellation-with-shielded-handler'
+  ).testWarningIsIssued(true);
+});
+
+// We issue the warning if the workflow exited due to Continue-as-New and there were unfinished
+// handlers. Reason: as with workflow return, the workflow author could/should have avoided this,
+// and in this case the workflow is probably acting as some sort of task processor that must not
+// drop work.
 
 test('unfinished update handler with continue-as-new', async (t) => {
   await new UnfinishedHandlersWorkflowTerminationTypeTest(t, 'update', 'continue-as-new').testWarningIsIssued(true);
@@ -292,6 +337,10 @@ test('unfinished signal handler with continue-as-new waiting for all handlers to
   ).testWarningIsIssued(false);
 });
 
+// We do not issue the warning if the workflow finished due to failure and there were unfinished
+// handlers. Reason: the workflow author cannot guarantee to avoid workflow failure: e.g. it might
+// happen by an error thrown from executeActivity.
+
 test('unfinished update handler with workflow failure', async (t) => {
   await new UnfinishedHandlersWorkflowTerminationTypeTest(t, 'update', 'failure').testWarningIsIssued(false);
 });
@@ -304,7 +353,12 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
   constructor(
     private readonly t: ExecutionContext<Context>,
     private readonly handlerType: 'update' | 'signal',
-    private readonly workflowTerminationType: 'cancellation' | 'continue-as-new' | 'failure' | 'return',
+    private readonly workflowTerminationType:
+      | 'cancellation'
+      | 'cancellation-with-shielded-handler'
+      | 'continue-as-new'
+      | 'failure'
+      | 'return',
     private readonly waitAllHandlersFinished?: 'wait-all-handlers-finished'
   ) {}
 
@@ -317,8 +371,8 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
     const updateId = 'update-id';
 
     // We require a startWorkflow, an update/signal, and maybe a cancellation request, to be
-    // delivered in the same WFT: ensure they've all been accepted by the server before starting the
-    // worker.
+    // delivered in the same WFT, so we ensure they've all been accepted by the server before
+    // starting the worker.
     const w = await startWorkflow(runUnfinishedHandlersWorkflowTerminationTypeWorkflow, {
       args: [this.workflowTerminationType, this.waitAllHandlersFinished],
     });
@@ -332,7 +386,10 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
         await w.signal(unfinishedHandlersWorkflowTerminationTypeSignal);
         break;
     }
-    if (this.workflowTerminationType === 'cancellation') {
+    if (
+      this.workflowTerminationType === 'cancellation' ||
+      this.workflowTerminationType === 'cancellation-with-shielded-handler'
+    ) {
       await w.cancel();
     }
 
@@ -341,15 +398,23 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
     return await worker.runUntil(async () => {
       if (this.handlerType === 'update') {
         if (this.waitAllHandlersFinished) {
+          // The workflow author waited for allHandlersFinished and so the update caller gets a
+          // successful result.
           this.t.is(await executeUpdate, 'update-result');
         } else if (this.workflowTerminationType === 'cancellation') {
+          // Workflow cancellation caused a CancellationFailure exception to be thrown in the
+          // handler. The update caller gets an error saying the update failed due to workflow
+          // cancellation.
           await this.assertWorkflowUpdateFailedError(executeUpdate);
         } else {
+          // (Including 'cancellation-with-shielded-handler'). The workflow finished while the
+          // handler was in-progress. The update caller gets an WorkflowNotFound error.
           await this.assertWorkflowNotFoundError(executeUpdate);
         }
       }
       switch (this.workflowTerminationType) {
         case 'cancellation':
+        case 'cancellation-with-shielded-handler':
         case 'failure':
           await this.assertWorkflowFailedError(w.result(), this.workflowTerminationType);
           break;
@@ -371,11 +436,18 @@ class UnfinishedHandlersWorkflowTerminationTypeTest {
     this.t.is(err.message, 'Workflow Update failed');
   }
 
-  async assertWorkflowFailedError(p: Promise<any>, workflowTerminationType: 'cancellation' | 'failure') {
+  async assertWorkflowFailedError(
+    p: Promise<any>,
+    workflowTerminationType: 'cancellation' | 'cancellation-with-shielded-handler' | 'failure'
+  ) {
     const err = (await this.t.throwsAsync(p, {
       instanceOf: WorkflowFailedError,
     })) as WorkflowFailedError;
-    const howFailed = { cancellation: 'cancelled', failure: 'failed' }[workflowTerminationType];
+    const howFailed = {
+      cancellation: 'cancelled',
+      'cancellation-with-shielded-handler': 'cancelled',
+      failure: 'failed',
+    }[workflowTerminationType];
     this.t.is(err.message, 'Workflow execution ' + howFailed);
   }
 
