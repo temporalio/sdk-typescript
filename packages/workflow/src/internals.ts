@@ -16,6 +16,8 @@ import {
   WorkflowUpdateAnnotatedType,
   ProtoFailure,
   ApplicationFailure,
+  WorkflowUpdateType,
+  WorkflowUpdateValidatorType,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
@@ -668,7 +670,7 @@ export class Activator implements ActivationHandler {
           const validate = composeInterceptors(
             this.interceptors.inbound,
             'validateUpdate',
-            this.validateUpdateNextHandler.bind(this)
+            this.validateUpdateNextHandler.bind(this, entry.validator)
           );
           validate(makeInput());
         }
@@ -678,7 +680,11 @@ export class Activator implements ActivationHandler {
         return;
       }
       this.acceptUpdate(protocolInstanceId);
-      const execute = composeInterceptors(this.interceptors.inbound, 'handleUpdate', this.updateNextHandler.bind(this));
+      const execute = composeInterceptors(
+        this.interceptors.inbound,
+        'handleUpdate',
+        this.updateNextHandler.bind(this, entry.handler)
+      );
       const { unfinishedPolicy } = entry;
       this.inProgressUpdates.set(updateId, { name, unfinishedPolicy, id: updateId });
       const res = execute(input)
@@ -697,13 +703,11 @@ export class Activator implements ActivationHandler {
     untrackPromise(UpdateScope.updateWithInfo(updateId, name, doUpdateImpl));
   }
 
-  protected async updateNextHandler({ name, args }: UpdateInput): Promise<unknown> {
-    const { handler } = this.updateHandlers.get(name)!;
+  protected async updateNextHandler(handler: WorkflowUpdateType, { args }: UpdateInput): Promise<unknown> {
     return await handler(...args);
   }
 
-  protected validateUpdateNextHandler({ name, args }: UpdateInput): void {
-    const { validator } = this.updateHandlers.get(name) ?? {};
+  protected validateUpdateNextHandler(validator: WorkflowUpdateValidatorType | undefined, { args }: UpdateInput): void {
     if (validator) {
       validator(...args);
     }
