@@ -867,7 +867,11 @@ export class Activator implements ActivationHandler {
     return usePatch;
   }
 
-  // Called early while handling an activation to register known flags
+  /**
+   * Called early while handling an activation to register known flags.
+   *
+   * Note that this functionality is duplicated in `BaseVMWorkflow`, for use outside of the sandbox.
+   */
   public addKnownFlags(flags: number[]): void {
     for (const flag of flags) {
       assertValidFlag(flag);
@@ -875,6 +879,12 @@ export class Activator implements ActivationHandler {
     }
   }
 
+  /**
+   * Check if a flag is known to the Workflow Execution; if not, enable the flag if workflow
+   * is not replaying and the flag is configured to be enabled by default.
+   *
+   * Note that this functionality is duplicated in `BaseVMWorkflow`, for use outside of the sandbox.
+   */
   public hasFlag(flag: SdkFlag): boolean {
     if (this.knownFlags.has(flag.id)) {
       return true;

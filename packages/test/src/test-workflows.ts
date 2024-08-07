@@ -23,7 +23,7 @@ import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worke
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
 import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
-import { ProcessedSignal } from './workflows';
+import { ProcessedSignal, signalUpdateOrderingWorkflow } from './workflows';
 
 export interface Context {
   workflow: VMWorkflow | ReusableVMWorkflow;
@@ -2062,6 +2062,82 @@ test('Buffered signals dispatch is reentrant  - signalsOrdering2', async (t) => 
           ] as ProcessedSignal[])
         ),
       ])
+    );
+  }
+});
+
+// Validate that issue #1474 is fixed in 1.11.0+
+test("Pending promises can't unblock between signals and updates - 1.11.0+ - signalUpdateOrderingWorkflow", async (t) => {
+  {
+    const completion = await activate(t, {
+      ...makeActivation(undefined, makeStartWorkflowJob(signalUpdateOrderingWorkflow.name), {
+        doUpdate: { name: 'foo', protocolInstanceId: '1', runValidator: false, id: 'first' },
+      }),
+      isReplaying: true,
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        { updateResponse: { protocolInstanceId: '1', accepted: {} } },
+        { updateResponse: { protocolInstanceId: '1', completed: defaultPayloadConverter.toPayload(1) } },
+      ])
+    );
+  }
+
+  {
+    const completion = await activate(t, {
+      ...makeActivation(
+        undefined,
+        { signalWorkflow: { signalName: 'foo', input: [] } },
+        { doUpdate: { name: 'foo', protocolInstanceId: '2', id: 'second' } }
+      ),
+      isReplaying: false,
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        { updateResponse: { protocolInstanceId: '2', accepted: {} } },
+        { updateResponse: { protocolInstanceId: '2', completed: defaultPayloadConverter.toPayload(3) } },
+        { completeWorkflowExecution: { result: defaultPayloadConverter.toPayload(3) } },
+      ])
+    );
+  }
+});
+
+// Validate that issue #1474 legacy behavior is maintained when replaying from pre-1.11.0 history
+test("Pending promises can't unblock between signals and updates - pre-1.11.0 - signalUpdateOrderingWorkflow", async (t) => {
+  {
+    const completion = await activate(t, {
+      ...makeActivation(undefined, makeStartWorkflowJob(signalUpdateOrderingWorkflow.name), {
+        doUpdate: { name: 'foo', protocolInstanceId: '1', runValidator: false, id: 'first' },
+      }),
+      isReplaying: true,
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        { updateResponse: { protocolInstanceId: '1', accepted: {} } },
+        { updateResponse: { protocolInstanceId: '1', completed: defaultPayloadConverter.toPayload(1) } },
+      ])
+    );
+  }
+
+  {
+    const completion = await activate(t, {
+      ...makeActivation(
+        undefined,
+        { signalWorkflow: { signalName: 'foo', input: [] } },
+        { doUpdate: { name: 'foo', protocolInstanceId: '2', id: 'second' } }
+      ),
+      isReplaying: true,
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([{ completeWorkflowExecution: { result: defaultPayloadConverter.toPayload(2) } }])
     );
   }
 });

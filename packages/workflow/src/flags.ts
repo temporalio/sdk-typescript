@@ -17,6 +17,13 @@ export const SdkFlags = {
    * @since Introduced in 1.10.2/1.11.0.
    */
   NonCancellableScopesAreShieldedFromPropagation: defineFlag(1, true),
+
+  /**
+   * Prior to 1.11.0, it was possible for a Workflow
+   *
+   * @since Introduced in 1.11.0. This change is not rollback-safe.
+   */
+  GroupUpdatesJobsWithSignals: defineFlag(2, true),
 } as const;
 
 function defineFlag(id: number, def: boolean): SdkFlag {

@@ -7,6 +7,7 @@ import type { WorkflowInfo, StackTraceFileLocation } from '@temporalio/workflow'
 import { type SinkCall } from '@temporalio/workflow/lib/sinks';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { Activator } from '@temporalio/workflow/lib/internals';
+import { assertValidFlag, SdkFlag, SdkFlags } from '@temporalio/workflow/lib/flags';
 import { partition } from '../utils';
 import { Workflow } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
@@ -273,6 +274,7 @@ export type WorkflowModule = typeof internals;
  * A Workflow implementation using Node.js' built-in `vm` module
  */
 export abstract class BaseVMWorkflow implements Workflow {
+  private readonly knownFlags = new Set<number>();
   unhandledRejection: unknown;
 
   constructor(
@@ -306,13 +308,23 @@ export abstract class BaseVMWorkflow implements Workflow {
       throw new Error('Expected workflow activation jobs to be defined');
     }
 
+    this.addKnownFlags(activation.availableInternalFlags ?? []);
+
+    const hasUpdates = activation.jobs.some(({ doUpdate }) => doUpdate != null);
+    const groupUpdatesWithSignals =
+      hasUpdates && this.hasFlag(SdkFlags.GroupUpdatesJobsWithSignals, activation.isReplaying ?? false);
+
     // Job processing order
     // 1. patch notifications
-    // 2. signals
+    // 2. signals and updates (updates )
     // 3. anything left except for queries
     // 4. queries
     const [patches, nonPatches] = partition(activation.jobs, ({ notifyHasPatch }) => notifyHasPatch != null);
-    const [signals, nonSignals] = partition(nonPatches, ({ signalWorkflow }) => signalWorkflow != null);
+    // const [signals, nonSignals] = partition(nonPatches, ({ signalWorkflow }) => signalWorkflow != null);
+    const [signals, nonSignals] = partition(
+      nonPatches,
+      ({ signalWorkflow, doUpdate }) => signalWorkflow != null || (doUpdate != null && groupUpdatesWithSignals)
+    );
     const [queries, rest] = partition(nonSignals, ({ queryWorkflow }) => queryWorkflow != null);
     let batchIndex = 0;
 
@@ -366,4 +378,34 @@ export abstract class BaseVMWorkflow implements Workflow {
    * Do not use this Workflow instance after this method has been called.
    */
   public abstract dispose(): Promise<void>;
+
+  /**
+   * Called early while handling an activation to register known flags
+   *
+   * This duplicates the functionality of `Activator.addKnownFlags`, for use outside of the sandbox.
+   */
+  private addKnownFlags(flags: number[]): void {
+    for (const flag of flags) {
+      assertValidFlag(flag);
+      this.knownFlags.add(flag);
+    }
+  }
+
+  /**
+   * Check if a flag is known to the Workflow Execution; if not, enable the flag if workflow
+   * is not replaying and the flag is configured to be enabled by default.
+   *
+   * This duplicates the functionality of `Activator.addKnownFlags`, for use outside of the sandbox.
+   * Note that we can't rely on WorkflowInfo.isReplaying here.
+   */
+  protected hasFlag(flag: SdkFlag, isReplaying: boolean): boolean {
+    if (this.knownFlags.has(flag.id)) {
+      return true;
+    }
+    if (!isReplaying && flag.default) {
+      this.knownFlags.add(flag.id);
+      return true;
+    }
+    return false;
+  }
 }
