@@ -3,6 +3,7 @@ import {
   RetryPolicy,
   TemporalFailure,
   CommonWorkflowOptions,
+  HandlerUnfinishedPolicy,
   SearchAttributes,
   SignalDefinition,
   UpdateDefinition,
@@ -494,12 +495,16 @@ export type QueryHandlerOptions = { description?: string };
 /**
  * A description of a signal handler.
  */
-export type SignalHandlerOptions = { description?: string };
+export type SignalHandlerOptions = { description?: string; unfinishedPolicy?: HandlerUnfinishedPolicy };
 
 /**
  * A validator and description of an update handler.
  */
-export type UpdateHandlerOptions<Args extends any[]> = { validator?: UpdateValidator<Args>; description?: string };
+export type UpdateHandlerOptions<Args extends any[]> = {
+  validator?: UpdateValidator<Args>;
+  description?: string;
+  unfinishedPolicy?: HandlerUnfinishedPolicy;
+};
 
 export interface ActivationCompletion {
   commands: coresdk.workflow_commands.IWorkflowCommand[];

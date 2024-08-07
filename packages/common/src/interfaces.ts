@@ -8,11 +8,16 @@ export type WorkflowUpdateType = (...args: any[]) => Promise<any> | any;
 export type WorkflowUpdateValidatorType = (...args: any[]) => void;
 export type WorkflowUpdateAnnotatedType = {
   handler: WorkflowUpdateType;
+  unfinishedPolicy: HandlerUnfinishedPolicy;
   validator?: WorkflowUpdateValidatorType;
   description?: string;
 };
 export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;
-export type WorkflowSignalAnnotatedType = { handler: WorkflowSignalType; description?: string };
+export type WorkflowSignalAnnotatedType = {
+  handler: WorkflowSignalType;
+  unfinishedPolicy: HandlerUnfinishedPolicy;
+  description?: string;
+};
 export type WorkflowQueryType = (...args: any[]) => any;
 export type WorkflowQueryAnnotatedType = { handler: WorkflowQueryType; description?: string };
 
@@ -117,4 +122,23 @@ export type UntypedActivities = Record<string, ActivityFunction>;
 export interface HistoryAndWorkflowId {
   workflowId: string;
   history: temporal.api.history.v1.History | unknown | undefined;
+}
+
+/**
+ * Policy defining actions taken when a workflow exits while update or signal handlers are running.
+ * The workflow exit may be due to successful return, failure, cancellation, or continue-as-new.
+ */
+export enum HandlerUnfinishedPolicy {
+  /**
+   * Issue a warning in addition to abandoning the handler execution. The warning will not be issued if the workflow fails.
+   */
+  WARN_AND_ABANDON = 1,
+
+  /**
+   * Abandon the handler execution.
+   *
+   * In the case of an update handler this means that the client will receive an error rather than
+   * the update result.
+   */
+  ABANDON = 2,
 }
