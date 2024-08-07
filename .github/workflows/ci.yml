@@ -580,17 +580,3 @@ jobs:
       #   # Don't run on forks, since secrets won't be available, and command will fail
       #   if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.ref != 'refs/heads/main'
       #   run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes
-
-  omes-image-build:
-    needs:
-      - integration-tests
-    uses: temporalio/omes/.github/workflows/docker-images.yml@ts-docker-rust
-    secrets: inherit
-    with:
-      lang: typescript
-      sdk-repo-url: ${{ github.event.pull_request.head.repo.full_name || 'temporalio/sdk-typescript' }}
-      sdk-repo-ref: ${{ github.event.pull_request.head.ref || github.ref }}
-      # TODO: Remove once we have a good way of cleaning up sha-based pushed images
-      docker-tag-ext: ci-latest
-      do-push: true
-      omes-repo-ref: ts-docker-rust
