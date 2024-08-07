@@ -20,11 +20,6 @@ import { asSdkLoggerSink, RUN_TIME_SKIPPING_TESTS } from './helpers';
 const test = makeTestFunction({
   workflowsPath: __filename,
   workflowInterceptorModules: [__filename],
-  workflowEnvironmentOpts: {
-    server: {
-      ui: true,
-    },
-  },
 });
 
 export async function parent(): Promise<void> {
@@ -1060,7 +1055,11 @@ export async function cancelAbandonActivityBeforeStarted(): Promise<void> {
     await activitySleep(1000);
   });
   cancelScope.cancel();
-  await prom;
+  try {
+    await prom;
+  } catch {
+    // do nothing
+  }
 }
 
 test('Abandon activity cancel before started works', async (t) => {
@@ -1073,8 +1072,7 @@ test('Abandon activity cancel before started works', async (t) => {
   const handle = await startWorkflow(cancelAbandonActivityBeforeStarted);
   await worker.runUntil(handle.result());
 
-  const { events } = await handle.fetchHistory();
-  console.log(events);
+  t.pass();
 });
 
 export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
