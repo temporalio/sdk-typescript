@@ -186,6 +186,9 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
   const { info } = activator;
   const activationCompletion = activator.concludeActivation();
   const { commands } = intercept({ commands: activationCompletion.commands });
+  if (activator.completed) {
+    activator.warnIfUnfinishedHandlers();
+  }
 
   return {
     runId: info.runId,

@@ -3,6 +3,7 @@ import {
   ActivityOptions,
   compileRetryPolicy,
   extractWorkflowType,
+  HandlerUnfinishedPolicy,
   LocalActivityOptions,
   mapToPayloads,
   QueryDefinition,
@@ -1095,8 +1096,8 @@ function conditionInner(fn: () => boolean): Promise<void> {
 /**
  * Define an update method for a Workflow.
  *
- * Definitions are used to register handler in the Workflow via {@link setHandler} and to update Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
- * Definitions can be reused in multiple Workflows.
+ * A definition is used to register a handler in the Workflow via {@link setHandler} and to update a Workflow using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
+ * A definition can be reused in multiple Workflows.
  */
 export function defineUpdate<Ret, Args extends any[] = [], Name extends string = string>(
   name: Name
@@ -1110,8 +1111,8 @@ export function defineUpdate<Ret, Args extends any[] = [], Name extends string =
 /**
  * Define a signal method for a Workflow.
  *
- * Definitions are used to register handler in the Workflow via {@link setHandler} and to signal Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
- * Definitions can be reused in multiple Workflows.
+ * A definition is used to register a handler in the Workflow via {@link setHandler} and to signal a Workflow using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
+ * A definition can be reused in multiple Workflows.
  */
 export function defineSignal<Args extends any[] = [], Name extends string = string>(
   name: Name
@@ -1125,8 +1126,8 @@ export function defineSignal<Args extends any[] = [], Name extends string = stri
 /**
  * Define a query method for a Workflow.
  *
- * Definitions are used to register handler in the Workflow via {@link setHandler} and to query Workflows using a {@link WorkflowHandle}.
- * Definitions can be reused in multiple Workflows.
+ * A definition is used to register a handler in the Workflow via {@link setHandler} and to query a Workflow using a {@link WorkflowHandle}.
+ * A definition can be reused in multiple Workflows.
  */
 export function defineQuery<Ret, Args extends any[] = [], Name extends string = string>(
   name: Name
@@ -1193,7 +1194,7 @@ export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<R
 // 1. sdk-core sorts Signal and Update jobs (and Patches) ahead of all other
 //    jobs. Thus if the handler is available at the start of the Activation then
 //    the Signal/Update will be executed before Workflow code is executed. If it
-//    is not, then the Signal/Update calls is pushed to a buffer.
+//    is not, then the Signal/Update calls are pushed to a buffer.
 //
 // 2. On each call to setHandler for a given Signal/Update, we make a pass
 //    through the buffer list. If a buffered job is associated with the just-set
@@ -1241,7 +1242,7 @@ export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<R
 //    Worker polling until after they have verified that both requests have
 //    succeeded.)
 //
-// 5. If an Update has a validation function then it is executed immediately
+// 4. If an Update has a validation function then it is executed immediately
 //    prior to the handler. (Note that the validation function is required to be
 //    synchronous).
 export function setHandler<
@@ -1258,8 +1259,10 @@ export function setHandler<
   if (def.type === 'update') {
     if (typeof handler === 'function') {
       const updateOptions = options as UpdateHandlerOptions<Args> | undefined;
+
       const validator = updateOptions?.validator as WorkflowUpdateValidatorType | undefined;
-      activator.updateHandlers.set(def.name, { handler, validator, description });
+      const unfinishedPolicy = updateOptions?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
+      activator.updateHandlers.set(def.name, { handler, validator, description, unfinishedPolicy });
       activator.dispatchBufferedUpdates();
     } else if (handler == null) {
       activator.updateHandlers.delete(def.name);
@@ -1268,7 +1271,9 @@ export function setHandler<
     }
   } else if (def.type === 'signal') {
     if (typeof handler === 'function') {
-      activator.signalHandlers.set(def.name, { handler: handler as any, description });
+      const signalOptions = options as SignalHandlerOptions | undefined;
+      const unfinishedPolicy = signalOptions?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
+      activator.signalHandlers.set(def.name, { handler: handler as any, description, unfinishedPolicy });
       activator.dispatchBufferedSignals();
     } else if (handler == null) {
       activator.signalHandlers.delete(def.name);
@@ -1432,6 +1437,23 @@ export function upsertMemo(memo: Record<string, unknown>): void {
       ),
     };
   });
+}
+
+/**
+ * Whether update and signal handlers have finished executing.
+ *
+ * Consider waiting on this condition before workflow return or continue-as-new, to prevent
+ * interruption of in-progress handlers by workflow exit:
+ *
+ * ```ts
+ * await workflow.condition(workflow.allHandlersFinished)
+ * ```
+ *
+ * @returns true if there are no in-progress update or signal handler executions.
+ */
+export function allHandlersFinished(): boolean {
+  const activator = assertInWorkflowContext('allHandlersFinished() may only be used from a Workflow Execution.');
+  return activator.inProgressSignals.size === 0 && activator.inProgressUpdates.size === 0;
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');

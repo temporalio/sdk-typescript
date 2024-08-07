@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
+import { status as grpcStatus } from '@grpc/grpc-js';
 import { ErrorConstructor, ExecutionContext, TestFn } from 'ava';
 import {
+  isGrpcServiceError,
   WorkflowFailedError,
   WorkflowHandle,
   WorkflowStartOptions,
@@ -12,6 +14,7 @@ import {
 } from '@temporalio/testing';
 import {
   DefaultLogger,
+  LogEntry,
   LogLevel,
   Runtime,
   WorkerOptions,
@@ -50,6 +53,7 @@ export function makeTestFunction(opts: {
   workflowsPath: string;
   workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
   workflowInterceptorModules?: string[];
+  recordedLogs?: { [workflowId: string]: LogEntry[] };
 }): TestFn<Context> {
   const test = anyTest as TestFn<Context>;
   test.before(async (t) => {
@@ -59,9 +63,15 @@ export function makeTestFunction(opts: {
       workflowsPath: opts.workflowsPath,
       logger: new DefaultLogger('WARN'),
     });
-    // Ignore invalid log levels
+    const logger = opts.recordedLogs
+      ? new DefaultLogger('DEBUG', (entry) => {
+          const workflowId = (entry.meta as any)?.workflowInfo?.workflowId ?? (entry.meta as any)?.workflowId;
+          opts.recordedLogs![workflowId] ??= [];
+          opts.recordedLogs![workflowId].push(entry);
+        })
+      : new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel);
     Runtime.install({
-      logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel),
+      logger,
       telemetryOptions: {
         logging: {
           filter: makeTelemetryFilterString({
@@ -107,6 +117,7 @@ export interface Helpers {
   ): Promise<WorkflowHandle<T>>;
   assertWorkflowUpdateFailed(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
   assertWorkflowFailedError(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
+  updateHasBeenAdmitted(handle: WorkflowHandle<workflow.Workflow>, updateId: string): Promise<boolean>;
 }
 
 export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment = t.context.env): Helpers {
@@ -170,6 +181,23 @@ export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvir
       t.true(err.cause instanceof causeConstructor);
       if (message !== undefined) {
         t.is(err.cause?.message, message);
+      }
+    },
+    async updateHasBeenAdmitted(handle: WorkflowHandle<workflow.Workflow>, updateId: string): Promise<boolean> {
+      try {
+        await testEnv.client.workflowService.pollWorkflowExecutionUpdate({
+          namespace: testEnv.client.options.namespace,
+          updateRef: {
+            workflowExecution: { workflowId: handle.workflowId },
+            updateId,
+          },
+        });
+        return true;
+      } catch (err) {
+        if (isGrpcServiceError(err) && err.code === grpcStatus.NOT_FOUND) {
+          return false;
+        }
+        throw err;
       }
     },
   };
