@@ -9,15 +9,18 @@ import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
 import { defineQuery, defineSignal } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
-import { ApplicationFailure } from '@temporalio/common';
+import { ActivityCancellationType, ApplicationFailure } from '@temporalio/common';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
-import { RUN_TIME_SKIPPING_TESTS, asSdkLoggerSink } from './helpers';
+import { asSdkLoggerSink, RUN_TIME_SKIPPING_TESTS } from './helpers';
 
-const test = makeTestFunction({ workflowsPath: __filename, workflowInterceptorModules: [__filename] });
+const test = makeTestFunction({
+  workflowsPath: __filename,
+  workflowInterceptorModules: [__filename],
+});
 
 export async function parent(): Promise<void> {
   await workflow.startChild(child, { workflowId: 'child' });
@@ -545,7 +548,10 @@ export async function cancellableScopesExtensiveChecksWorkflow(
     workflowRunTimeout: '60s',
   });
 
-  const { someActivity } = workflow.proxyActivities({ scheduleToCloseTimeout: 5000, taskQueue: 'non-existant' });
+  const { someActivity } = workflow.proxyActivities({
+    scheduleToCloseTimeout: 5000,
+    taskQueue: 'non-existant',
+  });
   const { sleepLA } = workflow.proxyLocalActivities({ scheduleToCloseTimeout: 5000 });
 
   const checks: { [k in keyof CancellableScopesExtensiveChecks]?: ReturnType<typeof expectCancellation> } = {};
@@ -561,7 +567,10 @@ export async function cancellableScopesExtensiveChecksWorkflow(
   checks.parentScope_cancelRequestedCancelled = expectCancellation(parentScope.cancelRequested);
 
   // This will not block/throw, as the run function itself doesn't actually await on promises created inside
-  const childScope = new workflow.CancellationScope({ cancellable: childCancellable, parent: parentScope });
+  const childScope = new workflow.CancellationScope({
+    cancellable: childCancellable,
+    parent: parentScope,
+  });
   await childScope.run(async () => {
     checks.childScope_timerCancelled = expectCancellation(workflow.sleep(2000));
     checks.childScope_activityCancelled = expectCancellation(someActivity());
@@ -1034,6 +1043,36 @@ test('Sink functions contains upserted memo', async (t) => {
       },
     },
   ]);
+});
+
+export async function cancelAbandonActivityBeforeStarted(): Promise<void> {
+  const { activitySleep } = workflow.proxyActivities({
+    scheduleToCloseTimeout: '1m',
+    cancellationType: ActivityCancellationType.ABANDON,
+  });
+  const cancelScope = new workflow.CancellationScope({ cancellable: true });
+  const prom = cancelScope.run(async () => {
+    await activitySleep(1000);
+  });
+  cancelScope.cancel();
+  try {
+    await prom;
+  } catch {
+    // do nothing
+  }
+}
+
+test('Abandon activity cancel before started works', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      activitySleep: activity.sleep,
+    },
+  });
+  const handle = await startWorkflow(cancelAbandonActivityBeforeStarted);
+  await worker.runUntil(handle.result());
+
+  t.pass();
 });
 
 export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
