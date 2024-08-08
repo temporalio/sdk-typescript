@@ -130,15 +130,6 @@ export class Activator implements ActivationHandler {
   readonly bufferedSignals = Array<coresdk.workflow_activation.ISignalWorkflow>();
 
   /**
-   * Holds buffered query calls until a handler is registered.
-   *
-   * **IMPORTANT** queries are only buffered until workflow is started.
-   * This is required because async interceptors might block workflow function invocation
-   * which delays query handler registration.
-   */
-  protected readonly bufferedQueries = Array<coresdk.workflow_activation.IQueryWorkflow>();
-
-  /**
    * Mapping of update name to handler and validator
    */
   readonly updateHandlers = new Map<string, WorkflowUpdateAnnotatedType>();
@@ -293,13 +284,6 @@ export class Activator implements ActivationHandler {
   protected cancelled = false;
 
   /**
-   * This is tracked to allow buffering queries until a workflow function is called.
-   * TODO(bergundy): I don't think this makes sense since queries run last in an activation and must be responded to in
-   * the same activation.
-   */
-  protected workflowFunctionWasCalled = false;
-
-  /**
    * The next (incremental) sequence to assign when generating completable commands
    */
   public nextSeqs = {
@@ -366,6 +350,7 @@ export class Activator implements ActivationHandler {
     showStackTraceSources,
     sourceMap,
     getTimeOfDay,
+    sdkFlags,
     randomnessSeed,
     patches,
     registeredActivityNames,
@@ -378,11 +363,8 @@ export class Activator implements ActivationHandler {
     this.random = alea(randomnessSeed);
     this.registeredActivityNames = registeredActivityNames;
 
-    if (info.unsafe.isReplaying) {
-      for (const patchId of patches) {
-        this.notifyHasPatch({ patchId });
-      }
-    }
+    this.addKnownPatches(patches.map((patch) => ({ patchId: patch })));
+    this.addKnownFlags(sdkFlags);
   }
 
   mutateWorkflowInfo(fn: (info: WorkflowInfo) => WorkflowInfo): void {
@@ -443,19 +425,7 @@ export class Activator implements ActivationHandler {
     if (workflow === undefined) {
       throw new IllegalStateError('Workflow uninitialized');
     }
-    let promise: Promise<any>;
-    try {
-      promise = workflow(...args);
-    } finally {
-      // Queries must be handled even if there was an exception when invoking the Workflow function.
-      this.workflowFunctionWasCalled = true;
-      // Empty the buffer
-      const buffer = this.bufferedQueries.splice(0);
-      for (const activation of buffer) {
-        this.queryWorkflow(activation);
-      }
-    }
-    return await promise;
+    return await workflow(...args);
   }
 
   public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
@@ -586,11 +556,6 @@ export class Activator implements ActivationHandler {
   }
 
   public queryWorkflow(activation: coresdk.workflow_activation.IQueryWorkflow): void {
-    if (!this.workflowFunctionWasCalled) {
-      this.bufferedQueries.push(activation);
-      return;
-    }
-
     const { queryType, queryId, headers } = activation;
     if (!(queryType && queryId)) {
       throw new TypeError('Missing query activation attributes');
@@ -845,10 +810,20 @@ export class Activator implements ActivationHandler {
   }
 
   public notifyHasPatch(activation: coresdk.workflow_activation.INotifyHasPatch): void {
-    if (!activation.patchId) {
-      throw new TypeError('Notify has patch missing patch name');
-    }
+    // Technically, notifyHasPatch jobs should not reach here, but just for the sake of completeness
+    if (!this.info.unsafe.isReplaying)
+      throw new IllegalStateError('Unexpected notifyHasPatch job on non-replay activation');
+    if (!activation.patchId) throw new TypeError('notifyHasPatch missing patch id');
     this.knownPresentPatches.add(activation.patchId);
+  }
+
+  public addKnownPatches(patches: coresdk.workflow_activation.INotifyHasPatch[]): void {
+    if (patches.length > 0 && !this.info.unsafe.isReplaying)
+      throw new IllegalStateError('Unexpected notifyHasPatch job on non-replay activation');
+    for (const patch of patches) {
+      if (!patch.patchId) throw new TypeError('notifyHasPatch missing patch id');
+      this.knownPresentPatches.add(patch.patchId);
+    }
   }
 
   public patchInternal(patchId: string, deprecated: boolean): boolean {

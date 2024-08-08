@@ -122,6 +122,7 @@ async function createWorkflow(
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
     patches: [],
+    sdkFlags: [],
     showStackTraceSources: true,
   })) as VMWorkflow;
   return workflow;
@@ -1955,15 +1956,19 @@ test('scopeCancelledWhileWaitingOnExternalWorkflowCancellation', async (t) => {
 test('query not found - successString', async (t) => {
   const { workflowType } = t.context;
   {
-    const completion = await activate(
+    const completion = await activate(t, makeActivation(undefined, makeStartWorkflowJob(workflowType)));
+    compareCompletion(
       t,
-      makeActivation(undefined, makeStartWorkflowJob(workflowType), makeQueryWorkflowJob('qid', 'not-found'))
+      completion,
+      makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload('success'))])
     );
+  }
+  {
+    const completion = await activate(t, makeActivation(undefined, makeQueryWorkflowJob('qid', 'not-found')));
     compareCompletion(
       t,
       completion,
       makeSuccess([
-        makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload('success')),
         makeRespondToQueryCommand({
           queryId: 'qid',
           failed: {
@@ -2097,11 +2102,14 @@ test("Pending promises can't unblock between signals and updates - 1.11.0+ - sig
     compareCompletion(
       t,
       completion,
-      makeSuccess([
-        { updateResponse: { protocolInstanceId: '2', accepted: {} } },
-        { updateResponse: { protocolInstanceId: '2', completed: defaultPayloadConverter.toPayload(3) } },
-        { completeWorkflowExecution: { result: defaultPayloadConverter.toPayload(3) } },
-      ])
+      makeSuccess(
+        [
+          { updateResponse: { protocolInstanceId: '2', accepted: {} } },
+          { updateResponse: { protocolInstanceId: '2', completed: defaultPayloadConverter.toPayload(3) } },
+          { completeWorkflowExecution: { result: defaultPayloadConverter.toPayload(3) } },
+        ],
+        [SdkFlags.GroupUpdatesJobsWithSignals]
+      )
     );
   }
 });

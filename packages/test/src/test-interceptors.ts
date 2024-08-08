@@ -282,6 +282,13 @@ if (RUN_INTEGRATION_TESTS) {
         workflowId: uuid4(),
       })
     );
-    t.deepEqual(events, ['activate: 0', 'concludeActivation: 1', 'activate: 0', 'concludeActivation: 1']);
+    t.deepEqual(events, [
+      'activate: 0',
+      'activate: 1',
+      'concludeActivation: 1',
+      'activate: 0',
+      'activate: 1',
+      'concludeActivation: 1',
+    ]);
   });
 }
