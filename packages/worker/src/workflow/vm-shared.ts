@@ -328,15 +328,21 @@ export abstract class BaseVMWorkflow implements Workflow {
     }));
     this.activator.addKnownFlags(activation.availableInternalFlags ?? []);
 
+    const [patches, nonPatches] = partition(activation.jobs, ({ notifyHasPatch }) => notifyHasPatch != null);
+    for (const { notifyHasPatch } of patches) {
+      if (notifyHasPatch == null) throw new TypeError('Expected notifyHasPatch to be set');
+      this.activator.notifyHasPatch(notifyHasPatch);
+    }
+
     const hasSignals = activation.jobs.some(({ signalWorkflow }) => signalWorkflow != null);
     const doSingleBatch = !hasSignals || this.activator.hasFlag(SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch);
 
     const batches: coresdk.workflow_activation.IWorkflowActivationJob[][] = doSingleBatch
-      ? [activation.jobs]
+      ? [nonPatches]
       : partition(
-          activation.jobs,
-          // Group patches and signals in a first batch; all the rest goes in a second batch.
-          ({ notifyHasPatch, signalWorkflow }) => signalWorkflow != null || notifyHasPatch != null
+          nonPatches,
+          // Move signals to a first batch; all the rest goes in a second batch.
+          ({ signalWorkflow }) => signalWorkflow != null
         );
 
     // Loop and invoke each batch, waiting for microtasks to complete after each batch.

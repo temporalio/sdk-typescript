@@ -136,7 +136,7 @@ async function activate(t: ExecutionContext<Context>, activation: coresdk.workfl
   const jobs: coresdk.workflow_activation.IWorkflowActivationJob[] = activation.jobs ?? [];
   function getPriority(job: coresdk.workflow_activation.IWorkflowActivationJob) {
     if (job.notifyHasPatch) return 0;
-    if (job.signalWorkflow || job.queryWorkflow) return 1;
+    if (job.signalWorkflow || job.doUpdate) return 1;
     return 2;
   }
   jobs.reduce((prevPriority: number, currJob) => {
@@ -2130,9 +2130,13 @@ test('Buffered signals dispatch is reentrant  - signalsOrdering2', async (t) => 
 test("Pending promises can't unblock between signals and updates - 1.11.0+ - signalUpdateOrderingWorkflow", async (t) => {
   {
     const completion = await activate(t, {
-      ...makeActivation(undefined, makeStartWorkflowJob(signalUpdateOrderingWorkflow.name), {
-        doUpdate: { name: 'foo', protocolInstanceId: '1', runValidator: false, id: 'first' },
-      }),
+      ...makeActivation(
+        undefined,
+        {
+          doUpdate: { name: 'foo', protocolInstanceId: '1', runValidator: false, id: 'first' },
+        },
+        makeStartWorkflowJob(signalUpdateOrderingWorkflow.name)
+      ),
       isReplaying: false,
     });
     compareCompletion(
@@ -2173,9 +2177,13 @@ test("Pending promises can't unblock between signals and updates - 1.11.0+ - sig
 test("Pending promises can't unblock between signals and updates - pre-1.11.0 - signalUpdateOrderingWorkflow", async (t) => {
   {
     const completion = await activate(t, {
-      ...makeActivation(undefined, makeStartWorkflowJob(signalUpdateOrderingWorkflow.name), {
-        doUpdate: { name: 'foo', protocolInstanceId: '1', runValidator: false, id: 'first' },
-      }),
+      ...makeActivation(
+        undefined,
+        {
+          doUpdate: { name: 'foo', protocolInstanceId: '1', runValidator: false, id: 'first' },
+        },
+        makeStartWorkflowJob(signalUpdateOrderingWorkflow.name)
+      ),
       isReplaying: true,
     });
     compareCompletion(
