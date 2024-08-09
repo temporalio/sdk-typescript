@@ -101,6 +101,19 @@ interface MessageHandlerExecution {
  * Keeps all of the Workflow runtime state like pending completions for activities and timers.
  *
  * Implements handlers for all workflow activation jobs.
+ *
+ * Note that most of the methods in this class are meant to be called only from within the VM.
+ *
+ * However, a few methods may be called directly from outside the VM (essentially from `vm-shared.ts`).
+ * These methods are specifically marked with a comment and require careful consideration, as the
+ * execution context may not properly reflect that of the target workflow execution (e.g.: with Reusable
+ * VMs, the `global` may not have been swapped to those of that workflow execution; the active microtask
+ * queue may be that of the thread/process, rather than the queue of that VM context; etc). Consequently,
+ * methods that are meant to be called from outside of the VM must not do any of the following:
+ *
+ * - Access any global variable;
+ * - Create Promise objects, use async/await, or otherwise schedule microtasks;
+ * - Call user-defined functions, including any form of interceptor.
  */
 export class Activator implements ActivationHandler {
   /**
@@ -299,6 +312,7 @@ export class Activator implements ActivationHandler {
 
   /**
    * This is set every time the workflow executes an activation
+   * May be accessed and modified from outside the VM.
    */
   now: number;
 
@@ -309,6 +323,7 @@ export class Activator implements ActivationHandler {
 
   /**
    * Information about the current Workflow
+   * May be accessed from outside the VM.
    */
   public info: WorkflowInfo;
 
@@ -363,10 +378,15 @@ export class Activator implements ActivationHandler {
     this.random = alea(randomnessSeed);
     this.registeredActivityNames = registeredActivityNames;
 
-    this.addKnownPatches(patches.map((patch) => ({ patchId: patch })));
     this.addKnownFlags(sdkFlags);
+    for (const patchId of patches) {
+      this.notifyHasPatch({ patchId });
+    }
   }
 
+  /**
+   * May be invoked from outside the VM.
+   */
   mutateWorkflowInfo(fn: (info: WorkflowInfo) => WorkflowInfo): void {
     this.info = fn(this.info);
   }
@@ -393,6 +413,9 @@ export class Activator implements ActivationHandler {
     return [...stacks].map(([_, stack]) => stack);
   }
 
+  /**
+   * May be invoked from outside the VM.
+   */
   getAndResetSinkCalls(): SinkCall[] {
     const { sinkCalls } = this;
     this.sinkCalls = [];
@@ -810,20 +833,10 @@ export class Activator implements ActivationHandler {
   }
 
   public notifyHasPatch(activation: coresdk.workflow_activation.INotifyHasPatch): void {
-    // Technically, notifyHasPatch jobs should not reach here, but just for the sake of completeness
     if (!this.info.unsafe.isReplaying)
       throw new IllegalStateError('Unexpected notifyHasPatch job on non-replay activation');
     if (!activation.patchId) throw new TypeError('notifyHasPatch missing patch id');
     this.knownPresentPatches.add(activation.patchId);
-  }
-
-  public addKnownPatches(patches: coresdk.workflow_activation.INotifyHasPatch[]): void {
-    if (patches.length > 0 && !this.info.unsafe.isReplaying)
-      throw new IllegalStateError('Unexpected notifyHasPatch job on non-replay activation');
-    for (const patch of patches) {
-      if (!patch.patchId) throw new TypeError('notifyHasPatch missing patch id');
-      this.knownPresentPatches.add(patch.patchId);
-    }
   }
 
   public patchInternal(patchId: string, deprecated: boolean): boolean {
@@ -844,8 +857,7 @@ export class Activator implements ActivationHandler {
 
   /**
    * Called early while handling an activation to register known flags.
-   *
-   * Note that this functionality is duplicated in `BaseVMWorkflow`, for use outside of the sandbox.
+   * May be invoked from outside the VM.
    */
   public addKnownFlags(flags: number[]): void {
     for (const flag of flags) {
@@ -857,8 +869,7 @@ export class Activator implements ActivationHandler {
   /**
    * Check if a flag is known to the Workflow Execution; if not, enable the flag if workflow
    * is not replaying and the flag is configured to be enabled by default.
-   *
-   * Note that this functionality is duplicated in `BaseVMWorkflow`, for use outside of the sandbox.
+   * May be invoked from outside the VM.
    */
   public hasFlag(flag: SdkFlag): boolean {
     if (this.knownFlags.has(flag.id)) {
