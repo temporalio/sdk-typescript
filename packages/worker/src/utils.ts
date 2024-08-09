@@ -3,14 +3,6 @@ import { IllegalStateError, ParentWorkflowInfo } from '@temporalio/workflow';
 
 export const MiB = 1024 ** 2;
 
-// ts-prune-ignore-next (no idea why ts-prune is complaining all of a sudden)
-export function partition<T>(arr: T[], predicate: (x: T) => boolean): [T[], T[]] {
-  const truthy = Array<T>();
-  const falsy = Array<T>();
-  arr.forEach((v) => (predicate(v) ? truthy : falsy).push(v));
-  return [truthy, falsy];
-}
-
 export function toMB(bytes: number, fractionDigits = 2): string {
   return (bytes / 1024 / 1024).toFixed(fractionDigits);
 }

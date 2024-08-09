@@ -68,7 +68,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
     });
     const activator = context.__TEMPORAL_ACTIVATOR__ as any;
 
-    const newVM = new VMWorkflow(options.info, context, activator, workflowModule, isolateExecutionTimeoutMs);
+    const newVM = new VMWorkflow(options.info.runId, context, activator, workflowModule);
     VMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
     return newVM;
   }
@@ -124,7 +124,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
 export class VMWorkflow extends BaseVMWorkflow {
   public async dispose(): Promise<void> {
     this.workflowModule.dispose();
-    VMWorkflowCreator.workflowByRunId.delete(this.info.runId);
+    VMWorkflowCreator.workflowByRunId.delete(this.runId);
     delete this.context;
   }
 }

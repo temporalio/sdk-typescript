@@ -1,6 +1,7 @@
 import { WorkflowUpdateStage, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
+import { waitUntil } from './helpers';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -595,5 +596,47 @@ test('update result poll throws WorkflowUpdateRPCTimeoutOrCancelledError', async
       const err = await t.throwsAsync(wfHandle.executeUpdate(update, { args: [arg] }));
       t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
     });
+  });
+});
+
+const fooSignal = wf.defineSignal('foo');
+const fooUpdate = wf.defineUpdate<number>('foo');
+
+// Repro for https://github.com/temporalio/sdk-typescript/issues/1474
+export async function signalUpdateOrderingWorkflow(): Promise<number> {
+  let numFoos = 0;
+  wf.setHandler(fooSignal, () => {
+    numFoos++;
+  });
+  wf.setHandler(fooUpdate, () => {
+    numFoos++;
+    return numFoos;
+  });
+  await wf.condition(() => numFoos > 1);
+  return numFoos;
+}
+
+// Validate that issue #1474 is fixed in 1.11.0+
+test("Pending promises can't unblock between signals and updates", async (t) => {
+  const { createWorker, startWorkflow, updateHasBeenAdmitted } = helpers(t);
+
+  const handle = await startWorkflow(signalUpdateOrderingWorkflow);
+  await (
+    await createWorker({ maxCachedWorkflows: 0 })
+  ).runUntil(async () => {
+    // Wait for the workflow to reach the condition
+    await handle.executeUpdate(fooUpdate);
+  });
+
+  const updateId = 'update-id';
+  await handle.signal('foo');
+  const updateResult = handle.executeUpdate(fooUpdate, { updateId });
+  await waitUntil(() => updateHasBeenAdmitted(handle, updateId), 2000);
+
+  await (
+    await createWorker()
+  ).runUntil(async () => {
+    t.is(await handle.result(), 3);
+    t.is(await updateResult, 3);
   });
 });
