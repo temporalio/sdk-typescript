@@ -1,6 +1,5 @@
 import { WorkflowUpdateStage, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
-import * as activity from '@temporalio/activity';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { signalUpdateOrderingWorkflow } from './workflows/signal-update-ordering';
 import { signalsActivitiesTimersPromiseOrdering } from './workflows/signals-timers-activities-order';
@@ -673,5 +672,32 @@ test('Signals/Updates/Activities/Timers have coherent promise completion orderin
     });
 
     await updatePromise;
+  });
+});
+
+export async function canCompleteUpdateAfterWorkflowReturns(): Promise<void> {
+  let gotUpdate = false;
+  let mainReturned = false;
+
+  wf.setHandler(wf.defineUpdate<string>('doneUpdate'), async () => {
+    gotUpdate = true;
+    await wf.condition(() => mainReturned);
+    return 'completed';
+  });
+
+  await wf.condition(() => gotUpdate);
+  mainReturned = true;
+}
+
+test('Can complete update after workflow returns', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(canCompleteUpdateAfterWorkflowReturns);
+    const updateHandler = await handle.executeUpdate(wf.defineUpdate<string>('doneUpdate'));
+    await handle.result();
+
+    await t.is(updateHandler, 'completed');
   });
 });
