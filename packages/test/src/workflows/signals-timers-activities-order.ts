@@ -21,7 +21,7 @@ const aaUpdate = wf.defineUpdate<void, [string?]>('aaUpdate');
  * completed) or saga workflows (workflow may fail to properly undo the activity because if it didn't
  * knew that it had completed).
  *
- * Note that there is safe and easy way for users to resolve this issue by themselves in pre-1.11.0,
+ * Note that there is no safe and easy way for users to resolve this issue by themselves in pre-1.11.0,
  * and neither would calling `wf.allHandlersFinished()` help.
  */
 export async function signalsActivitiesTimersPromiseOrdering(): Promise<boolean[]> {
