@@ -26,12 +26,12 @@ export const SdkFlags = {
    * _synchronous_ part of the handler function has been executed).
    *
    * This flag replaces that multi-phase algorithm with a simpler one where jobs are simply sorted as
-   * `patches -> signals and updates -> others`, but without processing them as distinct batches
-   * (i.e. without leaving/reentering the VM context between each group, which automatically triggers
-   * the execution of all outstanding microtasks). That single-phase approach resolves a number of
-   * quirks of the former algorithm, and yet still satisfies to the original requirement of ensuring
-   * that every `signalWorkflow` jobs - and now `doUpdate` jobs as well - have been given a proper
-   * chance to execute before the Workflow main function might completes.
+   * `(signals and updates) -> others`, but without processing them as distinct batches (i.e. without
+   * leaving/reentering the VM context between each group, which automatically triggers the execution
+   * of all outstanding microtasks). That single-phase approach resolves a number of quirks of the
+   * former algorithm, and yet still satisfies to the original requirement of ensuring that every
+   * `signalWorkflow` jobs - and now `doUpdate` jobs as well - have been given a proper chance to
+   * execute before the Workflow main function might completes.
    *
    * @since Introduced in 1.11.0. This change is not rollback-safe.
    */
