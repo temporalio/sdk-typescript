@@ -23,7 +23,12 @@ import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worke
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
 import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
-import { ProcessedSignal, signalUpdateOrderingWorkflow } from './workflows';
+import {
+  signalsActivitiesTimersPromiseOrderingTracer,
+  signalsActivitiesTimersPromiseOrdering,
+  ProcessedSignal,
+  signalUpdateOrderingWorkflow,
+} from './workflows';
 
 export interface Context {
   workflow: VMWorkflow | ReusableVMWorkflow;
@@ -283,9 +288,13 @@ async function makeSignalWorkflow(
   args: any[],
   timestamp: number = Date.now()
 ): Promise<coresdk.workflow_activation.IWorkflowActivation> {
-  return makeActivation(timestamp, {
+  return makeActivation(timestamp, makeSignalWorkflowJob(signalName, args));
+}
+
+function makeSignalWorkflowJob(signalName: string, args: any[]): coresdk.workflow_activation.IWorkflowActivationJob {
+  return {
     signalWorkflow: { signalName, input: toPayloads(defaultPayloadConverter, ...args) },
-  });
+  };
 }
 
 function makeCompleteWorkflowExecution(result?: Payload): coresdk.workflow_commands.IWorkflowCommand {
@@ -1894,7 +1903,14 @@ test('conditionRacer', async (t) => {
         makeFireTimerJob(1)
       )
     );
-    compareCompletion(t, completion, makeSuccess([], [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess(
+        [makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload(true))],
+        [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
+      )
+    );
   }
 });
 
@@ -2133,7 +2149,7 @@ test("Pending promises can't unblock between signals and updates - 1.11.0+ - sig
       ...makeActivation(
         undefined,
         {
-          doUpdate: { name: 'foo', protocolInstanceId: '1', runValidator: false, id: 'first' },
+          doUpdate: { name: 'fooUpdate', protocolInstanceId: '1', runValidator: false, id: 'first' },
         },
         makeStartWorkflowJob(signalUpdateOrderingWorkflow.name)
       ),
@@ -2153,8 +2169,8 @@ test("Pending promises can't unblock between signals and updates - 1.11.0+ - sig
     const completion = await activate(t, {
       ...makeActivation(
         undefined,
-        { signalWorkflow: { signalName: 'foo', input: [] } },
-        { doUpdate: { name: 'foo', protocolInstanceId: '2', id: 'second' } }
+        { signalWorkflow: { signalName: 'fooSignal', input: [] } },
+        { doUpdate: { name: 'fooUpdate', protocolInstanceId: '2', id: 'second' } }
       ),
       isReplaying: false,
     });
@@ -2180,7 +2196,7 @@ test("Pending promises can't unblock between signals and updates - pre-1.11.0 - 
       ...makeActivation(
         undefined,
         {
-          doUpdate: { name: 'foo', protocolInstanceId: '1', runValidator: false, id: 'first' },
+          doUpdate: { name: 'fooUpdate', protocolInstanceId: '1', runValidator: false, id: 'first' },
         },
         makeStartWorkflowJob(signalUpdateOrderingWorkflow.name)
       ),
@@ -2200,8 +2216,8 @@ test("Pending promises can't unblock between signals and updates - pre-1.11.0 - 
     const completion = await activate(t, {
       ...makeActivation(
         undefined,
-        { signalWorkflow: { signalName: 'foo', input: [] } },
-        { doUpdate: { name: 'foo', protocolInstanceId: '2', id: 'second' } }
+        { signalWorkflow: { signalName: 'fooSignal', input: [] } },
+        { doUpdate: { name: 'fooUpdate', protocolInstanceId: '2', id: 'second' } }
       ),
       isReplaying: true,
     });
@@ -2209,6 +2225,299 @@ test("Pending promises can't unblock between signals and updates - pre-1.11.0 - 
       t,
       completion,
       makeSuccess([{ completeWorkflowExecution: { result: defaultPayloadConverter.toPayload(2) } }])
+    );
+  }
+});
+
+test('Signals/Updates/Activities/Timers have coherent promise completion ordering (no signal) - pre-1.11.0 compatibility - signalsActivitiesTimersPromiseOrdering', async (t) => {
+  {
+    const completion = await activate(t, {
+      ...makeActivation(undefined, makeStartWorkflowJob(signalsActivitiesTimersPromiseOrdering.name)),
+      isReplaying: true,
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) }),
+        makeScheduleActivityCommand({
+          seq: 1,
+          activityId: '1',
+          activityType: 'myActivity',
+          scheduleToCloseTimeout: msToTs('1s'),
+          taskQueue: 'test-activity',
+          doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
+        }),
+      ])
+    );
+  }
+  {
+    const completion = await activate(t, {
+      ...makeActivation(
+        undefined,
+        { doUpdate: { id: 'first', name: 'aaUpdate', protocolInstanceId: '1' } },
+        makeFireTimerJob(1),
+        makeResolveActivityJob(1, { completed: {} })
+      ),
+      isReplaying: true,
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        { updateResponse: { protocolInstanceId: '1', accepted: {} } },
+        { updateResponse: { protocolInstanceId: '1', completed: defaultPayloadConverter.toPayload(undefined) } },
+        makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload([false, true, true, true])),
+      ])
+    );
+  }
+});
+
+test('Signals/Updates/Activities/Timers have coherent promise completion ordering (w/ signals) - pre-1.11.0 compatibility - signalsActivitiesTimersPromiseOrdering', async (t) => {
+  {
+    const completion = await activate(t, {
+      ...makeActivation(undefined, makeStartWorkflowJob(signalsActivitiesTimersPromiseOrdering.name)),
+      isReplaying: true,
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) }),
+        makeScheduleActivityCommand({
+          seq: 1,
+          activityId: '1',
+          activityType: 'myActivity',
+          scheduleToCloseTimeout: msToTs('1s'),
+          taskQueue: 'test-activity',
+          doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
+        }),
+      ])
+    );
+  }
+  {
+    const completion = await activate(t, {
+      ...makeActivation(
+        undefined,
+        makeSignalWorkflowJob('aaSignal', []),
+        { doUpdate: { id: 'first', name: 'aaUpdate', protocolInstanceId: '1' } },
+        makeFireTimerJob(1),
+        makeResolveActivityJob(1, { completed: {} })
+      ),
+      isReplaying: true,
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        // Note the missing update responses here; this is due to #1474. The fact that the activity
+        // and timer completions have not been observed before the workflow completed is a related but
+        // distinct issue. But are resolved by the ProcessWorkflowActivationJobsAsSingleBatch fix.
+        makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload([true, false, false, false])),
+      ])
+    );
+  }
+});
+
+test('Signals/Updates/Activities/Timers have coherent promise completion ordering (w/ signals) - signalsActivitiesTimersPromiseOrdering', async (t) => {
+  {
+    const completion = await activate(t, {
+      ...makeActivation(undefined, makeStartWorkflowJob(signalsActivitiesTimersPromiseOrdering.name)),
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) }),
+        makeScheduleActivityCommand({
+          seq: 1,
+          activityId: '1',
+          activityType: 'myActivity',
+          scheduleToCloseTimeout: msToTs('1s'),
+          taskQueue: 'test-activity',
+          doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
+        }),
+      ])
+    );
+  }
+  {
+    const completion = await activate(t, {
+      ...makeActivation(
+        undefined,
+        makeSignalWorkflowJob('aaSignal', []),
+        { doUpdate: { id: 'first', name: 'aaUpdate', protocolInstanceId: '1' } },
+        makeFireTimerJob(1),
+        makeResolveActivityJob(1, { completed: {} })
+      ),
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess(
+        [
+          { updateResponse: { protocolInstanceId: '1', accepted: {} } },
+          { updateResponse: { protocolInstanceId: '1', completed: defaultPayloadConverter.toPayload(undefined) } },
+          makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload([true, true, true, true])),
+        ],
+        [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
+      )
+    );
+  }
+});
+
+test('Signals/Updates/Activities/Timers - Trace promises completion order - pre-1.11.0 compatibility - signalsActivitiesTimersPromiseOrderingTracer', async (t) => {
+  {
+    const completion = await activate(t, {
+      ...makeActivation(undefined, makeStartWorkflowJob(signalsActivitiesTimersPromiseOrdering.name)),
+      isReplaying: true,
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) }),
+        makeScheduleActivityCommand({
+          seq: 1,
+          activityId: '1',
+          activityType: 'myActivity',
+          scheduleToCloseTimeout: msToTs('1s'),
+          taskQueue: 'test',
+          doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
+        }),
+      ])
+    );
+  }
+  {
+    const completion = await activate(t, {
+      ...makeActivation(
+        undefined,
+        makeSignalWorkflowJob('aaSignal', ['signal1']),
+        {
+          doUpdate: {
+            id: 'first',
+            name: 'aaUpdate',
+            protocolInstanceId: '1',
+            input: toPayloads(defaultPayloadConverter, ['update1']),
+          },
+        },
+        makeSignalWorkflowJob('aaSignal', ['signal2']),
+        {
+          doUpdate: {
+            id: 'second',
+            name: 'aaUpdate',
+            protocolInstanceId: '2',
+            input: toPayloads(defaultPayloadConverter, ['update2']),
+          },
+        },
+        makeFireTimerJob(1),
+        makeResolveActivityJob(1, { completed: {} })
+      ),
+      isReplaying: true,
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        { updateResponse: { protocolInstanceId: '1', accepted: {} } },
+        { updateResponse: { protocolInstanceId: '2', accepted: {} } },
+        { updateResponse: { protocolInstanceId: '1', completed: defaultPayloadConverter.toPayload(undefined) } },
+        { updateResponse: { protocolInstanceId: '2', completed: defaultPayloadConverter.toPayload(undefined) } },
+        makeCompleteWorkflowExecution(
+          defaultPayloadConverter.toPayload(
+            [
+              // Signals first (sync part, then microtasks)
+              'signal1.sync, signal2.sync',
+              'signal1.1, signal2.1, signal1.2, signal2.2, signal1.3, signal2.3, signal1.4, signal2.4',
+
+              // Then update (sync part first), then microtasks for update+timers+activities
+              'update1.sync, update2.sync',
+              'update1.1, update2.1, timer.1, activity.1',
+              'update1.2, update2.2, timer.2, activity.2',
+              'update1.3, update2.3, timer.3, activity.3',
+              'update1.4, update2.4, timer.4, activity.4',
+            ].flatMap((x) => x.split(', '))
+          )
+        ),
+      ])
+    );
+  }
+});
+
+test('Signals/Updates/Activities/Timers - Trace promises completion order - 1.11.0+ - signalsActivitiesTimersPromiseOrderingTracer', async (t) => {
+  {
+    const completion = await activate(t, {
+      ...makeActivation(undefined, makeStartWorkflowJob(signalsActivitiesTimersPromiseOrderingTracer.name)),
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(1) }),
+        makeScheduleActivityCommand({
+          seq: 1,
+          activityId: '1',
+          activityType: 'myActivity',
+          scheduleToCloseTimeout: msToTs('1s'),
+          taskQueue: 'test',
+          doNotEagerlyExecute: false,
+          versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
+        }),
+      ])
+    );
+  }
+  {
+    const completion = await activate(t, {
+      ...makeActivation(
+        undefined,
+        makeSignalWorkflowJob('aaSignal', ['signal1']),
+        {
+          doUpdate: {
+            id: 'first',
+            name: 'aaUpdate',
+            protocolInstanceId: '1',
+            input: toPayloads(defaultPayloadConverter, ['update1']),
+          },
+        },
+        makeSignalWorkflowJob('aaSignal', ['signal2']),
+        {
+          doUpdate: {
+            id: 'second',
+            name: 'aaUpdate',
+            protocolInstanceId: '2',
+            input: toPayloads(defaultPayloadConverter, ['update2']),
+          },
+        },
+        makeFireTimerJob(1),
+        makeResolveActivityJob(1, { completed: {} })
+      ),
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess(
+        [
+          { updateResponse: { protocolInstanceId: '1', accepted: {} } },
+          { updateResponse: { protocolInstanceId: '2', accepted: {} } },
+          { updateResponse: { protocolInstanceId: '1', completed: defaultPayloadConverter.toPayload(undefined) } },
+          { updateResponse: { protocolInstanceId: '2', completed: defaultPayloadConverter.toPayload(undefined) } },
+          makeCompleteWorkflowExecution(
+            defaultPayloadConverter.toPayload(
+              [
+                'signal1.sync, update1.sync, signal2.sync, update2.sync',
+                'signal1.1, update1.1, signal2.1, update2.1, timer.1, activity.1',
+                'signal1.2, update1.2, signal2.2, update2.2, timer.2, activity.2',
+                'signal1.3, update1.3, signal2.3, update2.3, timer.3, activity.3',
+                'signal1.4, update1.4, signal2.4, update2.4, timer.4, activity.4',
+              ].flatMap((x) => x.split(', '))
+            )
+          ),
+        ],
+        [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
+      )
     );
   }
 });

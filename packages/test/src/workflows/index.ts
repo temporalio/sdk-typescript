@@ -75,6 +75,7 @@ export * from './signal-target';
 export * from './signals-are-always-processed';
 export * from './signals-ordering';
 export * from './signal-update-ordering';
+export * from './signals-timers-activities-order';
 export * from './sinks';
 export * from './sleep';
 export * from './sleep-invalid-duration';

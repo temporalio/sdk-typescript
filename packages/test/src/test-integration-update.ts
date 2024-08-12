@@ -1,7 +1,10 @@
 import { WorkflowUpdateStage, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
+import * as activity from '@temporalio/activity';
 import { helpers, makeTestFunction } from './helpers-integration';
-import { waitUntil } from './helpers';
+import { signalUpdateOrderingWorkflow } from './workflows/signal-update-ordering';
+import { signalsActivitiesTimersPromiseOrdering } from './workflows/signals-timers-activities-order';
+import { sleep, waitUntil } from './helpers';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -599,44 +602,76 @@ test('update result poll throws WorkflowUpdateRPCTimeoutOrCancelledError', async
   });
 });
 
-const fooSignal = wf.defineSignal('foo');
-const fooUpdate = wf.defineUpdate<number>('foo');
-
-// Repro for https://github.com/temporalio/sdk-typescript/issues/1474
-export async function signalUpdateOrderingWorkflow(): Promise<number> {
-  let numFoos = 0;
-  wf.setHandler(fooSignal, () => {
-    numFoos++;
-  });
-  wf.setHandler(fooUpdate, () => {
-    numFoos++;
-    return numFoos;
-  });
-  await wf.condition(() => numFoos > 1);
-  return numFoos;
-}
+export { signalUpdateOrderingWorkflow };
 
 // Validate that issue #1474 is fixed in 1.11.0+
 test("Pending promises can't unblock between signals and updates", async (t) => {
   const { createWorker, startWorkflow, updateHasBeenAdmitted } = helpers(t);
 
   const handle = await startWorkflow(signalUpdateOrderingWorkflow);
-  await (
-    await createWorker({ maxCachedWorkflows: 0 })
-  ).runUntil(async () => {
-    // Wait for the workflow to reach the condition
-    await handle.executeUpdate(fooUpdate);
+  const worker1 = await createWorker({ maxCachedWorkflows: 0 });
+  await worker1.runUntil(async () => {
+    // Wait for the workflow to reach the first condition
+    await handle.executeUpdate('fooUpdate');
   });
 
   const updateId = 'update-id';
-  await handle.signal('foo');
-  const updateResult = handle.executeUpdate(fooUpdate, { updateId });
+  await handle.signal('fooSignal');
+  const updateResult = handle.executeUpdate('fooUpdate', { updateId });
   await waitUntil(() => updateHasBeenAdmitted(handle, updateId), 2000);
 
-  await (
-    await createWorker()
-  ).runUntil(async () => {
+  const worker2 = await createWorker();
+  await worker2.runUntil(async () => {
     t.is(await handle.result(), 3);
     t.is(await updateResult, 3);
+  });
+});
+
+export { signalsActivitiesTimersPromiseOrdering };
+
+// A broader check covering issue #1474, but also other subtle ordering issues caused by the fact
+// that signals used to be processed in a distinct phase from other types of jobs.
+test('Signals/Updates/Activities/Timers have coherent promise completion ordering', async (t) => {
+  const { createWorker, startWorkflow, taskQueue } = helpers(t);
+
+  let resolvePromise: (x: unknown) => void;
+  const activityGotScheduledPromise = new Promise((resolve) => {
+    resolvePromise = resolve;
+  });
+
+  const activityWorker = await createWorker({
+    taskQueue: `${taskQueue}-activity`,
+    activities: {
+      myActivity: async () => {
+        resolvePromise(undefined);
+      },
+    },
+    workflowBundle: undefined,
+    workflowsPath: undefined,
+  });
+  await activityWorker.runUntil(async () => {
+    const handle = await startWorkflow(signalsActivitiesTimersPromiseOrdering);
+
+    // We need signal+update+timer completion+activity completion to all happen in the same workflow task.
+    // To get there, as soon as the activity gets scheduled, we shutdown the worker, then send the signal
+    // and update while there is no worker alive. When it eventually comes back up, all events will be
+    // queued up for the next WFT.
+    const worker1 = await createWorker({ maxCachedWorkflows: 0 });
+    await worker1.runUntil(activityGotScheduledPromise);
+
+    const updateId = 'update-id';
+    await handle.signal('aaSignal');
+    const updatePromise = handle.executeUpdate('aaUpdate', { updateId });
+
+    // Wait a bit, to be sure that the actvity's completion has been recorded before we turns the worker back on.
+    await sleep(800);
+
+    await (
+      await createWorker({})
+    ).runUntil(async () => {
+      t.deepEqual(await handle.result(), [true, true, true, true]);
+    });
+
+    await updatePromise;
   });
 });

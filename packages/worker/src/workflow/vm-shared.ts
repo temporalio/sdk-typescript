@@ -337,23 +337,29 @@ export abstract class BaseVMWorkflow implements Workflow {
     const hasSignals = activation.jobs.some(({ signalWorkflow }) => signalWorkflow != null);
     const doSingleBatch = !hasSignals || this.activator.hasFlag(SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch);
 
-    const batches: coresdk.workflow_activation.IWorkflowActivationJob[][] = doSingleBatch
-      ? [nonPatches]
-      : partition(
-          nonPatches,
-          // Move signals to a first batch; all the rest goes in a second batch.
-          ({ signalWorkflow }) => signalWorkflow != null
-        );
-
-    // Loop and invoke each batch, waiting for microtasks to complete after each batch.
-    let batchIndex = 0;
-    for (const jobs of batches) {
-      if (jobs.length === 0) continue;
+    if (doSingleBatch) {
       this.workflowModule.activate(
-        coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
-        batchIndex++
+        coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs: nonPatches }),
+        0
       );
       this.tryUnblockConditionsAndMicrotasks();
+    } else {
+      const [signals, nonSignals] = partition(
+        nonPatches,
+        // Move signals to a first batch; all the rest goes in a second batch.
+        ({ signalWorkflow }) => signalWorkflow != null
+      );
+
+      // Loop and invoke each batch, waiting for microtasks to complete after each batch.
+      let batchIndex = 0;
+      for (const jobs of [signals, nonSignals]) {
+        if (jobs.length === 0) continue;
+        this.workflowModule.activate(
+          coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
+          batchIndex++
+        );
+        this.tryUnblockConditionsAndMicrotasks();
+      }
     }
 
     const completion = this.workflowModule.concludeActivation();
@@ -365,7 +371,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         runId: this.activator.info.runId,
         // FIXME: Calling `activator.errorToFailure()` directly from outside the VM is unsafe, as it
         // depends on the `failureConverter` and `payloadConverter`, which may be customized and
-        // therefore ain't guaranteed not to access `global` or to cause scheduling microtasks.
+        // therefore aren't guaranteed not to access `global` or to cause scheduling microtasks.
         // Admitingly, the risk is very low, so we're leaving it as is for now.
         failed: { failure: this.activator.errorToFailure(this.unhandledRejection) },
       };
