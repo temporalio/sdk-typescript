@@ -39,12 +39,56 @@ export enum WorkflowIdReusePolicy {
 
   /**
    * Terminate the current workflow if one is already running.
+   *
+   * This option belongs in `WorkflowIdConflictPolicy` but it is here for backwards compatibility.
+   * With no Running Workflow, the behavior is the same as `WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE`,
+   * but with a Running Workflow, it behaves like `WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING`.
+   *
+   * *Note: When setting this option, `WorkflowIdConflictPolicy` should have value `WORKFLOW_ID_CONFLICT_POLICY_UNSPECIFIED`*
    */
   WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING = 4,
 }
 
 checkExtends<temporal.api.enums.v1.WorkflowIdReusePolicy, WorkflowIdReusePolicy>();
 checkExtends<WorkflowIdReusePolicy, temporal.api.enums.v1.WorkflowIdReusePolicy>();
+
+// Avoid importing the proto implementation to reduce workflow bundle size
+// Copied from temporal.api.enums.v1.WorkflowIdConflictPolicy
+/**
+ * Defines what should happen when trying to start a Workflow with the same Workflow Id of a Running workflow.
+ *
+ * See `WorkflowIdReusePolicy` for handling Workflow Id duplication of a *Closed* workflow.
+ *
+ * *Note: It is never valid to have two actively running instances with the same Workflow Id.*
+ */
+export enum WorkflowIdConflictPolicy {
+  /**
+   *  This is the default so that we can set the policy
+   * `WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING` in `WorkflowIdReusePolicy`, which is incompatible with setting any other
+   *  `WorkflowIdConflictPolicy` values.
+   *
+   * The actual default behavior is `WORKFLOW_ID_CONFLICT_POLICY_FAIL` for a start Workflow request, and `WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING` for a signal with start Workflow request.
+   */
+  WORKFLOW_ID_CONFLICT_POLICY_UNSPECIFIED = 0,
+
+  /**
+   * Do not start a new Workflow. Return instead a `WorkflowExecutionAlreadyStartedError`.
+   */
+  WORKFLOW_ID_CONFLICT_POLICY_FAIL = 1,
+
+  /**
+   * Do not start a new Workflow. Return instead a Workflow Handle for the currently Running Workflow.
+   */
+  WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING = 2,
+
+  /**
+   * Terminate the current workflow if one is already running.
+   */
+  WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING = 3,
+}
+
+checkExtends<temporal.api.enums.v1.WorkflowIdConflictPolicy, WorkflowIdConflictPolicy>();
+checkExtends<WorkflowIdConflictPolicy, temporal.api.enums.v1.WorkflowIdConflictPolicy>();
 
 export interface BaseWorkflowOptions {
   /**
@@ -55,6 +99,15 @@ export interface BaseWorkflowOptions {
    * @default {@link WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE}
    */
   workflowIdReusePolicy?: WorkflowIdReusePolicy;
+
+  /**
+   * Defines what should happen when trying to start a Workflow with the same Workflow Id of a Running workflow.
+   *
+   * *Note: It is never valid to have two actively running instances with the same Workflow Id.*
+   *
+   * @default {@link WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_UNSPECIFIED}
+   */
+  workflowIdConflictPolicy?: WorkflowIdConflictPolicy;
 
   /**
    * Controls how a Workflow Execution is retried.

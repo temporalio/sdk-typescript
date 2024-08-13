@@ -279,7 +279,7 @@ export class ChildWorkflowFailure extends TemporalFailure {
 
 /**
  * This exception is thrown in the following cases:
- *  - Workflow with the same Workflow Id is currently running
+ *  - Workflow with the same Workflow Id is currently running and the {@link WorkflowOptions.workflowIdConflictPolicy} is `WORKFLOW_ID_CONFLICT_POLICY_FAIL`
  *  - There is a closed Workflow with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
  *    is `WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE`
  *  - There is closed Workflow in the `Completed` state with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}

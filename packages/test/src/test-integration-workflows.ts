@@ -7,9 +7,9 @@ import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
-import { defineQuery, defineSignal } from '@temporalio/workflow';
+import { defineQuery, defineSignal, WorkflowIdConflictPolicy } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
-import { ActivityCancellationType, ApplicationFailure } from '@temporalio/common';
+import { ActivityCancellationType, ApplicationFailure, WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
@@ -214,6 +214,124 @@ test('Start of workflow is delayed', async (t) => {
   const workflowExecutionStartedEvent = events?.find((ev) => ev.workflowExecutionStartedEventAttributes);
   const startDelay = workflowExecutionStartedEvent?.workflowExecutionStartedEventAttributes?.firstWorkflowTaskBackoff;
   t.is(tsToMs(startDelay), 5678000);
+});
+
+export async function conflictId(): Promise<void> {
+  await workflow.condition(() => false);
+}
+
+test('Start of workflow respects workflow id conflict policy', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const wfid = `${taskQueue}-` + randomUUID();
+  const client = t.context.env.client;
+
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(conflictId, {
+      taskQueue,
+      workflowId: wfid,
+    });
+    const handleWithRunId = client.workflow.getHandle(handle.workflowId, handle.firstExecutionRunId);
+
+    // Confirm another fails by default
+    const err = await t.throwsAsync(
+      client.workflow.start(conflictId, {
+        taskQueue,
+        workflowId: wfid,
+      }),
+      {
+        instanceOf: WorkflowExecutionAlreadyStartedError,
+      }
+    );
+
+    t.true(err instanceof WorkflowExecutionAlreadyStartedError && err.message === 'Workflow execution already started');
+
+    // Confirm fails with explicit option
+    const err1 = await t.throwsAsync(
+      client.workflow.start(conflictId, {
+        taskQueue,
+        workflowId: wfid,
+        workflowIdConflictPolicy: WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_FAIL,
+      }),
+      {
+        instanceOf: WorkflowExecutionAlreadyStartedError,
+      }
+    );
+
+    t.true(
+      err1 instanceof WorkflowExecutionAlreadyStartedError && err1.message === 'Workflow execution already started'
+    );
+
+    // Confirm gives back same handle
+    const handle2 = await client.workflow.start(conflictId, {
+      taskQueue,
+      workflowId: wfid,
+      workflowIdConflictPolicy: WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING,
+    });
+
+    const desc = await handleWithRunId.describe();
+    const desc2 = await handle2.describe();
+
+    t.deepEqual(desc.runId, desc2.runId);
+    t.deepEqual(desc.status.name, 'RUNNING');
+    t.deepEqual(desc2.status.name, 'RUNNING');
+
+    // Confirm terminates and starts new
+    const handle3 = await client.workflow.start(conflictId, {
+      taskQueue,
+      workflowId: wfid,
+      workflowIdConflictPolicy: WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING,
+    });
+
+    const descWithRunId = await handleWithRunId.describe();
+    const desc3 = await handle3.describe();
+    t.true(descWithRunId.runId !== desc3.runId);
+    t.deepEqual(descWithRunId.status.name, 'TERMINATED');
+    t.deepEqual(desc3.status.name, 'RUNNING');
+  });
+});
+
+test('Start of workflow with signal respects conflict id policy', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const wfid = `${taskQueue}-` + randomUUID();
+  const client = t.context.env.client;
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(workflows.signalTarget, {
+      taskQueue,
+      workflowId: wfid,
+    });
+    const handleWithRunId = client.workflow.getHandle(handle.workflowId, handle.firstExecutionRunId);
+
+    // Confirm gives back same handle is the default policy
+    const handle2 = await t.context.env.client.workflow.signalWithStart(workflows.signalTarget, {
+      taskQueue,
+      workflowId: wfid,
+      signal: workflows.argsTestSignal,
+      signalArgs: [123, 'kid'],
+    });
+    const desc = await handleWithRunId.describe();
+    const desc2 = await handle2.describe();
+
+    t.deepEqual(desc.runId, desc2.runId);
+    t.deepEqual(desc.status.name, 'RUNNING');
+    t.deepEqual(desc2.status.name, 'RUNNING');
+
+    // Confirm terminates and starts new
+    const handle3 = await t.context.env.client.workflow.signalWithStart(workflows.signalTarget, {
+      taskQueue,
+      workflowId: wfid,
+      signal: workflows.argsTestSignal,
+      signalArgs: [123, 'kid'],
+      workflowIdConflictPolicy: WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING,
+    });
+
+    const descWithRunId = await handleWithRunId.describe();
+    const desc3 = await handle3.describe();
+    t.true(descWithRunId.runId !== desc3.runId);
+    t.deepEqual(descWithRunId.status.name, 'TERMINATED');
+    t.deepEqual(desc3.status.name, 'RUNNING');
+  });
 });
 
 test('Start of workflow with signal is delayed', async (t) => {

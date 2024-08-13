@@ -16,6 +16,7 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
    * Assign a meaningful business id.
    * This ID can be used to ensure starting Workflows is idempotent.
    * Workflow IDs are unique, see also {@link WorkflowOptions.workflowIdReusePolicy}
+   * and {@link WorkflowOptions.workflowIdConflictPolicy}
    */
   workflowId: string;
 
