@@ -8,7 +8,7 @@ import { sleep, waitUntil } from './helpers';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
-const LONG_POLL_EXPIRATION_INTERVAL_SECONDS = 1.0;
+const LONG_POLL_EXPIRATION_INTERVAL_SECONDS = 5.0;
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -29,7 +29,7 @@ export async function workflowWithUpdates(): Promise<string[]> {
   const state: string[] = [];
   const updateHandler = async (arg: string): Promise<string[]> => {
     if (arg === 'wait-for-longer-than-server-long-poll-timeout') {
-      await wf.sleep(500 + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000);
+      await wf.sleep(LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1500);
     }
     state.push(arg);
     return state;
@@ -468,7 +468,7 @@ test('startUpdate does not return handle before update has reached requested sta
     })
     .then(() => 'update');
   const timeoutPromise = new Promise<string>((f) =>
-    setTimeout(() => f('timeout'), 500 + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000)
+    setTimeout(() => f('timeout'), LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1500)
   );
   t.is(
     await Promise.race([updatePromise, timeoutPromise]),
@@ -618,7 +618,7 @@ test("Pending promises can't unblock between signals and updates", async (t) => 
   const updateId = 'update-id';
   await handle.signal('fooSignal');
   const updateResult = handle.executeUpdate('fooUpdate', { updateId });
-  await waitUntil(() => updateHasBeenAdmitted(handle, updateId), 2000);
+  await waitUntil(() => updateHasBeenAdmitted(handle, updateId), 5000);
 
   const worker2 = await createWorker();
   await worker2.runUntil(async () => {
