@@ -68,8 +68,8 @@ test.before(async (t) => {
   // FIXME: isolateExecutionTimeoutMs used to be 200 ms, but that's causing
   //        lot of flakes on CI. Revert this after investigation / resolution.
   t.context.workflowCreator = REUSE_V8_CONTEXT
-    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 4000000, new Set())
-    : await TestVMWorkflowCreator.create(workflowBundle, 4000000, new Set());
+    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 400, new Set())
+    : await TestVMWorkflowCreator.create(workflowBundle, 400, new Set());
 });
 
 test.after.always(async (t) => {
