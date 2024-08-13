@@ -2221,7 +2221,11 @@ test("Pending promises can't unblock between signals and updates - pre-1.11.0 - 
     compareCompletion(
       t,
       completion,
-      makeSuccess([{ completeWorkflowExecution: { result: defaultPayloadConverter.toPayload(2) } }])
+      makeSuccess([
+        { completeWorkflowExecution: { result: defaultPayloadConverter.toPayload(2) } },
+        { updateResponse: { protocolInstanceId: '2', accepted: {} } },
+        { updateResponse: { protocolInstanceId: '2', completed: defaultPayloadConverter.toPayload(3) } },
+      ])
     );
   }
 });
@@ -2315,6 +2319,8 @@ test('Signals/Updates/Activities/Timers have coherent promise completion orderin
         // and timer completions have not been observed before the workflow completed is a related but
         // distinct issue. But are resolved by the ProcessWorkflowActivationJobsAsSingleBatch fix.
         makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload([true, false, false, false])),
+        { updateResponse: { protocolInstanceId: '1', accepted: {} } },
+        { updateResponse: { protocolInstanceId: '1', completed: defaultPayloadConverter.toPayload(undefined) } },
       ])
     );
   }
