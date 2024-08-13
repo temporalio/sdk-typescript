@@ -328,18 +328,23 @@ export abstract class BaseVMWorkflow implements Workflow {
     }));
     this.activator.addKnownFlags(activation.availableInternalFlags ?? []);
 
+    const hasSignals = activation.jobs.some(({ signalWorkflow }) => signalWorkflow != null);
+    const doSingleBatch = !hasSignals || this.activator.hasFlag(SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch);
+
     const [patches, nonPatches] = partition(activation.jobs, ({ notifyHasPatch }) => notifyHasPatch != null);
     for (const { notifyHasPatch } of patches) {
       if (notifyHasPatch == null) throw new TypeError('Expected notifyHasPatch to be set');
       this.activator.notifyHasPatch(notifyHasPatch);
     }
 
-    const hasSignals = activation.jobs.some(({ signalWorkflow }) => signalWorkflow != null);
-    const doSingleBatch = !hasSignals || this.activator.hasFlag(SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch);
-
     if (doSingleBatch) {
+      //
+      const [updateRandomSeed, rest] = partition(activation.jobs, ({ updateRandomSeed }) => updateRandomSeed != null);
+      if (updateRandomSeed.length > 0)
+        this.activator.updateRandomSeed(updateRandomSeed[updateRandomSeed.length - 1].updateRandomSeed!);
+
       this.workflowModule.activate(
-        coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs: nonPatches }),
+        coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs: rest }),
         0
       );
       this.tryUnblockConditionsAndMicrotasks();

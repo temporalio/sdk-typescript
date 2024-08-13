@@ -428,8 +428,6 @@ export class Activator implements ActivationHandler {
    * Prevents commands from being added after Workflow completion.
    */
   pushCommand(cmd: coresdk.workflow_commands.IWorkflowCommand, complete = false): void {
-    // Only query responses may be sent after completion
-    if (this.completed && !cmd.respondToQuery) return;
     this.commands.push(cmd);
     if (complete) {
       this.completed = true;

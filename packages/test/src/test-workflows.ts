@@ -23,12 +23,7 @@ import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worke
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
 import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
-import {
-  signalsActivitiesTimersPromiseOrderingTracer,
-  signalsActivitiesTimersPromiseOrdering,
-  ProcessedSignal,
-  signalUpdateOrderingWorkflow,
-} from './workflows';
+import { ProcessedSignal } from './workflows';
 
 export interface Context {
   workflow: VMWorkflow | ReusableVMWorkflow;
@@ -73,8 +68,8 @@ test.before(async (t) => {
   // FIXME: isolateExecutionTimeoutMs used to be 200 ms, but that's causing
   //        lot of flakes on CI. Revert this after investigation / resolution.
   t.context.workflowCreator = REUSE_V8_CONTEXT
-    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 400, new Set())
-    : await TestVMWorkflowCreator.create(workflowBundle, 400, new Set());
+    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 4000000, new Set())
+    : await TestVMWorkflowCreator.create(workflowBundle, 4000000, new Set());
 });
 
 test.after.always(async (t) => {
@@ -2144,6 +2139,7 @@ test('Buffered signals dispatch is reentrant  - signalsOrdering2', async (t) => 
 
 // Validate that issue #1474 is fixed in 1.11.0+
 test("Pending promises can't unblock between signals and updates - 1.11.0+ - signalUpdateOrderingWorkflow", async (t) => {
+  const { workflowType } = t.context;
   {
     const completion = await activate(t, {
       ...makeActivation(
@@ -2151,7 +2147,7 @@ test("Pending promises can't unblock between signals and updates - 1.11.0+ - sig
         {
           doUpdate: { name: 'fooUpdate', protocolInstanceId: '1', runValidator: false, id: 'first' },
         },
-        makeStartWorkflowJob(signalUpdateOrderingWorkflow.name)
+        makeStartWorkflowJob(workflowType)
       ),
       isReplaying: false,
     });
@@ -2191,6 +2187,7 @@ test("Pending promises can't unblock between signals and updates - 1.11.0+ - sig
 
 // Validate that issue #1474 legacy behavior is maintained when replaying from pre-1.11.0 history
 test("Pending promises can't unblock between signals and updates - pre-1.11.0 - signalUpdateOrderingWorkflow", async (t) => {
+  const { workflowType } = t.context;
   {
     const completion = await activate(t, {
       ...makeActivation(
@@ -2198,7 +2195,7 @@ test("Pending promises can't unblock between signals and updates - pre-1.11.0 - 
         {
           doUpdate: { name: 'fooUpdate', protocolInstanceId: '1', runValidator: false, id: 'first' },
         },
-        makeStartWorkflowJob(signalUpdateOrderingWorkflow.name)
+        makeStartWorkflowJob(workflowType)
       ),
       isReplaying: true,
     });
@@ -2230,9 +2227,10 @@ test("Pending promises can't unblock between signals and updates - pre-1.11.0 - 
 });
 
 test('Signals/Updates/Activities/Timers have coherent promise completion ordering (no signal) - pre-1.11.0 compatibility - signalsActivitiesTimersPromiseOrdering', async (t) => {
+  const { workflowType } = t.context;
   {
     const completion = await activate(t, {
-      ...makeActivation(undefined, makeStartWorkflowJob(signalsActivitiesTimersPromiseOrdering.name)),
+      ...makeActivation(undefined, makeStartWorkflowJob(workflowType)),
       isReplaying: true,
     });
     compareCompletion(
@@ -2275,9 +2273,10 @@ test('Signals/Updates/Activities/Timers have coherent promise completion orderin
 });
 
 test('Signals/Updates/Activities/Timers have coherent promise completion ordering (w/ signals) - pre-1.11.0 compatibility - signalsActivitiesTimersPromiseOrdering', async (t) => {
+  const { workflowType } = t.context;
   {
     const completion = await activate(t, {
-      ...makeActivation(undefined, makeStartWorkflowJob(signalsActivitiesTimersPromiseOrdering.name)),
+      ...makeActivation(undefined, makeStartWorkflowJob(workflowType)),
       isReplaying: true,
     });
     compareCompletion(
@@ -2322,9 +2321,10 @@ test('Signals/Updates/Activities/Timers have coherent promise completion orderin
 });
 
 test('Signals/Updates/Activities/Timers have coherent promise completion ordering (w/ signals) - signalsActivitiesTimersPromiseOrdering', async (t) => {
+  const { workflowType } = t.context;
   {
     const completion = await activate(t, {
-      ...makeActivation(undefined, makeStartWorkflowJob(signalsActivitiesTimersPromiseOrdering.name)),
+      ...makeActivation(undefined, makeStartWorkflowJob(workflowType)),
     });
     compareCompletion(
       t,
@@ -2369,9 +2369,10 @@ test('Signals/Updates/Activities/Timers have coherent promise completion orderin
 });
 
 test('Signals/Updates/Activities/Timers - Trace promises completion order - pre-1.11.0 compatibility - signalsActivitiesTimersPromiseOrderingTracer', async (t) => {
+  const { workflowType } = t.context;
   {
     const completion = await activate(t, {
-      ...makeActivation(undefined, makeStartWorkflowJob(signalsActivitiesTimersPromiseOrdering.name)),
+      ...makeActivation(undefined, makeStartWorkflowJob(workflowType)),
       isReplaying: true,
     });
     compareCompletion(
@@ -2448,9 +2449,10 @@ test('Signals/Updates/Activities/Timers - Trace promises completion order - pre-
 });
 
 test('Signals/Updates/Activities/Timers - Trace promises completion order - 1.11.0+ - signalsActivitiesTimersPromiseOrderingTracer', async (t) => {
+  const { workflowType } = t.context;
   {
     const completion = await activate(t, {
-      ...makeActivation(undefined, makeStartWorkflowJob(signalsActivitiesTimersPromiseOrderingTracer.name)),
+      ...makeActivation(undefined, makeStartWorkflowJob(workflowType)),
     });
     compareCompletion(
       t,
@@ -2518,6 +2520,32 @@ test('Signals/Updates/Activities/Timers - Trace promises completion order - 1.11
         ],
         [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
       )
+    );
+  }
+});
+
+test('Can complete update after workflow returns - canCompleteUpdateAfterWorkflowReturns', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(t, {
+      ...makeActivation(undefined, makeStartWorkflowJob(workflowType)),
+    });
+    compareCompletion(t, completion, makeSuccess([]));
+  }
+  {
+    const completion = await activate(t, {
+      ...makeActivation(undefined, {
+        doUpdate: { id: 'first', name: 'doneUpdate', protocolInstanceId: '1' },
+      }),
+    });
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        { updateResponse: { protocolInstanceId: '1', accepted: {} } },
+        makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload(undefined)),
+        { updateResponse: { protocolInstanceId: '1', completed: defaultPayloadConverter.toPayload('completed') } },
+      ])
     );
   }
 });

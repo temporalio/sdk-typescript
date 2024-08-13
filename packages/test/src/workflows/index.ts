@@ -99,3 +99,4 @@ export * from './url-whatwg';
 export * from './wait-on-user';
 export * from './workflow-cancellation-scenarios';
 export * from './upsert-and-read-memo';
+export * from './complete-update-after-wf-returns';

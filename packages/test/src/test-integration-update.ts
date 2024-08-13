@@ -3,6 +3,7 @@ import * as wf from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { signalUpdateOrderingWorkflow } from './workflows/signal-update-ordering';
 import { signalsActivitiesTimersPromiseOrdering } from './workflows/signals-timers-activities-order';
+import { canCompleteUpdateAfterWorkflowReturns } from './workflows/complete-update-after-wf-returns';
 import { sleep, waitUntil } from './helpers';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
@@ -675,19 +676,7 @@ test('Signals/Updates/Activities/Timers have coherent promise completion orderin
   });
 });
 
-export async function canCompleteUpdateAfterWorkflowReturns(): Promise<void> {
-  let gotUpdate = false;
-  let mainReturned = false;
-
-  wf.setHandler(wf.defineUpdate<string>('doneUpdate'), async () => {
-    gotUpdate = true;
-    await wf.condition(() => mainReturned);
-    return 'completed';
-  });
-
-  await wf.condition(() => gotUpdate);
-  mainReturned = true;
-}
+export { canCompleteUpdateAfterWorkflowReturns };
 
 test('Can complete update after workflow returns', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
