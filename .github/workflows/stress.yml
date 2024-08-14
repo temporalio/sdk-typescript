@@ -62,7 +62,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          ref: inputs.ref
+          ref: ${{ inputs.ref }}
 
       - name: Install Node
         uses: actions/setup-node@v4
