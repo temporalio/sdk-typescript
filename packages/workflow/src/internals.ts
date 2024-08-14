@@ -102,7 +102,7 @@ interface MessageHandlerExecution {
  *
  * Implements handlers for all workflow activation jobs.
  *
- * Note that most of the methods in this class are meant to be called only from within the VM.
+ * Note that most methods in this class are meant to be called only from within the VM.
  *
  * However, a few methods may be called directly from outside the VM (essentially from `vm-shared.ts`).
  * These methods are specifically marked with a comment and require careful consideration, as the
