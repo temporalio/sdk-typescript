@@ -43,18 +43,13 @@ env:
   TEMPORAL_TESTING_MEM_LOG_DIR: /tmp/worker-mem-logs
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   REUSE_V8_CONTEXT: ${{ inputs.reuse-v8-context }}
-  IS_MAIN_BRANCH: |
-    ${{
-      github.repository == 'temporalio/sdk-typescript'
-        && (github.ref == 'refs/heads/main'
-            || startsWith(github.ref, 'refs/tags/')
-            || startsWith(github.ref, 'refs/heads/releases'))
-        && github.event_name != 'pull_request'
-    }}
+  # Is it the official main branch, or an official release branches?
+  # AFAIK there's no way to break that line w/o introducing a trailing LF that breaks usage. Sorry.
+  IS_MAIN_OR_RELEASE: ${{ github.repository == 'temporalio/sdk-typescript' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) && github.event_name != 'pull_request' }}
 
 jobs:
   stress-test:
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
       - name: Print build info
         run: 'echo test-type: ${{ inputs.test-type }}, test-timeout-minutes: ${{ inputs.test-timeout-minutes }}, reuse-v8-context: $REUSE_V8_CONTEXT'
@@ -62,6 +57,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          ref: ${{ inputs.ref }}
 
       - name: Install Node
         uses: actions/setup-node@v4
@@ -99,7 +95,7 @@ jobs:
           prefix-key: corebridge-buildcache
           shared-key: linux-intel
           env-vars: ''
-          save-if: env.IS_MAIN_BRANCH == 'true'
+          save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
 
       - name: Download dependencies
         # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors
