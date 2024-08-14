@@ -453,6 +453,7 @@ export interface WorkflowCreateOptions {
   randomnessSeed: number[];
   now: number;
   patches: string[];
+  sdkFlags: number[];
   showStackTraceSources: boolean;
 }
 

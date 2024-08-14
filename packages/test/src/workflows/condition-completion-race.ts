@@ -6,9 +6,8 @@
 import { condition, setHandler } from '@temporalio/workflow';
 import { unblockSignal } from './definitions';
 
-export async function conditionRacer(): Promise<void> {
+export async function conditionRacer(): Promise<boolean> {
   let blocked = true;
   setHandler(unblockSignal, () => void (blocked = false));
-  await condition(() => !blocked, '1s');
-  await condition(() => blocked);
+  return await condition(() => !blocked, '1s');
 }
