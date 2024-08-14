@@ -7,11 +7,14 @@ import { checkExtends } from './type-helpers';
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from temporal.api.enums.v1.WorkflowIdReusePolicy
 /**
+ * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
+ *
+ * See {@link WorkflowOptions.workflowIdConflictPolicy} for what happens when trying to start a Workflow with the same ID as a *Running* Workflow.
+ *
  * Concept: {@link https://docs.temporal.io/concepts/what-is-a-workflow-id-reuse-policy/ | Workflow Id Reuse Policy}
  *
- * Whether a Workflow can be started with a Workflow Id of a Closed Workflow.
+ * *Note: It is not possible to have two actively running Workflows with the same ID.*
  *
- * *Note: A Workflow can never be started with a Workflow Id of a Running Workflow.*
  */
 export enum WorkflowIdReusePolicy {
   /**
@@ -38,13 +41,12 @@ export enum WorkflowIdReusePolicy {
   WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE = 3,
 
   /**
-   * Terminate the current workflow if one is already running.
+   * Terminate the current workflow if one is already running, otherwise allow a duplicate ID.
+   *
+   * Deprecated: use `WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING` and `WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE` instead.
    *
    * This option belongs in `WorkflowIdConflictPolicy` but it is here for backwards compatibility.
-   * With no Running Workflow, the behavior is the same as `WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE`,
-   * but with a Running Workflow, it behaves like `WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING`.
-   *
-   * *Note: When setting this option, `WorkflowIdConflictPolicy` should have value `WORKFLOW_ID_CONFLICT_POLICY_UNSPECIFIED`*
+   * *Note: If setting this option, `WorkflowIdConflictPolicy` must be left unspecified.*
    */
   WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING = 4,
 }
@@ -55,11 +57,11 @@ checkExtends<WorkflowIdReusePolicy, temporal.api.enums.v1.WorkflowIdReusePolicy>
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from temporal.api.enums.v1.WorkflowIdConflictPolicy
 /**
- * Defines what should happen when trying to start a Workflow with the same Workflow Id of a Running workflow.
+ * Defines what happens when trying to start a Workflow with the same ID as a *Running* Workflow.
  *
- * See `WorkflowIdReusePolicy` for handling Workflow Id duplication of a *Closed* workflow.
+ * See {@link WorkflowOptions.workflowIdReusePolicy} for what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
  *
- * *Note: It is never valid to have two actively running instances with the same Workflow Id.*
+ * *Note: It is not possible to have two actively running Workflows with the same ID.*
  */
 export enum WorkflowIdConflictPolicy {
   /**
@@ -72,17 +74,17 @@ export enum WorkflowIdConflictPolicy {
   WORKFLOW_ID_CONFLICT_POLICY_UNSPECIFIED = 0,
 
   /**
-   * Do not start a new Workflow. Return instead a `WorkflowExecutionAlreadyStartedError`.
+   * Do not start a new Workflow. Instead raise a `WorkflowExecutionAlreadyStartedError`.
    */
   WORKFLOW_ID_CONFLICT_POLICY_FAIL = 1,
 
   /**
-   * Do not start a new Workflow. Return instead a Workflow Handle for the currently Running Workflow.
+   * Do not start a new Workflow. Instead return a Workflow Handle for the currently Running Workflow.
    */
   WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING = 2,
 
   /**
-   * Terminate the current workflow if one is already running.
+   * Start a new Workflow, terminating the current workflow if one is already running.
    */
   WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING = 3,
 }
@@ -92,18 +94,18 @@ checkExtends<WorkflowIdConflictPolicy, temporal.api.enums.v1.WorkflowIdConflictP
 
 export interface BaseWorkflowOptions {
   /**
-   * Whether a Workflow can be started with a Workflow Id of a Closed Workflow.
+   * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
    *
-   * *Note: A Workflow can never be started with a Workflow Id of a Running Workflow.*
+   * *Note: It is not possible to have two actively running Workflows with the same ID.*
    *
    * @default {@link WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE}
    */
   workflowIdReusePolicy?: WorkflowIdReusePolicy;
 
   /**
-   * Defines what should happen when trying to start a Workflow with the same Workflow Id of a Running workflow.
+   * Defines what happens when trying to start a Workflow with the same ID as a *Running* Workflow.
    *
-   * *Note: It is never valid to have two actively running instances with the same Workflow Id.*
+   * *Note: It is not possible to have two actively running Workflows with the same ID.*
    *
    * @default {@link WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_UNSPECIFIED}
    */
