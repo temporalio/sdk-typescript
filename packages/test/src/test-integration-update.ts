@@ -1,9 +1,10 @@
 import { WorkflowUpdateStage, WorkflowUpdateRPCTimeoutOrCancelledError, WorkflowFailedError } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
+import { temporal } from '@temporalio/proto';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { signalUpdateOrderingWorkflow } from './workflows/signal-update-ordering';
 import { signalsActivitiesTimersPromiseOrdering } from './workflows/signals-timers-activities-order';
-import { getHistories, sleep, waitUntil } from './helpers';
+import { getHistories, waitUntil } from './helpers';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -631,48 +632,67 @@ export { signalsActivitiesTimersPromiseOrdering };
 // A broader check covering issue #1474, but also other subtle ordering issues caused by the fact
 // that signals used to be processed in a distinct phase from other types of jobs.
 test('Signals/Updates/Activities/Timers have coherent promise completion ordering', async (t) => {
-  const { createWorker, startWorkflow, taskQueue } = helpers(t);
+  const { createWorker, startWorkflow, taskQueue, updateHasBeenAdmitted } = helpers(t);
 
-  let resolvePromise: (x: unknown) => void;
-  const activityGotScheduledPromise = new Promise((resolve) => {
-    resolvePromise = resolve;
-  });
+  // We need signal+update+timer completion+activity completion to all happen in the same workflow task.
+  // To get there, as soon as the activity gets scheduled, we shutdown the workflow worker, then send
+  // the signal and update while there is no worker alive. When it eventually comes back up, all events
+  // will be queued up for the next WFT.
 
-  const activityWorker = await createWorker({
-    taskQueue: `${taskQueue}-activity`,
-    activities: {
-      myActivity: async () => {
-        resolvePromise(undefined);
-      },
-    },
-    workflowBundle: undefined,
-    workflowsPath: undefined,
-  });
-  await activityWorker.runUntil(async () => {
-    const handle = await startWorkflow(signalsActivitiesTimersPromiseOrdering);
+  const worker1 = await createWorker({ maxCachedWorkflows: 0 });
+  const worker1Promise = worker1.run();
+  const killWorker1 = async () => {
+    try {
+      worker1.shutdown();
+    } catch {
+      // We may attempt to shutdown the worker multiple times. Ignore errors.
+    }
+    await worker1Promise;
+  };
 
-    // We need signal+update+timer completion+activity completion to all happen in the same workflow task.
-    // To get there, as soon as the activity gets scheduled, we shutdown the worker, then send the signal
-    // and update while there is no worker alive. When it eventually comes back up, all events will be
-    // queued up for the next WFT.
-    const worker1 = await createWorker({ maxCachedWorkflows: 0 });
-    await worker1.runUntil(activityGotScheduledPromise);
-
-    const updateId = 'update-id';
-    await handle.signal('aaSignal');
-    const updatePromise = handle.executeUpdate('aaUpdate', { updateId });
-
-    // Wait a bit, to be sure that the actvity's completion has been recorded before we turns the worker back on.
-    await sleep(800);
-
-    await (
-      await createWorker({})
-    ).runUntil(async () => {
-      t.deepEqual(await handle.result(), [true, true, true, true]);
+  try {
+    const activityWorker = await createWorker({
+      taskQueue: `${taskQueue}-activity`,
+      activities: { myActivity: killWorker1 },
+      workflowBundle: undefined,
+      workflowsPath: undefined,
     });
+    await activityWorker.runUntil(async () => {
+      const handle = await startWorkflow(signalsActivitiesTimersPromiseOrdering);
 
-    await updatePromise;
-  });
+      // The workflow will schedule the activity, which will shutdown the worker.
+      // Then this promise will resolves.
+      await worker1Promise;
+
+      await handle.signal('aaSignal');
+      const updateId = 'update-id';
+      const updatePromise = handle.executeUpdate('aaUpdate', { updateId });
+
+      // Timing is important here. Make sure that everything is ready before creating the new worker.
+      await waitUntil(async () => {
+        const updateAdmitted = await updateHasBeenAdmitted(handle, updateId);
+        if (!updateAdmitted) return false;
+
+        const { events } = await handle.fetchHistory();
+        return (
+          events != null &&
+          events.some((e) => e.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_ACTIVITY_TASK_COMPLETED) &&
+          events.some((e) => e.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_TIMER_FIRED) &&
+          events.some((e) => e.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED)
+        );
+      }, 5000);
+
+      await (
+        await createWorker({})
+      ).runUntil(async () => {
+        t.deepEqual(await handle.result(), [true, true, true, true]);
+      });
+
+      await updatePromise;
+    });
+  } finally {
+    await killWorker1();
+  }
 });
 
 export async function canCompleteUpdateAfterWorkflowReturns(fail: boolean = false): Promise<void> {
