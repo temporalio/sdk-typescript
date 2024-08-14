@@ -1262,6 +1262,7 @@ export class Worker {
       randomnessSeed: randomnessSeed.toBytes(),
       now: tsToMs(activation.timestamp),
       patches,
+      sdkFlags: activation.availableInternalFlags ?? [],
       showStackTraceSources: this.options.showStackTraceSources,
     });
 
