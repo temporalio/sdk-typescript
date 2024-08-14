@@ -2529,29 +2529,3 @@ test('Signals/Updates/Activities/Timers - Trace promises completion order - 1.11
     );
   }
 });
-
-test('Can complete update after workflow returns - canCompleteUpdateAfterWorkflowReturns', async (t) => {
-  const { workflowType } = t.context;
-  {
-    const completion = await activate(t, {
-      ...makeActivation(undefined, makeStartWorkflowJob(workflowType)),
-    });
-    compareCompletion(t, completion, makeSuccess([]));
-  }
-  {
-    const completion = await activate(t, {
-      ...makeActivation(undefined, {
-        doUpdate: { id: 'first', name: 'doneUpdate', protocolInstanceId: '1' },
-      }),
-    });
-    compareCompletion(
-      t,
-      completion,
-      makeSuccess([
-        { updateResponse: { protocolInstanceId: '1', accepted: {} } },
-        makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload(undefined)),
-        { updateResponse: { protocolInstanceId: '1', completed: defaultPayloadConverter.toPayload('completed') } },
-      ])
-    );
-  }
-});

@@ -1,10 +1,9 @@
-import { WorkflowUpdateStage, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
+import { WorkflowUpdateStage, WorkflowUpdateRPCTimeoutOrCancelledError, WorkflowFailedError } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { signalUpdateOrderingWorkflow } from './workflows/signal-update-ordering';
 import { signalsActivitiesTimersPromiseOrdering } from './workflows/signals-timers-activities-order';
-import { canCompleteUpdateAfterWorkflowReturns } from './workflows/complete-update-after-wf-returns';
-import { sleep, waitUntil } from './helpers';
+import { getHistories, sleep, waitUntil } from './helpers';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -676,7 +675,20 @@ test('Signals/Updates/Activities/Timers have coherent promise completion orderin
   });
 });
 
-export { canCompleteUpdateAfterWorkflowReturns };
+export async function canCompleteUpdateAfterWorkflowReturns(fail: boolean = false): Promise<void> {
+  let gotUpdate = false;
+  let mainReturned = false;
+
+  wf.setHandler(wf.defineUpdate<string>('doneUpdate'), async () => {
+    gotUpdate = true;
+    await wf.condition(() => mainReturned);
+    return 'completed';
+  });
+
+  await wf.condition(() => gotUpdate);
+  mainReturned = true;
+  if (fail) throw wf.ApplicationFailure.nonRetryable('Intentional failure');
+}
 
 test('Can complete update after workflow returns', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
@@ -689,4 +701,73 @@ test('Can complete update after workflow returns', async (t) => {
 
     await t.is(updateHandler, 'completed');
   });
+});
+
+test('Can complete update after Workflow fails', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(canCompleteUpdateAfterWorkflowReturns, { args: [true] });
+    const updateHandler = await handle.executeUpdate(wf.defineUpdate<string>('doneUpdate'));
+    await t.throwsAsync(handle.result(), { instanceOf: WorkflowFailedError });
+    await t.is(updateHandler, 'completed');
+  });
+});
+
+/**
+ * The {@link canCompleteUpdateAfterWorkflowReturns} workflow above features an update handler that
+ * return safter the main workflow functions has returned. It will (assuming an update is sent in
+ * the first WFT) generate a raw command sequence (before sending to core) of:
+ *
+ *   [UpdateAccepted, CompleteWorkflowExecution, UpdateCompleted].
+ *
+ * Prior to https://github.com/temporalio/sdk-typescript/pull/1488, TS SDK ignored any command
+ * produced after a completion command, therefore truncating this command sequence to:
+ *
+ *   [UpdateAccepted, CompleteWorkflowExecution].
+ *
+ * Starting with #1488, TS SDK now performs no truncation, and Core reorders the sequence to:
+ *
+ *   [UpdateAccepted, UpdateCompleted, CompleteWorkflowExecution].
+ *
+ * This test takes a history generated using pre-#1488 SDK code, and replays it. That history
+ * contains the following events:
+ *
+ *   1 WorkflowExecutionStarted
+ *   2 WorkflowTaskScheduled
+ *   3 WorkflowTaskStarted
+ *   4 WorkflowTaskCompleted
+ *   5 WorkflowExecutionUpdateAccepted
+ *   6 WorkflowExecutionCompleted
+ *
+ * Note that the history lacks a `WorkflowExecutionUpdateCompleted` event.
+ *
+ * If Core's logic (which involves a flag) incorrectly allowed this history to be replayed using
+ * Core's post-#1488 implementation, then a non-determinism error would result. Specifically, Core
+ * would, at some point during replay, do the following:
+ *
+ *  - Receive [UpdateAccepted, CompleteWorkflowExecution, UpdateCompleted] from lang;
+ *  - Change that to `[UpdateAccepted, UpdateCompleted, CompleteWorkflowExecution]`;
+ *  - Create an `UpdateMachine` instance (the `WorkflowTaskMachine` instance already exists).
+ *  - Continue to consume history events.
+ *
+ * Event 5, `WorkflowExecutionUpdateAccepted`, would apply to the `UpdateMachine` associated with
+ * the `UpdateAccepted` command, but event 6, `WorkflowExecutionCompleted` would not, since Core is
+ * expecting an event that can be applied to the `UpdateMachine` corresponding to `UpdateCompleted`.
+ * If we modify Core to incorrectly apply its new logic then we do see that:
+ *
+ *   [TMPRL1100] Nondeterminism error: Update machine does not handle this event: HistoryEvent(id: 6, WorkflowExecutionCompleted)
+ *
+ * The test passes because Core in fact (because the history lacks the flag) uses its old logic and
+ * changes the command sequence from `[UpdateAccepted, CompleteWorkflowExecution, UpdateCompleted]`
+ * to `[UpdateAccepted, CompleteWorkflowExecution]`, i.e. truncating commands emitted after the
+ * first completion command like TS SDK used to do, so that events 5 and 6 can be applied to the
+ * corresponding state machines.
+ */
+test('Can complete update after workflow returns - pre-1.11.0 compatibility', async (t) => {
+  const { runReplayHistory } = helpers(t);
+  const hist = await getHistories('complete_update_after_workflow_returns_pre1488.json');
+  await runReplayHistory({}, hist);
+  t.pass();
 });
