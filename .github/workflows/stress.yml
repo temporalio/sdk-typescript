@@ -43,7 +43,7 @@ env:
   TEMPORAL_TESTING_MEM_LOG_DIR: /tmp/worker-mem-logs
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   REUSE_V8_CONTEXT: ${{ inputs.reuse-v8-context }}
-  IS_MAIN_BRANCH: |
+  IS_MAIN_OR_RELEASE: |
     ${{
       github.repository == 'temporalio/sdk-typescript'
         && (github.ref == 'refs/heads/main'
@@ -62,6 +62,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          ref: inputs.ref
 
       - name: Install Node
         uses: actions/setup-node@v4
@@ -99,7 +100,7 @@ jobs:
           prefix-key: corebridge-buildcache
           shared-key: linux-intel
           env-vars: ''
-          save-if: env.IS_MAIN_BRANCH == 'true'
+          save-if: env.IS_MAIN_OR_RELEASE
 
       - name: Download dependencies
         # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors
