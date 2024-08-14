@@ -338,7 +338,9 @@ export abstract class BaseVMWorkflow implements Workflow {
     }
 
     if (doSingleBatch) {
-      //
+      // updateRandomSeed require the same special handling as patches (before anything else, and don't
+      // unblock conditions after each job). Unfortunately, prior to ProcessWorkflowActivationJobsAsSingleBatch,
+      // they were handled as regular jobs, making it unsafe to properly handle that job above, with patches.
       const [updateRandomSeed, rest] = partition(activation.jobs, ({ updateRandomSeed }) => updateRandomSeed != null);
       if (updateRandomSeed.length > 0)
         this.activator.updateRandomSeed(updateRandomSeed[updateRandomSeed.length - 1].updateRandomSeed!);
@@ -394,7 +396,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         isReplaying: true,
       },
     }));
-    this.workflowModule.activateQueries(activation);
+    this.workflowModule.activate(activation, 0);
     return this.workflowModule.concludeActivation();
   }
 

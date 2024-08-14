@@ -124,23 +124,11 @@ export function activate(activation: coresdk.workflow_activation.IWorkflowActiva
       if (!variant) throw new TypeError(`Expected job.${job.variant} to be set`);
 
       activator[job.variant](variant as any /* TS can't infer this type */);
-      tryUnblockConditions();
+
+      if (job.variant !== 'queryWorkflow') tryUnblockConditions();
     }
   });
   intercept({ activation, batchIndex });
-}
-
-export function activateQueries(activation: coresdk.workflow_activation.IWorkflowActivation): void {
-  const activator = getActivator();
-  const intercept = composeInterceptors(activator.interceptors.internals, 'activate', ({ activation }) => {
-    const jobs = activation.jobs as coresdk.workflow_activation.WorkflowActivationJob[];
-    for (const job of jobs) {
-      const query = job.queryWorkflow;
-      if (!query) throw new TypeError(`Expected job.query to be set`);
-      activator.queryWorkflow(query);
-    }
-  });
-  intercept({ activation, batchIndex: 0 });
 }
 
 /**
