@@ -58,6 +58,7 @@ async function wrapWithSpan<T>(
 export interface InstrumentOptions<T> {
   tracer: otel.Tracer;
   spanName: string;
+  spanOptions?: otel.SpanOptions;
   fn: (span: otel.Span) => Promise<T>;
   context?: otel.Context;
   acceptableErrors?: (err: unknown) => boolean;
@@ -69,14 +70,23 @@ export interface InstrumentOptions<T> {
 export async function instrument<T>({
   tracer,
   spanName,
+  spanOptions = {},
   fn,
   context,
   acceptableErrors,
 }: InstrumentOptions<T>): Promise<T> {
   if (context) {
     return await otel.context.with(context, async () => {
-      return await tracer.startActiveSpan(spanName, async (span) => await wrapWithSpan(span, fn, acceptableErrors));
+      return await tracer.startActiveSpan(
+        spanName,
+        spanOptions,
+        async (span) => await wrapWithSpan(span, fn, acceptableErrors)
+      );
     });
   }
-  return await tracer.startActiveSpan(spanName, async (span) => await wrapWithSpan(span, fn, acceptableErrors));
+  return await tracer.startActiveSpan(
+    spanName,
+    spanOptions,
+    async (span) => await wrapWithSpan(span, fn, acceptableErrors)
+  );
 }
