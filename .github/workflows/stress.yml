@@ -113,7 +113,7 @@ jobs:
       - name: Run Temporal CLI
         shell: bash
         run: |
-          temporal server start-dev --headless --db-filename /tmp/temporal.sqlite3 &> /tmp/devserver.log &
+          temporal server start-dev --headless &
 
       - name: Run tests
         run: |
@@ -135,13 +135,6 @@ jobs:
         with:
           name: worker-mem-logs-${{ inputs.reuse-v8-context && 'reuse-v8' || 'no-reuse-v8' }}
           path: ${{ env.TEMPORAL_TESTING_MEM_LOG_DIR }}
-
-      - name: Upload Dev Server logs
-        uses: actions/upload-artifact@v4
-        if: failure() || cancelled()
-        with:
-          name: integration-tests-${{ inputs.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
-          path: /tmp/devserver.log
 
       # TODO: set up alerting
       # TODO: record test durations and other metrics like memory usage / cache utilization / CPU
