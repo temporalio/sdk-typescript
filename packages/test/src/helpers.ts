@@ -1,3 +1,4 @@
+import * as fs from 'fs/promises';
 import * as net from 'net';
 import path from 'path';
 import StackUtils from 'stack-utils';
@@ -128,6 +129,7 @@ export const bundlerOptions = {
     'async-retry',
     'uuid',
     'net',
+    'fs/promises',
   ],
 };
 
@@ -292,4 +294,16 @@ export function asSdkLoggerSink(
       error: { fn, ...opts },
     },
   };
+}
+
+export async function getHistories(fname: string): Promise<iface.temporal.api.history.v1.History> {
+  const isJson = fname.endsWith('json');
+  const fpath = path.resolve(__dirname, `../history_files/${fname}`);
+  if (isJson) {
+    const hist = await fs.readFile(fpath, 'utf8');
+    return JSON.parse(hist);
+  } else {
+    const hist = await fs.readFile(fpath);
+    return iface.temporal.api.history.v1.History.decode(hist);
+  }
 }

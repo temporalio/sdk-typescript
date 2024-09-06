@@ -17,6 +17,25 @@ export const SdkFlags = {
    * @since Introduced in 1.10.2/1.11.0.
    */
   NonCancellableScopesAreShieldedFromPropagation: defineFlag(1, true),
+
+  /**
+   * Prior to 1.11.0, when processing a Workflow activation, the SDK would execute `notifyHasPatch`
+   * and `signalWorkflow` jobs in distinct phases, before other types of jobs. The primary reason
+   * behind that multi-phase algorithm was to avoid the possibility that a Workflow execution might
+   * complete before all incoming signals have been dispatched (at least to the point that the
+   * _synchronous_ part of the handler function has been executed).
+   *
+   * This flag replaces that multi-phase algorithm with a simpler one where jobs are simply sorted as
+   * `(signals and updates) -> others`, but without processing them as distinct batches (i.e. without
+   * leaving/reentering the VM context between each group, which automatically triggers the execution
+   * of all outstanding microtasks). That single-phase approach resolves a number of quirks of the
+   * former algorithm, and yet still satisfies to the original requirement of ensuring that every
+   * `signalWorkflow` jobs - and now `doUpdate` jobs as well - have been given a proper chance to
+   * execute before the Workflow main function might completes.
+   *
+   * @since Introduced in 1.11.0. This change is not rollback-safe.
+   */
+  ProcessWorkflowActivationJobsAsSingleBatch: defineFlag(2, true),
 } as const;
 
 function defineFlag(id: number, def: boolean): SdkFlag {

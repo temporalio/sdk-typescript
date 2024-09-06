@@ -62,7 +62,12 @@ test.serial('Runtime.install() accepts metrics.otel.url without headers', async 
   }
 });
 
-test.serial('Exporting OTEL metrics from Core works', async (t) => {
+// FIXME: Core's OTLP exporter has become extremely noisy when exporting metrics but not getting a
+// proper grpc response from the collector. I'm skipping this test until we can reimplement this using
+// a more a more convincing mock collector. This has also coincided with one case where of CI integration
+// tests hanged, though I don't know at this point etither that's related or just a coincidence.
+// https://github.com/temporalio/sdk-typescript/issues/1495
+test.serial.skip('Exporting OTEL metrics from Core works', async (t) => {
   let resolveCapturedRequest = (_req: http2.Http2ServerRequest) => undefined as void;
   const capturedRequest = new Promise<http2.Http2ServerRequest>((r) => (resolveCapturedRequest = r));
   await withHttp2Server(async (port: number) => {
@@ -110,7 +115,9 @@ test.serial('Exporting OTEL metrics from Core works', async (t) => {
 });
 
 if (RUN_INTEGRATION_TESTS) {
-  test.serial('Otel interceptor spans are connected and complete', async (t) => {
+  // FIXME: See comment above.
+  // https://github.com/temporalio/sdk-typescript/issues/1495
+  test.serial.skip('Otel interceptor spans are connected and complete', async (t) => {
     const spans = Array<opentelemetry.tracing.ReadableSpan>();
 
     const staticResource = new opentelemetry.resources.Resource({

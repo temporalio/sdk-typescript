@@ -129,7 +129,7 @@ export interface Info {
    */
   readonly activityNamespace: string;
   /**
-   * Attempt number for this activity
+   * Attempt number for this activity. Starts at 1 and increments for every retry.
    */
   readonly attempt: number;
   /**

@@ -151,7 +151,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     });
     const activator = bag.__TEMPORAL_ACTIVATOR__ as any;
 
-    const newVM = new ReusableVMWorkflow(options.info, context, activator, workflowModule, isolateExecutionTimeoutMs);
+    const newVM = new ReusableVMWorkflow(options.info.runId, context, activator, workflowModule);
     ReusableVMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
     return newVM;
   }
@@ -189,6 +189,6 @@ type WorkflowModule = typeof internals;
  */
 export class ReusableVMWorkflow extends BaseVMWorkflow {
   public async dispose(): Promise<void> {
-    ReusableVMWorkflowCreator.workflowByRunId.delete(this.info.runId);
+    ReusableVMWorkflowCreator.workflowByRunId.delete(this.runId);
   }
 }
