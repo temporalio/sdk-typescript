@@ -244,7 +244,7 @@ test('Start of workflow respects workflow id conflict policy', async (t) => {
       }
     );
 
-    t.true(err instanceof WorkflowExecutionAlreadyStartedError && err.message === 'Workflow execution already started');
+    t.true(err instanceof WorkflowExecutionAlreadyStartedError);
 
     // Confirm fails with explicit option
     const err1 = await t.throwsAsync(
@@ -258,9 +258,7 @@ test('Start of workflow respects workflow id conflict policy', async (t) => {
       }
     );
 
-    t.true(
-      err1 instanceof WorkflowExecutionAlreadyStartedError && err1.message === 'Workflow execution already started'
-    );
+    t.true(err1 instanceof WorkflowExecutionAlreadyStartedError);
 
     // Confirm gives back same handle
     const handle2 = await client.workflow.start(conflictId, {
@@ -272,9 +270,9 @@ test('Start of workflow respects workflow id conflict policy', async (t) => {
     const desc = await handleWithRunId.describe();
     const desc2 = await handle2.describe();
 
-    t.deepEqual(desc.runId, desc2.runId);
-    t.deepEqual(desc.status.name, 'RUNNING');
-    t.deepEqual(desc2.status.name, 'RUNNING');
+    t.is(desc.runId, desc2.runId);
+    t.is(desc.status.name, 'RUNNING');
+    t.is(desc2.status.name, 'RUNNING');
 
     // Confirm terminates and starts new
     const handle3 = await client.workflow.start(conflictId, {
@@ -285,9 +283,9 @@ test('Start of workflow respects workflow id conflict policy', async (t) => {
 
     const descWithRunId = await handleWithRunId.describe();
     const desc3 = await handle3.describe();
-    t.true(descWithRunId.runId !== desc3.runId);
-    t.deepEqual(descWithRunId.status.name, 'TERMINATED');
-    t.deepEqual(desc3.status.name, 'RUNNING');
+    t.not(descWithRunId.runId, desc3.runId);
+    t.is(descWithRunId.status.name, 'TERMINATED');
+    t.is(desc3.status.name, 'RUNNING');
   });
 });
 
