@@ -328,7 +328,7 @@ export abstract class BaseVMWorkflow implements Workflow {
     }));
     this.activator.addKnownFlags(activation.availableInternalFlags ?? []);
 
-    // Initialization of the workflow must happens before anything else. Yet, keep the init job in
+    // Initialization of the workflow must happen before anything else. Yet, keep the init job in
     // place in the list as we'll use it as a marker to know when to start the workflow function.
     const initWorkflowJob = activation.jobs.find((job) => job.initializeWorkflow != null)?.initializeWorkflow;
     if (initWorkflowJob) this.workflowModule.initialize(initWorkflowJob);
