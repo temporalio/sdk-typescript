@@ -108,14 +108,24 @@ function fixPrototypes<X>(obj: X): X {
 }
 
 /**
+ * Initialize the workflow. Or to be exact, _complete_ initialization, as most part has been done in constructor).
+ */
+export function initialize(initializeWorkflowJob: coresdk.workflow_activation.IInitializeWorkflow): void {
+  getActivator().initializeWorkflow(initializeWorkflowJob);
+}
+
+/**
  * Run a chunk of activation jobs
  */
-export function activate(activation: coresdk.workflow_activation.IWorkflowActivation, batchIndex: number): void {
+export function activate(activation: coresdk.workflow_activation.IWorkflowActivation, batchIndex = 0): void {
   const activator = getActivator();
   const intercept = composeInterceptors(activator.interceptors.internals, 'activate', ({ activation }) => {
     // Cast from the interface to the class which has the `variant` attribute.
     // This is safe because we know that activation is a proto class.
     const jobs = activation.jobs as coresdk.workflow_activation.WorkflowActivationJob[];
+
+    // Initialization will have been handled already, but we might still need to start the workflow function
+    const startWorkflowJob = jobs[0].variant === 'initializeWorkflow' ? jobs.shift()?.initializeWorkflow : undefined;
 
     for (const job of jobs) {
       if (job.variant === undefined) throw new TypeError('Expected job.variant to be defined');
@@ -126,6 +136,25 @@ export function activate(activation: coresdk.workflow_activation.IWorkflowActiva
       activator[job.variant](variant as any /* TS can't infer this type */);
 
       if (job.variant !== 'queryWorkflow') tryUnblockConditions();
+    }
+
+    if (startWorkflowJob) {
+      const safeJobTypes: coresdk.workflow_activation.WorkflowActivationJob['variant'][] = [
+        'initializeWorkflow',
+        'signalWorkflow',
+        'doUpdate',
+        'cancelWorkflow',
+        'updateRandomSeed',
+      ];
+      if (jobs.some((job) => !safeJobTypes.includes(job.variant))) {
+        throw new TypeError(
+          'Received both initializeWorkflow and non-signal/non-update jobs in the same activation: ' +
+            JSON.stringify(jobs.map((job) => job.variant))
+        );
+      }
+
+      activator.startWorkflow(startWorkflowJob);
+      tryUnblockConditions();
     }
   });
   intercept({ activation, batchIndex });

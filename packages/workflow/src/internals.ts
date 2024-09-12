@@ -18,6 +18,10 @@ import {
   ApplicationFailure,
   WorkflowUpdateType,
   WorkflowUpdateValidatorType,
+  mapFromPayloads,
+  searchAttributePayloadConverter,
+  fromPayloadsAtIndex,
+  SearchAttributes,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
@@ -365,9 +369,7 @@ export class Activator implements ActivationHandler {
     showStackTraceSources,
     sourceMap,
     getTimeOfDay,
-    sdkFlags,
     randomnessSeed,
-    patches,
     registeredActivityNames,
   }: WorkflowCreateOptionsInternal) {
     this.getTimeOfDay = getTimeOfDay;
@@ -377,11 +379,6 @@ export class Activator implements ActivationHandler {
     this.sourceMap = sourceMap;
     this.random = alea(randomnessSeed);
     this.registeredActivityNames = registeredActivityNames;
-
-    this.addKnownFlags(sdkFlags);
-    for (const patchId of patches) {
-      this.notifyHasPatch({ patchId });
-    }
   }
 
   /**
@@ -449,7 +446,7 @@ export class Activator implements ActivationHandler {
     return await workflow(...args);
   }
 
-  public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
+  public startWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
     const execute = composeInterceptors(this.interceptors.inbound, 'execute', this.startWorkflowNextHandler.bind(this));
 
     untrackPromise(
@@ -460,6 +457,23 @@ export class Activator implements ActivationHandler {
         })
       ).then(this.completeWorkflow.bind(this), this.handleWorkflowFailure.bind(this))
     );
+  }
+
+  public initializeWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
+    const { continuedFailure, lastCompletionResult, memo, searchAttributes } = activation;
+
+    // Most things related to initialization have already been handled in the constructor
+    this.mutateWorkflowInfo((info) => ({
+      ...info,
+      searchAttributes:
+        (mapFromPayloads(searchAttributePayloadConverter, searchAttributes?.indexedFields) as SearchAttributes) ?? {},
+      memo: mapFromPayloads(this.payloadConverter, memo?.fields),
+      lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads),
+      lastFailure:
+        continuedFailure != null
+          ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter)
+          : undefined,
+    }));
   }
 
   public cancelWorkflow(_activation: coresdk.workflow_activation.ICancelWorkflow): void {
