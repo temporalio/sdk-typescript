@@ -328,6 +328,11 @@ export abstract class BaseVMWorkflow implements Workflow {
     }));
     this.activator.addKnownFlags(activation.availableInternalFlags ?? []);
 
+    // Initialization of the workflow must happen before anything else. Yet, keep the init job in
+    // place in the list as we'll use it as a marker to know when to start the workflow function.
+    const initWorkflowJob = activation.jobs.find((job) => job.initializeWorkflow != null)?.initializeWorkflow;
+    if (initWorkflowJob) this.workflowModule.initialize(initWorkflowJob);
+
     const hasSignals = activation.jobs.some(({ signalWorkflow }) => signalWorkflow != null);
     const doSingleBatch = !hasSignals || this.activator.hasFlag(SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch);
 
@@ -338,16 +343,14 @@ export abstract class BaseVMWorkflow implements Workflow {
     }
 
     if (doSingleBatch) {
-      // updateRandomSeed require the same special handling as patches (before anything else, and don't
+      // updateRandomSeed requires the same special handling as patches (before anything else, and don't
       // unblock conditions after each job). Unfortunately, prior to ProcessWorkflowActivationJobsAsSingleBatch,
       // they were handled as regular jobs, making it unsafe to properly handle that job above, with patches.
-      const [updateRandomSeed, rest] = partition(activation.jobs, ({ updateRandomSeed }) => updateRandomSeed != null);
+      const [updateRandomSeed, rest] = partition(nonPatches, ({ updateRandomSeed }) => updateRandomSeed != null);
       if (updateRandomSeed.length > 0)
         this.activator.updateRandomSeed(updateRandomSeed[updateRandomSeed.length - 1].updateRandomSeed!);
-
       this.workflowModule.activate(
-        coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs: rest }),
-        0
+        coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs: rest })
       );
       this.tryUnblockConditionsAndMicrotasks();
     } else {
@@ -396,7 +399,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         isReplaying: true,
       },
     }));
-    this.workflowModule.activate(activation, 0);
+    this.workflowModule.activate(activation);
     return this.workflowModule.concludeActivation();
   }
 

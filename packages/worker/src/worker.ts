@@ -27,18 +27,14 @@ import {
   IllegalStateError,
   LoadedDataConverter,
   SdkComponent,
-  mapFromPayloads,
   Payload,
-  searchAttributePayloadConverter,
-  SearchAttributes,
   ApplicationFailure,
   ensureApplicationFailure,
 } from '@temporalio/common';
 import {
   decodeArrayFromPayloads,
+  Decoded,
   decodeFromPayloadsAtIndex,
-  decodeMapFromPayloads,
-  decodeOptionalFailureToOptionalError,
   encodeErrorToFailure,
   encodeToPayload,
 } from '@temporalio/common/lib/internal-non-workflow';
@@ -112,8 +108,6 @@ type Promisify<T> = T extends (...args: any[]) => void
   : never;
 
 type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
-type PatchJob = NonNullableObject<Pick<coresdk.workflow_activation.IWorkflowActivationJob, 'notifyHasPatch'>>;
-type StartWorkflowJob = NonNullableObject<Pick<coresdk.workflow_activation.IWorkflowActivationJob, 'startWorkflow'>>;
 
 type WorkflowActivation = coresdk.workflow_activation.WorkflowActivation;
 
@@ -1106,21 +1100,20 @@ export class Worker {
         return { state: undefined, output: { close, completion } };
       }
 
+      const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
+
       if (workflow === undefined) {
-        // Find a workflow start job in the activation jobs list
-        const maybeStartWorkflow = activation.jobs.find((j): j is StartWorkflowJob => j.startWorkflow != null);
-        if (maybeStartWorkflow !== undefined) {
-          workflow = await this.createWorkflow(activation, maybeStartWorkflow.startWorkflow);
-        } else {
+        const initWorkflowDetails = decodedActivation.jobs[0]?.initializeWorkflow;
+        if (initWorkflowDetails == null)
           throw new IllegalStateError(
-            'Received workflow activation for an untracked workflow with no start workflow job'
+            'Received workflow activation for an untracked workflow with no init workflow job'
           );
-        }
+
+        workflow = await this.createWorkflow(decodedActivation, initWorkflowDetails);
       }
 
       let isFatalError = false;
       try {
-        const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
         const unencodedCompletion = await workflow.workflow.activate(decodedActivation);
         const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
 
@@ -1169,22 +1162,22 @@ export class Worker {
   }
 
   protected async createWorkflow(
-    activation: coresdk.workflow_activation.WorkflowActivation,
-    startWorkflow: coresdk.workflow_activation.IStartWorkflow
+    activation: Decoded<coresdk.workflow_activation.WorkflowActivation>,
+    initWorkflowJob: Decoded<coresdk.workflow_activation.IInitializeWorkflow>
   ): Promise<WorkflowWithLogAttributes> {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const workflowCreator = this.workflowCreator!;
     if (
       !(
-        startWorkflow.workflowId != null &&
-        startWorkflow.workflowType != null &&
-        startWorkflow.randomnessSeed != null &&
-        startWorkflow.firstExecutionRunId != null &&
-        startWorkflow.attempt != null &&
-        startWorkflow.startTime != null
+        initWorkflowJob.workflowId != null &&
+        initWorkflowJob.workflowType != null &&
+        initWorkflowJob.randomnessSeed != null &&
+        initWorkflowJob.firstExecutionRunId != null &&
+        initWorkflowJob.attempt != null &&
+        initWorkflowJob.startTime != null
       )
     ) {
-      throw new TypeError(`Malformed StartWorkflow activation: ${JSON.stringify(startWorkflow)}`);
+      throw new TypeError(`Malformed InitializeWorkflow activation: ${JSON.stringify(initWorkflowJob)}`);
     }
     if (activation.timestamp == null) {
       throw new TypeError('Got activation with no timestamp, cannot create a new Workflow instance');
@@ -1198,33 +1191,27 @@ export class Worker {
       workflowRunTimeout,
       workflowTaskTimeout,
       continuedFromExecutionRunId,
-      continuedFailure,
-      lastCompletionResult,
       firstExecutionRunId,
       retryPolicy,
       attempt,
       cronSchedule,
       workflowExecutionExpirationTime,
       cronScheduleToScheduleInterval,
-      memo,
-      searchAttributes,
-    } = startWorkflow;
+    } = initWorkflowJob;
 
+    // Note that we can't do payload convertion here, as there's no guarantee that converted payloads would be safe to
+    // transfer through the V8 message port. Those will therefore be set in the Activator's initializeWorkflow job handler.
     const workflowInfo: WorkflowInfo = {
       workflowId,
       runId: activation.runId,
       workflowType,
-      searchAttributes:
-        (mapFromPayloads(searchAttributePayloadConverter, searchAttributes?.indexedFields) as SearchAttributes) || {},
-      memo: await decodeMapFromPayloads(this.options.loadedDataConverter, memo?.fields),
+      searchAttributes: {},
       parent: convertToParentWorkflowType(parentWorkflowInfo),
-      lastResult: await decodeFromPayloadsAtIndex(this.options.loadedDataConverter, 0, lastCompletionResult?.payloads),
-      lastFailure: await decodeOptionalFailureToOptionalError(this.options.loadedDataConverter, continuedFailure),
       taskQueue: this.options.taskQueue,
       namespace: this.options.namespace,
       firstExecutionRunId,
       continuedFromExecutionRunId: continuedFromExecutionRunId || undefined,
-      startTime: tsToDate(startWorkflow.startTime),
+      startTime: tsToDate(initWorkflowJob.startTime),
       runStartTime: tsToDate(activation.timestamp),
       executionTimeoutMs: optionalTsToMs(workflowExecutionTimeout),
       executionExpirationTime: optionalTsToDate(workflowExecutionExpirationTime),
@@ -1248,21 +1235,11 @@ export class Worker {
     };
     const logAttributes = workflowLogAttributes(workflowInfo);
     this.logger.trace('Creating workflow', logAttributes);
-    const patchJobs = activation.jobs.filter((j): j is PatchJob => j.notifyHasPatch != null);
-    const patches = patchJobs.map(({ notifyHasPatch }) => {
-      const { patchId } = notifyHasPatch;
-      if (!patchId) {
-        throw new TypeError('Got a patch without a patchId');
-      }
-      return patchId;
-    });
 
     const workflow = await workflowCreator.createWorkflow({
       info: workflowInfo,
       randomnessSeed: randomnessSeed.toBytes(),
       now: tsToMs(activation.timestamp),
-      patches,
-      sdkFlags: activation.availableInternalFlags ?? [],
       showStackTraceSources: this.options.showStackTraceSources,
     });
 
