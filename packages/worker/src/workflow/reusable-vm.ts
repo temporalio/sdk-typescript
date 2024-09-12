@@ -28,10 +28,6 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
    * Use the {@link context} getter instead
    */
   _context?: vm.Context;
-  /**
-   * Store the global object keys we want to share between contexts
-   */
-  readonly contextKeysToPreserve: Set<string>;
 
   constructor(
     script: vm.Script,
@@ -70,7 +66,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
         },
       }
     );
-    const globals = {
+    const globalsParent = {
       AsyncLocalStorage,
       URL,
       URLSearchParams,
@@ -79,15 +75,30 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       TextEncoder,
       TextDecoder,
     };
+    const globals = Object.create(globalsParent);
     this._context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
     this.injectConsole();
     script.runInContext(this.context);
-    this.contextKeysToPreserve = new Set(Object.keys(this.context));
+
+    globals.__parent = globalsParent;
+    vm.runInContext(
+      `
+        const globalParent = globalThis.__parent;
+        delete globalThis.__parent;
+        for (const p of Object.getOwnPropertyNames(globalThis)) {
+          const pp = Object.getOwnPropertyDescriptor(globalThis, p);
+          if (pp && p !== 'globalThis' && p !== '__moduleCache__') {
+            Object.defineProperty(globalParent, p, pp);
+            delete globalThis[p];
+          }
+        }
+      `,
+      this.context
+    );
+    deepFreeze(globalsParent);
+    deepFreeze(__webpack_module_cache__);
     for (const v of sharedModules.values()) {
       deepFreeze(v);
-    }
-    for (const k of this.contextKeysToPreserve) {
-      deepFreeze(this.context[k]);
     }
   }
 
@@ -113,8 +124,8 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = this.context;
-    const bag: Record<string, unknown> = {};
-    const { isolateExecutionTimeoutMs, contextKeysToPreserve } = this;
+    let bag: Record<string, unknown> = {};
+    const { isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
       {},
       {
@@ -124,24 +135,32 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
             // runInContext does not accept args, pass via globals
             context.__TEMPORAL_ARGS__ = args;
             try {
+              // By the time we get out of this call, all microtasks will have been executed
               return vm.runInContext(`__TEMPORAL__.api.${fn}(...__TEMPORAL_ARGS__)`, context, {
                 timeout: isolateExecutionTimeoutMs,
                 displayErrors: true,
               });
             } finally {
+              // No need to keep that one
+              delete context.__TEMPORAL_ARGS__;
+
+              //
+              bag = {};
+              const keys = Object.getOwnPropertyNames(context);
               const keysToDelete = [];
-              // TODO: non-enumerable global properties?
-              // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects
-              for (const k in context) {
-                if (!contextKeysToPreserve.has(k)) {
-                  bag[k] = context[k];
-                  context[k] = undefined;
-                  keysToDelete.push(k);
-                }
+              for (const k of keys) {
+                bag[k] = context[k];
+                keysToDelete.push(k);
               }
-              for (const k in keysToDelete) {
-                delete context[k];
-              }
+
+              // Looks like Node/V8 is not properly syncing deletion of keys on the outter context
+              // object to the inner globalThis object. Hence, we delete them from inside the context.
+              context.__TEMPORAL_ARGS__ = keysToDelete;
+              vm.runInContext(
+                `for (const k of globalThis.__TEMPORAL_ARGS__) { delete globalThis[k]; } ; delete globalThis.__TEMPORAL_ARGS__;`,
+                context
+              );
+
               // Need to preserve this for the unhandledRejection handler.
               // TODO: There's probably a better way but this is simplest since we want to maintain compatibility with
               // the non-reusable vm implementation.
