@@ -84,24 +84,27 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     this.pristine = new Map<string, PropertyDescriptor>();
     (globals as any).__pristine = this.pristine;
     // The V8 context is really composed of two distinct objects: the `globals` object defined above
-    // on one side, and another internal object to which we don't have access from the JS side, which
-    // defines the built-in global properties. Those properties are not accessible from here
+    // on the outside, and another internal object to which we only have access from the inside, which
+    // defines the built-in global properties. We need
     vm.runInContext(
       `
         const pristine = globalThis.__pristine;
         delete globalThis.__pristine;
-        for (const pname of Object.getOwnPropertyNames(globalThis)) {
-          const pdesc = Object.getOwnPropertyDescriptor(globalThis, pname);
-          pristine.set(pname, pdesc);
+        for (const name of Object.getOwnPropertyNames(globalThis)) {
+          const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
+          pristine.set(name, descriptor);
         }
       `,
       this.context
     );
-    deepFreeze(this.pristine);
-    // deepFreeze(__webpack_module_cache__);
-    // for (const v of sharedModules.values()) {
-    //   deepFreeze(v);
-    // }
+    for (const [k, v] of this.pristine.entries()) {
+      if (k !== 'globalThis') {
+        deepFreeze(v.value);
+      }
+    }
+    for (const v of sharedModules.values()) {
+      deepFreeze(v);
+    }
   }
 
   protected get context(): vm.Context {
@@ -168,8 +171,11 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
               context.__TEMPORAL_ARGS__ = keysToCleanup;
               vm.runInContext(
                 `
-                  for (const [pname, pdesc] of globalThis.__TEMPORAL_ARGS__) {
-                    delete globalThis[pname];
+                  for (const [name, descriptor] of globalThis.__TEMPORAL_ARGS__) {
+                    delete globalThis[name];
+                    if (descriptor) {
+                      Object.defineProperty(globalThis, name, descriptor);
+                    }
                   }
                   delete globalThis.__TEMPORAL_ARGS__;`,
                 context
