@@ -152,25 +152,37 @@ export interface Info {
    */
   readonly workflowType: string;
   /**
-   * Timestamp for when this Activity was scheduled in milliseconds
+   * Timestamp for when this Activity was first scheduled in milliseconds.
+   * For retries, this will have the timestamp of the first attempt.
+   * See {@link currentAttemptScheduledTimestampMs} for subsequent attempts.
+   *
+   * @format number of milliseconds from epoch
    */
   readonly scheduledTimestampMs: number;
   /**
-   * Timeout for this Activity from schedule to close in milliseconds.
+   * Timeout for this Activity from schedule to close.
+   *
+   * @format number of milliseconds
    */
   readonly scheduleToCloseTimeoutMs: number;
   /**
    * Timeout for this Activity from start to close in milliseconds
+   *
+   * @format number of milliseconds
    */
   readonly startToCloseTimeoutMs: number;
   /**
-   * Timestamp for when the current attempt of this Activity was scheduled in milliseconds
+   * Timestamp for when the current attempt of this Activity was scheduled.
+   *
+   * @format number of milliseconds from epoch
    */
   readonly currentAttemptScheduledTimestampMs: number;
   /**
    * Heartbeat timeout in milliseconds.
    * If this timeout is defined, the Activity must heartbeat before the timeout is reached.
    * The Activity must **not** heartbeat in case this timeout is not defined.
+   *
+   * @format number of milliseconds
    */
   readonly heartbeatTimeoutMs?: number;
   /**
