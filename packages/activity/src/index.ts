@@ -152,9 +152,9 @@ export interface Info {
    */
   readonly workflowType: string;
   /**
-   * Timestamp for when this Activity was first scheduled in milliseconds.
+   * Timestamp for when this Activity was first scheduled.
    * For retries, this will have the timestamp of the first attempt.
-   * See {@link currentAttemptScheduledTimestampMs} for subsequent attempts.
+   * See {@link currentAttemptScheduledTimestampMs} for current attempt.
    *
    * @format number of milliseconds from epoch
    */
