@@ -166,7 +166,7 @@ export interface Info {
    */
   readonly scheduleToCloseTimeoutMs: number;
   /**
-   * Timeout for this Activity from start to close in milliseconds
+   * Timeout for this Activity from start to close.
    *
    * @format number of milliseconds
    */
@@ -178,7 +178,7 @@ export interface Info {
    */
   readonly currentAttemptScheduledTimestampMs: number;
   /**
-   * Heartbeat timeout in milliseconds.
+   * Heartbeat timeout.
    * If this timeout is defined, the Activity must heartbeat before the timeout is reached.
    * The Activity must **not** heartbeat in case this timeout is not defined.
    *
