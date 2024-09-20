@@ -746,7 +746,8 @@ export class Worker {
   }
 
   /**
-   * Start shutting down the Worker. The Worker stops polling for new tasks and sends
+   * Start shutting down the Worker. The Worker stops polling for new tasks and sends 
+   * shutdown signals. Any ongoing activities are canceled after the shutdownGraceTime.
    * {@link https://typescript.temporal.io/api/namespaces/activity#cancellation | cancellation} (via a
    * {@link CancelledFailure} with `message` set to `'WORKER_SHUTDOWN'`) to running Activities. Note: if the Activity
    * accepts cancellation (i.e. re-throws or allows the `CancelledFailure` to be thrown out of the Activity function),
