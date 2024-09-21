@@ -1045,6 +1045,31 @@ test('Sink functions contains upserted memo', async (t) => {
   ]);
 });
 
+export async function langFlagsReplayCorrectly(): Promise<void> {
+  const { noopActivity } = workflow.proxyActivities({ scheduleToCloseTimeout: '10s' });
+  await workflow.CancellationScope.withTimeout('10s', async () => {
+    await noopActivity();
+  });
+}
+
+test("Lang's SDK flags replay correctly", async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      noopActivity: () => {},
+    },
+  });
+
+  const handle = await startWorkflow(langFlagsReplayCorrectly);
+  await worker.runUntil(() => handle.result());
+
+  const worker2 = await createWorker();
+  await worker2.runUntil(() => handle.query('__stack_trace'));
+
+  // Query would have thrown if the workflow couldn't be replayed correctly
+  t.pass();
+});
+
 export async function cancelAbandonActivityBeforeStarted(): Promise<void> {
   const { activitySleep } = workflow.proxyActivities({
     scheduleToCloseTimeout: '1m',

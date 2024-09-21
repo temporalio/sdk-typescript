@@ -939,7 +939,7 @@ export class Worker {
                 case 'cancel': {
                   output = { type: 'ignore' };
                   if (activity === undefined) {
-                    this.logger.error('Tried to cancel a non-existing activity', {
+                    this.logger.trace('Tried to cancel a non-existing activity', {
                       taskToken: base64TaskToken,
                     });
                     break;
