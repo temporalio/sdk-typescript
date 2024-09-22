@@ -134,8 +134,8 @@ export interface OtelCollectorExporter {
     /**
      * URL of a gRPC OpenTelemetry collector.
      *
-     * @format Starts with "grpc://" or "http://" for an unsecured (typical), or "grpcs://" or "https://" for a TLS connection.
-     * @note This URL can be overridden in runtime by the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable.
+     * @format Starts with "grpc://" or "http://" for an unsecured connection (typical), or "grpcs://" or "https://" for a TLS connection.
+     * @note The `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable, if set, will override this property.
      */
     url: string;
     /**
