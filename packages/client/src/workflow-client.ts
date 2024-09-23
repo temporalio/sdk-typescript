@@ -308,6 +308,9 @@ function ensureArgs<W extends Workflow, T extends WorkflowStartOptions<W>>(
   opts: T
 ): Omit<T, 'args'> & { args: unknown[] } {
   const { args, ...rest } = opts;
+  if(args && !Array.isArray(args)) {
+    throw new Error("Invalid argument type: 'args' must be an array. Received " + typeof args + " instead.");
+  }
   return { args: args ?? [], ...rest };
 }
 
