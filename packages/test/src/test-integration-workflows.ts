@@ -15,7 +15,7 @@ import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
-import { asSdkLoggerSink, RUN_TIME_SKIPPING_TESTS } from './helpers';
+import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS } from './helpers';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -1067,6 +1067,20 @@ test("Lang's SDK flags replay correctly", async (t) => {
   await worker2.runUntil(() => handle.query('__stack_trace'));
 
   // Query would have thrown if the workflow couldn't be replayed correctly
+  t.pass();
+});
+
+test("Lang's SDK flags from 1.11.[01] are retroactively applied on replay", async (t) => {
+  const { runReplayHistory } = helpers(t);
+  const hist = await loadHistory('lang_flags_replay_correctly_1_11_1.json');
+  await runReplayHistory({}, hist);
+  t.pass();
+});
+
+test("Lang's SDK flags from 1.11.2 are retroactively applied on replay", async (t) => {
+  const { runReplayHistory } = helpers(t);
+  const hist = await loadHistory('lang_flags_replay_correctly_1_11_2.json');
+  await runReplayHistory({}, hist);
   t.pass();
 });
 
