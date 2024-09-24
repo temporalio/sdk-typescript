@@ -46,13 +46,6 @@ export const SdkFlags = {
   ProcessWorkflowActivationJobsAsSingleBatch: defineFlag(2, true, [buildIdSdkVersionMatches(/1\.11\.[01]/)]),
 } as const;
 
-/**
- *
- * @param id
- * @param def
- * @param otherConditions
- * @returns
- */
 function defineFlag(id: number, def: boolean, alternativeConditions?: AltConditionFn[]): SdkFlag {
   const flag = { id, default: def, alternativeConditions };
   flagsRegistry.set(id, flag);

@@ -892,8 +892,8 @@ export class Activator implements ActivationHandler {
     if (this.knownFlags.has(flag.id)) return true;
 
     // If not replaying, enable the flag if it is configured to be enabled by default. Setting a
-    // flag's default to false allows progressive rollout of some feature flags, with the possibility
-    // of reverting back to a version of the SDK where a flag is supported but disabled by default.
+    // flag's default to false allows progressive rollout of new feature flags, with the possibility
+    // of reverting back to a version of the SDK where the flag is supported but disabled by default.
     // It is also useful for testing purpose.
     if (!this.info.unsafe.isReplaying && flag.default) {
       this.knownFlags.add(flag.id);
@@ -904,7 +904,7 @@ export class Activator implements ActivationHandler {
     // that Workflow Task; this is normally determined by the presence of the flag ID in the corresponding
     // WFT Completed's `sdkMetadata.langUsedFlags`.
     //
-    // SDK Flag Alternate Condition provides an atlternative way of determining whether a flag should
+    // SDK Flag Alternate Condition provides an alternative way of determining whether a flag should
     // be considered as enabled for the current WFT; e.g. by looking at the version of the SDK that
     // emitted a WFT. The main use case for this is to retroactively turn on some flags for WFT emitted
     // by previous SDKs that contained a bug. Alt Conditions should only be used as a last resort.

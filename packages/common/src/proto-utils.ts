@@ -113,9 +113,11 @@ export function historyFromJSON(history: unknown): History {
  * string that adheres to the same norm as JSON history files produced by other Temporal tools.
  */
 export function historyToJSON(history: History): string {
-  // toProto3JSON doesn't correctly handle some of our "bytes" fields, passing them untouched
-  // to the output, after which JSON.stringify() would convert them to an array of numbers.
-  // Recursively walk the object and convert all Buffer instances to base64 strings.
+  // toProto3JSON doesn't correctly handle some of our "bytes" fields, passing them untouched to the
+  // output, after which JSON.stringify() would convert them to an array of numbers. As a workaround,
+  // recursively walk the object and convert all Buffer instances to base64 strings. Note this only
+  // works on proto3-json-serializer v2.0.0. v2.0.2 throws an error before we even get the chance
+  // to fix the buffers. See https://github.com/googleapis/proto3-json-serializer-nodejs/issues/103.
   function fixBuffers<T>(e: T): T {
     if (e && typeof e === 'object') {
       if (e instanceof Buffer) return e.toString('base64') as any;
