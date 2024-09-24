@@ -18,6 +18,10 @@ import {
   ApplicationFailure,
   WorkflowUpdateType,
   WorkflowUpdateValidatorType,
+  mapFromPayloads,
+  searchAttributePayloadConverter,
+  fromPayloadsAtIndex,
+  SearchAttributes,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
@@ -101,6 +105,19 @@ interface MessageHandlerExecution {
  * Keeps all of the Workflow runtime state like pending completions for activities and timers.
  *
  * Implements handlers for all workflow activation jobs.
+ *
+ * Note that most methods in this class are meant to be called only from within the VM.
+ *
+ * However, a few methods may be called directly from outside the VM (essentially from `vm-shared.ts`).
+ * These methods are specifically marked with a comment and require careful consideration, as the
+ * execution context may not properly reflect that of the target workflow execution (e.g.: with Reusable
+ * VMs, the `global` may not have been swapped to those of that workflow execution; the active microtask
+ * queue may be that of the thread/process, rather than the queue of that VM context; etc). Consequently,
+ * methods that are meant to be called from outside of the VM must not do any of the following:
+ *
+ * - Access any global variable;
+ * - Create Promise objects, use async/await, or otherwise schedule microtasks;
+ * - Call user-defined functions, including any form of interceptor.
  */
 export class Activator implements ActivationHandler {
   /**
@@ -128,15 +145,6 @@ export class Activator implements ActivationHandler {
    * Holds buffered signal calls until a handler is registered
    */
   readonly bufferedSignals = Array<coresdk.workflow_activation.ISignalWorkflow>();
-
-  /**
-   * Holds buffered query calls until a handler is registered.
-   *
-   * **IMPORTANT** queries are only buffered until workflow is started.
-   * This is required because async interceptors might block workflow function invocation
-   * which delays query handler registration.
-   */
-  protected readonly bufferedQueries = Array<coresdk.workflow_activation.IQueryWorkflow>();
 
   /**
    * Mapping of update name to handler and validator
@@ -293,13 +301,6 @@ export class Activator implements ActivationHandler {
   protected cancelled = false;
 
   /**
-   * This is tracked to allow buffering queries until a workflow function is called.
-   * TODO(bergundy): I don't think this makes sense since queries run last in an activation and must be responded to in
-   * the same activation.
-   */
-  protected workflowFunctionWasCalled = false;
-
-  /**
    * The next (incremental) sequence to assign when generating completable commands
    */
   public nextSeqs = {
@@ -315,6 +316,7 @@ export class Activator implements ActivationHandler {
 
   /**
    * This is set every time the workflow executes an activation
+   * May be accessed and modified from outside the VM.
    */
   now: number;
 
@@ -325,6 +327,7 @@ export class Activator implements ActivationHandler {
 
   /**
    * Information about the current Workflow
+   * May be accessed from outside the VM.
    */
   public info: WorkflowInfo;
 
@@ -367,7 +370,6 @@ export class Activator implements ActivationHandler {
     sourceMap,
     getTimeOfDay,
     randomnessSeed,
-    patches,
     registeredActivityNames,
   }: WorkflowCreateOptionsInternal) {
     this.getTimeOfDay = getTimeOfDay;
@@ -377,14 +379,11 @@ export class Activator implements ActivationHandler {
     this.sourceMap = sourceMap;
     this.random = alea(randomnessSeed);
     this.registeredActivityNames = registeredActivityNames;
-
-    if (info.unsafe.isReplaying) {
-      for (const patchId of patches) {
-        this.notifyHasPatch({ patchId });
-      }
-    }
   }
 
+  /**
+   * May be invoked from outside the VM.
+   */
   mutateWorkflowInfo(fn: (info: WorkflowInfo) => WorkflowInfo): void {
     this.info = fn(this.info);
   }
@@ -411,6 +410,9 @@ export class Activator implements ActivationHandler {
     return [...stacks].map(([_, stack]) => stack);
   }
 
+  /**
+   * May be invoked from outside the VM.
+   */
   getAndResetSinkCalls(): SinkCall[] {
     const { sinkCalls } = this;
     this.sinkCalls = [];
@@ -423,8 +425,6 @@ export class Activator implements ActivationHandler {
    * Prevents commands from being added after Workflow completion.
    */
   pushCommand(cmd: coresdk.workflow_commands.IWorkflowCommand, complete = false): void {
-    // Only query responses may be sent after completion
-    if (this.completed && !cmd.respondToQuery) return;
     this.commands.push(cmd);
     if (complete) {
       this.completed = true;
@@ -443,22 +443,10 @@ export class Activator implements ActivationHandler {
     if (workflow === undefined) {
       throw new IllegalStateError('Workflow uninitialized');
     }
-    let promise: Promise<any>;
-    try {
-      promise = workflow(...args);
-    } finally {
-      // Queries must be handled even if there was an exception when invoking the Workflow function.
-      this.workflowFunctionWasCalled = true;
-      // Empty the buffer
-      const buffer = this.bufferedQueries.splice(0);
-      for (const activation of buffer) {
-        this.queryWorkflow(activation);
-      }
-    }
-    return await promise;
+    return await workflow(...args);
   }
 
-  public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
+  public startWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
     const execute = composeInterceptors(this.interceptors.inbound, 'execute', this.startWorkflowNextHandler.bind(this));
 
     untrackPromise(
@@ -469,6 +457,23 @@ export class Activator implements ActivationHandler {
         })
       ).then(this.completeWorkflow.bind(this), this.handleWorkflowFailure.bind(this))
     );
+  }
+
+  public initializeWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
+    const { continuedFailure, lastCompletionResult, memo, searchAttributes } = activation;
+
+    // Most things related to initialization have already been handled in the constructor
+    this.mutateWorkflowInfo((info) => ({
+      ...info,
+      searchAttributes:
+        (mapFromPayloads(searchAttributePayloadConverter, searchAttributes?.indexedFields) as SearchAttributes) ?? {},
+      memo: mapFromPayloads(this.payloadConverter, memo?.fields),
+      lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads),
+      lastFailure:
+        continuedFailure != null
+          ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter)
+          : undefined,
+    }));
   }
 
   public cancelWorkflow(_activation: coresdk.workflow_activation.ICancelWorkflow): void {
@@ -586,11 +591,6 @@ export class Activator implements ActivationHandler {
   }
 
   public queryWorkflow(activation: coresdk.workflow_activation.IQueryWorkflow): void {
-    if (!this.workflowFunctionWasCalled) {
-      this.bufferedQueries.push(activation);
-      return;
-    }
-
     const { queryType, queryId, headers } = activation;
     if (!(queryType && queryId)) {
       throw new TypeError('Missing query activation attributes');
@@ -845,9 +845,9 @@ export class Activator implements ActivationHandler {
   }
 
   public notifyHasPatch(activation: coresdk.workflow_activation.INotifyHasPatch): void {
-    if (!activation.patchId) {
-      throw new TypeError('Notify has patch missing patch name');
-    }
+    if (!this.info.unsafe.isReplaying)
+      throw new IllegalStateError('Unexpected notifyHasPatch job on non-replay activation');
+    if (!activation.patchId) throw new TypeError('notifyHasPatch missing patch id');
     this.knownPresentPatches.add(activation.patchId);
   }
 
@@ -867,7 +867,10 @@ export class Activator implements ActivationHandler {
     return usePatch;
   }
 
-  // Called early while handling an activation to register known flags
+  /**
+   * Called early while handling an activation to register known flags.
+   * May be invoked from outside the VM.
+   */
   public addKnownFlags(flags: number[]): void {
     for (const flag of flags) {
       assertValidFlag(flag);
@@ -875,6 +878,11 @@ export class Activator implements ActivationHandler {
     }
   }
 
+  /**
+   * Check if a flag is known to the Workflow Execution; if not, enable the flag if workflow
+   * is not replaying and the flag is configured to be enabled by default.
+   * May be invoked from outside the VM.
+   */
   public hasFlag(flag: SdkFlag): boolean {
     if (this.knownFlags.has(flag.id)) {
       return true;

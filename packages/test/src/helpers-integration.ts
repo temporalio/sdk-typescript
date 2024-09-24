@@ -16,6 +16,7 @@ import {
   DefaultLogger,
   LogEntry,
   LogLevel,
+  ReplayWorkerOptions,
   Runtime,
   WorkerOptions,
   WorkflowBundle,
@@ -23,6 +24,7 @@ import {
   makeTelemetryFilterString,
 } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
+import { temporal } from '@temporalio/proto';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import {
   Worker,
@@ -105,6 +107,7 @@ export function makeTestFunction(opts: {
 export interface Helpers {
   taskQueue: string;
   createWorker(opts?: Partial<WorkerOptions>): Promise<Worker>;
+  runReplayHistory(opts: Partial<ReplayWorkerOptions>, history: temporal.api.history.v1.IHistory): Promise<void>;
   executeWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<workflow.WorkflowResultType<T>>;
   executeWorkflow<T extends workflow.Workflow>(
     fn: T,
@@ -136,6 +139,18 @@ export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvir
         showStackTraceSources: true,
         ...opts,
       });
+    },
+    async runReplayHistory(
+      opts: Partial<ReplayWorkerOptions>,
+      history: temporal.api.history.v1.IHistory
+    ): Promise<void> {
+      await Worker.runReplayHistory(
+        {
+          workflowBundle: t.context.workflowBundle,
+          ...opts,
+        },
+        history
+      );
     },
     async executeWorkflow(
       fn: workflow.Workflow,

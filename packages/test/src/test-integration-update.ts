@@ -1,10 +1,14 @@
-import { WorkflowUpdateStage, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
+import { WorkflowUpdateStage, WorkflowUpdateRPCTimeoutOrCancelledError, WorkflowFailedError } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
+import { temporal } from '@temporalio/proto';
 import { helpers, makeTestFunction } from './helpers-integration';
+import { signalUpdateOrderingWorkflow } from './workflows/signal-update-ordering';
+import { signalsActivitiesTimersPromiseOrdering } from './workflows/signals-timers-activities-order';
+import { getHistories, waitUntil } from './helpers';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
-const LONG_POLL_EXPIRATION_INTERVAL_SECONDS = 1.0;
+const LONG_POLL_EXPIRATION_INTERVAL_SECONDS = 5.0;
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -25,7 +29,7 @@ export async function workflowWithUpdates(): Promise<string[]> {
   const state: string[] = [];
   const updateHandler = async (arg: string): Promise<string[]> => {
     if (arg === 'wait-for-longer-than-server-long-poll-timeout') {
-      await wf.sleep(500 + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000);
+      await wf.sleep(LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1500);
     }
     state.push(arg);
     return state;
@@ -464,7 +468,7 @@ test('startUpdate does not return handle before update has reached requested sta
     })
     .then(() => 'update');
   const timeoutPromise = new Promise<string>((f) =>
-    setTimeout(() => f('timeout'), 500 + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000)
+    setTimeout(() => f('timeout'), LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1500)
   );
   t.is(
     await Promise.race([updatePromise, timeoutPromise]),
@@ -618,4 +622,194 @@ test('update caller gets update failed error on workflow cancellation', async (t
     await w.cancel();
     await assertWorkflowUpdateFailed(u.result(), wf.CancelledFailure, 'Workflow cancelled');
   });
+});
+
+export { signalUpdateOrderingWorkflow };
+
+// Validate that issue #1474 is fixed in 1.11.0+
+test("Pending promises can't unblock between signals and updates", async (t) => {
+  const { createWorker, startWorkflow, updateHasBeenAdmitted } = helpers(t);
+
+  const handle = await startWorkflow(signalUpdateOrderingWorkflow);
+  const worker1 = await createWorker({ maxCachedWorkflows: 0 });
+  await worker1.runUntil(async () => {
+    // Wait for the workflow to reach the first condition
+    await handle.executeUpdate('fooUpdate');
+  });
+
+  const updateId = 'update-id';
+  await handle.signal('fooSignal');
+  const updateResult = handle.executeUpdate('fooUpdate', { updateId });
+  await waitUntil(() => updateHasBeenAdmitted(handle, updateId), 5000);
+
+  const worker2 = await createWorker();
+  await worker2.runUntil(async () => {
+    t.is(await handle.result(), 3);
+    t.is(await updateResult, 3);
+  });
+});
+
+export { signalsActivitiesTimersPromiseOrdering };
+
+// A broader check covering issue #1474, but also other subtle ordering issues caused by the fact
+// that signals used to be processed in a distinct phase from other types of jobs.
+test('Signals/Updates/Activities/Timers have coherent promise completion ordering', async (t) => {
+  const { createWorker, startWorkflow, taskQueue, updateHasBeenAdmitted } = helpers(t);
+
+  // We need signal+update+timer completion+activity completion to all happen in the same workflow task.
+  // To get there, as soon as the activity gets scheduled, we shutdown the workflow worker, then send
+  // the signal and update while there is no worker alive. When it eventually comes back up, all events
+  // will be queued up for the next WFT.
+
+  const worker1 = await createWorker({ maxCachedWorkflows: 0 });
+  const worker1Promise = worker1.run();
+  const killWorker1 = async () => {
+    try {
+      worker1.shutdown();
+    } catch {
+      // We may attempt to shutdown the worker multiple times. Ignore errors.
+    }
+    await worker1Promise;
+  };
+
+  try {
+    const activityWorker = await createWorker({
+      taskQueue: `${taskQueue}-activity`,
+      activities: { myActivity: killWorker1 },
+      workflowBundle: undefined,
+      workflowsPath: undefined,
+    });
+    await activityWorker.runUntil(async () => {
+      const handle = await startWorkflow(signalsActivitiesTimersPromiseOrdering);
+
+      // The workflow will schedule the activity, which will shutdown the worker.
+      // Then this promise will resolves.
+      await worker1Promise;
+
+      await handle.signal('aaSignal');
+      const updateId = 'update-id';
+      const updatePromise = handle.executeUpdate('aaUpdate', { updateId });
+
+      // Timing is important here. Make sure that everything is ready before creating the new worker.
+      await waitUntil(async () => {
+        const updateAdmitted = await updateHasBeenAdmitted(handle, updateId);
+        if (!updateAdmitted) return false;
+
+        const { events } = await handle.fetchHistory();
+        return (
+          events != null &&
+          events.some((e) => e.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_ACTIVITY_TASK_COMPLETED) &&
+          events.some((e) => e.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_TIMER_FIRED) &&
+          events.some((e) => e.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED)
+        );
+      }, 5000);
+
+      await (
+        await createWorker({})
+      ).runUntil(async () => {
+        t.deepEqual(await handle.result(), [true, true, true, true]);
+      });
+
+      await updatePromise;
+    });
+  } finally {
+    await killWorker1();
+  }
+});
+
+export async function canCompleteUpdateAfterWorkflowReturns(fail: boolean = false): Promise<void> {
+  let gotUpdate = false;
+  let mainReturned = false;
+
+  wf.setHandler(wf.defineUpdate<string>('doneUpdate'), async () => {
+    gotUpdate = true;
+    await wf.condition(() => mainReturned);
+    return 'completed';
+  });
+
+  await wf.condition(() => gotUpdate);
+  mainReturned = true;
+  if (fail) throw wf.ApplicationFailure.nonRetryable('Intentional failure');
+}
+
+test('Can complete update after workflow returns', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(canCompleteUpdateAfterWorkflowReturns);
+    const updateHandler = await handle.executeUpdate(wf.defineUpdate<string>('doneUpdate'));
+    await handle.result();
+
+    await t.is(updateHandler, 'completed');
+  });
+});
+
+test('Can complete update after Workflow fails', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(canCompleteUpdateAfterWorkflowReturns, { args: [true] });
+    const updateHandler = await handle.executeUpdate(wf.defineUpdate<string>('doneUpdate'));
+    await t.throwsAsync(handle.result(), { instanceOf: WorkflowFailedError });
+    await t.is(updateHandler, 'completed');
+  });
+});
+
+/**
+ * The {@link canCompleteUpdateAfterWorkflowReturns} workflow above features an update handler that
+ * return safter the main workflow functions has returned. It will (assuming an update is sent in
+ * the first WFT) generate a raw command sequence (before sending to core) of:
+ *
+ *   [UpdateAccepted, CompleteWorkflowExecution, UpdateCompleted].
+ *
+ * Prior to https://github.com/temporalio/sdk-typescript/pull/1488, TS SDK ignored any command
+ * produced after a completion command, therefore truncating this command sequence to:
+ *
+ *   [UpdateAccepted, CompleteWorkflowExecution].
+ *
+ * Starting with #1488, TS SDK now performs no truncation, and Core reorders the sequence to:
+ *
+ *   [UpdateAccepted, UpdateCompleted, CompleteWorkflowExecution].
+ *
+ * This test takes a history generated using pre-#1488 SDK code, and replays it. That history
+ * contains the following events:
+ *
+ *   1 WorkflowExecutionStarted
+ *   2 WorkflowTaskScheduled
+ *   3 WorkflowTaskStarted
+ *   4 WorkflowTaskCompleted
+ *   5 WorkflowExecutionUpdateAccepted
+ *   6 WorkflowExecutionCompleted
+ *
+ * Note that the history lacks a `WorkflowExecutionUpdateCompleted` event.
+ *
+ * If Core's logic (which involves a flag) incorrectly allowed this history to be replayed using
+ * Core's post-#1488 implementation, then a non-determinism error would result. Specifically, Core
+ * would, at some point during replay, do the following:
+ *
+ *  - Receive [UpdateAccepted, CompleteWorkflowExecution, UpdateCompleted] from lang;
+ *  - Change that to `[UpdateAccepted, UpdateCompleted, CompleteWorkflowExecution]`;
+ *  - Create an `UpdateMachine` instance (the `WorkflowTaskMachine` instance already exists).
+ *  - Continue to consume history events.
+ *
+ * Event 5, `WorkflowExecutionUpdateAccepted`, would apply to the `UpdateMachine` associated with
+ * the `UpdateAccepted` command, but event 6, `WorkflowExecutionCompleted` would not, since Core is
+ * expecting an event that can be applied to the `UpdateMachine` corresponding to `UpdateCompleted`.
+ * If we modify Core to incorrectly apply its new logic then we do see that:
+ *
+ *   [TMPRL1100] Nondeterminism error: Update machine does not handle this event: HistoryEvent(id: 6, WorkflowExecutionCompleted)
+ *
+ * The test passes because Core in fact (because the history lacks the flag) uses its old logic and
+ * changes the command sequence from `[UpdateAccepted, CompleteWorkflowExecution, UpdateCompleted]`
+ * to `[UpdateAccepted, CompleteWorkflowExecution]`, i.e. truncating commands emitted after the
+ * first completion command like TS SDK used to do, so that events 5 and 6 can be applied to the
+ * corresponding state machines.
+ */
+test('Can complete update after workflow returns - pre-1.11.0 compatibility', async (t) => {
+  const { runReplayHistory } = helpers(t);
+  const hist = await getHistories('complete_update_after_workflow_returns_pre1488.json');
+  await runReplayHistory({}, hist);
+  t.pass();
 });

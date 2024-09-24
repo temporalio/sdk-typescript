@@ -115,7 +115,7 @@ if (RUN_INTEGRATION_TESTS) {
       workflowType: 'sinksWorkflow',
       lastFailure: undefined,
       lastResult: undefined,
-      memo: undefined,
+      memo: {},
       parent: undefined,
       searchAttributes: {},
       historyLength: 3,

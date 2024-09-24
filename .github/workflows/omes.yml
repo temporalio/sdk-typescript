@@ -8,8 +8,6 @@ on:
 
 jobs:
   omes-image-build:
-    needs:
-      - integration-tests
     uses: temporalio/omes/.github/workflows/docker-images.yml@main
     secrets: inherit
     with:
