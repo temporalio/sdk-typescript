@@ -41,7 +41,7 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
      * takes those Actions according to the {@link ScheduleOverlapPolicy}. An outage that lasts longer than the Catchup
      * Window could lead to missed Actions. (But you can always {@link ScheduleHandle.backfill}.)
      *
-     * @default 1 minute
+     * @default 1 year
      * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
      */
     catchupWindow?: Duration;

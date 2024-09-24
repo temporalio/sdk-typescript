@@ -1,5 +1,3 @@
-// Keep this around until we drop support for Node 14.
-import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import os from 'node:os';
 import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { isLoadedDataConverter, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';

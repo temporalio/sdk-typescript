@@ -1,5 +1,6 @@
 import type { temporal } from '@temporalio/proto';
 import { checkExtends, errorMessage, isRecord, SymbolBasedInstanceOfError } from './type-helpers';
+import { Duration } from './time';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';
 export type ProtoFailure = temporal.api.failure.v1.IFailure;
@@ -103,7 +104,8 @@ export class ApplicationFailure extends TemporalFailure {
     public readonly type?: string | undefined | null,
     public readonly nonRetryable?: boolean | undefined | null,
     public readonly details?: unknown[] | undefined | null,
-    cause?: Error
+    cause?: Error,
+    public readonly nextRetryDelay?: Duration | undefined | null
   ) {
     super(message, cause);
   }
@@ -126,8 +128,8 @@ export class ApplicationFailure extends TemporalFailure {
    * By default, will be retryable (unless its `type` is included in {@link RetryPolicy.nonRetryableErrorTypes}).
    */
   public static create(options: ApplicationFailureOptions): ApplicationFailure {
-    const { message, type, nonRetryable = false, details, cause } = options;
-    return new this(message, type, nonRetryable, details, cause);
+    const { message, type, nonRetryable = false, details, nextRetryDelay, cause } = options;
+    return new this(message, type, nonRetryable, details, cause, nextRetryDelay);
   }
 
   /**
@@ -179,6 +181,14 @@ export interface ApplicationFailureOptions {
    * Details about the failure. Serialized by the Worker's {@link PayloadConverter}.
    */
   details?: unknown[];
+
+  /**
+   * If set, overrides the delay until the next retry of this Activity / Workflow Task.
+   *
+   * Retry attempts will still be subject to the maximum retries limit and total time limit defined
+   * by the policy.
+   */
+  nextRetryDelay?: Duration;
 
   /**
    * Cause of the failure
@@ -264,6 +274,25 @@ export class ChildWorkflowFailure extends TemporalFailure {
     cause?: Error
   ) {
     super('Child Workflow execution failed', cause);
+  }
+}
+
+/**
+ * This exception is thrown in the following cases:
+ *  - Workflow with the same Workflow Id is currently running
+ *  - There is a closed Workflow with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
+ *    is `WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE`
+ *  - There is closed Workflow in the `Completed` state with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
+ *    is `WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY`
+ */
+@SymbolBasedInstanceOfError('WorkflowExecutionAlreadyStartedError')
+export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
+  constructor(
+    message: string,
+    public readonly workflowId: string,
+    public readonly workflowType: string
+  ) {
+    super(message);
   }
 }
 

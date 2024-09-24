@@ -15,9 +15,6 @@ import {
 } from '@temporalio/common/lib/internal-non-workflow';
 import { coresdk } from '@temporalio/proto';
 
-type EncodedCompletion = Encoded<coresdk.workflow_completion.IWorkflowActivationCompletion>;
-type DecodedActivation = Decoded<coresdk.workflow_activation.IWorkflowActivation>;
-
 /**
  * Helper class for decoding Workflow activations and encoding Workflow completions.
  */
@@ -27,31 +24,34 @@ export class WorkflowCodecRunner {
   /**
    * Run codec.decode on the Payloads in the Activation message.
    */
-  public async decodeActivation(
-    activation: coresdk.workflow_activation.IWorkflowActivation
-  ): Promise<DecodedActivation> {
-    return {
+  public async decodeActivation<T extends coresdk.workflow_activation.IWorkflowActivation>(
+    activation: T
+  ): Promise<Decoded<T>> {
+    return coresdk.workflow_activation.WorkflowActivation.fromObject({
       ...activation,
       jobs: activation.jobs
         ? await Promise.all(
             activation.jobs.map(async (job) => ({
               ...job,
-              startWorkflow: job.startWorkflow
+              initializeWorkflow: job.initializeWorkflow
                 ? {
-                    ...job.startWorkflow,
-                    arguments: await decodeOptional(this.codecs, job.startWorkflow.arguments),
-                    headers: noopDecodeMap(job.startWorkflow.headers),
-                    continuedFailure: await decodeOptionalFailure(this.codecs, job.startWorkflow.continuedFailure),
+                    ...job.initializeWorkflow,
+                    arguments: await decodeOptional(this.codecs, job.initializeWorkflow.arguments),
+                    headers: noopDecodeMap(job.initializeWorkflow.headers),
+                    continuedFailure: await decodeOptionalFailure(this.codecs, job.initializeWorkflow.continuedFailure),
                     memo: {
-                      fields: await decodeOptionalMap(this.codecs, job.startWorkflow.memo?.fields),
+                      fields: await decodeOptionalMap(this.codecs, job.initializeWorkflow.memo?.fields),
                     },
                     lastCompletionResult: {
-                      payloads: await decodeOptional(this.codecs, job.startWorkflow.lastCompletionResult?.payloads),
+                      payloads: await decodeOptional(
+                        this.codecs,
+                        job.initializeWorkflow.lastCompletionResult?.payloads
+                      ),
                     },
-                    searchAttributes: job.startWorkflow.searchAttributes
+                    searchAttributes: job.initializeWorkflow.searchAttributes
                       ? {
-                          indexedFields: job.startWorkflow.searchAttributes.indexedFields
-                            ? noopDecodeMap(job.startWorkflow.searchAttributes?.indexedFields)
+                          indexedFields: job.initializeWorkflow.searchAttributes.indexedFields
+                            ? noopDecodeMap(job.initializeWorkflow.searchAttributes?.indexedFields)
                             : undefined,
                         }
                       : undefined,
@@ -180,7 +180,7 @@ export class WorkflowCodecRunner {
             }))
           )
         : null,
-    };
+    }) as Decoded<T>;
   }
 
   /**
@@ -189,7 +189,7 @@ export class WorkflowCodecRunner {
   public async encodeCompletion(
     completion: coresdk.workflow_completion.IWorkflowActivationCompletion
   ): Promise<Uint8Array> {
-    const encodedCompletion: EncodedCompletion = {
+    const encodedCompletion: Encoded<coresdk.workflow_completion.IWorkflowActivationCompletion> = {
       ...completion,
       failed: completion.failed
         ? { failure: await encodeOptionalFailure(this.codecs, completion?.failed?.failure) }

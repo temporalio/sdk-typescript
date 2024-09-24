@@ -3,6 +3,7 @@ import {
   RetryPolicy,
   TemporalFailure,
   CommonWorkflowOptions,
+  HandlerUnfinishedPolicy,
   SearchAttributes,
   SignalDefinition,
   UpdateDefinition,
@@ -190,6 +191,23 @@ export interface UnsafeWorkflowInfo {
   readonly isReplaying: boolean;
 }
 
+/**
+ * Information about a workflow update.
+ *
+ * @experimental
+ */
+export interface UpdateInfo {
+  /**
+   *  A workflow-unique identifier for this update.
+   */
+  readonly id: string;
+
+  /**
+   *  The update type name.
+   */
+  readonly name: string;
+}
+
 export interface ParentWorkflowInfo {
   workflowId: string;
   runId: string;
@@ -365,7 +383,7 @@ export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, '
 
 export type ChildWorkflowOptionsWithDefaults = ChildWorkflowOptions & RequiredChildWorkflowOptions;
 
-export interface SDKInfo {
+export interface StackTraceSDKInfo {
   name: string;
   version: string;
 }
@@ -373,26 +391,26 @@ export interface SDKInfo {
 /**
  * Represents a slice of a file starting at lineOffset
  */
-export interface FileSlice {
+export interface StackTraceFileSlice {
+  /**
+   * Only used possible to trim the file without breaking syntax highlighting.
+   */
+  line_offset: number;
   /**
    * slice of a file with `\n` (newline) line terminator.
    */
   content: string;
-  /**
-   * Only used possible to trim the file without breaking syntax highlighting.
-   */
-  lineOffset: number;
 }
 
 /**
  * A pointer to a location in a file
  */
-export interface FileLocation {
+export interface StackTraceFileLocation {
   /**
    * Path to source file (absolute or relative).
    * When using a relative path, make sure all paths are relative to the same root.
    */
-  filePath?: string;
+  file_path?: string;
   /**
    * If possible, SDK should send this, required for displaying the code location.
    */
@@ -405,24 +423,28 @@ export interface FileLocation {
    * Function name this line belongs to (if applicable).
    * Used for falling back to stack trace view.
    */
-  functionName?: string;
+  function_name?: string;
+  /**
+   * Flag to mark this as internal SDK code and hide by default in the UI.
+   */
+  internal_code: boolean;
 }
 
 export interface StackTrace {
-  locations: FileLocation[];
+  locations: StackTraceFileLocation[];
 }
 
 /**
  * Used as the result for the enhanced stack trace query
  */
 export interface EnhancedStackTrace {
-  sdk: SDKInfo;
+  sdk: StackTraceSDKInfo;
   /**
    * Mapping of file path to file contents.
    * SDK may choose to send no, some or all sources.
    * Sources might be trimmed, and some time only the file(s) of the top element of the trace will be sent.
    */
-  sources: Record<string, FileSlice[]>;
+  sources: Record<string, StackTraceFileSlice[]>;
   stacks: StackTrace[];
 }
 
@@ -430,7 +452,6 @@ export interface WorkflowCreateOptions {
   info: WorkflowInfo;
   randomnessSeed: number[];
   now: number;
-  patches: string[];
   showStackTraceSources: boolean;
 }
 
@@ -464,3 +485,27 @@ export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => v
  * A validation function capable of accepting the arguments for a given UpdateDefinition.
  */
 export type UpdateValidator<Args extends any[]> = (...args: Args) => void;
+
+/**
+ * A description of a query handler.
+ */
+export type QueryHandlerOptions = { description?: string };
+
+/**
+ * A description of a signal handler.
+ */
+export type SignalHandlerOptions = { description?: string; unfinishedPolicy?: HandlerUnfinishedPolicy };
+
+/**
+ * A validator and description of an update handler.
+ */
+export type UpdateHandlerOptions<Args extends any[]> = {
+  validator?: UpdateValidator<Args>;
+  description?: string;
+  unfinishedPolicy?: HandlerUnfinishedPolicy;
+};
+
+export interface ActivationCompletion {
+  commands: coresdk.workflow_commands.IWorkflowCommand[];
+  usedInternalFlags: number[];
+}

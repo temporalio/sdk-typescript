@@ -16,6 +16,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("newRuntime", runtime_new)?;
     cx.export_function("newClient", client_new)?;
     cx.export_function("clientUpdateHeaders", client_update_headers)?;
+    cx.export_function("clientUpdateApiKey", client_update_api_key)?;
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("newReplayWorker", replay_worker_new)?;
     cx.export_function("pushHistory", push_history)?;

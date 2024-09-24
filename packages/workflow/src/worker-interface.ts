@@ -4,88 +4,20 @@
  * @module
  */
 import { IllegalStateError } from '@temporalio/common';
-import { msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
-import { DeterminismViolationError } from './errors';
+import { disableUpdateStorage } from './update-scope';
 import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowCreateOptionsInternal } from './interfaces';
 import { Activator } from './internals';
 import { setActivatorUntyped, getActivator } from './global-attributes';
-import { type SinkCall } from './sinks';
 
 // Export the type for use on the "worker" side
 export { PromiseStackStore } from './internals';
 
 const global = globalThis as any;
 const OriginalDate = globalThis.Date;
-
-export function overrideGlobals(): void {
-  // Mock any weak reference because GC is non-deterministic and the effect is observable from the Workflow.
-  // Workflow developer will get a meaningful exception if they try to use these.
-  global.WeakRef = function () {
-    throw new DeterminismViolationError('WeakRef cannot be used in Workflows because v8 GC is non-deterministic');
-  };
-  global.FinalizationRegistry = function () {
-    throw new DeterminismViolationError(
-      'FinalizationRegistry cannot be used in Workflows because v8 GC is non-deterministic'
-    );
-  };
-
-  global.Date = function (...args: unknown[]) {
-    if (args.length > 0) {
-      return new (OriginalDate as any)(...args);
-    }
-    return new OriginalDate(getActivator().now);
-  };
-
-  global.Date.now = function () {
-    return getActivator().now;
-  };
-
-  global.Date.parse = OriginalDate.parse.bind(OriginalDate);
-  global.Date.UTC = OriginalDate.UTC.bind(OriginalDate);
-
-  global.Date.prototype = OriginalDate.prototype;
-
-  /**
-   * @param ms sleep duration -  number of milliseconds. If given a negative number, value will be set to 1.
-   */
-  global.setTimeout = function (cb: (...args: any[]) => any, ms: number, ...args: any[]): number {
-    const activator = getActivator();
-    ms = Math.max(1, ms);
-    const seq = activator.nextSeqs.timer++;
-    // Create a Promise for AsyncLocalStorage to be able to track this completion using promise hooks.
-    new Promise((resolve, reject) => {
-      activator.completions.timer.set(seq, { resolve, reject });
-      activator.pushCommand({
-        startTimer: {
-          seq,
-          startToFireTimeout: msToTs(ms),
-        },
-      });
-    }).then(
-      () => cb(...args),
-      () => undefined /* ignore cancellation */
-    );
-    return seq;
-  };
-
-  global.clearTimeout = function (handle: number): void {
-    const activator = getActivator();
-    activator.nextSeqs.timer++;
-    activator.completions.timer.delete(handle);
-    activator.pushCommand({
-      cancelTimer: {
-        seq: handle,
-      },
-    });
-  };
-
-  // activator.random is mutable, don't hardcode its reference
-  Math.random = () => getActivator().random();
-}
 
 /**
  * Initialize the isolate runtime.
@@ -100,7 +32,7 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
       unsafe: { ...options.info.unsafe, now: OriginalDate.now },
     }),
   });
-  // There's on activator per workflow instance, set it globally on the context.
+  // There's one activator per workflow instance, set it globally on the context.
   // We do this before importing any user code so user code can statically reference @temporalio/workflow functions
   // as well as Date and Math.random.
   setActivatorUntyped(activator);
@@ -176,66 +108,56 @@ function fixPrototypes<X>(obj: X): X {
 }
 
 /**
- * Run a chunk of activation jobs
- * @returns a boolean indicating whether job was processed or ignored
+ * Initialize the workflow. Or to be exact, _complete_ initialization, as most part has been done in constructor).
  */
-export function activate(activation: coresdk.workflow_activation.WorkflowActivation, batchIndex: number): void {
+export function initialize(initializeWorkflowJob: coresdk.workflow_activation.IInitializeWorkflow): void {
+  getActivator().initializeWorkflow(initializeWorkflowJob);
+}
+
+/**
+ * Run a chunk of activation jobs
+ */
+export function activate(activation: coresdk.workflow_activation.IWorkflowActivation, batchIndex = 0): void {
   const activator = getActivator();
-  const intercept = composeInterceptors(activator.interceptors.internals, 'activate', ({ activation, batchIndex }) => {
-    if (batchIndex === 0) {
-      if (!activation.jobs) {
-        throw new TypeError('Got activation with no jobs');
-      }
-      if (activation.timestamp != null) {
-        // timestamp will not be updated for activation that contain only queries
-        activator.now = tsToMs(activation.timestamp);
-      }
-
-      // The Rust Core ensures that these activation fields are not null
-      activator.mutateWorkflowInfo((info) => ({
-        ...info,
-        historyLength: activation.historyLength as number,
-        // Exact truncation for multi-petabyte histories
-        // historySize === 0 means WFT was generated by pre-1.20.0 server, and the history size is unknown
-        historySize: activation.historySizeBytes?.toNumber() || 0,
-        continueAsNewSuggested: activation.continueAsNewSuggested ?? false,
-        currentBuildId: activation.buildIdForCurrentTask ?? undefined,
-        unsafe: {
-          ...info.unsafe,
-          isReplaying: activation.isReplaying ?? false,
-        },
-      }));
-    }
-
+  const intercept = composeInterceptors(activator.interceptors.internals, 'activate', ({ activation }) => {
     // Cast from the interface to the class which has the `variant` attribute.
     // This is safe because we know that activation is a proto class.
     const jobs = activation.jobs as coresdk.workflow_activation.WorkflowActivationJob[];
 
+    // Initialization will have been handled already, but we might still need to start the workflow function
+    const startWorkflowJob = jobs[0].variant === 'initializeWorkflow' ? jobs.shift()?.initializeWorkflow : undefined;
+
     for (const job of jobs) {
-      if (job.variant === undefined) {
-        throw new TypeError('Expected job.variant to be defined');
-      }
+      if (job.variant === undefined) throw new TypeError('Expected job.variant to be defined');
 
       const variant = job[job.variant];
-      if (!variant) {
-        throw new TypeError(`Expected job.${job.variant} to be set`);
-      }
-      // The only job that can be executed on a completed workflow is a query.
-      // We might get other jobs after completion for instance when a single
-      // activation contains multiple jobs and the first one completes the workflow.
-      if (activator.completed && job.variant !== 'queryWorkflow') {
-        return;
-      }
+      if (!variant) throw new TypeError(`Expected job.${job.variant} to be set`);
+
       activator[job.variant](variant as any /* TS can't infer this type */);
-      if (shouldUnblockConditions(job)) {
-        tryUnblockConditions();
+
+      if (job.variant !== 'queryWorkflow') tryUnblockConditions();
+    }
+
+    if (startWorkflowJob) {
+      const safeJobTypes: coresdk.workflow_activation.WorkflowActivationJob['variant'][] = [
+        'initializeWorkflow',
+        'signalWorkflow',
+        'doUpdate',
+        'cancelWorkflow',
+        'updateRandomSeed',
+      ];
+      if (jobs.some((job) => !safeJobTypes.includes(job.variant))) {
+        throw new TypeError(
+          'Received both initializeWorkflow and non-signal/non-update jobs in the same activation: ' +
+            JSON.stringify(jobs.map((job) => job.variant))
+        );
       }
+
+      activator.startWorkflow(startWorkflowJob);
+      tryUnblockConditions();
     }
   });
-  intercept({
-    activation,
-    batchIndex,
-  });
+  intercept({ activation, batchIndex });
 }
 
 /**
@@ -248,17 +170,16 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
   const activator = getActivator();
   activator.rejectBufferedUpdates();
   const intercept = composeInterceptors(activator.interceptors.internals, 'concludeActivation', (input) => input);
-  const { info } = activator;
-  const { commands } = intercept({ commands: activator.getAndResetCommands() });
+  const activationCompletion = activator.concludeActivation();
+  const { commands } = intercept({ commands: activationCompletion.commands });
+  if (activator.completed) {
+    activator.warnIfUnfinishedHandlers();
+  }
 
   return {
-    runId: info.runId,
-    successful: { commands },
+    runId: activator.info.runId,
+    successful: { ...activationCompletion, commands },
   };
-}
-
-export function getAndResetSinkCalls(): SinkCall[] {
-  return getActivator().getAndResetSinkCalls();
 }
 
 /**
@@ -285,16 +206,10 @@ export function tryUnblockConditions(): number {
   return numUnblocked;
 }
 
-/**
- * Predicate used to prevent triggering conditions for non-query and non-patch jobs.
- */
-export function shouldUnblockConditions(job: coresdk.workflow_activation.IWorkflowActivationJob): boolean {
-  return !job.queryWorkflow && !job.notifyHasPatch;
-}
-
 export function dispose(): void {
   const dispose = composeInterceptors(getActivator().interceptors.internals, 'dispose', async () => {
     disableStorage();
+    disableUpdateStorage();
   });
   dispose({});
 }

@@ -38,6 +38,7 @@ import {
   WorkflowContinuedAsNewError,
   WorkflowFailedError,
   WorkflowUpdateFailedError,
+  WorkflowUpdateRPCTimeoutOrCancelledError,
   isGrpcServiceError,
 } from './errors';
 import {
@@ -80,6 +81,8 @@ import {
   WithDefaults,
 } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
+import { WorkflowUpdateStage } from './workflow-update-stage';
+import * as workflowUpdateStage from './workflow-update-stage';
 
 /**
  * A client side handle to a single Workflow instance.
@@ -118,7 +121,8 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    * @experimental Update is an experimental feature.
    *
    * @throws {@link WorkflowUpdateFailedError} if Update validation fails or if ApplicationFailure is thrown in the Update handler.
-   *
+   * @throws {@link WorkflowUpdateRPCTimeoutOrCancelledError} if this Update call timed out or was cancelled. This doesn't
+   *  mean the update itself was timed out or cancelled.
    * @param def an Update definition as returned from {@link defineUpdate}
    * @param options Update arguments
    *
@@ -138,30 +142,51 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
   ): Promise<Ret>;
 
   /**
-   * Start an Update and receive a handle to the Update.
-   * The Update validator (if present) is run before the handle is returned.
+   * Start an Update and receive a handle to the Update. The Update validator (if present) is run
+   * before the handle is returned.
    *
    * @experimental Update is an experimental feature.
    *
    * @throws {@link WorkflowUpdateFailedError} if Update validation fails.
+   * @throws {@link WorkflowUpdateRPCTimeoutOrCancelledError} if this Update call timed out or was cancelled. This doesn't
+   *  mean the update itself was timed out or cancelled.
    *
    * @param def an Update definition as returned from {@link defineUpdate}
-   * @param options Update arguments
+   * @param options update arguments, and update lifecycle stage to wait for
+   *
+   * Currently, startUpdate always waits until a worker is accepting tasks for the workflow and the
+   * update is accepted or rejected, and the options object must be at least
+   * ```ts
+   * {
+   *   waitForStage: WorkflowUpdateStage.ACCEPTED
+   * }
+   * ```
+   * If the update takes arguments, then the options object must additionally contain an `args`
+   * property with an array of argument values.
    *
    * @example
    * ```ts
-   * const updateHandle = await handle.startUpdate(incrementAndGetValueUpdate, { args: [2] });
+   * const updateHandle = await handle.startUpdate(incrementAndGetValueUpdate, {
+   *   args: [2],
+   *   waitForStage: WorkflowUpdateStage.ACCEPTED,
+   * });
    * const updateResult = await updateHandle.result();
    * ```
    */
   startUpdate<Ret, Args extends [any, ...any[]], Name extends string = string>(
     def: UpdateDefinition<Ret, Args, Name> | string,
-    options: WorkflowUpdateOptions & { args: Args }
+    options: WorkflowUpdateOptions & {
+      args: Args;
+      waitForStage: WorkflowUpdateStage.ACCEPTED;
+    }
   ): Promise<WorkflowUpdateHandle<Ret>>;
 
   startUpdate<Ret, Args extends [], Name extends string = string>(
     def: UpdateDefinition<Ret, Args, Name> | string,
-    options?: WorkflowUpdateOptions & { args?: Args }
+    options: WorkflowUpdateOptions & {
+      args?: Args;
+      waitForStage: WorkflowUpdateStage.ACCEPTED;
+    }
   ): Promise<WorkflowUpdateHandle<Ret>>;
 
   /**
@@ -692,6 +717,28 @@ export class WorkflowClient extends BaseClient {
     }
   }
 
+  protected rethrowUpdateGrpcError(
+    err: unknown,
+    fallbackMessage: string,
+    workflowExecution?: WorkflowExecution
+  ): never {
+    if (isGrpcServiceError(err)) {
+      if (err.code === grpcStatus.DEADLINE_EXCEEDED || err.code === grpcStatus.CANCELLED) {
+        throw new WorkflowUpdateRPCTimeoutOrCancelledError(err.details ?? 'Workflow update call timeout or cancelled', {
+          cause: err,
+        });
+      }
+    }
+
+    if (err instanceof CancelledFailure) {
+      throw new WorkflowUpdateRPCTimeoutOrCancelledError(err.message ?? 'Workflow update call timeout or cancelled', {
+        cause: err,
+      });
+    }
+
+    this.rethrowGrpcError(err, fallbackMessage, workflowExecution);
+  }
+
   protected rethrowGrpcError(err: unknown, fallbackMessage: string, workflowExecution?: WorkflowExecution): never {
     if (isGrpcServiceError(err)) {
       rethrowKnownErrorTypes(err);
@@ -756,15 +803,19 @@ export class WorkflowClient extends BaseClient {
    * Used as the final function of the interceptor chain during startUpdate and executeUpdate.
    */
   protected async _startUpdateHandler(
-    waitForStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage,
+    waitForStage: WorkflowUpdateStage,
     input: WorkflowStartUpdateInput
   ): Promise<WorkflowStartUpdateOutput> {
+    waitForStage = waitForStage >= WorkflowUpdateStage.ACCEPTED ? waitForStage : WorkflowUpdateStage.ACCEPTED;
+    const waitForStageProto = workflowUpdateStage.toProtoEnum(waitForStage);
     const updateId = input.options?.updateId ?? uuid4();
     const req: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest = {
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
       firstExecutionRunId: input.firstExecutionRunId,
-      waitPolicy: { lifecycleStage: waitForStage },
+      waitPolicy: {
+        lifecycleStage: waitForStageProto,
+      },
       request: {
         meta: {
           updateId,
@@ -777,12 +828,17 @@ export class WorkflowClient extends BaseClient {
         },
       },
     };
-    let response: temporal.api.workflowservice.v1.UpdateWorkflowExecutionResponse;
 
+    // Repeatedly send UpdateWorkflowExecution until update is >= Accepted or >= `waitForStage` (if
+    // the server receives a request with an update ID that already exists, it responds with
+    // information for the existing update).
+    let response: temporal.api.workflowservice.v1.UpdateWorkflowExecutionResponse;
     try {
-      response = await this.workflowService.updateWorkflowExecution(req);
+      do {
+        response = await this.workflowService.updateWorkflowExecution(req);
+      } while (response.stage < waitForStageProto);
     } catch (err) {
-      this.rethrowGrpcError(err, 'Workflow Update failed', input.workflowExecution);
+      this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
     return {
       updateId,
@@ -830,21 +886,9 @@ export class WorkflowClient extends BaseClient {
       updateRef: { workflowExecution, updateId },
       identity: this.options.identity,
       waitPolicy: {
-        lifecycleStage:
-          temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage
-            .UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_COMPLETED,
+        lifecycleStage: workflowUpdateStage.toProtoEnum(WorkflowUpdateStage.COMPLETED),
       },
     };
-
-    // TODO: Users should be able to use client.withDeadline(timestamp) with a
-    // Date (as opposed to a duration) to control the total amount of time
-    // allowed for polling. However, this requires a server change such that the
-    // server swallows the gRPC timeout and instead responds with a well-formed
-    // PollWorkflowExecutionUpdateResponse, indicating that the requested
-    // lifecycle stage has not yet been reached at the time of the deadline
-    // expiry. See https://github.com/temporalio/temporal/issues/4742
-
-    // TODO: When temporal#4742 is released, stop catching DEADLINE_EXCEEDED.
     for (;;) {
       try {
         const response = await this.workflowService.pollWorkflowExecutionUpdate(req);
@@ -852,9 +896,8 @@ export class WorkflowClient extends BaseClient {
           return response.outcome;
         }
       } catch (err) {
-        if (!(isGrpcServiceError(err) && err.code === grpcStatus.DEADLINE_EXCEEDED)) {
-          throw err;
-        }
+        const wE = typeof workflowExecution.workflowId === 'string' ? workflowExecution : undefined;
+        this.rethrowUpdateGrpcError(err, 'Workflow Update Poll failed', wE as WorkflowExecution);
       }
     }
   }
@@ -901,7 +944,7 @@ export class WorkflowClient extends BaseClient {
       signalName,
       signalInput: { payloads: await encodeToPayloads(this.dataConverter, ...signalArgs) },
       taskQueue: {
-        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
+        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: options.taskQueue,
       },
       workflowExecutionTimeout: options.workflowExecutionTimeout,
@@ -949,7 +992,7 @@ export class WorkflowClient extends BaseClient {
       workflowType: { name: workflowType },
       input: { payloads: await encodeToPayloads(this.dataConverter, ...opts.args) },
       taskQueue: {
-        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
+        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: opts.taskQueue,
       },
       workflowExecutionTimeout: opts.workflowExecutionTimeout,
@@ -1050,10 +1093,9 @@ export class WorkflowClient extends BaseClient {
     runIdForResult,
     ...resultOptions
   }: WorkflowHandleOptions): WorkflowHandle<T> {
-    // TODO (dan): Convert to class with this as a protected method
     const _startUpdate = async <Ret, Args extends unknown[]>(
       def: UpdateDefinition<Ret, Args> | string,
-      waitForStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage,
+      waitForStage: WorkflowUpdateStage,
       options?: WorkflowUpdateOptions & { args?: Args }
     ): Promise<WorkflowUpdateHandle<Ret>> => {
       const next = this._startUpdateHandler.bind(this, waitForStage);
@@ -1069,12 +1111,16 @@ export class WorkflowClient extends BaseClient {
         options: opts,
       };
       const output = await fn(input);
-      return this.createWorkflowUpdateHandle<Ret>(
+      const handle = this.createWorkflowUpdateHandle<Ret>(
         output.updateId,
         input.workflowExecution.workflowId,
         output.workflowRunId,
         output.outcome
       );
+      if (!output.outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
+        await this._pollForUpdateOutcome(handle.updateId, input.workflowExecution);
+      }
+      return handle;
     };
 
     return {
@@ -1130,25 +1176,18 @@ export class WorkflowClient extends BaseClient {
       },
       async startUpdate<Ret, Args extends any[]>(
         def: UpdateDefinition<Ret, Args> | string,
-        options?: WorkflowUpdateOptions & { args?: Args }
+        options: WorkflowUpdateOptions & {
+          args?: Args;
+          waitForStage: WorkflowUpdateStage.ACCEPTED;
+        }
       ): Promise<WorkflowUpdateHandle<Ret>> {
-        return await _startUpdate(
-          def,
-          temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage
-            .UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED,
-          options
-        );
+        return await _startUpdate(def, options.waitForStage, options);
       },
       async executeUpdate<Ret, Args extends any[]>(
         def: UpdateDefinition<Ret, Args> | string,
         options?: WorkflowUpdateOptions & { args?: Args }
       ): Promise<Ret> {
-        const handle = await _startUpdate(
-          def,
-          temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage
-            .UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_COMPLETED,
-          options
-        );
+        const handle = await _startUpdate(def, WorkflowUpdateStage.COMPLETED, options);
         return await handle.result();
       },
       getUpdateHandle<Ret>(updateId: string): WorkflowUpdateHandle<Ret> {
@@ -1254,9 +1293,7 @@ export class WorkflowClient extends BaseClient {
           this._list(options),
           async ({ workflowId, runId }) => ({
             workflowId,
-            history: await this.getHandle(workflowId, runId)
-              .fetchHistory()
-              .catch((_) => undefined),
+            history: await this.getHandle(workflowId, runId).fetchHistory(),
           }),
           { concurrency: intoHistoriesOptions?.concurrency ?? 5 }
         );

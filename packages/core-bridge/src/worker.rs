@@ -18,7 +18,7 @@ use temporal_sdk_core::{
     },
     Worker as CoreWorker,
 };
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 /// Worker struct, hold a reference for the channel sender responsible for sending requests from
@@ -70,9 +70,34 @@ pub enum WorkerRequest {
 /// Returns when the given channel is dropped.
 pub async fn start_worker_loop(
     worker: CoreWorker,
-    rx: UnboundedReceiver<WorkerRequest>,
     channel: Arc<Channel>,
+    callback: Root<JsFunction>,
+    is_replay: Option<HistoryForReplayTunnel>,
 ) {
+    if is_replay.is_none() {
+        if let Err(e) = worker.validate().await {
+            send_error(channel, callback, move |cx| {
+                make_named_error_from_error(cx, TRANSPORT_ERROR, e)
+            });
+            return;
+        }
+    }
+    let (tx, rx) = unbounded_channel();
+    // Return the worker after validation has happened
+    if let Some(tunnel) = is_replay {
+        send_result(channel.clone(), callback, |cx| {
+            let worker = cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx })));
+            let tunnel = cx.boxed(tunnel);
+            let retme = cx.empty_object();
+            retme.set(cx, "worker", worker)?;
+            retme.set(cx, "pusher", tunnel)?;
+            Ok(retme)
+        })
+    } else {
+        send_result(channel.clone(), callback, |cx| {
+            Ok(cx.boxed(RefCell::new(Some(WorkerHandle { sender: tx }))))
+        });
+    }
     UnboundedReceiverStream::new(rx)
         .for_each_concurrent(None, |request| {
             let worker = &worker;
@@ -158,10 +183,6 @@ async fn handle_poll_workflow_activation_request(
             send_error(channel, callback, move |cx| match err {
                 PollWfError::ShutDown => make_named_error_from_error(cx, SHUTDOWN_ERROR, err),
                 PollWfError::TonicError(_) => make_named_error_from_error(cx, TRANSPORT_ERROR, err),
-                PollWfError::AutocompleteError(CompleteWfError::MalformedWorkflowCompletion {
-                    reason,
-                    ..
-                }) => Ok(JsError::type_error(cx, reason)?),
             });
         }
     }

@@ -6,6 +6,7 @@ use neon::{
     types::{JsBoolean, JsNumber, JsString},
 };
 use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
+use temporal_client::HttpConnectProxyOptions;
 use temporal_sdk_core::{
     api::telemetry::{Logger, MetricTemporality, TelemetryOptions, TelemetryOptionsBuilder},
     api::{
@@ -19,7 +20,9 @@ use temporal_sdk_core::{
         TestServerConfigBuilder,
     },
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
-    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, RetryConfig, TlsConfig, Url,
+    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, ResourceBasedSlotsOptions,
+    ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions, RetryConfig, SlotSupplierOptions,
+    TlsConfig, TunerHolderOptionsBuilder, Url,
 };
 
 pub enum EphemeralServerConfig {
@@ -44,12 +47,11 @@ impl ArrayHandleConversionsExt for Handle<'_, JsArray> {
     }
 }
 
-pub(crate) type TelemOptsRes = (
-    TelemetryOptions,
-    Option<Box<dyn FnOnce() -> Arc<dyn CoreMeter> + Send>>,
-);
+type BoxedMeterMaker = Box<dyn FnOnce() -> Result<Arc<dyn CoreMeter>, String> + Send + Sync>;
 
-pub trait ObjectHandleConversionsExt {
+pub(crate) type TelemOptsRes = (TelemetryOptions, Option<BoxedMeterMaker>);
+
+pub(crate) trait ObjectHandleConversionsExt {
     fn set_default(&self, cx: &mut FunctionContext, key: &str, value: &str) -> NeonResult<()>;
     fn as_client_options(&self, ctx: &mut FunctionContext) -> NeonResult<ClientOptions>;
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemOptsRes>;
@@ -63,6 +65,11 @@ pub trait ObjectHandleConversionsExt {
         &self,
         cx: &mut FunctionContext,
     ) -> NeonResult<HashMap<String, String>>;
+    fn as_slot_supplier(
+        &self,
+        cx: &mut FunctionContext,
+        rbo: &mut Option<ResourceBasedSlotsOptions>,
+    ) -> NeonResult<SlotSupplierOptions>;
 }
 
 impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
@@ -122,6 +129,26 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             }
         };
 
+        let proxy_cfg = match js_optional_getter!(cx, self, "proxy", JsObject) {
+            None => None,
+            Some(proxy) => {
+                let target_addr = js_value_getter!(cx, &proxy, "targetHost", JsString);
+
+                let basic_auth = match js_optional_getter!(cx, &proxy, "basicAuth", JsObject) {
+                    None => None,
+                    Some(proxy_obj) => Some((
+                        js_value_getter!(cx, &proxy_obj, "username", JsString),
+                        js_value_getter!(cx, &proxy_obj, "password", JsString),
+                    )),
+                };
+
+                Some(HttpConnectProxyOptions {
+                    target_addr,
+                    basic_auth,
+                })
+            }
+        };
+
         let retry_config = match js_optional_getter!(cx, self, "retry", JsObject) {
             None => RetryConfig::default(),
             Some(ref retry_config) => RetryConfig {
@@ -159,6 +186,20 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         if let Some(tls_cfg) = tls_cfg {
             client_options.tls_cfg(tls_cfg);
         }
+        client_options.http_connect_proxy(proxy_cfg);
+        let headers = match js_optional_getter!(cx, self, "metadata", JsObject) {
+            None => None,
+            Some(h) => Some(h.as_hash_map_of_string_to_string(cx).map_err(|reason| {
+                cx.throw_type_error::<_, HashMap<String, String>>(format!(
+                    "Invalid metadata: {}",
+                    reason
+                ))
+                .unwrap_err()
+            })?),
+        };
+        client_options.headers(headers);
+        let api_key = js_optional_value_getter!(cx, self, "apiKey", JsString);
+        client_options.api_key(api_key);
 
         Ok(client_options
             .client_name("temporal-typescript".to_string())
@@ -212,6 +253,22 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     }
                 };
 
+                if let Some(counters_total_suffix) =
+                    js_optional_value_getter!(cx, prom, "countersTotalSuffix", JsBoolean)
+                {
+                    options.counters_total_suffix(counters_total_suffix);
+                }
+                if let Some(unit_suffix) =
+                    js_optional_value_getter!(cx, prom, "unitSuffix", JsBoolean)
+                {
+                    options.unit_suffix(unit_suffix);
+                }
+                if let Some(use_seconds_for_durations) =
+                    js_optional_value_getter!(cx, prom, "useSecondsForDurations", JsBoolean)
+                {
+                    options.use_seconds_for_durations(use_seconds_for_durations);
+                }
+
                 let options = options.build().map_err(|e| {
                     cx.throw_type_error::<_, TelemetryOptions>(format!(
                         "Failed to build prometheus exporter options: {:?}",
@@ -220,22 +277,32 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     .unwrap_err()
                 })?;
 
-                meter_maker = Some(Box::new(move || {
-                    let prom_info = start_prometheus_metric_exporter(options)
-                        .expect("Failed creating prometheus exporter");
-                    prom_info.meter as Arc<dyn CoreMeter>
-                })
-                    as Box<dyn FnOnce() -> Arc<dyn CoreMeter> + Send>);
+                meter_maker =
+                    Some(
+                        Box::new(move || match start_prometheus_metric_exporter(options) {
+                            Ok(prom_info) => Ok(prom_info.meter as Arc<dyn CoreMeter>),
+                            Err(e) => Err(format!("Failed to start prometheus exporter: {}", e)),
+                        }) as BoxedMeterMaker,
+                    );
             } else if let Some(ref otel) = js_optional_getter!(cx, metrics, "otel", JsObject) {
                 let mut options = OtelCollectorOptionsBuilder::default();
 
                 let url = js_value_getter!(cx, otel, "url", JsString);
                 match Url::parse(&url) {
                     Ok(url) => options.url(url),
-                    Err(_) => {
-                        return cx.throw_type_error("Invalid telemetryOptions.metrics.otel.url");
+                    Err(e) => {
+                        return cx.throw_type_error(format!(
+                            "Invalid telemetryOptions.metrics.otel.url: {}",
+                            e
+                        ))?;
                     }
                 };
+
+                if let Some(use_seconds_for_durations) =
+                    js_optional_value_getter!(cx, otel, "useSecondsForDurations", JsBoolean)
+                {
+                    options.use_seconds_for_durations(use_seconds_for_durations);
+                }
 
                 if let Some(ref headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
                     options.headers(headers.as_hash_map_of_string_to_string(cx)?);
@@ -269,11 +336,10 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     .unwrap_err()
                 })?;
 
-                meter_maker = Some(Box::new(move || {
-                    let otlp_exporter =
-                        build_otlp_metric_exporter(options).expect("Failed to build otlp exporter");
-                    Arc::new(otlp_exporter) as Arc<dyn CoreMeter>
-                }));
+                meter_maker = Some(Box::new(move || match build_otlp_metric_exporter(options) {
+                    Ok(otlp_exporter) => Ok(Arc::new(otlp_exporter) as Arc<dyn CoreMeter>),
+                    Err(e) => Err(format!("Failed to start otlp exporter: {}", e)),
+                }) as BoxedMeterMaker);
             } else {
                 cx.throw_type_error(
                     "Invalid telemetryOptions.metrics, missing `prometheus` or `otel` option",
@@ -295,12 +361,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let task_queue = js_value_getter!(cx, self, "taskQueue", JsString);
         let enable_remote_activities =
             js_value_getter!(cx, self, "enableNonLocalActivities", JsBoolean);
-        let max_outstanding_activities =
-            js_value_getter!(cx, self, "maxConcurrentActivityTaskExecutions", JsNumber) as usize;
-        let max_outstanding_local_activities =
-            js_value_getter!(cx, self, "maxConcurrentLocalActivityExecutions", JsNumber) as usize;
-        let max_outstanding_workflow_tasks =
-            js_value_getter!(cx, self, "maxConcurrentWorkflowTaskExecutions", JsNumber) as usize;
         let max_concurrent_wft_polls =
             js_value_getter!(cx, self, "maxConcurrentWorkflowTaskPolls", JsNumber) as usize;
         let max_concurrent_at_polls =
@@ -342,14 +402,46 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let nonsticky_to_sticky_poll_ratio =
             js_value_getter!(cx, self, "nonStickyToStickyPollRatio", JsNumber) as f32;
 
+        let tuner = if let Some(tuner) = js_optional_getter!(cx, self, "tuner", JsObject) {
+            let mut tuner_holder = TunerHolderOptionsBuilder::default();
+            let mut rbo = None;
+
+            if let Some(wf_slot_supp) =
+                js_optional_getter!(cx, &tuner, "workflowTaskSlotSupplier", JsObject)
+            {
+                tuner_holder.workflow_slot_options(wf_slot_supp.as_slot_supplier(cx, &mut rbo)?);
+            }
+            if let Some(act_slot_supp) =
+                js_optional_getter!(cx, &tuner, "activityTaskSlotSupplier", JsObject)
+            {
+                tuner_holder.activity_slot_options(act_slot_supp.as_slot_supplier(cx, &mut rbo)?);
+            }
+            if let Some(local_act_slot_supp) =
+                js_optional_getter!(cx, &tuner, "localActivityTaskSlotSupplier", JsObject)
+            {
+                tuner_holder.local_activity_slot_options(
+                    local_act_slot_supp.as_slot_supplier(cx, &mut rbo)?,
+                );
+            }
+            if let Some(rbo) = rbo {
+                tuner_holder.resource_based_options(rbo);
+            }
+            match tuner_holder.build_tuner_holder() {
+                Err(e) => {
+                    return cx.throw_error(format!("Invalid tuner options: {:?}", e));
+                }
+                Ok(th) => Arc::new(th),
+            }
+        } else {
+            return cx.throw_error("Missing tuner");
+        };
+
         match WorkerConfigBuilder::default()
             .worker_build_id(js_value_getter!(cx, self, "buildId", JsString))
             .client_identity_override(Some(js_value_getter!(cx, self, "identity", JsString)))
             .use_worker_versioning(js_value_getter!(cx, self, "useVersioning", JsBoolean))
             .no_remote_activities(!enable_remote_activities)
-            .max_outstanding_workflow_tasks(max_outstanding_workflow_tasks)
-            .max_outstanding_activities(max_outstanding_activities)
-            .max_outstanding_local_activities(max_outstanding_local_activities)
+            .tuner(tuner)
             .max_concurrent_wft_polls(max_concurrent_wft_polls)
             .max_concurrent_at_polls(max_concurrent_at_polls)
             .nonsticky_to_sticky_poll_ratio(nonsticky_to_sticky_poll_ratio)
@@ -472,6 +564,46 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 "Invalid ephemeral server type: {}, expected 'dev-server' or 'time-skipping'",
                 s
             )),
+        }
+    }
+
+    fn as_slot_supplier(
+        &self,
+        cx: &mut FunctionContext,
+        rbo: &mut Option<ResourceBasedSlotsOptions>,
+    ) -> NeonResult<SlotSupplierOptions> {
+        match js_value_getter!(cx, self, "type", JsString).as_str() {
+            "fixed-size" => Ok(SlotSupplierOptions::FixedSize {
+                slots: js_value_getter!(cx, self, "numSlots", JsNumber) as usize,
+            }),
+            "resource-based" => {
+                let min_slots = js_value_getter!(cx, self, "minimumSlots", JsNumber);
+                let max_slots = js_value_getter!(cx, self, "maximumSlots", JsNumber);
+                let ramp_throttle = js_value_getter!(cx, self, "rampThrottleMs", JsNumber) as u64;
+                if let Some(tuner_opts) = js_optional_getter!(cx, self, "tunerOptions", JsObject) {
+                    let target_mem =
+                        js_value_getter!(cx, &tuner_opts, "targetMemoryUsage", JsNumber);
+                    let target_cpu = js_value_getter!(cx, &tuner_opts, "targetCpuUsage", JsNumber);
+                    *rbo = Some(
+                        ResourceBasedSlotsOptionsBuilder::default()
+                            .target_cpu_usage(target_cpu)
+                            .target_mem_usage(target_mem)
+                            .build()
+                            .expect("Building ResourceBasedSlotsOptions can't fail"),
+                    )
+                } else {
+                    return cx
+                        .throw_type_error("Resource based slot supplier requires tunerOptions");
+                };
+                Ok(SlotSupplierOptions::ResourceBased(
+                    ResourceSlotOptions::new(
+                        min_slots as usize,
+                        max_slots as usize,
+                        Duration::from_millis(ramp_throttle),
+                    ),
+                ))
+            }
+            _ => cx.throw_type_error("Invalid slot supplier type"),
         }
     }
 }

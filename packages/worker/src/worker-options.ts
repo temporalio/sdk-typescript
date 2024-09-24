@@ -6,6 +6,7 @@ import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
 import { Context } from '@temporalio/activity';
+import { WorkerTuner as NativeWorkerTuner } from '@temporalio/core-bridge';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
@@ -15,6 +16,7 @@ import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
+import { asNativeTuner, WorkerTuner } from './worker-tuner';
 
 export type { WebpackConfiguration };
 
@@ -179,20 +181,39 @@ export interface WorkerOptions {
 
   /**
    * Provide a custom {@link DataConverter}.
+   *
+   * When bundling workflows ahead of time, make sure to provide custom payload and failure
+   * converter paths as options to `bundleWorkflowCode`.
    */
   dataConverter?: DataConverter;
 
   /**
+   * Provide a custom {@link WorkerTuner}.
+   *
+   * Mutually exclusive with the {@link maxConcurrentWorkflowTaskExecutions}, {@link
+   * maxConcurrentActivityTaskExecutions}, and {@link maxConcurrentLocalActivityExecutions} options.
+   *
+   * @experimental
+   */
+  tuner?: WorkerTuner;
+
+  /**
    * Maximum number of Activity tasks to execute concurrently.
    * Adjust this to improve Worker resource consumption.
-   * @default 100
+   *
+   * Mutually exclusive with the {@link tuner} option.
+   *
+   * @default 100 if no {@link tuner} is set
    */
   maxConcurrentActivityTaskExecutions?: number;
 
   /**
    * Maximum number of Activity tasks to execute concurrently.
    * Adjust this to improve Worker resource consumption.
-   * @default 100
+   *
+   * Mutually exclusive with the {@link tuner} option.
+   *
+   * @default 100 if no {@link tuner} is set
    */
   maxConcurrentLocalActivityExecutions?: number;
 
@@ -255,7 +276,10 @@ export interface WorkerOptions {
    * Your millage may vary.
    *
    * Can't be lower than 2 if `maxCachedWorkflows` is non-zero.
-   * @default 40
+   *
+   * Mutually exclusive with the {@link tuner} option.
+   *
+   * @default 40 if no {@link tuner} is set
    */
   maxConcurrentWorkflowTaskExecutions?: number;
 
@@ -305,7 +329,7 @@ export interface WorkerOptions {
    * `maxConcurrentActivityTaskExecutions` slots despite a backlog of Activity
    * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
    * `maxConcurrentActivityTaskExecutions`.
-   * @default min(2, maxConcurrentActivityTaskExecutions)
+   * @default min(10, maxConcurrentActivityTaskExecutions)
    */
   maxConcurrentActivityTaskPolls?: number;
 
@@ -477,7 +501,7 @@ export interface WorkerOptions {
    *
    * Workflow execution time will not be limited by the Worker in `debugMode`.
    *
-   * @default false
+   * @default false unless the `TEMPORAL_DEBUG` environment variable is set.
    */
   debugMode?: boolean;
 
@@ -526,9 +550,6 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'identity'
       | 'useVersioning'
       | 'shutdownGraceTime'
-      | 'maxConcurrentActivityTaskExecutions'
-      | 'maxConcurrentLocalActivityExecutions'
-      | 'maxConcurrentWorkflowTaskExecutions'
       | 'maxConcurrentWorkflowTaskPolls'
       | 'maxConcurrentActivityTaskPolls'
       | 'nonStickyToStickyPollRatio'
@@ -541,6 +562,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'showStackTraceSources'
       | 'debugMode'
       | 'reuseV8Context'
+      | 'tuner'
     >
   > & {
     interceptors: Required<WorkerInterceptors>;
@@ -561,7 +583,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
  * formatted strings to numbers.
  */
 export interface CompiledWorkerOptions
-  extends Omit<WorkerOptionsWithDefaults, 'serverOptions' | 'interceptors' | 'activities'> {
+  extends Omit<WorkerOptionsWithDefaults, 'serverOptions' | 'interceptors' | 'activities' | 'tuner'> {
   interceptors: CompiledWorkerInterceptors;
   shutdownGraceTimeMs: number;
   shutdownForceTimeMs?: number;
@@ -571,6 +593,7 @@ export interface CompiledWorkerOptions
   defaultHeartbeatThrottleIntervalMs: number;
   loadedDataConverter: LoadedDataConverter;
   activities: Map<string, ActivityFunction>;
+  tuner: NativeWorkerTuner;
 }
 
 /**
@@ -583,6 +606,7 @@ export interface ReplayWorkerOptions
     | 'namespace'
     | 'taskQueue'
     | 'activities'
+    | 'tuner'
     | 'maxConcurrentActivityTaskExecutions'
     | 'maxConcurrentLocalActivityExecutions'
     | 'maxConcurrentWorkflowTaskExecutions'
@@ -612,7 +636,6 @@ export interface ReplayWorkerOptions
  * Build the sink used internally by the SDK to forwards log messages from the Workflow sandbox to an actual logger.
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
- *
  * @deprecated Calling `defaultSink()` is no longer required. To configure a custom logger, set the
  *             {@link Runtime.logger} property instead.
  */
@@ -622,6 +645,13 @@ export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
   // code that is still calling defaultSinks() expects return type to match the deprecated LoggerSinks API. Silently
   // cast just to mask type checking issues, even though we know this is wrong. Users shouldn't call functions directly
   // on the returned object anyway.
+
+  // If no logger was provided, the legacy behavior was to _lazily_ set the sink's logger to the Runtime's logger.
+  // This was required because we may call defaultSinks() before the Runtime is initialized. We preserve that behavior
+  // here by silently not initializing the sink if no logger is provided.
+  // eslint-disable-next-line deprecation/deprecation
+  if (!logger) return {} as InjectedSinks<LoggerSinks>;
+
   // eslint-disable-next-line deprecation/deprecation
   return initLoggerSink(logger) as unknown as InjectedSinks<LoggerSinks>;
 }
@@ -652,7 +682,7 @@ export function appendDefaultInterceptors(
   };
 }
 
-export function compileWorkerInterceptors({
+function compileWorkerInterceptors({
   activity,
   activityInbound, // eslint-disable-line deprecation/deprecation
   workflowModules,
@@ -663,7 +693,7 @@ export function compileWorkerInterceptors({
   };
 }
 
-export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
+function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): WorkerOptionsWithDefaults {
   const {
     buildId,
     useVersioning,
@@ -673,11 +703,12 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     sinks,
     nonStickyToStickyPollRatio,
     interceptors,
+    maxConcurrentActivityTaskExecutions,
+    maxConcurrentLocalActivityExecutions,
+    maxConcurrentWorkflowTaskExecutions,
     ...rest
   } = options;
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
-  const maxConcurrentWorkflowTaskExecutions = options.maxConcurrentWorkflowTaskExecutions ?? 40;
-  const maxConcurrentActivityTaskExecutions = options.maxConcurrentActivityTaskExecutions ?? 100;
 
   const reuseV8Context = options.reuseV8Context ?? true;
 
@@ -690,16 +721,52 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     throw new TypeError('Must provide a buildId if useVersioning is true');
   }
 
+  // Difficult to predict appropriate poll numbers for resource based slots
+  let maxWFTPolls = 10;
+  let maxATPolls = 10;
+  let setTuner: WorkerTuner;
+  if (rest.tuner !== undefined) {
+    if (maxConcurrentActivityTaskExecutions !== undefined) {
+      throw new TypeError('Cannot set both tuner and maxConcurrentActivityTaskExecutions');
+    }
+    if (maxConcurrentLocalActivityExecutions !== undefined) {
+      throw new TypeError('Cannot set both tuner and maxConcurrentLocalActivityExecutions');
+    }
+    if (maxConcurrentWorkflowTaskExecutions !== undefined) {
+      throw new TypeError('Cannot set both tuner and maxConcurrentWorkflowTaskExecutions');
+    }
+    setTuner = rest.tuner;
+  } else {
+    const maxWft = maxConcurrentWorkflowTaskExecutions ?? 40;
+    maxWFTPolls = Math.min(10, maxWft);
+    const maxAT = maxConcurrentActivityTaskExecutions ?? 100;
+    maxATPolls = Math.min(10, maxAT);
+    const maxLAT = maxConcurrentLocalActivityExecutions ?? 100;
+    setTuner = {
+      workflowTaskSlotSupplier: {
+        type: 'fixed-size',
+        numSlots: maxWft,
+      },
+      activityTaskSlotSupplier: {
+        type: 'fixed-size',
+        numSlots: maxAT,
+      },
+      localActivityTaskSlotSupplier: {
+        type: 'fixed-size',
+        numSlots: maxLAT,
+      },
+    };
+  }
+
   return {
     namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
     useVersioning: useVersioning ?? false,
     buildId,
     shutdownGraceTime: 0,
-    maxConcurrentLocalActivityExecutions: 100,
     enableNonLocalActivities: true,
-    maxConcurrentWorkflowTaskPolls: Math.min(10, maxConcurrentWorkflowTaskExecutions),
-    maxConcurrentActivityTaskPolls: Math.min(10, maxConcurrentActivityTaskExecutions),
+    maxConcurrentWorkflowTaskPolls: maxWFTPolls,
+    maxConcurrentActivityTaskPolls: maxATPolls,
     stickyQueueScheduleToStartTimeout: '10s',
     maxHeartbeatThrottleInterval: '60s',
     defaultHeartbeatThrottleInterval: '30s',
@@ -717,45 +784,41 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     },
     nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
     sinks: {
-      ...initLoggerSink(Runtime.instance().logger),
+      ...initLoggerSink(logger),
       // Fix deprecated registration of the 'defaultWorkerLogger' sink
       ...(sinks?.defaultWorkerLogger ? { __temporal_logger: sinks.defaultWorkerLogger } : {}),
       ...sinks,
     },
     ...rest,
+    tuner: setTuner,
     reuseV8Context,
-    maxConcurrentWorkflowTaskExecutions,
-    maxConcurrentActivityTaskExecutions,
   };
 }
 
-function isSet(env: string | undefined): boolean {
-  if (env === undefined) return false;
-  env = env.toLocaleLowerCase();
-  return env === '1' || env === 't' || env === 'true';
-}
-
-export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledWorkerOptions {
+export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): CompiledWorkerOptions {
+  const opts = addDefaultWorkerOptions(rawOpts, logger);
   if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
-    Runtime.instance().logger.warn(
-      'maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.'
-    );
+    logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
     opts.maxCachedWorkflows = 2;
   }
-  if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions > opts.maxCachedWorkflows) {
-    Runtime.instance().logger.warn(
-      "maxConcurrentWorkflowTaskExecutions can't exceed maxCachedWorkflows (unless cache is disabled). Defaulting to maxCachedWorkflows."
-    );
-    opts.maxConcurrentWorkflowTaskExecutions = opts.maxCachedWorkflows;
-  }
-  if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions < 2) {
-    Runtime.instance().logger.warn(
-      "maxConcurrentWorkflowTaskExecutions can't be lower than 2 if maxCachedWorkflows is non-zero. Defaulting to 2."
-    );
-    opts.maxConcurrentWorkflowTaskExecutions = 2;
+
+  if (opts.maxConcurrentWorkflowTaskExecutions !== undefined) {
+    if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions > opts.maxCachedWorkflows) {
+      logger.warn(
+        "maxConcurrentWorkflowTaskExecutions can't exceed maxCachedWorkflows (unless cache is disabled). Defaulting to maxCachedWorkflows."
+      );
+      opts.maxConcurrentWorkflowTaskExecutions = opts.maxCachedWorkflows;
+    }
+    if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions < 2) {
+      logger.warn(
+        "maxConcurrentWorkflowTaskExecutions can't be lower than 2 if maxCachedWorkflows is non-zero. Defaulting to 2."
+      );
+      opts.maxConcurrentWorkflowTaskExecutions = 2;
+    }
   }
 
   const activities = new Map(Object.entries(opts.activities ?? {}).filter(([_, v]) => typeof v === 'function'));
+  const tuner = asNativeTuner(opts.tuner);
 
   return {
     ...opts,
@@ -769,5 +832,12 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
     loadedDataConverter: loadDataConverter(opts.dataConverter),
     activities,
     enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,
+    tuner,
   };
+}
+
+function isSet(env: string | undefined): boolean {
+  if (env === undefined) return false;
+  env = env.toLocaleLowerCase();
+  return env === '1' || env === 't' || env === 'true';
 }

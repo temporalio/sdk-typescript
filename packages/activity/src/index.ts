@@ -69,8 +69,6 @@
  * @module
  */
 
-// Keep this around until we drop support for Node 14.
-import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Logger, Duration, LogLevel, LogMetadata } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
@@ -131,7 +129,7 @@ export interface Info {
    */
   readonly activityNamespace: string;
   /**
-   * Attempt number for this activity
+   * Attempt number for this activity. Starts at 1 and increments for every retry.
    */
   readonly attempt: number;
   /**
@@ -204,7 +202,7 @@ export class Context {
   /**
    * Gets the context of the current Activity.
    *
-   * Uses {@link https://nodejs.org/docs/latest-v14.x/api/async_hooks.html#async_hooks_class_asynclocalstorage | AsyncLocalStorage} under the hood to make it accessible in nested callbacks and promises.
+   * Uses {@link https://nodejs.org/docs/latest-v16.x/api/async_context.html#class-asynclocalstorage | AsyncLocalStorage} under the hood to make it accessible in nested callbacks and promises.
    */
   public static current(): Context {
     const store = asyncLocalStorage.getStore();
@@ -254,8 +252,8 @@ export class Context {
    * The logger for this Activity.
    *
    * This defaults to the `Runtime`'s Logger (see {@link Runtime.logger}). Attributes from the current Activity context
-   * will automatically be included as metadata on every log entries, and some key events of the Activity's lifecycle
-   * will automatically be logged (at 'DEBUG' level for most messages; 'WARN' for failures).
+   * are automatically included as metadata on every log entries. An extra `sdkComponent` metadata attribute is also
+   * added, with value `activity`; this can be used for fine-grained filtering of log entries further downstream.
    *
    * To customize log attributes, register a {@link ActivityOutboundCallsInterceptor} that intercepts the
    * `getLogAttributes()` method.

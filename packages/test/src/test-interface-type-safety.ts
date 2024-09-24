@@ -7,7 +7,7 @@ import {
   Workflow,
   defineUpdate,
 } from '@temporalio/workflow';
-import { WorkflowHandle } from '@temporalio/client';
+import { WorkflowHandle, WorkflowUpdateStage } from '@temporalio/client';
 
 test('SignalDefinition Name type safety', (t) => {
   // @ts-expect-error Assert expect a type error when generic and concrete names do not match
@@ -101,5 +101,81 @@ test('Can call signal on any WorkflowHandle', async (t) => {
     await handle.signal(defineSignal('signal'));
   }
 
+  t.pass();
+});
+
+test('startUpdate and executeUpdate call signatures', async (t) => {
+  // startUpdate and executeUpdate call signatures both require `args` iff update takes args.
+  // startUpdate requires `waitForStage=Accepted`.
+  // executeUpdate does not accept `waitForStage`.
+  const nullaryUpdate = defineUpdate<string>('my-nullary-update');
+  const unaryUpdate = defineUpdate<string, [number]>('my-unary-update');
+
+  async function _assertion<T extends Workflow>(handle: WorkflowHandle<T>) {
+    // @ts-expect-error: waitForStage required
+    await handle.startUpdate(nullaryUpdate);
+    // @ts-expect-error: waitForStage required
+    await handle.startUpdate(nullaryUpdate, {});
+    // @ts-expect-error: waitForStage required
+    await handle.startUpdate(nullaryUpdate, { args: [] });
+    // @ts-expect-error: waitForStage must be ACCEPTED
+    await handle.startUpdate(nullaryUpdate, {
+      waitForStage: WorkflowUpdateStage.ADMITTED,
+    });
+    // @ts-expect-error: waitForStage must be ACCEPTED
+    await handle.startUpdate(nullaryUpdate, {
+      waitForStage: WorkflowUpdateStage.COMPLETED,
+    });
+    // @ts-expect-error: waitForStage must be ACCEPTED
+    await handle.startUpdate(nullaryUpdate, {
+      waitForStage: WorkflowUpdateStage.UNSPECIFIED,
+    });
+    // @ts-expect-error: args must be empty if present
+    await handle.startUpdate(nullaryUpdate, {
+      args: [1],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
+    // valid
+    await handle.startUpdate(nullaryUpdate, {
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
+    await handle.startUpdate(nullaryUpdate, {
+      args: [],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
+    // @ts-expect-error:executeUpdate doesn't accept waitForStage
+    await handle.executeUpdate(nullaryUpdate, {
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
+    // @ts-expect-error:executeUpdate doesn't accept waitForStage
+    await handle.executeUpdate(nullaryUpdate, {
+      waitForStage: WorkflowUpdateStage.COMPLETED,
+    });
+    // valid
+    await handle.executeUpdate(nullaryUpdate, {});
+    await handle.executeUpdate(nullaryUpdate, { args: [] });
+
+    // @ts-expect-error: args required
+    await handle.startUpdate(unaryUpdate, {
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
+    // @ts-expect-error: args required
+    await handle.startUpdate(unaryUpdate, {
+      args: [],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
+    // valid
+    await handle.startUpdate(unaryUpdate, {
+      args: [1],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
+    // @ts-expect-error:executeUpdate doesn't accept waitForStage
+    await handle.executeUpdate(unaryUpdate, {
+      args: [1],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
+    // valid
+    await handle.executeUpdate(unaryUpdate, { args: [1] });
+  }
   t.pass();
 });

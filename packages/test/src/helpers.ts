@@ -1,15 +1,23 @@
+import * as fs from 'fs/promises';
+import * as net from 'net';
 import path from 'path';
 import StackUtils from 'stack-utils';
 import ava, { TestFn } from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
 import { v4 as uuid4 } from 'uuid';
-import { inWorkflowContext } from '@temporalio/workflow';
+import { inWorkflowContext, WorkflowInfo } from '@temporalio/workflow';
 import { Payload, PayloadCodec } from '@temporalio/common';
 import { Worker as RealWorker, WorkerOptions } from '@temporalio/worker';
 import * as worker from '@temporalio/worker';
 import { Client, Connection } from '@temporalio/client';
 import * as iface from '@temporalio/proto';
+import {
+  LocalTestWorkflowEnvironmentOptions,
+  TestWorkflowEnvironment as RealTestWorkflowEnvironment,
+  TimeSkippingTestWorkflowEnvironmentOptions,
+} from '@temporalio/testing';
+import { LoggerSinksInternal as DefaultLoggerSinks } from '@temporalio/workflow/lib/logs';
 
 export function u8(s: string): Uint8Array {
   // TextEncoder requires lib "dom"
@@ -26,9 +34,33 @@ function isSet(env: string | undefined, def: boolean): boolean {
 
 export const RUN_INTEGRATION_TESTS = inWorkflowContext() || isSet(process.env.RUN_INTEGRATION_TESTS, false);
 export const REUSE_V8_CONTEXT = inWorkflowContext() || isSet(process.env.REUSE_V8_CONTEXT, true);
+export const RUN_TIME_SKIPPING_TESTS =
+  inWorkflowContext() || !(process.platform === 'linux' && process.arch === 'arm64');
+
+export const TESTS_CLI_VERSION = inWorkflowContext() ? '' : process.env.TESTS_CLI_VERSION;
+export const TESTS_TIME_SKIPPING_SERVER_VERSION = inWorkflowContext()
+  ? ''
+  : process.env.TESTS_TIME_SKIPPING_SERVER_VERSION;
 
 export async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function waitUntil(
+  condition: () => Promise<boolean>,
+  timeoutMs: number,
+  intervalMs: number = 100
+): Promise<void> {
+  const endTime = Date.now() + timeoutMs;
+  for (;;) {
+    if (await condition()) {
+      return;
+    } else if (Date.now() >= endTime) {
+      throw new Error('timed out waiting for condition');
+    } else {
+      await sleep(intervalMs);
+    }
+  }
 }
 
 export function cleanOptionalStackTrace(stackTrace: string | undefined | null): string | undefined {
@@ -59,7 +91,7 @@ export function cleanStackTrace(ostack: string): string {
   return normalizedStack ? `${firstLine}\n${normalizedStack}` : firstLine;
 }
 
-function noopTest() {
+function noopTest(): void {
   // eslint: this function body is empty and it's okay.
 }
 
@@ -70,11 +102,14 @@ noopTest.after = () => undefined;
 (noopTest.after as any).always = () => undefined;
 noopTest.beforeEach = () => undefined;
 noopTest.afterEach = () => undefined;
+noopTest.skip = () => noopTest;
 
 /**
  * (Mostly complete) helper to allow mixing workflow and non-workflow code in the same test file.
  */
 export const test: TestFn<unknown> = inWorkflowContext() ? (noopTest as any) : ava;
+
+export const testTimeSkipping = RUN_TIME_SKIPPING_TESTS ? test : noopTest;
 
 export const bundlerOptions = {
   // This is a bit ugly but it does the trick, when a test that includes workflow code tries to import a forbidden
@@ -93,6 +128,8 @@ export const bundlerOptions = {
     '@grpc/grpc-js',
     'async-retry',
     'uuid',
+    'net',
+    'fs/promises',
   ],
 };
 
@@ -115,16 +152,61 @@ export class ByteSkewerPayloadCodec implements PayloadCodec {
   }
 }
 
-// Hack around Worker not being available in workflow context
+// Hack around Worker and TestWorkflowEnvironment not being available in workflow context
 if (inWorkflowContext()) {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   worker.Worker = class {}; // eslint-disable-line import/namespace
+
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  RealTestWorkflowEnvironment = class {}; // eslint-disable-line import/namespace
 }
 
 export class Worker extends worker.Worker {
   static async create(options: WorkerOptions): Promise<worker.Worker> {
     return RealWorker.create({ ...options, reuseV8Context: REUSE_V8_CONTEXT });
+  }
+}
+
+// A custom version of TestWorkflowEnvironment for our own testing use, that
+// allow specifying the version of the CLI and Time Skipping Server binaries to
+// through environment variables.
+export class TestWorkflowEnvironment extends RealTestWorkflowEnvironment {
+  static async createLocal(opts?: LocalTestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
+    return RealTestWorkflowEnvironment.createLocal({
+      ...opts,
+      ...(TESTS_CLI_VERSION
+        ? {
+            server: {
+              ...opts?.server,
+              executable: {
+                ...opts?.server?.executable,
+                type: 'cached-download',
+                version: TESTS_CLI_VERSION,
+              },
+            },
+          }
+        : undefined),
+    });
+  }
+
+  static async createTimeSkipping(opts?: TimeSkippingTestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
+    return RealTestWorkflowEnvironment.createTimeSkipping({
+      ...opts,
+      ...(TESTS_TIME_SKIPPING_SERVER_VERSION
+        ? {
+            server: {
+              ...opts?.server,
+              executable: {
+                ...opts?.server?.executable,
+                type: 'cached-download',
+                version: TESTS_TIME_SKIPPING_SERVER_VERSION,
+              },
+            },
+          }
+        : undefined),
+    });
   }
 }
 
@@ -182,4 +264,46 @@ export async function registerDefaultCustomSearchAttributes(connection: Connecti
   );
   const timeTaken = Date.now() - startTime;
   console.log(`... Registered (took ${timeTaken / 1000} sec)!`);
+}
+
+export async function getRandomPort(fn = (_port: number) => Promise.resolve()): Promise<number> {
+  return new Promise<number>((resolve, reject) => {
+    const srv = net.createServer();
+    srv.listen({ port: 0, host: '127.0.0.1' }, () => {
+      const addr = srv.address();
+      if (typeof addr === 'string' || addr === null) {
+        throw new Error('Unexpected server address type');
+      }
+      fn(addr.port)
+        .catch((e) => reject(e))
+        .finally(() => srv.close((_) => resolve(addr.port)));
+    });
+  });
+}
+
+export function asSdkLoggerSink(
+  fn: (info: WorkflowInfo, message: string, attrs?: Record<string, unknown>) => Promise<void>,
+  opts?: Omit<worker.InjectedSinkFunction<any>, 'fn'>
+): worker.InjectedSinks<DefaultLoggerSinks> {
+  return {
+    __temporal_logger: {
+      trace: { fn, ...opts },
+      debug: { fn, ...opts },
+      info: { fn, ...opts },
+      warn: { fn, ...opts },
+      error: { fn, ...opts },
+    },
+  };
+}
+
+export async function getHistories(fname: string): Promise<iface.temporal.api.history.v1.History> {
+  const isJson = fname.endsWith('json');
+  const fpath = path.resolve(__dirname, `../history_files/${fname}`);
+  if (isJson) {
+    const hist = await fs.readFile(fpath, 'utf8');
+    return JSON.parse(hist);
+  } else {
+    const hist = await fs.readFile(fpath);
+    return iface.temporal.api.history.v1.History.decode(hist);
+  }
 }

@@ -34,7 +34,7 @@
     "lint.prune": "ts-prune --error -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
     "format": "prettier --write . && lerna run --no-bail --stream format",
     "clean": "node ./scripts/clean.mjs",
-    "docs": "lerna run --stream maybe-install-deps-and-build-docs"
+    "docs": "cd packages/docs && npm run maybe-install-deps-and-build-docs"
   },
   "dependencies": {
     "@temporalio/client": "file:packages/client",
@@ -53,11 +53,12 @@
     "@opentelemetry/api": "^1.7.0",
     "@opentelemetry/core": "^1.19.0",
     "@opentelemetry/sdk-node": "^0.46.0",
-    "@tsconfig/node14": "^14.1.0",
+    "@tsconfig/node16": "^16.1.3",
     "@types/fs-extra": "^11.0.4",
     "@types/ms": "^0.7.34",
     "@types/node": "^20.10.8",
     "@types/stack-utils": "^2.0.3",
+    "@types/supports-color": "^8.1.3",
     "@typescript-eslint/eslint-plugin": "^6.18.1",
     "@typescript-eslint/parser": "^6.18.1",
     "arg": "^5.0.2",
@@ -69,15 +70,29 @@
     "eslint-plugin-tsdoc": "^0.2.17",
     "fs-extra": "^11.2.0",
     "json5": "^2.2.3",
-    "lerna": "^6.6.2",
+    "lerna": "^7.4.2",
     "prettier": "^3.1.1",
     "ts-prune": "^0.10.3",
     "typescript": "^5.3.3",
-    "verdaccio": "^5.29.0"
+    "verdaccio": "^5.31.0"
   },
+  "workspaces": [
+    "packages/activity",
+    "packages/client",
+    "packages/common",
+    "packages/core-bridge",
+    "packages/create-project",
+    "packages/interceptors-opentelemetry",
+    "packages/nyc-test-coverage",
+    "packages/proto",
+    "packages/test",
+    "packages/testing",
+    "packages/worker",
+    "packages/workflow"
+  ],
   "engines": {
-    "node": ">= 14.18.0",
-    "npm": ">= 6.0.0",
+    "node": ">= 16.15.0",
+    "npm": ">= 7.0.0",
     "rustc": ">= 1.53.0"
   }
 }

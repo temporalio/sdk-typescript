@@ -1,7 +1,16 @@
 import { LogLevel, Duration } from '@temporalio/common';
-import type { TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
+import type { TLSConfig, ProxyConfig, HttpConnectProxyConfig } from '@temporalio/common/lib/internal-non-workflow';
+import { WorkerTuner } from './worker-tuner';
 
-export { TLSConfig };
+export {
+  WorkerTuner,
+  SlotSupplier,
+  ResourceBasedSlotOptions,
+  ResourceBasedTunerOptions,
+  FixedSizeSlotSupplier,
+} from './worker-tuner';
+
+export type { TLSConfig, ProxyConfig, HttpConnectProxyConfig };
 
 /** @deprecated Import from @temporalio/common instead */
 export { LogLevel };
@@ -56,6 +65,13 @@ export interface ClientOptions {
   tls?: TLSConfig;
 
   /**
+   * Proxying configuration.
+   *
+   * @experimental
+   */
+  proxy?: ProxyConfig;
+
+  /**
    * Optional retry options for server requests.
    */
   retry?: RetryOptions;
@@ -66,6 +82,14 @@ export interface ClientOptions {
    * Set statically at connection time, can be replaced later using {@link clientUpdateHeaders}.
    */
   metadata?: Record<string, string>;
+
+  /**
+   * API key for Temporal. This becomes the "Authorization" HTTP header with "Bearer " prepended.
+   * This is only set if RPC metadata doesn't already have an "authorization" key.
+   *
+   * Set statically at connection time, can be replaced later using {@link clientUpdateApiKey}.
+   */
+  apiKey?: string;
 }
 
 /**
@@ -122,11 +146,20 @@ export interface OtelCollectorExporter {
      * @defaults 1 second
      */
     metricsExportInterval?: Duration;
+    /**
+     * If set to true, the exporter will use seconds for durations instead of milliseconds.
+     */
+    useSecondsForDurations?: boolean;
   };
 }
 
 /** @experimental */
-export type CompiledOtelMetricsExporter = Shadow<OtelCollectorExporter, { otel: { metricsExportInterval: number } }>;
+export type CompiledOtelMetricsExporter = Shadow<
+  OtelCollectorExporter,
+  {
+    otel: { metricsExportInterval: number };
+  }
+>;
 
 /**
  * Prometheus metrics exporter options
@@ -142,6 +175,19 @@ export interface PrometheusMetricsExporter {
      * Metrics will be available for scraping under the standard `/metrics` route.
      */
     bindAddress: string;
+    /**
+     * If set to true, all counter names will include a "_total" suffix.
+     */
+    countersTotalSuffix?: boolean;
+    /**
+     * If set to true, all histograms will include the unit in their name as a suffix.
+     * EX: "_milliseconds"
+     */
+    unitSuffix?: boolean;
+    /**
+     * If set to true, the exporter will use seconds for durations instead of milliseconds.
+     */
+    useSecondsForDurations?: boolean;
   };
 }
 
@@ -250,9 +296,11 @@ export interface WorkerOptions {
    */
   taskQueue: string;
 
-  maxConcurrentActivityTaskExecutions: number;
-  maxConcurrentWorkflowTaskExecutions: number;
-  maxConcurrentLocalActivityExecutions: number;
+  /**
+   * The tuner the worker will use
+   */
+  tuner: WorkerTuner;
+
   nonStickyToStickyPollRatio: number;
 
   /**
@@ -373,12 +421,16 @@ export interface TimeSkippingServerConfig {
   port?: number;
   /**
    * Extra args to pass to the executable command.
+   *
+   * Note that the Test Server implementation may be changed to another one in the future. Therefore, there is
+   * no guarantee that server options, and particularly those provided through the `extraArgs` array, will continue to
+   * be supported in the future.
    */
   extraArgs?: string[];
 }
 
 /**
- * Configuration for the Temporal CLI dev server.
+ * Configuration for the Temporal CLI Dev Server.
  */
 export interface DevServerConfig {
   type: 'dev-server';
@@ -416,6 +468,10 @@ export interface DevServerConfig {
   port?: number;
   /**
    * Extra args to pass to the executable command.
+   *
+   * Note that the Dev Server implementation may be changed to another one in the future. Therefore, there is no
+   * guarantee that Dev Server options, and particularly those provided through the `extraArgs` array, will continue to
+   * be supported in the future.
    */
   extraArgs?: string[];
 }
@@ -423,25 +479,30 @@ export interface DevServerConfig {
 /**
  * Configuration for spawning an ephemeral Temporal server.
  *
- * Both the time-skipping test server and Temporal CLI dev server are supported.
+ * Both the time-skipping Test Server and Temporal CLI dev server are supported.
  */
 export type EphemeralServerConfig = TimeSkippingServerConfig | DevServerConfig;
 
 export interface Worker {
   type: 'Worker';
 }
+
 export interface Runtime {
   type: 'Runtime';
 }
+
 export interface Client {
   type: 'Client';
 }
+
 export interface EphemeralServer {
   type: 'EphemeralServer';
 }
+
 export interface HistoryPusher {
   type: 'HistoryPusher';
 }
+
 export interface ReplayWorker {
   type: 'ReplayWorker';
   worker: Worker;
@@ -457,47 +518,69 @@ export declare type VoidCallback = (err: Error, result: void) => void;
 export declare type LogsCallback = (err: Error, result: LogEntry[]) => void;
 
 export declare function newRuntime(telemOptions: CompiledTelemetryOptions): Runtime;
+
 export declare function newClient(runtime: Runtime, clientOptions: ClientOptions, callback: ClientCallback): void;
+
 export declare function newWorker(client: Client, workerOptions: WorkerOptions, callback: WorkerCallback): void;
+
 export declare function newReplayWorker(
   runtime: Runtime,
   workerOptions: WorkerOptions,
   callback: ReplayWorkerCallback
 ): void;
+
 export declare function pushHistory(
   pusher: HistoryPusher,
   workflowId: string,
   history: ArrayBuffer,
   callback: VoidCallback
 ): void;
+
 export declare function closeHistoryStream(pusher: HistoryPusher): void;
+
 export declare function workerInitiateShutdown(worker: Worker, callback: VoidCallback): void;
+
 export declare function workerFinalizeShutdown(worker: Worker): void;
+
 export declare function clientUpdateHeaders(
   client: Client,
   headers: Record<string, string>,
   callback: VoidCallback
 ): void;
+
+export declare function clientUpdateApiKey(client: Client, apiKey: string, callback: VoidCallback): void;
+
 export declare function clientClose(client: Client): void;
+
 export declare function runtimeShutdown(runtime: Runtime, callback: VoidCallback): void;
+
 export declare function pollLogs(runtime: Runtime, callback: LogsCallback): void;
+
 export declare function workerPollWorkflowActivation(worker: Worker, callback: PollCallback): void;
+
 export declare function workerCompleteWorkflowActivation(
   worker: Worker,
   result: ArrayBuffer,
   callback: VoidCallback
 ): void;
+
 export declare function workerPollActivityTask(worker: Worker, callback: PollCallback): void;
+
 export declare function workerCompleteActivityTask(worker: Worker, result: ArrayBuffer, callback: VoidCallback): void;
+
 export declare function workerRecordActivityHeartbeat(worker: Worker, heartbeat: ArrayBuffer): void;
+
 export declare function getTimeOfDay(): [number, number];
+
 export declare function startEphemeralServer(
   runtime: Runtime,
   config: EphemeralServerConfig,
   sdkVersion: string,
   callback: Callback<EphemeralServer>
 ): void;
+
 export declare function shutdownEphemeralServer(server: EphemeralServer, callback: Callback<EphemeralServer>): void;
+
 export declare function getEphemeralServerTarget(server: EphemeralServer): string;
 
 export { ShutdownError, TransportError, UnexpectedError } from './errors';

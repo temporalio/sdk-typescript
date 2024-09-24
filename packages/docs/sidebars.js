@@ -11,6 +11,7 @@ function titleCase(str) {
 
 function nestMarkdownFiles() {
   return markdownFiles()
+    .sort()
     .sort((a, b) => a.split('.').length - b.split('.').length)
     .reduce((acc, f) => {
       const url = path.relative(path.join(__dirname, 'docs'), f).replace(/\.md$/, '');
@@ -24,7 +25,7 @@ function nestMarkdownFiles() {
             type: 'category',
             label: basename,
             link: { type: 'doc', id: `api/namespaces/${basename}` },
-            items: [url],
+            items: [],
           },
         ];
       }
@@ -35,7 +36,12 @@ function nestMarkdownFiles() {
 
       // Insert new item
       if (category === 'Namespaces') {
-        items.push({ type: 'category', label: url.replace(/.*\./, ''), items: [url] });
+        items.push({
+          type: 'category',
+          label: url.replace(/.*\./, ''),
+          link: { type: 'doc', id: `api/namespaces/${basename}` },
+          items: [],
+        });
       } else {
         let item = items.find(({ label }) => label === category);
         if (item === undefined) {

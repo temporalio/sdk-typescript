@@ -8,7 +8,13 @@ import {
   filterNullAndUndefined,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
-import { optionalDateToTs, optionalTsToDate, optionalTsToMs, tsToDate } from '@temporalio/common/lib/time';
+import {
+  optionalDateToTs,
+  optionalTsToDate,
+  optionalTsToMs,
+  requiredTsToDate,
+  tsToDate,
+} from '@temporalio/common/lib/time';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
 import { WorkflowService } from './types';
@@ -430,8 +436,7 @@ export class ScheduleClient extends BaseClient {
           info: {
             recentActions: decodeScheduleRecentActions(raw.info?.recentActions),
             nextActionTimes: raw.info?.futureActionTimes?.map(tsToDate) ?? [],
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            createdAt: tsToDate(raw.info!.createTime!),
+            createdAt: requiredTsToDate(raw.info?.createTime, 'createTime'),
             lastUpdatedAt: optionalTsToDate(raw.info?.updateTime),
             runningActions: decodeScheduleRunningActions(raw.info?.runningWorkflows),
             numActionsMissedCatchupWindow: raw.info?.missedCatchupWindow?.toNumber() ?? 0,

@@ -5,7 +5,7 @@ import util from 'node:util';
 import * as unionfs from 'unionfs';
 import * as memfs from 'memfs';
 import { Configuration, webpack } from 'webpack';
-import { DefaultLogger, Logger } from '../logger';
+import { DefaultLogger, Logger, hasColorSupport } from '../logger';
 import { toMB } from '../utils';
 
 export const defaultWorkflowInterceptorModules = [require.resolve('../workflow-log-interceptor')];
@@ -151,10 +151,10 @@ export class WorkflowCodeBundler {
 
     const code = `
 const api = require('@temporalio/workflow/lib/worker-interface.js');
-
-api.overrideGlobals();
-
 exports.api = api;
+
+const { overrideGlobals } = require('@temporalio/workflow/lib/global-overrides.js');
+overrideGlobals();
 
 exports.importWorkflows = function importWorkflows() {
   return require(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
@@ -262,14 +262,16 @@ exports.importInterceptors = function importInterceptors() {
             const hasError = stats.hasErrors();
             // To debug webpack build:
             // const lines = stats.toString({ preset: 'verbose' }).split('\n');
-            const lines = stats.toString({ chunks: false, colors: true, errorDetails: true }).split('\n');
-            for (const line of lines) {
-              this.logger[hasError ? 'error' : 'info'](line);
-            }
+            const webpackOutput = stats.toString({
+              chunks: false,
+              colors: hasColorSupport(this.logger),
+              errorDetails: true,
+            });
+            this.logger[hasError ? 'error' : 'info'](webpackOutput);
             if (hasError) {
               reject(
                 new Error(
-                  "Webpack finished with errors, if you're unsure what went wrong, visit our troubleshooting page at https://docs.temporal.io/typescript/troubleshooting#webpack-errors"
+                  "Webpack finished with errors, if you're unsure what went wrong, visit our troubleshooting page at https://docs.temporal.io/develop/typescript/debugging#webpack-errors"
                 )
               );
             }
@@ -285,7 +287,7 @@ exports.importInterceptors = function importInterceptors() {
                   ` • Make sure that activity code is not imported from workflow code. Use \`import type\` to import activity function signatures.\n` +
                   ` • Move code that has non-deterministic behaviour to activities.\n` +
                   ` • If you know for sure that a disallowed module will not be used at runtime, add its name to 'WorkerOptions.bundlerOptions.ignoreModules' in order to dismiss this warning.\n` +
-                  `See also: https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions and https://docs.temporal.io/typescript/determinism.`
+                  `See also: https://typescript.temporal.io/api/namespaces/worker#workflowbundleoption and https://docs.temporal.io/typescript/determinism.`
               );
 
               reject(err);

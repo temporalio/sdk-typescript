@@ -23,7 +23,7 @@ import {
   optionalDateToTs,
   optionalTsToDate,
   optionalTsToMs,
-  tsToDate,
+  requiredTsToDate,
 } from '@temporalio/common/lib/time';
 import {
   CalendarSpec,
@@ -267,7 +267,7 @@ export async function encodeScheduleAction(
       },
       input: { payloads: await encodeToPayloads(dataConverter, ...action.args) },
       taskQueue: {
-        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
+        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: action.taskQueue,
       },
       workflowExecutionTimeout: msOptionalToTs(action.workflowExecutionTimeout),
@@ -405,10 +405,8 @@ export function decodeScheduleRecentActions(
       } else throw new TypeError('Unsupported schedule action');
 
       return {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        scheduledAt: tsToDate(executionResult.scheduleTime!),
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        takenAt: tsToDate(executionResult.actualTime!),
+        scheduledAt: requiredTsToDate(executionResult.scheduleTime, 'scheduleTime'),
+        takenAt: requiredTsToDate(executionResult.actualTime, 'actualTime'),
         action,
       };
     }

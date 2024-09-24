@@ -22,6 +22,7 @@ export {
   TemporalFailure,
   TerminatedFailure,
   TimeoutFailure,
+  WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
 export { TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
 export * from '@temporalio/common/lib/errors';
@@ -39,6 +40,7 @@ export * from './workflow-options';
 export * from './schedule-types';
 export * from './schedule-client';
 export * from './task-queue-client';
+export { WorkflowUpdateStage } from './workflow-update-stage';
 export {
   WorkerBuildIdVersionSets,
   BuildIdVersionSet,

@@ -1,8 +1,7 @@
 import crypto from 'node:crypto';
 import test from 'ava';
 import * as wf from '@temporalio/workflow';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { Worker } from './helpers';
+import { Worker, TestWorkflowEnvironment } from './helpers';
 import * as workflows from './workflows/signal-query-patch-pre-patch';
 
 test('Signal+Query+Patch does not cause non-determinism error on replay', async (t) => {

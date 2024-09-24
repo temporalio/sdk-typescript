@@ -29,6 +29,17 @@ export function optionalTsToMs(ts: Timestamp | null | undefined): number | undef
 }
 
 /**
+ * Lossy conversion function from Timestamp to number due to possible overflow.
+ * If ts is null or undefined, throws a TypeError, with error message including the name of the field.
+ */
+export function requiredTsToMs(ts: Timestamp | null | undefined, fieldName: string): number {
+  if (ts === undefined || ts === null) {
+    throw new TypeError(`Expected ${fieldName} to be a timestamp, got ${ts}`);
+  }
+  return tsToMs(ts);
+}
+
+/**
  * Lossy conversion function from Timestamp to number due to possible overflow
  */
 export function tsToMs(ts: Timestamp | null | undefined): number {
@@ -55,7 +66,7 @@ export function msToTs(str: Duration): Timestamp {
   return msNumberToTs(msToNumber(str));
 }
 
-export function msOptionalToTs(str: Duration | undefined): Timestamp | undefined {
+export function msOptionalToTs(str: Duration | undefined | null): Timestamp | undefined {
   return str ? msToTs(str) : undefined;
 }
 
@@ -81,6 +92,11 @@ function msWithValidation(str: StringValue): number {
 
 export function tsToDate(ts: Timestamp): Date {
   return new Date(tsToMs(ts));
+}
+
+// ts-prune-ignore-next
+export function requiredTsToDate(ts: Timestamp | null | undefined, fieldName: string): Date {
+  return new Date(requiredTsToMs(ts, fieldName));
 }
 
 export function optionalTsToDate(ts: Timestamp | null | undefined): Date | undefined {

@@ -9,301 +9,430 @@ on: # rebuild any PRs and main branch changes
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  IS_OFFICIAL_REPO: ${{ github.repository == 'temporalio/sdk-typescript' }}
+  # Is it the official main branch, or an official release branches?
+  # AFAIK there's no way to break that line w/o introducing a trailing LF that breaks usage. Sorry.
+  IS_MAIN_OR_RELEASE: ${{ github.repository == 'temporalio/sdk-typescript' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) && github.event_name != 'pull_request' }}
+
+  # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
+  # TESTS_CLI_VERSION: 'v0.13.2'
+  # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
-  build-and-test:
+  # Compile native bridge code for each target platform.
+  # Uploads the native library for each target as a build artifact.
+  compile-native-binaries:
     strategy:
       fail-fast: true
       matrix:
-        reuse-v8-context: [true]
-        node: [14, 16, 18, 20]
-        os: [ubuntu-latest, macos-latest, windows-latest]
         include:
-          - os: ubuntu-latest
-            node: 20
-            reuse-v8-context: false
-
-    runs-on: ${{ matrix.os }}
+          # For Linux targets, use Buildjet's builders to get the oldest supported glibc version
+          - platform: linux-x64
+            runner: buildjet-4vcpu-ubuntu-2204
+            target: x86_64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_24_x86_64
+            out-file: libtemporal_sdk_typescript_bridge.so
+          - platform: linux-arm
+            runner: buildjet-4vcpu-ubuntu-2204-arm
+            target: aarch64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_24_aarch64
+            out-file: libtemporal_sdk_typescript_bridge.so
+          - platform: macos-x64
+            runner: macos-12
+            target: x86_64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
+          - platform: macos-arm
+            runner: macos-14
+            target: aarch64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
+          - platform: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            out-file: temporal_sdk_typescript_bridge.dll
+    name: Compile Native Binaries (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
+    env:
+      # This is required to allow continuing usage of Node 16 for actions,
+      # as Node 20 won't run on the docker image we use for linux builds
+      # (Node 20 require glibc 2.28+, but container image has glibc 2.24).
+      # https://github.blog/changelog/2024-05-17-updated-dates-for-actions-runner-using-node20-instead-of-node16-by-default/
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+    defaults:
+      run:
+        shell: bash
     steps:
-      - uses: actions/checkout@v2
+      - name: 'Checkout code'
+        # FIXME: v4+ requires Node 20
+        uses: actions/checkout@v3
         with:
           submodules: recursive
-      - uses: actions-rs/toolchain@v1
+
+      - name: 'Cache index.node'
+        id: cached-artifact
+        # FIXME: v4+ requires Node 20
+        uses: actions/cache@v3
         with:
-          toolchain: stable
-      - uses: actions/setup-node@v1
+          path: ./packages/core-bridge/releases
+          key: corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
+
+      - name: Install Rust
+        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Install protoc
+        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        # FIXME: v3+ requires Node 20
+        uses: arduino/setup-protoc@v2
+        with:
+          # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
+          version: '23.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rust Cargo and Build cache
+        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        # FIXME: v2.7.2+ requires Node 20
+        uses: Swatinem/rust-cache@v2.7.1
+        with:
+          workspaces: packages/core-bridge -> target
+          prefix-key: corebridge-buildcache
+          shared-key: ${{ matrix.platform }}
+          env-vars: ''
+          save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
+
+      - name: Compile rust code
+        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        working-directory: ./packages/core-bridge
+        run: |
+          set -x
+          cargo build --release --target ${{ matrix.target }}
+          mkdir -p ./releases/${{ matrix.target }}
+          cp target/${{ matrix.target }}/release/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
+
+      - name: Print required GLIBC version
+        if: startsWith(matrix.platform, 'linux')
+        working-directory: ./packages/core-bridge
+        run: |
+          objdump -T ./releases/${{ matrix.target }}/index.node |
+              grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -V | tail -1
+
+      # FIXME: v4+ requires Node 20
+      - uses: actions/upload-artifact@v3
+        with:
+          name: corebridge-native-${{ matrix.platform }}
+          # Actual file will be named ${{ matrix.target }}/index.node
+          path: ./packages/core-bridge/releases/*/index.node
+
+  # Gather native binaries for all platforms and build TypeScript @temporalio/* packages.
+  # Upload the built packages as a Verdaccio repository.
+  build-packages:
+    needs:
+      - compile-native-binaries
+    name: Build Packages
+    strategy:
+      # Using a matrix here ensure that Rust-related actions below can be easily be copied from the
+      # compile-binaries job and that the Rust build cache will be usable
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download core-bridge native libraries
+        # Need v3 here to stay compatible with the compile-native-binaries job.
+        uses: actions/download-artifact@v3-node20
+        with:
+          path: ./packages/core-bridge/releases/tmp
+
+      - name: Put native files into place
+        working-directory: ./packages/core-bridge/releases
+        run: |
+          mv tmp/corebridge-*/* ./
+          rm -rf tmp
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Get NPM cache directory
+        id: npm-cache-dir
+        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+
+      - name: Restore NPM cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
+          restore-keys: |
+            npm-main-${{ matrix.platform }}-
+
+      - name: Download dependencies
+        # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors :(
+        run: |
+          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
+
+      - name: Compile code
+        run: npm run build -- --ignore @temporalio/core-bridge
+
+      - name: Publish to Verdaccio
+        run: node scripts/publish-to-verdaccio.js --registry-dir ./tmp/registry
+
+      - name: Save Verdaccio repo artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: verdaccio-repo
+          path: ./tmp/registry/storage
+
+      - name: Save NPM cache
+        uses: actions/cache/save@v4
+        # Only saves NPM cache from the main branch, to reduce pressure on the cache (limited to 10GB).
+        if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
+
+  # Run integration tests. Uses the native binaries built in compile-native-binaries,
+  # but build `@temporalio/*` packages locally.
+  integration-tests:
+    needs:
+      - compile-native-binaries
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [16, 18, 20]
+        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
+        reuse-v8-context: [true, false]
+        server: [cli] # FIXME: Add 'cloud'
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+          - platform: linux-arm
+            runner: buildjet-4vcpu-ubuntu-2204-arm
+          - platform: macos-x64
+            runner: macos-12
+          - platform: macos-arm
+            runner: macos-14
+          - platform: windows-x64
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download core-bridge native libraries
+        # Need v3 here to stay compatible with the compile-native-binaries job.
+        uses: actions/download-artifact@v3-node20
+        with:
+          name: corebridge-native-${{ matrix.platform }}
+          path: ./packages/core-bridge/releases
+
+      - name: Install Node
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - name: Install protoc
-        uses: arduino/setup-protoc@v1
+
+      - name: Get NPM cache directory
+        id: npm-cache-dir
+        shell: bash
+        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+
+      - name: Restore NPM cache
+        uses: actions/cache/restore@v4
         with:
-          version: '3.x'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: Swatinem/rust-cache@v1
-        with:
-          working-directory: packages/core-bridge
-      # Don't build during install phase since we're going to explicitly build
-      - run: npm ci --ignore-scripts
-      - run: npm run build
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
+          restore-keys: |
+            npm-main-${{ matrix.platform }}-
+
+      - name: Download dependencies
+        # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors :(
+        run: |
+          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
+
+      - name: Compile code
+        run: npm run build -- --ignore @temporalio/core-bridge
+
+      - name: Install Temporal CLI
+        if: matrix.server == 'cli'
+        uses: temporalio/setup-temporal@v0
+
+      - name: Run Temporal CLI
+        if: matrix.server == 'cli'
+        shell: bash
+        run: |
+          temporal server start-dev --headless &> /tmp/devserver.log &
+
+      - name: Run Tests
+        run: npm test
         env:
-          BUILD_CORE_RELEASE: true
-
-      # docker-compose
-      - name: Checkout docker-compose repo
-        uses: actions/checkout@v2
-        with:
-          repository: temporalio/docker-compose
-          path: docker-compose
-        if: ${{ startsWith(matrix.os, 'ubuntu') }}
-
-      - name: Start Temporal Server
-        run: docker-compose up -d
-        working-directory: docker-compose
-        if: ${{ startsWith(matrix.os, 'ubuntu') }}
-
-      - name: Wait for Temporal Server
-        run: npm run wait-namespace
-        if: ${{ startsWith(matrix.os, 'ubuntu') }}
-      # end:docker-compose
-
-      - run: npm test
-        env:
-          # NOTE: Newer tests start their own server and are not subject to this env var.
-          RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
+          RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
-      - uses: actions/upload-artifact@v3
-        if: ${{ failure() }}
+      - name: Upload NPM logs
+        uses: actions/upload-artifact@v4
+        if: failure() || cancelled()
         with:
-          name: npm-logs
-          path: |
-            ~/.npm/_logs/
-            C:\npm\cache\_logs\
+          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.server }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-logs
+          path: ${{ startsWith(matrix.platform, 'windows') && 'C:\\npm\\_logs\\' || '~/.npm/_logs/' }}
 
-  build-docs:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
+      - name: Upload Dev Server logs
+        uses: actions/upload-artifact@v4
+        if: failure() || cancelled()
         with:
-          submodules: recursive
-      - uses: actions/setup-node@v1
-        with:
-          node-version: 20
-      - name: Install protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          version: '3.x'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      # Don't build during install phase since we're going to explicitly build
-      - run: npm ci --ignore-scripts
-      - run: npm run build -- --ignore @temporalio/core-bridge
-
-      # Do docs stuff (only on one host)
-      - name: Build docs
-        run: npm run docs
-        env:
-          ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
-      - name: Deploy prod docs # TODO: only deploy prod docs when we publish a new version
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --prod --yes
-      - name: Deploy draft docs
-        # Don't run on forks, since secrets won't be available, and command will fail
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.ref != 'refs/heads/main' }}
-        run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes
-
-  # Run TS linting and ts-prune to find unused code
-  lint-and-prune:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
-      - uses: actions/setup-node@v1
-        with:
-          node-version: 20
-      - name: Install protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          version: '3.x'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: Swatinem/rust-cache@v1
-        with:
-          working-directory: packages/core-bridge
-      - run: npm ci --ignore-scripts
-      # eslint-import-resolver-typescript requires packages to be built
-      - name: Compile all non-rust code
-        run: npm run build -- --ignore @temporalio/core-bridge
-      - run: npm run lint.check
-      - run: npm run lint.prune
-
-  # Compile native bridge code and isolate extension for Windows, Mac and Linux.
-  # Uploads the packages as a build artifact to be tested later.
-  compile-binaries:
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - runsOn: buildjet-2vcpu-ubuntu-1804
-            target: x86_64-unknown-linux-gnu
-          - runsOn: buildjet-2vcpu-ubuntu-1804
-            target: aarch64-unknown-linux-gnu
-            rustflags: '-C linker=aarch64-linux-gnu-gcc'
-          - runsOn: macos-latest
-            target: x86_64-apple-darwin
-          - runsOn: macos-latest
-            target: aarch64-apple-darwin
-          - runsOn: windows-latest
-            target: x86_64-pc-windows-msvc
-    runs-on: ${{ matrix.runsOn }}
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - uses: actions/setup-node@v1
-        with:
-          node-version: 16
-      - name: Install protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          version: '3.x'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Add ${{ matrix.target }} rust target
-        run: rustup target add ${{ matrix.target }}
-      - name: Print libc version
-        run: ldd --version
-        if: ${{ contains(matrix.runsOn, 'ubuntu') }}
-      - name: Install gcc-aarch64-linux-gnu
-        run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu
-        if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
-      - uses: Swatinem/rust-cache@v1
-        with:
-          working-directory: packages/core-bridge
-      # Don't build during install phase since we're going to explicitly build
-      - run: npm ci --ignore-scripts
-      - name: Compile all non-rust code
-        run: npm run build -- --ignore @temporalio/core-bridge
-      - name: Cross compile rust code
-        env:
-          RUSTFLAGS: ${{ matrix.rustflags }}
-        run: npx lerna run --stream build-rust-release -- --target ${{ matrix.target }}
-      # Restore the CLI JS only on Windows because Windows build changes the
-      # file attributes causing publish to think the change is uncommitted
-      - run: git restore packages/create-project/cli.js
-        if: ${{ matrix.runsOn == 'windows-latest' }}
-      - run: node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
-      - uses: actions/upload-artifact@v2
-        with:
-          name: packages-${{ matrix.target }}
-          path: /tmp/registry/storage
+          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.server }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
+          path: /tmp/devserver.log
 
   # Tests that npm init @temporalio results in a working worker and client
-  # Note that the instances used here don't have the Rust toolchain installed which ensures use of prebuilt libs.
   test-npm-init:
+    needs: build-packages
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
+        node: [16, 18, 20]
+        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
+        sample: [hello-world, fetch-esm, hello-world-mtls]
+        server: [cli, cloud]
+        exclude:
+          # Exclude non-mtls tests on cloud
+          - sample: hello-world
+            server: cloud
+          # Exclude mtls tests on cli
+          - sample: hello-world-mtls
+            server: cli
+          - sample: fetch-esm
+            server: cloud
+          # FIXME: investigate why 'fetch-esm' always hangs on Windows
+          - sample: fetch-esm
+            platform: windows-x64
+          # Exclude cloud tests if we don't have cloud namespace and certs
+          - server: ${{ vars.TEMPORAL_CLIENT_NAMESPACE == '' && 'cloud' || '' }}
         include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            node: 20
-            server: local
-            sample: hello-world
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            node: 20
-            server: local
-            sample: fetch-esm
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            node: 20
-            server: cloud
-            sample: hello-world-mtls
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            node: 20
-            server: cloud
-            sample: hello-world-mtls
-
-    runs-on: ${{ matrix.os }}
-    needs: compile-binaries
+          - platform: linux-x64
+            runner: ubuntu-latest
+          - platform: linux-arm
+            runner: buildjet-4vcpu-ubuntu-2204-arm
+          - platform: macos-x64
+            runner: macos-12
+          - platform: macos-arm
+            runner: macos-14
+          - platform: windows-x64
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    name: Run Samples Tests - ${{ matrix.sample }} (${{ matrix.platform }}, Node ${{ matrix.node }}, ${{ matrix.server }})
     env:
       TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
       TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
     steps:
-      # We don't need the core submodule here since we don't build the project
-      - uses: actions/checkout@v2
-        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      - uses: actions/setup-node@v1
+      - name: 'Checkout code'
+        uses: actions/checkout@v4
+        with:
+          # We don't need the core submodule here since won't build the project
+          submodules: false
+
+      - name: Install Node
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
+
+      - name: Get NPM cache directory
+        id: npm-cache-dir
+        shell: bash
+        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+
+      - name: Restore NPM cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
+          restore-keys: |
+            npm-main-${{ matrix.platform }}-
+
       # No need to compile anything, we just need the package ./scripts and their dependencies
       - name: Install dependencies without compilation
-        run: npm ci --ignore-scripts
-        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      - uses: actions/download-artifact@v2
+        run: |
+          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
+
+      - name: Restore Verdaccio repo artifact
+        uses: actions/download-artifact@v4
         with:
-          name: packages-${{ matrix.target }}
-          path: /tmp/registry/storage
-        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/${{ matrix.sample }}
-        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
+          name: verdaccio-repo
+          path: ./tmp/registry/storage
 
-      # docker-compose
-      - name: Checkout docker-compose repo
-        uses: actions/checkout@v2
-        with:
-          repository: temporalio/docker-compose
-          path: docker-compose
-        if: ${{ matrix.server == 'local' }}
+      # Note: here, `npx create` fails on windows if shell is bash.
+      - name: Instantiate sample project using verdaccio artifacts
+        run: node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/${{ matrix.sample }} --target-dir ${{ runner.temp }}/example
 
-      - name: Start Temporal Server
-        run: docker-compose up -d
-        working-directory: docker-compose
-        if: ${{ matrix.server == 'local' }}
+      - name: Install Temporal CLI
+        if: matrix.server == 'cli'
+        uses: temporalio/setup-temporal@v0
 
-      # Copy wait-on-temporal script to the example project where the built client package is installed
-      - run: cp scripts/wait-on-temporal.mjs /tmp/registry/example
-        if: ${{ matrix.server == 'local' }}
+      - name: Run Temporal CLI
+        if: matrix.server == 'cli'
+        shell: bash
+        run: |
+          temporal server start-dev --headless &
 
-      - name: Wait for Temporal Server
-        run: node wait-on-temporal.mjs
-        working-directory: /tmp/registry/example
-        if: ${{ matrix.server == 'local' }}
-      # end:docker-compose
-
+        # We write the certs to disk because it serves the sample. Written into /tmp/temporal-certs
       - name: Create certs dir
-        # We write the certs to disk because it serves the sample
-        run: node scripts/create-certs-dir.js
-        if: ${{ matrix.server == 'cloud' && env.TEMPORAL_CLIENT_CERT != '' }}
-      - name: Test run a workflow
-        run: node scripts/test-example.js --work-dir /tmp/registry/example
+        shell: bash
+        run: node scripts/create-certs-dir.js "${{ runner.temp }}/certs"
+        if: matrix.server == 'cloud'
+
+      - name: Test run a workflow (non-cloud)
+        run: node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
+        shell: bash
+        if: matrix.server == 'cli'
+
+      - name: Test run a workflow (cloud)
+        run: node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
+        shell: bash
         env:
-          # TODO: get a permanent cloud namespace for CI
-          # These env vars are ignored by the local server example
-          TEMPORAL_ADDRESS: sdk-ci.a2dd6.tmprl.cloud
-          TEMPORAL_NAMESPACE: sdk-ci.a2dd6
-          TEMPORAL_CLIENT_CERT_PATH: /tmp/temporal-certs/client.pem
-          TEMPORAL_CLIENT_KEY_PATH: /tmp/temporal-certs/client.key
-          TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}-{2}', matrix.os, matrix.node, matrix.target) }}
-        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      - run: rm /tmp/temporal-certs/client.pem
-        if: ${{ matrix.server == 'cloud' && env.TEMPORAL_CLIENT_CERT != '' }}
-      - run: rm /tmp/temporal-certs/client.key
-        if: ${{ matrix.server == 'cloud' && env.TEMPORAL_CLIENT_CERT != '' }}
+          # These env vars are used by the hello-world-mtls sample
+          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud
+          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLIENT_CERT_PATH: ${{ runner.temp }}/certs/client.pem
+          TEMPORAL_CLIENT_KEY_PATH: ${{ runner.temp }}/certs/client.key
+          TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}-{2}', matrix.platform, matrix.node, matrix.sample) }}
+        if: matrix.server == 'cloud'
+
+      - name: Destroy certs dir
+        if: always()
+        shell: bash
+        run: rm -rf ${{ runner.temp }}/certs
+        continue-on-error: true
 
   # Runs the features repo tests with this repo's current SDK code
+  # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
   features-tests:
+    name: Features Tests
     uses: temporalio/features/.github/workflows/typescript.yaml@main
     with:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
       version: ${{github.event.pull_request.head.ref}}
       version-is-repo-ref: true
+      features-repo-ref: sdk-1403-ts-startUpdate-require-wait-stage
 
-  stress-tests:
+  stress-tests-no-reuse-context:
+    name: Stress Tests (No Reuse V8 Context)
+    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
     uses: ./.github/workflows/stress.yml
     with:
       test-type: ci-stress
@@ -311,8 +440,138 @@ jobs:
       reuse-v8-context: false
 
   stress-tests-reuse-context:
+    name: Stress Tests (Reuse V8 Context)
+    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
     uses: ./.github/workflows/stress.yml
     with:
       test-type: ci-stress
       test-timeout-minutes: 20
       reuse-v8-context: true
+
+  # Run TS linting and ts-prune to find unused code
+  lint-and-prune:
+    name: Lint and Prune
+    strategy:
+      # Using a matrix here ensure that Rust-related actions below can be easily be copied from the
+      # compile-binairies job and that the Rust build cache will be usable
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Get NPM cache directory
+        id: npm-cache-dir
+        shell: bash
+        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+
+      - name: Restore NPM cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
+          restore-keys: |
+            npm-main-${{ matrix.platform }}-
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
+          version: '23.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rust Cargo and Build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/core-bridge -> target
+          prefix-key: corebridge-buildcache
+          shared-key: ${{ matrix.platform }}
+          env-vars: ''
+          save-if: false
+
+      - name: Download dependencies
+        run: |
+          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
+
+      # eslint-import-resolver-typescript requires packages to be built
+      - name: Compile all non-rust code
+        run: npm run build -- --ignore @temporalio/core-bridge
+
+      - run: npm run lint.check
+      - run: npm run lint.prune
+
+  build-docs:
+    name: Build Docs
+    strategy:
+      # Using a matrix here ensure that Rust-related actions below can be easily be copied from the
+      # compile-binairies job and that the Rust build cache will be usable
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Get NPM cache directory
+        id: npm-cache-dir
+        shell: bash
+        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+
+      - name: Restore NPM cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
+          restore-keys: |
+            npm-main-${{ matrix.platform }}-
+
+      # Don't build during install phase since we're going to explicitly build
+      - name: Download dependencies
+        # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors
+        run: |
+          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
+
+      - run: npm run build -- --ignore @temporalio/core-bridge
+
+      # Do docs stuff (only on one host)
+      - name: Build docs
+        run: npm run docs
+        env:
+          ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+
+      - name: Deploy prod docs # TODO: only deploy prod docs when we publish a new version
+        if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
+        run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --prod --yes
+
+      # FIXME: This is not working properly, and should probably be done only from the main branch anyway
+      # (and "Deploy prod docs" should only be done when we publish a new release)
+      # - name: Deploy draft docs
+      #   # Don't run on forks, since secrets won't be available, and command will fail
+      #   if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.ref != 'refs/heads/main'
+      #   run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes

@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/create",
-  "version": "1.9.0-rc.0",
+  "version": "1.11.1",
   "description": "Create a Temporal project from template",
   "main": "cli.js",
   "bin": "cli.js",
@@ -38,7 +38,7 @@
     "@types/prompts": "2.4.9",
     "@types/tar": "^6.1.10",
     "@types/validate-npm-package-name": "^4.0.2",
-    "ava": "^4.3.1"
+    "ava": "^5.3.1"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -53,7 +53,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=16.0.0"
   },
   "files": [
     "cli.js",
