@@ -591,7 +591,7 @@ export class Runtime {
             `in how it manages its heap memory. There is consequently a high probability that ` +
             `the process will crash due to running out of memory. To increase reliability, we recommend ` +
             `adding '--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node arguments. ` +
-            `Refer to https://docs.temporal.io/dev-guide/typescript/foundations#run-a-worker-on-docker ` +
+            `Refer to https://docs.temporal.io/develop/typescript/core-application#run-a-worker-on-docker ` +
             `for more advice on tuning your Workers.`,
           { sdkComponent: SdkComponent.worker }
         );

@@ -1,10 +1,14 @@
-import { WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
+import { WorkflowUpdateStage, WorkflowUpdateRPCTimeoutOrCancelledError, WorkflowFailedError } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
+import { temporal } from '@temporalio/proto';
 import { helpers, makeTestFunction } from './helpers-integration';
+import { signalUpdateOrderingWorkflow } from './workflows/signal-update-ordering';
+import { signalsActivitiesTimersPromiseOrdering } from './workflows/signals-timers-activities-order';
+import { getHistories, waitUntil } from './helpers';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
-const LONG_POLL_EXPIRATION_INTERVAL_SECONDS = 1.0;
+const LONG_POLL_EXPIRATION_INTERVAL_SECONDS = 5.0;
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -25,7 +29,7 @@ export async function workflowWithUpdates(): Promise<string[]> {
   const state: string[] = [];
   const updateHandler = async (arg: string): Promise<string[]> => {
     if (arg === 'wait-for-longer-than-server-long-poll-timeout') {
-      await wf.sleep(500 + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000);
+      await wf.sleep(LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1500);
     }
     state.push(arg);
     return state;
@@ -64,11 +68,16 @@ test('Update can be executed via startUpdate() and handle.result()', async (t) =
   await worker.runUntil(async () => {
     const wfHandle = await startWorkflow(workflowWithUpdates);
 
-    const updateHandle = await wfHandle.startUpdate(update, { args: ['1'] });
+    const updateHandle = await wfHandle.startUpdate(update, {
+      args: ['1'],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
     const updateResult = await updateHandle.result();
     t.deepEqual(updateResult, ['1']);
 
-    const doneUpdateHandle = await wfHandle.startUpdate(doneUpdate);
+    const doneUpdateHandle = await wfHandle.startUpdate(doneUpdate, {
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
     const doneUpdateResult = await doneUpdateHandle.result();
     t.is(doneUpdateResult, undefined);
 
@@ -83,7 +92,11 @@ test('Update handle can be created from identifiers and used to obtain result', 
   await worker.runUntil(async () => {
     const updateId = 'my-update-id';
     const wfHandle = await startWorkflow(workflowWithUpdates);
-    const updateHandleFromStartUpdate = await wfHandle.startUpdate(update, { args: ['1'], updateId });
+    const updateHandleFromStartUpdate = await wfHandle.startUpdate(update, {
+      args: ['1'],
+      updateId,
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
 
     // Obtain update handle on workflow handle from start update.
     const updateHandle = wfHandle.getUpdateHandle(updateId);
@@ -175,9 +188,15 @@ test('Update validator can reject when using handle.result() but handle can be o
   const worker = await createWorker();
   await worker.runUntil(async () => {
     const wfHandle = await startWorkflow(workflowWithUpdateValidator);
-    let updateHandle = await wfHandle.startUpdate(stringToStringUpdate, { args: ['arg'] });
+    let updateHandle = await wfHandle.startUpdate(stringToStringUpdate, {
+      args: ['arg'],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
     t.is(await updateHandle.result(), 'update-result');
-    updateHandle = await wfHandle.startUpdate(stringToStringUpdate, { args: ['bad-arg'] });
+    updateHandle = await wfHandle.startUpdate(stringToStringUpdate, {
+      args: ['bad-arg'],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
     await assertWorkflowUpdateFailed(updateHandle.result(), wf.ApplicationFailure, 'Validation failed');
   });
 });
@@ -246,7 +265,10 @@ test('Update id can be assigned and is present on returned handle', async (t) =>
   const worker = await createWorker();
   await worker.runUntil(async () => {
     const wfHandle = await startWorkflow(workflowWithUpdates);
-    const updateHandle = await wfHandle.startUpdate(doneUpdate, { updateId: 'my-update-id' });
+    const updateHandle = await wfHandle.startUpdate(doneUpdate, {
+      updateId: 'my-update-id',
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
     t.is(updateHandle.updateId, 'my-update-id');
   });
 });
@@ -425,7 +447,10 @@ test('Update/Signal/Query example in WorkflowHandle docstrings works', async (t)
     t.is(queryResult, 4);
     const updateResult = await wfHandle.executeUpdate(incrementAndGetValueUpdate, { args: [2] });
     t.is(updateResult, 6);
-    const secondUpdateHandle = await wfHandle.startUpdate(incrementAndGetValueUpdate, { args: [2] });
+    const secondUpdateHandle = await wfHandle.startUpdate(incrementAndGetValueUpdate, {
+      args: [2],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
     const secondUpdateResult = await secondUpdateHandle.result();
     t.is(secondUpdateResult, 8);
     await wfHandle.cancel();
@@ -436,9 +461,14 @@ test('Update/Signal/Query example in WorkflowHandle docstrings works', async (t)
 test('startUpdate does not return handle before update has reached requested stage', async (t) => {
   const { startWorkflow } = helpers(t);
   const wfHandle = await startWorkflow(workflowWithUpdates);
-  const updatePromise = wfHandle.startUpdate(update, { args: ['1'] }).then(() => 'update');
+  const updatePromise = wfHandle
+    .startUpdate(update, {
+      args: ['1'],
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    })
+    .then(() => 'update');
   const timeoutPromise = new Promise<string>((f) =>
-    setTimeout(() => f('timeout'), 500 + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000)
+    setTimeout(() => f('timeout'), LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1500)
   );
   t.is(
     await Promise.race([updatePromise, timeoutPromise]),
@@ -461,18 +491,93 @@ test('Interruption of update by server long-poll timeout is invisible to client'
   });
 });
 
+export const currentInfoUpdate = wf.defineUpdate<string, []>('current-info-update');
+
+export async function workflowWithCurrentUpdateInfo(): Promise<string[]> {
+  const state: Promise<string>[] = [];
+  const getUpdateId = async (): Promise<string> => {
+    await wf.sleep(10);
+    const info = wf.currentUpdateInfo();
+    if (info === undefined) {
+      throw new Error('No current update info');
+    }
+    return info.id;
+  };
+  const updateHandler = async (): Promise<string> => {
+    const info = wf.currentUpdateInfo();
+    if (info === undefined || info.name !== 'current-info-update') {
+      throw new Error(`Invalid current update info in updateHandler: info ${info?.name}`);
+    }
+    const id = await getUpdateId();
+    if (info.id !== id) {
+      throw new Error(`Update id changed: before ${info.id} after ${id}`);
+    }
+
+    state.push(getUpdateId());
+    // Re-fetch and return
+    const infoAfter = wf.currentUpdateInfo();
+    if (infoAfter === undefined) {
+      throw new Error('Invalid current update info in updateHandler - after');
+    }
+    return infoAfter.id;
+  };
+
+  const validator = (): void => {
+    const info = wf.currentUpdateInfo();
+    if (info === undefined || info.name !== 'current-info-update') {
+      throw new Error(`Invalid current update info in validator: info ${info?.name}`);
+    }
+  };
+
+  wf.setHandler(currentInfoUpdate, updateHandler, { validator });
+
+  if (wf.currentUpdateInfo() !== undefined) {
+    throw new Error('Current update info not undefined outside handler');
+  }
+
+  await wf.condition(() => state.length === 5);
+
+  if (wf.currentUpdateInfo() !== undefined) {
+    throw new Error('Current update info not undefined outside handler - after');
+  }
+
+  return await Promise.all(state);
+}
+
+test('currentUpdateInfo returns the update id', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const wfHandle = await startWorkflow(workflowWithCurrentUpdateInfo);
+    const updateIds = await Promise.all([
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update1' }),
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update2' }),
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update3' }),
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update4' }),
+      wfHandle.executeUpdate(currentInfoUpdate, { updateId: 'update5' }),
+    ]);
+    t.deepEqual(updateIds, ['update1', 'update2', 'update3', 'update4', 'update5']);
+    const wfResults = await wfHandle.result();
+    t.deepEqual(wfResults.sort(), ['update1', 'update2', 'update3', 'update4', 'update5']);
+  });
+});
+
 test('startUpdate throws WorkflowUpdateRPCTimeoutOrCancelledError with no worker', async (t) => {
   const { startWorkflow } = helpers(t);
   const wfHandle = await startWorkflow(workflowWithUpdates);
   await t.context.env.client.withDeadline(Date.now() + 100, async () => {
-    const err = await t.throwsAsync(wfHandle.startUpdate(update, { args: ['1'] }));
+    const err = await t.throwsAsync(
+      wfHandle.startUpdate(update, { args: ['1'], waitForStage: WorkflowUpdateStage.ACCEPTED })
+    );
     t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
   });
 
   const ctrl = new AbortController();
   setTimeout(() => ctrl.abort(), 10);
   await t.context.env.client.withAbortSignal(ctrl.signal, async () => {
-    const err = await t.throwsAsync(wfHandle.startUpdate(update, { args: ['1'] }));
+    const err = await t.throwsAsync(
+      wfHandle.startUpdate(update, { args: ['1'], waitForStage: WorkflowUpdateStage.ACCEPTED })
+    );
     t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
   });
 });
@@ -495,4 +600,194 @@ test('update result poll throws WorkflowUpdateRPCTimeoutOrCancelledError', async
       t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
     });
   });
+});
+
+export { signalUpdateOrderingWorkflow };
+
+// Validate that issue #1474 is fixed in 1.11.0+
+test("Pending promises can't unblock between signals and updates", async (t) => {
+  const { createWorker, startWorkflow, updateHasBeenAdmitted } = helpers(t);
+
+  const handle = await startWorkflow(signalUpdateOrderingWorkflow);
+  const worker1 = await createWorker({ maxCachedWorkflows: 0 });
+  await worker1.runUntil(async () => {
+    // Wait for the workflow to reach the first condition
+    await handle.executeUpdate('fooUpdate');
+  });
+
+  const updateId = 'update-id';
+  await handle.signal('fooSignal');
+  const updateResult = handle.executeUpdate('fooUpdate', { updateId });
+  await waitUntil(() => updateHasBeenAdmitted(handle, updateId), 5000);
+
+  const worker2 = await createWorker();
+  await worker2.runUntil(async () => {
+    t.is(await handle.result(), 3);
+    t.is(await updateResult, 3);
+  });
+});
+
+export { signalsActivitiesTimersPromiseOrdering };
+
+// A broader check covering issue #1474, but also other subtle ordering issues caused by the fact
+// that signals used to be processed in a distinct phase from other types of jobs.
+test('Signals/Updates/Activities/Timers have coherent promise completion ordering', async (t) => {
+  const { createWorker, startWorkflow, taskQueue, updateHasBeenAdmitted } = helpers(t);
+
+  // We need signal+update+timer completion+activity completion to all happen in the same workflow task.
+  // To get there, as soon as the activity gets scheduled, we shutdown the workflow worker, then send
+  // the signal and update while there is no worker alive. When it eventually comes back up, all events
+  // will be queued up for the next WFT.
+
+  const worker1 = await createWorker({ maxCachedWorkflows: 0 });
+  const worker1Promise = worker1.run();
+  const killWorker1 = async () => {
+    try {
+      worker1.shutdown();
+    } catch {
+      // We may attempt to shutdown the worker multiple times. Ignore errors.
+    }
+    await worker1Promise;
+  };
+
+  try {
+    const activityWorker = await createWorker({
+      taskQueue: `${taskQueue}-activity`,
+      activities: { myActivity: killWorker1 },
+      workflowBundle: undefined,
+      workflowsPath: undefined,
+    });
+    await activityWorker.runUntil(async () => {
+      const handle = await startWorkflow(signalsActivitiesTimersPromiseOrdering);
+
+      // The workflow will schedule the activity, which will shutdown the worker.
+      // Then this promise will resolves.
+      await worker1Promise;
+
+      await handle.signal('aaSignal');
+      const updateId = 'update-id';
+      const updatePromise = handle.executeUpdate('aaUpdate', { updateId });
+
+      // Timing is important here. Make sure that everything is ready before creating the new worker.
+      await waitUntil(async () => {
+        const updateAdmitted = await updateHasBeenAdmitted(handle, updateId);
+        if (!updateAdmitted) return false;
+
+        const { events } = await handle.fetchHistory();
+        return (
+          events != null &&
+          events.some((e) => e.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_ACTIVITY_TASK_COMPLETED) &&
+          events.some((e) => e.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_TIMER_FIRED) &&
+          events.some((e) => e.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED)
+        );
+      }, 5000);
+
+      await (
+        await createWorker({})
+      ).runUntil(async () => {
+        t.deepEqual(await handle.result(), [true, true, true, true]);
+      });
+
+      await updatePromise;
+    });
+  } finally {
+    await killWorker1();
+  }
+});
+
+export async function canCompleteUpdateAfterWorkflowReturns(fail: boolean = false): Promise<void> {
+  let gotUpdate = false;
+  let mainReturned = false;
+
+  wf.setHandler(wf.defineUpdate<string>('doneUpdate'), async () => {
+    gotUpdate = true;
+    await wf.condition(() => mainReturned);
+    return 'completed';
+  });
+
+  await wf.condition(() => gotUpdate);
+  mainReturned = true;
+  if (fail) throw wf.ApplicationFailure.nonRetryable('Intentional failure');
+}
+
+test('Can complete update after workflow returns', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(canCompleteUpdateAfterWorkflowReturns);
+    const updateHandler = await handle.executeUpdate(wf.defineUpdate<string>('doneUpdate'));
+    await handle.result();
+
+    await t.is(updateHandler, 'completed');
+  });
+});
+
+test('Can complete update after Workflow fails', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(canCompleteUpdateAfterWorkflowReturns, { args: [true] });
+    const updateHandler = await handle.executeUpdate(wf.defineUpdate<string>('doneUpdate'));
+    await t.throwsAsync(handle.result(), { instanceOf: WorkflowFailedError });
+    await t.is(updateHandler, 'completed');
+  });
+});
+
+/**
+ * The {@link canCompleteUpdateAfterWorkflowReturns} workflow above features an update handler that
+ * return safter the main workflow functions has returned. It will (assuming an update is sent in
+ * the first WFT) generate a raw command sequence (before sending to core) of:
+ *
+ *   [UpdateAccepted, CompleteWorkflowExecution, UpdateCompleted].
+ *
+ * Prior to https://github.com/temporalio/sdk-typescript/pull/1488, TS SDK ignored any command
+ * produced after a completion command, therefore truncating this command sequence to:
+ *
+ *   [UpdateAccepted, CompleteWorkflowExecution].
+ *
+ * Starting with #1488, TS SDK now performs no truncation, and Core reorders the sequence to:
+ *
+ *   [UpdateAccepted, UpdateCompleted, CompleteWorkflowExecution].
+ *
+ * This test takes a history generated using pre-#1488 SDK code, and replays it. That history
+ * contains the following events:
+ *
+ *   1 WorkflowExecutionStarted
+ *   2 WorkflowTaskScheduled
+ *   3 WorkflowTaskStarted
+ *   4 WorkflowTaskCompleted
+ *   5 WorkflowExecutionUpdateAccepted
+ *   6 WorkflowExecutionCompleted
+ *
+ * Note that the history lacks a `WorkflowExecutionUpdateCompleted` event.
+ *
+ * If Core's logic (which involves a flag) incorrectly allowed this history to be replayed using
+ * Core's post-#1488 implementation, then a non-determinism error would result. Specifically, Core
+ * would, at some point during replay, do the following:
+ *
+ *  - Receive [UpdateAccepted, CompleteWorkflowExecution, UpdateCompleted] from lang;
+ *  - Change that to `[UpdateAccepted, UpdateCompleted, CompleteWorkflowExecution]`;
+ *  - Create an `UpdateMachine` instance (the `WorkflowTaskMachine` instance already exists).
+ *  - Continue to consume history events.
+ *
+ * Event 5, `WorkflowExecutionUpdateAccepted`, would apply to the `UpdateMachine` associated with
+ * the `UpdateAccepted` command, but event 6, `WorkflowExecutionCompleted` would not, since Core is
+ * expecting an event that can be applied to the `UpdateMachine` corresponding to `UpdateCompleted`.
+ * If we modify Core to incorrectly apply its new logic then we do see that:
+ *
+ *   [TMPRL1100] Nondeterminism error: Update machine does not handle this event: HistoryEvent(id: 6, WorkflowExecutionCompleted)
+ *
+ * The test passes because Core in fact (because the history lacks the flag) uses its old logic and
+ * changes the command sequence from `[UpdateAccepted, CompleteWorkflowExecution, UpdateCompleted]`
+ * to `[UpdateAccepted, CompleteWorkflowExecution]`, i.e. truncating commands emitted after the
+ * first completion command like TS SDK used to do, so that events 5 and 6 can be applied to the
+ * corresponding state machines.
+ */
+test('Can complete update after workflow returns - pre-1.11.0 compatibility', async (t) => {
+  const { runReplayHistory } = helpers(t);
+  const hist = await getHistories('complete_update_after_workflow_returns_pre1488.json');
+  await runReplayHistory({}, hist);
+  t.pass();
 });

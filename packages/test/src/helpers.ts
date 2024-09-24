@@ -1,3 +1,4 @@
+import * as fs from 'fs/promises';
 import * as net from 'net';
 import path from 'path';
 import StackUtils from 'stack-utils';
@@ -5,7 +6,7 @@ import ava, { TestFn } from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
 import { v4 as uuid4 } from 'uuid';
-import { inWorkflowContext } from '@temporalio/workflow';
+import { inWorkflowContext, WorkflowInfo } from '@temporalio/workflow';
 import { Payload, PayloadCodec } from '@temporalio/common';
 import { Worker as RealWorker, WorkerOptions } from '@temporalio/worker';
 import * as worker from '@temporalio/worker';
@@ -16,6 +17,7 @@ import {
   TestWorkflowEnvironment as RealTestWorkflowEnvironment,
   TimeSkippingTestWorkflowEnvironmentOptions,
 } from '@temporalio/testing';
+import { LoggerSinksInternal as DefaultLoggerSinks } from '@temporalio/workflow/lib/logs';
 
 export function u8(s: string): Uint8Array {
   // TextEncoder requires lib "dom"
@@ -42,6 +44,23 @@ export const TESTS_TIME_SKIPPING_SERVER_VERSION = inWorkflowContext()
 
 export async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function waitUntil(
+  condition: () => Promise<boolean>,
+  timeoutMs: number,
+  intervalMs: number = 100
+): Promise<void> {
+  const endTime = Date.now() + timeoutMs;
+  for (;;) {
+    if (await condition()) {
+      return;
+    } else if (Date.now() >= endTime) {
+      throw new Error('timed out waiting for condition');
+    } else {
+      await sleep(intervalMs);
+    }
+  }
 }
 
 export function cleanOptionalStackTrace(stackTrace: string | undefined | null): string | undefined {
@@ -72,7 +91,7 @@ export function cleanStackTrace(ostack: string): string {
   return normalizedStack ? `${firstLine}\n${normalizedStack}` : firstLine;
 }
 
-function noopTest() {
+function noopTest(): void {
   // eslint: this function body is empty and it's okay.
 }
 
@@ -110,6 +129,7 @@ export const bundlerOptions = {
     'async-retry',
     'uuid',
     'net',
+    'fs/promises',
   ],
 };
 
@@ -259,4 +279,31 @@ export async function getRandomPort(fn = (_port: number) => Promise.resolve()): 
         .finally(() => srv.close((_) => resolve(addr.port)));
     });
   });
+}
+
+export function asSdkLoggerSink(
+  fn: (info: WorkflowInfo, message: string, attrs?: Record<string, unknown>) => Promise<void>,
+  opts?: Omit<worker.InjectedSinkFunction<any>, 'fn'>
+): worker.InjectedSinks<DefaultLoggerSinks> {
+  return {
+    __temporal_logger: {
+      trace: { fn, ...opts },
+      debug: { fn, ...opts },
+      info: { fn, ...opts },
+      warn: { fn, ...opts },
+      error: { fn, ...opts },
+    },
+  };
+}
+
+export async function getHistories(fname: string): Promise<iface.temporal.api.history.v1.History> {
+  const isJson = fname.endsWith('json');
+  const fpath = path.resolve(__dirname, `../history_files/${fname}`);
+  if (isJson) {
+    const hist = await fs.readFile(fpath, 'utf8');
+    return JSON.parse(hist);
+  } else {
+    const hist = await fs.readFile(fpath);
+    return iface.temporal.api.history.v1.History.decode(hist);
+  }
 }

@@ -17,7 +17,7 @@
     - [test-npm-init](#test-npm-init)
   - [Style Guide](#style-guide)
 - [Publishing](#publishing)
-- [Updating the Java test server proto files](#updating-the-java-test-server-proto-files)
+- [Updating published packages](#updating-published-packages)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -29,10 +29,10 @@ We welcome contributions from the community. To contribute, please start by open
 
 The current maintainers are:
 
-- [Roey `bergundy`](https://github.com/bergundy)
-- [James `mjameswh`](https://github.com/mjameswh)
+- [James Waktins-Harvey](https://github.com/mjameswh)
+- [Antonio Lain](https://github.com/antlai-temporal)
 
-If you'd like to join us, [email Roey](mailto:roey@temporal.io). We'd be happy to have help with any of these things:
+If you'd like to give a hand, pelase reach us on our [community Slack workspace](https://temporalio.slack.com/channels/typescript-sdk). We'd be happy to have help with any of these things:
 
 - Triaging issues
 - Reviewing PRs

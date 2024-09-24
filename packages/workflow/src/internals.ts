@@ -6,6 +6,7 @@ import {
   arrayFromPayloads,
   defaultPayloadConverter,
   ensureTemporalFailure,
+  HandlerUnfinishedPolicy,
   IllegalStateError,
   TemporalFailure,
   Workflow,
@@ -15,28 +16,37 @@ import {
   WorkflowUpdateAnnotatedType,
   ProtoFailure,
   ApplicationFailure,
+  WorkflowUpdateType,
+  WorkflowUpdateValidatorType,
+  mapFromPayloads,
+  searchAttributePayloadConverter,
+  fromPayloadsAtIndex,
+  SearchAttributes,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
 import type { coresdk, temporal } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
+import { UpdateScope } from './update-scope';
 import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
 import { QueryInput, SignalInput, UpdateInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
 import {
   ContinueAsNew,
   DefaultSignalHandler,
-  SDKInfo,
-  FileSlice,
+  StackTraceSDKInfo,
+  StackTraceFileSlice,
   EnhancedStackTrace,
-  FileLocation,
+  StackTraceFileLocation,
   WorkflowInfo,
   WorkflowCreateOptionsInternal,
+  ActivationCompletion,
 } from './interfaces';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
-import { executeWithLifecycleLogging } from './logs';
+import { SdkFlag, assertValidFlag } from './flags';
+import { executeWithLifecycleLogging, log } from './logs';
 
 enum StartChildWorkflowExecutionFailedCause {
   START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
@@ -48,7 +58,7 @@ checkExtends<StartChildWorkflowExecutionFailedCause, coresdk.child_workflow.Star
 
 export interface Stack {
   formatted: string;
-  structured: FileLocation[];
+  structured: StackTraceFileLocation[];
 }
 
 /**
@@ -83,9 +93,31 @@ export type ActivationHandler = {
 };
 
 /**
+ * Information about an update or signal handler execution.
+ */
+interface MessageHandlerExecution {
+  name: string;
+  unfinishedPolicy: HandlerUnfinishedPolicy;
+  id?: string;
+}
+
+/**
  * Keeps all of the Workflow runtime state like pending completions for activities and timers.
  *
  * Implements handlers for all workflow activation jobs.
+ *
+ * Note that most methods in this class are meant to be called only from within the VM.
+ *
+ * However, a few methods may be called directly from outside the VM (essentially from `vm-shared.ts`).
+ * These methods are specifically marked with a comment and require careful consideration, as the
+ * execution context may not properly reflect that of the target workflow execution (e.g.: with Reusable
+ * VMs, the `global` may not have been swapped to those of that workflow execution; the active microtask
+ * queue may be that of the thread/process, rather than the queue of that VM context; etc). Consequently,
+ * methods that are meant to be called from outside of the VM must not do any of the following:
+ *
+ * - Access any global variable;
+ * - Create Promise objects, use async/await, or otherwise schedule microtasks;
+ * - Call user-defined functions, including any form of interceptor.
  */
 export class Activator implements ActivationHandler {
   /**
@@ -115,15 +147,6 @@ export class Activator implements ActivationHandler {
   readonly bufferedSignals = Array<coresdk.workflow_activation.ISignalWorkflow>();
 
   /**
-   * Holds buffered query calls until a handler is registered.
-   *
-   * **IMPORTANT** queries are only buffered until workflow is started.
-   * This is required because async interceptors might block workflow function invocation
-   * which delays query handler registration.
-   */
-  protected readonly bufferedQueries = Array<coresdk.workflow_activation.IQueryWorkflow>();
-
-  /**
    * Mapping of update name to handler and validator
    */
   readonly updateHandlers = new Map<string, WorkflowUpdateAnnotatedType>();
@@ -132,6 +155,21 @@ export class Activator implements ActivationHandler {
    * Mapping of signal name to handler
    */
   readonly signalHandlers = new Map<string, WorkflowSignalAnnotatedType>();
+
+  /**
+   * Mapping of in-progress updates to handler execution information.
+   */
+  readonly inProgressUpdates = new Map<string, MessageHandlerExecution>();
+
+  /**
+   * Mapping of in-progress signals to handler execution information.
+   */
+  readonly inProgressSignals = new Map<number, MessageHandlerExecution>();
+
+  /**
+   * A sequence number providing unique identifiers for signal handler executions.
+   */
+  protected signalHandlerExecutionSeq = 0;
 
   /**
    * A signal handler that catches calls for non-registered signal names.
@@ -175,19 +213,19 @@ export class Activator implements ActivationHandler {
       {
         handler: (): EnhancedStackTrace => {
           const { sourceMap } = this;
-          const sdk: SDKInfo = { name: 'typescript', version: pkg.version };
+          const sdk: StackTraceSDKInfo = { name: 'typescript', version: pkg.version };
           const stacks = this.getStackTraces().map(({ structured: locations }) => ({ locations }));
-          const sources: Record<string, FileSlice[]> = {};
+          const sources: Record<string, StackTraceFileSlice[]> = {};
           if (this.showStackTraceSources) {
             for (const { locations } of stacks) {
-              for (const { filePath } of locations) {
-                if (!filePath) continue;
-                const content = sourceMap?.sourcesContent?.[sourceMap?.sources.indexOf(filePath)];
+              for (const { file_path } of locations) {
+                if (!file_path) continue;
+                const content = sourceMap?.sourcesContent?.[sourceMap?.sources.indexOf(file_path)];
                 if (!content) continue;
-                sources[filePath] = [
+                sources[file_path] = [
                   {
+                    line_offset: 0,
                     content,
-                    lineOffset: 0,
                   },
                 ];
               }
@@ -263,13 +301,6 @@ export class Activator implements ActivationHandler {
   protected cancelled = false;
 
   /**
-   * This is tracked to allow buffering queries until a workflow function is called.
-   * TODO(bergundy): I don't think this makes sense since queries run last in an activation and must be responded to in
-   * the same activation.
-   */
-  protected workflowFunctionWasCalled = false;
-
-  /**
    * The next (incremental) sequence to assign when generating completable commands
    */
   public nextSeqs = {
@@ -285,6 +316,7 @@ export class Activator implements ActivationHandler {
 
   /**
    * This is set every time the workflow executes an activation
+   * May be accessed and modified from outside the VM.
    */
   now: number;
 
@@ -295,6 +327,7 @@ export class Activator implements ActivationHandler {
 
   /**
    * Information about the current Workflow
+   * May be accessed from outside the VM.
    */
   public info: WorkflowInfo;
 
@@ -309,12 +342,14 @@ export class Activator implements ActivationHandler {
   /**
    * Patches we know the status of for this workflow, as in {@link patched}
    */
-  public readonly knownPresentPatches = new Set<string>();
+  private readonly knownPresentPatches = new Set<string>();
 
   /**
    * Patches we sent to core {@link patched}
    */
-  public readonly sentPatches = new Set<string>();
+  private readonly sentPatches = new Set<string>();
+
+  private readonly knownFlags = new Set<number>();
 
   /**
    * Buffered sink calls per activation
@@ -335,7 +370,6 @@ export class Activator implements ActivationHandler {
     sourceMap,
     getTimeOfDay,
     randomnessSeed,
-    patches,
     registeredActivityNames,
   }: WorkflowCreateOptionsInternal) {
     this.getTimeOfDay = getTimeOfDay;
@@ -345,14 +379,11 @@ export class Activator implements ActivationHandler {
     this.sourceMap = sourceMap;
     this.random = alea(randomnessSeed);
     this.registeredActivityNames = registeredActivityNames;
-
-    if (info.unsafe.isReplaying) {
-      for (const patchId of patches) {
-        this.notifyHasPatch({ patchId });
-      }
-    }
   }
 
+  /**
+   * May be invoked from outside the VM.
+   */
   mutateWorkflowInfo(fn: (info: WorkflowInfo) => WorkflowInfo): void {
     this.info = fn(this.info);
   }
@@ -379,6 +410,9 @@ export class Activator implements ActivationHandler {
     return [...stacks].map(([_, stack]) => stack);
   }
 
+  /**
+   * May be invoked from outside the VM.
+   */
   getAndResetSinkCalls(): SinkCall[] {
     const { sinkCalls } = this;
     this.sinkCalls = [];
@@ -391,18 +425,17 @@ export class Activator implements ActivationHandler {
    * Prevents commands from being added after Workflow completion.
    */
   pushCommand(cmd: coresdk.workflow_commands.IWorkflowCommand, complete = false): void {
-    // Only query responses may be sent after completion
-    if (this.completed && !cmd.respondToQuery) return;
     this.commands.push(cmd);
     if (complete) {
       this.completed = true;
     }
   }
 
-  getAndResetCommands(): coresdk.workflow_commands.IWorkflowCommand[] {
-    const commands = this.commands;
-    this.commands = [];
-    return commands;
+  concludeActivation(): ActivationCompletion {
+    return {
+      commands: this.commands.splice(0),
+      usedInternalFlags: [...this.knownFlags],
+    };
   }
 
   public async startWorkflowNextHandler({ args }: WorkflowExecuteInput): Promise<any> {
@@ -410,22 +443,10 @@ export class Activator implements ActivationHandler {
     if (workflow === undefined) {
       throw new IllegalStateError('Workflow uninitialized');
     }
-    let promise: Promise<any>;
-    try {
-      promise = workflow(...args);
-    } finally {
-      // Queries must be handled even if there was an exception when invoking the Workflow function.
-      this.workflowFunctionWasCalled = true;
-      // Empty the buffer
-      const buffer = this.bufferedQueries.splice(0);
-      for (const activation of buffer) {
-        this.queryWorkflow(activation);
-      }
-    }
-    return await promise;
+    return await workflow(...args);
   }
 
-  public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
+  public startWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
     const execute = composeInterceptors(this.interceptors.inbound, 'execute', this.startWorkflowNextHandler.bind(this));
 
     untrackPromise(
@@ -436,6 +457,23 @@ export class Activator implements ActivationHandler {
         })
       ).then(this.completeWorkflow.bind(this), this.handleWorkflowFailure.bind(this))
     );
+  }
+
+  public initializeWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
+    const { continuedFailure, lastCompletionResult, memo, searchAttributes } = activation;
+
+    // Most things related to initialization have already been handled in the constructor
+    this.mutateWorkflowInfo((info) => ({
+      ...info,
+      searchAttributes:
+        (mapFromPayloads(searchAttributePayloadConverter, searchAttributes?.indexedFields) as SearchAttributes) ?? {},
+      memo: mapFromPayloads(this.payloadConverter, memo?.fields),
+      lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads),
+      lastFailure:
+        continuedFailure != null
+          ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter)
+          : undefined,
+    }));
   }
 
   public cancelWorkflow(_activation: coresdk.workflow_activation.ICancelWorkflow): void {
@@ -553,11 +591,6 @@ export class Activator implements ActivationHandler {
   }
 
   public queryWorkflow(activation: coresdk.workflow_activation.IQueryWorkflow): void {
-    if (!this.workflowFunctionWasCalled) {
-      this.bufferedQueries.push(activation);
-      return;
-    }
-
     const { queryType, queryId, headers } = activation;
     if (!(queryType && queryId)) {
       throw new TypeError('Missing query activation attributes');
@@ -590,7 +623,8 @@ export class Activator implements ActivationHandler {
     if (!protocolInstanceId) {
       throw new TypeError('Missing activation update protocolInstanceId');
     }
-    if (!this.updateHandlers.has(name)) {
+    const entry = this.updateHandlers.get(name);
+    if (!entry) {
       this.bufferedUpdates.push(activation);
       return;
     }
@@ -629,25 +663,31 @@ export class Activator implements ActivationHandler {
     //
     // Note that there is a deliberately unhandled promise rejection below.
     // These are caught elsewhere and fail the corresponding activation.
-    let input: UpdateInput;
-    try {
-      if (runValidator && this.updateHandlers.get(name)?.validator) {
-        const validate = composeInterceptors(
-          this.interceptors.inbound,
-          'validateUpdate',
-          this.validateUpdateNextHandler.bind(this)
-        );
-        validate(makeInput());
+    const doUpdateImpl = async () => {
+      let input: UpdateInput;
+      try {
+        if (runValidator && entry.validator) {
+          const validate = composeInterceptors(
+            this.interceptors.inbound,
+            'validateUpdate',
+            this.validateUpdateNextHandler.bind(this, entry.validator)
+          );
+          validate(makeInput());
+        }
+        input = makeInput();
+      } catch (error) {
+        this.rejectUpdate(protocolInstanceId, error);
+        return;
       }
-      input = makeInput();
-    } catch (error) {
-      this.rejectUpdate(protocolInstanceId, error);
-      return;
-    }
-    const execute = composeInterceptors(this.interceptors.inbound, 'handleUpdate', this.updateNextHandler.bind(this));
-    this.acceptUpdate(protocolInstanceId);
-    untrackPromise(
-      execute(input)
+      this.acceptUpdate(protocolInstanceId);
+      const execute = composeInterceptors(
+        this.interceptors.inbound,
+        'handleUpdate',
+        this.updateNextHandler.bind(this, entry.handler)
+      );
+      const { unfinishedPolicy } = entry;
+      this.inProgressUpdates.set(updateId, { name, unfinishedPolicy, id: updateId });
+      const res = execute(input)
         .then((result) => this.completeUpdate(protocolInstanceId, result))
         .catch((error) => {
           if (error instanceof TemporalFailure) {
@@ -656,20 +696,18 @@ export class Activator implements ActivationHandler {
             throw error;
           }
         })
-    );
+        .finally(() => this.inProgressUpdates.delete(updateId));
+      untrackPromise(res);
+      return res;
+    };
+    untrackPromise(UpdateScope.updateWithInfo(updateId, name, doUpdateImpl));
   }
 
-  protected async updateNextHandler({ name, args }: UpdateInput): Promise<unknown> {
-    const entry = this.updateHandlers.get(name);
-    if (!entry) {
-      return Promise.reject(new IllegalStateError(`No registered update handler for update: ${name}`));
-    }
-    const { handler } = entry;
+  protected async updateNextHandler(handler: WorkflowUpdateType, { args }: UpdateInput): Promise<unknown> {
     return await handler(...args);
   }
 
-  protected validateUpdateNextHandler({ name, args }: UpdateInput): void {
-    const { validator } = this.updateHandlers.get(name) ?? {};
+  protected validateUpdateNextHandler(validator: WorkflowUpdateValidatorType | undefined, { args }: UpdateInput): void {
     if (validator) {
       validator(...args);
     }
@@ -723,6 +761,14 @@ export class Activator implements ActivationHandler {
       return;
     }
 
+    // If we fall through to the default signal handler then the unfinished
+    // policy is WARN_AND_ABANDON; users currently have no way to silence any
+    // ensuing warnings.
+    const unfinishedPolicy =
+      this.signalHandlers.get(signalName)?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
+
+    const signalExecutionNum = this.signalHandlerExecutionSeq++;
+    this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
     const execute = composeInterceptors(
       this.interceptors.inbound,
       'handleSignal',
@@ -732,7 +778,9 @@ export class Activator implements ActivationHandler {
       args: arrayFromPayloads(this.payloadConverter, activation.input),
       signalName,
       headers: headers ?? {},
-    }).catch(this.handleWorkflowFailure.bind(this));
+    })
+      .catch(this.handleWorkflowFailure.bind(this))
+      .finally(() => this.inProgressSignals.delete(signalExecutionNum));
   }
 
   public dispatchBufferedSignals(): void {
@@ -771,6 +819,24 @@ export class Activator implements ActivationHandler {
     }
   }
 
+  public warnIfUnfinishedHandlers(): void {
+    const getWarnable = (handlerExecutions: Iterable<MessageHandlerExecution>): MessageHandlerExecution[] => {
+      return Array.from(handlerExecutions).filter(
+        (ex) => ex.unfinishedPolicy === HandlerUnfinishedPolicy.WARN_AND_ABANDON
+      );
+    };
+
+    const warnableUpdates = getWarnable(this.inProgressUpdates.values());
+    if (warnableUpdates.length > 0) {
+      log.warn(makeUnfinishedUpdateHandlerMessage(warnableUpdates));
+    }
+
+    const warnableSignals = getWarnable(this.inProgressSignals.values());
+    if (warnableSignals.length > 0) {
+      log.warn(makeUnfinishedSignalHandlerMessage(warnableSignals));
+    }
+  }
+
   public updateRandomSeed(activation: coresdk.workflow_activation.IUpdateRandomSeed): void {
     if (!activation.randomnessSeed) {
       throw new TypeError('Expected activation with randomnessSeed attribute');
@@ -779,10 +845,53 @@ export class Activator implements ActivationHandler {
   }
 
   public notifyHasPatch(activation: coresdk.workflow_activation.INotifyHasPatch): void {
-    if (!activation.patchId) {
-      throw new TypeError('Notify has patch missing patch name');
-    }
+    if (!this.info.unsafe.isReplaying)
+      throw new IllegalStateError('Unexpected notifyHasPatch job on non-replay activation');
+    if (!activation.patchId) throw new TypeError('notifyHasPatch missing patch id');
     this.knownPresentPatches.add(activation.patchId);
+  }
+
+  public patchInternal(patchId: string, deprecated: boolean): boolean {
+    if (this.workflow === undefined) {
+      throw new IllegalStateError('Patches cannot be used before Workflow starts');
+    }
+    const usePatch = !this.info.unsafe.isReplaying || this.knownPresentPatches.has(patchId);
+    // Avoid sending commands for patches core already knows about.
+    // This optimization enables development of automatic patching tools.
+    if (usePatch && !this.sentPatches.has(patchId)) {
+      this.pushCommand({
+        setPatchMarker: { patchId, deprecated },
+      });
+      this.sentPatches.add(patchId);
+    }
+    return usePatch;
+  }
+
+  /**
+   * Called early while handling an activation to register known flags.
+   * May be invoked from outside the VM.
+   */
+  public addKnownFlags(flags: number[]): void {
+    for (const flag of flags) {
+      assertValidFlag(flag);
+      this.knownFlags.add(flag);
+    }
+  }
+
+  /**
+   * Check if a flag is known to the Workflow Execution; if not, enable the flag if workflow
+   * is not replaying and the flag is configured to be enabled by default.
+   * May be invoked from outside the VM.
+   */
+  public hasFlag(flag: SdkFlag): boolean {
+    if (this.knownFlags.has(flag.id)) {
+      return true;
+    }
+    if (!this.info.unsafe.isReplaying && flag.default) {
+      this.knownFlags.add(flag.id);
+      return true;
+    }
+    return false;
   }
 
   public removeFromCache(): void {
@@ -804,7 +913,10 @@ export class Activator implements ActivationHandler {
         // preventing it from completing.
         throw error;
       }
-
+      // Fail the workflow. We do not want to issue unfinishedHandlers warnings. To achieve that, we
+      // mark all handlers as completed now.
+      this.inProgressSignals.clear();
+      this.inProgressUpdates.clear();
       this.pushCommand(
         {
           failWorkflowExecution: {
@@ -894,4 +1006,45 @@ function getSeq<T extends { seq?: number | null }>(activation: T): number {
     throw new TypeError(`Got activation with no seq attribute`);
   }
   return seq;
+}
+
+function makeUnfinishedUpdateHandlerMessage(handlerExecutions: MessageHandlerExecution[]): string {
+  const message = `
+[TMPRL1102] Workflow finished while an update handler was still running. This may have interrupted work that the
+update handler was doing, and the client that sent the update will receive a 'workflow execution
+already completed' RPCError instead of the update result. You can wait for all update and signal
+handlers to complete by using \`await workflow.condition(workflow.allHandlersFinished)\`.
+Alternatively, if both you and the clients sending the update are okay with interrupting running handlers
+when the workflow finishes, and causing clients to receive errors, then you can disable this warning by
+passing an option when setting the handler:
+\`workflow.setHandler(myUpdate, myUpdateHandler, {unfinishedPolicy: HandlerUnfinishedPolicy.ABANDON});\`.`
+    .replace(/\n/g, ' ')
+    .trim();
+
+  return `${message} The following updates were unfinished (and warnings were not disabled for their handler): ${JSON.stringify(
+    handlerExecutions.map((ex) => ({ name: ex.name, id: ex.id }))
+  )}`;
+}
+
+function makeUnfinishedSignalHandlerMessage(handlerExecutions: MessageHandlerExecution[]): string {
+  const message = `
+[TMPRL1102] Workflow finished while a signal handler was still running. This may have interrupted work that the
+signal handler was doing. You can wait for all update and signal handlers to complete by using
+\`await workflow.condition(workflow.allHandlersFinished)\`. Alternatively, if both you and the
+clients sending the update are okay with interrupting running handlers when the workflow finishes,
+then you can disable this warning by passing an option when setting the handler:
+\`workflow.setHandler(mySignal, mySignalHandler, {unfinishedPolicy: HandlerUnfinishedPolicy.ABANDON});\`.`
+
+    .replace(/\n/g, ' ')
+    .trim();
+
+  const names = new Map<string, number>();
+  for (const ex of handlerExecutions) {
+    const count = names.get(ex.name) || 0;
+    names.set(ex.name, count + 1);
+  }
+
+  return `${message} The following signals were unfinished (and warnings were not disabled for their handler): ${JSON.stringify(
+    Array.from(names.entries()).map(([name, count]) => ({ name, count }))
+  )}`;
 }

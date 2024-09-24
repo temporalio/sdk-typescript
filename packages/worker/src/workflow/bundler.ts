@@ -151,10 +151,10 @@ export class WorkflowCodeBundler {
 
     const code = `
 const api = require('@temporalio/workflow/lib/worker-interface.js');
-
-api.overrideGlobals();
-
 exports.api = api;
+
+const { overrideGlobals } = require('@temporalio/workflow/lib/global-overrides.js');
+overrideGlobals();
 
 exports.importWorkflows = function importWorkflows() {
   return require(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
@@ -271,7 +271,7 @@ exports.importInterceptors = function importInterceptors() {
             if (hasError) {
               reject(
                 new Error(
-                  "Webpack finished with errors, if you're unsure what went wrong, visit our troubleshooting page at https://docs.temporal.io/dev-guide/typescript/debugging#webpack-errors"
+                  "Webpack finished with errors, if you're unsure what went wrong, visit our troubleshooting page at https://docs.temporal.io/develop/typescript/debugging#webpack-errors"
                 )
               );
             }
@@ -287,7 +287,7 @@ exports.importInterceptors = function importInterceptors() {
                   ` • Make sure that activity code is not imported from workflow code. Use \`import type\` to import activity function signatures.\n` +
                   ` • Move code that has non-deterministic behaviour to activities.\n` +
                   ` • If you know for sure that a disallowed module will not be used at runtime, add its name to 'WorkerOptions.bundlerOptions.ignoreModules' in order to dismiss this warning.\n` +
-                  `See also: https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions and https://docs.temporal.io/typescript/determinism.`
+                  `See also: https://typescript.temporal.io/api/namespaces/worker#workflowbundleoption and https://docs.temporal.io/typescript/determinism.`
               );
 
               reject(err);

@@ -107,6 +107,39 @@ const retryableCodes = new Set([
 ]);
 
 export function isRetryableError(status: StatusObject): boolean {
+  // gRPC INTERNAL status is ambiguous and may be used in many unrelated situations, including:
+  // - TLS errors
+  // - Compression errors
+  // - Errors decoding protobuf messages (either client-side or server-side)
+  // - Transient HTTP/2 network errors
+  // - Failing some server-side request validation
+  // - etc.
+  //
+  // In most case, retrying is useless and would only be a waste of resource.
+  // However, in case of transient network errors, retrying is highly desirable.
+  // Unfortunately, the only way of differenciating between those various cases
+  // is pattern matching the error messages.
+  if (status.code === grpc.status.INTERNAL) {
+    // RST_STREAM code 0 means the HTTP2 request completed with HTTP status 200, but without
+    // the mandatory `grpc-status` header. That's generally due to some HTTP2 proxy or load balancer
+    // that doesn't know about gRPC-specifics. Retrying may help.
+    if (/RST_STREAM with code 0|Call ended without gRPC status/i.test(status.details)) return true;
+
+    // RST_STREAM code 2 is pretty generic and encompasses most HTTP2 protocol errors.
+    // That may for example happen if the client tries to reuse the connection at the
+    // same time as the server initiate graceful closing. Retrying may help.
+    if (/RST_STREAM with code 2/i.test(status.details)) {
+      // Some TLS errors surfaces with message:
+      // "Received RST_STREAM with code 2 triggered by internal client error: […] SSL alert number XX"
+      // At this time, no TLS error is worth retrying, so dismiss those.
+      if (/SSL alert number/i.test(status.details)) return false;
+
+      return true;
+    }
+
+    return false;
+  }
+
   return retryableCodes.has(status.code);
 }
 

@@ -3,7 +3,7 @@ import {
   ActivityOptions,
   compileRetryPolicy,
   extractWorkflowType,
-  IllegalStateError,
+  HandlerUnfinishedPolicy,
   LocalActivityOptions,
   mapToPayloads,
   QueryDefinition,
@@ -20,10 +20,11 @@ import {
   WorkflowUpdateValidatorType,
 } from '@temporalio/common';
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
-import { Duration, msOptionalToTs, msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
+import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
+import { UpdateScope } from './update-scope';
 import {
   ActivityInput,
   LocalActivityInput,
@@ -44,6 +45,7 @@ import {
   SignalHandlerOptions,
   UpdateHandlerOptions,
   WorkflowInfo,
+  UpdateInfo,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
@@ -54,7 +56,7 @@ import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 registerSleepImplementation(sleep);
 
 /**
- * Adds default values to `workflowId` and `workflowIdReusePolicy` to given workflow options.
+ * Adds default values of `workflowId` and `cancellationType` to given workflow options.
  */
 export function addDefaultWorkflowOptions<T extends Workflow>(
   opts: WithWorkflowArgs<T, ChildWorkflowOptions>
@@ -62,7 +64,7 @@ export function addDefaultWorkflowOptions<T extends Workflow>(
   const { args, workflowId, ...rest } = opts;
   return {
     workflowId: workflowId ?? uuid4(),
-    args: args ?? [],
+    args: (args ?? []) as unknown[],
     cancellationType: ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
     ...rest,
   };
@@ -316,7 +318,7 @@ export async function scheduleLocalActivity<R>(
       })) as Promise<R>;
     } catch (err) {
       if (err instanceof LocalActivityDoBackoff) {
-        await sleep(tsToMs(err.backoff.backoffDuration));
+        await sleep(requiredTsToMs(err.backoff.backoffDuration, 'backoffDuration'));
         if (typeof err.backoff.attempt !== 'number') {
           throw new TypeError('Invalid backoff attempt type');
         }
@@ -869,6 +871,19 @@ export function workflowInfo(): WorkflowInfo {
 }
 
 /**
+ * Get information about the current update if any.
+ *
+ * @return Info for the current update handler the code calling this is executing
+ * within if any.
+ *
+ * @experimental
+ */
+export function currentUpdateInfo(): UpdateInfo | undefined {
+  assertInWorkflowContext('Workflow.currentUpdateInfo(...) may only be used from a Workflow Execution.');
+  return UpdateScope.current();
+}
+
+/**
  * Returns whether or not code is executing in workflow context
  */
 export function inWorkflowContext(): boolean {
@@ -987,7 +1002,10 @@ export function uuid4(): string {
  * calls with the same ID, which means all such calls will always return the same value.
  */
 export function patched(patchId: string): boolean {
-  return patchInternal(patchId, false);
+  const activator = assertInWorkflowContext(
+    'Workflow.patch(...) and Workflow.deprecatePatch may only be used from a Workflow Execution.'
+  );
+  return activator.patchInternal(patchId, false);
 }
 
 /**
@@ -1008,29 +1026,10 @@ export function patched(patchId: string): boolean {
  * calls with the same ID, which means all such calls will always return the same value.
  */
 export function deprecatePatch(patchId: string): void {
-  patchInternal(patchId, true);
-}
-
-function patchInternal(patchId: string, deprecated: boolean): boolean {
   const activator = assertInWorkflowContext(
     'Workflow.patch(...) and Workflow.deprecatePatch may only be used from a Workflow Execution.'
   );
-  // Patch operation does not support interception at the moment, if it did,
-  // this would be the place to start the interception chain
-
-  if (activator.workflow === undefined) {
-    throw new IllegalStateError('Patches cannot be used before Workflow starts');
-  }
-  const usePatch = !activator.info.unsafe.isReplaying || activator.knownPresentPatches.has(patchId);
-  // Avoid sending commands for patches core already knows about.
-  // This optimization enables development of automatic patching tools.
-  if (usePatch && !activator.sentPatches.has(patchId)) {
-    activator.pushCommand({
-      setPatchMarker: { patchId, deprecated },
-    });
-    activator.sentPatches.add(patchId);
-  }
-  return usePatch;
+  activator.patchInternal(patchId, true);
 }
 
 /**
@@ -1097,8 +1096,8 @@ function conditionInner(fn: () => boolean): Promise<void> {
 /**
  * Define an update method for a Workflow.
  *
- * Definitions are used to register handler in the Workflow via {@link setHandler} and to update Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
- * Definitions can be reused in multiple Workflows.
+ * A definition is used to register a handler in the Workflow via {@link setHandler} and to update a Workflow using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
+ * A definition can be reused in multiple Workflows.
  */
 export function defineUpdate<Ret, Args extends any[] = [], Name extends string = string>(
   name: Name
@@ -1112,8 +1111,8 @@ export function defineUpdate<Ret, Args extends any[] = [], Name extends string =
 /**
  * Define a signal method for a Workflow.
  *
- * Definitions are used to register handler in the Workflow via {@link setHandler} and to signal Workflows using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
- * Definitions can be reused in multiple Workflows.
+ * A definition is used to register a handler in the Workflow via {@link setHandler} and to signal a Workflow using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
+ * A definition can be reused in multiple Workflows.
  */
 export function defineSignal<Args extends any[] = [], Name extends string = string>(
   name: Name
@@ -1127,8 +1126,8 @@ export function defineSignal<Args extends any[] = [], Name extends string = stri
 /**
  * Define a query method for a Workflow.
  *
- * Definitions are used to register handler in the Workflow via {@link setHandler} and to query Workflows using a {@link WorkflowHandle}.
- * Definitions can be reused in multiple Workflows.
+ * A definition is used to register a handler in the Workflow via {@link setHandler} and to query a Workflow using a {@link WorkflowHandle}.
+ * A definition can be reused in multiple Workflows.
  */
 export function defineQuery<Ret, Args extends any[] = [], Name extends string = string>(
   name: Name
@@ -1195,7 +1194,7 @@ export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<R
 // 1. sdk-core sorts Signal and Update jobs (and Patches) ahead of all other
 //    jobs. Thus if the handler is available at the start of the Activation then
 //    the Signal/Update will be executed before Workflow code is executed. If it
-//    is not, then the Signal/Update calls is pushed to a buffer.
+//    is not, then the Signal/Update calls are pushed to a buffer.
 //
 // 2. On each call to setHandler for a given Signal/Update, we make a pass
 //    through the buffer list. If a buffered job is associated with the just-set
@@ -1243,7 +1242,7 @@ export function setHandler<Ret, Args extends any[], T extends UpdateDefinition<R
 //    Worker polling until after they have verified that both requests have
 //    succeeded.)
 //
-// 5. If an Update has a validation function then it is executed immediately
+// 4. If an Update has a validation function then it is executed immediately
 //    prior to the handler. (Note that the validation function is required to be
 //    synchronous).
 export function setHandler<
@@ -1260,8 +1259,10 @@ export function setHandler<
   if (def.type === 'update') {
     if (typeof handler === 'function') {
       const updateOptions = options as UpdateHandlerOptions<Args> | undefined;
+
       const validator = updateOptions?.validator as WorkflowUpdateValidatorType | undefined;
-      activator.updateHandlers.set(def.name, { handler, validator, description });
+      const unfinishedPolicy = updateOptions?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
+      activator.updateHandlers.set(def.name, { handler, validator, description, unfinishedPolicy });
       activator.dispatchBufferedUpdates();
     } else if (handler == null) {
       activator.updateHandlers.delete(def.name);
@@ -1270,7 +1271,9 @@ export function setHandler<
     }
   } else if (def.type === 'signal') {
     if (typeof handler === 'function') {
-      activator.signalHandlers.set(def.name, { handler: handler as any, description });
+      const signalOptions = options as SignalHandlerOptions | undefined;
+      const unfinishedPolicy = signalOptions?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
+      activator.signalHandlers.set(def.name, { handler: handler as any, description, unfinishedPolicy });
       activator.dispatchBufferedSignals();
     } else if (handler == null) {
       activator.signalHandlers.delete(def.name);
@@ -1366,6 +1369,91 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
       },
     };
   });
+}
+
+/**
+ * Updates this Workflow's Memos by merging the provided `memo` with existing
+ * Memos (as returned by `workflowInfo().memo`).
+ *
+ * New memo is merged by replacing properties of the same name _at the first
+ * level only_. Setting a property to value `undefined` or `null` clears that
+ * key from the Memo.
+ *
+ * For example:
+ *
+ * ```ts
+ * upsertMemo({
+ *   key1: value,
+ *   key3: { subkey1: value }
+ *   key4: value,
+ * });
+ * upsertMemo({
+ *   key2: value
+ *   key3: { subkey2: value }
+ *   key4: undefined,
+ * });
+ * ```
+ *
+ * would result in the Workflow having these Memo:
+ *
+ * ```ts
+ * {
+ *   key1: value,
+ *   key2: value,
+ *   key3: { subkey2: value }  // Note this object was completely replaced
+ *   // Note that key4 was completely removed
+ * }
+ * ```
+ *
+ * @param memo The Record to merge.
+ */
+export function upsertMemo(memo: Record<string, unknown>): void {
+  const activator = assertInWorkflowContext('Workflow.upsertMemo(...) may only be used from a Workflow Execution.');
+
+  if (memo == null) {
+    throw new Error('memo must be a non-null Record');
+  }
+
+  activator.pushCommand({
+    modifyWorkflowProperties: {
+      upsertedMemo: {
+        fields: mapToPayloads(
+          activator.payloadConverter,
+          // Convert null to undefined
+          Object.fromEntries(Object.entries(memo).map(([k, v]) => [k, v ?? undefined]))
+        ),
+      },
+    },
+  });
+
+  activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
+    return {
+      ...info,
+      memo: Object.fromEntries(
+        Object.entries({
+          ...info.memo,
+          ...memo,
+        }).filter(([_, v]) => v != null)
+      ),
+    };
+  });
+}
+
+/**
+ * Whether update and signal handlers have finished executing.
+ *
+ * Consider waiting on this condition before workflow return or continue-as-new, to prevent
+ * interruption of in-progress handlers by workflow exit:
+ *
+ * ```ts
+ * await workflow.condition(workflow.allHandlersFinished)
+ * ```
+ *
+ * @returns true if there are no in-progress update or signal handler executions.
+ */
+export function allHandlersFinished(): boolean {
+  const activator = assertInWorkflowContext('allHandlersFinished() may only be used from a Workflow Execution.');
+  return activator.inProgressSignals.size === 0 && activator.inProgressUpdates.size === 0;
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');
