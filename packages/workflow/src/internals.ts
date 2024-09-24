@@ -882,7 +882,7 @@ export class Activator implements ActivationHandler {
    * Check if an SDK Flag may be considered as enabled for the current Workflow Task.
    *
    * SDK flags play a role similar to the `patched()` API, but are meant for internal usage by the
-   * SDK itself. They make it possible for the SDK to evolves its behaviors over time, while still
+   * SDK itself. They make it possible for the SDK to evolve its behaviors over time, while still
    * maintaining compatibility with Workflow histories produced by older SDKs, without causing
    * determinism violations.
    *

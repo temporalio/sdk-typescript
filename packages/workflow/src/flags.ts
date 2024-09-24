@@ -19,7 +19,7 @@ export const SdkFlags = {
    *
    * @since Introduced in 1.10.2/1.11.0. However, due to an SDK bug, SDKs v1.11.0 and v1.11.1 were not
    *        properly writing back the flags to history, possibly resulting in NDE on replay. We therefore
-   *        consider that a WFT emitted by Worker v1.11.0 or v1.11.1 to implicitely have this flag on.
+   *        consider that a WFT emitted by Worker v1.11.0 or v1.11.1 to implicitly have this flag on.
    */
   NonCancellableScopesAreShieldedFromPropagation: defineFlag(1, true, [buildIdSdkVersionMatches(/1\.11\.[01]/)]),
 
