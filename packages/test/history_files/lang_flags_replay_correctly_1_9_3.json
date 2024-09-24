@@ -65,10 +65,7 @@
           "buildId": "@temporalio/worker@1.9.3+c3a9dea62fc8e18920cf75ed63d730521ba65e7256ea5f26924fe84dc23543fe"
         },
         "sdkMetadata": {
-          "coreUsedFlags": [
-            2,
-            1
-          ]
+          "coreUsedFlags": [2, 1]
         },
         "meteringMetadata": {}
       }
