@@ -1070,7 +1070,17 @@ test("Lang's SDK flags replay correctly", async (t) => {
   t.pass();
 });
 
-test("Lang's SDK flags from 1.11.[01] are retroactively applied on replay", async (t) => {
+test("Lang's SDK flags - History from before 1.11.0 replays correctly", async (t) => {
+  const { runReplayHistory } = helpers(t);
+  const hist = await loadHistory('lang_flags_replay_correctly_1_9_3.json');
+  await runReplayHistory({}, hist);
+  t.pass();
+});
+
+// Context: Due to a bug in 1.11.0 and 1.11.1, SDK flags that were set in those versions were not
+// persisted to history. To avoid NDEs on histories produced by those releases, we check the Build
+// ID for the SDK version number, and retroactively set some flags on these histories.
+test("Lang's SDK flags - Flags from 1.11.[01] are retroactively applied on replay", async (t) => {
   const { runReplayHistory } = helpers(t);
   const hist = await loadHistory('lang_flags_replay_correctly_1_11_1.json');
   await runReplayHistory({}, hist);
