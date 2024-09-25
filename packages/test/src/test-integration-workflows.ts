@@ -15,7 +15,7 @@ import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
-import { asSdkLoggerSink, RUN_TIME_SKIPPING_TESTS } from './helpers';
+import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS } from './helpers';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -1043,6 +1043,55 @@ test('Sink functions contains upserted memo', async (t) => {
       },
     },
   ]);
+});
+
+export async function langFlagsReplayCorrectly(): Promise<void> {
+  const { noopActivity } = workflow.proxyActivities({ scheduleToCloseTimeout: '10s' });
+  await workflow.CancellationScope.withTimeout('10s', async () => {
+    await noopActivity();
+  });
+}
+
+test("Lang's SDK flags replay correctly", async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      noopActivity: () => {},
+    },
+  });
+
+  const handle = await startWorkflow(langFlagsReplayCorrectly);
+  await worker.runUntil(() => handle.result());
+
+  const worker2 = await createWorker();
+  await worker2.runUntil(() => handle.query('__stack_trace'));
+
+  // Query would have thrown if the workflow couldn't be replayed correctly
+  t.pass();
+});
+
+test("Lang's SDK flags - History from before 1.11.0 replays correctly", async (t) => {
+  const { runReplayHistory } = helpers(t);
+  const hist = await loadHistory('lang_flags_replay_correctly_1_9_3.json');
+  await runReplayHistory({}, hist);
+  t.pass();
+});
+
+// Context: Due to a bug in 1.11.0 and 1.11.1, SDK flags that were set in those versions were not
+// persisted to history. To avoid NDEs on histories produced by those releases, we check the Build
+// ID for the SDK version number, and retroactively set some flags on these histories.
+test("Lang's SDK flags - Flags from 1.11.[01] are retroactively applied on replay", async (t) => {
+  const { runReplayHistory } = helpers(t);
+  const hist = await loadHistory('lang_flags_replay_correctly_1_11_1.json');
+  await runReplayHistory({}, hist);
+  t.pass();
+});
+
+test("Lang's SDK flags from 1.11.2 are retroactively applied on replay", async (t) => {
+  const { runReplayHistory } = helpers(t);
+  const hist = await loadHistory('lang_flags_replay_correctly_1_11_2.json');
+  await runReplayHistory({}, hist);
+  t.pass();
 });
 
 export async function cancelAbandonActivityBeforeStarted(): Promise<void> {
