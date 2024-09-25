@@ -18,6 +18,7 @@ import {
   TimeSkippingTestWorkflowEnvironmentOptions,
 } from '@temporalio/testing';
 import { LoggerSinksInternal as DefaultLoggerSinks } from '@temporalio/workflow/lib/logs';
+import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 
 export function u8(s: string): Uint8Array {
   // TextEncoder requires lib "dom"
@@ -296,7 +297,7 @@ export function asSdkLoggerSink(
   };
 }
 
-export async function getHistories(fname: string): Promise<iface.temporal.api.history.v1.History> {
+export async function loadHistory(fname: string): Promise<iface.temporal.api.history.v1.History> {
   const isJson = fname.endsWith('json');
   const fpath = path.resolve(__dirname, `../history_files/${fname}`);
   if (isJson) {
@@ -306,4 +307,9 @@ export async function getHistories(fname: string): Promise<iface.temporal.api.hi
     const hist = await fs.readFile(fpath);
     return iface.temporal.api.history.v1.History.decode(hist);
   }
+}
+
+export async function saveHistory(fname: string, history: iface.temporal.api.history.v1.IHistory): Promise<void> {
+  const fpath = path.resolve(__dirname, `../history_files/${fname}`);
+  await fs.writeFile(fpath, historyToJSON(history));
 }

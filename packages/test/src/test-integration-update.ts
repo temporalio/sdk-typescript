@@ -4,7 +4,7 @@ import { temporal } from '@temporalio/proto';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { signalUpdateOrderingWorkflow } from './workflows/signal-update-ordering';
 import { signalsActivitiesTimersPromiseOrdering } from './workflows/signals-timers-activities-order';
-import { getHistories, waitUntil } from './helpers';
+import { loadHistory, waitUntil } from './helpers';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -809,7 +809,7 @@ test('Can complete update after Workflow fails', async (t) => {
  */
 test('Can complete update after workflow returns - pre-1.11.0 compatibility', async (t) => {
   const { runReplayHistory } = helpers(t);
-  const hist = await getHistories('complete_update_after_workflow_returns_pre1488.json');
+  const hist = await loadHistory('complete_update_after_workflow_returns_pre1488.json');
   await runReplayHistory({}, hist);
   t.pass();
 });
