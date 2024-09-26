@@ -10,6 +10,7 @@ import {
   ScheduleHandle,
   ScheduleSummary,
   ScheduleUpdateOptions,
+  SearchAttributes,
 } from '@temporalio/client';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS } from './helpers';
@@ -550,40 +551,25 @@ if (RUN_INTEGRATION_TESTS) {
     const expectedIds: string[] = [];
     for(let i = 0; i < 4; i++) {
       const scheduleId = `test-query-${groupId}-${i + 1}`
+      const searchAttributes: SearchAttributes = {};
       if(i < 2) {
-        createdScheduleHandlesPromises.push(
-          client.schedule.create({
-            scheduleId,
-            spec: {
-              calendars: [{ hour: { start: 2, end: 7, step: 1 } }],
-            },
-            action: {
-              type: 'startWorkflow',
-              workflowType: dummyWorkflow,
-              taskQueue,
-            },
-            searchAttributes: {
-              "CustomKeywordField": ["some-value"],
-            }
-          })
-        )
+        searchAttributes["CustomKeywordField"] = ['some-value'];
         expectedIds.push(scheduleId);
       }
-      else {
-        createdScheduleHandlesPromises.push(
-          client.schedule.create({
-            scheduleId,
-            spec: {
-              calendars: [{ hour: { start: 2, end: 7, step: 1 } }],
-            },
-            action: {
-              type: 'startWorkflow',
-              workflowType: dummyWorkflow,
-              taskQueue,
-            },
-          })
-        )
-      }
+      createdScheduleHandlesPromises.push(
+        client.schedule.create({
+          scheduleId,
+          spec: {
+            calendars: [{ hour: { start: 2, end: 7, step: 1 } }],
+          },
+          action: {
+            type: 'startWorkflow',
+            workflowType: dummyWorkflow,
+            taskQueue,
+          },
+          searchAttributes: Object.keys(searchAttributes).length ? searchAttributes : undefined,
+        })
+      );
     }
 
     const createdScheduleHandles: { [k: string]: ScheduleHandle } = Object.fromEntries(
