@@ -549,11 +549,11 @@ if (RUN_INTEGRATION_TESTS) {
     const groupId = randomUUID();
     const createdScheduleHandlesPromises = [];
     const expectedIds: string[] = [];
-    for(let i = 0; i < 4; i++) {
-      const scheduleId = `test-query-${groupId}-${i + 1}`
+    for (let i = 0; i < 4; i++) {
+      const scheduleId = `test-query-${groupId}-${i + 1}`;
       const searchAttributes: SearchAttributes = {};
-      if(i < 2) {
-        searchAttributes["CustomKeywordField"] = ['some-value'];
+      if (i < 2) {
+        searchAttributes['CustomKeywordField'] = ['some-value'];
         expectedIds.push(scheduleId);
       }
       createdScheduleHandlesPromises.push(
@@ -575,7 +575,7 @@ if (RUN_INTEGRATION_TESTS) {
     const createdScheduleHandles: { [k: string]: ScheduleHandle } = Object.fromEntries(
       (await Promise.all(createdScheduleHandlesPromises)).map((x) => [x.scheduleId, x])
     );
-    
+
     try {
       // Wait for visibility to stabilize
       await asyncRetry(
@@ -583,16 +583,14 @@ if (RUN_INTEGRATION_TESTS) {
           const listedScheduleHandlesFromQuery: ScheduleSummary[] = []; // to list all the schedule handles from the query string provided
           const query = `CustomKeywordField="some-value"`;
 
-          for await (const schedule of client.schedule.list({ query: query })) {
+          for await (const schedule of client.schedule.list({ query })) {
             listedScheduleHandlesFromQuery.push(schedule);
           }
 
-          const listedScheduleIdsFromQuery = listedScheduleHandlesFromQuery
-            .map((x) => x.scheduleId)
-            .sort();
+          const listedScheduleIdsFromQuery = listedScheduleHandlesFromQuery.map((x) => x.scheduleId).sort();
 
           if (listedScheduleIdsFromQuery.length !== expectedIds.length) throw new Error('Entries are missing');
-          
+
           t.deepEqual(listedScheduleIdsFromQuery, expectedIds);
         },
         {
