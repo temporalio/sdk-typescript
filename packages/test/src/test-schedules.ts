@@ -567,7 +567,7 @@ if (RUN_INTEGRATION_TESTS) {
             workflowType: dummyWorkflow,
             taskQueue,
           },
-          searchAttributes: Object.keys(searchAttributes).length ? searchAttributes : undefined,
+          searchAttributes,
         })
       );
     }
