@@ -10,6 +10,7 @@ import {
   DisposeInput,
   Next,
   SignalInput,
+  SignalWorkflowInput,
   StartChildWorkflowExecutionInput,
   WorkflowExecuteInput,
   WorkflowInboundCallsInterceptor,
@@ -134,6 +135,23 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
         });
       },
       acceptableErrors: (err) => err instanceof ContinueAsNew,
+    });
+  }
+
+  public async signalWorkflow(
+    input: SignalWorkflowInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'signalWorkflow'>
+  ): Promise<void> {
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
+      fn: async () => {
+        const headers = await headersWithContext(input.headers);
+        return next({
+          ...input,
+          headers,
+        });
+      },
     });
   }
 }
