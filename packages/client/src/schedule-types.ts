@@ -795,6 +795,7 @@ export type CompiledScheduleAction = Replace<
 /**
  * Policy for overlapping Actions.
  */
+// FIXME(JWH): Fix this enum
 export enum ScheduleOverlapPolicy {
   /**
    * Use server default (currently SKIP).

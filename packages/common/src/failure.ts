@@ -7,6 +7,7 @@ export type ProtoFailure = temporal.api.failure.v1.IFailure;
 
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from temporal.api.enums.v1.TimeoutType
+// FIXME(JWH): Fix this enum
 export enum TimeoutType {
   TIMEOUT_TYPE_UNSPECIFIED = 0,
   TIMEOUT_TYPE_START_TO_CLOSE = 1,
@@ -20,6 +21,7 @@ checkExtends<TimeoutType, temporal.api.enums.v1.TimeoutType>();
 
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from temporal.api.enums.v1.RetryState
+// FIXME(JWH): Fix this enum
 export enum RetryState {
   RETRY_STATE_UNSPECIFIED = 0,
   RETRY_STATE_IN_PROGRESS = 1,

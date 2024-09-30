@@ -2,6 +2,7 @@ import {
   ActivityFunction,
   ActivityOptions,
   compileRetryPolicy,
+  encodeWorkflowIdReusePolicy,
   extractWorkflowType,
   HandlerUnfinishedPolicy,
   LocalActivityOptions,
@@ -46,6 +47,8 @@ import {
   UpdateHandlerOptions,
   WorkflowInfo,
   UpdateInfo,
+  encodeChildWorkflowCancellationType,
+  encodeParentClosePolicy,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
@@ -372,9 +375,9 @@ function startChildWorkflowExecutionNextHandler({
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
         namespace: activator.info.namespace, // Not configurable
         headers,
-        cancellationType: options.cancellationType,
-        workflowIdReusePolicy: options.workflowIdReusePolicy,
-        parentClosePolicy: options.parentClosePolicy,
+        cancellationType: encodeChildWorkflowCancellationType(options.cancellationType),
+        workflowIdReusePolicy: encodeWorkflowIdReusePolicy(options.workflowIdReusePolicy),
+        parentClosePolicy: encodeParentClosePolicy(options.parentClosePolicy),
         cronSchedule: options.cronSchedule,
         searchAttributes: options.searchAttributes
           ? mapToPayloads(searchAttributePayloadConverter, options.searchAttributes)

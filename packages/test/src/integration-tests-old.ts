@@ -36,7 +36,6 @@ import {
   TimeoutType,
   WorkflowExecution,
   WorkflowExecutionAlreadyStartedError,
-  WorkflowIdReusePolicy,
   WorkflowNotFoundError,
 } from '@temporalio/common';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
@@ -1165,7 +1164,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
         workflowId,
         signal: workflows.interruptSignal,
         signalArgs: ['interrupted from signalWithStart'],
-        workflowIdReusePolicy: WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
+        workflowIdReusePolicy: 'REJECT_DUPLICATE',
       }),
       {
         instanceOf: WorkflowExecutionAlreadyStartedError,

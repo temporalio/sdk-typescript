@@ -2,7 +2,7 @@ import type { temporal } from '@temporalio/proto';
 import { SearchAttributes, Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
 import { Duration } from './time';
-import { checkExtends } from './type-helpers';
+import { AssertType, CheckConstEnum } from './type-helpers';
 
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from temporal.api.enums.v1.WorkflowIdReusePolicy
@@ -13,38 +13,85 @@ import { checkExtends } from './type-helpers';
  *
  * *Note: A Workflow can never be started with a Workflow Id of a Running Workflow.*
  */
-export enum WorkflowIdReusePolicy {
-  /**
-   * No need to use this.
-   *
-   * (If a `WorkflowIdReusePolicy` is set to this, or is not set at all, the default value will be used.)
-   */
-  WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED = 0,
-
+export const WorkflowIdReusePolicy = {
   /**
    * The Workflow can be started if the previous Workflow is in a Closed state.
    * @default
    */
-  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE = 1,
+  ALLOW_DUPLICATE: 'ALLOW_DUPLICATE',
 
   /**
    * The Workflow can be started if the previous Workflow is in a Closed state that is not Completed.
    */
-  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY = 2,
+  ALLOW_DUPLICATE_FAILED_ONLY: 'ALLOW_DUPLICATE_FAILED_ONLY',
 
   /**
    * The Workflow cannot be started.
    */
-  WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE = 3,
+  REJECT_DUPLICATE: 'REJECT_DUPLICATE',
 
   /**
    * Terminate the current workflow if one is already running.
    */
-  WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING = 4,
+  TERMINATE_IF_RUNNING: 'TERMINATE_IF_RUNNING',
+
+  /// Anything below this line has been deprecated
+
+  /**
+   * No need to use this. If a `WorkflowIdReusePolicy` is set to this, or is not set at all, the default value will be used.
+   *
+   * @deprecated Either leave property `undefined`, or use {@link ALLOW_DUPLICATE} instead.
+   */
+  WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link ALLOW_DUPLICATE} instead. */
+  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE: 'ALLOW_DUPLICATE', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link ALLOW_DUPLICATE_FAILED_ONLY} instead. */
+  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY: 'ALLOW_DUPLICATE_FAILED_ONLY', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link REJECT_DUPLICATE} instead. */
+  WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE: 'REJECT_DUPLICATE', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link TERMINATE_IF_RUNNING} instead. */
+  WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING: 'TERMINATE_IF_RUNNING', // eslint-disable-line deprecation/deprecation
+} as const;
+export type WorkflowIdReusePolicy = (typeof WorkflowIdReusePolicy)[keyof typeof WorkflowIdReusePolicy];
+
+const WorkflowIdReusePolicyToProtoMap = {
+  [WorkflowIdReusePolicy.ALLOW_DUPLICATE]: 1,
+  [WorkflowIdReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY]: 2,
+  [WorkflowIdReusePolicy.REJECT_DUPLICATE]: 3,
+  [WorkflowIdReusePolicy.TERMINATE_IF_RUNNING]: 4,
+} as const;
+
+const WorkflowIdReusePolicyFromProtoMap = {
+  0: undefined,
+  1: WorkflowIdReusePolicy.ALLOW_DUPLICATE,
+  2: WorkflowIdReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY,
+  3: WorkflowIdReusePolicy.REJECT_DUPLICATE,
+  4: WorkflowIdReusePolicy.TERMINATE_IF_RUNNING,
+} as const;
+
+export function encodeWorkflowIdReusePolicy(input: WorkflowIdReusePolicy): temporal.api.enums.v1.WorkflowIdReusePolicy {
+  return input != null ? WorkflowIdReusePolicyToProtoMap[input] : 0;
 }
 
-checkExtends<temporal.api.enums.v1.WorkflowIdReusePolicy, WorkflowIdReusePolicy>();
-checkExtends<WorkflowIdReusePolicy, temporal.api.enums.v1.WorkflowIdReusePolicy>();
+export function decodeWorkflowIdReusePolicy(input: temporal.api.enums.v1.WorkflowIdReusePolicy): WorkflowIdReusePolicy {
+  return input != null ? WorkflowIdReusePolicyFromProtoMap[input] : undefined;
+}
+
+AssertType<
+  CheckConstEnum<
+    'WORKFLOW_ID_REUSE_POLICY_',
+    Exclude<keyof typeof WorkflowIdReusePolicy, 'WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED'>,
+    (typeof WorkflowIdReusePolicy)[Exclude<keyof typeof WorkflowIdReusePolicy, 'WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED'>],
+    typeof WorkflowIdReusePolicy,
+    Exclude<keyof typeof temporal.api.enums.v1.WorkflowIdReusePolicy, 'WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED'>,
+    typeof temporal.api.enums.v1.WorkflowIdReusePolicy,
+    typeof WorkflowIdReusePolicyToProtoMap
+  >
+>;
 
 export interface BaseWorkflowOptions {
   /**

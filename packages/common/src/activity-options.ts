@@ -6,6 +6,7 @@ import { VersioningIntent } from './versioning-intent';
 
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from coresdk.workflow_commands.ActivityCancellationType
+// FIXME(JWH): Fix this enum
 export enum ActivityCancellationType {
   TRY_CANCEL = 0,
   WAIT_CANCELLATION_COMPLETED = 1,
