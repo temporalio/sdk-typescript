@@ -162,6 +162,10 @@ export interface ListScheduleOptions {
    * @default 1000
    */
   pageSize?: number;
+  /**
+   * Filter schedules by a query string.
+   */
+  query?: string;
 }
 
 /**
@@ -368,6 +372,7 @@ export class ScheduleClient extends BaseClient {
           nextPageToken,
           namespace: this.options.namespace,
           maximumPageSize: options?.pageSize,
+          query: options?.query,
         });
       } catch (e) {
         this.rethrowGrpcError(e, 'Failed to list schedules', undefined);
