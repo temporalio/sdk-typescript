@@ -4,11 +4,15 @@
  *
  * @module
  */
+import { randomUUID } from 'crypto';
 import test from 'ava';
 import { Runtime } from '@temporalio/worker';
-import { TransportError } from '@temporalio/core-bridge';
+import { TransportError, UnexpectedError } from '@temporalio/core-bridge';
+import { Client } from '@temporalio/client';
+import { sleep } from '@temporalio/activity';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
+import { fillMemory, dontFillMemory } from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Worker shuts down gracefully', async (t) => {
@@ -53,6 +57,58 @@ if (RUN_INTEGRATION_TESTS) {
         message: /Namespace oogabooga is not found/,
       }
     );
+  });
+
+  test.serial('Threaded VM gracely stops and fails on ERR_FIXME_WORKER_OUT_OF_MEMORY', async (t) => {
+    t.timeout(20_000);
+    try {
+      const taskQueue = t.title.replace(/ /g, '_');
+      const client = new Client();
+      const worker = await Worker.create({
+        ...defaultOptions,
+        taskQueue,
+        activities: {
+          activitySleep: () => sleep(10),
+          neverEndingActivity: () => sleep(10),
+        },
+        workflowThreadPoolSize: 2,
+      });
+
+      // Each of these workflows will run on average for 120s; we can safely presume that a certain
+      // number (actually, most) of these WFT will start executing before the `fillMemory` workflow
+      // that we'll schedule later. We use that to ensure that the worker doesn't hang on pending
+      // tasks happening
+      Promise.all(
+        Array.from({ length: 100 }, () =>
+          client.workflow.execute(dontFillMemory, {
+            taskQueue,
+            workflowId: randomUUID(),
+          })
+        )
+      ).catch(() => void 0);
+
+      // This workflow will allocate large block of memory, hopefully causing a ERR_FIXME_WORKER_OUT_OF_MEMORY.
+      // Note that due to the way Node/V8 optimize byte code, its possible that this may trigger
+      // other type of errors, including some that can't be intercepted cleanly.
+      client.workflow
+        .start(fillMemory, {
+          taskQueue,
+          workflowId: randomUUID(),
+          workflowTaskTimeout: '60s',
+        })
+        .catch(() => void 0);
+
+      await t.throwsAsync(worker.run(), {
+        name: UnexpectedError.name,
+        message:
+          'Workflow Worker Thread exited prematurely: Error [ERR_WORKER_OUT_OF_MEMORY]: ' +
+          'Worker terminated due to reaching memory limit: JS heap out of memory',
+      });
+
+      t.is(worker.getState(), 'FAILED');
+    } finally {
+      if (Runtime._instance) await Runtime._instance.shutdown();
+    }
   });
 }
 
