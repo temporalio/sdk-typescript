@@ -59,7 +59,7 @@ if (RUN_INTEGRATION_TESTS) {
     );
   });
 
-  test.serial('Threaded VM gracely stops and fails on ERR_FIXME_WORKER_OUT_OF_MEMORY', async (t) => {
+  test.serial('Threaded VM gracely stops and fails on ERR_WORKER_OUT_OF_MEMORY', async (t) => {
     t.timeout(20_000);
     try {
       const taskQueue = t.title.replace(/ /g, '_');
@@ -87,7 +87,7 @@ if (RUN_INTEGRATION_TESTS) {
         )
       ).catch(() => void 0);
 
-      // This workflow will allocate large block of memory, hopefully causing a ERR_FIXME_WORKER_OUT_OF_MEMORY.
+      // This workflow will allocate large block of memory, hopefully causing a ERR_WORKER_OUT_OF_MEMORY.
       // Note that due to the way Node/V8 optimize byte code, its possible that this may trigger
       // other type of errors, including some that can't be intercepted cleanly.
       client.workflow
