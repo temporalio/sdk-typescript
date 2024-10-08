@@ -25,7 +25,7 @@ export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string)
     if (runId !== undefined) {
       const workflow = getWorkflowByRunId(runId);
       if (workflow !== undefined) {
-        workflow.setUnhandledRejection(new UnhandledRejectionError(`Unhandled Promise rejection: ${err}`, err));
+        workflow.setUnhandledRejection(err);
         return;
       }
     }

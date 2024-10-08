@@ -1744,12 +1744,13 @@ export class Worker {
               })
             )
           ).pipe(
+            // Reinject fatalError inside the stream, if any,
+            // with precedence over the error from the pipe
             tap({
               complete: () => {
                 if (fatalError) throw fatalError;
               },
               error: () => {
-                // That error will have precedence over the error from the pipe
                 if (fatalError) throw fatalError;
               },
             }),
