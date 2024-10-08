@@ -1768,12 +1768,9 @@ export class Worker {
         );
       } finally {
         Runtime.instance().deregisterShutdownSignalCallback(shutdownCallback);
+
+        await this.nativeWorker.finalizeShutdown();
       }
-      // Only shutdown the native worker if we completed without an error.
-      // Otherwise Rust / TS are in an unknown state and shutdown might hang.
-      // A new process must be created in order to instantiate a new Rust Core.
-      // TODO: force shutdown in core?
-      await this.nativeWorker.finalizeShutdown();
     } finally {
       unexpectedErrorSubscription.unsubscribe();
       try {
