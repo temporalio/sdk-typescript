@@ -27,11 +27,11 @@ export interface TLSConfig {
  * Pass a falsy value to use a non-encrypted connection or `true` or `{}` to
  * connect with TLS without any customization.
  */
-export type TLSConfigOption = TLSConfig | boolean | null;
+export type TLSConfigOption = TLSConfig | boolean | undefined | null;
 
 /**
  * Normalize {@link TLSConfigOption} by turning false and null to undefined and true to and empty object
  */
-export function normalizeTlsConfig(tls?: TLSConfigOption): TLSConfig | undefined {
+export function normalizeTlsConfig(tls: TLSConfigOption): TLSConfig | undefined {
   return typeof tls === 'object' ? (tls === null ? undefined : tls) : tls ? {} : undefined;
 }

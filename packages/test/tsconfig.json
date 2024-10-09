@@ -10,6 +10,7 @@
     { "path": "../proto" },
     { "path": "../activity" },
     { "path": "../client" },
+    { "path": "../cloud" },
     { "path": "../common" },
     { "path": "../interceptors-opentelemetry" },
     { "path": "../testing" },

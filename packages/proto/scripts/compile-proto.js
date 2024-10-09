@@ -14,6 +14,10 @@ const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-pro
 const coreProtoPath = resolve(protoBaseDir, 'local/temporal/sdk/core/core_interface.proto');
 const workflowServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/workflowservice/v1/service.proto');
 const operatorServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/operatorservice/v1/service.proto');
+const cloudServiceProtoPath = resolve(
+  protoBaseDir,
+  'api_cloud_upstream/temporal/api/cloud/cloudservice/v1/service.proto'
+);
 const errorDetailsProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/errordetails/v1/message.proto');
 const workflowMetadataProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/sdk/v1/workflow_metadata.proto');
 const testServiceRRProtoPath = resolve(
@@ -51,6 +55,7 @@ async function compileProtos(dtsOutputFile, ...args) {
     coreProtoPath,
     workflowServiceProtoPath,
     operatorServiceProtoPath,
+    cloudServiceProtoPath,
     errorDetailsProtoPath,
     workflowMetadataProtoPath,
     testServiceRRProtoPath,
@@ -59,10 +64,10 @@ async function compileProtos(dtsOutputFile, ...args) {
     googleRpcStatusProtoPath,
   ];
 
-  console.log(`Creating protobuf JS definitions from ${coreProtoPath} and ${workflowServiceProtoPath}`);
+  console.log(`Creating protobuf JS definitions`);
   await promisify(pbjs.main)([...pbjsArgs, '--target', 'json-module', '--out', jsOutputFile]);
 
-  console.log(`Creating protobuf TS definitions from ${coreProtoPath} and ${workflowServiceProtoPath}`);
+  console.log(`Creating protobuf TS definitions`);
   try {
     await promisify(pbjs.main)([...pbjsArgs, '--target', 'static-module', '--out', tempFile]);
 
@@ -88,9 +93,10 @@ async function main() {
 
   const protoFiles = glob.sync('**/*.proto', { cwd: protoBaseDir, absolute: true, root: '' });
   const protosMTime = Math.max(...protoFiles.map(mtime));
+  const compileScriptMTime = mtime(resolve(__dirname, __filename));
   const genMTime = mtime(jsOutputFile);
 
-  if (protosMTime < genMTime) {
+  if (protosMTime < genMTime && compileScriptMTime < genMTime) {
     console.log('Assuming protos are up to date');
     return;
   }
@@ -100,7 +106,9 @@ async function main() {
     '--path',
     resolve(protoBaseDir, 'api_upstream'),
     '--path',
-    resolve(protoBaseDir, 'local')
+    resolve(protoBaseDir, 'local'),
+    '--path',
+    resolve(protoBaseDir, 'api_cloud_upstream')
   );
 
   console.log('Done');

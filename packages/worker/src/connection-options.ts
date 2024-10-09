@@ -1,6 +1,6 @@
 import * as native from '@temporalio/core-bridge';
 import {
-  normalizeTemporalGrpcEndpointAddress,
+  normalizeGrpcEndpointAddress,
   joinProtoHostPort,
   parseHttpConnectProxyAddress,
 } from '@temporalio/common/lib/internal-non-workflow';
@@ -82,7 +82,7 @@ export function compileConnectionOptions(options: RequiredNativeConnectionOption
   }
   return {
     ...rest,
-    address: normalizeTemporalGrpcEndpointAddress(address),
+    address: normalizeGrpcEndpointAddress(address, 7233),
     ...proxyOpts,
   };
 }

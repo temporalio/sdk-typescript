@@ -80,23 +80,24 @@ export function joinProtoHostPort(components: ProtoHostPort): string {
  * Parse the address for the gRPC endpoint of a Temporal server.
  *
  * - The URI may only contain a hostname and a port.
- * - Port is optional; it defaults to 7233.
+ * - Port is optional; if not specified, set it to `defaultPort`.
  *
- * Examples of valid URIs:
+ * Examples of valid URIs (assuming `defaultPort` is 7233):
  *
  * ```
- * 127.0.0.1:7233 => { host: '192.168.0.1', port: 7233 }
+ * 127.0.0.1 => { host: '127.0.0.1', port: 7233 }
+ * 192.168.0.1:7233 => { host: '192.168.0.1', port: 7233 }
  * my.temporal.service.com:7233 => { host: 'my.temporal.service.com', port: 7233 }
  * [::ffff:192.0.2.128]:8080 => { host: '[::ffff:192.0.2.128]', port: 8080 }
  * ```
  */
-export function normalizeTemporalGrpcEndpointAddress(uri: string): string {
+export function normalizeGrpcEndpointAddress(uri: string, defaultPort: number): string {
   const splitted = splitProtoHostPort(uri);
   if (!splitted || splitted.scheme !== undefined) {
     throw new TypeError(
       `Invalid address for Temporal gRPC endpoint: expected URI of the form 'hostname' or 'hostname:port'; got '${uri}'`
     );
   }
-  splitted.port ??= 7233;
+  splitted.port ??= defaultPort;
   return joinProtoHostPort(splitted);
 }
