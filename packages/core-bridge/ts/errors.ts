@@ -18,7 +18,14 @@ export class TransportError extends Error {}
  * Something unexpected happened, considered fatal
  */
 @SymbolBasedInstanceOfError('UnexpectedError')
-export class UnexpectedError extends Error {}
+export class UnexpectedError extends Error {
+  constructor(
+    message: string,
+    public cause?: unknown
+  ) {
+    super(message);
+  }
+}
 
 export { IllegalStateError };
 
@@ -47,7 +54,7 @@ export function convertFromNamedError(e: unknown, keepStackTrace: boolean): unkn
         return newerr;
 
       case 'UnexpectedError':
-        newerr = new UnexpectedError(e.message);
+        newerr = new UnexpectedError(e.message, e);
         newerr.stack = keepStackTrace ? e.stack : undefined;
         return newerr;
     }

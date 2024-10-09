@@ -17,13 +17,17 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       args: [{ crashWorker: true }],
     });
-    await t.throwsAsync(worker.run(), {
-      instanceOf: UnexpectedError,
-      message:
-        'Worker thread shut down prematurely, this could be caused by an' +
-        ' unhandled rejection in workflow code that could not be' +
-        ' associated with a workflow run',
-    });
-    await handle.terminate();
+    try {
+      await t.throwsAsync(worker.run(), {
+        instanceOf: UnexpectedError,
+        message:
+          'Workflow Worker Thread exited prematurely: UnhandledRejectionError: ' +
+          "Unhandled Promise rejection for unknown Workflow Run id='undefined': " +
+          'Error: error to crash the worker',
+      });
+      t.is(worker.getState(), 'FAILED');
+    } finally {
+      await handle.terminate();
+    }
   });
 }
