@@ -17,12 +17,7 @@
     "@grpc/grpc-js": "^1.10.7",
     "@temporalio/common": "file:../common",
     "@temporalio/proto": "file:../proto",
-    "abort-controller": "^3.0.0",
-    "long": "^5.2.3",
-    "uuid": "^9.0.1"
-  },
-  "devDependencies": {
-    "protobufjs": "^7.2.5"
+    "abort-controller": "^3.0.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

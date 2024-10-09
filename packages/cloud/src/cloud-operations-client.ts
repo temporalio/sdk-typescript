@@ -5,7 +5,7 @@ import {
   filterNullAndUndefined,
   normalizeTlsConfig,
   TLSConfig,
-  normalizeTemporalGrpcEndpointAddress,
+  normalizeGrpcEndpointAddress,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { Duration, msOptionalToNumber } from '@temporalio/common/lib/time';
 import {
@@ -24,8 +24,6 @@ import { CloudService } from './types';
 export interface CloudOperationsClientOptions {
   /**
    * Connection to use to communicate with the server.
-   *
-   * By default, connects to 'saas-api.tmprl.cloud:443'.
    */
   connection: CloudOperationsConnection;
 
@@ -37,7 +35,7 @@ export interface CloudOperationsClientOptions {
 }
 
 /**
- * High level SDK client.
+ * High level client for the Temporal Cloud API.
  *
  * @experimental
  */
@@ -47,7 +45,7 @@ export class CloudOperationsClient {
 
   constructor(options: CloudOperationsClientOptions) {
     this.connection = options.connection;
-    this.options = filterNullAndUndefined(options ?? {});
+    this.options = filterNullAndUndefined(options);
   }
 
   /**
@@ -63,7 +61,7 @@ export class CloudOperationsClient {
    *
    * @returns value returned from `fn`
    *
-   * @see {@link Connection.withAbortSignal}
+   * @see {@link CloudOperationsConnection.withAbortSignal}
    */
   async withAbortSignal<R>(abortSignal: AbortSignal, fn: () => Promise<R>): Promise<R> {
     return await this.connection.withAbortSignal(abortSignal, fn);
@@ -74,7 +72,7 @@ export class CloudOperationsClient {
    *
    * @returns returned value of `fn`
    *
-   * @see {@link Connection.withMetadata}
+   * @see {@link CloudOperationsConnection.withMetadata}
    */
   public async withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R> {
     return await this.connection.withMetadata(metadata, fn);
@@ -83,8 +81,15 @@ export class CloudOperationsClient {
   /**
    * Raw gRPC access to the Temporal Cloud Operations service.
    *
-   * **NOTE**: The API Version provided in {@link options} is **not** automatically set on requests made via this service
-   * object.
+   * **NOTE**: The API Version provided in {@link options} is **not** automatically set on requests
+   * made via the raw gRPC service object. If the namespace requires it, you may need to do the following:
+   *
+   * ```
+   * const metadata: Metadata = { ['temporal-cloud-api-version']: apiVersion }
+   * const response = await client.withMetadata(metadata, async () => {
+   *   return client.cloudService.getNamespace({ namespace });
+   * });
+   * ```
    */
   get cloudService(): CloudService {
     return this.connection.cloudService;
@@ -92,8 +97,6 @@ export class CloudOperationsClient {
 }
 
 /**
- * gRPC and Temporal Server connection options
- *
  * @experimental
  */
 export interface CloudOperationsConnectionOptions {
@@ -105,8 +108,7 @@ export interface CloudOperationsConnectionOptions {
   address?: string;
 
   /**
-   * TLS configuration. Pass `true` or `{}` to connect with TLS without any customization.
-   * TLS is required for connecting to the Temporal Cloud Operations API.
+   * TLS configuration. TLS is required for connecting to the Temporal Cloud Operations API.
    *
    @default true
    */
@@ -130,12 +132,14 @@ export interface CloudOperationsConnectionOptions {
   channelArgs?: grpc.ChannelOptions;
 
   /**
-   * {@link https://grpc.github.io/grpc/node/module-src_client_interceptors.html | gRPC interceptors} which will be
-   * applied to every RPC call performed by this connection. By default, an interceptor will be included which
-   * automatically retries retryable errors. If you do not wish to perform automatic retries, set this to an empty list
-   * (or a list with your own interceptors). If you want to add your own interceptors while keeping the default retry
-   * behavior, add this to your list of interceptors: `makeGrpcRetryInterceptor(defaultGrpcRetryOptions())`. See:
+   * {@link https://grpc.github.io/grpc/node/module-src_client_interceptors.html | gRPC interceptors}
+   * which will be applied to every RPC call performed by this connection. By default, an interceptor
+   * will be included which automatically retries retryable errors. If you do not wish to perform
+   * automatic retries, set this to an empty list (or a list with your own interceptors). If you want
+   * to add your own interceptors while keeping the default retry behavior, add this to your list of
+   * interceptors: `makeGrpcRetryInterceptor(defaultGrpcRetryOptions())`.
    *
+   * See:
    * - {@link makeGrpcRetryInterceptor}
    * - {@link defaultGrpcRetryOptions}
    */
@@ -146,15 +150,15 @@ export interface CloudOperationsConnectionOptions {
    * `Authorization` header set through `metadata` will be ignored and overriden by the value of the
    * {@link apiKey} option.
    *
-   * In order to dynamically set metadata, use {@link Connection.withMetadata}
+   * In order to dynamically set metadata, use {@link CloudOperationsConnection.withMetadata}
    */
   metadata?: Metadata;
 
   /**
    * API key for Temporal. This becomes the "Authorization" HTTP header with "Bearer " prepended.
    *
-   * You may provide a static string or a callback. Also see {@link Connection.withApiKey} or
-   * {@link Connection.setApiKey}
+   * You may provide a static string or a callback. Also see {@link CloudOperationsConnection.withApiKey}
+   * or {@link Connection.setApiKey}
    */
   apiKey: string | (() => string);
 
@@ -193,10 +197,7 @@ function normalizeGRPCConfig(options: CloudOperationsConnectionOptions): Resolve
     ...rest
   } = options;
 
-  let address = 'saas-api.tmprl.cloud:443';
-  if (addressFromConfig) {
-    address = normalizeTemporalGrpcEndpointAddress(addressFromConfig);
-  }
+  const address = addressFromConfig ? normalizeGrpcEndpointAddress(addressFromConfig, 443) : 'saas-api.tmprl.cloud:443';
   const tls = normalizeTlsConfig(tlsFromConfig) ?? {};
 
   return {
@@ -248,33 +249,31 @@ interface CloudOperationsConnectionCtorOptions {
 }
 
 /**
- * Client connection to the Temporal Server
+ * Client connection to the Temporal Cloud Operations Service endpoint.
  *
- * ⚠️ Connections are expensive to construct and should be reused. Make sure to {@link close} any unused connections to
- * avoid leaking resources.
+ * ⚠️ Connections are expensive to construct and should be reused.
+ * Make sure to {@link close} any unused connections to avoid leaking resources.
  *
  * @experimental
  */
 export class CloudOperationsConnection {
-  /**
-   * @internal
-   */
-  public static readonly Client = grpc.makeGenericClientConstructor({}, 'CloudService', {});
+  private static readonly Client = grpc.makeGenericClientConstructor({}, 'CloudService', {});
 
   public readonly options: ResolvedCloudOperationsConnectionOptions;
-  protected readonly client: grpc.Client;
+  private readonly client: grpc.Client;
 
   /**
    * Used to ensure `ensureConnected` is called once.
    */
-  protected connectPromise?: Promise<void>;
+  private connectPromise?: Promise<void>;
 
   /**
    * Raw gRPC access to the
    * {@link https://github.com/temporalio/api-cloud/blob/main/temporal/api/cloud/cloudservice/v1/service.proto | Temporal Cloud's Operator Service}.
    *
-   * The Temporal Cloud Operator Service API defines how Temporal SDKs and other clients interact with the Temporal
-   * Cloud platform to perform administrative functions like registering a search attribute or a namespace.
+   * The Temporal Cloud Operator Service API defines how Temporal SDKs and other clients interact
+   * with the Temporal Cloud platform to perform administrative functions like registering a search
+   * attribute or a namespace.
    *
    * This Service API is NOT compatible with self-hosted Temporal deployments.
    */
@@ -282,7 +281,7 @@ export class CloudOperationsConnection {
 
   public readonly healthService: HealthService;
 
-  readonly callContextStorage: AsyncLocalStorage<CallContext>;
+  private readonly callContextStorage: AsyncLocalStorage<CallContext>;
   private readonly apiKeyFnRef: { fn?: () => string };
 
   protected static createCtorOptions(options: CloudOperationsConnectionOptions): CloudOperationsConnectionCtorOptions {
@@ -336,25 +335,6 @@ export class CloudOperationsConnection {
   }
 
   /**
-   * Ensure connection can be established.
-   *
-   * Does not need to be called if you use {@link connect}.
-   *
-   * This method's result is memoized to ensure it runs only once.
-   *
-   * Calls {@link proto.temporal.api.workflowservice.v1.WorkflowService.getSystemInfo} internally.
-   */
-  async ensureConnected(): Promise<void> {
-    if (this.connectPromise == null) {
-      const deadline = Date.now() + this.options.connectTimeoutMs;
-      this.connectPromise = (async () => {
-        await this.untilReady(deadline);
-      })();
-    }
-    return this.connectPromise;
-  }
-
-  /**
    * Create a lazy `CloudOperationsConnection` instance.
    *
    * This method does not verify connectivity with the server. We recommend using {@link connect} instead.
@@ -366,8 +346,7 @@ export class CloudOperationsConnection {
   /**
    * Establish a connection with the server and return a `CloudOperationsConnection` instance.
    *
-   * This is the preferred method of creating connections as it verifies connectivity by calling
-   * {@link ensureConnected}.
+   * This is the preferred method of creating connections as it verifies connectivity.
    */
   static async connect(options: CloudOperationsConnectionOptions): Promise<CloudOperationsConnection> {
     const conn = this.lazy(options);
@@ -423,7 +402,9 @@ export class CloudOperationsConnection {
         callback
       );
       if (abortSignal != null) {
-        abortSignal.addEventListener('abort', () => call.cancel());
+        const listener = () => call.cancel();
+        abortSignal.addEventListener('abort', listener);
+        call.on('status', () => abortSignal.removeEventListener('abort', listener));
       }
 
       return call;
@@ -431,11 +412,24 @@ export class CloudOperationsConnection {
   }
 
   /**
+   * Ensure connection can be established.
+   */
+  private async ensureConnected(): Promise<void> {
+    if (this.connectPromise == null) {
+      const deadline = Date.now() + this.options.connectTimeoutMs;
+      this.connectPromise = (async () => {
+        await this.untilReady(deadline);
+      })();
+    }
+    return this.connectPromise;
+  }
+
+  /**
    * Set the deadline for any service requests executed in `fn`'s scope.
    *
    * @returns value returned from `fn`
    */
-  async withDeadline<ReturnType>(deadline: number | Date, fn: () => Promise<ReturnType>): Promise<ReturnType> {
+  public async withDeadline<ReturnType>(deadline: number | Date, fn: () => Promise<ReturnType>): Promise<ReturnType> {
     const cc = this.callContextStorage.getStore();
     return await this.callContextStorage.run({ ...cc, deadline }, fn);
   }
@@ -455,7 +449,10 @@ export class CloudOperationsConnection {
    * await conn.withAbortSignal(ctrl.signal, () => client.cloudService.someOperation(...));
    * ```
    */
-  async withAbortSignal<ReturnType>(abortSignal: AbortSignal, fn: () => Promise<ReturnType>): Promise<ReturnType> {
+  public async withAbortSignal<ReturnType>(
+    abortSignal: AbortSignal,
+    fn: () => Promise<ReturnType>
+  ): Promise<ReturnType> {
     const cc = this.callContextStorage.getStore();
     return await this.callContextStorage.run({ ...cc, abortSignal }, fn);
   }
@@ -463,8 +460,7 @@ export class CloudOperationsConnection {
   /**
    * Set metadata for any service requests executed in `fn`'s scope.
    *
-   * The provided metadata is merged on top of any existing metadata in current scope, including metadata provided in
-   * {@link ConnectionOptions.metadata}.
+   * The provided metadata is merged on top of any existing metadata in current scope.
    *
    * @returns value returned from `fn`
    *
@@ -512,8 +508,8 @@ export class CloudOperationsConnection {
   }
 
   /**
-   * Set the {@link ConnectionOptions.apiKey} for all subsequent requests. A static string or a
-   * callback function may be provided.
+   * Set the {@link ConnectionOptions.apiKey} for all subsequent requests.
+   * A static string or a callback function may be provided.
    */
   setApiKey(apiKey: string | (() => string)): void {
     if (typeof apiKey === 'string') {
@@ -551,5 +547,6 @@ export class CloudOperationsConnection {
    */
   public async close(): Promise<void> {
     this.client.close();
+    this.callContextStorage.disable();
   }
 }
