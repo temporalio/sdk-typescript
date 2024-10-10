@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { WorkflowFailedError } from '@temporalio/client';
+import { WorkflowFailedError, WorkflowHandleWithFirstExecutionRunId } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -1122,6 +1122,73 @@ test('Abandon activity cancel before started works', async (t) => {
   await worker.runUntil(handle.result());
 
   t.pass();
+});
+
+export async function WorkflowWillFail(): Promise<string | undefined> {
+  // We will reset at this point
+  await workflow.sleep(1);
+
+  const round = await workflow.proxyLocalActivities({ startToCloseTimeout: 1000 }).getRoundNumber();
+  if (round === 0) {
+    throw ApplicationFailure.retryable('WorkflowWillFail', 'WorkflowWillFail');
+  }
+
+  workflow.log.warn(`$$$$$$$`, { lastFailure: workflow.workflowInfo().lastFailure });
+
+  return workflow.workflowInfo().lastFailure?.message;
+}
+
+test("WorkflowInfo().lastFailure contains last run's failure on Workflow Failure", async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  let roundNumber = 0;
+  const worker = await createWorker({
+    activities: {
+      getRoundNumber: () => roundNumber++,
+    },
+  });
+  const handle = await startWorkflow(WorkflowWillFail, { retry: { maximumAttempts: 2 } });
+  await worker.runUntil(async () => {
+    const lastFailure = await handle.result();
+    t.is(lastFailure, 'WorkflowWillFail');
+  });
+});
+
+test("WorkflowInfo().lastFailure contains last run's failure on Reset", async (t) => {
+  const client = t.context.env.client;
+  const { createWorker, startWorkflow } = helpers(t);
+
+  let roundNumber = 0;
+  const worker = await createWorker({
+    activities: {
+      getRoundNumber: () => roundNumber++,
+    },
+  });
+
+  const firstExecHandle = (await startWorkflow(WorkflowWillFail)) as WorkflowHandleWithFirstExecutionRunId;
+  await worker.runUntil(async () => {
+    // Wait for the workflow to crash
+    await firstExecHandle.result().catch(() => undefined);
+
+    const firstExecHistory = await firstExecHandle.fetchHistory();
+    const resetPoint = firstExecHistory.events?.filter((ev) => ev.workflowTaskCompletedEventAttributes)?.[0];
+    if (!resetPoint?.eventId) throw new Error('Reset point not found');
+
+    const resetResponse = await client.workflowService.resetWorkflowExecution({
+      namespace: worker.options.namespace,
+      requestId: randomUUID(),
+      workflowExecution: {
+        workflowId: firstExecHandle.workflowId,
+        runId: firstExecHandle.firstExecutionRunId,
+      },
+      reason: 'Some Reset Reason',
+      workflowTaskFinishEventId: resetPoint.eventId,
+    });
+
+    const secondExecHandle = client.workflow.getHandle(firstExecHandle.workflowId, resetResponse.runId);
+    const result = await secondExecHandle.result();
+
+    t.is('Some Reset Reason', result);
+  });
 });
 
 export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
