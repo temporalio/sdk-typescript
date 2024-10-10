@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { WorkflowFailedError } from '@temporalio/client';
+import { WorkflowFailedError, WorkflowHandleWithFirstExecutionRunId } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -1122,6 +1122,29 @@ test('Abandon activity cancel before started works', async (t) => {
   await worker.runUntil(handle.result());
 
   t.pass();
+});
+
+export async function WorkflowWillFail(): Promise<string | undefined> {
+  const round = await workflow.proxyLocalActivities({ startToCloseTimeout: 1000 }).getRoundNumber();
+  if (round === 0) {
+    throw ApplicationFailure.retryable('WorkflowWillFail', 'WorkflowWillFail');
+  }
+  return workflow.workflowInfo().lastFailure?.message;
+}
+
+test("WorkflowInfo().lastFailure contains last run's failure on Workflow Failure", async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  let roundNumber = 0;
+  const worker = await createWorker({
+    activities: {
+      getRoundNumber: () => roundNumber++,
+    },
+  });
+  const handle = await startWorkflow(WorkflowWillFail, { retry: { maximumAttempts: 2 } });
+  await worker.runUntil(async () => {
+    const lastFailure = await handle.result();
+    t.is(lastFailure, 'WorkflowWillFail');
+  });
 });
 
 export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
