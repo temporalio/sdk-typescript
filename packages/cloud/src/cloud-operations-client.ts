@@ -79,8 +79,8 @@ export class CloudOperationsClient {
 
   /**
    * Set an {@link AbortSignal} that, when aborted, cancels any ongoing service requests executed in
-   * `fn`'s scope. This will locally result in the request call throwing a {@link _grpc.ServiceError|ServiceError}
-   * with code {@link _grpc.status.CANCELLED|CANCELLED}.
+   * `fn`'s scope. This will locally result in the request call throwing a {@link grpc.ServiceError|ServiceError}
+   * with code {@link grpc.status.CANCELLED|CANCELLED}.
    *
    * This method is only a convenience wrapper around {@link CloudOperationsConnection.withAbortSignal}.
    *
