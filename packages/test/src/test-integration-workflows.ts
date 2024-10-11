@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { WorkflowFailedError, WorkflowHandleWithFirstExecutionRunId } from '@temporalio/client';
+import { WorkflowFailedError } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
