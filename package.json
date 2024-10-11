@@ -23,7 +23,7 @@
   "scripts": {
     "rebuild": "npm run clean && npm run build",
     "build": "lerna run --stream build",
-    "build.watch": "tsc --build --watch packages/create-project packages/test",
+    "build.watch": "npm run build:protos && tsc --build --watch packages/*",
     "build:protos": "node ./packages/proto/scripts/compile-proto.js",
     "test": "lerna run --stream test",
     "test.watch": "lerna run --stream test.watch",

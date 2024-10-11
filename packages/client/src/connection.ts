@@ -14,6 +14,11 @@ import pkg from './pkg';
 import { CallContext, HealthService, Metadata, OperatorService, WorkflowService } from './types';
 
 /**
+ * The default Temporal Server's TCP port for public gRPC connections.
+ */
+const DEFAULT_TEMPORAL_GRPC_PORT = 7233;
+
+/**
  * gRPC and Temporal Server connection options
  */
 export interface ConnectionOptions {
@@ -174,7 +179,7 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
     }
   }
   if (rest.address) {
-    rest.address = normalizeGrpcEndpointAddress(rest.address, 7233);
+    rest.address = normalizeGrpcEndpointAddress(rest.address, DEFAULT_TEMPORAL_GRPC_PORT);
   }
   const tls = normalizeTlsConfig(tlsFromConfig);
   if (tls) {

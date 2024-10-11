@@ -40,8 +40,14 @@ export interface CloudOperationsClientOptions {
  * @experimental
  */
 export class CloudOperationsClient {
+  /**
+   * The underlying {@link CloudOperationsConnection | connection} used by this client.
+   *
+   * Clients are cheap to create, but connections are expensive. Where that make sense,
+   * a single connection may and should be reused by multiple `CloudOperationsClient`.
+   */
   public readonly connection: CloudOperationsConnection;
-  public readonly options: CloudOperationsClientOptions;
+  public readonly options: Readonly<CloudOperationsClientOptions>;
 
   constructor(options: CloudOperationsClientOptions) {
     this.connection = options.connection;
@@ -49,17 +55,31 @@ export class CloudOperationsClient {
   }
 
   /**
-   * Set the deadline for any service requests executed in `fn`'s scope.
+   * Set a deadline for any service requests executed in `fn`'s scope.
+   *
+   * The deadline is a point in time after which any pending gRPC request will be considered as failed;
+   * this will locally result in the request call throwing a `ServiceError`, with code {@link DEADLINE_EXCEEDED|grpc.}.
+   *
+   *
+   * the deadline
+   * The deadline Date object or a number of millisecond )
+   * The gRPC
+   * @param deadline the deadline after which the request will be considered as failed; either a Date
+   *        object new
+   * @returns the value returned from `fn`
+   *
+   * @see https://grpc.io/docs/guides/deadlines/
    */
   public async withDeadline<R>(deadline: number | Date, fn: () => Promise<R>): Promise<R> {
+    Date.now;
     return await this.connection.withDeadline(deadline, fn);
   }
 
   /**
-   * Set an {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that, when aborted,
-   * cancels any ongoing service requests executed in `fn`'s scope.
+   * Set an {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`}
+   * that, when aborted, cancels any ongoing service requests executed in `fn`'s scope.
    *
-   * @returns value returned from `fn`
+   * @returns the value returned from `fn`
    *
    * @see {@link CloudOperationsConnection.withAbortSignal}
    */
