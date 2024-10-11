@@ -11,6 +11,11 @@ type ProxyConfig = native.ProxyConfig;
 
 export { TLSConfig, ProxyConfig };
 
+/**
+ * The default Temporal Server's TCP port for public gRPC connections.
+ */
+const DEFAULT_TEMPORAL_GRPC_PORT = 7233;
+
 export interface NativeConnectionOptions {
   /**
    * The address of the Temporal server to connect to, in `hostname:port` format.
@@ -82,7 +87,7 @@ export function compileConnectionOptions(options: RequiredNativeConnectionOption
   }
   return {
     ...rest,
-    address: normalizeGrpcEndpointAddress(address, 7233),
+    address: normalizeGrpcEndpointAddress(address, DEFAULT_TEMPORAL_GRPC_PORT),
     ...proxyOpts,
   };
 }
