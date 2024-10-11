@@ -58,14 +58,16 @@ export class CloudOperationsClient {
    * Set a deadline for any service requests executed in `fn`'s scope.
    *
    * The deadline is a point in time after which any pending gRPC request will be considered as failed;
-   * this will locally result in the request call throwing a `ServiceError`, with code {@link DEADLINE_EXCEEDED|grpc.}.
+   * this will locally result in the request call throwing a {@link grpc.ServiceError|ServiceError}
+   * with code {@link grpc.status.DEADLINE_EXCEEDED|DEADLINE_EXCEEDED}.
    *
+   * It is stronly recommended to explicitly set deadlines. If no deadline is set, then it is
+   * possible for the client to end up waiting forever for a response.
    *
-   * the deadline
-   * The deadline Date object or a number of millisecond )
-   * The gRPC
-   * @param deadline the deadline after which the request will be considered as failed; either a Date
-   *        object new
+   * This method is only a convenience wrapper around {@link CloudOperationsConnection.withDeadline}.
+   *
+   * @param deadline a point in time after which the request will be considered as failed; either a
+   *                 Date object, or a number of milliseconds since the Unix epoch (UTC).
    * @returns the value returned from `fn`
    *
    * @see https://grpc.io/docs/guides/deadlines/
@@ -76,12 +78,24 @@ export class CloudOperationsClient {
   }
 
   /**
-   * Set an {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`}
-   * that, when aborted, cancels any ongoing service requests executed in `fn`'s scope.
+   * Set an {@link AbortSignal} that, when aborted, cancels any ongoing service requests executed in
+   * `fn`'s scope. This will locally result in the request call throwing a {@link _grpc.ServiceError|ServiceError}
+   * with code {@link _grpc.status.CANCELLED|CANCELLED}.
    *
-   * @returns the value returned from `fn`
+   * This method is only a convenience wrapper around {@link CloudOperationsConnection.withAbortSignal}.
    *
-   * @see {@link CloudOperationsConnection.withAbortSignal}
+   * @example
+   *
+   * ```ts
+   * const ctrl = new AbortController();
+   * setTimeout(() => ctrl.abort(), 10_000);
+   * // 👇 throws if incomplete by the timeout.
+   * await conn.withAbortSignal(ctrl.signal, () => client.cloudService.getNamespace({ namespace }));
+   * ```
+   *
+   * @returns value returned from `fn`
+   *
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
    */
   async withAbortSignal<R>(abortSignal: AbortSignal, fn: () => Promise<R>): Promise<R> {
     return await this.connection.withAbortSignal(abortSignal, fn);
@@ -92,7 +106,7 @@ export class CloudOperationsClient {
    *
    * @returns returned value of `fn`
    *
-   * @see {@link CloudOperationsConnection.withMetadata}
+   * This method is only a convenience wrapper around {@link CloudOperationsConnection.withMetadata}.
    */
   public async withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R> {
     return await this.connection.withMetadata(metadata, fn);
@@ -101,8 +115,9 @@ export class CloudOperationsClient {
   /**
    * Raw gRPC access to the Temporal Cloud Operations service.
    *
-   * **NOTE**: The API Version provided in {@link options} is **not** automatically set on requests
-   * made via the raw gRPC service object. If the namespace requires it, you may need to do the following:
+   * **NOTE**: The Temporal Cloud Operations service API Version provided in {@link options} is
+   * **not** automatically set on requests made via the raw gRPC service object. If the namespace
+   * requires it, you may need to do the following:
    *
    * ```
    * const metadata: Metadata = { ['temporal-cloud-api-version']: apiVersion }
@@ -185,9 +200,6 @@ export interface CloudOperationsConnectionOptions {
   /**
    * Milliseconds to wait until establishing a connection with the server.
    *
-   * Used either when connecting eagerly with {@link Connection.connect} or
-   * calling {@link Connection.ensureConnected}.
-   *
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 10 seconds
    */
@@ -255,15 +267,18 @@ interface RPCImplOptions {
 interface CloudOperationsConnectionCtorOptions {
   readonly options: ResolvedCloudOperationsConnectionOptions;
   readonly client: grpc.Client;
+
   /**
    * Raw gRPC access to the
    * {@link https://github.com/temporalio/api-cloud/blob/main/temporal/api/cloud/cloudservice/v1/service.proto | Temporal Cloud's Operator Service}.
    */
   readonly cloudService: CloudService;
+
   /**
    * Raw gRPC access to the standard gRPC {@link https://github.com/grpc/grpc/blob/92f58c18a8da2728f571138c37760a721c8915a2/doc/health-checking.md | health service}.
    */
   readonly healthService: HealthService;
+
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
   readonly apiKeyFnRef: { fn?: () => string };
 }
@@ -299,6 +314,9 @@ export class CloudOperationsConnection {
    */
   public readonly cloudService: CloudService;
 
+  /**
+   * Raw gRPC access to the standard gRPC {@link https://github.com/grpc/grpc/blob/92f58c18a8da2728f571138c37760a721c8915a2/doc/health-checking.md | health service}.
+   */
   public readonly healthService: HealthService;
 
   private readonly callContextStorage: AsyncLocalStorage<CallContext>;
@@ -402,7 +420,8 @@ export class CloudOperationsConnection {
       const metadataContainer = new grpc.Metadata();
       const { metadata, deadline, abortSignal } = callContextStorage.getStore() ?? {};
       if (apiKeyFnRef.fn) {
-        metadataContainer.set('Authorization', `Bearer ${apiKeyFnRef.fn()}`);
+        const apiKey = apiKeyFnRef.fn();
+        if (apiKey) metadataContainer.set('Authorization', `Bearer ${apiKey}`);
       }
       for (const [k, v] of Object.entries(staticMetadata)) {
         metadataContainer.set(k, v);
@@ -445,9 +464,20 @@ export class CloudOperationsConnection {
   }
 
   /**
-   * Set the deadline for any service requests executed in `fn`'s scope.
+   * Set a deadline for any service requests executed in `fn`'s scope.
    *
-   * @returns value returned from `fn`
+   * The deadline is a point in time after which any pending gRPC request will be considered as failed;
+   * this will locally result in the request call throwing a {@link grpc.ServiceError|ServiceError}
+   * with code {@link grpc.status.DEADLINE_EXCEEDED|DEADLINE_EXCEEDED}.
+   *
+   * It is stronly recommended to explicitly set deadlines. If no deadline is set, then it is
+   * possible for the client to end up waiting forever for a response.
+   *
+   * @param deadline a point in time after which the request will be considered as failed; either a
+   *                 Date object, or a number of milliseconds since the Unix epoch (UTC).
+   * @returns the value returned from `fn`
+   *
+   * @see https://grpc.io/docs/guides/deadlines/
    */
   public async withDeadline<ReturnType>(deadline: number | Date, fn: () => Promise<ReturnType>): Promise<ReturnType> {
     const cc = this.callContextStorage.getStore();
@@ -559,14 +589,12 @@ export class CloudOperationsConnection {
     });
   }
 
-  // This method is async for uniformity with Connection and NativeConnection
   /**
    * Close the underlying gRPC client.
    *
    * Make sure to call this method to ensure proper resource cleanup.
    */
-  public async close(): Promise<void> {
+  public close(): void {
     this.client.close();
-    this.callContextStorage.disable();
   }
 }
