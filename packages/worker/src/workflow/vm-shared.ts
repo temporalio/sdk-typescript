@@ -37,6 +37,7 @@ export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string)
     );
   });
 }
+
 /**
  * Variant of {@link cutoffStackTrace} that works with FileLocation, keep this in sync with the original implementation
  */

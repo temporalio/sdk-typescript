@@ -81,9 +81,11 @@ if (RUN_INTEGRATION_TESTS) {
     // tasks happening
     Promise.all(
       Array.from({ length: 100 }, () =>
-        client.workflow.execute(dontFillMemory, {
+        client.workflow.start(dontFillMemory, {
           taskQueue,
           workflowId: randomUUID(),
+          // Don't linger
+          workflowExecutionTimeout: '30s',
         })
       )
     ).catch(() => void 0);
@@ -95,12 +97,16 @@ if (RUN_INTEGRATION_TESTS) {
       .start(fillMemory, {
         taskQueue,
         workflowId: randomUUID(),
-        workflowTaskTimeout: '60s',
+        // Don't linger
+        workflowExecutionTimeout: '30s',
       })
       .catch(() => void 0);
 
     const workerRunPromise = worker.run();
     try {
+      // Due to various environment factors, it is possible that the worker may sometime
+      // not fail. That's obviously not what we want to assert, but that's still ok. We
+      // therefore set a timeout of 10s and simply pass if the Worker hasn't failed by then.
       const res = await Promise.any([
         setTimeout(10_000).then(() => false),
         t.throwsAsync(workerRunPromise, {
@@ -113,8 +119,6 @@ if (RUN_INTEGRATION_TESTS) {
       if (res !== false) {
         t.is(worker.getState(), 'FAILED');
       } else {
-        // Due to various environment factors, it is possible that the worker may sometime
-        // not fail. That's obviously not what we want to assert, but that's still ok.
         if (worker.getState() === 'RUNNING') {
           worker.shutdown();
           await workerRunPromise;

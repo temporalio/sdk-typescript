@@ -30,7 +30,7 @@ export {
   ResourceBasedTunerOptions,
   FixedSizeSlotSupplier,
 } from '@temporalio/core-bridge';
-export { GracefulShutdownPeriodExpiredError, errors } from './errors'; // eslint-disable-line deprecation/deprecation
+export { GracefulShutdownPeriodExpiredError, UnhandledRejectionError, errors } from './errors'; // eslint-disable-line deprecation/deprecation
 export * from './interceptors';
 export { DefaultLogger, LogEntry, LogLevel, LogMetadata, LogTimestamp, Logger } from './logger';
 export { History, Runtime, RuntimeOptions, makeTelemetryFilterString } from './runtime';
