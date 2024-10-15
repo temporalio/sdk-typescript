@@ -286,6 +286,12 @@ jobs:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
+          # Cloud Tests will be skipped if TEMPORAL_CLIENT_CLOUD_API_KEY is left empty
+          TEMPORAL_CLOUD_SAAS_ADDRESS: ${{ vars.TEMPORAL_CLOUD_SAAS_ADDRESS || 'saas-api.tmprl.cloud:443' }}
+          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLIENT_CLOUD_API_VERSION: 2024-05-13-00
+          TEMPORAL_CLIENT_CLOUD_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+
       - name: Upload NPM logs
         uses: actions/upload-artifact@v4
         if: failure() || cancelled()

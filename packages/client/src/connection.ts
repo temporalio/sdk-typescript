@@ -5,13 +5,18 @@ import {
   filterNullAndUndefined,
   normalizeTlsConfig,
   TLSConfig,
-  normalizeTemporalGrpcEndpointAddress,
+  normalizeGrpcEndpointAddress,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { Duration, msOptionalToNumber } from '@temporalio/common/lib/time';
 import { isGrpcServiceError, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 import pkg from './pkg';
 import { CallContext, HealthService, Metadata, OperatorService, WorkflowService } from './types';
+
+/**
+ * The default Temporal Server's TCP port for public gRPC connections.
+ */
+const DEFAULT_TEMPORAL_GRPC_PORT = 7233;
 
 /**
  * gRPC and Temporal Server connection options
@@ -174,7 +179,7 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
     }
   }
   if (rest.address) {
-    rest.address = normalizeTemporalGrpcEndpointAddress(rest.address);
+    rest.address = normalizeGrpcEndpointAddress(rest.address, DEFAULT_TEMPORAL_GRPC_PORT);
   }
   const tls = normalizeTlsConfig(tlsFromConfig);
   if (tls) {
@@ -220,20 +225,24 @@ export interface RPCImplOptions {
 export interface ConnectionCtorOptions {
   readonly options: ConnectionOptionsWithDefaults;
   readonly client: grpc.Client;
+
   /**
    * Raw gRPC access to the Temporal service.
    *
    * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
    */
   readonly workflowService: WorkflowService;
+
   /**
    * Raw gRPC access to the Temporal {@link https://github.com/temporalio/api/blob/ddf07ab9933e8230309850e3c579e1ff34b03f53/temporal/api/operatorservice/v1/service.proto | operator service}.
    */
   readonly operatorService: OperatorService;
+
   /**
    * Raw gRPC access to the standard gRPC {@link https://github.com/grpc/grpc/blob/92f58c18a8da2728f571138c37760a721c8915a2/doc/health-checking.md | health service}.
    */
   readonly healthService: HealthService;
+
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
   readonly apiKeyFnRef: { fn?: () => string };
 }
@@ -241,8 +250,8 @@ export interface ConnectionCtorOptions {
 /**
  * Client connection to the Temporal Server
  *
- * ⚠️ Connections are expensive to construct and should be reused. Make sure to {@link close} any unused connections to
- * avoid leaking resources.
+ * ⚠️ Connections are expensive to construct and should be reused.
+ * Make sure to {@link close} any unused connections to avoid leaking resources.
  */
 export class Connection {
   /**
@@ -275,7 +284,12 @@ export class Connection {
    * Cloud namespace will result in gRPC `unauthorized` error.
    */
   public readonly operatorService: OperatorService;
+
+  /**
+   * Raw gRPC access to the standard gRPC {@link https://github.com/grpc/grpc/blob/92f58c18a8da2728f571138c37760a721c8915a2/doc/health-checking.md | health service}.
+   */
   public readonly healthService: HealthService;
+
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
   private readonly apiKeyFnRef: { fn?: () => string };
 
@@ -424,7 +438,8 @@ export class Connection {
       const metadataContainer = new grpc.Metadata();
       const { metadata, deadline, abortSignal } = callContextStorage.getStore() ?? {};
       if (apiKeyFnRef.fn) {
-        metadataContainer.set('Authorization', `Bearer ${apiKeyFnRef.fn()}`);
+        const apiKey = apiKeyFnRef.fn();
+        if (apiKey) metadataContainer.set('Authorization', `Bearer ${apiKey}`);
       }
       for (const [k, v] of Object.entries(staticMetadata)) {
         metadataContainer.set(k, v);
@@ -452,9 +467,20 @@ export class Connection {
   }
 
   /**
-   * Set the deadline for any service requests executed in `fn`'s scope.
+   * Set a deadline for any service requests executed in `fn`'s scope.
    *
-   * @returns value returned from `fn`
+   * The deadline is a point in time after which any pending gRPC request will be considered as failed;
+   * this will locally result in the request call throwing a {@link grpc.ServiceError|ServiceError}
+   * with code {@link grpc.status.DEADLINE_EXCEEDED|DEADLINE_EXCEEDED}.
+   *
+   * It is stronly recommended to explicitly set deadlines. If no deadline is set, then it is
+   * possible for the client to end up waiting forever for a response.
+   *
+   * @param deadline a point in time after which the request will be considered as failed; either a
+   *                 Date object, or a number of milliseconds since the Unix epoch (UTC).
+   * @returns the value returned from `fn`
+   *
+   * @see https://grpc.io/docs/guides/deadlines/
    */
   async withDeadline<ReturnType>(deadline: number | Date, fn: () => Promise<ReturnType>): Promise<ReturnType> {
     const cc = this.callContextStorage.getStore();
@@ -462,10 +488,11 @@ export class Connection {
   }
 
   /**
-   * Set an {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that, when aborted,
-   * cancels any ongoing requests executed in `fn`'s scope.
+   * Set an {@link AbortSignal} that, when aborted, cancels any ongoing service requests executed in
+   * `fn`'s scope. This will locally result in the request call throwing a {@link grpc.ServiceError|ServiceError}
+   * with code {@link grpc.status.CANCELLED|CANCELLED}.
    *
-   * @returns value returned from `fn`
+   * This method is only a convenience wrapper around {@link Connection.withAbortSignal}.
    *
    * @example
    *
@@ -475,6 +502,10 @@ export class Connection {
    * // 👇 throws if incomplete by the timeout.
    * await conn.withAbortSignal(ctrl.signal, () => client.workflow.execute(myWorkflow, options));
    * ```
+   *
+   * @returns value returned from `fn`
+   *
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
    */
   async withAbortSignal<ReturnType>(abortSignal: AbortSignal, fn: () => Promise<ReturnType>): Promise<ReturnType> {
     const cc = this.callContextStorage.getStore();
@@ -572,5 +603,6 @@ export class Connection {
    */
   public async close(): Promise<void> {
     this.client.close();
+    this.callContextStorage.disable();
   }
 }
