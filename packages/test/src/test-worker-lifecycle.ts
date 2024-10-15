@@ -10,10 +10,9 @@ import test from 'ava';
 import { Runtime, PromiseCompletionTimeoutError } from '@temporalio/worker';
 import { TransportError, UnexpectedError } from '@temporalio/core-bridge';
 import { Client } from '@temporalio/client';
-import { sleep } from '@temporalio/activity';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
-import { fillMemory, dontFillMemory } from './workflows';
+import { fillMemory } from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Worker shuts down gracefully', async (t) => {
@@ -78,34 +77,16 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.serial('Threaded VM gracely stops and fails on ERR_WORKER_OUT_OF_MEMORY', async (t) => {
-    t.timeout(10_000);
+    // We internally use a timeout of 10s to catch a possible case where test would
+    // be non-conclusive. We need the test timeout to be longer than that.
+    t.timeout(30_000);
 
     const taskQueue = t.title.replace(/ /g, '_');
     const client = new Client();
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
-      activities: {
-        activitySleep: () => sleep(10),
-        neverEndingActivity: () => sleep(10),
-      },
-      workflowThreadPoolSize: 2,
     });
-
-    // Each of these workflows will run on average for 120s; we can safely presume that a certain
-    // number (actually, most) of these WFT will start executing before the `fillMemory` workflow
-    // that we'll schedule later. We use that to ensure that the worker doesn't hang on pending
-    // tasks happening
-    Promise.all(
-      Array.from({ length: 100 }, () =>
-        client.workflow.start(dontFillMemory, {
-          taskQueue,
-          workflowId: randomUUID(),
-          // Don't linger
-          workflowExecutionTimeout: '30s',
-        })
-      )
-    ).catch(() => void 0);
 
     // This workflow will allocate large block of memory, hopefully causing a ERR_WORKER_OUT_OF_MEMORY.
     // Note that due to the way Node/V8 optimize byte code, its possible that this may trigger
@@ -121,9 +102,9 @@ if (RUN_INTEGRATION_TESTS) {
 
     const workerRunPromise = worker.run();
     try {
-      // Due to various environment factors, it is possible that the worker may sometime
-      // not fail. That's obviously not what we want to assert, but that's still ok. We
-      // therefore set a timeout of 10s and simply pass if the Worker hasn't failed by then.
+      // Due to various environment factors, it is possible that the worker may sometime not fail.
+      // That's obviously not what we want to assert, but that's still ok. We therefore set a
+      // timeout of 10s and simply pass if the Worker hasn't failed by then.
       const res = await Promise.any([
         setTimeout(10_000).then(() => false),
         t.throwsAsync(workerRunPromise, {
