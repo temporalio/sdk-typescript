@@ -32,6 +32,40 @@ export class UnhandledRejectionError extends Error {
 }
 
 /**
+ * Combined error information for {@link Worker.runUntil}
+ */
+export interface CombinedWorkerRunErrorCause {
+  /**
+   * Error thrown by a Worker
+   */
+  workerError: unknown;
+  /**
+   * Error thrown by the wrapped promise or function
+   */
+  innerError: unknown;
+}
+
+/**
+ * Error thrown by {@link Worker.runUntil} and {@link Worker.runReplayHistories}
+ */
+@SymbolBasedInstanceOfError('CombinedWorkerRunError')
+export class CombinedWorkerRunError extends Error {
+  public readonly cause: CombinedWorkerRunErrorCause;
+
+  constructor(message: string, { cause }: { cause: CombinedWorkerRunErrorCause }) {
+    super(message);
+    this.cause = cause;
+  }
+}
+
+/**
+ * Error thrown by {@link Worker.runUntil} if the provided Promise does not resolve within the specified
+ * {@link RunUntilOptions.promiseCompletionTimeout|timeout period} after the Worker has stopped.
+ */
+@SymbolBasedInstanceOfError('PromiseCompletionTimeoutError')
+export class PromiseCompletionTimeoutError extends Error {}
+
+/**
  * @deprecated Import error classes directly
  */
 export const errors = {

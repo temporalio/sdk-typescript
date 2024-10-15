@@ -49,7 +49,7 @@ import {
   tsToDate,
   tsToMs,
 } from '@temporalio/common/lib/time';
-import { errorMessage, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
 import * as native from '@temporalio/core-bridge';
 import { ShutdownError, UnexpectedError } from '@temporalio/core-bridge';
@@ -86,7 +86,7 @@ import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
-import { GracefulShutdownPeriodExpiredError } from './errors';
+import { CombinedWorkerRunError, GracefulShutdownPeriodExpiredError, PromiseCompletionTimeoutError } from './errors';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -133,36 +133,9 @@ type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
   buildId: string;
 };
 
-/**
- * Combined error information for {@link Worker.runUntil}
- */
-export interface CombinedWorkerRunErrorCause {
-  /**
-   * Error thrown by a Worker
-   */
-  workerError: unknown;
-  /**
-   * Error thrown by the wrapped promise or function
-   */
-  innerError: unknown;
-}
-
 interface EvictionWithRunID {
   runId: string;
   evictJob: coresdk.workflow_activation.IRemoveFromCache;
-}
-
-/**
- * Error thrown by {@link Worker.runUntil} and {@link Worker.runReplayHistories}
- */
-@SymbolBasedInstanceOfError('CombinedWorkerRunError')
-export class CombinedWorkerRunError extends Error {
-  public readonly cause: CombinedWorkerRunErrorCause;
-
-  constructor(message: string, { cause }: { cause: CombinedWorkerRunErrorCause }) {
-    super(message);
-    this.cause = cause;
-  }
 }
 
 export interface NativeWorkerLike {
@@ -390,13 +363,6 @@ export interface WorkerStatus {
    */
   numHeartbeatingActivities: number;
 }
-
-/**
- * Error thrown by {@link Worker.runUntil} if the provided Promise does not resolve within the specified
- * {@link RunUntilOptions.promiseCompletionTimeout|timeout period} after the Worker has stopped.
- */
-@SymbolBasedInstanceOfError('PromiseCompletionTimeoutError')
-class PromiseCompletionTimeoutError extends Error {}
 
 interface RunUntilOptions {
   /**
@@ -1670,7 +1636,7 @@ export class Worker {
     // Allow some extra time for the provided promise to resolve, if it hasn't already
     const promiseCompletionTimeoutMs = msToNumber(options?.promiseCompletionTimeout ?? 1000);
     if (innerResult === undefined && promiseCompletionTimeoutMs > 0) {
-      await Promise.race([innerPromise, await setTimeoutUnref(promiseCompletionTimeoutMs)]);
+      await timeoutPromise(innerPromise, promiseCompletionTimeoutMs);
     }
     if (innerResult === undefined)
       innerResult = {
@@ -1887,6 +1853,32 @@ async function extractActivityInfo(
   };
 }
 
+/**
+ * A utility function to await a promise with a timeout.
+ *
+ * This function properly clean up the timer when the provided promise resolves or rejects.
+ *
+ * Returns a tuple with a boolean indicating if the promise resolved before the timeout,
+ * and the result of the promise (if it completed).
+ */
+async function timeoutPromise<R>(promise: Promise<R>, timeout: number): Promise<readonly [true, R] | readonly [false]> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const timerPromise = new Promise((resolve) => {
+      timer = setTimeoutCallback(resolve, timeout);
+    });
+    return await Promise.race([
+      promise.then((result) => [true, result] as const),
+      timerPromise.then(() => [false] as const),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * A utility function that creates a timer promise, with an unrefed timer.
+ */
 async function setTimeoutUnref(timeout: number): Promise<void> {
   return new Promise((resolve) => setTimeoutCallback(resolve, timeout).unref());
 }

@@ -7,7 +7,7 @@
 import { setTimeout } from 'timers/promises';
 import { randomUUID } from 'crypto';
 import test from 'ava';
-import { Runtime } from '@temporalio/worker';
+import { Runtime, PromiseCompletionTimeoutError } from '@temporalio/worker';
 import { TransportError, UnexpectedError } from '@temporalio/core-bridge';
 import { Client } from '@temporalio/client';
 import { sleep } from '@temporalio/activity';
@@ -31,6 +31,23 @@ if (RUN_INTEGRATION_TESTS) {
     await p;
     t.is(worker.getState(), 'STOPPED');
     await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
+  });
+
+  test.serial("Worker.runUntil doesn't hang if provided promise survives to Worker's shutdown", async (t) => {
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue: t.title.replace(/ /g, '_'),
+    });
+    const p = worker.runUntil(
+      new Promise(() => {
+        /* a promise that will never unblock */
+      })
+    );
+    t.is(worker.getState(), 'RUNNING');
+    worker.shutdown();
+    t.is(worker.getState(), 'STOPPING');
+    await t.throwsAsync(p, { instanceOf: PromiseCompletionTimeoutError });
+    t.is(worker.getState(), 'STOPPED');
   });
 
   test.serial('Worker shuts down gracefully if interrupted before running', async (t) => {
