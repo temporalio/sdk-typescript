@@ -1125,21 +1125,15 @@ test('Abandon activity cancel before started works', async (t) => {
 });
 
 export async function WorkflowWillFail(): Promise<string | undefined> {
-  const round = await workflow.proxyLocalActivities({ startToCloseTimeout: 1000 }).getRoundNumber();
-  if (round === 0) {
-    throw ApplicationFailure.retryable('WorkflowWillFail', 'WorkflowWillFail');
+  if (workflow.workflowInfo().attempt > 1) {
+    return workflow.workflowInfo().lastFailure?.message;
   }
-  return workflow.workflowInfo().lastFailure?.message;
+  throw ApplicationFailure.retryable('WorkflowWillFail', 'WorkflowWillFail');
 }
 
 test("WorkflowInfo().lastFailure contains last run's failure on Workflow Failure", async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
-  let roundNumber = 0;
-  const worker = await createWorker({
-    activities: {
-      getRoundNumber: () => roundNumber++,
-    },
-  });
+  const worker = await createWorker();
   const handle = await startWorkflow(WorkflowWillFail, { retry: { maximumAttempts: 2 } });
   await worker.runUntil(async () => {
     const lastFailure = await handle.result();
