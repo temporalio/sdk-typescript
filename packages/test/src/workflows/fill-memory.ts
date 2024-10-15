@@ -10,7 +10,8 @@ export async function fillMemory(): Promise<void> {
   // probability of test flakes.
   (() => {
     const accumulator = [];
-    for (let i = 0; i < 8 * 1024; i++) {
+    // Allocate 4GB of memory
+    for (let i = 0; i < 2048; i++) {
       accumulator.push(new Array(1024 * 1024 * 2).fill(i));
     }
   })();
