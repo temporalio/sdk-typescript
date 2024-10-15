@@ -5,9 +5,7 @@
   "description": "Temporal.io SDK Tests",
   "scripts": {
     "build": "npm-run-all build:protos build:ts",
-    "build.watch": "npm-run-all build:protos build:ts-watch",
     "build:ts": "tsc --build",
-    "build:ts-watch": "tsc --build --watch",
     "build:protos": "node ./scripts/compile-proto.js",
     "test": "ava ./lib/test-*.js",
     "test.watch": "ava --watch ./lib/test-*.js"
@@ -35,6 +33,7 @@
     "@opentelemetry/semantic-conventions": "^1.19.0",
     "@temporalio/activity": "file:../activity",
     "@temporalio/client": "file:../client",
+    "@temporalio/cloud": "file:../cloud",
     "@temporalio/common": "file:../common",
     "@temporalio/core-bridge": "file:../core-bridge",
     "@temporalio/interceptors-opentelemetry": "file:../interceptors-opentelemetry",

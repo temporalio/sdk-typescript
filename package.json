@@ -23,7 +23,8 @@
   "scripts": {
     "rebuild": "npm run clean && npm run build",
     "build": "lerna run --stream build",
-    "build.watch": "lerna run --stream build.watch",
+    "build.watch": "npm run build:protos && tsc --build --watch packages/*",
+    "build:protos": "node ./packages/proto/scripts/compile-proto.js",
     "test": "lerna run --stream test",
     "test.watch": "lerna run --stream test.watch",
     "ci-stress": "node ./packages/test/lib/load/run-all-stress-ci-scenarios.js",
@@ -38,6 +39,7 @@
   },
   "dependencies": {
     "@temporalio/client": "file:packages/client",
+    "@temporalio/cloud": "file:packages/cloud",
     "@temporalio/common": "file:packages/common",
     "@temporalio/create": "file:packages/create-project",
     "@temporalio/interceptors-opentelemetry": "file:packages/interceptors-opentelemetry",
@@ -79,6 +81,7 @@
   "workspaces": [
     "packages/activity",
     "packages/client",
+    "packages/cloud",
     "packages/common",
     "packages/core-bridge",
     "packages/create-project",

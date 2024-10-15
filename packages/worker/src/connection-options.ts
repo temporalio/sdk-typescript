@@ -1,6 +1,6 @@
 import * as native from '@temporalio/core-bridge';
 import {
-  normalizeTemporalGrpcEndpointAddress,
+  normalizeGrpcEndpointAddress,
   joinProtoHostPort,
   parseHttpConnectProxyAddress,
 } from '@temporalio/common/lib/internal-non-workflow';
@@ -10,6 +10,11 @@ type TLSConfig = native.TLSConfig;
 type ProxyConfig = native.ProxyConfig;
 
 export { TLSConfig, ProxyConfig };
+
+/**
+ * The default Temporal Server's TCP port for public gRPC connections.
+ */
+const DEFAULT_TEMPORAL_GRPC_PORT = 7233;
 
 export interface NativeConnectionOptions {
   /**
@@ -82,7 +87,7 @@ export function compileConnectionOptions(options: RequiredNativeConnectionOption
   }
   return {
     ...rest,
-    address: normalizeTemporalGrpcEndpointAddress(address),
+    address: normalizeGrpcEndpointAddress(address, DEFAULT_TEMPORAL_GRPC_PORT),
     ...proxyOpts,
   };
 }
