@@ -366,7 +366,7 @@ export interface WorkerStatus {
 
 interface RunUntilOptions {
   /**
-   * Maximum time to wait for the provided Promise to complete after the Worker has stopped.
+   * Maximum time to wait for the provided Promise to complete after the Worker has stopped or failed.
    *
    * This time is calculated from the moment the Worker reachs either the `STOPPED` or the `FAILED`
    * state. {@link Worker.runUntil} throws a {@link PromiseCompletionTimeoutError} if the if the
@@ -788,7 +788,7 @@ export class Worker {
       .catch((error) => {
         // This is totally unexpected. If we reach this point, something horribly wrong in the Worker
         // state, and attempt to shutdown gracefully will very likely hang. Just terminate immediately.
-        this.logger.warn('Failed to initiate shutdown', { error });
+        this.logger.error('Failed to initiate shutdown', { error });
         this.instantTerminateErrorSubject.error(error);
       });
   }
@@ -1638,13 +1638,14 @@ export class Worker {
     if (innerResult === undefined && promiseCompletionTimeoutMs > 0) {
       await timeoutPromise(innerPromise, promiseCompletionTimeoutMs);
     }
-    if (innerResult === undefined)
+    if (innerResult === undefined) {
       innerResult = {
         status: 'rejected',
         reason: new PromiseCompletionTimeoutError(
           `Promise did not resolve within ${promiseCompletionTimeoutMs}ms after Worker completed shutdown`
         ),
       };
+    }
 
     if (workerError === undefined) {
       if (innerResult.status === 'fulfilled') {
@@ -1856,7 +1857,7 @@ async function extractActivityInfo(
 /**
  * A utility function to await a promise with a timeout.
  *
- * This function properly clean up the timer when the provided promise resolves or rejects.
+ * This function properly cleans up the timer when the provided promise resolves or rejects.
  *
  * Returns a tuple with a boolean indicating if the promise resolved before the timeout,
  * and the result of the promise (if it completed).

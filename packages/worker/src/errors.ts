@@ -12,7 +12,7 @@ export class GracefulShutdownPeriodExpiredError extends Error {}
  * Thrown from the Workflow Worker when a Promise is rejected, but there is no `catch` handler
  * for that Promise. This error wraps the original error that was thrown from the Promise.
  *
- * Occurence of this error generally indicate a missing `await` statement on a call that return
+ * Occurrence of this error generally indicate a missing `await` statement on a call that return
  * a Promise. To silent rejections on a specific Promise, use `promise.catch(funcThatCantThrow)`
  * (e.g. `promise.catch(() => void 0)` or `promise.catch((e) => logger.error(e))`).
  */

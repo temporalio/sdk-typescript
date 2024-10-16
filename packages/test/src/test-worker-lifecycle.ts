@@ -120,7 +120,7 @@ if (RUN_INTEGRATION_TESTS) {
         if (worker.getState() === 'RUNNING') {
           worker.shutdown();
           await workerRunPromise;
-          t.log('Non concluent result: Worker did not fail as expected');
+          t.log('Non-conclusive result: Worker did not fail as expected');
           t.pass();
         }
       }
