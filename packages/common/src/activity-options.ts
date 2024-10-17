@@ -18,7 +18,7 @@ checkExtends<ActivityCancellationType, coresdk.workflow_commands.ActivityCancell
 /**
  * Options for remote activity invocation
  */
-export interface ActivityOptions {
+export type ActivityOptions = {
   /**
    * Identifier to use for tracking the activity in Workflow history.
    * The `activityId` can be accessed by the activity function.
@@ -111,12 +111,20 @@ export interface ActivityOptions {
    * @experimental
    */
   versioningIntent?: VersioningIntent;
-}
+} & (
+  {
+    scheduleToCloseTimeout: Duration;
+  } |
+  {
+    startToCloseTimeout: Duration;
+  }
+);
+
 
 /**
  * Options for local activity invocation
  */
-export interface LocalActivityOptions {
+export type LocalActivityOptions  = {
   /**
    * RetryPolicy that defines how an activity is retried in case of failure. If this is not set, then the SDK-defined default activity retry policy will be used.
    * Note that local activities are always executed at least once, even if maximum attempts is set to 1 due to Workflow task retries.
@@ -175,4 +183,11 @@ export interface LocalActivityOptions {
    * - `ABANDON` - Do not request cancellation of the activity and immediately report cancellation to the workflow.
    */
   cancellationType?: coresdk.workflow_commands.ActivityCancellationType;
-}
+} & (
+  {
+    scheduleToCloseTimeout: Duration;
+  } |
+  {
+    startToCloseTimeout: Duration;
+  }
+  );
