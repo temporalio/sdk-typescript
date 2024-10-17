@@ -105,25 +105,21 @@ if (RUN_INTEGRATION_TESTS) {
       // Due to various environment factors, it is possible that the worker may sometime not fail.
       // That's obviously not what we want to assert, but that's still ok. We therefore set a
       // timeout of 10s and simply pass if the Worker hasn't failed by then.
-      const res = await Promise.any([
-        setTimeout(10_000).then(() => false),
-        t.throwsAsync(workerRunPromise, {
-          name: UnexpectedError.name,
-          message:
-            'Workflow Worker Thread exited prematurely: Error [ERR_WORKER_OUT_OF_MEMORY]: ' +
-            'Worker terminated due to reaching memory limit: JS heap out of memory',
-        }),
-      ]);
-      if (res !== false) {
-        t.is(worker.getState(), 'FAILED');
-      } else {
-        if (worker.getState() === 'RUNNING') {
-          worker.shutdown();
-          await workerRunPromise;
-          t.log('Non-conclusive result: Worker did not fail as expected');
-          t.pass();
-        }
+      await Promise.race([setTimeout(10_000), workerRunPromise]);
+      if (worker.getState() === 'RUNNING') {
+        worker.shutdown();
+        await workerRunPromise;
       }
+      t.log('Non-conclusive result: Worker did not fail as expected');
+      t.pass();
+    } catch (err) {
+      t.is((err as Error).name, UnexpectedError.name);
+      t.is(
+        (err as Error).message,
+        'Workflow Worker Thread exited prematurely: Error [ERR_WORKER_OUT_OF_MEMORY]: ' +
+          'Worker terminated due to reaching memory limit: JS heap out of memory'
+      );
+      t.is(worker.getState(), 'FAILED');
     } finally {
       if (Runtime._instance) await Runtime._instance.shutdown();
     }
