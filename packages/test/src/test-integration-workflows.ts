@@ -105,7 +105,7 @@ test('Worker allows heartbeating activities after shutdown has been requested', 
         await firstValueFrom(workerWasShutdownSubject);
         try {
           for (;;) {
-            await ctx.sleep('4000ms');
+            await ctx.sleep('100ms');
             ctx.heartbeat();
           }
         } catch (err) {
