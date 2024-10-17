@@ -1,6 +1,7 @@
 import { temporal } from '@temporalio/proto';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
 
+// FIXME(JWH): Fix this enum
 export enum WorkflowUpdateStage {
   /** This is not an allowed value. */
   UNSPECIFIED = 0,

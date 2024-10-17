@@ -128,6 +128,7 @@ export interface HistoryAndWorkflowId {
  * Policy defining actions taken when a workflow exits while update or signal handlers are running.
  * The workflow exit may be due to successful return, failure, cancellation, or continue-as-new.
  */
+// FIXME(JWH): Fix this enum
 export enum HandlerUnfinishedPolicy {
   /**
    * Issue a warning in addition to abandoning the handler execution. The warning will not be issued if the workflow fails.

@@ -20,6 +20,7 @@ import {
   WorkflowNotFoundError,
   WorkflowResultType,
   extractWorkflowType,
+  encodeWorkflowIdReusePolicy,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { History } from '@temporalio/common/lib/proto-utils';
@@ -938,7 +939,7 @@ export class WorkflowClient extends BaseClient {
       identity,
       requestId: uuid4(),
       workflowId: options.workflowId,
-      workflowIdReusePolicy: options.workflowIdReusePolicy,
+      workflowIdReusePolicy: encodeWorkflowIdReusePolicy(options.workflowIdReusePolicy),
       workflowType: { name: workflowType },
       input: { payloads: await encodeToPayloads(this.dataConverter, ...options.args) },
       signalName,
@@ -988,7 +989,7 @@ export class WorkflowClient extends BaseClient {
       identity,
       requestId: uuid4(),
       workflowId: opts.workflowId,
-      workflowIdReusePolicy: opts.workflowIdReusePolicy,
+      workflowIdReusePolicy: encodeWorkflowIdReusePolicy(opts.workflowIdReusePolicy),
       workflowType: { name: workflowType },
       input: { payloads: await encodeToPayloads(this.dataConverter, ...opts.args) },
       taskQueue: {

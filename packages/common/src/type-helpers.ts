@@ -17,6 +17,76 @@ export function checkExtends<_Orig, _Copy extends _Orig>(): void {
 
 export type Replace<Base, New> = Omit<Base, keyof New> & New;
 
+export type CheckConstEnum<
+  PREFIX extends string,
+  TS_KEYS_ALL extends string,
+  TS_KEYS extends TS_KEYS_ALL,
+  TS_TYPE extends { [k in TS_KEYS_ALL]: TS_KEYS },
+  PROTO_KEYS extends `${PREFIX}${TS_KEYS}`,
+  PROTO_TYPE extends { [k in `${PREFIX}${TS_KEYS}`]: number },
+  TS_TO_PROTO_MAP extends { [k in TS_KEYS]: PROTO_TYPE[PROTO_KEYS] },
+> = {
+  // For every keys in the TS Const Object…
+  [k in TS_KEYS_ALL]: {
+    key: k;
+
+    // The equivalent string value, according to the const obj definition (e.g. `'ALLOW_DUPLICATE'`)
+    StringValue: TS_TYPE[k];
+
+    // The equivalent string value, expected from removing prefix (e.g. `'ALLOW_DUPLICATE'`)
+    StringValueExpected: k extends `${PREFIX}${infer kk}` ? kk : k;
+
+    // The corresponding protobuf enum value name (e.g. `'WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE'`)
+    ProtoEnumName: `${PREFIX}${TS_TYPE[k]}`;
+
+    // The corresponding protobuf enum value number, according to conversion map (e.g. `2`)
+    ProtoNumber: TS_TO_PROTO_MAP[TS_TYPE[k]];
+
+    // The corresponding protobuf enum value number, according to the protobuf definition (e.g. `2`)
+    ProtoNumberExpected: PROTO_TYPE[`${PREFIX}${TS_TYPE[k]}`];
+
+    Issues: (k extends `${PREFIX}${infer kk}`
+      ? TS_TYPE[k] extends kk
+        ? {
+            /*empty*/
+          }
+        : {
+            name_mismatch: TS_TYPE[k];
+            expected: kk;
+            fail: true;
+          }
+      : TS_TYPE[k] extends k
+        ? {
+            /*empty*/
+          }
+        : {
+            name_mismatch: TS_TYPE[k];
+            expected: k;
+            fail: true;
+          }) &
+      (TS_TO_PROTO_MAP[TS_TYPE[k]] extends PROTO_TYPE[`${PREFIX}${TS_TYPE[k]}`]
+        ? PROTO_TYPE[`${PREFIX}${TS_TYPE[k]}`] extends TS_TO_PROTO_MAP[TS_TYPE[k]]
+          ? {
+              /*empty*/
+            }
+          : {
+              value_mismatch: TS_TO_PROTO_MAP[TS_TYPE[k]];
+              expected: PROTO_TYPE[`${PREFIX}${TS_TYPE[k]}`];
+              fail: true;
+            }
+        : {
+            value_mismatch: TS_TO_PROTO_MAP[TS_TYPE[k]];
+            expected: PROTO_TYPE[`${PREFIX}${TS_TYPE[k]}`];
+            fail: true;
+          });
+  };
+}[TS_KEYS_ALL]['Issues'];
+
+/** Verify that an type _Copy extends _Orig */
+export function AssertType<_CHECK extends { fail?: never }>(): void {
+  // noop, just type check
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }

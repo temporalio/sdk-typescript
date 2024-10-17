@@ -45,6 +45,6 @@ export async function asyncChildStarter(childWorkflowId: string): Promise<void> 
   await startChild(sleep, {
     args: ['1 day'],
     workflowId: childWorkflowId,
-    parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_ABANDON,
+    parentClosePolicy: 'ABANDON',
   });
 }
