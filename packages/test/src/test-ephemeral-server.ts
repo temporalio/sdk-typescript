@@ -51,6 +51,23 @@ test('TestEnvironment sets up dev server and is able to run a single workflow', 
   await runSimpleWorkflow(t, testEnv);
 });
 
+test("Attempt to create a TestEnvironment doesn't hang indefinitely if server fails to start", async (t) => {
+  t.timeout(10_000);
+  await t.throwsAsync(
+    () =>
+      TestWorkflowEnvironment.createTimeSkipping({
+        server: {
+          // executable: {
+          //   type: 'cached-download',
+          //   version: 'invalid',
+          // },
+          extraArgs: ['--invalid-arg'],
+        },
+      }),
+    { message: /Failed to start ephemeral server/ }
+  );
+});
+
 test.todo('TestEnvironment sets up test server with extra args');
 test.todo('TestEnvironment sets up test server with specified port');
 test.todo('TestEnvironment sets up test server with latest version');
