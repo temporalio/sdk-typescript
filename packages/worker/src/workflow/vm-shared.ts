@@ -9,6 +9,7 @@ import { type SinkCall } from '@temporalio/workflow/lib/sinks';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { Activator } from '@temporalio/workflow/lib/internals';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
+import { UnhandledRejectionError } from '../errors';
 import { Workflow } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 
@@ -28,12 +29,15 @@ export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string)
         return;
       }
     }
-    // The user's logger is not accessible in this thread,
-    // dump the error information to stderr and abort.
-    console.error('Unhandled rejection', { runId }, err);
-    process.exit(1);
+
+    console.error('An Unhandled Promise rejection could not be associated to a Workflow Run', { runId, error: err });
+    throw new UnhandledRejectionError(
+      `Unhandled Promise rejection for unknown Workflow Run id='${runId}': ${err}`,
+      err
+    );
   });
 }
+
 /**
  * Variant of {@link cutoffStackTrace} that works with FileLocation, keep this in sync with the original implementation
  */
