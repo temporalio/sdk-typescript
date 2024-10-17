@@ -141,8 +141,35 @@ export function SymbolBasedInstanceOfError<E extends Error>(markerName: string):
   };
 }
 
-// Thanks MDN: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze
-export function deepFreeze<T>(object: T): T {
+// This implementation is based on https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze.
+// Note that there are limits to this approach, as traversing using getOwnPropertyXxx doesn't allow
+// reaching variables defined using internal scopes. This implementation specifically look for and deal
+// with the case of the Map or Set classes, but it is impossible to cover all potential cases.
+export function deepFreeze<T>(object: T, visited = new WeakSet<any>(), path = 'root'): T {
+  if (typeof object !== 'object' || object == null || Object.isFrozen(object) || visited.has(object)) return object;
+  visited.add(object);
+
+  if (object.constructor?.name === 'Map' || object instanceof Map) {
+    const map = object as unknown as Map<any, any>;
+    for (const [k, v] of map.entries()) {
+      deepFreeze(k, visited, `${path}[key:${k}]`);
+      deepFreeze(v, visited, `${path}[value:${k}]`);
+    }
+    map.set = frozenMapSet;
+    map.delete = frozenMapDelete;
+    map.clear = frozenMapClear;
+  }
+
+  if (object.constructor?.name === 'Set' || object instanceof Set) {
+    const set = object as unknown as Set<any>;
+    for (const v of set.values()) {
+      deepFreeze(v, visited, `${path}.${v}`);
+    }
+    set.add = frozenSetAdd;
+    set.delete = frozenSetDelete;
+    set.clear = frozenSetClear;
+  }
+
   // Retrieve the property names defined on object
   const propNames = Object.getOwnPropertyNames(object);
 
@@ -152,8 +179,11 @@ export function deepFreeze<T>(object: T): T {
 
     if (value && typeof value === 'object') {
       try {
-        deepFreeze(value);
+        deepFreeze(value, visited, `${path}.${name}`);
       } catch (err) {
+        if (typeof value !== 'object' || value.constructor.name !== 'Uint8Array') {
+          console.log(`Failed to freeze ${path}.${name}`, err);
+        }
         // This is okay, there are some typed arrays that cannot be frozen (encodingKeys)
       }
     } else if (typeof value === 'function') {
@@ -162,4 +192,28 @@ export function deepFreeze<T>(object: T): T {
   }
 
   return Object.freeze(object);
+}
+
+function frozenMapSet(key: any, _value: any): Map<any, any> {
+  throw `Can't add property ${key}, map is not extensible`;
+}
+
+function frozenMapDelete(key: any): boolean {
+  throw `Can't delete property ${key}, map is frozen`;
+}
+
+function frozenMapClear() {
+  throw "Can't clear map, map is frozen";
+}
+
+function frozenSetAdd(key: any): Set<any> {
+  throw `Can't add key ${key}, set is not extensible`;
+}
+
+function frozenSetDelete(key: any): boolean {
+  throw `Can't delete key ${key}, set is not extensible`;
+}
+
+function frozenSetClear() {
+  throw "Can't clear set, set is frozen";
 }
