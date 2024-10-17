@@ -368,6 +368,30 @@ interface RunUntilOptions {
   /**
    * Maximum time to wait for the provided Promise to complete after the Worker has stopped or failed.
    *
+   * Until TS SDK 1.11.2, `Worker.runUntil(...)` would wait _indefinitely_ for both the Worker's run
+   * Promise _and_ the provided Promise to resolve or fail, _even in error cases_. In most practical
+   * use cases, that would create a possibility for the Worker to hang indefinitely if the Worker
+   * was stopped due to "unexpected" factors
+   *
+   * For example, in the common test idiom show below, sending a `SIGINT` to the process would
+   * initiate shutdown of the Worker, potentially resulting in termination of the Worker before the
+   * Workflow completes; in that case, the Workflow would never complete, and consequently, the
+   * `runUntil` Promise would never resolve, leaving the process in a hang state.
+   *
+   * ```ts
+   * await Worker.runUntil(() => client.workflow.execute(...));
+   * ```
+   *
+   * The behavior of `Worker.runUntil(...)` has therefore been changed so that if the worker shuts
+   * down before the inner promise completes, `runUntil` will allow no more than a certain delay
+   * (i.e. `promiseCompletionTimeout`) for the inner promise to complete, after which a
+   * {@link PromiseCompletionTimeoutError} is thrown.
+   *
+   * In most practical use cases, no delay is actually required, but there are a few possible
+   * scenarios where a very short delay might be pertinent (rarely more than a few milliseconds),
+   * e.g. when
+   * to avoid breaking existing code, promiseCompletionTimeout defaults to 1 seconds. That duration can be adjusted through a new optional RunUntilOptions argument on the runUntil(fnOrPromise, options).
+   *
    * This time is calculated from the moment the Worker reachs either the `STOPPED` or the `FAILED`
    * state. {@link Worker.runUntil} throws a {@link PromiseCompletionTimeoutError} if the if the
    * Promise still hasn't completed after that delay.
@@ -1634,7 +1658,7 @@ export class Worker {
     }
 
     // Allow some extra time for the provided promise to resolve, if it hasn't already
-    const promiseCompletionTimeoutMs = msToNumber(options?.promiseCompletionTimeout ?? 1000);
+    const promiseCompletionTimeoutMs = msToNumber(options?.promiseCompletionTimeout ?? 0);
     if (innerResult === undefined && promiseCompletionTimeoutMs > 0) {
       await timeoutPromise(innerPromise, promiseCompletionTimeoutMs);
     }
