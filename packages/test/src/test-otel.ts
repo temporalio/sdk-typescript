@@ -232,7 +232,22 @@ if (RUN_INTEGRATION_TESTS) {
         parentSpanId === childWorkflowStartSpan?.spanContext().spanId
     );
     t.true(childWorkflowExecuteSpan !== undefined);
-    t.true(new Set(spans.map((span) => span.spanContext().traceId)).size === 1);
+
+    const signalChildWithUnblockSpan = spans.find(
+      ({ name, parentSpanId }) =>
+        name === `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}unblock` &&
+        parentSpanId === parentExecuteSpan?.spanContext().spanId
+    );
+    t.true(signalChildWithUnblockSpan !== undefined);
+
+    const activityStartedSignalSpan = spans.find(
+      ({ name, parentSpanId }) =>
+        name === `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}activityStarted` &&
+        parentSpanId === firstActivityExecuteSpan?.spanContext().spanId
+    );
+    t.true(activityStartedSignalSpan !== undefined);
+
+    t.deepEqual(new Set(spans.map((span) => span.spanContext().traceId)).size, 1);
   });
 
   // Un-skip this test and run it by hand to inspect outputted traces
