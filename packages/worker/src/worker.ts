@@ -382,21 +382,21 @@ interface RunUntilOptions {
    * await Worker.runUntil(() => client.workflow.execute(...));
    * ```
    *
-   * The behavior of `Worker.runUntil(...)` has therefore been changed so that if the worker shuts
-   * down before the inner promise completes, `runUntil` will allow no more than a certain delay
+   * The behavior of `Worker.runUntil(...)` has therefore been changedin 1.11.3 so that if the worker
+   * shuts down before the inner promise completes, `runUntil` will allow no more than a certain delay
    * (i.e. `promiseCompletionTimeout`) for the inner promise to complete, after which a
    * {@link PromiseCompletionTimeoutError} is thrown.
    *
-   * In most practical use cases, no delay is actually required, but there are a few possible
-   * scenarios where a very short delay might be pertinent (rarely more than a few milliseconds),
-   * e.g. when
-   * to avoid breaking existing code, promiseCompletionTimeout defaults to 1 seconds. That duration can be adjusted through a new optional RunUntilOptions argument on the runUntil(fnOrPromise, options).
+   * In most practical use cases, no delay is actually required; `promiseCompletionTimeout` therefore
+   * defaults to 0 second, meaning the Worker will not wait for the inner promise to complete.
+   * You may adjust this value in the very rare cases where waiting is pertinent; set it to a
+   * very high value to mimic the previous behavior.
    *
    * This time is calculated from the moment the Worker reachs either the `STOPPED` or the `FAILED`
    * state. {@link Worker.runUntil} throws a {@link PromiseCompletionTimeoutError} if the if the
    * Promise still hasn't completed after that delay.
    *
-   * @default 1 second
+   * @default 0 don't wait
    */
   promiseCompletionTimeout?: Duration;
 }
