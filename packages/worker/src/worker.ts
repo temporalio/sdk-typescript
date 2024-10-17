@@ -1707,7 +1707,9 @@ export class Worker {
     }
     this.state = 'RUNNING';
 
-    const shutdownCallback = () => this.shutdown();
+    const shutdownCallback = () => {
+      if (this.state === 'RUNNING') this.shutdown();
+    };
     Runtime.instance().registerShutdownSignalCallback(shutdownCallback);
 
     let fatalError: Error | undefined;
