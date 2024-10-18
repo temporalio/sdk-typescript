@@ -91,17 +91,33 @@ export function isGrpcServiceError(err: unknown): err is GrpcServiceError {
 }
 
 /**
- * Returns true if the provided error is a {@link GrpcServiceError} with code DEADLINE_EXCEEDED.
+ * Returns true if the provided error or its cause is a {@link GrpcServiceError} with code DEADLINE_EXCEEDED.
+ *
+ * @see {@link Connection.withDeadline}
  */
-export function isGrpcDeadlineError(err: unknown): err is GrpcServiceError & { code: status.DEADLINE_EXCEEDED } {
-  return isGrpcServiceError(err) && (err as GrpcServiceError).code === status.DEADLINE_EXCEEDED;
+export function isGrpcDeadlineError(err: unknown): err is Error {
+  while (isError(err)) {
+    if (isGrpcServiceError(err) && (err as GrpcServiceError).code === status.DEADLINE_EXCEEDED) {
+      return true;
+    }
+    err = (err as any).cause;
+  }
+  return false;
 }
 
 /**
- * Returns true if the provided error is a {@link GrpcServiceError} with code CANCELLED.
+ * Returns true if the provided error or its cause is a {@link GrpcServiceError} with code CANCELLED.
+ *
+ * @see {@link Connection.withAbortSignal}
  */
-export function isGrpcCancelledError(err: unknown): err is GrpcServiceError & { code: status.CANCELLED } {
-  return isGrpcServiceError(err) && (err as GrpcServiceError).code === status.CANCELLED;
+export function isGrpcCancelledError(err: unknown): err is Error {
+  while (isError(err)) {
+    if (isGrpcServiceError(err) && (err as GrpcServiceError).code === status.CANCELLED) {
+      return true;
+    }
+    err = (err as any).cause;
+  }
+  return false;
 }
 
 /**
