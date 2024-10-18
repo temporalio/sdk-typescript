@@ -1,4 +1,4 @@
-import { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
+import { ServiceError as GrpcServiceError, status } from '@grpc/grpc-js';
 import { RetryState, TemporalFailure } from '@temporalio/common';
 import { isError, isRecord, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
@@ -79,12 +79,45 @@ export class WorkflowContinuedAsNewError extends Error {
   }
 }
 
+/**
+ * Returns true if the provided error is a {@link GrpcServiceError}.
+ */
 export function isGrpcServiceError(err: unknown): err is GrpcServiceError {
   return (
     isError(err) &&
     typeof (err as GrpcServiceError)?.details === 'string' &&
     isRecord((err as GrpcServiceError).metadata)
   );
+}
+
+/**
+ * Returns true if the provided error or its cause is a {@link GrpcServiceError} with code DEADLINE_EXCEEDED.
+ *
+ * @see {@link Connection.withDeadline}
+ */
+export function isGrpcDeadlineError(err: unknown): err is Error {
+  while (isError(err)) {
+    if (isGrpcServiceError(err) && (err as GrpcServiceError).code === status.DEADLINE_EXCEEDED) {
+      return true;
+    }
+    err = (err as any).cause;
+  }
+  return false;
+}
+
+/**
+ * Returns true if the provided error or its cause is a {@link GrpcServiceError} with code CANCELLED.
+ *
+ * @see {@link Connection.withAbortSignal}
+ */
+export function isGrpcCancelledError(err: unknown): err is Error {
+  while (isError(err)) {
+    if (isGrpcServiceError(err) && (err as GrpcServiceError).code === status.CANCELLED) {
+      return true;
+    }
+    err = (err as any).cause;
+  }
+  return false;
 }
 
 /**
