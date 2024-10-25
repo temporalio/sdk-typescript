@@ -19,7 +19,7 @@ export interface WorkerTuner {
  *
  * @experimental
  */
-export type SlotSupplier = ResourceBasedSlotsForType | FixedSizeSlotSupplier;
+export type SlotSupplier = ResourceBasedSlotsForType | FixedSizeSlotSupplier | UserSlotSupplier;
 
 /**
  * Options for a specific slot type within a {@link ResourceBasedSlotsForType}
@@ -68,4 +68,10 @@ export interface FixedSizeSlotSupplier {
   type: 'fixed-size';
   // The maximum number of slots that can be issued
   numSlots: number;
+}
+
+export interface UserSlotSupplier {
+  type: 'user';
+
+  // TODO: Pass callbacks to Core
 }

@@ -16,14 +16,15 @@ export { FixedSizeSlotSupplier, ResourceBasedTunerOptions };
 export type WorkerTuner = ResourceBasedTuner | TunerHolder;
 
 /**
- * Resource based slot supplier options for a specific kind of slot.
+ * This tuner allows for different slot suppliers for different slot types.
  *
  * @experimental
  */
-type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
-  type: 'resource-based';
-  tunerOptions: ResourceBasedTunerOptions;
-};
+export interface TunerHolder {
+  workflowTaskSlotSupplier: SlotSupplier<WorkflowSlotInfo>;
+  activityTaskSlotSupplier: SlotSupplier<ActivitySlotInfo>;
+  localActivityTaskSlotSupplier: SlotSupplier<LocalActivitySlotInfo>;
+}
 
 /**
  * Controls how slots are handed out for a specific task type.
@@ -33,7 +34,20 @@ type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
  *
  * @experimental
  */
-export type SlotSupplier = ResourceBasedSlotsForType | FixedSizeSlotSupplier;
+export type SlotSupplier<SI extends SlotInfo> =
+  | ResourceBasedSlotsForType
+  | FixedSizeSlotSupplier
+  | UserSlotSupplier<SI>;
+
+/**
+ * Resource based slot supplier options for a specific kind of slot.
+ *
+ * @experimental
+ */
+type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
+  type: 'resource-based';
+  tunerOptions: ResourceBasedTunerOptions;
+};
 
 /**
  * Options for a specific slot type within a {@link ResourceBasedSlotsForType}
@@ -73,15 +87,127 @@ export interface ResourceBasedTuner {
   localActivityTaskSlotOptions?: ResourceBasedSlotOptions;
 }
 
-/**
- * This tuner allows for different slot suppliers for different slot types.
- *
- * @experimental
- */
-export interface TunerHolder {
-  workflowTaskSlotSupplier: SlotSupplier;
-  activityTaskSlotSupplier: SlotSupplier;
-  localActivityTaskSlotSupplier: SlotSupplier;
+export type SlotInfo = WorkflowSlotInfo | ActivitySlotInfo | LocalActivitySlotInfo;
+
+export interface WorkflowSlotInfo {
+  type: 'workflow';
+  workflowId: string;
+  runId: string;
+}
+
+export interface ActivitySlotInfo {
+  type: 'activity';
+  activityId: string;
+}
+
+export interface LocalActivitySlotInfo {
+  type: 'local-activity';
+  activityId: string;
+}
+
+export interface UserSlotSupplier<SI extends SlotInfo> {
+  type: 'user';
+
+  /**
+   * This function is called before polling for new tasks. Your implementation should block until a
+   * slot is available then return a permit to use that slot.
+   *
+   * // TODO: How to handle cancellation? AbortController? CancelToken?
+   *
+   * @param ctx The context for slot reservation.
+   * @returns A permit to use the slot which may be populated with your own data.
+   */
+  reserveSlot(ctx: SlotReserveContext): Promise<SlotPermit>;
+
+  /**
+   * This function is called when trying to reserve slots for "eager" workflow and activity tasks.
+   * Eager tasks are those which are returned as a result of completing a workflow task, rather than
+   * from polling. Your implementation must not block, and If a slot is available, return a permit
+   * to use that slot.
+   *
+   * @param ctx The context for slot reservation.
+   * @returns Maybe a permit to use the slot which may be populated with your own data.
+   */
+  tryReserveSlot(ctx: SlotReserveContext): SlotPermit | undefined;
+
+  /**
+   * This function is called once a slot is actually being used to process some task, which may be
+   * some time after the slot was reserved originally. For example, if there is no work for a
+   * worker, a number of slots equal to the number of active pollers may already be reserved, but
+   * none of them are being used yet. This call should be non-blocking.
+   *
+   * @param ctx The context for marking a slot as used.
+   */
+  markSlotUsed(slot: SlotMarkUsedContext<SI>): void;
+
+  /**
+   * This function is called once a permit is no longer needed. This could be because the task has
+   * finished, whether successfully or not, or because the slot was no longer needed (ex: the number
+   * of active pollers decreased). This call should be non-blocking.
+   *
+   * @param ctx The context for releasing a slot.
+   */
+  releaseSlot(slot: SlotReleaseContext<SI>): void;
+}
+
+export interface SlotPermit {
+  // Use this field to associate any data you like with a particular slot
+  data?: any;
+}
+
+export interface SlotReserveContext {
+  // The name of the task queue for which this reservation request is associated
+  taskQueue: string;
+  // The build id of the worker that is requesting the reservation
+  workerIdentity: string;
+  // The identity of the worker that is requesting the reservation
+  workerBuildId: string;
+  // True iff this is a reservation for a sticky poll for a workflow task
+  isSticky: boolean;
+
+  // Returns the number of currently outstanding slot permits, whether used or un-used.
+  numIssuedSlots(): number;
+}
+
+export interface SlotMarkUsedContext<SI extends SlotInfo> {
+  // Info about the task that will be using the slot
+  slotInfo: SI;
+  // The permit that was issued when the slot was reserved
+  permit: SlotPermit;
+}
+
+// The reason a slot is being released
+export type SlotReleaseReason = TaskCompleteReason | WillRetryReason | NeverUsedReason | ErrorReason;
+
+// The task completed (whether successfully or not)
+export interface TaskCompleteReason {
+  reason: 'task-complete';
+}
+
+// The task failed but will be retried
+export interface WillRetryReason {
+  reason: 'will-retry';
+}
+
+// The slot was never used
+export interface NeverUsedReason {
+  reason: 'never-used';
+}
+
+// Some error was encountered before the slot could be used
+export interface ErrorReason {
+  reason: 'error';
+  error: Error;
+}
+
+export interface SlotReleaseContext<SI extends SlotInfo> {
+  // The reason the slot is being released
+  reason: SlotReleaseReason;
+  // Info about the task that used this slot, if any. A slot may be released without being used in
+  // the event a poll times out.
+  slotInfo?: SI;
+  // The permit that was issued when the slot was reserved
+  permit: SlotPermit;
 }
 
 export function asNativeTuner(tuner: WorkerTuner): NativeWorkerTuner {
@@ -141,11 +267,15 @@ const isResourceBasedTuner = (tuner: WorkerTuner): tuner is ResourceBasedTuner =
   Object.hasOwnProperty.call(tuner, 'tunerOptions');
 const isTunerHolder = (tuner: WorkerTuner): tuner is TunerHolder =>
   Object.hasOwnProperty.call(tuner, 'workflowTaskSlotSupplier');
-const isResourceBased = (sup: SlotSupplier): sup is ResourceBasedSlotsForType => sup.type === 'resource-based';
+const isResourceBased = (sup: SlotSupplier<any> | NativeSlotSupplier): sup is ResourceBasedSlotsForType =>
+  sup.type === 'resource-based';
 
 type ActOrWorkflow = 'activity' | 'workflow';
 
-function fixupResourceBasedOptions(supplier: SlotSupplier, kind: ActOrWorkflow): NativeSlotSupplier {
+function fixupResourceBasedOptions<SI extends SlotInfo>(
+  supplier: SlotSupplier<SI>,
+  kind: ActOrWorkflow
+): NativeSlotSupplier {
   if (isResourceBased(supplier)) {
     const tunerOptions = supplier.tunerOptions;
     const defaulted = addResourceBasedSlotDefaults(supplier, kind);
@@ -156,6 +286,7 @@ function fixupResourceBasedOptions(supplier: SlotSupplier, kind: ActOrWorkflow):
       rampThrottleMs: msToNumber(defaulted.rampThrottle),
     };
   }
+  // TODO: If user setup callbacks etc
   return supplier;
 }
 
