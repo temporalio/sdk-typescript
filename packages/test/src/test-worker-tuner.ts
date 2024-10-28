@@ -1,5 +1,14 @@
 import { ResourceBasedTunerOptions } from '@temporalio/core-bridge';
 import { helpers, makeTestFunction } from './helpers-integration';
+import {
+  CustomSlotSupplier,
+  SlotInfo,
+  SlotMarkUsedContext,
+  SlotPermit,
+  SlotReleaseContext,
+  SlotReserveContext,
+} from '@temporalio/worker';
+import { AbortSignal } from 'node-fetch/externals';
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
@@ -138,4 +147,37 @@ test('Cannot construct worker tuner with multiple different tuner options', asyn
     })
   );
   t.is(error?.message, 'Cannot construct worker tuner with multiple different tuner options');
+});
+
+class MySS<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
+  readonly type = 'custom';
+
+  async reserveSlot(ctx: SlotReserveContext, abortSignal: AbortSignal): Promise<SlotPermit> {
+    console.log('reserveSlot: ', ctx.slotType);
+    return {};
+  }
+
+  tryReserveSlot(ctx: SlotReserveContext): SlotPermit | undefined {
+    console.log('tryReserveSlot');
+    return {};
+  }
+
+  markSlotUsed(slot: SlotMarkUsedContext<SI>): void {}
+
+  releaseSlot(slot: SlotReleaseContext<SI>): void {}
+}
+
+test('Custom slot supplier works', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const slotSupplier = new MySS();
+
+  const worker = await createWorker({
+    tuner: {
+      workflowTaskSlotSupplier: slotSupplier,
+      activityTaskSlotSupplier: slotSupplier,
+      localActivityTaskSlotSupplier: slotSupplier,
+    },
+  });
+  const result = await worker.runUntil(executeWorkflow(successString));
+  t.is(result, 'success');
 });

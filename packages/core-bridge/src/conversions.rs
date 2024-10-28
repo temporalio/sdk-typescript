@@ -5,8 +5,12 @@ use neon::{
     prelude::*,
     types::{JsBoolean, JsNumber, JsString},
 };
+use std::marker::PhantomData;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use temporal_client::HttpConnectProxyOptions;
+use temporal_sdk_core::api::worker::{
+    SlotKind, SlotReleaseContext, SlotReservationContext, SlotSupplier, SlotSupplierPermit,
+};
 use temporal_sdk_core::{
     api::telemetry::{Logger, MetricTemporality, TelemetryOptions, TelemetryOptionsBuilder},
     api::{
@@ -65,11 +69,11 @@ pub(crate) trait ObjectHandleConversionsExt {
         &self,
         cx: &mut FunctionContext,
     ) -> NeonResult<HashMap<String, String>>;
-    fn as_slot_supplier(
-        &self,
+    fn into_slot_supplier<SK: SlotKind + Send + Sync + 'static>(
+        self,
         cx: &mut FunctionContext,
         rbo: &mut Option<ResourceBasedSlotsOptions>,
-    ) -> NeonResult<SlotSupplierOptions>;
+    ) -> NeonResult<SlotSupplierOptions<SK>>;
 }
 
 impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
@@ -409,18 +413,18 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             if let Some(wf_slot_supp) =
                 js_optional_getter!(cx, &tuner, "workflowTaskSlotSupplier", JsObject)
             {
-                tuner_holder.workflow_slot_options(wf_slot_supp.as_slot_supplier(cx, &mut rbo)?);
+                tuner_holder.workflow_slot_options(wf_slot_supp.into_slot_supplier(cx, &mut rbo)?);
             }
             if let Some(act_slot_supp) =
                 js_optional_getter!(cx, &tuner, "activityTaskSlotSupplier", JsObject)
             {
-                tuner_holder.activity_slot_options(act_slot_supp.as_slot_supplier(cx, &mut rbo)?);
+                tuner_holder.activity_slot_options(act_slot_supp.into_slot_supplier(cx, &mut rbo)?);
             }
             if let Some(local_act_slot_supp) =
                 js_optional_getter!(cx, &tuner, "localActivityTaskSlotSupplier", JsObject)
             {
                 tuner_holder.local_activity_slot_options(
-                    local_act_slot_supp.as_slot_supplier(cx, &mut rbo)?,
+                    local_act_slot_supp.into_slot_supplier(cx, &mut rbo)?,
                 );
             }
             if let Some(rbo) = rbo {
@@ -567,20 +571,20 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         }
     }
 
-    fn as_slot_supplier(
-        &self,
+    fn into_slot_supplier<SK: SlotKind + Send + Sync + 'static>(
+        self,
         cx: &mut FunctionContext,
         rbo: &mut Option<ResourceBasedSlotsOptions>,
-    ) -> NeonResult<SlotSupplierOptions> {
-        match js_value_getter!(cx, self, "type", JsString).as_str() {
+    ) -> NeonResult<SlotSupplierOptions<SK>> {
+        match js_value_getter!(cx, &self, "type", JsString).as_str() {
             "fixed-size" => Ok(SlotSupplierOptions::FixedSize {
-                slots: js_value_getter!(cx, self, "numSlots", JsNumber) as usize,
+                slots: js_value_getter!(cx, &self, "numSlots", JsNumber) as usize,
             }),
             "resource-based" => {
-                let min_slots = js_value_getter!(cx, self, "minimumSlots", JsNumber);
-                let max_slots = js_value_getter!(cx, self, "maximumSlots", JsNumber);
-                let ramp_throttle = js_value_getter!(cx, self, "rampThrottleMs", JsNumber) as u64;
-                if let Some(tuner_opts) = js_optional_getter!(cx, self, "tunerOptions", JsObject) {
+                let min_slots = js_value_getter!(cx, &self, "minimumSlots", JsNumber);
+                let max_slots = js_value_getter!(cx, &self, "maximumSlots", JsNumber);
+                let ramp_throttle = js_value_getter!(cx, &self, "rampThrottleMs", JsNumber) as u64;
+                if let Some(tuner_opts) = js_optional_getter!(cx, &self, "tunerOptions", JsObject) {
                     let target_mem =
                         js_value_getter!(cx, &tuner_opts, "targetMemoryUsage", JsNumber);
                     let target_cpu = js_value_getter!(cx, &tuner_opts, "targetCpuUsage", JsNumber);
@@ -603,7 +607,40 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     ),
                 ))
             }
+            "custom" => {
+                let ssb = SlotSupplierBridge {
+                    inner: self.root(cx),
+                    _kind: PhantomData,
+                };
+                Ok(SlotSupplierOptions::Custom(Arc::new(ssb)))
+            }
             _ => cx.throw_type_error("Invalid slot supplier type"),
         }
+    }
+}
+
+struct SlotSupplierBridge<SK> {
+    inner: Root<JsObject>,
+    _kind: PhantomData<SK>,
+}
+
+#[async_trait::async_trait]
+impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
+    type SlotKind = SK;
+
+    async fn reserve_slot(&self, ctx: &dyn SlotReservationContext) -> SlotSupplierPermit {
+        todo!()
+    }
+
+    fn try_reserve_slot(&self, ctx: &dyn SlotReservationContext) -> Option<SlotSupplierPermit> {
+        todo!()
+    }
+
+    fn mark_slot_used(&self, info: &<Self::SlotKind as SlotKind>::Info) {
+        todo!()
+    }
+
+    fn release_slot(&self, ctx: &dyn SlotReleaseContext<SlotKind = Self::SlotKind>) {
+        todo!()
     }
 }

@@ -1,8 +1,13 @@
 import {
   FixedSizeSlotSupplier,
   ResourceBasedTunerOptions,
+  CustomSlotSupplier,
+  SlotInfo,
   WorkerTuner as NativeWorkerTuner,
   SlotSupplier as NativeSlotSupplier,
+  WorkflowSlotInfo,
+  ActivitySlotInfo,
+  LocalActivitySlotInfo,
 } from '@temporalio/core-bridge';
 import { Duration, msToNumber } from '@temporalio/common/lib/time';
 
@@ -98,155 +103,6 @@ export interface ResourceBasedTuner {
    * slots with 50ms ramp throttle
    */
   localActivityTaskSlotOptions?: ResourceBasedSlotOptions;
-}
-
-export type SlotInfo = WorkflowSlotInfo | ActivitySlotInfo | LocalActivitySlotInfo;
-
-export interface WorkflowSlotInfo {
-  type: 'workflow';
-  workflowId: string;
-  runId: string;
-}
-
-export interface ActivitySlotInfo {
-  type: 'activity';
-  activityId: string;
-}
-
-export interface LocalActivitySlotInfo {
-  type: 'local-activity';
-  activityId: string;
-}
-
-export interface CustomSlotSupplier<SI extends SlotInfo> {
-  type: 'custom';
-
-  /**
-   * This function is called before polling for new tasks. Your implementation should block until a
-   * slot is available then return a permit to use that slot.
-   *
-   * @param ctx The context for slot reservation.
-   * @param abortSignal The SDK may decide to abort the reservation request if it's no longer
-   *   needed. Implementations may clean up and then must reject the promise with AbortError.
-   * @returns A permit to use the slot which may be populated with your own data.
-   */
-  reserveSlot(ctx: SlotReserveContext, abortSignal: AbortSignal): Promise<SlotPermit>;
-
-  /**
-   * This function is called when trying to reserve slots for "eager" workflow and activity tasks.
-   * Eager tasks are those which are returned as a result of completing a workflow task, rather than
-   * from polling. Your implementation must not block, and If a slot is available, return a permit
-   * to use that slot.
-   *
-   * @param ctx The context for slot reservation.
-   * @returns Maybe a permit to use the slot which may be populated with your own data.
-   */
-  tryReserveSlot(ctx: SlotReserveContext): SlotPermit | undefined;
-
-  /**
-   * This function is called once a slot is actually being used to process some task, which may be
-   * some time after the slot was reserved originally. For example, if there is no work for a
-   * worker, a number of slots equal to the number of active pollers may already be reserved, but
-   * none of them are being used yet. This call should be non-blocking.
-   *
-   * @param ctx The context for marking a slot as used.
-   */
-  markSlotUsed(slot: SlotMarkUsedContext<SI>): void;
-
-  /**
-   * This function is called once a permit is no longer needed. This could be because the task has
-   * finished, whether successfully or not, or because the slot was no longer needed (ex: the number
-   * of active pollers decreased). This call should be non-blocking.
-   *
-   * @param ctx The context for releasing a slot.
-   */
-  releaseSlot(slot: SlotReleaseContext<SI>): void;
-}
-
-export interface SlotPermit {}
-
-export interface SlotReserveContext {
-  /**
-   * The type of slot trying to be reserved
-   */
-  slotType: SlotInfo['type'];
-  /**
-   * The name of the task queue for which this reservation request is associated
-   */
-  taskQueue: string;
-  /**
-   * The identity of the worker that is requesting the reservation
-   */
-  workerIdentity: string;
-  /**
-   * The build id of the worker that is requesting the reservation
-   */
-  workerBuildId: string;
-  /**
-   * True iff this is a reservation for a sticky poll for a workflow task
-   */
-  isSticky: boolean;
-}
-
-export interface SlotMarkUsedContext<SI extends SlotInfo> {
-  /**
-   * Info about the task that will be using the slot
-   */
-  slotInfo: SI;
-  /**
-   * The permit that was issued when the slot was reserved
-   */
-  permit: SlotPermit;
-}
-
-/**
- * The reason a slot is being released
- */
-export type SlotReleaseReason = TaskCompleteReason | WillRetryReason | NeverUsedReason | ErrorReason;
-
-/**
- * The task completed (whether successfully or not)
- */
-export interface TaskCompleteReason {
-  reason: 'task-complete';
-}
-
-/**
- * The task failed but will be retried
- */
-export interface WillRetryReason {
-  reason: 'will-retry';
-}
-
-/**
- * The slot was never used
- */
-export interface NeverUsedReason {
-  reason: 'never-used';
-}
-
-/**
- * Some error was encountered before the slot could be used
- */
-export interface ErrorReason {
-  reason: 'error';
-  error: Error;
-}
-
-export interface SlotReleaseContext<SI extends SlotInfo> {
-  /**
-   * The reason the slot is being released
-   */
-  reason: SlotReleaseReason;
-  /**
-   * Info about the task that used this slot, if any. A slot may be released without being used in
-   * the event a poll times out.
-   */
-  slotInfo?: SI;
-  /**
-   * The permit that was issued when the slot was reserved
-   */
-  permit: SlotPermit;
 }
 
 export function asNativeTuner(tuner: WorkerTuner): NativeWorkerTuner {
