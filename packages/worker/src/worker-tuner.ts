@@ -125,12 +125,12 @@ export interface CustomSlotSupplier<SI extends SlotInfo> {
    * This function is called before polling for new tasks. Your implementation should block until a
    * slot is available then return a permit to use that slot.
    *
-   * // TODO: How to handle cancellation? AbortController? CancelToken?
-   *
    * @param ctx The context for slot reservation.
+   * @param abortSignal The SDK may decide to abort the reservation request if it's no longer
+   *   needed. Implementations may clean up and then must reject the promise with AbortError.
    * @returns A permit to use the slot which may be populated with your own data.
    */
-  reserveSlot(ctx: SlotReserveContext): Promise<SlotPermit>;
+  reserveSlot(ctx: SlotReserveContext, abortSignal: AbortSignal): Promise<SlotPermit>;
 
   /**
    * This function is called when trying to reserve slots for "eager" workflow and activity tasks.
@@ -186,11 +186,6 @@ export interface SlotReserveContext {
    * True iff this is a reservation for a sticky poll for a workflow task
    */
   isSticky: boolean;
-
-  /**
-   * Returns the number of currently outstanding slot permits, whether used or un-used.
-   */
-  numIssuedSlots(): number;
 }
 
 export interface SlotMarkUsedContext<SI extends SlotInfo> {
