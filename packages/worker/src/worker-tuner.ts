@@ -37,7 +37,7 @@ export interface TunerHolder {
 export type SlotSupplier<SI extends SlotInfo> =
   | ResourceBasedSlotsForType
   | FixedSizeSlotSupplier
-  | UserSlotSupplier<SI>;
+  | CustomSlotSupplier<SI>;
 
 /**
  * Resource based slot supplier options for a specific kind of slot.
@@ -55,15 +55,20 @@ type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
  * @experimental
  */
 export interface ResourceBasedSlotOptions {
-  // Amount of slots that will be issued regardless of any other checks.
-  // Defaults to 2 for workflow tasks and 1 for activity tasks.
+  /**
+   * Amount of slots that will be issued regardless of any other checks.
+   * Defaults to 2 for workflow tasks and 1 for activity tasks.
+   */
   minimumSlots?: number;
-  // Maximum amount of slots permitted
-  // Defaults to 1000 for workflow tasks and 2000 for activity tasks.
+  /**
+   * Maximum amount of slots permitted
+   * Defaults to 1000 for workflow tasks and 2000 for activity tasks.
+   */
   maximumSlots?: number;
-  // Minimum time we will wait (after passing the minimum slots number) between handing out new
-  // slots
-  // Defaults to 10ms for workflow tasks and 50ms for activity tasks.
+  /**
+   * Minimum time we will wait (after passing the minimum slots number) between handing out new
+   * slots. Defaults to 10ms for workflow tasks and 50ms for activity tasks.
+   */
   rampThrottle?: Duration;
 }
 
@@ -74,16 +79,24 @@ export interface ResourceBasedSlotOptions {
  * @experimental
  */
 export interface ResourceBasedTuner {
-  // Options for the tuner
+  /**
+   * Options for the tuner
+   */
   tunerOptions: ResourceBasedTunerOptions;
-  // Options for workflow task slots. Defaults to a minimum of 2 slots and a maximum of 1000 slots
-  // with no ramp throttle
+  /**
+   * Options for workflow task slots. Defaults to a minimum of 2 slots and a maximum of 1000 slots
+   * with no ramp throttle
+   */
   workflowTaskSlotOptions?: ResourceBasedSlotOptions;
-  // Options for activity task slots. Defaults to a minimum of 1 slots and a maximum of 2000 slots
-  // with 50ms ramp throttle
+  /**
+   * Options for activity task slots. Defaults to a minimum of 1 slots and a maximum of 2000 slots
+   * with 50ms ramp throttle
+   */
   activityTaskSlotOptions?: ResourceBasedSlotOptions;
-  // Options for local activity task slots. Defaults to a minimum of 1 slots and a maximum of 2000
-  // slots with 50ms ramp throttle
+  /**
+   * Options for local activity task slots. Defaults to a minimum of 1 slots and a maximum of 2000
+   * slots with 50ms ramp throttle
+   */
   localActivityTaskSlotOptions?: ResourceBasedSlotOptions;
 }
 
@@ -105,8 +118,8 @@ export interface LocalActivitySlotInfo {
   activityId: string;
 }
 
-export interface UserSlotSupplier<SI extends SlotInfo> {
-  type: 'user';
+export interface CustomSlotSupplier<SI extends SlotInfo> {
+  type: 'custom';
 
   /**
    * This function is called before polling for new tasks. Your implementation should block until a
@@ -150,63 +163,94 @@ export interface UserSlotSupplier<SI extends SlotInfo> {
   releaseSlot(slot: SlotReleaseContext<SI>): void;
 }
 
-export interface SlotPermit {
-  // Use this field to associate any data you like with a particular slot
-  data?: any;
-}
+export interface SlotPermit {}
 
 export interface SlotReserveContext {
-  // The name of the task queue for which this reservation request is associated
+  /**
+   * The type of slot trying to be reserved
+   */
+  slotType: SlotInfo['type'];
+  /**
+   * The name of the task queue for which this reservation request is associated
+   */
   taskQueue: string;
-  // The build id of the worker that is requesting the reservation
+  /**
+   * The identity of the worker that is requesting the reservation
+   */
   workerIdentity: string;
-  // The identity of the worker that is requesting the reservation
+  /**
+   * The build id of the worker that is requesting the reservation
+   */
   workerBuildId: string;
-  // True iff this is a reservation for a sticky poll for a workflow task
+  /**
+   * True iff this is a reservation for a sticky poll for a workflow task
+   */
   isSticky: boolean;
 
-  // Returns the number of currently outstanding slot permits, whether used or un-used.
+  /**
+   * Returns the number of currently outstanding slot permits, whether used or un-used.
+   */
   numIssuedSlots(): number;
 }
 
 export interface SlotMarkUsedContext<SI extends SlotInfo> {
-  // Info about the task that will be using the slot
+  /**
+   * Info about the task that will be using the slot
+   */
   slotInfo: SI;
-  // The permit that was issued when the slot was reserved
+  /**
+   * The permit that was issued when the slot was reserved
+   */
   permit: SlotPermit;
 }
 
-// The reason a slot is being released
+/**
+ * The reason a slot is being released
+ */
 export type SlotReleaseReason = TaskCompleteReason | WillRetryReason | NeverUsedReason | ErrorReason;
 
-// The task completed (whether successfully or not)
+/**
+ * The task completed (whether successfully or not)
+ */
 export interface TaskCompleteReason {
   reason: 'task-complete';
 }
 
-// The task failed but will be retried
+/**
+ * The task failed but will be retried
+ */
 export interface WillRetryReason {
   reason: 'will-retry';
 }
 
-// The slot was never used
+/**
+ * The slot was never used
+ */
 export interface NeverUsedReason {
   reason: 'never-used';
 }
 
-// Some error was encountered before the slot could be used
+/**
+ * Some error was encountered before the slot could be used
+ */
 export interface ErrorReason {
   reason: 'error';
   error: Error;
 }
 
 export interface SlotReleaseContext<SI extends SlotInfo> {
-  // The reason the slot is being released
+  /**
+   * The reason the slot is being released
+   */
   reason: SlotReleaseReason;
-  // Info about the task that used this slot, if any. A slot may be released without being used in
-  // the event a poll times out.
+  /**
+   * Info about the task that used this slot, if any. A slot may be released without being used in
+   * the event a poll times out.
+   */
   slotInfo?: SI;
-  // The permit that was issued when the slot was reserved
+  /**
+   * The permit that was issued when the slot was reserved
+   */
   permit: SlotPermit;
 }
 
