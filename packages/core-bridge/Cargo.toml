@@ -19,8 +19,8 @@ incremental = false
 [dependencies]
 futures = { version = "0.3", features = ["executor"] }
 log = "0.4"
-neon = { version = "0.10", default-features = false, features = ["napi-6", "event-queue-api"] }
-opentelemetry = "0.23"
+neon = { version = "1.0.0", default-features = false, features = ["napi-6"] }
+opentelemetry = "0.24"
 parking_lot = "0.12"
 prost = "0.13"
 prost-types = "0.13"
