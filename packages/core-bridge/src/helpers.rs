@@ -199,7 +199,7 @@ pub fn serde_value_to_js_value<'a>(
         serde_json::Value::Bool(b) => Ok(cx.boolean(b).upcast()),
         serde_json::Value::Null => Ok(cx.null().upcast()),
         serde_json::Value::Array(vec) => {
-            let arr: Handle<'a, JsArray> = JsArray::new(cx, vec.len() as u32);
+            let arr: Handle<'a, JsArray> = JsArray::new(cx, vec.len());
             for (i, v) in vec.into_iter().enumerate() {
                 let v = serde_value_to_js_value(cx, v)?;
                 arr.set(cx, i as u32, v)?;
