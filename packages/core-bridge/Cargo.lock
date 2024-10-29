@@ -1265,6 +1265,7 @@ dependencies = [
  "semver",
  "send_wrapper",
  "smallvec",
+ "tokio",
 ]
 
 [[package]]
@@ -2467,6 +2468,7 @@ dependencies = [
 name = "temporal-sdk-typescript-bridge"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "futures",
  "log",
  "neon",

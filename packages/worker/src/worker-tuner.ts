@@ -109,9 +109,9 @@ export function asNativeTuner(tuner: WorkerTuner): NativeWorkerTuner {
   if (isTunerHolder(tuner)) {
     let tunerOptions = undefined;
     const retme = {
-      workflowTaskSlotSupplier: fixupResourceBasedOptions(tuner.workflowTaskSlotSupplier, 'workflow'),
-      activityTaskSlotSupplier: fixupResourceBasedOptions(tuner.activityTaskSlotSupplier, 'activity'),
-      localActivityTaskSlotSupplier: fixupResourceBasedOptions(tuner.localActivityTaskSlotSupplier, 'activity'),
+      workflowTaskSlotSupplier: nativeifySupplier(tuner.workflowTaskSlotSupplier, 'workflow'),
+      activityTaskSlotSupplier: nativeifySupplier(tuner.activityTaskSlotSupplier, 'activity'),
+      localActivityTaskSlotSupplier: nativeifySupplier(tuner.localActivityTaskSlotSupplier, 'activity'),
     };
     for (const supplier of [
       retme.workflowTaskSlotSupplier,
@@ -164,13 +164,11 @@ const isTunerHolder = (tuner: WorkerTuner): tuner is TunerHolder =>
   Object.hasOwnProperty.call(tuner, 'workflowTaskSlotSupplier');
 const isResourceBased = (sup: SlotSupplier<any> | NativeSlotSupplier): sup is ResourceBasedSlotsForType =>
   sup.type === 'resource-based';
+const isCustom = (sup: SlotSupplier<any> | NativeSlotSupplier): sup is CustomSlotSupplier<any> => sup.type === 'custom';
 
 type ActOrWorkflow = 'activity' | 'workflow';
 
-function fixupResourceBasedOptions<SI extends SlotInfo>(
-  supplier: SlotSupplier<SI>,
-  kind: ActOrWorkflow
-): NativeSlotSupplier {
+function nativeifySupplier<SI extends SlotInfo>(supplier: SlotSupplier<SI>, kind: ActOrWorkflow): NativeSlotSupplier {
   if (isResourceBased(supplier)) {
     const tunerOptions = supplier.tunerOptions;
     const defaulted = addResourceBasedSlotDefaults(supplier, kind);
@@ -181,7 +179,6 @@ function fixupResourceBasedOptions<SI extends SlotInfo>(
       rampThrottleMs: msToNumber(defaulted.rampThrottle),
     };
   }
-  // TODO: If user setup callbacks etc
   return supplier;
 }
 

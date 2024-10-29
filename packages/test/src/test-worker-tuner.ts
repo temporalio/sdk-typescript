@@ -9,10 +9,26 @@ import {
   SlotReserveContext,
 } from '@temporalio/worker';
 import { AbortSignal } from 'node-fetch/externals';
+import * as wf from '@temporalio/workflow';
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
+const activities = {
+  async hiActivity(): Promise<string> {
+    return 'hi';
+  },
+};
+
+const proxyActivities = wf.proxyActivities<typeof activities>({
+  startToCloseTimeout: '5s',
+});
+
 export async function successString(): Promise<string> {
+  return 'success';
+}
+
+export async function doesActivity(): Promise<string> {
+  await proxyActivities.hiActivity();
   return 'success';
 }
 
@@ -153,18 +169,22 @@ class MySS<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
   readonly type = 'custom';
 
   async reserveSlot(ctx: SlotReserveContext, abortSignal: AbortSignal): Promise<SlotPermit> {
-    console.log('reserveSlot: ', ctx.slotType);
-    return {};
+    console.log('reserveSlot: ', ctx);
+    return { somevalue: true };
   }
 
   tryReserveSlot(ctx: SlotReserveContext): SlotPermit | undefined {
-    console.log('tryReserveSlot');
+    console.log('tryReserveSlot', ctx);
     return {};
   }
 
-  markSlotUsed(slot: SlotMarkUsedContext<SI>): void {}
+  markSlotUsed(slot: SlotMarkUsedContext<SI>): void {
+    console.log('markSlotUsed', slot.permit);
+  }
 
-  releaseSlot(slot: SlotReleaseContext<SI>): void {}
+  releaseSlot(slot: SlotReleaseContext<SI>): void {
+    console.log('release', slot.permit);
+  }
 }
 
 test('Custom slot supplier works', async (t) => {
@@ -172,12 +192,13 @@ test('Custom slot supplier works', async (t) => {
   const slotSupplier = new MySS();
 
   const worker = await createWorker({
+    activities,
     tuner: {
       workflowTaskSlotSupplier: slotSupplier,
       activityTaskSlotSupplier: slotSupplier,
       localActivityTaskSlotSupplier: slotSupplier,
     },
   });
-  const result = await worker.runUntil(executeWorkflow(successString));
+  const result = await worker.runUntil(executeWorkflow(doesActivity));
   t.is(result, 'success');
 });
