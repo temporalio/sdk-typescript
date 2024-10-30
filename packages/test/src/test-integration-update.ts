@@ -14,6 +14,7 @@ const test = makeTestFunction({
   workflowsPath: __filename,
   workflowEnvironmentOpts: {
     server: {
+      ui: true,
       extraArgs: [
         '--dynamic-config-value',
         `history.longPollExpirationInterval="${LONG_POLL_EXPIRATION_INTERVAL_SECONDS}s"`,
