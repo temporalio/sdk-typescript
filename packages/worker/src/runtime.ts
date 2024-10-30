@@ -438,11 +438,7 @@ export class Runtime {
    * Hidden since it is meant to be used internally by the testing framework.
    * @hidden
    */
-  public async shutdownEphemeralServer(server: native.EphemeralServer): Promise<void> {
-    await promisify(native.shutdownEphemeralServer)(server);
-    this.backRefs.delete(server);
-    await this.shutdownIfIdle();
-  }
+  public async shutdownEphemeralServer(server: native.EphemeralServer): Promise<void> {}
 
   protected async createNative<
     R extends TrackedNativeObject,

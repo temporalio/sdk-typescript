@@ -302,8 +302,10 @@ export class TestWorkflowEnvironment {
   ): Promise<TestWorkflowEnvironment> {
     const { supportsTimeSkipping, namespace, ...rest } = opts;
     const optsWithDefaults = addDefaults(filterNullAndUndefined(rest));
-    const server = await Runtime.instance().createEphemeralServer(optsWithDefaults.server);
-    const address = getEphemeralServerTarget(server);
+    const server = {
+      type: 'EphemeralServer',
+    } as EphemeralServer;
+    const address = 'localhost:7233';
 
     const nativeConnection = await NativeConnection.connect({ address });
     const connection = await Connection.connect({ address });
