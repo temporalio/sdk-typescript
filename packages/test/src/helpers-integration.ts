@@ -92,7 +92,6 @@ export function makeTestFunction(opts: {
         ],
       },
     });
-    await registerDefaultCustomSearchAttributes(env.connection);
     t.context = {
       env,
       workflowBundle,
