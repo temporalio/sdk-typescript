@@ -178,12 +178,12 @@ class MySS<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
     return {};
   }
 
-  markSlotUsed(slot: SlotMarkUsedContext<SI>): void {
-    console.log('markSlotUsed', slot.permit);
+  markSlotUsed(ctx: SlotMarkUsedContext<SI>): void {
+    console.log('markSlotUsed', ctx);
   }
 
-  releaseSlot(slot: SlotReleaseContext<SI>): void {
-    console.log('release', slot.permit);
+  releaseSlot(ctx: SlotReleaseContext<SI>): void {
+    console.log('release', ctx);
   }
 }
 

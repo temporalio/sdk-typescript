@@ -10,8 +10,8 @@ use std::marker::PhantomData;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use temporal_client::HttpConnectProxyOptions;
 use temporal_sdk_core::api::worker::{
-    SlotKind, SlotKindType, SlotReleaseContext, SlotReservationContext, SlotSupplier,
-    SlotSupplierPermit,
+    SlotKind, SlotKindType, SlotMarkUsedContext, SlotReleaseContext, SlotReservationContext,
+    SlotSupplier, SlotSupplierPermit,
 };
 use temporal_sdk_core::{
     api::telemetry::{Logger, MetricTemporality, TelemetryOptions, TelemetryOptionsBuilder},
@@ -654,6 +654,10 @@ struct SlotSupplierBridge<SK> {
     _kind: PhantomData<SK>,
 }
 
+struct BridgePermitData {
+    permit: Arc<Root<JsObject>>,
+}
+
 #[async_trait::async_trait]
 impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
     type SlotKind = SK;
@@ -694,7 +698,9 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
 
             match callback_fut.await {
                 Ok(res) => {
-                    let permit = SlotSupplierPermit::with_user_data(res);
+                    let permit = SlotSupplierPermit::with_user_data(BridgePermitData {
+                        permit: Arc::new(res),
+                    });
                     return permit;
                 }
                 Err(e) => {
@@ -743,12 +749,20 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
         callback_res.map(|res| SlotSupplierPermit::with_user_data(res))
     }
 
-    fn mark_slot_used(&self, info: &<Self::SlotKind as SlotKind>::Info) {
+    fn mark_slot_used(&self, ctx: &dyn SlotMarkUsedContext<SlotKind = Self::SlotKind>) {
         let inner = self.inner.clone();
         let cb = self.mark_used_cb.clone();
+        let permit_data = ctx
+            .permit()
+            .user_data::<BridgePermitData>()
+            .map(|d| d.permit.clone());
 
         self.channel.send(move |mut cx| {
             let context = JsObject::new(&mut cx);
+            if let Some(permit_data) = permit_data {
+                let pd = permit_data.to_inner(&mut cx);
+                context.set(&mut cx, "permit", pd)?;
+            }
             let context = context.as_value(&mut cx);
 
             let this = (*inner).clone(&mut cx).into_inner(&mut cx);
