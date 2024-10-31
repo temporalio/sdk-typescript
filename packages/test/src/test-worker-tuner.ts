@@ -10,6 +10,7 @@ import {
 } from '@temporalio/worker';
 import { AbortSignal } from 'node-fetch/externals';
 import * as wf from '@temporalio/workflow';
+import { ExecutionContext } from 'ava';
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
@@ -167,29 +168,60 @@ test('Cannot construct worker tuner with multiple different tuner options', asyn
 
 class MySS<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
   readonly type = 'custom';
+  reserved = 0;
+  released = 0;
+  markedUsed = 0;
+  releasedWithInfo = 0;
+  seenStickyFlags = new Set<boolean>();
+  seenSlotTypes = new Set<string>();
+  t: ExecutionContext;
+
+  constructor(testCtx: ExecutionContext) {
+    this.t = testCtx;
+  }
 
   async reserveSlot(ctx: SlotReserveContext, abortSignal: AbortSignal): Promise<SlotPermit> {
-    console.log('reserveSlot: ', ctx);
-    return { somevalue: true };
+    // Ensure all fields are present
+    this.reserveAsserts(ctx);
+    return { isTry: false };
   }
 
   tryReserveSlot(ctx: SlotReserveContext): SlotPermit | undefined {
-    console.log('tryReserveSlot', ctx);
-    return {};
+    this.reserveAsserts(ctx);
+    return { isTry: true };
   }
 
   markSlotUsed(ctx: SlotMarkUsedContext<SI>): void {
-    console.log('markSlotUsed', ctx);
+    this.t.truthy(ctx.slotInfo);
+    this.t.truthy(ctx.permit);
+    this.markedUsed++;
   }
 
   releaseSlot(ctx: SlotReleaseContext<SI>): void {
-    console.log('release', ctx);
+    this.t.truthy(ctx.permit);
+    // Info may not be present for un-used slots
+    if (ctx.slotInfo !== undefined) {
+      this.releasedWithInfo++;
+    }
+    this.released++;
+  }
+
+  private reserveAsserts(ctx: SlotReserveContext) {
+    // Ensure all fields are present
+    this.t.truthy(ctx.slotType);
+    this.seenSlotTypes.add(ctx.slotType);
+    this.t.truthy(ctx.taskQueue);
+    this.t.truthy(ctx.workerIdentity);
+    this.t.truthy(ctx.workerBuildId);
+    this.t.not(ctx.isSticky, undefined);
+    this.seenStickyFlags.add(ctx.isSticky);
+    this.reserved++;
   }
 }
 
 test('Custom slot supplier works', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
-  const slotSupplier = new MySS();
+  const slotSupplier = new MySS(t);
 
   const worker = await createWorker({
     activities,
@@ -201,4 +233,10 @@ test('Custom slot supplier works', async (t) => {
   });
   const result = await worker.runUntil(executeWorkflow(doesActivity));
   t.is(result, 'success');
+  // All reserved slots will be released - make sure all calls made it through.
+  t.is(slotSupplier.reserved, slotSupplier.released);
+  t.is(slotSupplier.markedUsed, slotSupplier.releasedWithInfo);
+  // TODO: See if it makes sense to change core to lazily to LA reservation
+  t.like([...slotSupplier.seenSlotTypes], ['local-activity', 'activity', 'workflow']);
+  t.like([...slotSupplier.seenStickyFlags], [false, true]);
 });

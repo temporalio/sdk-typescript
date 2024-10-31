@@ -172,45 +172,7 @@ export interface SlotMarkUsedContext<SI extends SlotInfo> {
   permit: SlotPermit;
 }
 
-/**
- * The reason a slot is being released
- */
-export type SlotReleaseReason = TaskCompleteReason | WillRetryReason | NeverUsedReason | ErrorReason;
-
-/**
- * The task completed (whether successfully or not)
- */
-export interface TaskCompleteReason {
-  reason: 'task-complete';
-}
-
-/**
- * The task failed but will be retried
- */
-export interface WillRetryReason {
-  reason: 'will-retry';
-}
-
-/**
- * The slot was never used
- */
-export interface NeverUsedReason {
-  reason: 'never-used';
-}
-
-/**
- * Some error was encountered before the slot could be used
- */
-export interface ErrorReason {
-  reason: 'error';
-  error: Error;
-}
-
 export interface SlotReleaseContext<SI extends SlotInfo> {
-  /**
-   * The reason the slot is being released
-   */
-  reason: SlotReleaseReason;
   /**
    * Info about the task that used this slot, if any. A slot may be released without being used in
    * the event a poll times out.

@@ -6,6 +6,7 @@ use neon::{
     prelude::*,
     types::{JsBoolean, JsNumber, JsString},
 };
+use prost::Message;
 use std::marker::PhantomData;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use temporal_client::HttpConnectProxyOptions;
@@ -746,7 +747,11 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
         }))
         .expect("javascript event loop must work");
 
-        callback_res.map(|res| SlotSupplierPermit::with_user_data(res))
+        callback_res.map(|res| {
+            SlotSupplierPermit::with_user_data(BridgePermitData {
+                permit: Arc::new(res),
+            })
+        })
     }
 
     fn mark_slot_used(&self, ctx: &dyn SlotMarkUsedContext<SlotKind = Self::SlotKind>) {
@@ -756,6 +761,8 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
             .permit()
             .user_data::<BridgePermitData>()
             .map(|d| d.permit.clone());
+        // Get the slot info as bytes
+        let slot_info_bytes = ctx.info().encode_to_vec();
 
         self.channel.send(move |mut cx| {
             let context = JsObject::new(&mut cx);
@@ -763,6 +770,8 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
                 let pd = permit_data.to_inner(&mut cx);
                 context.set(&mut cx, "permit", pd)?;
             }
+            let slot_info = JsBuffer::from_slice(&mut cx, &slot_info_bytes)?;
+            context.set(&mut cx, "slotInfo", slot_info)?;
             let context = context.as_value(&mut cx);
 
             let this = (*inner).clone(&mut cx).into_inner(&mut cx);
@@ -778,9 +787,23 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
     fn release_slot(&self, ctx: &dyn SlotReleaseContext<SlotKind = Self::SlotKind>) {
         let inner = self.inner.clone();
         let cb = self.release_cb.clone();
+        let permit_data = ctx
+            .permit()
+            .user_data::<BridgePermitData>()
+            .map(|d| d.permit.clone());
+        // Get the slot info as bytes
+        let slot_info_bytes = ctx.info().map(|m| m.encode_to_vec());
 
         self.channel.send(move |mut cx| {
             let context = JsObject::new(&mut cx);
+            if let Some(permit_data) = permit_data {
+                let pd = permit_data.to_inner(&mut cx);
+                context.set(&mut cx, "permit", pd)?;
+            }
+            if let Some(slot_info_bytes) = slot_info_bytes {
+                let slot_info = JsBuffer::from_slice(&mut cx, &slot_info_bytes)?;
+                context.set(&mut cx, "slotInfo", slot_info)?;
+            }
             let context = context.as_value(&mut cx);
 
             let this = (*inner).clone(&mut cx).into_inner(&mut cx);
