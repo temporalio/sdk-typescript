@@ -10,6 +10,7 @@ import {
   Client,
   Connection,
   defaultGrpcRetryOptions,
+  isGrpcCancelledError,
   isGrpcServiceError,
   isRetryableError,
   makeGrpcRetryInterceptor,
@@ -123,7 +124,7 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
   const ctrl = new AbortController();
   setTimeout(() => ctrl.abort(), 10);
   const err = await t.throwsAsync(conn.withAbortSignal(ctrl.signal, () => conn.workflowService.updateNamespace({})));
-  t.true(isGrpcServiceError(err) && err.code === grpc.status.CANCELLED);
+  t.true(isGrpcCancelledError(err));
 });
 
 test('Connection can connect using "[ipv6]:port" address', async (t) => {
