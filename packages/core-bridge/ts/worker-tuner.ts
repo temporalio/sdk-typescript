@@ -117,7 +117,7 @@ export interface CustomSlotSupplier<SI extends SlotInfo> {
    * @param ctx The context for slot reservation.
    * @returns Maybe a permit to use the slot which may be populated with your own data.
    */
-  tryReserveSlot(ctx: SlotReserveContext): SlotPermit | undefined;
+  tryReserveSlot(ctx: SlotReserveContext): SlotPermit | null;
 
   /**
    * This function is called once a slot is actually being used to process some task, which may be

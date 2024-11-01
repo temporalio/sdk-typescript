@@ -106,6 +106,23 @@ macro_rules! js_optional_getter {
 
 pub(crate) use js_optional_getter;
 
+macro_rules! js_getter {
+    ($js_cx:expr, $js_obj:expr, $prop_name:expr, $js_type:ty) => {
+        match get_optional($js_cx, $js_obj, $prop_name) {
+            None => $js_cx.throw_type_error(format!("{} must be defined", $prop_name))?,
+            Some(val) => {
+                if val.is_a::<$js_type, _>($js_cx) {
+                    val.downcast_or_throw::<$js_type, _>($js_cx)?
+                } else {
+                    $js_cx.throw_type_error(format!("Invalid {}", $prop_name))?
+                }
+            }
+        }
+    };
+}
+
+pub(crate) use js_getter;
+
 macro_rules! js_optional_value_getter {
     ($js_cx:expr, $js_obj:expr, $prop_name:expr, $js_type:ty) => {
         js_optional_getter!($js_cx, $js_obj, $prop_name, $js_type).map(|v| v.value($js_cx))

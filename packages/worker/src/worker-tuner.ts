@@ -191,12 +191,13 @@ class ErrorLoggingSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplie
     });
   }
 
-  tryReserveSlot(ctx: SlotReserveContext): SlotPermit | undefined {
+  tryReserveSlot(ctx: SlotReserveContext): SlotPermit | null {
     try {
       return this.supplier.tryReserveSlot(ctx);
     } catch (err: any) {
       this.logger.error('Error in custom slot supplier `tryReserveSlot`', err);
     }
+    return null;
   }
 
   markSlotUsed(ctx: SlotMarkUsedContext<SI>): void {

@@ -111,14 +111,6 @@ pub enum RuntimeRequest {
         key: String,
         callback: Root<JsFunction>,
     },
-    // GenericCallback {
-    //     callback: Arc<Root<JsFunction>>,
-    //     result_fn: Box<
-    //         dyn for<'a> FnOnce(&mut TaskContext<'a>) -> NeonResult<Handle<'a, JsValue>>
-    //             + Send
-    //             + 'static,
-    //     >,
-    // },
 }
 
 /// Builds a tokio runtime and starts polling on [RuntimeRequest]s via an internal channel.

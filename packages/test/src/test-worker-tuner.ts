@@ -185,7 +185,7 @@ class MySS<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
     return { isTry: false };
   }
 
-  tryReserveSlot(ctx: SlotReserveContext): SlotPermit | undefined {
+  tryReserveSlot(ctx: SlotReserveContext): SlotPermit | null {
     this.reserveAsserts(ctx);
     return { isTry: true };
   }
@@ -257,8 +257,8 @@ class BlockingSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplier<SI
     throw new Error('Should not reach here');
   }
 
-  tryReserveSlot(_: SlotReserveContext): SlotPermit | undefined {
-    return undefined;
+  tryReserveSlot(_: SlotReserveContext): SlotPermit | null {
+    return null;
   }
 
   markSlotUsed(_: SlotMarkUsedContext<SI>): void {}
@@ -298,7 +298,7 @@ class ThrowingSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplier<SI
     throw new Error('I always throw');
   }
 
-  tryReserveSlot(_: SlotReserveContext): SlotPermit | undefined {
+  tryReserveSlot(_: SlotReserveContext): SlotPermit | null {
     throw new Error('I always throw');
   }
 
