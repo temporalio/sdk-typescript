@@ -101,6 +101,11 @@ export interface CustomSlotSupplier<SI extends SlotInfo> {
    * The only acceptable exception to throw is AbortError, any other exceptions thrown will be
    * logged and ignored.
    *
+   * The value inside the returned promise should be an object, however other types will still count
+   * as having issued a permit. Including undefined or null. Returning undefined or null does *not*
+   * mean you have not issued a permit. Implementations are expected to block until a meaningful
+   * permit can be issued.
+   *
    * @param ctx The context for slot reservation.
    * @param abortSignal The SDK may decide to abort the reservation request if it's no longer
    *   needed. Implementations may clean up and then must reject the promise with AbortError.

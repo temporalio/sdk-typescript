@@ -193,6 +193,7 @@ class MySS<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
   markSlotUsed(ctx: SlotMarkUsedContext<SI>): void {
     this.t.truthy(ctx.slotInfo);
     this.t.truthy(ctx.permit);
+    this.t.true((ctx.permit as any).isTry !== undefined);
     this.markedUsed++;
   }
 
@@ -290,7 +291,7 @@ class ThrowingSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplier<SI
 
   markedUsed = false;
 
-  async reserveSlot(ctx: SlotReserveContext, __: AbortSignal): Promise<SlotPermit> {
+  async reserveSlot(ctx: SlotReserveContext, _: AbortSignal): Promise<SlotPermit> {
     // Give out one workflow tasks until one gets used
     if (ctx.slotType === 'workflow' && !this.markedUsed) {
       return {};
@@ -315,6 +316,39 @@ class ThrowingSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplier<SI
 test('Throwing slot supplier avoids blowing everything up', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
   const slotSupplier = new ThrowingSlotSupplier();
+
+  const worker = await createWorker({
+    activities,
+    tuner: {
+      workflowTaskSlotSupplier: slotSupplier,
+      activityTaskSlotSupplier: slotSupplier,
+      localActivityTaskSlotSupplier: slotSupplier,
+    },
+  });
+  const result = await worker.runUntil(executeWorkflow(successString));
+  t.is(result, 'success');
+});
+
+class UndefinedSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
+  readonly type = 'custom';
+
+  async reserveSlot(ctx: SlotReserveContext, _: AbortSignal): Promise<SlotPermit> {
+    // I'm a bad cheater
+    return undefined as any;
+  }
+
+  tryReserveSlot(_: SlotReserveContext): SlotPermit | null {
+    return undefined as any;
+  }
+
+  markSlotUsed(_: SlotMarkUsedContext<SI>): void {}
+
+  releaseSlot(_: SlotReleaseContext<SI>): void {}
+}
+
+test('Undefined slot supplier avoids blowing everything up', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const slotSupplier = new UndefinedSlotSupplier();
 
   const worker = await createWorker({
     activities,

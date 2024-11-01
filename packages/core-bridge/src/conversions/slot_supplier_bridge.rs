@@ -1,5 +1,6 @@
 use crate::helpers::{get_optional, js_getter};
 use log::{error, warn};
+use neon::types::JsNull;
 use neon::{
     context::Context,
     context::FunctionContext,
@@ -63,6 +64,8 @@ impl Drop for CallAbortOnDrop {
     }
 }
 
+static PERMIT_DATA_FIELD: &str = "permit_data";
+
 #[async_trait::async_trait]
 impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
     type SlotKind = SK;
@@ -108,8 +111,9 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
                     let as_prom = val.downcast_or_throw::<JsPromise, _>(&mut cx)?;
                     let fut = as_prom.to_future(&mut cx, |mut cx, result| match result {
                         Ok(value) => {
-                            let as_obj = value.downcast_or_throw::<JsObject, _>(&mut cx)?;
-                            Ok(Ok(as_obj.root(&mut cx)))
+                            let permit_obj = JsObject::new(&mut cx);
+                            permit_obj.set(&mut cx, PERMIT_DATA_FIELD, value)?;
+                            Ok(Ok(permit_obj.root(&mut cx)))
                         }
                         Err(_) => Ok(Err(())),
                     })?;
@@ -173,11 +177,12 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
 
             let this = (*inner).clone(&mut cx).into_inner(&mut cx);
             let val = rcb.to_inner(&mut cx).call(&mut cx, this, [context])?;
-            if val.is_a::<JsUndefined, _>(&mut cx) {
+            if val.is_a::<JsUndefined, _>(&mut cx) || val.is_a::<JsNull, _>(&mut cx) {
                 return Ok(None);
             }
-            let as_obj = val.downcast_or_throw::<JsObject, _>(&mut cx)?;
-            Ok(Some(as_obj.root(&mut cx)))
+            let permit_obj = JsObject::new(&mut cx);
+            permit_obj.set(&mut cx, PERMIT_DATA_FIELD, val)?;
+            Ok(Some(permit_obj.root(&mut cx)))
         }));
 
         // Ignore errors, they'll be logged by JS
@@ -200,8 +205,9 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
 
         self.channel.send(move |mut cx| {
             let context = JsObject::new(&mut cx);
-            if let Some(permit_data) = permit_data {
-                let pd = permit_data.to_inner(&mut cx);
+            if let Some(permit_obj) = permit_data {
+                let ph: Handle<JsObject> = permit_obj.to_inner(&mut cx);
+                let pd = ph.get_value(&mut cx, PERMIT_DATA_FIELD)?;
                 context.set(&mut cx, "permit", pd)?;
             }
             let slot_info = JsBuffer::from_slice(&mut cx, &slot_info_bytes)?;
@@ -230,8 +236,9 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
 
         self.channel.send(move |mut cx| {
             let context = JsObject::new(&mut cx);
-            if let Some(permit_data) = permit_data {
-                let pd = permit_data.to_inner(&mut cx);
+            if let Some(permit_obj) = permit_data {
+                let ph: Handle<JsObject> = permit_obj.to_inner(&mut cx);
+                let pd = ph.get_value(&mut cx, PERMIT_DATA_FIELD)?;
                 context.set(&mut cx, "permit", pd)?;
             }
             if let Some(slot_info_bytes) = slot_info_bytes {
