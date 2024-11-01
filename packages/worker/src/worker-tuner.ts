@@ -186,7 +186,9 @@ class ErrorLoggingSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplie
     const abortController = new AbortController();
     registerAbort(() => abortController.abort(abortString));
     return await this.supplier.reserveSlot(ctx, abortController.signal).catch((err) => {
-      this.logger.error('Error in custom slot supplier `reserveSlot`', err);
+      if (err !== abortString) {
+        this.logger.error('Error in custom slot supplier `reserveSlot`', err);
+      }
       throw err;
     });
   }

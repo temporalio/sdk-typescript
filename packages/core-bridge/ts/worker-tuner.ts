@@ -111,7 +111,7 @@ export interface CustomSlotSupplier<SI extends SlotInfo> {
   /**
    * This function is called when trying to reserve slots for "eager" workflow and activity tasks.
    * Eager tasks are those which are returned as a result of completing a workflow task, rather than
-   * from polling. Your implementation must not block, and If a slot is available, return a permit
+   * from polling. Your implementation must not block, and if a slot is available, return a permit
    * to use that slot.
    *
    * @param ctx The context for slot reservation.

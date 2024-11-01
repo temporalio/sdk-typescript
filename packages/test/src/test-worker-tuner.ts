@@ -236,8 +236,8 @@ test('Custom slot supplier works', async (t) => {
   t.is(slotSupplier.reserved, slotSupplier.released);
   t.is(slotSupplier.markedUsed, slotSupplier.releasedWithInfo);
   // TODO: See if it makes sense to change core to lazily do LA reservation
-  t.like([...slotSupplier.seenSlotTypes], ['local-activity', 'activity', 'workflow']);
-  t.like([...slotSupplier.seenStickyFlags], [false, true]);
+  t.like([...slotSupplier.seenSlotTypes].sort(), ['local-activity', 'activity', 'workflow'].sort());
+  t.like([...slotSupplier.seenStickyFlags].sort(), [false, true].sort());
 });
 
 class BlockingSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
