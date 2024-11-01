@@ -332,7 +332,7 @@ test('Throwing slot supplier avoids blowing everything up', async (t) => {
 class UndefinedSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
   readonly type = 'custom';
 
-  async reserveSlot(ctx: SlotReserveContext, _: AbortSignal): Promise<SlotPermit> {
+  async reserveSlot(_: SlotReserveContext, __: AbortSignal): Promise<SlotPermit> {
     // I'm a bad cheater
     return undefined as any;
   }
