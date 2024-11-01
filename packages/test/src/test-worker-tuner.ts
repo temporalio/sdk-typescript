@@ -1,5 +1,5 @@
+import { ExecutionContext } from 'ava';
 import { ResourceBasedTunerOptions } from '@temporalio/core-bridge';
-import { helpers, makeTestFunction } from './helpers-integration';
 import {
   CustomSlotSupplier,
   SlotInfo,
@@ -8,9 +8,8 @@ import {
   SlotReleaseContext,
   SlotReserveContext,
 } from '@temporalio/worker';
-import { AbortSignal } from 'node-fetch/externals';
 import * as wf from '@temporalio/workflow';
-import { ExecutionContext } from 'ava';
+import { helpers, makeTestFunction } from './helpers-integration';
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
@@ -180,7 +179,7 @@ class MySS<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
     this.t = testCtx;
   }
 
-  async reserveSlot(ctx: SlotReserveContext, abortSignal: AbortSignal): Promise<SlotPermit> {
+  async reserveSlot(ctx: SlotReserveContext, _: AbortSignal): Promise<SlotPermit> {
     // Ensure all fields are present
     this.reserveAsserts(ctx);
     return { isTry: false };
@@ -236,7 +235,52 @@ test('Custom slot supplier works', async (t) => {
   // All reserved slots will be released - make sure all calls made it through.
   t.is(slotSupplier.reserved, slotSupplier.released);
   t.is(slotSupplier.markedUsed, slotSupplier.releasedWithInfo);
-  // TODO: See if it makes sense to change core to lazily to LA reservation
+  // TODO: See if it makes sense to change core to lazily do LA reservation
   t.like([...slotSupplier.seenSlotTypes], ['local-activity', 'activity', 'workflow']);
   t.like([...slotSupplier.seenStickyFlags], [false, true]);
+});
+
+class BlockingSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
+  readonly type = 'custom';
+
+  aborts = 0;
+
+  async reserveSlot(_: SlotReserveContext, abortSignal: AbortSignal): Promise<SlotPermit> {
+    abortSignal.throwIfAborted();
+    const abortPromise = new Promise<never>((_, reject) => {
+      abortSignal.addEventListener('abort', () => {
+        this.aborts++;
+        reject(abortSignal.reason);
+      });
+    });
+    await abortPromise;
+    throw new Error('Should not reach here');
+  }
+
+  tryReserveSlot(_: SlotReserveContext): SlotPermit | undefined {
+    return undefined;
+  }
+
+  markSlotUsed(_: SlotMarkUsedContext<SI>): void {}
+
+  releaseSlot(_: SlotReleaseContext<SI>): void {}
+}
+
+test('Custom slot supplier sees aborts', async (t) => {
+  const { createWorker } = helpers(t);
+  const slotSupplier = new BlockingSlotSupplier();
+
+  const worker = await createWorker({
+    activities,
+    tuner: {
+      workflowTaskSlotSupplier: slotSupplier,
+      activityTaskSlotSupplier: slotSupplier,
+      localActivityTaskSlotSupplier: slotSupplier,
+    },
+  });
+  const runprom = worker.run();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  worker.shutdown();
+  await runprom;
+  t.true(slotSupplier.aborts > 0);
 });

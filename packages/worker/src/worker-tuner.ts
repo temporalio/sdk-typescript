@@ -1,13 +1,14 @@
 import {
-  FixedSizeSlotSupplier,
-  ResourceBasedTunerOptions,
-  CustomSlotSupplier,
-  SlotInfo,
-  WorkerTuner as NativeWorkerTuner,
-  SlotSupplier as NativeSlotSupplier,
-  WorkflowSlotInfo,
   ActivitySlotInfo,
+  CustomSlotSupplier,
+  FixedSizeSlotSupplier,
   LocalActivitySlotInfo,
+  ResourceBasedTunerOptions,
+  SlotInfo,
+  SlotReserveContext,
+  SlotSupplier as NativeSlotSupplier,
+  WorkerTuner as NativeWorkerTuner,
+  WorkflowSlotInfo,
 } from '@temporalio/core-bridge';
 import { Duration, msToNumber } from '@temporalio/common/lib/time';
 
@@ -179,6 +180,26 @@ function nativeifySupplier<SI extends SlotInfo>(supplier: SlotSupplier<SI>, kind
       rampThrottleMs: msToNumber(defaulted.rampThrottle),
     };
   }
+  if (isCustom(supplier)) {
+    return new Proxy(supplier, {
+      get: (target, prop, receiver) => {
+        if (prop === 'reserveSlot') {
+          return async (ctx: SlotReserveContext, registerAbort: any) => {
+            const abortController = new AbortController();
+            registerAbort((r: string) => abortController.abort(r));
+            return await supplier.reserveSlot(ctx, abortController.signal);
+            /**
+             .catch((err) => {
+             console.error('Caught error', err);
+             })**/
+          };
+        } else {
+          return Reflect.get(target, prop, receiver);
+        }
+      },
+    });
+  }
+
   return supplier;
 }
 

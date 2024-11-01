@@ -247,6 +247,22 @@ fn snake_to_camel(input: String) -> String {
     }
 }
 
+// Useful to help debug JSObject contents
+pub fn log_js_object<'a, 'b, C: Context<'b>>(cx: &mut C, js_object: &Handle<'a, JsObject>) {
+    let global = cx.global_object();
+    let console = global
+        .get::<JsObject, _, _>(cx, "console")
+        .expect("Failed to get console object");
+
+    let log = console
+        .get::<JsFunction, _, _>(cx, "log")
+        .expect("Failed to get log function");
+
+    let args = vec![js_object.upcast()]; // Upcast js_object to JsValue
+    log.call(cx, console, args)
+        .expect("Failed to call console.log");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

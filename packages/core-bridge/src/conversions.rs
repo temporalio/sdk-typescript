@@ -1,5 +1,5 @@
 use crate::helpers::*;
-use log::error;
+use log::{error, warn};
 use neon::{
     context::Context,
     handle::Handle,
@@ -7,6 +7,7 @@ use neon::{
     types::{JsBoolean, JsNumber, JsString},
 };
 use prost::Message;
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use temporal_client::HttpConnectProxyOptions;
@@ -31,6 +32,7 @@ use temporal_sdk_core::{
     ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions, RetryConfig, SlotSupplierOptions,
     TlsConfig, TunerHolderOptionsBuilder, Url,
 };
+use tokio::sync::oneshot;
 
 pub enum EphemeralServerConfig {
     TestServer(TestServerConfig),
@@ -659,6 +661,27 @@ struct BridgePermitData {
     permit: Arc<Root<JsObject>>,
 }
 
+struct CallAbortOnDrop {
+    chan: Channel,
+    aborter: oneshot::Receiver<Root<JsFunction>>,
+}
+
+static ABORT_STR: &str = "__aborted by core__";
+
+impl Drop for CallAbortOnDrop {
+    fn drop(&mut self) {
+        if let Ok(aborter) = self.aborter.try_recv() {
+            let _ = self.chan.try_send(move |mut cx| {
+                let cb = aborter.to_inner(&mut cx);
+                let this = cx.undefined();
+                let abort_str = cx.string(ABORT_STR);
+                let _ = cb.call(&mut cx, this, [abort_str.upcast()]);
+                Ok(())
+            });
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
     type SlotKind = SK;
@@ -672,7 +695,7 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
             let worker_build_id = ctx.worker_build_id().to_string();
             let is_sticky = ctx.is_sticky();
 
-            let callback_fut = self
+            let (callback_fut, _abort_on_drop) = match self
                 .channel
                 .send(move |mut cx| {
                     let context = Self::mk_reserve_ctx(
@@ -682,27 +705,71 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
                         is_sticky,
                         &mut cx,
                     )?;
+                    let (aborter_tx, aborter) = oneshot::channel();
+                    let abort_on_drop = CallAbortOnDrop {
+                        chan: cx.channel(),
+                        aborter,
+                    };
+                    let aborter_tx = RefCell::new(Some(aborter_tx));
+                    let abort_func = JsFunction::new(&mut cx, move |mut cx| {
+                        let func: Handle<JsFunction> = cx.argument(0)?;
+                        if let Some(aborter_tx) = aborter_tx.take() {
+                            let _ = aborter_tx.send(func.root(&mut cx));
+                        }
+                        Ok(cx.undefined())
+                    })?
+                    .upcast();
 
                     let this = (*inner).clone(&mut cx).into_inner(&mut cx);
-                    let val = rcb.to_inner(&mut cx).call(&mut cx, this, [context])?;
+                    let val = rcb
+                        .to_inner(&mut cx)
+                        .call(&mut cx, this, [context, abort_func])?;
                     let as_prom = val.downcast_or_throw::<JsPromise, _>(&mut cx)?;
-                    let fut = as_prom.to_future(&mut cx, |mut cx, result| {
-                        // TODO: Probably not "or throw"?
-                        let value = result.or_throw(&mut cx)?;
-                        let as_obj = value.downcast_or_throw::<JsObject, _>(&mut cx)?;
-                        Ok(as_obj.root(&mut cx))
+                    let fut = as_prom.to_future(&mut cx, |mut cx, result| match result {
+                        Ok(value) => {
+                            let as_obj = value.downcast_or_throw::<JsObject, _>(&mut cx)?;
+                            Ok(Ok(as_obj.root(&mut cx)))
+                        }
+                        Err(e) => {
+                            let mut err_str = "unknown".to_string();
+                            if let Ok(e) = e.downcast::<JsObject, _>(&mut cx) {
+                                // TODO: User error
+                                log_js_object(&mut cx, &e);
+                            } else if let Ok(e) = e.downcast::<JsString, _>(&mut cx) {
+                                err_str = e.value(&mut cx);
+                            }
+                            Ok(Err(err_str))
+                        }
                     })?;
-                    Ok(fut)
+                    Ok((fut, abort_on_drop))
                 })
                 .await
-                .expect("javascript event loop must work");
+            {
+                Ok(v) => v,
+                Err(e) => {
+                    dbg!(&e);
+                    warn!("Error reserving slot: {:?}", e);
+                    continue;
+                }
+            };
 
             match callback_fut.await {
-                Ok(res) => {
+                Ok(Ok(res)) => {
                     let permit = SlotSupplierPermit::with_user_data(BridgePermitData {
                         permit: Arc::new(res),
                     });
                     return permit;
+                }
+                // Error in user function
+                Ok(Err(e)) => {
+                    if e == ABORT_STR {
+                        // Abandoned. No need to log anything.
+                        continue;
+                    }
+                    error!(
+                        "There was an error in a custom SlotSupplier's `reserveSlot`: {:?}",
+                        e
+                    );
                 }
                 Err(e) => {
                     error!(
