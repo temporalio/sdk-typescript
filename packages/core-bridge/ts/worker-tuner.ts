@@ -98,6 +98,9 @@ export interface CustomSlotSupplier<SI extends SlotInfo> {
    * This function is called before polling for new tasks. Your implementation should block until a
    * slot is available then return a permit to use that slot.
    *
+   * The only acceptable exception to throw is AbortError, any other exceptions thrown will be
+   * logged and ignored.
+   *
    * @param ctx The context for slot reservation.
    * @param abortSignal The SDK may decide to abort the reservation request if it's no longer
    *   needed. Implementations may clean up and then must reject the promise with AbortError.

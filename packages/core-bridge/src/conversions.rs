@@ -666,16 +666,13 @@ struct CallAbortOnDrop {
     aborter: oneshot::Receiver<Root<JsFunction>>,
 }
 
-static ABORT_STR: &str = "__aborted by core__";
-
 impl Drop for CallAbortOnDrop {
     fn drop(&mut self) {
         if let Ok(aborter) = self.aborter.try_recv() {
             let _ = self.chan.try_send(move |mut cx| {
                 let cb = aborter.to_inner(&mut cx);
                 let this = cx.undefined();
-                let abort_str = cx.string(ABORT_STR);
-                let _ = cb.call(&mut cx, this, [abort_str.upcast()]);
+                let _ = cb.call(&mut cx, this, []);
                 Ok(())
             });
         }
@@ -730,16 +727,7 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
                             let as_obj = value.downcast_or_throw::<JsObject, _>(&mut cx)?;
                             Ok(Ok(as_obj.root(&mut cx)))
                         }
-                        Err(e) => {
-                            let mut err_str = "unknown".to_string();
-                            if let Ok(e) = e.downcast::<JsObject, _>(&mut cx) {
-                                // TODO: User error
-                                log_js_object(&mut cx, &e);
-                            } else if let Ok(e) = e.downcast::<JsString, _>(&mut cx) {
-                                err_str = e.value(&mut cx);
-                            }
-                            Ok(Err(err_str))
-                        }
+                        Err(_) => Ok(Err(())),
                     })?;
                     Ok((fut, abort_on_drop))
                 })
@@ -747,7 +735,6 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
             {
                 Ok(v) => v,
                 Err(e) => {
-                    dbg!(&e);
                     warn!("Error reserving slot: {:?}", e);
                     continue;
                 }
@@ -761,15 +748,9 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
                     return permit;
                 }
                 // Error in user function
-                Ok(Err(e)) => {
-                    if e == ABORT_STR {
-                        // Abandoned. No need to log anything.
-                        continue;
-                    }
-                    error!(
-                        "There was an error in a custom SlotSupplier's `reserveSlot`: {:?}",
-                        e
-                    );
+                Ok(Err(())) => {
+                    // Nothing to do here. Error in user's function (or an abort).
+                    // Logging handled on the JS side.
                 }
                 Err(e) => {
                     error!(
@@ -778,6 +759,8 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
                     );
                 }
             }
+            // Wait a beat to avoid spamming errors
+            tokio::time::sleep(Duration::from_millis(1000)).await;
         }
     }
 
@@ -811,10 +794,10 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
             }
             let as_obj = val.downcast_or_throw::<JsObject, _>(&mut cx)?;
             Ok(Some(as_obj.root(&mut cx)))
-        }))
-        .expect("javascript event loop must work");
+        }));
 
-        callback_res.map(|res| {
+        // Ignore errors, they'll be logged by JS
+        callback_res.ok().flatten().map(|res| {
             SlotSupplierPermit::with_user_data(BridgePermitData {
                 permit: Arc::new(res),
             })

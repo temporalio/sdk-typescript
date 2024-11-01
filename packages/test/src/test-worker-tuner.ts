@@ -284,3 +284,46 @@ test('Custom slot supplier sees aborts', async (t) => {
   await runprom;
   t.true(slotSupplier.aborts > 0);
 });
+
+class ThrowingSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
+  readonly type = 'custom';
+
+  markedUsed = false;
+
+  async reserveSlot(ctx: SlotReserveContext, __: AbortSignal): Promise<SlotPermit> {
+    // Give out one workflow tasks until one gets used
+    if (ctx.slotType === 'workflow' && !this.markedUsed) {
+      return {};
+    }
+    throw new Error('I always throw');
+  }
+
+  tryReserveSlot(_: SlotReserveContext): SlotPermit | undefined {
+    throw new Error('I always throw');
+  }
+
+  markSlotUsed(_: SlotMarkUsedContext<SI>): void {
+    this.markedUsed = true;
+    throw new Error('I always throw');
+  }
+
+  releaseSlot(_: SlotReleaseContext<SI>): void {
+    throw new Error('I always throw');
+  }
+}
+
+test('Throwing slot supplier avoids blowing everything up', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const slotSupplier = new ThrowingSlotSupplier();
+
+  const worker = await createWorker({
+    activities,
+    tuner: {
+      workflowTaskSlotSupplier: slotSupplier,
+      activityTaskSlotSupplier: slotSupplier,
+      localActivityTaskSlotSupplier: slotSupplier,
+    },
+  });
+  const result = await worker.runUntil(executeWorkflow(successString));
+  t.is(result, 'success');
+});

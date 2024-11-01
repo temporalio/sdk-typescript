@@ -818,7 +818,7 @@ export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): Co
   }
 
   const activities = new Map(Object.entries(opts.activities ?? {}).filter(([_, v]) => typeof v === 'function'));
-  const tuner = asNativeTuner(opts.tuner);
+  const tuner = asNativeTuner(opts.tuner, logger);
 
   return {
     ...opts,

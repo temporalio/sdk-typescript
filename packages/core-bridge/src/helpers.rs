@@ -247,6 +247,7 @@ fn snake_to_camel(input: String) -> String {
     }
 }
 
+#[allow(dead_code)]
 // Useful to help debug JSObject contents
 pub fn log_js_object<'a, 'b, C: Context<'b>>(cx: &mut C, js_object: &Handle<'a, JsObject>) {
     let global = cx.global_object();

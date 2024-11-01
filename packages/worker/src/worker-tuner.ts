@@ -5,12 +5,16 @@ import {
   LocalActivitySlotInfo,
   ResourceBasedTunerOptions,
   SlotInfo,
+  SlotMarkUsedContext,
+  SlotPermit,
+  SlotReleaseContext,
   SlotReserveContext,
   SlotSupplier as NativeSlotSupplier,
   WorkerTuner as NativeWorkerTuner,
   WorkflowSlotInfo,
 } from '@temporalio/core-bridge';
 import { Duration, msToNumber } from '@temporalio/common/lib/time';
+import { Logger } from '@temporalio/common';
 
 export { FixedSizeSlotSupplier, ResourceBasedTunerOptions };
 
@@ -106,13 +110,13 @@ export interface ResourceBasedTuner {
   localActivityTaskSlotOptions?: ResourceBasedSlotOptions;
 }
 
-export function asNativeTuner(tuner: WorkerTuner): NativeWorkerTuner {
+export function asNativeTuner(tuner: WorkerTuner, logger: Logger): NativeWorkerTuner {
   if (isTunerHolder(tuner)) {
     let tunerOptions = undefined;
     const retme = {
-      workflowTaskSlotSupplier: nativeifySupplier(tuner.workflowTaskSlotSupplier, 'workflow'),
-      activityTaskSlotSupplier: nativeifySupplier(tuner.activityTaskSlotSupplier, 'activity'),
-      localActivityTaskSlotSupplier: nativeifySupplier(tuner.localActivityTaskSlotSupplier, 'activity'),
+      workflowTaskSlotSupplier: nativeifySupplier(tuner.workflowTaskSlotSupplier, 'workflow', logger),
+      activityTaskSlotSupplier: nativeifySupplier(tuner.activityTaskSlotSupplier, 'activity', logger),
+      localActivityTaskSlotSupplier: nativeifySupplier(tuner.localActivityTaskSlotSupplier, 'activity', logger),
     };
     for (const supplier of [
       retme.workflowTaskSlotSupplier,
@@ -168,8 +172,55 @@ const isResourceBased = (sup: SlotSupplier<any> | NativeSlotSupplier): sup is Re
 const isCustom = (sup: SlotSupplier<any> | NativeSlotSupplier): sup is CustomSlotSupplier<any> => sup.type === 'custom';
 
 type ActOrWorkflow = 'activity' | 'workflow';
+const abortString = '__ABORTED_BY_CORE__';
 
-function nativeifySupplier<SI extends SlotInfo>(supplier: SlotSupplier<SI>, kind: ActOrWorkflow): NativeSlotSupplier {
+class ErrorLoggingSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
+  readonly type = 'custom';
+
+  constructor(
+    private readonly supplier: CustomSlotSupplier<SI>,
+    private readonly logger: Logger
+  ) {}
+
+  async reserveSlot(ctx: SlotReserveContext, registerAbort: any): Promise<SlotPermit> {
+    const abortController = new AbortController();
+    registerAbort(() => abortController.abort(abortString));
+    return await this.supplier.reserveSlot(ctx, abortController.signal).catch((err) => {
+      this.logger.error('Error in custom slot supplier `reserveSlot`', err);
+      throw err;
+    });
+  }
+
+  tryReserveSlot(ctx: SlotReserveContext): SlotPermit | undefined {
+    try {
+      return this.supplier.tryReserveSlot(ctx);
+    } catch (err: any) {
+      this.logger.error('Error in custom slot supplier `tryReserveSlot`', err);
+    }
+  }
+
+  markSlotUsed(ctx: SlotMarkUsedContext<SI>): void {
+    try {
+      this.supplier.markSlotUsed(ctx);
+    } catch (err: any) {
+      this.logger.error('Error in custom slot supplier `markSlotUsed`', err);
+    }
+  }
+
+  releaseSlot(ctx: SlotReleaseContext<SI>): void {
+    try {
+      this.supplier.releaseSlot(ctx);
+    } catch (err: any) {
+      this.logger.error('Error in custom slot supplier `releaseSlot`', err);
+    }
+  }
+}
+
+function nativeifySupplier<SI extends SlotInfo>(
+  supplier: SlotSupplier<SI>,
+  kind: ActOrWorkflow,
+  logger: Logger
+): NativeSlotSupplier {
   if (isResourceBased(supplier)) {
     const tunerOptions = supplier.tunerOptions;
     const defaulted = addResourceBasedSlotDefaults(supplier, kind);
@@ -181,23 +232,7 @@ function nativeifySupplier<SI extends SlotInfo>(supplier: SlotSupplier<SI>, kind
     };
   }
   if (isCustom(supplier)) {
-    return new Proxy(supplier, {
-      get: (target, prop, receiver) => {
-        if (prop === 'reserveSlot') {
-          return async (ctx: SlotReserveContext, registerAbort: any) => {
-            const abortController = new AbortController();
-            registerAbort((r: string) => abortController.abort(r));
-            return await supplier.reserveSlot(ctx, abortController.signal);
-            /**
-             .catch((err) => {
-             console.error('Caught error', err);
-             })**/
-          };
-        } else {
-          return Reflect.get(target, prop, receiver);
-        }
-      },
-    });
+    return new ErrorLoggingSlotSupplier(supplier, logger);
   }
 
   return supplier;
