@@ -16,6 +16,15 @@ export {
   OtelCollectorExporter,
   PrometheusMetricsExporter,
   TelemetryOptions,
+  CustomSlotSupplier,
+  SlotInfo,
+  WorkflowSlotInfo,
+  LocalActivitySlotInfo,
+  ActivitySlotInfo,
+  SlotMarkUsedContext,
+  SlotPermit,
+  SlotReleaseContext,
+  SlotReserveContext,
 } from '@temporalio/core-bridge';
 export { NativeConnection } from './connection';
 export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';

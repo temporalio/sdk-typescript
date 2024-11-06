@@ -17,9 +17,10 @@ lto = true
 incremental = false
 
 [dependencies]
+async-trait = "0.1.83"
 futures = { version = "0.3", features = ["executor"] }
 log = "0.4"
-neon = { version = "1.0.0", default-features = false, features = ["napi-6"] }
+neon = { version = "1.0.0", default-features = false, features = ["napi-6", "futures"] }
 opentelemetry = "0.24"
 parking_lot = "0.12"
 prost = "0.13"

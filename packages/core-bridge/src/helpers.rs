@@ -106,6 +106,23 @@ macro_rules! js_optional_getter {
 
 pub(crate) use js_optional_getter;
 
+macro_rules! js_getter {
+    ($js_cx:expr, $js_obj:expr, $prop_name:expr, $js_type:ty) => {
+        match get_optional($js_cx, $js_obj, $prop_name) {
+            None => $js_cx.throw_type_error(format!("{} must be defined", $prop_name))?,
+            Some(val) => {
+                if val.is_a::<$js_type, _>($js_cx) {
+                    val.downcast_or_throw::<$js_type, _>($js_cx)?
+                } else {
+                    $js_cx.throw_type_error(format!("Invalid {}", $prop_name))?
+                }
+            }
+        }
+    };
+}
+
+pub(crate) use js_getter;
+
 macro_rules! js_optional_value_getter {
     ($js_cx:expr, $js_obj:expr, $prop_name:expr, $js_type:ty) => {
         js_optional_getter!($js_cx, $js_obj, $prop_name, $js_type).map(|v| v.value($js_cx))
@@ -245,6 +262,23 @@ fn snake_to_camel(input: String) -> String {
             result
         }
     }
+}
+
+#[allow(dead_code)]
+// Useful to help debug JSObject contents
+pub fn log_js_object<'a, 'b, C: Context<'b>>(cx: &mut C, js_object: &Handle<'a, JsObject>) {
+    let global = cx.global_object();
+    let console = global
+        .get::<JsObject, _, _>(cx, "console")
+        .expect("Failed to get console object");
+
+    let log = console
+        .get::<JsFunction, _, _>(cx, "log")
+        .expect("Failed to get log function");
+
+    let args = vec![js_object.upcast()]; // Upcast js_object to JsValue
+    log.call(cx, console, args)
+        .expect("Failed to call console.log");
 }
 
 #[cfg(test)]
