@@ -917,11 +917,12 @@ export class Worker {
                     const { activityType } = info;
                     const fn = this.options.activities.get(activityType);
                     if (typeof fn !== 'function') {
+                      const keys = [...this.options.activities.keys()];
                       throw ApplicationFailure.create({
                         type: 'NotFoundError',
-                        message: `Activity function ${activityType} is not registered on this Worker, available activities: ${JSON.stringify(
-                          [...this.options.activities.keys()]
-                        )}`,
+                        message: `Activity function ${activityType} is not registered on this Worker, available activities are: ${JSON.stringify(
+                          keys.slice(0, 10)
+                        )}` + keys.length > 10 ? `, and ${keys.length - 10} others` : '',
                         nonRetryable: false,
                       });
                     }
