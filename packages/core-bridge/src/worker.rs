@@ -226,12 +226,12 @@ pub fn worker_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let worker_options = cx.argument::<JsObject>(1)?;
     let callback = cx.argument::<JsFunction>(2)?;
 
-    let config = worker_options.as_worker_config(&mut cx)?;
     match client.borrow().as_ref() {
         None => {
             callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Client")?;
         }
         Some(client) => {
+            let config = worker_options.as_worker_config(&mut cx)?;
             let request = RuntimeRequest::InitWorker {
                 client: client.core_client.clone(),
                 config,

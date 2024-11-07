@@ -1124,6 +1124,23 @@ test('Abandon activity cancel before started works', async (t) => {
   t.pass();
 });
 
+export async function WorkflowWillFail(): Promise<string | undefined> {
+  if (workflow.workflowInfo().attempt > 1) {
+    return workflow.workflowInfo().lastFailure?.message;
+  }
+  throw ApplicationFailure.retryable('WorkflowWillFail', 'WorkflowWillFail');
+}
+
+test("WorkflowInfo().lastFailure contains last run's failure on Workflow Failure", async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  const handle = await startWorkflow(WorkflowWillFail, { retry: { maximumAttempts: 2 } });
+  await worker.runUntil(async () => {
+    const lastFailure = await handle.result();
+    t.is(lastFailure, 'WorkflowWillFail');
+  });
+});
+
 export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
   const interceptorsFactoryFunc = module.exports[`${workflow.workflowInfo().workflowType}Interceptors`];
   if (typeof interceptorsFactoryFunc === 'function') {

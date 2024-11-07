@@ -1,24 +1,23 @@
 {
-  "name": "@temporalio/testing",
+  "name": "@temporalio/cloud",
   "version": "1.11.3",
-  "description": "Temporal.io SDK Testing sub-package",
+  "description": "Temporal.io SDK — Temporal Cloud Client",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
+  "scripts": {},
   "keywords": [
     "temporal",
     "workflow",
-    "testing"
+    "client",
+    "temporal cloud"
   ],
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@temporalio/activity": "file:../activity",
+    "@grpc/grpc-js": "^1.10.7",
     "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",
-    "@temporalio/core-bridge": "file:../core-bridge",
     "@temporalio/proto": "file:../proto",
-    "@temporalio/worker": "file:../worker",
-    "@temporalio/workflow": "file:../workflow",
     "abort-controller": "^3.0.0"
   },
   "bugs": {
@@ -27,14 +26,14 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/temporalio/sdk-typescript.git",
-    "directory": "packages/testing"
+    "directory": "packages/cloud"
   },
-  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/testing",
-  "files": [
-    "lib",
-    "src"
-  ],
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/cloud",
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
 }

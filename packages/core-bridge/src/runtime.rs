@@ -254,7 +254,7 @@ pub fn start_bridge_loop(
                                 worker,
                                 channel,
                                 callback,
-                                None
+                                None,
                             ));
                         }
                         Err(err) => send_error(channel.clone(), callback, move |cx| {
@@ -274,7 +274,7 @@ pub fn start_bridge_loop(
                                 worker,
                                 channel.clone(),
                                 callback,
-                                Some(tunnel)
+                                Some(tunnel),
                             ));
                         }
                         Err(err) => send_error(channel.clone(), callback, move |cx| {

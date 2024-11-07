@@ -308,7 +308,7 @@ function ensureArgs<W extends Workflow, T extends WorkflowStartOptions<W>>(
   opts: T
 ): Omit<T, 'args'> & { args: unknown[] } {
   const { args, ...rest } = opts;
-  return { args: args ?? [], ...rest };
+  return { args: (args as unknown[]) ?? [], ...rest };
 }
 
 /**
