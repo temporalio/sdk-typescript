@@ -567,7 +567,7 @@ export async function issue1423Workflow(legacyCompatibility: boolean): Promise<'
     // We expect this to throw a CancellationException
     await workflow.sleep(1);
     throw workflow.ApplicationFailure.nonRetryable("sleep in cancelled scope didn't throw");
-  } catch (err) {
+  } catch (_err) {
     return await workflow.CancellationScope.nonCancellable(async () => {
       try {
         await workflow.condition(() => false, 1);

@@ -1804,7 +1804,7 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
   let context: any = vm.createContext({});
   try {
     script.runInContext(context);
-  } catch (e) {
+  } catch (_e) {
     // Context has not been properly configured, so eventual errors are possible. Just ignore at this point
   }
 

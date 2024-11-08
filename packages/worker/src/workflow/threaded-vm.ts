@@ -270,7 +270,7 @@ export class VMWorkflowThreadProxy implements Workflow {
   async dispose(): Promise<void> {
     try {
       await this.workerThreadClient.send({ type: 'dispose-workflow', runId: this.runId });
-    } catch (e) {
+    } catch (_e) {
       // Ignore errors when disposing
     }
   }

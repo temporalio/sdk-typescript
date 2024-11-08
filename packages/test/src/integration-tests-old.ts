@@ -44,7 +44,7 @@ import { decode, decodeFromPayloadsAtIndex } from '@temporalio/common/lib/intern
 import * as iface from '@temporalio/proto';
 import { DefaultLogger, makeTelemetryFilterString, Runtime } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
-import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
+import { UnsafeWorkflowInfo } from '@temporalio/workflow/lib/interfaces';
 import * as activities from './activities';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { cleanOptionalStackTrace, registerDefaultCustomSearchAttributes, u8, Worker } from './helpers';

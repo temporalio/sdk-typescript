@@ -3,7 +3,7 @@
  * @module
  */
 import * as wf from '@temporalio/workflow';
-import type { EnhancedStackTrace } from '@temporalio/workflow/src/interfaces';
+import type { EnhancedStackTrace } from '@temporalio/workflow/lib/interfaces';
 import type * as activities from '../activities';
 import { unblockOrCancel } from './unblock-or-cancel';
 
