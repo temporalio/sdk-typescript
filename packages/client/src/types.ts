@@ -96,8 +96,24 @@ export interface ConnectionLike {
   workflowService: WorkflowService;
   close(): Promise<void>;
   ensureConnected(): Promise<void>;
+
   /**
-   * Set the deadline for any service requests executed in `fn`'s scope.
+   * Set a deadline for any service requests executed in `fn`'s scope.
+   *
+   * The deadline is a point in time after which any pending gRPC request will be considered as failed;
+   * this will locally result in the request call throwing a {@link grpc.ServiceError|ServiceError}
+   * with code {@link grpc.status.DEADLINE_EXCEEDED|DEADLINE_EXCEEDED}; see {@link isGrpcDeadlineError}.
+   *
+   * It is stronly recommended to explicitly set deadlines. If no deadline is set, then it is
+   * possible for the client to end up waiting forever for a response.
+   *
+   * This method is only a convenience wrapper around {@link Connection.withDeadline}.
+   *
+   * @param deadline a point in time after which the request will be considered as failed; either a
+   *                 Date object, or a number of milliseconds since the Unix epoch (UTC).
+   * @returns the value returned from `fn`
+   *
+   * @see https://grpc.io/docs/guides/deadlines/
    */
   withDeadline<R>(deadline: number | Date, fn: () => Promise<R>): Promise<R>;
 
@@ -109,10 +125,13 @@ export interface ConnectionLike {
   withMetadata<R>(metadata: Metadata, fn: () => Promise<R>): Promise<R>;
 
   /**
-   * Set an {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that, when aborted,
-   * cancels any ongoing requests executed in `fn`'s scope.
+   * Set an {@link AbortSignal} that, when aborted, cancels any ongoing service requests executed in
+   * `fn`'s scope. This will locally result in the request call throwing a {@link grpc.ServiceError|ServiceError}
+   * with code {@link grpc.status.CANCELLED|CANCELLED}; see {@link isGrpcCancelledError}.
    *
    * @returns value returned from `fn`
+   *
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
    */
   withAbortSignal<R>(abortSignal: AbortSignal, fn: () => Promise<R>): Promise<R>;
 }

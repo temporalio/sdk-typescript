@@ -346,6 +346,8 @@ export interface ChildWorkflowOptions extends CommonWorkflowOptions {
   /**
    * Task queue to use for Workflow tasks. It should match a task queue specified when creating a
    * `Worker` that hosts the Workflow code.
+   *
+   * By default, a child is scheduled on the same Task Queue as the parent.
    */
   taskQueue?: string;
 
@@ -452,8 +454,6 @@ export interface WorkflowCreateOptions {
   info: WorkflowInfo;
   randomnessSeed: number[];
   now: number;
-  patches: string[];
-  sdkFlags: number[];
   showStackTraceSources: boolean;
 }
 

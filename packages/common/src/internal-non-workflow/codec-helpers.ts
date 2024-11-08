@@ -122,7 +122,7 @@ export async function decodeOptionalMap(
 ): Promise<Record<string, DecodedPayload> | null | undefined> {
   if (payloads == null) return payloads;
   return Object.fromEntries(
-    await Promise.all(Object.entries(payloads).map(async ([k, v]) => [k, await decode(codecs, [v])]))
+    await Promise.all(Object.entries(payloads).map(async ([k, v]) => [k, (await decode(codecs, [v]))[0]]))
   );
 }
 

@@ -18,6 +18,10 @@ import {
   ApplicationFailure,
   WorkflowUpdateType,
   WorkflowUpdateValidatorType,
+  mapFromPayloads,
+  searchAttributePayloadConverter,
+  fromPayloadsAtIndex,
+  SearchAttributes,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
@@ -365,9 +369,7 @@ export class Activator implements ActivationHandler {
     showStackTraceSources,
     sourceMap,
     getTimeOfDay,
-    sdkFlags,
     randomnessSeed,
-    patches,
     registeredActivityNames,
   }: WorkflowCreateOptionsInternal) {
     this.getTimeOfDay = getTimeOfDay;
@@ -377,11 +379,6 @@ export class Activator implements ActivationHandler {
     this.sourceMap = sourceMap;
     this.random = alea(randomnessSeed);
     this.registeredActivityNames = registeredActivityNames;
-
-    this.addKnownFlags(sdkFlags);
-    for (const patchId of patches) {
-      this.notifyHasPatch({ patchId });
-    }
   }
 
   /**
@@ -449,7 +446,7 @@ export class Activator implements ActivationHandler {
     return await workflow(...args);
   }
 
-  public startWorkflow(activation: coresdk.workflow_activation.IStartWorkflow): void {
+  public startWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
     const execute = composeInterceptors(this.interceptors.inbound, 'execute', this.startWorkflowNextHandler.bind(this));
 
     untrackPromise(
@@ -460,6 +457,23 @@ export class Activator implements ActivationHandler {
         })
       ).then(this.completeWorkflow.bind(this), this.handleWorkflowFailure.bind(this))
     );
+  }
+
+  public initializeWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
+    const { continuedFailure, lastCompletionResult, memo, searchAttributes } = activation;
+
+    // Most things related to initialization have already been handled in the constructor
+    this.mutateWorkflowInfo((info) => ({
+      ...info,
+      searchAttributes:
+        (mapFromPayloads(searchAttributePayloadConverter, searchAttributes?.indexedFields) as SearchAttributes) ?? {},
+      memo: mapFromPayloads(this.payloadConverter, memo?.fields),
+      lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads),
+      lastFailure:
+        continuedFailure != null
+          ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter)
+          : undefined,
+    }));
   }
 
   public cancelWorkflow(_activation: coresdk.workflow_activation.ICancelWorkflow): void {
@@ -865,18 +879,47 @@ export class Activator implements ActivationHandler {
   }
 
   /**
-   * Check if a flag is known to the Workflow Execution; if not, enable the flag if workflow
-   * is not replaying and the flag is configured to be enabled by default.
+   * Check if an SDK Flag may be considered as enabled for the current Workflow Task.
+   *
+   * SDK flags play a role similar to the `patched()` API, but are meant for internal usage by the
+   * SDK itself. They make it possible for the SDK to evolve its behaviors over time, while still
+   * maintaining compatibility with Workflow histories produced by older SDKs, without causing
+   * determinism violations.
+   *
    * May be invoked from outside the VM.
    */
   public hasFlag(flag: SdkFlag): boolean {
-    if (this.knownFlags.has(flag.id)) {
-      return true;
-    }
+    if (this.knownFlags.has(flag.id)) return true;
+
+    // If not replaying, enable the flag if it is configured to be enabled by default. Setting a
+    // flag's default to false allows progressive rollout of new feature flags, with the possibility
+    // of reverting back to a version of the SDK where the flag is supported but disabled by default.
+    // It is also useful for testing purpose.
     if (!this.info.unsafe.isReplaying && flag.default) {
       this.knownFlags.add(flag.id);
       return true;
     }
+
+    // When replaying, a flag is considered enabled if it was enabled during the original execution of
+    // that Workflow Task; this is normally determined by the presence of the flag ID in the corresponding
+    // WFT Completed's `sdkMetadata.langUsedFlags`.
+    //
+    // SDK Flag Alternate Condition provides an alternative way of determining whether a flag should
+    // be considered as enabled for the current WFT; e.g. by looking at the version of the SDK that
+    // emitted a WFT. The main use case for this is to retroactively turn on some flags for WFT emitted
+    // by previous SDKs that contained a bug. Alt Conditions should only be used as a last resort.
+    //
+    // Note that conditions are only evaluated while replaying. Also, alternate conditions will not
+    // cause the flag to be persisted to the "used flags" set, which means that further Workflow Tasks
+    // may not reflect this flag if the condition no longer holds. This is so to avoid incorrect
+    // behaviors in case where a Workflow Execution has gone through a newer SDK version then again
+    // through an older one.
+    if (this.info.unsafe.isReplaying && flag.alternativeConditions) {
+      for (const cond of flag.alternativeConditions) {
+        if (cond({ info: this.info })) return true;
+      }
+    }
+
     return false;
   }
 

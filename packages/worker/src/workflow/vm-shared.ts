@@ -9,6 +9,7 @@ import { type SinkCall } from '@temporalio/workflow/lib/sinks';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { Activator } from '@temporalio/workflow/lib/internals';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
+import { UnhandledRejectionError } from '../errors';
 import { Workflow } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 
@@ -28,12 +29,15 @@ export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string)
         return;
       }
     }
-    // The user's logger is not accessible in this thread,
-    // dump the error information to stderr and abort.
-    console.error('Unhandled rejection', { runId }, err);
-    process.exit(1);
+
+    console.error('An Unhandled Promise rejection could not be associated to a Workflow Run', { runId, error: err });
+    throw new UnhandledRejectionError(
+      `Unhandled Promise rejection for unknown Workflow Run id='${runId}': ${err}`,
+      err
+    );
   });
 }
+
 /**
  * Variant of {@link cutoffStackTrace} that works with FileLocation, keep this in sync with the original implementation
  */
@@ -328,6 +332,11 @@ export abstract class BaseVMWorkflow implements Workflow {
     }));
     this.activator.addKnownFlags(activation.availableInternalFlags ?? []);
 
+    // Initialization of the workflow must happen before anything else. Yet, keep the init job in
+    // place in the list as we'll use it as a marker to know when to start the workflow function.
+    const initWorkflowJob = activation.jobs.find((job) => job.initializeWorkflow != null)?.initializeWorkflow;
+    if (initWorkflowJob) this.workflowModule.initialize(initWorkflowJob);
+
     const hasSignals = activation.jobs.some(({ signalWorkflow }) => signalWorkflow != null);
     const doSingleBatch = !hasSignals || this.activator.hasFlag(SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch);
 
@@ -338,16 +347,14 @@ export abstract class BaseVMWorkflow implements Workflow {
     }
 
     if (doSingleBatch) {
-      // updateRandomSeed require the same special handling as patches (before anything else, and don't
+      // updateRandomSeed requires the same special handling as patches (before anything else, and don't
       // unblock conditions after each job). Unfortunately, prior to ProcessWorkflowActivationJobsAsSingleBatch,
       // they were handled as regular jobs, making it unsafe to properly handle that job above, with patches.
-      const [updateRandomSeed, rest] = partition(activation.jobs, ({ updateRandomSeed }) => updateRandomSeed != null);
+      const [updateRandomSeed, rest] = partition(nonPatches, ({ updateRandomSeed }) => updateRandomSeed != null);
       if (updateRandomSeed.length > 0)
         this.activator.updateRandomSeed(updateRandomSeed[updateRandomSeed.length - 1].updateRandomSeed!);
-
       this.workflowModule.activate(
-        coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs: rest }),
-        0
+        coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs: rest })
       );
       this.tryUnblockConditionsAndMicrotasks();
     } else {
@@ -396,7 +403,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         isReplaying: true,
       },
     }));
-    this.workflowModule.activate(activation, 0);
+    this.workflowModule.activate(activation);
     return this.workflowModule.concludeActivation();
   }
 
