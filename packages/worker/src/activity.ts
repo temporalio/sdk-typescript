@@ -58,8 +58,9 @@ export class Activity {
     const promise = new Promise<never>((_, reject) => {
       this.cancel = (reason: CancelReason) => {
         this.cancelReason = reason;
-        this.abortController.abort();
-        reject(new CancelledFailure(reason));
+        const err = new CancelledFailure(reason);
+        this.abortController.abort(err);
+        reject(err);
       };
     });
     this.context = new Context(
