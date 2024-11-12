@@ -7,7 +7,7 @@ import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
-import { defineQuery, defineSignal, WorkflowIdConflictPolicy } from '@temporalio/workflow';
+import { defineQuery, defineSignal } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import { ActivityCancellationType, ApplicationFailure, WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
 import { signalSchedulingWorkflow } from './activities/helpers';
@@ -251,7 +251,7 @@ test('Start of workflow respects workflow id conflict policy', async (t) => {
       client.workflow.start(conflictId, {
         taskQueue,
         workflowId: wfid,
-        workflowIdConflictPolicy: WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_FAIL,
+        workflowIdConflictPolicy: 'FAIL',
       }),
       {
         instanceOf: WorkflowExecutionAlreadyStartedError,
@@ -264,7 +264,7 @@ test('Start of workflow respects workflow id conflict policy', async (t) => {
     const handle2 = await client.workflow.start(conflictId, {
       taskQueue,
       workflowId: wfid,
-      workflowIdConflictPolicy: WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING,
+      workflowIdConflictPolicy: 'USE_EXISTING',
     });
 
     const desc = await handleWithRunId.describe();
@@ -278,7 +278,7 @@ test('Start of workflow respects workflow id conflict policy', async (t) => {
     const handle3 = await client.workflow.start(conflictId, {
       taskQueue,
       workflowId: wfid,
-      workflowIdConflictPolicy: WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING,
+      workflowIdConflictPolicy: 'TERMINATE_EXISTING',
     });
 
     const descWithRunId = await handleWithRunId.describe();
@@ -321,7 +321,7 @@ test('Start of workflow with signal respects conflict id policy', async (t) => {
       workflowId: wfid,
       signal: workflows.argsTestSignal,
       signalArgs: [123, 'kid'],
-      workflowIdConflictPolicy: WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING,
+      workflowIdConflictPolicy: 'TERMINATE_EXISTING',
     });
 
     const descWithRunId = await handleWithRunId.describe();

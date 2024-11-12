@@ -1,19 +1,30 @@
 import type { coresdk } from '@temporalio/proto';
 import { RetryPolicy } from './retry-policy';
-import { checkExtends } from './type-helpers';
 import { Duration } from './time';
 import { VersioningIntent } from './versioning-intent';
+import { makeProtoEnumConverters } from './internal-workflow';
 
-// Avoid importing the proto implementation to reduce workflow bundle size
-// Copied from coresdk.workflow_commands.ActivityCancellationType
-export enum ActivityCancellationType {
-  TRY_CANCEL = 0,
-  WAIT_CANCELLATION_COMPLETED = 1,
-  ABANDON = 2,
-}
+export const ActivityCancellationType = {
+  TRY_CANCEL: 'TRY_CANCEL',
+  WAIT_CANCELLATION_COMPLETED: 'WAIT_CANCELLATION_COMPLETED',
+  ABANDON: 'ABANDON',
+} as const;
+export type ActivityCancellationType = (typeof ActivityCancellationType)[keyof typeof ActivityCancellationType];
 
-checkExtends<coresdk.workflow_commands.ActivityCancellationType, ActivityCancellationType>();
-checkExtends<ActivityCancellationType, coresdk.workflow_commands.ActivityCancellationType>();
+export const [encodeActivityCancellationType, decodeActivityCancellationType] = makeProtoEnumConverters<
+  coresdk.workflow_commands.ActivityCancellationType,
+  typeof coresdk.workflow_commands.ActivityCancellationType,
+  keyof typeof coresdk.workflow_commands.ActivityCancellationType,
+  typeof ActivityCancellationType,
+  ''
+>(
+  {
+    [ActivityCancellationType.TRY_CANCEL]: 0,
+    [ActivityCancellationType.WAIT_CANCELLATION_COMPLETED]: 1,
+    [ActivityCancellationType.ABANDON]: 2,
+  } as const,
+  ''
+);
 
 /**
  * Options for remote activity invocation
@@ -174,5 +185,5 @@ export interface LocalActivityOptions {
    *   heartbeat or chooses to ignore the cancellation request.
    * - `ABANDON` - Do not request cancellation of the activity and immediately report cancellation to the workflow.
    */
-  cancellationType?: coresdk.workflow_commands.ActivityCancellationType;
+  cancellationType?: ActivityCancellationType;
 }

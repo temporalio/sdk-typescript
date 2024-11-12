@@ -2,10 +2,8 @@ import type { temporal } from '@temporalio/proto';
 import { SearchAttributes, Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
 import { Duration } from './time';
-import { checkExtends } from './type-helpers';
+import { makeProtoEnumConverters } from './internal-workflow';
 
-// Avoid importing the proto implementation to reduce workflow bundle size
-// Copied from temporal.api.enums.v1.WorkflowIdReusePolicy
 /**
  * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
  *
@@ -17,29 +15,22 @@ import { checkExtends } from './type-helpers';
  * *Note: It is not possible to have two actively running Workflows with the same ID.*
  *
  */
-export enum WorkflowIdReusePolicy {
-  /**
-   * No need to use this.
-   *
-   * (If a `WorkflowIdReusePolicy` is set to this, or is not set at all, the default value will be used.)
-   */
-  WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED = 0,
-
+export const WorkflowIdReusePolicy = {
   /**
    * The Workflow can be started if the previous Workflow is in a Closed state.
    * @default
    */
-  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE = 1,
+  ALLOW_DUPLICATE: 'ALLOW_DUPLICATE',
 
   /**
    * The Workflow can be started if the previous Workflow is in a Closed state that is not Completed.
    */
-  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY = 2,
+  ALLOW_DUPLICATE_FAILED_ONLY: 'ALLOW_DUPLICATE_FAILED_ONLY',
 
   /**
    * The Workflow cannot be started.
    */
-  WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE = 3,
+  REJECT_DUPLICATE: 'REJECT_DUPLICATE',
 
   /**
    * Terminate the current Workflow if one is already running; otherwise allow reusing the Workflow ID.
@@ -49,51 +40,89 @@ export enum WorkflowIdReusePolicy {
    *             {@link WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING}.
    *             When using this option, `WorkflowOptions.workflowIdConflictPolicy` must be left unspecified.
    */
-  WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING = 4,
-}
+  TERMINATE_IF_RUNNING: 'TERMINATE_IF_RUNNING', // eslint-disable-line deprecation/deprecation
 
-checkExtends<temporal.api.enums.v1.WorkflowIdReusePolicy, WorkflowIdReusePolicy>();
-checkExtends<WorkflowIdReusePolicy, temporal.api.enums.v1.WorkflowIdReusePolicy>();
+  /// Anything below this line has been deprecated
 
-// Avoid importing the proto implementation to reduce workflow bundle size
-// Copied from temporal.api.enums.v1.WorkflowIdConflictPolicy
+  /**
+   * No need to use this. If a `WorkflowIdReusePolicy` is set to this, or is not set at all, the default value will be used.
+   *
+   * @deprecated Either leave property `undefined`, or use {@link ALLOW_DUPLICATE} instead.
+   */
+  WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link ALLOW_DUPLICATE} instead. */
+  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE: 'ALLOW_DUPLICATE', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link ALLOW_DUPLICATE_FAILED_ONLY} instead. */
+  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY: 'ALLOW_DUPLICATE_FAILED_ONLY', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link REJECT_DUPLICATE} instead. */
+  WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE: 'REJECT_DUPLICATE', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link TERMINATE_IF_RUNNING} instead. */
+  WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING: 'TERMINATE_IF_RUNNING', // eslint-disable-line deprecation/deprecation
+} as const;
+export type WorkflowIdReusePolicy = (typeof WorkflowIdReusePolicy)[keyof typeof WorkflowIdReusePolicy];
+
+export const [encodeWorkflowIdReusePolicy, decodeWorkflowIdReusePolicy] = makeProtoEnumConverters<
+  temporal.api.enums.v1.WorkflowIdReusePolicy,
+  typeof temporal.api.enums.v1.WorkflowIdReusePolicy,
+  keyof typeof temporal.api.enums.v1.WorkflowIdReusePolicy,
+  typeof WorkflowIdReusePolicy,
+  'WORKFLOW_ID_REUSE_POLICY_'
+>(
+  {
+    [WorkflowIdReusePolicy.ALLOW_DUPLICATE]: 1,
+    [WorkflowIdReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY]: 2,
+    [WorkflowIdReusePolicy.REJECT_DUPLICATE]: 3,
+    [WorkflowIdReusePolicy.TERMINATE_IF_RUNNING]: 4, // eslint-disable-line deprecation/deprecation
+    UNSPECIFIED: 0,
+  } as const,
+  'WORKFLOW_ID_REUSE_POLICY_'
+);
+
 /**
  * Defines what happens when trying to start a Workflow with the same ID as a *Running* Workflow.
  *
  * See {@link WorkflowOptions.workflowIdReusePolicy} for what happens when trying to start a Workflow
- *  with the same ID as a *Closed* Workflow.
+ * with the same ID as a *Closed* Workflow.
  *
- * *Note: It is not possible to have two actively running Workflows with the same ID.*
+ * *Note: It is never possible to have two _actively running_ Workflows with the same ID.*
  */
-export enum WorkflowIdConflictPolicy {
-  /**
-   *  This is the default so that we can set the policy
-   * `WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING` in `WorkflowIdReusePolicy`, which is incompatible
-   * with setting any other `WorkflowIdConflictPolicy` values.
-   *
-   * The actual default behavior is `WORKFLOW_ID_CONFLICT_POLICY_FAIL` for a start Workflow request,
-   *  and `WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING` for a signal with start Workflow request.
-   */
-  WORKFLOW_ID_CONFLICT_POLICY_UNSPECIFIED = 0,
-
+export type WorkflowIdConflictPolicy = (typeof WorkflowIdConflictPolicy)[keyof typeof WorkflowIdConflictPolicy];
+export const WorkflowIdConflictPolicy = {
   /**
    * Do not start a new Workflow. Instead raise a `WorkflowExecutionAlreadyStartedError`.
    */
-  WORKFLOW_ID_CONFLICT_POLICY_FAIL = 1,
+  FAIL: 'FAIL',
 
   /**
-   * Do not start a new Workflow. Instead return a Workflow Handle for the currently Running Workflow.
+   * Do not start a new Workflow. Instead return a Workflow Handle for the already Running Workflow.
    */
-  WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING = 2,
+  USE_EXISTING: 'USE_EXISTING',
 
   /**
    * Start a new Workflow, terminating the current workflow if one is already running.
    */
-  WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING = 3,
-}
+  TERMINATE_EXISTING: 'TERMINATE_EXISTING',
+} as const;
 
-checkExtends<temporal.api.enums.v1.WorkflowIdConflictPolicy, WorkflowIdConflictPolicy>();
-checkExtends<WorkflowIdConflictPolicy, temporal.api.enums.v1.WorkflowIdConflictPolicy>();
+export const [encodeWorkflowIdConflictPolicy, decodeWorkflowIdConflictPolicy] = makeProtoEnumConverters<
+  temporal.api.enums.v1.WorkflowIdConflictPolicy,
+  typeof temporal.api.enums.v1.WorkflowIdConflictPolicy,
+  keyof typeof temporal.api.enums.v1.WorkflowIdConflictPolicy,
+  typeof WorkflowIdConflictPolicy,
+  'WORKFLOW_ID_CONFLICT_POLICY_'
+>(
+  {
+    [WorkflowIdConflictPolicy.FAIL]: 1,
+    [WorkflowIdConflictPolicy.USE_EXISTING]: 2,
+    [WorkflowIdConflictPolicy.TERMINATE_EXISTING]: 3,
+    UNSPECIFIED: 0,
+  } as const,
+  'WORKFLOW_ID_CONFLICT_POLICY_'
+);
 
 export interface BaseWorkflowOptions {
   /**
