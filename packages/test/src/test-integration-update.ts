@@ -47,6 +47,21 @@ export async function workflowWithUpdates(): Promise<string[]> {
   return state;
 }
 
+test('Can issue multiop request via withStart and executeUpdate', async (t) => {
+  const { executeUpdateWithStart, createWorker } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const updResult = await executeUpdateWithStart(
+      update,
+      { args: ['1'], waitForStage: WorkflowUpdateStage.COMPLETED },
+      {
+        workflowTypeOrFunc: workflowWithUpdates,
+      }
+    );
+    t.deepEqual(updResult, ['1']);
+  });
+});
+
 test('Update can be executed via executeUpdate()', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();

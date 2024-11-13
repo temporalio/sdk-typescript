@@ -3,10 +3,15 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import { ErrorConstructor, ExecutionContext, TestFn } from 'ava';
 import {
   isGrpcServiceError,
+  StartWorkflowOperation,
+  UpdateDefinition,
   WorkflowFailedError,
   WorkflowHandle,
   WorkflowStartOptions,
   WorkflowUpdateFailedError,
+  WorkflowUpdateHandle,
+  WorkflowUpdateOptions,
+  WorkflowUpdateStage,
 } from '@temporalio/client';
 import {
   LocalTestWorkflowEnvironmentOptions,
@@ -117,6 +122,22 @@ export interface Helpers {
     fn: T,
     opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
   ): Promise<WorkflowHandle<T>>;
+  startUpdateWithStart(
+    updateDef: UpdateDefinition<any, any, any> | string,
+    updateOptions: WorkflowUpdateOptions & { args?: any[], waitForStage: WorkflowUpdateStage.ACCEPTED },
+    startWorkflowOperation: {
+      workflowTypeOrFunc: workflow.Workflow,
+      options?: Omit<WorkflowStartOptions<workflow.Workflow>, 'taskQueue' | 'workflowId'>
+    }
+  ): Promise<WorkflowUpdateHandle<any>>;
+  executeUpdateWithStart(
+    updateDef: UpdateDefinition<any, any, any> | string,
+    updateOptions: WorkflowUpdateOptions & { args?: any[], waitForStage: WorkflowUpdateStage.COMPLETED },
+    startWorkflowOperation: {
+      workflowTypeOrFunc: workflow.Workflow,
+      options?: Omit<WorkflowStartOptions<workflow.Workflow>, 'taskQueue' | 'workflowId'>
+    }
+  ): Promise<any>;
   assertWorkflowUpdateFailed(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
   assertWorkflowFailedError(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
   updateHasBeenAdmitted(handle: WorkflowHandle<workflow.Workflow>, updateId: string): Promise<boolean>;
@@ -169,6 +190,40 @@ export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvir
         taskQueue,
         workflowId: randomUUID(),
         ...opts,
+      });
+    },
+    async startUpdateWithStart(
+      updateDef: UpdateDefinition<any, any, any> | string,
+      updateOptions: WorkflowUpdateOptions & { args?: any[], waitForStage: WorkflowUpdateStage.ACCEPTED },
+      startWorkflowOperation: {
+        workflowTypeOrFunc: workflow.Workflow,
+        options?: Omit<WorkflowStartOptions<workflow.Workflow>, 'taskQueue' | 'workflowId'>
+      }
+    ): Promise<WorkflowUpdateHandle<any>> {
+      return await testEnv.client.workflow.startUpdateWithStart(updateDef, updateOptions, {
+        workflowTypeOrFunc: startWorkflowOperation.workflowTypeOrFunc,
+        options: {
+          taskQueue,
+          workflowId: randomUUID(),
+          ...(startWorkflowOperation.options ?? {}),
+        },
+      });
+    },
+    async executeUpdateWithStart(
+      updateDef: UpdateDefinition<any, any, any> | string,
+      updateOptions: WorkflowUpdateOptions & { args?: any[], waitForStage: WorkflowUpdateStage.COMPLETED },
+      startWorkflowOperation: {
+        workflowTypeOrFunc: workflow.Workflow,
+        options?: Omit<WorkflowStartOptions<workflow.Workflow>, 'taskQueue' | 'workflowId'>
+      }
+    ): Promise<any> {
+      return await testEnv.client.workflow.executeUpdateWithStart(updateDef, updateOptions, {
+        workflowTypeOrFunc: startWorkflowOperation.workflowTypeOrFunc,
+        options: {
+          taskQueue,
+          workflowId: randomUUID(),
+          ...(startWorkflowOperation.options || {}),
+        },
       });
     },
     async assertWorkflowUpdateFailed(
