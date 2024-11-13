@@ -548,7 +548,7 @@ async function withHttp2Server(
         if (requestListener) await requestListener(req, res);
         try {
           res.end();
-        } catch (e) {
+        } catch (_e) {
           // requestListener may have messed up the HTTP2 connection. Just ignore.
         }
       });
