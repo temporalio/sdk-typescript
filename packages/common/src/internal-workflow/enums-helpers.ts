@@ -158,6 +158,7 @@ export function makeProtoEnumConverters<
   const reverseTable: Record<ProtoEnumValue, ShortStringEnumKey> = Object.fromEntries(
     Object.entries(mapTable).map(([k, v]) => [v, k])
   );
+  const hasUnspecified = (mapTable as any)['UNSPECIFIED'] === 0 || (mapTable as any)[`${prefix}UNSPECIFIED`] === 0;
 
   function isShortStringEnumKeys(x: unknown): x is ShortStringEnumKey {
     return typeof x === 'string' && x in mapTable;
@@ -192,6 +193,10 @@ export function makeProtoEnumConverters<
     if (input == null) {
       return undefined;
     } else if (typeof input === 'number') {
+      if (hasUnspecified && input === 0) {
+        return undefined;
+      }
+
       if (isNumericEnumValue(input)) {
         return reverseTable[input];
       }

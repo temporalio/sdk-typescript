@@ -448,7 +448,7 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
 
   test('Protobuf Enum to Const Object of Strings conversion works', (t) => {
     t.is(encodeParentClosePolicy(undefined), undefined);
-    t.is(encodeParentClosePolicy(ParentClosePolicy.PARENT_CLOSE_POLICY_UNSPECIFIED), 0);
+    t.is(encodeParentClosePolicy(ParentClosePolicy.PARENT_CLOSE_POLICY_UNSPECIFIED), undefined);
 
     t.is(
       encodeParentClosePolicy(ParentClosePolicy.TERMINATE),
