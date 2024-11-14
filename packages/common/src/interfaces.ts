@@ -128,11 +128,11 @@ export interface HistoryAndWorkflowId {
  * Policy defining actions taken when a workflow exits while update or signal handlers are running.
  * The workflow exit may be due to successful return, failure, cancellation, or continue-as-new.
  */
-export enum HandlerUnfinishedPolicy {
+export const HandlerUnfinishedPolicy = {
   /**
    * Issue a warning in addition to abandoning the handler execution. The warning will not be issued if the workflow fails.
    */
-  WARN_AND_ABANDON = 1,
+  WARN_AND_ABANDON: 'WARN_AND_ABANDON',
 
   /**
    * Abandon the handler execution.
@@ -140,5 +140,6 @@ export enum HandlerUnfinishedPolicy {
    * In the case of an update handler this means that the client will receive an error rather than
    * the update result.
    */
-  ABANDON = 2,
-}
+  ABANDON: 'ABANDON',
+} as const;
+export type HandlerUnfinishedPolicy = (typeof HandlerUnfinishedPolicy)[keyof typeof HandlerUnfinishedPolicy];

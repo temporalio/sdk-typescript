@@ -10,11 +10,10 @@ import {
   defaultPayloadConverter,
   SdkComponent,
   Payload,
-  RetryState,
   toPayloads,
 } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
-import { coresdk } from '@temporalio/proto';
+import { coresdk, temporal } from '@temporalio/proto';
 import { LogTimestamp } from '@temporalio/worker';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
@@ -210,7 +209,7 @@ function makeActivityCancelledFailure(activityId: string, activityType: string) 
       activityId,
       identity: 'test',
       activityType: { name: activityType },
-      retryState: RetryState.RETRY_STATE_CANCEL_REQUESTED,
+      retryState: temporal.api.enums.v1.RetryState.RETRY_STATE_CANCEL_REQUESTED,
     },
   };
 }

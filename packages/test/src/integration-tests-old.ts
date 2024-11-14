@@ -36,7 +36,6 @@ import {
   TimeoutType,
   WorkflowExecution,
   WorkflowExecutionAlreadyStartedError,
-  WorkflowIdReusePolicy,
   WorkflowNotFoundError,
 } from '@temporalio/common';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
@@ -330,7 +329,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     if (!(err?.cause instanceof ChildWorkflowFailure)) {
       return t.fail('Expected err.cause to be an instance of ChildWorkflowFailure');
     }
-    t.is(err.cause.retryState, RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
+    t.is(err.cause.retryState, RetryState.NON_RETRYABLE_FAILURE);
     if (!(err.cause.cause instanceof TerminatedFailure)) {
       return t.fail('Expected err.cause.cause to be an instance of TerminatedFailure');
     }
@@ -350,11 +349,11 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
     if (!(err?.cause instanceof ChildWorkflowFailure)) {
       return t.fail('Expected err.cause to be an instance of ChildWorkflowFailure');
     }
-    t.is(err.cause.retryState, RetryState.RETRY_STATE_TIMEOUT);
+    t.is(err.cause.retryState, RetryState.TIMEOUT);
     if (!(err.cause.cause instanceof TimeoutFailure)) {
       return t.fail('Expected err.cause.cause to be an instance of TimeoutFailure');
     }
-    t.is(err.cause.cause.timeoutType, TimeoutType.TIMEOUT_TYPE_START_TO_CLOSE);
+    t.is(err.cause.cause.timeoutType, TimeoutType.START_TO_CLOSE);
   });
 
   test('child-workflow-start-fail', async (t) => {
@@ -1165,7 +1164,7 @@ export function runIntegrationTests(codec?: PayloadCodec): void {
         workflowId,
         signal: workflows.interruptSignal,
         signalArgs: ['interrupted from signalWithStart'],
-        workflowIdReusePolicy: WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
+        workflowIdReusePolicy: 'REJECT_DUPLICATE',
       }),
       {
         instanceOf: WorkflowExecutionAlreadyStartedError,

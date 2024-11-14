@@ -24,7 +24,7 @@ import {
   SearchAttributes,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { checkExtends } from '@temporalio/common/lib/type-helpers';
+import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
@@ -48,13 +48,26 @@ import pkg from './pkg';
 import { SdkFlag, assertValidFlag } from './flags';
 import { executeWithLifecycleLogging, log } from './logs';
 
-enum StartChildWorkflowExecutionFailedCause {
-  START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_UNSPECIFIED = 0,
-  START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_EXISTS = 1,
-}
+const StartChildWorkflowExecutionFailedCause = {
+  WORKFLOW_ALREADY_EXISTS: 'WORKFLOW_ALREADY_EXISTS',
+} as const;
+type StartChildWorkflowExecutionFailedCause =
+  (typeof StartChildWorkflowExecutionFailedCause)[keyof typeof StartChildWorkflowExecutionFailedCause];
 
-checkExtends<coresdk.child_workflow.StartChildWorkflowExecutionFailedCause, StartChildWorkflowExecutionFailedCause>();
-checkExtends<StartChildWorkflowExecutionFailedCause, coresdk.child_workflow.StartChildWorkflowExecutionFailedCause>();
+const [_encodeStartChildWorkflowExecutionFailedCause, decodeStartChildWorkflowExecutionFailedCause] =
+  makeProtoEnumConverters<
+    coresdk.child_workflow.StartChildWorkflowExecutionFailedCause,
+    typeof coresdk.child_workflow.StartChildWorkflowExecutionFailedCause,
+    keyof typeof coresdk.child_workflow.StartChildWorkflowExecutionFailedCause,
+    typeof StartChildWorkflowExecutionFailedCause,
+    'START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_'
+  >(
+    {
+      [StartChildWorkflowExecutionFailedCause.WORKFLOW_ALREADY_EXISTS]: 1,
+      UNSPECIFIED: 0,
+    } as const,
+    'START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_'
+  );
 
 export interface Stack {
   formatted: string;
@@ -517,10 +530,7 @@ export class Activator implements ActivationHandler {
     if (activation.succeeded) {
       resolve(activation.succeeded.runId);
     } else if (activation.failed) {
-      if (
-        activation.failed.cause !==
-        StartChildWorkflowExecutionFailedCause.START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_EXISTS
-      ) {
+      if (decodeStartChildWorkflowExecutionFailedCause(activation.failed.cause) !== 'WORKFLOW_ALREADY_EXISTS') {
         throw new IllegalStateError('Got unknown StartChildWorkflowExecutionFailedCause');
       }
       if (!(activation.seq && activation.failed.workflowId && activation.failed.workflowType)) {
