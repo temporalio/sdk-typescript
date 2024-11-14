@@ -1,3 +1,4 @@
+import { ValueError } from '../errors';
 import { Exact, RemovePrefix, UnionToIntersection } from '../type-helpers';
 
 /**
@@ -74,16 +75,16 @@ import { Exact, RemovePrefix, UnionToIntersection } from '../type-helpers';
  *    and may be advantageous over the use of `enum` types.
  *
  * A const object of strings, combined with a union type of possible string values, provides a much
- * more idomatic syntax and a better DX for TypeScript developers. This however requires a way to
+ * more idiomatic syntax and a better DX for TypeScript developers. This however requires a way to
  * convert back and forth between the `enum` values produced by the Protobuf compiler and the
  * equivalent string values.
  *
- * This helper dynamicaly creates these conversion functions for a given Protobuf enum type,
+ * This helper dynamically creates these conversion functions for a given Protobuf enum type,
  * strongly building upon specific conventions that we have adopted in our Protobuf definitions.
  *
  * ### Validations
  *
- * The complex type signature of this helper is there to prevent most potential incoherenties
+ * The complex type signature of this helper is there to prevent most potential incoherencies
  * that could result from having to manually synchronize the const object of strings enum and the
  * conversion table with the proto enum, while not requiring a regular import on the Protobuf enum
  * itself (so it can be used safely for enums meant to be used from workflow code).
@@ -181,11 +182,11 @@ export function makeProtoEnumConverters<
       if (isShortStringEnumKeys(shorten)) {
         return mapTable[shorten];
       }
-      throw new TypeError(`Invalid enum value: '${input}'`);
+      throw new ValueError(`Invalid enum value: '${input}'`);
     } else if (typeof input === 'number') {
       return input;
     } else {
-      throw new TypeError(`Invalid enum value: '${input}' of type ${typeof input}`);
+      throw new ValueError(`Invalid enum value: '${input}' of type ${typeof input}`);
     }
   }
 
@@ -201,13 +202,19 @@ export function makeProtoEnumConverters<
         return reverseTable[input];
       }
 
-      // FIXME: What should we do with unknown values?
-      // Throwing may end up causing more problems than it would solve if the decoded values
-      // would actually never get read anwyay. An alternative would be to return a string value
-      // containing the numeric value, something like "unknown_23"...
+      // We got a proto enum value that we don't yet know about (i.e. it didn't exist when this code
+      // was compiled). This is certainly a possibility, but given how our APIs evolve, this is is
+      // unlikely to be a terribly bad thing by itself (we avoid adding new enum values in places
+      // that would break backward compatibility with existing deployed code). Therefore, throwing
+      // on "unexpected" values is likely to end up causing more problems than it might avoid,
+      // especially given that the decoded value may actually never get read anwyay.
+      //
+      // Therefore, we instead cheat on type constraints and return a string of the form "unknown_23".
+      // That somewhat mirrors the behavior we'd get with the pure numerical approach.
+      return `unknown_${input}` as ShortStringEnumKey;
     }
 
-    throw new TypeError(`Invalid proto enum value: '${input}' of type ${typeof input}`);
+    throw new ValueError(`Invalid proto enum value: '${input}' of type ${typeof input}`);
   }
 
   return [encode, decode] as const;
@@ -215,7 +222,7 @@ export function makeProtoEnumConverters<
 
 /**
  * Given the exploded parameters of a proto enum (i.e. short keys, prefix, and short key of the
- * unspecified value), make a type that _exactly_ correspond to the const object of strings enum,
+ * unspecified value), make a type that _exactly_ corresponds to the const object of strings enum,
  * e.g. the type that the developer is expected to write.
  *
  * For example, for coresdk.child_workflow.ParentClosePolicy, this evaluates to:
@@ -265,7 +272,7 @@ type ProtoConstObjectOfStringsEnum<
 
 /**
  * Given the exploded parameters of a proto enum (i.e. short keys, prefix, and short key of the
- * unspecified value), make a type that _exactly_ correspond to the mapping table that the user is
+ * unspecified value), make a type that _exactly_ corresponds to the mapping table that the user is
  * expected to provide.
  *
  * For example, for coresdk.child_workflow.ParentClosePolicy, this evaluates to:
