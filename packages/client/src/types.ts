@@ -1,5 +1,6 @@
 import type * as grpc from '@grpc/grpc-js';
 import type { SearchAttributes } from '@temporalio/common';
+import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import * as proto from '@temporalio/proto';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 
@@ -135,3 +136,38 @@ export interface ConnectionLike {
    */
   withAbortSignal<R>(abortSignal: AbortSignal, fn: () => Promise<R>): Promise<R>;
 }
+
+export const QueryRejectCondition = {
+  NONE: 'NONE',
+  NOT_OPEN: 'NOT_OPEN',
+  NOT_COMPLETED_CLEANLY: 'NOT_COMPLETED_CLEANLY',
+
+  /** @deprecated Use {@link NONE} instead. */
+  QUERY_REJECT_CONDITION_NONE: 'NONE', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link NOT_OPEN} instead. */
+  QUERY_REJECT_CONDITION_NOT_OPEN: 'NOT_OPEN', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link NOT_COMPLETED_CLEANLY} instead. */
+  QUERY_REJECT_CONDITION_NOT_COMPLETED_CLEANLY: 'NOT_COMPLETED_CLEANLY', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use `undefined` instead. */
+  QUERY_REJECT_CONDITION_UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+} as const;
+export type QueryRejectCondition = (typeof QueryRejectCondition)[keyof typeof QueryRejectCondition];
+
+export const [encodeQueryRejectCondition, decodeQueryRejectCondition] = makeProtoEnumConverters<
+  proto.temporal.api.enums.v1.QueryRejectCondition,
+  typeof proto.temporal.api.enums.v1.QueryRejectCondition,
+  keyof typeof proto.temporal.api.enums.v1.QueryRejectCondition,
+  typeof QueryRejectCondition,
+  'QUERY_REJECT_CONDITION_'
+>(
+  {
+    [QueryRejectCondition.NONE]: 1,
+    [QueryRejectCondition.NOT_OPEN]: 2,
+    [QueryRejectCondition.NOT_COMPLETED_CLEANLY]: 3,
+    UNSPECIFIED: 0,
+  } as const,
+  'QUERY_REJECT_CONDITION_'
+);

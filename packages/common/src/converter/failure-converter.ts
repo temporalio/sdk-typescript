@@ -3,14 +3,16 @@ import {
   ApplicationFailure,
   CancelledFailure,
   ChildWorkflowFailure,
+  decodeRetryState,
+  decodeTimeoutType,
+  encodeRetryState,
+  encodeTimeoutType,
   FAILURE_SOURCE,
   ProtoFailure,
-  RetryState,
   ServerFailure,
   TemporalFailure,
   TerminatedFailure,
   TimeoutFailure,
-  TimeoutType,
 } from '../failure';
 import { isError } from '../type-helpers';
 import { msOptionalToTs } from '../time';
@@ -139,7 +141,7 @@ export class DefaultFailureConverter implements FailureConverter {
       return new TimeoutFailure(
         failure.message ?? undefined,
         fromPayloadsAtIndex(payloadConverter, 0, failure.timeoutFailureInfo.lastHeartbeatDetails?.payloads),
-        failure.timeoutFailureInfo.timeoutType ?? TimeoutType.TIMEOUT_TYPE_UNSPECIFIED
+        decodeTimeoutType(failure.timeoutFailureInfo.timeoutType)
       );
     }
     if (failure.terminatedFailureInfo) {
@@ -173,7 +175,7 @@ export class DefaultFailureConverter implements FailureConverter {
         namespace ?? undefined,
         workflowExecution,
         workflowType.name,
-        retryState ?? RetryState.RETRY_STATE_UNSPECIFIED,
+        decodeRetryState(retryState),
         this.optionalFailureToOptionalError(failure.cause, payloadConverter)
       );
     }
@@ -185,7 +187,7 @@ export class DefaultFailureConverter implements FailureConverter {
         failure.message ?? undefined,
         failure.activityFailureInfo.activityType.name,
         failure.activityFailureInfo.activityId ?? undefined,
-        failure.activityFailureInfo.retryState ?? RetryState.RETRY_STATE_UNSPECIFIED,
+        decodeRetryState(failure.activityFailureInfo.retryState),
         failure.activityFailureInfo.identity ?? undefined,
         this.optionalFailureToOptionalError(failure.cause, payloadConverter)
       );
@@ -244,6 +246,7 @@ export class DefaultFailureConverter implements FailureConverter {
           ...base,
           activityFailureInfo: {
             ...err,
+            retryState: encodeRetryState(err.retryState),
             activityType: { name: err.activityType },
           },
         };
@@ -253,6 +256,7 @@ export class DefaultFailureConverter implements FailureConverter {
           ...base,
           childWorkflowExecutionFailureInfo: {
             ...err,
+            retryState: encodeRetryState(err.retryState),
             workflowExecution: err.execution,
             workflowType: { name: err.workflowType },
           },
@@ -287,7 +291,7 @@ export class DefaultFailureConverter implements FailureConverter {
         return {
           ...base,
           timeoutFailureInfo: {
-            timeoutType: err.timeoutType,
+            timeoutType: encodeTimeoutType(err.timeoutType),
             lastHeartbeatDetails: err.lastHeartbeatDetails
               ? { payloads: toPayloads(payloadConverter, err.lastHeartbeatDetails) }
               : undefined,

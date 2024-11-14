@@ -2,6 +2,8 @@ import {
   ActivityFunction,
   ActivityOptions,
   compileRetryPolicy,
+  encodeActivityCancellationType,
+  encodeWorkflowIdReusePolicy,
   extractWorkflowType,
   HandlerUnfinishedPolicy,
   LocalActivityOptions,
@@ -46,6 +48,8 @@ import {
   UpdateHandlerOptions,
   WorkflowInfo,
   UpdateInfo,
+  encodeChildWorkflowCancellationType,
+  encodeParentClosePolicy,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
@@ -179,7 +183,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
         headers,
-        cancellationType: options.cancellationType,
+        cancellationType: encodeActivityCancellationType(options.cancellationType),
         doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
       },
@@ -246,7 +250,7 @@ async function scheduleLocalActivityNextHandler({
         scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
         localRetryThreshold: msOptionalToTs(options.localRetryThreshold),
         headers,
-        cancellationType: options.cancellationType,
+        cancellationType: encodeActivityCancellationType(options.cancellationType),
       },
     });
     activator.completions.activity.set(seq, {
@@ -372,9 +376,9 @@ function startChildWorkflowExecutionNextHandler({
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
         namespace: activator.info.namespace, // Not configurable
         headers,
-        cancellationType: options.cancellationType,
-        workflowIdReusePolicy: options.workflowIdReusePolicy,
-        parentClosePolicy: options.parentClosePolicy,
+        cancellationType: encodeChildWorkflowCancellationType(options.cancellationType),
+        workflowIdReusePolicy: encodeWorkflowIdReusePolicy(options.workflowIdReusePolicy),
+        parentClosePolicy: encodeParentClosePolicy(options.parentClosePolicy),
         cronSchedule: options.cronSchedule,
         searchAttributes: options.searchAttributes
           ? mapToPayloads(searchAttributePayloadConverter, options.searchAttributes)
