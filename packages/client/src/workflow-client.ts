@@ -308,7 +308,7 @@ function ensureArgs<W extends Workflow, T extends WorkflowStartOptions<W>>(
   opts: T
 ): Omit<T, 'args'> & { args: unknown[] } {
   const { args, ...rest } = opts;
-  return { args: args ?? [], ...rest };
+  return { args: (args as unknown[]) ?? [], ...rest };
 }
 
 /**
@@ -939,6 +939,7 @@ export class WorkflowClient extends BaseClient {
       requestId: uuid4(),
       workflowId: options.workflowId,
       workflowIdReusePolicy: options.workflowIdReusePolicy,
+      workflowIdConflictPolicy: options.workflowIdConflictPolicy,
       workflowType: { name: workflowType },
       input: { payloads: await encodeToPayloads(this.dataConverter, ...options.args) },
       signalName,
@@ -989,6 +990,7 @@ export class WorkflowClient extends BaseClient {
       requestId: uuid4(),
       workflowId: opts.workflowId,
       workflowIdReusePolicy: opts.workflowIdReusePolicy,
+      workflowIdConflictPolicy: opts.workflowIdConflictPolicy,
       workflowType: { name: workflowType },
       input: { payloads: await encodeToPayloads(this.dataConverter, ...opts.args) },
       taskQueue: {

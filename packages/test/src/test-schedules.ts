@@ -10,6 +10,7 @@ import {
   ScheduleHandle,
   ScheduleSummary,
   ScheduleUpdateOptions,
+  SearchAttributes,
 } from '@temporalio/client';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS } from './helpers';
@@ -527,6 +528,70 @@ if (RUN_INTEGRATION_TESTS) {
           if (createdSchedulesIds.length !== listedScheduleIds.length) throw new Error('Missing list entries');
 
           t.deepEqual(listedScheduleIds, createdSchedulesIds);
+        },
+        {
+          retries: 60,
+          maxTimeout: 1000,
+        }
+      );
+
+      t.pass();
+    } finally {
+      for (const handle of Object.values(createdScheduleHandles)) {
+        await handle.delete();
+      }
+    }
+  });
+
+  test.serial('Can list Schedules with a query string', async (t) => {
+    const { client } = t.context;
+
+    const groupId = randomUUID();
+    const createdScheduleHandlesPromises = [];
+    const expectedIds: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const scheduleId = `test-query-${groupId}-${i + 1}`;
+      const searchAttributes: SearchAttributes = {};
+      if (i < 2) {
+        searchAttributes['CustomKeywordField'] = ['some-value'];
+        expectedIds.push(scheduleId);
+      }
+      createdScheduleHandlesPromises.push(
+        client.schedule.create({
+          scheduleId,
+          spec: {
+            calendars: [{ hour: { start: 2, end: 7, step: 1 } }],
+          },
+          action: {
+            type: 'startWorkflow',
+            workflowType: dummyWorkflow,
+            taskQueue,
+          },
+          searchAttributes,
+        })
+      );
+    }
+
+    const createdScheduleHandles: { [k: string]: ScheduleHandle } = Object.fromEntries(
+      (await Promise.all(createdScheduleHandlesPromises)).map((x) => [x.scheduleId, x])
+    );
+
+    try {
+      // Wait for visibility to stabilize
+      await asyncRetry(
+        async () => {
+          const listedScheduleHandlesFromQuery: ScheduleSummary[] = []; // to list all the schedule handles from the query string provided
+          const query = `CustomKeywordField="some-value"`;
+
+          for await (const schedule of client.schedule.list({ query })) {
+            listedScheduleHandlesFromQuery.push(schedule);
+          }
+
+          const listedScheduleIdsFromQuery = listedScheduleHandlesFromQuery.map((x) => x.scheduleId).sort();
+
+          if (listedScheduleIdsFromQuery.length !== expectedIds.length) throw new Error('Entries are missing');
+
+          t.deepEqual(listedScheduleIdsFromQuery, expectedIds);
         },
         {
           retries: 60,

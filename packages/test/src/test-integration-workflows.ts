@@ -7,15 +7,15 @@ import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
-import { defineQuery, defineSignal } from '@temporalio/workflow';
+import { defineQuery, defineSignal, WorkflowIdConflictPolicy } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
-import { ActivityCancellationType, ApplicationFailure } from '@temporalio/common';
+import { ActivityCancellationType, ApplicationFailure, WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
-import { asSdkLoggerSink, RUN_TIME_SKIPPING_TESTS } from './helpers';
+import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS } from './helpers';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -214,6 +214,122 @@ test('Start of workflow is delayed', async (t) => {
   const workflowExecutionStartedEvent = events?.find((ev) => ev.workflowExecutionStartedEventAttributes);
   const startDelay = workflowExecutionStartedEvent?.workflowExecutionStartedEventAttributes?.firstWorkflowTaskBackoff;
   t.is(tsToMs(startDelay), 5678000);
+});
+
+export async function conflictId(): Promise<void> {
+  await workflow.condition(() => false);
+}
+
+test('Start of workflow respects workflow id conflict policy', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const wfid = `${taskQueue}-` + randomUUID();
+  const client = t.context.env.client;
+
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(conflictId, {
+      taskQueue,
+      workflowId: wfid,
+    });
+    const handleWithRunId = client.workflow.getHandle(handle.workflowId, handle.firstExecutionRunId);
+
+    // Confirm another fails by default
+    const err = await t.throwsAsync(
+      client.workflow.start(conflictId, {
+        taskQueue,
+        workflowId: wfid,
+      }),
+      {
+        instanceOf: WorkflowExecutionAlreadyStartedError,
+      }
+    );
+
+    t.true(err instanceof WorkflowExecutionAlreadyStartedError);
+
+    // Confirm fails with explicit option
+    const err1 = await t.throwsAsync(
+      client.workflow.start(conflictId, {
+        taskQueue,
+        workflowId: wfid,
+        workflowIdConflictPolicy: WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_FAIL,
+      }),
+      {
+        instanceOf: WorkflowExecutionAlreadyStartedError,
+      }
+    );
+
+    t.true(err1 instanceof WorkflowExecutionAlreadyStartedError);
+
+    // Confirm gives back same handle
+    const handle2 = await client.workflow.start(conflictId, {
+      taskQueue,
+      workflowId: wfid,
+      workflowIdConflictPolicy: WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING,
+    });
+
+    const desc = await handleWithRunId.describe();
+    const desc2 = await handle2.describe();
+
+    t.is(desc.runId, desc2.runId);
+    t.is(desc.status.name, 'RUNNING');
+    t.is(desc2.status.name, 'RUNNING');
+
+    // Confirm terminates and starts new
+    const handle3 = await client.workflow.start(conflictId, {
+      taskQueue,
+      workflowId: wfid,
+      workflowIdConflictPolicy: WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING,
+    });
+
+    const descWithRunId = await handleWithRunId.describe();
+    const desc3 = await handle3.describe();
+    t.not(descWithRunId.runId, desc3.runId);
+    t.is(descWithRunId.status.name, 'TERMINATED');
+    t.is(desc3.status.name, 'RUNNING');
+  });
+});
+
+test('Start of workflow with signal respects conflict id policy', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const wfid = `${taskQueue}-` + randomUUID();
+  const client = t.context.env.client;
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(workflows.signalTarget, {
+      taskQueue,
+      workflowId: wfid,
+    });
+    const handleWithRunId = client.workflow.getHandle(handle.workflowId, handle.firstExecutionRunId);
+
+    // Confirm gives back same handle is the default policy
+    const handle2 = await t.context.env.client.workflow.signalWithStart(workflows.signalTarget, {
+      taskQueue,
+      workflowId: wfid,
+      signal: workflows.argsTestSignal,
+      signalArgs: [123, 'kid'],
+    });
+    const desc = await handleWithRunId.describe();
+    const desc2 = await handle2.describe();
+
+    t.deepEqual(desc.runId, desc2.runId);
+    t.deepEqual(desc.status.name, 'RUNNING');
+    t.deepEqual(desc2.status.name, 'RUNNING');
+
+    // Confirm terminates and starts new
+    const handle3 = await t.context.env.client.workflow.signalWithStart(workflows.signalTarget, {
+      taskQueue,
+      workflowId: wfid,
+      signal: workflows.argsTestSignal,
+      signalArgs: [123, 'kid'],
+      workflowIdConflictPolicy: WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING,
+    });
+
+    const descWithRunId = await handleWithRunId.describe();
+    const desc3 = await handle3.describe();
+    t.true(descWithRunId.runId !== desc3.runId);
+    t.deepEqual(descWithRunId.status.name, 'TERMINATED');
+    t.deepEqual(desc3.status.name, 'RUNNING');
+  });
 });
 
 test('Start of workflow with signal is delayed', async (t) => {
@@ -451,7 +567,7 @@ export async function issue1423Workflow(legacyCompatibility: boolean): Promise<'
     // We expect this to throw a CancellationException
     await workflow.sleep(1);
     throw workflow.ApplicationFailure.nonRetryable("sleep in cancelled scope didn't throw");
-  } catch (err) {
+  } catch (_err) {
     return await workflow.CancellationScope.nonCancellable(async () => {
       try {
         await workflow.condition(() => false, 1);
@@ -1045,6 +1161,55 @@ test('Sink functions contains upserted memo', async (t) => {
   ]);
 });
 
+export async function langFlagsReplayCorrectly(): Promise<void> {
+  const { noopActivity } = workflow.proxyActivities({ scheduleToCloseTimeout: '10s' });
+  await workflow.CancellationScope.withTimeout('10s', async () => {
+    await noopActivity();
+  });
+}
+
+test("Lang's SDK flags replay correctly", async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      noopActivity: () => {},
+    },
+  });
+
+  const handle = await startWorkflow(langFlagsReplayCorrectly);
+  await worker.runUntil(() => handle.result());
+
+  const worker2 = await createWorker();
+  await worker2.runUntil(() => handle.query('__stack_trace'));
+
+  // Query would have thrown if the workflow couldn't be replayed correctly
+  t.pass();
+});
+
+test("Lang's SDK flags - History from before 1.11.0 replays correctly", async (t) => {
+  const { runReplayHistory } = helpers(t);
+  const hist = await loadHistory('lang_flags_replay_correctly_1_9_3.json');
+  await runReplayHistory({}, hist);
+  t.pass();
+});
+
+// Context: Due to a bug in 1.11.0 and 1.11.1, SDK flags that were set in those versions were not
+// persisted to history. To avoid NDEs on histories produced by those releases, we check the Build
+// ID for the SDK version number, and retroactively set some flags on these histories.
+test("Lang's SDK flags - Flags from 1.11.[01] are retroactively applied on replay", async (t) => {
+  const { runReplayHistory } = helpers(t);
+  const hist = await loadHistory('lang_flags_replay_correctly_1_11_1.json');
+  await runReplayHistory({}, hist);
+  t.pass();
+});
+
+test("Lang's SDK flags from 1.11.2 are retroactively applied on replay", async (t) => {
+  const { runReplayHistory } = helpers(t);
+  const hist = await loadHistory('lang_flags_replay_correctly_1_11_2.json');
+  await runReplayHistory({}, hist);
+  t.pass();
+});
+
 export async function cancelAbandonActivityBeforeStarted(): Promise<void> {
   const { activitySleep } = workflow.proxyActivities({
     scheduleToCloseTimeout: '1m',
@@ -1073,6 +1238,23 @@ test('Abandon activity cancel before started works', async (t) => {
   await worker.runUntil(handle.result());
 
   t.pass();
+});
+
+export async function WorkflowWillFail(): Promise<string | undefined> {
+  if (workflow.workflowInfo().attempt > 1) {
+    return workflow.workflowInfo().lastFailure?.message;
+  }
+  throw ApplicationFailure.retryable('WorkflowWillFail', 'WorkflowWillFail');
+}
+
+test("WorkflowInfo().lastFailure contains last run's failure on Workflow Failure", async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  const handle = await startWorkflow(WorkflowWillFail, { retry: { maximumAttempts: 2 } });
+  await worker.runUntil(async () => {
+    const lastFailure = await handle.result();
+    t.is(lastFailure, 'WorkflowWillFail');
+  });
 });
 
 export const interceptors: workflow.WorkflowInterceptorsFactory = () => {

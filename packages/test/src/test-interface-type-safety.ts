@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import test from 'ava';
 import {
   defineSignal,
@@ -128,7 +130,7 @@ test('startUpdate and executeUpdate call signatures', async (t) => {
     });
     // @ts-expect-error: waitForStage must be ACCEPTED
     await handle.startUpdate(nullaryUpdate, {
-      waitForStage: WorkflowUpdateStage.UNSPECIFIED,
+      waitForStage: WorkflowUpdateStage.UNSPECIFIED, // eslint-disable-line deprecation/deprecation
     });
     // @ts-expect-error: args must be empty if present
     await handle.startUpdate(nullaryUpdate, {

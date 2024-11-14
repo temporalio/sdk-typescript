@@ -153,7 +153,7 @@ export function deepFreeze<T>(object: T): T {
     if (value && typeof value === 'object') {
       try {
         deepFreeze(value);
-      } catch (err) {
+      } catch (_err) {
         // This is okay, there are some typed arrays that cannot be frozen (encodingKeys)
       }
     } else if (typeof value === 'function') {

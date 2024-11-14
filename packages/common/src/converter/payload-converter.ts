@@ -232,7 +232,7 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
     let json;
     try {
       json = JSON.stringify(value);
-    } catch (err) {
+    } catch (_err) {
       return undefined;
     }
 

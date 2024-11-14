@@ -12,7 +12,7 @@ function maybeInstallMock() {
   activator.hasFlag = (flag) => {
     const overridenDefaultValue = defaultValueOverrides.get(flag.id);
     if (overridenDefaultValue !== undefined) {
-      flag = { id: flag.id, default: overridenDefaultValue };
+      flag = { id: flag.id, default: overridenDefaultValue, alternativeConditions: undefined };
     }
     return originalHasFlag(flag);
   };
