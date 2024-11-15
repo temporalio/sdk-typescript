@@ -351,8 +351,20 @@ export interface WorkerStatus {
   numInFlightWorkflowActivations: number;
   /**
    * Number of in-flight (currently actively processed) Activities
+   *
+   * This includes both local and non-local Activities.
+   *
+   * See {@link numInFlightNonLocalActivities} and {@link numInFlightLocalActivities} for a breakdown.
    */
   numInFlightActivities: number;
+  /**
+   * Number of in-flight (currently actively processed) non-Local Activities
+   */
+  numInFlightNonLocalActivities: number;
+  /**
+   * Number of in-flight (currently actively processed) Local Activities
+   */
+  numInFlightLocalActivities: number;
   /**
    * Number of Workflow executions cached in Worker memory
    */
@@ -437,6 +449,8 @@ export class Worker {
 
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
+  protected readonly numInFlightNonLocalActivitiesSubject = new BehaviorSubject<number>(0);
+  protected readonly numInFlightLocalActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numCachedWorkflowsSubject = new BehaviorSubject<number>(0);
   protected readonly numHeartbeatingActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly evictionsEmitter = new EventEmitter();
@@ -769,6 +783,8 @@ export class Worker {
       numCachedWorkflows: this.numCachedWorkflowsSubject.value,
       numInFlightWorkflowActivations: this.numInFlightActivationsSubject.value,
       numInFlightActivities: this.numInFlightActivitiesSubject.value,
+      numInFlightNonLocalActivities: this.numInFlightNonLocalActivitiesSubject.value,
+      numInFlightLocalActivities: this.numInFlightLocalActivitiesSubject.value,
     };
   }
 
@@ -1021,12 +1037,17 @@ export class Worker {
 
             let result;
 
+            const numInFlightBreakdownSubject = output.activity.info.isLocal
+              ? this.numInFlightLocalActivitiesSubject
+              : this.numInFlightNonLocalActivitiesSubject;
+
             this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value + 1);
+            numInFlightBreakdownSubject.next(numInFlightBreakdownSubject.value + 1);
             try {
               result = await output.activity.run(output.input);
             } finally {
+              numInFlightBreakdownSubject.next(numInFlightBreakdownSubject.value - 1);
               this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value - 1);
-              group$.close();
             }
             const status = result.failed ? 'failed' : result.completed ? 'completed' : 'cancelled';
 
@@ -1060,7 +1081,12 @@ export class Worker {
             return { taskToken, result };
           }),
           filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
-          map((rest) => coresdk.ActivityTaskCompletion.encodeDelimited(rest).finish())
+          map((rest) => coresdk.ActivityTaskCompletion.encodeDelimited(rest).finish()),
+          tap({
+            next: () => {
+              group$.close();
+            },
+          })
         );
       })
     );
@@ -1804,7 +1830,7 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
   let context: any = vm.createContext({});
   try {
     script.runInContext(context);
-  } catch (e) {
+  } catch (_e) {
     // Context has not been properly configured, so eventual errors are possible. Just ignore at this point
   }
 

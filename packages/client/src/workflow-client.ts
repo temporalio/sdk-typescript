@@ -20,6 +20,9 @@ import {
   WorkflowNotFoundError,
   WorkflowResultType,
   extractWorkflowType,
+  encodeWorkflowIdReusePolicy,
+  decodeRetryState,
+  encodeWorkflowIdConflictPolicy,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { History } from '@temporalio/common/lib/proto-utils';
@@ -56,7 +59,9 @@ import {
 } from './interceptors';
 import {
   DescribeWorkflowExecutionResponse,
+  encodeQueryRejectCondition,
   GetWorkflowExecutionHistoryRequest,
+  QueryRejectCondition,
   RequestCancelWorkflowExecutionResponse,
   StartWorkflowExecutionRequest,
   TerminateWorkflowExecutionResponse,
@@ -81,8 +86,9 @@ import {
   WithDefaults,
 } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
-import { WorkflowUpdateStage } from './workflow-update-stage';
-import * as workflowUpdateStage from './workflow-update-stage';
+import { WorkflowUpdateStage, encodeWorkflowUpdateStage } from './workflow-update-stage';
+
+const UpdateWorkflowExecutionLifecycleStage = temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
 
 /**
  * A client side handle to a single Workflow instance.
@@ -168,7 +174,7 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    * ```ts
    * const updateHandle = await handle.startUpdate(incrementAndGetValueUpdate, {
    *   args: [2],
-   *   waitForStage: WorkflowUpdateStage.ACCEPTED,
+   *   waitForStage: 'ACCEPTED',
    * });
    * const updateResult = await updateHandle.result();
    * ```
@@ -177,7 +183,7 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
     def: UpdateDefinition<Ret, Args, Name> | string,
     options: WorkflowUpdateOptions & {
       args: Args;
-      waitForStage: WorkflowUpdateStage.ACCEPTED;
+      waitForStage: 'ACCEPTED';
     }
   ): Promise<WorkflowUpdateHandle<Ret>>;
 
@@ -185,7 +191,7 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
     def: UpdateDefinition<Ret, Args, Name> | string,
     options: WorkflowUpdateOptions & {
       args?: Args;
-      waitForStage: WorkflowUpdateStage.ACCEPTED;
+      waitForStage: typeof WorkflowUpdateStage.ACCEPTED;
     }
   ): Promise<WorkflowUpdateHandle<Ret>>;
 
@@ -280,9 +286,9 @@ export interface WorkflowClientOptions extends BaseClientOptions {
   /**
    * Should a query be rejected by closed and failed workflows
    *
-   * @default QUERY_REJECT_CONDITION_UNSPECIFIED which means that closed and failed workflows are still queryable
+   * @default `undefined` which means that closed and failed workflows are still queryable
    */
-  queryRejectCondition?: temporal.api.enums.v1.QueryRejectCondition;
+  queryRejectCondition?: QueryRejectCondition;
 }
 
 export type LoadedWorkflowClientOptions = LoadedWithDefaults<WorkflowClientOptions>;
@@ -291,7 +297,7 @@ function defaultWorkflowClientOptions(): WithDefaults<WorkflowClientOptions> {
   return {
     ...defaultBaseClientOptions(),
     interceptors: [],
-    queryRejectCondition: temporal.api.enums.v1.QueryRejectCondition.QUERY_REJECT_CONDITION_UNSPECIFIED,
+    queryRejectCondition: 'NONE',
   };
 }
 
@@ -659,7 +665,7 @@ export class WorkflowClient extends BaseClient {
         throw new WorkflowFailedError(
           'Workflow execution failed',
           await decodeOptionalFailureToOptionalError(this.dataConverter, failure),
-          retryState ?? RetryState.RETRY_STATE_UNSPECIFIED
+          decodeRetryState(retryState)
         );
       } else if (ev.workflowExecutionCanceledEventAttributes) {
         const failure = new CancelledFailure(
@@ -670,11 +676,7 @@ export class WorkflowClient extends BaseClient {
           )
         );
         failure.stack = '';
-        throw new WorkflowFailedError(
-          'Workflow execution cancelled',
-          failure,
-          RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE
-        );
+        throw new WorkflowFailedError('Workflow execution cancelled', failure, RetryState.NON_RETRYABLE_FAILURE);
       } else if (ev.workflowExecutionTerminatedEventAttributes) {
         const failure = new TerminatedFailure(
           ev.workflowExecutionTerminatedEventAttributes.reason || 'Workflow execution terminated'
@@ -683,7 +685,7 @@ export class WorkflowClient extends BaseClient {
         throw new WorkflowFailedError(
           ev.workflowExecutionTerminatedEventAttributes.reason || 'Workflow execution terminated',
           failure,
-          RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE
+          RetryState.NON_RETRYABLE_FAILURE
         );
       } else if (ev.workflowExecutionTimedOutEventAttributes) {
         if (followRuns && ev.workflowExecutionTimedOutEventAttributes.newExecutionRunId) {
@@ -691,16 +693,12 @@ export class WorkflowClient extends BaseClient {
           req.nextPageToken = undefined;
           continue;
         }
-        const failure = new TimeoutFailure(
-          'Workflow execution timed out',
-          undefined,
-          TimeoutType.TIMEOUT_TYPE_START_TO_CLOSE
-        );
+        const failure = new TimeoutFailure('Workflow execution timed out', undefined, TimeoutType.START_TO_CLOSE);
         failure.stack = '';
         throw new WorkflowFailedError(
           'Workflow execution timed out',
           failure,
-          ev.workflowExecutionTimedOutEventAttributes.retryState || 0
+          decodeRetryState(ev.workflowExecutionTimedOutEventAttributes.retryState)
         );
       } else if (ev.workflowExecutionContinuedAsNewEventAttributes) {
         const { newExecutionRunId } = ev.workflowExecutionContinuedAsNewEventAttributes;
@@ -806,8 +804,15 @@ export class WorkflowClient extends BaseClient {
     waitForStage: WorkflowUpdateStage,
     input: WorkflowStartUpdateInput
   ): Promise<WorkflowStartUpdateOutput> {
-    waitForStage = waitForStage >= WorkflowUpdateStage.ACCEPTED ? waitForStage : WorkflowUpdateStage.ACCEPTED;
-    const waitForStageProto = workflowUpdateStage.toProtoEnum(waitForStage);
+    let waitForStageProto: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage =
+      encodeWorkflowUpdateStage(waitForStage) ??
+      UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED;
+
+    waitForStageProto =
+      waitForStageProto >= UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED
+        ? waitForStageProto
+        : UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED;
+
     const updateId = input.options?.updateId ?? uuid4();
     const req: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest = {
       namespace: this.options.namespace,
@@ -886,7 +891,7 @@ export class WorkflowClient extends BaseClient {
       updateRef: { workflowExecution, updateId },
       identity: this.options.identity,
       waitPolicy: {
-        lifecycleStage: workflowUpdateStage.toProtoEnum(WorkflowUpdateStage.COMPLETED),
+        lifecycleStage: encodeWorkflowUpdateStage(WorkflowUpdateStage.COMPLETED),
       },
     };
     for (;;) {
@@ -938,7 +943,8 @@ export class WorkflowClient extends BaseClient {
       identity,
       requestId: uuid4(),
       workflowId: options.workflowId,
-      workflowIdReusePolicy: options.workflowIdReusePolicy,
+      workflowIdReusePolicy: encodeWorkflowIdReusePolicy(options.workflowIdReusePolicy),
+      workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(options.workflowIdConflictPolicy),
       workflowType: { name: workflowType },
       input: { payloads: await encodeToPayloads(this.dataConverter, ...options.args) },
       signalName,
@@ -988,7 +994,8 @@ export class WorkflowClient extends BaseClient {
       identity,
       requestId: uuid4(),
       workflowId: opts.workflowId,
-      workflowIdReusePolicy: opts.workflowIdReusePolicy,
+      workflowIdReusePolicy: encodeWorkflowIdReusePolicy(opts.workflowIdReusePolicy),
+      workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(opts.workflowIdConflictPolicy),
       workflowType: { name: workflowType },
       input: { payloads: await encodeToPayloads(this.dataConverter, ...opts.args) },
       taskQueue: {
@@ -1178,7 +1185,7 @@ export class WorkflowClient extends BaseClient {
         def: UpdateDefinition<Ret, Args> | string,
         options: WorkflowUpdateOptions & {
           args?: Args;
-          waitForStage: WorkflowUpdateStage.ACCEPTED;
+          waitForStage: typeof WorkflowUpdateStage.ACCEPTED;
         }
       ): Promise<WorkflowUpdateHandle<Ret>> {
         return await _startUpdate(def, options.waitForStage, options);
@@ -1208,7 +1215,7 @@ export class WorkflowClient extends BaseClient {
         const fn = composeInterceptors(interceptors, 'query', next);
         return fn({
           workflowExecution: { workflowId, runId },
-          queryRejectCondition: this.client.options.queryRejectCondition,
+          queryRejectCondition: encodeQueryRejectCondition(this.client.options.queryRejectCondition),
           queryType: typeof def === 'string' ? def : def.name,
           args,
           headers: {},

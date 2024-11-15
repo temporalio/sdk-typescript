@@ -1,5 +1,6 @@
 import { checkExtends, Replace } from '@temporalio/common/lib/type-helpers';
 import { Duration, SearchAttributes, Workflow } from '@temporalio/common';
+import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { temporal } from '@temporalio/proto';
 import { WorkflowStartOptions } from './workflow-options';
 
@@ -795,57 +796,69 @@ export type CompiledScheduleAction = Replace<
 /**
  * Policy for overlapping Actions.
  */
-export enum ScheduleOverlapPolicy {
-  /**
-   * Use server default (currently SKIP).
-   *
-   * FIXME: remove this field if this issue is implemented: https://github.com/temporalio/temporal/issues/3240
-   */
-  UNSPECIFIED = 0,
-
+export const ScheduleOverlapPolicy = {
   /**
    * Don't start a new Action.
+   * @default
    */
-  SKIP,
+  SKIP: 'SKIP',
 
   /**
    * Start another Action as soon as the current Action completes, but only buffer one Action in this way. If another
    * Action is supposed to start, but one Action is running and one is already buffered, then only the buffered one will
    * be started after the running Action finishes.
    */
-  BUFFER_ONE,
+  BUFFER_ONE: 'BUFFER_ONE',
 
   /**
    * Allows an unlimited number of Actions to buffer. They are started sequentially.
    */
-  BUFFER_ALL,
+  BUFFER_ALL: 'BUFFER_ALL',
 
   /**
    * Cancels the running Action, and then starts the new Action once the cancelled one completes.
    */
-  CANCEL_OTHER,
+  CANCEL_OTHER: 'CANCEL_OTHER',
 
   /**
    * Terminate the running Action and start the new Action immediately.
    */
-  TERMINATE_OTHER,
+  TERMINATE_OTHER: 'TERMINATE_OTHER',
 
   /**
    * Allow any number of Actions to start immediately.
    *
    * This is the only policy under which multiple Actions can run concurrently.
    */
-  ALLOW_ALL,
-}
+  ALLOW_ALL: 'ALLOW_ALL',
 
-checkExtends<
+  /**
+   * Use server default (currently SKIP).
+   *
+   * @deprecated Either leave property `undefined`, or use {@link SKIP} instead.
+   */
+  UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+} as const;
+export type ScheduleOverlapPolicy = (typeof ScheduleOverlapPolicy)[keyof typeof ScheduleOverlapPolicy];
+
+export const [encodeScheduleOverlapPolicy, decodeScheduleOverlapPolicy] = makeProtoEnumConverters<
+  temporal.api.enums.v1.ScheduleOverlapPolicy,
+  typeof temporal.api.enums.v1.ScheduleOverlapPolicy,
   keyof typeof temporal.api.enums.v1.ScheduleOverlapPolicy,
-  `SCHEDULE_OVERLAP_POLICY_${keyof typeof ScheduleOverlapPolicy}`
->();
-checkExtends<
-  `SCHEDULE_OVERLAP_POLICY_${keyof typeof ScheduleOverlapPolicy}`,
-  keyof typeof temporal.api.enums.v1.ScheduleOverlapPolicy
->();
+  typeof ScheduleOverlapPolicy,
+  'SCHEDULE_OVERLAP_POLICY_'
+>(
+  {
+    [ScheduleOverlapPolicy.SKIP]: 1,
+    [ScheduleOverlapPolicy.BUFFER_ONE]: 2,
+    [ScheduleOverlapPolicy.BUFFER_ALL]: 3,
+    [ScheduleOverlapPolicy.CANCEL_OTHER]: 4,
+    [ScheduleOverlapPolicy.TERMINATE_OTHER]: 5,
+    [ScheduleOverlapPolicy.ALLOW_ALL]: 6,
+    UNSPECIFIED: 0,
+  } as const,
+  'SCHEDULE_OVERLAP_POLICY_'
+);
 
 export interface Backfill {
   /**
