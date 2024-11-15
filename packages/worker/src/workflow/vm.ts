@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import { URL, URLSearchParams } from 'node:url';
+import { TextEncoder, TextDecoder } from 'node:util';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import vm from 'node:vm';
 import { IllegalStateError } from '@temporalio/common';
@@ -77,7 +78,15 @@ export class VMWorkflowCreator implements WorkflowCreator {
     if (this.script === undefined) {
       throw new IllegalStateError('Isolate context provider was destroyed');
     }
-    const globals = { AsyncLocalStorage, URL, URLSearchParams, assert, __webpack_module_cache__: {} };
+    const globals = {
+      AsyncLocalStorage,
+      URL,
+      URLSearchParams,
+      assert,
+      __webpack_module_cache__: {},
+      TextEncoder,
+      TextDecoder,
+    };
     const context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
     this.script.runInContext(context);
     return context;

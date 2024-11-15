@@ -85,6 +85,7 @@ export * from './stack-tracer';
 export * from './success-string';
 export * from './swc';
 export * from './tasks-and-microtasks';
+export * from './text-encoder-decoder';
 export * from './throw-async';
 export * from './throw-big-int';
 export * from './throw-object';
