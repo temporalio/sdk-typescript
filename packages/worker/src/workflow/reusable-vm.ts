@@ -70,7 +70,15 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
         },
       }
     );
-    const globals = { AsyncLocalStorage, URL, URLSearchParams, assert, __webpack_module_cache__, TextEncoder, TextDecoder };
+    const globals = {
+      AsyncLocalStorage,
+      URL,
+      URLSearchParams,
+      assert,
+      __webpack_module_cache__,
+      TextEncoder,
+      TextDecoder,
+    };
     this._context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
     this.injectConsole();
     script.runInContext(this.context);
