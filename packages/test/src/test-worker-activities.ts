@@ -99,7 +99,7 @@ test('Worker runs an activity and reports failure', async (t) => {
   });
 });
 
-test('Worker cancels activity and reports cancellation', async (t) => {
+const workerCancelsActivityMacro = test.macro(async (t, throwIfAborted?: boolean) => {
   const { worker } = t.context;
   await runWorker(t, async () => {
     const taskToken = Buffer.from(uuid4());
@@ -109,7 +109,7 @@ test('Worker cancels activity and reports cancellation', async (t) => {
         start: {
           activityType: 'waitForCancellation',
           workflowExecution: { workflowId: 'wfid', runId: 'runId' },
-          input: toPayloads(defaultPayloadConverter),
+          input: toPayloads(defaultPayloadConverter, throwIfAborted),
         },
       },
     });
@@ -130,6 +130,10 @@ test('Worker cancels activity and reports cancellation', async (t) => {
     });
   });
 });
+
+test('Worker cancels activity and reports cancellation', workerCancelsActivityMacro);
+
+test('Worker cancels activity and reports cancellation when using throwIfAborted', workerCancelsActivityMacro, true);
 
 test('Activity Context AbortSignal cancels a fetch request', async (t) => {
   const { worker } = t.context;
