@@ -4,7 +4,7 @@ import { v4 as uuid4 } from 'uuid';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { DefaultLogger, InjectedSinks, Runtime, WorkerOptions, LogEntry } from '@temporalio/worker';
 import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
-import { UnsafeWorkflowInfo } from '@temporalio/workflow/src/interfaces';
+import { UnsafeWorkflowInfo } from '@temporalio/workflow/lib/interfaces';
 import { SdkComponent } from '@temporalio/common';
 import { RUN_INTEGRATION_TESTS, Worker, asSdkLoggerSink, registerDefaultCustomSearchAttributes } from './helpers';
 import { defaultOptions } from './mock-native-worker';
@@ -115,7 +115,7 @@ if (RUN_INTEGRATION_TESTS) {
       workflowType: 'sinksWorkflow',
       lastFailure: undefined,
       lastResult: undefined,
-      memo: undefined,
+      memo: {},
       parent: undefined,
       searchAttributes: {},
       historyLength: 3,

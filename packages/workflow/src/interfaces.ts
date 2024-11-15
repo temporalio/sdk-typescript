@@ -11,7 +11,8 @@ import {
   Duration,
   VersioningIntent,
 } from '@temporalio/common';
-import { checkExtends, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
 import type { coresdk } from '@temporalio/proto';
 
 /**
@@ -273,16 +274,18 @@ export interface ContinueAsNewOptions {
  *
  * @default {@link ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED}
  */
-export enum ChildWorkflowCancellationType {
+export type ChildWorkflowCancellationType =
+  (typeof ChildWorkflowCancellationType)[keyof typeof ChildWorkflowCancellationType];
+export const ChildWorkflowCancellationType = {
   /**
    * Don't send a cancellation request to the Child.
    */
-  ABANDON = 0,
+  ABANDON: 'ABANDON',
 
   /**
    * Send a cancellation request to the Child. Immediately throw the error.
    */
-  TRY_CANCEL = 1,
+  TRY_CANCEL: 'TRY_CANCEL',
 
   /**
    * Send a cancellation request to the Child. The Child may respect cancellation, in which case an error will be thrown
@@ -292,48 +295,102 @@ export enum ChildWorkflowCancellationType {
    *
    * @default
    */
-  WAIT_CANCELLATION_COMPLETED = 2,
+  WAIT_CANCELLATION_COMPLETED: 'WAIT_CANCELLATION_COMPLETED',
 
   /**
    * Send a cancellation request to the Child. Throw the error once the Server receives the Child cancellation request.
    */
-  WAIT_CANCELLATION_REQUESTED = 3,
-}
+  WAIT_CANCELLATION_REQUESTED: 'WAIT_CANCELLATION_REQUESTED',
+} as const;
 
-checkExtends<coresdk.child_workflow.ChildWorkflowCancellationType, ChildWorkflowCancellationType>();
-checkExtends<ChildWorkflowCancellationType, coresdk.child_workflow.ChildWorkflowCancellationType>();
+// ts-prune-ignore-next
+export const [encodeChildWorkflowCancellationType, decodeChildWorkflowCancellationType] = makeProtoEnumConverters<
+  coresdk.child_workflow.ChildWorkflowCancellationType,
+  typeof coresdk.child_workflow.ChildWorkflowCancellationType,
+  keyof typeof coresdk.child_workflow.ChildWorkflowCancellationType,
+  typeof ChildWorkflowCancellationType,
+  ''
+>(
+  {
+    [ChildWorkflowCancellationType.ABANDON]: 0,
+    [ChildWorkflowCancellationType.TRY_CANCEL]: 1,
+    [ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED]: 2,
+    [ChildWorkflowCancellationType.WAIT_CANCELLATION_REQUESTED]: 3,
+  } as const,
+  ''
+);
 
 /**
  * How a Child Workflow reacts to the Parent Workflow reaching a Closed state.
  *
  * @see {@link https://docs.temporal.io/concepts/what-is-a-parent-close-policy/ | Parent Close Policy}
  */
-export enum ParentClosePolicy {
-  /**
-   * If a `ParentClosePolicy` is set to this, or is not set at all, the server default value will be used.
-   */
-  PARENT_CLOSE_POLICY_UNSPECIFIED = 0,
-
+export type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
+export const ParentClosePolicy = {
   /**
    * When the Parent is Closed, the Child is Terminated.
    *
    * @default
    */
-  PARENT_CLOSE_POLICY_TERMINATE = 1,
+  TERMINATE: 'TERMINATE',
 
   /**
    * When the Parent is Closed, nothing is done to the Child.
    */
-  PARENT_CLOSE_POLICY_ABANDON = 2,
+  ABANDON: 'ABANDON',
 
   /**
    * When the Parent is Closed, the Child is Cancelled.
    */
-  PARENT_CLOSE_POLICY_REQUEST_CANCEL = 3,
-}
+  REQUEST_CANCEL: 'REQUEST_CANCEL',
 
-checkExtends<coresdk.child_workflow.ParentClosePolicy, ParentClosePolicy>();
-checkExtends<ParentClosePolicy, coresdk.child_workflow.ParentClosePolicy>();
+  /// Anything below this line has been deprecated
+
+  /**
+   * If a `ParentClosePolicy` is set to this, or is not set at all, the server default value will be used.
+   *
+   * @deprecated Either leave property `undefined`, or set an explicit policy instead.
+   */
+  PARENT_CLOSE_POLICY_UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+
+  /**
+   * When the Parent is Closed, the Child is Terminated.
+   *
+   * @deprecated Use {@link ParentClosePolicy.TERMINATE} instead.
+   */
+  PARENT_CLOSE_POLICY_TERMINATE: 'TERMINATE', // eslint-disable-line deprecation/deprecation
+
+  /**
+   * When the Parent is Closed, nothing is done to the Child.
+   *
+   * @deprecated Use {@link ParentClosePolicy.ABANDON} instead.
+   */
+  PARENT_CLOSE_POLICY_ABANDON: 'ABANDON', // eslint-disable-line deprecation/deprecation
+
+  /**
+   * When the Parent is Closed, the Child is Cancelled.
+   *
+   * @deprecated Use {@link ParentClosePolicy.REQUEST_CANCEL} instead.
+   */
+  PARENT_CLOSE_POLICY_REQUEST_CANCEL: 'REQUEST_CANCEL', // eslint-disable-line deprecation/deprecation
+} as const;
+
+// ts-prune-ignore-next
+export const [encodeParentClosePolicy, decodeParentClosePolicy] = makeProtoEnumConverters<
+  coresdk.child_workflow.ParentClosePolicy,
+  typeof coresdk.child_workflow.ParentClosePolicy,
+  keyof typeof coresdk.child_workflow.ParentClosePolicy,
+  typeof ParentClosePolicy,
+  'PARENT_CLOSE_POLICY_'
+>(
+  {
+    [ParentClosePolicy.TERMINATE]: 1,
+    [ParentClosePolicy.ABANDON]: 2,
+    [ParentClosePolicy.REQUEST_CANCEL]: 3,
+    UNSPECIFIED: 0,
+  } as const,
+  'PARENT_CLOSE_POLICY_'
+);
 
 export interface ChildWorkflowOptions extends CommonWorkflowOptions {
   /**
@@ -346,6 +403,8 @@ export interface ChildWorkflowOptions extends CommonWorkflowOptions {
   /**
    * Task queue to use for Workflow tasks. It should match a task queue specified when creating a
    * `Worker` that hosts the Workflow code.
+   *
+   * By default, a child is scheduled on the same Task Queue as the parent.
    */
   taskQueue?: string;
 
@@ -452,8 +511,6 @@ export interface WorkflowCreateOptions {
   info: WorkflowInfo;
   randomnessSeed: number[];
   now: number;
-  patches: string[];
-  sdkFlags: number[];
   showStackTraceSources: boolean;
 }
 

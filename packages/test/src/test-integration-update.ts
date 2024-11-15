@@ -4,7 +4,7 @@ import { temporal } from '@temporalio/proto';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { signalUpdateOrderingWorkflow } from './workflows/signal-update-ordering';
 import { signalsActivitiesTimersPromiseOrdering } from './workflows/signals-timers-activities-order';
-import { getHistories, waitUntil } from './helpers';
+import { loadHistory, waitUntil } from './helpers';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -602,6 +602,28 @@ test('update result poll throws WorkflowUpdateRPCTimeoutOrCancelledError', async
   });
 });
 
+const updateThatShouldFail = wf.defineUpdate('updateThatShouldFail');
+
+export async function workflowThatWillBeCanceled(): Promise<void> {
+  wf.setHandler(updateThatShouldFail, async () => {
+    await wf.condition(() => false);
+  });
+  await wf.condition(() => false);
+}
+
+test('update caller gets update failed error on workflow cancellation', async (t) => {
+  const { createWorker, startWorkflow, assertWorkflowUpdateFailed } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const w = await startWorkflow(workflowThatWillBeCanceled);
+    const u = await w.startUpdate(updateThatShouldFail, {
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+    });
+    await w.cancel();
+    await assertWorkflowUpdateFailed(u.result(), wf.CancelledFailure, 'Workflow cancelled');
+  });
+});
+
 export { signalUpdateOrderingWorkflow };
 
 // Validate that issue #1474 is fixed in 1.11.0+
@@ -787,7 +809,7 @@ test('Can complete update after Workflow fails', async (t) => {
  */
 test('Can complete update after workflow returns - pre-1.11.0 compatibility', async (t) => {
   const { runReplayHistory } = helpers(t);
-  const hist = await getHistories('complete_update_after_workflow_returns_pre1488.json');
+  const hist = await loadHistory('complete_update_after_workflow_returns_pre1488.json');
   await runReplayHistory({}, hist);
   t.pass();
 });

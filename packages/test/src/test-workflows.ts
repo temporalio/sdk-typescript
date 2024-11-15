@@ -10,11 +10,10 @@ import {
   defaultPayloadConverter,
   SdkComponent,
   Payload,
-  RetryState,
   toPayloads,
 } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
-import { coresdk } from '@temporalio/proto';
+import { coresdk, temporal } from '@temporalio/proto';
 import { LogTimestamp } from '@temporalio/worker';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
@@ -121,8 +120,6 @@ async function createWorkflow(
     },
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
-    patches: [],
-    sdkFlags: [],
     showStackTraceSources: true,
   })) as VMWorkflow;
   return workflow;
@@ -131,13 +128,18 @@ async function createWorkflow(
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWorkflowActivation) {
   const { workflow, runId } = t.context;
 
-  // Core guarantees the following jobs ordering: patches -> signals+update -> others
-  // Tests are likely to fail if we artifically pass an activation that does not follow that order
+  // Core guarantees the following jobs ordering:
+  //   initWf -> patches -> update random seed -> signals+update -> others -> Resolve LA
+  // reference: github.com/temporalio/sdk-core/blob/a8150d5c7c3fc1bfd5a941fd315abff1556cd9dc/core/src/worker/workflow/mod.rs#L1363-L1378
+  // Tests are likely to fail if we artifically make an activation that does not follow that order
   const jobs: coresdk.workflow_activation.IWorkflowActivationJob[] = activation.jobs ?? [];
   function getPriority(job: coresdk.workflow_activation.IWorkflowActivationJob) {
-    if (job.notifyHasPatch) return 0;
-    if (job.signalWorkflow || job.doUpdate) return 1;
-    return 2;
+    if (job.initializeWorkflow) return 0;
+    if (job.notifyHasPatch) return 1;
+    if (job.updateRandomSeed) return 2;
+    if (job.signalWorkflow || job.doUpdate) return 3;
+    if (job.resolveActivity && job.resolveActivity.isLocal) return 5;
+    return 4;
   }
   jobs.reduce((prevPriority: number, currJob) => {
     const currPriority = getPriority(currJob);
@@ -183,15 +185,15 @@ function makeStartWorkflow(
   args?: Payload[],
   timestamp: number = Date.now()
 ): coresdk.workflow_activation.IWorkflowActivation {
-  return makeActivation(timestamp, makeStartWorkflowJob(script, args));
+  return makeActivation(timestamp, makeInitializeWorkflowJob(script, args));
 }
 
-function makeStartWorkflowJob(
+function makeInitializeWorkflowJob(
   workflowType: string,
   args?: Payload[]
-): { startWorkflow: coresdk.workflow_activation.IStartWorkflow } {
+): { initializeWorkflow: coresdk.workflow_activation.IInitializeWorkflow } {
   return {
-    startWorkflow: { workflowId: 'test-workflowId', workflowType, arguments: args },
+    initializeWorkflow: { workflowId: 'test-workflowId', workflowType, arguments: args },
   };
 }
 
@@ -207,7 +209,7 @@ function makeActivityCancelledFailure(activityId: string, activityType: string) 
       activityId,
       identity: 'test',
       activityType: { name: activityType },
-      retryState: RetryState.RETRY_STATE_CANCEL_REQUESTED,
+      retryState: temporal.api.enums.v1.RetryState.RETRY_STATE_CANCEL_REQUESTED,
     },
   };
 }
@@ -1733,7 +1735,7 @@ test('replay-no-marker patchedWorkflow', async (t) => {
       runId: 'test-runId',
       timestamp: msToTs(Date.now()),
       isReplaying: true,
-      jobs: [makeStartWorkflowJob(workflowType)],
+      jobs: [makeInitializeWorkflowJob(workflowType)],
     };
     const completion = await activate(t, act);
     compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) })]));
@@ -1758,7 +1760,7 @@ test('replay-no-marker-then-not-replay patchedWorkflow', async (t) => {
       runId: 'test-runId',
       timestamp: msToTs(Date.now()),
       isReplaying: true,
-      jobs: [makeStartWorkflowJob(workflowType)],
+      jobs: [makeInitializeWorkflowJob(workflowType)],
     };
     const completion = await activate(t, act);
     compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) })]));
@@ -1782,7 +1784,7 @@ test('replay-with-marker patchedWorkflow', async (t) => {
       runId: 'test-runId',
       timestamp: msToTs(Date.now()),
       isReplaying: true,
-      jobs: [makeNotifyHasPatchJob('my-change-id'), makeStartWorkflowJob(workflowType)],
+      jobs: [makeInitializeWorkflowJob(workflowType), makeNotifyHasPatchJob('my-change-id')],
     };
     const completion = await activate(t, act);
     compareCompletion(
@@ -1846,13 +1848,9 @@ test('failUnlessSignaledBeforeStart', async (t) => {
   const { workflowType } = t.context;
   const completion = await activate(
     t,
-    makeActivation(
-      undefined,
-      {
-        signalWorkflow: { signalName: 'someShallPass' },
-      },
-      makeStartWorkflowJob(workflowType)
-    )
+    makeActivation(undefined, makeInitializeWorkflowJob(workflowType), {
+      signalWorkflow: { signalName: 'someShallPass' },
+    })
   );
   compareCompletion(t, completion, makeSuccess(undefined, [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]));
 });
@@ -2016,7 +2014,7 @@ test('scopeCancelledWhileWaitingOnExternalWorkflowCancellation', async (t) => {
 test('query not found - successString', async (t) => {
   const { workflowType } = t.context;
   {
-    const completion = await activate(t, makeActivation(undefined, makeStartWorkflowJob(workflowType)));
+    const completion = await activate(t, makeActivation(undefined, makeInitializeWorkflowJob(workflowType)));
     compareCompletion(
       t,
       completion,
@@ -2055,14 +2053,14 @@ test('Buffered signals are dispatched to correct handler and in correct order - 
       t,
       makeActivation(
         undefined,
+        makeInitializeWorkflowJob(workflowType),
         { signalWorkflow: { signalName: 'non-existant', input: toPayloads(defaultPayloadConverter, 1) } },
         { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 2) } },
         { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 3) } },
         { signalWorkflow: { signalName: 'signalC', input: toPayloads(defaultPayloadConverter, 4) } },
         { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 5) } },
         { signalWorkflow: { signalName: 'non-existant', input: toPayloads(defaultPayloadConverter, 6) } },
-        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 7) } },
-        makeStartWorkflowJob(workflowType)
+        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 7) } }
       )
     );
 
@@ -2104,14 +2102,14 @@ test('Buffered signals dispatch is reentrant  - signalsOrdering2', async (t) => 
       t,
       makeActivation(
         undefined,
+        makeInitializeWorkflowJob(workflowType),
         { signalWorkflow: { signalName: 'non-existant', input: toPayloads(defaultPayloadConverter, 1) } },
         { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 2) } },
         { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 3) } },
         { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 4) } },
         { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 5) } },
         { signalWorkflow: { signalName: 'signalC', input: toPayloads(defaultPayloadConverter, 6) } },
-        { signalWorkflow: { signalName: 'signalC', input: toPayloads(defaultPayloadConverter, 7) } },
-        makeStartWorkflowJob(workflowType)
+        { signalWorkflow: { signalName: 'signalC', input: toPayloads(defaultPayloadConverter, 7) } }
       )
     );
     compareCompletion(
@@ -2142,13 +2140,9 @@ test("Pending promises can't unblock between signals and updates - 1.11.0+ - sig
   const { workflowType } = t.context;
   {
     const completion = await activate(t, {
-      ...makeActivation(
-        undefined,
-        {
-          doUpdate: { name: 'fooUpdate', protocolInstanceId: '1', runValidator: false, id: 'first' },
-        },
-        makeStartWorkflowJob(workflowType)
-      ),
+      ...makeActivation(undefined, makeInitializeWorkflowJob(workflowType), {
+        doUpdate: { name: 'fooUpdate', protocolInstanceId: '1', runValidator: false, id: 'first' },
+      }),
       isReplaying: false,
     });
     compareCompletion(
@@ -2190,13 +2184,9 @@ test("Pending promises can't unblock between signals and updates - pre-1.11.0 - 
   const { workflowType } = t.context;
   {
     const completion = await activate(t, {
-      ...makeActivation(
-        undefined,
-        {
-          doUpdate: { name: 'fooUpdate', protocolInstanceId: '1', runValidator: false, id: 'first' },
-        },
-        makeStartWorkflowJob(workflowType)
-      ),
+      ...makeActivation(undefined, makeInitializeWorkflowJob(workflowType), {
+        doUpdate: { name: 'fooUpdate', protocolInstanceId: '1', runValidator: false, id: 'first' },
+      }),
       isReplaying: true,
     });
     compareCompletion(
@@ -2234,7 +2224,7 @@ test('Signals/Updates/Activities/Timers have coherent promise completion orderin
   const { workflowType } = t.context;
   {
     const completion = await activate(t, {
-      ...makeActivation(undefined, makeStartWorkflowJob(workflowType)),
+      ...makeActivation(undefined, makeInitializeWorkflowJob(workflowType)),
       isReplaying: true,
     });
     compareCompletion(
@@ -2280,7 +2270,7 @@ test('Signals/Updates/Activities/Timers have coherent promise completion orderin
   const { workflowType } = t.context;
   {
     const completion = await activate(t, {
-      ...makeActivation(undefined, makeStartWorkflowJob(workflowType)),
+      ...makeActivation(undefined, makeInitializeWorkflowJob(workflowType)),
       isReplaying: true,
     });
     compareCompletion(
@@ -2330,7 +2320,7 @@ test('Signals/Updates/Activities/Timers have coherent promise completion orderin
   const { workflowType } = t.context;
   {
     const completion = await activate(t, {
-      ...makeActivation(undefined, makeStartWorkflowJob(workflowType)),
+      ...makeActivation(undefined, makeInitializeWorkflowJob(workflowType)),
     });
     compareCompletion(
       t,
@@ -2378,7 +2368,7 @@ test('Signals/Updates/Activities/Timers - Trace promises completion order - pre-
   const { workflowType } = t.context;
   {
     const completion = await activate(t, {
-      ...makeActivation(undefined, makeStartWorkflowJob(workflowType)),
+      ...makeActivation(undefined, makeInitializeWorkflowJob(workflowType)),
       isReplaying: true,
     });
     compareCompletion(
@@ -2458,7 +2448,7 @@ test('Signals/Updates/Activities/Timers - Trace promises completion order - 1.11
   const { workflowType } = t.context;
   {
     const completion = await activate(t, {
-      ...makeActivation(undefined, makeStartWorkflowJob(workflowType)),
+      ...makeActivation(undefined, makeInitializeWorkflowJob(workflowType)),
     });
     compareCompletion(
       t,

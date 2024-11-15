@@ -603,7 +603,7 @@ export class Runtime {
     try {
       const val = Number(fs.readFileSync(file, { encoding: 'ascii' }));
       return isNaN(val) ? undefined : val;
-    } catch (e) {
+    } catch (_e) {
       return undefined;
     }
   }

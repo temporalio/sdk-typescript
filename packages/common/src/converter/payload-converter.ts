@@ -87,8 +87,8 @@ export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payloa
 export function mapFromPayloads<K extends string>(
   converter: PayloadConverter,
   map?: Record<K, Payload> | null | undefined
-): Record<K, unknown> | undefined | null {
-  if (map == null) return map;
+): Record<K, unknown> | undefined {
+  if (map == null) return undefined;
   return Object.fromEntries(
     Object.entries(map).map(([k, payload]): [K, unknown] => {
       const value = converter.fromPayload(payload as Payload);
@@ -232,7 +232,7 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
     let json;
     try {
       json = JSON.stringify(value);
-    } catch (err) {
+    } catch (_err) {
       return undefined;
     }
 

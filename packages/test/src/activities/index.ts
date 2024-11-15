@@ -55,8 +55,16 @@ export async function throwAnError(useApplicationFailure: boolean, message: stri
   }
 }
 
-export async function waitForCancellation(): Promise<void> {
-  await Context.current().cancelled;
+export async function waitForCancellation(throwIfAborted?: boolean): Promise<void> {
+  try {
+    await Context.current().cancelled;
+  } catch (e) {
+    if (throwIfAborted) {
+      Context.current().cancellationSignal.throwIfAborted();
+    } else {
+      throw e;
+    }
+  }
 }
 
 export async function fakeProgress(sleepIntervalMs = 1000, numIters = 1000): Promise<void> {

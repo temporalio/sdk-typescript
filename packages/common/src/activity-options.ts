@@ -1,19 +1,30 @@
 import type { coresdk } from '@temporalio/proto';
 import { RetryPolicy } from './retry-policy';
-import { checkExtends } from './type-helpers';
 import { Duration } from './time';
 import { VersioningIntent } from './versioning-intent';
+import { makeProtoEnumConverters } from './internal-workflow';
 
-// Avoid importing the proto implementation to reduce workflow bundle size
-// Copied from coresdk.workflow_commands.ActivityCancellationType
-export enum ActivityCancellationType {
-  TRY_CANCEL = 0,
-  WAIT_CANCELLATION_COMPLETED = 1,
-  ABANDON = 2,
-}
+export const ActivityCancellationType = {
+  TRY_CANCEL: 'TRY_CANCEL',
+  WAIT_CANCELLATION_COMPLETED: 'WAIT_CANCELLATION_COMPLETED',
+  ABANDON: 'ABANDON',
+} as const;
+export type ActivityCancellationType = (typeof ActivityCancellationType)[keyof typeof ActivityCancellationType];
 
-checkExtends<coresdk.workflow_commands.ActivityCancellationType, ActivityCancellationType>();
-checkExtends<ActivityCancellationType, coresdk.workflow_commands.ActivityCancellationType>();
+export const [encodeActivityCancellationType, decodeActivityCancellationType] = makeProtoEnumConverters<
+  coresdk.workflow_commands.ActivityCancellationType,
+  typeof coresdk.workflow_commands.ActivityCancellationType,
+  keyof typeof coresdk.workflow_commands.ActivityCancellationType,
+  typeof ActivityCancellationType,
+  ''
+>(
+  {
+    [ActivityCancellationType.TRY_CANCEL]: 0,
+    [ActivityCancellationType.WAIT_CANCELLATION_COMPLETED]: 1,
+    [ActivityCancellationType.ABANDON]: 2,
+  } as const,
+  ''
+);
 
 /**
  * Options for remote activity invocation
@@ -48,8 +59,8 @@ export interface ActivityOptions {
 
   /**
    * Maximum time of a single Activity execution attempt. Note that the Temporal Server doesn't detect Worker process
-   * failures directly. It relies on this timeout to detect that an Activity that didn't complete on time. So this
-   * timeout should be as short as the longest possible execution of the Activity body. Potentially long running
+   * failures directly: instead, it relies on this timeout to detect that an Activity didn't complete on time. Therefore, this
+   * timeout should be as short as the longest possible execution of the Activity body. Potentially long-running
    * Activities must specify {@link heartbeatTimeout} and call {@link activity.Context.heartbeat} periodically for
    * timely failure detection.
    *
@@ -61,7 +72,7 @@ export interface ActivityOptions {
   startToCloseTimeout?: Duration;
 
   /**
-   * Time that the Activity Task can stay in the Task Queue before it is picked up by a Worker. Do not specify this timeout unless using host specific Task Queues for Activity Tasks are being used for routing.
+   * Time that the Activity Task can stay in the Task Queue before it is picked up by a Worker. Do not specify this timeout unless using host-specific Task Queues for Activity Tasks are being used for routing.
    * `scheduleToStartTimeout` is always non-retryable. Retrying after this timeout doesn't make sense as it would just put the Activity Task back into the same Task Queue.
    *
    * @default `scheduleToCloseTimeout` or unlimited
@@ -70,7 +81,7 @@ export interface ActivityOptions {
   scheduleToStartTimeout?: Duration;
 
   /**
-   * Total time that a workflow is willing to wait for Activity to complete.
+   * Total time that a workflow is willing to wait for the Activity to complete.
    * `scheduleToCloseTimeout` limits the total time of an Activity's execution including retries (use {@link startToCloseTimeout} to limit the time of a single attempt).
    *
    * Either this option or {@link startToCloseTimeout} is required.
@@ -174,5 +185,5 @@ export interface LocalActivityOptions {
    *   heartbeat or chooses to ignore the cancellation request.
    * - `ABANDON` - Do not request cancellation of the activity and immediately report cancellation to the workflow.
    */
-  cancellationType?: coresdk.workflow_commands.ActivityCancellationType;
+  cancellationType?: ActivityCancellationType;
 }
