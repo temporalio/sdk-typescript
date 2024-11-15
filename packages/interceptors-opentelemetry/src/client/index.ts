@@ -1,5 +1,5 @@
 import * as otel from '@opentelemetry/api';
-import { Next, WorkflowClientInterceptor, WorkflowStartInput } from '@temporalio/client';
+import { Next, WorkflowClientInterceptor, WorkflowSignalInput, WorkflowStartInput } from '@temporalio/client';
 import { instrument, headersWithContext, RUN_ID_ATTR_KEY } from '../instrumentation';
 import { SpanName, SPAN_DELIMITER } from '../workflow';
 
@@ -28,6 +28,17 @@ export class OpenTelemetryWorkflowClientInterceptor implements WorkflowClientInt
         const runId = await next({ ...input, headers });
         span.setAttribute(RUN_ID_ATTR_KEY, runId);
         return runId;
+      },
+    });
+  }
+
+  async signal(input: WorkflowSignalInput, next: Next<WorkflowClientInterceptor, 'signal'>): Promise<void> {
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
+      fn: async () => {
+        const headers = await headersWithContext(input.headers);
+        await next({ ...input, headers });
       },
     });
   }

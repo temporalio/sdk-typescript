@@ -9,6 +9,8 @@ import {
   ContinueAsNewInput,
   DisposeInput,
   Next,
+  SignalInput,
+  SignalWorkflowInput,
   StartChildWorkflowExecutionInput,
   WorkflowExecuteInput,
   WorkflowInboundCallsInterceptor,
@@ -59,6 +61,19 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
       fn: () => next(input),
       context,
       acceptableErrors: (err) => err instanceof ContinueAsNew,
+    });
+  }
+
+  public async handleSignal(
+    input: SignalInput,
+    next: Next<WorkflowInboundCallsInterceptor, 'handleSignal'>
+  ): Promise<void> {
+    const context = await extractContextFromHeaders(input.headers);
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
+      fn: () => next(input),
+      context,
     });
   }
 }
@@ -120,6 +135,23 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
         });
       },
       acceptableErrors: (err) => err instanceof ContinueAsNew,
+    });
+  }
+
+  public async signalWorkflow(
+    input: SignalWorkflowInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'signalWorkflow'>
+  ): Promise<void> {
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
+      fn: async () => {
+        const headers = await headersWithContext(input.headers);
+        return next({
+          ...input,
+          headers,
+        });
+      },
     });
   }
 }
