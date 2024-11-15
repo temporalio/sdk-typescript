@@ -73,7 +73,6 @@ export class CloudOperationsClient {
    * @see https://grpc.io/docs/guides/deadlines/
    */
   public async withDeadline<R>(deadline: number | Date, fn: () => Promise<R>): Promise<R> {
-    Date.now;
     return await this.connection.withDeadline(deadline, fn);
   }
 

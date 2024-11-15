@@ -69,11 +69,11 @@ export async function tryGitInit(root: string, useGit?: boolean): Promise<boolea
     exec('git add -A');
     exec('git commit -m "Initial commit from @temporalio/create"');
     return true;
-  } catch (e) {
+  } catch (_e) {
     if (didInit) {
       try {
         await rm(path.join(root, '.git'), { recursive: true, force: true });
-      } catch (_) {}
+      } catch (_e) {}
     }
     return false;
   }
