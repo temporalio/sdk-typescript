@@ -4,7 +4,7 @@
  */
 
 import assert from 'assert';
-import { sleep, proxyActivities, defineSignal, setHandler, startChild, ParentClosePolicy } from '@temporalio/workflow';
+import { sleep, proxyActivities, defineSignal, setHandler, startChild } from '@temporalio/workflow';
 
 // Export sleep to be invoked as a workflow
 export { sleep };
@@ -45,6 +45,6 @@ export async function asyncChildStarter(childWorkflowId: string): Promise<void> 
   await startChild(sleep, {
     args: ['1 day'],
     workflowId: childWorkflowId,
-    parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_ABANDON,
+    parentClosePolicy: 'ABANDON',
   });
 }

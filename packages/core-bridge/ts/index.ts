@@ -8,6 +8,15 @@ export {
   ResourceBasedSlotOptions,
   ResourceBasedTunerOptions,
   FixedSizeSlotSupplier,
+  CustomSlotSupplier,
+  SlotInfo,
+  WorkflowSlotInfo,
+  ActivitySlotInfo,
+  LocalActivitySlotInfo,
+  SlotMarkUsedContext,
+  SlotPermit,
+  SlotReserveContext,
+  SlotReleaseContext,
 } from './worker-tuner';
 
 export type { TLSConfig, ProxyConfig, HttpConnectProxyConfig };

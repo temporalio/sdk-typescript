@@ -38,14 +38,14 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
   setActivatorUntyped(activator);
 
   // webpack alias to payloadConverterPath
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const customPayloadConverter = require('__temporal_custom_payload_converter').payloadConverter;
   // The `payloadConverter` export is validated in the Worker
   if (customPayloadConverter != null) {
     activator.payloadConverter = customPayloadConverter;
   }
   // webpack alias to failureConverterPath
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const customFailureConverter = require('__temporal_custom_failure_converter').failureConverter;
   // The `failureConverter` export is validated in the Worker
   if (customFailureConverter != null) {

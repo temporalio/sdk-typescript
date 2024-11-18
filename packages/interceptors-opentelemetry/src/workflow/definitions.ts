@@ -45,6 +45,11 @@ export enum SpanName {
   WORKFLOW_START = 'StartWorkflow',
 
   /**
+   * Workflow is signalled
+   */
+  WORKFLOW_SIGNAL = 'SignalWorkflow',
+
+  /**
    * Workflow is client calls signalWithStart
    */
   WORKFLOW_SIGNAL_WITH_START = 'SignalWithStartWorkflow',

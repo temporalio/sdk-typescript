@@ -32,7 +32,6 @@ import {
   CompiledScheduleUpdateOptions,
   Range,
   ScheduleOptions,
-  ScheduleOverlapPolicy,
   ScheduleUpdateOptions,
   DayOfWeek,
   DAYS_OF_WEEK,
@@ -47,6 +46,7 @@ import {
   ScheduleExecutionActionResult,
   ScheduleExecutionResult,
   ScheduleExecutionStartWorkflowActionResult,
+  encodeScheduleOverlapPolicy,
 } from './schedule-types';
 
 const [encodeSecond, decodeSecond] = makeCalendarSpecFieldCoders(
@@ -192,21 +192,6 @@ export function decodeOptionalStructuredCalendarSpecs(
   );
 }
 
-export function encodeOverlapPolicy(input: ScheduleOverlapPolicy): temporal.api.enums.v1.ScheduleOverlapPolicy {
-  return temporal.api.enums.v1.ScheduleOverlapPolicy[
-    `SCHEDULE_OVERLAP_POLICY_${ScheduleOverlapPolicy[input] as keyof typeof ScheduleOverlapPolicy}`
-  ];
-}
-
-export function decodeOverlapPolicy(input?: temporal.api.enums.v1.ScheduleOverlapPolicy | null): ScheduleOverlapPolicy {
-  if (!input) return ScheduleOverlapPolicy.UNSPECIFIED;
-  const encodedPolicyName = temporal.api.enums.v1.ScheduleOverlapPolicy[input];
-  const decodedPolicyName = encodedPolicyName.substring(
-    'SCHEDULE_OVERLAP_POLICY_'.length
-  ) as keyof typeof ScheduleOverlapPolicy;
-  return ScheduleOverlapPolicy[decodedPolicyName];
-}
-
 export function compileScheduleOptions(options: ScheduleOptions): CompiledScheduleOptions {
   const workflowTypeOrFunc = options.action.workflowType;
   const workflowType = extractWorkflowType(workflowTypeOrFunc);
@@ -290,7 +275,7 @@ export function encodeSchedulePolicies(
 ): temporal.api.schedule.v1.ISchedulePolicies {
   return {
     catchupWindow: msOptionalToTs(policies?.catchupWindow),
-    overlapPolicy: policies?.overlap ? encodeOverlapPolicy(policies.overlap) : undefined,
+    overlapPolicy: policies?.overlap ? encodeScheduleOverlapPolicy(policies.overlap) : undefined,
     pauseOnFailure: policies?.pauseOnFailure,
   };
 }

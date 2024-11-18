@@ -8,6 +8,7 @@
   "files": [
     "./packages/activity/src/index.ts",
     "./packages/client/src/index.ts",
+    "./packages/cloud/src/index.ts",
     "./packages/common/src/index.ts",
     "./packages/common/src/type-helpers.ts",
     "./packages/create-project/src/index.ts",

@@ -31,7 +31,7 @@ async function main() {
     await waitOnNamespace(connection, namespace, 1, 0);
     // Namespace already exists. Nothing to do
     return;
-  } catch (e) {
+  } catch (_e) {
     // Ignore error. Will create namespace if it does not exist
   }
 

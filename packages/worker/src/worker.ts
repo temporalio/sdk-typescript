@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as vm from 'node:vm';
 import { promisify } from 'node:util';
 import { EventEmitter, on } from 'node:events';
+import { setTimeout as setTimeoutCallback } from 'node:timers';
 import {
   BehaviorSubject,
   EMPTY,
@@ -39,8 +40,16 @@ import {
   encodeToPayload,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
-import { optionalTsToDate, optionalTsToMs, requiredTsToMs, tsToDate, tsToMs } from '@temporalio/common/lib/time';
-import { errorMessage, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import {
+  Duration,
+  msToNumber,
+  optionalTsToDate,
+  optionalTsToMs,
+  requiredTsToMs,
+  tsToDate,
+  tsToMs,
+} from '@temporalio/common/lib/time';
+import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
 import * as native from '@temporalio/core-bridge';
 import { ShutdownError, UnexpectedError } from '@temporalio/core-bridge';
@@ -77,7 +86,7 @@ import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
-import { GracefulShutdownPeriodExpiredError } from './errors';
+import { CombinedWorkerRunError, GracefulShutdownPeriodExpiredError, PromiseCompletionTimeoutError } from './errors';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -124,36 +133,9 @@ type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
   buildId: string;
 };
 
-/**
- * Combined error information for {@link Worker.runUntil}
- */
-export interface CombinedWorkerRunErrorCause {
-  /**
-   * Error thrown by a Worker
-   */
-  workerError: unknown;
-  /**
-   * Error thrown by the wrapped promise or function
-   */
-  innerError: unknown;
-}
-
 interface EvictionWithRunID {
   runId: string;
   evictJob: coresdk.workflow_activation.IRemoveFromCache;
-}
-
-/**
- * Error thrown by {@link Worker.runUntil} and {@link Worker.runReplayHistories}
- */
-@SymbolBasedInstanceOfError('CombinedWorkerRunError')
-export class CombinedWorkerRunError extends Error {
-  public readonly cause: CombinedWorkerRunErrorCause;
-
-  constructor(message: string, { cause }: { cause: CombinedWorkerRunErrorCause }) {
-    super(message);
-    this.cause = cause;
-  }
 }
 
 export interface NativeWorkerLike {
@@ -369,8 +351,20 @@ export interface WorkerStatus {
   numInFlightWorkflowActivations: number;
   /**
    * Number of in-flight (currently actively processed) Activities
+   *
+   * This includes both local and non-local Activities.
+   *
+   * See {@link numInFlightNonLocalActivities} and {@link numInFlightLocalActivities} for a breakdown.
    */
   numInFlightActivities: number;
+  /**
+   * Number of in-flight (currently actively processed) non-Local Activities
+   */
+  numInFlightNonLocalActivities: number;
+  /**
+   * Number of in-flight (currently actively processed) Local Activities
+   */
+  numInFlightLocalActivities: number;
   /**
    * Number of Workflow executions cached in Worker memory
    */
@@ -382,13 +376,65 @@ export interface WorkerStatus {
   numHeartbeatingActivities: number;
 }
 
+interface RunUntilOptions {
+  /**
+   * Maximum time to wait for the provided Promise to complete after the Worker has stopped or failed.
+   *
+   * Until TS SDK 1.11.2, `Worker.runUntil(...)` would wait _indefinitely_ for both the Worker's run
+   * Promise _and_ the provided Promise to resolve or fail, _even in error cases_. In most practical
+   * use cases, that would create a possibility for the Worker to hang indefinitely if the Worker
+   * was stopped due to "unexpected" factors
+   *
+   * For example, in the common test idiom show below, sending a `SIGINT` to the process would
+   * initiate shutdown of the Worker, potentially resulting in termination of the Worker before the
+   * Workflow completes; in that case, the Workflow would never complete, and consequently, the
+   * `runUntil` Promise would never resolve, leaving the process in a hang state.
+   *
+   * ```ts
+   * await Worker.runUntil(() => client.workflow.execute(...));
+   * ```
+   *
+   * The behavior of `Worker.runUntil(...)` has therefore been changedin 1.11.3 so that if the worker
+   * shuts down before the inner promise completes, `runUntil` will allow no more than a certain delay
+   * (i.e. `promiseCompletionTimeout`) for the inner promise to complete, after which a
+   * {@link PromiseCompletionTimeoutError} is thrown.
+   *
+   * In most practical use cases, no delay is actually required; `promiseCompletionTimeout` therefore
+   * defaults to 0 second, meaning the Worker will not wait for the inner promise to complete.
+   * You may adjust this value in the very rare cases where waiting is pertinent; set it to a
+   * very high value to mimic the previous behavior.
+   *
+   * This time is calculated from the moment the Worker reachs either the `STOPPED` or the `FAILED`
+   * state. {@link Worker.runUntil} throws a {@link PromiseCompletionTimeoutError} if the if the
+   * Promise still hasn't completed after that delay.
+   *
+   * @default 0 don't wait
+   */
+  promiseCompletionTimeout?: Duration;
+}
+
 /**
  * The temporal Worker connects to Temporal Server and runs Workflows and Activities.
  */
 export class Worker {
   protected readonly activityHeartbeatSubject = new Subject<HeartbeatInput>();
-  protected readonly unexpectedErrorSubject = new Subject<void>();
   protected readonly stateSubject = new BehaviorSubject<State>('INITIALIZED');
+
+  // Pushing an error to this subject causes the Worker to initiate a graceful shutdown, after
+  // which the Worker will be in FAILED state and the `run` promise will throw the first error
+  // published on this subject.
+  protected readonly unexpectedErrorSubject = new Subject<void>();
+
+  // Pushing an error to this subject will cause the worker to IMMEDIATELY fall into FAILED state.
+  //
+  // The `run` promise will throw the first error reported on either this subject or the
+  // `unexpectedErrorSubject` subject. That is, suppose that an "unexpected error" comes in,
+  // which triggers graceful shutdown of the Worker, and then, while attempting to gracefully shut
+  // down the Worker, we get some "instant terminate error". The Worker's `run` promise will throw
+  // the _initial error_ rather than the "instant terminate error" that came later. This is so to
+  // avoid masking the original error with a subsequent one that will likely be less relevant.
+  // Both errors will still be reported to the logger.
+  protected readonly instantTerminateErrorSubject = new Subject<void>();
 
   protected readonly workflowPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
   protected readonly activityPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
@@ -403,6 +449,8 @@ export class Worker {
 
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
+  protected readonly numInFlightNonLocalActivitiesSubject = new BehaviorSubject<number>(0);
+  protected readonly numInFlightLocalActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numCachedWorkflowsSubject = new BehaviorSubject<number>(0);
   protected readonly numHeartbeatingActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly evictionsEmitter = new EventEmitter();
@@ -443,7 +491,7 @@ export class Worker {
     const bundle = await this.getOrCreateBundle(compiledOptions, logger);
     let workflowCreator: WorkflowCreator | undefined = undefined;
     if (bundle) {
-      workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
+      workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions, logger);
     }
     // Create a new connection if one is not provided with no CREATOR reference
     // so it can be automatically closed when this Worker shuts down.
@@ -465,7 +513,8 @@ export class Worker {
 
   protected static async createWorkflowCreator(
     workflowBundle: WorkflowBundleWithSourceMapAndFilename,
-    compiledOptions: CompiledWorkerOptions
+    compiledOptions: CompiledWorkerOptions,
+    logger: Logger
   ): Promise<WorkflowCreator> {
     const registeredActivityNames = new Set(compiledOptions.activities.keys());
     // This isn't required for vscode, only for Chrome Dev Tools which doesn't support debugging worker threads.
@@ -490,6 +539,7 @@ export class Worker {
         isolateExecutionTimeoutMs: compiledOptions.isolateExecutionTimeoutMs,
         reuseV8Context: compiledOptions.reuseV8Context ?? true,
         registeredActivityNames,
+        logger,
       });
     }
   }
@@ -615,7 +665,7 @@ export class Worker {
     if (!bundle) {
       throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
     }
-    const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions);
+    const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions, logger);
     const replayHandle = await nativeWorkerCtor.createReplay(addBuildIdIfMissing(compiledOptions, bundle.code));
     return [
       new this(replayHandle.worker, workflowCreator, compiledOptions, logger, undefined, true),
@@ -733,6 +783,8 @@ export class Worker {
       numCachedWorkflows: this.numCachedWorkflowsSubject.value,
       numInFlightWorkflowActivations: this.numInFlightActivationsSubject.value,
       numInFlightActivities: this.numInFlightActivitiesSubject.value,
+      numInFlightNonLocalActivities: this.numInFlightNonLocalActivitiesSubject.value,
+      numInFlightLocalActivities: this.numInFlightLocalActivitiesSubject.value,
     };
   }
 
@@ -774,8 +826,10 @@ export class Worker {
         }
       })
       .catch((error) => {
-        this.logger.warn('Failed to initiate shutdown', { error });
-        this.unexpectedErrorSubject.error(error);
+        // This is totally unexpected. If we reach this point, something horribly wrong in the Worker
+        // state, and attempt to shutdown gracefully will very likely hang. Just terminate immediately.
+        this.logger.error('Failed to initiate shutdown', { error });
+        this.instantTerminateErrorSubject.error(error);
       });
   }
 
@@ -791,8 +845,15 @@ export class Worker {
       this.stateSubject.pipe(
         filter((state): state is 'STOPPING' => state === 'STOPPING'),
         delay(this.options.shutdownForceTimeMs),
-        map(() => {
-          throw new GracefulShutdownPeriodExpiredError('Timed out while waiting for worker to shutdown gracefully');
+        tap({
+          next: () => {
+            // Inject the error into the instantTerminateError subject so that we don't mask
+            // any error that might have caused the Worker to shutdown in the first place.
+            this.logger.debug('Shutdown force time expired, terminating worker');
+            this.instantTerminateErrorSubject.error(
+              new GracefulShutdownPeriodExpiredError('Timed out while waiting for worker to shutdown gracefully')
+            );
+          },
         })
       ),
       this.stateSubject.pipe(
@@ -976,12 +1037,17 @@ export class Worker {
 
             let result;
 
+            const numInFlightBreakdownSubject = output.activity.info.isLocal
+              ? this.numInFlightLocalActivitiesSubject
+              : this.numInFlightNonLocalActivitiesSubject;
+
             this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value + 1);
+            numInFlightBreakdownSubject.next(numInFlightBreakdownSubject.value + 1);
             try {
               result = await output.activity.run(output.input);
             } finally {
+              numInFlightBreakdownSubject.next(numInFlightBreakdownSubject.value - 1);
               this.numInFlightActivitiesSubject.next(this.numInFlightActivitiesSubject.value - 1);
-              group$.close();
             }
             const status = result.failed ? 'failed' : result.completed ? 'completed' : 'cancelled';
 
@@ -1015,7 +1081,12 @@ export class Worker {
             return { taskToken, result };
           }),
           filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
-          map((rest) => coresdk.ActivityTaskCompletion.encodeDelimited(rest).finish())
+          map((rest) => coresdk.ActivityTaskCompletion.encodeDelimited(rest).finish()),
+          tap({
+            next: () => {
+              group$.close();
+            },
+          })
         );
       })
     );
@@ -1139,22 +1210,28 @@ export class Worker {
         this.logger.trace('Completed activation', workflow.logAttributes);
       }
     } catch (error) {
+      let logMessage = 'Failed to process Worklow Activation';
       if (error instanceof UnexpectedError) {
-        // rethrow and fail the worker
-        throw error;
+        // Something went wrong in the workflow; we'll do our best to shut the Worker
+        // down gracefully, but then we'll need to terminate the Worker ASAP.
+        logMessage = 'An unexpected error occured while processing Workflow Activation. Initiating Worker shutdown.';
+        this.unexpectedErrorSubject.error(error);
       }
-      this.logger.error('Failed to activate workflow', {
+
+      this.logger.error(logMessage, {
         runId: activation.runId,
         ...workflow?.logAttributes,
         error,
         workflowExists: workflow !== undefined,
       });
+
       const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
         failed: {
           failure: await encodeErrorToFailure(this.options.loadedDataConverter, error),
         },
       }).finish();
+
       // We do not dispose of the Workflow yet, wait to be evicted from Core.
       // This is done to simplify the Workflow lifecycle so Core is the sole driver.
       return { state: undefined, output: { close: true, completion } };
@@ -1460,9 +1537,11 @@ export class Worker {
     }).pipe(
       tap({
         complete: () => {
+          this.logger.trace('Workflow Poller changed state to SHUTDOWN');
           this.workflowPollerStateSubject.next('SHUTDOWN');
         },
         error: () => {
+          this.logger.trace('Workflow Poller changed state to FAILED');
           this.workflowPollerStateSubject.next('FAILED');
         },
       })
@@ -1483,7 +1562,14 @@ export class Worker {
       closeableGroupBy((activation) => activation.runId),
       mergeMap(this.handleWorkflowActivations.bind(this)),
       mergeMap(async (completion) => {
-        await this.nativeWorker.completeWorkflowActivation(completion.buffer.slice(completion.byteOffset));
+        try {
+          await this.nativeWorker.completeWorkflowActivation(completion.buffer.slice(completion.byteOffset));
+        } catch (error) {
+          this.logger.error('Core reported failure in completeWorkflowActivation(). Initiating Worker shutdown.', {
+            error,
+          });
+          this.unexpectedErrorSubject.error(error);
+        }
       }),
       tap({
         complete: () => {
@@ -1550,49 +1636,84 @@ export class Worker {
   }
 
   /**
-   * Run the Worker until `fnOrPromise` completes. Then {@link shutdown} and wait for {@link run} to complete.
+   * Run the Worker until `fnOrPromise` completes, then {@link shutdown} and wait for {@link run} to complete.
    *
-   * @returns the result of `fnOrPromise`
+   * Be aware that the Worker may shutdown for reasons other than the completion of the provided promise,
+   * e.g. due to the process receiving a SIGINT signal, direct call to `Worker.shutdown()`, or a critical
+   * error that imposes a shutdown of the Worker.
    *
    * Throws on fatal Worker errors.
+   *
+   * **SDK versions `>=1.11.3`**:
+   * If the worker shuts down before the inner promise completes, allow no more than
+   * {@link RunUntilOptions.promiseCompletionTimeout} for the inner promise to complete,
+   * after which a {@link PromiseCompletionTimeoutError} is thrown.
+   *
+   * **SDK versions `>=1.5.0`**:
+   * This method always waits for both worker shutdown and inner `fnOrPromise` to complete.
+   * If one of worker run -or- the inner promise throw an error, that error is rethrown.
+   * If both throw an error, a {@link CombinedWorkerRunError} with a `cause` attribute containing both errors.
    *
    * **SDK versions `< 1.5.0`**:
    * This method would not wait for worker to complete shutdown if the inner `fnOrPromise` threw an error.
    *
-   * **SDK versions `>=1.5.0`**:
-   * This method always waits for both worker shutdown and inner `fnOrPromise` to resolve.
-   * If one of worker run -or- the inner promise throw an error, that error is rethrown.
-   * If both throw an error, a {@link CombinedWorkerRunError} with a `cause` attribute containing both errors.
+   * @returns the result of `fnOrPromise`
    */
-  async runUntil<R>(fnOrPromise: Promise<R> | (() => Promise<R>)): Promise<R> {
+  async runUntil<R>(fnOrPromise: Promise<R> | (() => Promise<R>), options?: RunUntilOptions): Promise<R> {
     const workerRunPromise = this.run();
+
+    let innerResult: PromiseSettledResult<R> | undefined;
     const innerPromise = (async () => {
       try {
-        const p = typeof fnOrPromise === 'function' ? fnOrPromise() : fnOrPromise;
-        return await p;
+        const result = await (typeof fnOrPromise === 'function' ? fnOrPromise() : fnOrPromise);
+        innerResult = { status: 'fulfilled', value: result };
+      } catch (err) {
+        innerResult = { status: 'rejected', reason: err };
       } finally {
         if (this.state === 'RUNNING') {
           this.shutdown();
         }
       }
     })();
-    const [innerResult, workerRunResult] = await Promise.allSettled([innerPromise, workerRunPromise]);
 
-    if (workerRunResult.status === 'rejected') {
-      if (innerResult.status === 'rejected') {
+    let workerError: Error | undefined;
+    try {
+      await workerRunPromise;
+    } catch (err) {
+      workerError = err as Error;
+    }
+
+    // Allow some extra time for the provided promise to resolve, if it hasn't already
+    const promiseCompletionTimeoutMs = msToNumber(options?.promiseCompletionTimeout ?? 0);
+    if (innerResult === undefined && promiseCompletionTimeoutMs > 0) {
+      await timeoutPromise(innerPromise, promiseCompletionTimeoutMs);
+    }
+    if (innerResult === undefined) {
+      innerResult = {
+        status: 'rejected',
+        reason: new PromiseCompletionTimeoutError(
+          `Promise did not resolve within ${promiseCompletionTimeoutMs}ms after Worker completed shutdown`
+        ),
+      };
+    }
+
+    if (workerError === undefined) {
+      if (innerResult.status === 'fulfilled') {
+        return innerResult.value;
+      } else {
+        throw innerResult.reason;
+      }
+    } else {
+      if (innerResult?.status === 'fulfilled') {
+        throw workerError;
+      } else {
         throw new CombinedWorkerRunError('Worker terminated with fatal error in `runUntil`', {
           cause: {
-            workerError: workerRunResult.reason,
+            workerError,
             innerError: innerResult.reason,
           },
         });
-      } else {
-        throw workerRunResult.reason;
       }
-    } else if (innerResult.status === 'rejected') {
-      throw innerResult.reason;
-    } else {
-      return innerResult.value;
     }
   }
 
@@ -1612,14 +1733,26 @@ export class Worker {
     }
     this.state = 'RUNNING';
 
-    const shutdownCallback = () => this.shutdown();
+    const shutdownCallback = () => {
+      if (this.state === 'RUNNING') this.shutdown();
+    };
     Runtime.instance().registerShutdownSignalCallback(shutdownCallback);
+
+    let fatalError: Error | undefined;
+    const unexpectedErrorSubscription = this.unexpectedErrorSubject.subscribe({
+      error: (e: Error) => {
+        if (this.state === 'RUNNING') this.shutdown();
+        if (fatalError === undefined) {
+          fatalError = e;
+        }
+      },
+    });
 
     try {
       try {
         await lastValueFrom(
           merge(
-            this.unexpectedErrorSubject.pipe(takeUntil(this.stateSubject.pipe(filter((st) => st === 'DRAINED')))),
+            this.instantTerminateErrorSubject.pipe(this.takeUntilState('DRAINED')),
             this.forceShutdown$(),
             this.activityHeartbeat$(),
             merge(this.workflow$(), this.activity$()).pipe(
@@ -1630,6 +1763,16 @@ export class Worker {
               })
             )
           ).pipe(
+            // Reinject fatalError inside the stream, if any,
+            // with precedence over the error from the pipe
+            tap({
+              complete: () => {
+                if (fatalError) throw fatalError;
+              },
+              error: () => {
+                if (fatalError) throw fatalError;
+              },
+            }),
             tap({
               complete: () => {
                 this.state = 'STOPPED';
@@ -1644,13 +1787,11 @@ export class Worker {
         );
       } finally {
         Runtime.instance().deregisterShutdownSignalCallback(shutdownCallback);
+
+        await this.nativeWorker.finalizeShutdown();
       }
-      // Only shutdown the native worker if we completed without an error.
-      // Otherwise Rust / TS are in an unknown state and shutdown might hang.
-      // A new process must be created in order to instantiate a new Rust Core.
-      // TODO: force shutdown in core?
-      await this.nativeWorker.finalizeShutdown();
     } finally {
+      unexpectedErrorSubscription.unsubscribe();
       try {
         // Only exists in non-replay Worker
         if (this.connection) {
@@ -1689,16 +1830,19 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
   let context: any = vm.createContext({});
   try {
     script.runInContext(context);
-  } catch (e) {
+  } catch (_e) {
     // Context has not been properly configured, so eventual errors are possible. Just ignore at this point
   }
 
   // Keep these objects from GC long enough for debugger to complete parsing the source map and reporting locations
   // to the node process. Otherwise, the debugger risks source mapping resolution errors, meaning breakpoints wont work.
-  setTimeout(() => {
-    script = undefined;
-    context = undefined;
-  }, 10000).unref();
+  setTimeoutUnref(10000).then(
+    () => {
+      script = undefined;
+      context = undefined;
+    },
+    () => void 0
+  );
 
   return { code, sourceMap, filename };
 }
@@ -1760,4 +1904,34 @@ async function extractActivityInfo(
       'currentAttemptScheduledTime'
     ),
   };
+}
+
+/**
+ * A utility function to await a promise with a timeout.
+ *
+ * This function properly cleans up the timer when the provided promise resolves or rejects.
+ *
+ * Returns a tuple with a boolean indicating if the promise resolved before the timeout,
+ * and the result of the promise (if it completed).
+ */
+async function timeoutPromise<R>(promise: Promise<R>, timeout: number): Promise<readonly [true, R] | readonly [false]> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const timerPromise = new Promise((resolve) => {
+      timer = setTimeoutCallback(resolve, timeout);
+    });
+    return await Promise.race([
+      promise.then((result) => [true, result] as const),
+      timerPromise.then(() => [false] as const),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * A utility function that creates a timer promise, with an unrefed timer.
+ */
+async function setTimeoutUnref(timeout: number): Promise<void> {
+  return new Promise((resolve) => setTimeoutCallback(resolve, timeout).unref());
 }

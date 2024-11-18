@@ -10,6 +10,7 @@ import {
   Client,
   Connection,
   defaultGrpcRetryOptions,
+  isGrpcCancelledError,
   isGrpcServiceError,
   isRetryableError,
   makeGrpcRetryInterceptor,
@@ -25,6 +26,11 @@ const workflowServicePackageDefinition = protoLoader.loadSync(
   { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream')] }
 );
 const workflowServiceProtoDescriptor = grpc.loadPackageDefinition(workflowServicePackageDefinition) as any;
+
+const healthServicePackageDefinition = protoLoader.loadSync(
+  path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/grpc/health/v1/health.proto')
+);
+const healthServicePackageDescriptor = grpc.loadPackageDefinition(healthServicePackageDefinition) as any;
 
 async function bindLocalhost(server: grpc.Server): Promise<number> {
   return await util.promisify(server.bindAsync.bind(server))('localhost:0', grpc.ServerCredentials.createInsecure());
@@ -118,7 +124,7 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
   const ctrl = new AbortController();
   setTimeout(() => ctrl.abort(), 10);
   const err = await t.throwsAsync(conn.withAbortSignal(ctrl.signal, () => conn.workflowService.updateNamespace({})));
-  t.true(isGrpcServiceError(err) && err.code === grpc.status.CANCELLED);
+  t.true(isGrpcCancelledError(err));
 });
 
 test('Connection can connect using "[ipv6]:port" address', async (t) => {
@@ -145,13 +151,8 @@ test('Connection can connect using "[ipv6]:port" address', async (t) => {
 });
 
 test('healthService works', async (t) => {
-  const packageDefinition = protoLoader.loadSync(
-    path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/grpc/health/v1/health.proto')
-  );
-  const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
-
   const server = new grpc.Server();
-  server.addService(protoDescriptor.grpc.health.v1.Health.service, {
+  server.addService(healthServicePackageDescriptor.grpc.health.v1.Health.service, {
     check(
       _call: grpc.ServerUnaryCall<grpcProto.health.v1.HealthCheckRequest, grpcProto.health.v1.HealthCheckResponse>,
       callback: grpc.sendUnaryData<grpcProto.health.v1.HealthCheckResponse>
@@ -547,7 +548,7 @@ async function withHttp2Server(
         if (requestListener) await requestListener(req, res);
         try {
           res.end();
-        } catch (e) {
+        } catch (_e) {
           // requestListener may have messed up the HTTP2 connection. Just ignore.
         }
       });

@@ -29,17 +29,17 @@ import {
   ScheduleUpdateOptions,
   ScheduleOptionsAction,
   ScheduleOptionsStartWorkflowAction,
+  encodeScheduleOverlapPolicy,
+  decodeScheduleOverlapPolicy,
 } from './schedule-types';
 import {
   compileScheduleOptions,
   compileUpdatedScheduleOptions,
-  decodeOverlapPolicy,
   decodeScheduleAction,
   decodeScheduleRecentActions,
   decodeScheduleRunningActions,
   decodeScheduleSpec,
   decodeSearchAttributes,
-  encodeOverlapPolicy,
   encodeScheduleAction,
   encodeSchedulePolicies,
   encodeScheduleSpec,
@@ -162,6 +162,10 @@ export interface ListScheduleOptions {
    * @default 1000
    */
   pageSize?: number;
+  /**
+   * Filter schedules by a query string.
+   */
+  query?: string;
 }
 
 /**
@@ -247,7 +251,7 @@ export class ScheduleClient extends BaseClient {
           ? opts.state.backfill.map((x) => ({
               startTime: optionalDateToTs(x.start),
               endTime: optionalDateToTs(x.end),
-              overlapPolicy: x.overlap ? encodeOverlapPolicy(x.overlap) : undefined,
+              overlapPolicy: x.overlap ? encodeScheduleOverlapPolicy(x.overlap) : undefined,
             }))
           : undefined,
       },
@@ -368,6 +372,7 @@ export class ScheduleClient extends BaseClient {
           nextPageToken,
           namespace: this.options.namespace,
           maximumPageSize: options?.pageSize,
+          query: options?.query,
         });
       } catch (e) {
         this.rethrowGrpcError(e, 'Failed to list schedules', undefined);
@@ -422,7 +427,8 @@ export class ScheduleClient extends BaseClient {
           memo: await decodeMapFromPayloads(this.client.dataConverter, raw.memo?.fields),
           searchAttributes: decodeSearchAttributes(raw.searchAttributes),
           policies: {
-            overlap: decodeOverlapPolicy(raw.schedule.policies?.overlapPolicy),
+            // 'overlap' should never be missing on describe, as the server will replace UNSPECIFIED by an actual value
+            overlap: decodeScheduleOverlapPolicy(raw.schedule.policies?.overlapPolicy) ?? ScheduleOverlapPolicy.SKIP,
             catchupWindow: optionalTsToMs(raw.schedule.policies?.catchupWindow) ?? 60_000,
             pauseOnFailure: raw.schedule.policies?.pauseOnFailure === true,
           },
@@ -480,7 +486,7 @@ export class ScheduleClient extends BaseClient {
         await this.client._patchSchedule(this.scheduleId, {
           triggerImmediately: {
             overlapPolicy: overlap
-              ? encodeOverlapPolicy(overlap)
+              ? encodeScheduleOverlapPolicy(overlap)
               : temporal.api.enums.v1.ScheduleOverlapPolicy.SCHEDULE_OVERLAP_POLICY_ALLOW_ALL,
           },
         });
@@ -492,7 +498,7 @@ export class ScheduleClient extends BaseClient {
           backfillRequest: backfills.map((x) => ({
             startTime: optionalDateToTs(x.start),
             endTime: optionalDateToTs(x.end),
-            overlapPolicy: x.overlap ? encodeOverlapPolicy(x.overlap) : undefined,
+            overlapPolicy: x.overlap ? encodeScheduleOverlapPolicy(x.overlap) : undefined,
           })),
         });
       },

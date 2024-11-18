@@ -181,7 +181,7 @@ test(`mapAsyncIterable (with concurrency) doesn't hang mapFn exceptions`, async 
     try {
       const res = await iterator.next();
       values.push(res.value ?? res.done);
-    } catch (error) {
+    } catch (_error) {
       values.push('error');
     }
   }

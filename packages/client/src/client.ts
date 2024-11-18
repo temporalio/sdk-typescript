@@ -1,10 +1,9 @@
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
-import { temporal } from '@temporalio/proto';
 import { AsyncCompletionClient } from './async-completion-client';
 import { BaseClient, BaseClientOptions, defaultBaseClientOptions, LoadedWithDefaults } from './base-client';
 import { ClientInterceptors } from './interceptors';
 import { ScheduleClient } from './schedule-client';
-import { WorkflowService } from './types';
+import { QueryRejectCondition, WorkflowService } from './types';
 import { WorkflowClient } from './workflow-client';
 import { TaskQueueClient } from './task-queue-client';
 
@@ -20,9 +19,9 @@ export interface ClientOptions extends BaseClientOptions {
     /**
      * Should a query be rejected by closed and failed workflows
      *
-     * @default QUERY_REJECT_CONDITION_UNSPECIFIED which means that closed and failed workflows are still queryable
+     * @default `undefined`, which means that closed and failed workflows are still queryable
      */
-    queryRejectCondition?: temporal.api.enums.v1.QueryRejectCondition;
+    queryRejectCondition?: QueryRejectCondition;
   };
 }
 
@@ -63,6 +62,7 @@ export class Client extends BaseClient {
       connection: this.connection,
       dataConverter: this.dataConverter,
       interceptors: interceptors?.workflow,
+      queryRejectCondition: workflow?.queryRejectCondition,
     });
 
     this.activity = new AsyncCompletionClient({
