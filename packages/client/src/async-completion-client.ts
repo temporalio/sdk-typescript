@@ -1,6 +1,5 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import { ensureTemporalFailure } from '@temporalio/common';
-import type { temporal } from '@temporalio/proto';
 import {
   encodeErrorToFailure,
   encodeToPayloads,
