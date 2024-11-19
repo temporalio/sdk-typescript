@@ -14,7 +14,7 @@ use temporal_sdk_core::{
     ephemeral_server::EphemeralServer as CoreEphemeralServer,
     init_replay_worker, init_worker,
     replay::{HistoryForReplay, ReplayWorkerInput},
-    ClientOptions, CoreRuntime, RetryClient, WorkerConfig,
+    ClientOptions, CoreRuntime, RetryClient, TokioRuntimeBuilder, WorkerConfig,
 };
 use tokio::sync::{
     mpsc::{channel, unbounded_channel, Sender, UnboundedReceiver, UnboundedSender},
@@ -126,6 +126,10 @@ pub fn start_bridge_loop(
     tokio_builder.enable_all().thread_name("core");
     let telem_opts = telemetry_options.0;
     let meter_maker = telemetry_options.1;
+    let tokio_builder: TokioRuntimeBuilder<Box<dyn Fn() + Send + Sync>> = TokioRuntimeBuilder {
+        inner: tokio_builder,
+        lang_on_thread_start: None,
+    };
     let mut core_runtime =
         CoreRuntime::new(telem_opts, tokio_builder).expect("Failed to create CoreRuntime");
 
