@@ -216,23 +216,23 @@ export class AsyncCompletionClient extends BaseClient {
     const payloads = await encodeToPayloads(this.dataConverter, details);
     let cancelRequested = false;
     try {
-      let response: temporal.api.workflowservice.v1.RecordActivityTaskHeartbeatResponse;
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
-        response = await this.workflowService.recordActivityTaskHeartbeat({
+        const response = await this.workflowService.recordActivityTaskHeartbeat({
           identity: this.options.identity,
           namespace: this.options.namespace,
           taskToken: taskTokenOrFullActivityId,
           details: { payloads },
         });
+        cancelRequested = !!response.cancelRequested;
       } else {
-        response = await this.workflowService.recordActivityTaskHeartbeatById({
+        const response = await this.workflowService.recordActivityTaskHeartbeatById({
           identity: this.options.identity,
           namespace: this.options.namespace,
           ...taskTokenOrFullActivityId,
           details: { payloads },
         });
+        cancelRequested = !!response.cancelRequested;
       }
-      cancelRequested = !!response.cancelRequested;
     } catch (err) {
       this.handleError(err);
     }

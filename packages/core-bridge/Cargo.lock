@@ -2453,6 +2453,7 @@ dependencies = [
  "derive_more",
  "prost",
  "prost-build",
+ "prost-types",
  "prost-wkt",
  "prost-wkt-build",
  "prost-wkt-types",
