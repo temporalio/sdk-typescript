@@ -145,7 +145,7 @@ export interface OtelCollectorExporter {
      *
      * Syntax should generally look like `http://server:4317` (the `grpc://` is also fine). Core's OTLP
      * metric exporter does not support the 'OTLP/HTTP' protocol (e.g. `http://server:4318/v1/metrics`).
-     * For grater flexibility, you may setup an OTel collector running as a sidecar (e.g. to proxy
+     * For greater flexibility, you may setup an OTel collector running as a sidecar (e.g. to proxy
      * OTLP/gRPC requests to a remote OTLP/HTTP endpoint).
      *
      * @format Starts with "grpc://" or "http://" for an unsecured connection (typical),
