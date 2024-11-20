@@ -56,6 +56,9 @@ test('Can issue multiop request via withStart and executeUpdate', async (t) => {
       { args: ['1'], waitForStage: WorkflowUpdateStage.COMPLETED },
       {
         workflowTypeOrFunc: workflowWithUpdates,
+        options: {
+          workflowIdConflictPolicy: 'USE_EXISTING',
+        },
       }
     );
     t.deepEqual(updResult, ['1']);

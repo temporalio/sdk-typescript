@@ -591,27 +591,46 @@ export class WorkflowClient extends BaseClient {
   }
 
   // TODO: overloads
-  public async executeUpdateWithStart<T extends Workflow, Ret, Args extends [any, ...any[]], Name extends string = string>(
+  public async executeUpdateWithStart<
+    T extends Workflow,
+    Ret,
+    Args extends [any, ...any[]],
+    Name extends string = string,
+  >(
     updateDef: UpdateDefinition<Ret, Args, Name> | string,
     updateOptions: WorkflowUpdateOptions & { args?: Args },
     startWorkflowOperation: StartWorkflowOperation<T>
   ): Promise<Ret> {
-    const handle = await this._startUpdateWithStart(updateDef, { ...updateOptions, waitForStage: WorkflowUpdateStage.COMPLETED }, startWorkflowOperation);
+    const handle = await this._startUpdateWithStart(
+      updateDef,
+      { ...updateOptions, waitForStage: WorkflowUpdateStage.COMPLETED },
+      startWorkflowOperation
+    );
     return await handle.result();
   }
 
-  public async startUpdateWithStart<T extends Workflow, Ret, Args extends [any, ...any[]], Name extends string = string>(
+  public async startUpdateWithStart<
+    T extends Workflow,
+    Ret,
+    Args extends [any, ...any[]],
+    Name extends string = string,
+  >(
     updateDef: UpdateDefinition<Ret, Args, Name> | string,
     updateOptions: WorkflowUpdateOptions & {
       args?: Args;
-      waitForStage: WorkflowUpdateStage.ACCEPTED;
+      waitForStage: 'ACCEPTED';
     },
     startWorkflowOperation: StartWorkflowOperation<T>
   ): Promise<WorkflowUpdateHandle<Ret>> {
     return this._startUpdateWithStart(updateDef, updateOptions, startWorkflowOperation);
   }
 
-  protected async _startUpdateWithStart<T extends Workflow, Ret, Args extends [any, ...any[]], Name extends string = string>(
+  protected async _startUpdateWithStart<
+    T extends Workflow,
+    Ret,
+    Args extends [any, ...any[]],
+    Name extends string = string,
+  >(
     updateDef: UpdateDefinition<Ret, Args, Name> | string,
     updateOptions: WorkflowUpdateOptions & {
       args?: Args;
@@ -626,7 +645,7 @@ export class WorkflowClient extends BaseClient {
       workflowType: extractWorkflowType(workflowTypeOrFunc),
       headers: {},
       options: compileWorkflowOptions(ensureArgs(workflowOptions)),
-    }
+    };
     // update
     const { workflowId } = workflowOptions;
     const { waitForStage, args, ...options } = updateOptions;
@@ -640,7 +659,11 @@ export class WorkflowClient extends BaseClient {
 
     // TODO: currently using the startUpdate interceptor; decide if this is what we want
     const interceptors = this.getOrMakeInterceptors(workflowId);
-    const fn = composeInterceptors(interceptors, 'startUpdate', this._updateWithStartHandler.bind(this, startInput, waitForStage));
+    const fn = composeInterceptors(
+      interceptors,
+      'startUpdate',
+      this._updateWithStartHandler.bind(this, startInput, waitForStage)
+    );
     const output = await fn(updateInput);
 
     // TODO: is this done in _updateWithStartHandler?
@@ -648,14 +671,8 @@ export class WorkflowClient extends BaseClient {
       await this._pollForUpdateOutcome(output.updateId, updateInput.workflowExecution);
     }
 
-    return this.createWorkflowUpdateHandle<Ret>(
-      output.updateId,
-      workflowId,
-      output.workflowRunId,
-      output.outcome
-    );
-
-}
+    return this.createWorkflowUpdateHandle<Ret>(output.updateId, workflowId, output.workflowRunId, output.outcome);
+  }
 
   /**
    * Starts a new Workflow execution and awaits its completion.
@@ -907,7 +924,11 @@ export class WorkflowClient extends BaseClient {
     };
   }
 
-  protected async _createUpdateWorkflowRequest(updateId: string, lifecycleStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage, input: WorkflowStartUpdateInput): Promise<temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest> {
+  protected async _createUpdateWorkflowRequest(
+    updateId: string,
+    lifecycleStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage,
+    input: WorkflowStartUpdateInput
+  ): Promise<temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest> {
     return {
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
@@ -932,12 +953,12 @@ export class WorkflowClient extends BaseClient {
   protected async _updateWithStartHandler(
     startInput: WorkflowStartInput,
     waitForStage: WorkflowUpdateStage,
-    updateInput: WorkflowStartUpdateInput,
+    updateInput: WorkflowStartUpdateInput
   ): Promise<WorkflowStartUpdateOutput> {
     const startRequest = await this.createStartWorkflowRequest(startInput);
 
     const updateId = updateInput.options?.updateId ?? uuid4();
-    const waitForStageProto = workflowUpdateStage.toProtoEnum(waitForStage);
+    const waitForStageProto = encodeWorkflowUpdateStage(waitForStage)!;
     const updateRequest = await this._createUpdateWorkflowRequest(updateId, waitForStageProto, updateInput);
 
     const multiOpReq: temporal.api.workflowservice.v1.IExecuteMultiOperationRequest = {

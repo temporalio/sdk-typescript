@@ -124,18 +124,18 @@ export interface Helpers {
   ): Promise<WorkflowHandle<T>>;
   startUpdateWithStart(
     updateDef: UpdateDefinition<any, any, any> | string,
-    updateOptions: WorkflowUpdateOptions & { args?: any[], waitForStage: WorkflowUpdateStage.ACCEPTED },
+    updateOptions: WorkflowUpdateOptions & { args?: any[]; waitForStage: 'ACCEPTED' },
     startWorkflowOperation: {
-      workflowTypeOrFunc: workflow.Workflow,
-      options?: Omit<WorkflowStartOptions<workflow.Workflow>, 'taskQueue' | 'workflowId'>
+      workflowTypeOrFunc: workflow.Workflow;
+      options?: Omit<WorkflowStartOptions<workflow.Workflow>, 'taskQueue' | 'workflowId'>;
     }
   ): Promise<WorkflowUpdateHandle<any>>;
   executeUpdateWithStart(
     updateDef: UpdateDefinition<any, any, any> | string,
-    updateOptions: WorkflowUpdateOptions & { args?: any[], waitForStage: WorkflowUpdateStage.COMPLETED },
+    updateOptions: WorkflowUpdateOptions & { args?: any[]; waitForStage: 'COMPLETED' },
     startWorkflowOperation: {
-      workflowTypeOrFunc: workflow.Workflow,
-      options?: Omit<WorkflowStartOptions<workflow.Workflow>, 'taskQueue' | 'workflowId'>
+      workflowTypeOrFunc: workflow.Workflow;
+      options?: Omit<WorkflowStartOptions<workflow.Workflow>, 'taskQueue' | 'workflowId'>;
     }
   ): Promise<any>;
   assertWorkflowUpdateFailed(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
@@ -194,10 +194,10 @@ export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvir
     },
     async startUpdateWithStart(
       updateDef: UpdateDefinition<any, any, any> | string,
-      updateOptions: WorkflowUpdateOptions & { args?: any[], waitForStage: WorkflowUpdateStage.ACCEPTED },
+      updateOptions: WorkflowUpdateOptions & { args?: any[]; waitForStage: 'ACCEPTED' },
       startWorkflowOperation: {
-        workflowTypeOrFunc: workflow.Workflow,
-        options?: Omit<WorkflowStartOptions<workflow.Workflow>, 'taskQueue' | 'workflowId'>
+        workflowTypeOrFunc: workflow.Workflow;
+        options?: Omit<WorkflowStartOptions<workflow.Workflow>, 'taskQueue' | 'workflowId'>;
       }
     ): Promise<WorkflowUpdateHandle<any>> {
       return await testEnv.client.workflow.startUpdateWithStart(updateDef, updateOptions, {
@@ -211,10 +211,10 @@ export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvir
     },
     async executeUpdateWithStart(
       updateDef: UpdateDefinition<any, any, any> | string,
-      updateOptions: WorkflowUpdateOptions & { args?: any[], waitForStage: WorkflowUpdateStage.COMPLETED },
+      updateOptions: WorkflowUpdateOptions & { args?: any[]; waitForStage: 'COMPLETED' },
       startWorkflowOperation: {
-        workflowTypeOrFunc: workflow.Workflow,
-        options?: Omit<WorkflowStartOptions<workflow.Workflow>, 'taskQueue' | 'workflowId'>
+        workflowTypeOrFunc: workflow.Workflow;
+        options?: Omit<WorkflowStartOptions<workflow.Workflow>, 'taskQueue' | 'workflowId'>;
       }
     ): Promise<any> {
       return await testEnv.client.workflow.executeUpdateWithStart(updateDef, updateOptions, {
