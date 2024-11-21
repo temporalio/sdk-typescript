@@ -278,7 +278,11 @@ jobs:
         if: matrix.server == 'cli'
         shell: bash
         run: |
-          temporal server start-dev --headless &> /tmp/devserver.log &
+          temporal server start-dev \
+            --db-filename temporal.sqlite \
+            --sqlite-pragma journal_mode=WAL \
+            --sqlite-pragma synchronous=OFF \
+            --headless &> /tmp/devserver.log &
 
       - name: Run Tests
         run: npm test
@@ -394,7 +398,11 @@ jobs:
         if: matrix.server == 'cli'
         shell: bash
         run: |
-          temporal server start-dev --headless &
+          temporal server start-dev \
+            --db-filename temporal.sqlite \
+            --sqlite-pragma journal_mode=WAL \
+            --sqlite-pragma synchronous=OFF \
+            --headless &
 
         # We write the certs to disk because it serves the sample. Written into /tmp/temporal-certs
       - name: Create certs dir
