@@ -15,7 +15,8 @@ import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
-import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS } from './helpers';
+import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
+import asyncRetry from 'async-retry';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -1274,27 +1275,36 @@ test('Count workflow executions', async (t) => {
   const worker = await createWorker();
   const client = t.context.env.client;
 
-  await worker.runUntil(async () => {
-    // Run 3 workflows that complete.
-    for (let i = 0; i < 3; i++) {
-      await executeWorkflow(completableWorkflow, { args: [true] });
-    }
-  });
-
   // Run 2 workflows that don't complete
   // (use startWorkflow to avoid waiting for workflows to complete, which they never will)
   for (let i = 0; i < 2; i++) {
     await startWorkflow(completableWorkflow, { args: [false] });
   }
 
-  const actual = await client.workflow.count(`TaskQueue = '${taskQueue}' GROUP BY ExecutionStatus`);
-  const expected: CountWorkflowExecution = {
+  await worker.runUntil(async () => {
+    try {
+      // Run 3 workflows that complete.
+      await Promise.all([
+        executeWorkflow(completableWorkflow, { args: [true] }),
+        executeWorkflow(completableWorkflow, { args: [true] }),
+        executeWorkflow(completableWorkflow, { args: [true] })
+      ])
+    } catch (err) {
+      throw new Error('executing workflow unexpectedly failed')
+    };
+  });
+
+  const actualTotal = await client.workflow.count(`TaskQueue = '${taskQueue}'`);
+  t.deepEqual(actualTotal, { count: 5, groups: [] });
+
+  const expectedByExecutionStatus: CountWorkflowExecution = {
     count: 5,
     groups: [
-      { count: 2, group_values: [['Runningggg']] },
-      { count: 3, group_values: [['Completedddd']] },
+      { count: 2, groupValues: [['Running']] },
+      { count: 3, groupValues: [['Completed']] },
     ],
   };
-
-  t.deepEqual(expected, actual);
+  
+  const actualByExecutionStatus = await client.workflow.count(`TaskQueue = '${taskQueue}' GROUP BY ExecutionStatus`);
+  t.deepEqual(actualByExecutionStatus, expectedByExecutionStatus);
 });

@@ -89,7 +89,7 @@ export async function executionInfoFromRaw<T>(
   };
 }
 
-export function countWorkflowExecutionFromRaw(raw: RawCountWorkflowExecutions): CountWorkflowExecution {
+export function decodeCountWorkflowExecutionsResponse(raw: RawCountWorkflowExecutions): CountWorkflowExecution {
   return {
     // Note: lossy conversion of Long to number
     count: raw.count!.toNumber(),
@@ -103,7 +103,7 @@ export function executionCountAggregationGroupFromRaw(
   return {
     // Note: lossy conversion of Long to number
     count: raw.count!.toNumber(),
-    group_values: raw.groupValues!.map((group_value) => searchAttributePayloadConverter.fromPayload(group_value)),
+    groupValues: raw.groupValues!.map((group_value) => searchAttributePayloadConverter.fromPayload(group_value)),
   };
 }
 

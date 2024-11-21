@@ -78,7 +78,7 @@ import {
   WorkflowStartOptions,
   WorkflowUpdateOptions,
 } from './workflow-options';
-import { countWorkflowExecutionFromRaw, executionInfoFromRaw, rethrowKnownErrorTypes } from './helpers';
+import { decodeCountWorkflowExecutionsResponse, executionInfoFromRaw, rethrowKnownErrorTypes } from './helpers';
 import {
   BaseClient,
   BaseClientOptions,
@@ -1325,10 +1325,10 @@ export class WorkflowClient extends BaseClient {
         query,
       });
     } catch (e) {
-      this.rethrowGrpcError(e, 'Failed to count workflows', undefined);
+      this.rethrowGrpcError(e, 'Failed to count workflows');
     }
 
-    return countWorkflowExecutionFromRaw(response);
+    return decodeCountWorkflowExecutionsResponse(response);
   }
 
   protected getOrMakeInterceptors(workflowId: string, runId?: string): WorkflowClientInterceptor[] {

@@ -62,7 +62,7 @@ export interface CountWorkflowExecution {
 
 export interface CountWorkflowExecutionsAggregationGroup {
   count: number;
-  group_values: SearchAttributeValue[];
+  groupValues: SearchAttributeValue[];
 }
 
 export type WorkflowExecutionDescription = Replace<
