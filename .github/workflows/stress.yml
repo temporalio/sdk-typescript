@@ -113,7 +113,11 @@ jobs:
       - name: Run Temporal CLI
         shell: bash
         run: |
-          temporal server start-dev --headless &
+          temporal server start-dev \
+            --db-filename temporal.sqlite \
+            --sqlite-pragma journal_mode=WAL \
+            --sqlite-pragma synchronous=OFF \
+            --headless &
 
       - name: Run tests
         run: |
