@@ -211,7 +211,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [18, 20, 22]
+        node: [16, 18, 20]
         platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
         reuse-v8-context: [true, false]
         server: [cli] # FIXME: Add 'cloud'
@@ -278,7 +278,11 @@ jobs:
         if: matrix.server == 'cli'
         shell: bash
         run: |
-          temporal server start-dev --headless &> /tmp/devserver.log &
+          temporal server start-dev \
+            --db-filename temporal.sqlite \
+            --sqlite-pragma journal_mode=WAL \
+            --sqlite-pragma synchronous=OFF \
+            --headless &> /tmp/devserver.log &
 
       - name: Run Tests
         run: npm test
@@ -312,7 +316,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [18, 20, 22]
+        node: [16, 18, 20]
         platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
         sample: [hello-world, fetch-esm, hello-world-mtls]
         server: [cli, cloud]
@@ -394,7 +398,11 @@ jobs:
         if: matrix.server == 'cli'
         shell: bash
         run: |
-          temporal server start-dev --headless &
+          temporal server start-dev \
+            --db-filename temporal.sqlite \
+            --sqlite-pragma journal_mode=WAL \
+            --sqlite-pragma synchronous=OFF \
+            --headless &
 
         # We write the certs to disk because it serves the sample. Written into /tmp/temporal-certs
       - name: Create certs dir
