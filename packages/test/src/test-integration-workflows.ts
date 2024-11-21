@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
+import asyncRetry from 'async-retry';
 import { CountWorkflowExecution, WorkflowFailedError } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
@@ -16,7 +17,6 @@ import * as workflows from './workflows';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
 import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
-import asyncRetry from 'async-retry';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -1287,11 +1287,11 @@ test('Count workflow executions', async (t) => {
       await Promise.all([
         executeWorkflow(completableWorkflow, { args: [true] }),
         executeWorkflow(completableWorkflow, { args: [true] }),
-        executeWorkflow(completableWorkflow, { args: [true] })
-      ])
+        executeWorkflow(completableWorkflow, { args: [true] }),
+      ]);
     } catch (err) {
-      throw new Error('executing workflow unexpectedly failed')
-    };
+      throw new Error('executing workflow unexpectedly failed');
+    }
   });
 
   const actualTotal = await client.workflow.count(`TaskQueue = '${taskQueue}'`);
@@ -1304,7 +1304,7 @@ test('Count workflow executions', async (t) => {
       { count: 3, groupValues: [['Completed']] },
     ],
   };
-  
+
   const actualByExecutionStatus = await client.workflow.count(`TaskQueue = '${taskQueue}' GROUP BY ExecutionStatus`);
   t.deepEqual(actualByExecutionStatus, expectedByExecutionStatus);
 });
