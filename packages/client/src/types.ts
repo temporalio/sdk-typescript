@@ -1,5 +1,5 @@
 import type * as grpc from '@grpc/grpc-js';
-import type { SearchAttributes } from '@temporalio/common';
+import type { SearchAttributes, SearchAttributeValue } from '@temporalio/common';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import * as proto from '@temporalio/proto';
 import { Replace } from '@temporalio/common/lib/type-helpers';
@@ -14,6 +14,9 @@ export type GetWorkflowExecutionHistoryRequest =
 export type DescribeWorkflowExecutionResponse =
   proto.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
 export type RawWorkflowExecutionInfo = proto.temporal.api.workflow.v1.IWorkflowExecutionInfo;
+export type RawCountWorkflowExecutions = proto.temporal.api.workflowservice.v1.ICountWorkflowExecutionsResponse;
+export type RawCountWorkflowExecutionsAggregationGroup =
+  proto.temporal.api.workflowservice.v1.CountWorkflowExecutionsResponse.IAggregationGroup;
 export type TerminateWorkflowExecutionResponse =
   proto.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
 export type RequestCancelWorkflowExecutionResponse =
@@ -50,6 +53,16 @@ export interface WorkflowExecutionInfo {
   searchAttributes: SearchAttributes;
   parentExecution?: Required<proto.temporal.api.common.v1.IWorkflowExecution>;
   raw: RawWorkflowExecutionInfo;
+}
+
+export interface CountWorkflowExecution {
+  count: number;
+  groups: CountWorkflowExecutionsAggregationGroup[];
+}
+
+export interface CountWorkflowExecutionsAggregationGroup {
+  count: number;
+  group_values: SearchAttributeValue[];
 }
 
 export type WorkflowExecutionDescription = Replace<

@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { WorkflowFailedError } from '@temporalio/client';
+import { CountWorkflowExecution, WorkflowFailedError } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -1264,3 +1264,37 @@ export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
   }
   return {};
 };
+
+export async function completableWorkflow(completes: boolean): Promise<void> {
+  await workflow.condition(() => completes);
+}
+
+test('Count workflow executions', async (t) => {
+  const { taskQueue, createWorker, executeWorkflow, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  const client = t.context.env.client;
+
+  await worker.runUntil(async () => {
+    // Run 3 workflows that complete.
+    for (let i = 0; i < 3; i++) {
+      await executeWorkflow(completableWorkflow, { args: [true] });
+    }
+  });
+
+  // Run 2 workflows that don't complete
+  // (use startWorkflow to avoid waiting for workflows to complete, which they never will)
+  for (let i = 0; i < 2; i++) {
+    await startWorkflow(completableWorkflow, { args: [false] });
+  }
+
+  const actual = await client.workflow.count(`TaskQueue = '${taskQueue}' GROUP BY ExecutionStatus`);
+  const expected: CountWorkflowExecution = {
+    count: 5,
+    groups: [
+      { count: 2, group_values: [['Runningggg']] },
+      { count: 3, group_values: [['Completedddd']] },
+    ],
+  };
+
+  t.deepEqual(expected, actual);
+});
