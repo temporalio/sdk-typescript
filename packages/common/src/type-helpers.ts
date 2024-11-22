@@ -224,74 +224,32 @@ export function SymbolBasedInstanceOfError<E extends Error>(markerName: string):
 // reaching variables defined using internal scopes. This implementation specifically look for and deal
 // with the case of the Map or Set classes, but it is impossible to cover all potential cases.
 export function deepFreeze<T>(object: T, visited = new WeakSet<any>(), path = 'root'): T {
-  if (typeof object !== 'object' || object == null || Object.isFrozen(object) || visited.has(object)) return object;
+  if (object == null || visited.has(object) || (typeof object !== 'object' && typeof object !== 'function'))
+    return object;
   visited.add(object);
+  if (Object.isFrozen(object)) return object;
 
-  if (object.constructor?.name === 'Map' || object instanceof Map) {
-    const map = object as unknown as Map<any, any>;
-    for (const [k, v] of map.entries()) {
-      deepFreeze(k, visited, `${path}[key:${k}]`);
-      deepFreeze(v, visited, `${path}[value:${k}]`);
-    }
-    map.set = frozenMapSet;
-    map.delete = frozenMapDelete;
-    map.clear = frozenMapClear;
-  }
+  if (typeof object === 'object') {
+    // Retrieve the property names defined on object
+    const propNames = Object.getOwnPropertyNames(object);
 
-  if (object.constructor?.name === 'Set' || object instanceof Set) {
-    const set = object as unknown as Set<any>;
-    for (const v of set.values()) {
-      deepFreeze(v, visited, `${path}.${v}`);
-    }
-    set.add = frozenSetAdd;
-    set.delete = frozenSetDelete;
-    set.clear = frozenSetClear;
-  }
+    // Freeze properties before freezing self
+    for (const name of propNames) {
+      const value = (object as any)[name];
 
-  // Retrieve the property names defined on object
-  const propNames = Object.getOwnPropertyNames(object);
-
-  // Freeze properties before freezing self
-  for (const name of propNames) {
-    const value = (object as any)[name];
-
-    if (value && typeof value === 'object') {
-      try {
-        deepFreeze(value, visited, `${path}.${name}`);
-      } catch (err) {
-        if (typeof value !== 'object' || value.constructor.name !== 'Uint8Array') {
-          console.log(`Failed to freeze ${path}.${name}`, err);
+      if (value && typeof value === 'object') {
+        try {
+          deepFreeze(value, visited, `${path}.${name}`);
+        } catch (err) {
+          // FIXME: Remove before merging this PR
+          if (value.constructor.name !== 'Uint8Array') {
+            console.log(`Failed to freeze ${path}.${name}`, err);
+          }
+          // This is okay, there are some typed arrays that cannot be frozen (encodingKeys)
         }
-        // This is okay, there are some typed arrays that cannot be frozen (encodingKeys)
       }
-    } else if (typeof value === 'function') {
-      Object.freeze(value);
     }
   }
 
   return Object.freeze(object);
-}
-
-function frozenMapSet(key: any, _value: any): Map<any, any> {
-  throw `Can't add property ${key}, map is not extensible`;
-}
-
-function frozenMapDelete(key: any): boolean {
-  throw `Can't delete property ${key}, map is frozen`;
-}
-
-function frozenMapClear() {
-  throw "Can't clear map, map is frozen";
-}
-
-function frozenSetAdd(key: any): Set<any> {
-  throw `Can't add key ${key}, set is not extensible`;
-}
-
-function frozenSetDelete(key: any): boolean {
-  throw `Can't delete key ${key}, set is not extensible`;
-}
-
-function frozenSetClear() {
-  throw "Can't clear set, set is frozen";
 }

@@ -88,18 +88,25 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     // defines the built-in global properties. We need
     vm.runInContext(
       `
-        const pristine = globalThis.__pristine;
-        delete globalThis.__pristine;
-        for (const name of Object.getOwnPropertyNames(globalThis)) {
-          const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
-          pristine.set(name, descriptor);
+        {
+          const pristine = globalThis.__pristine;
+          delete globalThis.__pristine;
+          for (const name of Object.getOwnPropertyNames(globalThis)) {
+            const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
+            pristine.set(name, descriptor);
+          }
         }
       `,
       this.context
     );
     for (const [k, v] of this.pristine.entries()) {
       if (k !== 'globalThis') {
-        deepFreeze(v.value);
+        console.log(`Deep freezing pristine ${k}`);
+        v.value = deepFreeze(v.value);
+        if (typeof v.value === 'function') {
+          console.log(` ... non-writable`);
+          v.writable = false;
+        }
       }
     }
     for (const v of sharedModules.values()) {
@@ -130,7 +137,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = this.context;
     const pristine = this.pristine;
-    const bag: Map<string, PropertyDescriptor> = new Map();
+    const bag: Map<string, PropertyDescriptor> = new Map(pristine);
     const { isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
       {},
@@ -172,9 +179,13 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
               vm.runInContext(
                 `
                   for (const [name, descriptor] of globalThis.__TEMPORAL_ARGS__) {
-                    delete globalThis[name];
+                    // if (name !== '__TEMPORAL_ACTIVATOR__') {
+                    //   debugger;
+                    // }
                     if (descriptor) {
-                      Object.defineProperty(globalThis, name, descriptor);
+                      Object.defineProperty(globalThis, name, { ...descriptor, writable: true });
+                    } else {
+                      delete globalThis[name];
                     }
                   }
                   delete globalThis.__TEMPORAL_ARGS__;`,
