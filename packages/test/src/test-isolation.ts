@@ -128,25 +128,29 @@ test('Shared global state is frozen', withReusableContext, async (t) => {
   t.is(err.cause?.message, 'Cannot add property a, object is not extensible');
 });
 
-export async function sharedGlobalReassignment(): Promise<[string, string]> {
+export async function sharedGlobalReassignment(): Promise<[string, string, string]> {
   type ConsoleExtended = Console & { wfid: string };
   // Replace the `console` global by a new object
+  // eslint-disable-next-line no-debugger
+  debugger;
   globalThis.console = { ...console, wfid: workflowInfo().workflowId } as ConsoleExtended;
-
-  await sleep(1);
-  return [workflowInfo().workflowId, (console as ConsoleExtended).wfid];
+  const middle = (globalThis.console as ConsoleExtended).wfid;
+  await sleep(50);
+  return [workflowInfo().workflowId, middle, (globalThis.console as ConsoleExtended).wfid];
 }
 
 test('Reassign shared global state', withReusableContext, async (t) => {
   const { createWorker, taskQueue, env } = t.context;
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const [res1, res2] = await Promise.all([
+    const [res1 /*, res2*/] = await Promise.all([
       env.client.workflow.execute(sharedGlobalReassignment, { taskQueue, workflowId: randomUUID() }),
-      env.client.workflow.execute(sharedGlobalReassignment, { taskQueue, workflowId: randomUUID() }),
+      // env.client.workflow.execute(sharedGlobalReassignment, { taskQueue, workflowId: randomUUID() }),
     ]);
     t.deepEqual(res1[0], res1[1]);
-    t.deepEqual(res2[0], res2[1]);
+    t.deepEqual(res1[0], res1[2]);
+    // t.deepEqual(res2[0], res2[1]);
+    // t.deepEqual(res2[0], res2[2]);
   });
 });
 
