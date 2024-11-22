@@ -12,9 +12,6 @@ import { decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workf
 import { temporal, google } from '@temporalio/proto';
 import {
   CountWorkflowExecution,
-  CountWorkflowExecutionsAggregationGroup,
-  RawCountWorkflowExecutions,
-  RawCountWorkflowExecutionsAggregationGroup,
   RawWorkflowExecutionInfo,
   WorkflowExecutionInfo,
   WorkflowExecutionStatusName,
@@ -89,21 +86,19 @@ export async function executionInfoFromRaw<T>(
   };
 }
 
-export function decodeCountWorkflowExecutionsResponse(raw: RawCountWorkflowExecutions): CountWorkflowExecution {
+export function decodeCountWorkflowExecutionsResponse(
+  raw: temporal.api.workflowservice.v1.ICountWorkflowExecutionsResponse
+): CountWorkflowExecution {
   return {
     // Note: lossy conversion of Long to number
     count: raw.count!.toNumber(),
-    groups: raw.groups!.map((group) => executionCountAggregationGroupFromRaw(group)),
-  };
-}
-
-export function executionCountAggregationGroupFromRaw(
-  raw: RawCountWorkflowExecutionsAggregationGroup
-): CountWorkflowExecutionsAggregationGroup {
-  return {
-    // Note: lossy conversion of Long to number
-    count: raw.count!.toNumber(),
-    groupValues: raw.groupValues!.map((group_value) => searchAttributePayloadConverter.fromPayload(group_value)),
+    groups: raw.groups!.map((group) => {
+      return {
+        // Note: lossy conversion of Long to number
+        count: group.count!.toNumber(),
+        groupValues: group.groupValues!.map((value) => searchAttributePayloadConverter.fromPayload(value)),
+      };
+    }),
   };
 }
 

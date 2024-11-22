@@ -14,9 +14,6 @@ export type GetWorkflowExecutionHistoryRequest =
 export type DescribeWorkflowExecutionResponse =
   proto.temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse;
 export type RawWorkflowExecutionInfo = proto.temporal.api.workflow.v1.IWorkflowExecutionInfo;
-export type RawCountWorkflowExecutions = proto.temporal.api.workflowservice.v1.ICountWorkflowExecutionsResponse;
-export type RawCountWorkflowExecutionsAggregationGroup =
-  proto.temporal.api.workflowservice.v1.CountWorkflowExecutionsResponse.IAggregationGroup;
 export type TerminateWorkflowExecutionResponse =
   proto.temporal.api.workflowservice.v1.ITerminateWorkflowExecutionResponse;
 export type RequestCancelWorkflowExecutionResponse =
@@ -57,12 +54,10 @@ export interface WorkflowExecutionInfo {
 
 export interface CountWorkflowExecution {
   count: number;
-  groups: CountWorkflowExecutionsAggregationGroup[];
-}
-
-export interface CountWorkflowExecutionsAggregationGroup {
-  count: number;
-  groupValues: SearchAttributeValue[];
+  groups: {
+    count: number;
+    groupValues: SearchAttributeValue[];
+  }[];
 }
 
 export type WorkflowExecutionDescription = Replace<
