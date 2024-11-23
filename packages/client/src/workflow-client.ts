@@ -451,10 +451,26 @@ export interface IntoHistoriesOptions {
 }
 
 export class StartWorkflowOperation<T extends Workflow> {
+  private _workflowHandle: Promise<WorkflowHandle<T>>;
+  private _resolveWorkflowHandle!: (handle: WorkflowHandle<T>) => void;
+  public _used = false;
+
   constructor(
     public workflowTypeOrFunc: string | T,
     public options: WorkflowStartOptions<T>
-  ) {}
+  ) {
+    this._workflowHandle = new Promise<WorkflowHandle<T>>((resolve) => {
+      this._resolveWorkflowHandle = resolve;
+    });
+  }
+
+  public async workflowHandle(): Promise<WorkflowHandle<T>> {
+    return await this._workflowHandle;
+  }
+
+  public _setWorkflowHandle(handle: WorkflowHandle<T>): void {
+    this._resolveWorkflowHandle(handle);
+  }
 }
 
 /**
@@ -639,6 +655,10 @@ export class WorkflowClient extends BaseClient {
     }
   ): Promise<WorkflowUpdateHandle<Ret>> {
     // start
+    if (updateOptions.startWorkflowOperation._used) {
+      throw new Error('This StartWorkflowOperation instance has already been used.');
+    }
+    updateOptions.startWorkflowOperation._used = true;
     const { workflowTypeOrFunc, options: workflowOptions } = updateOptions.startWorkflowOperation;
     assertRequiredWorkflowOptions(workflowOptions);
     const startInput = {
@@ -665,6 +685,15 @@ export class WorkflowClient extends BaseClient {
       this._updateWithStartHandler.bind(this, startInput, waitForStage)
     );
     const output = await fn(updateInput);
+
+    updateOptions.startWorkflowOperation._setWorkflowHandle(
+      this._createWorkflowHandle({
+        workflowId,
+        firstExecutionRunId: output.workflowRunId,
+        interceptors,
+        followRuns: workflowOptions.followRuns ?? true,
+      })
+    );
 
     // TODO: is this done in _updateWithStartHandler?
     if (!output.outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
@@ -973,8 +1002,17 @@ export class WorkflowClient extends BaseClient {
       ],
     };
     // TODO: this is naive; follow what Go/Java do regarding retries
+    // This may throw a gRPC error due to
+    // 1a workflow failed to start
+    // 1b workflow start had no error but update rate limit exhausted
+    // 2a workflow start ok but timeout when waiting for update to reach waitForStage
+    // Alternatively it may return a valid response but indicating that the
+    // update is non-durable (Admitted). In this case we retry; we never create
+    // an update handle for a non-durable update.
     const multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
     // TODO: order is guaranteed but we could check for startWorkflow / updateWorkflow keys
+    const startResp = multiOpResp.responses[0]
+      .startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
     const updateResp = multiOpResp.responses[1]
       .updateWorkflow as temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
 

@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
+import { status as grpcStatus } from '@grpc/grpc-js';
 import {
+  isGrpcServiceError,
   WorkflowUpdateStage,
   WorkflowUpdateRPCTimeoutOrCancelledError,
   WorkflowFailedError,
@@ -53,7 +55,7 @@ export async function workflowWithUpdates(): Promise<string[]> {
   return state;
 }
 
-test('UWS', async (t) => {
+test('UWS happy path', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -62,19 +64,112 @@ test('UWS', async (t) => {
       taskQueue,
       workflowIdConflictPolicy: 'USE_EXISTING',
     });
+    // Can send Update-With-Start MultiOperation request
     const updHandle = await t.context.env.client.workflow.startUpdateWithStart(update, {
       args: ['1'],
       waitForStage: 'ACCEPTED',
       startWorkflowOperation: startOp,
     });
+    // Can use returned upate handle to wait for update result
     const updResult1 = await updHandle.result();
     t.deepEqual(updResult1, ['1']);
-    // TODO: should fail: startOp should not be reusable
-    const updResult2 = await t.context.env.client.workflow.executeUpdateWithStart(update, {
-      args: ['2'],
-      startWorkflowOperation: startOp,
-    });
+
+    // startOp has been mutated such that workflow handle is now available and
+    // can be used to interact with the workflow.
+    const wfHandle = await startOp.workflowHandle();
+    const updResult2 = await wfHandle.executeUpdate(update, { args: ['2'] });
     t.deepEqual(updResult2, ['1', '2']);
+
+    // startOp cannot be re-used in a second Update-With-Start call
+    const err = await t.throwsAsync(
+      t.context.env.client.workflow.executeUpdateWithStart(update, {
+        args: ['3'],
+        startWorkflowOperation: startOp,
+      })
+    );
+    t.true(err?.message.includes('StartWorkflowOperation instance has already been used'));
+  });
+});
+
+test('UWS handles can be obtained concurrently', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const startOp = new StartWorkflowOperation(workflowWithUpdates, {
+      workflowId: randomUUID(),
+      taskQueue,
+      workflowIdConflictPolicy: 'USE_EXISTING',
+    });
+    const [wfHandle, updHandle] = await Promise.all([
+      startOp.workflowHandle(),
+      t.context.env.client.workflow.startUpdateWithStart(update, {
+        args: ['1'],
+        waitForStage: 'ACCEPTED',
+        startWorkflowOperation: startOp,
+      }),
+    ]);
+
+    // Can use returned handles
+    t.deepEqual(await updHandle.result(), ['1']);
+    t.deepEqual(await wfHandle.executeUpdate(update, { args: ['2'] }), ['1', '2']);
+  });
+});
+
+test('UWS failure 1a: start fails', async (t) => {
+  const startOp = new StartWorkflowOperation(workflowWithUpdates, {
+    workflowId: 'x'.repeat(777),
+    taskQueue: 'does-not-exist',
+    workflowIdConflictPolicy: 'FAIL',
+  });
+  const err = await t.throwsAsync(
+    t.context.env.client.workflow.startUpdateWithStart(update, {
+      args: ['1'],
+      waitForStage: 'ACCEPTED',
+      startWorkflowOperation: startOp,
+    })
+  );
+  t.true(isGrpcServiceError(err) && err.code === grpcStatus.INVALID_ARGUMENT);
+  t.true(err?.message.includes('MultiOperation could not be executed'));
+});
+
+export const neverReturningUpdate = wf.defineUpdate<string[], [string]>('never-returning-update');
+
+export async function workflowWithNeverReturningUpdate(): Promise<never> {
+  const updateHandler = async (): Promise<never> => {
+    await new Promise(() => {});
+    throw new Error('unreachable');
+  };
+  wf.setHandler(neverReturningUpdate, updateHandler);
+  await new Promise(() => {});
+  throw new Error('unreachable');
+}
+
+test('UWS failure 1b: update fails early due to limit on number of updates', async (t) => {
+  const workflowId = randomUUID();
+  const { createWorker, taskQueue } = helpers(t);
+  const worker = await createWorker();
+  const doUws = async () => {
+    await t.context.env.client.workflow.startUpdateWithStart(neverReturningUpdate, {
+      waitForStage: 'ACCEPTED',
+      startWorkflowOperation: new StartWorkflowOperation(workflowWithNeverReturningUpdate, {
+        workflowId,
+        taskQueue,
+        workflowIdConflictPolicy: 'USE_EXISTING',
+      }),
+    });
+  };
+
+  await worker.runUntil(async () => {
+    // The server permits 10 updates per workflow execution.
+    for (let i = 0; i < 10; i++) {
+      await doUws();
+    }
+    // The 11th call should fail with a gRPC error
+
+    // TODO: set gRPC retries to 1. This generates a RESOURCE_EXHAUSTED error,
+    // and by default these are retried 10 times.
+    const err = await t.throwsAsync(doUws());
+    t.true(isGrpcServiceError(err));
   });
 });
 
