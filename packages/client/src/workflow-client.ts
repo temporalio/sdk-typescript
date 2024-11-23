@@ -453,9 +453,11 @@ export interface IntoHistoriesOptions {
   bufferLimit?: number;
 }
 
-export interface StartWorkflowOperation<T extends Workflow> {
-  workflowTypeOrFunc: string | T;
-  options: WorkflowStartOptions<T>;
+export class StartWorkflowOperation<T extends Workflow> {
+  constructor(
+    public workflowTypeOrFunc: string | T,
+    public options: WorkflowStartOptions<T>
+  ) {}
 }
 
 /**
