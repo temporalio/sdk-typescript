@@ -600,14 +600,12 @@ export class WorkflowClient extends BaseClient {
     Name extends string = string,
   >(
     updateDef: UpdateDefinition<Ret, Args, Name> | string,
-    updateOptions: WorkflowUpdateOptions & { args?: Args },
-    startWorkflowOperation: StartWorkflowOperation<T>
+    updateOptions: WorkflowUpdateOptions & { args?: Args; startWorkflowOperation: StartWorkflowOperation<T> }
   ): Promise<Ret> {
-    const handle = await this._startUpdateWithStart(
-      updateDef,
-      { ...updateOptions, waitForStage: WorkflowUpdateStage.COMPLETED },
-      startWorkflowOperation
-    );
+    const handle = await this._startUpdateWithStart(updateDef, {
+      ...updateOptions,
+      waitForStage: WorkflowUpdateStage.COMPLETED,
+    });
     return await handle.result();
   }
 
@@ -621,10 +619,10 @@ export class WorkflowClient extends BaseClient {
     updateOptions: WorkflowUpdateOptions & {
       args?: Args;
       waitForStage: 'ACCEPTED';
-    },
-    startWorkflowOperation: StartWorkflowOperation<T>
+      startWorkflowOperation: StartWorkflowOperation<T>;
+    }
   ): Promise<WorkflowUpdateHandle<Ret>> {
-    return this._startUpdateWithStart(updateDef, updateOptions, startWorkflowOperation);
+    return this._startUpdateWithStart(updateDef, updateOptions);
   }
 
   protected async _startUpdateWithStart<
@@ -637,11 +635,11 @@ export class WorkflowClient extends BaseClient {
     updateOptions: WorkflowUpdateOptions & {
       args?: Args;
       waitForStage: WorkflowUpdateStage;
-    },
-    startWorkflowOperation: StartWorkflowOperation<T>
+      startWorkflowOperation: StartWorkflowOperation<T>;
+    }
   ): Promise<WorkflowUpdateHandle<Ret>> {
     // start
-    const { workflowTypeOrFunc, options: workflowOptions } = startWorkflowOperation;
+    const { workflowTypeOrFunc, options: workflowOptions } = updateOptions.startWorkflowOperation;
     assertRequiredWorkflowOptions(workflowOptions);
     const startInput = {
       workflowType: extractWorkflowType(workflowTypeOrFunc),

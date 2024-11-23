@@ -62,15 +62,18 @@ test('UWS', async (t) => {
       taskQueue,
       workflowIdConflictPolicy: 'USE_EXISTING',
     });
-    const updHandle = await t.context.env.client.workflow.startUpdateWithStart(
-      update,
-      { args: ['1'], waitForStage: 'ACCEPTED' },
-      startOp
-    );
+    const updHandle = await t.context.env.client.workflow.startUpdateWithStart(update, {
+      args: ['1'],
+      waitForStage: 'ACCEPTED',
+      startWorkflowOperation: startOp,
+    });
     const updResult1 = await updHandle.result();
     t.deepEqual(updResult1, ['1']);
     // TODO: should fail: startOp should not be reusable
-    const updResult2 = await t.context.env.client.workflow.executeUpdateWithStart(update, { args: ['2'] }, startOp);
+    const updResult2 = await t.context.env.client.workflow.executeUpdateWithStart(update, {
+      args: ['2'],
+      startWorkflowOperation: startOp,
+    });
     t.deepEqual(updResult2, ['1', '2']);
   });
 });
