@@ -1,4 +1,10 @@
-import { WorkflowUpdateStage, WorkflowUpdateRPCTimeoutOrCancelledError, WorkflowFailedError } from '@temporalio/client';
+import { randomUUID } from 'crypto';
+import {
+  WorkflowUpdateStage,
+  WorkflowUpdateRPCTimeoutOrCancelledError,
+  WorkflowFailedError,
+  StartWorkflowOperation,
+} from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { temporal } from '@temporalio/proto';
 import { helpers, makeTestFunction } from './helpers-integration';
@@ -47,21 +53,25 @@ export async function workflowWithUpdates(): Promise<string[]> {
   return state;
 }
 
-test('Can issue multiop request via withStart and executeUpdate', async (t) => {
-  const { executeUpdateWithStart, createWorker } = helpers(t);
+test('UWS', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const updResult = await executeUpdateWithStart(
+    const startOp = new StartWorkflowOperation(workflowWithUpdates, {
+      workflowId: randomUUID(),
+      taskQueue,
+      workflowIdConflictPolicy: 'USE_EXISTING',
+    });
+    const updHandle = await t.context.env.client.workflow.startUpdateWithStart(
       update,
-      { args: ['1'], waitForStage: WorkflowUpdateStage.COMPLETED },
-      {
-        workflowTypeOrFunc: workflowWithUpdates,
-        options: {
-          workflowIdConflictPolicy: 'USE_EXISTING',
-        },
-      }
+      { args: ['1'], waitForStage: 'ACCEPTED' },
+      startOp
     );
-    t.deepEqual(updResult, ['1']);
+    const updResult1 = await updHandle.result();
+    t.deepEqual(updResult1, ['1']);
+    // TODO: should fail: startOp should not be reusable
+    const updResult2 = await t.context.env.client.workflow.executeUpdateWithStart(update, { args: ['2'] }, startOp);
+    t.deepEqual(updResult2, ['1', '2']);
   });
 });
 
