@@ -985,11 +985,9 @@ export class WorkflowClient extends BaseClient {
     updateInput: WorkflowStartUpdateInput
   ): Promise<WorkflowStartUpdateOutput> {
     const startRequest = await this.createStartWorkflowRequest(startInput);
-
     const updateId = updateInput.options?.updateId ?? uuid4();
     const waitForStageProto = encodeWorkflowUpdateStage(waitForStage)!;
     const updateRequest = await this._createUpdateWorkflowRequest(updateId, waitForStageProto, updateInput);
-
     const multiOpReq: temporal.api.workflowservice.v1.IExecuteMultiOperationRequest = {
       namespace: this.options.namespace,
       operations: [
@@ -1001,20 +999,40 @@ export class WorkflowClient extends BaseClient {
         },
       ],
     };
-    // TODO: this is naive; follow what Go/Java do regarding retries
-    // This may throw a gRPC error due to
-    // 1a workflow failed to start
-    // 1b workflow start had no error but update rate limit exhausted
-    // 2a workflow start ok but timeout when waiting for update to reach waitForStage
-    // Alternatively it may return a valid response but indicating that the
-    // update is non-durable (Admitted). In this case we retry; we never create
-    // an update handle for a non-durable update.
-    const multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
-    // TODO: order is guaranteed but we could check for startWorkflow / updateWorkflow keys
-    const startResp = multiOpResp.responses[0]
-      .startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
-    const updateResp = multiOpResp.responses[1]
-      .updateWorkflow as temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
+    const requestedStage =
+      updateRequest.waitPolicy?.lifecycleStage ??
+      UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_UNSPECIFIED;
+
+    let multiOpResp: temporal.api.workflowservice.v1.IExecuteMultiOperationResponse;
+    // let startResp: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
+    let updateResp: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
+    let reachedStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
+    do {
+      // This may throw a gRPC error due to
+      // 1a workflow failed to start
+      // 1b workflow start had no error but update rate limit exhausted
+      // 2a workflow start ok but timeout when waiting for update to reach waitForStage
+      // Alternatively it may return a valid response but indicating that the
+      // update is non-durable (Admitted). In this case we retry; we never create
+      // an update handle for a non-durable update.
+      try {
+        multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
+        // TODO: order is guaranteed but check structural validity of response,
+        // e.g. startWorkflow / updateWorkflow keys
+        // startResp = multiOpResp.responses?.[0]
+        //   ?.startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
+        updateResp = multiOpResp.responses?.[1]
+          ?.updateWorkflow as temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
+        reachedStage =
+          updateResp.stage ??
+          UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_UNSPECIFIED;
+      } catch (err) {
+        this.rethrowUpdateGrpcError(err, 'Workflow Update failed', updateInput.workflowExecution);
+      }
+    } while (
+      reachedStage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED ||
+      reachedStage < requestedStage
+    );
 
     return {
       updateId: updateRequest.request!.meta!.updateId!,
