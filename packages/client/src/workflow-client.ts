@@ -608,14 +608,8 @@ export class WorkflowClient extends BaseClient {
     return handle;
   }
 
-  // TODO: overloads
-  public async executeUpdateWithStart<
-    T extends Workflow,
-    Ret,
-    Args extends [any, ...any[]],
-    Name extends string = string,
-  >(
-    updateDef: UpdateDefinition<Ret, Args, Name> | string,
+  public async executeUpdateWithStart<T extends Workflow, Ret, Args extends any[]>(
+    updateDef: UpdateDefinition<Ret, Args> | string,
     updateOptions: WorkflowUpdateOptions & { args?: Args; startWorkflowOperation: StartWorkflowOperation<T> }
   ): Promise<Ret> {
     const handle = await this._startUpdateWithStart(updateDef, {
@@ -625,13 +619,8 @@ export class WorkflowClient extends BaseClient {
     return await handle.result();
   }
 
-  public async startUpdateWithStart<
-    T extends Workflow,
-    Ret,
-    Args extends [any, ...any[]],
-    Name extends string = string,
-  >(
-    updateDef: UpdateDefinition<Ret, Args, Name> | string,
+  public async startUpdateWithStart<T extends Workflow, Ret, Args extends any[]>(
+    updateDef: UpdateDefinition<Ret, Args> | string,
     updateOptions: WorkflowUpdateOptions & {
       args?: Args;
       waitForStage: 'ACCEPTED';
@@ -641,13 +630,8 @@ export class WorkflowClient extends BaseClient {
     return this._startUpdateWithStart(updateDef, updateOptions);
   }
 
-  protected async _startUpdateWithStart<
-    T extends Workflow,
-    Ret,
-    Args extends [any, ...any[]],
-    Name extends string = string,
-  >(
-    updateDef: UpdateDefinition<Ret, Args, Name> | string,
+  protected async _startUpdateWithStart<T extends Workflow, Ret, Args extends any[]>(
+    updateDef: UpdateDefinition<Ret, Args> | string,
     updateOptions: WorkflowUpdateOptions & {
       args?: Args;
       waitForStage: WorkflowUpdateStage;
