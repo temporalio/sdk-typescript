@@ -1286,8 +1286,7 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Return a list of Workflow Executions matching the given `query`. If no `query` is provided, returns the 10 most
-   * recently closed Workflow Executions.
+   * Return a list of Workflow Executions matching the given `query`.
    *
    * Note that the list of Workflow Executions returned is approximate and eventually consistent.
    *
