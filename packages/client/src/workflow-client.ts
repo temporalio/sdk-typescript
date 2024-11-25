@@ -1286,10 +1286,11 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * List workflows by given `query`.
-   *
-   * ⚠️ To use advanced query functionality, as of the 1.18 server release, you must use Elasticsearch based visibility.
-   *
+   * Return a list of Workflow Executions matching the given `query`. If no `query` is provided, returns the 10 most
+   * recently closed Workflow Executions.
+   * 
+   * Note that the list of Workflow Executions returned is approximate and eventually consistent.
+   * 
    * More info on the concept of "visibility" and the query syntax on the Temporal documentation site:
    * https://docs.temporal.io/visibility
    */
@@ -1310,10 +1311,11 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Return workflow execution count by given `query`.
+   * Return the number of Workflow Executions matching the given `query`. If no `query` is provided, then return the 
+   * total number of Workflow Executions for this namespace.
    *
-   * ⚠️ To use advanced query functionality, as of the 1.18 server release, you must use Elasticsearch based visibility.
-   *
+   * Note that the number of Workflow Executions returned is approximate and eventually consistent.
+   * 
    * More info on the concept of "visibility" and the query syntax on the Temporal documentation site:
    * https://docs.temporal.io/visibility
    */
