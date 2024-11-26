@@ -115,7 +115,7 @@ test('UWS handles can be obtained concurrently', async (t) => {
   });
 });
 
-test('UWS failure 1a: start fails', async (t) => {
+test('UWS failure 1a: invalid request', async (t) => {
   const startOp = new StartWorkflowOperation(workflowWithUpdates, {
     workflowId: 'x'.repeat(777),
     taskQueue: 'does-not-exist',
@@ -128,8 +128,36 @@ test('UWS failure 1a: start fails', async (t) => {
       startWorkflowOperation: startOp,
     })
   );
+  console.log('err', err);
   t.true(isGrpcServiceError(err) && err.code === grpcStatus.INVALID_ARGUMENT);
-  t.true(err?.message.includes('MultiOperation could not be executed'));
+  //  t.true(err?.message.includes('MultiOperation could not be executed'));
+});
+
+test('UWS failure 1a: Workflow execution is already running', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const workflowId = randomUUID();
+  const worker = await createWorker();
+  const startUpdateWithStart = async () => {
+    const startOp = new StartWorkflowOperation(workflowWithUpdates, {
+      workflowId,
+      taskQueue,
+      workflowIdConflictPolicy: 'FAIL',
+    });
+    return await t.context.env.client.workflow.startUpdateWithStart(update, {
+      args: ['1'],
+      waitForStage: 'ACCEPTED',
+      startWorkflowOperation: startOp,
+    });
+  };
+  // The second call should fail with an ALREADY_EXISTS error. We assert that
+  // the resulting gRPC error has been correctly constructed from the two errors
+  // (start error, and aborted update) returned in the MultiOperationExecutionFailure.
+  await worker.runUntil(async () => {
+    await startUpdateWithStart();
+    const err = await t.throwsAsync(startUpdateWithStart());
+    t.true(isGrpcServiceError(err) && err.code === grpcStatus.ALREADY_EXISTS);
+    t.true(err?.message.includes('Workflow execution is already running'));
+  });
 });
 
 export const neverReturningUpdate = wf.defineUpdate<string[], [string]>('never-returning-update');

@@ -1011,7 +1011,7 @@ export class WorkflowClient extends BaseClient {
           updateResp.stage ??
           UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_UNSPECIFIED;
       } catch (err) {
-        this.rethrowUpdateGrpcError(err, 'Workflow Update failed', updateInput.workflowExecution);
+        this.rethrowUpdateGrpcError(err, 'Update-With-Start failed', updateInput.workflowExecution);
       }
     } while (
       reachedStage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED ||
