@@ -679,12 +679,12 @@ export class WorkflowClient extends BaseClient {
       })
     );
 
-    // TODO: is this done in _updateWithStartHandler?
-    if (!output.outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
-      await this._pollForUpdateOutcome(output.updateId, updateInput.workflowExecution);
+    let outcome = output.outcome;
+    if (!outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
+      outcome = await this._pollForUpdateOutcome(output.updateId, updateInput.workflowExecution);
     }
 
-    return this.createWorkflowUpdateHandle<Ret>(output.updateId, workflowId, output.workflowRunId, output.outcome);
+    return this.createWorkflowUpdateHandle<Ret>(output.updateId, workflowId, output.workflowRunId, outcome);
   }
 
   /**
@@ -963,6 +963,12 @@ export class WorkflowClient extends BaseClient {
     };
   }
 
+  /**
+   * Send the Update-With-Start MultiOperation request.
+   *
+   * Used as the final function of the interceptor chain during
+   * startUpdateWithStart and executeUpdateWithStart.
+   */
   protected async _updateWithStartHandler(
     startInput: WorkflowStartInput,
     waitForStage: WorkflowUpdateStage,
@@ -1013,10 +1019,7 @@ export class WorkflowClient extends BaseClient {
       } catch (err) {
         this.rethrowUpdateGrpcError(err, 'Update-With-Start failed', updateInput.workflowExecution);
       }
-    } while (
-      reachedStage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED ||
-      reachedStage < requestedStage
-    );
+    } while (reachedStage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED);
 
     return {
       updateId: updateRequest.request!.meta!.updateId!,
