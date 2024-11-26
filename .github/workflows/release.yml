@@ -51,7 +51,6 @@ jobs:
             out-file: temporal_sdk_typescript_bridge.dll
     name: Compile Native Binaries (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
-    container: ${{ matrix.container }}
     defaults:
       run:
         shell: bash
