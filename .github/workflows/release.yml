@@ -1,11 +1,12 @@
-name: Continuous Integration
+name: Build Package
 
+# FIXME: Change triggers
 on:
   pull_request:
   push:
     branches:
       - main
-      - releases/*
+      - 'releases/*'
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -21,7 +22,7 @@ env:
 jobs:
   # Compile native bridge code for each target platform.
   # Uploads the native library for each target as a build artifact.
-  compile-native-binaries-debug:
+  compile-native-binaries-release:
     strategy:
       fail-fast: true
       matrix:
@@ -29,10 +30,11 @@ jobs:
           - platform: linux-x64
             runner: ubuntu-latest-4-cores
             target: x86_64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_24_x86_64
             out-file: libtemporal_sdk_typescript_bridge.so
           - platform: linux-arm
-            runner: ubuntu-24.04-arm64-2-core
             target: aarch64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_24_aarch64
             out-file: libtemporal_sdk_typescript_bridge.so
           - platform: macos-x64
             runner: macos-13
@@ -48,6 +50,7 @@ jobs:
             out-file: temporal_sdk_typescript_bridge.dll
     name: Compile Native Binaries (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
     defaults:
       run:
         shell: bash
@@ -57,7 +60,7 @@ jobs:
         with:
           submodules: recursive
 
-      - name: 'Cache index.node'
+      - name: 'Cache native index.node artifacts'
         id: cached-artifact
         uses: actions/cache@v4
         with:
@@ -65,19 +68,23 @@ jobs:
           key: corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
 
       - name: Install Rust
-        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && !matrix.container
         uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
 
       - name: Install protoc
-        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && !matrix.container
         uses: arduino/setup-protoc@v3
         with:
           # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
           version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # FIXME: Setup volumes so that we can benefit from the cache in the Docker-build scenario.
+      #        Or maybe just get rid of the cache entirely if it doesn't have sufficient benefits.
       - name: Rust Cargo and Build cache
-        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && !matrix.container
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: packages/core-bridge -> target
@@ -86,14 +93,43 @@ jobs:
           env-vars: ''
           save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
 
-      - name: Compile rust code
+      - name: Compile rust code (non-Docker)
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && !matrix.container
+        working-directory: ./packages/core-bridge
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Compile rust code (Docker)
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && matrix.container
+        working-directory: ./packages/core-bridge
+        run: |
+          docker run --rm -v "$(pwd):/workspace" -w /workspace \
+            -e PB_VERSION="28.3" \
+            -e PB_ARCH="${{ matrix.target }} | sed 's/-.*//'" \  # aarch64 or x86_64
+            ${{ matrix.container }} \
+            sh -c ' \
+                curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y \
+             && . $HOME/.cargo/env \
+             && curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PB_VERSION}/protoc-${PB_VERSION}-linux-${PB_ARCH}.zip \
+             && unzip protoc-${PB_VERSION}-linux-${PB_ARCH}.zip -d /usr/local/protobuf \
+             && export PATH="$PATH:/usr/local/protobuf/bin" \
+             && cargo build --release --target aarch64-unknown-linux-gnu \
+            '
+
+      - name: Move built artifacts in place
         if: steps.cached-artifact.outputs.cache-hit != 'true'
         working-directory: ./packages/core-bridge
         run: |
           set -x
-          cargo build --target ${{ matrix.target }}
           mkdir -p ./releases/${{ matrix.target }}
-          cp target/${{ matrix.target }}/debug/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
+          cp target/${{ matrix.target }}/release/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
+
+      - name: Print required GLIBC version
+        if: startsWith(matrix.platform, 'linux')
+        working-directory: ./packages/core-bridge
+        run: |
+          objdump -T ./releases/${{ matrix.target }}/index.node |
+              grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -V | tail -1
 
       - uses: actions/upload-artifact@v4
         with:
@@ -105,7 +141,7 @@ jobs:
   # Upload the built packages as a Verdaccio repository.
   build-packages:
     needs:
-      - compile-native-binaries-debug
+      - compile-native-binaries-release
     name: Build Packages
     strategy:
       # Using a matrix here ensure that Rust-related actions below can be easily be copied from the
@@ -113,7 +149,7 @@ jobs:
       matrix:
         include:
           - platform: linux-x64
-            runner: ubuntu-latest-4-cores
+            runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -178,11 +214,11 @@ jobs:
           path: ${{ steps.npm-cache-dir.outputs.dir }}
           key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
 
-  # Run integration tests. Uses the native binaries built in compile-native-binaries,
+  # Run integration tests. Uses the native binaries built in compile-native-binaries-release,
   # but build `@temporalio/*` packages locally.
   integration-tests:
     needs:
-      - compile-native-binaries-debug
+      - compile-native-binaries-release
     strategy:
       fail-fast: false
       matrix:
@@ -192,9 +228,9 @@ jobs:
         server: [cli] # FIXME: Add 'cloud'
         include:
           - platform: linux-x64
-            runner: ubuntu-latest-4-cores
+            runner: ubuntu-latest
           - platform: linux-arm
-            runner: ubuntu-24.04-arm64-2-core
+            target: aarch64-unknown-linux-gnu
           - platform: macos-x64
             runner: macos-13
           - platform: macos-arm
@@ -310,9 +346,9 @@ jobs:
           - server: ${{ vars.TEMPORAL_CLIENT_NAMESPACE == '' && 'cloud' || '' }}
         include:
           - platform: linux-x64
-            runner: ubuntu-latest-4-cores
+            runner: ubuntu-latest
           - platform: linux-arm
-            runner: ubuntu-24.04-arm64-2-core
+            target: aarch64-unknown-linux-gnu
           - platform: macos-x64
             runner: macos-13
           - platform: macos-arm
@@ -407,103 +443,6 @@ jobs:
         run: rm -rf ${{ runner.temp }}/certs
         continue-on-error: true
 
-  # Runs the features repo tests with this repo's current SDK code
-  # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
-  features-tests:
-    name: Features Tests
-    uses: temporalio/features/.github/workflows/typescript.yaml@main
-    with:
-      typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
-      version: ${{github.event.pull_request.head.ref}}
-      version-is-repo-ref: true
-      features-repo-ref: sdk-1403-ts-startUpdate-require-wait-stage
-
-  stress-tests-no-reuse-context:
-    name: Stress Tests (No Reuse V8 Context)
-    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
-    uses: ./.github/workflows/stress.yml
-    with:
-      test-type: ci-stress
-      test-timeout-minutes: 20
-      reuse-v8-context: false
-
-  stress-tests-reuse-context:
-    name: Stress Tests (Reuse V8 Context)
-    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
-    uses: ./.github/workflows/stress.yml
-    with:
-      test-type: ci-stress
-      test-timeout-minutes: 20
-      reuse-v8-context: true
-
-  # Run TS linting and ts-prune to find unused code
-  lint-and-prune:
-    name: Lint and Prune
-    strategy:
-      # Using a matrix here ensure that Rust-related actions below can be easily be copied from the
-      # compile-binairies job and that the Rust build cache will be usable
-      matrix:
-        include:
-          - platform: linux-x64
-            runner: ubuntu-latest-4-cores
-            target: x86_64-unknown-linux-gnu
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Get NPM cache directory
-        id: npm-cache-dir
-        shell: bash
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
-
-      - name: Restore NPM cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
-          restore-keys: |
-            npm-main-${{ matrix.platform }}-
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          target: ${{ matrix.target }}
-
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
-          version: '23.x'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Rust Cargo and Build cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: packages/core-bridge -> target
-          prefix-key: corebridge-buildcache
-          shared-key: ${{ matrix.platform }}
-          env-vars: ''
-          save-if: false
-
-      - name: Download dependencies
-        run: |
-          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
-
-      # eslint-import-resolver-typescript requires packages to be built
-      - name: Compile all non-rust code
-        run: npm run build -- --ignore @temporalio/core-bridge
-
-      - run: npm run lint.check
-      - run: npm run lint.prune
-
   build-docs:
     name: Build Docs
     strategy:
@@ -512,7 +451,7 @@ jobs:
       matrix:
         include:
           - platform: linux-x64
-            runner: ubuntu-latest-4-cores
+            runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     steps:
