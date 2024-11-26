@@ -11,6 +11,7 @@ import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time'
 import { decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { temporal, google } from '@temporalio/proto';
 import { RawWorkflowExecutionInfo, WorkflowExecutionInfo, WorkflowExecutionStatusName } from './types';
+import { Status } from '@grpc/grpc-js/build/src/constants';
 
 function workflowStatusCodeToName(code: temporal.api.enums.v1.WorkflowExecutionStatus): WorkflowExecutionStatusName {
   return workflowStatusCodeToNameInternal(code) ?? 'UNKNOWN';
@@ -109,12 +110,12 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
           for (const detail of status.details ?? []) {
             const innerType = detail.type_url?.replace(/^type.googleapis.com\//, '') as FailureName;
             if (innerType !== 'temporal.api.failure.v1.MultiOperationExecutionAborted') {
-              throw {
-                ...status,
-                name: innerType,
-                stack: err.stack,
-                metadata: err.metadata,
-              };
+              // TODO: what's the correct way to create a GrpcServiceError here?
+              err.code = status.code || Status.UNKNOWN;
+              err.details = detail.value?.toString() || '';
+              err.message = status.message || '';
+              err.name = innerType;
+              throw err;
             }
           }
         }
