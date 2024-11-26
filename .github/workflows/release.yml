@@ -33,6 +33,7 @@ jobs:
             container: quay.io/pypa/manylinux_2_24_x86_64
             out-file: libtemporal_sdk_typescript_bridge.so
           - platform: linux-arm
+            runner: ubuntu-24.04-arm64-2-core
             target: aarch64-unknown-linux-gnu
             container: quay.io/pypa/manylinux_2_24_aarch64
             out-file: libtemporal_sdk_typescript_bridge.so
