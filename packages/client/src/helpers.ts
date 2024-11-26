@@ -82,6 +82,7 @@ export async function executionInfoFromRaw<T>(
 }
 
 type ErrorDetailsName = `temporal.api.errordetails.v1.${keyof typeof temporal.api.errordetails.v1}`;
+type FailureName = `temporal.api.failure.v1.${keyof typeof temporal.api.failure.v1}`;
 
 /**
  * If the error type can be determined based on embedded grpc error details,
@@ -101,6 +102,22 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
       case 'temporal.api.errordetails.v1.NamespaceNotFoundFailure': {
         const { namespace } = temporal.api.errordetails.v1.NamespaceNotFoundFailure.decode(entry.value);
         throw new NamespaceNotFoundError(namespace);
+      }
+      case 'temporal.api.errordetails.v1.MultiOperationExecutionFailure': {
+        const { statuses } = temporal.api.errordetails.v1.MultiOperationExecutionFailure.decode(entry.value);
+        for (const status of statuses) {
+          for (const detail of status.details ?? []) {
+            const innerType = detail.type_url?.replace(/^type.googleapis.com\//, '') as FailureName;
+            if (innerType !== 'temporal.api.failure.v1.MultiOperationExecutionAborted') {
+              throw {
+                ...status,
+                name: innerType,
+                stack: err.stack,
+                metadata: err.metadata,
+              };
+            }
+          }
+        }
       }
     }
   }
