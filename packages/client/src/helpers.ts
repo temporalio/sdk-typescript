@@ -1,5 +1,6 @@
 import { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
 import {
+  CustomGrpcServiceError as CustomGrpcServiceError,
   LoadedDataConverter,
   mapFromPayloads,
   NamespaceNotFoundError,
@@ -16,7 +17,6 @@ import {
   WorkflowExecutionInfo,
   WorkflowExecutionStatusName,
 } from './types';
-import { Status } from '@grpc/grpc-js/build/src/constants';
 
 function workflowStatusCodeToName(code: temporal.api.enums.v1.WorkflowExecutionStatus): WorkflowExecutionStatusName {
   return workflowStatusCodeToNameInternal(code) ?? 'UNKNOWN';
@@ -126,6 +126,11 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
         throw new NamespaceNotFoundError(namespace);
       }
       case 'temporal.api.errordetails.v1.MultiOperationExecutionFailure': {
+        // MultiOperationExecutionFailure contains errorstatuses for multiple
+        // operations. A MultiOperationExecutionAborted error status means that
+        // the corresponding operation was aborted due to an error in one of the
+        // other operations. We rethrow the first operation error that is not
+        // MultiOperationExecutionAborted.
         const { statuses } = temporal.api.errordetails.v1.MultiOperationExecutionFailure.decode(entry.value);
         for (const status of statuses) {
           const detail = status.details?.[0];
@@ -133,13 +138,12 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
           if (statusType === 'temporal.api.failure.v1.MultiOperationExecutionAborted') {
             continue;
           }
-          // TODO: We don't want to mutate the existing error object. Do we need
-          // to define and instantiate a custom type extending GrpcServiceError?
-          err.code = status.code || err.code;
-          err.name = statusType || err.name;
-          err.message = status.message || err.message;
-          err.details = detail?.value?.toString() || err.details;
-          throw err;
+          throw new CustomGrpcServiceError(
+            status.message || err.message,
+            status.code || err.code,
+            detail?.value?.toString() || err.details,
+            err.metadata.getMap()
+          );
         }
       }
     }
