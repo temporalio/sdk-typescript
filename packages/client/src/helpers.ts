@@ -128,17 +128,18 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
       case 'temporal.api.errordetails.v1.MultiOperationExecutionFailure': {
         const { statuses } = temporal.api.errordetails.v1.MultiOperationExecutionFailure.decode(entry.value);
         for (const status of statuses) {
-          for (const detail of status.details ?? []) {
-            const innerType = detail.type_url?.replace(/^type.googleapis.com\//, '') as FailureName;
-            if (innerType !== 'temporal.api.failure.v1.MultiOperationExecutionAborted') {
-              // TODO: what's the correct way to create a GrpcServiceError here?
-              err.code = status.code || Status.UNKNOWN;
-              err.details = detail.value?.toString() || '';
-              err.message = status.message || '';
-              err.name = innerType;
-              throw err;
-            }
+          const detail = status.details?.[0];
+          const statusType = detail?.type_url?.replace(/^type.googleapis.com\//, '') as FailureName | undefined;
+          if (statusType === 'temporal.api.failure.v1.MultiOperationExecutionAborted') {
+            continue;
           }
+          // TODO: We don't want to mutate the existing error object. Do we need
+          // to define and instantiate a custom type extending GrpcServiceError?
+          err.code = status.code || err.code;
+          err.name = statusType || err.name;
+          err.message = status.message || err.message;
+          err.details = detail?.value?.toString() || err.details;
+          throw err;
         }
       }
     }
