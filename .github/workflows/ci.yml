@@ -27,11 +27,11 @@ jobs:
       matrix:
         include:
           - platform: linux-x64
-            runner: ubuntu-latest
+            runner: ubuntu-latest-4-cores
             target: x86_64-unknown-linux-gnu
             out-file: libtemporal_sdk_typescript_bridge.so
           - platform: linux-arm
-            runner: ubuntu-latest-arm64
+            runner: ubuntu-24.04-arm64-2-core
             target: aarch64-unknown-linux-gnu
             out-file: libtemporal_sdk_typescript_bridge.so
           - platform: macos-x64
@@ -116,7 +116,7 @@ jobs:
       matrix:
         include:
           - platform: linux-x64
-            runner: ubuntu-22.04
+            runner: ubuntu-latest-4-cores
             target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -195,9 +195,9 @@ jobs:
         server: [cli] # FIXME: Add 'cloud'
         include:
           - platform: linux-x64
-            runner: ubuntu-latest
+            runner: ubuntu-latest-4-cores
           - platform: linux-arm
-            runner: ubuntu-latest-arm64
+            runner: ubuntu-24.04-arm64-2-core
           - platform: macos-x64
             runner: macos-13
           - platform: macos-arm
@@ -313,9 +313,9 @@ jobs:
           - server: ${{ vars.TEMPORAL_CLIENT_NAMESPACE == '' && 'cloud' || '' }}
         include:
           - platform: linux-x64
-            runner: ubuntu-latest
+            runner: ubuntu-latest-4-cores
           - platform: linux-arm
-            runner: ubuntu-latest-arm64
+            runner: ubuntu-24.04-arm64-2-core
           - platform: macos-x64
             runner: macos-13
           - platform: macos-arm
@@ -448,7 +448,7 @@ jobs:
       matrix:
         include:
           - platform: linux-x64
-            runner: ubuntu-22.04
+            runner: ubuntu-latest-4-cores
             target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     steps:
@@ -515,7 +515,7 @@ jobs:
       matrix:
         include:
           - platform: linux-x64
-            runner: ubuntu-22.04
+            runner: ubuntu-latest-4-cores
             target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     steps:
