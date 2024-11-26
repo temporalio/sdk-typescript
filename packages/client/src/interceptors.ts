@@ -106,6 +106,17 @@ export interface WorkflowClientInterceptor {
     next: Next<this, 'startUpdate'>
   ) => Promise<WorkflowStartUpdateOutput>;
   /**
+   * Intercept a service call to startUpdateWithStart
+   *
+   * @experimental UpdateWithStart is an experimental feature.
+   */
+  startUpdateWithStart?: (
+    startInput: WorkflowStartInput,
+    updateInput: WorkflowStartUpdateInput,
+    next: Next<this, 'startUpdateWithStart'>
+    // TODO: return an object returning the start output also?
+  ) => Promise<WorkflowStartUpdateOutput>;
+  /**
    * Intercept a service call to signalWorkflowExecution
    *
    * If you implement this method,

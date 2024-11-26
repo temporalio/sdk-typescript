@@ -661,30 +661,29 @@ export class WorkflowClient extends BaseClient {
       options,
     };
 
-    // TODO: currently using the startUpdate interceptor; decide if this is what we want
     const interceptors = this.getOrMakeInterceptors(workflowId);
     const fn = composeInterceptors(
       interceptors,
-      'startUpdate',
-      this._updateWithStartHandler.bind(this, startInput, waitForStage)
+      'startUpdateWithStart',
+      this._updateWithStartHandler.bind(this, waitForStage)
     );
-    const output = await fn(updateInput);
+    const updateOutput = await fn(startInput, updateInput);
 
     updateOptions.startWorkflowOperation._setWorkflowHandle(
       this._createWorkflowHandle({
         workflowId,
-        firstExecutionRunId: output.workflowRunId,
+        firstExecutionRunId: updateOutput.workflowRunId,
         interceptors,
         followRuns: workflowOptions.followRuns ?? true,
       })
     );
 
-    let outcome = output.outcome;
+    let outcome = updateOutput.outcome;
     if (!outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
-      outcome = await this._pollForUpdateOutcome(output.updateId, updateInput.workflowExecution);
+      outcome = await this._pollForUpdateOutcome(updateOutput.updateId, updateInput.workflowExecution);
     }
 
-    return this.createWorkflowUpdateHandle<Ret>(output.updateId, workflowId, output.workflowRunId, outcome);
+    return this.createWorkflowUpdateHandle<Ret>(updateOutput.updateId, workflowId, updateOutput.workflowRunId, outcome);
   }
 
   /**
@@ -970,8 +969,8 @@ export class WorkflowClient extends BaseClient {
    * startUpdateWithStart and executeUpdateWithStart.
    */
   protected async _updateWithStartHandler(
-    startInput: WorkflowStartInput,
     waitForStage: WorkflowUpdateStage,
+    startInput: WorkflowStartInput,
     updateInput: WorkflowStartUpdateInput
   ): Promise<WorkflowStartUpdateOutput> {
     const startRequest = await this.createStartWorkflowRequest(startInput);
