@@ -1,11 +1,11 @@
 name: Continuous Integration
 
-on: # rebuild any PRs and main branch changes
+on:
   pull_request:
   push:
     branches:
       - main
-      - 'releases/*'
+      - releases/*
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -21,21 +21,18 @@ env:
 jobs:
   # Compile native bridge code for each target platform.
   # Uploads the native library for each target as a build artifact.
-  compile-native-binaries:
+  compile-native-binaries-debug:
     strategy:
       fail-fast: true
       matrix:
         include:
-          # For Linux targets, use Buildjet's builders to get the oldest supported glibc version
           - platform: linux-x64
-            runner: buildjet-4vcpu-ubuntu-2204
+            runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            container: quay.io/pypa/manylinux_2_24_x86_64
             out-file: libtemporal_sdk_typescript_bridge.so
           - platform: linux-arm
-            runner: buildjet-4vcpu-ubuntu-2204-arm
+            runner: ubuntu-latest-arm64
             target: aarch64-unknown-linux-gnu
-            container: quay.io/pypa/manylinux_2_24_aarch64
             out-file: libtemporal_sdk_typescript_bridge.so
           - platform: macos-x64
             runner: macos-13
@@ -51,27 +48,18 @@ jobs:
             out-file: temporal_sdk_typescript_bridge.dll
     name: Compile Native Binaries (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
-    container: ${{ matrix.container }}
-    env:
-      # This is required to allow continuing usage of Node 16 for actions,
-      # as Node 20 won't run on the docker image we use for linux builds
-      # (Node 20 require glibc 2.28+, but container image has glibc 2.24).
-      # https://github.blog/changelog/2024-05-17-updated-dates-for-actions-runner-using-node20-instead-of-node16-by-default/
-      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     defaults:
       run:
         shell: bash
     steps:
       - name: 'Checkout code'
-        # FIXME: v4+ requires Node 20
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: 'Cache index.node'
         id: cached-artifact
-        # FIXME: v4+ requires Node 20
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./packages/core-bridge/releases
           key: corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
@@ -84,8 +72,7 @@ jobs:
 
       - name: Install protoc
         if: steps.cached-artifact.outputs.cache-hit != 'true'
-        # FIXME: v3+ requires Node 20
-        uses: arduino/setup-protoc@v2
+        uses: arduino/setup-protoc@v3
         with:
           # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
           version: '23.x'
@@ -107,19 +94,11 @@ jobs:
         working-directory: ./packages/core-bridge
         run: |
           set -x
-          cargo build --release --target ${{ matrix.target }}
+          cargo build --target ${{ matrix.target }}
           mkdir -p ./releases/${{ matrix.target }}
-          cp target/${{ matrix.target }}/release/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
+          cp target/${{ matrix.target }}/debug/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
 
-      - name: Print required GLIBC version
-        if: startsWith(matrix.platform, 'linux')
-        working-directory: ./packages/core-bridge
-        run: |
-          objdump -T ./releases/${{ matrix.target }}/index.node |
-              grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -V | tail -1
-
-      # FIXME: v4+ requires Node 20
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: corebridge-native-${{ matrix.platform }}
           # Actual file will be named ${{ matrix.target }}/index.node
@@ -129,7 +108,7 @@ jobs:
   # Upload the built packages as a Verdaccio repository.
   build-packages:
     needs:
-      - compile-native-binaries
+      - compile-native-binaries-debug
     name: Build Packages
     strategy:
       # Using a matrix here ensure that Rust-related actions below can be easily be copied from the
@@ -150,8 +129,7 @@ jobs:
           submodules: recursive
 
       - name: Download core-bridge native libraries
-        # Need v3 here to stay compatible with the compile-native-binaries job.
-        uses: actions/download-artifact@v3-node20
+        uses: actions/download-artifact@v4
         with:
           path: ./packages/core-bridge/releases/tmp
 
@@ -207,7 +185,7 @@ jobs:
   # but build `@temporalio/*` packages locally.
   integration-tests:
     needs:
-      - compile-native-binaries
+      - compile-native-binaries-debug
     strategy:
       fail-fast: false
       matrix:
@@ -219,7 +197,7 @@ jobs:
           - platform: linux-x64
             runner: ubuntu-latest
           - platform: linux-arm
-            runner: buildjet-4vcpu-ubuntu-2204-arm
+            runner: ubuntu-latest-arm64
           - platform: macos-x64
             runner: macos-13
           - platform: macos-arm
@@ -238,8 +216,7 @@ jobs:
           submodules: recursive
 
       - name: Download core-bridge native libraries
-        # Need v3 here to stay compatible with the compile-native-binaries job.
-        uses: actions/download-artifact@v3-node20
+        uses: actions/download-artifact@v4
         with:
           name: corebridge-native-${{ matrix.platform }}
           path: ./packages/core-bridge/releases
@@ -338,7 +315,7 @@ jobs:
           - platform: linux-x64
             runner: ubuntu-latest
           - platform: linux-arm
-            runner: buildjet-4vcpu-ubuntu-2204-arm
+            runner: ubuntu-latest-arm64
           - platform: macos-x64
             runner: macos-13
           - platform: macos-arm
