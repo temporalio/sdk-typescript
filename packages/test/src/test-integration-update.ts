@@ -115,9 +115,9 @@ test('UWS handles can be obtained concurrently', async (t) => {
   });
 });
 
-test('UWS failure 1a: invalid request', async (t) => {
+test('UWS failure 1a: invalid argument', async (t) => {
   const startOp = new StartWorkflowOperation(workflowWithUpdates, {
-    workflowId: 'x'.repeat(777),
+    workflowId: randomUUID().repeat(77),
     taskQueue: 'does-not-exist',
     workflowIdConflictPolicy: 'FAIL',
   });
@@ -130,10 +130,10 @@ test('UWS failure 1a: invalid request', async (t) => {
   );
   console.log('err', err);
   t.true(isGrpcServiceError(err) && err.code === grpcStatus.INVALID_ARGUMENT);
-  //  t.true(err?.message.includes('MultiOperation could not be executed'));
+  t.true(err?.message.startsWith('WorkflowId length exceeds limit.'));
 });
 
-test('UWS failure 1a: Workflow execution is already running', async (t) => {
+test('UWS failure 1a: workflow already exists', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const workflowId = randomUUID();
   const worker = await createWorker();
@@ -156,7 +156,7 @@ test('UWS failure 1a: Workflow execution is already running', async (t) => {
     await startUpdateWithStart();
     const err = await t.throwsAsync(startUpdateWithStart());
     t.true(isGrpcServiceError(err) && err.code === grpcStatus.ALREADY_EXISTS);
-    t.true(err?.message.includes('Workflow execution is already running'));
+    t.true(err?.message.startsWith('Workflow execution is already running.'));
   });
 });
 
