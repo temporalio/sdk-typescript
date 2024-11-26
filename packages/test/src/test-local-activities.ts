@@ -1,117 +1,18 @@
-import { randomUUID } from 'crypto';
 import { firstValueFrom, Subject } from 'rxjs';
-import { ExecutionContext, TestFn } from 'ava';
 import { Context as ActivityContext } from '@temporalio/activity';
-import {
-  ApplicationFailure,
-  defaultPayloadConverter,
-  WorkflowFailedError,
-  WorkflowHandle,
-  WorkflowStartOptions,
-} from '@temporalio/client';
+import { ApplicationFailure, defaultPayloadConverter, WorkflowFailedError } from '@temporalio/client';
 import { LocalActivityOptions } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
-import { workflowInterceptorModules } from '@temporalio/testing';
-import {
-  bundleWorkflowCode,
-  DefaultLogger,
-  LogLevel,
-  Runtime,
-  WorkflowBundle,
-  WorkerOptions,
-} from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
-import { test as anyTest, bundlerOptions, Worker, TestWorkflowEnvironment } from './helpers';
-import { ConnectionInjectorInterceptor } from './activities/interceptors';
+import { Worker } from './helpers';
+import { helpers, makeTestFunction } from './helpers-integration';
+import { throwAnError } from './activities';
 
-// FIXME MOVE THIS SECTION SOMEWHERE IT CAN BE SHARED //
-
-interface Context {
-  env: TestWorkflowEnvironment;
-  workflowBundle: WorkflowBundle;
-}
-
-const test = anyTest as TestFn<Context>;
-
-interface Helpers {
-  taskQueue: string;
-  createWorker(opts?: Partial<WorkerOptions>): Promise<Worker>;
-  executeWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<workflow.WorkflowResultType<T>>;
-  executeWorkflow<T extends workflow.Workflow>(
-    fn: T,
-    opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
-  ): Promise<workflow.WorkflowResultType<T>>;
-  startWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<WorkflowHandle<T>>;
-  startWorkflow<T extends workflow.Workflow>(
-    fn: T,
-    opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
-  ): Promise<WorkflowHandle<T>>;
-}
-
-function helpers(t: ExecutionContext<Context>): Helpers {
-  const taskQueue = t.title.replace(/ /g, '_');
-
-  return {
-    taskQueue,
-    async createWorker(opts?: Partial<WorkerOptions>): Promise<Worker> {
-      const { interceptors, ...rest } = opts ?? {};
-      return await Worker.create({
-        connection: t.context.env.nativeConnection,
-        workflowBundle: t.context.workflowBundle,
-        taskQueue,
-        interceptors: {
-          activity: interceptors?.activity ?? [
-            () => ({ inbound: new ConnectionInjectorInterceptor(t.context.env.connection) }),
-          ],
-        },
-        showStackTraceSources: true,
-        ...rest,
-      });
-    },
-    async executeWorkflow(
-      fn: workflow.Workflow,
-      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
-    ): Promise<any> {
-      return await t.context.env.client.workflow.execute(fn, {
-        taskQueue,
-        workflowId: randomUUID(),
-        ...opts,
-      });
-    },
-    async startWorkflow(
-      fn: workflow.Workflow,
-      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
-    ): Promise<WorkflowHandle<workflow.Workflow>> {
-      return await t.context.env.client.workflow.start(fn, {
-        taskQueue,
-        workflowId: randomUUID(),
-        ...opts,
-      });
-    },
-  };
-}
-
-test.before(async (t) => {
-  // Ignore invalid log levels
-  Runtime.install({ logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel) });
-  const env = await TestWorkflowEnvironment.createLocal();
-  const workflowBundle = await bundleWorkflowCode({
-    ...bundlerOptions,
-    workflowInterceptorModules: [...workflowInterceptorModules, __filename],
-    workflowsPath: __filename,
-  });
-  t.context = {
-    env,
-    workflowBundle,
-  };
+const test = makeTestFunction({
+  workflowsPath: __filename,
+  workflowInterceptorModules: [__filename],
 });
-
-test.after.always(async (t) => {
-  await t.context.env.teardown();
-});
-
-// END OF TO BE MOVED SECTION //
 
 export async function runOneLocalActivity(s: string): Promise<string> {
   return await workflow.proxyLocalActivities({ startToCloseTimeout: '1m' }).echo(s);
@@ -245,17 +146,13 @@ test.serial('Parallel local activities work end to end', async (t) => {
 });
 
 export async function throwAnErrorFromLocalActivity(message: string): Promise<void> {
-  await workflow.proxyLocalActivities({ startToCloseTimeout: '1m' }).throwAnError(message);
+  await workflow.proxyLocalActivities({ startToCloseTimeout: '1m' }).throwAnError(true, message);
 }
 
 test.serial('Local activity error is propagated properly to the Workflow', async (t) => {
   const { executeWorkflow, createWorker } = helpers(t);
   const worker = await createWorker({
-    activities: {
-      async throwAnError(message: string): Promise<void> {
-        throw ApplicationFailure.nonRetryable(message, 'Error', 'details', 123, false);
-      },
-    },
+    activities: { throwAnError },
   });
   await worker.runUntil(async () => {
     const err: WorkflowFailedError | undefined = await t.throwsAsync(
@@ -392,15 +289,7 @@ export async function throwAnExplicitNonRetryableErrorFromLocalActivity(message:
 test.serial('Local activity does not retry if error is in nonRetryableErrorTypes', async (t) => {
   const { executeWorkflow, createWorker } = helpers(t);
   const worker = await createWorker({
-    activities: {
-      async throwAnError(useApplicationFailure: boolean, message: string): Promise<void> {
-        if (useApplicationFailure) {
-          throw ApplicationFailure.nonRetryable(message, 'Error', 'details', 123, false);
-        } else {
-          throw new Error(message);
-        }
-      },
-    },
+    activities: { throwAnError },
   });
   await worker.runUntil(async () => {
     const err: WorkflowFailedError | undefined = await t.throwsAsync(
