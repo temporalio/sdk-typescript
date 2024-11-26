@@ -107,7 +107,7 @@ jobs:
         run: |
           docker run --rm -v "$(pwd):/workspace" -w /workspace \
             -e PB_VERSION="28.3" \
-            -e PB_ARCH="${{ matrix.target }} | sed 's/-.*//'" \  # aarch64 or x86_64
+            -e PB_ARCH="${{ matrix.target }} | sed 's/-.*//'" \
             ${{ matrix.container }} \
             sh -c ' \
                 curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y \
