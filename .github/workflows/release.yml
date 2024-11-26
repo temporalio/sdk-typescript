@@ -60,6 +60,7 @@ jobs:
         with:
           submodules: recursive
 
+      # Add label 'ci-ignore-cache' on a PR to disable use of this cache
       - name: 'Cache native index.node artifacts'
         id: cached-artifact
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci-ignore-cache') }}
