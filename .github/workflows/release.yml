@@ -115,7 +115,7 @@ jobs:
              && curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PB_VERSION}/protoc-${PB_VERSION}-linux-${PB_ARCH}.zip \
              && unzip protoc-${PB_VERSION}-linux-${PB_ARCH}.zip -d /usr/local/protobuf \
              && export PATH="$PATH:/usr/local/protobuf/bin" \
-             && cargo build --release --target aarch64-unknown-linux-gnu \
+             && cargo build --release --target ${{ matrix.target }} \
             '
 
       - name: Move built artifacts in place
