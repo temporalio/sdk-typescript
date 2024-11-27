@@ -972,7 +972,7 @@ export class WorkflowClient extends BaseClient {
    */
   protected async _updateWithStartHandler(
     waitForStage: WorkflowUpdateStage,
-    setRunId: (runId?: string) => void,
+    onStart: (runId?: string) => void,
     startInput: WorkflowStartInput,
     updateInput: WorkflowStartUpdateInput
   ): Promise<WorkflowStartUpdateOutput> {
@@ -1013,7 +1013,7 @@ export class WorkflowClient extends BaseClient {
         // e.g. startWorkflow / updateWorkflow keys
         startResp = multiOpResp.responses?.[0]
           ?.startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
-        setRunId(startResp.runId ?? undefined);
+        onStart(startResp.runId ?? undefined);
         updateResp = multiOpResp.responses?.[1]
           ?.updateWorkflow as temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
         reachedStage =
