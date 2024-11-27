@@ -472,6 +472,7 @@ export class StartWorkflowOperation<T extends Workflow> {
   }
 
   public _setWorkflowHandle(handle: WorkflowHandle<T>): void {
+    console.log('🔵 setting workflow handle');
     this._resolveWorkflowHandle(handle);
   }
 }
@@ -1011,9 +1012,18 @@ export class WorkflowClient extends BaseClient {
       // update is non-durable (Admitted). In this case we retry; we never create
       // an update handle for a non-durable update.
       try {
+        (this as any).workflowService = {
+          executeMultiOperation: async () => {
+            console.log('🔵 executing multi operation');
+            return multiOpResp;
+          },
+        };
+
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
+
         // TODO: order is guaranteed but check structural validity of response,
         // e.g. startWorkflow / updateWorkflow keys
+        console.log('🔵 setting start workflow response');
         startResp = multiOpResp.responses?.[0]
           ?.startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
         setRunId(startResp.runId ?? undefined);

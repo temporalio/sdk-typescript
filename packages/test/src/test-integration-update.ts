@@ -204,7 +204,7 @@ test('UWS failure 1b: update fails early due to limit on number of updates', asy
 
 test('UWS failure: start promise is set during polling', async (t) => {
   const startOp = new StartWorkflowOperation(workflowWithUpdates, {
-    workflowId: 'my-wid-77',
+    workflowId: randomUUID(),
     taskQueue: 'does-not-exist',
     workflowIdConflictPolicy: 'FAIL',
   });
@@ -227,7 +227,7 @@ test('UWS failure: start promise is set during polling', async (t) => {
   });
 
   // The history service long-poll timeout is set to 5s above.
-  const timeout = new Promise<void>((resolve) => setTimeout(resolve, 6000));
+  const timeout = new Promise<void>((resolve) => setTimeout(resolve, 21000));
 
   t.false(updateResolved); // will never resolve
   t.false(startResolved);
