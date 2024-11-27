@@ -663,11 +663,11 @@ export class WorkflowClient extends BaseClient {
 
     const interceptors = this.getOrMakeInterceptors(workflowId);
 
-    const setRunId = (firstExecutionRunId?: string) =>
+    const onStart = (startResponse: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse) =>
       updateOptions.startWorkflowOperation._setWorkflowHandle(
         this._createWorkflowHandle({
           workflowId,
-          firstExecutionRunId,
+          firstExecutionRunId: startResponse.runId ?? undefined,
           interceptors,
           followRuns: workflowOptions.followRuns ?? true,
         })
@@ -676,7 +676,7 @@ export class WorkflowClient extends BaseClient {
     const fn = composeInterceptors(
       interceptors,
       'startUpdateWithStart',
-      this._updateWithStartHandler.bind(this, waitForStage, setRunId)
+      this._updateWithStartHandler.bind(this, waitForStage, onStart)
     );
     const updateOutput = await fn(startInput, updateInput);
 
@@ -972,7 +972,7 @@ export class WorkflowClient extends BaseClient {
    */
   protected async _updateWithStartHandler(
     waitForStage: WorkflowUpdateStage,
-    onStart: (runId?: string) => void,
+    onStart: (startResponse: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse) => void,
     startInput: WorkflowStartInput,
     updateInput: WorkflowStartUpdateInput
   ): Promise<WorkflowStartUpdateOutput> {
@@ -1013,7 +1013,7 @@ export class WorkflowClient extends BaseClient {
         // e.g. startWorkflow / updateWorkflow keys
         startResp = multiOpResp.responses?.[0]
           ?.startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
-        onStart(startResp.runId ?? undefined);
+        onStart(startResp);
         updateResp = multiOpResp.responses?.[1]
           ?.updateWorkflow as temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
         reachedStage =
