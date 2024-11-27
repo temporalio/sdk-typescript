@@ -22,6 +22,7 @@ jobs:
   # Compile native bridge code for each target platform.
   # Uploads the native library for each target as a build artifact.
   compile-native-binaries-debug:
+    timeout-minutes: 20
     strategy:
       fail-fast: true
       matrix:
@@ -104,6 +105,7 @@ jobs:
   # Gather native binaries for all platforms and build TypeScript @temporalio/* packages.
   # Upload the built packages as a Verdaccio repository.
   build-packages:
+    timeout-minutes: 10
     needs:
       - compile-native-binaries-debug
     name: Build Packages
@@ -181,12 +183,13 @@ jobs:
   # Run integration tests. Uses the native binaries built in compile-native-binaries,
   # but build `@temporalio/*` packages locally.
   integration-tests:
+    timeout-minutes: 10
     needs:
       - compile-native-binaries-debug
     strategy:
       fail-fast: false
       matrix:
-        node: [16, 18, 20]
+        node: [16, 18, 20, 22]
         platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
         reuse-v8-context: [true, false]
         server: [cli] # FIXME: Add 'cloud'
@@ -201,6 +204,8 @@ jobs:
             runner: macos-14
           - platform: windows-x64
             runner: windows-latest
+        exclude:
+          - server: ${{ vars.TEMPORAL_CLIENT_NAMESPACE == '' && 'cloud' || '' }}
     runs-on: ${{ matrix.runner }}
     name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
     defaults:
