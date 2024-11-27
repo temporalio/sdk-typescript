@@ -662,21 +662,23 @@ export class WorkflowClient extends BaseClient {
     };
 
     const interceptors = this.getOrMakeInterceptors(workflowId);
+
+    const setRunId = (firstExecutionRunId?: string) =>
+      updateOptions.startWorkflowOperation._setWorkflowHandle(
+        this._createWorkflowHandle({
+          workflowId,
+          firstExecutionRunId,
+          interceptors,
+          followRuns: workflowOptions.followRuns ?? true,
+        })
+      );
+
     const fn = composeInterceptors(
       interceptors,
       'startUpdateWithStart',
-      this._updateWithStartHandler.bind(this, waitForStage)
+      this._updateWithStartHandler.bind(this, waitForStage, setRunId)
     );
     const updateOutput = await fn(startInput, updateInput);
-
-    updateOptions.startWorkflowOperation._setWorkflowHandle(
-      this._createWorkflowHandle({
-        workflowId,
-        firstExecutionRunId: updateOutput.workflowRunId,
-        interceptors,
-        followRuns: workflowOptions.followRuns ?? true,
-      })
-    );
 
     let outcome = updateOutput.outcome;
     if (!outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
@@ -970,6 +972,7 @@ export class WorkflowClient extends BaseClient {
    */
   protected async _updateWithStartHandler(
     waitForStage: WorkflowUpdateStage,
+    setRunId: (runId?: string) => void,
     startInput: WorkflowStartInput,
     updateInput: WorkflowStartUpdateInput
   ): Promise<WorkflowStartUpdateOutput> {
@@ -993,7 +996,7 @@ export class WorkflowClient extends BaseClient {
       UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_UNSPECIFIED;
 
     let multiOpResp: temporal.api.workflowservice.v1.IExecuteMultiOperationResponse;
-    // let startResp: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
+    let startResp: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
     let updateResp: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
     let reachedStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
     do {
@@ -1008,8 +1011,9 @@ export class WorkflowClient extends BaseClient {
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
         // TODO: order is guaranteed but check structural validity of response,
         // e.g. startWorkflow / updateWorkflow keys
-        // startResp = multiOpResp.responses?.[0]
-        //   ?.startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
+        startResp = multiOpResp.responses?.[0]
+          ?.startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
+        setRunId(startResp.runId ?? undefined);
         updateResp = multiOpResp.responses?.[1]
           ?.updateWorkflow as temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
         reachedStage =
