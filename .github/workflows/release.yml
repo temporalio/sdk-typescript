@@ -9,10 +9,9 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  IS_OFFICIAL_REPO: ${{ github.repository == 'temporalio/sdk-typescript' }}
   # Is it the official main branch, or an official release branches?
   # AFAIK there's no way to break that line w/o introducing a trailing LF that breaks usage. Sorry.
-  IS_MAIN_OR_RELEASE: ${{ github.repository == 'temporalio/sdk-typescript' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) && github.event_name != 'pull_request' }}
+  IS_MAIN_OR_RELEASE: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.event_name != 'pull_request' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) }}
 
   # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
   # TESTS_CLI_VERSION: 'v0.13.2'
@@ -337,60 +336,12 @@ jobs:
         run: rm -rf ${{ runner.temp }}/certs
         continue-on-error: true
 
-  build-docs:
+  docs:
     name: Build Docs
-    strategy:
-      # Using a matrix here ensure that Rust-related actions below can be easily be copied from the
-      # compile-binairies job and that the Rust build cache will be usable
-      matrix:
-        include:
-          - platform: linux-x64
-            runner: ubuntu-latest-4-cores
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Get NPM cache directory
-        id: npm-cache-dir
-        shell: bash
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
-
-      - name: Restore NPM cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
-          restore-keys: |
-            npm-main-${{ matrix.platform }}-
-
-      # Don't build during install phase since we're going to explicitly build
-      - name: Download dependencies
-        # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors
-        run: |
-          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
-
-      - run: npm run build -- --ignore @temporalio/core-bridge
-
-      # Do docs stuff (only on one host)
-      - name: Build docs
-        run: npm run docs
-        env:
-          ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
-
-      - name: Deploy draft docs
-        # Can't run on forks, since secrets won't be available, and command will fail
-        if: ${{ env.IS_OFFICIAL_REPO == 'true'}}
-        run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes
-
-      # FIXME: Only run this on release
-      - name: Deploy prod docs # TODO: only deploy prod docs when we publish a new version
-        if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
-        run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --prod --yes
+    uses: ./.github/workflows/docs.yml
+    with:
+      # Can't publish from forks, as secrets won't be available
+      publish_target: prod
+    secrets:
+      ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
