@@ -180,8 +180,8 @@ jobs:
           path: ${{ steps.npm-cache-dir.outputs.dir }}
           key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
 
-  # Run integration tests. Uses the native binaries built in compile-native-binaries,
-  # but build `@temporalio/*` packages locally.
+  # Run integration tests.
+  # Uses the native binaries built in compile-native-binaries, but build `@temporalio/*` packages locally.
   integration-tests:
     timeout-minutes: 10
     needs:
@@ -189,13 +189,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [16, 18, 20, 22]
+        node: [16, 22] # Min and max supported Node versions
         platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
-        reuse-v8-context: [true, false]
         server: [cli] # FIXME: Add 'cloud'
+        reuse-v8-context: [true] # Only test non-reuse-v8-context on linux-x64
         include:
           - platform: linux-x64
             runner: ubuntu-latest-4-cores
+            reuse-v8-context: [true, false]
           - platform: linux-arm
             runner: ubuntu-24.04-arm64-2-core
           - platform: macos-x64
@@ -204,8 +205,6 @@ jobs:
             runner: macos-14
           - platform: windows-x64
             runner: windows-latest
-        exclude:
-          - server: ${{ vars.TEMPORAL_CLIENT_NAMESPACE == '' && 'cloud' || '' }}
     runs-on: ${{ matrix.runner }}
     name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
     defaults:
@@ -289,13 +288,16 @@ jobs:
           name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.server }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
           path: /tmp/devserver.log
 
+  # FIXME: Use a single job instance to run all samples for a given platform
+  # FIXME: Merge sample testing into integration-tests
+  # FIXME:
   # Tests that npm init @temporalio results in a working worker and client
   test-npm-init:
     needs: build-packages
     strategy:
       fail-fast: false
       matrix:
-        node: [16, 18, 20]
+        node: [16, 22] # Min and max supported Node versions
         platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
         sample: [hello-world, fetch-esm, hello-world-mtls]
         server: [cli, cloud]
@@ -552,19 +554,12 @@ jobs:
 
       - run: npm run build -- --ignore @temporalio/core-bridge
 
-      # Do docs stuff (only on one host)
       - name: Build docs
         run: npm run docs
         env:
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
 
-      - name: Deploy prod docs # TODO: only deploy prod docs when we publish a new version
-        if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
-        run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --prod --yes
-
-      # FIXME: This is not working properly, and should probably be done only from the main branch anyway
-      # (and "Deploy prod docs" should only be done when we publish a new release)
-      # - name: Deploy draft docs
-      #   # Don't run on forks, since secrets won't be available, and command will fail
-      #   if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.ref != 'refs/heads/main'
-      #   run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes
+      - name: Deploy draft docs
+        # Can't run on forks, since secrets won't be available, and command will fail
+        if: ${{ env.IS_OFFICIAL_REPO == 'true'}}
+        run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes

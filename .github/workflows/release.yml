@@ -1,8 +1,7 @@
 name: Build Package
 
-# FIXME: Change triggers
 on:
-  pull_request:
+  pull_request: # FIXME: Remove this trigger
   push:
     branches:
       - main
@@ -32,11 +31,13 @@ jobs:
             target: x86_64-unknown-linux-gnu
             container: quay.io/pypa/manylinux_2_24_x86_64
             out-file: libtemporal_sdk_typescript_bridge.so
+            protobuf-url: https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-x86_64.zip
           - platform: linux-arm
             runner: ubuntu-24.04-arm64-2-core
             target: aarch64-unknown-linux-gnu
             container: quay.io/pypa/manylinux_2_24_aarch64
             out-file: libtemporal_sdk_typescript_bridge.so
+            protobuf-url: https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-aarch_64.zip
           - platform: macos-x64
             runner: macos-13
             target: x86_64-apple-darwin
@@ -60,9 +61,9 @@ jobs:
         with:
           submodules: recursive
 
-      # Add label 'ci-ignore-cache' on a PR to disable use of this cache
       - name: 'Cache native index.node artifacts'
         id: cached-artifact
+        # FIXME: Remove this flag once testing is complete
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci-ignore-cache') }}
         uses: actions/cache@v4
         with:
@@ -106,23 +107,20 @@ jobs:
         working-directory: ./packages/core-bridge
         run: |
           docker run --rm -v "$(pwd):/workspace" -w /workspace \
-            -e PB_VERSION="28.3" \
-            -e PB_ARCH="${{ startsWith(matrix.target, 'aarch64') && 'aarch_64' || 'x86_64'  }}" \
             ${{ matrix.container }} \
-            sh -c ' \
-                curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y \
-             && . $HOME/.cargo/env \
-             && curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PB_VERSION}/protoc-${PB_VERSION}-linux-${PB_ARCH}.zip \
-             && unzip protoc-${PB_VERSION}-linux-${PB_ARCH}.zip -d /usr/local/protobuf \
-             && export PATH="$PATH:/usr/local/protobuf/bin" \
-             && cargo build --release --target ${{ matrix.target }} \
+            sh -c '
+                curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+                curl -L -o /tmp/protoc.zip ${{ matrix.protobuf-url }}
+                unzip /tmp/protoc.zip -d $HOME/.protobuf
+                export PATH="$PATH:$HOME/.cargo/bin:$HOME/.protobuf/bin"
+
+                cargo build --release --target ${{ matrix.target }}
             '
 
       - name: Move built artifacts in place
         if: steps.cached-artifact.outputs.cache-hit != 'true'
         working-directory: ./packages/core-bridge
         run: |
-          set -x
           mkdir -p ./releases/${{ matrix.target }}
           cp target/${{ matrix.target }}/release/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
 
@@ -216,119 +214,13 @@ jobs:
           path: ${{ steps.npm-cache-dir.outputs.dir }}
           key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
 
-  # Run integration tests. Uses the native binaries built in compile-native-binaries-release,
-  # but build `@temporalio/*` packages locally.
-  integration-tests:
-    needs:
-      - compile-native-binaries-release
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [16, 18, 20]
-        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
-        reuse-v8-context: [true, false]
-        server: [cli] # FIXME: Add 'cloud'
-        include:
-          - platform: linux-x64
-            runner: ubuntu-latest-4-cores
-          - platform: linux-arm
-            runner: ubuntu-24.04-arm64-2-core
-          - platform: macos-x64
-            runner: macos-13
-          - platform: macos-arm
-            runner: macos-14
-          - platform: windows-x64
-            runner: windows-latest
-    runs-on: ${{ matrix.runner }}
-    name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - name: 'Checkout code'
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Download core-bridge native libraries
-        uses: actions/download-artifact@v4
-        with:
-          name: corebridge-native-${{ matrix.platform }}
-          path: ./packages/core-bridge/releases
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-
-      - name: Get NPM cache directory
-        id: npm-cache-dir
-        shell: bash
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
-
-      - name: Restore NPM cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
-          restore-keys: |
-            npm-main-${{ matrix.platform }}-
-
-      - name: Download dependencies
-        # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors :(
-        run: |
-          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
-
-      - name: Compile code
-        run: npm run build -- --ignore @temporalio/core-bridge
-
-      - name: Install Temporal CLI
-        if: matrix.server == 'cli'
-        uses: temporalio/setup-temporal@v0
-
-      - name: Run Temporal CLI
-        if: matrix.server == 'cli'
-        shell: bash
-        run: |
-          temporal server start-dev \
-            --db-filename temporal.sqlite \
-            --sqlite-pragma journal_mode=WAL \
-            --sqlite-pragma synchronous=OFF \
-            --headless &> /tmp/devserver.log &
-
-      - name: Run Tests
-        run: npm test
-        env:
-          RUN_INTEGRATION_TESTS: true
-          REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
-
-          # Cloud Tests will be skipped if TEMPORAL_CLIENT_CLOUD_API_KEY is left empty
-          TEMPORAL_CLOUD_SAAS_ADDRESS: ${{ vars.TEMPORAL_CLOUD_SAAS_ADDRESS || 'saas-api.tmprl.cloud:443' }}
-          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
-          TEMPORAL_CLIENT_CLOUD_API_VERSION: 2024-05-13-00
-          TEMPORAL_CLIENT_CLOUD_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
-
-      - name: Upload NPM logs
-        uses: actions/upload-artifact@v4
-        if: failure() || cancelled()
-        with:
-          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.server }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-logs
-          path: ${{ startsWith(matrix.platform, 'windows') && 'C:\\npm\\_logs\\' || '~/.npm/_logs/' }}
-
-      - name: Upload Dev Server logs
-        uses: actions/upload-artifact@v4
-        if: failure() || cancelled()
-        with:
-          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.server }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
-          path: /tmp/devserver.log
-
   # Tests that npm init @temporalio results in a working worker and client
   test-npm-init:
     needs: build-packages
     strategy:
       fail-fast: false
       matrix:
-        node: [16, 18, 20]
+        node: [16, 22] # Min and max supported Node versions
         platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
         sample: [hello-world, fetch-esm, hello-world-mtls]
         server: [cli, cloud]
@@ -493,13 +385,12 @@ jobs:
         env:
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
 
+      - name: Deploy draft docs
+        # Can't run on forks, since secrets won't be available, and command will fail
+        if: ${{ env.IS_OFFICIAL_REPO == 'true'}}
+        run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes
+
+      # FIXME: Only run this on release
       - name: Deploy prod docs # TODO: only deploy prod docs when we publish a new version
         if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
         run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --prod --yes
-
-      # FIXME: This is not working properly, and should probably be done only from the main branch anyway
-      # (and "Deploy prod docs" should only be done when we publish a new release)
-      # - name: Deploy draft docs
-      #   # Don't run on forks, since secrets won't be available, and command will fail
-      #   if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.ref != 'refs/heads/main'
-      #   run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes
