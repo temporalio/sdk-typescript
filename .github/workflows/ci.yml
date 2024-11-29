@@ -71,6 +71,8 @@ jobs:
       - name: Install Rust
         if: steps.cached-artifact.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
 
       - name: Install protoc
         if: steps.cached-artifact.outputs.cache-hit != 'true'
@@ -109,7 +111,7 @@ jobs:
   # Uses the native binaries built in compile-native-binaries, but build `@temporalio/*` packages locally.
   # FIXME: Move ReuseV8Context vs non-ReuseV8Context out of the matrix, to the test script
   integration-tests:
-    timeout-minutes: 10
+    timeout-minutes: 60
     needs:
       - compile-native-binaries-debug
     strategy:
@@ -209,6 +211,13 @@ jobs:
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ./tmp/registry
 
+      # FIXME: Move samples tests to a custom activity
+      # Sample 1: hello-world to local server
+      - name: Instantiate sample project using verdaccio artifacts - Hello World
+        shell: bash
+        # Note: here, `npx create` fails on windows if shell is bash.
+        run: node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/hello-world --target-dir /tmp/sample-hello-world
+
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
         with:
@@ -219,14 +228,7 @@ jobs:
       - name: Instantiate sample project using verdaccio artifacts - Hello World
         shell: bash
         # Note: here, `npx create` fails on windows if shell is bash.
-        run: node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/hello-world --target-dir ${{ runner.temp }}/sample-hello-world
-
-      # FIXME: Move samples tests to a custom activity
-      # Sample 1: hello-world to local server
-      - name: Instantiate sample project using verdaccio artifacts - Hello World
-        shell: bash
-        # Note: here, `npx create` fails on windows if shell is bash.
-        run: node scripts/test-example.js --work-dir "${{ runner.temp }}/sample-hello-world"
+        run: node scripts/test-example.js --work-dir "/tmp/sample-hello-world"
 
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
