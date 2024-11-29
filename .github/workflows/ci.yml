@@ -105,84 +105,6 @@ jobs:
           # Actual file will be named ${{ matrix.target }}/index.node
           path: ./packages/core-bridge/releases/*/index.node
 
-  # Gather native binaries for all platforms and build TypeScript @temporalio/* packages.
-  # Upload the built packages as a Verdaccio repository.
-  build-packages:
-    timeout-minutes: 10
-    needs:
-      - compile-native-binaries-debug
-    name: Build Packages
-    strategy:
-      # Using a matrix here ensure that Rust-related actions below can be easily be copied from the
-      # compile-binaries job and that the Rust build cache will be usable
-      matrix:
-        include:
-          - platform: linux-x64
-            runner: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-    runs-on: ${{ matrix.runner }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Download core-bridge native libraries
-        uses: actions/download-artifact@v4
-        with:
-          path: ./packages/core-bridge/releases/tmp
-
-      - name: Put native files into place
-        working-directory: ./packages/core-bridge/releases
-        run: |
-          mv tmp/corebridge-native-debug-*/* ./
-          rm -rf tmp
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Get NPM cache directory
-        id: npm-cache-dir
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
-
-      - name: Restore NPM cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
-          restore-keys: |
-            npm-main-${{ matrix.platform }}-
-
-      - name: Download dependencies
-        # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors :(
-        run: |
-          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
-
-      - name: Compile code
-        run: npm run build -- --ignore @temporalio/core-bridge
-
-      - name: Publish to Verdaccio
-        run: node scripts/publish-to-verdaccio.js --registry-dir ./tmp/registry
-
-      - name: Save Verdaccio repo artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: verdaccio-repo
-          path: ./tmp/registry/storage
-
-      - name: Save NPM cache
-        uses: actions/cache/save@v4
-        # Only saves NPM cache from the main branch, to reduce pressure on the cache (limited to 10GB).
-        if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
-
   # Run integration tests.
   # Uses the native binaries built in compile-native-binaries, but build `@temporalio/*` packages locally.
   # FIXME: Move ReuseV8Context vs non-ReuseV8Context out of the matrix, to the test script
@@ -282,6 +204,9 @@ jobs:
           TEMPORAL_CLIENT_CLOUD_API_VERSION: 2024-05-13-00
           TEMPORAL_CLIENT_CLOUD_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
 
+      - name: Publish to Verdaccio
+        run: node scripts/publish-to-verdaccio.js --registry-dir ./tmp/registry
+
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
       - name: Instantiate sample project using verdaccio artifacts - Hello World
@@ -293,6 +218,7 @@ jobs:
       # Sample 2: hello-world-mtls to cloud server
       - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
         # Note: here, `npx create` fails on windows if shell is bash.
+        if: ${{ vars.TEMPORAL_CLIENT_NAMESPACE != '' }}
         run: |
           node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ runner.temp }}/sample-hello-world-mtls
           node scripts/test-example.js --work-dir "${{ runner.temp }}/sample-hello-world-mtls"
