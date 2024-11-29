@@ -30,11 +30,16 @@ async function kill(child, signal = 'SIGINT') {
     // -PID not supported on Windows
     process.kill(child.pid, signal);
   } else {
+    console.log('utls.js: kill: before');
     process.kill(-child.pid, signal);
+    console.log('utls.js: kill: after');
   }
   try {
+    console.log('utls.js: kill: waiting on child');
     await waitOnChild(child);
+    console.log('utls.js: kill: waiting on child - back');
   } catch (err) {
+    console.log('utls.js: kill: waiting on child - error');
     // Should error if the error is not a child process error or it is a child
     // process and either the platform is Windows or the signal matches.
     const shouldError = err.name !== 'ChildProcessError' || (process.platform !== 'win32' && err.signal !== signal);

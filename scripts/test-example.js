@@ -19,6 +19,7 @@ async function withWorker(workdir, fn) {
   try {
     return await fn();
   } finally {
+    console.log('Killing the worker');
     await kill(worker);
   }
 }
