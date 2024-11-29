@@ -9,7 +9,7 @@ env:
 jobs:
   lint-and-prune:
     name: Lint and Prune
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

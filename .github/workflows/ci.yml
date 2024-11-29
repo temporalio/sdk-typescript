@@ -31,7 +31,7 @@ jobs:
       matrix:
         include:
           - platform: linux-x64
-            runner: ubuntu-latest-4-cores
+            runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             out-file: libtemporal_sdk_typescript_bridge.so
           - platform: linux-arm
@@ -118,7 +118,7 @@ jobs:
       matrix:
         include:
           - platform: linux-x64
-            runner: ubuntu-latest-4-cores
+            runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -198,7 +198,7 @@ jobs:
         server: [cli] # FIXME: Add 'cloud'
         include:
           - platform: linux-x64
-            runner: ubuntu-latest-4-cores
+            runner: ubuntu-latest
             # For efficiency, we only run non-reuse-v8-context tests on this platform
             reuse-v8-context: false
           - platform: linux-arm
