@@ -336,11 +336,14 @@ jobs:
         run: rm -rf ${{ runner.temp }}/certs
         continue-on-error: true
 
+  conventions:
+    name: Lint and Prune
+    uses: ./.github/workflows/conventions.yml
+
   docs:
     name: Build Docs
     uses: ./.github/workflows/docs.yml
     with:
-      # Can't publish from forks, as secrets won't be available
       publish_target: prod
     secrets:
       ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}

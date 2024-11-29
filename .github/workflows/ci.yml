@@ -66,7 +66,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./packages/core-bridge/releases
-          key: corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
+          key: corebridge-artifactcache-debug-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
 
       - name: Install Rust
         if: steps.cached-artifact.outputs.cache-hit != 'true'
@@ -85,7 +85,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: packages/core-bridge -> target
-          prefix-key: corebridge-buildcache
+          prefix-key: corebridge-buildcache-debug
           shared-key: ${{ matrix.platform }}
           env-vars: ''
           save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
@@ -101,7 +101,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: corebridge-native-${{ matrix.platform }}
+          name: corebridge-native-debug-${{ matrix.platform }}
           # Actual file will be named ${{ matrix.target }}/index.node
           path: ./packages/core-bridge/releases/*/index.node
 
@@ -138,7 +138,7 @@ jobs:
       - name: Put native files into place
         working-directory: ./packages/core-bridge/releases
         run: |
-          mv tmp/corebridge-*/* ./
+          mv tmp/corebridge-native-debug-*/* ./
           rm -rf tmp
 
       - name: Install Node
@@ -215,9 +215,6 @@ jobs:
             reuse-v8-context: true
     runs-on: ${{ matrix.runner }}
     name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
-    defaults:
-      run:
-        shell: bash
     steps:
       - name: 'Checkout code'
         uses: actions/checkout@v4
@@ -227,7 +224,7 @@ jobs:
       - name: Download core-bridge native libraries
         uses: actions/download-artifact@v4
         with:
-          name: corebridge-native-${{ matrix.platform }}
+          name: corebridge-native-debug-${{ matrix.platform }}
           path: ./packages/core-bridge/releases
 
       - name: Install Node
@@ -237,7 +234,6 @@ jobs:
 
       - name: Get NPM cache directory
         id: npm-cache-dir
-        shell: bash
         run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
 
       - name: Restore NPM cache
@@ -262,13 +258,17 @@ jobs:
 
       - name: Run Temporal CLI
         if: matrix.server == 'cli'
-        shell: bash
         run: |
           temporal server start-dev \
             --db-filename temporal.sqlite \
             --sqlite-pragma journal_mode=WAL \
             --sqlite-pragma synchronous=OFF \
             --headless &> /tmp/devserver.log &
+
+      # We write the certs to disk because it serves the sample. Written into /tmp/temporal-certs
+      - name: Create certs dir
+        run: node scripts/create-certs-dir.js "${{ runner.temp }}/certs"
+        if: ${{ vars.TEMPORAL_CLIENT_NAMESPACE != '' }}
 
       - name: Run Tests
         run: npm test
@@ -281,6 +281,43 @@ jobs:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
           TEMPORAL_CLIENT_CLOUD_API_VERSION: 2024-05-13-00
           TEMPORAL_CLIENT_CLOUD_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+
+      # FIXME: Move samples tests to a custom activity
+      # Sample 1: hello-world to local server
+      - name: Instantiate sample project using verdaccio artifacts - Hello World
+        # Note: here, `npx create` fails on windows if shell is bash.
+        run: |
+          node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ runner.temp }}/sample-hello-world
+          node scripts/test-example.js --work-dir "${{ runner.temp }}/sample-hello-world"
+
+      # Sample 2: hello-world-mtls to cloud server
+      - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
+        # Note: here, `npx create` fails on windows if shell is bash.
+        run: |
+          node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ runner.temp }}/sample-hello-world-mtls
+          node scripts/test-example.js --work-dir "${{ runner.temp }}/sample-hello-world-mtls"
+        env:
+          # These env vars are used by the hello-world-mtls sample
+          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud
+          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLIENT_CERT_PATH: ${{ runner.temp }}/certs/client.pem
+          TEMPORAL_CLIENT_KEY_PATH: ${{ runner.temp }}/certs/client.key
+          TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}-sample-hello-world-mtls', matrix.platform, matrix.node) }}
+
+      # Sample 3: fetch-esm to local server
+      - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
+        # Note: here, `npx create` fails on windows if shell is bash.
+        run: |
+          node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ runner.temp }}/sample-fetch-esm
+          node scripts/test-example.js --work-dir "${{ runner.temp }}/sample-fetch-esm"
+
+      # End samples
+
+      - name: Destroy certs dir
+        if: always()
+        shell: bash
+        run: rm -rf ${{ runner.temp }}/certs
+        continue-on-error: true
 
       - name: Upload NPM logs
         uses: actions/upload-artifact@v4
@@ -296,131 +333,9 @@ jobs:
           name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.server }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
           path: /tmp/devserver.log
 
-  # FIXME: Use a single job instance to run all samples for a given platform
-  # FIXME: Merge sample testing into integration-tests
-  # FIXME: Once merged in integration-tests, remove the matrix and use a single job instance
-  # Tests that npm init @temporalio results in a working worker and client
-  test-npm-init:
-    needs: build-packages
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [16, 22] # Min and max supported Node versions
-        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
-        sample: [hello-world, fetch-esm, hello-world-mtls]
-        server: [cli, cloud]
-        exclude:
-          # Exclude non-mtls tests on cloud
-          - sample: hello-world
-            server: cloud
-          # Exclude mtls tests on cli
-          - sample: hello-world-mtls
-            server: cli
-          - sample: fetch-esm
-            server: cloud
-          # FIXME: investigate why 'fetch-esm' always hangs on Windows
-          - sample: fetch-esm
-            platform: windows-x64
-          # Exclude cloud tests if we don't have cloud namespace and certs
-          - server: ${{ vars.TEMPORAL_CLIENT_NAMESPACE == '' && 'cloud' || '' }}
-        include:
-          - platform: linux-x64
-            runner: ubuntu-latest-4-cores
-          - platform: linux-arm
-            runner: ubuntu-24.04-arm64-2-core
-          - platform: macos-x64
-            runner: macos-13
-          - platform: macos-arm
-            runner: macos-14
-          - platform: windows-x64
-            runner: windows-latest
-    runs-on: ${{ matrix.runner }}
-    name: Run Samples Tests - ${{ matrix.sample }} (${{ matrix.platform }}, Node ${{ matrix.node }}, ${{ matrix.server }})
-    env:
-      TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
-      TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
-    steps:
-      - name: 'Checkout code'
-        uses: actions/checkout@v4
-        with:
-          # We don't need the core submodule here since won't build the project
-          submodules: false
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-
-      - name: Get NPM cache directory
-        id: npm-cache-dir
-        shell: bash
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
-
-      - name: Restore NPM cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
-          restore-keys: |
-            npm-main-${{ matrix.platform }}-
-
-      # No need to compile anything, we just need the package ./scripts and their dependencies
-      - name: Install dependencies without compilation
-        run: |
-          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
-
-      - name: Restore Verdaccio repo artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: verdaccio-repo
-          path: ./tmp/registry/storage
-
-      # Note: here, `npx create` fails on windows if shell is bash.
-      - name: Instantiate sample project using verdaccio artifacts
-        run: node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/${{ matrix.sample }} --target-dir ${{ runner.temp }}/example
-
-      - name: Install Temporal CLI
-        if: matrix.server == 'cli'
-        uses: temporalio/setup-temporal@v0
-
-      - name: Run Temporal CLI
-        if: matrix.server == 'cli'
-        shell: bash
-        run: |
-          temporal server start-dev \
-            --db-filename temporal.sqlite \
-            --sqlite-pragma journal_mode=WAL \
-            --sqlite-pragma synchronous=OFF \
-            --headless &
-
-        # We write the certs to disk because it serves the sample. Written into /tmp/temporal-certs
-      - name: Create certs dir
-        shell: bash
-        run: node scripts/create-certs-dir.js "${{ runner.temp }}/certs"
-        if: matrix.server == 'cloud'
-
-      - name: Test run a workflow (non-cloud)
-        run: node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
-        shell: bash
-        if: matrix.server == 'cli'
-
-      - name: Test run a workflow (cloud)
-        run: node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
-        shell: bash
-        env:
-          # These env vars are used by the hello-world-mtls sample
-          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud
-          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
-          TEMPORAL_CLIENT_CERT_PATH: ${{ runner.temp }}/certs/client.pem
-          TEMPORAL_CLIENT_KEY_PATH: ${{ runner.temp }}/certs/client.key
-          TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}-{2}', matrix.platform, matrix.node, matrix.sample) }}
-        if: matrix.server == 'cloud'
-
-      - name: Destroy certs dir
-        if: always()
-        shell: bash
-        run: rm -rf ${{ runner.temp }}/certs
-        continue-on-error: true
+  conventions:
+    name: Lint and Prune
+    uses: ./.github/workflows/conventions.yml
 
   # Runs the features repo tests with this repo's current SDK code
   # FIXME: Update this job to reuse native build artifacts from compile-native-binaries

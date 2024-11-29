@@ -1,11 +1,7 @@
 name: Conventions
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - releases/*
+  workflow_call:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
