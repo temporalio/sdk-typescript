@@ -26,7 +26,7 @@ const { fakeProgress, queryOwnWf } = proxyActivities<typeof activities>({
 const { echo } = proxyLocalActivities<typeof activities>({
   startToCloseTimeout: '1m',
   cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
-})
+});
 
 export const stepQuery = defineQuery<number>('step');
 
@@ -48,13 +48,20 @@ export async function smorgasbord(iteration = 0): Promise<void> {
         await childWf.result();
       })();
 
-      const localActivityPromise = echo("local-activity");
+      const localActivityPromise = echo('local-activity');
 
       if (iteration === 0) {
         CancellationScope.current().cancel();
       }
 
-      await Promise.all([activityPromise, queryActPromise, timerPromise, childWfPromise, localActivityPromise, condition(() => unblocked)]);
+      await Promise.all([
+        activityPromise,
+        queryActPromise,
+        timerPromise,
+        childWfPromise,
+        localActivityPromise,
+        condition(() => unblocked),
+      ]);
     });
   } catch (e) {
     if (iteration !== 0 || !isCancellation(e)) {

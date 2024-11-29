@@ -122,7 +122,6 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     });
   }
 
-
   public async startChildWorkflowExecution(
     input: StartChildWorkflowExecutionInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'startChildWorkflowExecution'>
