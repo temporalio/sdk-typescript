@@ -139,6 +139,9 @@ jobs:
             reuse-v8-context: true
     runs-on: ${{ matrix.runner }}
     name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: 'Checkout code'
         uses: actions/checkout@v4
@@ -158,7 +161,6 @@ jobs:
 
       - name: Get NPM cache directory
         id: npm-cache-dir
-        shell: bash
         run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
 
       - name: Restore NPM cache
@@ -183,7 +185,7 @@ jobs:
 
       - name: Run Temporal CLI
         if: matrix.server == 'cli'
-        shell: bash
+        working-directory: ${{ runner.temp }}
         run: |
           temporal server start-dev \
             --db-filename temporal.sqlite \
@@ -214,14 +216,12 @@ jobs:
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
       - name: Instantiate sample project using verdaccio artifacts - Hello World
-        # Note: here, `npx create` fails on windows if shell is bash.
         run: |
           node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ runner.temp }}/sample-hello-world
           node scripts/test-example.js --work-dir "${{ runner.temp }}/sample-hello-world"
 
       # Sample 2: hello-world-mtls to cloud server
       - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
-        # Note: here, `npx create` fails on windows if shell is bash.
         if: ${{ vars.TEMPORAL_CLIENT_NAMESPACE != '' }}
         run: |
           node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ runner.temp }}/sample-hello-world-mtls
@@ -236,7 +236,6 @@ jobs:
 
       # Sample 3: fetch-esm to local server
       - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
-        # Note: here, `npx create` fails on windows if shell is bash.
         run: |
           node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ runner.temp }}/sample-fetch-esm
           node scripts/test-example.js --work-dir "${{ runner.temp }}/sample-fetch-esm"
@@ -245,7 +244,6 @@ jobs:
 
       - name: Destroy certs dir
         if: always()
-        shell: bash
         run: rm -rf ${{ runner.temp }}/certs
         continue-on-error: true
 
