@@ -156,6 +156,7 @@ jobs:
 
       - name: Get NPM cache directory
         id: npm-cache-dir
+        shell: bash
         run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
 
       - name: Restore NPM cache
@@ -212,8 +213,11 @@ jobs:
       - name: Instantiate sample project using verdaccio artifacts - Hello World
         # Note: here, `npx create` fails on windows if shell is bash.
         run: |
+          echo "111"
           node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ runner.temp }}/sample-hello-world
+          echo "222"
           node scripts/test-example.js --work-dir "${{ runner.temp }}/sample-hello-world"
+          echo "333"
 
       # Sample 2: hello-world-mtls to cloud server
       - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
