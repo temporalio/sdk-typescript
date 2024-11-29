@@ -115,7 +115,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [22] # Min and max supported Node versions
+        node: [20] # Min and max supported Node versions
         platform: [linux-arm]
         server: [cli] # FIXME: Add 'cloud'
         include:
