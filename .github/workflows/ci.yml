@@ -209,12 +209,17 @@ jobs:
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ./tmp/registry
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
       - name: Instantiate sample project using verdaccio artifacts - Hello World
         shell: bash
         # Note: here, `npx create` fails on windows if shell is bash.
-        run: node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ runner.temp }}/sample-hello-world
+        run: node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/hello-world --target-dir ${{ runner.temp }}/sample-hello-world
 
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
@@ -230,7 +235,7 @@ jobs:
         # Note: here, `npx create` fails on windows if shell is bash.
         run: |
           echo "111"
-          node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ runner.temp }}/sample-hello-world
+          node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/hello-world --target-dir ${{ runner.temp }}/sample-hello-world
           echo "222"
           node scripts/test-example.js --work-dir "${{ runner.temp }}/sample-hello-world"
           echo "333"
