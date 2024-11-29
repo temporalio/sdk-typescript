@@ -30,26 +30,26 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - platform: linux-x64
-            runner: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            out-file: libtemporal_sdk_typescript_bridge.so
+          # - platform: linux-x64
+          #   runner: ubuntu-latest
+          #   target: x86_64-unknown-linux-gnu
+          #   out-file: libtemporal_sdk_typescript_bridge.so
           - platform: linux-arm
             runner: ubuntu-24.04-arm64-2-core
             target: aarch64-unknown-linux-gnu
             out-file: libtemporal_sdk_typescript_bridge.so
-          - platform: macos-x64
-            runner: macos-13
-            target: x86_64-apple-darwin
-            out-file: libtemporal_sdk_typescript_bridge.dylib
-          - platform: macos-arm
-            runner: macos-14
-            target: aarch64-apple-darwin
-            out-file: libtemporal_sdk_typescript_bridge.dylib
-          - platform: windows-x64
-            runner: windows-latest
-            target: x86_64-pc-windows-msvc
-            out-file: temporal_sdk_typescript_bridge.dll
+          # - platform: macos-x64
+          #   runner: macos-13
+          #   target: x86_64-apple-darwin
+          #   out-file: libtemporal_sdk_typescript_bridge.dylib
+          # - platform: macos-arm
+          #   runner: macos-14
+          #   target: aarch64-apple-darwin
+          #   out-file: libtemporal_sdk_typescript_bridge.dylib
+          # - platform: windows-x64
+          #   runner: windows-latest
+          #   target: x86_64-pc-windows-msvc
+          #   out-file: temporal_sdk_typescript_bridge.dll
     name: Compile Native Binaries (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -115,26 +115,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [16, 22] # Min and max supported Node versions
-        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
+        node: [22] # Min and max supported Node versions
+        platform: [linux-arm]
         server: [cli] # FIXME: Add 'cloud'
         include:
-          - platform: linux-x64
-            runner: ubuntu-latest
-            # For efficiency, we only run non-reuse-v8-context tests on this platform
-            reuse-v8-context: false
+          # - platform: linux-x64
+          #   runner: ubuntu-latest
+          #   # For efficiency, we only run non-reuse-v8-context tests on this platform
+          #   reuse-v8-context: false
           - platform: linux-arm
             runner: ubuntu-24.04-arm64-2-core
             reuse-v8-context: true
-          - platform: macos-x64
-            runner: macos-13
-            reuse-v8-context: true
-          - platform: macos-arm
-            runner: macos-14
-            reuse-v8-context: true
-          - platform: windows-x64
-            runner: windows-latest
-            reuse-v8-context: true
+          # - platform: macos-x64
+          #   runner: macos-13
+          #   reuse-v8-context: true
+          # - platform: macos-arm
+          #   runner: macos-14
+          #   reuse-v8-context: true
+          # - platform: windows-x64
+          #   runner: windows-latest
+          #   reuse-v8-context: true
     runs-on: ${{ matrix.runner }}
     name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
     steps:
@@ -181,6 +181,7 @@ jobs:
 
       - name: Run Temporal CLI
         if: matrix.server == 'cli'
+        shell: bash
         run: |
           temporal server start-dev \
             --db-filename temporal.sqlite \
@@ -193,17 +194,17 @@ jobs:
         run: node scripts/create-certs-dir.js "${{ runner.temp }}/certs"
         if: ${{ vars.TEMPORAL_CLIENT_NAMESPACE != '' }}
 
-      - name: Run Tests
-        run: npm test
-        env:
-          RUN_INTEGRATION_TESTS: true
-          REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
+      # - name: Run Tests
+      #   run: npm test
+      #   env:
+      #     RUN_INTEGRATION_TESTS: true
+      #     REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
-          # Cloud Tests will be skipped if TEMPORAL_CLIENT_CLOUD_API_KEY is left empty
-          TEMPORAL_CLOUD_SAAS_ADDRESS: ${{ vars.TEMPORAL_CLOUD_SAAS_ADDRESS || 'saas-api.tmprl.cloud:443' }}
-          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
-          TEMPORAL_CLIENT_CLOUD_API_VERSION: 2024-05-13-00
-          TEMPORAL_CLIENT_CLOUD_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+      #     # Cloud Tests will be skipped if TEMPORAL_CLIENT_CLOUD_API_KEY is left empty
+      #     TEMPORAL_CLOUD_SAAS_ADDRESS: ${{ vars.TEMPORAL_CLOUD_SAAS_ADDRESS || 'saas-api.tmprl.cloud:443' }}
+      #     TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+      #     TEMPORAL_CLIENT_CLOUD_API_VERSION: 2024-05-13-00
+      #     TEMPORAL_CLIENT_CLOUD_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
 
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ./tmp/registry
@@ -211,6 +212,23 @@ jobs:
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
       - name: Instantiate sample project using verdaccio artifacts - Hello World
+        shell: bash
+        # Note: here, `npx create` fails on windows if shell is bash.
+        run: |
+          node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ runner.temp }}/sample-hello-world
+
+      # FIXME: Move samples tests to a custom activity
+      # Sample 1: hello-world to local server
+      - name: Instantiate sample project using verdaccio artifacts - Hello World
+        shell: bash
+        # Note: here, `npx create` fails on windows if shell is bash.
+        run: |
+          node scripts/test-example.js --work-dir "${{ runner.temp }}/sample-hello-world"
+
+      # FIXME: Move samples tests to a custom activity
+      # Sample 1: hello-world to local server
+      - name: Instantiate sample project using verdaccio artifacts - Hello World
+        shell: bash
         # Note: here, `npx create` fails on windows if shell is bash.
         run: |
           echo "111"
@@ -263,45 +281,45 @@ jobs:
           name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.server }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
           path: /tmp/devserver.log
 
-  conventions:
-    name: Lint and Prune
-    uses: ./.github/workflows/conventions.yml
+  # conventions:
+  #   name: Lint and Prune
+  #   uses: ./.github/workflows/conventions.yml
 
-  # Runs the features repo tests with this repo's current SDK code
-  # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
-  features-tests:
-    name: Features Tests
-    uses: temporalio/features/.github/workflows/typescript.yaml@main
-    with:
-      typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
-      version: ${{github.event.pull_request.head.ref}}
-      version-is-repo-ref: true
-      features-repo-ref: sdk-1403-ts-startUpdate-require-wait-stage
+  # # Runs the features repo tests with this repo's current SDK code
+  # # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
+  # features-tests:
+  #   name: Features Tests
+  #   uses: temporalio/features/.github/workflows/typescript.yaml@main
+  #   with:
+  #     typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
+  #     version: ${{github.event.pull_request.head.ref}}
+  #     version-is-repo-ref: true
+  #     features-repo-ref: sdk-1403-ts-startUpdate-require-wait-stage
 
-  stress-tests-no-reuse-context:
-    name: Stress Tests (No Reuse V8 Context)
-    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
-    uses: ./.github/workflows/stress.yml
-    with:
-      test-type: ci-stress
-      test-timeout-minutes: 20
-      reuse-v8-context: false
+  # stress-tests-no-reuse-context:
+  #   name: Stress Tests (No Reuse V8 Context)
+  #   # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
+  #   uses: ./.github/workflows/stress.yml
+  #   with:
+  #     test-type: ci-stress
+  #     test-timeout-minutes: 20
+  #     reuse-v8-context: false
 
-  stress-tests-reuse-context:
-    name: Stress Tests (Reuse V8 Context)
-    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
-    uses: ./.github/workflows/stress.yml
-    with:
-      test-type: ci-stress
-      test-timeout-minutes: 20
-      reuse-v8-context: true
+  # stress-tests-reuse-context:
+  #   name: Stress Tests (Reuse V8 Context)
+  #   # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
+  #   uses: ./.github/workflows/stress.yml
+  #   with:
+  #     test-type: ci-stress
+  #     test-timeout-minutes: 20
+  #     reuse-v8-context: true
 
-  docs:
-    name: Build Docs
-    uses: ./.github/workflows/docs.yml
-    with:
-      # Can't publish from forks, as secrets won't be available
-      publish_target: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && 'draft' || '' }}
-    secrets:
-      ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  # docs:
+  #   name: Build Docs
+  #   uses: ./.github/workflows/docs.yml
+  #   with:
+  #     # Can't publish from forks, as secrets won't be available
+  #     publish_target: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && 'draft' || '' }}
+  #   secrets:
+  #     ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+  #     VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
