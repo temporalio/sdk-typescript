@@ -141,7 +141,11 @@ jobs:
       run:
         shell: bash
     steps:
-      - run: git config --global core.autocrlf false
+      # For some unknown reason, execution of TSC may sometime introduce a CRLF/LF mismatch on some
+      # pure JS files that are preserved in the repo, which would later cause a failure when trying
+      # to publish packages to Verdaccio, as Lerna requires that the Git repo be clean.
+      - name: Set git config
+        run: git config --global core.autocrlf false
 
       - name: 'Checkout code'
         uses: actions/checkout@v4
@@ -190,10 +194,6 @@ jobs:
 
       - name: Compile code
         run: npm run build -- --ignore @temporalio/core-bridge
-
-      - run: |
-          git status
-          git diff | cat
 
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
