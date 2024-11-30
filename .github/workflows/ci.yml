@@ -109,7 +109,6 @@ jobs:
 
   # Run integration tests.
   # Uses the native binaries built in compile-native-binaries, but build `@temporalio/*` packages locally.
-  # FIXME: Move ReuseV8Context vs non-ReuseV8Context out of the matrix, to the test script
   integration-tests:
     timeout-minutes: 15
     needs:
@@ -179,7 +178,7 @@ jobs:
         run: npm run build -- --ignore @temporalio/core-bridge
 
       - name: Publish to Verdaccio
-        run: node scripts/publish-to-verdaccio.js --registry-dir ${{ runner.temp }}/npm-registry
+        run: node scripts/publish-to-verdaccio.js --registry-dir $TMPDIR/npm-registry
 
       - name: Install Temporal CLI
         uses: temporalio/setup-temporal@v0
@@ -195,7 +194,7 @@ jobs:
 
       # We write the certs to disk because it serves the sample. Written into /tmp/temporal-certs
       - name: Create certs dir
-        run: node scripts/create-certs-dir.js "${{ runner.temp }}/certs"
+        run: node scripts/create-certs-dir.js "$TMPDIR/certs"
         if: ${{ vars.TEMPORAL_CLIENT_NAMESPACE != '' }}
 
       - name: Run Tests
@@ -214,34 +213,34 @@ jobs:
       # Sample 1: hello-world to local server
       - name: Instantiate sample project using verdaccio artifacts - Hello World
         run: |
-          node scripts/init-from-verdaccio.js --registry-dir ${{ runner.temp }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ runner.temp }}/sample-hello-world
-          node scripts/test-example.js --work-dir "${{ runner.temp }}/sample-hello-world"
+          node scripts/init-from-verdaccio.js --registry-dir $TMPDIR/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir $TMPDIR/sample-hello-world
+          node scripts/test-example.js --work-dir "$TMPDIR/sample-hello-world"
 
       # Sample 2: hello-world-mtls to cloud server
       - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
         if: ${{ vars.TEMPORAL_CLIENT_NAMESPACE != '' }}
         run: |
-          node scripts/init-from-verdaccio.js --registry-dir ${{ runner.temp }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ runner.temp }}/sample-hello-world-mtls
-          node scripts/test-example.js --work-dir "${{ runner.temp }}/sample-hello-world-mtls"
+          node scripts/init-from-verdaccio.js --registry-dir $TMPDIR/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir $TMPDIR/sample-hello-world-mtls
+          node scripts/test-example.js --work-dir "$TMPDIR/sample-hello-world-mtls"
         env:
           # These env vars are used by the hello-world-mtls sample
           TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud
           TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
-          TEMPORAL_CLIENT_CERT_PATH: ${{ runner.temp }}/certs/client.pem
-          TEMPORAL_CLIENT_KEY_PATH: ${{ runner.temp }}/certs/client.key
+          TEMPORAL_CLIENT_CERT_PATH: $TMPDIR/certs/client.pem
+          TEMPORAL_CLIENT_KEY_PATH: $TMPDIR/certs/client.key
           TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}-sample-hello-world-mtls', matrix.platform, matrix.node) }}
 
       # Sample 3: fetch-esm to local server
       - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
         run: |
-          node scripts/init-from-verdaccio.js --registry-dir ${{ runner.temp }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ runner.temp }}/sample-fetch-esm
-          node scripts/test-example.js --work-dir "${{ runner.temp }}/sample-fetch-esm"
+          node scripts/init-from-verdaccio.js --registry-dir $TMPDIR/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir $TMPDIR/sample-fetch-esm
+          node scripts/test-example.js --work-dir "$TMPDIR/sample-fetch-esm"
 
       # End samples
 
       - name: Destroy certs dir
         if: always()
-        run: rm -rf ${{ runner.temp }}/certs
+        run: rm -rf $TMPDIR/certs
         continue-on-error: true
 
       - name: Upload NPM logs
