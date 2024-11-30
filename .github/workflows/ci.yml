@@ -141,7 +141,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - run: git config --global core.autocrlf true
+      - run: git config --global core.autocrlf false
 
       - name: 'Checkout code'
         uses: actions/checkout@v4
