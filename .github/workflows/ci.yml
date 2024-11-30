@@ -141,9 +141,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - id: tmp-dir
-        run: echo "dir=$(pwd)" >> ${GITHUB_OUTPUT}
-        working-directory: ${{ runner.temp }}
+      - run: git config --global core.autocrlf true
 
       - name: 'Checkout code'
         uses: actions/checkout@v4
@@ -160,6 +158,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+
+      # On Windows, the 'runner.temp' variable uses backslashes as path separators, but
+      # that may pose problems in later steps when we try to join that with subpaths;
+      # e.g. '${{ runner.temp }}/npm-registry' would get interpolated to 'd:\a\_temp/npm-registry',
+      # which may effectively get interpreted as by bash as 'd:a_temp/npm-registry', resulting in
+      # the apparition of an unwanted 'a_temp' directory.
+      #
+      # This step ensures that the 'runner.temp' variable is normalized to use forward slashes.
+      - name: Get normalized path to temp directory
+        id: tmp-dir
+        run: echo "dir=$(pwd)" >> ${GITHUB_OUTPUT}
+        working-directory: ${{ runner.temp }}
 
       - name: Get NPM cache directory
         id: npm-cache-dir
@@ -263,7 +273,7 @@ jobs:
         if: failure() || cancelled()
         with:
           name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
-          path: ${{ runner.temp }}/devserver.log
+          path: ${{ steps.tmp-dir.outputs.dir }}/devserver.log
 
   conventions:
     name: Lint and Prune
