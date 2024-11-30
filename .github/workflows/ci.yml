@@ -181,6 +181,10 @@ jobs:
       - name: Compile code
         run: npm run build -- --ignore @temporalio/core-bridge
 
+      - run: |
+          git status
+          git diff | cat
+
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
 
