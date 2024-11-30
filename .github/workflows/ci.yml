@@ -170,9 +170,6 @@ jobs:
           restore-keys: |
             npm-main-${{ matrix.platform }}-
 
-      - name: Install Temporal CLI
-        uses: temporalio/setup-temporal@v0
-
       - name: Download dependencies
         # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors :(
         run: |
@@ -183,6 +180,9 @@ jobs:
 
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ${{ runner.temp }}/npm-registry
+
+      - name: Install Temporal CLI
+        uses: temporalio/setup-temporal@v0
 
       - name: Run Temporal CLI
         working-directory: ${{ runner.temp }}
