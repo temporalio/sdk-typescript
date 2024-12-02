@@ -68,12 +68,6 @@ jobs:
           path: ./packages/core-bridge/releases
           key: corebridge-artifactcache-debug-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
 
-      - name: Install Rust
-        if: steps.cached-artifact.outputs.cache-hit != 'true'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          target: ${{ matrix.target }}
-
       - name: Install protoc
         if: steps.cached-artifact.outputs.cache-hit != 'true'
         uses: arduino/setup-protoc@v3
