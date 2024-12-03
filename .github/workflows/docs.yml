@@ -1,0 +1,71 @@
+name: Docs
+
+on:
+  workflow_call:
+    inputs:
+      publish_target:
+        required: true
+        type: string
+        description: |
+          Whether to publish the docs. Set to either 'prod' or 'draft', or leave unset to skip publishing.
+    secrets:
+      ALGOLIA_API_KEY:
+        required: false
+        description: The Algolia API key. Required if 'publish_target' is set.
+      VERCEL_TOKEN:
+        required: false
+        description: The Vercel token. Required if 'publish_target' is set.
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build-docs:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Get NPM cache directory
+        id: npm-cache-dir
+        shell: bash
+        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+
+      - name: Restore NPM cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: npm-main-linux-x64-${{ hashFiles('./package-lock.json') }}
+          restore-keys: |
+            npm-main-linux-x64-
+
+      - name: Download dependencies
+        # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors
+        # Don't build during install phase since we're going to explicitly build anyway
+        run: |
+          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
+
+      - run: npm run build -- --ignore @temporalio/core-bridge
+
+      - name: Build docs
+        run: npm run docs
+        env:
+          ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+
+      - name: Publish docs
+        if: ${{ inputs.publish_target }}
+        run: |
+          npx vercel deploy packages/docs/build \
+            -t '${{ secrets.VERCEL_TOKEN }}' \
+            --name typescript \
+            --scope temporal \
+            --yes \
+            ${{ inputs.publish_target == 'prod' && '--prod' || '' }}
