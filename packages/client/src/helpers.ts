@@ -10,7 +10,12 @@ import { Replace } from '@temporalio/common/lib/type-helpers';
 import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time';
 import { decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { temporal, google } from '@temporalio/proto';
-import { RawWorkflowExecutionInfo, WorkflowExecutionInfo, WorkflowExecutionStatusName } from './types';
+import {
+  CountWorkflowExecution,
+  RawWorkflowExecutionInfo,
+  WorkflowExecutionInfo,
+  WorkflowExecutionStatusName,
+} from './types';
 
 function workflowStatusCodeToName(code: temporal.api.enums.v1.WorkflowExecutionStatus): WorkflowExecutionStatusName {
   return workflowStatusCodeToNameInternal(code) ?? 'UNKNOWN';
@@ -78,6 +83,22 @@ export async function executionInfoFromRaw<T>(
         }
       : undefined,
     raw: rawDataToEmbed,
+  };
+}
+
+export function decodeCountWorkflowExecutionsResponse(
+  raw: temporal.api.workflowservice.v1.ICountWorkflowExecutionsResponse
+): CountWorkflowExecution {
+  return {
+    // Note: lossy conversion of Long to number
+    count: raw.count!.toNumber(),
+    groups: raw.groups!.map((group) => {
+      return {
+        // Note: lossy conversion of Long to number
+        count: group.count!.toNumber(),
+        groupValues: group.groupValues!.map((value) => searchAttributePayloadConverter.fromPayload(value)),
+      };
+    }),
   };
 }
 

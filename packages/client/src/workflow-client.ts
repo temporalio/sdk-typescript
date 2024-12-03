@@ -58,6 +58,7 @@ import {
   WorkflowStartUpdateOutput,
 } from './interceptors';
 import {
+  CountWorkflowExecution,
   DescribeWorkflowExecutionResponse,
   encodeQueryRejectCondition,
   GetWorkflowExecutionHistoryRequest,
@@ -77,7 +78,7 @@ import {
   WorkflowStartOptions,
   WorkflowUpdateOptions,
 } from './workflow-options';
-import { executionInfoFromRaw, rethrowKnownErrorTypes } from './helpers';
+import { decodeCountWorkflowExecutionsResponse, executionInfoFromRaw, rethrowKnownErrorTypes } from './helpers';
 import {
   BaseClient,
   BaseClientOptions,
@@ -1285,9 +1286,9 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * List workflows by given `query`.
+   * Return a list of Workflow Executions matching the given `query`.
    *
-   * ⚠️ To use advanced query functionality, as of the 1.18 server release, you must use Elasticsearch based visibility.
+   * Note that the list of Workflow Executions returned is approximate and eventually consistent.
    *
    * More info on the concept of "visibility" and the query syntax on the Temporal documentation site:
    * https://docs.temporal.io/visibility
@@ -1306,6 +1307,29 @@ export class WorkflowClient extends BaseClient {
         );
       },
     };
+  }
+
+  /**
+   * Return the number of Workflow Executions matching the given `query`. If no `query` is provided, then return the
+   * total number of Workflow Executions for this namespace.
+   *
+   * Note that the number of Workflow Executions returned is approximate and eventually consistent.
+   *
+   * More info on the concept of "visibility" and the query syntax on the Temporal documentation site:
+   * https://docs.temporal.io/visibility
+   */
+  public async count(query?: string): Promise<CountWorkflowExecution> {
+    let response: temporal.api.workflowservice.v1.CountWorkflowExecutionsResponse;
+    try {
+      response = await this.workflowService.countWorkflowExecutions({
+        namespace: this.options.namespace,
+        query,
+      });
+    } catch (e) {
+      this.rethrowGrpcError(e, 'Failed to count workflows');
+    }
+
+    return decodeCountWorkflowExecutionsResponse(response);
   }
 
   protected getOrMakeInterceptors(workflowId: string, runId?: string): WorkflowClientInterceptor[] {
