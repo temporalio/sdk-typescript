@@ -1,7 +1,6 @@
 name: Build Package
 
 on:
-  pull_request: # FIXME: Remove this trigger
   push:
     branches:
       - main
@@ -62,8 +61,6 @@ jobs:
 
       - name: 'Cache native index.node artifacts'
         id: cached-artifact
-        # FIXME: Remove this flag once testing is complete
-        if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci-ignore-cache') }}
         uses: actions/cache@v4
         with:
           path: ./packages/core-bridge/releases
