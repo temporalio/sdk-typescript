@@ -258,6 +258,20 @@ if (RUN_INTEGRATION_TESTS) {
       );
       t.true(signalChildWithUnblockSpan !== undefined);
 
+      const localActivityStartSpan = spans.find(
+        ({ name, parentSpanId }) =>
+          name === `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}echo` &&
+          parentSpanId === parentExecuteSpan?.spanContext().spanId
+      );
+      t.true(localActivityStartSpan !== undefined);
+
+      const localActivityExecuteSpan = spans.find(
+        ({ name, parentSpanId }) =>
+          name === `${SpanName.ACTIVITY_EXECUTE}${SPAN_DELIMITER}echo` &&
+          parentSpanId === localActivityStartSpan?.spanContext().spanId
+      );
+      t.true(localActivityExecuteSpan !== undefined);
+
       const activityStartedSignalSpan = spans.find(
         ({ name, parentSpanId }) =>
           name === `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}activityStarted` &&
