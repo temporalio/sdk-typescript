@@ -219,23 +219,35 @@ export function SymbolBasedInstanceOfError<E extends Error>(markerName: string):
   };
 }
 
-// Thanks MDN: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze
-export function deepFreeze<T>(object: T): T {
-  // Retrieve the property names defined on object
-  const propNames = Object.getOwnPropertyNames(object);
+// This implementation is based on https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze.
+// Note that there are limits to this approach, as traversing using getOwnPropertyXxx doesn't allow
+// reaching variables defined using internal scopes. This implementation specifically look for and deal
+// with the case of the Map or Set classes, but it is impossible to cover all potential cases.
+export function deepFreeze<T>(object: T, visited = new WeakSet<any>(), path = 'root'): T {
+  if (object == null || visited.has(object) || (typeof object !== 'object' && typeof object !== 'function'))
+    return object;
+  visited.add(object);
+  if (Object.isFrozen(object)) return object;
 
-  // Freeze properties before freezing self
-  for (const name of propNames) {
-    const value = (object as any)[name];
+  if (typeof object === 'object') {
+    // Retrieve the property names defined on object
+    const propNames = Object.getOwnPropertyNames(object);
 
-    if (value && typeof value === 'object') {
-      try {
-        deepFreeze(value);
-      } catch (_err) {
-        // This is okay, there are some typed arrays that cannot be frozen (encodingKeys)
+    // Freeze properties before freezing self
+    for (const name of propNames) {
+      const value = (object as any)[name];
+
+      if (value && typeof value === 'object') {
+        try {
+          deepFreeze(value, visited, `${path}.${name}`);
+        } catch (err) {
+          // FIXME: Remove before merging this PR
+          if (value.constructor.name !== 'Uint8Array') {
+            console.log(`Failed to freeze ${path}.${name}`, err);
+          }
+          // This is okay, there are some typed arrays that cannot be frozen (encodingKeys)
+        }
       }
-    } else if (typeof value === 'function') {
-      Object.freeze(value);
     }
   }
 
