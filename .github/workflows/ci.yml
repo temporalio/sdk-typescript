@@ -209,8 +209,8 @@ jobs:
         run: node scripts/create-certs-dir.js ${{ steps.tmp-dir.outputs.dir }}/certs
         if: ${{ vars.TEMPORAL_CLIENT_NAMESPACE != '' }}
         env:
-          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}/certs/client.pem
-          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}/certs/client.key
+          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
 
       - name: Run Tests
         run: npm test
