@@ -126,7 +126,7 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
         throw new NamespaceNotFoundError(namespace);
       }
       case 'temporal.api.errordetails.v1.MultiOperationExecutionFailure': {
-        // MultiOperationExecutionFailure contains errorstatuses for multiple
+        // MultiOperationExecutionFailure contains error statuses for multiple
         // operations. A MultiOperationExecutionAborted error status means that
         // the corresponding operation was aborted due to an error in one of the
         // other operations. We rethrow the first operation error that is not
