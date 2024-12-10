@@ -86,6 +86,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
       __webpack_module_cache__: {},
       TextEncoder,
       TextDecoder,
+      AbortController,
     };
     const context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
     this.script.runInContext(context);
