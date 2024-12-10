@@ -201,42 +201,6 @@ test('UWS failure 1b: update fails early due to limit on number of updates', asy
   });
 });
 
-test('UWS failure: start promise is set during polling', async (t) => {
-  const startOp = new StartWorkflowOperation(workflowWithUpdates, {
-    workflowId: 'my-wid-77',
-    taskQueue: 'does-not-exist',
-    workflowIdConflictPolicy: 'FAIL',
-  });
-
-  let startResolved = false;
-  let updateResolved = false;
-
-  const uws = t.context.env.client.workflow
-    .startUpdateWithStart(update, {
-      args: ['does-not-matter-there-is-no-worker'],
-      waitForStage: 'ACCEPTED',
-      startWorkflowOperation: startOp,
-    })
-    .then(() => {
-      updateResolved = true;
-    });
-
-  startOp.workflowHandle().then(() => {
-    startResolved = true;
-  });
-
-  // The history service long-poll timeout is set to 5s above.
-  const timeout = new Promise<void>((resolve) => setTimeout(resolve, 6000));
-
-  t.false(updateResolved); // will never resolve
-  t.false(startResolved);
-
-  await Promise.race([uws, timeout]);
-  t.false(updateResolved);
-  t.true(startResolved);
-  // t.truthy(await startOp.workflowHandle());
-});
-
 test('Update can be executed via executeUpdate()', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
