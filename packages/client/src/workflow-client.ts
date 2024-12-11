@@ -652,10 +652,11 @@ export class WorkflowClient extends BaseClient {
     const startUpdateWithStartInput: WorkflowStartUpdateWithStartInput = {
       workflowType: extractWorkflowType(workflowTypeOrFunc),
       workflowStartOptions: compileWorkflowOptions(ensureArgs(workflowOptions)),
+      workflowStartHeaders: {},
       updateName: typeof updateDef === 'string' ? updateDef : updateDef.name,
       updateArgs: args ?? [],
       updateOptions,
-      headers: {},
+      updateHeaders: {},
     };
 
     const interceptors = this.getOrMakeInterceptors(workflowId);
@@ -976,8 +977,8 @@ export class WorkflowClient extends BaseClient {
   ): Promise<WorkflowStartUpdateOutput> {
     const startInput: WorkflowStartInput = {
       workflowType: input.workflowType,
-      headers: input.headers,
       options: input.workflowStartOptions,
+      headers: input.workflowStartHeaders,
     };
     const updateInput: WorkflowStartUpdateInput = {
       updateName: input.updateName,
@@ -985,8 +986,8 @@ export class WorkflowClient extends BaseClient {
       workflowExecution: {
         workflowId: input.workflowStartOptions.workflowId,
       },
-      headers: {},
       options: input.updateOptions,
+      headers: input.updateHeaders,
     };
     const startRequest = await this.createStartWorkflowRequest(startInput);
     const waitForStageProto = encodeWorkflowUpdateStage(waitForStage)!;
