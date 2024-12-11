@@ -1035,13 +1035,6 @@ export class WorkflowClient extends BaseClient {
     let updateResp: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
     let reachedStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
     do {
-      // This may throw a gRPC error due to
-      // 1a workflow failed to start
-      // 1b workflow start had no error but update rate limit exhausted
-      // 2a workflow start ok but timeout when waiting for update to reach waitForStage
-      // Alternatively it may return a valid response but indicating that the
-      // update is non-durable (Admitted). In this case we retry; we never create
-      // an update handle for a non-durable update.
       try {
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
         // TODO: order is guaranteed but check structural validity of response,
