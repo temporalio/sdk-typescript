@@ -651,9 +651,9 @@ export class WorkflowClient extends BaseClient {
 
     const startUpdateWithStartInput: WorkflowStartUpdateWithStartInput = {
       workflowType: extractWorkflowType(workflowTypeOrFunc),
-      startOptions: compileWorkflowOptions(ensureArgs(workflowOptions)),
+      workflowStartOptions: compileWorkflowOptions(ensureArgs(workflowOptions)),
       updateName: typeof updateDef === 'string' ? updateDef : updateDef.name,
-      args: args ?? [],
+      updateArgs: args ?? [],
       updateOptions,
       headers: {},
     };
@@ -977,13 +977,13 @@ export class WorkflowClient extends BaseClient {
     const startInput: WorkflowStartInput = {
       workflowType: input.workflowType,
       headers: input.headers,
-      options: input.startOptions,
+      options: input.workflowStartOptions,
     };
     const updateInput: WorkflowStartUpdateInput = {
       updateName: input.updateName,
-      args: input.args,
+      args: input.updateArgs,
       workflowExecution: {
-        workflowId: input.startOptions.workflowId,
+        workflowId: input.workflowStartOptions.workflowId,
       },
       headers: {},
       options: input.updateOptions,

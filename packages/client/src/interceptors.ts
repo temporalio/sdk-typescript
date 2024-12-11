@@ -45,9 +45,9 @@ export interface WorkflowStartUpdateOutput {
 /** Input for WorkflowClientInterceptor.startUpdateWithStart */
 export interface WorkflowStartUpdateWithStartInput {
   readonly workflowType: string;
-  readonly startOptions: CompiledWorkflowOptions;
+  readonly workflowStartOptions: CompiledWorkflowOptions;
   readonly updateName: string;
-  readonly args: unknown[];
+  readonly updateArgs: unknown[];
   readonly updateOptions: WorkflowUpdateOptions;
   readonly headers: Headers;
 }
