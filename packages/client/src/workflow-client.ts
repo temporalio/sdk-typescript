@@ -916,8 +916,7 @@ export class WorkflowClient extends BaseClient {
         ? waitForStageProto
         : UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED;
 
-    const updateId = input.options?.updateId ?? uuid4();
-    const req = await this._createUpdateWorkflowRequest(updateId, waitForStageProto, input);
+    const request = await this._createUpdateWorkflowRequest(waitForStageProto, input);
 
     // Repeatedly send UpdateWorkflowExecution until update is >= Accepted or >= `waitForStage` (if
     // the server receives a request with an update ID that already exists, it responds with
@@ -925,13 +924,13 @@ export class WorkflowClient extends BaseClient {
     let response: temporal.api.workflowservice.v1.UpdateWorkflowExecutionResponse;
     try {
       do {
-        response = await this.workflowService.updateWorkflowExecution(req);
+        response = await this.workflowService.updateWorkflowExecution(request);
       } while (response.stage < waitForStageProto);
     } catch (err) {
       this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
     return {
-      updateId,
+      updateId: request.request!.meta!.updateId!,
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       workflowRunId: response.updateRef!.workflowExecution!.runId!,
       outcome: response.outcome ?? undefined,
@@ -939,10 +938,10 @@ export class WorkflowClient extends BaseClient {
   }
 
   protected async _createUpdateWorkflowRequest(
-    updateId: string,
     lifecycleStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage,
     input: WorkflowStartUpdateInput
   ): Promise<temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest> {
+    const updateId = input.options?.updateId ?? uuid4();
     return {
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
@@ -990,9 +989,8 @@ export class WorkflowClient extends BaseClient {
       options: input.updateOptions,
     };
     const startRequest = await this.createStartWorkflowRequest(startInput);
-    const updateId = updateInput.options?.updateId ?? uuid4();
     const waitForStageProto = encodeWorkflowUpdateStage(waitForStage)!;
-    const updateRequest = await this._createUpdateWorkflowRequest(updateId, waitForStageProto, updateInput);
+    const updateRequest = await this._createUpdateWorkflowRequest(waitForStageProto, updateInput);
     const multiOpReq: temporal.api.workflowservice.v1.IExecuteMultiOperationRequest = {
       namespace: this.options.namespace,
       operations: [
