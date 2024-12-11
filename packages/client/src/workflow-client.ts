@@ -943,14 +943,16 @@ export class WorkflowClient extends BaseClient {
 
     const request = await this._createUpdateWorkflowRequest(waitForStageProto, input);
 
-    // Repeatedly send UpdateWorkflowExecution until update is >= Accepted or >= `waitForStage` (if
-    // the server receives a request with an update ID that already exists, it responds with
-    // information for the existing update).
+    // Repeatedly send UpdateWorkflowExecution until update is durable (if the server receives a request with
+    // an update ID that already exists, it responds with information for the existing update). If the
+    // requested wait stage is COMPLETED, further polling is done before returning the UpdateHandle.
     let response: temporal.api.workflowservice.v1.UpdateWorkflowExecutionResponse;
     try {
       do {
         response = await this.workflowService.updateWorkflowExecution(request);
-      } while (response.stage < waitForStageProto);
+      } while (
+        response.stage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED
+      );
     } catch (err) {
       this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
