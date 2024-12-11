@@ -451,10 +451,10 @@ export interface IntoHistoriesOptions {
   bufferLimit?: number;
 }
 
-export class StartWorkflowOperation<T extends Workflow> {
+export class WithStartWorkflowOperation<T extends Workflow> {
   private _workflowHandle: Promise<WorkflowHandle<T>>;
   private _resolveWorkflowHandle!: (handle: WorkflowHandle<T>) => void;
-  public _used = false;
+  public _executed = false;
 
   constructor(
     public workflowTypeOrFunc: string | T,
@@ -611,7 +611,7 @@ export class WorkflowClient extends BaseClient {
 
   public async executeUpdateWithStart<T extends Workflow, Ret, Args extends any[]>(
     updateDef: UpdateDefinition<Ret, Args> | string,
-    updateOptions: WorkflowUpdateOptions & { args?: Args; startWorkflowOperation: StartWorkflowOperation<T> }
+    updateOptions: WorkflowUpdateOptions & { args?: Args; startWorkflowOperation: WithStartWorkflowOperation<T> }
   ): Promise<Ret> {
     const handle = await this._startUpdateWithStart(updateDef, {
       ...updateOptions,
@@ -625,7 +625,7 @@ export class WorkflowClient extends BaseClient {
     updateOptions: WorkflowUpdateOptions & {
       args?: Args;
       waitForStage: 'ACCEPTED';
-      startWorkflowOperation: StartWorkflowOperation<T>;
+      startWorkflowOperation: WithStartWorkflowOperation<T>;
     }
   ): Promise<WorkflowUpdateHandle<Ret>> {
     return this._startUpdateWithStart(updateDef, updateOptions);
@@ -636,17 +636,17 @@ export class WorkflowClient extends BaseClient {
     updateWithStartOptions: WorkflowUpdateOptions & {
       args?: Args;
       waitForStage: WorkflowUpdateStage;
-      startWorkflowOperation: StartWorkflowOperation<T>;
+      startWorkflowOperation: WithStartWorkflowOperation<T>;
     }
   ): Promise<WorkflowUpdateHandle<Ret>> {
     const { waitForStage, args, startWorkflowOperation, ...updateOptions } = updateWithStartOptions;
     const { workflowTypeOrFunc, options: workflowOptions } = startWorkflowOperation;
     const { workflowId } = workflowOptions;
 
-    if (startWorkflowOperation._used) {
-      throw new Error('This StartWorkflowOperation instance has already been used.');
+    if (startWorkflowOperation._executed) {
+      throw new Error('This WithStartWorkflowOperation instance has already been executed.');
     }
-    startWorkflowOperation._used = true;
+    startWorkflowOperation._executed = true;
     assertRequiredWorkflowOptions(workflowOptions);
 
     const startUpdateWithStartInput: WorkflowStartUpdateWithStartInput = {

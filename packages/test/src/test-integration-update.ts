@@ -5,7 +5,7 @@ import {
   WorkflowUpdateStage,
   WorkflowUpdateRPCTimeoutOrCancelledError,
   WorkflowFailedError,
-  StartWorkflowOperation,
+  WithStartWorkflowOperation,
 } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { temporal } from '@temporalio/proto';
@@ -59,7 +59,7 @@ test('UWS happy path', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const startOp = new StartWorkflowOperation(workflowWithUpdates, {
+    const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
       workflowId: randomUUID(),
       taskQueue,
       workflowIdConflictPolicy: 'USE_EXISTING',
@@ -87,7 +87,7 @@ test('UWS happy path', async (t) => {
         startWorkflowOperation: startOp,
       })
     );
-    t.true(err?.message.includes('StartWorkflowOperation instance has already been used'));
+    t.true(err?.message.includes('WithStartWorkflowOperation instance has already been executed'));
   });
 });
 
@@ -95,7 +95,7 @@ test('UWS handles can be obtained concurrently', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const startOp = new StartWorkflowOperation(workflowWithUpdates, {
+    const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
       workflowId: randomUUID(),
       taskQueue,
       workflowIdConflictPolicy: 'USE_EXISTING',
@@ -116,7 +116,7 @@ test('UWS handles can be obtained concurrently', async (t) => {
 });
 
 test('UWS failure 1a: invalid argument', async (t) => {
-  const startOp = new StartWorkflowOperation(workflowWithUpdates, {
+  const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
     workflowId: randomUUID().repeat(77),
     taskQueue: 'does-not-exist',
     workflowIdConflictPolicy: 'FAIL',
@@ -138,7 +138,7 @@ test('UWS failure 1a: workflow already exists', async (t) => {
   const workflowId = randomUUID();
   const worker = await createWorker();
   const startUpdateWithStart = async () => {
-    const startOp = new StartWorkflowOperation(workflowWithUpdates, {
+    const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
       workflowId,
       taskQueue,
       workflowIdConflictPolicy: 'FAIL',
@@ -179,7 +179,7 @@ test('UWS failure 1b: update fails early due to limit on number of updates', asy
   const doUws = async () => {
     await t.context.env.client.workflow.startUpdateWithStart(neverReturningUpdate, {
       waitForStage: 'ACCEPTED',
-      startWorkflowOperation: new StartWorkflowOperation(workflowWithNeverReturningUpdate, {
+      startWorkflowOperation: new WithStartWorkflowOperation(workflowWithNeverReturningUpdate, {
         workflowId,
         taskQueue,
         workflowIdConflictPolicy: 'USE_EXISTING',

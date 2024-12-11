@@ -3,7 +3,7 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import { ErrorConstructor, ExecutionContext, TestFn } from 'ava';
 import {
   isGrpcServiceError,
-  StartWorkflowOperation,
+  WithStartWorkflowOperation,
   UpdateDefinition,
   WorkflowFailedError,
   WorkflowHandle,
