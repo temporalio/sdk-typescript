@@ -451,6 +451,10 @@ export interface IntoHistoriesOptions {
   bufferLimit?: number;
 }
 
+/**
+ * Defines how to start a workflow when using {@link WorkflowClient.startUpdateWithStart} and
+ * {@link WorkflowClient.executeUpdateWithStart}.
+ */
 export class WithStartWorkflowOperation<T extends Workflow> {
   private _workflowHandle: Promise<WorkflowHandle<T>>;
   private _resolveWorkflowHandle!: (handle: WorkflowHandle<T>) => void;
@@ -609,6 +613,15 @@ export class WorkflowClient extends BaseClient {
     return handle;
   }
 
+  /**
+   * Sends an update-with-start request and returns the Update result. If the specified Workflow execution is
+   * not running, then a new Workflow execution is started and the Update is sent in the first workflow task.
+   * Alternatively if the specified Workflow execution is running then, if the WorkflowIDConflictPolicy is
+   * USE_EXISTING, the Update is issued against the specified Workflow, and if the WorkflowIDConflictPolicy is
+   * FAIL, an error is thrown. The call will block until the Update has completed.
+   *
+   * @returns the Update result.
+   */
   public async executeUpdateWithStart<T extends Workflow, Ret, Args extends any[]>(
     updateDef: UpdateDefinition<Ret, Args> | string,
     updateOptions: WorkflowUpdateOptions & { args?: Args; startWorkflowOperation: WithStartWorkflowOperation<T> }
@@ -620,6 +633,17 @@ export class WorkflowClient extends BaseClient {
     return await handle.result();
   }
 
+  /**
+   * Sends an update-with-start request and returns a {@link WorkflowUpdateHandle} to the Update. If the
+   * specified Workflow execution is not running, then a new Workflow execution is started and the Update is
+   * sent in the first workflow task. Alternatively if the specified Workflow execution is running then, if
+   * the WorkflowIDConflictPolicy is USE_EXISTING, the Update is issued against the specified Workflow, and if
+   * the WorkflowIDConflictPolicy is FAIL, an error is thrown. The call will block until the Update has
+   * reached the WaitForStage in the options. Note that this means that the call will not return successfully
+   * until the Update has been delivered to a worker.
+   *
+   * @returns a {@link WorkflowUpdateHandle} to the started Update.
+   */
   public async startUpdateWithStart<T extends Workflow, Ret, Args extends any[]>(
     updateDef: UpdateDefinition<Ret, Args> | string,
     updateOptions: WorkflowUpdateOptions & {
