@@ -1004,9 +1004,6 @@ export class WorkflowClient extends BaseClient {
         },
       ],
     };
-    const requestedStage =
-      updateRequest.waitPolicy?.lifecycleStage ??
-      UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_UNSPECIFIED;
 
     let multiOpResp: temporal.api.workflowservice.v1.IExecuteMultiOperationResponse;
     let startResp: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
