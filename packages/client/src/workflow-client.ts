@@ -56,6 +56,7 @@ import {
   WorkflowTerminateInput,
   WorkflowStartUpdateInput,
   WorkflowStartUpdateOutput,
+  WorkflowStartUpdateWithStartInput,
 } from './interceptors';
 import {
   CountWorkflowExecution,
@@ -636,39 +637,35 @@ export class WorkflowClient extends BaseClient {
 
   protected async _startUpdateWithStart<T extends Workflow, Ret, Args extends any[]>(
     updateDef: UpdateDefinition<Ret, Args> | string,
-    updateOptions: WorkflowUpdateOptions & {
+    updateWithStartOptions: WorkflowUpdateOptions & {
       args?: Args;
       waitForStage: WorkflowUpdateStage;
       startWorkflowOperation: StartWorkflowOperation<T>;
     }
   ): Promise<WorkflowUpdateHandle<Ret>> {
-    // start
-    if (updateOptions.startWorkflowOperation._used) {
+    const { waitForStage, args, startWorkflowOperation, ...updateOptions } = updateWithStartOptions;
+    const { workflowTypeOrFunc, options: workflowOptions } = startWorkflowOperation;
+    const { workflowId } = workflowOptions;
+
+    if (startWorkflowOperation._used) {
       throw new Error('This StartWorkflowOperation instance has already been used.');
     }
-    updateOptions.startWorkflowOperation._used = true;
-    const { workflowTypeOrFunc, options: workflowOptions } = updateOptions.startWorkflowOperation;
+    startWorkflowOperation._used = true;
     assertRequiredWorkflowOptions(workflowOptions);
-    const startInput = {
+
+    const startUpdateWithStartInput: WorkflowStartUpdateWithStartInput = {
       workflowType: extractWorkflowType(workflowTypeOrFunc),
-      headers: {},
-      options: compileWorkflowOptions(ensureArgs(workflowOptions)),
-    };
-    // update
-    const { workflowId } = workflowOptions;
-    const { waitForStage, args, ...options } = updateOptions;
-    const updateInput = {
-      workflowExecution: { workflowId },
+      startOptions: compileWorkflowOptions(ensureArgs(workflowOptions)),
       updateName: typeof updateDef === 'string' ? updateDef : updateDef.name,
       args: args ?? [],
+      updateOptions,
       headers: {},
-      options,
     };
 
     const interceptors = this.getOrMakeInterceptors(workflowId);
 
     const onStart = (startResponse: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse) =>
-      updateOptions.startWorkflowOperation._setWorkflowHandle(
+      startWorkflowOperation._setWorkflowHandle(
         this._createWorkflowHandle({
           workflowId,
           firstExecutionRunId: startResponse.runId ?? undefined,
@@ -682,11 +679,14 @@ export class WorkflowClient extends BaseClient {
       'startUpdateWithStart',
       this._updateWithStartHandler.bind(this, waitForStage, onStart)
     );
-    const updateOutput = await fn(startInput, updateInput);
+    const updateOutput = await fn(startUpdateWithStartInput);
 
     let outcome = updateOutput.outcome;
     if (!outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
-      outcome = await this._pollForUpdateOutcome(updateOutput.updateId, updateInput.workflowExecution);
+      outcome = await this._pollForUpdateOutcome(updateOutput.updateId, {
+        workflowId,
+        runId: updateOutput.workflowRunId,
+      });
     }
 
     return this.createWorkflowUpdateHandle<Ret>(updateOutput.updateId, workflowId, updateOutput.workflowRunId, outcome);
@@ -977,9 +977,28 @@ export class WorkflowClient extends BaseClient {
   protected async _updateWithStartHandler(
     waitForStage: WorkflowUpdateStage,
     onStart: (startResponse: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse) => void,
-    startInput: WorkflowStartInput,
-    updateInput: WorkflowStartUpdateInput
+    input: WorkflowStartUpdateWithStartInput
   ): Promise<WorkflowStartUpdateOutput> {
+    const startInput = {
+      workflowType: input.workflowType,
+      headers: input.headers,
+      options: {
+        workflowId: input.startOptions.workflowId,
+        taskQueue: input.startOptions.taskQueue,
+        args: input.startOptions.args,
+      },
+    };
+    const updateInput = {
+      updateName: input.updateName,
+      args: input.args,
+      workflowExecution: {
+        workflowId: input.startOptions.workflowId,
+      },
+      headers: input.headers,
+      options: {
+        updateId: input.updateOptions.updateId,
+      },
+    };
     const startRequest = await this.createStartWorkflowRequest(startInput);
     const updateId = updateInput.options?.updateId ?? uuid4();
     const waitForStageProto = encodeWorkflowUpdateStage(waitForStage)!;
