@@ -126,7 +126,7 @@ export interface WorkflowClientInterceptor {
   /**
    * Intercept a service call to startUpdateWithStart
    *
-   * @experimental UpdateWithStart is an experimental feature.
+   * @experimental startUpdateWithStart is an experimental feature.
    */
   startUpdateWithStart?: (
     input: WorkflowStartUpdateWithStartInput,
