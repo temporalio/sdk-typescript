@@ -23,6 +23,7 @@ import {
   encodeWorkflowIdReusePolicy,
   decodeRetryState,
   encodeWorkflowIdConflictPolicy,
+  WorkflowIdConflictPolicy,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { History } from '@temporalio/common/lib/proto-utils';
@@ -453,7 +454,7 @@ export interface IntoHistoriesOptions {
 
 /**
  * Defines how to start a workflow when using {@link WorkflowClient.startUpdateWithStart} and
- * {@link WorkflowClient.executeUpdateWithStart}.
+ * {@link WorkflowClient.executeUpdateWithStart}. `workflowIdConflictPolicy` is required in the options.
  */
 export class WithStartWorkflowOperation<T extends Workflow> {
   private _workflowHandle: Promise<WorkflowHandle<T>>;
@@ -462,7 +463,7 @@ export class WithStartWorkflowOperation<T extends Workflow> {
 
   constructor(
     public workflowTypeOrFunc: string | T,
-    public options: WorkflowStartOptions<T>
+    public options: WorkflowStartOptions<T> & { workflowIdConflictPolicy: WorkflowIdConflictPolicy }
   ) {
     this._workflowHandle = new Promise<WorkflowHandle<T>>((resolve) => {
       this._resolveWorkflowHandle = resolve;
