@@ -42,6 +42,23 @@ export interface WorkflowStartUpdateOutput {
   readonly outcome?: temporal.api.update.v1.IOutcome;
 }
 
+/** Input for WorkflowClientInterceptor.startUpdateWithStart */
+export interface WorkflowStartUpdateWithStartInput {
+  readonly workflowType: string;
+  readonly startOptions: CompiledWorkflowOptions;
+  readonly updateName: string;
+  readonly args: unknown[];
+  readonly updateOptions: WorkflowUpdateOptions;
+  readonly headers: Headers;
+}
+
+/** Output for WorkflowClientInterceptor.startUpdateWithStart */
+export interface WorkflowStartUpdateWithStartOutput {
+  readonly updateId: string;
+  readonly workflowRunId: string;
+  readonly outcome?: temporal.api.update.v1.IOutcome;
+}
+
 /** Input for WorkflowClientInterceptor.signal */
 export interface WorkflowSignalInput {
   readonly signalName: string;
@@ -111,11 +128,9 @@ export interface WorkflowClientInterceptor {
    * @experimental UpdateWithStart is an experimental feature.
    */
   startUpdateWithStart?: (
-    startInput: WorkflowStartInput,
-    updateInput: WorkflowStartUpdateInput,
+    input: WorkflowStartUpdateWithStartInput,
     next: Next<this, 'startUpdateWithStart'>
-    // TODO: return an object returning the start output also?
-  ) => Promise<WorkflowStartUpdateOutput>;
+  ) => Promise<WorkflowStartUpdateWithStartOutput>;
   /**
    * Intercept a service call to signalWorkflowExecution
    *
