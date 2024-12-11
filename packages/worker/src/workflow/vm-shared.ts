@@ -13,9 +13,6 @@ import { UnhandledRejectionError } from '../errors';
 import { Workflow } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 
-// Not present in @types/node for some reason
-const { promiseHooks } = v8 as any;
-
 // Best effort to catch unhandled rejections from workflow code.
 // We crash the thread if we cannot find the culprit.
 export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string) => BaseVMWorkflow | undefined): void {
@@ -106,9 +103,7 @@ export class GlobalHandlers {
   currentStackTrace: StackTraceFileLocation[] | undefined = undefined;
   bundleFilenameToSourceMapConsumer = new Map<string, SourceMapConsumer>();
   origPrepareStackTrace = Error.prepareStackTrace;
-  private stopPromiseHook = () => {
-    // noop
-  };
+  private stopPromiseHook = () => {};
   installed = false;
 
   async addWorkflowBundle(workflowBundle: WorkflowBundleWithSourceMapAndFilename): Promise<void> {
@@ -200,9 +195,8 @@ export class GlobalHandlers {
     let currentAggregation: Promise<unknown> | undefined = undefined;
 
     // This also is set globally for the isolate (worker thread), which is insignificant unless the worker is run in debug mode
-    if (promiseHooks) {
-      // Node >=16.14 only
-      this.stopPromiseHook = promiseHooks.createHook({
+    try {
+      this.stopPromiseHook = v8.promiseHooks.createHook({
         init: (promise: Promise<unknown>, parent: Promise<unknown>) => {
           // Only run in workflow context
           const activator = getActivator(promise);
@@ -265,7 +259,13 @@ export class GlobalHandlers {
           store.childToParent.delete(promise);
           store.promiseToStack.delete(promise);
         },
-      });
+      }) as () => void;
+    } catch (_) {
+      // v8.promiseHooks.createHook is not available in bun and Node.js < 16.14.0.
+      // That's ok, collecting stack trace is an optional feature anyway.
+      //
+      // FIXME: This should be sent to logs, not the console… but we don't have acces to it here.
+      console.warn('v8.promiseHooks.createHook is not available; stack trace collection will be disabled.');
     }
   }
 }
