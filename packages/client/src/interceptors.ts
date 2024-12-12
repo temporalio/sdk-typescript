@@ -55,9 +55,9 @@ export interface WorkflowStartUpdateWithStartInput {
 
 /** Output for WorkflowClientInterceptor.startUpdateWithStart */
 export interface WorkflowStartUpdateWithStartOutput {
+  readonly workflowExecution: WorkflowExecution;
   readonly updateId: string;
-  readonly workflowRunId: string;
-  readonly outcome?: temporal.api.update.v1.IOutcome;
+  readonly updateOutcome?: temporal.api.update.v1.IOutcome;
 }
 
 /** Input for WorkflowClientInterceptor.signal */

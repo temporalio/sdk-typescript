@@ -704,15 +704,20 @@ export class WorkflowClient extends BaseClient {
     );
     const updateOutput = await fn(startUpdateWithStartInput);
 
-    let outcome = updateOutput.outcome;
+    let outcome = updateOutput.updateOutcome;
     if (!outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
       outcome = await this._pollForUpdateOutcome(updateOutput.updateId, {
         workflowId,
-        runId: updateOutput.workflowRunId,
+        runId: updateOutput.workflowExecution.runId,
       });
     }
 
-    return this.createWorkflowUpdateHandle<Ret>(updateOutput.updateId, workflowId, updateOutput.workflowRunId, outcome);
+    return this.createWorkflowUpdateHandle<Ret>(
+      updateOutput.updateId,
+      workflowId,
+      updateOutput.workflowExecution.runId,
+      outcome
+    );
   }
 
   /**
@@ -1055,9 +1060,12 @@ export class WorkflowClient extends BaseClient {
     } while (reachedStage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED);
 
     return {
+      workflowExecution: {
+        workflowId: updateResp.updateRef!.workflowExecution!.workflowId!,
+        runId: updateResp.updateRef!.workflowExecution!.runId!,
+      },
       updateId: updateRequest.request!.meta!.updateId!,
-      workflowRunId: updateResp.updateRef!.workflowExecution!.runId!,
-      outcome: updateResp.outcome ?? undefined,
+      updateOutcome: updateResp.outcome ?? undefined,
     };
   }
 
