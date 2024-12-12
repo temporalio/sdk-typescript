@@ -58,6 +58,7 @@ import {
   WorkflowStartUpdateInput,
   WorkflowStartUpdateOutput,
   WorkflowStartUpdateWithStartInput,
+  WorkflowStartUpdateWithStartOutput,
 } from './interceptors';
 import {
   CountWorkflowExecution,
@@ -1001,7 +1002,7 @@ export class WorkflowClient extends BaseClient {
     waitForStage: WorkflowUpdateStage,
     onStart: (startResponse: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse) => void,
     input: WorkflowStartUpdateWithStartInput
-  ): Promise<WorkflowStartUpdateOutput> {
+  ): Promise<WorkflowStartUpdateWithStartOutput> {
     const startInput: WorkflowStartInput = {
       workflowType: input.workflowType,
       options: input.workflowStartOptions,
