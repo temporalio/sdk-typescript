@@ -128,7 +128,6 @@ test('UWS failure 1a: invalid argument', async (t) => {
       startWorkflowOperation: startOp,
     })
   );
-  console.log('err', err);
   t.true(isGrpcServiceError(err) && err.code === grpcStatus.INVALID_ARGUMENT);
   t.true(err?.message.startsWith('WorkflowId length exceeds limit.'));
 });
