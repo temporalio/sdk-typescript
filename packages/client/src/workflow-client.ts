@@ -924,6 +924,32 @@ export class WorkflowClient extends BaseClient {
     return await decodeFromPayloadsAtIndex(this.dataConverter, 0, response.queryResult?.payloads);
   }
 
+  protected async _createUpdateWorkflowRequest(
+    lifecycleStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage,
+    input: WorkflowStartUpdateInput
+  ): Promise<temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest> {
+    const updateId = input.options?.updateId ?? uuid4();
+    return {
+      namespace: this.options.namespace,
+      workflowExecution: input.workflowExecution,
+      firstExecutionRunId: input.firstExecutionRunId,
+      waitPolicy: {
+        lifecycleStage,
+      },
+      request: {
+        meta: {
+          updateId,
+          identity: this.options.identity,
+        },
+        input: {
+          header: { fields: input.headers },
+          name: input.updateName,
+          args: { payloads: await encodeToPayloads(this.dataConverter, ...input.args) },
+        },
+      },
+    };
+  }
+
   /**
    * Start the Update.
    *
@@ -962,32 +988,6 @@ export class WorkflowClient extends BaseClient {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       workflowRunId: response.updateRef!.workflowExecution!.runId!,
       outcome: response.outcome ?? undefined,
-    };
-  }
-
-  protected async _createUpdateWorkflowRequest(
-    lifecycleStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage,
-    input: WorkflowStartUpdateInput
-  ): Promise<temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest> {
-    const updateId = input.options?.updateId ?? uuid4();
-    return {
-      namespace: this.options.namespace,
-      workflowExecution: input.workflowExecution,
-      firstExecutionRunId: input.firstExecutionRunId,
-      waitPolicy: {
-        lifecycleStage,
-      },
-      request: {
-        meta: {
-          updateId,
-          identity: this.options.identity,
-        },
-        input: {
-          header: { fields: input.headers },
-          name: input.updateName,
-          args: { payloads: await encodeToPayloads(this.dataConverter, ...input.args) },
-        },
-      },
     };
   }
 
