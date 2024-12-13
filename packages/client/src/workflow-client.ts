@@ -616,11 +616,14 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Sends an update-with-start request and returns the Update result. If the specified Workflow execution is
-   * not running, then a new Workflow execution is started and the Update is sent in the first workflow task.
-   * Alternatively if the specified Workflow execution is running then, if the WorkflowIDConflictPolicy is
-   * USE_EXISTING, the Update is issued against the specified Workflow, and if the WorkflowIDConflictPolicy is
-   * FAIL, an error is thrown. The call will block until the Update has completed.
+   * Sends an update-with-start request and returns the Update result. The updateOptions must contain a
+   * {@link WithStartWorkflowOperation} which specifies the WorkflowIDConflictPolicy. If the specified
+   * Workflow execution is not running, then a new Workflow execution is started and the Update is sent in the
+   * first workflow task. Alternatively if the specified Workflow execution is running then, if the
+   * WorkflowIDConflictPolicy is USE_EXISTING, the Update is issued against the specified Workflow, and if the
+   * WorkflowIDConflictPolicy is FAIL, an error is thrown. The call will block until the Update has completed.
+   * The Workflow handle can be retrieved via {@link WithStartWorkflowOperation.workflowHandle}, whether or
+   * not the Update succeeds.
    *
    * @returns the Update result.
    */
@@ -642,7 +645,8 @@ export class WorkflowClient extends BaseClient {
    * the WorkflowIDConflictPolicy is USE_EXISTING, the Update is issued against the specified Workflow, and if
    * the WorkflowIDConflictPolicy is FAIL, an error is thrown. The call will block until the Update has
    * reached the WaitForStage in the options. Note that this means that the call will not return successfully
-   * until the Update has been delivered to a worker.
+   * until the Update has been delivered to a worker. The Workflow handle can be retrieved via
+   * {@link WithStartWorkflowOperation.workflowHandle}, whether or not the Update is accepted.
    *
    * @returns a {@link WorkflowUpdateHandle} to the started Update.
    */
