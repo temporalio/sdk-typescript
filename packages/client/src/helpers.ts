@@ -1,6 +1,6 @@
 import { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
 import {
-  CustomGrpcServiceError as CustomGrpcServiceError,
+  CustomGrpcServiceError,
   LoadedDataConverter,
   mapFromPayloads,
   NamespaceNotFoundError,
