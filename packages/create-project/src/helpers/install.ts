@@ -39,11 +39,9 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
 
   const packageExists = await isUrlOk(`https://registry.npmjs.org/${packageName}`);
   if (packageExists) {
-    const fileNames = await glob(['**/package.json', '**/tsconfig.json'], { cwd: root, absolute: true, root: '' });
-
-    for (const fileName of fileNames) {
-      const fileString = (await readFile(fileName, 'utf8')).toString();
-      const packageJson = JSON.parse(fileString);
+    const packageFileNames = await glob('**/package.json', { cwd: root, absolute: true, root: '' });
+    for (const fileName of packageFileNames) {
+      const packageJson = JSON.parse((await readFile(fileName, 'utf8')).toString());
 
       const existingDependency = Object.keys(packageJson.devDependencies || {}).find((dep) =>
         /^@tsconfig\/node\d+$/.test(dep)
@@ -56,9 +54,17 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
         // this project nowadays is to match the major version of the current Node.js version,
         // e.g. `@tsconfig/node22` will have version `22.x.x`.
         packageJson.devDependencies[packageName] = `^${currentNodeVersion}.0.0`;
+        await writeFile(fileName, JSON.stringify(packageJson, null, 2));
       }
+    }
 
-      await writeFile(fileName, JSON.stringify(packageJson, null, 2));
+    const tsconfigFileNames = await glob('**/tsconfig.json', { cwd: root, absolute: true, root: '' });
+    for (const fileName of tsconfigFileNames) {
+      const tsconfigJson = JSON.parse((await readFile(fileName, 'utf8')).toString());
+      if (tsconfigJson.extends && /^@tsconfig\/node\d+\/tsconfig\.json$/.test(tsconfigJson.extends)) {
+        tsconfigJson.extends = `${packageName}/tsconfig.json`;
+        await writeFile(fileName, JSON.stringify(tsconfigJson, null, 2));
+      }
     }
 
     await writeFile(`${root}/.nvmrc`, currentNodeVersion.toString());
