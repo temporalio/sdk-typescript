@@ -51,7 +51,7 @@ See [sdk-structure.md](./docs/sdk-structure.md)
 ### Environment setup
 
 - The TS SDK can be executed on 18, 20 or 22. However, we recommend using Node 22 for SDK development.
-  For easier testing while development. you may want to use a version manager, such as
+  For easier testing during development you may want to use a version manager, such as
   [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
 
 - To run tests, you will need access to a local Temporal server, e.g. using the

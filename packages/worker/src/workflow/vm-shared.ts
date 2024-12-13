@@ -264,7 +264,7 @@ export class GlobalHandlers {
       // v8.promiseHooks.createHook is not available in bun and Node.js < 16.14.0.
       // That's ok, collecting stack trace is an optional feature anyway.
       //
-      // FIXME: This should be sent to logs, not the console… but we don't have acces to it here.
+      // FIXME: This should be sent to logs, not the console… but we don't have access to it here.
       console.warn('v8.promiseHooks.createHook is not available; stack trace collection will be disabled.');
     }
   }
