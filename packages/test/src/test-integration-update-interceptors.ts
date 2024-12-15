@@ -34,11 +34,14 @@ export async function workflowWithUpdate(): Promise<void> {
   await wf.condition(() => false); // Ensure the update is handled if it is dispatched in a second WFT.
 }
 
-class UpdateInboundCallsInterceptor implements WorkflowInboundCallsInterceptor {
-  async handleUpdate(input: UpdateInput, next: Next<UpdateInboundCallsInterceptor, 'handleUpdate'>): Promise<unknown> {
-    return await next({ ...input, args: [input.args[0] + '-inboundIntercepted', ...input.args.slice(1)] });
+class MyWorkflowInboundCallsInterceptor implements WorkflowInboundCallsInterceptor {
+  async handleUpdate(
+    input: UpdateInput,
+    next: Next<MyWorkflowInboundCallsInterceptor, 'handleUpdate'>
+  ): Promise<unknown> {
+    return await next({ ...input, args: [input.args[0] + '-workflowIntercepted', ...input.args.slice(1)] });
   }
-  validateUpdate(input: UpdateInput, next: Next<UpdateInboundCallsInterceptor, 'validateUpdate'>): void {
+  validateUpdate(input: UpdateInput, next: Next<MyWorkflowInboundCallsInterceptor, 'validateUpdate'>): void {
     const [arg] = input.args as string[];
     const args = arg.startsWith('validation-interceptor-will-make-me-invalid') ? ['bad-arg'] : [arg];
     next({ ...input, args });
@@ -46,21 +49,21 @@ class UpdateInboundCallsInterceptor implements WorkflowInboundCallsInterceptor {
 }
 
 export const interceptors = (): WorkflowInterceptors => ({
-  inbound: [new UpdateInboundCallsInterceptor()],
+  inbound: [new MyWorkflowInboundCallsInterceptor()],
 });
 
-test('Update client and inbound interceptors work for executeUpdate', async (t) => {
+test('Update client and workflow interceptors work for executeUpdate', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
     const wfHandle = await startWorkflow(workflowWithUpdate);
 
     const updateResult = await wfHandle.executeUpdate(update, { args: ['1'] });
-    t.deepEqual(updateResult, '1-clientIntercepted-inboundIntercepted');
+    t.deepEqual(updateResult, '1-clientIntercepted-workflowIntercepted');
   });
 });
 
-test('Update client and inbound interceptors work for startUpdate', async (t) => {
+test('Update client and workflow interceptors work for startUpdate', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -71,7 +74,7 @@ test('Update client and inbound interceptors work for startUpdate', async (t) =>
       waitForStage: WorkflowUpdateStage.ACCEPTED,
     });
     const updateResult = await updateHandle.result();
-    t.deepEqual(updateResult, '1-clientIntercepted-inboundIntercepted');
+    t.deepEqual(updateResult, '1-clientIntercepted-workflowIntercepted');
   });
 });
 
