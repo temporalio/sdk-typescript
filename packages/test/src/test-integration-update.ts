@@ -91,6 +91,32 @@ test('UWS happy path', async (t) => {
   });
 });
 
+export async function workflowWithArgAndUpdateArg(wfArg: string): Promise<void> {
+  const updateHandler = async (updateArg: string): Promise<string[]> => {
+    return [wfArg, updateArg];
+  };
+  wf.setHandler(update, updateHandler);
+  await wf.condition(() => false);
+}
+
+test('UWS can send workflow arg and update arg', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const startOp = new WithStartWorkflowOperation(workflowWithArgAndUpdateArg, {
+      workflowId: randomUUID(),
+      args: ['wf-arg'],
+      taskQueue,
+      workflowIdConflictPolicy: 'USE_EXISTING',
+    });
+    const updResult = await t.context.env.client.workflow.executeUpdateWithStart(update, {
+      args: ['upd-arg'],
+      startWorkflowOperation: startOp,
+    });
+    t.deepEqual(updResult, ['wf-arg', 'upd-arg']);
+  });
+});
+
 test('UWS handles can be obtained concurrently', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
