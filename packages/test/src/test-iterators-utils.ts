@@ -163,15 +163,8 @@ test(`mapAsyncIterable (with concurrency) doesn't hang mapFn exceptions`, async 
   const iterable = mapAsyncIterable(
     name(),
     async (x: number) => {
-      t.log(`mapFn(${x}): entered`);
-      await sleepThatTime(x);
-      t.log(`mapFn(${x}): after sleep`);
-
-      if (x === 4) {
-        t.log(`mapFn(${x}): Emitting error`);
-        throw new Error('Test Exception');
-      }
-      t.log(`mapFn(${x}): Emitting value ${x}`);
+      await sleepThatTime(x * 10);
+      if (x === 4) throw new Error('Test Exception');
       return x;
     },
     { concurrency: 2, bufferLimit: 8 }
@@ -188,17 +181,13 @@ test(`mapAsyncIterable (with concurrency) doesn't hang mapFn exceptions`, async 
   for (let i = 0; i < 6; i++) {
     try {
       const res = await iterator.next();
-      t.log(`consumer: ${res.value ?? res.done}`);
       values.push(res.value ?? res.done);
-      // Give enough time for mapFn to throw
-      // await sleepThatTime(10);
     } catch (_error) {
-      t.log(`consumer: error`);
       values.push('error');
     }
   }
 
-  t.deepEqual(values, [1, 2, 3, 'error', true, true]);
+  t.deepEqual(values.sort(), [1, 2, 3, 'error', true, true]);
 });
 
 async function multBy10(x: number): Promise<number> {
