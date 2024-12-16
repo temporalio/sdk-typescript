@@ -187,7 +187,7 @@ test(`mapAsyncIterable (with concurrency) doesn't hang mapFn exceptions`, async 
     }
   }
 
-  t.deepEqual(values.sort(), [1, 2, 3, 'error', true, true]);
+  t.deepEqual(values, [1, 2, 3, 'error', true, true]);
 });
 
 async function multBy10(x: number): Promise<number> {
