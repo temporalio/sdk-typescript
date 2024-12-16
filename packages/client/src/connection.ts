@@ -27,7 +27,7 @@ export interface ConnectionOptions {
    *
    * Port defaults to 7233. Raw IPv6 addresses must be wrapped in square brackets (e.g. `[ipv6]:port`).
    *
-   * @default localhost:7233
+   * @default 127.0.0.1:7233
    */
   address?: string;
 

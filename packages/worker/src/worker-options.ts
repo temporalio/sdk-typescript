@@ -66,7 +66,7 @@ export interface WorkerOptions {
   /**
    * A connected {@link NativeConnection} instance.
    *
-   * If not provided, the worker will default to connect insecurely to `localhost:7233`.
+   * If not provided, the worker will default to connect insecurely to `127.0.0.1:7233`.
    */
   connection?: NativeConnection;
 

@@ -129,9 +129,6 @@ jobs:
           - platform: windows-x64
             runner: windows-latest
             reuse-v8-context: true
-          - platform: windows-x64
-            node: 22
-            node-version-override: 22.11.0
     runs-on: ${{ matrix.runner }}
     name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
     defaults:
@@ -158,7 +155,7 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version-override && matrix.node-version-override || matrix.node }}
+          node-version: ${{ matrix.node }}
 
       # On Windows, the 'runner.temp' variable uses backslashes as path separators, but
       # that may pose problems in later steps when we try to join that with subpaths;

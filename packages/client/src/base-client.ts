@@ -21,7 +21,7 @@ export interface BaseClientOptions {
   /**
    * Connection to use to communicate with the server.
    *
-   * By default, connects to localhost.
+   * By default, connects to 127.0.0.1.
    *
    * Connections are expensive to construct and should be reused.
    */

@@ -50,7 +50,7 @@ async function bindLocalhostTls(server: grpc.Server): Promise<number> {
     ],
     true
   );
-  return await util.promisify(server.bindAsync.bind(server))('localhost:0', credentials);
+  return await util.promisify(server.bindAsync.bind(server))('127.0.0.1:0', credentials);
 }
 
 test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC call', async (t) => {
@@ -102,7 +102,7 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
   });
   const port = await bindLocalhost(server);
   const conn = await Connection.connect({
-    address: `localhost:${port}`,
+    address: `127.0.0.1:${port}`,
     metadata: { staticKey: 'set' },
     apiKey: 'test-token',
   });
@@ -166,7 +166,7 @@ test('healthService works', async (t) => {
     },
   });
   const port = await bindLocalhost(server);
-  const conn = await Connection.connect({ address: `localhost:${port}` });
+  const conn = await Connection.connect({ address: `127.0.0.1:${port}` });
   const response = await conn.healthService.check({});
   t.is(response.status, grpcProto.health.v1.HealthCheckResponse.ServingStatus.SERVING);
 });
@@ -211,7 +211,7 @@ test('grpc retry passes request and headers on retry, propagates responses', asy
   // Default interceptor config with backoff factor of 1 to speed things up
   const interceptor = makeGrpcRetryInterceptor(defaultGrpcRetryOptions({ factor: 1 }));
   const conn = await Connection.connect({
-    address: `localhost:${port}`,
+    address: `127.0.0.1:${port}`,
     metadata: { a: 'bc' },
     interceptors: [interceptor],
   });
@@ -301,7 +301,7 @@ test('Can configure TLS + call credentials', async (t) => {
   // Default interceptor config with backoff factor of 1 to speed things up
   // const interceptor = makeGrpcRetryInterceptor(defaultGrpcRetryOptions({ factor: 1 }));
   const conn = await Connection.connect({
-    address: `localhost:${port}`,
+    address: `127.0.0.1:${port}`,
     metadata: { a: 'bc' },
     tls: {
       serverRootCACertificate: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-ca.crt`)),
@@ -370,7 +370,7 @@ test('Can configure TLS + call credentials', async (t) => {
         const requestId = `request-${grpcStatusCode}`;
 
         const conn = await Connection.connect({
-          address: `localhost:${t.context.rejectingServer.port}`,
+          address: `127.0.0.1:${t.context.rejectingServer.port}`,
           interceptors: [
             makeGrpcRetryInterceptor(
               // initialInterval divided by 10 compared to actual defaults, and backoff factor set to 1,
@@ -436,7 +436,7 @@ test('No 10s delay on close due to grpc-js', async (t) => {
     const port = await bindLocalhost(server);
     const script = `
       const { Connection } = require("@temporalio/client");
-      Connection.connect({ address: 'localhost:${port}' }).catch(console.log);
+      Connection.connect({ address: '127.0.0.1:${port}' }).catch(console.log);
     `;
     const startTime = Date.now();
     await new Promise((resolve, reject) => {
@@ -493,7 +493,7 @@ if (!IS_WINDOWS_NODE_22_12_0) {
     };
 
     await withHttp2Server(async (port) => {
-      const connection = await Connection.connect({ address: `localhost:${port}` });
+      const connection = await Connection.connect({ address: `127.0.0.1:${port}` });
       try {
         await new Client({ connection });
         t.is(receivedRequests, 4);
@@ -532,7 +532,7 @@ if (!IS_WINDOWS_NODE_22_12_0) {
 
     await withHttp2Server(async (port) => {
       const connection = await Connection.connect({
-        address: `localhost:${port}`,
+        address: `127.0.0.1:${port}`,
       });
       try {
         await new Client({ connection });

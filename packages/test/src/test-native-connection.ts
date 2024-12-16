@@ -16,8 +16,8 @@ const workflowServicePackageDefinition = protoLoader.loadSync(
 );
 const workflowServiceProtoDescriptor = grpc.loadPackageDefinition(workflowServicePackageDefinition) as any;
 
-async function bindLocalhost(server: grpc.Server): Promise<number> {
-  return await util.promisify(server.bindAsync.bind(server))('localhost:0', grpc.ServerCredentials.createInsecure());
+async function bindLocalhostIpv6(server: grpc.Server): Promise<number> {
+  return await util.promisify(server.bindAsync.bind(server))('[::1]:0', grpc.ServerCredentials.createInsecure());
 }
 
 test('NativeConnection.connect() throws meaningful error when passed invalid address', async (t) => {
@@ -36,7 +36,7 @@ test('NativeConnection.connect() throws meaningful error when passed invalid cli
 
 if (RUN_INTEGRATION_TESTS) {
   test('NativeConnection errors have detail', async (t) => {
-    await t.throwsAsync(() => NativeConnection.connect({ address: 'localhost:1' }), {
+    await t.throwsAsync(() => NativeConnection.connect({ address: '127.0.0.1:1' }), {
       instanceOf: TransportError,
       message: /.*Connection[ ]?refused.*/i,
     });
@@ -91,7 +91,7 @@ test('NativeConnection can connect using "[ipv6]:port" address', async (t) => {
       callback(null, {});
     },
   });
-  const port = await bindLocalhost(server);
+  const port = await bindLocalhostIpv6(server);
   const connection = await NativeConnection.connect({
     address: `[::1]:${port}`,
   });
