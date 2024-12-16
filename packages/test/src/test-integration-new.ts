@@ -36,12 +36,27 @@ import { decode as payloadDecode, decodeFromPayloadsAtIndex } from '@temporalio/
 import { WorkerOptions, WorkflowBundle } from '@temporalio/worker';
 
 import { TestWorkflowEnvironment } from '@temporalio/testing';
+import { decode } from '@temporalio/common/lib/encoding';
+import {
+  CancellationScope,
+  condition,
+  defineQuery,
+  deprecatePatch,
+  executeChild,
+  isCancellation,
+  patched,
+  proxyActivities,
+  setHandler,
+  sleep,
+  startChild,
+  workflowInfo,
+} from '@temporalio/workflow';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import {
   configurableHelpers,
-  createTestEnvironment,
+  createLocalTestEnvironment,
   createTestWorkflowBundle,
-  makeConfigurableEnvironmentTest,
+  makeConfigurableEnvironmentTestFn,
 } from './helpers-integration';
 import * as activities from './activities';
 import {
@@ -51,12 +66,9 @@ import {
   u8,
   Worker,
 } from './helpers';
-import { decode } from '@temporalio/common/lib/encoding';
-import { CancellationScope, condition, defineQuery, deprecatePatch, executeChild, isCancellation, patched, proxyActivities, setHandler, sleep, startChild, workflowInfo } from '@temporalio/workflow';
-import * as workflows from "./workflows"
-import { withZeroesHTTPServer } from './zeroes-http-server';
+import * as workflows from './workflows';
 
-// TODO(thomas): re-export shared workflows (or long workflows)
+// Note: re-export shared workflows (or long workflows)
 //  - review the files where these workflows are shared
 export * from './workflows';
 
@@ -78,36 +90,38 @@ interface TestContext {
 
 const codecs = [undefined, new ByteSkewerPayloadCodec()];
 
-const test = makeConfigurableEnvironmentTest<TestContext>({
-  createTestContext: async (t: ExecutionContext) => {
+const test = makeConfigurableEnvironmentTestFn<TestContext>({
+  createTestContext: async (_t: ExecutionContext) => {
     const configs: TestConfig[] = [];
-    codecs.map(async (codec) => {
-      const dataConverter = { payloadCodecs: codec ? [codec] : [] };
-      const loadedDataConverter = {
-        payloadConverter: defaultPayloadConverter,
-        payloadCodecs: codec ? [codec] : [],
-        failureConverter: defaultFailureConverter,
-      };
+    await Promise.all(
+      codecs.map(async (codec) => {
+        const dataConverter = { payloadCodecs: codec ? [codec] : [] };
+        const loadedDataConverter = {
+          payloadConverter: defaultPayloadConverter,
+          payloadCodecs: codec ? [codec] : [],
+          failureConverter: defaultFailureConverter,
+        };
 
-      const env = await createTestEnvironment({
-        client: { dataConverter },
-      });
-      await registerDefaultCustomSearchAttributes(env.connection);
+        const env = await createLocalTestEnvironment({
+          client: { dataConverter },
+        });
+        await registerDefaultCustomSearchAttributes(env.connection);
 
-      configs.push({
-        loadedDataConverter,
-        env,
-        createWorkerWithDefaults(t: ExecutionContext<TestContext>, opts?: Partial<WorkerOptions>): Promise<Worker> {
-          return configurableHelpers(t, t.context.workflowBundle, env).createWorker({
-            dataConverter,
-            interceptors: {
-              activity: [() => ({ inbound: new ConnectionInjectorInterceptor(env.connection, loadedDataConverter) })],
-            },
-            ...opts,
-          });
-        },
-      });
-    });
+        configs.push({
+          loadedDataConverter,
+          env,
+          createWorkerWithDefaults(t: ExecutionContext<TestContext>, opts?: Partial<WorkerOptions>): Promise<Worker> {
+            return configurableHelpers(t, t.context.workflowBundle, env).createWorker({
+              dataConverter,
+              interceptors: {
+                activity: [() => ({ inbound: new ConnectionInjectorInterceptor(env.connection, loadedDataConverter) })],
+              },
+              ...opts,
+            });
+          },
+        });
+      })
+    );
     return {
       workflowBundle: await createTestWorkflowBundle(__filename),
       configs,
@@ -385,7 +399,7 @@ test('child-workflow-failure', configMacro, async (t, config) => {
   });
 });
 
-const childExecutionQuery = defineQuery<WorkflowExecution | undefined>('childExecution');1
+const childExecutionQuery = defineQuery<WorkflowExecution | undefined>('childExecution');
 export async function childWorkflowTermination(): Promise<void> {
   let workflowExecution: WorkflowExecution | undefined = undefined;
   setHandler(childExecutionQuery, () => workflowExecution);
@@ -1668,7 +1682,7 @@ test('Download and replay multiple executions with client list method', configMa
     const histories = client.workflow.list({ query: `WorkflowId IN (${workflowIds.join(', ')})` }).intoHistories();
     const results = Worker.runReplayHistories(
       {
-        workflowsPath: require.resolve('./workflows'),
+        workflowBundle: worker.options.workflowBundle,
         dataConverter: env.options.client.dataConverter,
       },
       histories
