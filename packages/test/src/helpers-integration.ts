@@ -85,7 +85,7 @@ export async function createTestWorkflowBundle(
   });
 }
 
-export async function createTestEnvironment(
+export async function createLocalTestEnvironment(
   opts?: LocalTestWorkflowEnvironmentOptions
 ): Promise<TestWorkflowEnvironment> {
   return await TestWorkflowEnvironment.createLocal({
@@ -100,7 +100,7 @@ export async function createTestEnvironment(
   });
 }
 
-export function makeConfigurableEnvironmentTest<T>(opts: {
+export function makeConfigurableEnvironmentTestFn<T>(opts: {
   recordedLogs?: { [workflowId: string]: LogEntry[] };
   createTestContext: (t: ExecutionContext) => Promise<T>;
   teardown: (t: T) => Promise<void>;
@@ -122,10 +122,10 @@ export function makeTestFunction(opts: {
   workflowInterceptorModules?: string[];
   recordedLogs?: { [workflowId: string]: LogEntry[] };
 }): TestFn<Context> {
-  return makeConfigurableEnvironmentTest<Context>({
+  return makeConfigurableEnvironmentTestFn<Context>({
     recordedLogs: opts.recordedLogs,
     createTestContext: async (_t: ExecutionContext): Promise<Context> => {
-      const env = await createTestEnvironment(opts.workflowEnvironmentOpts);
+      const env = await createLocalTestEnvironment(opts.workflowEnvironmentOpts);
       await registerDefaultCustomSearchAttributes(env.connection);
       return {
         workflowBundle: await createTestWorkflowBundle(opts.workflowsPath, opts.workflowInterceptorModules),
@@ -145,12 +145,12 @@ export interface Helpers {
   executeWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<workflow.WorkflowResultType<T>>;
   executeWorkflow<T extends workflow.Workflow>(
     fn: T,
-    opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
+    opts: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
   ): Promise<workflow.WorkflowResultType<T>>;
   startWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
   startWorkflow<T extends workflow.Workflow>(
     fn: T,
-    opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
+    opts: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
   ): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
   assertWorkflowUpdateFailed(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
   assertWorkflowFailedError(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
@@ -192,7 +192,7 @@ export function configurableHelpers<T>(
     },
     async executeWorkflow(
       fn: workflow.Workflow,
-      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
+      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
     ): Promise<any> {
       return await testEnv.client.workflow.execute(fn, {
         taskQueue,
@@ -202,7 +202,7 @@ export function configurableHelpers<T>(
     },
     async startWorkflow(
       fn: workflow.Workflow,
-      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
+      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
     ): Promise<WorkflowHandleWithFirstExecutionRunId<workflow.Workflow>> {
       return await testEnv.client.workflow.start(fn, {
         taskQueue,
