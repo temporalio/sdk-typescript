@@ -87,8 +87,10 @@ interface TestContext {
 
 const codecs = [undefined, new ByteSkewerPayloadCodec()];
 
+
 const test = makeConfigurableEnvironmentTestFn<TestContext>({
   createTestContext: async (_t: ExecutionContext) => {
+    const workflowBundle = await createTestWorkflowBundle(__filename);
     const configs: TestConfig[] = [];
     await Promise.all(
       codecs.map(async (codec) => {
@@ -120,7 +122,7 @@ const test = makeConfigurableEnvironmentTestFn<TestContext>({
       })
     );
     return {
-      workflowBundle: await createTestWorkflowBundle(__filename),
+      workflowBundle,
       configs,
     };
   },
