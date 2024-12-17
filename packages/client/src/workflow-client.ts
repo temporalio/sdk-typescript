@@ -1035,27 +1035,27 @@ export class WorkflowClient extends BaseClient {
       options: input.updateOptions,
       headers: input.updateHeaders,
     };
-    const startRequest = await this.createStartWorkflowRequest(startInput);
-    const waitForStageProto = encodeWorkflowUpdateStage(waitForStage)!;
-    const updateRequest = await this._createUpdateWorkflowRequest(waitForStageProto, updateInput);
-    const multiOpReq: temporal.api.workflowservice.v1.IExecuteMultiOperationRequest = {
-      namespace: this.options.namespace,
-      operations: [
-        {
-          startWorkflow: startRequest,
-        },
-        {
-          updateWorkflow: updateRequest,
-        },
-      ],
-    };
-
-    let multiOpResp: temporal.api.workflowservice.v1.IExecuteMultiOperationResponse;
-    let startResp: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
-    let updateResp: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
-    let reachedStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
     let seenStart = false;
     try {
+      const startRequest = await this.createStartWorkflowRequest(startInput);
+      const waitForStageProto = encodeWorkflowUpdateStage(waitForStage)!;
+      const updateRequest = await this._createUpdateWorkflowRequest(waitForStageProto, updateInput);
+      const multiOpReq: temporal.api.workflowservice.v1.IExecuteMultiOperationRequest = {
+        namespace: this.options.namespace,
+        operations: [
+          {
+            startWorkflow: startRequest,
+          },
+          {
+            updateWorkflow: updateRequest,
+          },
+        ],
+      };
+
+      let multiOpResp: temporal.api.workflowservice.v1.IExecuteMultiOperationResponse;
+      let startResp: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
+      let updateResp: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
+      let reachedStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
       do {
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
         startResp = multiOpResp.responses?.[0]
@@ -1070,21 +1070,20 @@ export class WorkflowClient extends BaseClient {
           updateResp.stage ??
           UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_UNSPECIFIED;
       } while (reachedStage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED);
+      return {
+        workflowExecution: {
+          workflowId: updateResp.updateRef!.workflowExecution!.workflowId!,
+          runId: updateResp.updateRef!.workflowExecution!.runId!,
+        },
+        updateId: updateRequest.request!.meta!.updateId!,
+        updateOutcome: updateResp.outcome ?? undefined,
+      };
     } catch (err) {
       if (!seenStart) {
         onStartError(err);
       }
       this.rethrowUpdateGrpcError(err, 'Update-With-Start failed', updateInput.workflowExecution);
     }
-
-    return {
-      workflowExecution: {
-        workflowId: updateResp.updateRef!.workflowExecution!.workflowId!,
-        runId: updateResp.updateRef!.workflowExecution!.runId!,
-      },
-      updateId: updateRequest.request!.meta!.updateId!,
-      updateOutcome: updateResp.outcome ?? undefined,
-    };
   }
 
   protected createWorkflowUpdateHandle<Ret>(
