@@ -453,30 +453,29 @@ export interface IntoHistoriesOptions {
   bufferLimit?: number;
 }
 
+const withStartWorkflowOperationResolveWorkflowHandle: unique symbol = Symbol();
+const withStartWorkflowOperationExecuted: unique symbol = Symbol();
+
 /**
  * Defines how to start a workflow when using {@link WorkflowClient.startUpdateWithStart} and
  * {@link WorkflowClient.executeUpdateWithStart}. `workflowIdConflictPolicy` is required in the options.
  */
 export class WithStartWorkflowOperation<T extends Workflow> {
+  public [withStartWorkflowOperationExecuted]: boolean = false;
+  public [withStartWorkflowOperationResolveWorkflowHandle]: ((handle: WorkflowHandle<T>) => void) | undefined =
+    undefined;
   private _workflowHandle: Promise<WorkflowHandle<T>>;
-  private _resolveWorkflowHandle!: (handle: WorkflowHandle<T>) => void;
-  public _executed = false;
 
   constructor(
     public workflowTypeOrFunc: string | T,
     public options: WorkflowStartOptions<T> & { workflowIdConflictPolicy: WorkflowIdConflictPolicy }
   ) {
     this._workflowHandle = new Promise<WorkflowHandle<T>>((resolve) => {
-      this._resolveWorkflowHandle = resolve;
+      this[withStartWorkflowOperationResolveWorkflowHandle] = resolve;
     });
   }
-
   public async workflowHandle(): Promise<WorkflowHandle<T>> {
     return await this._workflowHandle;
-  }
-
-  public _setWorkflowHandle(handle: WorkflowHandle<T>): void {
-    this._resolveWorkflowHandle(handle);
   }
 }
 
@@ -673,10 +672,10 @@ export class WorkflowClient extends BaseClient {
     const { workflowTypeOrFunc, options: workflowOptions } = startWorkflowOperation;
     const { workflowId } = workflowOptions;
 
-    if (startWorkflowOperation._executed) {
+    if (startWorkflowOperation[withStartWorkflowOperationExecuted]) {
       throw new Error('This WithStartWorkflowOperation instance has already been executed.');
     }
-    startWorkflowOperation._executed = true;
+    startWorkflowOperation[withStartWorkflowOperationExecuted] = true;
     assertRequiredWorkflowOptions(workflowOptions);
 
     const startUpdateWithStartInput: WorkflowStartUpdateWithStartInput = {
@@ -692,7 +691,7 @@ export class WorkflowClient extends BaseClient {
     const interceptors = this.getOrMakeInterceptors(workflowId);
 
     const onStart = (startResponse: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse) =>
-      startWorkflowOperation._setWorkflowHandle(
+      startWorkflowOperation[withStartWorkflowOperationResolveWorkflowHandle]!(
         this._createWorkflowHandle({
           workflowId,
           firstExecutionRunId: startResponse.runId ?? undefined,
