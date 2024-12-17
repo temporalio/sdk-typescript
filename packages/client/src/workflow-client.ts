@@ -453,8 +453,8 @@ export interface IntoHistoriesOptions {
   bufferLimit?: number;
 }
 
-const withStartWorkflowOperationResolveWorkflowHandle: unique symbol = Symbol();
-const withStartWorkflowOperationRejectWorkflowHandle: unique symbol = Symbol();
+const withStartWorkflowOperationResolve: unique symbol = Symbol();
+const withStartWorkflowOperationReject: unique symbol = Symbol();
 const withStartWorkflowOperationExecuted: unique symbol = Symbol();
 
 /**
@@ -465,22 +465,18 @@ const withStartWorkflowOperationExecuted: unique symbol = Symbol();
  */
 export class WithStartWorkflowOperation<T extends Workflow> {
   public [withStartWorkflowOperationExecuted]: boolean = false;
-  public [withStartWorkflowOperationResolveWorkflowHandle]: ((handle: WorkflowHandle<T>) => void) | undefined =
-    undefined;
-  public [withStartWorkflowOperationRejectWorkflowHandle]: ((error: any) => void) | undefined = undefined;
-  private _workflowHandle: Promise<WorkflowHandle<T>>;
+  public [withStartWorkflowOperationResolve]: ((handle: WorkflowHandle<T>) => void) | undefined = undefined;
+  public [withStartWorkflowOperationReject]: ((error: any) => void) | undefined = undefined;
+  public workflowHandle: Promise<WorkflowHandle<T>>;
 
   constructor(
     public workflowTypeOrFunc: string | T,
     public options: WorkflowStartOptions<T> & { workflowIdConflictPolicy: WorkflowIdConflictPolicy }
   ) {
-    this._workflowHandle = new Promise<WorkflowHandle<T>>((resolve, reject) => {
-      this[withStartWorkflowOperationResolveWorkflowHandle] = resolve;
-      this[withStartWorkflowOperationRejectWorkflowHandle] = reject;
+    this.workflowHandle = new Promise<WorkflowHandle<T>>((resolve, reject) => {
+      this[withStartWorkflowOperationResolve] = resolve;
+      this[withStartWorkflowOperationReject] = reject;
     });
-  }
-  public async workflowHandle(): Promise<WorkflowHandle<T>> {
-    return await this._workflowHandle;
   }
 }
 
@@ -626,8 +622,8 @@ export class WorkflowClient extends BaseClient {
    * first workflow task. Alternatively if the specified Workflow execution is running then, if the
    * WorkflowIDConflictPolicy is USE_EXISTING, the Update is issued against the specified Workflow, and if the
    * WorkflowIDConflictPolicy is FAIL, an error is thrown. The call will block until the Update has completed.
-   * The Workflow handle can be retrieved via {@link WithStartWorkflowOperation.workflowHandle}, whether or
-   * not the Update succeeds.
+   * The Workflow handle can be retrieved via awaiting {@link WithStartWorkflowOperation.workflowHandle},
+   * whether or not the Update succeeds.
    *
    * @returns the Update result.
    *
@@ -651,7 +647,7 @@ export class WorkflowClient extends BaseClient {
    * the WorkflowIDConflictPolicy is USE_EXISTING, the Update is issued against the specified Workflow, and if
    * the WorkflowIDConflictPolicy is FAIL, an error is thrown. The call will block until the Update has
    * reached the WaitForStage in the options. Note that this means that the call will not return successfully
-   * until the Update has been delivered to a worker. The Workflow handle can be retrieved via
+   * until the Update has been delivered to a worker. The Workflow handle can be retrieved via awaiting
    * {@link WithStartWorkflowOperation.workflowHandle}, whether or not the Update is accepted.
    *
    * @returns a {@link WorkflowUpdateHandle} to the started Update.
@@ -700,7 +696,7 @@ export class WorkflowClient extends BaseClient {
     const interceptors = this.getOrMakeInterceptors(workflowId);
 
     const onStart = (startResponse: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse) =>
-      startWorkflowOperation[withStartWorkflowOperationResolveWorkflowHandle]!(
+      startWorkflowOperation[withStartWorkflowOperationResolve]!(
         this._createWorkflowHandle({
           workflowId,
           firstExecutionRunId: startResponse.runId ?? undefined,

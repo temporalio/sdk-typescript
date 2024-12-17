@@ -74,7 +74,7 @@ test('updateWithStart happy path', async (t) => {
 
     // startOp has been mutated such that workflow handle is now available and
     // can be used to interact with the workflow.
-    const wfHandle = await startOp.workflowHandle();
+    const wfHandle = await startOp.workflowHandle;
     const updResult2 = await wfHandle.executeUpdate(update, { args: ['2'] });
     t.deepEqual(updResult2, ['1', '2']);
 
@@ -112,7 +112,7 @@ test('UWS can send workflow arg and update arg', async (t) => {
       startWorkflowOperation: startOp,
     });
     t.deepEqual(updResult, ['wf-arg', 'upd-arg']);
-    t.deepEqual((await startOp.workflowHandle()).workflowId, startOp.options.workflowId);
+    t.deepEqual((await startOp.workflowHandle).workflowId, startOp.options.workflowId);
   });
 });
 
@@ -126,7 +126,7 @@ test('updateWithStart handles can be obtained concurrently', async (t) => {
       workflowIdConflictPolicy: 'USE_EXISTING',
     });
     const [wfHandle, updHandle] = await Promise.all([
-      startOp.workflowHandle(),
+      startOp.workflowHandle,
       t.context.env.client.workflow.startUpdateWithStart(update, {
         args: ['1'],
         waitForStage: 'ACCEPTED',
@@ -153,7 +153,7 @@ test('updateWithStart failure 1a: invalid argument', async (t) => {
       waitForStage: 'ACCEPTED',
       startWorkflowOperation: startOp,
     }),
-    startOp.workflowHandle(),
+    startOp.workflowHandle,
   ]) {
     const err = await t.throwsAsync(promise);
     t.true(isGrpcServiceError(err) && err.code === grpcStatus.INVALID_ARGUMENT);
@@ -190,7 +190,7 @@ test('updateWithStart failure 1a: workflow already exists', async (t) => {
     await startUpdateWithStart(startOp1);
 
     const startOp2 = makeStartOp();
-    for (const promise of [startUpdateWithStart(startOp2), startOp2.workflowHandle()]) {
+    for (const promise of [startUpdateWithStart(startOp2), startOp2.workflowHandle]) {
       const err = await t.throwsAsync(promise);
       t.true(isGrpcServiceError(err) && err.code === grpcStatus.ALREADY_EXISTS);
       t.true(err?.message.startsWith('Workflow execution is already running.'));
@@ -232,14 +232,14 @@ test('updateWithStart failure 1b: update fails early due to limit on number of u
     for (let i = 0; i < 10; i++) {
       const startOp = makeStartOp();
       await doUws(startOp);
-      await startOp.workflowHandle();
+      await startOp.workflowHandle;
     }
     // The 11th call should fail with a gRPC error
 
     // TODO: set gRPC retries to 1. This generates a RESOURCE_EXHAUSTED error,
     // and by default these are retried 10 times.
     const startOp = makeStartOp();
-    for (const promise of [doUws(startOp), startOp.workflowHandle()]) {
+    for (const promise of [doUws(startOp), startOp.workflowHandle]) {
       const err = await t.throwsAsync(promise);
       t.true(isGrpcServiceError(err) && err.code === grpcStatus.RESOURCE_EXHAUSTED);
     }
