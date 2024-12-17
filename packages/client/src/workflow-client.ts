@@ -1057,8 +1057,6 @@ export class WorkflowClient extends BaseClient {
     try {
       do {
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
-        // TODO: order is guaranteed but check structural validity of response,
-        // e.g. startWorkflow / updateWorkflow keys
         startResp = multiOpResp.responses?.[0]
           ?.startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
         onStart(startResp);
