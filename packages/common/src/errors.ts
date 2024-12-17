@@ -1,5 +1,3 @@
-import { MetadataValue } from '@grpc/grpc-js';
-import { Status } from '@grpc/grpc-js/build/src/constants';
 import { SymbolBasedInstanceOfError } from './type-helpers';
 
 /**
@@ -52,20 +50,5 @@ export class WorkflowNotFoundError extends Error {
 export class NamespaceNotFoundError extends Error {
   constructor(public readonly namespace: string) {
     super(`Namespace not found: '${namespace}'`);
-  }
-}
-
-/**
- * Thrown when it's necessary to rethrow a grpc-js ServiceError with modifications.
- */
-@SymbolBasedInstanceOfError('CustomGrpcServiceError')
-export class CustomGrpcServiceError extends Error {
-  constructor(
-    message: string,
-    public readonly code: Status,
-    public readonly details: string,
-    public readonly metadata: Record<string, MetadataValue>
-  ) {
-    super(message);
   }
 }

@@ -12,7 +12,6 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@grpc/grpc-js": "^1.12.4",
     "@temporalio/proto": "file:../proto",
     "long": "^5.2.3",
     "ms": "^3.0.0-canary.1",

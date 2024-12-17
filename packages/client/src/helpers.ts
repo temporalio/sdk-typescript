@@ -1,6 +1,5 @@
 import { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
 import {
-  CustomGrpcServiceError,
   LoadedDataConverter,
   mapFromPayloads,
   NamespaceNotFoundError,
@@ -17,6 +16,7 @@ import {
   WorkflowExecutionInfo,
   WorkflowExecutionStatusName,
 } from './types';
+import { CustomGrpcServiceError } from './errors';
 
 function workflowStatusCodeToName(code: temporal.api.enums.v1.WorkflowExecutionStatus): WorkflowExecutionStatusName {
   return workflowStatusCodeToNameInternal(code) ?? 'UNKNOWN';
