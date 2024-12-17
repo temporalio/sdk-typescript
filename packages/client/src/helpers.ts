@@ -138,11 +138,10 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
           if (statusType === 'temporal.api.failure.v1.MultiOperationExecutionAborted' || status.code === Status.OK) {
             continue;
           }
-          const opErr = new Error(status.message ?? err.message) as GrpcServiceError;
-          opErr.code = status.code || err.code;
-          opErr.details = detail?.value?.toString() || err.details;
-          opErr.metadata = err.metadata;
-          throw opErr;
+          err.message = status.message ?? err.message;
+          err.code = status.code || err.code;
+          err.details = detail?.value?.toString() || err.details;
+          throw err;
         }
       }
     }
