@@ -1054,12 +1054,16 @@ export class WorkflowClient extends BaseClient {
     let startResp: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
     let updateResp: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
     let reachedStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
+    let seenStart = false;
     try {
       do {
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
         startResp = multiOpResp.responses?.[0]
           ?.startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
-        onStart(startResp);
+        if (!seenStart) {
+          onStart(startResp);
+          seenStart = true;
+        }
         updateResp = multiOpResp.responses?.[1]
           ?.updateWorkflow as temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
         reachedStage =
@@ -1067,7 +1071,9 @@ export class WorkflowClient extends BaseClient {
           UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_UNSPECIFIED;
       } while (reachedStage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED);
     } catch (err) {
-      onStartError(err);
+      if (!seenStart) {
+        onStartError(err);
+      }
       this.rethrowUpdateGrpcError(err, 'Update-With-Start failed', updateInput.workflowExecution);
     }
 
