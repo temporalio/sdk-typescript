@@ -139,7 +139,7 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
             continue;
           }
           throw new CustomGrpcServiceError(
-            status.message || err.message,
+            status.message ?? err.message,
             status.code || err.code,
             detail?.value?.toString() || err.details,
             err.metadata.getMap()
