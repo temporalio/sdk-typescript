@@ -454,6 +454,7 @@ export interface IntoHistoriesOptions {
 }
 
 const withStartWorkflowOperationResolveWorkflowHandle: unique symbol = Symbol();
+const withStartWorkflowOperationRejectWorkflowHandle: unique symbol = Symbol();
 const withStartWorkflowOperationExecuted: unique symbol = Symbol();
 
 /**
@@ -466,14 +467,16 @@ export class WithStartWorkflowOperation<T extends Workflow> {
   public [withStartWorkflowOperationExecuted]: boolean = false;
   public [withStartWorkflowOperationResolveWorkflowHandle]: ((handle: WorkflowHandle<T>) => void) | undefined =
     undefined;
+  public [withStartWorkflowOperationRejectWorkflowHandle]: ((error: any) => void) | undefined = undefined;
   private _workflowHandle: Promise<WorkflowHandle<T>>;
 
   constructor(
     public workflowTypeOrFunc: string | T,
     public options: WorkflowStartOptions<T> & { workflowIdConflictPolicy: WorkflowIdConflictPolicy }
   ) {
-    this._workflowHandle = new Promise<WorkflowHandle<T>>((resolve) => {
+    this._workflowHandle = new Promise<WorkflowHandle<T>>((resolve, reject) => {
       this[withStartWorkflowOperationResolveWorkflowHandle] = resolve;
+      this[withStartWorkflowOperationRejectWorkflowHandle] = reject;
     });
   }
   public async workflowHandle(): Promise<WorkflowHandle<T>> {
