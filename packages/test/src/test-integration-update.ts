@@ -53,7 +53,7 @@ export async function workflowWithUpdates(): Promise<string[]> {
   return state;
 }
 
-test('UWS happy path', async (t) => {
+test('updateWithStart happy path', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -115,7 +115,7 @@ test('UWS can send workflow arg and update arg', async (t) => {
   });
 });
 
-test('UWS handles can be obtained concurrently', async (t) => {
+test('updateWithStart handles can be obtained concurrently', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -139,7 +139,7 @@ test('UWS handles can be obtained concurrently', async (t) => {
   });
 });
 
-test('UWS failure 1a: invalid argument', async (t) => {
+test('updateWithStart failure 1a: invalid argument', async (t) => {
   const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
     workflowId: randomUUID().repeat(77),
     taskQueue: 'does-not-exist',
@@ -156,7 +156,7 @@ test('UWS failure 1a: invalid argument', async (t) => {
   t.true(err?.message.startsWith('WorkflowId length exceeds limit.'));
 });
 
-test('UWS failure 1a: workflow already exists', async (t) => {
+test('updateWithStart failure 1a: workflow already exists', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const workflowId = randomUUID();
   const worker = await createWorker();
@@ -195,7 +195,7 @@ export async function workflowWithNeverReturningUpdate(): Promise<never> {
   throw new Error('unreachable');
 }
 
-test('UWS failure 1b: update fails early due to limit on number of updates', async (t) => {
+test('updateWithStart failure 1b: update fails early due to limit on number of updates', async (t) => {
   const workflowId = randomUUID();
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
