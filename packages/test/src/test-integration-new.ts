@@ -36,15 +36,12 @@ import { decode as payloadDecode, decodeFromPayloadsAtIndex } from '@temporalio/
 import { WorkerOptions, WorkflowBundle } from '@temporalio/worker';
 
 import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { decode } from '@temporalio/common/lib/encoding';
 import {
   CancellationScope,
   condition,
   defineQuery,
-  deprecatePatch,
   executeChild,
   isCancellation,
-  patched,
   proxyActivities,
   setHandler,
   sleep,
@@ -1668,12 +1665,7 @@ test('Download and replay multiple executions with client list method', configMa
   const worker = await createWorkerWithDefaults(t, { activities });
   const client = env.client;
   try {
-    const fns = [
-      workflows.http,
-      workflows.cancelFakeProgress,
-      childWorkflowInvoke,
-      workflows.activityFailures,
-    ];
+    const fns = [workflows.http, workflows.cancelFakeProgress, childWorkflowInvoke, workflows.activityFailures];
     const handles = await Promise.all(fns.map((fn) => startWorkflow(fn)));
     // Wait for the workflows to complete first
     await worker.runUntil(Promise.all(handles.map((h) => h.result())));
