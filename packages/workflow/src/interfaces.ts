@@ -194,8 +194,6 @@ export interface UnsafeWorkflowInfo {
 
 /**
  * Information about a workflow update.
- *
- * @experimental
  */
 export interface UpdateInfo {
   /**

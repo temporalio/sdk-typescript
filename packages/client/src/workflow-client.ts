@@ -125,8 +125,6 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
   /**
    * Start an Update and wait for the result.
    *
-   * @experimental Update is an experimental feature.
-   *
    * @throws {@link WorkflowUpdateFailedError} if Update validation fails or if ApplicationFailure is thrown in the Update handler.
    * @throws {@link WorkflowUpdateRPCTimeoutOrCancelledError} if this Update call timed out or was cancelled. This doesn't
    *  mean the update itself was timed out or cancelled.
@@ -151,8 +149,6 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
   /**
    * Start an Update and receive a handle to the Update. The Update validator (if present) is run
    * before the handle is returned.
-   *
-   * @experimental Update is an experimental feature.
    *
    * @throws {@link WorkflowUpdateFailedError} if Update validation fails.
    * @throws {@link WorkflowUpdateRPCTimeoutOrCancelledError} if this Update call timed out or was cancelled. This doesn't
