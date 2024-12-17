@@ -459,6 +459,8 @@ const withStartWorkflowOperationExecuted: unique symbol = Symbol();
 /**
  * Defines how to start a workflow when using {@link WorkflowClient.startUpdateWithStart} and
  * {@link WorkflowClient.executeUpdateWithStart}. `workflowIdConflictPolicy` is required in the options.
+ *
+ * @experimental
  */
 export class WithStartWorkflowOperation<T extends Workflow> {
   public [withStartWorkflowOperationExecuted]: boolean = false;
@@ -625,6 +627,8 @@ export class WorkflowClient extends BaseClient {
    * not the Update succeeds.
    *
    * @returns the Update result.
+   *
+   * @experimental
    */
   public async executeUpdateWithStart<T extends Workflow, Ret, Args extends any[]>(
     updateDef: UpdateDefinition<Ret, Args> | string,
@@ -648,6 +652,8 @@ export class WorkflowClient extends BaseClient {
    * {@link WithStartWorkflowOperation.workflowHandle}, whether or not the Update is accepted.
    *
    * @returns a {@link WorkflowUpdateHandle} to the started Update.
+   *
+   * @experimental
    */
   public async startUpdateWithStart<T extends Workflow, Ret, Args extends any[]>(
     updateDef: UpdateDefinition<Ret, Args> | string,
