@@ -1,6 +1,4 @@
 import { ServiceError as GrpcServiceError, status } from '@grpc/grpc-js';
-import { MetadataValue } from '@grpc/grpc-js';
-import { Status } from '@grpc/grpc-js/build/src/constants';
 import { RetryState, TemporalFailure } from '@temporalio/common';
 import { isError, isRecord, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
@@ -14,21 +12,6 @@ export class ServiceError extends Error {
   constructor(message: string, opts?: { cause: Error }) {
     super(message);
     this.cause = opts?.cause;
-  }
-}
-
-/**
- * A grpc-js ServiceError with modifications.
- */
-@SymbolBasedInstanceOfError('CustomGrpcServiceError')
-export class CustomGrpcServiceError extends Error {
-  constructor(
-    message: string,
-    public readonly code: Status,
-    public readonly details: string,
-    public readonly metadata: Record<string, MetadataValue>
-  ) {
-    super(message);
   }
 }
 

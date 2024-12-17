@@ -16,7 +16,6 @@ import {
   WorkflowExecutionInfo,
   WorkflowExecutionStatusName,
 } from './types';
-import { CustomGrpcServiceError } from './errors';
 import { Status } from '@grpc/grpc-js/build/src/constants';
 
 function workflowStatusCodeToName(code: temporal.api.enums.v1.WorkflowExecutionStatus): WorkflowExecutionStatusName {
@@ -139,12 +138,11 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
           if (statusType === 'temporal.api.failure.v1.MultiOperationExecutionAborted' || status.code === Status.OK) {
             continue;
           }
-          throw new CustomGrpcServiceError(
-            status.message ?? err.message,
-            status.code || err.code,
-            detail?.value?.toString() || err.details,
-            err.metadata.getMap()
-          );
+          const opErr = new Error(status.message ?? err.message) as GrpcServiceError;
+          opErr.code = status.code || err.code;
+          opErr.details = detail?.value?.toString() || err.details;
+          opErr.metadata = err.metadata;
+          throw opErr;
         }
       }
     }
