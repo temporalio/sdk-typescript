@@ -705,10 +705,14 @@ export class WorkflowClient extends BaseClient {
         })
       );
 
+    const onStartError = (err: any) => {
+      startWorkflowOperation[withStartWorkflowOperationReject]!(err);
+    };
+
     const fn = composeInterceptors(
       interceptors,
       'startUpdateWithStart',
-      this._updateWithStartHandler.bind(this, waitForStage, onStart)
+      this._updateWithStartHandler.bind(this, waitForStage, onStart, onStartError)
     );
     const updateOutput = await fn(startUpdateWithStartInput);
 
@@ -1014,6 +1018,7 @@ export class WorkflowClient extends BaseClient {
   protected async _updateWithStartHandler(
     waitForStage: WorkflowUpdateStage,
     onStart: (startResponse: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse) => void,
+    onStartError: (err: any) => void,
     input: WorkflowStartUpdateWithStartInput
   ): Promise<WorkflowStartUpdateWithStartOutput> {
     const startInput: WorkflowStartInput = {
@@ -1064,6 +1069,7 @@ export class WorkflowClient extends BaseClient {
           UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_UNSPECIFIED;
       } while (reachedStage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED);
     } catch (err) {
+      onStartError(err);
       this.rethrowUpdateGrpcError(err, 'Update-With-Start failed', updateInput.workflowExecution);
     }
 
