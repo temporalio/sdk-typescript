@@ -3,15 +3,10 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import { ErrorConstructor, ExecutionContext, TestFn } from 'ava';
 import {
   isGrpcServiceError,
-  WithStartWorkflowOperation,
-  UpdateDefinition,
   WorkflowFailedError,
   WorkflowHandle,
   WorkflowStartOptions,
   WorkflowUpdateFailedError,
-  WorkflowUpdateHandle,
-  WorkflowUpdateOptions,
-  WorkflowUpdateStage,
 } from '@temporalio/client';
 import {
   LocalTestWorkflowEnvironmentOptions,
