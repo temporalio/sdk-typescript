@@ -25,8 +25,6 @@ const test = makeTestFunction({
       extraArgs: [
         '--dynamic-config-value',
         `history.longPollExpirationInterval="${LONG_POLL_EXPIRATION_INTERVAL_SECONDS}s"`,
-        '--dynamic-config-value',
-        'frontend.enableExecuteMultiOperation=true',
       ],
     },
   },
