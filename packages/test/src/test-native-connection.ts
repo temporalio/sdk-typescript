@@ -1,5 +1,6 @@
 import util from 'node:util';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import test from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
@@ -18,6 +19,23 @@ const workflowServiceProtoDescriptor = grpc.loadPackageDefinition(workflowServic
 
 async function bindLocalhostIpv6(server: grpc.Server): Promise<number> {
   return await util.promisify(server.bindAsync.bind(server))('[::1]:0', grpc.ServerCredentials.createInsecure());
+}
+
+async function bindLocalhostTls(server: grpc.Server): Promise<number> {
+  const caCert = await fs.readFile(path.resolve(__dirname, `../tls_certs/test-ca.crt`));
+  const serverChainCert = await fs.readFile(path.resolve(__dirname, `../tls_certs/test-server-chain.crt`));
+  const serverKey = await fs.readFile(path.resolve(__dirname, `../tls_certs/test-server.key`));
+  const credentials = grpc.ServerCredentials.createSsl(
+    caCert,
+    [
+      {
+        cert_chain: serverChainCert,
+        private_key: serverKey,
+      },
+    ],
+    false
+  );
+  return await util.promisify(server.bindAsync.bind(server))('127.0.0.1:0', credentials);
 }
 
 test('NativeConnection.connect() throws meaningful error when passed invalid address', async (t) => {
@@ -95,6 +113,40 @@ test('NativeConnection can connect using "[ipv6]:port" address', async (t) => {
   const connection = await NativeConnection.connect({
     address: `[::1]:${port}`,
   });
+  t.true(gotRequest);
+  await connection.close();
+  await server.forceShutdown();
+});
+
+test('Can configure TLS + call credentials', async (t) => {
+  let gotRequest = false;
+  const server = new grpc.Server();
+  server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
+    getSystemInfo(
+      call: grpc.ServerUnaryCall<
+        temporal.api.workflowservice.v1.IGetSystemInfoRequest,
+        temporal.api.workflowservice.v1.IGetSystemInfoResponse
+      >,
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+    ) {
+      gotRequest = true;
+      callback(null, {});
+    },
+  });
+
+  const port = await bindLocalhostTls(server);
+  const connection = await NativeConnection.connect({
+    address: `127.0.0.1:${port}`,
+    tls: {
+      serverRootCACertificate: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-ca.crt`)),
+      clientCertPair: {
+        crt: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-client-chain.crt`)),
+        key: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-client.key`)),
+      },
+      serverNameOverride: 'server',
+    },
+  });
+
   t.true(gotRequest);
   await connection.close();
   await server.forceShutdown();

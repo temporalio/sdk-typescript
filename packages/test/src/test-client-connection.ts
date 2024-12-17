@@ -33,7 +33,11 @@ const healthServicePackageDefinition = protoLoader.loadSync(
 const healthServicePackageDescriptor = grpc.loadPackageDefinition(healthServicePackageDefinition) as any;
 
 async function bindLocalhost(server: grpc.Server): Promise<number> {
-  return await util.promisify(server.bindAsync.bind(server))('localhost:0', grpc.ServerCredentials.createInsecure());
+  return await util.promisify(server.bindAsync.bind(server))('127.0.0.1:0', grpc.ServerCredentials.createInsecure());
+}
+
+async function bindLocalhostIpv6(server: grpc.Server): Promise<number> {
+  return await util.promisify(server.bindAsync.bind(server))('[::1]:0', grpc.ServerCredentials.createInsecure());
 }
 
 async function bindLocalhostTls(server: grpc.Server): Promise<number> {
@@ -142,7 +146,7 @@ test('Connection can connect using "[ipv6]:port" address', async (t) => {
       callback(null, {});
     },
   });
-  const port = await bindLocalhost(server);
+  const port = await bindLocalhostIpv6(server);
   const connection = await Connection.connect({
     address: `[::1]:${port}`,
   });
@@ -309,7 +313,7 @@ test('Can configure TLS + call credentials', async (t) => {
         crt: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-client-chain.crt`)),
         key: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-client.key`)),
       },
-      serverNameOverride: 'Server',
+      serverNameOverride: 'server',
     },
     callCredentials: [grpc.credentials.createFromGoogleCredential(oauth2Client)],
   });
@@ -455,94 +459,83 @@ test('No 10s delay on close due to grpc-js', async (t) => {
   }
 });
 
-// The following tests have started failing on Windows since Node.js v22.12.0. Upgrading grpc to
-// latest (1.24.3 at this time) doesn't help. Let's just ignoring this test for now, as is it very
-// unlikely to cause actual issues in production anyway (i.e. prod setups running on Windows are not
-// common to begin with, but more importantly, we have no trace of these "RST_STREAM with code 0/2"
-// errors ever happening on Windows).
-// See https://github.com/temporalio/sdk-typescript/issues/1589.
-//
-// FIXME: Reevaluate this in a few releases (once we hit v22.15.0 or later).
-const IS_WINDOWS_NODE_22_12_0 = process.platform === 'win32' && process.version.match(/v22\.1[234]\.\d+/);
-if (!IS_WINDOWS_NODE_22_12_0) {
-  test('Retry on "RST_STREAM with code 0"', async (t) => {
-    let receivedRequests = 0;
-    const requestHandler = (_req: http2.Http2ServerRequest, res: http2.Http2ServerResponse) => {
-      if (++receivedRequests < 4) {
-        // Just a 200 OK response, without the mandatory gRPC headers
-        res.writeHead(200);
-        res.end();
-      } else {
-        // This time, send a complete gRPC response
-        res.statusCode = 200;
-        res.addTrailers({
-          'grpc-status': '0',
-          'grpc-message': 'OK',
-        });
-        res.write(
-          // This is a raw gRPC response, of length 0
-          Buffer.from([
-            // Frame Type: Data; Not Compressed
-            0,
-            // Message Length: 0
-            0, 0, 0, 0,
-          ])
-        );
-        res.end();
-      }
-    };
-
-    await withHttp2Server(async (port) => {
-      const connection = await Connection.connect({ address: `127.0.0.1:${port}` });
-      try {
-        await new Client({ connection });
-        t.is(receivedRequests, 4);
-      } finally {
-        await connection.close();
-      }
-    }, requestHandler);
-  });
-
-  test('Retry on "RST_STREAM with code 2"', async (t) => {
-    let receivedRequests = 0;
-
-    const requestHandler = (_req: http2.Http2ServerRequest, res: http2.Http2ServerResponse) => {
-      if (++receivedRequests < 4) {
-        // Sends a RST_STREAM with code 2
-        res.stream.close(http2.constants.NGHTTP2_INTERNAL_ERROR);
-      } else {
-        // This time, send a complete gRPC response
-        res.statusCode = 200;
-        res.addTrailers({
-          'grpc-status': '0',
-          'grpc-message': 'OK',
-        });
-        res.write(
-          // This is a raw gRPC response, of length 0
-          Buffer.from([
-            // Frame Type: Data; Not Compressed
-            0,
-            // Message Length: 0
-            0, 0, 0, 0,
-          ])
-        );
-        res.end();
-      }
-    };
-
-    await withHttp2Server(async (port) => {
-      const connection = await Connection.connect({
-        address: `127.0.0.1:${port}`,
+test('Retry on "RST_STREAM with code 0"', async (t) => {
+  let receivedRequests = 0;
+  const requestHandler = (_req: http2.Http2ServerRequest, res: http2.Http2ServerResponse) => {
+    if (++receivedRequests < 4) {
+      // Just a 200 OK response, without the mandatory gRPC headers
+      res.writeHead(200);
+      res.end();
+    } else {
+      // This time, send a complete gRPC response
+      res.statusCode = 200;
+      res.addTrailers({
+        'grpc-status': '0',
+        'grpc-message': 'OK',
       });
-      try {
-        await new Client({ connection });
-        t.is(receivedRequests, 4);
-      } finally {
-        await connection.close();
-      }
-    }, requestHandler);
-  });
-}
+      res.write(
+        // This is a raw gRPC response, of length 0
+        Buffer.from([
+          // Frame Type: Data; Not Compressed
+          0,
+          // Message Length: 0
+          0, 0, 0, 0,
+        ])
+      );
+      res.end();
+    }
+  };
+
+  await withHttp2Server(async (port) => {
+    const connection = await Connection.connect({ address: `127.0.0.1:${port}` });
+    try {
+      await new Client({ connection });
+      t.is(receivedRequests, 4);
+    } finally {
+      await connection.close();
+    }
+  }, requestHandler);
+});
+
+test('Retry on "RST_STREAM with code 2"', async (t) => {
+  let receivedRequests = 0;
+
+  const requestHandler = (_req: http2.Http2ServerRequest, res: http2.Http2ServerResponse) => {
+    if (++receivedRequests < 4) {
+      // Sends a RST_STREAM with code 2
+      res.stream.close(http2.constants.NGHTTP2_INTERNAL_ERROR);
+    } else {
+      // This time, send a complete gRPC response
+      res.statusCode = 200;
+      res.addTrailers({
+        'grpc-status': '0',
+        'grpc-message': 'OK',
+      });
+      res.write(
+        // This is a raw gRPC response, of length 0
+        Buffer.from([
+          // Frame Type: Data; Not Compressed
+          0,
+          // Message Length: 0
+          0, 0, 0, 0,
+        ])
+      );
+      res.end();
+    }
+  };
+
+  await withHttp2Server(async (port) => {
+    const connection = await Connection.connect({
+      address: `127.0.0.1:${port}`,
+    });
+    try {
+      await new Client({ connection });
+      t.is(receivedRequests, 4);
+    } finally {
+      await connection.close();
+    }
+  }, requestHandler);
+});
 
 async function withHttp2Server(
   fn: (port: number) => Promise<void>,
