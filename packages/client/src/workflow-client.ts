@@ -1044,8 +1044,8 @@ export class WorkflowClient extends BaseClient {
     let startResp: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
     let updateResp: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
     let reachedStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
-    do {
-      try {
+    try {
+      do {
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
         // TODO: order is guaranteed but check structural validity of response,
         // e.g. startWorkflow / updateWorkflow keys
@@ -1057,10 +1057,10 @@ export class WorkflowClient extends BaseClient {
         reachedStage =
           updateResp.stage ??
           UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_UNSPECIFIED;
-      } catch (err) {
-        this.rethrowUpdateGrpcError(err, 'Update-With-Start failed', updateInput.workflowExecution);
-      }
-    } while (reachedStage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED);
+      } while (reachedStage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED);
+    } catch (err) {
+      this.rethrowUpdateGrpcError(err, 'Update-With-Start failed', updateInput.workflowExecution);
+    }
 
     return {
       workflowExecution: {
