@@ -6,6 +6,7 @@ import {
   WorkflowUpdateRPCTimeoutOrCancelledError,
   WorkflowFailedError,
   WithStartWorkflowOperation,
+  WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { temporal } from '@temporalio/proto';
@@ -191,9 +192,10 @@ test('updateWithStart failure 1a: workflow already exists', async (t) => {
 
     const startOp2 = makeStartOp();
     for (const promise of [startUpdateWithStart(startOp2), startOp2.workflowHandle()]) {
-      const err = await t.throwsAsync(promise);
-      t.true(isGrpcServiceError(err) && err.code === grpcStatus.ALREADY_EXISTS);
-      t.true(err?.message.startsWith('Workflow execution is already running.'));
+      await t.throwsAsync(promise, {
+        instanceOf: WorkflowExecutionAlreadyStartedError,
+        message: 'Workflow execution already started',
+      });
     }
   });
 });
