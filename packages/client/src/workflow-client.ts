@@ -455,7 +455,7 @@ export interface IntoHistoriesOptions {
 
 const withStartWorkflowOperationResolve: unique symbol = Symbol();
 const withStartWorkflowOperationReject: unique symbol = Symbol();
-const withStartWorkflowOperationExecuted: unique symbol = Symbol();
+const withStartWorkflowOperationUsed: unique symbol = Symbol();
 
 /**
  * Defines how to start a workflow when using {@link WorkflowClient.startUpdateWithStart} and
@@ -464,7 +464,7 @@ const withStartWorkflowOperationExecuted: unique symbol = Symbol();
  * @experimental
  */
 export class WithStartWorkflowOperation<T extends Workflow> {
-  public [withStartWorkflowOperationExecuted]: boolean = false;
+  public [withStartWorkflowOperationUsed]: boolean = false;
   public [withStartWorkflowOperationResolve]: ((handle: WorkflowHandle<T>) => void) | undefined = undefined;
   public [withStartWorkflowOperationReject]: ((error: any) => void) | undefined = undefined;
   private workflowHandlePromise: Promise<WorkflowHandle<T>>;
@@ -688,10 +688,10 @@ export class WorkflowClient extends BaseClient {
     const { workflowTypeOrFunc, options: workflowOptions } = startWorkflowOperation;
     const { workflowId } = workflowOptions;
 
-    if (startWorkflowOperation[withStartWorkflowOperationExecuted]) {
+    if (startWorkflowOperation[withStartWorkflowOperationUsed]) {
       throw new Error('This WithStartWorkflowOperation instance has already been executed.');
     }
-    startWorkflowOperation[withStartWorkflowOperationExecuted] = true;
+    startWorkflowOperation[withStartWorkflowOperationUsed] = true;
     assertRequiredWorkflowOptions(workflowOptions);
 
     const startUpdateWithStartInput: WorkflowStartUpdateWithStartInput = {
