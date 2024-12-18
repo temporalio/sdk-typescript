@@ -37,17 +37,10 @@ import {
   startChild,
   workflowInfo,
 } from '@temporalio/workflow';
-import {
-  configurableHelpers,
-  createTestWorkflowBundle,
-} from './helpers-integration';
+import { configurableHelpers } from './helpers-integration';
 import * as activities from './activities';
-import {
-  cleanOptionalStackTrace,
-  u8,
-  Worker,
-} from './helpers';
-import { configMacro, makeTestFn } from "./configured-integration-helpers";
+import { cleanOptionalStackTrace, u8, Worker } from './helpers';
+import { configMacro, makeTestFn } from './configured-integration-helpers';
 import * as workflows from './workflows';
 
 // Note: re-export shared workflows (or long workflows)
@@ -791,32 +784,32 @@ test('Workflow can read WorkflowInfo', configMacro, async (t, config) => {
  */
 test('Download and replay multiple executions with client list method', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
-  
+
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t, { activities });
   const client = env.client;
   try {
-      const fns = [workflows.http, workflows.cancelFakeProgress, childWorkflowInvoke, workflows.activityFailures];
-      const handles = await Promise.all(fns.map((fn) => startWorkflow(fn)));
-      // Wait for the workflows to complete first
-      await worker.runUntil(Promise.all(handles.map((h) => h.result())));
-      // Test the list API too while we're at it
-      const workflowIds = handles.map(({ workflowId }) => `'${workflowId}'`);
-      const histories = client.workflow.list({ query: `WorkflowId IN (${workflowIds.join(', ')})` }).intoHistories();
-      const results = Worker.runReplayHistories(
+    const fns = [workflows.http, workflows.cancelFakeProgress, childWorkflowInvoke, workflows.activityFailures];
+    const handles = await Promise.all(fns.map((fn) => startWorkflow(fn)));
+    // Wait for the workflows to complete first
+    await worker.runUntil(Promise.all(handles.map((h) => h.result())));
+    // Test the list API too while we're at it
+    const workflowIds = handles.map(({ workflowId }) => `'${workflowId}'`);
+    const histories = client.workflow.list({ query: `WorkflowId IN (${workflowIds.join(', ')})` }).intoHistories();
+    const results = Worker.runReplayHistories(
       {
-          workflowBundle: worker.options.workflowBundle,
-          dataConverter: env.options.client.dataConverter,
+        workflowBundle: worker.options.workflowBundle,
+        dataConverter: env.options.client.dataConverter,
       },
       histories
-      );
-  
-      for await (const result of results) {
+    );
+
+    for await (const result of results) {
       t.is(result.error, undefined);
-      }
+    }
   } catch (e) {
-      // Don't report a test failure if the server does not support extended query
-      if (!(e as Error).message?.includes(`operator 'in' not allowed`)) throw e;
+    // Don't report a test failure if the server does not support extended query
+    if (!(e as Error).message?.includes(`operator 'in' not allowed`)) throw e;
   }
   t.pass();
 });

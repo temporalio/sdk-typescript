@@ -74,8 +74,8 @@ function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }) {
 }
 
 export interface HelperTestBundleOptions {
-  workflowsPath: string,
-  workflowInterceptorModules?: string[]
+  workflowsPath: string;
+  workflowInterceptorModules?: string[];
 }
 
 export async function createTestWorkflowBundle({
@@ -133,7 +133,10 @@ export function makeTestFunction(opts: {
       const env = await createLocalTestEnvironment(opts.workflowEnvironmentOpts);
       await registerDefaultCustomSearchAttributes(env.connection);
       return {
-        workflowBundle: await createTestWorkflowBundle(opts.workflowsPath, opts.workflowInterceptorModules),
+        workflowBundle: await createTestWorkflowBundle({
+          workflowsPath: opts.workflowsPath,
+          workflowInterceptorModules: opts.workflowInterceptorModules,
+        }),
         env,
       };
     },

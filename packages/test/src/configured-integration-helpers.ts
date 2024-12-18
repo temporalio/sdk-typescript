@@ -1,10 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import { ExecutionContext, TestFn } from 'ava';
-import {
-  defaultFailureConverter,
-  defaultPayloadConverter,
-  LoadedDataConverter,
-} from '@temporalio/common';
+import { defaultFailureConverter, defaultPayloadConverter, LoadedDataConverter } from '@temporalio/common';
 import { WorkerOptions, WorkflowBundle } from '@temporalio/worker';
 
 import { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -16,11 +12,7 @@ import {
   HelperTestBundleOptions,
   makeConfigurableEnvironmentTestFn,
 } from './helpers-integration';
-import {
-  ByteSkewerPayloadCodec,
-  registerDefaultCustomSearchAttributes,
-  Worker,
-} from './helpers';
+import { ByteSkewerPayloadCodec, registerDefaultCustomSearchAttributes, Worker } from './helpers';
 
 // Note: re-export shared workflows (or long workflows)
 //  - review the files where these workflows are shared
@@ -51,12 +43,12 @@ export function makeTestFn(opts: HelperTestBundleOptions): TestFn<TestContext> {
             payloadCodecs: codec ? [codec] : [],
             failureConverter: defaultFailureConverter,
           };
-  
+
           const env = await createLocalTestEnvironment({
             client: { dataConverter },
           });
           await registerDefaultCustomSearchAttributes(env.connection);
-  
+
           configs.push({
             loadedDataConverter,
             env,
@@ -64,7 +56,9 @@ export function makeTestFn(opts: HelperTestBundleOptions): TestFn<TestContext> {
               return configurableHelpers(t, t.context.workflowBundle, env).createWorker({
                 dataConverter,
                 interceptors: {
-                  activity: [() => ({ inbound: new ConnectionInjectorInterceptor(env.connection, loadedDataConverter) })],
+                  activity: [
+                    () => ({ inbound: new ConnectionInjectorInterceptor(env.connection, loadedDataConverter) }),
+                  ],
                 },
                 ...opts,
               });
@@ -88,11 +82,10 @@ export function makeTestFn(opts: HelperTestBundleOptions): TestFn<TestContext> {
 export const configMacro = async (
   t: ExecutionContext<TestContext>,
   testFn: (t: ExecutionContext<TestContext>, config: TestConfig) => Promise<unknown> | unknown
-) => {
+): Promise<void> => {
   const testPromises = t.context.configs.map(async (config) => {
     // TODO(thomas): ideally, we'd like to add an annotation to the test name to indicate what codec it used
     await testFn(t, config);
   });
   await Promise.all(testPromises);
-}
-
+};
