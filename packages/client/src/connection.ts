@@ -137,7 +137,7 @@ export type ConnectionOptionsWithDefaults = Required<
   connectTimeoutMs: number;
 };
 
-export const LOCAL_TARGET = '127.0.0.1:7233';
+export const LOCAL_TARGET = 'localhost:7233';
 
 function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults {
   const { channelArgs, interceptors, connectTimeout, ...rest } = options;
