@@ -879,8 +879,6 @@ export function workflowInfo(): WorkflowInfo {
  *
  * @return Info for the current update handler the code calling this is executing
  * within if any.
- *
- * @experimental
  */
 export function currentUpdateInfo(): UpdateInfo | undefined {
   assertInWorkflowContext('Workflow.currentUpdateInfo(...) may only be used from a Workflow Execution.');
