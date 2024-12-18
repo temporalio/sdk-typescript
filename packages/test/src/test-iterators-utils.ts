@@ -163,7 +163,7 @@ test(`mapAsyncIterable (with concurrency) doesn't hang mapFn exceptions`, async 
   const iterable = mapAsyncIterable(
     name(),
     async (x: number) => {
-      await sleepThatTime(x);
+      await sleepThatTime(x * 10);
       if (x === 4) throw new Error('Test Exception');
       return x;
     },

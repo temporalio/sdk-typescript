@@ -1,6 +1,5 @@
 {
   "name": "temporalio",
-  "version": "1.9.3",
   "description": "Temporal.io SDK meta-package",
   "dependencies": {
     "@temporalio/activity": "file:../activity",
@@ -29,9 +28,6 @@
   "homepage": "https://github.com/temporalio/sdk-typescript#readme",
   "publishConfig": {
     "access": "public"
-  },
-  "engines": {
-    "node": ">=16.0.0"
   },
   "files": [
     "src",
