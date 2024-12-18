@@ -50,9 +50,9 @@ See [sdk-structure.md](./docs/sdk-structure.md)
 
 ### Environment setup
 
-- The TS SDK can be executed on 16, 18 and 20. However, for SDK development, we recommend
-  using Node 20. For easier testing, you may want to use a version manager, such as:
-  [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md) or [volta](https://volta.sh/).
+- The TS SDK can be executed on 18, 20 or 22. However, we recommend using Node 22 for SDK development.
+  For easier testing during development you may want to use a version manager, such as
+  [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
 
 - To run tests, you will need access to a local Temporal server, e.g. using the
   [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server).

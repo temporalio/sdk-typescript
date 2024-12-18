@@ -38,5 +38,8 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/proto",
   "publishConfig": {
     "access": "public"
+  },
+  "engines": {
+    "node": ">= 18.0.0"
   }
 }

@@ -52,7 +52,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   // Stopping and starting Workers is probably not a common pattern but if we don't remember what
   // Runtime configuration was installed, creating a new Worker after Runtime shutdown we would fallback
-  // to the default configuration (localhost) which is surprising behavior.
+  // to the default configuration (127.0.0.1) which is surprising behavior.
   test.serial('Runtime.install() remembers installed options after it has been shut down', async (t) => {
     const logger = new DefaultLogger('DEBUG');
     Runtime.install({ logger });
