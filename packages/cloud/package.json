@@ -20,6 +20,9 @@
     "@temporalio/proto": "file:../proto",
     "abort-controller": "^3.0.0"
   },
+  "devDependencies": {
+    "protobufjs": "^7.2.5"
+  },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
