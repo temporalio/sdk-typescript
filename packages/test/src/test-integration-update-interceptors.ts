@@ -117,7 +117,7 @@ test('UpdateWithStart client and workflow interceptors work for executeUpdateWit
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const startWorkflowOperation = new WithStartWorkflowOperation(workflowWithUpdate, {
+    const startWorkflowOperation = WithStartWorkflowOperation.create(workflowWithUpdate, {
       workflowId: randomUUID(),
       taskQueue,
       workflowIdConflictPolicy: 'FAIL',

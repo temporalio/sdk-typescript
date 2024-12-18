@@ -478,6 +478,13 @@ export class WithStartWorkflowOperation<T extends Workflow> {
       this[withStartWorkflowOperationReject] = reject;
     });
   }
+
+  public static create<T extends Workflow>(
+    workflowTypeOrFunc: string | T,
+    options: WorkflowStartOptions<T> & { workflowIdConflictPolicy: WorkflowIdConflictPolicy }
+  ): WithStartWorkflowOperation<T> {
+    return new WithStartWorkflowOperation(workflowTypeOrFunc, options);
+  }
 }
 
 /**

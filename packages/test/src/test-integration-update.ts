@@ -57,7 +57,7 @@ test('updateWithStart happy path', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
+    const startOp = WithStartWorkflowOperation.create(workflowWithUpdates, {
       workflowId: randomUUID(),
       taskQueue,
       workflowIdConflictPolicy: 'USE_EXISTING',
@@ -101,7 +101,7 @@ test('UWS can send workflow arg and update arg', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const startOp = new WithStartWorkflowOperation(workflowWithArgAndUpdateArg, {
+    const startOp = WithStartWorkflowOperation.create(workflowWithArgAndUpdateArg, {
       workflowId: randomUUID(),
       args: ['wf-arg'],
       taskQueue,
@@ -120,7 +120,7 @@ test('updateWithStart handles can be obtained concurrently', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
+    const startOp = WithStartWorkflowOperation.create(workflowWithUpdates, {
       workflowId: randomUUID(),
       taskQueue,
       workflowIdConflictPolicy: 'USE_EXISTING',
@@ -141,7 +141,7 @@ test('updateWithStart handles can be obtained concurrently', async (t) => {
 });
 
 test('updateWithStart failure 1a: invalid argument', async (t) => {
-  const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
+  const startOp = WithStartWorkflowOperation.create(workflowWithUpdates, {
     workflowId: randomUUID().repeat(77),
     taskQueue: 'does-not-exist',
     workflowIdConflictPolicy: 'FAIL',
@@ -166,7 +166,7 @@ test('updateWithStart failure 1a: workflow already exists', async (t) => {
   const workflowId = randomUUID();
   const worker = await createWorker();
   const makeStartOp = () =>
-    new WithStartWorkflowOperation(workflowWithUpdates, {
+    WithStartWorkflowOperation.create(workflowWithUpdates, {
       workflowId,
       taskQueue,
       workflowIdConflictPolicy: 'FAIL',
@@ -215,7 +215,7 @@ test('updateWithStart failure 1b: update fails early due to limit on number of u
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
   const makeStartOp = () =>
-    new WithStartWorkflowOperation(workflowWithNeverReturningUpdate, {
+    WithStartWorkflowOperation.create(workflowWithNeverReturningUpdate, {
       workflowId,
       taskQueue,
       workflowIdConflictPolicy: 'USE_EXISTING',
