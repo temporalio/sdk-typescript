@@ -73,10 +73,15 @@ function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }) {
   });
 }
 
-export async function createTestWorkflowBundle(
+export interface HelperTestBundleOptions {
   workflowsPath: string,
   workflowInterceptorModules?: string[]
-): Promise<WorkflowBundleWithSourceMap> {
+}
+
+export async function createTestWorkflowBundle({
+  workflowsPath,
+  workflowInterceptorModules,
+}: HelperTestBundleOptions): Promise<WorkflowBundleWithSourceMap> {
   return await bundleWorkflowCode({
     ...bundlerOptions,
     workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(workflowInterceptorModules ?? [])],
