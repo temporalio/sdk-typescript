@@ -301,7 +301,7 @@ function defaultWorkflowClientOptions(): WithDefaults<WorkflowClientOptions> {
   };
 }
 
-function assertRequiredWorkflowOptions(opts?: {
+function assertRequiredWorkflowOptions(opts: {
   taskQueue?: string;
   workflowId?: string;
 }): asserts opts is WorkflowOptions {
