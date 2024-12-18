@@ -469,7 +469,7 @@ export class WithStartWorkflowOperation<T extends Workflow> {
   public [withStartWorkflowOperationReject]: ((error: any) => void) | undefined = undefined;
   private workflowHandlePromise: Promise<WorkflowHandle<T>>;
 
-  constructor(
+  private constructor(
     public workflowTypeOrFunc: string | T,
     public options: WorkflowStartOptions<T> & { workflowIdConflictPolicy: WorkflowIdConflictPolicy }
   ) {
