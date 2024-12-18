@@ -100,8 +100,6 @@ export interface WorkflowClientInterceptor {
   start?: (input: WorkflowStartInput, next: Next<this, 'start'>) => Promise<string /* runId */>;
   /**
    * Intercept a service call to updateWorkflowExecution
-   *
-   * @experimental Update is an experimental feature.
    */
   startUpdate?: (
     input: WorkflowStartUpdateInput,
