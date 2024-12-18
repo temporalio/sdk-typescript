@@ -27,7 +27,7 @@ export interface ConnectionOptions {
    *
    * Port defaults to 7233. Raw IPv6 addresses must be wrapped in square brackets (e.g. `[ipv6]:port`).
    *
-   * @default 127.0.0.1:7233
+   * @default localhost:7233
    */
   address?: string;
 
@@ -137,7 +137,7 @@ export type ConnectionOptionsWithDefaults = Required<
   connectTimeoutMs: number;
 };
 
-export const LOCAL_TARGET = '127.0.0.1:7233';
+export const LOCAL_TARGET = 'localhost:7233';
 
 function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults {
   const { channelArgs, interceptors, connectTimeout, ...rest } = options;

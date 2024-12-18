@@ -22,7 +22,7 @@ export interface NativeConnectionOptions {
    *
    * Port defaults to 7233. Raw IPv6 addresses must be wrapped in square brackets (e.g. `[ipv6]:port`).
    *
-   * @default 127.0.0.1:7233
+   * @default localhost:7233
    */
   address?: string;
 
@@ -68,7 +68,7 @@ export type RequiredNativeConnectionOptions = Omit<
 
 export function getDefaultConnectionOptions(): RequiredNativeConnectionOptions {
   return {
-    address: '127.0.0.1:7233',
+    address: 'localhost:7233',
     sdkVersion: pkg.version,
   };
 }
