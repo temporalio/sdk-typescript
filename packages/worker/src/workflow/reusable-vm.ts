@@ -27,11 +27,8 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
    *
    * Use the {@link context} getter instead
    */
-  _context?: vm.Context;
-  /**
-   * Store the global object keys we want to share between contexts
-   */
-  readonly contextKeysToPreserve: Set<string>;
+  private _context?: vm.Context;
+  private pristine?: Map<string, PropertyDescriptor>;
 
   constructor(
     script: vm.Script,
@@ -70,7 +67,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
         },
       }
     );
-    const globals = {
+    const globalsParent = {
       AsyncLocalStorage,
       URL,
       URLSearchParams,
@@ -80,15 +77,41 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       TextDecoder,
       AbortController,
     };
+    const globals = Object.create(globalsParent);
     this._context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
     this.injectConsole();
     script.runInContext(this.context);
-    this.contextKeysToPreserve = new Set(Object.keys(this.context));
+
+    this.pristine = new Map<string, PropertyDescriptor>();
+    (globals as any).__pristine = this.pristine;
+    // The V8 context is really composed of two distinct objects: the `globals` object defined above
+    // on the outside, and another internal object to which we only have access from the inside, which
+    // defines the built-in global properties. We need
+    vm.runInContext(
+      `
+        {
+          const pristine = globalThis.__pristine;
+          delete globalThis.__pristine;
+          for (const name of Object.getOwnPropertyNames(globalThis)) {
+            const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
+            pristine.set(name, descriptor);
+          }
+        }
+      `,
+      this.context
+    );
+    for (const [k, v] of this.pristine.entries()) {
+      if (k !== 'globalThis') {
+        console.log(`Deep freezing pristine ${k}`);
+        v.value = deepFreeze(v.value);
+        if (typeof v.value === 'function') {
+          console.log(` ... non-writable`);
+          v.writable = false;
+        }
+      }
+    }
     for (const v of sharedModules.values()) {
       deepFreeze(v);
-    }
-    for (const k of this.contextKeysToPreserve) {
-      deepFreeze(this.context[k]);
     }
   }
 
@@ -114,39 +137,66 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = this.context;
-    const bag: Record<string, unknown> = {};
-    const { isolateExecutionTimeoutMs, contextKeysToPreserve } = this;
+    const pristine = this.pristine;
+    const bag: Map<string, PropertyDescriptor> = new Map(pristine);
+    const { isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
       {},
       {
         get(_: any, fn: string) {
           return (...args: any[]) => {
-            Object.assign(context, bag);
+            for (const [pname, pdesc] of bag.entries()) {
+              Object.defineProperty(context, pname, pdesc);
+            }
+
             // runInContext does not accept args, pass via globals
             context.__TEMPORAL_ARGS__ = args;
             try {
+              // By the time we get out of this call, all microtasks will have been executed
               return vm.runInContext(`__TEMPORAL__.api.${fn}(...__TEMPORAL_ARGS__)`, context, {
                 timeout: isolateExecutionTimeoutMs,
                 displayErrors: true,
               });
             } finally {
-              const keysToDelete = [];
-              // TODO: non-enumerable global properties?
-              // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects
-              for (const k in context) {
-                if (!contextKeysToPreserve.has(k)) {
-                  bag[k] = context[k];
-                  context[k] = undefined;
-                  keysToDelete.push(k);
+              // No need to keep that one
+              delete context.__TEMPORAL_ARGS__;
+
+              //
+              bag.clear();
+              const keysToCleanup: [string, PropertyDescriptor | undefined][] = [];
+
+              for (const pname of Object.getOwnPropertyNames(context)) {
+                const pdesc = Object.getOwnPropertyDescriptor(context, pname) as PropertyDescriptor;
+                const pdescPristine = pristine?.get(pname);
+                if (pdesc.value !== pdescPristine?.value) {
+                  bag.set(pname, pdesc);
+                  keysToCleanup.push([pname, pdescPristine]);
                 }
               }
-              for (const k in keysToDelete) {
-                delete context[k];
-              }
+
+              // Looks like Node/V8 is not properly syncing deletion of keys on the outter context
+              // object to the inner globalThis object. Hence, we delete them from inside the context.
+              context.__TEMPORAL_ARGS__ = keysToCleanup;
+              vm.runInContext(
+                `
+                  for (const [name, descriptor] of globalThis.__TEMPORAL_ARGS__) {
+                    // if (name !== '__TEMPORAL_ACTIVATOR__') {
+                    //   debugger;
+                    // }
+                    if (descriptor) {
+                      Object.defineProperty(globalThis, name, { ...descriptor, writable: true });
+                    } else {
+                      delete globalThis[name];
+                    }
+                  }
+                  delete globalThis.__TEMPORAL_ARGS__;`,
+                context
+              );
+
               // Need to preserve this for the unhandledRejection handler.
               // TODO: There's probably a better way but this is simplest since we want to maintain compatibility with
               // the non-reusable vm implementation.
-              context.__TEMPORAL_ACTIVATOR__ = bag.__TEMPORAL_ACTIVATOR__;
+              context.__TEMPORAL_ACTIVATOR__ = bag.get('__TEMPORAL_ACTIVATOR__')?.value;
             }
           };
         },
@@ -159,9 +209,9 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       getTimeOfDay: () => timeOfDayToBigint(getTimeOfDay()),
       registeredActivityNames: this.registeredActivityNames,
     });
-    const activator = bag.__TEMPORAL_ACTIVATOR__ as any;
-
+    const activator = bag.get('__TEMPORAL_ACTIVATOR__')?.value as any;
     const newVM = new ReusableVMWorkflow(options.info.runId, context, activator, workflowModule);
+
     ReusableVMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
     return newVM;
   }
