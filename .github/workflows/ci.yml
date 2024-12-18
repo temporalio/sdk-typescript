@@ -129,6 +129,14 @@ jobs:
           - platform: windows-x64
             runner: windows-latest
             reuse-v8-context: true
+          # Node 22.12.0 on Windows incorrectly resolves `localhost` to `::1`, rather than both `::1` and `127.0.0.1`.
+          # We changed all of our internal tests to exclusively use `127.0.0.1`, but samples are still written to use
+          # `localhost`, which really is the proper thing to do in samples. So until this gets fixed upstream, we force
+          # the last known good version of Node on Windows.
+          # See https://github.com/nodejs/node/issues/56137 (_resolved_ already, but not yet released).
+          - platform: windows-x64
+            node: 22
+            node-release-override: 22.11.0
     runs-on: ${{ matrix.runner }}
     name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
     defaults:
@@ -155,7 +163,7 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: ${{ matrix.node-release-override || matrix.node }}
 
       # On Windows, the 'runner.temp' variable uses backslashes as path separators, but
       # that may pose problems in later steps when we try to join that with subpaths;
