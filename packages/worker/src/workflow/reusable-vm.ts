@@ -78,6 +78,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       __webpack_module_cache__,
       TextEncoder,
       TextDecoder,
+      AbortController,
     };
     this._context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
     this.injectConsole();
