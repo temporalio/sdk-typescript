@@ -467,13 +467,13 @@ export class WithStartWorkflowOperation<T extends Workflow> {
   public [withStartWorkflowOperationExecuted]: boolean = false;
   public [withStartWorkflowOperationResolve]: ((handle: WorkflowHandle<T>) => void) | undefined = undefined;
   public [withStartWorkflowOperationReject]: ((error: any) => void) | undefined = undefined;
-  public workflowHandle: Promise<WorkflowHandle<T>>;
+  private workflowHandlePromise: Promise<WorkflowHandle<T>>;
 
   constructor(
     public workflowTypeOrFunc: string | T,
     public options: WorkflowStartOptions<T> & { workflowIdConflictPolicy: WorkflowIdConflictPolicy }
   ) {
-    this.workflowHandle = new Promise<WorkflowHandle<T>>((resolve, reject) => {
+    this.workflowHandlePromise = new Promise<WorkflowHandle<T>>((resolve, reject) => {
       this[withStartWorkflowOperationResolve] = resolve;
       this[withStartWorkflowOperationReject] = reject;
     });
@@ -484,6 +484,10 @@ export class WithStartWorkflowOperation<T extends Workflow> {
     options: WorkflowStartOptions<T> & { workflowIdConflictPolicy: WorkflowIdConflictPolicy }
   ): WithStartWorkflowOperation<T> {
     return new WithStartWorkflowOperation(workflowTypeOrFunc, options);
+  }
+
+  public async workflowHandle(): Promise<WorkflowHandle<T>> {
+    return await this.workflowHandlePromise;
   }
 }
 

@@ -128,7 +128,7 @@ test('UpdateWithStart client and workflow interceptors work for executeUpdateWit
       startWorkflowOperation,
     });
     t.deepEqual(updateResult, 'updArg-clientIntercepted-workflowIntercepted');
-    const wfHandle = await startWorkflowOperation.workflowHandle;
+    const wfHandle = await startWorkflowOperation.workflowHandle();
     const wfResult = await wfHandle.result();
     t.deepEqual(wfResult, 'wfArg-clientIntercepted');
   });
