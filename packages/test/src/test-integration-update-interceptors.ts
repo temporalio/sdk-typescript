@@ -8,13 +8,7 @@ import {
   WorkflowUpdateStage,
 } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
-import {
-  Next,
-  UpdateInput,
-  WorkflowIdConflictPolicy,
-  WorkflowInboundCallsInterceptor,
-  WorkflowInterceptors,
-} from '@temporalio/workflow';
+import { Next, UpdateInput, WorkflowInboundCallsInterceptor, WorkflowInterceptors } from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
 const test = makeTestFunction({
