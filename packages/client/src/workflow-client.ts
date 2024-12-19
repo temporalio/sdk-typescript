@@ -1092,7 +1092,8 @@ export class WorkflowClient extends BaseClient {
         updateId: updateRequest.request!.meta!.updateId!,
         updateOutcome: updateResp.outcome ?? undefined,
       };
-    } catch (err) {
+    } catch (thrownError) {
+      let err = thrownError;
       if (isGrpcServiceError(err) && err.code === grpcStatus.ALREADY_EXISTS) {
         err = new WorkflowExecutionAlreadyStartedError(
           'Workflow execution already started',

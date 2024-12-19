@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
   WithStartWorkflowOperation,
   WorkflowStartUpdateInput,
@@ -15,7 +16,6 @@ import {
   WorkflowInterceptors,
 } from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
-import { randomUUID } from 'crypto';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
