@@ -301,14 +301,11 @@ function defaultWorkflowClientOptions(): WithDefaults<WorkflowClientOptions> {
   };
 }
 
-function assertRequiredWorkflowOptions(opts: {
-  taskQueue?: string;
-  workflowId?: string;
-}): asserts opts is WorkflowOptions {
-  if (!opts?.taskQueue) {
+function assertRequiredWorkflowOptions(opts: WorkflowOptions): asserts opts is WorkflowOptions {
+  if (!opts.taskQueue) {
     throw new TypeError('Missing WorkflowOptions.taskQueue');
   }
-  if (!opts?.workflowId) {
+  if (!opts.workflowId) {
     throw new TypeError('Missing WorkflowOptions.workflowId');
   }
 }
