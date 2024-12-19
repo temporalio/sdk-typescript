@@ -98,7 +98,7 @@ export async function workflowWithArgAndUpdateArg(wfArg: string): Promise<void> 
   await wf.condition(() => false);
 }
 
-test('UWS can send workflow arg and update arg', async (t) => {
+test('updateWithStart can send workflow arg and update arg', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -162,7 +162,7 @@ test('updateWithStart failure 1a: invalid argument', async (t) => {
   }
 });
 
-test('updateWithStart failure 1a: workflow already exists', async (t) => {
+test('updateWithStart failure: workflow already exists', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const workflowId = randomUUID();
   const worker = await createWorker();
@@ -212,7 +212,7 @@ export async function workflowWithNeverReturningUpdate(): Promise<never> {
   throw new Error('unreachable');
 }
 
-test('updateWithStart failure 1b: update fails early due to limit on number of updates', async (t) => {
+test('updateWithStart failure: update fails early due to limit on number of updates', async (t) => {
   const workflowId = randomUUID();
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
@@ -222,7 +222,7 @@ test('updateWithStart failure 1b: update fails early due to limit on number of u
       taskQueue,
       workflowIdConflictPolicy: 'USE_EXISTING',
     });
-  const doUws = async (startOp: WithStartWorkflowOperation<typeof workflowWithNeverReturningUpdate>) => {
+  const startUpdateWithStart = async (startOp: WithStartWorkflowOperation<typeof workflowWithNeverReturningUpdate>) => {
     await t.context.env.client.workflow.startUpdateWithStart(neverReturningUpdate, {
       waitForStage: 'ACCEPTED',
       startWorkflowOperation: startOp,
@@ -233,7 +233,7 @@ test('updateWithStart failure 1b: update fails early due to limit on number of u
     // The server permits 10 updates per workflow execution.
     for (let i = 0; i < 10; i++) {
       const startOp = makeStartOp();
-      await doUws(startOp);
+      await startUpdateWithStart(startOp);
       await startOp.workflowHandle;
     }
     // The 11th call should fail with a gRPC error
@@ -241,7 +241,7 @@ test('updateWithStart failure 1b: update fails early due to limit on number of u
     // TODO: set gRPC retries to 1. This generates a RESOURCE_EXHAUSTED error,
     // and by default these are retried 10 times.
     const startOp = makeStartOp();
-    for (const promise of [doUws(startOp), startOp.workflowHandle()]) {
+    for (const promise of [startUpdateWithStart(startOp), startOp.workflowHandle()]) {
       const err = await t.throwsAsync(promise);
       t.true(isGrpcServiceError(err) && err.code === grpcStatus.RESOURCE_EXHAUSTED);
     }

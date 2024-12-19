@@ -1067,6 +1067,9 @@ export class WorkflowClient extends BaseClient {
       let startResp: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
       let updateResp: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
       let reachedStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
+      // Repeatedly send ExecuteMultiOperation until update is durable (if the server receives a request with
+      // an update ID that already exists, it responds with information for the existing update). If the
+      // requested wait stage is COMPLETED, further polling is done before returning the UpdateHandle.
       do {
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
         startResp = multiOpResp.responses?.[0]
