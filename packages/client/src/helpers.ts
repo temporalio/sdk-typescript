@@ -1,12 +1,10 @@
-import { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
-import { Status } from '@grpc/grpc-js/build/src/constants';
+import { ServiceError as GrpcServiceError, status as grpcStatus } from '@grpc/grpc-js';
 import {
   LoadedDataConverter,
   mapFromPayloads,
   NamespaceNotFoundError,
   searchAttributePayloadConverter,
   SearchAttributes,
-  WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time';
@@ -136,7 +134,7 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
         for (const status of statuses) {
           const detail = status.details?.[0];
           const statusType = detail?.type_url?.replace(/^type.googleapis.com\//, '') as FailureName | undefined;
-          if (statusType === 'temporal.api.failure.v1.MultiOperationExecutionAborted' || status.code === Status.OK) {
+          if (statusType === 'temporal.api.failure.v1.MultiOperationExecutionAborted' || status.code === grpcStatus.OK) {
             continue;
           }
           err.message = status.message ?? err.message;
