@@ -1090,10 +1090,20 @@ export class WorkflowClient extends BaseClient {
         updateOutcome: updateResp.outcome ?? undefined,
       };
     } catch (err) {
+      if (isGrpcServiceError(err) && err.code === grpcStatus.ALREADY_EXISTS) {
+        err = new WorkflowExecutionAlreadyStartedError(
+          'Workflow execution already started',
+          input.workflowStartOptions.workflowId,
+          input.workflowType
+        );
+      }
       if (!seenStart) {
         onStartError(err);
       }
-      this.rethrowUpdateGrpcError(err, 'Update-With-Start failed', updateInput.workflowExecution);
+      if (isGrpcServiceError(err)) {
+        this.rethrowUpdateGrpcError(err, 'Update-With-Start failed', updateInput.workflowExecution);
+      }
+      throw err;
     }
   }
 

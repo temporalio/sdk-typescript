@@ -5,6 +5,7 @@ import {
   NamespaceNotFoundError,
   searchAttributePayloadConverter,
   SearchAttributes,
+  WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time';
