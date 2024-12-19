@@ -1,10 +1,12 @@
 import { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
+import { Status } from '@grpc/grpc-js/build/src/constants';
 import {
   LoadedDataConverter,
   mapFromPayloads,
   NamespaceNotFoundError,
   searchAttributePayloadConverter,
   SearchAttributes,
+  WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time';
@@ -103,6 +105,7 @@ export function decodeCountWorkflowExecutionsResponse(
 }
 
 type ErrorDetailsName = `temporal.api.errordetails.v1.${keyof typeof temporal.api.errordetails.v1}`;
+type FailureName = `temporal.api.failure.v1.${keyof typeof temporal.api.failure.v1}`;
 
 /**
  * If the error type can be determined based on embedded grpc error details,
@@ -122,6 +125,25 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
       case 'temporal.api.errordetails.v1.NamespaceNotFoundFailure': {
         const { namespace } = temporal.api.errordetails.v1.NamespaceNotFoundFailure.decode(entry.value);
         throw new NamespaceNotFoundError(namespace);
+      }
+      case 'temporal.api.errordetails.v1.MultiOperationExecutionFailure': {
+        // MultiOperationExecutionFailure contains error statuses for multiple
+        // operations. A MultiOperationExecutionAborted error status means that
+        // the corresponding operation was aborted due to an error in one of the
+        // other operations. We rethrow the first operation error that is not
+        // MultiOperationExecutionAborted.
+        const { statuses } = temporal.api.errordetails.v1.MultiOperationExecutionFailure.decode(entry.value);
+        for (const status of statuses) {
+          const detail = status.details?.[0];
+          const statusType = detail?.type_url?.replace(/^type.googleapis.com\//, '') as FailureName | undefined;
+          if (statusType === 'temporal.api.failure.v1.MultiOperationExecutionAborted' || status.code === Status.OK) {
+            continue;
+          }
+          err.message = status.message ?? err.message;
+          err.code = status.code || err.code;
+          err.details = detail?.value?.toString() || err.details;
+          throw err;
+        }
       }
     }
   }
