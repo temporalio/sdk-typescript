@@ -8,8 +8,6 @@ import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import {
   configurableHelpers,
   createLocalTestEnvironment,
-  createTestWorkflowBundle,
-  HelperTestBundleOptions,
   makeConfigurableEnvironmentTestFn,
 } from './helpers-integration';
 import { ByteSkewerPayloadCodec, registerDefaultCustomSearchAttributes, Worker } from './helpers';
@@ -30,10 +28,9 @@ interface TestContext {
 
 const codecs = [undefined, new ByteSkewerPayloadCodec()];
 
-export function makeTestFn(opts: HelperTestBundleOptions): TestFn<TestContext> {
+export function makeTestFn(makeBundle: () => Promise<WorkflowBundle>): TestFn<TestContext> {
   return makeConfigurableEnvironmentTestFn<TestContext>({
     createTestContext: async (_t: ExecutionContext) => {
-      const workflowBundle = await createTestWorkflowBundle(opts);
       const configs: TestConfig[] = [];
       await Promise.all(
         codecs.map(async (codec) => {
@@ -67,7 +64,7 @@ export function makeTestFn(opts: HelperTestBundleOptions): TestFn<TestContext> {
         })
       );
       return {
-        workflowBundle,
+        workflowBundle: await makeBundle(),
         configs,
       };
     },

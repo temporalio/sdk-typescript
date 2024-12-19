@@ -10,7 +10,6 @@ import {
   WorkflowFailedError,
 } from '@temporalio/client';
 import {
-  ActivityCancellationType,
   ApplicationFailure,
   CancelledFailure,
   RetryState,
@@ -27,17 +26,15 @@ import { UnsafeWorkflowInfo, WorkflowInfo } from '@temporalio/workflow/lib/inter
 
 import {
   CancellationScope,
-  condition,
   defineQuery,
   executeChild,
-  isCancellation,
   proxyActivities,
   setHandler,
   sleep,
   startChild,
   workflowInfo,
 } from '@temporalio/workflow';
-import { configurableHelpers } from './helpers-integration';
+import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';
 import * as activities from './activities';
 import { cleanOptionalStackTrace, u8, Worker } from './helpers';
 import { configMacro, makeTestFn } from './configured-integration-helpers';
@@ -53,7 +50,7 @@ const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCE
 const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED]);
 const CHANGE_MARKER_NAME = 'core_patch';
 
-const test = makeTestFn({ workflowsPath: __filename });
+const test = makeTestFn(() => createTestWorkflowBundle({ workflowsPath: __filename }));
 test.macro(configMacro);
 
 test('Workflow not found results in task retry', configMacro, async (t, config) => {
@@ -131,44 +128,6 @@ test('cancel-fake-progress', configMacro, async (t, config) => {
   await worker.runUntil(executeWorkflow(workflows.cancelFakeProgress));
   t.pass();
 });
-
-export async function cancellableHTTPRequest(url: string): Promise<void> {
-  const { cancellableFetch } = proxyActivities<typeof activities>({
-    startToCloseTimeout: '20s',
-    heartbeatTimeout: '3s',
-    cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
-  });
-  let activityStarted = false;
-  setHandler(workflows.activityStartedSignal, () => void (activityStarted = true));
-  try {
-    await CancellationScope.cancellable(async () => {
-      const promise = cancellableFetch(url, true);
-      await condition(() => activityStarted);
-      CancellationScope.current().cancel();
-      await promise;
-    });
-  } catch (err) {
-    if (!isCancellation(err)) {
-      throw err;
-    }
-  }
-}
-
-// TODO(thomas): fix, withZeroesHTTPServer uses node:http
-/*
-test('cancel-http-request', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t, { activities });
-  await withZeroesHTTPServer(async (port) => {
-    const url = `http://127.0.0.1:${port}`;
-    await worker.runUntil(executeWorkflow(cancellableHTTPRequest, {
-        args: [url],
-    }));
-  });
-  t.pass();
-});
-*/
 
 export async function activityFailure(useApplicationFailure: boolean): Promise<void> {
   const { throwAnError } = proxyActivities({

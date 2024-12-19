@@ -7,6 +7,7 @@ export * from './async-fail-signal';
 export * from './async-workflow';
 export * from './cancel-activity-after-first-completion';
 export * from './cancel-fake-progress';
+export * from './cancel-http-request';
 export * from './cancel-requested-with-non-cancellable';
 export * from './cancel-scope-on-failed-validation';
 export * from './cancel-timer-immediately';
