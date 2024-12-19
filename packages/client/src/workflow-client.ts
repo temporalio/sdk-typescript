@@ -461,9 +461,9 @@ const withStartWorkflowOperationUsed: unique symbol = Symbol();
  * @experimental
  */
 export class WithStartWorkflowOperation<T extends Workflow> {
-  public [withStartWorkflowOperationUsed]: boolean = false;
-  public [withStartWorkflowOperationResolve]: ((handle: WorkflowHandle<T>) => void) | undefined = undefined;
-  public [withStartWorkflowOperationReject]: ((error: any) => void) | undefined = undefined;
+  private [withStartWorkflowOperationUsed]: boolean = false;
+  private [withStartWorkflowOperationResolve]: ((handle: WorkflowHandle<T>) => void) | undefined = undefined;
+  private [withStartWorkflowOperationReject]: ((error: any) => void) | undefined = undefined;
   private workflowHandlePromise: Promise<WorkflowHandle<T>>;
 
   constructor(
