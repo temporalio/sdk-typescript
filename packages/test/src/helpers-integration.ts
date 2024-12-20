@@ -40,8 +40,7 @@ export interface Context {
 }
 
 const defaultDynamicConfigOptions = [
-  'frontend.enableUpdateWorkflowExecution=true',
-  'frontend.enableUpdateWorkflowExecutionAsyncAccepted=true',
+  'frontend.enableExecuteMultiOperation=true',
   'frontend.workerVersioningDataAPIs=true',
   'frontend.workerVersioningWorkflowAPIs=true',
   'system.enableActivityEagerExecution=true',
