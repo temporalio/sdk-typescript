@@ -42,9 +42,10 @@ export interface WorkflowStartUpdateOutput {
   readonly outcome?: temporal.api.update.v1.IOutcome;
 }
 
-/** Input for WorkflowClientInterceptor.startUpdateWithStart
+/**
+ * Input for WorkflowClientInterceptor.startUpdateWithStart
  *
- * @experimental
+ * @experimental Update-with-Start is an experimental feature and may be subject to change.
  */
 export interface WorkflowStartUpdateWithStartInput {
   readonly workflowType: string;
@@ -56,9 +57,10 @@ export interface WorkflowStartUpdateWithStartInput {
   readonly updateHeaders: Headers;
 }
 
-/** Output for WorkflowClientInterceptor.startUpdateWithStart
+/**
+ * Output for WorkflowClientInterceptor.startUpdateWithStart
  *
- * @experimental
+ * @experimental Update-with-Start is an experimental feature and may be subject to change.
  */
 export interface WorkflowStartUpdateWithStartOutput {
   readonly workflowExecution: WorkflowExecution;
@@ -132,7 +134,7 @@ export interface WorkflowClientInterceptor {
   /**
    * Intercept a service call to startUpdateWithStart
    *
-   * @experimental
+   * @experimental Update-with-Start is an experimental feature and may be subject to change.
    */
   startUpdateWithStart?: (
     input: WorkflowStartUpdateWithStartInput,

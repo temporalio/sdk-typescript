@@ -455,10 +455,10 @@ const withStartWorkflowOperationReject: unique symbol = Symbol();
 const withStartWorkflowOperationUsed: unique symbol = Symbol();
 
 /**
- * Defines how to start a workflow when using {@link WorkflowClient.startUpdateWithStart} and
+ * Define how to start a workflow when using {@link WorkflowClient.startUpdateWithStart} and
  * {@link WorkflowClient.executeUpdateWithStart}. `workflowIdConflictPolicy` is required in the options.
  *
- * @experimental
+ * @experimental Update-with-Start is an experimental feature and may be subject to change.
  */
 export class WithStartWorkflowOperation<T extends Workflow> {
   private [withStartWorkflowOperationUsed]: boolean = false;
@@ -509,11 +509,6 @@ export class WorkflowClient extends BaseClient {
     return this.connection.workflowService;
   }
 
-  /**
-   * Start a new Workflow execution.
-   *
-   * @returns the execution's `runId`.
-   */
   protected async _start<T extends Workflow>(
     workflowTypeOrFunc: string | T,
     options: WithWorkflowArgs<T, WorkflowOptions>,
@@ -532,12 +527,6 @@ export class WorkflowClient extends BaseClient {
     });
   }
 
-  /**
-   * Sends a signal to a running Workflow or starts a new one if not already running and immediately signals it.
-   * Useful when you're unsure of the Workflow's run state.
-   *
-   * @returns the runId of the Workflow
-   */
   protected async _signalWithStart<T extends Workflow, SA extends any[]>(
     workflowTypeOrFunc: string | T,
     options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>,
@@ -566,7 +555,7 @@ export class WorkflowClient extends BaseClient {
   /**
    * Start a new Workflow execution.
    *
-   * @returns a WorkflowHandle to the started Workflow
+   * @returns a {@link WorkflowHandle} to the started Workflow
    */
   public async start<T extends Workflow>(
     workflowTypeOrFunc: string | T,
@@ -590,8 +579,13 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Sends a Signal to a running Workflow or starts a new one if not already running and immediately Signals it.
-   * Useful when you're unsure whether the Workflow has been started.
+   * Start a new Workflow Execution and immediately send a Signal to that Workflow.
+   *
+   * The behavior of Signal-with-Start in the case where there is already a running Workflow with
+   * the given Workflow ID depends on the {@link WorkflowIDConflictPolicy}. That is, if the policy
+   * is `USE_EXISTING`, then the Signal is issued against the already existing Workflow Execution;
+   * however, if the policy is `FAIL`, then an error is thrown. If no policy is specified,
+   * Signal-with-Start defaults to `USE_EXISTING`.
    *
    * @returns a {@link WorkflowHandle} to the started Workflow
    */
@@ -617,18 +611,26 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Sends an update-with-start request and returns the Update result. The updateOptions must contain a
-   * {@link WithStartWorkflowOperation} which specifies the WorkflowIDConflictPolicy. If the specified
-   * Workflow execution is not running, then a new Workflow execution is started and the Update is sent in the
-   * first workflow task. Alternatively if the specified Workflow execution is running then, if the
-   * WorkflowIDConflictPolicy is USE_EXISTING, the Update is issued against the specified Workflow, and if the
-   * WorkflowIDConflictPolicy is FAIL, an error is thrown. The call will block until the Update has completed.
-   * The Workflow handle can be retrieved via awaiting {@link WithStartWorkflowOperation.workflowHandle},
-   * whether or not the Update succeeds.
+   * Start a new Workflow Execution and immediately send an Update to that Workflow,
+   * then await and return the Update's result.
    *
-   * @returns the Update result.
+   * The `updateOptions` object must contain a {@link WithStartWorkflowOperation}, which defines
+   * the options for the Workflow execution to start (e.g. the Workflow's type, task queue, input
+   * arguments, etc.)
    *
-   * @experimental
+   * The behavior of Update-with-Start in the case where there is already a running Workflow with
+   * the given Workflow ID depends on the specified {@link WorkflowIDConflictPolicy}. That is, if
+   * the policy is `USE_EXISTING`, then the Update is issued against the already existing Workflow
+   * Execution; however, if the policy is `FAIL`, then an error is thrown. Caller MUST specify
+   * the desired WorkflowIDConflictPolicy.
+   *
+   * This call will block until the Update has completed. The Workflow handle can be retrieved by
+   * awaiting on {@link WithStartWorkflowOperation.workflowHandle}, whether or not the Update
+   * succeeds.
+   *
+   * @returns the Update result
+   *
+   * @experimental Update-with-Start is an experimental feature and may be subject to change.
    */
   public async executeUpdateWithStart<T extends Workflow, Ret, Args extends any[]>(
     updateDef: UpdateDefinition<Ret, Args> | string,
@@ -642,18 +644,27 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Sends an update-with-start request and returns a {@link WorkflowUpdateHandle} to the Update. If the
-   * specified Workflow execution is not running, then a new Workflow execution is started and the Update is
-   * sent in the first workflow task. Alternatively if the specified Workflow execution is running then, if
-   * the WorkflowIDConflictPolicy is USE_EXISTING, the Update is issued against the specified Workflow, and if
-   * the WorkflowIDConflictPolicy is FAIL, an error is thrown. The call will block until the Update has
-   * reached the WaitForStage in the options. Note that this means that the call will not return successfully
-   * until the Update has been delivered to a worker. The Workflow handle can be retrieved via awaiting
-   * {@link WithStartWorkflowOperation.workflowHandle}, whether or not the Update is accepted.
+   * Start a new Workflow Execution and immediately send an Update to that Workflow,
+   * then return a {@link WorkflowUpdateHandle} for that Update.
    *
-   * @returns a {@link WorkflowUpdateHandle} to the started Update.
+   * The `updateOptions` object must contain a {@link WithStartWorkflowOperation}, which defines
+   * the options for the Workflow execution to start (e.g. the Workflow's type, task queue, input
+   * arguments, etc.)
    *
-   * @experimental
+   * The behavior of Update-with-Start in the case where there is already a running Workflow with
+   * the given Workflow ID depends on the specified {@link WorkflowIDConflictPolicy}. That is, if
+   * the policy is `USE_EXISTING`, then the Update is issued against the already existing Workflow
+   * Execution; however, if the policy is `FAIL`, then an error is thrown. Caller MUST specify
+   * the desired WorkflowIDConflictPolicy.
+   *
+   * This call will block until the Update has reached the specified {@link WorkflowUpdateStage}.
+   * Note that this means that the call will not return successfully until the Update has
+   * been delivered to a Worker. The Workflow handle can be retrieved by awaiting on
+   * {@link WithStartWorkflowOperation.workflowHandle}, whether or not the Update succeeds.
+   *
+   * @returns a {@link WorkflowUpdateHandle} to the started Update
+   *
+   * @experimental Update-with-Start is an experimental feature and may be subject to change.
    */
   public async startUpdateWithStart<T extends Workflow, Ret, Args extends any[]>(
     updateDef: UpdateDefinition<Ret, Args> | string,
@@ -734,7 +745,7 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Starts a new Workflow execution and awaits its completion.
+   * Start a new Workflow execution, then await for its completion and return that Workflow's result.
    *
    * @returns the result of the Workflow execution
    */
@@ -752,9 +763,9 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Gets the result of a Workflow execution.
+   * Get the result of a Workflow execution.
    *
-   * Follows the chain of execution in case Workflow continues as new, or has a cron schedule or retry policy.
+   * Follow the chain of execution in case Workflow continues as new, or has a cron schedule or retry policy.
    */
   public async result<T extends Workflow>(
     workflowId: string,
@@ -903,7 +914,7 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Uses given input to make a queryWorkflow call to the service
+   * Use given input to make a queryWorkflow call to the service
    *
    * Used as the final function of the query interceptor chain
    */
@@ -1156,7 +1167,7 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Uses given input to make a signalWorkflowExecution call to the service
+   * Use given input to make a signalWorkflowExecution call to the service
    *
    * Used as the final function of the signal interceptor chain
    */
@@ -1179,7 +1190,7 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Uses given input to make a signalWithStartWorkflowExecution call to the service
+   * Use given input to make a signalWithStartWorkflowExecution call to the service
    *
    * Used as the final function of the signalWithStart interceptor chain
    */
@@ -1230,7 +1241,7 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Uses given input to make startWorkflowExecution call to the service
+   * Use given input to make startWorkflowExecution call to the service
    *
    * Used as the final function of the start interceptor chain
    */
@@ -1284,7 +1295,7 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
-   * Uses given input to make terminateWorkflowExecution call to the service
+   * Use given input to make terminateWorkflowExecution call to the service
    *
    * Used as the final function of the terminate interceptor chain
    */
