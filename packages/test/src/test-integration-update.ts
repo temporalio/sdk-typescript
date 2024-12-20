@@ -141,7 +141,7 @@ test('updateWithStart handles can be obtained concurrently', async (t) => {
   });
 });
 
-test('updateWithStart failure 1a: invalid argument', async (t) => {
+test('updateWithStart failure: invalid argument', async (t) => {
   const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
     workflowId: randomUUID().repeat(77),
     taskQueue: 'does-not-exist',
