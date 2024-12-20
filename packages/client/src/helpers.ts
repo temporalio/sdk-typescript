@@ -134,7 +134,10 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
         for (const status of statuses) {
           const detail = status.details?.[0];
           const statusType = detail?.type_url?.replace(/^type.googleapis.com\//, '') as FailureName | undefined;
-          if (statusType === 'temporal.api.failure.v1.MultiOperationExecutionAborted' || status.code === grpcStatus.OK) {
+          if (
+            statusType === 'temporal.api.failure.v1.MultiOperationExecutionAborted' ||
+            status.code === grpcStatus.OK
+          ) {
             continue;
           }
           err.message = status.message ?? err.message;
