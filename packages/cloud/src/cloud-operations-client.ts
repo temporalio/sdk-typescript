@@ -43,8 +43,8 @@ export class CloudOperationsClient {
   /**
    * The underlying {@link CloudOperationsConnection | connection} used by this client.
    *
-   * Clients are cheap to create, but connections are expensive. Where that make sense,
-   * a single connection may and should be reused by multiple `CloudOperationsClient`.
+   * Clients are cheap to create, but connections are expensive. Where it makes sense,
+   * a single connection may and should be reused by multiple `CloudOperationsClient`s.
    */
   public readonly connection: CloudOperationsConnection;
   public readonly options: Readonly<CloudOperationsClientOptions>;
