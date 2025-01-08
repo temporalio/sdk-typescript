@@ -5,6 +5,7 @@ import { type Sink, type Sinks, proxySinks } from './sinks';
 import { isCancellation } from './errors';
 import { WorkflowInfo, ContinueAsNew } from './interfaces';
 import { assertInWorkflowContext } from './global-attributes';
+import { currentUpdateInfo } from './workflow';
 
 export interface WorkflowLogger extends Sink {
   trace(message: string, attrs?: Record<string, unknown>): void;
@@ -72,12 +73,16 @@ export const log: WorkflowLogger = Object.fromEntries(
       (message: string, attrs?: Record<string, unknown>) => {
         const activator = assertInWorkflowContext('Workflow.log(...) may only be used from workflow context.');
         const getLogAttributes = composeInterceptors(activator.interceptors.outbound, 'getLogAttributes', (a) => a);
+        const updateInfo = currentUpdateInfo();
         return loggerSink[level](message, {
           // Inject the call time in nanosecond resolution as expected by the worker logger.
           [LogTimestamp]: activator.getTimeOfDay(),
           sdkComponent: SdkComponent.workflow,
           ...getLogAttributes(workflowLogAttributes(activator.info)),
           ...attrs,
+          // Add update info if it exists
+          ...(updateInfo && { updateId: updateInfo.id }),
+          ...(updateInfo && { updateName: updateInfo.name }),
         });
       },
     ];
