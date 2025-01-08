@@ -30,6 +30,9 @@
     "directory": "packages/testing"
   },
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/testing",
+  "engines": {
+    "node": ">= 18.0.0"
+  },
   "files": [
     "lib",
     "src"

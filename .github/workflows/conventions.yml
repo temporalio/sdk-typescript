@@ -1,0 +1,61 @@
+name: Conventions
+
+on:
+  workflow_call:
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  lint-and-prune:
+    name: Lint and Prune
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Get NPM cache directory
+        id: npm-cache-dir
+        shell: bash
+        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+
+      - name: Restore NPM cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: npm-main-linux-x64-${{ hashFiles('./package-lock.json') }}
+          restore-keys: |
+            npm-main-linux-x64-
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '23.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rust Cargo and Build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/core-bridge -> target
+          prefix-key: corebridge-buildcache
+          shared-key: linux-x64
+          env-vars: ''
+          save-if: false
+
+      - name: Download dependencies
+        run: |
+          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
+
+      # eslint-import-resolver-typescript requires packages to be built
+      - name: Compile all non-rust code
+        run: npm run build -- --ignore @temporalio/core-bridge
+
+      - run: npm run lint.check
+      - run: npm run lint.prune

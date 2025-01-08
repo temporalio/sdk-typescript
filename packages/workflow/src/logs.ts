@@ -5,7 +5,7 @@ import { type Sink, type Sinks, proxySinks } from './sinks';
 import { isCancellation } from './errors';
 import { WorkflowInfo, ContinueAsNew } from './interfaces';
 import { assertInWorkflowContext } from './global-attributes';
-import { currentUpdateInfo } from './workflow';
+import { currentUpdateInfo, inWorkflowContext } from './workflow';
 
 export interface WorkflowLogger extends Sink {
   trace(message: string, attrs?: Record<string, unknown>): void;
@@ -73,16 +73,12 @@ export const log: WorkflowLogger = Object.fromEntries(
       (message: string, attrs?: Record<string, unknown>) => {
         const activator = assertInWorkflowContext('Workflow.log(...) may only be used from workflow context.');
         const getLogAttributes = composeInterceptors(activator.interceptors.outbound, 'getLogAttributes', (a) => a);
-        const updateInfo = currentUpdateInfo();
         return loggerSink[level](message, {
           // Inject the call time in nanosecond resolution as expected by the worker logger.
           [LogTimestamp]: activator.getTimeOfDay(),
           sdkComponent: SdkComponent.workflow,
           ...getLogAttributes(workflowLogAttributes(activator.info)),
           ...attrs,
-          // Add update info if it exists
-          ...(updateInfo && { updateId: updateInfo.id }),
-          ...(updateInfo && { updateName: updateInfo.name }),
         });
       },
     ];
@@ -122,11 +118,20 @@ export function executeWithLifecycleLogging(fn: () => Promise<unknown>): Promise
  * Note that this function may be called from outside of the Workflow context (eg. by the worker itself).
  */
 export function workflowLogAttributes(info: WorkflowInfo): Record<string, unknown> {
-  return {
+  const attributes: { [key: string]: string } = {
     namespace: info.namespace,
     taskQueue: info.taskQueue,
     workflowId: info.workflowId,
     runId: info.runId,
     workflowType: info.workflowType,
   };
+  if (inWorkflowContext()) {
+    const updateInfo = currentUpdateInfo();
+    if (updateInfo) {
+      // Add update info if it exists
+      attributes['updateId'] = updateInfo.id;
+      attributes['updateName'] = updateInfo.name;
+    }
+  }
+  return attributes;
 }
