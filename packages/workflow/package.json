@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/workflow",
-  "version": "1.11.3",
+  "version": "1.11.5",
   "description": "Temporal.io SDK Workflow sub-package",
   "keywords": [
     "temporal",
@@ -30,6 +30,9 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "engines": {
+    "node": ">= 18.0.0"
   },
   "files": [
     "src",

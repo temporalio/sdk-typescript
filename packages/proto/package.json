@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/proto",
-  "version": "1.11.3",
+  "version": "1.11.5",
   "description": "Temporal.io SDK compiled protobuf definitions",
   "main": "protos/index.js",
   "types": "protos/index.d.ts",
@@ -38,5 +38,8 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/proto",
   "publishConfig": {
     "access": "public"
+  },
+  "engines": {
+    "node": ">= 18.0.0"
   }
 }

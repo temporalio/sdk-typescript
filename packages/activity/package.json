@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/activity",
-  "version": "1.11.3",
+  "version": "1.11.5",
   "description": "Temporal.io SDK Activity sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -15,6 +15,9 @@
   "dependencies": {
     "@temporalio/common": "file:../common",
     "abort-controller": "^3.0.0"
+  },
+  "engines": {
+    "node": ">= 18.0.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

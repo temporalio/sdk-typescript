@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/interceptors-opentelemetry",
-  "version": "1.11.3",
+  "version": "1.11.5",
   "description": "Temporal.io SDK interceptors bundle for tracing with opentelemetry",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -44,6 +44,9 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/interceptors-opentelemetry",
   "publishConfig": {
     "access": "public"
+  },
+  "engines": {
+    "node": ">= 18.0.0"
   },
   "files": [
     "src",

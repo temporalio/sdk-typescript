@@ -47,7 +47,7 @@ export async function signalsActivitiesTimersPromiseOrdering(): Promise<boolean[
 
   (async () => {
     await wf.scheduleActivity('myActivity', [], {
-      scheduleToCloseTimeout: '1s',
+      scheduleToCloseTimeout: '10s',
       taskQueue: `${wf.workflowInfo().taskQueue}-activity`,
     });
     activityCompleted = true;

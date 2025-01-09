@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/create",
-  "version": "1.11.3",
+  "version": "1.11.5",
   "description": "Create a Temporal project from template",
   "main": "cli.js",
   "bin": "cli.js",
@@ -53,7 +53,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   },
   "files": [
     "cli.js",

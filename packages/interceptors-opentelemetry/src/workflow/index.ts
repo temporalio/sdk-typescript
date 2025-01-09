@@ -8,6 +8,8 @@ import {
   ContinueAsNew,
   ContinueAsNewInput,
   DisposeInput,
+  GetLogAttributesInput,
+  LocalActivityInput,
   Next,
   SignalInput,
   SignalWorkflowInput,
@@ -103,6 +105,23 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     });
   }
 
+  public async scheduleLocalActivity(
+    input: LocalActivityInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'scheduleLocalActivity'>
+  ): Promise<unknown> {
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}${input.activityType}`,
+      fn: async () => {
+        const headers = await headersWithContext(input.headers);
+        return next({
+          ...input,
+          headers,
+        });
+      },
+    });
+  }
+
   public async startChildWorkflowExecution(
     input: StartChildWorkflowExecutionInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'startChildWorkflowExecution'>
@@ -153,6 +172,24 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
         });
       },
     });
+  }
+
+  public getLogAttributes(
+    input: GetLogAttributesInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'getLogAttributes'>
+  ): Record<string, unknown> {
+    const span = otel.trace.getSpan(otel.context.active());
+    const spanContext = span?.spanContext();
+    if (spanContext && otel.isSpanContextValid(spanContext)) {
+      return next({
+        trace_id: spanContext.traceId,
+        span_id: spanContext.spanId,
+        trace_flags: `0${spanContext.traceFlags.toString(16)}`,
+        ...input,
+      });
+    } else {
+      return next(input);
+    }
   }
 }
 

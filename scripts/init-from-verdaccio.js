@@ -14,7 +14,7 @@ async function main() {
     console.log('spawning npx @temporalio/create with args:', initArgs);
     try {
       const npmConfigFile = resolve(registryDir, 'npmrc-custom');
-      const npmConfig = `@temporalio:registry=http://localhost:4873`;
+      const npmConfig = `@temporalio:registry=http://127.0.0.1:4873`;
       writeFileSync(npmConfigFile, npmConfig, { encoding: 'utf-8' });
 
       await spawnNpx(

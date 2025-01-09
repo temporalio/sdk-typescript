@@ -34,25 +34,36 @@ export function install({ root, useYarn }: InstallArgs): Promise<void> {
 
 export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
   const currentNodeVersion = +process.versions.node.split('.')[0];
-  const versionAlreadyInPackageJson = 16;
-  const minimumValidVersion = 16;
 
-  // The @tsconfig/node20 sets "--lib es2023", which require TypeScript 5.x.
-  // FIXME: Remove this once samples have been updated to TypeScript ^5.0.0.
-  const maximumValidVersion = 18;
+  const packageName = `@tsconfig/node${currentNodeVersion}`;
 
-  const tsconfigNodeVersion = Math.max(minimumValidVersion, Math.min(currentNodeVersion, maximumValidVersion));
+  const packageExists = await isUrlOk(`https://registry.npmjs.org/${packageName}`);
+  if (packageExists) {
+    const packageFileNames = await glob('**/package.json', { cwd: root, absolute: true, root: '' });
+    for (const fileName of packageFileNames) {
+      const packageJson = JSON.parse((await readFile(fileName, 'utf8')).toString());
 
-  if (tsconfigNodeVersion !== versionAlreadyInPackageJson) {
-    const packageName = `@tsconfig/node${tsconfigNodeVersion}`;
+      const existingDependency = Object.keys(packageJson.devDependencies || {}).find((dep) =>
+        /^@tsconfig\/node\d+$/.test(dep)
+      );
+      if (existingDependency) {
+        delete packageJson.devDependencies[existingDependency];
 
-    const packageExists = await isUrlOk(`https://registry.npmjs.org/${packageName}`);
-    if (packageExists) {
-      const fileNames = await glob(['**/package.json', '**/tsconfig.json'], { cwd: root, absolute: true, root: '' });
+        // Only add a dependency to `@tsconfig/nodeX` if there was already such a dependency; for
+        // various reasons, some package.json files just don't need it. The version scheme used by
+        // this project nowadays is to match the major version of the current Node.js version,
+        // e.g. `@tsconfig/node22` will have version `22.x.x`.
+        packageJson.devDependencies[packageName] = `^${currentNodeVersion}.0.0`;
+        await writeFile(fileName, JSON.stringify(packageJson, null, 2));
+      }
+    }
 
-      for (const fileName of fileNames) {
-        const fileString = (await readFile(fileName)).toString();
-        await writeFile(fileName, fileString.replace(`@tsconfig/node${versionAlreadyInPackageJson}`, packageName));
+    const tsconfigFileNames = await glob('**/tsconfig.json', { cwd: root, absolute: true, root: '' });
+    for (const fileName of tsconfigFileNames) {
+      const tsconfigJson = JSON.parse((await readFile(fileName, 'utf8')).toString());
+      if (tsconfigJson.extends && /^@tsconfig\/node\d+\/tsconfig\.json$/.test(tsconfigJson.extends)) {
+        tsconfigJson.extends = `${packageName}/tsconfig.json`;
+        await writeFile(fileName, JSON.stringify(tsconfigJson, null, 2));
       }
     }
 
@@ -69,5 +80,5 @@ export async function replaceSdkVersion({ root, sdkVersion }: InstallArgs): Prom
       packageJson.dependencies[packageName] = sdkVersion;
     }
   }
-  await writeFile(fileName, JSON.stringify(packageJson));
+  await writeFile(fileName, JSON.stringify(packageJson, null, 2));
 }

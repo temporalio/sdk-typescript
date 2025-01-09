@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/common",
-  "version": "1.11.3",
+  "version": "1.11.5",
   "description": "Common library for code that's used across the Client, Worker, and/or Workflow",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -31,6 +31,9 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/common",
   "publishConfig": {
     "access": "public"
+  },
+  "engines": {
+    "node": ">= 18.0.0"
   },
   "files": [
     "src",

@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/core-bridge",
-  "version": "1.11.3",
+  "version": "1.11.5",
   "description": "Temporal.io SDK Core<>Node bridge",
   "main": "index.js",
   "types": "lib/index.d.ts",
@@ -36,6 +36,9 @@
     "directory": "packages/core-bridge"
   },
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/core-bridge",
+  "engines": {
+    "node": ">= 18.0.0"
+  },
   "files": [
     "scripts",
     "src",

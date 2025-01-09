@@ -152,6 +152,7 @@ test(`mapAsyncIterable (with concurrency) doesn't hang on source exceptions`, as
   });
 });
 
+// FIXME: This test is producing rare flakes
 test(`mapAsyncIterable (with concurrency) doesn't hang mapFn exceptions`, async (t) => {
   async function* name(): AsyncIterable<number> {
     for (let i = 0; i < 1000; i++) {
@@ -162,7 +163,7 @@ test(`mapAsyncIterable (with concurrency) doesn't hang mapFn exceptions`, async 
   const iterable = mapAsyncIterable(
     name(),
     async (x: number) => {
-      await sleepThatTime(x);
+      await sleepThatTime(x * 10);
       if (x === 4) throw new Error('Test Exception');
       return x;
     },

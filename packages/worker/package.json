@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/worker",
-  "version": "1.11.3",
+  "version": "1.11.5",
   "description": "Temporal.io SDK Worker sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -51,6 +51,6 @@
     "lib"
   ],
   "engines": {
-    "node": ">= 16.0.0"
+    "node": ">= 18.0.0"
   }
 }
