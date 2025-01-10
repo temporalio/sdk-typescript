@@ -14,13 +14,15 @@ async function main() {
     console.log('spawning npx @temporalio/create with args:', initArgs);
     try {
       const npmConfigFile = resolve(registryDir, 'npmrc-custom');
-      const npmConfig = `
-        # Make sure that npm/npx doesn't reuse cached packages
-        cache=${resolve(registryDir, 'npm-cache')}
+      let npmConfig = `@temporalio:registry=http://127.0.0.1:4873`;
+      if (typeof process.env['CI'] === undefined) {
+        // When testing on dev's local machine, uses an isolated NPM cache directory to avoid mixing
+        // existing @temporalio/* cached packages with the ones from the local registry. We don't do
+        // that in CI though, as it is not needed (i.e. there should be no such cached packages yet)
+        // and would slow down the tests (i.e. it requires redownloading ALL packages).
+        npmConfig += `cache=${resolve(registryDir, 'npm-cache')} `;
+      }
 
-        # @temporalio:registry=http://127.0.0.1:4873
-        @temporalio:prefer-online=true
-      `;
       writeFileSync(npmConfigFile, npmConfig, { encoding: 'utf-8' });
 
       await spawnNpx(

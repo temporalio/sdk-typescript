@@ -282,7 +282,7 @@ jobs:
 
       # Note: here, `npx create` fails on windows if shell is bash.
       - name: Instantiate sample project using verdaccio artifacts
-        run: node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/${{ matrix.sample }} --sdk-version latest --target-dir ${{ runner.temp }}/example
+        run: node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/${{ matrix.sample }} --target-dir ${{ runner.temp }}/example
 
       - name: Install Temporal CLI
         if: matrix.server == 'cli'
