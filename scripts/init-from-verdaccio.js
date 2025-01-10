@@ -15,7 +15,6 @@ async function main() {
     try {
       const npmConfigFile = resolve(registryDir, 'npmrc-custom');
       let npmConfig = `@temporalio:registry=http://127.0.0.1:4873`;
-      console.log(`#@#@@@@ ${process.env?.['CI']}`);
 
       if (!process.env?.['CI']) {
         // When testing on dev's local machine, uses an isolated NPM cache directory to avoid mixing
