@@ -4,6 +4,8 @@ import { glob } from 'glob';
 import { spawn } from './subprocess.js';
 import { isUrlOk } from './samples.js';
 
+console.log('######## Using local version of @temporalio/create');
+
 interface InstallArgs {
   root: string;
 
