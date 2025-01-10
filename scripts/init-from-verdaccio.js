@@ -15,12 +15,14 @@ async function main() {
     try {
       const npmConfigFile = resolve(registryDir, 'npmrc-custom');
       let npmConfig = `@temporalio:registry=http://127.0.0.1:4873`;
-      if (typeof process.env['CI'] === undefined) {
+      console.log(`#@#@@@@ ${process.env?.['CI']}`);
+
+      if (!process.env?.['CI']) {
         // When testing on dev's local machine, uses an isolated NPM cache directory to avoid mixing
         // existing @temporalio/* cached packages with the ones from the local registry. We don't do
         // that in CI though, as it is not needed (i.e. there should be no such cached packages yet)
         // and would slow down the tests (i.e. it requires redownloading ALL packages).
-        npmConfig += `cache=${resolve(registryDir, 'npm-cache')} `;
+        npmConfig += `\ncache=${resolve(registryDir, 'npm-cache')}`;
       }
 
       writeFileSync(npmConfigFile, npmConfig, { encoding: 'utf-8' });
