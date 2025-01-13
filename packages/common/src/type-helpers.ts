@@ -237,7 +237,7 @@ export function deepFreeze<T>(object: T, visited = new WeakSet<any>(), path = 'r
     for (const name of propNames) {
       const value = (object as any)[name];
 
-      if (value && typeof value === 'object') {
+      if (value && (typeof value === 'object' || typeof value === 'function')) {
         try {
           deepFreeze(value, visited, `${path}.${name}`);
         } catch (err) {
@@ -251,5 +251,6 @@ export function deepFreeze<T>(object: T, visited = new WeakSet<any>(), path = 'r
     }
   }
 
+  // console.log(`==== Deep freezing ${path} -- ${typeof object}`);
   return Object.freeze(object);
 }

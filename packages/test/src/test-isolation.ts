@@ -81,13 +81,14 @@ export async function v8BuiltinGlobalFunctionMutatorWorkflow(): Promise<(number 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 test("V8's built-in global functions can be safely reassigned", withReusableContext, async (t) => {
-  await assertObjectImmutable(t, v8BuiltinGlobalFunctionReassignWorkflow);
+  await assertObjectSafelyMutable(t, v8BuiltinGlobalFunctionReassignWorkflow);
 });
 
 export async function v8BuiltinGlobalFunctionReassignWorkflow(): Promise<(number | null)[]> {
   try {
     const originalArray = globalThis.Array;
     globalThis.Array = ((...args: any[]) => originalArray(...args)) as any;
+    globalThis.Array.from = ((...args: any[]) => (originalArray as any).from(...args)) as any;
     return basePropertyMutatorWorkflow(() => globalThis.Array);
   } catch (e) {
     if (!(e instanceof ApplicationFailure)) {

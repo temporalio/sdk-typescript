@@ -1,7 +1,3 @@
-import assert from 'node:assert';
-import { URL, URLSearchParams } from 'node:url';
-import { TextDecoder, TextEncoder } from 'node:util';
-import { AsyncLocalStorage } from 'node:async_hooks';
 import vm from 'node:vm';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { IllegalStateError } from '@temporalio/common';
@@ -10,7 +6,13 @@ import { getTimeOfDay } from '@temporalio/core-bridge';
 import { timeOfDayToBigint } from '../logger';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
-import { BaseVMWorkflow, globalHandlers, injectConsole, setUnhandledRejectionHandler } from './vm-shared';
+import {
+  BaseVMWorkflow,
+  globalHandlers,
+  injectConsole,
+  injectGlobals,
+  setUnhandledRejectionHandler,
+} from './vm-shared';
 
 /**
  * A WorkflowCreator that creates VMWorkflows in the current isolate
@@ -28,7 +30,8 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
    * Use the {@link context} getter instead
    */
   private _context?: vm.Context;
-  private pristine?: Map<string, PropertyDescriptor>;
+  private pristineObj?: object;
+  private pristineProps?: Set<string | symbol>;
 
   constructor(
     script: vm.Script,
@@ -41,6 +44,11 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       setUnhandledRejectionHandler((runId) => ReusableVMWorkflowCreator.workflowByRunId.get(runId));
       ReusableVMWorkflowCreator.unhandledRejectionHandlerHasBeenSet = true;
     }
+
+    this._context = vm.createContext({}, { microtaskMode: 'afterEvaluate' });
+
+    this.injectConsole();
+    injectGlobals(this.context);
 
     const sharedModules = new Map<string | symbol, any>();
     const __webpack_module_cache__ = new Proxy(
@@ -67,62 +75,46 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
         },
       }
     );
-    const globals = Object.create({});
-    this._context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
+    Object.defineProperty(this._context, '__webpack_module_cache__', {
+      value: __webpack_module_cache__,
+      writable: false,
+      enumerable: false,
+      configurable: false,
+    });
 
-    const globalsParent = {
-      AsyncLocalStorage,
-      URL,
-      URLSearchParams,
-      assert,
-      __webpack_module_cache__,
-      TextEncoder,
-      TextDecoder,
-      AbortController,
-    };
-    for (const [k, v] of Object.entries(globalsParent)) {
-      Object.defineProperty(globals, k, { value: v, writable: false, enumerable: true, configurable: false });
-    }
-
-    this.injectConsole();
     script.runInContext(this.context);
 
-    this.pristine = new Map<string, PropertyDescriptor>();
-    (globals as any).__pristine = this.pristine;
-    // The V8 context is really composed of two distinct objects: the `globals` object defined above
-    // on the outside, and another internal object to which we only have access from the inside, which
-    // defines the built-in global properties.
-    (globals as any).__console = console;
-    vm.runInContext(
-      `
-        {
-          const pristine = globalThis.__pristine;
-          const console = globalThis.__console;
-          delete globalThis.__pristine;
-          delete globalThis.__console;
-          for (const name of Object.getOwnPropertyNames(globalThis)) {
-            const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
-            console.log(\`# Prop: \${name}\`);
-            if (descriptor === undefined) {
-              console.log(\`Got own property, but no descriptor??? \${name}\`);
-            }
-            pristine.set(name, descriptor);
-          }
-        }
-      `,
-      this.context
-    );
-    for (const [k, v] of this.pristine.entries()) {
+    // The V8 context is really composed of two distinct objects: the 'this._context' object on the outside, and another
+    // internal object to which we only have access from the inside, which defines the built-in global properties.
+    // Node makes some attempt at keeping the two in sync, but it's not perfect. To avoid various inconsistencies,
+    // we capture the global variables from the inside of the V8 context.
+    this.pristineObj = vm.runInContext(`Object.getOwnPropertyDescriptors(globalThis)`, this.context);
+    this.pristineProps = new Set([
+      ...Object.getOwnPropertyNames(this.pristineObj),
+      ...Object.getOwnPropertySymbols(this.pristineObj),
+
+      // Also ignore these, which are meant for our own use
+      '__TEMPORAL_ARGS__',
+      '__TEMPORAL_ACTIVATOR__',
+    ]);
+
+    for (const k of [
+      ...Object.getOwnPropertyNames(this.pristineObj),
+      ...Object.getOwnPropertySymbols(this.pristineObj),
+    ]) {
+      const v: PropertyDescriptor = (this.pristineObj as any)[k];
       if (k !== 'globalThis') {
-        console.log(`Deep freezing pristine ${k} -- ${typeof v}`);
+        // console.log(`Deep freezing pristine ${String(k)} -- ${typeof v}`);
         v.value = deepFreeze(v.value);
-        if (typeof v.value === 'function') {
-          console.log(` ... non-writable`);
-          v.writable = false;
-        }
+        // if (typeof v.value === 'function') {
+        //   console.log(` ... non-writable`);
+        //   v.writable = false;
+        // }
       }
     }
-    for (const v of sharedModules.values()) {
+
+    for (const [k, v] of sharedModules.entries()) {
+      // console.log(`== FReezing module ${String(k)}`);
       deepFreeze(v);
     }
   }
@@ -149,17 +141,19 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = this.context;
-    const pristine = this.pristine;
-    const bag: Map<string, PropertyDescriptor> = new Map(pristine);
+    // const pristine = this.pristineMap;
+    const pristineObj = this.pristineObj!;
+    const pristineProps = this.pristineProps!;
+    // const bag: Map<string | symbol, PropertyDescriptor> = new Map(pristine);
+    let bag: object | undefined = undefined;
     const { isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
       {},
       {
         get(_: any, fn: string) {
           return (...args: any[]) => {
-            for (const [pname, pdesc] of bag.entries()) {
-              Object.defineProperty(context, pname, pdesc);
-            }
+            context.__TEMPORAL_ARGS__ = (bag as any) ?? pristineObj;
+            vm.runInContext(`Object.defineProperties(globalThis, globalThis.__TEMPORAL_ARGS__)`, context);
 
             // runInContext does not accept args, pass via globals
             context.__TEMPORAL_ARGS__ = args;
@@ -174,42 +168,38 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
               delete context.__TEMPORAL_ARGS__;
 
               //
-              bag.clear();
-              const keysToCleanup: [string, PropertyDescriptor | undefined][] = [];
+              bag = vm.runInContext(`Object.getOwnPropertyDescriptors(globalThis)`, context);
 
-              for (const pname of Object.getOwnPropertyNames(context)) {
-                const pdesc = Object.getOwnPropertyDescriptor(context, pname) as PropertyDescriptor;
-                const pdescPristine = pristine?.get(pname);
-                if (pdesc.value !== pdescPristine?.value) {
-                  bag.set(pname, pdesc);
-                  keysToCleanup.push([pname, pdescPristine]);
-                }
-              }
+              context.__TEMPORAL_ARGS__ = pristineObj;
+              vm.runInContext(`Object.defineProperties(globalThis, globalThis.__TEMPORAL_ARGS__)`, context);
+
+              const bagProps = new Set([...Object.getOwnPropertyNames(bag), ...Object.getOwnPropertySymbols(bag)]);
+
+              const propsToRemove = [...bagProps].filter((x) => !pristineProps.has(x));
 
               // Looks like Node/V8 is not properly syncing deletion of keys on the outter context
               // object to the inner globalThis object. Hence, we delete them from inside the context.
-              context.__TEMPORAL_ARGS__ = keysToCleanup;
+              context.__TEMPORAL_ARGS__ = propsToRemove;
+
+              // for (const prop of propsToRemove) {
+              //   console.log(`Deleting prop ${String(prop)}`);
+              // }
+
               vm.runInContext(
                 `
-                  for (const [name, descriptor] of globalThis.__TEMPORAL_ARGS__) {
-                    // if (name !== '__TEMPORAL_ACTIVATOR__') {
-                    //   debugger;
-                    // }
-                    if (descriptor) {
-                      if (!descriptor.configurable) continue;
-                      Object.defineProperty(globalThis, name, { ...descriptor, writable: true });
-                    } else {
-                      delete globalThis[name];
-                    }
+                  for (const prop of globalThis.__TEMPORAL_ARGS__) {
+                    delete globalThis[prop];
                   }
-                  delete globalThis.__TEMPORAL_ARGS__;`,
+
+                  delete globalThis.__TEMPORAL_ARGS__;
+                `,
                 context
               );
 
               // Need to preserve this for the unhandledRejection handler.
               // TODO: There's probably a better way but this is simplest since we want to maintain compatibility with
               // the non-reusable vm implementation.
-              context.__TEMPORAL_ACTIVATOR__ = bag.get('__TEMPORAL_ACTIVATOR__')?.value;
+              // context.__TEMPORAL_ACTIVATOR__ = (bag as any)['__TEMPORAL_ACTIVATOR__']?.value;
             }
           };
         },
@@ -222,7 +212,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       getTimeOfDay: () => timeOfDayToBigint(getTimeOfDay()),
       registeredActivityNames: this.registeredActivityNames,
     });
-    const activator = bag.get('__TEMPORAL_ACTIVATOR__')?.value as any;
+    const activator = (bag as any)['__TEMPORAL_ACTIVATOR__']?.value as any;
     const newVM = new ReusableVMWorkflow(options.info.runId, context, activator, workflowModule);
 
     ReusableVMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
