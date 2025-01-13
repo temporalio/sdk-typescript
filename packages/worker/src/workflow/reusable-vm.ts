@@ -102,21 +102,13 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       ...Object.getOwnPropertyNames(this.pristineObj),
       ...Object.getOwnPropertySymbols(this.pristineObj),
     ]) {
-      const v: PropertyDescriptor = (this.pristineObj as any)[k];
       if (k !== 'globalThis') {
-        // console.log(`Deep freezing pristine ${String(k)} -- ${typeof v}`);
+        const v: PropertyDescriptor = (this.pristineObj as any)[k];
         v.value = deepFreeze(v.value);
-        // if (typeof v.value === 'function') {
-        //   console.log(` ... non-writable`);
-        //   v.writable = false;
-        // }
       }
     }
 
-    for (const [k, v] of sharedModules.entries()) {
-      // console.log(`== FReezing module ${String(k)}`);
-      deepFreeze(v);
-    }
+    for (const v of sharedModules.values()) deepFreeze(v);
   }
 
   protected get context(): vm.Context {
@@ -141,11 +133,11 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = this.context;
-    // const pristine = this.pristineMap;
+
     const pristineObj = this.pristineObj!;
     const pristineProps = this.pristineProps!;
-    // const bag: Map<string | symbol, PropertyDescriptor> = new Map(pristine);
     let bag: object | undefined = undefined;
+
     const { isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
       {},
@@ -170,36 +162,26 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
               //
               bag = vm.runInContext(`Object.getOwnPropertyDescriptors(globalThis)`, context);
 
-              context.__TEMPORAL_ARGS__ = pristineObj;
-              vm.runInContext(`Object.defineProperties(globalThis, globalThis.__TEMPORAL_ARGS__)`, context);
-
-              const bagProps = new Set([...Object.getOwnPropertyNames(bag), ...Object.getOwnPropertySymbols(bag)]);
-
-              const propsToRemove = [...bagProps].filter((x) => !pristineProps.has(x));
-
               // Looks like Node/V8 is not properly syncing deletion of keys on the outter context
               // object to the inner globalThis object. Hence, we delete them from inside the context.
-              context.__TEMPORAL_ARGS__ = propsToRemove;
-
-              // for (const prop of propsToRemove) {
-              //   console.log(`Deleting prop ${String(prop)}`);
-              // }
-
+              context.__TEMPORAL_ARGS__ = [pristineObj, pristineProps];
               vm.runInContext(
-                `
-                  for (const prop of globalThis.__TEMPORAL_ARGS__) {
-                    delete globalThis[prop];
-                  }
+                `{
+                    const [pristineObj, pristineProps] = globalThis.__TEMPORAL_ARGS__;
+                    Object.defineProperties(globalThis, pristineObj);
 
-                  delete globalThis.__TEMPORAL_ARGS__;
-                `,
+                    const globalProps = [
+                      ...Object.getOwnPropertyNames(globalThis),
+                      ...Object.getOwnPropertySymbols(globalThis),
+                    ];
+                    const propsToRemove = globalProps.filter((x) => !pristineProps.has(x));
+
+                    for (const prop of propsToRemove) {
+                      delete globalThis[prop];
+                    }
+                }`,
                 context
               );
-
-              // Need to preserve this for the unhandledRejection handler.
-              // TODO: There's probably a better way but this is simplest since we want to maintain compatibility with
-              // the non-reusable vm implementation.
-              // context.__TEMPORAL_ACTIVATOR__ = (bag as any)['__TEMPORAL_ACTIVATOR__']?.value;
             }
           };
         },

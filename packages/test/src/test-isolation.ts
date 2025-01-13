@@ -244,29 +244,6 @@ async function basePropertyMutatorWorkflow(
   }
 }
 
-// Given the object returned by `getObject()`, this function can be used to assert
-// either of these two scenarios:
-//  1. The object can't be mutated from Workflows (i.e. the object is frozen);
-//     - or -
-//  2. The object can be safetly mutated from Workflows, meaning that:
-//     2.1. Can add new properties to the object (i.e. the object is not frozen);
-//     2.2. Properties added on the object from one workflow execution don't leak to other workflows;
-//     2.3. Properties added on the object from one workflow are maintained between activations of that workflow;
-//     2.4. Properties added then deleted from the object don't reappear on subsequent activations.
-// async function basePropertyReassign(getObject: () => any, propName: string): Promise<(number | null)[]> {
-//   try {
-//     const prop = getObject()[propName];
-//     const newProp = cloneObject;
-//     getObject()[propName] = newProp;
-//     return basePropertyMutator(() => getObject()[propName]);
-//   } catch (e) {
-//     if (!(e instanceof ApplicationFailure)) {
-//       throw ApplicationFailure.fromError(e);
-//     }
-//     throw e;
-//   }
-// }
-
 function encodeProperty(prop: string | symbol | number): string {
   if (typeof prop === 'symbol') return `symbol:${String(prop)}`;
   if (typeof prop === 'number') return `number:${prop}`;
