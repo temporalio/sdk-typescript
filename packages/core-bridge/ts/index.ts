@@ -462,7 +462,7 @@ export interface DevServerConfig {
   /**
    * IP to bind to.
    *
-   * @default 127.0.0.1
+   * @default localhost
    */
   ip?: string;
   /**

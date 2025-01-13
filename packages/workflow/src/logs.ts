@@ -5,6 +5,7 @@ import { type Sink, type Sinks, proxySinks } from './sinks';
 import { isCancellation } from './errors';
 import { WorkflowInfo, ContinueAsNew } from './interfaces';
 import { assertInWorkflowContext } from './global-attributes';
+import { currentUpdateInfo, inWorkflowContext } from './workflow';
 
 export interface WorkflowLogger extends Sink {
   trace(message: string, attrs?: Record<string, unknown>): void;
@@ -117,11 +118,20 @@ export function executeWithLifecycleLogging(fn: () => Promise<unknown>): Promise
  * Note that this function may be called from outside of the Workflow context (eg. by the worker itself).
  */
 export function workflowLogAttributes(info: WorkflowInfo): Record<string, unknown> {
-  return {
+  const attributes: { [key: string]: string } = {
     namespace: info.namespace,
     taskQueue: info.taskQueue,
     workflowId: info.workflowId,
     runId: info.runId,
     workflowType: info.workflowType,
   };
+  if (inWorkflowContext()) {
+    const updateInfo = currentUpdateInfo();
+    if (updateInfo) {
+      // Add update info if it exists
+      attributes['updateId'] = updateInfo.id;
+      attributes['updateName'] = updateInfo.name;
+    }
+  }
+  return attributes;
 }

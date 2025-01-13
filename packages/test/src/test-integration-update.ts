@@ -1,6 +1,16 @@
-import { WorkflowUpdateStage, WorkflowUpdateRPCTimeoutOrCancelledError, WorkflowFailedError } from '@temporalio/client';
+import { randomUUID } from 'crypto';
+import { status as grpcStatus } from '@grpc/grpc-js';
+import {
+  isGrpcServiceError,
+  WorkflowUpdateStage,
+  WorkflowUpdateRPCTimeoutOrCancelledError,
+  WorkflowFailedError,
+  WithStartWorkflowOperation,
+  WorkflowExecutionAlreadyStartedError,
+} from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { temporal } from '@temporalio/proto';
+import { LogEntry } from '@temporalio/worker';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { signalUpdateOrderingWorkflow } from './workflows/signal-update-ordering';
 import { signalsActivitiesTimersPromiseOrdering } from './workflows/signals-timers-activities-order';
@@ -9,6 +19,8 @@ import { loadHistory, waitUntil } from './helpers';
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
 const LONG_POLL_EXPIRATION_INTERVAL_SECONDS = 5.0;
+
+const recordedLogs: { [workflowId: string]: LogEntry[] } = {};
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -20,6 +32,7 @@ const test = makeTestFunction({
       ],
     },
   },
+  recordedLogs,
 });
 
 export const update = wf.defineUpdate<string[], [string]>('update');
@@ -44,6 +57,200 @@ export async function workflowWithUpdates(): Promise<string[]> {
   state.push('$');
   return state;
 }
+
+test('updateWithStart happy path', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
+      workflowId: randomUUID(),
+      taskQueue,
+      workflowIdConflictPolicy: 'USE_EXISTING',
+    });
+    // Can send Update-With-Start MultiOperation request
+    const updHandle = await t.context.env.client.workflow.startUpdateWithStart(update, {
+      args: ['1'],
+      waitForStage: 'ACCEPTED',
+      startWorkflowOperation: startOp,
+    });
+    // Can use returned upate handle to wait for update result
+    const updResult1 = await updHandle.result();
+    t.deepEqual(updResult1, ['1']);
+
+    // startOp has been mutated such that workflow handle is now available and
+    // can be used to interact with the workflow.
+    const wfHandle = await startOp.workflowHandle();
+    const updResult2 = await wfHandle.executeUpdate(update, { args: ['2'] });
+    t.deepEqual(updResult2, ['1', '2']);
+
+    // startOp cannot be re-used in a second Update-With-Start call
+    const err = await t.throwsAsync(
+      t.context.env.client.workflow.executeUpdateWithStart(update, {
+        args: ['3'],
+        startWorkflowOperation: startOp,
+      })
+    );
+    t.true(err?.message.includes('WithStartWorkflowOperation instance has already been executed'));
+  });
+});
+
+export async function workflowWithArgAndUpdateArg(wfArg: string): Promise<void> {
+  const updateHandler = async (updateArg: string): Promise<string[]> => {
+    return [wfArg, updateArg];
+  };
+  wf.setHandler(update, updateHandler);
+  await wf.condition(() => false);
+}
+
+test('updateWithStart can send workflow arg and update arg', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const startOp = new WithStartWorkflowOperation(workflowWithArgAndUpdateArg, {
+      workflowId: randomUUID(),
+      args: ['wf-arg'],
+      taskQueue,
+      workflowIdConflictPolicy: 'USE_EXISTING',
+    });
+    const updResult = await t.context.env.client.workflow.executeUpdateWithStart(update, {
+      args: ['upd-arg'],
+      startWorkflowOperation: startOp,
+    });
+    t.deepEqual(updResult, ['wf-arg', 'upd-arg']);
+    t.deepEqual((await startOp.workflowHandle()).workflowId, startOp.options.workflowId);
+  });
+});
+
+test('updateWithStart handles can be obtained concurrently', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
+      workflowId: randomUUID(),
+      taskQueue,
+      workflowIdConflictPolicy: 'USE_EXISTING',
+    });
+    const [wfHandle, updHandle] = await Promise.all([
+      startOp.workflowHandle(),
+      t.context.env.client.workflow.startUpdateWithStart(update, {
+        args: ['1'],
+        waitForStage: 'ACCEPTED',
+        startWorkflowOperation: startOp,
+      }),
+    ]);
+
+    // Can use returned handles
+    t.deepEqual(await updHandle.result(), ['1']);
+    t.deepEqual(await wfHandle.executeUpdate(update, { args: ['2'] }), ['1', '2']);
+  });
+});
+
+test('updateWithStart failure: invalid argument', async (t) => {
+  const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
+    workflowId: randomUUID().repeat(77),
+    taskQueue: 'does-not-exist',
+    workflowIdConflictPolicy: 'FAIL',
+  });
+
+  for (const promise of [
+    t.context.env.client.workflow.startUpdateWithStart(update, {
+      args: ['1'],
+      waitForStage: 'ACCEPTED',
+      startWorkflowOperation: startOp,
+    }),
+    startOp.workflowHandle(),
+  ]) {
+    const err = await t.throwsAsync(promise);
+    t.true(isGrpcServiceError(err) && err.code === grpcStatus.INVALID_ARGUMENT);
+    t.true(err?.message.startsWith('WorkflowId length exceeds limit.'));
+  }
+});
+
+test('updateWithStart failure: workflow already exists', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const workflowId = randomUUID();
+  const worker = await createWorker();
+  const makeStartOp = () =>
+    new WithStartWorkflowOperation(workflowWithUpdates, {
+      workflowId,
+      taskQueue,
+      workflowIdConflictPolicy: 'FAIL',
+    });
+
+  const startUpdateWithStart = async (startOp: WithStartWorkflowOperation<typeof workflowWithUpdates>) => {
+    return [
+      await t.context.env.client.workflow.startUpdateWithStart(update, {
+        args: ['1'],
+        waitForStage: 'ACCEPTED',
+        startWorkflowOperation: startOp,
+      }),
+      startOp,
+    ];
+  };
+  // The second call should fail with an ALREADY_EXISTS error. We assert that
+  // the resulting gRPC error has been correctly constructed from the two errors
+  // (start error, and aborted update) returned in the MultiOperationExecutionFailure.
+  await worker.runUntil(async () => {
+    const startOp1 = makeStartOp();
+    await startUpdateWithStart(startOp1);
+
+    const startOp2 = makeStartOp();
+    for (const promise of [startUpdateWithStart(startOp2), startOp2.workflowHandle()]) {
+      await t.throwsAsync(promise, {
+        instanceOf: WorkflowExecutionAlreadyStartedError,
+        message: 'Workflow execution already started',
+      });
+    }
+  });
+});
+
+export const neverReturningUpdate = wf.defineUpdate<string[], [string]>('never-returning-update');
+
+export async function workflowWithNeverReturningUpdate(): Promise<never> {
+  const updateHandler = async (): Promise<never> => {
+    await new Promise(() => {});
+    throw new Error('unreachable');
+  };
+  wf.setHandler(neverReturningUpdate, updateHandler);
+  await new Promise(() => {});
+  throw new Error('unreachable');
+}
+
+test('updateWithStart failure: update fails early due to limit on number of updates', async (t) => {
+  const workflowId = randomUUID();
+  const { createWorker, taskQueue } = helpers(t);
+  const worker = await createWorker();
+  const makeStartOp = () =>
+    new WithStartWorkflowOperation(workflowWithNeverReturningUpdate, {
+      workflowId,
+      taskQueue,
+      workflowIdConflictPolicy: 'USE_EXISTING',
+    });
+  const startUpdateWithStart = async (startOp: WithStartWorkflowOperation<typeof workflowWithNeverReturningUpdate>) => {
+    await t.context.env.client.workflow.startUpdateWithStart(neverReturningUpdate, {
+      waitForStage: 'ACCEPTED',
+      startWorkflowOperation: startOp,
+    });
+  };
+
+  await worker.runUntil(async () => {
+    // The server permits 10 updates per workflow execution.
+    for (let i = 0; i < 10; i++) {
+      const startOp = makeStartOp();
+      await startUpdateWithStart(startOp);
+      await startOp.workflowHandle;
+    }
+    // The 11th call should fail with a gRPC error
+
+    // TODO: set gRPC retries to 1. This generates a RESOURCE_EXHAUSTED error,
+    // and by default these are retried 10 times.
+    const startOp = makeStartOp();
+    for (const promise of [startUpdateWithStart(startOp), startOp.workflowHandle()]) {
+      const err = await t.throwsAsync(promise);
+      t.true(isGrpcServiceError(err) && err.code === grpcStatus.RESOURCE_EXHAUSTED);
+    }
+  });
+});
 
 test('Update can be executed via executeUpdate()', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
@@ -812,4 +1019,36 @@ test('Can complete update after workflow returns - pre-1.11.0 compatibility', as
   const hist = await loadHistory('complete_update_after_workflow_returns_pre1488.json');
   await runReplayHistory({}, hist);
   t.pass();
+});
+
+const logUpdate = wf.defineUpdate<[string, string], [string]>('log-update');
+export async function workflowWithLogInUpdate(): Promise<void> {
+  const updateHandler = (msg: string): [string, string] => {
+    const updateInfo = wf.currentUpdateInfo();
+    if (!updateInfo) {
+      throw new Error('expected updateInfo to be defined');
+    }
+    wf.log.info(msg);
+    return [updateInfo.id, updateInfo.name];
+  };
+  wf.setHandler(logUpdate, updateHandler);
+  await wf.condition(() => false);
+}
+
+test('Workflow Worker logs update info when logging within update handler', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const wfHandle = await startWorkflow(workflowWithLogInUpdate);
+    const logMsg = 'log msg';
+    const [updateId, updateName] = await wfHandle.executeUpdate(logUpdate, { args: [logMsg] });
+    t.true(
+      recordedLogs[wfHandle.workflowId].some(
+        (logEntry) =>
+          logEntry.meta?.updateName === updateName &&
+          logEntry.meta?.updateId === updateId &&
+          logEntry.message === logMsg
+      )
+    );
+  });
 });

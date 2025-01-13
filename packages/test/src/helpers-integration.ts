@@ -5,6 +5,7 @@ import {
   isGrpcServiceError,
   WorkflowFailedError,
   WorkflowHandle,
+  WorkflowHandleWithFirstExecutionRunId,
   WorkflowStartOptions,
   WorkflowUpdateFailedError,
 } from '@temporalio/client';
@@ -20,6 +21,7 @@ import {
   Runtime,
   WorkerOptions,
   WorkflowBundle,
+  WorkflowBundleWithSourceMap,
   bundleWorkflowCode,
   makeTelemetryFilterString,
 } from '@temporalio/worker';
@@ -40,8 +42,7 @@ export interface Context {
 }
 
 const defaultDynamicConfigOptions = [
-  'frontend.enableUpdateWorkflowExecution=true',
-  'frontend.enableUpdateWorkflowExecutionAsyncAccepted=true',
+  'frontend.enableExecuteMultiOperation=true',
   'frontend.workerVersioningDataAPIs=true',
   'frontend.workerVersioningWorkflowAPIs=true',
   'system.enableActivityEagerExecution=true',
@@ -51,57 +52,97 @@ const defaultDynamicConfigOptions = [
   'worker.removableBuildIdDurationSinceDefault=1',
 ];
 
+function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }) {
+  const logger = recordedLogs
+    ? new DefaultLogger('DEBUG', (entry) => {
+        const workflowId = (entry.meta as any)?.workflowInfo?.workflowId ?? (entry.meta as any)?.workflowId;
+        recordedLogs![workflowId] ??= [];
+        recordedLogs![workflowId].push(entry);
+      })
+    : new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel);
+  Runtime.install({
+    logger,
+    telemetryOptions: {
+      logging: {
+        filter: makeTelemetryFilterString({
+          core: (process.env.TEST_LOG_LEVEL || 'INFO').toUpperCase() as LogLevel,
+        }),
+      },
+    },
+  });
+}
+
+export interface HelperTestBundleOptions {
+  workflowsPath: string;
+  workflowInterceptorModules?: string[];
+}
+
+export async function createTestWorkflowBundle({
+  workflowsPath,
+  workflowInterceptorModules,
+}: HelperTestBundleOptions): Promise<WorkflowBundleWithSourceMap> {
+  return await bundleWorkflowCode({
+    ...bundlerOptions,
+    workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(workflowInterceptorModules ?? [])],
+    workflowsPath,
+    logger: new DefaultLogger('WARN'),
+  });
+}
+
+export async function createLocalTestEnvironment(
+  opts?: LocalTestWorkflowEnvironmentOptions
+): Promise<TestWorkflowEnvironment> {
+  return await TestWorkflowEnvironment.createLocal({
+    ...(opts || {}), // Use provided options or default to an empty object
+    server: {
+      ...(opts?.server || {}), // Use provided server options or default to an empty object
+      extraArgs: [
+        ...defaultDynamicConfigOptions.flatMap((opt) => ['--dynamic-config-value', opt]),
+        ...(opts?.server?.extraArgs ?? []),
+      ],
+    },
+  });
+}
+
+export function makeConfigurableEnvironmentTestFn<T>(opts: {
+  recordedLogs?: { [workflowId: string]: LogEntry[] };
+  createTestContext: (t: ExecutionContext) => Promise<T>;
+  teardown: (t: T) => Promise<void>;
+}): TestFn<T> {
+  const test = anyTest as TestFn<T>;
+  test.before(async (t) => {
+    setupRuntime(opts.recordedLogs);
+    t.context = await opts.createTestContext(t);
+  });
+  test.after.always(async (t) => {
+    await opts.teardown(t.context);
+  });
+  return test;
+}
+
 export function makeTestFunction(opts: {
   workflowsPath: string;
   workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
   workflowInterceptorModules?: string[];
   recordedLogs?: { [workflowId: string]: LogEntry[] };
 }): TestFn<Context> {
-  const test = anyTest as TestFn<Context>;
-  test.before(async (t) => {
-    const workflowBundle = await bundleWorkflowCode({
-      ...bundlerOptions,
-      workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])],
-      workflowsPath: opts.workflowsPath,
-      logger: new DefaultLogger('WARN'),
-    });
-    const logger = opts.recordedLogs
-      ? new DefaultLogger('DEBUG', (entry) => {
-          const workflowId = (entry.meta as any)?.workflowInfo?.workflowId ?? (entry.meta as any)?.workflowId;
-          opts.recordedLogs![workflowId] ??= [];
-          opts.recordedLogs![workflowId].push(entry);
-        })
-      : new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel);
-    Runtime.install({
-      logger,
-      telemetryOptions: {
-        logging: {
-          filter: makeTelemetryFilterString({
-            core: (process.env.TEST_LOG_LEVEL || 'INFO').toUpperCase() as LogLevel,
-          }),
-        },
-      },
-    });
-    const env = await TestWorkflowEnvironment.createLocal({
-      ...opts.workflowEnvironmentOpts,
-      server: {
-        ...opts.workflowEnvironmentOpts?.server,
-        extraArgs: [
-          ...defaultDynamicConfigOptions.flatMap((opt) => ['--dynamic-config-value', opt]),
-          ...(opts.workflowEnvironmentOpts?.server?.extraArgs ?? []),
-        ],
-      },
-    });
-    await registerDefaultCustomSearchAttributes(env.connection);
-    t.context = {
-      env,
-      workflowBundle,
-    };
+  return makeConfigurableEnvironmentTestFn<Context>({
+    recordedLogs: opts.recordedLogs,
+    createTestContext: async (_t: ExecutionContext): Promise<Context> => {
+      const env = await createLocalTestEnvironment(opts.workflowEnvironmentOpts);
+      await registerDefaultCustomSearchAttributes(env.connection);
+      return {
+        workflowBundle: await createTestWorkflowBundle({
+          workflowsPath: opts.workflowsPath,
+          workflowInterceptorModules: opts.workflowInterceptorModules,
+        }),
+        env,
+      };
+    },
+    teardown: async (c: Context) => {
+      await c.env.teardown();
+    },
   });
-  test.after.always(async (t) => {
-    await t.context.env.teardown();
-  });
-  return test;
 }
 
 export interface Helpers {
@@ -111,19 +152,23 @@ export interface Helpers {
   executeWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<workflow.WorkflowResultType<T>>;
   executeWorkflow<T extends workflow.Workflow>(
     fn: T,
-    opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
+    opts: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
   ): Promise<workflow.WorkflowResultType<T>>;
-  startWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<WorkflowHandle<T>>;
+  startWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
   startWorkflow<T extends workflow.Workflow>(
     fn: T,
-    opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
-  ): Promise<WorkflowHandle<T>>;
+    opts: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
+  ): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
   assertWorkflowUpdateFailed(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
   assertWorkflowFailedError(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
   updateHasBeenAdmitted(handle: WorkflowHandle<workflow.Workflow>, updateId: string): Promise<boolean>;
 }
 
-export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment = t.context.env): Helpers {
+export function configurableHelpers<T>(
+  t: ExecutionContext<T>,
+  workflowBundle: WorkflowBundle,
+  testEnv: TestWorkflowEnvironment
+): Helpers {
   const taskQueue = t.title.replace(/ /g, '_');
 
   return {
@@ -131,7 +176,7 @@ export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvir
     async createWorker(opts?: Partial<WorkerOptions>): Promise<Worker> {
       return await Worker.create({
         connection: testEnv.nativeConnection,
-        workflowBundle: t.context.workflowBundle,
+        workflowBundle,
         taskQueue,
         interceptors: {
           activity: [() => ({ inbound: new ConnectionInjectorInterceptor(testEnv.connection) })],
@@ -146,7 +191,7 @@ export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvir
     ): Promise<void> {
       await Worker.runReplayHistory(
         {
-          workflowBundle: t.context.workflowBundle,
+          workflowBundle,
           ...opts,
         },
         history
@@ -154,7 +199,7 @@ export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvir
     },
     async executeWorkflow(
       fn: workflow.Workflow,
-      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
+      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
     ): Promise<any> {
       return await testEnv.client.workflow.execute(fn, {
         taskQueue,
@@ -164,8 +209,8 @@ export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvir
     },
     async startWorkflow(
       fn: workflow.Workflow,
-      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
-    ): Promise<WorkflowHandle<workflow.Workflow>> {
+      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
+    ): Promise<WorkflowHandleWithFirstExecutionRunId<workflow.Workflow>> {
       return await testEnv.client.workflow.start(fn, {
         taskQueue,
         workflowId: randomUUID(),
@@ -216,4 +261,8 @@ export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvir
       }
     },
   };
+}
+
+export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment = t.context.env): Helpers {
+  return configurableHelpers(t, t.context.workflowBundle, testEnv);
 }

@@ -9,6 +9,7 @@ import {
   ContinueAsNewInput,
   DisposeInput,
   GetLogAttributesInput,
+  LocalActivityInput,
   Next,
   SignalInput,
   SignalWorkflowInput,
@@ -90,6 +91,23 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
   public async scheduleActivity(
     input: ActivityInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'scheduleActivity'>
+  ): Promise<unknown> {
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}${input.activityType}`,
+      fn: async () => {
+        const headers = await headersWithContext(input.headers);
+        return next({
+          ...input,
+          headers,
+        });
+      },
+    });
+  }
+
+  public async scheduleLocalActivity(
+    input: LocalActivityInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'scheduleLocalActivity'>
   ): Promise<unknown> {
     return await instrument({
       tracer: this.tracer,
