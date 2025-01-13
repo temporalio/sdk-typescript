@@ -67,6 +67,9 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
         },
       }
     );
+    const globals = Object.create({});
+    this._context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
+
     const globalsParent = {
       AsyncLocalStorage,
       URL,
@@ -77,8 +80,10 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       TextDecoder,
       AbortController,
     };
-    const globals = Object.create(globalsParent);
-    this._context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
+    for (const [k, v] of Object.entries(globalsParent)) {
+      Object.defineProperty(globals, k, { value: v, writable: false, enumerable: true, configurable: false });
+    }
+
     this.injectConsole();
     script.runInContext(this.context);
 
@@ -86,14 +91,21 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     (globals as any).__pristine = this.pristine;
     // The V8 context is really composed of two distinct objects: the `globals` object defined above
     // on the outside, and another internal object to which we only have access from the inside, which
-    // defines the built-in global properties. We need
+    // defines the built-in global properties.
+    (globals as any).__console = console;
     vm.runInContext(
       `
         {
           const pristine = globalThis.__pristine;
+          const console = globalThis.__console;
           delete globalThis.__pristine;
+          delete globalThis.__console;
           for (const name of Object.getOwnPropertyNames(globalThis)) {
             const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
+            console.log(\`# Prop: \${name}\`);
+            if (descriptor === undefined) {
+              console.log(\`Got own property, but no descriptor??? \${name}\`);
+            }
             pristine.set(name, descriptor);
           }
         }
@@ -102,7 +114,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     );
     for (const [k, v] of this.pristine.entries()) {
       if (k !== 'globalThis') {
-        console.log(`Deep freezing pristine ${k}`);
+        console.log(`Deep freezing pristine ${k} -- ${typeof v}`);
         v.value = deepFreeze(v.value);
         if (typeof v.value === 'function') {
           console.log(` ... non-writable`);
@@ -184,6 +196,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
                     //   debugger;
                     // }
                     if (descriptor) {
+                      if (!descriptor.configurable) continue;
                       Object.defineProperty(globalThis, name, { ...descriptor, writable: true });
                     } else {
                       delete globalThis[name];
