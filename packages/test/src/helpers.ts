@@ -131,6 +131,7 @@ export const bundlerOptions = {
     'uuid',
     'net',
     'fs/promises',
+    require.resolve('./activities'),
   ],
 };
 
