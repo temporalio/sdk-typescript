@@ -1,7 +1,7 @@
 import { PayloadConverter, defaultPayloadConverter } from '../converter/payload-converter';
 import { DataConverter, defaultFailureConverter, LoadedDataConverter } from '../converter/data-converter';
 import { FailureConverter } from '../converter/failure-converter';
-import { errorCode, hasOwnProperty, isRecord } from '../type-helpers';
+import { hasOwnProperty, isRecord } from '../type-helpers';
 import { ValueError } from '../errors';
 
 const isValidPayloadConverter = (converter: unknown, path: string): asserts converter is PayloadConverter => {
@@ -35,15 +35,7 @@ function requireConverter<T>(
   type: string,
   validator: (converter: unknown, path: string) => asserts converter is T
 ): T {
-  let module;
-  try {
-    module = require(path); // eslint-disable-line @typescript-eslint/no-require-imports
-  } catch (error) {
-    if (errorCode(error) === 'MODULE_NOT_FOUND') {
-      throw new ValueError(`Could not find a file at the specified ${type}Path: '${path}'.`);
-    }
-    throw error;
-  }
+  const module = require(path); // eslint-disable-line @typescript-eslint/no-require-imports
 
   if (isRecord(module) && hasOwnProperty(module, type)) {
     const converter = module[type];
