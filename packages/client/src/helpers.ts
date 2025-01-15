@@ -1,11 +1,5 @@
 import { ServiceError as GrpcServiceError, status as grpcStatus } from '@grpc/grpc-js';
-import {
-  LoadedDataConverter,
-  mapFromPayloads,
-  NamespaceNotFoundError,
-  searchAttributePayloadConverter,
-  SearchAttributes,
-} from '@temporalio/common';
+import { LoadedDataConverter, NamespaceNotFoundError, searchAttributePayloadConverter } from '@temporalio/common';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time';
 import { decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
@@ -16,6 +10,7 @@ import {
   WorkflowExecutionInfo,
   WorkflowExecutionStatusName,
 } from './types';
+import { decodeSearchAttributes, decodeTypedSearchAttributes } from './schedule-helpers';
 
 function workflowStatusCodeToName(code: temporal.api.enums.v1.WorkflowExecutionStatus): WorkflowExecutionStatusName {
   return workflowStatusCodeToNameInternal(code) ?? 'UNKNOWN';
@@ -71,11 +66,9 @@ export async function executionInfoFromRaw<T>(
     executionTime: optionalTsToDate(raw.executionTime),
     closeTime: optionalTsToDate(raw.closeTime),
     memo: await decodeMapFromPayloads(dataConverter, raw.memo?.fields),
-    searchAttributes: Object.fromEntries(
-      Object.entries(
-        mapFromPayloads(searchAttributePayloadConverter, raw.searchAttributes?.indexedFields ?? {}) as SearchAttributes
-      ).filter(([_, v]) => v && v.length > 0) // Filter out empty arrays returned by pre 1.18 servers
-    ),
+    searchAttributes: decodeSearchAttributes(raw.searchAttributes),
+    // TODO(thomas): consider moving this decoding to an internal package
+    typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes),
     parentExecution: raw.parentExecution
       ? {
           workflowId: raw.parentExecution.workflowId!,

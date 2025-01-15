@@ -1,6 +1,12 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
-import { mapToPayloads, searchAttributePayloadConverter, Workflow } from '@temporalio/common';
+import {
+  mapToPayloads,
+  searchAttributePayloadConverter,
+  typedSearchAttributePayloadConverter,
+  TypedSearchAttributes,
+  Workflow,
+} from '@temporalio/common';
 import { composeInterceptors, Headers } from '@temporalio/common/lib/interceptors';
 import {
   encodeMapToPayloads,
@@ -40,6 +46,7 @@ import {
   decodeScheduleRunningActions,
   decodeScheduleSpec,
   decodeSearchAttributes,
+  decodeTypedSearchAttributes,
   encodeScheduleAction,
   encodeSchedulePolicies,
   encodeScheduleSpec,
@@ -238,11 +245,21 @@ export class ScheduleClient extends BaseClient {
         state: encodeScheduleState(opts.state),
       },
       memo: opts.memo ? { fields: await encodeMapToPayloads(this.dataConverter, opts.memo) } : undefined,
-      searchAttributes: opts.searchAttributes
-        ? {
-            indexedFields: mapToPayloads(searchAttributePayloadConverter, opts.searchAttributes),
-          }
-        : undefined,
+      searchAttributes:
+        opts.searchAttributes || opts.typedSearchAttributes
+          ? {
+              indexedFields: {
+                ...(opts.searchAttributes ? mapToPayloads(searchAttributePayloadConverter, opts.searchAttributes) : {}),
+                // Conflicting keys will be overwritten if both fields are specified
+                ...(opts.typedSearchAttributes
+                  ? mapToPayloads(
+                      typedSearchAttributePayloadConverter,
+                      TypedSearchAttributes.pairsToMap(opts.typedSearchAttributes)
+                    )
+                  : {}),
+              },
+            }
+          : undefined,
       initialPatch: {
         triggerImmediately: opts.state?.triggerImmediately
           ? { overlapPolicy: temporal.api.enums.v1.ScheduleOverlapPolicy.SCHEDULE_OVERLAP_POLICY_ALLOW_ALL }
@@ -389,6 +406,7 @@ export class ScheduleClient extends BaseClient {
           },
           memo: await decodeMapFromPayloads(this.dataConverter, raw.memo?.fields),
           searchAttributes: decodeSearchAttributes(raw.searchAttributes),
+          typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes).getSearchAttributes(),
           state: {
             paused: raw.info?.paused === true,
             note: raw.info?.notes ?? undefined,
@@ -426,6 +444,7 @@ export class ScheduleClient extends BaseClient {
           action: await decodeScheduleAction(this.client.dataConverter, raw.schedule.action),
           memo: await decodeMapFromPayloads(this.client.dataConverter, raw.memo?.fields),
           searchAttributes: decodeSearchAttributes(raw.searchAttributes),
+          typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes).getSearchAttributes(),
           policies: {
             // 'overlap' should never be missing on describe, as the server will replace UNSPECIFIED by an actual value
             overlap: decodeScheduleOverlapPolicy(raw.schedule.policies?.overlapPolicy) ?? ScheduleOverlapPolicy.SKIP,

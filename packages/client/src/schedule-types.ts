@@ -1,5 +1,5 @@
 import { checkExtends, Replace } from '@temporalio/common/lib/type-helpers';
-import { Duration, SearchAttributes, Workflow } from '@temporalio/common';
+import { Duration, SearchAttributes, Workflow, TypedSearchAttributePair } from '@temporalio/common';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { temporal } from '@temporalio/proto';
 import { WorkflowStartOptions } from './workflow-options';
@@ -70,8 +70,12 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
    * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   * @deprecated Use typedSearchAttributes instead.
    */
   searchAttributes?: SearchAttributes;
+
+  // TODO(thomas): improve the doc above and add a doc here
+  typedSearchAttributes?: TypedSearchAttributePair[];
 
   /**
    * The initial state of the schedule, right after creation or update.
@@ -176,8 +180,12 @@ export interface ScheduleSummary {
    * More info: https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   * @deprecated Use typedSearchAttributes instead.
    */
   searchAttributes?: SearchAttributes;
+
+  // TODO(thomas): make this optional (improve the doc above and add a doc here)
+  typedSearchAttributes?: TypedSearchAttributePair[];
 
   state: {
     /**
@@ -288,8 +296,12 @@ export type ScheduleDescription = {
    * More info: https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   * @deprecated Use typedSearchAttributes instead.
    */
   searchAttributes: SearchAttributes;
+
+  // TODO(thomas): make this optional (improve the doc above and add a doc here)
+  typedSearchAttributes: TypedSearchAttributePair[];
 
   state: {
     /**
@@ -776,6 +788,7 @@ export type ScheduleDescriptionStartWorkflowAction = ScheduleSummaryStartWorkflo
     | 'args'
     | 'memo'
     | 'searchAttributes'
+    | 'typedSearchAttributes'
     | 'retry'
     | 'workflowExecutionTimeout'
     | 'workflowRunTimeout'

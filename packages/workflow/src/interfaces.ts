@@ -10,6 +10,8 @@ import {
   QueryDefinition,
   Duration,
   VersioningIntent,
+  ITypedSearchAttributes,
+  TypedSearchAttributePair,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -39,8 +41,15 @@ export interface WorkflowInfo {
    * Indexed information attached to the Workflow Execution
    *
    * This value may change during the lifetime of an Execution.
+   * @deprecated Use `typedSearchAttributes` instead.
    */
   readonly searchAttributes: SearchAttributes;
+
+  // TODO(thomas): improve the doc here
+  /**
+   * Interface exposing typed search attributes.
+   */
+  readonly typedSearchAttributes: ITypedSearchAttributes;
 
   /**
    * Non-indexed information attached to the Workflow Execution
@@ -251,8 +260,14 @@ export interface ContinueAsNewOptions {
   memo?: Record<string, unknown>;
   /**
    * Searchable attributes to attach to next Workflow run
+   * @deprecated Use `typedSearchAttributes` instead.
    */
   searchAttributes?: SearchAttributes;
+  // TODO(thomas): improve the doc here
+  /**
+   * Collection of typed search attributes.
+   */
+  typedSearchAttributes?: TypedSearchAttributePair[];
   /**
    * When using the Worker Versioning feature, specifies whether this Workflow should
    * Continue-as-New onto a worker with a compatible Build Id or not. See {@link VersioningIntent}.

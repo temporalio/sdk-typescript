@@ -2,17 +2,24 @@ import {
   ActivityFunction,
   ActivityOptions,
   compileRetryPolicy,
+  DeleteTypedSearchAttributePair,
   encodeActivityCancellationType,
   encodeWorkflowIdReusePolicy,
   extractWorkflowType,
   HandlerUnfinishedPolicy,
+  isTypedSearchAttributePair,
   LocalActivityOptions,
   mapToPayloads,
   QueryDefinition,
   searchAttributePayloadConverter,
   SearchAttributes,
+  SearchAttributeType,
+  SearchAttributeValue,
   SignalDefinition,
   toPayloads,
+  TypedSearchAttributePair,
+  typedSearchAttributePayloadConverter,
+  TypedSearchAttributes,
   UntypedActivities,
   UpdateDefinition,
   WithWorkflowArgs,
@@ -380,9 +387,23 @@ function startChildWorkflowExecutionNextHandler({
         workflowIdReusePolicy: encodeWorkflowIdReusePolicy(options.workflowIdReusePolicy),
         parentClosePolicy: encodeParentClosePolicy(options.parentClosePolicy),
         cronSchedule: options.cronSchedule,
-        searchAttributes: options.searchAttributes
-          ? mapToPayloads(searchAttributePayloadConverter, options.searchAttributes)
-          : undefined,
+        searchAttributes:
+          options.searchAttributes || options.typedSearchAttributes
+            ? {
+                indexedFields: {
+                  ...(options.searchAttributes
+                    ? mapToPayloads(searchAttributePayloadConverter, options.searchAttributes)
+                    : {}),
+                  // Conflicting keys will be overwritten if both fields are specified
+                  ...(options.typedSearchAttributes
+                    ? mapToPayloads(
+                        typedSearchAttributePayloadConverter,
+                        TypedSearchAttributes.pairsToMap(options.typedSearchAttributes)
+                      )
+                    : {}),
+                },
+              }
+            : undefined,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
       },
@@ -922,9 +943,23 @@ export function makeContinueAsNewFunc<F extends Workflow>(
         headers,
         taskQueue: options.taskQueue,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
-        searchAttributes: options.searchAttributes
-          ? mapToPayloads(searchAttributePayloadConverter, options.searchAttributes)
-          : undefined,
+        searchAttributes:
+          options.searchAttributes || options.typedSearchAttributes
+            ? {
+                indexedFields: {
+                  ...(options.searchAttributes
+                    ? mapToPayloads(searchAttributePayloadConverter, options.searchAttributes)
+                    : {}),
+                  // Conflicting keys will be overwritten if both fields are specified
+                  ...(options.typedSearchAttributes
+                    ? mapToPayloads(
+                        typedSearchAttributePayloadConverter,
+                        TypedSearchAttributes.pairsToMap(options.typedSearchAttributes)
+                      )
+                    : {}),
+                },
+              }
+            : undefined,
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
@@ -948,6 +983,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
  *
  *```ts
  *import { continueAsNew } from '@temporalio/workflow';
+import { SearchAttributeValue } from '../../common/lib/interfaces';
  *
  *export async function myWorkflow(n: number): Promise<void> {
  *  // ... Workflow logic
@@ -1347,7 +1383,9 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
  *
  * @param searchAttributes The Record to merge. Use a value of `[]` to clear a Search Attribute.
  */
-export function upsertSearchAttributes(searchAttributes: SearchAttributes): void {
+export function upsertSearchAttributes(
+  searchAttributes: SearchAttributes | (TypedSearchAttributePair | DeleteTypedSearchAttributePair)[]
+): void {
   const activator = assertInWorkflowContext(
     'Workflow.upsertSearchAttributes(...) may only be used from a Workflow Execution.'
   );
@@ -1356,21 +1394,86 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes): void
     throw new Error('searchAttributes must be a non-null SearchAttributes');
   }
 
-  activator.pushCommand({
-    upsertWorkflowSearchAttributes: {
-      searchAttributes: mapToPayloads(searchAttributePayloadConverter, searchAttributes),
-    },
-  });
-
-  activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
-    return {
-      ...info,
-      searchAttributes: {
-        ...info.searchAttributes,
-        ...searchAttributes,
+  if (Array.isArray(searchAttributes)) {
+    // Typed search attributes
+    activator.pushCommand({
+      upsertWorkflowSearchAttributes: {
+        searchAttributes: mapToPayloads(typedSearchAttributePayloadConverter, searchAttributes),
       },
-    };
-  });
+    });
+
+    activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
+      const typedSearchAttributes = info.typedSearchAttributes;
+      const newSearchAttributes = info.searchAttributes;
+      for (const pair of searchAttributes) {
+        typedSearchAttributes.updateSearchAttribute(pair);
+        const [k, v] = pair;
+        if (v === undefined) {
+          newSearchAttributes[k.name] = [];
+        } else {
+          const typedValue = v[1];
+          newSearchAttributes[k.name] = Array.isArray(typedValue) ? typedValue : ([typedValue] as SearchAttributeValue);
+        }
+      }
+      return {
+        ...info,
+        searchAttributes: {
+          ...info.searchAttributes,
+          ...newSearchAttributes,
+        },
+        typedSearchAttributes,
+      };
+    });
+  } else {
+    // Legacy search attributes
+    activator.pushCommand({
+      upsertWorkflowSearchAttributes: {
+        searchAttributes: mapToPayloads(searchAttributePayloadConverter, searchAttributes),
+      },
+    });
+
+    activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
+      const typedSearchAttributes = info.typedSearchAttributes;
+      for (const [k, v] of Object.entries(searchAttributes)) {
+        const typedKey = TypedSearchAttributes.getKeyFromUntyped(k, v);
+        // Unable to discern the typing of the key, skip.
+        if (!typedKey) {
+          continue;
+        }
+        // Delete the key if the value is undefined.
+        if (v === undefined) {
+          typedSearchAttributes.updateSearchAttribute([typedKey, v]);
+          continue;
+        }
+
+        let newValue: unknown = v;
+        if (typedKey.type !== SearchAttributeType.KEYWORD_LIST) {
+          // Skip if we found multiple values for a non-list key.
+          if (Array.isArray(v) && v.length > 1) {
+            continue;
+          }
+          // Convert to single-value.
+          newValue = v[0];
+        }
+
+        const typedValue: unknown = [typedKey.type, newValue];
+        const pair: unknown = [typedKey, typedValue];
+        // Skip if not a valid typed search attribute pair.
+        if (isTypedSearchAttributePair(pair)) {
+          typedSearchAttributes.updateSearchAttribute(pair);
+        }
+      }
+      return {
+        ...info,
+        // I think we need to mutate both searchAttributes and typedSearchAttributes here
+        searchAttributes: {
+          ...info.searchAttributes,
+          ...searchAttributes,
+        },
+        typedSearchAttributes,
+      };
+    });
+  }
 }
 
 /**

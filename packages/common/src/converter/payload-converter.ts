@@ -1,6 +1,7 @@
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import { Payload } from '../interfaces';
+import { isTypedSearchAttribute, toMetadataType, toSearchAttributeType } from '../typed-search-attributes';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
 /**
@@ -95,6 +96,19 @@ export function mapFromPayloads<K extends string>(
       return [k as K, value];
     })
   ) as Record<K, unknown>;
+}
+
+export function typedMapFromPayloads<K extends string, T>(
+  converter: PayloadConverter,
+  map?: Record<K, Payload> | null | undefined
+): Record<K, T> | undefined {
+  if (map == null) return undefined;
+  return Object.fromEntries(
+    Object.entries(map).map(([k, payload]): [K, T] => {
+      const value = converter.fromPayload<T>(payload as Payload);
+      return [k as K, value];
+    })
+  ) as Record<K, T>;
 }
 
 export interface PayloadConverterWithEncoding {
@@ -318,6 +332,60 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
 }
 
 export const searchAttributePayloadConverter = new SearchAttributePayloadConverter();
+
+export class TypedSearchAttributePayloadConverter implements PayloadConverter {
+  jsonConverter = new JsonPayloadConverter();
+
+  public toPayload<T>(typedSearchAttribute: T): Payload {
+    if (!isTypedSearchAttribute(typedSearchAttribute)) {
+      throw new ValueError('Invalid typed search attribute');
+    }
+
+    const type = typedSearchAttribute[0];
+    let value = typedSearchAttribute[1];
+    if (type === 'DATETIME') {
+      // Convert Date to ISO string
+      value = (value as Date).toISOString();
+    }
+
+    const payload = this.jsonConverter.toPayload(value);
+    if (payload === undefined) {
+      throw new ValueError('Could not convert typed search attribute to payload');
+    }
+    // Note: this shouldn't be the case but the compiler complains without this check.
+    if (payload.metadata === undefined || payload.metadata === null) {
+      throw new ValueError('Missing payload metadata');
+    }
+    // Add encoded type of search attribute to metatdata
+    payload.metadata['type'] = encode(toMetadataType(type));
+    return payload;
+  }
+
+  public fromPayload<T>(payload: Payload): T {
+    if (payload.metadata === undefined || payload.metadata === null) {
+      throw new ValueError('Missing payload metadata');
+    }
+
+    // TODO(thomas): don't like the type casting for undefined values
+
+    let value = this.jsonConverter.fromPayload(payload);
+    // If no 'type' metadata field or no given value, we skip.
+    if (payload.metadata.type === undefined || value === undefined) {
+      return undefined as T;
+    }
+    const type = toSearchAttributeType(decode(payload.metadata.type));
+    // Unrecognized metadata type (sanity check).
+    if (type === undefined) {
+      return undefined as T;
+    }
+    if (type === 'DATETIME') {
+      value = new Date(value as string);
+    }
+    return [type, value] as T;
+  }
+}
+
+export const typedSearchAttributePayloadConverter = new TypedSearchAttributePayloadConverter();
 
 export class DefaultPayloadConverter extends CompositePayloadConverter {
   // Match the order used in other SDKs, but exclude Protobuf converters so that the code, including

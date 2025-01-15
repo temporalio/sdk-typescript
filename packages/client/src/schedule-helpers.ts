@@ -3,11 +3,16 @@ import {
   compileRetryPolicy,
   decompileRetryPolicy,
   extractWorkflowType,
+  ITypedSearchAttributes,
   LoadedDataConverter,
   mapFromPayloads,
   mapToPayloads,
   searchAttributePayloadConverter,
   SearchAttributes,
+  typedMapFromPayloads,
+  typedSearchAttributePayloadConverter,
+  TypedSearchAttributes,
+  TypedSearchAttributeValue,
 } from '@temporalio/common';
 import { Headers } from '@temporalio/common/lib/interceptors';
 import {
@@ -260,11 +265,23 @@ export async function encodeScheduleAction(
       workflowTaskTimeout: msOptionalToTs(action.workflowTaskTimeout),
       retryPolicy: action.retry ? compileRetryPolicy(action.retry) : undefined,
       memo: action.memo ? { fields: await encodeMapToPayloads(dataConverter, action.memo) } : undefined,
-      searchAttributes: action.searchAttributes
-        ? {
-            indexedFields: mapToPayloads(searchAttributePayloadConverter, action.searchAttributes),
-          }
-        : undefined,
+      searchAttributes:
+        action.searchAttributes || action.typedSearchAttributes
+          ? {
+              indexedFields: {
+                ...(action.searchAttributes
+                  ? mapToPayloads(searchAttributePayloadConverter, action.searchAttributes)
+                  : {}),
+                // Conflicting keys will be overwritten if both fields are specified
+                ...(action.typedSearchAttributes
+                  ? mapToPayloads(
+                      typedSearchAttributePayloadConverter,
+                      TypedSearchAttributes.pairsToMap(action.typedSearchAttributes)
+                    )
+                  : {}),
+              },
+            }
+          : undefined,
       header: { fields: headers },
     },
   };
@@ -334,6 +351,19 @@ export async function decodeScheduleAction(
           ) as SearchAttributes
         )
       ),
+      // TODO(thomas): consider moving this decoding to an internal package
+      // - or creating a static method TypedSearchAttributes.fromPayloads/fromMap
+      // (or use the decoding function if it already is there)
+      typedSearchAttributes: new TypedSearchAttributes(
+        Object.fromEntries(
+          Object.entries(
+            typedMapFromPayloads<string, TypedSearchAttributeValue>(
+              typedSearchAttributePayloadConverter,
+              pb.startWorkflow.searchAttributes?.indexedFields
+            ) ?? {}
+          ).filter(([_, v]) => v) // Filter out undefined values (i.e. if metadata.type is not set)
+        )
+      ).getSearchAttributes(),
       workflowExecutionTimeout: optionalTsToMs(pb.startWorkflow.workflowExecutionTimeout),
       workflowRunTimeout: optionalTsToMs(pb.startWorkflow.workflowRunTimeout),
       workflowTaskTimeout: optionalTsToMs(pb.startWorkflow.workflowTaskTimeout),
@@ -342,6 +372,7 @@ export async function decodeScheduleAction(
   throw new TypeError('Unsupported schedule action');
 }
 
+// TODO(thomas): move to internal package (or at least to the helpers.ts file)
 export function decodeSearchAttributes(
   pb: temporal.api.common.v1.ISearchAttributes | undefined | null
 ): SearchAttributes {
@@ -350,6 +381,22 @@ export function decodeSearchAttributes(
     Object.entries(mapFromPayloads(searchAttributePayloadConverter, pb.indexedFields) as SearchAttributes).filter(
       ([_, v]) => v && v.length > 0
     ) // Filter out empty arrays returned by pre 1.18 servers
+  );
+}
+
+// TODO(thomas): move to internal package (or at least to the helpers.ts file)
+export function decodeTypedSearchAttributes(
+  pb: temporal.api.common.v1.ISearchAttributes | undefined | null
+): ITypedSearchAttributes {
+  return new TypedSearchAttributes(
+    Object.fromEntries(
+      Object.entries(
+        typedMapFromPayloads<string, TypedSearchAttributeValue>(
+          typedSearchAttributePayloadConverter,
+          pb?.indexedFields
+        ) ?? {}
+      ).filter(([_, v]) => v) // Filter out undefined values (i.e. if metadata.type is not set)
+    )
   );
 }
 
@@ -397,3 +444,48 @@ export function decodeScheduleRecentActions(
     }
   );
 }
+
+/*
+
+worker is receiving start wokrflow job
+
+      workflow info.searchAttributes = decodeAsUntyped(exsisting search attributes)
+
+          mySearchAttribute:   [145, 421]
+          mySearchAttribute2:  [123]
+
+      workflow info.typedSearchAttributes = decodeAsType(exsisting search attributes)
+
+          // mySearchAttribute:  [keywordList, [145, 421]
+          // mySearchAttribute2: [number, 123]
+
+
+
+upsertSearchAttributes({
+  mySearchAttribute: "keywordList",
+})
+
+function workflow() {
+  const sa = workflowInfo().searchAttributes
+  const tsa = workflowInfo().typedSearchAttributes
+
+  upsertSearchAttributes({ 
+    attribute1: 123
+   })
+
+
+  temporal.not(sa.attrbute1, [123])
+  temporal.not(tsa(defineSearchAttribute('attribute1', 'INT'), 123)
+
+  temporal.is(workflowInfo().searchAttributes.attrbute1, [123])
+  temporal.is(workflowInfo().typedSearchAttributesgetSearchAttribute(defineSearchAttribute('attribute1', 'INT'), 123)
+
+}
+
+function upsertSearchAttributes({ sa, tsa }) {
+  if delete sa {
+    stopCoverage.delete(sa)
+  }
+}
+
+*/
