@@ -22,6 +22,10 @@ import {
   searchAttributePayloadConverter,
   fromPayloadsAtIndex,
   SearchAttributes,
+  typedSearchAttributePayloadConverter,
+  TypedSearchAttributes,
+  typedMapFromPayloads,
+  TypedSearchAttributeValue,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
@@ -478,8 +482,20 @@ export class Activator implements ActivationHandler {
     // Most things related to initialization have already been handled in the constructor
     this.mutateWorkflowInfo((info) => ({
       ...info,
+      // TODO(thomas): does this need to filter for undefined values?
       searchAttributes:
         (mapFromPayloads(searchAttributePayloadConverter, searchAttributes?.indexedFields) as SearchAttributes) ?? {},
+      // TODO(thomas): do we not filter out undefined values here?
+      typedSearchAttributes: new TypedSearchAttributes(
+        Object.fromEntries(
+          Object.entries(
+            typedMapFromPayloads<string, TypedSearchAttributeValue>(
+              typedSearchAttributePayloadConverter,
+              searchAttributes?.indexedFields
+            ) ?? {}
+          ).filter(([_, v]) => v) // Filter out undefined values (i.e. if metadata.type is not set)
+        )
+      ),
       memo: mapFromPayloads(this.payloadConverter, memo?.fields),
       lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads),
       lastFailure:

@@ -1,5 +1,5 @@
 import type * as grpc from '@grpc/grpc-js';
-import type { SearchAttributes, SearchAttributeValue } from '@temporalio/common';
+import type { SearchAttributes, SearchAttributeValue, ITypedSearchAttributes } from '@temporalio/common';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import * as proto from '@temporalio/proto';
 import { Replace } from '@temporalio/common/lib/type-helpers';
@@ -47,7 +47,13 @@ export interface WorkflowExecutionInfo {
   executionTime?: Date;
   closeTime?: Date;
   memo?: Record<string, unknown>;
+  /** @deprecated Use `typedSearchAttributes` instead. */
   searchAttributes: SearchAttributes;
+  // TODO(thomas): (improve the doc above and add a doc here)
+  /**
+   * Interface exposing typed search attributes.
+   */
+  typedSearchAttributes: ITypedSearchAttributes;
   parentExecution?: Required<proto.temporal.api.common.v1.IWorkflowExecution>;
   raw: RawWorkflowExecutionInfo;
 }
