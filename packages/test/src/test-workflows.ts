@@ -181,11 +181,11 @@ function makeSuccess(
 }
 
 function makeStartWorkflow(
-  script: string,
+  workflowType: string,
   args?: Payload[],
   timestamp: number = Date.now()
 ): coresdk.workflow_activation.IWorkflowActivation {
-  return makeActivation(timestamp, makeInitializeWorkflowJob(script, args));
+  return makeActivation(timestamp, makeInitializeWorkflowJob(workflowType, args));
 }
 
 function makeInitializeWorkflowJob(

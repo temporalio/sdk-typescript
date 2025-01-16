@@ -34,6 +34,8 @@ export interface Workflow {
 export interface WorkflowCreator {
   /**
    * Create a Workflow for the Worker to activate
+   *
+   * Note: this needs to be async because of the ThreadedWorkflowCreator.
    */
   createWorkflow(options: WorkflowCreateOptions): Promise<Workflow>;
 

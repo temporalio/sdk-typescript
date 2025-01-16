@@ -14,6 +14,38 @@ import {
   setUnhandledRejectionHandler,
 } from './vm-shared';
 
+interface BagHolder {
+  bag: any;
+}
+
+const callFn = new vm.Script(`
+                // runInContext does not accept args, so pass them via the __TEMPORAL_ARGS__ global variable
+                {
+                  const [holder, fn, args, console] = globalThis.__TEMPORAL_ARGS__;
+                  delete globalThis.__TEMPORAL_ARGS__;
+
+                  if (globalThis.__TEMPORAL_BAG_HOLDER__ !== holder) {
+                    if (globalThis.__TEMPORAL_BAG_HOLDER__ !== undefined) {
+                      globalThis.__TEMPORAL_BAG_HOLDER__.bag = Object.getOwnPropertyDescriptors(globalThis);
+                    }
+
+                    // Restore global properties for this context
+                    Object.defineProperties(globalThis, holder.bag);
+
+                    // Delete extra properties, left from the former context
+                    for (const prop of Reflect.ownKeys(globalThis)) {
+                      if (!(prop in holder.bag)) {
+                        delete globalThis[prop];
+                      }
+                    }
+
+                    globalThis.__TEMPORAL_BAG_HOLDER__ = holder;
+                  }
+
+                  __TEMPORAL__.api[fn](...args)
+                }
+              `);
+
 /**
  * A WorkflowCreator that creates VMWorkflows in the current isolate
  */
@@ -133,10 +165,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = this.context;
-
-    const pristineObj = this.pristineObj!;
-    const pristineProps = this.pristineProps!;
-    let bag: object | undefined = undefined;
+    const holder: BagHolder = { bag: this.pristineObj! };
 
     const { isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
@@ -144,45 +173,13 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       {
         get(_: any, fn: string) {
           return (...args: any[]) => {
-            context.__TEMPORAL_ARGS__ = (bag as any) ?? pristineObj;
-            vm.runInContext(`Object.defineProperties(globalThis, globalThis.__TEMPORAL_ARGS__)`, context);
-
-            // runInContext does not accept args, pass via globals
-            context.__TEMPORAL_ARGS__ = args;
-            try {
-              // By the time we get out of this call, all microtasks will have been executed
-              return vm.runInContext(`__TEMPORAL__.api.${fn}(...__TEMPORAL_ARGS__)`, context, {
-                timeout: isolateExecutionTimeoutMs,
-                displayErrors: true,
-              });
-            } finally {
-              // No need to keep that one
-              delete context.__TEMPORAL_ARGS__;
-
-              //
-              bag = vm.runInContext(`Object.getOwnPropertyDescriptors(globalThis)`, context);
-
-              // Looks like Node/V8 is not properly syncing deletion of keys on the outter context
-              // object to the inner globalThis object. Hence, we delete them from inside the context.
-              context.__TEMPORAL_ARGS__ = [pristineObj, pristineProps];
-              vm.runInContext(
-                `{
-                    const [pristineObj, pristineProps] = globalThis.__TEMPORAL_ARGS__;
-                    Object.defineProperties(globalThis, pristineObj);
-
-                    const globalProps = [
-                      ...Object.getOwnPropertyNames(globalThis),
-                      ...Object.getOwnPropertySymbols(globalThis),
-                    ];
-                    const propsToRemove = globalProps.filter((x) => !pristineProps.has(x));
-
-                    for (const prop of propsToRemove) {
-                      delete globalThis[prop];
-                    }
-                }`,
-                context
-              );
-            }
+            // By the time we get out of this call, all microtasks will have been executed
+            // DONOTMERGE: Remove `console` here once I'm done debugging
+            context.__TEMPORAL_ARGS__ = [holder, fn, args, console];
+            return callFn.runInContext(context, {
+              timeout: isolateExecutionTimeoutMs,
+              displayErrors: true,
+            });
           };
         },
       }
@@ -194,7 +191,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       getTimeOfDay: () => timeOfDayToBigint(getTimeOfDay()),
       registeredActivityNames: this.registeredActivityNames,
     });
-    const activator = (bag as any)['__TEMPORAL_ACTIVATOR__']?.value as any;
+    const activator = context['__TEMPORAL_ACTIVATOR__'];
     const newVM = new ReusableVMWorkflow(options.info.runId, context, activator, workflowModule);
 
     ReusableVMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);

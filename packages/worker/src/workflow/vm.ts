@@ -43,7 +43,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
    * Create a workflow with given options
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
-    const context = await this.getContext();
+    const context = this.getContext();
     this.injectConsole(context);
     const { isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
@@ -74,7 +74,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
     return newVM;
   }
 
-  protected async getContext(): Promise<vm.Context> {
+  protected getContext(): vm.Context {
     if (this.script === undefined) {
       throw new IllegalStateError('Isolate context provider was destroyed');
     }
