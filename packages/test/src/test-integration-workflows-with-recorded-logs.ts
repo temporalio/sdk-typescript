@@ -1,6 +1,6 @@
 import { ExecutionContext } from 'ava';
 import * as workflow from '@temporalio/workflow';
-import { HandlerUnfinishedPolicy, WorkflowNotFoundError } from '@temporalio/common';
+import { HandlerUnfinishedPolicy } from '@temporalio/common';
 import { LogEntry } from '@temporalio/worker';
 import { WorkflowFailedError, WorkflowUpdateFailedError } from '@temporalio/client';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
@@ -149,7 +149,7 @@ class UnfinishedHandlersTest {
         case 'update': {
           const executeUpdate = handle.executeUpdate(messageType, { updateId: 'my-update-id' });
           if (!waitAllHandlersFinished) {
-            assertWorkflowUpdateFailedBecauseWorkflowCompleted(this.t, executeUpdate);
+            await assertWorkflowUpdateFailedBecauseWorkflowCompleted(this.t, executeUpdate);
           } else {
             await executeUpdate;
           }
