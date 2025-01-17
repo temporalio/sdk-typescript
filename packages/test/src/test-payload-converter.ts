@@ -194,7 +194,7 @@ if (RUN_INTEGRATION_TESTS) {
       markErrorThrown = resolve;
     });
     const logger = new DefaultLogger('ERROR', (entry) => {
-      if (entry.meta?.error.message === 'Unknown encoding: json/protobuf') {
+      if (entry.meta?.error.message.includes('Unknown encoding: json/protobuf')) {
         markErrorThrown();
       }
     });

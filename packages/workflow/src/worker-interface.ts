@@ -188,15 +188,20 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
  * @returns number of unblocked conditions.
  */
 export function tryUnblockConditions(): number {
+  const activator = getActivator();
+
+  // If a Workflow Task error was captured, bubble it up now
+  if (activator.workflowTaskError) throw activator.workflowTaskError;
+
   let numUnblocked = 0;
   for (;;) {
     const prevUnblocked = numUnblocked;
-    for (const [seq, cond] of getActivator().blockedConditions.entries()) {
+    for (const [seq, cond] of activator.blockedConditions.entries()) {
       if (cond.fn()) {
         cond.resolve();
         numUnblocked++;
         // It is safe to delete elements during map iteration
-        getActivator().blockedConditions.delete(seq);
+        activator.blockedConditions.delete(seq);
       }
     }
     if (prevUnblocked === numUnblocked) {
