@@ -5,6 +5,8 @@ import { WorkflowFailedError } from '@temporalio/client';
 import { makeTestFunction, Context, helpers } from './helpers-integration';
 import { REUSE_V8_CONTEXT } from './helpers';
 
+// DONOTMERGE(JWH): Remove all reviewer comments from this file before merging
+
 const test = makeTestFunction({
   workflowsPath: __filename,
   workflowInterceptorModules: [__filename],
@@ -20,17 +22,17 @@ const withReusableContext = test.macro<[ImplementationFn<[], Context>]>(async (t
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Legacy
+// Reviewer notes: Legacy
 test('globalThis can be safely mutated - misc string property', async (t) => {
   await assertObjectSafelyMutable(t, globalThisMutatorWorkflow, 'myProperty');
 });
 
-// New
+// Reviewer notes: New test, but behavior was previously ok
 test('globalThis can be safely mutated - numeric index property', async (t) => {
   await assertObjectSafelyMutable(t, globalThisMutatorWorkflow, 0);
 });
 
-// New
+// Reviewer notes: New behavior - We previously didn't handle symbol properties at all, so they would leak
 test('globalThis can be safely mutated - symbol property', async (t) => {
   await assertObjectSafelyMutable(t, globalThisMutatorWorkflow, Symbol.for('mySymbol'));
 });
@@ -41,7 +43,8 @@ export async function globalThisMutatorWorkflow(prop: string): Promise<(number |
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Original test was broken because it mutated `setTimeout`, which is overridden by the SDK
+// Reviewer notes: Original test was broken because it mutated `setTimeout`, which is overridden
+//                 by the SDK; former behavior was actually incorrect.
 test("V8's built-in global objects are frozen", withReusableContext, async (t) => {
   await assertObjectImmutable(t, v8BuiltinGlobalObjectMutatorWorkflow);
 });
@@ -52,24 +55,21 @@ export async function v8BuiltinGlobalObjectMutatorWorkflow(): Promise<(number | 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Reviewer notes: new behavior - reassigning built-in objects was previously allowed,
+//                 but would leak across workflow contexts.
 test("V8's built-in global objects can be safely reassigned", withReusableContext, async (t) => {
   await assertObjectSafelyMutable(t, v8BuiltinGlobalObjectReassignWorkflow);
 });
 
 export async function v8BuiltinGlobalObjectReassignWorkflow(): Promise<(number | null)[]> {
-  try {
-    globalThis.Math = Object.create(globalThis.Math);
-    return basePropertyMutatorWorkflow(() => globalThis.Math);
-  } catch (e) {
-    if (!(e instanceof ApplicationFailure)) {
-      throw ApplicationFailure.fromError(e);
-    }
-    throw e;
-  }
+  globalThis.Math = Object.create(globalThis.Math);
+  return basePropertyMutatorWorkflow(() => globalThis.Math);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Reviewer notes: Original test was broken because it mutated `setTimeout`, which is overridden by the SDK;
+//                 former behavior was actually incorrect (i.e. v8 built in functions could be modified).
 test("V8's built-in global functions are frozen", withReusableContext, async (t) => {
   await assertObjectImmutable(t, v8BuiltinGlobalFunctionMutatorWorkflow);
 });
@@ -80,55 +80,52 @@ export async function v8BuiltinGlobalFunctionMutatorWorkflow(): Promise<(number 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Reviewer notes: new behavior - reassigning built-in functions was previously allowed,
+//                 but would leak across workflow contexts.
 test("V8's built-in global functions can be safely reassigned", withReusableContext, async (t) => {
   await assertObjectSafelyMutable(t, v8BuiltinGlobalFunctionReassignWorkflow);
 });
 
 export async function v8BuiltinGlobalFunctionReassignWorkflow(): Promise<(number | null)[]> {
-  try {
-    const originalArray = globalThis.Array;
-    globalThis.Array = ((...args: any[]) => originalArray(...args)) as any;
-    globalThis.Array.from = ((...args: any[]) => (originalArray as any).from(...args)) as any;
-    return basePropertyMutatorWorkflow(() => globalThis.Array);
-  } catch (e) {
-    if (!(e instanceof ApplicationFailure)) {
-      throw ApplicationFailure.fromError(e);
-    }
-    throw e;
-  }
+  const originalArray = globalThis.Array;
+  globalThis.Array = ((...args: any[]) => originalArray(...args)) as any;
+  globalThis.Array.from = ((...args: any[]) => (originalArray as any).from(...args)) as any;
+  return basePropertyMutatorWorkflow(() => globalThis.Array);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// V8's built-in global functions prototype can be unsafely mutated
+// V8's built-in global functions prototype are mutable, without safety guarantees
+// Reviewer notes: New test, behavior unchanged.
+test(
+  "V8's built-in global function's prototypes are mutable, without safety guarantees",
+  withReusableContext,
+  async (t) => {
+    await assertObjectUnsafelyMutable(t, v8BuiltinGlobalFunctionPrototypeReassignWorkflow);
+  }
+);
 
-// FIXME: What about built-in function prototypes?
-//        They are often modified by polyfills, which would be loaded as part
-//        of Workflow Code…
-// await assertObjectImmutable(t, v8BuiltinGlobalFunctionReassignWorkflow);
+export async function v8BuiltinGlobalFunctionPrototypeReassignWorkflow(): Promise<(number | null)[]> {
+  return basePropertyMutatorWorkflow(() => globalThis.Array.prototype);
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Reviewer notes: New behavior. This was previously unsafe, resulting in context leak.
 test("SDK's global functions can be reassigned", async (t) => {
   await assertObjectSafelyMutable(t, sdkGlobalsReassignment);
 });
 
 export async function sdkGlobalsReassignment(): Promise<(number | null)[]> {
-  try {
-    // The SDK's provided `console` object is frozen.
-    // Replace that global with a clone that is not frozen.
-    globalThis.console = { ...globalThis.console };
-    return basePropertyMutatorWorkflow(() => globalThis.console);
-  } catch (e) {
-    if (!(e instanceof ApplicationFailure)) {
-      throw ApplicationFailure.fromError(e);
-    }
-    throw e;
-  }
+  // The SDK's provided `console` object is frozen.
+  // Replace that global with a clone that is not frozen.
+  globalThis.console = { ...globalThis.console };
+  return basePropertyMutatorWorkflow(() => globalThis.console);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Reviewer notes: Legacy
 test("SDK's modules are frozen", withReusableContext, async (t) => {
   await assertObjectSafelyMutable(t, sdkModuleMutatorWorkflow);
 });
@@ -139,7 +136,7 @@ export async function sdkModuleMutatorWorkflow(): Promise<(number | null)[]> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Legacy
+// Reviewer notes: Legacy
 test("SDK's API functions are frozen 1", withReusableContext, async (t) => {
   await assertObjectImmutable(t, sdkPropertyMutatorWorkflow1);
 });
@@ -150,7 +147,7 @@ export async function sdkPropertyMutatorWorkflow1(): Promise<(number | null)[]> 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Legacy
+// Review notes: Legacy
 test('Module state is isolated and maintained between activations', async (t) => {
   await assertObjectSafelyMutable(t, modulePropertyMutator);
 });
@@ -169,13 +166,23 @@ async function assertObjectSafelyMutable(
   workflow: (prop: string) => Promise<(number | null)[]>,
   property: string | symbol | number = 'a'
 ): Promise<void> {
-  const { createWorker, startWorkflow } = helpers(t);
+  const { createWorker, executeWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const wf1 = await startWorkflow(workflow, { args: [encodeProperty(property)] });
-    const wf2 = await startWorkflow(workflow, { args: [encodeProperty(property)] });
-    t.deepEqual(await wf1.result(), [null, 1, 1, 2, 2, null, null, 1]);
-    t.deepEqual(await wf2.result(), [null, 1, 1, 2, 2, null, null, 1]);
+    const [wf1Result, wf2Result] = await Promise.all([
+      executeWorkflow(workflow, { args: [encodeProperty(property)] }),
+      executeWorkflow(workflow, { args: [encodeProperty(property)] }),
+    ]);
+    const wf1Step = wf1Result.shift() ?? 1;
+    const wf2Step = wf2Result.shift() ?? 1;
+    t.deepEqual(
+      wf1Result,
+      [null, 1, 1, 2, 2, null, null, 1].map((x) => x && x * wf1Step)
+    );
+    t.deepEqual(
+      wf2Result,
+      [null, 1, 1, 2, 2, null, null, 1].map((x) => x && x * wf2Step)
+    );
   });
 }
 
@@ -191,6 +198,21 @@ async function assertObjectImmutable(
     t.is(err?.cause?.message, 'Cannot add property a, object is not extensible');
     t.deepEqual((err?.cause as ApplicationFailure)?.details, [[null]]);
   });
+}
+
+async function assertObjectUnsafelyMutable(
+  t: ExecutionContext<Context>,
+  workflow: (prop: string) => Promise<(number | null)[]>,
+  property: string | symbol | number = 'a'
+): Promise<void> {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    await executeWorkflow(workflow, { args: [encodeProperty(property)] });
+    await executeWorkflow(workflow, { args: [encodeProperty(property)] });
+  });
+  // That's it; if the test didn't throw, it passed.
+  t.pass();
 }
 
 // Given the object returned by `getObject()`, this function can be used to
@@ -209,38 +231,45 @@ async function basePropertyMutatorWorkflow(
   getObject: () => any,
   prop: string | symbol | number = 'a'
 ): Promise<(number | null)[]> {
-  const checkpoints: (number | null)[] = [];
+  // Randomly choose some step to add to the property; there's a 10% chance that two workflows in
+  // a same test run will get the same step, and that's really not a problem (the test is still valid).
+  // But getting different steps at least once in a while confirms that our test methodology isn't
+  // prone to false positives due to the two racing workflows turn out to be producing the very same
+  // sequence of values at exactly the same time.
+  const step = [1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000][
+    Math.floor(Math.random() * 10)
+  ];
 
-  // FIXME: Also cover symbol properties
+  const checkpoints: (number | null)[] = [step];
 
   // Very important: do not cache the result of getObject() to a local variable;
   // in some scenarios, caching would defeat the purpose of this test.
   try {
     checkpoints.push(getObject()[prop]); // Expect null
-    getObject()[prop] = (getObject()[prop] || 0) + 1;
-    checkpoints.push(getObject()[prop]); // Expect 1
+    getObject()[prop] = (getObject()[prop] || 0) + step;
+    checkpoints.push(getObject()[prop]); // Expect 1*step
 
     await wf.sleep(1);
 
-    checkpoints.push(getObject()[prop]); // Expect 1
-    getObject()[prop] = (getObject()[prop] || 0) + 1;
-    checkpoints.push(getObject()[prop]); // Expect 2
+    checkpoints.push(getObject()[prop]); // Expect 1*step
+    getObject()[prop] = (getObject()[prop] || 0) + step;
+    checkpoints.push(getObject()[prop]); // Expect 2*step
 
     await wf.sleep(1);
 
-    checkpoints.push(getObject()[prop]); // Expect 2
+    checkpoints.push(getObject()[prop]); // Expect 2*step
     delete getObject()[prop];
     checkpoints.push(getObject()[prop]); // Expect null
 
     await wf.sleep(1);
 
     checkpoints.push(getObject()[prop]); // Expect null
-    getObject()[prop] = (getObject()[prop] || 0) + 1;
-    checkpoints.push(getObject()[prop]); // Expect 1
+    getObject()[prop] = (getObject()[prop] || 0) + step;
+    checkpoints.push(getObject()[prop]); // Expect 1*step
 
     return checkpoints;
   } catch (e) {
-    throw ApplicationFailure.fromError(e, { details: [checkpoints] });
+    throw ApplicationFailure.fromError(e, { details: [checkpoints.slice(1)] });
   }
 }
 

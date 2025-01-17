@@ -98,7 +98,6 @@ export function injectConsole(context: vm.Context): void {
     };
   }
   const consoleObject = Object.fromEntries(consoleMethods.map((level) => [level, makeConsoleFn(level)]));
-
   Object.defineProperty(context, 'console', {
     value: consoleObject,
     writable: true,

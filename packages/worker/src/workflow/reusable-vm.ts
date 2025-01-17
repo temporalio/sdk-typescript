@@ -21,7 +21,7 @@ interface BagHolder {
 const callFn = new vm.Script(`
                 // runInContext does not accept args, so pass them via the __TEMPORAL_ARGS__ global variable
                 {
-                  const [holder, fn, args, console] = globalThis.__TEMPORAL_ARGS__;
+                  const [holder, fn, args] = globalThis.__TEMPORAL_ARGS__;
                   delete globalThis.__TEMPORAL_ARGS__;
 
                   if (globalThis.__TEMPORAL_BAG_HOLDER__ !== holder) {
@@ -63,7 +63,6 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
    */
   private _context?: vm.Context;
   private pristineObj?: object;
-  private pristineProps?: Set<string | symbol>;
 
   constructor(
     script: vm.Script,
@@ -121,14 +120,6 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     // Node makes some attempt at keeping the two in sync, but it's not perfect. To avoid various inconsistencies,
     // we capture the global variables from the inside of the V8 context.
     this.pristineObj = vm.runInContext(`Object.getOwnPropertyDescriptors(globalThis)`, this.context);
-    this.pristineProps = new Set([
-      ...Object.getOwnPropertyNames(this.pristineObj),
-      ...Object.getOwnPropertySymbols(this.pristineObj),
-
-      // Also ignore these, which are meant for our own use
-      '__TEMPORAL_ARGS__',
-      '__TEMPORAL_ACTIVATOR__',
-    ]);
 
     for (const k of [
       ...Object.getOwnPropertyNames(this.pristineObj),
@@ -174,8 +165,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
         get(_: any, fn: string) {
           return (...args: any[]) => {
             // By the time we get out of this call, all microtasks will have been executed
-            // DONOTMERGE: Remove `console` here once I'm done debugging
-            context.__TEMPORAL_ARGS__ = [holder, fn, args, console];
+            context.__TEMPORAL_ARGS__ = [holder, fn, args];
             return callFn.runInContext(context, {
               timeout: isolateExecutionTimeoutMs,
               displayErrors: true,
@@ -193,7 +183,6 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     });
     const activator = context['__TEMPORAL_ACTIVATOR__'];
     const newVM = new ReusableVMWorkflow(options.info.runId, context, activator, workflowModule);
-
     ReusableVMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
     return newVM;
   }

@@ -220,10 +220,16 @@ export function SymbolBasedInstanceOfError<E extends Error>(markerName: string):
 }
 
 // This implementation is based on https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze.
+//
 // Note that there are limits to this approach, as traversing using getOwnPropertyXxx doesn't allow
-// reaching variables defined using internal scopes. This implementation specifically look for and deal
-// with the case of the Map or Set classes, but it is impossible to cover all potential cases.
-export function deepFreeze<T>(object: T, visited = new WeakSet<any>(), path = 'root'): T {
+// reaching variables defined in internal scopes. That notably means that Map and Set classes,
+// are not frozen. It is simply impossible to cover all potential cases.
+//
+// We also do not attempt to visit the prototype chain, as this would make it much harder to load
+// polyfills, and it is extremely unlikely anyway that one would modify the prototype of a built-in
+// object in a way that would have undesirable consequences (i.e. a polyfill function may actually
+// leak to another workflow context, but it wouldn't carry anything Workflow specific).
+export function deepFreeze<T>(object: T, visited = new WeakSet<any>()): T {
   if (object == null || visited.has(object) || (typeof object !== 'object' && typeof object !== 'function'))
     return object;
   visited.add(object);
@@ -231,7 +237,7 @@ export function deepFreeze<T>(object: T, visited = new WeakSet<any>(), path = 'r
 
   if (typeof object === 'object') {
     // Retrieve the property names defined on object
-    const propNames = Object.getOwnPropertyNames(object);
+    const propNames = [...Object.getOwnPropertyNames(object), ...Object.getOwnPropertySymbols(object)];
 
     // Freeze properties before freezing self
     for (const name of propNames) {
@@ -239,18 +245,13 @@ export function deepFreeze<T>(object: T, visited = new WeakSet<any>(), path = 'r
 
       if (value && (typeof value === 'object' || typeof value === 'function')) {
         try {
-          deepFreeze(value, visited, `${path}.${name}`);
-        } catch (err) {
-          // FIXME: Remove before merging this PR
-          if (value.constructor.name !== 'Uint8Array') {
-            console.log(`Failed to freeze ${path}.${name}`, err);
-          }
-          // This is okay, there are some typed arrays that cannot be frozen (encodingKeys)
+          deepFreeze(value, visited);
+        } catch (_err) {
+          // This is okay, for various reasons, some objects can't be frozen, e.g. Uint8Array.
         }
       }
     }
   }
 
-  // console.log(`==== Deep freezing ${path} -- ${typeof object}`);
   return Object.freeze(object);
 }
