@@ -1,7 +1,6 @@
 import vm from 'node:vm';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { IllegalStateError } from '@temporalio/common';
-import { deepFreeze } from '@temporalio/common/lib/type-helpers';
 import { getTimeOfDay } from '@temporalio/core-bridge';
 import { timeOfDayToBigint } from '../logger';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
@@ -18,33 +17,7 @@ interface BagHolder {
   bag: any;
 }
 
-const callFn = new vm.Script(`
-                // runInContext does not accept args, so pass them via the __TEMPORAL_ARGS__ global variable
-                {
-                  const [holder, fn, args] = globalThis.__TEMPORAL_ARGS__;
-                  delete globalThis.__TEMPORAL_ARGS__;
-
-                  if (globalThis.__TEMPORAL_BAG_HOLDER__ !== holder) {
-                    if (globalThis.__TEMPORAL_BAG_HOLDER__ !== undefined) {
-                      globalThis.__TEMPORAL_BAG_HOLDER__.bag = Object.getOwnPropertyDescriptors(globalThis);
-                    }
-
-                    // Restore global properties for this context
-                    Object.defineProperties(globalThis, holder.bag);
-
-                    // Delete extra properties, left from the former context
-                    for (const prop of Reflect.ownKeys(globalThis)) {
-                      if (!(prop in holder.bag)) {
-                        delete globalThis[prop];
-                      }
-                    }
-
-                    globalThis.__TEMPORAL_BAG_HOLDER__ = holder;
-                  }
-
-                  __TEMPORAL__.api[fn](...args)
-                }
-              `);
+const callIntoVmScript = new vm.Script(`__TEMPORAL_CALL_INTO_SCOPE()`);
 
 /**
  * A WorkflowCreator that creates VMWorkflows in the current isolate
@@ -77,6 +50,43 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     }
 
     this._context = vm.createContext({}, { microtaskMode: 'afterEvaluate' });
+    vm.runInContext(
+      `{
+          const __TEMPORAL_CALL_INTO_SCOPE = () => {
+            const [holder, fn, args] = globalThis.__TEMPORAL_ARGS__;
+            delete globalThis.__TEMPORAL_ARGS__;
+
+            if (globalThis.__TEMPORAL_BAG_HOLDER__ !== holder) {
+              if (globalThis.__TEMPORAL_BAG_HOLDER__ !== undefined) {
+                globalThis.__TEMPORAL_BAG_HOLDER__.bag = Object.getOwnPropertyDescriptors(globalThis);
+              }
+
+              // Start with all properties, and remove the ones that we see; the rest will be deleted
+              const toBeDeleted = new Set(Reflect.ownKeys(globalThis));
+
+              for (const prop of Reflect.ownKeys(holder.bag)) {
+                if (holder.bag[prop].value !== globalThis[prop]) {
+                  Object.defineProperty(globalThis, prop, holder.bag[prop]);
+                }
+
+                toBeDeleted.delete(prop);
+              }
+
+              // Delete extra properties, left from the former context
+              for (const prop of toBeDeleted) {
+                delete globalThis[prop];
+              }
+
+              globalThis.__TEMPORAL_BAG_HOLDER__ = holder;
+            }
+
+            return __TEMPORAL__.api[fn](...args);
+          }
+          Object.defineProperty(globalThis, '__TEMPORAL_CALL_INTO_SCOPE', { value: __TEMPORAL_CALL_INTO_SCOPE, writable: false, enumerable: false, configurable: false });
+        }`,
+      this._context,
+      { timeout: isolateExecutionTimeoutMs, displayErrors: true }
+    );
 
     this.injectConsole();
     injectGlobals(this.context);
@@ -166,7 +176,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
           return (...args: any[]) => {
             // By the time we get out of this call, all microtasks will have been executed
             context.__TEMPORAL_ARGS__ = [holder, fn, args];
-            return callFn.runInContext(context, {
+            return callIntoVmScript.runInContext(context, {
               timeout: isolateExecutionTimeoutMs,
               displayErrors: true,
             });
@@ -222,4 +232,50 @@ export class ReusableVMWorkflow extends BaseVMWorkflow {
   public async dispose(): Promise<void> {
     ReusableVMWorkflowCreator.workflowByRunId.delete(this.runId);
   }
+}
+
+/**
+ * Call `Object.freeze()` recursively on an object.
+ *
+ * Note that there are limits to this approach, as traversing using getOwnPropertyXxx doesn't allow
+ * reaching variables defined in internal scopes. That notably means that Map and Set classes,
+ * are not frozen. Similarly, private properties and variables defined in closures are unreachable
+ * and will therefore not be frozen. It is simply impossible to cover all potential cases.
+ *
+ * We also do not attempt to visit the prototype chain, as this would make it much harder to load
+ * polyfills, and it is extremely unlikely anyway that one would modify the prototype of a built-in
+ * object in a way that would have undesirable consequences (i.e. a polyfill function may actually
+ * leak to another workflow context, but it wouldn't carry anything Workflow specific).
+ *
+ * This implementation is based on https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze.
+ * Some implementatino decisions (e.g. freezing functions, not freezing prototypes, not handling Maps
+ * and Sets, etc) are specific to the Reusable VM Workflow Sandbox use case, and may not be appropriate
+ * for other use cases. For that reason, it is preferable to keep this function private to this module,
+ * rather than exposing it as a reusable utility in the common package.
+ */
+function deepFreeze<T>(object: T, visited = new WeakSet<any>()): T {
+  if (object == null || visited.has(object) || (typeof object !== 'object' && typeof object !== 'function'))
+    return object;
+  visited.add(object);
+  if (Object.isFrozen(object)) return object;
+
+  if (typeof object === 'object') {
+    // Retrieve the property names defined on object
+    const propNames = [...Object.getOwnPropertyNames(object), ...Object.getOwnPropertySymbols(object)];
+
+    // Freeze properties before freezing self
+    for (const name of propNames) {
+      const value = (object as any)[name];
+
+      if (value && (typeof value === 'object' || typeof value === 'function')) {
+        try {
+          deepFreeze(value, visited);
+        } catch (_err) {
+          // This is okay, for various reasons, some objects can't be frozen, e.g. Uint8Array.
+        }
+      }
+    }
+  }
+
+  return Object.freeze(object);
 }

@@ -5,8 +5,6 @@ import { WorkflowFailedError } from '@temporalio/client';
 import { makeTestFunction, Context, helpers } from './helpers-integration';
 import { REUSE_V8_CONTEXT } from './helpers';
 
-// DONOTMERGE(JWH): Remove all reviewer comments from this file before merging
-
 const test = makeTestFunction({
   workflowsPath: __filename,
   workflowInterceptorModules: [__filename],
@@ -22,17 +20,14 @@ const withReusableContext = test.macro<[ImplementationFn<[], Context>]>(async (t
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Reviewer notes: Legacy
 test('globalThis can be safely mutated - misc string property', async (t) => {
   await assertObjectSafelyMutable(t, globalThisMutatorWorkflow, 'myProperty');
 });
 
-// Reviewer notes: New test, but behavior was previously ok
 test('globalThis can be safely mutated - numeric index property', async (t) => {
   await assertObjectSafelyMutable(t, globalThisMutatorWorkflow, 0);
 });
 
-// Reviewer notes: New behavior - We previously didn't handle symbol properties at all, so they would leak
 test('globalThis can be safely mutated - symbol property', async (t) => {
   await assertObjectSafelyMutable(t, globalThisMutatorWorkflow, Symbol.for('mySymbol'));
 });
@@ -43,8 +38,6 @@ export async function globalThisMutatorWorkflow(prop: string): Promise<(number |
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Reviewer notes: Original test was broken because it mutated `setTimeout`, which is overridden
-//                 by the SDK; former behavior was actually incorrect.
 test("V8's built-in global objects are frozen", withReusableContext, async (t) => {
   await assertObjectImmutable(t, v8BuiltinGlobalObjectMutatorWorkflow);
 });
@@ -55,8 +48,6 @@ export async function v8BuiltinGlobalObjectMutatorWorkflow(): Promise<(number | 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Reviewer notes: new behavior - reassigning built-in objects was previously allowed,
-//                 but would leak across workflow contexts.
 test("V8's built-in global objects can be safely reassigned", withReusableContext, async (t) => {
   await assertObjectSafelyMutable(t, v8BuiltinGlobalObjectReassignWorkflow);
 });
@@ -68,8 +59,6 @@ export async function v8BuiltinGlobalObjectReassignWorkflow(): Promise<(number |
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Reviewer notes: Original test was broken because it mutated `setTimeout`, which is overridden by the SDK;
-//                 former behavior was actually incorrect (i.e. v8 built in functions could be modified).
 test("V8's built-in global functions are frozen", withReusableContext, async (t) => {
   await assertObjectImmutable(t, v8BuiltinGlobalFunctionMutatorWorkflow);
 });
@@ -80,8 +69,6 @@ export async function v8BuiltinGlobalFunctionMutatorWorkflow(): Promise<(number 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Reviewer notes: new behavior - reassigning built-in functions was previously allowed,
-//                 but would leak across workflow contexts.
 test("V8's built-in global functions can be safely reassigned", withReusableContext, async (t) => {
   await assertObjectSafelyMutable(t, v8BuiltinGlobalFunctionReassignWorkflow);
 });
@@ -95,8 +82,6 @@ export async function v8BuiltinGlobalFunctionReassignWorkflow(): Promise<(number
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// V8's built-in global functions prototype are mutable, without safety guarantees
-// Reviewer notes: New test, behavior unchanged.
 test(
   "V8's built-in global function's prototypes are mutable, without safety guarantees",
   withReusableContext,
@@ -111,7 +96,6 @@ export async function v8BuiltinGlobalFunctionPrototypeReassignWorkflow(): Promis
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Reviewer notes: New behavior. This was previously unsafe, resulting in context leak.
 test("SDK's global functions can be reassigned", async (t) => {
   await assertObjectSafelyMutable(t, sdkGlobalsReassignment);
 });
@@ -125,7 +109,6 @@ export async function sdkGlobalsReassignment(): Promise<(number | null)[]> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Reviewer notes: Legacy
 test("SDK's modules are frozen", withReusableContext, async (t) => {
   await assertObjectSafelyMutable(t, sdkModuleMutatorWorkflow);
 });
@@ -136,7 +119,6 @@ export async function sdkModuleMutatorWorkflow(): Promise<(number | null)[]> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Reviewer notes: Legacy
 test("SDK's API functions are frozen 1", withReusableContext, async (t) => {
   await assertObjectImmutable(t, sdkPropertyMutatorWorkflow1);
 });
@@ -147,7 +129,6 @@ export async function sdkPropertyMutatorWorkflow1(): Promise<(number | null)[]> 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Review notes: Legacy
 test('Module state is isolated and maintained between activations', async (t) => {
   await assertObjectSafelyMutable(t, modulePropertyMutator);
 });
