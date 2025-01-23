@@ -5,13 +5,7 @@ import { getTimeOfDay } from '@temporalio/core-bridge';
 import { timeOfDayToBigint } from '../logger';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
-import {
-  BaseVMWorkflow,
-  globalHandlers,
-  injectConsole,
-  injectGlobals,
-  setUnhandledRejectionHandler,
-} from './vm-shared';
+import { BaseVMWorkflow, globalHandlers, injectGlobals, setUnhandledRejectionHandler } from './vm-shared';
 
 interface BagHolder {
   bag: any;
@@ -88,8 +82,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       { timeout: isolateExecutionTimeoutMs, displayErrors: true }
     );
 
-    this.injectConsole();
-    injectGlobals(this.context);
+    this.injectGlobals(this._context);
 
     const sharedModules = new Map<string | symbol, any>();
     const __webpack_module_cache__ = new Proxy(
@@ -153,12 +146,12 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
   }
 
   /**
-   * Inject console.log and friends into a vm context.
+   * Inject global objects as well as console.[log|...] into a vm context.
    *
    * Overridable for test purposes.
    */
-  protected injectConsole(): void {
-    injectConsole(this.context);
+  protected injectGlobals(context: vm.Context): void {
+    injectGlobals(context);
   }
 
   /**

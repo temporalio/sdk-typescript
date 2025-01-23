@@ -85,9 +85,22 @@ function formatCallsiteName(callsite: NodeJS.CallSite): string | null {
 }
 
 /**
- * Inject console.log and friends into a vm context.
+ * Inject global objects as well as console.[log|...] into a vm context.
  */
-export function injectConsole(context: vm.Context): void {
+export function injectGlobals(context: vm.Context): void {
+  const globals = {
+    AsyncLocalStorage,
+    URL,
+    URLSearchParams,
+    assert,
+    TextEncoder,
+    TextDecoder,
+    AbortController,
+  };
+  for (const [k, v] of Object.entries(globals)) {
+    Object.defineProperty(context, k, { value: v, writable: false, enumerable: true, configurable: false });
+  }
+
   const consoleMethods = ['log', 'warn', 'error', 'info', 'debug'] as const;
   type ConsoleMethod = (typeof consoleMethods)[number];
   function makeConsoleFn(level: ConsoleMethod) {
@@ -104,22 +117,6 @@ export function injectConsole(context: vm.Context): void {
     enumerable: false,
     configurable: true,
   });
-}
-
-export function injectGlobals(context: vm.Context): void {
-  const globals = {
-    AsyncLocalStorage,
-    URL,
-    URLSearchParams,
-    assert,
-    TextEncoder,
-    TextDecoder,
-    AbortController,
-  };
-
-  for (const [k, v] of Object.entries(globals)) {
-    Object.defineProperty(context, k, { value: v, writable: false, enumerable: true, configurable: false });
-  }
 }
 
 /**
