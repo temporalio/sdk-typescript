@@ -70,7 +70,7 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
    * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
-   * 
+   *
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
   searchAttributes?: SearchAttributes;
@@ -186,7 +186,7 @@ export interface ScheduleSummary {
    * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
-   * 
+   *
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
   searchAttributes?: SearchAttributes;
@@ -308,7 +308,7 @@ export type ScheduleDescription = {
    * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
-   * 
+   *
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
   searchAttributes: SearchAttributes;

@@ -345,7 +345,7 @@ export async function decodeScheduleAction(
       retry: decompileRetryPolicy(pb.startWorkflow.retryPolicy),
       // TODO(thomas): is there a reason why we didn't filter out empty arrays here?
       searchAttributes: decodeSearchAttributes(pb.startWorkflow.searchAttributes),
-      typedSearchAttributes: decodeTypedSearchAttributes(pb.startWorkflow.searchAttributes).getSearchAttributes(),  
+      typedSearchAttributes: decodeTypedSearchAttributes(pb.startWorkflow.searchAttributes).getSearchAttributes(),
       workflowExecutionTimeout: optionalTsToMs(pb.startWorkflow.workflowExecutionTimeout),
       workflowRunTimeout: optionalTsToMs(pb.startWorkflow.workflowRunTimeout),
       workflowTaskTimeout: optionalTsToMs(pb.startWorkflow.workflowTaskTimeout),

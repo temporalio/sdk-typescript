@@ -174,7 +174,7 @@ export interface BaseWorkflowOptions {
    * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
-   * 
+   *
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
   searchAttributes?: SearchAttributes;
@@ -184,8 +184,8 @@ export interface BaseWorkflowOptions {
    * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
-   * 
-   * If both {@link typedSearchAttributes} and {@link searchAttributes} are supplied, duplicate keys will be 
+   *
+   * If both {@link typedSearchAttributes} and {@link searchAttributes} are supplied, duplicate keys will be
    * overwritten by {@link typedSearchAttributes}.
    */
   typedSearchAttributes?: TypedSearchAttributePair[];

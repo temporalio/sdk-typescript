@@ -2,8 +2,6 @@ import type { temporal } from '@temporalio/proto';
 import { makeProtoEnumConverters } from './internal-workflow';
 import { SearchAttributeValueOrReadonly } from './interfaces';
 
-// TODO(thomas): create `internal` package for internal types/helpers (hold off on this until the end)
-
 export const SearchAttributeType = {
   TEXT: 'TEXT',
   KEYWORD: 'KEYWORD',
@@ -134,7 +132,7 @@ export function isTypedSearchAttributePair(pair: unknown): pair is TypedSearchAt
 
 type TypedSearchAttribute<T extends SearchAttributeType> = [T, IndexedValueTypeMapping[T]];
 
-// TODO(thomas): find a way where we don't have to export this (internal package or something)
+// TODO(thomas): move to internal package
 export type TypedSearchAttributeValue = {
   [T in SearchAttributeType]: TypedSearchAttribute<T>;
 }[SearchAttributeType];
@@ -151,7 +149,7 @@ export interface ITypedSearchAttributes {
   updateSearchAttribute(pair: TypedSearchAttributePair | DeleteTypedSearchAttributePair): void;
 }
 
-// TODO(thomas): maybe no export (internal package or something)
+// TODO(thomas): move to internal package
 export class TypedSearchAttributes implements ITypedSearchAttributes {
   private searchAttributes: Record<string, TypedSearchAttributeValue> = {};
 
