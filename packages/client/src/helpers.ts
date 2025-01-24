@@ -67,7 +67,6 @@ export async function executionInfoFromRaw<T>(
     closeTime: optionalTsToDate(raw.closeTime),
     memo: await decodeMapFromPayloads(dataConverter, raw.memo?.fields),
     searchAttributes: decodeSearchAttributes(raw.searchAttributes),
-    // TODO(thomas): consider moving this decoding to an internal package
     typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes),
     parentExecution: raw.parentExecution
       ? {

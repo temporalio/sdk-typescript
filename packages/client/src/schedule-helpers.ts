@@ -343,27 +343,9 @@ export async function decodeScheduleAction(
       args: await decodeArrayFromPayloads(dataConverter, pb.startWorkflow.input?.payloads),
       memo: await decodeMapFromPayloads(dataConverter, pb.startWorkflow.memo?.fields),
       retry: decompileRetryPolicy(pb.startWorkflow.retryPolicy),
-      searchAttributes: Object.fromEntries(
-        Object.entries(
-          mapFromPayloads(
-            searchAttributePayloadConverter,
-            pb.startWorkflow.searchAttributes?.indexedFields ?? {}
-          ) as SearchAttributes
-        )
-      ),
-      // TODO(thomas): consider moving this decoding to an internal package
-      // - or creating a static method TypedSearchAttributes.fromPayloads/fromMap
-      // (or use the decoding function if it already is there)
-      typedSearchAttributes: new TypedSearchAttributes(
-        Object.fromEntries(
-          Object.entries(
-            typedMapFromPayloads<string, TypedSearchAttributeValue>(
-              typedSearchAttributePayloadConverter,
-              pb.startWorkflow.searchAttributes?.indexedFields
-            ) ?? {}
-          ).filter(([_, v]) => v) // Filter out undefined values (i.e. if metadata.type is not set)
-        )
-      ).getSearchAttributes(),
+      // TODO(thomas): is there a reason why we didn't filter out empty arrays here?
+      searchAttributes: decodeSearchAttributes(pb.startWorkflow.searchAttributes),
+      typedSearchAttributes: decodeTypedSearchAttributes(pb.startWorkflow.searchAttributes).getSearchAttributes(),  
       workflowExecutionTimeout: optionalTsToMs(pb.startWorkflow.workflowExecutionTimeout),
       workflowRunTimeout: optionalTsToMs(pb.startWorkflow.workflowRunTimeout),
       workflowTaskTimeout: optionalTsToMs(pb.startWorkflow.workflowTaskTimeout),
@@ -384,7 +366,7 @@ export function decodeSearchAttributes(
   );
 }
 
-// TODO(thomas): move to internal package (or at least to the helpers.ts file)
+// TODO(thomas): move to internal package?
 export function decodeTypedSearchAttributes(
   pb: temporal.api.common.v1.ISearchAttributes | undefined | null
 ): ITypedSearchAttributes {

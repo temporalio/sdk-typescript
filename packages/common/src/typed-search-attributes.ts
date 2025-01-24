@@ -59,7 +59,6 @@ export function toSearchAttributeType(type: string): SearchAttributeType | undef
 }
 
 export function defineSearchAttribute<T extends SearchAttributeType>(name: string, type: T): SearchAttributeKey<T> {
-  // TODO(thomas): is it necessary to freeze the key here?
   return { name, type };
 }
 
@@ -88,7 +87,7 @@ export type SearchAttributeKey<T extends SearchAttributeType> = {
   type: T;
 };
 
-export type IndexedValueTypeMapping = {
+type IndexedValueTypeMapping = {
   TEXT: string;
   KEYWORD: string;
   INT: number;
@@ -136,7 +135,6 @@ export function isTypedSearchAttributePair(pair: unknown): pair is TypedSearchAt
 type TypedSearchAttribute<T extends SearchAttributeType> = [T, IndexedValueTypeMapping[T]];
 
 // TODO(thomas): find a way where we don't have to export this (internal package or something)
-// TODO(thomas): change this to object ?
 export type TypedSearchAttributeValue = {
   [T in SearchAttributeType]: TypedSearchAttribute<T>;
 }[SearchAttributeType];
@@ -153,8 +151,7 @@ export interface ITypedSearchAttributes {
   updateSearchAttribute(pair: TypedSearchAttributePair | DeleteTypedSearchAttributePair): void;
 }
 
-// TODO(thomas): the remaining overlying issue is that objects stored in the store are mutable, which will reflect in the internal state.
-// TODO(thomas): maybe no export
+// TODO(thomas): maybe no export (internal package or something)
 export class TypedSearchAttributes implements ITypedSearchAttributes {
   private searchAttributes: Record<string, TypedSearchAttributeValue> = {};
 
