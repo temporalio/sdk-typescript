@@ -366,7 +366,7 @@ export class TypedSearchAttributePayloadConverter implements PayloadConverter {
       throw new ValueError('Missing payload metadata');
     }
 
-    // TODO(thomas): don't like the type casting for undefined values
+    // TODO(thomas): type casting undefined values is not clear to caller
 
     let value = this.jsonConverter.fromPayload(payload);
     // If no 'type' metadata field or no given value, we skip.
