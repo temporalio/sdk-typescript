@@ -49,7 +49,6 @@ export interface WorkflowExecutionInfo {
   memo?: Record<string, unknown>;
   /** @deprecated Use `typedSearchAttributes` instead. */
   searchAttributes: SearchAttributes;
-  // TODO(thomas): (improve the doc above and add a doc here)
   /**
    * Interface exposing typed search attributes.
    */

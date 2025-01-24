@@ -41,13 +41,14 @@ export interface WorkflowInfo {
    * Indexed information attached to the Workflow Execution
    *
    * This value may change during the lifetime of an Execution.
-   * @deprecated Use `typedSearchAttributes` instead.
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
   readonly searchAttributes: SearchAttributes;
 
-  // TODO(thomas): improve the doc here
   /**
-   * Interface exposing typed search attributes.
+   * Indexed information attached to the Workflow Execution, exposed through an interface.
+   *
+   * This value may change during the lifetime of an Execution.
    */
   readonly typedSearchAttributes: ITypedSearchAttributes;
 
@@ -260,12 +261,11 @@ export interface ContinueAsNewOptions {
   memo?: Record<string, unknown>;
   /**
    * Searchable attributes to attach to next Workflow run
-   * @deprecated Use `typedSearchAttributes` instead.
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
   searchAttributes?: SearchAttributes;
-  // TODO(thomas): improve the doc here
   /**
-   * Collection of typed search attributes.
+   * Searchable attributes to attach to next Workflow run
    */
   typedSearchAttributes?: TypedSearchAttributePair[];
   /**

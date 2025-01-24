@@ -70,11 +70,17 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
    * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
-   * @deprecated Use typedSearchAttributes instead.
+   * 
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
   searchAttributes?: SearchAttributes;
 
-  // TODO(thomas): improve the doc above and add a doc here
+  /**
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   */
   typedSearchAttributes?: TypedSearchAttributePair[];
 
   /**
@@ -176,15 +182,21 @@ export interface ScheduleSummary {
   memo?: Record<string, unknown>;
 
   /**
-   * Additional indexed information attached to the Schedule.
-   * More info: https://docs.temporal.io/docs/typescript/search-attributes
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
-   * @deprecated Use typedSearchAttributes instead.
+   * 
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
   searchAttributes?: SearchAttributes;
 
-  // TODO(thomas): make this optional (improve the doc above and add a doc here)
+  /**
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   */
   typedSearchAttributes?: TypedSearchAttributePair[];
 
   state: {
@@ -292,15 +304,21 @@ export type ScheduleDescription = {
   memo?: Record<string, unknown>;
 
   /**
-   * Additional indexed information attached to the Schedule.
-   * More info: https://docs.temporal.io/docs/typescript/search-attributes
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
-   * @deprecated Use typedSearchAttributes instead.
+   * 
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
   searchAttributes: SearchAttributes;
 
-  // TODO(thomas): make this optional (improve the doc above and add a doc here)
+  /**
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   */
   typedSearchAttributes: TypedSearchAttributePair[];
 
   state: {
