@@ -86,12 +86,13 @@ export class VMWorkflowCreator implements WorkflowCreator {
    */
   protected injectGlobals(context: vm.Context): void {
     injectGlobals(context);
-    Object.defineProperty(context, '__webpack_module_cache__', {
-      value: {},
-      writable: false,
-      enumerable: false,
-      configurable: false,
-    });
+    context.__webpack_module_cache__ = {};
+    // Object.defineProperty(context, '__webpack_module_cache__', {
+    //   value: {},
+    //   writable: false,
+    //   enumerable: false,
+    //   configurable: false,
+    // });
   }
 
   /**

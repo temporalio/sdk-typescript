@@ -17,7 +17,6 @@ import { coresdk, temporal } from '@temporalio/proto';
 import { LogTimestamp } from '@temporalio/worker';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
-import { injectGlobals } from '@temporalio/worker/lib/workflow/vm-shared';
 import { SdkFlag, SdkFlags } from '@temporalio/workflow/lib/flags';
 import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
@@ -49,7 +48,7 @@ class TestVMWorkflowCreator extends VMWorkflowCreator {
   public logs: Record<string, unknown[][]> = {};
 
   override injectGlobals(context: vm.Context) {
-    injectGlobals(context);
+    super.injectGlobals(context);
     injectCustomConsole((runId) => this.logs[runId], context);
   }
 }
@@ -58,7 +57,7 @@ class TestReusableVMWorkflowCreator extends ReusableVMWorkflowCreator {
   public logs: Record<string, unknown[][]> = {};
 
   override injectGlobals(context: vm.Context) {
-    injectGlobals(context);
+    super.injectGlobals(context);
     injectCustomConsole((runId) => this.logs[runId], context);
   }
 }
