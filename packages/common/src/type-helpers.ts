@@ -218,26 +218,3 @@ export function SymbolBasedInstanceOfError<E extends Error>(markerName: string):
     });
   };
 }
-
-// Thanks MDN: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze
-export function deepFreeze<T>(object: T): T {
-  // Retrieve the property names defined on object
-  const propNames = Object.getOwnPropertyNames(object);
-
-  // Freeze properties before freezing self
-  for (const name of propNames) {
-    const value = (object as any)[name];
-
-    if (value && typeof value === 'object') {
-      try {
-        deepFreeze(value);
-      } catch (_err) {
-        // This is okay, there are some typed arrays that cannot be frozen (encodingKeys)
-      }
-    } else if (typeof value === 'function') {
-      Object.freeze(value);
-    }
-  }
-
-  return Object.freeze(object);
-}

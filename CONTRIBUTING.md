@@ -50,34 +50,39 @@ See [sdk-structure.md](./docs/sdk-structure.md)
 
 ### Environment setup
 
-- The TS SDK can be executed on 18, 20 or 22. However, we recommend using Node 22 for SDK development.
-  For easier testing during development you may want to use a version manager, such as
-  [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
+The TS SDK can be executed on 18, 20 or 22. However, we recommend using Node 22 for SDK development.
+For easier testing during development you may want to use a version manager, such as
+[fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
 
-- To run tests, you will need access to a local Temporal server, e.g. using the
-  [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server).
-- Install the [Rust toolchain](https://rustup.rs/).
-- Install [Protocol Buffers](https://github.com/protocolbuffers/protobuf/releases/).
-- Clone the [sdk-typescript](https://github.com/temporalio/sdk-typescript) repo:
-  ```sh
-  git clone https://github.com/temporalio/sdk-typescript.git
-  cd sdk-typescript
-  ```
-- Initialize the Core SDK submodule:
-  ```sh
-  git submodule update --init --recursive
-  ```
-  > If you get a `The authenticity of host 'github.com (192.30.252.123)' can't be established.`
-  > error, run `ssh-keyscan github.com >> ~/.ssh/known_hosts` and retry.
-- Install the dependencies:
-  ```sh
-  npm ci
-  ```
-  This may take a few minutes, as it involves downloading and compiling Rust dependencies.
-- You should now be able to build:
-  ```sh
-  npm run build
-  ```
+1. To run tests, you will need access to a local Temporal server, e.g. using the
+   [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server).
+2. Install the [Rust toolchain](https://rustup.rs/).
+3. Install [Protocol Buffers](https://github.com/protocolbuffers/protobuf/releases/).
+4. Clone the [sdk-typescript](https://github.com/temporalio/sdk-typescript) repo:
+   ```sh
+   git clone https://github.com/temporalio/sdk-typescript.git
+   cd sdk-typescript
+   ```
+5. Initialize the Core SDK submodule:
+
+   ```sh
+   git submodule update --init --recursive
+   ```
+
+   > If you get a `The authenticity of host 'github.com (192.30.252.123)' can't be established.`
+   > error, run `ssh-keyscan github.com >> ~/.ssh/known_hosts` and retry.
+
+6. Install the dependencies:
+   ```sh
+   npm ci
+   ```
+   This may take a few minutes, as it involves downloading and compiling Rust dependencies.
+
+You should now be able to build:
+
+```sh
+npm run build
+```
 
 If building fails, resetting your environment may help:
 

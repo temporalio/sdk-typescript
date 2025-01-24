@@ -10,6 +10,7 @@ import {
 } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { temporal } from '@temporalio/proto';
+import { LogEntry } from '@temporalio/worker';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { signalUpdateOrderingWorkflow } from './workflows/signal-update-ordering';
 import { signalsActivitiesTimersPromiseOrdering } from './workflows/signals-timers-activities-order';
@@ -18,6 +19,8 @@ import { loadHistory, waitUntil } from './helpers';
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
 const LONG_POLL_EXPIRATION_INTERVAL_SECONDS = 5.0;
+
+const recordedLogs: { [workflowId: string]: LogEntry[] } = {};
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -29,6 +32,7 @@ const test = makeTestFunction({
       ],
     },
   },
+  recordedLogs,
 });
 
 export const update = wf.defineUpdate<string[], [string]>('update');
@@ -1015,4 +1019,36 @@ test('Can complete update after workflow returns - pre-1.11.0 compatibility', as
   const hist = await loadHistory('complete_update_after_workflow_returns_pre1488.json');
   await runReplayHistory({}, hist);
   t.pass();
+});
+
+const logUpdate = wf.defineUpdate<[string, string], [string]>('log-update');
+export async function workflowWithLogInUpdate(): Promise<void> {
+  const updateHandler = (msg: string): [string, string] => {
+    const updateInfo = wf.currentUpdateInfo();
+    if (!updateInfo) {
+      throw new Error('expected updateInfo to be defined');
+    }
+    wf.log.info(msg);
+    return [updateInfo.id, updateInfo.name];
+  };
+  wf.setHandler(logUpdate, updateHandler);
+  await wf.condition(() => false);
+}
+
+test('Workflow Worker logs update info when logging within update handler', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const wfHandle = await startWorkflow(workflowWithLogInUpdate);
+    const logMsg = 'log msg';
+    const [updateId, updateName] = await wfHandle.executeUpdate(logUpdate, { args: [logMsg] });
+    t.true(
+      recordedLogs[wfHandle.workflowId].some(
+        (logEntry) =>
+          logEntry.meta?.updateName === updateName &&
+          logEntry.meta?.updateId === updateId &&
+          logEntry.message === logMsg
+      )
+    );
+  });
 });

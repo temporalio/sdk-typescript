@@ -1,5 +1,9 @@
 import v8 from 'node:v8';
 import vm from 'node:vm';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import assert from 'node:assert';
+import { URL, URLSearchParams } from 'node:url';
+import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError } from '@temporalio/common';
 import { tsToMs } from '@temporalio/common/lib/time';
@@ -81,9 +85,22 @@ function formatCallsiteName(callsite: NodeJS.CallSite): string | null {
 }
 
 /**
- * Inject console.log and friends into a vm context.
+ * Inject global objects as well as console.[log|...] into a vm context.
  */
-export function injectConsole(context: vm.Context): void {
+export function injectGlobals(context: vm.Context): void {
+  const globals = {
+    AsyncLocalStorage,
+    URL,
+    URLSearchParams,
+    assert,
+    TextEncoder,
+    TextDecoder,
+    AbortController,
+  };
+  for (const [k, v] of Object.entries(globals)) {
+    Object.defineProperty(context, k, { value: v, writable: false, enumerable: true, configurable: false });
+  }
+
   const consoleMethods = ['log', 'warn', 'error', 'info', 'debug'] as const;
   type ConsoleMethod = (typeof consoleMethods)[number];
   function makeConsoleFn(level: ConsoleMethod) {
@@ -93,7 +110,13 @@ export function injectConsole(context: vm.Context): void {
       console[level](`[${info.workflowType}(${info.workflowId})]`, ...args);
     };
   }
-  context.console = Object.fromEntries(consoleMethods.map((level) => [level, makeConsoleFn(level)]));
+  const consoleObject = Object.fromEntries(consoleMethods.map((level) => [level, makeConsoleFn(level)]));
+  Object.defineProperty(context, 'console', {
+    value: consoleObject,
+    writable: true,
+    enumerable: false,
+    configurable: true,
+  });
 }
 
 /**

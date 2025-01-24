@@ -50,4 +50,4 @@ async function spawnNpx(args, opts) {
   await waitOnChild(spawn(npx, npxArgs, { ...opts, shell }));
 }
 
-module.exports = { kill, spawnNpx, ChildProcessError, shell, sleep };
+module.exports = { kill, spawnNpx, waitOnChild, ChildProcessError, shell, sleep };
