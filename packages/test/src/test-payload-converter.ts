@@ -193,12 +193,18 @@ if (RUN_INTEGRATION_TESTS) {
     const expectedErrorWasThrown = new Promise<void>((resolve) => {
       markErrorThrown = resolve;
     });
-    const logger = new DefaultLogger('ERROR', (entry) => {
-      if (entry.meta?.error.message.includes('Unknown encoding: json/protobuf')) {
-        markErrorThrown();
-      }
+
+    Runtime.install({
+      logger: new DefaultLogger('WARN', (entry) => {
+        if (
+          entry.message.includes('Failing workflow task') &&
+          entry.meta?.failure?.includes('Unknown encoding: json/protobuf')
+        ) {
+          markErrorThrown();
+        }
+      }),
+      telemetryOptions: { logging: { forward: {}, filter: 'WARN' } },
     });
-    Runtime.install({ logger });
 
     const taskQueue = `${__filename}/${t.title}`;
     const worker = await Worker.create({
