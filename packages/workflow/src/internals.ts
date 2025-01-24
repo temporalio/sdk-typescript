@@ -204,6 +204,17 @@ export class Activator implements ActivationHandler {
     childToParent: new Map(),
   };
 
+  /**
+   * The error that caused the current Workflow Task to fail. Sets if a non-TemporalFailure
+   * error bubbles up out of the Workflow function, or out of a Signal or Update handler.
+   *
+   * Our code should do a best effort to stop processing the current activation as soon as
+   * possible after this field is set, but it is possible that further microtasks may get
+   * processed before then. Only the first captured error is preserved; subsequent errors
+   * will be ignored.
+   */
+  public workflowTaskError: unknown;
+
   public readonly rootScope = new RootCancellationScope();
 
   /**
@@ -703,7 +714,7 @@ export class Activator implements ActivationHandler {
           if (error instanceof TemporalFailure) {
             this.rejectUpdate(protocolInstanceId, error);
           } else {
-            throw error;
+            this.handleWorkflowFailure(error);
           }
         })
         .finally(() => this.inProgressUpdates.delete(updateId));
@@ -941,17 +952,12 @@ export class Activator implements ActivationHandler {
    * Transforms failures into a command to be sent to the server.
    * Used to handle any failure emitted by the Workflow.
    */
-  async handleWorkflowFailure(error: unknown): Promise<void> {
+  handleWorkflowFailure(error: unknown): void {
     if (this.cancelled && isCancellation(error)) {
       this.pushCommand({ cancelWorkflowExecution: {} }, true);
     } else if (error instanceof ContinueAsNew) {
       this.pushCommand({ continueAsNewWorkflowExecution: error.command }, true);
-    } else {
-      if (!(error instanceof TemporalFailure)) {
-        // This results in an unhandled rejection which will fail the activation
-        // preventing it from completing.
-        throw error;
-      }
+    } else if (error instanceof TemporalFailure) {
       // Fail the workflow. We do not want to issue unfinishedHandlers warnings. To achieve that, we
       // mark all handlers as completed now.
       this.inProgressSignals.clear();
@@ -964,6 +970,9 @@ export class Activator implements ActivationHandler {
         },
         true
       );
+    } else {
+      // Only keep the first error that bubbles up; subsequent errors will be ignored.
+      if (this.workflowTaskError === undefined) this.workflowTaskError = error;
     }
   }
 

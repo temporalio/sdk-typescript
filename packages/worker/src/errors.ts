@@ -16,11 +16,6 @@ export class GracefulShutdownPeriodExpiredError extends Error {}
  * a Promise. To silent rejections on a specific Promise, use `promise.catch(funcThatCantThrow)`
  * (e.g. `promise.catch(() => void 0)` or `promise.catch((e) => logger.error(e))`).
  */
-// FIXME: At this time, this wrapper is only used for errors that could not be associated with a
-//        specific workflow run; it should also be used for unhandled rejections in workflow code,
-//        but this is not possible at the moment as we intentionally "unhandle" non-TemporalFailure
-//        errors happening in workflow code (i.e. ALL non-TemporalFailure errors thrown from
-//        workflow code becomes Unhandled Rejection at some point in our own logic)
 @SymbolBasedInstanceOfError('UnhandledRejectionError')
 export class UnhandledRejectionError extends Error {
   constructor(
