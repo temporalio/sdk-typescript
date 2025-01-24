@@ -1,7 +1,3 @@
-import assert from 'node:assert';
-import { URL, URLSearchParams } from 'node:url';
-import { TextEncoder, TextDecoder } from 'node:util';
-import { AsyncLocalStorage } from 'node:async_hooks';
 import vm from 'node:vm';
 import { IllegalStateError } from '@temporalio/common';
 import { getTimeOfDay } from '@temporalio/core-bridge';
@@ -11,7 +7,7 @@ import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread
 import {
   BaseVMWorkflow,
   globalHandlers,
-  injectConsole,
+  injectGlobals,
   setUnhandledRejectionHandler,
   WorkflowModule,
 } from './vm-shared';
@@ -43,8 +39,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
    * Create a workflow with given options
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
-    const context = await this.getContext();
-    this.injectConsole(context);
+    const context = this.getContext();
     const { isolateExecutionTimeoutMs } = this;
     const workflowModule: WorkflowModule = new Proxy(
       {},
@@ -74,32 +69,30 @@ export class VMWorkflowCreator implements WorkflowCreator {
     return newVM;
   }
 
-  protected async getContext(): Promise<vm.Context> {
+  protected getContext(): vm.Context {
     if (this.script === undefined) {
       throw new IllegalStateError('Isolate context provider was destroyed');
     }
-    const globals = {
-      AsyncLocalStorage,
-      URL,
-      URLSearchParams,
-      assert,
-      __webpack_module_cache__: {},
-      TextEncoder,
-      TextDecoder,
-      AbortController,
-    };
-    const context = vm.createContext(globals, { microtaskMode: 'afterEvaluate' });
+    const context = vm.createContext({}, { microtaskMode: 'afterEvaluate' });
+    this.injectGlobals(context);
     this.script.runInContext(context);
     return context;
   }
 
   /**
-   * Inject console.log and friends into a vm context.
+   * Inject global objects as well as console.[log|...] into a vm context.
    *
    * Overridable for test purposes.
    */
-  protected injectConsole(context: vm.Context): void {
-    injectConsole(context);
+  protected injectGlobals(context: vm.Context): void {
+    injectGlobals(context);
+    context.__webpack_module_cache__ = {};
+    // Object.defineProperty(context, '__webpack_module_cache__', {
+    //   value: {},
+    //   writable: false,
+    //   enumerable: false,
+    //   configurable: false,
+    // });
   }
 
   /**

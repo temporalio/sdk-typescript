@@ -35,7 +35,7 @@ export interface Context {
 
 const test = anyTest as TestFn<Context>;
 
-function injectConsole(logsGetter: (runId: string) => unknown[][], context: vm.Context) {
+function injectCustomConsole(logsGetter: (runId: string) => unknown[][], context: vm.Context) {
   context.console = {
     log(...args: unknown[]) {
       const { runId } = context.__TEMPORAL_ACTIVATOR__.info;
@@ -47,16 +47,18 @@ function injectConsole(logsGetter: (runId: string) => unknown[][], context: vm.C
 class TestVMWorkflowCreator extends VMWorkflowCreator {
   public logs: Record<string, unknown[][]> = {};
 
-  override injectConsole(context: vm.Context) {
-    injectConsole((runId) => this.logs[runId], context);
+  override injectGlobals(context: vm.Context) {
+    super.injectGlobals(context);
+    injectCustomConsole((runId) => this.logs[runId], context);
   }
 }
 
 class TestReusableVMWorkflowCreator extends ReusableVMWorkflowCreator {
   public logs: Record<string, unknown[][]> = {};
 
-  override injectConsole() {
-    injectConsole((runId) => this.logs[runId], this.context);
+  override injectGlobals(context: vm.Context) {
+    super.injectGlobals(context);
+    injectCustomConsole((runId) => this.logs[runId], context);
   }
 }
 
@@ -181,11 +183,11 @@ function makeSuccess(
 }
 
 function makeStartWorkflow(
-  script: string,
+  workflowType: string,
   args?: Payload[],
   timestamp: number = Date.now()
 ): coresdk.workflow_activation.IWorkflowActivation {
-  return makeActivation(timestamp, makeInitializeWorkflowJob(script, args));
+  return makeActivation(timestamp, makeInitializeWorkflowJob(workflowType, args));
 }
 
 function makeInitializeWorkflowJob(
