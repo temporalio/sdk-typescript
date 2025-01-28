@@ -1,5 +1,11 @@
 import { checkExtends, Replace } from '@temporalio/common/lib/type-helpers';
-import { Duration, SearchAttributes, Workflow } from '@temporalio/common';
+import {
+  Duration,
+  SearchAttributes,
+  Workflow,
+  TypedSearchAttributePair,
+  TypedSearchAttributes,
+} from '@temporalio/common';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { temporal } from '@temporalio/proto';
 import { WorkflowStartOptions } from './workflow-options';
@@ -70,8 +76,21 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
    * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   *
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
   searchAttributes?: SearchAttributes;
+
+  /**
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   *
+   * If both {@link searchAttributes} and {@link typedSearchAttributes} are provided, conflicting keys will be overwritten
+   * by {@link typedSearchAttributes}.
+   */
+  typedSearchAttributes?: TypedSearchAttributePair[] | TypedSearchAttributes;
 
   /**
    * The initial state of the schedule, right after creation or update.
@@ -129,7 +148,7 @@ export type CompiledScheduleOptions = Replace<
  * The specification of an updated Schedule, as expected by {@link ScheduleHandle.update}.
  */
 export type ScheduleUpdateOptions<A extends ScheduleOptionsAction = ScheduleOptionsAction> = Replace<
-  Omit<ScheduleOptions, 'scheduleId' | 'memo' | 'searchAttributes'>,
+  Omit<ScheduleOptions, 'scheduleId' | 'memo' | 'searchAttributes' | 'typedSearchAttributes'>,
   {
     action: A;
     state: Omit<ScheduleOptions['state'], 'triggerImmediately' | 'backfill'>;
@@ -172,12 +191,22 @@ export interface ScheduleSummary {
   memo?: Record<string, unknown>;
 
   /**
-   * Additional indexed information attached to the Schedule.
-   * More info: https://docs.temporal.io/docs/typescript/search-attributes
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   *
+   * @deprecated Use {@link typedSearchAttributes} instead.
+   */
+  searchAttributes?: SearchAttributes;
+
+  /**
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
    */
-  searchAttributes?: SearchAttributes;
+  typedSearchAttributes?: TypedSearchAttributes;
 
   state: {
     /**
@@ -284,12 +313,22 @@ export type ScheduleDescription = {
   memo?: Record<string, unknown>;
 
   /**
-   * Additional indexed information attached to the Schedule.
-   * More info: https://docs.temporal.io/docs/typescript/search-attributes
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   *
+   * @deprecated Use {@link typedSearchAttributes} instead.
+   */
+  searchAttributes: SearchAttributes;
+
+  /**
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
    */
-  searchAttributes: SearchAttributes;
+  typedSearchAttributes: TypedSearchAttributes;
 
   state: {
     /**
@@ -745,6 +784,7 @@ export type ScheduleOptionsStartWorkflowAction<W extends Workflow> = {
   | 'args'
   | 'memo'
   | 'searchAttributes'
+  | 'typedSearchAttributes'
   | 'retry'
   | 'workflowExecutionTimeout'
   | 'workflowRunTimeout'
@@ -776,6 +816,7 @@ export type ScheduleDescriptionStartWorkflowAction = ScheduleSummaryStartWorkflo
     | 'args'
     | 'memo'
     | 'searchAttributes'
+    | 'typedSearchAttributes'
     | 'retry'
     | 'workflowExecutionTimeout'
     | 'workflowRunTimeout'

@@ -19,9 +19,9 @@ import {
   WorkflowUpdateType,
   WorkflowUpdateValidatorType,
   mapFromPayloads,
-  searchAttributePayloadConverter,
   fromPayloadsAtIndex,
-  SearchAttributes,
+  decodeSearchAttributes,
+  decodeTypedSearchAttributes,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
@@ -478,8 +478,12 @@ export class Activator implements ActivationHandler {
     // Most things related to initialization have already been handled in the constructor
     this.mutateWorkflowInfo((info) => ({
       ...info,
-      searchAttributes:
-        (mapFromPayloads(searchAttributePayloadConverter, searchAttributes?.indexedFields) as SearchAttributes) ?? {},
+
+      // TODO(thomas): do we not filter out undefined values?
+      searchAttributes: decodeSearchAttributes(searchAttributes?.indexedFields),
+      // TODO(thomas): do we not filter out undefined values?
+      typedSearchAttributes: decodeTypedSearchAttributes(searchAttributes?.indexedFields),
+
       memo: mapFromPayloads(this.payloadConverter, memo?.fields),
       lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads),
       lastFailure:
