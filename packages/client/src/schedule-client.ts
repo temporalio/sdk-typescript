@@ -1,10 +1,9 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
 import {
-  mapToPayloads,
-  searchAttributePayloadConverter,
-  typedSearchAttributePayloadConverter,
-  TypedSearchAttributes,
+  decodeSearchAttributes,
+  decodeTypedSearchAttributes,
+  encodeUnifiedSearchAttributes,
   Workflow,
 } from '@temporalio/common';
 import { composeInterceptors, Headers } from '@temporalio/common/lib/interceptors';
@@ -45,8 +44,6 @@ import {
   decodeScheduleRecentActions,
   decodeScheduleRunningActions,
   decodeScheduleSpec,
-  decodeSearchAttributes,
-  decodeTypedSearchAttributes,
   encodeScheduleAction,
   encodeSchedulePolicies,
   encodeScheduleSpec,
@@ -248,16 +245,7 @@ export class ScheduleClient extends BaseClient {
       searchAttributes:
         opts.searchAttributes || opts.typedSearchAttributes
           ? {
-              indexedFields: {
-                ...(opts.searchAttributes ? mapToPayloads(searchAttributePayloadConverter, opts.searchAttributes) : {}),
-                // Conflicting keys will be overwritten if both fields are specified
-                ...(opts.typedSearchAttributes
-                  ? mapToPayloads(
-                      typedSearchAttributePayloadConverter,
-                      TypedSearchAttributes.pairsToMap(opts.typedSearchAttributes)
-                    )
-                  : {}),
-              },
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes),
             }
           : undefined,
       initialPatch: {
@@ -405,8 +393,8 @@ export class ScheduleClient extends BaseClient {
             workflowType: raw.info.workflowType.name,
           },
           memo: await decodeMapFromPayloads(this.dataConverter, raw.memo?.fields),
-          searchAttributes: decodeSearchAttributes(raw.searchAttributes),
-          typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes).getSearchAttributes(),
+          searchAttributes: decodeSearchAttributes(raw.searchAttributes?.indexedFields),
+          typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes?.indexedFields),
           state: {
             paused: raw.info?.paused === true,
             note: raw.info?.notes ?? undefined,
@@ -443,8 +431,8 @@ export class ScheduleClient extends BaseClient {
           spec: decodeScheduleSpec(raw.schedule.spec),
           action: await decodeScheduleAction(this.client.dataConverter, raw.schedule.action),
           memo: await decodeMapFromPayloads(this.client.dataConverter, raw.memo?.fields),
-          searchAttributes: decodeSearchAttributes(raw.searchAttributes),
-          typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes).getSearchAttributes(),
+          searchAttributes: decodeSearchAttributes(raw.searchAttributes?.indexedFields),
+          typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes?.indexedFields),
           policies: {
             // 'overlap' should never be missing on describe, as the server will replace UNSPECIFIED by an actual value
             overlap: decodeScheduleOverlapPolicy(raw.schedule.policies?.overlapPolicy) ?? ScheduleOverlapPolicy.SKIP,

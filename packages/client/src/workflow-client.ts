@@ -4,7 +4,6 @@ import {
   BaseWorkflowHandle,
   CancelledFailure,
   compileRetryPolicy,
-  mapToPayloads,
   HistoryAndWorkflowId,
   QueryDefinition,
   RetryState,
@@ -23,9 +22,7 @@ import {
   decodeRetryState,
   encodeWorkflowIdConflictPolicy,
   WorkflowIdConflictPolicy,
-  searchAttributePayloadConverter,
-  typedSearchAttributePayloadConverter,
-  TypedSearchAttributes,
+  encodeUnifiedSearchAttributes,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { History } from '@temporalio/common/lib/proto-utils';
@@ -1223,18 +1220,7 @@ export class WorkflowClient extends BaseClient {
       searchAttributes:
         options.searchAttributes || options.typedSearchAttributes
           ? {
-              indexedFields: {
-                ...(options.searchAttributes
-                  ? mapToPayloads(searchAttributePayloadConverter, options.searchAttributes)
-                  : {}),
-                // Conflicting keys will be overwritten if both fields are specified
-                ...(options.typedSearchAttributes
-                  ? mapToPayloads(
-                      typedSearchAttributePayloadConverter,
-                      TypedSearchAttributes.pairsToMap(options.typedSearchAttributes)
-                    )
-                  : {}),
-              },
+              indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes),
             }
           : undefined,
       cronSchedule: options.cronSchedule,
@@ -1302,16 +1288,7 @@ export class WorkflowClient extends BaseClient {
       searchAttributes:
         opts.searchAttributes || opts.typedSearchAttributes
           ? {
-              indexedFields: {
-                ...(opts.searchAttributes ? mapToPayloads(searchAttributePayloadConverter, opts.searchAttributes) : {}),
-                // Conflicting keys will be overwritten if both fields are specified
-                ...(opts.typedSearchAttributes
-                  ? mapToPayloads(
-                      typedSearchAttributePayloadConverter,
-                      TypedSearchAttributes.pairsToMap(opts.typedSearchAttributes)
-                    )
-                  : {}),
-              },
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes),
             }
           : undefined,
       cronSchedule: opts.cronSchedule,

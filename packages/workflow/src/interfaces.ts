@@ -10,8 +10,8 @@ import {
   QueryDefinition,
   Duration,
   VersioningIntent,
-  ITypedSearchAttributes,
   TypedSearchAttributePair,
+  TypedSearchAttributes,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -50,7 +50,7 @@ export interface WorkflowInfo {
    *
    * This value may change during the lifetime of an Execution.
    */
-  readonly typedSearchAttributes: ITypedSearchAttributes;
+  readonly typedSearchAttributes: TypedSearchAttributes;
 
   /**
    * Non-indexed information attached to the Workflow Execution
@@ -265,9 +265,16 @@ export interface ContinueAsNewOptions {
    */
   searchAttributes?: SearchAttributes;
   /**
-   * Searchable attributes to attach to next Workflow run
+   * Specifies additional indexed information to attach to the Workflow Execution. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
+   * Note that search attributes are not encoded, as such, do not include any sensitive information.
+   *
+   * If both {@link searchAttributes} and {@link typedSearchAttributes} are provided, conflicting keys will be overwritten
+   * by {@link typedSearchAttributes}.
    */
-  typedSearchAttributes?: TypedSearchAttributePair[];
+  typedSearchAttributes?: TypedSearchAttributePair[] | TypedSearchAttributes;
   /**
    * When using the Worker Versioning feature, specifies whether this Workflow should
    * Continue-as-New onto a worker with a compatible Build Id or not. See {@link VersioningIntent}.

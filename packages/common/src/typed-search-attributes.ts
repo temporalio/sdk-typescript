@@ -95,7 +95,20 @@ type IndexedValueTypeMapping = {
   KEYWORD_LIST: string[];
 };
 
-export function isTypedSearchAttribute(attr: unknown): attr is TypedSearchAttributeValue {
+function isTypedSearchAttributeKey(key: unknown): key is SearchAttributeKey<SearchAttributeType> {
+  return (
+    key !== null &&
+    key !== undefined &&
+    typeof key === 'object' &&
+    'name' in key &&
+    typeof key.name === 'string' &&
+    'type' in key &&
+    typeof key.type === 'string' &&
+    key.type in SearchAttributeType
+  );
+}
+
+export function isTypedSearchAttribute(attr: unknown): attr is TypedSearchAttribute {
   if (attr === undefined) return false;
   if (!Array.isArray(attr) || attr.length !== 2) {
     return false;
@@ -125,51 +138,65 @@ export function isTypedSearchAttributePair(pair: unknown): pair is TypedSearchAt
     return false;
   }
   const [key, value] = pair;
+  return isTypedSearchAttributeKey(key) && isTypedSearchAttribute(value) && key.type === value[0];
+}
+
+export function isTypedSearchAttributeUpdate(attr: unknown): attr is TypedSearchAttributeUpdate {
+  // Null is a valid update to delete the attribute.
+  if (attr === null) return true;
+  // Otherwise, the attribute must be a valid TypedSearchAttributeValue.
+  return isTypedSearchAttribute(attr);
+}
+
+export function isTypedSearchAttributeUpdatePair(pair: unknown): pair is TypedSearchAttributeUpdatePair {
+  if (!Array.isArray(pair) || pair.length !== 2) {
+    return false;
+  }
+  const [key, value] = pair;
   return (
-    typeof key === 'object' && 'name' in key && 'type' in key && isTypedSearchAttribute(value) && key.type === value[0]
+    isTypedSearchAttributeKey(key) && isTypedSearchAttributeUpdate(value) && (value === null || key.type === value[0])
   );
 }
 
-type TypedSearchAttribute<T extends SearchAttributeType> = [T, IndexedValueTypeMapping[T]];
+type TypedSearchAttributeValue<T extends SearchAttributeType> = [T, IndexedValueTypeMapping[T]];
 
-// TODO(thomas): move to internal package
-export type TypedSearchAttributeValue = {
-  [T in SearchAttributeType]: TypedSearchAttribute<T>;
+export type TypedSearchAttribute = {
+  [T in SearchAttributeType]: TypedSearchAttributeValue<T>;
 }[SearchAttributeType];
 
 export type TypedSearchAttributePair = {
-  [T in SearchAttributeType]: [SearchAttributeKey<T>, TypedSearchAttribute<T>];
+  [T in SearchAttributeType]: [SearchAttributeKey<T>, TypedSearchAttributeValue<T>];
 }[SearchAttributeType];
 
-export type DeleteTypedSearchAttributePair = [SearchAttributeKey<SearchAttributeType>, undefined];
+export type TypedSearchAttributeUpdate = {
+  [T in SearchAttributeType]: TypedSearchAttributeValue<T> | null;
+}[SearchAttributeType];
 
-export interface ITypedSearchAttributes {
-  getSearchAttribute<T extends SearchAttributeType>(key: SearchAttributeKey<T>): TypedSearchAttributeValue | undefined;
-  getSearchAttributes(): TypedSearchAttributePair[];
-  updateSearchAttribute(pair: TypedSearchAttributePair | DeleteTypedSearchAttributePair): void;
-}
+export type TypedSearchAttributeUpdatePair = {
+  [T in SearchAttributeType]: [SearchAttributeKey<T>, TypedSearchAttributeValue<T> | null];
+}[SearchAttributeType];
 
-// TODO(thomas): move to internal package
-export class TypedSearchAttributes implements ITypedSearchAttributes {
-  private searchAttributes: Record<string, TypedSearchAttributeValue> = {};
+export class TypedSearchAttributes {
+  private searchAttributes: Record<string, TypedSearchAttribute> = {};
 
-  constructor(initialAttributes?: Record<string, TypedSearchAttributeValue>) {
+  // TODO(thomas): consider deep copying the initialAttributes.
+  constructor(initialAttributes?: TypedSearchAttributePair[]) {
     if (initialAttributes === undefined) return;
-    for (const [key, value] of Object.entries(initialAttributes)) {
-      if (key in this.searchAttributes) {
-        throw new Error(`Duplicate search attribute key: ${key}`);
+    for (const [key, value] of initialAttributes) {
+      if (key.name in this.searchAttributes) {
+        throw new Error(`Duplicate search attribute key: ${key.name}`);
       }
       // Filter out undefined entries.
       if (value === undefined) {
         continue;
       }
-      this.searchAttributes[key] = value;
+      this.searchAttributes[key.name] = value;
     }
   }
 
-  getSearchAttribute<T extends SearchAttributeType>(key: SearchAttributeKey<T>): TypedSearchAttributeValue | undefined {
+  getSearchAttribute<T extends SearchAttributeType>(key: SearchAttributeKey<T>): TypedSearchAttribute | undefined {
     const value = this.searchAttributes[key.name];
-    if (value === undefined || !isTypedSearchAttribute(value)) {
+    if (!isTypedSearchAttribute(value)) {
       return undefined;
     }
 
@@ -177,13 +204,19 @@ export class TypedSearchAttributes implements ITypedSearchAttributes {
     return actualType === key.type ? value : undefined;
   }
 
-  updateSearchAttribute(pair: TypedSearchAttributePair | DeleteTypedSearchAttributePair): void {
-    const [key, value] = pair;
-    if (value === undefined) {
-      delete this.searchAttributes[key.name];
-      return;
+  /** Returns a copy of the current TypedSearchAttributes instance with the updated attributes. */
+  updateSearchAttributes(pairs: TypedSearchAttributeUpdatePair[]): TypedSearchAttributes {
+    // Create a deep copy of the current state.
+    const newAttributes = JSON.parse(JSON.stringify(this.searchAttributes));
+    // Apply updates.
+    for (const [key, value] of pairs) {
+      if (value === null) {
+        delete newAttributes.searchAttributes[key.name];
+      }
+      newAttributes[key.name] = value;
     }
-    this.searchAttributes[key.name] = value;
+    // Return copy with the updated attributes.
+    return TypedSearchAttributes.fromRecord(newAttributes);
   }
 
   getSearchAttributes(): TypedSearchAttributePair[] {
@@ -191,9 +224,8 @@ export class TypedSearchAttributes implements ITypedSearchAttributes {
     for (const [key, value] of Object.entries(this.searchAttributes)) {
       if (isTypedSearchAttribute(value)) {
         const attrKey = defineSearchAttribute(key, value[0]);
-        // Note: need to type cast, compiler can't keep track that the type is correct due to the union type of the key.
         const pair = [attrKey, value];
-        // Sanity check
+        // Sanity check, should always be legal.
         if (isTypedSearchAttributePair(pair)) {
           res.push(pair);
         }
@@ -229,15 +261,19 @@ export class TypedSearchAttributes implements ITypedSearchAttributes {
     }
   }
 
-  static pairsToMap(pairs: TypedSearchAttributePair[]): Record<string, TypedSearchAttributeValue> {
-    const res: Record<string, TypedSearchAttributeValue> = {};
-    for (const [key, value] of pairs) {
-      res[key.name] = value;
+  private static fromRecord(initialAttributes: Record<string, TypedSearchAttribute>): TypedSearchAttributes {
+    const typedSearchAttributes = new TypedSearchAttributes();
+    if (initialAttributes === undefined) return typedSearchAttributes;
+    for (const [key, value] of Object.entries(initialAttributes)) {
+      if (key in typedSearchAttributes.searchAttributes) {
+        throw new Error(`Duplicate search attribute key: ${key}`);
+      }
+      // Filter out undefined entries.
+      if (value === undefined) {
+        continue;
+      }
+      typedSearchAttributes.searchAttributes[key] = value;
     }
-    return res;
-  }
-
-  static fromPairs(pairs: TypedSearchAttributePair[]): TypedSearchAttributes {
-    return new TypedSearchAttributes(TypedSearchAttributes.pairsToMap(pairs));
+    return typedSearchAttributes;
   }
 }

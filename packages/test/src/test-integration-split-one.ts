@@ -17,6 +17,7 @@ import {
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
+  TypedSearchAttributes,
   WorkflowExecution,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
@@ -723,6 +724,7 @@ test('Workflow can read WorkflowInfo', configMacro, async (t, config) => {
     runId: handle.firstExecutionRunId,
     taskQueue,
     searchAttributes: {},
+    typedSearchAttributes: new TypedSearchAttributes(),
     workflowType: 'returnWorkflowInfo',
     workflowId: handle.workflowId,
     historyLength: 3,

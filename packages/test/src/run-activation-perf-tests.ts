@@ -7,7 +7,7 @@ import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
 import * as wf from '@temporalio/workflow';
-import { TypedSearchAttributes } from '@temporalio/common/src/typed-search-attributes';
+import { TypedSearchAttributes } from '@temporalio/common';
 
 // WARNING: This file is a quick and dirty utility to run Workflow Activation performance testing
 //          localy. It is not part of our regular test suite and hasn't been reviewed.
