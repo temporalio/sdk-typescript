@@ -3,7 +3,7 @@ import { SearchAttributes, Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
 import { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
-import { TypedSearchAttributePair } from './typed-search-attributes';
+import { TypedSearchAttributePair, TypedSearchAttributes } from './typed-search-attributes';
 
 /**
  * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
@@ -184,11 +184,12 @@ export interface BaseWorkflowOptions {
    * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
+   * Note that search attributes are not encoded, as such, do not include any sensitive information.
    *
-   * If both {@link typedSearchAttributes} and {@link searchAttributes} are supplied, duplicate keys will be
-   * overwritten by {@link typedSearchAttributes}.
+   * If both {@link searchAttributes} and {@link typedSearchAttributes} are provided, conflicting keys will be overwritten
+   * by {@link typedSearchAttributes}.
    */
-  typedSearchAttributes?: TypedSearchAttributePair[];
+  typedSearchAttributes?: TypedSearchAttributePair[] | TypedSearchAttributes;
 }
 
 export type WithWorkflowArgs<W extends Workflow, T> = T &

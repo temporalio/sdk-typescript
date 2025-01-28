@@ -1,7 +1,6 @@
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import { Payload } from '../interfaces';
-import { isTypedSearchAttribute, toMetadataType, toSearchAttributeType } from '../typed-search-attributes';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
 /**
@@ -51,6 +50,20 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
  * @throws {@link ValueError} if conversion of any value in the map fails
  */
 export function mapToPayloads<K extends string>(converter: PayloadConverter, map: Record<K, any>): Record<K, Payload> {
+  return Object.fromEntries(
+    Object.entries(map).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)])
+  ) as Record<K, Payload>;
+}
+
+/**
+ * Run {@link PayloadConverter.toPayload} on each value in the map.
+ *
+ * @throws {@link ValueError} if conversion of any value in the map fails
+ */
+export function typedMapToPayloads<K extends string, T>(
+  converter: PayloadConverter,
+  map: Record<K, T>
+): Record<K, Payload> {
   return Object.fromEntries(
     Object.entries(map).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)])
   ) as Record<K, Payload>;
@@ -265,127 +278,6 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
     return JSON.parse(decode(content.data));
   }
 }
-
-/**
- * Converts Search Attribute values using JsonPayloadConverter
- */
-export class SearchAttributePayloadConverter implements PayloadConverter {
-  jsonConverter = new JsonPayloadConverter();
-  validNonDateTypes = ['string', 'number', 'boolean'];
-
-  public toPayload(values: unknown): Payload {
-    if (!Array.isArray(values)) {
-      throw new ValueError(`SearchAttribute value must be an array`);
-    }
-
-    if (values.length > 0) {
-      const firstValue = values[0];
-      const firstType = typeof firstValue;
-      if (firstType === 'object') {
-        for (const [idx, value] of values.entries()) {
-          if (!(value instanceof Date)) {
-            throw new ValueError(
-              `SearchAttribute values must arrays of strings, numbers, booleans, or Dates. The value ${value} at index ${idx} is of type ${typeof value}`
-            );
-          }
-        }
-      } else {
-        if (!this.validNonDateTypes.includes(firstType)) {
-          throw new ValueError(`SearchAttribute array values must be: string | number | boolean | Date`);
-        }
-
-        for (const [idx, value] of values.entries()) {
-          if (typeof value !== firstType) {
-            throw new ValueError(
-              `All SearchAttribute array values must be of the same type. The first value ${firstValue} of type ${firstType} doesn't match value ${value} of type ${typeof value} at index ${idx}`
-            );
-          }
-        }
-      }
-    }
-
-    // JSON.stringify takes care of converting Dates to ISO strings
-    const ret = this.jsonConverter.toPayload(values);
-    if (ret === undefined) {
-      throw new ValueError('Could not convert search attributes to payloads');
-    }
-    return ret;
-  }
-
-  /**
-   * Datetime Search Attribute values are converted to `Date`s
-   */
-  public fromPayload<T>(payload: Payload): T {
-    if (payload.metadata === undefined || payload.metadata === null) {
-      throw new ValueError('Missing payload metadata');
-    }
-
-    const value = this.jsonConverter.fromPayload(payload);
-    let arrayWrappedValue = Array.isArray(value) ? value : [value];
-
-    const searchAttributeType = decode(payload.metadata.type);
-    if (searchAttributeType === 'Datetime') {
-      arrayWrappedValue = arrayWrappedValue.map((dateString) => new Date(dateString));
-    }
-    return arrayWrappedValue as unknown as T;
-  }
-}
-
-export const searchAttributePayloadConverter = new SearchAttributePayloadConverter();
-
-export class TypedSearchAttributePayloadConverter implements PayloadConverter {
-  jsonConverter = new JsonPayloadConverter();
-
-  public toPayload<T>(typedSearchAttribute: T): Payload {
-    if (!isTypedSearchAttribute(typedSearchAttribute)) {
-      throw new ValueError('Invalid typed search attribute');
-    }
-
-    const type = typedSearchAttribute[0];
-    let value = typedSearchAttribute[1];
-    if (type === 'DATETIME') {
-      // Convert Date to ISO string
-      value = (value as Date).toISOString();
-    }
-
-    const payload = this.jsonConverter.toPayload(value);
-    if (payload === undefined) {
-      throw new ValueError('Could not convert typed search attribute to payload');
-    }
-    // Note: this shouldn't be the case but the compiler complains without this check.
-    if (payload.metadata === undefined || payload.metadata === null) {
-      throw new ValueError('Missing payload metadata');
-    }
-    // Add encoded type of search attribute to metatdata
-    payload.metadata['type'] = encode(toMetadataType(type));
-    return payload;
-  }
-
-  public fromPayload<T>(payload: Payload): T {
-    if (payload.metadata === undefined || payload.metadata === null) {
-      throw new ValueError('Missing payload metadata');
-    }
-
-    // TODO(thomas): type casting undefined values is not clear to caller
-
-    let value = this.jsonConverter.fromPayload(payload);
-    // If no 'type' metadata field or no given value, we skip.
-    if (payload.metadata.type === undefined || value === undefined) {
-      return undefined as T;
-    }
-    const type = toSearchAttributeType(decode(payload.metadata.type));
-    // Unrecognized metadata type (sanity check).
-    if (type === undefined) {
-      return undefined as T;
-    }
-    if (type === 'DATETIME') {
-      value = new Date(value as string);
-    }
-    return [type, value] as T;
-  }
-}
-
-export const typedSearchAttributePayloadConverter = new TypedSearchAttributePayloadConverter();
 
 export class DefaultPayloadConverter extends CompositePayloadConverter {
   // Match the order used in other SDKs, but exclude Protobuf converters so that the code, including
