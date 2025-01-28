@@ -12,6 +12,7 @@ export * from './converter/data-converter';
 export * from './converter/failure-converter';
 export * from './converter/payload-codec';
 export * from './converter/payload-converter';
+export * from './converter/payload-search-attributes';
 export * from './converter/types';
 export * from './deprecated-time';
 export * from './errors';
@@ -24,6 +25,7 @@ export type { Timestamp, Duration, StringValue } from './time';
 export * from './workflow-handle';
 export * from './workflow-options';
 export * from './versioning-intent';
+export * from './typed-search-attributes';
 
 /**
  * Encode a UTF-8 string into a Uint8Array
