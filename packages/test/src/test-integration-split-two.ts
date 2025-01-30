@@ -374,9 +374,9 @@ test('unhandledRejection causes WFT to fail', configMacro, async (t, config) => 
           t.fail();
           return;
         }
-        t.is(failure.message, 'unhandled rejection');
+        t.is(failure.message, 'Unhandled Promise rejection: Error: unhandled rejection');
         t.true(failure.stackTrace?.includes(`Error: unhandled rejection`));
-        t.is(failure.cause?.message, 'root failure');
+        t.is(failure.cause?.cause?.message, 'root failure');
       },
       { minTimeout: 300, factor: 1, retries: 100 }
     )
