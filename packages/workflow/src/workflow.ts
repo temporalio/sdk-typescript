@@ -937,9 +937,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
         searchAttributes:
           options.searchAttributes || options.typedSearchAttributes
-            ? {
-                indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes),
-              }
+            ? encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes)
             : undefined,
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),

@@ -118,7 +118,7 @@ if (RUN_INTEGRATION_TESTS) {
       memo: {},
       parent: undefined,
       searchAttributes: {},
-      typedSearchAttributes: new TypedSearchAttributes(),
+      typedSearchAttributes: JSON.parse(JSON.stringify(new TypedSearchAttributes())),
       historyLength: 3,
       continueAsNewSuggested: false,
       // values ignored for the purpose of comparison

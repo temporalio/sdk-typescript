@@ -13,7 +13,7 @@ import {
   SearchAttributes,
 } from '@temporalio/client';
 import { msToNumber } from '@temporalio/common/lib/time';
-import { searchAttributePair, SearchAttributeType } from '@temporalio/common';
+import { searchAttributePair, SearchAttributeType, TypedSearchAttributes } from '@temporalio/common';
 import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS } from './helpers';
 
 export interface Context {
@@ -169,7 +169,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: [searchAttributePair('CustomInt', SearchAttributeType.INT, 42)],
+        typedSearchAttributes: [searchAttributePair('CustomIntField', SearchAttributeType.INT, 42)],
       },
     });
 
@@ -179,15 +179,17 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(describedSchedule.action.type, 'startWorkflow');
       t.is(describedSchedule.action.workflowType, 'dummyWorkflow');
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
-      t.deepEqual(describedSchedule.action.searchAttributes, [
-        ['CustomKeywordField', ['test-value2']],
-        ['CustomInt', 42],
-      ]);
-      t.deepEqual(describedSchedule.action.typedSearchAttributes, [
-        searchAttributePair('CustomInt', SearchAttributeType.INT, 42),
-        // Note that the typed search attribute infers type TEXT from the value.
-        searchAttributePair('CustomKeywordField', SearchAttributeType.TEXT, 'test-value2'),
-      ]);
+      t.deepEqual(describedSchedule.action.searchAttributes, {
+        CustomKeywordField: ['test-value2'],
+        CustomIntField: [42],
+      });
+      t.deepEqual(
+        describedSchedule.action.typedSearchAttributes,
+        new TypedSearchAttributes([
+          searchAttributePair('CustomIntField', SearchAttributeType.INT, 42),
+          searchAttributePair('CustomKeywordField', SearchAttributeType.KEYWORD, 'test-value2'),
+        ])
+      );
     } finally {
       await handle.delete();
     }
@@ -212,7 +214,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: [searchAttributePair('CustomInt', SearchAttributeType.INT, 42)],
+        typedSearchAttributes: [searchAttributePair('CustomIntField', SearchAttributeType.INT, 42)],
       },
     });
 
@@ -223,15 +225,17 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(describedSchedule.action.workflowType, 'dummyWorkflowWith2Args');
       t.deepEqual(describedSchedule.action.args, [3, 4]);
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
-      t.deepEqual(describedSchedule.action.searchAttributes, [
-        ['CustomKeywordField', ['test-value2']],
-        ['CustomInt', 42],
-      ]);
-      t.deepEqual(describedSchedule.action.typedSearchAttributes, [
-        searchAttributePair('CustomInt', SearchAttributeType.INT, 42),
-        // Note that the typed search attribute "guesses" TEXT, inferred from the value.
-        searchAttributePair('CustomKeywordField', SearchAttributeType.TEXT, 'test-value2'),
-      ]);
+      t.deepEqual(describedSchedule.action.searchAttributes, {
+        CustomKeywordField: ['test-value2'],
+        CustomIntField: [42],
+      });
+      t.deepEqual(
+        describedSchedule.action.typedSearchAttributes,
+        new TypedSearchAttributes([
+          searchAttributePair('CustomIntField', SearchAttributeType.INT, 42),
+          searchAttributePair('CustomKeywordField', SearchAttributeType.KEYWORD, 'test-value2'),
+        ])
+      );
     } finally {
       await handle.delete();
     }
@@ -342,7 +346,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: [searchAttributePair('CustomInt', SearchAttributeType.INT, 42)],
+        typedSearchAttributes: [searchAttributePair('CustomIntField', SearchAttributeType.INT, 42)],
       },
     });
 
@@ -587,7 +591,7 @@ if (RUN_INTEGRATION_TESTS) {
             taskQueue,
           },
           searchAttributes,
-          typedSearchAttributes: [searchAttributePair('CustomInt', SearchAttributeType.INT, 42)],
+          typedSearchAttributes: [searchAttributePair('CustomIntField', SearchAttributeType.INT, 42)],
         })
       );
     }
