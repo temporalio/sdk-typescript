@@ -21,14 +21,14 @@ export { FixedSizeSlotSupplier, ResourceBasedTunerOptions };
 /**
  * Controls how slots for different task types will be handed out.
  *
- * @experimental
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export type WorkerTuner = ResourceBasedTuner | TunerHolder;
 
 /**
  * This tuner allows for different slot suppliers for different slot types.
  *
- * @experimental
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface TunerHolder {
   workflowTaskSlotSupplier: SlotSupplier<WorkflowSlotInfo>;
@@ -42,7 +42,7 @@ export interface TunerHolder {
  * For now, only {@link ResourceBasedSlotOptions} and {@link FixedSizeSlotSupplier} are supported,
  * but we may add support for custom tuners in the future.
  *
- * @experimental
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export type SlotSupplier<SI extends SlotInfo> =
   | ResourceBasedSlotsForType
@@ -52,7 +52,7 @@ export type SlotSupplier<SI extends SlotInfo> =
 /**
  * Resource based slot supplier options for a specific kind of slot.
  *
- * @experimental
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
   type: 'resource-based';
@@ -62,7 +62,7 @@ type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
 /**
  * Options for a specific slot type within a {@link ResourceBasedSlotsForType}
  *
- * @experimental
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface ResourceBasedSlotOptions {
   /**
@@ -86,7 +86,7 @@ export interface ResourceBasedSlotOptions {
  * This tuner attempts to maintain certain levels of resource usage when under load. You do not
  * need more than one instance of this when using it for multiple slot types.
  *
- * @experimental
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface ResourceBasedTuner {
   /**
