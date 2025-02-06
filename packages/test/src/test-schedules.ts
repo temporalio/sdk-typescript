@@ -13,7 +13,7 @@ import {
   SearchAttributes,
 } from '@temporalio/client';
 import { msToNumber } from '@temporalio/common/lib/time';
-import { defineSearchAttribute, SearchAttributeType } from '@temporalio/common';
+import { searchAttributePair, SearchAttributeType } from '@temporalio/common';
 import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS } from './helpers';
 
 export interface Context {
@@ -170,7 +170,7 @@ if (RUN_INTEGRATION_TESTS) {
           CustomKeywordField: ['test-value2'],
         },
         typedSearchAttributes: [
-          [defineSearchAttribute('CustomInt', SearchAttributeType.INT), [SearchAttributeType.INT, 42]],
+          searchAttributePair('CustomInt', SearchAttributeType.INT, 42),
         ],
       },
     });
@@ -186,12 +186,9 @@ if (RUN_INTEGRATION_TESTS) {
         ['CustomInt', 42],
       ]);
       t.deepEqual(describedSchedule.action.typedSearchAttributes, [
-        [defineSearchAttribute('CustomInt', SearchAttributeType.INT), [SearchAttributeType.INT, 42]],
-        // Note that the typed search attribute "guesses" TEXT, inferred from the value.
-        [
-          defineSearchAttribute('CustomKeywordField', SearchAttributeType.TEXT),
-          [SearchAttributeType.TEXT, 'test-value2'],
-        ],
+        searchAttributePair('CustomInt', SearchAttributeType.INT, 42),
+        // Note that the typed search attribute infers type TEXT from the value.
+        searchAttributePair('CustomKeywordField', SearchAttributeType.TEXT, 'test-value2'),
       ]);
     } finally {
       await handle.delete();
@@ -218,7 +215,7 @@ if (RUN_INTEGRATION_TESTS) {
           CustomKeywordField: ['test-value2'],
         },
         typedSearchAttributes: [
-          [defineSearchAttribute('CustomInt', SearchAttributeType.INT), [SearchAttributeType.INT, 42]],
+          searchAttributePair('CustomInt', SearchAttributeType.INT, 42),
         ],
       },
     });
@@ -235,12 +232,9 @@ if (RUN_INTEGRATION_TESTS) {
         ['CustomInt', 42],
       ]);
       t.deepEqual(describedSchedule.action.typedSearchAttributes, [
-        [defineSearchAttribute('CustomInt', SearchAttributeType.INT), [SearchAttributeType.INT, 42]],
+        searchAttributePair('CustomInt', SearchAttributeType.INT, 42),
         // Note that the typed search attribute "guesses" TEXT, inferred from the value.
-        [
-          defineSearchAttribute('CustomKeywordField', SearchAttributeType.TEXT),
-          [SearchAttributeType.TEXT, 'test-value2'],
-        ],
+        searchAttributePair('CustomKeywordField', SearchAttributeType.TEXT, 'test-value2'),
       ]);
     } finally {
       await handle.delete();
@@ -353,7 +347,7 @@ if (RUN_INTEGRATION_TESTS) {
           CustomKeywordField: ['test-value2'],
         },
         typedSearchAttributes: [
-          [defineSearchAttribute('CustomInt', SearchAttributeType.INT), [SearchAttributeType.INT, 42]],
+          searchAttributePair('CustomInt', SearchAttributeType.INT, 42),
         ],
       },
     });
@@ -600,7 +594,7 @@ if (RUN_INTEGRATION_TESTS) {
           },
           searchAttributes,
           typedSearchAttributes: [
-            [defineSearchAttribute('CustomInt', SearchAttributeType.INT), [SearchAttributeType.INT, 42]],
+            searchAttributePair('CustomInt', SearchAttributeType.INT, 42),
           ],
         })
       );

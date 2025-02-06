@@ -2,7 +2,6 @@ import { decode, encode } from '../encoding';
 import { ValueError } from '../errors';
 import { Payload, SearchAttributes } from '../interfaces';
 import {
-  defineSearchAttribute,
   isTypedSearchAttribute,
   isTypedSearchAttributePair,
   toMetadataType,
@@ -12,6 +11,7 @@ import {
   TypedSearchAttribute,
   SearchAttributeType,
   isTypedSearchAttributeUpdate,
+  searchAttributePair,
 } from '../typed-search-attributes';
 import {
   PayloadConverter,
@@ -78,7 +78,6 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
 
     const value = this.jsonConverter.fromPayload(payload);
     let arrayWrappedValue = Array.isArray(value) ? value : [value];
-
     const searchAttributeType = decode(payload.metadata.type);
     if (searchAttributeType === 'Datetime') {
       arrayWrappedValue = arrayWrappedValue.map((dateString) => new Date(dateString));
@@ -95,7 +94,7 @@ export class TypedSearchAttributePayloadConverter implements PayloadConverter {
   public toPayload<T>(typedSearchAttribute: T): Payload {
     // We check for deletion as well as regular typed search attributes.
     if (!isTypedSearchAttributeUpdate(typedSearchAttribute)) {
-      throw new ValueError('Invalid typed search attribute');
+      throw new ValueError(`Invalid typed search attribute: ${typedSearchAttribute}`);
     }
 
     // For server search attributes to work properly, we cannot set the metadata
@@ -137,7 +136,6 @@ export class TypedSearchAttributePayloadConverter implements PayloadConverter {
       throw new ValueError('Missing payload metadata');
     }
 
-    let value = this.jsonConverter.fromPayload(payload);
     // If no 'type' metadata field or no given value, we skip.
     if (payload.metadata.type == undefined) {
       return undefined as T;
@@ -147,7 +145,19 @@ export class TypedSearchAttributePayloadConverter implements PayloadConverter {
     if (type === undefined) {
       return undefined as T;
     }
-    if (type === SearchAttributeType.DATETIME) {
+    
+    let value = this.jsonConverter.fromPayload(payload);
+    
+    // Handle legacy values without KEYWORD_LIST type.
+    if (type !== SearchAttributeType.KEYWORD_LIST && Array.isArray(value)) {
+      // Cannot have an array with multiple values for non-KEYWORD_LIST type.
+      if (value.length > 1) {
+        return undefined as T;
+      }
+      // Unpack single value array.
+      value = value[0];
+    }
+    if (type === SearchAttributeType.DATETIME && value) {
       value = new Date(value as string);
     }
     // Check if the value is a valid typed search attribute. If not, skip.
@@ -204,7 +214,7 @@ export function decodeTypedSearchAttributes(
       if (!v) {
         return acc;
       }
-      const pair = [defineSearchAttribute(k, v[0]), v];
+      const pair = searchAttributePair(k, v[0], v[1]);
       // Ensure is valid pair.
       if (isTypedSearchAttributePair(pair)) {
         acc.push(pair);

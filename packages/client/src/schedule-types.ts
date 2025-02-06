@@ -147,6 +147,7 @@ export type CompiledScheduleOptions = Replace<
 /**
  * The specification of an updated Schedule, as expected by {@link ScheduleHandle.update}.
  */
+// TODO(thomas): support search attributes on update (ts issue #1475)
 export type ScheduleUpdateOptions<A extends ScheduleOptionsAction = ScheduleOptionsAction> = Replace<
   Omit<ScheduleOptions, 'scheduleId' | 'memo' | 'searchAttributes' | 'typedSearchAttributes'>,
   {

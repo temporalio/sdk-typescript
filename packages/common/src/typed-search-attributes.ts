@@ -56,11 +56,24 @@ export function toSearchAttributeType(type: string): SearchAttributeType | undef
   }
 }
 
-export function defineSearchAttribute<T extends SearchAttributeType>(name: string, type: T): SearchAttributeKey<T> {
+function searchAttributeKey<T extends SearchAttributeType>(name: string, type: T): SearchAttributeKey<T> {
   return { name, type };
 }
 
-const [_encodeSearchAttributeIndexedValueType, _decodeSearchAttributeIndexedValueType] = makeProtoEnumConverters<
+export function searchAttributePair<T extends SearchAttributeType>(name: string, type: T, value: IndexedValueTypeMapping[T]): TypedSearchAttributePair {
+  const key = searchAttributeKey(name, type);
+  const typedValue: TypedSearchAttributeValue<T> = [type, value];
+  return [key, typedValue] as TypedSearchAttributePair;
+}
+
+export function searchAttributeUpdatePair<T extends SearchAttributeType>(name: string, type: T, value: IndexedValueTypeMapping[T] | null): TypedSearchAttributeUpdatePair {
+  const key = searchAttributeKey(name, type);
+  const typedValue: TypedSearchAttributeValue<T> | null = value === null ? value : [type, value];
+  return [key, typedValue] as TypedSearchAttributeUpdatePair;
+}
+
+// Note: encodeSearchAttributeIndexedValueType exported for use in tests to register search attributes
+export const [encodeSearchAttributeIndexedValueType, _decodeSearchAttributeIndexedValueType] = makeProtoEnumConverters<
   temporal.api.enums.v1.IndexedValueType,
   typeof temporal.api.enums.v1.IndexedValueType,
   keyof typeof temporal.api.enums.v1.IndexedValueType,
@@ -120,6 +133,7 @@ export function isTypedSearchAttribute(attr: unknown): attr is TypedSearchAttrib
     case SearchAttributeType.KEYWORD:
       return typeof value === 'string';
     case SearchAttributeType.INT:
+      return Number.isInteger(value);
     case SearchAttributeType.DOUBLE:
       return typeof value === 'number';
     case SearchAttributeType.BOOL:
@@ -179,7 +193,6 @@ export type TypedSearchAttributeUpdatePair = {
 export class TypedSearchAttributes {
   private searchAttributes: Record<string, TypedSearchAttribute> = {};
 
-  // TODO(thomas): consider deep copying the initialAttributes.
   constructor(initialAttributes?: TypedSearchAttributePair[]) {
     if (initialAttributes === undefined) return;
     for (const [key, value] of initialAttributes) {
@@ -207,23 +220,38 @@ export class TypedSearchAttributes {
   /** Returns a copy of the current TypedSearchAttributes instance with the updated attributes. */
   updateSearchAttributes(pairs: TypedSearchAttributeUpdatePair[]): TypedSearchAttributes {
     // Create a deep copy of the current state.
-    const newAttributes = JSON.parse(JSON.stringify(this.searchAttributes));
+    const newAttributes: Record<string, TypedSearchAttribute> = JSON.parse(JSON.stringify(this.searchAttributes));
     // Apply updates.
     for (const [key, value] of pairs) {
+      // Delete attribute.
       if (value === null) {
-        delete newAttributes.searchAttributes[key.name];
+        delete newAttributes[key.name];
+        continue;
       }
+      // Add or update attribute.
       newAttributes[key.name] = value;
     }
-    // Return copy with the updated attributes.
-    return TypedSearchAttributes.fromRecord(newAttributes);
+    // Return new copy with the updated attributes.
+    const typedSearchAttributes = new TypedSearchAttributes();
+    for (const [key, value] of Object.entries(newAttributes)) {
+      // Filter out undefined entries.
+      if (value === undefined) {
+        continue;
+      }
+      // Set date values to Date objects.
+      if (value[0] === SearchAttributeType.DATETIME) {
+        value[1] = new Date(value[1]);
+      }
+      typedSearchAttributes.searchAttributes[key] = value;
+    }
+    return typedSearchAttributes;
   }
 
   getSearchAttributes(): TypedSearchAttributePair[] {
     const res: TypedSearchAttributePair[] = [];
     for (const [key, value] of Object.entries(this.searchAttributes)) {
       if (isTypedSearchAttribute(value)) {
-        const attrKey = defineSearchAttribute(key, value[0]);
+        const attrKey = searchAttributeKey(key, value[0]);
         const pair = [attrKey, value];
         // Sanity check, should always be legal.
         if (isTypedSearchAttributePair(pair)) {
@@ -238,42 +266,31 @@ export class TypedSearchAttributes {
     key: string,
     value: SearchAttributeValueOrReadonly
   ): SearchAttributeKey<SearchAttributeType> | undefined {
-    switch (typeof value) {
+    if (!value) {
+      return;
+    }
+
+    // Unpack single-element arrays.
+    const val = value.length === 1 ? value[0] : value;
+    switch (typeof val) {
       case 'string':
-        return defineSearchAttribute(key, SearchAttributeType.TEXT);
+        return searchAttributeKey(key, SearchAttributeType.TEXT);
       case 'number':
-        return defineSearchAttribute(
+        return searchAttributeKey(
           key,
-          Number.isInteger(value) ? SearchAttributeType.INT : SearchAttributeType.DOUBLE
+          Number.isInteger(val) ? SearchAttributeType.INT : SearchAttributeType.DOUBLE
         );
       case 'boolean':
-        return defineSearchAttribute(key, SearchAttributeType.BOOL);
+        return searchAttributeKey(key, SearchAttributeType.BOOL);
       case 'object':
-        if (value instanceof Date) {
-          return defineSearchAttribute(key, SearchAttributeType.DATETIME);
+        if (val instanceof Date) {
+          return searchAttributeKey(key, SearchAttributeType.DATETIME);
         }
-        if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
-          return defineSearchAttribute(key, SearchAttributeType.KEYWORD_LIST);
+        if (Array.isArray(val) && val.every((item) => typeof item === 'string')) {
+          return searchAttributeKey(key, SearchAttributeType.KEYWORD_LIST);
         }
-        return;
       default:
         return;
     }
-  }
-
-  private static fromRecord(initialAttributes: Record<string, TypedSearchAttribute>): TypedSearchAttributes {
-    const typedSearchAttributes = new TypedSearchAttributes();
-    if (initialAttributes === undefined) return typedSearchAttributes;
-    for (const [key, value] of Object.entries(initialAttributes)) {
-      if (key in typedSearchAttributes.searchAttributes) {
-        throw new Error(`Duplicate search attribute key: ${key}`);
-      }
-      // Filter out undefined entries.
-      if (value === undefined) {
-        continue;
-      }
-      typedSearchAttributes.searchAttributes[key] = value;
-    }
-    return typedSearchAttributes;
   }
 }

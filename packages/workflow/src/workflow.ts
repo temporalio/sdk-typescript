@@ -391,11 +391,9 @@ function startChildWorkflowExecutionNextHandler({
         parentClosePolicy: encodeParentClosePolicy(options.parentClosePolicy),
         cronSchedule: options.cronSchedule,
         searchAttributes:
-          options.searchAttributes || options.typedSearchAttributes
-            ? {
-                indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes),
-              }
-            : undefined,
+          (options.searchAttributes || options.typedSearchAttributes) ? {
+            indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes),
+          } : undefined,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
       },
@@ -936,11 +934,9 @@ export function makeContinueAsNewFunc<F extends Workflow>(
         taskQueue: options.taskQueue,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
         searchAttributes:
-          options.searchAttributes || options.typedSearchAttributes
-            ? {
-                indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes),
-              }
-            : undefined,
+          (options.searchAttributes || options.typedSearchAttributes) ? {
+            indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes),
+          } : undefined,
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
@@ -1364,7 +1360,11 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
  *
  * @param searchAttributes The Record to merge. Use a value of `[]` to clear a Search Attribute.
  */
-export function upsertSearchAttributes(searchAttributes: SearchAttributes | TypedSearchAttributeUpdatePair[]): void {
+
+
+export function upsertSearchAttributes(
+  searchAttributes: SearchAttributes | TypedSearchAttributeUpdatePair[]
+): void {
   const activator = assertInWorkflowContext(
     'Workflow.upsertSearchAttributes(...) may only be used from a Workflow Execution.'
   );
@@ -1389,10 +1389,11 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Type
       for (const pair of searchAttributes) {
         const [k, v] = pair;
         if (v === null) {
+          // If the value is null (i.e. delete), set the value to an empty list.
           newSearchAttributes[k.name] = [];
         } else {
           const typedValue = v[1];
-          newSearchAttributes[k.name] = Array.isArray(typedValue) ? typedValue : ([typedValue] as SearchAttributeValue);
+          newSearchAttributes[k.name] = Array.isArray(typedValue) ? typedValue : [typedValue] as SearchAttributeValue;
         }
       }
       return {
@@ -1417,14 +1418,14 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Type
       let typedSearchAttributes = info.typedSearchAttributes.updateSearchAttributes([]);
       for (const [k, v] of Object.entries(searchAttributes)) {
         const typedKey = TypedSearchAttributes.getKeyFromUntyped(k, v);
-
+        
         // Unable to discern the typing of the key, skip.
         if (!typedKey) {
           continue;
         }
-
+        
         // Delete the key if the value is undefined/null/empty list.
-        if (!v) {
+        if (!v || Array.isArray(v) && v.length === 0) {
           const pair = [typedKey, null];
           if (isTypedSearchAttributeUpdatePair(pair)) {
             typedSearchAttributes = typedSearchAttributes.updateSearchAttributes([pair]);
@@ -1442,6 +1443,10 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Type
           newValue = v[0];
         }
 
+        if (typedKey.type === SearchAttributeType.DATETIME) {
+          newValue = new Date(newValue as string);
+        }
+
         const typedValue: unknown = [typedKey.type, newValue];
         const pair: unknown = [typedKey, typedValue];
         // Update if it's a valid typed search attribute pair.
@@ -1453,6 +1458,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Type
         ...info,
         searchAttributes: {
           ...info.searchAttributes,
+          // Note that we keep empty arrays in the search attributes.
           ...searchAttributes,
         },
         typedSearchAttributes,
