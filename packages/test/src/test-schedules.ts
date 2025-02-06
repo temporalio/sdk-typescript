@@ -169,9 +169,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: [
-          searchAttributePair('CustomInt', SearchAttributeType.INT, 42),
-        ],
+        typedSearchAttributes: [searchAttributePair('CustomInt', SearchAttributeType.INT, 42)],
       },
     });
 
@@ -214,9 +212,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: [
-          searchAttributePair('CustomInt', SearchAttributeType.INT, 42),
-        ],
+        typedSearchAttributes: [searchAttributePair('CustomInt', SearchAttributeType.INT, 42)],
       },
     });
 
@@ -346,9 +342,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: [
-          searchAttributePair('CustomInt', SearchAttributeType.INT, 42),
-        ],
+        typedSearchAttributes: [searchAttributePair('CustomInt', SearchAttributeType.INT, 42)],
       },
     });
 
@@ -593,9 +587,7 @@ if (RUN_INTEGRATION_TESTS) {
             taskQueue,
           },
           searchAttributes,
-          typedSearchAttributes: [
-            searchAttributePair('CustomInt', SearchAttributeType.INT, 42),
-          ],
+          typedSearchAttributes: [searchAttributePair('CustomInt', SearchAttributeType.INT, 42)],
         })
       );
     }

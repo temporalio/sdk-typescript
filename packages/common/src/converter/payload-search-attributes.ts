@@ -137,7 +137,7 @@ export class TypedSearchAttributePayloadConverter implements PayloadConverter {
     }
 
     // If no 'type' metadata field or no given value, we skip.
-    if (payload.metadata.type == undefined) {
+    if (payload.metadata.type == null) {
       return undefined as T;
     }
     const type = toSearchAttributeType(decode(payload.metadata.type));
@@ -145,9 +145,9 @@ export class TypedSearchAttributePayloadConverter implements PayloadConverter {
     if (type === undefined) {
       return undefined as T;
     }
-    
+
     let value = this.jsonConverter.fromPayload(payload);
-    
+
     // Handle legacy values without KEYWORD_LIST type.
     if (type !== SearchAttributeType.KEYWORD_LIST && Array.isArray(value)) {
       // Cannot have an array with multiple values for non-KEYWORD_LIST type.

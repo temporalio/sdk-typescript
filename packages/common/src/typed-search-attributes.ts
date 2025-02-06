@@ -60,13 +60,21 @@ function searchAttributeKey<T extends SearchAttributeType>(name: string, type: T
   return { name, type };
 }
 
-export function searchAttributePair<T extends SearchAttributeType>(name: string, type: T, value: IndexedValueTypeMapping[T]): TypedSearchAttributePair {
+export function searchAttributePair<T extends SearchAttributeType>(
+  name: string,
+  type: T,
+  value: IndexedValueTypeMapping[T]
+): TypedSearchAttributePair {
   const key = searchAttributeKey(name, type);
   const typedValue: TypedSearchAttributeValue<T> = [type, value];
   return [key, typedValue] as TypedSearchAttributePair;
 }
 
-export function searchAttributeUpdatePair<T extends SearchAttributeType>(name: string, type: T, value: IndexedValueTypeMapping[T] | null): TypedSearchAttributeUpdatePair {
+export function searchAttributeUpdatePair<T extends SearchAttributeType>(
+  name: string,
+  type: T,
+  value: IndexedValueTypeMapping[T] | null
+): TypedSearchAttributeUpdatePair {
   const key = searchAttributeKey(name, type);
   const typedValue: TypedSearchAttributeValue<T> | null = value === null ? value : [type, value];
   return [key, typedValue] as TypedSearchAttributeUpdatePair;
@@ -276,10 +284,7 @@ export class TypedSearchAttributes {
       case 'string':
         return searchAttributeKey(key, SearchAttributeType.TEXT);
       case 'number':
-        return searchAttributeKey(
-          key,
-          Number.isInteger(val) ? SearchAttributeType.INT : SearchAttributeType.DOUBLE
-        );
+        return searchAttributeKey(key, Number.isInteger(val) ? SearchAttributeType.INT : SearchAttributeType.DOUBLE);
       case 'boolean':
         return searchAttributeKey(key, SearchAttributeType.BOOL);
       case 'object':
@@ -289,6 +294,7 @@ export class TypedSearchAttributes {
         if (Array.isArray(val) && val.every((item) => typeof item === 'string')) {
           return searchAttributeKey(key, SearchAttributeType.KEYWORD_LIST);
         }
+        return;
       default:
         return;
     }
