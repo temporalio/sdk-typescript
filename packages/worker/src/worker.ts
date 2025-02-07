@@ -72,6 +72,7 @@ import { CloseableGroupedObservable, closeableGroupBy, mapWithState, mergeMapWit
 import { byteArrayToBuffer, convertToParentWorkflowType } from './utils';
 import {
   CompiledWorkerOptions,
+  CompiledWorkerOptionsWithBuildId,
   compileWorkerOptions,
   isCodeBundleOption,
   isPathBundleOption,
@@ -129,10 +130,6 @@ export type ActivityTaskWithBase64Token = {
   protobufEncodedTask: ArrayBuffer;
 };
 
-type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
-  buildId: string;
-};
-
 interface EvictionWithRunID {
   runId: string;
   evictJob: coresdk.workflow_activation.IRemoveFromCache;
@@ -155,7 +152,7 @@ export interface NativeReplayHandle {
   historyPusher: native.HistoryPusher;
 }
 
-export interface WorkerConstructor {
+interface NativeWorkerConstructor {
   create(connection: NativeConnection, options: CompiledWorkerOptionsWithBuildId): Promise<NativeWorkerLike>;
   createReplay(options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle>;
 }
@@ -165,13 +162,9 @@ interface WorkflowWithLogAttributes {
   logAttributes: Record<string, unknown>;
 }
 
-function isOptionsWithBuildId<T extends CompiledWorkerOptions>(options: T): options is T & { buildId: string } {
-  return options.buildId != null;
-}
-
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
-  if (isOptionsWithBuildId(options)) {
-    return options;
+  if (options.buildId != null) {
+    return options as CompiledWorkerOptionsWithBuildId;
   }
   const suffix = bundleCode ? `+${crypto.createHash('sha256').update(bundleCode).digest('hex')}` : '';
   return { ...options, buildId: `${pkg.name}@${pkg.version}${suffix}` };
@@ -455,7 +448,7 @@ export class Worker {
   protected readonly numHeartbeatingActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly evictionsEmitter = new EventEmitter();
 
-  protected static nativeWorkerCtor: WorkerConstructor = NativeWorker;
+  protected static nativeWorkerCtor: NativeWorkerConstructor = NativeWorker;
   // Used to add uniqueness to replay worker task queue names
   protected static replayWorkerCount = 0;
   private static readonly SELF_INDUCED_SHUTDOWN_EVICTION: RemoveFromCache = {
@@ -473,7 +466,7 @@ export class Worker {
       sdkComponent: SdkComponent.worker,
       taskQueue: options.taskQueue ?? 'default',
     });
-    const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
+    const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(options, logger);
     logger.info('Creating worker', {
       options: {
@@ -649,7 +642,7 @@ export class Worker {
   }
 
   private static async constructReplayWorker(options: ReplayWorkerOptions): Promise<[Worker, native.HistoryPusher]> {
-    const nativeWorkerCtor: WorkerConstructor = this.nativeWorkerCtor;
+    const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
     const fixedUpOptions: WorkerOptions = {
       taskQueue: (options.replayName ?? 'fake_replay_queue') + '-' + this.replayWorkerCount,
       debugMode: true,

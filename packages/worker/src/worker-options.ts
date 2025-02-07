@@ -6,7 +6,8 @@ import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
 import { Context } from '@temporalio/activity';
-import { WorkerTuner as NativeWorkerTuner } from '@temporalio/core-bridge';
+import { checkExtends } from '@temporalio/common/lib/type-helpers';
+import { WorkerOptions as NativeWorkerOptions, WorkerTuner as NativeWorkerTuner } from '@temporalio/core-bridge';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
@@ -580,7 +581,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
  * formatted strings to numbers.
  */
 export interface CompiledWorkerOptions
-  extends Omit<WorkerOptionsWithDefaults, 'serverOptions' | 'interceptors' | 'activities' | 'tuner'> {
+  extends Omit<WorkerOptionsWithDefaults, 'interceptors' | 'activities' | 'tuner'> {
   interceptors: CompiledWorkerInterceptors;
   shutdownGraceTimeMs: number;
   shutdownForceTimeMs?: number;
@@ -592,6 +593,12 @@ export interface CompiledWorkerOptions
   activities: Map<string, ActivityFunction>;
   tuner: NativeWorkerTuner;
 }
+
+export type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
+  buildId: string;
+};
+
+checkExtends<NativeWorkerOptions, CompiledWorkerOptionsWithBuildId>();
 
 /**
  * {@link WorkerOptions} with inapplicable-to-replay fields removed.

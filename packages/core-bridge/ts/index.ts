@@ -275,89 +275,22 @@ export type CompiledTelemetryOptions = {
 };
 
 export interface WorkerOptions {
-  /**
-   * A human-readable string that can identify your worker
-   */
   identity: string;
-  /**
-   * A string that should be unique to the exact worker code/binary being executed
-   */
   buildId: string;
-  /**
-   * If set true, this worker opts into the worker versioning feature. This ensures it only receives
-   * workflow tasks for workflows which it claims to be compatible with.
-   *
-   * For more information, see https://docs.temporal.io/workers#worker-versioning
-   */
   useVersioning: boolean;
-
-  /**
-   * The task queue the worker will pull from
-   */
   taskQueue: string;
-
-  /**
-   * The tuner the worker will use
-   */
   tuner: WorkerTuner;
-
   nonStickyToStickyPollRatio: number;
-
-  /**
-   * Maximum number of Workflow tasks to poll concurrently.
-   */
   maxConcurrentWorkflowTaskPolls: number;
-
-  /**
-   * Maximum number of Activity tasks to poll concurrently.
-   */
   maxConcurrentActivityTaskPolls: number;
-
-  /**
-   * If set to `false` this worker will only handle workflow tasks and local activities, it will not
-   * poll for activity tasks.
-   */
   enableNonLocalActivities: boolean;
-
-  /**
-   * How long a workflow task is allowed to sit on the sticky queue before it is timed out
-   * and moved to the non-sticky queue where it may be picked up by any worker.
-   */
   stickyQueueScheduleToStartTimeoutMs: number;
-
-  /**
-   * Maximum number of Workflow instances to cache before automatic eviction
-   */
   maxCachedWorkflows: number;
-  /**
-   * Longest interval for throttling activity heartbeats
-   * @default 60 seconds
-   */
   maxHeartbeatThrottleIntervalMs: number;
-
-  /**
-   * Default interval for throttling activity heartbeats in case
-   * `ActivityOptions.heartbeat_timeout` is unset.
-   * When the timeout *is* set in the `ActivityOptions`, throttling is set to
-   * `heartbeat_timeout * 0.8`.
-   * @default 30 seconds
-   */
   defaultHeartbeatThrottleIntervalMs: number;
-
-  /**
-   * Sets the maximum number of activities per second the task queue will dispatch, controlled
-   * server-side. Note that this only takes effect upon an activity poll request. If multiple
-   * workers on the same queue have different values set, they will thrash with the last poller
-   * winning.
-   */
   maxTaskQueueActivitiesPerSecond?: number;
-
-  /**
-   * Limits the number of activities per second that this worker will process. The worker will
-   * not poll for new activities if by doing so it might receive and execute an activity which
-   * would cause it to exceed this limit. Must be a positive floating point number.
-   */
   maxActivitiesPerSecond?: number;
+  shutdownGraceTimeMs: number;
 }
 
 export type LogEntryMetadata = {
