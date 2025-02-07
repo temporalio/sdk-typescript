@@ -133,20 +133,28 @@ export interface OtelCollectorExporter {
     /**
      * URL of a gRPC OpenTelemetry collector.
      *
-     * Syntax should generally look like `http://server:4317` (the `grpc://` is also fine). Core's OTLP
-     * metric exporter does not support the 'OTLP/HTTP' protocol (e.g. `http://server:4318/v1/metrics`).
-     * For greater flexibility, you may setup an OTel collector running as a sidecar (e.g. to proxy
-     * OTLP/gRPC requests to a remote OTLP/HTTP endpoint).
+     * Syntax generally looks like `http://server:4317` or `grpc://server:4317` for OTLP/gRPC exporters,
+     * or `http://server:4318/v1/metrics` for OTLP/HTTP exporters. Make sure to set the `http` option
+     * to `true` for OTLP/HTTP endpoints.
      *
      * @format Starts with "grpc://" or "http://" for an unsecured connection (typical),
      *         or "grpcs://" or "https://" for a TLS connection.
      * @note The `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable, if set, will override this property.
      */
     url: string;
+
+    /**
+     * If set to true, the exporter will use OTLP/HTTP instead of OTLP/gRPC.
+     *
+     * @default false meaning that the exporter will use OTLP/gRPC.
+     */
+    http?: boolean;
+
     /**
      * Optional set of HTTP request headers to send to Collector (e.g. for authentication)
      */
     headers?: Record<string, string>;
+
     /**
      * Specify how frequently in metrics should be exported.
      *
@@ -154,6 +162,7 @@ export interface OtelCollectorExporter {
      * @defaults 1 second
      */
     metricsExportInterval?: Duration;
+
     /**
      * If set to true, the exporter will use seconds for durations instead of milliseconds.
      */

@@ -252,6 +252,7 @@ export class Runtime {
             ? {
                 otel: {
                   url: metrics.otel.url,
+                  http: metrics.otel.http ?? false,
                   headers: metrics.otel.headers ?? {},
                   metricsExportInterval: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
                   useSecondsForDurations: metrics.otel.useSecondsForDurations,

@@ -8,7 +8,7 @@ use neon::{
 use slot_supplier_bridge::SlotSupplierBridge;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use temporal_client::HttpConnectProxyOptions;
-use temporal_sdk_core::api::worker::SlotKind;
+use temporal_sdk_core::api::{telemetry::OtlpProtocol, worker::SlotKind};
 use temporal_sdk_core::{
     api::telemetry::{Logger, MetricTemporality, TelemetryOptions, TelemetryOptionsBuilder},
     api::{
@@ -301,6 +301,12 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                         ))?;
                     }
                 };
+
+                if js_optional_value_getter!(cx, otel, "http", JsBoolean).unwrap_or_default() {
+                    options.protocol(OtlpProtocol::Http);
+                } else {
+                    options.protocol(OtlpProtocol::Grpc);
+                }
 
                 if let Some(use_seconds_for_durations) =
                     js_optional_value_getter!(cx, otel, "useSecondsForDurations", JsBoolean)
