@@ -1203,7 +1203,7 @@ export class Worker {
         this.logger.trace('Completed activation', workflow.logAttributes);
       }
     } catch (error) {
-      let logMessage = 'Failed to process Worklow Activation';
+      let logMessage = 'Failed to process Workflow Activation';
       if (error instanceof UnexpectedError) {
         // Something went wrong in the workflow; we'll do our best to shut the Worker
         // down gracefully, but then we'll need to terminate the Worker ASAP.
