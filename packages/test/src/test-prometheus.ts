@@ -33,6 +33,7 @@ test.serial('Exporting Prometheus metrics from Core works', async (t) => {
   Runtime.install({
     telemetryOptions: {
       metrics: {
+        metricPrefix: 'myprefix_',
         prometheus: {
           bindAddress: `127.0.0.1:${port}`,
         },
@@ -57,7 +58,7 @@ test.serial('Exporting Prometheus metrics from Core works', async (t) => {
       const resp = await fetch(`http://127.0.0.1:${port}/metrics`);
       // We're not concerned about exact details here, just that the metrics are present
       const text = await resp.text();
-      t.assert(text.includes('task_slots'));
+      t.assert(text.includes('myprefix_worker_task_slots_available'));
     });
   } finally {
     await localEnv.teardown();
@@ -69,11 +70,17 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
   Runtime.install({
     telemetryOptions: {
       metrics: {
+        globalTags: {
+          my_tag: 'my_value',
+        },
         prometheus: {
           bindAddress: `127.0.0.1:${port}`,
           countersTotalSuffix: true,
           unitSuffix: true,
           useSecondsForDurations: true,
+          histogramBucketOverrides: {
+            request_latency: [3, 31, 314, 3141, 31415],
+          },
         },
       },
     },
@@ -85,16 +92,15 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
       workflowsPath: require.resolve('./workflows'),
       taskQueue: 'test-prometheus',
     });
-    const client = new WorkflowClient({
-      connection: localEnv.connection,
-    });
     await worker.runUntil(async () => {
-      await client.execute(workflows.successString, {
+      await localEnv.client.workflow.execute(workflows.successString, {
         taskQueue: 'test-prometheus',
         workflowId: uuid4(),
       });
+
       const resp = await fetch(`http://127.0.0.1:${port}/metrics`);
       const text = await resp.text();
+
       // Verify use seconds & unit suffix
       t.assert(
         text.includes(
@@ -103,8 +109,16 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
             'workflow_type="successString",le="0.001"}'
         )
       );
+
+      // Verify global tags
+      t.assert(text.includes('target_info{my_tag="my_value",'));
+
       // Verify 'total' suffix
       t.assert(text.includes('temporal_worker_start_total'));
+
+      // Verify histogram overrides
+      t.assert(text.match(/temporal_request_latency_seconds_bucket.*,le="31415"/));
+
       // Verify prefix exists on client request metrics
       t.assert(text.includes('temporal_long_request'));
     });
