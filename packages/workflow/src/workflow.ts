@@ -20,7 +20,7 @@ import {
   typedMapToPayloads,
   typedSearchAttributePayloadConverter,
   TypedSearchAttributes,
-  TypedSearchAttributeUpdate,
+  TypedSearchAttributeUpdateValue,
   TypedSearchAttributeUpdatePair,
   UntypedActivities,
   UpdateDefinition,
@@ -1376,7 +1376,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Type
     // Typed search attributes
     activator.pushCommand({
       upsertWorkflowSearchAttributes: {
-        searchAttributes: typedMapToPayloads<string, TypedSearchAttributeUpdate>(
+        searchAttributes: typedMapToPayloads<string, TypedSearchAttributeUpdateValue>(
           typedSearchAttributePayloadConverter,
           Object.fromEntries(searchAttributes.map(([k, v]) => [k.name, v]))
         ),
@@ -1401,7 +1401,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Type
           ...info.searchAttributes,
           ...newSearchAttributes,
         },
-        typedSearchAttributes: info.typedSearchAttributes.updateSearchAttributes(searchAttributes),
+        typedSearchAttributes: info.typedSearchAttributes.updateAttributes(searchAttributes),
       };
     });
   } else {
@@ -1414,7 +1414,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Type
 
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
       // Use updateSearchAttributes to get a deep copy of the current state.
-      let typedSearchAttributes = info.typedSearchAttributes.updateSearchAttributes([]);
+      let typedSearchAttributes = info.typedSearchAttributes.updateAttributes([]);
       for (const [k, v] of Object.entries(searchAttributes)) {
         const typedKey = TypedSearchAttributes.getKeyFromUntyped(k, v);
 
@@ -1427,7 +1427,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Type
         if (!v || (Array.isArray(v) && v.length === 0)) {
           const pair = [typedKey, null];
           if (isTypedSearchAttributeUpdatePair(pair)) {
-            typedSearchAttributes = typedSearchAttributes.updateSearchAttributes([pair]);
+            typedSearchAttributes = typedSearchAttributes.updateAttributes([pair]);
           }
           continue;
         }
@@ -1450,7 +1450,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Type
         const pair: unknown = [typedKey, typedValue];
         // Update if it's a valid typed search attribute pair.
         if (isTypedSearchAttributePair(pair)) {
-          typedSearchAttributes = typedSearchAttributes.updateSearchAttributes([pair]);
+          typedSearchAttributes = typedSearchAttributes.updateAttributes([pair]);
         }
       }
       return {

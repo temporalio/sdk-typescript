@@ -14,72 +14,6 @@ export const SearchAttributeType = {
 
 export type SearchAttributeType = (typeof SearchAttributeType)[keyof typeof SearchAttributeType];
 
-export function toMetadataType(type: SearchAttributeType): string {
-  switch (type) {
-    case SearchAttributeType.TEXT:
-      return 'Text';
-    case SearchAttributeType.KEYWORD:
-      return 'Keyword';
-    case SearchAttributeType.INT:
-      return 'Int';
-    case SearchAttributeType.DOUBLE:
-      return 'Double';
-    case SearchAttributeType.BOOL:
-      return 'Bool';
-    case SearchAttributeType.DATETIME:
-      return 'Datetime';
-    case SearchAttributeType.KEYWORD_LIST:
-      return 'KeywordList';
-    default:
-      throw new Error(`Unknown search attribute type: ${type}`);
-  }
-}
-
-export function toSearchAttributeType(type: string): SearchAttributeType | undefined {
-  switch (type) {
-    case 'Text':
-      return SearchAttributeType.TEXT;
-    case 'Keyword':
-      return SearchAttributeType.KEYWORD;
-    case 'Int':
-      return SearchAttributeType.INT;
-    case 'Double':
-      return SearchAttributeType.DOUBLE;
-    case 'Bool':
-      return SearchAttributeType.BOOL;
-    case 'Datetime':
-      return SearchAttributeType.DATETIME;
-    case 'KeywordList':
-      return SearchAttributeType.KEYWORD_LIST;
-    default:
-      return;
-  }
-}
-
-function searchAttributeKey<T extends SearchAttributeType>(name: string, type: T): SearchAttributeKey<T> {
-  return { name, type };
-}
-
-export function searchAttributePair<T extends SearchAttributeType>(
-  name: string,
-  type: T,
-  value: IndexedValueTypeMapping[T]
-): TypedSearchAttributePair {
-  const key = searchAttributeKey(name, type);
-  const typedValue: TypedSearchAttributeValue<T> = [type, value];
-  return [key, typedValue] as TypedSearchAttributePair;
-}
-
-export function searchAttributeUpdatePair<T extends SearchAttributeType>(
-  name: string,
-  type: T,
-  value: IndexedValueTypeMapping[T] | null
-): TypedSearchAttributeUpdatePair {
-  const key = searchAttributeKey(name, type);
-  const typedValue: TypedSearchAttributeValue<T> | null = value === null ? value : [type, value];
-  return [key, typedValue] as TypedSearchAttributeUpdatePair;
-}
-
 // Note: encodeSearchAttributeIndexedValueType exported for use in tests to register search attributes
 export const [encodeSearchAttributeIndexedValueType, _decodeSearchAttributeIndexedValueType] = makeProtoEnumConverters<
   temporal.api.enums.v1.IndexedValueType,
@@ -101,11 +35,6 @@ export const [encodeSearchAttributeIndexedValueType, _decodeSearchAttributeIndex
   'INDEXED_VALUE_TYPE_'
 );
 
-export type SearchAttributeKey<T extends SearchAttributeType> = {
-  name: string;
-  type: T;
-};
-
 type IndexedValueTypeMapping = {
   TEXT: string;
   KEYWORD: string;
@@ -116,10 +45,14 @@ type IndexedValueTypeMapping = {
   KEYWORD_LIST: string[];
 };
 
-function isTypedSearchAttributeKey(key: unknown): key is SearchAttributeKey<SearchAttributeType> {
+export type SearchAttributeKey<T extends SearchAttributeType> = {
+  name: string;
+  type: T;
+};
+
+function isSearchAttributeKey(key: unknown): key is SearchAttributeKey<SearchAttributeType> {
   return (
-    key !== null &&
-    key !== undefined &&
+    key != null &&
     typeof key === 'object' &&
     'name' in key &&
     typeof key.name === 'string' &&
@@ -129,13 +62,19 @@ function isTypedSearchAttributeKey(key: unknown): key is SearchAttributeKey<Sear
   );
 }
 
-export function isTypedSearchAttribute(attr: unknown): attr is TypedSearchAttribute {
-  if (attr === undefined) return false;
-  if (!Array.isArray(attr) || attr.length !== 2) {
+type BaseTypedValue<T extends SearchAttributeType> = [T, IndexedValueTypeMapping[T]];
+
+export type TypedSearchAttributeValue = {
+  [T in SearchAttributeType]: BaseTypedValue<T>;
+}[SearchAttributeType];
+
+export function isTypedSearchAttributeValue(typedValue: unknown): typedValue is TypedSearchAttributeValue {
+  if (typedValue == null) return false;
+  if (!Array.isArray(typedValue) || typedValue.length !== 2) {
     return false;
   }
 
-  const [type, value] = attr;
+  const [type, value] = typedValue;
   switch (type) {
     case SearchAttributeType.TEXT:
     case SearchAttributeType.KEYWORD:
@@ -155,20 +94,27 @@ export function isTypedSearchAttribute(attr: unknown): attr is TypedSearchAttrib
   }
 }
 
+export type TypedSearchAttributePair = {
+  [T in SearchAttributeType]: [SearchAttributeKey<T>, BaseTypedValue<T>];
+}[SearchAttributeType];
+
 export function isTypedSearchAttributePair(pair: unknown): pair is TypedSearchAttributePair {
   if (!Array.isArray(pair) || pair.length !== 2) {
     return false;
   }
   const [key, value] = pair;
-  return isTypedSearchAttributeKey(key) && isTypedSearchAttribute(value) && key.type === value[0];
+  return isSearchAttributeKey(key) && isTypedSearchAttributeValue(value) && key.type === value[0];
 }
 
-export function isTypedSearchAttributeUpdate(attr: unknown): attr is TypedSearchAttributeUpdate {
-  // Null is a valid update to delete the attribute.
-  if (attr === null) return true;
-  // Otherwise, the attribute must be a valid TypedSearchAttributeValue.
-  return isTypedSearchAttribute(attr);
+export type TypedSearchAttributeUpdateValue = TypedSearchAttributeValue | null;
+
+export function isTypedSearchAttributeUpdateValue(attr: unknown): attr is TypedSearchAttributeUpdateValue {
+  return attr === null || isTypedSearchAttributeValue(attr);
 }
+
+export type TypedSearchAttributeUpdatePair = {
+  [T in SearchAttributeType]: [SearchAttributeKey<T>, TypedSearchAttributeUpdateValue];
+}[SearchAttributeType];
 
 export function isTypedSearchAttributeUpdatePair(pair: unknown): pair is TypedSearchAttributeUpdatePair {
   if (!Array.isArray(pair) || pair.length !== 2) {
@@ -176,30 +122,12 @@ export function isTypedSearchAttributeUpdatePair(pair: unknown): pair is TypedSe
   }
   const [key, value] = pair;
   return (
-    isTypedSearchAttributeKey(key) && isTypedSearchAttributeUpdate(value) && (value === null || key.type === value[0])
+    isSearchAttributeKey(key) && isTypedSearchAttributeUpdateValue(value) && (value === null || key.type === value[0])
   );
 }
 
-type TypedSearchAttributeValue<T extends SearchAttributeType> = [T, IndexedValueTypeMapping[T]];
-
-export type TypedSearchAttribute = {
-  [T in SearchAttributeType]: TypedSearchAttributeValue<T>;
-}[SearchAttributeType];
-
-export type TypedSearchAttributePair = {
-  [T in SearchAttributeType]: [SearchAttributeKey<T>, TypedSearchAttributeValue<T>];
-}[SearchAttributeType];
-
-export type TypedSearchAttributeUpdate = {
-  [T in SearchAttributeType]: TypedSearchAttributeValue<T> | null;
-}[SearchAttributeType];
-
-export type TypedSearchAttributeUpdatePair = {
-  [T in SearchAttributeType]: [SearchAttributeKey<T>, TypedSearchAttributeValue<T> | null];
-}[SearchAttributeType];
-
 export class TypedSearchAttributes {
-  private searchAttributes: Record<string, TypedSearchAttribute> = {};
+  private searchAttributes: Record<string, TypedSearchAttributeValue> = {};
 
   constructor(initialAttributes?: TypedSearchAttributePair[]) {
     if (initialAttributes === undefined) return;
@@ -215,9 +143,9 @@ export class TypedSearchAttributes {
     }
   }
 
-  getSearchAttribute<T extends SearchAttributeType>(key: SearchAttributeKey<T>): TypedSearchAttribute | undefined {
+  getValue<T extends SearchAttributeType>(key: SearchAttributeKey<T>): TypedSearchAttributeValue | undefined {
     const value = this.searchAttributes[key.name];
-    if (!isTypedSearchAttribute(value)) {
+    if (!isTypedSearchAttributeValue(value)) {
       return undefined;
     }
 
@@ -226,9 +154,9 @@ export class TypedSearchAttributes {
   }
 
   /** Returns a copy of the current TypedSearchAttributes instance with the updated attributes. */
-  updateSearchAttributes(pairs: TypedSearchAttributeUpdatePair[]): TypedSearchAttributes {
+  updateAttributes(pairs: TypedSearchAttributeUpdatePair[]): TypedSearchAttributes {
     // Create a deep copy of the current state.
-    const newAttributes: Record<string, TypedSearchAttribute> = JSON.parse(JSON.stringify(this.searchAttributes));
+    const newAttributes: Record<string, TypedSearchAttributeValue> = JSON.parse(JSON.stringify(this.searchAttributes));
     // Apply updates.
     for (const [key, value] of pairs) {
       // Delete attribute.
@@ -255,11 +183,11 @@ export class TypedSearchAttributes {
     return typedSearchAttributes;
   }
 
-  getSearchAttributes(): TypedSearchAttributePair[] {
+  getAttributes(): TypedSearchAttributePair[] {
     const res: TypedSearchAttributePair[] = [];
     for (const [key, value] of Object.entries(this.searchAttributes)) {
-      if (isTypedSearchAttribute(value)) {
-        const attrKey = searchAttributeKey(key, value[0]);
+      if (isTypedSearchAttributeValue(value)) {
+        const attrKey = TypedSearchAttributes.createKey(key, value[0]);
         const pair = [attrKey, value];
         // Sanity check, should always be legal.
         if (isTypedSearchAttributePair(pair)) {
@@ -282,19 +210,88 @@ export class TypedSearchAttributes {
     const val = value.length === 1 ? value[0] : value;
     switch (typeof val) {
       case 'string':
-        return searchAttributeKey(key, SearchAttributeType.TEXT);
+        return TypedSearchAttributes.createKey(key, SearchAttributeType.TEXT);
       case 'number':
-        return searchAttributeKey(key, Number.isInteger(val) ? SearchAttributeType.INT : SearchAttributeType.DOUBLE);
+        return TypedSearchAttributes.createKey(
+          key,
+          Number.isInteger(val) ? SearchAttributeType.INT : SearchAttributeType.DOUBLE
+        );
       case 'boolean':
-        return searchAttributeKey(key, SearchAttributeType.BOOL);
+        return TypedSearchAttributes.createKey(key, SearchAttributeType.BOOL);
       case 'object':
         if (val instanceof Date) {
-          return searchAttributeKey(key, SearchAttributeType.DATETIME);
+          return TypedSearchAttributes.createKey(key, SearchAttributeType.DATETIME);
         }
         if (Array.isArray(val) && val.every((item) => typeof item === 'string')) {
-          return searchAttributeKey(key, SearchAttributeType.KEYWORD_LIST);
+          return TypedSearchAttributes.createKey(key, SearchAttributeType.KEYWORD_LIST);
         }
         return;
+      default:
+        return;
+    }
+  }
+
+  static createKey<T extends SearchAttributeType>(name: string, type: T): SearchAttributeKey<T> {
+    return { name, type };
+  }
+
+  static createAttribute<T extends SearchAttributeType>(
+    name: string,
+    type: T,
+    value: IndexedValueTypeMapping[T]
+  ): TypedSearchAttributePair {
+    const key = TypedSearchAttributes.createKey(name, type);
+    const typedValue: BaseTypedValue<T> = [type, value];
+    return [key, typedValue] as TypedSearchAttributePair;
+  }
+
+  static createUpdateAttribute<T extends SearchAttributeType>(
+    name: string,
+    type: T,
+    value: IndexedValueTypeMapping[T] | null
+  ): TypedSearchAttributeUpdatePair {
+    const key = TypedSearchAttributes.createKey(name, type);
+    const typedValue: BaseTypedValue<T> | null = value === null ? value : [type, value];
+    return [key, typedValue] as TypedSearchAttributeUpdatePair;
+  }
+
+  static toMetadataType(type: SearchAttributeType): string {
+    switch (type) {
+      case SearchAttributeType.TEXT:
+        return 'Text';
+      case SearchAttributeType.KEYWORD:
+        return 'Keyword';
+      case SearchAttributeType.INT:
+        return 'Int';
+      case SearchAttributeType.DOUBLE:
+        return 'Double';
+      case SearchAttributeType.BOOL:
+        return 'Bool';
+      case SearchAttributeType.DATETIME:
+        return 'Datetime';
+      case SearchAttributeType.KEYWORD_LIST:
+        return 'KeywordList';
+      default:
+        throw new Error(`Unknown search attribute type: ${type}`);
+    }
+  }
+
+  static toSearchAttributeType(type: string): SearchAttributeType | undefined {
+    switch (type) {
+      case 'Text':
+        return SearchAttributeType.TEXT;
+      case 'Keyword':
+        return SearchAttributeType.KEYWORD;
+      case 'Int':
+        return SearchAttributeType.INT;
+      case 'Double':
+        return SearchAttributeType.DOUBLE;
+      case 'Bool':
+        return SearchAttributeType.BOOL;
+      case 'Datetime':
+        return SearchAttributeType.DATETIME;
+      case 'KeywordList':
+        return SearchAttributeType.KEYWORD_LIST;
       default:
         return;
     }
