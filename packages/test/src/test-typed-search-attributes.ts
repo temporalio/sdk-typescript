@@ -6,10 +6,8 @@ import {
   SearchAttributes,
   TypedSearchAttributePair,
   SearchAttributeType,
-  searchAttributePair,
   encodeSearchAttributeIndexedValueType,
   TypedSearchAttributeUpdatePair,
-  searchAttributeUpdatePair,
 } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import {
@@ -47,22 +45,22 @@ const untypedAttrsInput: SearchAttributes = {
 
 // The corresponding typed search attributes from untypedSearchAttributes.
 const typedFromUntypedInput: TypedSearchAttributePair[] = [
-  searchAttributePair('untyped_single_string', SearchAttributeType.TEXT, 'one'),
-  searchAttributePair('untyped_single_int', SearchAttributeType.INT, 1),
-  searchAttributePair('untyped_single_double', SearchAttributeType.DOUBLE, 1.23),
-  searchAttributePair('untyped_single_bool', SearchAttributeType.BOOL, true),
-  searchAttributePair('untyped_single_date', SearchAttributeType.DATETIME, date),
-  searchAttributePair('untyped_multi_string', SearchAttributeType.KEYWORD_LIST, ['one', 'two']),
+  TypedSearchAttributes.createAttribute('untyped_single_string', SearchAttributeType.TEXT, 'one'),
+  TypedSearchAttributes.createAttribute('untyped_single_int', SearchAttributeType.INT, 1),
+  TypedSearchAttributes.createAttribute('untyped_single_double', SearchAttributeType.DOUBLE, 1.23),
+  TypedSearchAttributes.createAttribute('untyped_single_bool', SearchAttributeType.BOOL, true),
+  TypedSearchAttributes.createAttribute('untyped_single_date', SearchAttributeType.DATETIME, date),
+  TypedSearchAttributes.createAttribute('untyped_multi_string', SearchAttributeType.KEYWORD_LIST, ['one', 'two']),
 ];
 
 const typedAttrsListInput: TypedSearchAttributePair[] = [
-  searchAttributePair('typed_text', SearchAttributeType.TEXT, 'typed_text'),
-  searchAttributePair('typed_keyword', SearchAttributeType.KEYWORD, 'typed_keyword'),
-  searchAttributePair('typed_int', SearchAttributeType.INT, 123),
-  searchAttributePair('typed_double', SearchAttributeType.DOUBLE, 123.45),
-  searchAttributePair('typed_bool', SearchAttributeType.BOOL, true),
-  searchAttributePair('typed_datetime', SearchAttributeType.DATETIME, date),
-  searchAttributePair('typed_keyword_list', SearchAttributeType.KEYWORD_LIST, ['typed', 'keywords']),
+  TypedSearchAttributes.createAttribute('typed_text', SearchAttributeType.TEXT, 'typed_text'),
+  TypedSearchAttributes.createAttribute('typed_keyword', SearchAttributeType.KEYWORD, 'typed_keyword'),
+  TypedSearchAttributes.createAttribute('typed_int', SearchAttributeType.INT, 123),
+  TypedSearchAttributes.createAttribute('typed_double', SearchAttributeType.DOUBLE, 123.45),
+  TypedSearchAttributes.createAttribute('typed_bool', SearchAttributeType.BOOL, true),
+  TypedSearchAttributes.createAttribute('typed_datetime', SearchAttributeType.DATETIME, date),
+  TypedSearchAttributes.createAttribute('typed_keyword_list', SearchAttributeType.KEYWORD_LIST, ['typed', 'keywords']),
 ];
 
 const typedAttrsObjInput = new TypedSearchAttributes(typedAttrsListInput);
@@ -153,7 +151,7 @@ test('does not allow non-integer values for integer search attributes', async (t
       typedSearchAttributes: [
         // Use a double value for an integer search attribute.
         // This is legal at compile-time, but should error at runtime when converting to payload.
-        searchAttributePair(key, SearchAttributeType.INT, 123.4),
+        TypedSearchAttributes.createAttribute(key, SearchAttributeType.INT, 123.4),
       ],
     });
   } catch (err) {
@@ -223,7 +221,7 @@ const inputTestCases: TestInputSearchAttributes[] = [
         ...untypedFromTypedInput,
         ...untypedAttrsInput,
       },
-      typedSearchAttributes: typedAttrsObjInput.updateSearchAttributes(typedFromUntypedInput),
+      typedSearchAttributes: typedAttrsObjInput.updateAttributes(typedFromUntypedInput),
     },
   },
 ];
@@ -267,16 +265,16 @@ const untypedUpdateAttrs: SearchAttributes = {
 
 // Update search attributes with typed input.
 const typedUpdateAttrs: TypedSearchAttributeUpdatePair[] = [
-  searchAttributePair('typed_text', SearchAttributeType.TEXT, 'even_newer_value'),
-  searchAttributePair('typed_int', SearchAttributeType.INT, 3),
-  searchAttributePair('typed_double', SearchAttributeType.DOUBLE, 3.45),
-  searchAttributePair('typed_keyword_list', SearchAttributeType.KEYWORD_LIST, ['six', 'seven']),
+  TypedSearchAttributes.createAttribute('typed_text', SearchAttributeType.TEXT, 'even_newer_value'),
+  TypedSearchAttributes.createAttribute('typed_int', SearchAttributeType.INT, 3),
+  TypedSearchAttributes.createAttribute('typed_double', SearchAttributeType.DOUBLE, 3.45),
+  TypedSearchAttributes.createAttribute('typed_keyword_list', SearchAttributeType.KEYWORD_LIST, ['six', 'seven']),
   // Add key.
-  searchAttributePair('typed_bool', SearchAttributeType.BOOL, false),
+  TypedSearchAttributes.createAttribute('typed_bool', SearchAttributeType.BOOL, false),
   // Delete key.
-  searchAttributeUpdatePair('typed_keyword', SearchAttributeType.KEYWORD, null),
+  TypedSearchAttributes.createUpdateAttribute('typed_keyword', SearchAttributeType.KEYWORD, null),
   // Delete key.
-  searchAttributeUpdatePair('typed_datetime', SearchAttributeType.DATETIME, null),
+  TypedSearchAttributes.createUpdateAttribute('typed_datetime', SearchAttributeType.DATETIME, null),
 ];
 
 interface WorkflowInfoWithMeta {
@@ -334,14 +332,18 @@ test('upsert works with various search attribute mutations', async (t) => {
       res,
       untypedUpdateAttrs,
       new TypedSearchAttributes([
-        searchAttributePair('typed_text', SearchAttributeType.TEXT, 'new_value'),
+        TypedSearchAttributes.createAttribute('typed_text', SearchAttributeType.TEXT, 'new_value'),
         // Note that 'typed_keyword' is updated as type TEXT, as its inferred from the untyped input.
-        searchAttributePair('typed_keyword', SearchAttributeType.TEXT, 'new_keyword'),
-        searchAttributePair('typed_int', SearchAttributeType.INT, 2),
-        searchAttributePair('typed_double', SearchAttributeType.DOUBLE, 2.34),
-        searchAttributePair('typed_keyword_list', SearchAttributeType.KEYWORD_LIST, ['three', 'four', 'five']),
+        TypedSearchAttributes.createAttribute('typed_keyword', SearchAttributeType.TEXT, 'new_keyword'),
+        TypedSearchAttributes.createAttribute('typed_int', SearchAttributeType.INT, 2),
+        TypedSearchAttributes.createAttribute('typed_double', SearchAttributeType.DOUBLE, 2.34),
+        TypedSearchAttributes.createAttribute('typed_keyword_list', SearchAttributeType.KEYWORD_LIST, [
+          'three',
+          'four',
+          'five',
+        ]),
         // Note that 'typed_datetime' becomes a 'TEXT' string when serialized.
-        searchAttributePair('typed_datetime', SearchAttributeType.TEXT, secondDate.toISOString()),
+        TypedSearchAttributes.createAttribute('typed_datetime', SearchAttributeType.TEXT, secondDate.toISOString()),
       ])
     );
 
@@ -350,12 +352,16 @@ test('upsert works with various search attribute mutations', async (t) => {
       desc,
       descExpected,
       new TypedSearchAttributes([
-        searchAttributePair('typed_text', SearchAttributeType.TEXT, 'new_value'),
-        searchAttributePair('typed_keyword', SearchAttributeType.KEYWORD, 'new_keyword'),
-        searchAttributePair('typed_int', SearchAttributeType.INT, 2),
-        searchAttributePair('typed_double', SearchAttributeType.DOUBLE, 2.34),
-        searchAttributePair('typed_keyword_list', SearchAttributeType.KEYWORD_LIST, ['three', 'four', 'five']),
-        searchAttributePair('typed_datetime', SearchAttributeType.DATETIME, secondDate),
+        TypedSearchAttributes.createAttribute('typed_text', SearchAttributeType.TEXT, 'new_value'),
+        TypedSearchAttributes.createAttribute('typed_keyword', SearchAttributeType.KEYWORD, 'new_keyword'),
+        TypedSearchAttributes.createAttribute('typed_int', SearchAttributeType.INT, 2),
+        TypedSearchAttributes.createAttribute('typed_double', SearchAttributeType.DOUBLE, 2.34),
+        TypedSearchAttributes.createAttribute('typed_keyword_list', SearchAttributeType.KEYWORD_LIST, [
+          'three',
+          'four',
+          'five',
+        ]),
+        TypedSearchAttributes.createAttribute('typed_datetime', SearchAttributeType.DATETIME, secondDate),
       ])
     );
 
@@ -377,11 +383,11 @@ test('upsert works with various search attribute mutations', async (t) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { typed_keyword, typed_datetime, ...newDescExpected } = expectedUntyped;
     const expectedTyped = new TypedSearchAttributes([
-      searchAttributePair('typed_text', SearchAttributeType.TEXT, 'even_newer_value'),
-      searchAttributePair('typed_int', SearchAttributeType.INT, 3),
-      searchAttributePair('typed_double', SearchAttributeType.DOUBLE, 3.45),
-      searchAttributePair('typed_keyword_list', SearchAttributeType.KEYWORD_LIST, ['six', 'seven']),
-      searchAttributePair('typed_bool', SearchAttributeType.BOOL, false),
+      TypedSearchAttributes.createAttribute('typed_text', SearchAttributeType.TEXT, 'even_newer_value'),
+      TypedSearchAttributes.createAttribute('typed_int', SearchAttributeType.INT, 3),
+      TypedSearchAttributes.createAttribute('typed_double', SearchAttributeType.DOUBLE, 3.45),
+      TypedSearchAttributes.createAttribute('typed_keyword_list', SearchAttributeType.KEYWORD_LIST, ['six', 'seven']),
+      TypedSearchAttributes.createAttribute('typed_bool', SearchAttributeType.BOOL, false),
     ]);
 
     assertWorkflowInfoSearchAttributes(t, res, expectedUntyped, expectedTyped);
@@ -414,8 +420,8 @@ function assertWorkflowDescSearchAttributes(
 ) {
   // Check that all search attributes are present in the workflow description's search attributes.
   t.like(desc.searchAttributes, searchAttributes);
-  const descOmittingBuildIds = desc.typedSearchAttributes.updateSearchAttributes([
-    searchAttributeUpdatePair('BuildIds', SearchAttributeType.BOOL, null),
+  const descOmittingBuildIds = desc.typedSearchAttributes.updateAttributes([
+    TypedSearchAttributes.createUpdateAttribute('BuildIds', SearchAttributeType.BOOL, null),
   ]);
   t.deepEqual(descOmittingBuildIds, typedSearchAttributes);
 }

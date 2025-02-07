@@ -2,16 +2,13 @@ import { decode, encode } from '../encoding';
 import { ValueError } from '../errors';
 import { Payload, SearchAttributes } from '../interfaces';
 import {
-  isTypedSearchAttribute,
+  isTypedSearchAttributeValue,
   isTypedSearchAttributePair,
-  toMetadataType,
-  toSearchAttributeType,
   TypedSearchAttributePair,
   TypedSearchAttributes,
-  TypedSearchAttribute,
+  TypedSearchAttributeValue,
   SearchAttributeType,
-  isTypedSearchAttributeUpdate,
-  searchAttributePair,
+  isTypedSearchAttributeUpdateValue,
 } from '../typed-search-attributes';
 import {
   PayloadConverter,
@@ -93,7 +90,7 @@ export class TypedSearchAttributePayloadConverter implements PayloadConverter {
 
   public toPayload<T>(typedSearchAttribute: T): Payload {
     // We check for deletion as well as regular typed search attributes.
-    if (!isTypedSearchAttributeUpdate(typedSearchAttribute)) {
+    if (!isTypedSearchAttributeUpdateValue(typedSearchAttribute)) {
       throw new ValueError(`Invalid typed search attribute: ${typedSearchAttribute}`);
     }
 
@@ -124,7 +121,7 @@ export class TypedSearchAttributePayloadConverter implements PayloadConverter {
       throw new ValueError('Missing payload metadata');
     }
     // Add encoded type of search attribute to metatdata
-    payload.metadata['type'] = encode(toMetadataType(type));
+    payload.metadata['type'] = encode(TypedSearchAttributes.toMetadataType(type));
     return payload;
   }
 
@@ -140,7 +137,7 @@ export class TypedSearchAttributePayloadConverter implements PayloadConverter {
     if (payload.metadata.type == null) {
       return undefined as T;
     }
-    const type = toSearchAttributeType(decode(payload.metadata.type));
+    const type = TypedSearchAttributes.toSearchAttributeType(decode(payload.metadata.type));
     // Unrecognized metadata type (sanity check).
     if (type === undefined) {
       return undefined as T;
@@ -161,7 +158,7 @@ export class TypedSearchAttributePayloadConverter implements PayloadConverter {
       value = new Date(value as string);
     }
     // Check if the value is a valid typed search attribute. If not, skip.
-    if (!isTypedSearchAttribute([type, value])) {
+    if (!isTypedSearchAttributeValue([type, value])) {
       return undefined as T;
     }
     return [type, value] as T;
@@ -178,13 +175,12 @@ export function encodeUnifiedSearchAttributes(
   return {
     ...(searchAttributes ? mapToPayloads(searchAttributePayloadConverter, searchAttributes) : {}),
     ...(typedSearchAttributes
-      ? typedMapToPayloads<string, TypedSearchAttribute>(
+      ? typedMapToPayloads<string, TypedSearchAttributeValue>(
           typedSearchAttributePayloadConverter,
           Object.fromEntries(
-            (Array.isArray(typedSearchAttributes)
-              ? typedSearchAttributes
-              : typedSearchAttributes.getSearchAttributes()
-            ).map(([k, v]) => [k.name, v])
+            (Array.isArray(typedSearchAttributes) ? typedSearchAttributes : typedSearchAttributes.getAttributes()).map(
+              ([k, v]) => [k.name, v]
+            )
           )
         )
       : {}),
@@ -205,7 +201,7 @@ export function decodeTypedSearchAttributes(
 ): TypedSearchAttributes {
   return new TypedSearchAttributes(
     Object.entries(
-      typedMapFromPayloads<string, TypedSearchAttribute | undefined>(
+      typedMapFromPayloads<string, TypedSearchAttributeValue | undefined>(
         typedSearchAttributePayloadConverter,
         indexedFields
       ) ?? {}
@@ -214,7 +210,7 @@ export function decodeTypedSearchAttributes(
       if (!v) {
         return acc;
       }
-      const pair = searchAttributePair(k, v[0], v[1]);
+      const pair = TypedSearchAttributes.createAttribute(k, v[0], v[1]);
       // Ensure is valid pair.
       if (isTypedSearchAttributePair(pair)) {
         acc.push(pair);
