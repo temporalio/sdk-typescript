@@ -217,6 +217,7 @@ export class TestWorkflowEnvironment extends RealTestWorkflowEnvironment {
 // Some of our tests expect "default custom search attributes" to exists, which used to be the case
 // in all deployment with support for advanced visibility. However, this might no longer be true in
 // some environement (e.g. Temporal CLI). Use the operator service to create them if they're missing.
+// TODO: register search attributes when creating test environment (#1624)
 export async function registerDefaultCustomSearchAttributes(connection: Connection): Promise<void> {
   const client = new Client({ connection }).workflow;
   console.log(`Registering custom search attributes...`);

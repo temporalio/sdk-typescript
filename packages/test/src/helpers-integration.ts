@@ -27,14 +27,9 @@ import {
 } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
 import { temporal } from '@temporalio/proto';
+import { defineSearchAttributeKey, SearchAttributeType } from '@temporalio/common/lib/search-attributes';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-import {
-  Worker,
-  TestWorkflowEnvironment,
-  test as anyTest,
-  bundlerOptions,
-  registerDefaultCustomSearchAttributes,
-} from './helpers';
+import { Worker, TestWorkflowEnvironment, test as anyTest, bundlerOptions } from './helpers';
 
 export interface Context {
   env: TestWorkflowEnvironment;
@@ -89,12 +84,22 @@ export async function createTestWorkflowBundle({
   });
 }
 
+export const defaultSearchAttributes = [
+  defineSearchAttributeKey('CustomIntField', SearchAttributeType.INT),
+  defineSearchAttributeKey('CustomBoolField', SearchAttributeType.BOOL),
+  defineSearchAttributeKey('CustomKeywordField', SearchAttributeType.KEYWORD),
+  defineSearchAttributeKey('CustomTextField', SearchAttributeType.TEXT),
+  defineSearchAttributeKey('CustomDatetimeField', SearchAttributeType.DATETIME),
+  defineSearchAttributeKey('CustomDoubleField', SearchAttributeType.DOUBLE),
+];
+
 export async function createLocalTestEnvironment(
   opts?: LocalTestWorkflowEnvironmentOptions
 ): Promise<TestWorkflowEnvironment> {
   return await TestWorkflowEnvironment.createLocal({
     ...(opts || {}), // Use provided options or default to an empty object
     server: {
+      searchAttributes: defaultSearchAttributes,
       ...(opts?.server || {}), // Use provided server options or default to an empty object
       extraArgs: [
         ...defaultDynamicConfigOptions.flatMap((opt) => ['--dynamic-config-value', opt]),
@@ -130,7 +135,6 @@ export function makeTestFunction(opts: {
     recordedLogs: opts.recordedLogs,
     createTestContext: async (_t: ExecutionContext): Promise<Context> => {
       const env = await createLocalTestEnvironment(opts.workflowEnvironmentOpts);
-      await registerDefaultCustomSearchAttributes(env.connection);
       return {
         workflowBundle: await createTestWorkflowBundle({
           workflowsPath: opts.workflowsPath,

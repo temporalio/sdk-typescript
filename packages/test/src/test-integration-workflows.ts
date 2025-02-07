@@ -2,7 +2,7 @@ import { setTimeout as setTimeoutPromise } from 'timers/promises';
 import { randomUUID } from 'crypto';
 import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { WorkflowFailedError } from '@temporalio/client';
+import { isGrpcServiceError, ServiceError, WorkflowFailedError } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -10,11 +10,19 @@ import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
 import { defineQuery, defineSignal } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
-import { ActivityCancellationType, ApplicationFailure, WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
+import {
+  ActivityCancellationType,
+  ApplicationFailure,
+  defineSearchAttributeKey,
+  SearchAttributePair,
+  SearchAttributeType,
+  TypedSearchAttributes,
+  WorkflowExecutionAlreadyStartedError,
+} from '@temporalio/common';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
-import { Context, helpers, makeTestFunction } from './helpers-integration';
+import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
 import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS } from './helpers';
 
@@ -1302,4 +1310,46 @@ test('Count workflow executions', async (t) => {
       { count: 3, groupValues: [['Completed']] },
     ],
   });
+});
+
+test('can register search attributes to dev server', async (t) => {
+  const { startWorkflow } = helpers(t);
+  const key = defineSearchAttributeKey('new-search-attr', SearchAttributeType.INT);
+  const newSearchAttribute: SearchAttributePair = { key, value: 12 };
+
+  // Ensure that search attribute is not registered on current env.
+  try {
+    await startWorkflow(completableWorkflow, { typedSearchAttributes: [newSearchAttribute] });
+  } catch (err) {
+    if (
+      err instanceof ServiceError &&
+      isGrpcServiceError(err.cause) &&
+      err.cause.details.includes('Namespace default has no mapping defined for search attribute new-search-attr')
+    ) {
+      // Expected error
+    } else {
+      throw err;
+    }
+  }
+
+  // Create new test environment with search attribute registered.
+  const env = await createLocalTestEnvironment({
+    server: {
+      searchAttributes: [key],
+    },
+  });
+
+  const newClient = env.client;
+  // Expect workflow with search attribute to start without error.
+  const handle = await newClient.workflow.start(completableWorkflow, {
+    args: [true],
+    workflowId: randomUUID(),
+    taskQueue: 'new-env-tq',
+    typedSearchAttributes: [newSearchAttribute],
+  });
+  // Expect workflow description to have search attribute.
+  const desc = await handle.describe();
+  t.deepEqual(desc.typedSearchAttributes, new TypedSearchAttributes([newSearchAttribute]));
+  t.deepEqual(desc.searchAttributes, { 'new-search-attr': [12] }); // eslint-disable-line deprecation/deprecation
+  await env.teardown();
 });
