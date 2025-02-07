@@ -1,3 +1,4 @@
+import fs from 'fs/promises';
 import anyTest, { ExecutionContext, TestFn } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { bundleWorkflowCode, WorkflowBundle } from '@temporalio/worker';
@@ -60,4 +61,21 @@ test.todo('TestEnvironment sets up dev server with extra args');
 test.todo('TestEnvironment sets up dev server with latest version');
 test.todo('TestEnvironment sets up dev server from executable path');
 test.todo('TestEnvironment sets up dev server with custom log level');
-test.todo('TestEnvironment sets up dev server with custom namespace, IP, db filename, and UI');
+test.todo('TestEnvironment sets up dev server with custom namespace, IP and UI');
+
+test('TestEnvironment sets up dev server with db filename', async (t) => {
+  const dbFilename = `temporal-db-${uuid4()}.sqlite`;
+  try {
+    const testEnv = await TestWorkflowEnvironment.createLocal({
+      server: {
+        dbFilename,
+      },
+    });
+    t.truthy(await fs.stat(dbFilename).catch(() => false), 'DB file exists');
+    await testEnv.teardown();
+  } finally {
+    await fs.unlink(dbFilename).catch(() => {
+      /* ignore errors */
+    });
+  }
+});

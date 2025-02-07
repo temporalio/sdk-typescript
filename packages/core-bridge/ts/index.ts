@@ -436,6 +436,10 @@ export interface DevServerConfig {
   type: 'dev-server';
   executable?: EphemeralServerExecutable;
   /**
+   * Sqlite DB filename if persisting or non-persistent if none (default).
+   */
+  dbFilename?: string;
+  /**
    * Namespace to use - created at startup.
    *
    * @default "default"
@@ -447,10 +451,6 @@ export interface DevServerConfig {
    * @default localhost
    */
   ip?: string;
-  /**
-   * Sqlite DB filename if persisting or non-persistent if none (default).
-   */
-  db_filename?: string;
   /**
    * Whether to enable the UI.
    *
