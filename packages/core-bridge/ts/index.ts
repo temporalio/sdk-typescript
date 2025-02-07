@@ -247,6 +247,11 @@ export type MetricsExporter = {
   metricPrefix?: string;
 
   /**
+   * Tags to add to all metrics emitted by the worker.
+   */
+  globalTags?: Record<string, string>;
+
+  /**
    * Whether to put the service_name on every metric.
    *
    * @default true
@@ -316,8 +321,9 @@ export type CompiledTelemetryOptions = {
     | { forward: {} /* eslint-disable-line @typescript-eslint/no-empty-object-type */ }
   );
   metrics?: {
-    metricPrefix?: string;
-    attachServiceName?: boolean;
+    metricPrefix: string;
+    globalTags: Record<string, string> | undefined;
+    attachServiceName: boolean;
   } & (PrometheusMetricsExporter | CompiledOtelMetricsExporter);
 };
 

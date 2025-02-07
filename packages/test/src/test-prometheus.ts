@@ -70,6 +70,9 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
   Runtime.install({
     telemetryOptions: {
       metrics: {
+        globalTags: {
+          my_tag: 'my_value',
+        },
         prometheus: {
           bindAddress: `127.0.0.1:${port}`,
           countersTotalSuffix: true,
@@ -104,6 +107,8 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
             'workflow_type="successString",le="0.001"}'
         )
       );
+      // Verify global tags
+      t.assert(text.includes('target_info{my_tag="my_value",'));
       // Verify 'total' suffix
       t.assert(text.includes('temporal_worker_start_total'));
       // Verify prefix exists on client request metrics

@@ -240,6 +240,11 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         if let Some(ref metrics) = js_optional_getter!(cx, self, "metrics", JsObject) {
             telemetry_opts.metric_prefix(js_value_getter!(cx, metrics, "metricPrefix", JsString));
 
+            let global_tags = match js_optional_getter!(cx, metrics, "globalTags", JsObject) {
+                None => None,
+                Some(global_tags) => Some(global_tags.as_hash_map_of_string_to_string(cx)?),
+            };
+
             telemetry_opts.attach_service_name(js_value_getter!(
                 cx,
                 metrics,
@@ -284,6 +289,10 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     "useSecondsForDurations",
                     JsBoolean
                 ));
+
+                if let Some(global_tags) = global_tags {
+                    options.global_tags(global_tags);
+                }
 
                 let options = options.build().map_err(|e| {
                     cx.throw_type_error::<_, TelemetryOptions>(format!(
@@ -345,6 +354,10 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                         return cx.throw_type_error("Invalid telemetryOptions.metrics.otel.temporality, expected 'cumulative' or 'delta'");
                     }
                 };
+
+                if let Some(global_tags) = global_tags {
+                    options.global_tags(global_tags);
+                }
 
                 let options = options.build().map_err(|e| {
                     cx.throw_type_error::<_, TelemetryOptions>(format!(
