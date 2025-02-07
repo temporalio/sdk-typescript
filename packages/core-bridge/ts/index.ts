@@ -221,7 +221,7 @@ export interface TelemetryOptions {
   /**
    * If set true, do not prefix metrics with `temporal_`.
    *
-   * @deprecated Use `metrics.metricPrefix` instead
+   * @default `false`
    */
   noTemporalPrefixForMetrics?: boolean;
 
@@ -262,6 +262,7 @@ export interface TelemetryOptions {
 }
 
 export type CompiledTelemetryOptions = {
+  noTemporalPrefixForMetrics?: boolean;
   logging: {
     filter: string;
   } & (
