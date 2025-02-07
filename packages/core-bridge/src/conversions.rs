@@ -209,6 +209,12 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .client_version(js_value_getter!(cx, self, "sdkVersion", JsString))
             .target_url(url)
             .retry_config(retry_config)
+            .disable_error_code_metric_tags(js_value_getter!(
+                cx,
+                self,
+                "disableErrorCodeMetricTags",
+                JsBoolean
+            ))
             .build()
             .expect("Core server gateway options must be valid"))
     }
@@ -261,11 +267,13 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 {
                     options.counters_total_suffix(counters_total_suffix);
                 }
+                
                 if let Some(unit_suffix) =
                     js_optional_value_getter!(cx, prom, "unitSuffix", JsBoolean)
                 {
                     options.unit_suffix(unit_suffix);
                 }
+
                 options.use_seconds_for_durations(js_value_getter!(
                     cx,
                     prom,

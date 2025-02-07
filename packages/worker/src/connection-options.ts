@@ -51,6 +51,14 @@ export interface NativeConnectionOptions {
    * This is only set if RPC metadata doesn't already have an "authorization" key.
    */
   apiKey?: string;
+
+  /**
+   * If set to true, error code labels will not be included on request failure
+   * metrics emitted by this Client.
+   *
+   * @default false
+   */
+  disableErrorCodeMetricTags?: boolean;
 }
 
 export type RequiredNativeConnectionOptions = Omit<
@@ -68,6 +76,7 @@ export function getDefaultConnectionOptions(): RequiredNativeConnectionOptions {
   return {
     address: 'localhost:7233',
     sdkVersion: pkg.version,
+    disableErrorCodeMetricTags: false,
   };
 }
 

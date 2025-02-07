@@ -97,6 +97,14 @@ export interface ClientOptions {
    * Set statically at connection time, can be replaced later using {@link clientUpdateApiKey}.
    */
   apiKey?: string;
+
+  /**
+   * If set to true, error code labels will not be included on request failure
+   * metrics emitted by this Client.
+   *
+   * @default false
+   */
+  disableErrorCodeMetricTags?: boolean;
 }
 
 /**
