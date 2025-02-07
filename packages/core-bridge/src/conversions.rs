@@ -266,11 +266,12 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 {
                     options.unit_suffix(unit_suffix);
                 }
-                if let Some(use_seconds_for_durations) =
-                    js_optional_value_getter!(cx, prom, "useSecondsForDurations", JsBoolean)
-                {
-                    options.use_seconds_for_durations(use_seconds_for_durations);
-                }
+                options.use_seconds_for_durations(js_value_getter!(
+                    cx,
+                    prom,
+                    "useSecondsForDurations",
+                    JsBoolean
+                ));
 
                 let options = options.build().map_err(|e| {
                     cx.throw_type_error::<_, TelemetryOptions>(format!(
@@ -301,16 +302,10 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     }
                 };
 
-                if js_optional_value_getter!(cx, otel, "http", JsBoolean).unwrap_or_default() {
+                if js_value_getter!(cx, otel, "http", JsBoolean) {
                     options.protocol(OtlpProtocol::Http);
                 } else {
                     options.protocol(OtlpProtocol::Grpc);
-                }
-
-                if let Some(use_seconds_for_durations) =
-                    js_optional_value_getter!(cx, otel, "useSecondsForDurations", JsBoolean)
-                {
-                    options.use_seconds_for_durations(use_seconds_for_durations);
                 }
 
                 if let Some(ref headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
@@ -323,6 +318,13 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 {
                     options.metric_periodicity(Duration::from_millis(metric_periodicity));
                 }
+
+                options.use_seconds_for_durations(js_value_getter!(
+                    cx,
+                    otel,
+                    "useSecondsForDurations",
+                    JsBoolean
+                ));
 
                 match js_value_getter!(cx, otel, "temporality", JsString).as_str() {
                     "cumulative" => options.metric_temporality(MetricTemporality::Cumulative),

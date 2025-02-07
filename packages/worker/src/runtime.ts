@@ -256,7 +256,7 @@ export class Runtime {
                   metricsExportInterval: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
                   // eslint-disable-next-line deprecation/deprecation
                   temporality: metrics.otel.temporality ?? metrics.temporality ?? 'cumulative',
-                  useSecondsForDurations: metrics.otel.useSecondsForDurations,
+                  useSecondsForDurations: metrics.otel.useSecondsForDurations ?? false,
                 },
               }
             : {
@@ -264,7 +264,7 @@ export class Runtime {
                   bindAddress: metrics.prometheus.bindAddress,
                   unitSuffix: metrics.prometheus.unitSuffix,
                   countersTotalSuffix: metrics.prometheus.countersTotalSuffix,
-                  useSecondsForDurations: metrics.prometheus.useSecondsForDurations,
+                  useSecondsForDurations: metrics.prometheus.useSecondsForDurations ?? false,
                 },
               }),
         },

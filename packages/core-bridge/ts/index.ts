@@ -159,12 +159,14 @@ export interface OtelCollectorExporter {
      * Specify how frequently in metrics should be exported.
      *
      * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
-     * @defaults 1 second
+     * @default 1 second
      */
     metricsExportInterval?: Duration;
 
     /**
      * If set to true, the exporter will use seconds for durations instead of milliseconds.
+     *
+     * @default false
      */
     useSecondsForDurations?: boolean;
 
@@ -210,6 +212,8 @@ export interface PrometheusMetricsExporter {
     unitSuffix?: boolean;
     /**
      * If set to true, the exporter will use seconds for durations instead of milliseconds.
+     *
+     * @default false
      */
     useSecondsForDurations?: boolean;
   };
@@ -262,9 +266,9 @@ export interface TelemetryOptions {
      * If `logging.filter` is missing, the following legacy values (if present) will be used instead (in the given order):
      * - {@link ForwardLogger.forward.level} => `makeTelemetryFilterString({ core: level, other: level })`
      * - {@link TelemetryOptions.tracingFilter}
-     * - Default value of `makeTelemetryFilterString({ core: 'INFO', other: 'INFO'})`
+     * - Default value of `makeTelemetryFilterString({ core: 'WARN', other: 'ERROR'})`
      *
-     * @default `makeTelemetryFilterString({ core: 'INFO', other: 'INFO'})` (with some exceptions, as described in backward compatibility note above)
+     * @default `makeTelemetryFilterString({ core: 'WARN', other: 'ERROR'})` (with some exceptions, as described in backward compatibility note above)
      */
     filter?: string;
   } & Partial<Logger>;
