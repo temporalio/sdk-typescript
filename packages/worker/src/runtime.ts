@@ -248,6 +248,7 @@ export class Runtime {
               },
         metrics: metrics && {
           metricPrefix: metrics.metricPrefix ?? (noTemporalPrefixForMetrics ? '' : 'temporal_'),
+          attachServiceName: metrics.attachServiceName ?? true,
           ...(isOtelCollectorExporter(metrics)
             ? {
                 otel: {

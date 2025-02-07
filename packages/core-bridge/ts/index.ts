@@ -245,6 +245,13 @@ export type MetricsExporter = {
    * @default 'temporal_'
    */
   metricPrefix?: string;
+
+  /**
+   * Whether to put the service_name on every metric.
+   *
+   * @default true
+   */
+  attachServiceName?: boolean;
 } & (PrometheusMetricsExporter | OtelCollectorExporter);
 
 export interface TelemetryOptions {
@@ -310,6 +317,7 @@ export type CompiledTelemetryOptions = {
   );
   metrics?: {
     metricPrefix?: string;
+    attachServiceName?: boolean;
   } & (PrometheusMetricsExporter | CompiledOtelMetricsExporter);
 };
 

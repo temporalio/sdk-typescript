@@ -240,6 +240,13 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         if let Some(ref metrics) = js_optional_getter!(cx, self, "metrics", JsObject) {
             telemetry_opts.metric_prefix(js_value_getter!(cx, metrics, "metricPrefix", JsString));
 
+            telemetry_opts.attach_service_name(js_value_getter!(
+                cx,
+                metrics,
+                "attachServiceName",
+                JsBoolean
+            ));
+
             if let Some(ref prom) = js_optional_getter!(cx, metrics, "prometheus", JsObject) {
                 if js_optional_getter!(cx, metrics, "otel", JsObject).is_some() {
                     cx.throw_type_error(
