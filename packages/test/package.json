@@ -8,9 +8,7 @@
     "build:ts": "tsc --build",
     "build:protos": "node ./scripts/compile-proto.js",
     "test": "ava ./lib/test-*.js",
-    "test.watch": "ava --watch ./lib/test-*.js",
-    "test-fix-broken": "ava ./lib/test-integration-one.js",
-    "test-fix-broken-two": "ava ./lib/test-sinks.js"
+    "test.watch": "ava --watch ./lib/test-*.js"
   },
   "ava": {
     "timeout": "60s",
