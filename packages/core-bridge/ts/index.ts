@@ -24,20 +24,6 @@ export type { TLSConfig, ProxyConfig, HttpConnectProxyConfig };
 /** @deprecated Import from @temporalio/common instead */
 export { LogLevel };
 
-type Shadow<Base, New> = Base extends object
-  ? New extends object
-    ? {
-        [K in keyof Base | keyof New]: K extends keyof Base
-          ? K extends keyof New
-            ? Shadow<Base[K], New[K]>
-            : Base[K]
-          : K extends keyof New
-            ? New[K]
-            : never;
-      }
-    : New
-  : New;
-
 export interface RetryOptions {
   /** Initial wait time before the first retry. */
   initialInterval: number;
