@@ -324,17 +324,12 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     options.metric_periodicity(Duration::from_millis(metric_periodicity));
                 }
 
-                // FIXME: Move temporality to the otel object
-                if let Some(temporality) =
-                    js_optional_value_getter!(cx, metrics, "temporality", JsString)
-                {
-                    match temporality.as_str() {
-                        "cumulative" => options.metric_temporality(MetricTemporality::Cumulative),
-                        "delta" => options.metric_temporality(MetricTemporality::Delta),
-                        _ => {
-                            return cx.throw_type_error("Invalid telemetryOptions.metrics.temporality, expected 'cumulative' or 'delta'");
-                        }
-                    };
+                match js_value_getter!(cx, otel, "temporality", JsString).as_str() {
+                    "cumulative" => options.metric_temporality(MetricTemporality::Cumulative),
+                    "delta" => options.metric_temporality(MetricTemporality::Delta),
+                    _ => {
+                        return cx.throw_type_error("Invalid telemetryOptions.metrics.otel.temporality, expected 'cumulative' or 'delta'");
+                    }
                 };
 
                 let options = options.build().map_err(|e| {

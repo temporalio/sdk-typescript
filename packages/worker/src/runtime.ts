@@ -247,7 +247,6 @@ export class Runtime {
                 console: {},
               },
         metrics: metrics && {
-          temporality: metrics.temporality,
           ...(isOtelCollectorExporter(metrics)
             ? {
                 otel: {
@@ -255,6 +254,8 @@ export class Runtime {
                   http: metrics.otel.http ?? false,
                   headers: metrics.otel.headers ?? {},
                   metricsExportInterval: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
+                  // eslint-disable-next-line deprecation/deprecation
+                  temporality: metrics.otel.temporality ?? metrics.temporality ?? 'cumulative',
                   useSecondsForDurations: metrics.otel.useSecondsForDurations,
                 },
               }

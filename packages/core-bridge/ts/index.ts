@@ -167,6 +167,16 @@ export interface OtelCollectorExporter {
      * If set to true, the exporter will use seconds for durations instead of milliseconds.
      */
     useSecondsForDurations?: boolean;
+
+    /**
+     * Determines if the metrics exporter should use cumulative or delta temporality.
+
+     * See the [OpenTelemetry specification](https://github.com/open-telemetry/opentelemetry-specification/blob/ce50e4634efcba8da445cc23523243cb893905cb/specification/metrics/datamodel.md#temporality)
+     * for more information.
+     *
+     * @default 'cumulative'
+     */
+    temporality?: 'cumulative' | 'delta';
   };
 }
 
@@ -207,12 +217,14 @@ export interface PrometheusMetricsExporter {
 
 /**
  * Metrics exporters supported by Core
- *
- * `temporality` is the type of aggregation temporality for metric export. Applies to both Prometheus and OpenTelemetry exporters.
- *
- * See the [OpenTelemetry specification](https://github.com/open-telemetry/opentelemetry-specification/blob/ce50e4634efcba8da445cc23523243cb893905cb/specification/metrics/datamodel.md#temporality) for more information.
  */
 export type MetricsExporter = {
+  /**
+   * Determines if the metrics exporter should use cumulative or delta temporality.
+   * Only applies to OpenTelemetry exporter.
+   *
+   * @deprecated Use 'otel.temporality' instead
+   */
   temporality?: 'cumulative' | 'delta';
 } & (PrometheusMetricsExporter | OtelCollectorExporter);
 
@@ -278,9 +290,7 @@ export type CompiledTelemetryOptions = {
     | { console: {} /* eslint-disable-line @typescript-eslint/no-empty-object-type */ }
     | { forward: {} /* eslint-disable-line @typescript-eslint/no-empty-object-type */ }
   );
-  metrics?: {
-    temporality?: 'cumulative' | 'delta';
-  } & (PrometheusMetricsExporter | CompiledOtelMetricsExporter);
+  metrics?: {} & (PrometheusMetricsExporter | CompiledOtelMetricsExporter);
 };
 
 export interface WorkerOptions {
