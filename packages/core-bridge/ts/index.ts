@@ -238,6 +238,13 @@ export type MetricsExporter = {
    * @deprecated Use 'otel.temporality' instead
    */
   temporality?: 'cumulative' | 'delta';
+
+  /**
+   * A prefix to add to all metrics.
+   *
+   * @default 'temporal_'
+   */
+  metricPrefix?: string;
 } & (PrometheusMetricsExporter | OtelCollectorExporter);
 
 export interface TelemetryOptions {
@@ -254,7 +261,7 @@ export interface TelemetryOptions {
   /**
    * If set true, do not prefix metrics with `temporal_`.
    *
-   * @default `false`
+   * @deprecated Use `metrics.metricPrefix` instead
    */
   noTemporalPrefixForMetrics?: boolean;
 
@@ -295,14 +302,15 @@ export interface TelemetryOptions {
 }
 
 export type CompiledTelemetryOptions = {
-  noTemporalPrefixForMetrics?: boolean;
   logging: {
     filter: string;
   } & (
     | { console: {} /* eslint-disable-line @typescript-eslint/no-empty-object-type */ }
     | { forward: {} /* eslint-disable-line @typescript-eslint/no-empty-object-type */ }
   );
-  metrics?: {} & (PrometheusMetricsExporter | CompiledOtelMetricsExporter);
+  metrics?: {
+    metricPrefix?: string;
+  } & (PrometheusMetricsExporter | CompiledOtelMetricsExporter);
 };
 
 export interface WorkerOptions {

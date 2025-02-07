@@ -221,11 +221,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
 
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemOptsRes> {
         let mut telemetry_opts = TelemetryOptionsBuilder::default();
-        if js_optional_value_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean)
-            .unwrap_or_default()
-        {
-            telemetry_opts.metric_prefix("".to_string());
-        }
 
         if let Some(ref logging) = js_optional_getter!(cx, self, "logging", JsObject) {
             let filter = js_value_getter!(cx, logging, "filter", JsString);
@@ -243,6 +238,8 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let mut meter_maker = None;
 
         if let Some(ref metrics) = js_optional_getter!(cx, self, "metrics", JsObject) {
+            telemetry_opts.metric_prefix(js_value_getter!(cx, metrics, "metricPrefix", JsString));
+
             if let Some(ref prom) = js_optional_getter!(cx, metrics, "prometheus", JsObject) {
                 if js_optional_getter!(cx, metrics, "otel", JsObject).is_some() {
                     cx.throw_type_error(
@@ -267,7 +264,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 {
                     options.counters_total_suffix(counters_total_suffix);
                 }
-                
+
                 if let Some(unit_suffix) =
                     js_optional_value_getter!(cx, prom, "unitSuffix", JsBoolean)
                 {

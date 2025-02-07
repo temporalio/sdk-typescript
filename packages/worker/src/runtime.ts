@@ -214,7 +214,7 @@ export class Runtime {
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   protected static compileOptions(options: RuntimeOptions): CompiledRuntimeOptions {
     // eslint-disable-next-line deprecation/deprecation
-    const { logging, metrics, tracingFilter, ...otherTelemetryOpts } = options.telemetryOptions ?? {};
+    const { logging, metrics, tracingFilter, noTemporalPrefixForMetrics } = options.telemetryOptions ?? {};
 
     const defaultFilter =
       tracingFilter ??
@@ -247,6 +247,7 @@ export class Runtime {
                 console: {},
               },
         metrics: metrics && {
+          metricPrefix: metrics.metricPrefix ?? (noTemporalPrefixForMetrics ? '' : 'temporal_'),
           ...(isOtelCollectorExporter(metrics)
             ? {
                 otel: {
@@ -268,7 +269,6 @@ export class Runtime {
                 },
               }),
         },
-        ...filterNullAndUndefined(otherTelemetryOpts ?? {}),
       },
       logger: options.logger ?? new DefaultLogger('INFO'),
     };

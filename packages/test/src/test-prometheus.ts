@@ -33,6 +33,7 @@ test.serial('Exporting Prometheus metrics from Core works', async (t) => {
   Runtime.install({
     telemetryOptions: {
       metrics: {
+        metricPrefix: 'myprefix_',
         prometheus: {
           bindAddress: `127.0.0.1:${port}`,
         },
@@ -57,7 +58,7 @@ test.serial('Exporting Prometheus metrics from Core works', async (t) => {
       const resp = await fetch(`http://127.0.0.1:${port}/metrics`);
       // We're not concerned about exact details here, just that the metrics are present
       const text = await resp.text();
-      t.assert(text.includes('task_slots'));
+      t.assert(text.includes('myprefix_worker_task_slots_available'));
     });
   } finally {
     await localEnv.teardown();
