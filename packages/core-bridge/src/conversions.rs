@@ -8,7 +8,10 @@ use neon::{
 use slot_supplier_bridge::SlotSupplierBridge;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use temporal_client::HttpConnectProxyOptions;
-use temporal_sdk_core::api::{telemetry::OtlpProtocol, worker::SlotKind};
+use temporal_sdk_core::api::{
+    telemetry::{HistogramBucketOverrides, OtlpProtocol},
+    worker::SlotKind,
+};
 use temporal_sdk_core::{
     api::telemetry::{Logger, MetricTemporality, TelemetryOptions, TelemetryOptionsBuilder},
     api::{
@@ -36,6 +39,7 @@ pub enum EphemeralServerConfig {
 
 pub trait ArrayHandleConversionsExt {
     fn to_vec_of_string(&self, cx: &mut FunctionContext) -> NeonResult<Vec<String>>;
+    fn to_vec_of_float(&self, cx: &mut FunctionContext) -> NeonResult<Vec<f64>>;
 }
 
 impl ArrayHandleConversionsExt for Handle<'_, JsArray> {
@@ -46,6 +50,17 @@ impl ArrayHandleConversionsExt for Handle<'_, JsArray> {
 
         for i in js_vec.iter().take(len) {
             ret_vec.push(i.downcast_or_throw::<JsString, _>(cx)?.value(cx));
+        }
+        Ok(ret_vec)
+    }
+
+    fn to_vec_of_float(&self, cx: &mut FunctionContext) -> NeonResult<Vec<f64>> {
+        let js_vec = self.to_vec(cx)?;
+        let len = js_vec.len();
+        let mut ret_vec = Vec::<f64>::with_capacity(len);
+
+        for i in js_vec.iter().take(len) {
+            ret_vec.push(i.downcast_or_throw::<JsNumber, _>(cx)?.value(cx));
         }
         Ok(ret_vec)
     }
@@ -69,6 +84,10 @@ pub(crate) trait ObjectHandleConversionsExt {
         &self,
         cx: &mut FunctionContext,
     ) -> NeonResult<HashMap<String, String>>;
+    fn as_hash_map_of_string_to_vec_of_floats(
+        &self,
+        cx: &mut FunctionContext,
+    ) -> NeonResult<HashMap<String, Vec<f64>>>;
     fn into_slot_supplier<SK: SlotKind + Send + Sync + 'static>(
         self,
         cx: &mut FunctionContext,
@@ -87,6 +106,22 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         for k in props {
             let k = k.to_string(cx)?;
             let v = self.get::<JsString, _, _>(cx, k)?.value(cx);
+            let k = k.value(cx);
+            map.insert(k, v);
+        }
+        Ok(map)
+    }
+
+    fn as_hash_map_of_string_to_vec_of_floats(
+        &self,
+        cx: &mut FunctionContext,
+    ) -> NeonResult<HashMap<String, Vec<f64>>> {
+        let props = self.get_own_property_names(cx)?;
+        let props = props.to_vec(cx)?;
+        let mut map = HashMap::new();
+        for k in props {
+            let k = k.to_string(cx)?;
+            let v = self.get::<JsArray, _, _>(cx, k)?.to_vec_of_float(cx)?;
             let k = k.value(cx);
             map.insert(k, v);
         }
@@ -271,17 +306,14 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     }
                 };
 
-                if let Some(counters_total_suffix) =
-                    js_optional_value_getter!(cx, prom, "countersTotalSuffix", JsBoolean)
-                {
-                    options.counters_total_suffix(counters_total_suffix);
-                }
+                options.counters_total_suffix(js_value_getter!(
+                    cx,
+                    prom,
+                    "countersTotalSuffix",
+                    JsBoolean
+                ));
 
-                if let Some(unit_suffix) =
-                    js_optional_value_getter!(cx, prom, "unitSuffix", JsBoolean)
-                {
-                    options.unit_suffix(unit_suffix);
-                }
+                options.unit_suffix(js_value_getter!(cx, prom, "unitSuffix", JsBoolean));
 
                 options.use_seconds_for_durations(js_value_getter!(
                     cx,
@@ -292,6 +324,15 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
 
                 if let Some(global_tags) = global_tags {
                     options.global_tags(global_tags);
+                }
+
+                if let Some(histogram_bucket_overrides) =
+                    js_optional_getter!(cx, prom, "histogramBucketOverrides", JsObject)
+                {
+                    options.histogram_bucket_overrides(HistogramBucketOverrides {
+                        overrides: histogram_bucket_overrides
+                            .as_hash_map_of_string_to_vec_of_floats(cx)?,
+                    });
                 }
 
                 let options = options.build().map_err(|e| {
@@ -357,6 +398,15 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
 
                 if let Some(global_tags) = global_tags {
                     options.global_tags(global_tags);
+                }
+
+                if let Some(histogram_bucket_overrides) =
+                    js_optional_getter!(cx, otel, "histogramBucketOverrides", JsObject)
+                {
+                    options.histogram_bucket_overrides(HistogramBucketOverrides {
+                        overrides: histogram_bucket_overrides
+                            .as_hash_map_of_string_to_vec_of_floats(cx)?,
+                    });
                 }
 
                 let options = options.build().map_err(|e| {

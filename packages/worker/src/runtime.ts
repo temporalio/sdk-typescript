@@ -260,14 +260,16 @@ export class Runtime {
                   // eslint-disable-next-line deprecation/deprecation
                   temporality: metrics.otel.temporality ?? metrics.temporality ?? 'cumulative',
                   useSecondsForDurations: metrics.otel.useSecondsForDurations ?? false,
+                  histogramBucketOverrides: metrics.otel.histogramBucketOverrides,
                 },
               }
             : {
                 prometheus: {
                   bindAddress: metrics.prometheus.bindAddress,
-                  unitSuffix: metrics.prometheus.unitSuffix,
-                  countersTotalSuffix: metrics.prometheus.countersTotalSuffix,
+                  unitSuffix: metrics.prometheus.unitSuffix ?? false,
+                  countersTotalSuffix: metrics.prometheus.countersTotalSuffix ?? false,
                   useSecondsForDurations: metrics.prometheus.useSecondsForDurations ?? false,
+                  histogramBucketOverrides: metrics.prometheus.histogramBucketOverrides,
                 },
               }),
         },

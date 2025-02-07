@@ -187,15 +187,40 @@ export interface OtelCollectorExporter {
      * @default 'cumulative'
      */
     temporality?: 'cumulative' | 'delta';
+
+    /**
+     * Overrides boundary values for histogram metrics.
+     *
+     * The key is the metric name and the value is the list of bucket boundaries.
+     *
+     * For example:
+     *
+     * ```
+     * {
+     *   "request_latency": [1, 5, 10, 25, 50, 100, 250, 500, 1000],
+     * }
+     * ```
+     *
+     * The metric name will apply regardless of name prefixing.
+     *
+     * See [this doc](https://docs.rs/opentelemetry_sdk/latest/opentelemetry_sdk/metrics/enum.Aggregation.html#variant.ExplicitBucketHistogram.field.boundaries)
+     * for the exact meaning of boundaries.
+     */
+    histogramBucketOverrides?: Record<string, number[]>;
   };
 }
 
-export type CompiledOtelMetricsExporter = Shadow<
-  OtelCollectorExporter,
-  {
-    otel: { metricsExportInterval: number };
-  }
->;
+interface CompiledOtelMetricsExporter {
+  otel: {
+    url: string;
+    http: boolean;
+    headers: Record<string, string> | undefined;
+    metricsExportInterval: number;
+    useSecondsForDurations: boolean;
+    temporality: 'cumulative' | 'delta';
+    histogramBucketOverrides: Record<string, number[]> | undefined;
+  };
+}
 
 /**
  * Prometheus metrics exporter options
@@ -211,11 +236,15 @@ export interface PrometheusMetricsExporter {
     bindAddress: string;
     /**
      * If set to true, all counter names will include a "_total" suffix.
+     *
+     * @default false
      */
     countersTotalSuffix?: boolean;
     /**
      * If set to true, all histograms will include the unit in their name as a suffix.
      * EX: "_milliseconds"
+     *
+     * @default false
      */
     unitSuffix?: boolean;
     /**
@@ -224,6 +253,36 @@ export interface PrometheusMetricsExporter {
      * @default false
      */
     useSecondsForDurations?: boolean;
+
+    /**
+     * Overrides boundary values for histogram metrics.
+     *
+     * The key is the metric name and the value is the list of bucket boundaries.
+     *
+     * For example:
+     *
+     * ```
+     * {
+     *   "request_latency": [1, 5, 10, 25, 50, 100, 250, 500, 1000],
+     * }
+     * ```
+     *
+     * The metric name will apply regardless of name prefixing.
+     *
+     * See [this doc](https://docs.rs/opentelemetry_sdk/latest/opentelemetry_sdk/metrics/enum.Aggregation.html#variant.ExplicitBucketHistogram.field.boundaries)
+     * for the exact meaning of boundaries.
+     */
+    histogramBucketOverrides?: Record<string, number[]>;
+  };
+}
+
+interface CompiledPrometheusMetricsExporter {
+  prometheus: {
+    bindAddress: string;
+    countersTotalSuffix: boolean;
+    unitSuffix: boolean;
+    useSecondsForDurations: boolean;
+    histogramBucketOverrides: Record<string, number[]> | undefined;
   };
 }
 
@@ -324,7 +383,7 @@ export type CompiledTelemetryOptions = {
     metricPrefix: string;
     globalTags: Record<string, string> | undefined;
     attachServiceName: boolean;
-  } & (PrometheusMetricsExporter | CompiledOtelMetricsExporter);
+  } & (CompiledPrometheusMetricsExporter | CompiledOtelMetricsExporter);
 };
 
 export interface WorkerOptions {
