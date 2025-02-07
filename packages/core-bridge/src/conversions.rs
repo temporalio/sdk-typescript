@@ -202,8 +202,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             })?),
         };
         client_options.headers(headers);
-        let api_key = js_optional_value_getter!(cx, self, "apiKey", JsString);
-        client_options.api_key(api_key);
+        client_options.api_key(js_optional_value_getter!(cx, self, "apiKey", JsString));
 
         Ok(client_options
             .client_name("temporal-typescript".to_string())
@@ -540,7 +539,9 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 }
                 config.db_filename(js_optional_value_getter!(cx, self, "dbFilename", JsString));
                 config.ui(js_optional_value_getter!(cx, self, "ui", JsBoolean).unwrap_or_default());
-
+                config.ui_port(
+                    js_optional_getter!(cx, self, "uiPort", JsNumber).map(|s| s.value(cx) as u16),
+                );
                 if let Some(log) = js_optional_getter!(cx, self, "log", JsObject) {
                     let format = js_value_getter!(cx, &log, "format", JsString);
                     let level = js_value_getter!(cx, &log, "level", JsString);

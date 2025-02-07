@@ -2,7 +2,8 @@ import fs from 'fs/promises';
 import anyTest, { ExecutionContext, TestFn } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { bundleWorkflowCode, WorkflowBundle } from '@temporalio/worker';
-import { Worker, TestWorkflowEnvironment, testTimeSkipping as anyTestTimeSkipping } from './helpers';
+import { Connection } from '@temporalio/client';
+import { Worker, TestWorkflowEnvironment, testTimeSkipping as anyTestTimeSkipping, getRandomPort } from './helpers';
 
 interface Context {
   bundle: WorkflowBundle;
@@ -77,5 +78,50 @@ test('TestEnvironment sets up dev server with db filename', async (t) => {
     await fs.unlink(dbFilename).catch(() => {
       /* ignore errors */
     });
+  }
+});
+
+test('TestEnvironment sets up dev server with custom port and ui', async (t) => {
+  const port = await getRandomPort();
+  const testEnv = await TestWorkflowEnvironment.createLocal({
+    server: {
+      ip: '127.0.0.1',
+      port,
+      ui: true,
+    },
+  });
+
+  try {
+    // Check that we can connect to the server using the connection provided by the testEnv.
+    await testEnv.connection.ensureConnected();
+
+    // Check that we can connect to the server _on the expected port_.
+    const connection = await Connection.connect({
+      address: `127.0.0.1:${port}`,
+      connectTimeout: 500,
+    });
+    await connection.ensureConnected();
+
+    // With UI enabled but no ui port specified, the UI should be listening on port + 1000.
+    await fetch(`http://127.0.0.1:${port + 1000}/namespaces`);
+
+    t.pass();
+  } finally {
+    await testEnv.teardown();
+  }
+});
+
+test('TestEnvironment sets up dev server with custom ui port', async (t) => {
+  const port = await getRandomPort();
+  const testEnv = await TestWorkflowEnvironment.createLocal({
+    server: {
+      uiPort: port,
+    },
+  });
+  try {
+    await fetch(`http://127.0.0.1:${port}/namespaces`);
+    t.pass();
+  } finally {
+    await testEnv.teardown();
   }
 });

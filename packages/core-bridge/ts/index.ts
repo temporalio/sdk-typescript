@@ -394,20 +394,24 @@ export interface DevServerConfig {
    */
   ip?: string;
   /**
+   * Port to listen on; defaults to find a random free port.
+   */
+  port?: number;
+  /**
    * Whether to enable the UI.
    *
-   * @default false
+   * @default true if `uiPort` is set; defaults to `false` otherwise.
    */
   ui?: boolean;
+  /**
+   * Port to listen on for the UI; if `ui` is true, defaults to `port + 1000`.
+   */
+  uiPort?: number;
   /**
    * Log format and level
    * @default { format: "pretty", level" "warn" }
    */
   log?: { format: string; level: string };
-  /**
-   * Optional port to listen on, defaults to find a random free port.
-   */
-  port?: number;
   /**
    * Extra args to pass to the executable command.
    *
