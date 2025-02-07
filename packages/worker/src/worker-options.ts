@@ -97,7 +97,7 @@ export interface WorkerOptions {
    *
    * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
    *
-   * @experimental
+   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
   buildId?: string;
 
@@ -108,7 +108,7 @@ export interface WorkerOptions {
    *
    * For more information, see https://docs.temporal.io/workers#worker-versioning
    *
-   * @experimental
+   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
   useVersioning?: boolean;
 
@@ -193,7 +193,7 @@ export interface WorkerOptions {
    * Mutually exclusive with the {@link maxConcurrentWorkflowTaskExecutions}, {@link
    * maxConcurrentActivityTaskExecutions}, and {@link maxConcurrentLocalActivityExecutions} options.
    *
-   * @experimental
+   * @experimental Worker Tuner is an experimental feature and may be subject to change.
    */
   tuner?: WorkerTuner;
 
@@ -290,9 +290,6 @@ export interface WorkerOptions {
    * minimum for either poller is 1, so if `maxConcurrentWorkflowTaskPolls` is 1 and sticky queues are
    * enabled, there will be 2 concurrent polls.
    *
-   * ⚠️ This API is experimental and may be removed in the future if the poll scaling algorithm changes.
-   *
-   * @experimental This API is experimental and may be removed in the future if the poll scaling algorithm changes.
    * @default 0.2
    */
   nonStickyToStickyPollRatio?: number;

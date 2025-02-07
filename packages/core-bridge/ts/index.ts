@@ -75,8 +75,6 @@ export interface ClientOptions {
 
   /**
    * Proxying configuration.
-   *
-   * @experimental
    */
   proxy?: ProxyConfig;
 
@@ -103,8 +101,6 @@ export interface ClientOptions {
 
 /**
  * Log directly to console
- *
- * @experimental
  */
 export interface ConsoleLogger {
   console: {}; // eslint-disable-line @typescript-eslint/no-empty-object-type
@@ -112,8 +108,6 @@ export interface ConsoleLogger {
 
 /**
  * Forward logs to {@link Runtime} logger
- *
- * @experimental
  */
 export interface ForwardLogger {
   forward: {
@@ -128,15 +122,11 @@ export interface ForwardLogger {
 
 /**
  * Logger types supported by Core
- *
- * @experimental
  */
 export type Logger = ConsoleLogger | ForwardLogger;
 
 /**
  * OpenTelemetry Collector options for exporting metrics or traces
- *
- * @experimental
  */
 export interface OtelCollectorExporter {
   otel: {
@@ -171,7 +161,6 @@ export interface OtelCollectorExporter {
   };
 }
 
-/** @experimental */
 export type CompiledOtelMetricsExporter = Shadow<
   OtelCollectorExporter,
   {
@@ -181,8 +170,6 @@ export type CompiledOtelMetricsExporter = Shadow<
 
 /**
  * Prometheus metrics exporter options
- *
- * @experimental
  */
 export interface PrometheusMetricsExporter {
   prometheus: {
@@ -215,14 +202,11 @@ export interface PrometheusMetricsExporter {
  * `temporality` is the type of aggregation temporality for metric export. Applies to both Prometheus and OpenTelemetry exporters.
  *
  * See the [OpenTelemetry specification](https://github.com/open-telemetry/opentelemetry-specification/blob/ce50e4634efcba8da445cc23523243cb893905cb/specification/metrics/datamodel.md#temporality) for more information.
- *
- * @experimental
  */
 export type MetricsExporter = {
   temporality?: 'cumulative' | 'delta';
 } & (PrometheusMetricsExporter | OtelCollectorExporter);
 
-/** @experimental */
 export interface TelemetryOptions {
   /**
    * A string in the env filter format specified here:
@@ -235,8 +219,7 @@ export interface TelemetryOptions {
   tracingFilter?: string;
 
   /**
-   * If set true, do not prefix metrics with `temporal_`. Will be removed eventually as
-   * the prefix is consistent with other SDKs.
+   * If set true, do not prefix metrics with `temporal_`.
    *
    * @default `false`
    */
@@ -278,7 +261,6 @@ export interface TelemetryOptions {
   tracing?: unknown;
 }
 
-/** @experimental */
 export type CompiledTelemetryOptions = {
   noTemporalPrefixForMetrics?: boolean;
   logging: {

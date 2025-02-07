@@ -36,8 +36,6 @@ export interface NativeConnectionOptions {
 
   /**
    * Proxying configuration.
-   *
-   * @experimental
    */
   proxy?: ProxyConfig;
 
