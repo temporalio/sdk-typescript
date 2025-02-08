@@ -307,6 +307,12 @@ export class ScheduleClient extends BaseClient {
       },
       identity: this.options.identity,
       requestId: uuid4(),
+      searchAttributes:
+        opts.searchAttributes || opts.typedSearchAttributes // eslint-disable-line deprecation/deprecation
+          ? {
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes), // eslint-disable-line deprecation/deprecation
+            }
+          : undefined,
     };
     try {
       return await this.workflowService.updateSchedule(req);
