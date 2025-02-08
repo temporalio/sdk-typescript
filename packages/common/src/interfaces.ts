@@ -98,7 +98,8 @@ export type WorkflowResultType<W extends Workflow> = ReturnType<W> extends Promi
  *
  * Dates are serialized as ISO strings.
  */
-export type SearchAttributes = Record<string, SearchAttributeValue | Readonly<SearchAttributeValue> | undefined>;
+export type SearchAttributeValueOrReadonly = SearchAttributeValue | Readonly<SearchAttributeValue> | undefined;
+export type SearchAttributes = Record<string, SearchAttributeValueOrReadonly>;
 export type SearchAttributeValue = string[] | number[] | boolean[] | Date[];
 
 export interface ActivityFunction<P extends any[] = any[], R = any> {
