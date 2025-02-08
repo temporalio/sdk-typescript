@@ -8,7 +8,10 @@ use neon::{
 use slot_supplier_bridge::SlotSupplierBridge;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use temporal_client::HttpConnectProxyOptions;
-use temporal_sdk_core::api::worker::SlotKind;
+use temporal_sdk_core::api::{
+    telemetry::{HistogramBucketOverrides, OtlpProtocol},
+    worker::SlotKind,
+};
 use temporal_sdk_core::{
     api::telemetry::{Logger, MetricTemporality, TelemetryOptions, TelemetryOptionsBuilder},
     api::{
@@ -36,6 +39,7 @@ pub enum EphemeralServerConfig {
 
 pub trait ArrayHandleConversionsExt {
     fn to_vec_of_string(&self, cx: &mut FunctionContext) -> NeonResult<Vec<String>>;
+    fn to_vec_of_float(&self, cx: &mut FunctionContext) -> NeonResult<Vec<f64>>;
 }
 
 impl ArrayHandleConversionsExt for Handle<'_, JsArray> {
@@ -46,6 +50,17 @@ impl ArrayHandleConversionsExt for Handle<'_, JsArray> {
 
         for i in js_vec.iter().take(len) {
             ret_vec.push(i.downcast_or_throw::<JsString, _>(cx)?.value(cx));
+        }
+        Ok(ret_vec)
+    }
+
+    fn to_vec_of_float(&self, cx: &mut FunctionContext) -> NeonResult<Vec<f64>> {
+        let js_vec = self.to_vec(cx)?;
+        let len = js_vec.len();
+        let mut ret_vec = Vec::<f64>::with_capacity(len);
+
+        for i in js_vec.iter().take(len) {
+            ret_vec.push(i.downcast_or_throw::<JsNumber, _>(cx)?.value(cx));
         }
         Ok(ret_vec)
     }
@@ -69,6 +84,10 @@ pub(crate) trait ObjectHandleConversionsExt {
         &self,
         cx: &mut FunctionContext,
     ) -> NeonResult<HashMap<String, String>>;
+    fn as_hash_map_of_string_to_vec_of_floats(
+        &self,
+        cx: &mut FunctionContext,
+    ) -> NeonResult<HashMap<String, Vec<f64>>>;
     fn into_slot_supplier<SK: SlotKind + Send + Sync + 'static>(
         self,
         cx: &mut FunctionContext,
@@ -87,6 +106,22 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         for k in props {
             let k = k.to_string(cx)?;
             let v = self.get::<JsString, _, _>(cx, k)?.value(cx);
+            let k = k.value(cx);
+            map.insert(k, v);
+        }
+        Ok(map)
+    }
+
+    fn as_hash_map_of_string_to_vec_of_floats(
+        &self,
+        cx: &mut FunctionContext,
+    ) -> NeonResult<HashMap<String, Vec<f64>>> {
+        let props = self.get_own_property_names(cx)?;
+        let props = props.to_vec(cx)?;
+        let mut map = HashMap::new();
+        for k in props {
+            let k = k.to_string(cx)?;
+            let v = self.get::<JsArray, _, _>(cx, k)?.to_vec_of_float(cx)?;
             let k = k.value(cx);
             map.insert(k, v);
         }
@@ -202,25 +237,25 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             })?),
         };
         client_options.headers(headers);
-        let api_key = js_optional_value_getter!(cx, self, "apiKey", JsString);
-        client_options.api_key(api_key);
+        client_options.api_key(js_optional_value_getter!(cx, self, "apiKey", JsString));
 
         Ok(client_options
             .client_name("temporal-typescript".to_string())
             .client_version(js_value_getter!(cx, self, "sdkVersion", JsString))
             .target_url(url)
             .retry_config(retry_config)
+            .disable_error_code_metric_tags(js_value_getter!(
+                cx,
+                self,
+                "disableErrorCodeMetricTags",
+                JsBoolean
+            ))
             .build()
             .expect("Core server gateway options must be valid"))
     }
 
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemOptsRes> {
         let mut telemetry_opts = TelemetryOptionsBuilder::default();
-        if js_optional_value_getter!(cx, self, "noTemporalPrefixForMetrics", JsBoolean)
-            .unwrap_or_default()
-        {
-            telemetry_opts.metric_prefix("".to_string());
-        }
 
         if let Some(ref logging) = js_optional_getter!(cx, self, "logging", JsObject) {
             let filter = js_value_getter!(cx, logging, "filter", JsString);
@@ -238,6 +273,20 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let mut meter_maker = None;
 
         if let Some(ref metrics) = js_optional_getter!(cx, self, "metrics", JsObject) {
+            telemetry_opts.metric_prefix(js_value_getter!(cx, metrics, "metricPrefix", JsString));
+
+            let global_tags = match js_optional_getter!(cx, metrics, "globalTags", JsObject) {
+                None => None,
+                Some(global_tags) => Some(global_tags.as_hash_map_of_string_to_string(cx)?),
+            };
+
+            telemetry_opts.attach_service_name(js_value_getter!(
+                cx,
+                metrics,
+                "attachServiceName",
+                JsBoolean
+            ));
+
             if let Some(ref prom) = js_optional_getter!(cx, metrics, "prometheus", JsObject) {
                 if js_optional_getter!(cx, metrics, "otel", JsObject).is_some() {
                     cx.throw_type_error(
@@ -257,20 +306,33 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     }
                 };
 
-                if let Some(counters_total_suffix) =
-                    js_optional_value_getter!(cx, prom, "countersTotalSuffix", JsBoolean)
-                {
-                    options.counters_total_suffix(counters_total_suffix);
+                options.counters_total_suffix(js_value_getter!(
+                    cx,
+                    prom,
+                    "countersTotalSuffix",
+                    JsBoolean
+                ));
+
+                options.unit_suffix(js_value_getter!(cx, prom, "unitSuffix", JsBoolean));
+
+                options.use_seconds_for_durations(js_value_getter!(
+                    cx,
+                    prom,
+                    "useSecondsForDurations",
+                    JsBoolean
+                ));
+
+                if let Some(global_tags) = global_tags {
+                    options.global_tags(global_tags);
                 }
-                if let Some(unit_suffix) =
-                    js_optional_value_getter!(cx, prom, "unitSuffix", JsBoolean)
+
+                if let Some(histogram_bucket_overrides) =
+                    js_optional_getter!(cx, prom, "histogramBucketOverrides", JsObject)
                 {
-                    options.unit_suffix(unit_suffix);
-                }
-                if let Some(use_seconds_for_durations) =
-                    js_optional_value_getter!(cx, prom, "useSecondsForDurations", JsBoolean)
-                {
-                    options.use_seconds_for_durations(use_seconds_for_durations);
+                    options.histogram_bucket_overrides(HistogramBucketOverrides {
+                        overrides: histogram_bucket_overrides
+                            .as_hash_map_of_string_to_vec_of_floats(cx)?,
+                    });
                 }
 
                 let options = options.build().map_err(|e| {
@@ -302,10 +364,10 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     }
                 };
 
-                if let Some(use_seconds_for_durations) =
-                    js_optional_value_getter!(cx, otel, "useSecondsForDurations", JsBoolean)
-                {
-                    options.use_seconds_for_durations(use_seconds_for_durations);
+                if js_value_getter!(cx, otel, "http", JsBoolean) {
+                    options.protocol(OtlpProtocol::Http);
+                } else {
+                    options.protocol(OtlpProtocol::Grpc);
                 }
 
                 if let Some(ref headers) = js_optional_getter!(cx, otel, "headers", JsObject) {
@@ -319,18 +381,33 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     options.metric_periodicity(Duration::from_millis(metric_periodicity));
                 }
 
-                // FIXME: Move temporality to the otel object
-                if let Some(temporality) =
-                    js_optional_value_getter!(cx, metrics, "temporality", JsString)
-                {
-                    match temporality.as_str() {
-                        "cumulative" => options.metric_temporality(MetricTemporality::Cumulative),
-                        "delta" => options.metric_temporality(MetricTemporality::Delta),
-                        _ => {
-                            return cx.throw_type_error("Invalid telemetryOptions.metrics.temporality, expected 'cumulative' or 'delta'");
-                        }
-                    };
+                options.use_seconds_for_durations(js_value_getter!(
+                    cx,
+                    otel,
+                    "useSecondsForDurations",
+                    JsBoolean
+                ));
+
+                match js_value_getter!(cx, otel, "temporality", JsString).as_str() {
+                    "cumulative" => options.metric_temporality(MetricTemporality::Cumulative),
+                    "delta" => options.metric_temporality(MetricTemporality::Delta),
+                    _ => {
+                        return cx.throw_type_error("Invalid telemetryOptions.metrics.otel.temporality, expected 'cumulative' or 'delta'");
+                    }
                 };
+
+                if let Some(global_tags) = global_tags {
+                    options.global_tags(global_tags);
+                }
+
+                if let Some(histogram_bucket_overrides) =
+                    js_optional_getter!(cx, otel, "histogramBucketOverrides", JsObject)
+                {
+                    options.histogram_bucket_overrides(HistogramBucketOverrides {
+                        overrides: histogram_bucket_overrides
+                            .as_hash_map_of_string_to_vec_of_floats(cx)?,
+                    });
+                }
 
                 let options = options.build().map_err(|e| {
                     cx.throw_type_error::<_, TelemetryOptions>(format!(
@@ -534,7 +611,9 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 }
                 config.db_filename(js_optional_value_getter!(cx, self, "dbFilename", JsString));
                 config.ui(js_optional_value_getter!(cx, self, "ui", JsBoolean).unwrap_or_default());
-
+                config.ui_port(
+                    js_optional_getter!(cx, self, "uiPort", JsNumber).map(|s| s.value(cx) as u16),
+                );
                 if let Some(log) = js_optional_getter!(cx, self, "log", JsObject) {
                     let format = js_value_getter!(cx, &log, "format", JsString);
                     let level = js_value_getter!(cx, &log, "level", JsString);

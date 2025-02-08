@@ -3,7 +3,7 @@
  * controlling how "slots" are handed out for different task types. In order to poll for and then
  * run tasks, a slot must first be reserved by the {@link SlotSupplier} returned by the tuner.
  *
- * @experimental
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface WorkerTuner {
   workflowTaskSlotSupplier: SlotSupplier;
@@ -35,14 +35,14 @@ export interface LocalActivitySlotInfo {
  * For now, only {@link ResourceBasedSlotOptions} and {@link FixedSizeSlotSupplier} are supported,
  * but we may add support for custom tuners in the future.
  *
- * @experimental
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export type SlotSupplier = ResourceBasedSlotsForType | FixedSizeSlotSupplier | CustomSlotSupplier<any>;
 
 /**
  * Options for a specific slot type within a {@link ResourceBasedSlotsForType}
  *
- * @experimental
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface ResourceBasedSlotOptions {
   // Amount of slots that will be issued regardless of any other checks
@@ -55,7 +55,7 @@ export interface ResourceBasedSlotOptions {
 }
 
 /**
- * @experimental
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
   type: 'resource-based';
@@ -65,7 +65,7 @@ type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
 /**
  * Options for a {@link ResourceBasedTuner} to control target resource usage
  *
- * @experimental
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface ResourceBasedTunerOptions {
   // A value between 0 and 1 that represents the target (system) memory usage. It's not recommended
@@ -80,7 +80,7 @@ export interface ResourceBasedTunerOptions {
 /**
  * A fixed-size slot supplier that will never issue more than a fixed number of slots.
  *
- * @experimental
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface FixedSizeSlotSupplier {
   type: 'fixed-size';
@@ -90,6 +90,8 @@ export interface FixedSizeSlotSupplier {
 
 /**
  * The interface can be implemented to provide custom slot supplier behavior.
+ *
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface CustomSlotSupplier<SI extends SlotInfo> {
   type: 'custom';
@@ -144,6 +146,12 @@ export interface CustomSlotSupplier<SI extends SlotInfo> {
   releaseSlot(slot: SlotReleaseContext<SI>): void;
 }
 
+/**
+ * A permit to use a slot.
+ *
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface SlotPermit {}
 
 export interface SlotReserveContext {
@@ -169,6 +177,11 @@ export interface SlotReserveContext {
   isSticky: boolean;
 }
 
+/**
+ * Context for marking a slot as used.
+ *
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
+ */
 export interface SlotMarkUsedContext<SI extends SlotInfo> {
   /**
    * Info about the task that will be using the slot
@@ -180,6 +193,11 @@ export interface SlotMarkUsedContext<SI extends SlotInfo> {
   permit: SlotPermit;
 }
 
+/**
+ * Context for releasing a slot.
+ *
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
+ */
 export interface SlotReleaseContext<SI extends SlotInfo> {
   /**
    * Info about the task that used this slot, if any. A slot may be released without being used in

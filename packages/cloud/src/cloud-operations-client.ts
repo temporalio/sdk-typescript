@@ -19,7 +19,7 @@ import pkg from './pkg';
 import { CloudService } from './types';
 
 /**
- * @experimental
+ * @experimental The Temporal Cloud Operations Client API is an experimental feature and may be subject to change.
  */
 export interface CloudOperationsClientOptions {
   /**
@@ -37,7 +37,7 @@ export interface CloudOperationsClientOptions {
 /**
  * High level client for the Temporal Cloud API.
  *
- * @experimental
+ * @experimental The Temporal Cloud Operations Client API is an experimental feature and may be subject to change.
  */
 export class CloudOperationsClient {
   /**
@@ -131,7 +131,7 @@ export class CloudOperationsClient {
 }
 
 /**
- * @experimental
+ * @experimental The Temporal Cloud Operations Client API is an experimental feature and may be subject to change.
  */
 export interface CloudOperationsConnectionOptions {
   /**
@@ -288,7 +288,7 @@ interface CloudOperationsConnectionCtorOptions {
  * ⚠️ Connections are expensive to construct and should be reused.
  * Make sure to {@link close} any unused connections to avoid leaking resources.
  *
- * @experimental
+ * @experimental The Temporal Cloud Operations Client API is an experimental feature and may be subject to change.
  */
 export class CloudOperationsConnection {
   private static readonly Client = grpc.makeGenericClientConstructor({}, 'CloudService', {});

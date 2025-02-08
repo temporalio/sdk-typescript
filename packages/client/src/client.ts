@@ -47,7 +47,7 @@ export class Client extends BaseClient {
   /**
    * Task Queue sub-client - use to perform operations on Task Queues
    *
-   * @experimental
+   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
   public readonly taskQueue: TaskQueueClient;
 

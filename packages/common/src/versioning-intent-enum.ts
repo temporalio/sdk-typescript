@@ -7,7 +7,7 @@ import { assertNever, checkExtends } from './type-helpers';
 /**
  * Protobuf enum representation of {@link VersioningIntentString}.
  *
- * @experimental
+ * @experimental The Worker Versioning API is still being designed. Major changes are expected.
  */
 export enum VersioningIntent {
   UNSPECIFIED = 0,
