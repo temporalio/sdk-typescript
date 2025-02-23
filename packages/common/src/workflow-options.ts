@@ -1,9 +1,9 @@
 import type { temporal } from '@temporalio/proto';
-import { SearchAttributes, Workflow } from './interfaces';
+import { Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
 import { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
-import { TypedSearchAttributePair, TypedSearchAttributes } from './typed-search-attributes';
+import { SearchAttributePair, SearchAttributes, TypedSearchAttributes } from './search-attributes';
 
 /**
  * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
@@ -189,7 +189,7 @@ export interface BaseWorkflowOptions {
    * If both {@link searchAttributes} and {@link typedSearchAttributes} are provided, conflicting keys will be overwritten
    * by {@link typedSearchAttributes}.
    */
-  typedSearchAttributes?: TypedSearchAttributePair[] | TypedSearchAttributes;
+  typedSearchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
 }
 
 export type WithWorkflowArgs<W extends Workflow, T> = T &

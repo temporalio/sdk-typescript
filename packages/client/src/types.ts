@@ -1,5 +1,5 @@
 import type * as grpc from '@grpc/grpc-js';
-import type { SearchAttributes, SearchAttributeValue, TypedSearchAttributes } from '@temporalio/common';
+import type { TypedSearchAttributes, SearchAttributes, SearchAttributeValue } from '@temporalio/common';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import * as proto from '@temporalio/proto';
 import { Replace } from '@temporalio/common/lib/type-helpers';

@@ -3,25 +3,18 @@ import {
   ActivityOptions,
   compileRetryPolicy,
   encodeActivityCancellationType,
-  encodeUnifiedSearchAttributes,
   encodeWorkflowIdReusePolicy,
   extractWorkflowType,
   HandlerUnfinishedPolicy,
-  isTypedSearchAttributePair,
   LocalActivityOptions,
   mapToPayloads,
   QueryDefinition,
-  searchAttributePayloadConverter,
   SearchAttributes,
   SearchAttributeType,
   SearchAttributeValue,
   SignalDefinition,
   toPayloads,
-  typedMapToPayloads,
-  typedSearchAttributePayloadConverter,
   TypedSearchAttributes,
-  TypedSearchAttributeUpdateValue,
-  TypedSearchAttributeUpdatePair,
   UntypedActivities,
   UpdateDefinition,
   WithWorkflowArgs,
@@ -29,12 +22,16 @@ import {
   WorkflowResultType,
   WorkflowReturnType,
   WorkflowUpdateValidatorType,
-  isTypedSearchAttributeUpdatePair,
+  encodeUnifiedSearchAttributes,
+  searchAttributePayloadConverter,
+  typedSearchAttributePayloadConverter,
+  SearchAttributeUpdatePair,
 } from '@temporalio/common';
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
 import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
+import { TypedSearchAttributeUpdateValue } from '@temporalio/common/lib/search-attributes';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import {
@@ -392,9 +389,7 @@ function startChildWorkflowExecutionNextHandler({
         cronSchedule: options.cronSchedule,
         searchAttributes:
           options.searchAttributes || options.typedSearchAttributes
-            ? {
-                indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes),
-              }
+            ? encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes)
             : undefined,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
@@ -962,7 +957,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
  *
  *```ts
  *import { continueAsNew } from '@temporalio/workflow';
-import { SearchAttributeValue } from '../../common/lib/interfaces';
+import { SearchAttributeType } from '@temporalio/common';
  *
  *export async function myWorkflow(n: number): Promise<void> {
  *  // ... Workflow logic
@@ -1337,7 +1332,9 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
  * Updates this Workflow's Search Attributes by merging the provided `searchAttributes` with the existing Search
  * Attributes, `workflowInfo().searchAttributes`.
  *
- * For example, this Workflow code:
+ * Search attributes can be upserted using either SearchAttributes (deprecated) or SearchAttributeUpdatePair[]
+ *
+ * Upserting a workflow's search attributes using SearchAttributes (deprecated):
  *
  * ```ts
  * upsertSearchAttributes({
@@ -1350,7 +1347,20 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
  * });
  * ```
  *
- * would result in the Workflow having these Search Attributes:
+ * Equivalently, upserting a workflow's search attributes using SearchAttributeUpdatePair[]:
+ *
+ * ```ts
+ * upsertSearchAttributes([
+ *  { key: { name: 'CustomIntField', type: 'INT' }, value: 1 },
+ *  { key: { name: 'CustomBoolField', type: 'BOOL' }, value: true },
+ * ]);
+ * upsertSearchAttributes([
+ *  { key: { name: 'CustomIntField', type: 'INT' }, value: 42 },
+ *  { key: { name: 'CustomKeywordField', type: 'KEYWORD_LIST' }, value: ['durable code', 'is great'] },
+ * ]);
+ * ```
+ *
+ * Both upserts would result in the Workflow having these Search Attributes:
  *
  * ```ts
  * {
@@ -1363,7 +1373,7 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
  * @param searchAttributes The Record to merge. Use a value of `[]` to clear a Search Attribute.
  */
 
-export function upsertSearchAttributes(searchAttributes: SearchAttributes | TypedSearchAttributeUpdatePair[]): void {
+export function upsertSearchAttributes(searchAttributes: SearchAttributes | SearchAttributeUpdatePair[]): void {
   const activator = assertInWorkflowContext(
     'Workflow.upsertSearchAttributes(...) may only be used from a Workflow Execution.'
   );
@@ -1376,32 +1386,39 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Type
     // Typed search attributes
     activator.pushCommand({
       upsertWorkflowSearchAttributes: {
-        searchAttributes: typedMapToPayloads<string, TypedSearchAttributeUpdateValue>(
+        searchAttributes: mapToPayloads<string, TypedSearchAttributeUpdateValue<SearchAttributeType>>(
           typedSearchAttributePayloadConverter,
-          Object.fromEntries(searchAttributes.map(([k, v]) => [k.name, v]))
+          Object.fromEntries(
+            searchAttributes.map((pair) => [
+              pair.key.name,
+              new TypedSearchAttributeUpdateValue(pair.key.type, pair.value),
+            ])
+          )
         ),
       },
     });
 
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
-      const newSearchAttributes: SearchAttributes = {};
+      // Create a copy of the current state.
+      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes };
       for (const pair of searchAttributes) {
-        const [k, v] = pair;
-        if (v === null) {
-          // If the value is null (i.e. delete), set the value to an empty list.
-          newSearchAttributes[k.name] = [];
+        if (pair.value === null) {
+          // If the value is null, remove the search attribute.
+          // We don't mutate the existing state (just the new map) so this should be safe.
+          delete newSearchAttributes[pair.key.name];
         } else {
-          const typedValue = v[1];
-          newSearchAttributes[k.name] = Array.isArray(typedValue) ? typedValue : ([typedValue] as SearchAttributeValue);
+          newSearchAttributes[pair.key.name] = Array.isArray(pair.value)
+            ? pair.value
+            : ([pair.value] as SearchAttributeValue);
         }
       }
       return {
         ...info,
-        searchAttributes: {
-          ...info.searchAttributes,
-          ...newSearchAttributes,
-        },
-        typedSearchAttributes: info.typedSearchAttributes.updateAttributes(searchAttributes),
+        searchAttributes: newSearchAttributes,
+        // Create an empty copy and apply existing and new updates. Keep in mind the order matters here (existing first, new second - to possibly overwrite existing).
+        typedSearchAttributes: new TypedSearchAttributes()
+          .updateCopy([...info.typedSearchAttributes, ...searchAttributes])
+          .getAll(),
       };
     });
   } else {
@@ -1413,54 +1430,64 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Type
     });
 
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
-      // Use updateSearchAttributes to get a deep copy of the current state.
-      let typedSearchAttributes = info.typedSearchAttributes.updateAttributes([]);
+      // Create a new copy of the current state.
+      let typedSearchAttributes = new TypedSearchAttributes(info.typedSearchAttributes);
+      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes };
+
+      // Upsert legacy search attributes into typedSearchAttributes.
       for (const [k, v] of Object.entries(searchAttributes)) {
+        if (v !== undefined && !Array.isArray(v)) {
+          throw new Error(`Search attribute value must be an array or undefined, got ${v}`);
+        }
+
         const typedKey = TypedSearchAttributes.getKeyFromUntyped(k, v);
 
-        // Unable to discern the typing of the key, skip.
+        /*
+          The following conditional blocks with 'continue' expressions handle special cases for untyped search attribute updates:
+            1. We cannot determine a valid typing for the given key.
+            (i.e. multi-value input for non keyword list, invalid objects/primitives, etc.)
+            2. The value is undefined/null/empty list, signifying deletion.
+
+            In case 1, this is undefined behaviour, so we skip the update (no-op).
+
+            In case 2, this is defined behaviour for deletion. We simply remove the search attribute from both untyped and 
+            typed search attributes.
+
+            After this point, we know we have a defined value with a valid type. We can apply the update.
+        */
+
+        // 1. Unable to discern a valid typing for the key.
+        // Skip applying this update and delete from both typed search attributes.
         if (!typedKey) {
           continue;
         }
 
-        // Delete the key if the value is undefined/null/empty list.
-        if (!v || (Array.isArray(v) && v.length === 0)) {
-          const pair = [typedKey, null];
-          if (isTypedSearchAttributeUpdatePair(pair)) {
-            typedSearchAttributes = typedSearchAttributes.updateAttributes([pair]);
-          }
+        // 2. The value is undefined/null/empty list, this signifies deletion.
+        // Delete from both untyped & typed search attributes.
+        if (v == null || (Array.isArray(v) && v.length === 0)) {
+          typedSearchAttributes = typedSearchAttributes.updateCopy([
+            { key: typedKey, value: null } as SearchAttributeUpdatePair,
+          ]);
+          delete newSearchAttributes[k];
           continue;
         }
 
         let newValue: unknown = v;
-        if (typedKey.type !== SearchAttributeType.KEYWORD_LIST) {
-          // Skip if we found multiple values for a non-list key.
-          if (Array.isArray(v) && v.length > 1) {
-            continue;
-          }
-          // Convert to single-value.
+        // Unpack value if it is a single-element array.
+        if (v.length === 1) {
           newValue = v[0];
         }
 
-        if (typedKey.type === SearchAttributeType.DATETIME) {
-          newValue = new Date(newValue as string);
-        }
-
-        const typedValue: unknown = [typedKey.type, newValue];
-        const pair: unknown = [typedKey, typedValue];
-        // Update if it's a valid typed search attribute pair.
-        if (isTypedSearchAttributePair(pair)) {
-          typedSearchAttributes = typedSearchAttributes.updateAttributes([pair]);
-        }
+        // We have a defined value with valid type. Apply the update.
+        typedSearchAttributes = typedSearchAttributes.updateCopy([
+          { key: typedKey, value: newValue } as SearchAttributeUpdatePair,
+        ]);
+        newSearchAttributes[k] = v;
       }
       return {
         ...info,
-        searchAttributes: {
-          ...info.searchAttributes,
-          // Note that we keep empty arrays in the search attributes.
-          ...searchAttributes,
-        },
-        typedSearchAttributes,
+        searchAttributes: newSearchAttributes,
+        typedSearchAttributes: typedSearchAttributes.getAll(),
       };
     });
   }

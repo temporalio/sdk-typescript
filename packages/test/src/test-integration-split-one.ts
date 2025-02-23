@@ -17,7 +17,6 @@ import {
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
-  TypedSearchAttributes,
   WorkflowExecution,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
@@ -667,7 +666,6 @@ test('Workflow can upsert Search Attributes', configMacro, async (t, config) => 
   const res = await worker.runUntil(handle.result());
   t.deepEqual(res, {
     CustomBoolField: [true],
-    CustomIntField: [], // clear
     CustomKeywordField: ['durable code'],
     CustomTextField: ['is useful'],
     CustomDatetimeField: [date.toISOString()],
@@ -698,12 +696,8 @@ test('Workflow can upsert Search Attributes', configMacro, async (t, config) => 
   );
 });
 
-export async function returnWorkflowInfo(): Promise<WorkflowInfo & { isTypedSearchAttributesInstance: boolean }> {
-  const info = workflowInfo();
-  return {
-    ...info,
-    isTypedSearchAttributesInstance: info.typedSearchAttributes instanceof TypedSearchAttributes,
-  };
+export async function returnWorkflowInfo(): Promise<WorkflowInfo> {
+  return workflowInfo();
 }
 
 test('Workflow can read WorkflowInfo', configMacro, async (t, config) => {
@@ -728,10 +722,7 @@ test('Workflow can read WorkflowInfo', configMacro, async (t, config) => {
     runId: handle.firstExecutionRunId,
     taskQueue,
     searchAttributes: {},
-    // Ensure serialized data structure is correct
-    typedSearchAttributes: JSON.parse(JSON.stringify(new TypedSearchAttributes())),
-    // Ensure typed search attributes in workflow info is an instance of TypedSearchAttributes
-    isTypedSearchAttributesInstance: true,
+    typedSearchAttributes: [],
     workflowType: 'returnWorkflowInfo',
     workflowId: handle.workflowId,
     historyLength: 3,

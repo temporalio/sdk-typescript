@@ -31,7 +31,6 @@ import {
   Payload,
   ApplicationFailure,
   ensureApplicationFailure,
-  TypedSearchAttributes,
 } from '@temporalio/common';
 import {
   decodeArrayFromPayloads,
@@ -1284,7 +1283,7 @@ export class Worker {
       runId: activation.runId,
       workflowType,
       searchAttributes: {},
-      typedSearchAttributes: new TypedSearchAttributes(),
+      typedSearchAttributes: [],
       parent: convertToParentWorkflowType(parentWorkflowInfo),
       taskQueue: this.options.taskQueue,
       namespace: this.options.namespace,

@@ -1,10 +1,10 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
 import {
+  Workflow,
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
-  Workflow,
 } from '@temporalio/common';
 import { composeInterceptors, Headers } from '@temporalio/common/lib/interceptors';
 import {

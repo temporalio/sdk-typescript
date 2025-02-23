@@ -1,9 +1,9 @@
 import { ServiceError as GrpcServiceError, status as grpcStatus } from '@grpc/grpc-js';
 import {
-  decodeSearchAttributes,
-  decodeTypedSearchAttributes,
   LoadedDataConverter,
   NamespaceNotFoundError,
+  decodeSearchAttributes,
+  decodeTypedSearchAttributes,
   searchAttributePayloadConverter,
 } from '@temporalio/common';
 import { Replace } from '@temporalio/common/lib/type-helpers';

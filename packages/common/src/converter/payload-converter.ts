@@ -49,18 +49,7 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
  *
  * @throws {@link ValueError} if conversion of any value in the map fails
  */
-export function mapToPayloads<K extends string>(converter: PayloadConverter, map: Record<K, any>): Record<K, Payload> {
-  return Object.fromEntries(
-    Object.entries(map).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)])
-  ) as Record<K, Payload>;
-}
-
-/**
- * Run {@link PayloadConverter.toPayload} on each value in the map.
- *
- * @throws {@link ValueError} if conversion of any value in the map fails
- */
-export function typedMapToPayloads<K extends string, T>(
+export function mapToPayloads<K extends string, T = any>(
   converter: PayloadConverter,
   map: Record<K, T>
 ): Record<K, Payload> {
@@ -98,27 +87,14 @@ export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payloa
   return payloads.map((payload: Payload) => converter.fromPayload(payload));
 }
 
-export function mapFromPayloads<K extends string>(
-  converter: PayloadConverter,
-  map?: Record<K, Payload> | null | undefined
-): Record<K, unknown> | undefined {
-  if (map == null) return undefined;
-  return Object.fromEntries(
-    Object.entries(map).map(([k, payload]): [K, unknown] => {
-      const value = converter.fromPayload(payload as Payload);
-      return [k as K, value];
-    })
-  ) as Record<K, unknown>;
-}
-
-export function typedMapFromPayloads<K extends string, T>(
+export function mapFromPayloads<K extends string, T = unknown>(
   converter: PayloadConverter,
   map?: Record<K, Payload> | null | undefined
 ): Record<K, T> | undefined {
   if (map == null) return undefined;
   return Object.fromEntries(
-    Object.entries(map).map(([k, payload]): [K, T] => {
-      const value = converter.fromPayload<T>(payload as Payload);
+    Object.entries(map).map(([k, payload]): [K, unknown] => {
+      const value = converter.fromPayload(payload as Payload);
       return [k as K, value];
     })
   ) as Record<K, T>;

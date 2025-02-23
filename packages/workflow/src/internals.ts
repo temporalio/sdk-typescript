@@ -479,10 +479,8 @@ export class Activator implements ActivationHandler {
     this.mutateWorkflowInfo((info) => ({
       ...info,
 
-      // TODO(thomas): do we not filter out undefined values?
       searchAttributes: decodeSearchAttributes(searchAttributes?.indexedFields),
-      // TODO(thomas): do we not filter out undefined values?
-      typedSearchAttributes: decodeTypedSearchAttributes(searchAttributes?.indexedFields),
+      typedSearchAttributes: decodeTypedSearchAttributes(searchAttributes?.indexedFields).getAll(),
 
       memo: mapFromPayloads(this.payloadConverter, memo?.fields),
       lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads),

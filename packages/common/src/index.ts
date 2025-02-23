@@ -12,6 +12,7 @@ export * from './converter/data-converter';
 export * from './converter/failure-converter';
 export * from './converter/payload-codec';
 export * from './converter/payload-converter';
+// TODO(thomas): remove
 export * from './converter/payload-search-attributes';
 export * from './converter/types';
 export * from './deprecated-time';
@@ -25,7 +26,14 @@ export type { Timestamp, Duration, StringValue } from './time';
 export * from './workflow-handle';
 export * from './workflow-options';
 export * from './versioning-intent';
-export * from './typed-search-attributes';
+export {
+  SearchAttributes,
+  SearchAttributeValue,
+  SearchAttributeType,
+  SearchAttributePair,
+  SearchAttributeUpdatePair,
+  TypedSearchAttributes,
+} from './search-attributes';
 
 /**
  * Encode a UTF-8 string into a Uint8Array

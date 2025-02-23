@@ -10,10 +10,9 @@ import {
   ScheduleHandle,
   ScheduleSummary,
   ScheduleUpdateOptions,
-  SearchAttributes,
 } from '@temporalio/client';
 import { msToNumber } from '@temporalio/common/lib/time';
-import { SearchAttributeType, TypedSearchAttributes } from '@temporalio/common';
+import { SearchAttributes, SearchAttributeType, TypedSearchAttributes } from '@temporalio/common';
 import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS } from './helpers';
 
 export interface Context {
@@ -169,7 +168,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: [TypedSearchAttributes.createAttribute('CustomIntField', SearchAttributeType.INT, 42)],
+        typedSearchAttributes: [{ key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 }],
       },
     });
 
@@ -186,8 +185,8 @@ if (RUN_INTEGRATION_TESTS) {
       t.deepEqual(
         describedSchedule.action.typedSearchAttributes,
         new TypedSearchAttributes([
-          TypedSearchAttributes.createAttribute('CustomIntField', SearchAttributeType.INT, 42),
-          TypedSearchAttributes.createAttribute('CustomKeywordField', SearchAttributeType.KEYWORD, 'test-value2'),
+          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
+          { key: { name: 'CustomKeywordField', type: SearchAttributeType.KEYWORD }, value: 'test-value2' },
         ])
       );
     } finally {
@@ -214,7 +213,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: [TypedSearchAttributes.createAttribute('CustomIntField', SearchAttributeType.INT, 42)],
+        typedSearchAttributes: [{ key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 }],
       },
     });
 
@@ -232,8 +231,8 @@ if (RUN_INTEGRATION_TESTS) {
       t.deepEqual(
         describedSchedule.action.typedSearchAttributes,
         new TypedSearchAttributes([
-          TypedSearchAttributes.createAttribute('CustomIntField', SearchAttributeType.INT, 42),
-          TypedSearchAttributes.createAttribute('CustomKeywordField', SearchAttributeType.KEYWORD, 'test-value2'),
+          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
+          { key: { name: 'CustomKeywordField', type: SearchAttributeType.KEYWORD }, value: 'test-value2' },
         ])
       );
     } finally {
@@ -346,7 +345,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: [TypedSearchAttributes.createAttribute('CustomIntField', SearchAttributeType.INT, 42)],
+        typedSearchAttributes: [{ key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 }],
       },
     });
 
@@ -591,7 +590,7 @@ if (RUN_INTEGRATION_TESTS) {
             taskQueue,
           },
           searchAttributes,
-          typedSearchAttributes: [TypedSearchAttributes.createAttribute('CustomIntField', SearchAttributeType.INT, 42)],
+          typedSearchAttributes: [{ key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 }],
         })
       );
     }

@@ -1,12 +1,12 @@
 import Long from 'long'; // eslint-disable-line import/no-named-as-default
 import {
   compileRetryPolicy,
-  decodeSearchAttributes,
-  decodeTypedSearchAttributes,
   decompileRetryPolicy,
-  encodeUnifiedSearchAttributes,
   extractWorkflowType,
   LoadedDataConverter,
+  decodeSearchAttributes,
+  decodeTypedSearchAttributes,
+  encodeUnifiedSearchAttributes,
 } from '@temporalio/common';
 import { Headers } from '@temporalio/common/lib/interceptors';
 import {

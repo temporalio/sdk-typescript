@@ -1,23 +1,16 @@
 import { decode, encode } from '../encoding';
 import { ValueError } from '../errors';
-import { Payload, SearchAttributes } from '../interfaces';
+import { Payload } from '../interfaces';
 import {
-  isTypedSearchAttributeValue,
-  isTypedSearchAttributePair,
-  TypedSearchAttributePair,
   TypedSearchAttributes,
-  TypedSearchAttributeValue,
   SearchAttributeType,
-  isTypedSearchAttributeUpdateValue,
-} from '../typed-search-attributes';
-import {
-  PayloadConverter,
-  JsonPayloadConverter,
-  mapFromPayloads,
-  typedMapFromPayloads,
-  mapToPayloads,
-  typedMapToPayloads,
-} from './payload-converter';
+  SearchAttributes,
+  isValidValueForType,
+  TypedSearchAttributeValue,
+  SearchAttributePair,
+  TypedSearchAttributeUpdateValue,
+} from '../search-attributes';
+import { PayloadConverter, JsonPayloadConverter, mapFromPayloads, mapToPayloads } from './payload-converter';
 
 /**
  * Converts Search Attribute values using JsonPayloadConverter
@@ -88,46 +81,45 @@ export const searchAttributePayloadConverter = new SearchAttributePayloadConvert
 export class TypedSearchAttributePayloadConverter implements PayloadConverter {
   jsonConverter = new JsonPayloadConverter();
 
-  public toPayload<T>(typedSearchAttribute: T): Payload {
+  public toPayload<T>(attr: T): Payload {
+    if (!(attr instanceof TypedSearchAttributeValue || attr instanceof TypedSearchAttributeUpdateValue)) {
+      throw new ValueError(
+        `Expect input to be instance of TypedSearchAttributeValueClass, got: ${JSON.stringify(attr)}`
+      );
+    }
+
     // We check for deletion as well as regular typed search attributes.
-    if (!isTypedSearchAttributeUpdateValue(typedSearchAttribute)) {
-      throw new ValueError(`Invalid typed search attribute: ${typedSearchAttribute}`);
+    if (attr.value !== null && !isValidValueForType(attr.type, attr.value)) {
+      throw new ValueError(`Invalid search attribute value ${attr.value} for given type ${attr.type}`);
     }
 
     // For server search attributes to work properly, we cannot set the metadata
     // type when we set null
-    // TODO(thomas): comment cribbed from Python SDK (not sure why this is the case)
-    if (typedSearchAttribute === null) {
-      const payload = this.jsonConverter.toPayload(typedSearchAttribute);
+    if (attr.value === null) {
+      const payload = this.jsonConverter.toPayload(attr.value);
       if (payload === undefined) {
         throw new ValueError('Could not convert typed search attribute to payload');
       }
       return payload;
     }
 
-    const type = typedSearchAttribute[0];
-    let value = typedSearchAttribute[1];
-    if (type === SearchAttributeType.DATETIME) {
-      // Convert Date to ISO string
-      value = (value as Date).toISOString();
-    }
-
-    const payload = this.jsonConverter.toPayload(value);
+    // JSON.stringify takes care of converting Dates to ISO strings
+    const payload = this.jsonConverter.toPayload(attr.value);
     if (payload === undefined) {
       throw new ValueError('Could not convert typed search attribute to payload');
     }
+
     // Note: this shouldn't be the case but the compiler complains without this check.
     if (payload.metadata == null) {
       throw new ValueError('Missing payload metadata');
     }
     // Add encoded type of search attribute to metatdata
-    payload.metadata['type'] = encode(TypedSearchAttributes.toMetadataType(type));
+    payload.metadata['type'] = encode(TypedSearchAttributes.toMetadataType(attr.type));
     return payload;
   }
 
-  // TODO(thomas): type casting undefined values is not clear to caller.
+  // Note: type casting undefined values is not clear to caller.
   // We can't change the typing of the method to return undefined, it's not allowed by the interface.
-  // Suggested usage: typedMapFromPayloads<string, TypedSearchAttributeValue | undefined>
   public fromPayload<T>(payload: Payload): T {
     if (payload.metadata == null) {
       throw new ValueError('Missing payload metadata');
@@ -157,11 +149,11 @@ export class TypedSearchAttributePayloadConverter implements PayloadConverter {
     if (type === SearchAttributeType.DATETIME && value) {
       value = new Date(value as string);
     }
-    // Check if the value is a valid typed search attribute. If not, skip.
-    if (!isTypedSearchAttributeValue([type, value])) {
+    // Check if the value is a valid for the given type. If not, skip.
+    if (!isValidValueForType(type, value)) {
       return undefined as T;
     }
-    return [type, value] as T;
+    return new TypedSearchAttributeValue(type, value) as T;
   }
 }
 
@@ -170,16 +162,18 @@ export const typedSearchAttributePayloadConverter = new TypedSearchAttributePayl
 // If both params are provided, conflicting keys will be overwritten by typedSearchAttributes.
 export function encodeUnifiedSearchAttributes(
   searchAttributes?: SearchAttributes,
-  typedSearchAttributes?: TypedSearchAttributes | TypedSearchAttributePair[]
+  typedSearchAttributes?: TypedSearchAttributes | SearchAttributePair[]
 ): Record<string, Payload> {
   return {
     ...(searchAttributes ? mapToPayloads(searchAttributePayloadConverter, searchAttributes) : {}),
     ...(typedSearchAttributes
-      ? typedMapToPayloads<string, TypedSearchAttributeValue>(
+      ? mapToPayloads<string, TypedSearchAttributeValue<SearchAttributeType>>(
           typedSearchAttributePayloadConverter,
           Object.fromEntries(
-            (Array.isArray(typedSearchAttributes) ? typedSearchAttributes : typedSearchAttributes.getAttributes()).map(
-              ([k, v]) => [k.name, v]
+            (Array.isArray(typedSearchAttributes) ? typedSearchAttributes : typedSearchAttributes.getAll()).map(
+              (pair) => {
+                return [pair.key.name, new TypedSearchAttributeValue(pair.key.type, pair.value)];
+              }
             )
           )
         )
@@ -201,19 +195,19 @@ export function decodeTypedSearchAttributes(
 ): TypedSearchAttributes {
   return new TypedSearchAttributes(
     Object.entries(
-      typedMapFromPayloads<string, TypedSearchAttributeValue | undefined>(
+      mapFromPayloads<string, TypedSearchAttributeValue<SearchAttributeType> | undefined>(
         typedSearchAttributePayloadConverter,
         indexedFields
       ) ?? {}
-    ).reduce<TypedSearchAttributePair[]>((acc, [k, v]) => {
+    ).reduce<SearchAttributePair[]>((acc, [k, attr]) => {
       // Filter out undefined values from converter.
-      if (!v) {
+      if (!attr) {
         return acc;
       }
-      const pair = TypedSearchAttributes.createAttribute(k, v[0], v[1]);
+      const key = { name: k, type: attr.type };
       // Ensure is valid pair.
-      if (isTypedSearchAttributePair(pair)) {
-        acc.push(pair);
+      if (isValidValueForType(key.type, attr.value)) {
+        acc.push({ key, value: attr.value } as SearchAttributePair);
       }
       return acc;
     }, [])

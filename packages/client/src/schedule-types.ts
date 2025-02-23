@@ -1,11 +1,5 @@
 import { checkExtends, Replace } from '@temporalio/common/lib/type-helpers';
-import {
-  Duration,
-  SearchAttributes,
-  Workflow,
-  TypedSearchAttributePair,
-  TypedSearchAttributes,
-} from '@temporalio/common';
+import { Duration, SearchAttributes, Workflow, TypedSearchAttributes, SearchAttributePair } from '@temporalio/common';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { temporal } from '@temporalio/proto';
 import { WorkflowStartOptions } from './workflow-options';
@@ -90,7 +84,7 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
    * If both {@link searchAttributes} and {@link typedSearchAttributes} are provided, conflicting keys will be overwritten
    * by {@link typedSearchAttributes}.
    */
-  typedSearchAttributes?: TypedSearchAttributePair[] | TypedSearchAttributes;
+  typedSearchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
 
   /**
    * The initial state of the schedule, right after creation or update.
@@ -147,7 +141,6 @@ export type CompiledScheduleOptions = Replace<
 /**
  * The specification of an updated Schedule, as expected by {@link ScheduleHandle.update}.
  */
-// TODO(thomas): support search attributes on update (ts issue #1475)
 export type ScheduleUpdateOptions<A extends ScheduleOptionsAction = ScheduleOptionsAction> = Replace<
   Omit<ScheduleOptions, 'scheduleId' | 'memo' | 'searchAttributes' | 'typedSearchAttributes'>,
   {
