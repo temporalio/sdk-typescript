@@ -437,14 +437,20 @@ export abstract class BaseVMWorkflow implements Workflow {
    * If called (by an external unhandledRejection handler), activations will fail with provided error.
    */
   public setUnhandledRejection(err: unknown): void {
+    if (this.activator) {
+      // This is very unlikely to make a difference, as unhandled rejections should be reported
+      // on the next macro task of the outer execution context (i.e. not inside the VM), at which
+      // point we are done handling the workflow activation anyway. But in case, setting this
+      this.activator.workflowTaskError = err;
+    }
     this.unhandledRejection = err;
   }
 
   /**
    * Call into the Workflow context to attempt to unblock any blocked conditions and microtasks.
    *
-   * This is performed in a loop allowing microtasks to be processed between
-   * each iteration until there are no more conditions to unblock.
+   * This is performed in a loop, going and out of the VM, allowing microtasks to be processed
+   * between each iteration of the outer loop, until there are no more conditions to unblock.
    */
   protected tryUnblockConditionsAndMicrotasks(): void {
     for (;;) {
