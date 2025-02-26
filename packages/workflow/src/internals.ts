@@ -999,7 +999,7 @@ export class Activator implements ActivationHandler {
     }
   }
 
-  recordWorkflowTaskError(error: unknown) {
+  recordWorkflowTaskError(error: unknown): void {
     // Only keep the first error that bubbles up; subsequent errors will be ignored.
     if (this.workflowTaskError === undefined) this.workflowTaskError = error;
 
@@ -1013,7 +1013,7 @@ export class Activator implements ActivationHandler {
    * If a Workflow Task error was captured, and we are running in synchronous mode,
    * then bubble it up now. This is safe to call even if there is no error to rethrow.
    */
-  maybeRethrowWorkflowTaskError() {
+  maybeRethrowWorkflowTaskError(): void {
     if (this.workflowTaskError) throw this.workflowTaskError;
   }
 
