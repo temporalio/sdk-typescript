@@ -303,8 +303,8 @@ test('upsert works with various search attribute mutations', async (t) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { typed_bool, ...untypedUpdateExpected } = untypedUpdateAttrs;
 
-    // Note: There is a discrepancy between workflow info and workflow exec description
-    // after upserts with untyped search attributes.
+    // Note: There is a discrepancy between typed search attributes in workflow info and workflow
+    // exec description after upserts with untyped search attributes.
     //
     // The upsert in this test is done through a signal, which serializes the upsert input.
     // The serialized input converts dates to their ISO string representation. When we read untyped

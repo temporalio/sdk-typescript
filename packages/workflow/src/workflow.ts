@@ -1404,7 +1404,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
       for (const pair of searchAttributes) {
         if (pair.value === null) {
           // If the value is null, remove the search attribute.
-          // We don't mutate the existing state (just the new map) so this should be safe.
+          // We don't mutate the existing state (just the new map) so this is safe.
           delete newSearchAttributes[pair.key.name];
         } else {
           newSearchAttributes[pair.key.name] = Array.isArray(pair.value)
