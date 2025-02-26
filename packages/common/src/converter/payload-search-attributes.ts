@@ -84,7 +84,9 @@ export class TypedSearchAttributePayloadConverter implements PayloadConverter {
   public toPayload<T>(attr: T): Payload {
     if (!(attr instanceof TypedSearchAttributeValue || attr instanceof TypedSearchAttributeUpdateValue)) {
       throw new ValueError(
-        `Expect input to be instance of TypedSearchAttributeValue or TypedSearchAttributeUpdateValue, got: ${JSON.stringify(attr)}`
+        `Expect input to be instance of TypedSearchAttributeValue or TypedSearchAttributeUpdateValue, got: ${JSON.stringify(
+          attr
+        )}`
       );
     }
 
