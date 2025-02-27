@@ -44,7 +44,7 @@ async function wrapWithSpan<T>(
     return ret;
   } catch (err: any) {
     if (acceptableErrors === undefined || !acceptableErrors(err)) {
-      span.setStatus({ code: otel.SpanStatusCode.ERROR });
+      span.setStatus({ code: otel.SpanStatusCode.ERROR, message: err instanceof Error ? err.message : String(err) });
       span.recordException(err);
     } else {
       span.setStatus({ code: otel.SpanStatusCode.OK });
