@@ -8,11 +8,13 @@ import { SpanStatusCode } from '@opentelemetry/api';
 import { ExportResultCode } from '@opentelemetry/core';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
+import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
+import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
@@ -412,5 +414,38 @@ if (RUN_INTEGRATION_TESTS) {
   test('Otel workflow module does not patch node window object', (t) => {
     // Importing the otel workflow modules above should patch globalThis
     t.falsy((globalThis as any).window);
+  });
+
+  test('instrumentation: Error status includes message and records exception', async (t) => {
+    const memoryExporter = new InMemorySpanExporter();
+    const provider = new BasicTracerProvider();
+    provider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
+    provider.register();
+    const tracer = provider.getTracer('test-error-tracer');
+
+    const errorMessage = 'Test error message';
+
+    await t.throwsAsync(
+      instrument({
+        tracer,
+        spanName: 'test-error-span',
+        fn: async () => {
+          throw new Error(errorMessage);
+        },
+      }),
+      { message: errorMessage }
+    );
+
+    const spans = memoryExporter.getFinishedSpans();
+    t.is(spans.length, 1);
+
+    const span = spans[0];
+
+    t.is(span.status.code, SpanStatusCode.ERROR);
+
+    t.is(span.status.message, errorMessage);
+
+    const exceptionEvents = span.events.filter((event) => event.name === 'exception');
+    t.is(exceptionEvents.length, 1);
   });
 }
