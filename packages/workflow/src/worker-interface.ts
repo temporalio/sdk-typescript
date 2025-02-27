@@ -37,54 +37,61 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
   // as well as Date and Math.random.
   setActivatorUntyped(activator);
 
-  // webpack alias to payloadConverterPath
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const customPayloadConverter = require('__temporal_custom_payload_converter').payloadConverter;
-  // The `payloadConverter` export is validated in the Worker
-  if (customPayloadConverter != null) {
-    activator.payloadConverter = customPayloadConverter;
-  }
-  // webpack alias to failureConverterPath
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const customFailureConverter = require('__temporal_custom_failure_converter').failureConverter;
-  // The `failureConverter` export is validated in the Worker
-  if (customFailureConverter != null) {
-    activator.failureConverter = customFailureConverter;
-  }
-
-  const { importWorkflows, importInterceptors } = global.__TEMPORAL__;
-  if (importWorkflows === undefined || importInterceptors === undefined) {
-    throw new IllegalStateError('Workflow bundle did not register import hooks');
-  }
-
-  const interceptors = importInterceptors();
-  for (const mod of interceptors) {
-    const factory: WorkflowInterceptorsFactory = mod.interceptors;
-    if (factory !== undefined) {
-      if (typeof factory !== 'function') {
-        throw new TypeError(`Failed to initialize workflows interceptors: expected a function, but got: '${factory}'`);
-      }
-      const interceptors = factory();
-      activator.interceptors.inbound.push(...(interceptors.inbound ?? []));
-      activator.interceptors.outbound.push(...(interceptors.outbound ?? []));
-      activator.interceptors.internals.push(...(interceptors.internals ?? []));
+  activator.rethrowSynchronously = true;
+  try {
+    // webpack alias to payloadConverterPath
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const customPayloadConverter = require('__temporal_custom_payload_converter').payloadConverter;
+    // The `payloadConverter` export is validated in the Worker
+    if (customPayloadConverter != null) {
+      activator.payloadConverter = customPayloadConverter;
     }
-  }
+    // webpack alias to failureConverterPath
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const customFailureConverter = require('__temporal_custom_failure_converter').failureConverter;
+    // The `failureConverter` export is validated in the Worker
+    if (customFailureConverter != null) {
+      activator.failureConverter = customFailureConverter;
+    }
 
-  const mod = importWorkflows();
-  const workflowFn = mod[activator.info.workflowType];
-  const defaultWorkflowFn = mod['default'];
+    const { importWorkflows, importInterceptors } = global.__TEMPORAL__;
+    if (importWorkflows === undefined || importInterceptors === undefined) {
+      throw new IllegalStateError('Workflow bundle did not register import hooks');
+    }
 
-  if (typeof workflowFn === 'function') {
-    activator.workflow = workflowFn;
-  } else if (typeof defaultWorkflowFn === 'function') {
-    activator.workflow = defaultWorkflowFn;
-  } else {
-    const details =
-      workflowFn === undefined
-        ? 'no such function is exported by the workflow bundle'
-        : `expected a function, but got: '${typeof workflowFn}'`;
-    throw new TypeError(`Failed to initialize workflow of type '${activator.info.workflowType}': ${details}`);
+    const interceptors = importInterceptors();
+    for (const mod of interceptors) {
+      const factory: WorkflowInterceptorsFactory = mod.interceptors;
+      if (factory !== undefined) {
+        if (typeof factory !== 'function') {
+          throw new TypeError(
+            `Failed to initialize workflows interceptors: expected a function, but got: '${factory}'`
+          );
+        }
+        const interceptors = factory();
+        activator.interceptors.inbound.push(...(interceptors.inbound ?? []));
+        activator.interceptors.outbound.push(...(interceptors.outbound ?? []));
+        activator.interceptors.internals.push(...(interceptors.internals ?? []));
+      }
+    }
+
+    const mod = importWorkflows();
+    const workflowFn = mod[activator.info.workflowType];
+    const defaultWorkflowFn = mod['default'];
+
+    if (typeof workflowFn === 'function') {
+      activator.workflow = workflowFn;
+    } else if (typeof defaultWorkflowFn === 'function') {
+      activator.workflow = defaultWorkflowFn;
+    } else {
+      const details =
+        workflowFn === undefined
+          ? 'no such function is exported by the workflow bundle'
+          : `expected a function, but got: '${typeof workflowFn}'`;
+      throw new TypeError(`Failed to initialize workflow of type '${activator.info.workflowType}': ${details}`);
+    }
+  } finally {
+    activator.rethrowSynchronously = false;
   }
 }
 
@@ -111,53 +118,70 @@ function fixPrototypes<X>(obj: X): X {
  * Initialize the workflow. Or to be exact, _complete_ initialization, as most part has been done in constructor).
  */
 export function initialize(initializeWorkflowJob: coresdk.workflow_activation.IInitializeWorkflow): void {
-  getActivator().initializeWorkflow(initializeWorkflowJob);
+  const activator = getActivator();
+  activator.rethrowSynchronously = true;
+  try {
+    activator.initializeWorkflow(initializeWorkflowJob);
+  } finally {
+    activator.rethrowSynchronously = false;
+  }
 }
 
 /**
- * Run a chunk of activation jobs
+ * Run a chunk of activation jobs.
+ *
+ * Notice that this function is not async and runs _inside_ the VM context. Therefore, no microtask
+ * will get executed _while_ this function is active; they will however get executed _after_ this
+ * function returns (i.e. all outstanding microtasks in the VM will get executed before execution
+ * resumes out of the VM, in `vm-shared.ts:activate()`).
  */
 export function activate(activation: coresdk.workflow_activation.IWorkflowActivation, batchIndex = 0): void {
   const activator = getActivator();
-  const intercept = composeInterceptors(activator.interceptors.internals, 'activate', ({ activation }) => {
-    // Cast from the interface to the class which has the `variant` attribute.
-    // This is safe because we know that activation is a proto class.
-    const jobs = activation.jobs as coresdk.workflow_activation.WorkflowActivationJob[];
+  activator.rethrowSynchronously = true;
+  try {
+    const intercept = composeInterceptors(activator.interceptors.internals, 'activate', ({ activation }) => {
+      // Cast from the interface to the class which has the `variant` attribute.
+      // This is safe because we know that activation is a proto class.
+      const jobs = activation.jobs as coresdk.workflow_activation.WorkflowActivationJob[];
 
-    // Initialization will have been handled already, but we might still need to start the workflow function
-    const startWorkflowJob = jobs[0].variant === 'initializeWorkflow' ? jobs.shift()?.initializeWorkflow : undefined;
+      // Initialization will have been handled already, but we might still need to start the workflow function
+      const startWorkflowJob = jobs[0].variant === 'initializeWorkflow' ? jobs.shift()?.initializeWorkflow : undefined;
 
-    for (const job of jobs) {
-      if (job.variant === undefined) throw new TypeError('Expected job.variant to be defined');
+      for (const job of jobs) {
+        if (job.variant === undefined) throw new TypeError('Expected job.variant to be defined');
 
-      const variant = job[job.variant];
-      if (!variant) throw new TypeError(`Expected job.${job.variant} to be set`);
+        const variant = job[job.variant];
+        if (!variant) throw new TypeError(`Expected job.${job.variant} to be set`);
 
-      activator[job.variant](variant as any /* TS can't infer this type */);
+        activator[job.variant](variant as any /* TS can't infer this type */);
 
-      if (job.variant !== 'queryWorkflow') tryUnblockConditions();
-    }
-
-    if (startWorkflowJob) {
-      const safeJobTypes: coresdk.workflow_activation.WorkflowActivationJob['variant'][] = [
-        'initializeWorkflow',
-        'signalWorkflow',
-        'doUpdate',
-        'cancelWorkflow',
-        'updateRandomSeed',
-      ];
-      if (jobs.some((job) => !safeJobTypes.includes(job.variant))) {
-        throw new TypeError(
-          'Received both initializeWorkflow and non-signal/non-update jobs in the same activation: ' +
-            JSON.stringify(jobs.map((job) => job.variant))
-        );
+        if (job.variant !== 'queryWorkflow') tryUnblockConditions();
       }
 
-      activator.startWorkflow(startWorkflowJob);
-      tryUnblockConditions();
-    }
-  });
-  intercept({ activation, batchIndex });
+      if (startWorkflowJob) {
+        const safeJobTypes: coresdk.workflow_activation.WorkflowActivationJob['variant'][] = [
+          'initializeWorkflow',
+          'signalWorkflow',
+          'doUpdate',
+          'cancelWorkflow',
+          'updateRandomSeed',
+        ];
+        if (jobs.some((job) => !safeJobTypes.includes(job.variant))) {
+          throw new TypeError(
+            'Received both initializeWorkflow and non-signal/non-update jobs in the same activation: ' +
+              JSON.stringify(jobs.map((job) => job.variant))
+          );
+        }
+
+        activator.startWorkflow(startWorkflowJob);
+
+        tryUnblockConditions();
+      }
+    });
+    intercept({ activation, batchIndex });
+  } finally {
+    activator.rethrowSynchronously = false;
+  }
 }
 
 /**
@@ -168,18 +192,22 @@ export function activate(activation: coresdk.workflow_activation.IWorkflowActiva
  */
 export function concludeActivation(): coresdk.workflow_completion.IWorkflowActivationCompletion {
   const activator = getActivator();
-  activator.rejectBufferedUpdates();
-  const intercept = composeInterceptors(activator.interceptors.internals, 'concludeActivation', (input) => input);
-  const activationCompletion = activator.concludeActivation();
-  const { commands } = intercept({ commands: activationCompletion.commands });
-  if (activator.completed) {
-    activator.warnIfUnfinishedHandlers();
+  activator.rethrowSynchronously = true;
+  try {
+    activator.rejectBufferedUpdates();
+    const intercept = composeInterceptors(activator.interceptors.internals, 'concludeActivation', (input) => input);
+    const activationCompletion = activator.concludeActivation();
+    const { commands } = intercept({ commands: activationCompletion.commands });
+    if (activator.completed) {
+      activator.warnIfUnfinishedHandlers();
+    }
+    return {
+      runId: activator.info.runId,
+      successful: { ...activationCompletion, commands },
+    };
+  } finally {
+    activator.rethrowSynchronously = false;
   }
-
-  return {
-    runId: activator.info.runId,
-    successful: { ...activationCompletion, commands },
-  };
 }
 
 /**
@@ -188,28 +216,41 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
  * @returns number of unblocked conditions.
  */
 export function tryUnblockConditions(): number {
-  let numUnblocked = 0;
-  for (;;) {
-    const prevUnblocked = numUnblocked;
-    for (const [seq, cond] of getActivator().blockedConditions.entries()) {
-      if (cond.fn()) {
-        cond.resolve();
-        numUnblocked++;
-        // It is safe to delete elements during map iteration
-        getActivator().blockedConditions.delete(seq);
+  const activator = getActivator();
+  activator.rethrowSynchronously = true;
+  try {
+    let numUnblocked = 0;
+    for (;;) {
+      activator.maybeRethrowWorkflowTaskError();
+      const prevUnblocked = numUnblocked;
+      for (const [seq, cond] of activator.blockedConditions.entries()) {
+        if (cond.fn()) {
+          cond.resolve();
+          numUnblocked++;
+          // It is safe to delete elements during map iteration
+          activator.blockedConditions.delete(seq);
+        }
+      }
+      if (prevUnblocked === numUnblocked) {
+        break;
       }
     }
-    if (prevUnblocked === numUnblocked) {
-      break;
-    }
+    return numUnblocked;
+  } finally {
+    activator.rethrowSynchronously = false;
   }
-  return numUnblocked;
 }
 
 export function dispose(): void {
-  const dispose = composeInterceptors(getActivator().interceptors.internals, 'dispose', async () => {
-    disableStorage();
-    disableUpdateStorage();
-  });
-  dispose({});
+  const activator = getActivator();
+  activator.rethrowSynchronously = true;
+  try {
+    const dispose = composeInterceptors(activator.interceptors.internals, 'dispose', async () => {
+      disableStorage();
+      disableUpdateStorage();
+    });
+    dispose({});
+  } finally {
+    activator.rethrowSynchronously = false;
+  }
 }
