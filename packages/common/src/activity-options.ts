@@ -119,7 +119,7 @@ export interface ActivityOptions {
    *
    * @default 'COMPATIBLE'
    *
-   * @experimental
+   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
   versioningIntent?: VersioningIntent;
 }

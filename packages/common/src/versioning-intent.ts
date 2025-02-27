@@ -11,6 +11,6 @@
  * current worker. The default behavior for starting Workflows is `DEFAULT`. The default behavior for Workflows starting
  * Activities, starting Child Workflows, or Continuing As New is `COMPATIBLE`.
  *
- * @experimental
+ * @experimental The Worker Versioning API is still being designed. Major changes are expected.
  */
 export type VersioningIntent = 'COMPATIBLE' | 'DEFAULT';

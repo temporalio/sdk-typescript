@@ -6,7 +6,8 @@ import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
 import { Context } from '@temporalio/activity';
-import { WorkerTuner as NativeWorkerTuner } from '@temporalio/core-bridge';
+import { checkExtends } from '@temporalio/common/lib/type-helpers';
+import { WorkerOptions as NativeWorkerOptions, WorkerTuner as NativeWorkerTuner } from '@temporalio/core-bridge';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
@@ -97,7 +98,7 @@ export interface WorkerOptions {
    *
    * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
    *
-   * @experimental
+   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
   buildId?: string;
 
@@ -108,7 +109,7 @@ export interface WorkerOptions {
    *
    * For more information, see https://docs.temporal.io/workers#worker-versioning
    *
-   * @experimental
+   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
   useVersioning?: boolean;
 
@@ -193,7 +194,7 @@ export interface WorkerOptions {
    * Mutually exclusive with the {@link maxConcurrentWorkflowTaskExecutions}, {@link
    * maxConcurrentActivityTaskExecutions}, and {@link maxConcurrentLocalActivityExecutions} options.
    *
-   * @experimental
+   * @experimental Worker Tuner is an experimental feature and may be subject to change.
    */
   tuner?: WorkerTuner;
 
@@ -290,9 +291,6 @@ export interface WorkerOptions {
    * minimum for either poller is 1, so if `maxConcurrentWorkflowTaskPolls` is 1 and sticky queues are
    * enabled, there will be 2 concurrent polls.
    *
-   * ⚠️ This API is experimental and may be removed in the future if the poll scaling algorithm changes.
-   *
-   * @experimental This API is experimental and may be removed in the future if the poll scaling algorithm changes.
    * @default 0.2
    */
   nonStickyToStickyPollRatio?: number;
@@ -583,7 +581,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
  * formatted strings to numbers.
  */
 export interface CompiledWorkerOptions
-  extends Omit<WorkerOptionsWithDefaults, 'serverOptions' | 'interceptors' | 'activities' | 'tuner'> {
+  extends Omit<WorkerOptionsWithDefaults, 'interceptors' | 'activities' | 'tuner'> {
   interceptors: CompiledWorkerInterceptors;
   shutdownGraceTimeMs: number;
   shutdownForceTimeMs?: number;
@@ -595,6 +593,12 @@ export interface CompiledWorkerOptions
   activities: Map<string, ActivityFunction>;
   tuner: NativeWorkerTuner;
 }
+
+export type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
+  buildId: string;
+};
+
+checkExtends<NativeWorkerOptions, CompiledWorkerOptionsWithBuildId>();
 
 /**
  * {@link WorkerOptions} with inapplicable-to-replay fields removed.
