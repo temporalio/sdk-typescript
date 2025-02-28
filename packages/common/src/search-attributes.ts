@@ -103,6 +103,7 @@ class BaseSearchAttributeValue<T extends SearchAttributeType, V = IndexedValueTy
 // Internal type for class private data.
 // Exported for use in payload conversion.
 export class TypedSearchAttributeValue<T extends SearchAttributeType> extends BaseSearchAttributeValue<T> {}
+// ts-prune-ignore-next
 export class TypedSearchAttributeUpdateValue<T extends SearchAttributeType> extends BaseSearchAttributeValue<
   T,
   IndexedValueTypeMapping[T] | null
