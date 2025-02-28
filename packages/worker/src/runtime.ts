@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { native } from '@temporalio/core-bridge';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
-import { IllegalStateError, Logger, SdkComponent } from '@temporalio/common';
+import { IllegalStateError, Logger, MetricMeter, noopMetricMeter, SdkComponent } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { isFlushableLogger } from './logger';
@@ -31,6 +31,9 @@ export class Runtime {
   protected readonly shutdownSignalCallbacks = new Set<() => void>();
   protected state: 'RUNNING' | 'SHUTTING_DOWN' = 'RUNNING';
 
+  /** The metric meter associated with this runtime. */
+  public readonly metricMeter: MetricMeter;
+
   static _instance?: Runtime;
   static instantiator?: 'install' | 'instance';
 
@@ -45,6 +48,10 @@ export class Runtime {
     public readonly options: CompiledRuntimeOptions
   ) {
     this.logger = options.logger;
+
+    // FIXME: Add RuntimeMetricMeter
+    this.metricMeter = noopMetricMeter;
+
     this.checkHeapSizeLimit();
     this.setupShutdownHook();
   }

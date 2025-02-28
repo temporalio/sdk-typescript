@@ -165,7 +165,7 @@ export class Worker extends RealWorker {
       taskQueue: opts.taskQueue,
     });
     const nativeWorker = new MockNativeWorker();
-    super(runtime, nativeWorker, workflowCreator, opts, logger);
+    super(runtime, nativeWorker, workflowCreator, opts, logger, runtime.metricMeter);
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
@@ -194,6 +194,6 @@ export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Work
         /* Nothing to destroy */
       },
     },
-    compileWorkerOptions(options, logger)
+    compileWorkerOptions(options, logger, Runtime.instance().metricMeter)
   );
 }

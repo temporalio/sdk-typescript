@@ -8,6 +8,7 @@ import {
   FAILURE_SOURCE,
   IllegalStateError,
   LoadedDataConverter,
+  MetricMeter,
   SdkComponent,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
@@ -52,6 +53,7 @@ export class Activity {
     public readonly dataConverter: LoadedDataConverter,
     public readonly heartbeatCallback: Context['heartbeat'],
     workerLogger: Logger,
+    workerMetricMeter: MetricMeter,
     interceptors: ActivityInterceptorsFactory[]
   ) {
     this.workerLogger = withMetadata(workerLogger, () => this.getLogAttributes());

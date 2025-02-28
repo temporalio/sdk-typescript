@@ -7,6 +7,8 @@ import {
   SdkComponent,
   defaultFailureConverter,
   defaultPayloadConverter,
+  MetricMeter,
+  noopMetricMeter,
 } from '@temporalio/common';
 import { ActivityInterceptorsFactory, DefaultLogger } from '@temporalio/worker';
 import { withMetadata } from '@temporalio/worker/lib/logger';
@@ -15,6 +17,7 @@ import { Activity } from '@temporalio/worker/lib/activity';
 export interface MockActivityEnvironmentOptions {
   interceptors?: ActivityInterceptorsFactory[];
   logger?: Logger;
+  metricMeter?: MetricMeter;
 }
 
 /**
@@ -45,6 +48,7 @@ export class MockActivityEnvironment extends events.EventEmitter {
       loadedDataConverter,
       heartbeatCallback,
       withMetadata(opts?.logger ?? new DefaultLogger(), { sdkComponent: SdkComponent.worker }),
+      opts?.metricMeter ?? noopMetricMeter,
       opts?.interceptors ?? []
     );
     this.context = this.activity.context;
