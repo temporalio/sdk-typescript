@@ -102,11 +102,14 @@ export class Activity {
   }
 
   protected getMetricTags(): MetricTags {
-    return {
+    const baseTags = {
       namespace: this.info.workflowNamespace,
       taskQueue: this.info.taskQueue,
       activityType: this.info.activityType,
     };
+    // In case some interceptor uses the metric meter while initializing...
+    if (this.interceptors == null) return baseTags;
+    return composeInterceptors(this.interceptors.outbound, 'getMetricsTags', (a) => a)(baseTags);
   }
 
   /**
