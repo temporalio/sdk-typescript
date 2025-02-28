@@ -9,6 +9,7 @@ import {
   IllegalStateError,
   LoadedDataConverter,
   MetricMeter,
+  MetricTags,
   SdkComponent,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
@@ -21,7 +22,8 @@ import {
   ActivityInterceptorsFactory,
   ActivityOutboundCallsInterceptor,
 } from './interceptors';
-import { Logger, withMetadata } from './logger';
+import { Logger, LoggerWithComposedMetadata } from './logger';
+import { MetricsMeterWithComposedTags } from './metrics';
 
 const UNINITIALIZED = Symbol('UNINITIALIZED');
 
@@ -61,13 +63,8 @@ export class Activity {
     workerMetricMeter: MetricMeter,
     interceptors: ActivityInterceptorsFactory[]
   ) {
-    this.workerLogger = withMetadata(workerLogger, () => this.getLogAttributes());
-    // FIXME: Call getTags interceptor dynamically
-    this.metricMeter = workerMetricMeter.withTags({
-      namespace: this.info.workflowNamespace,
-      taskQueue: this.info.taskQueue,
-      activityType: this.info.activityType,
-    });
+    this.workerLogger = LoggerWithComposedMetadata.compose(workerLogger, this.getLogAttributes.bind(this));
+    this.metricMeter = MetricsMeterWithComposedTags.compose(workerMetricMeter, this.getMetricTags.bind(this));
 
     const promise = new Promise<never>((_, reject) => {
       this.cancel = (reason: CancelReason) => {
@@ -83,7 +80,7 @@ export class Activity {
       this.abortController.signal,
       this.heartbeatCallback,
       // This is the activity context logger
-      withMetadata(this.workerLogger, { sdkComponent: SdkComponent.activity }),
+      LoggerWithComposedMetadata.compose(this.workerLogger, { sdkComponent: SdkComponent.activity }),
       this.metricMeter
     );
     // Prevent unhandled rejection
@@ -102,6 +99,14 @@ export class Activity {
     // In case some interceptor uses the logger while initializing...
     if (this.interceptors == null) return logAttributes;
     return composeInterceptors(this.interceptors.outbound, 'getLogAttributes', (a) => a)(logAttributes);
+  }
+
+  protected getMetricTags(): MetricTags {
+    return {
+      namespace: this.info.workflowNamespace,
+      taskQueue: this.info.taskQueue,
+      activityType: this.info.activityType,
+    };
   }
 
   /**

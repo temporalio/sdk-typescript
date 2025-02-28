@@ -1,4 +1,4 @@
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { AsyncCompletionClient } from './async-completion-client';
 import { BaseClient, BaseClientOptions, defaultBaseClientOptions, LoadedWithDefaults } from './base-client';
 import { ClientInterceptors } from './interceptors';

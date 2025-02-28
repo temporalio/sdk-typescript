@@ -11,7 +11,7 @@ import {
   noopMetricMeter,
 } from '@temporalio/common';
 import { ActivityInterceptorsFactory, DefaultLogger } from '@temporalio/worker';
-import { withMetadata } from '@temporalio/worker/lib/logger';
+import { LoggerWithComposedMetadata } from '@temporalio/worker/lib/logger';
 import { Activity } from '@temporalio/worker/lib/activity';
 
 export interface MockActivityEnvironmentOptions {
@@ -47,7 +47,7 @@ export class MockActivityEnvironment extends events.EventEmitter {
       undefined,
       loadedDataConverter,
       heartbeatCallback,
-      withMetadata(opts?.logger ?? new DefaultLogger(), { sdkComponent: SdkComponent.worker }),
+      LoggerWithComposedMetadata.compose(opts?.logger ?? new DefaultLogger(), { sdkComponent: SdkComponent.worker }),
       opts?.metricMeter ?? noopMetricMeter,
       opts?.interceptors ?? []
     );

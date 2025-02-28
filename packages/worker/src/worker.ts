@@ -59,7 +59,7 @@ import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
-import { Logger, withMetadata } from './logger';
+import { Logger, LoggerWithComposedMetadata } from './logger';
 import pkg from './pkg';
 import {
   EvictionReason,
@@ -455,7 +455,7 @@ export class Worker {
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
     const runtime = Runtime.instance();
-    const logger = withMetadata(runtime.logger, {
+    const logger = LoggerWithComposedMetadata.compose(runtime.logger, {
       sdkComponent: SdkComponent.worker,
       taskQueue: options.taskQueue ?? 'default',
     });
@@ -655,7 +655,7 @@ export class Worker {
     };
     this.replayWorkerCount++;
     const runtime = Runtime.instance();
-    const logger = withMetadata(runtime.logger, {
+    const logger = LoggerWithComposedMetadata.compose(runtime.logger, {
       sdkComponent: 'worker',
       taskQueue: fixedUpOptions.taskQueue,
     });

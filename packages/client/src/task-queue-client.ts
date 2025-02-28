@@ -1,7 +1,6 @@
 import { status } from '@grpc/grpc-js';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
 import { assertNever, SymbolBasedInstanceOfError, RequireAtLeastOne } from '@temporalio/common/lib/type-helpers';
-import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
+import { filterNullAndUndefined, makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import { BaseClient, BaseClientOptions, defaultBaseClientOptions, LoadedWithDefaults } from './base-client';
 import { WorkflowService } from './types';

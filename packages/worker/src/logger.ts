@@ -2,6 +2,7 @@ import { formatWithOptions } from 'node:util';
 import * as supportsColor from 'supports-color';
 import { native } from '@temporalio/core-bridge';
 import { LogLevel, LogMetadata, Logger } from '@temporalio/common';
+import { mergeObjects, filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 
 /** @deprecated Import from @temporalio/common instead */
 export { LogLevel, LogMetadata, Logger };
@@ -60,6 +61,14 @@ function defaultLogFunction(entry: LogEntry): void {
   }
 }
 
+export interface FlushableLogger extends Logger {
+  flush(): void;
+}
+
+export function isFlushableLogger(logger: Logger): logger is FlushableLogger {
+  return 'flush' in logger && typeof logger.flush === 'function';
+}
+
 /**
  * Default worker logger - uses a default log function to log messages to `console.error`.
  * See constructor arguments for customization.
@@ -116,76 +125,98 @@ export function hasColorSupport(logger: Logger): boolean {
   return (logger as LoggerWithColorSupport)[loggerHasColorsSymbol] ?? false;
 }
 
-export function withMetadata(logger: Logger, meta: LogMetadata | (() => LogMetadata)): Logger {
-  return new LoggerWithMetadata(logger, meta);
-}
+export type LogMetaOrFunc = LogMetadata | (() => LogMetadata);
 
-class LoggerWithMetadata implements Logger {
-  private parentLogger: Logger;
-  private metaChain: (LogMetadata | (() => LogMetadata))[];
-
-  constructor(parent: Logger, meta: LogMetadata | (() => LogMetadata)) {
-    // Flatten recusive LoggerWithMetadata instances
-    if (parent instanceof LoggerWithMetadata) {
-      this.parentLogger = parent.parentLogger;
-      this.metaChain = LoggerWithMetadata.appendToChain(parent.metaChain, meta);
-    } else {
-      this.parentLogger = parent;
-      this.metaChain = [meta];
-    }
-    (this as LoggerWithColorSupport)[loggerHasColorsSymbol] = hasColorSupport(parent);
-  }
-
-  log(level: LogLevel, message: string, meta?: LogMetadata): void {
-    this.parentLogger.log(level, message, this.resolveMetadata(meta));
-  }
-
-  trace(message: string, meta?: LogMetadata): void {
-    this.parentLogger.trace(message, this.resolveMetadata(meta));
-  }
-
-  debug(message: string, meta?: LogMetadata): void {
-    this.parentLogger.debug(message, this.resolveMetadata(meta));
-  }
-
-  info(message: string, meta?: LogMetadata): void {
-    this.parentLogger.info(message, this.resolveMetadata(meta));
-  }
-
-  warn(message: string, meta?: LogMetadata): void {
-    this.parentLogger.warn(message, this.resolveMetadata(meta));
-  }
-
-  error(message: string, meta?: LogMetadata): void {
-    this.parentLogger.error(message, this.resolveMetadata(meta));
-  }
-
-  private resolveMetadata(meta?: LogMetadata): LogMetadata {
-    const resolved = {};
-    for (const contributor of this.metaChain) {
-      Object.assign(resolved, typeof contributor === 'function' ? contributor() : contributor);
-    }
-    Object.assign(resolved, meta);
-    return resolved;
-  }
-
+export class LoggerWithComposedMetadata implements Logger {
   /**
-   * Append a metadata contributor to the chain, merging it with the former last contributor if both are plain objects
+   * Return a Logger that adds metadata before delegating calls to a parent logger.
+   *
+   * New logs may either be specified statically as a delta object, or as a function
+   * evaluated every time a log is emitted that will return a delta object.
+   *
+   * Performs various optimizations to avoid creating unnecessary objects and to
+   * keep runtime overhead associated with resolving metadata as low as possible.
    */
-  private static appendToChain(chain: (LogMetadata | (() => LogMetadata))[], meta: LogMetadata | (() => LogMetadata)) {
-    if (chain.length === 0) return [meta];
-    const last = chain[chain.length - 1];
-    if (typeof last === 'object' && typeof meta === 'object') {
-      return [...chain.slice(0, -1), { ...last, ...meta }];
+  public static compose(logger: Logger, metaOrFunc: LogMetaOrFunc): Logger {
+    // Flatten recusive LoggerWithComposedMetadata instances
+    if (logger instanceof LoggerWithComposedMetadata) {
+      const contributors = appendToChain(logger.contributors, metaOrFunc);
+      // If the new contributor results in no actual change to the chain, then we don't need a new logger
+      if (contributors === undefined) return logger;
+      return new LoggerWithComposedMetadata(logger.parentLogger, contributors);
+    } else {
+      const contributors = appendToChain(undefined, metaOrFunc);
+      if (contributors === undefined) return logger;
+      return new LoggerWithComposedMetadata(logger, contributors);
     }
-    return [...chain, meta];
+  }
+
+  constructor(
+    private readonly parentLogger: Logger,
+    private readonly contributors: LogMetaOrFunc[]
+  ) {
+    (this as LoggerWithColorSupport)[loggerHasColorsSymbol] = hasColorSupport(parentLogger);
+  }
+
+  log(level: LogLevel, message: string, extraMeta?: LogMetadata): void {
+    this.parentLogger.log(level, message, resolveMetadata(this.contributors, extraMeta));
+  }
+
+  trace(message: string, extraMeta?: LogMetadata): void {
+    this.parentLogger.trace(message, resolveMetadata(this.contributors, extraMeta));
+  }
+
+  debug(message: string, extraMeta?: LogMetadata): void {
+    this.parentLogger.debug(message, resolveMetadata(this.contributors, extraMeta));
+  }
+
+  info(message: string, extraMeta?: LogMetadata): void {
+    this.parentLogger.info(message, resolveMetadata(this.contributors, extraMeta));
+  }
+
+  warn(message: string, extraMeta?: LogMetadata): void {
+    this.parentLogger.warn(message, resolveMetadata(this.contributors, extraMeta));
+  }
+
+  error(message: string, extraMeta?: LogMetadata): void {
+    this.parentLogger.error(message, resolveMetadata(this.contributors, extraMeta));
   }
 }
 
-export interface FlushableLogger extends Logger {
-  flush(): void;
+function resolveMetadata(contributors: LogMetaOrFunc[], extraMeta?: LogMetadata): LogMetadata {
+  const resolved = {};
+  for (const contributor of contributors) {
+    Object.assign(resolved, typeof contributor === 'function' ? contributor() : contributor);
+  }
+  Object.assign(resolved, extraMeta);
+  return filterNullAndUndefined(resolved);
 }
 
-export function isFlushableLogger(logger: Logger): logger is FlushableLogger {
-  return 'flush' in logger && typeof logger.flush === 'function';
+/**
+ * Append a metadata contributor to the chain, merging it with the former last contributor if both are plain objects
+ */
+function appendToChain(
+  existingContributors: LogMetaOrFunc[] | undefined,
+  newContributor: LogMetaOrFunc
+): LogMetaOrFunc[] | undefined {
+  // If the new contributor is an empty object, then it results in no actual change to the chain
+  if (typeof newContributor === 'object' && Object.keys(newContributor).length === 0) {
+    return existingContributors;
+  }
+
+  // If existing chain is empty, then the new contributor is the chain
+  if (existingContributors == null || existingContributors.length === 0) {
+    return [newContributor];
+  }
+
+  // If both last contributor and new contributor are plain objects, merge them to a single object.
+  const last = existingContributors[existingContributors.length - 1];
+  if (typeof last === 'object' && typeof newContributor === 'object') {
+    const merged = mergeObjects(last, newContributor);
+    if (merged === last) return existingContributors;
+    return [...existingContributors.slice(0, -1), merged];
+  }
+
+  // Otherwise, just append the new contributor to the chain.
+  return [...existingContributors, newContributor];
 }
