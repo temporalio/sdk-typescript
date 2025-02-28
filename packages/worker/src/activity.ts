@@ -47,6 +47,11 @@ export class Activity {
    */
   private readonly workerLogger;
 
+  /**
+   * Metric Meter with tags from this activity, including tags from interceptors.
+   */
+  private readonly metricMeter;
+
   constructor(
     public readonly info: Info,
     public readonly fn: ActivityFunction<any[], any> | undefined,
@@ -57,6 +62,13 @@ export class Activity {
     interceptors: ActivityInterceptorsFactory[]
   ) {
     this.workerLogger = withMetadata(workerLogger, () => this.getLogAttributes());
+    // FIXME: Call getTags interceptor dynamically
+    this.metricMeter = workerMetricMeter.withTags({
+      namespace: this.info.workflowNamespace,
+      taskQueue: this.info.taskQueue,
+      activityType: this.info.activityType,
+    });
+
     const promise = new Promise<never>((_, reject) => {
       this.cancel = (reason: CancelReason) => {
         this.cancelReason = reason;
@@ -71,7 +83,8 @@ export class Activity {
       this.abortController.signal,
       this.heartbeatCallback,
       // This is the activity context logger
-      withMetadata(this.workerLogger, { sdkComponent: SdkComponent.activity })
+      withMetadata(this.workerLogger, { sdkComponent: SdkComponent.activity }),
+      this.metricMeter
     );
     // Prevent unhandled rejection
     promise.catch(() => undefined);
