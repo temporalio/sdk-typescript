@@ -50,7 +50,7 @@ export interface WorkflowInfo {
    *
    * This value may change during the lifetime of an Execution.
    */
-  readonly typedSearchAttributes: SearchAttributePair[];
+  readonly typedSearchAttributes: TypedSearchAttributes;
 
   /**
    * Non-indexed information attached to the Workflow Execution

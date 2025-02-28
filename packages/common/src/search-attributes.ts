@@ -78,8 +78,8 @@ export function isValidValueForType<T extends SearchAttributeType>(
 }
 
 export interface SearchAttributeKey<T extends SearchAttributeType> {
-  readonly name: string;
-  readonly type: T;
+  name: string;
+  type: T;
 }
 
 class BaseSearchAttributeValue<T extends SearchAttributeType, V = IndexedValueTypeMapping[T]> {
@@ -183,7 +183,11 @@ export class TypedSearchAttributes {
     for (const pair of updates) {
       // Delete attribute.
       if (pair.value === null) {
-        delete this.searchAttributes[pair.key.name];
+        // Delete only if the update matches a key and type.
+        const attrVal = this.searchAttributes[pair.key.name];
+        if (attrVal && attrVal.type === pair.key.type) {
+          delete this.searchAttributes[pair.key.name];
+        }
         continue;
       }
       // Add or update attribute.
@@ -207,7 +211,7 @@ export class TypedSearchAttributes {
     key: string,
     value: SearchAttributeValueOrReadonly
   ): SearchAttributeKey<SearchAttributeType> | undefined {
-    if (!value) {
+    if (value == null) {
       return;
     }
 
@@ -215,6 +219,10 @@ export class TypedSearchAttributes {
     const val = value.length === 1 ? value[0] : value;
     switch (typeof val) {
       case 'string':
+        // Check if val is an ISO string, if so, return a DATETIME key.
+        if (!isNaN(Date.parse(val)) && Date.parse(val) === new Date(val).getTime()) {
+          return { name: key, type: SearchAttributeType.DATETIME };
+        }
         return { name: key, type: SearchAttributeType.TEXT };
       case 'number':
         return {

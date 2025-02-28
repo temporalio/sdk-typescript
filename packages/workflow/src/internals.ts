@@ -480,7 +480,7 @@ export class Activator implements ActivationHandler {
       ...info,
 
       searchAttributes: decodeSearchAttributes(searchAttributes?.indexedFields),
-      typedSearchAttributes: decodeTypedSearchAttributes(searchAttributes?.indexedFields).getAll(),
+      typedSearchAttributes: decodeTypedSearchAttributes(searchAttributes?.indexedFields),
 
       memo: mapFromPayloads(this.payloadConverter, memo?.fields),
       lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads),

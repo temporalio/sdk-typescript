@@ -168,7 +168,9 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: [{ key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 }],
+        typedSearchAttributes: new TypedSearchAttributes([
+          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
+        ]),
       },
     });
 
@@ -213,7 +215,9 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: [{ key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 }],
+        typedSearchAttributes: new TypedSearchAttributes([
+          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
+        ]),
       },
     });
 
@@ -345,7 +349,9 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: [{ key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 }],
+        typedSearchAttributes: new TypedSearchAttributes([
+          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
+        ]),
       },
     });
 
@@ -590,7 +596,9 @@ if (RUN_INTEGRATION_TESTS) {
             taskQueue,
           },
           searchAttributes,
-          typedSearchAttributes: [{ key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 }],
+          typedSearchAttributes: new TypedSearchAttributes([
+            { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
+          ]),
         })
       );
     }

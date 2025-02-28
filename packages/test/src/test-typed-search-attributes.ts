@@ -303,31 +303,13 @@ test('upsert works with various search attribute mutations', async (t) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { typed_bool, ...untypedUpdateExpected } = untypedUpdateAttrs;
 
-    // Note: There is a discrepancy between typed search attributes in workflow info and workflow
-    // exec description after upserts with untyped search attributes.
-    //
-    // The upsert in this test is done through a signal, which serializes the upsert input.
-    // The serialized input converts dates to their ISO string representation. When we read untyped
-    // seralized search attributes in upsert, we try to infer their key type based on the value.
-    // By default, untyped string values are identified as TEXT type. As a result, serialized date strings
-    // become TEXT type and attributes that may have been KEYWORD type are also inferred as TEXT type.
-    //
-    // When we read the search attributes from the workflow info, we expect to see these type conversions
-    // in the typed search attributes.
-    //
-    // This does not happen with workflow exec description. It's unclear to me why this happens, given that
-    // the same upsert logic applies. The only difference being that we decode search attributes from server
-    // for the workflow exec description.
-
     assertWorkflowInfoSearchAttributes(t, res, untypedUpdateExpected, [
       { key: { name: 'typed_text', type: SearchAttributeType.TEXT }, value: 'new_value' },
-      // Note that 'typed_keyword' is updated as type TEXT, as its inferred from the untyped input.
-      { key: { name: 'typed_keyword', type: SearchAttributeType.TEXT }, value: 'new_keyword' },
+      { key: { name: 'typed_keyword', type: SearchAttributeType.KEYWORD }, value: 'new_keyword' },
       { key: { name: 'typed_int', type: SearchAttributeType.INT }, value: 2 },
       { key: { name: 'typed_double', type: SearchAttributeType.DOUBLE }, value: 2.34 },
       { key: { name: 'typed_keyword_list', type: SearchAttributeType.KEYWORD_LIST }, value: ['three', 'four', 'five'] },
-      // Note: 'typed_datetime' becomes a 'TEXT' string when serialized by the signal.
-      { key: { name: 'typed_datetime', type: SearchAttributeType.TEXT }, value: secondDate.toISOString() },
+      { key: { name: 'typed_datetime', type: SearchAttributeType.DATETIME }, value: secondDate },
     ]);
 
     assertWorkflowDescSearchAttributes(t, desc, untypedUpdateExpected, [
@@ -371,8 +353,8 @@ test('upsert works with various search attribute mutations', async (t) => {
       { key: { name: 'typed_double', type: SearchAttributeType.DOUBLE }, value: 3.45 },
       { key: { name: 'typed_keyword_list', type: SearchAttributeType.KEYWORD_LIST }, value: ['six', 'seven'] },
       { key: { name: 'typed_bool', type: SearchAttributeType.BOOL }, value: false },
-      { key: { name: 'typed_keyword', type: SearchAttributeType.TEXT }, value: 'new_keyword' },
-      { key: { name: 'typed_datetime', type: SearchAttributeType.TEXT }, value: secondDate.toISOString() },
+      { key: { name: 'typed_keyword', type: SearchAttributeType.KEYWORD }, value: 'new_keyword' },
+      { key: { name: 'typed_datetime', type: SearchAttributeType.DATETIME }, value: secondDate },
     ];
 
     const expectedDescTyped = [
@@ -400,7 +382,9 @@ function assertWorkflowInfoSearchAttributes(
   // Check initial search attributes are present.
   // Response from query serializes datetime attributes to strings so we serialize our expected responses.
   t.deepEqual(res.searchAttributes, normalizeSearchAttrs(searchAttributes));
-  assertMatchingSearchAttributePairs(t, res.typedSearchAttributes, searchAttrPairs);
+  // This casting is necessary because res.typedSearchAttributes has actually been serialized by its toJSON method
+  // (returning an array of SearchAttributePair), but is not reflected in its type definition.
+  assertMatchingSearchAttributePairs(t, res.typedSearchAttributes as unknown as SearchAttributePair[], searchAttrPairs);
 }
 
 function assertWorkflowDescSearchAttributes(
@@ -412,7 +396,7 @@ function assertWorkflowDescSearchAttributes(
   // Check that all search attributes are present in the workflow description's search attributes.
   t.like(desc.searchAttributes, searchAttributes);
   const descOmittingBuildIds = desc.typedSearchAttributes
-    .updateCopy([{ key: { name: 'BuildIds', type: SearchAttributeType.BOOL }, value: null }])
+    .updateCopy([{ key: { name: 'BuildIds', type: SearchAttributeType.KEYWORD_LIST }, value: null }])
     .getAll();
   assertMatchingSearchAttributePairs(t, descOmittingBuildIds, searchAttrPairs);
 }

@@ -5,7 +5,7 @@ import { Connection, WorkflowClient } from '@temporalio/client';
 import { DefaultLogger, InjectedSinks, Runtime, WorkerOptions, LogEntry } from '@temporalio/worker';
 import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/lib/interfaces';
-import { SdkComponent } from '@temporalio/common';
+import { SdkComponent, TypedSearchAttributes } from '@temporalio/common';
 import { RUN_INTEGRATION_TESTS, Worker, asSdkLoggerSink, registerDefaultCustomSearchAttributes } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
@@ -118,7 +118,10 @@ if (RUN_INTEGRATION_TESTS) {
       memo: {},
       parent: undefined,
       searchAttributes: {},
-      typedSearchAttributes: [],
+      // FIXME: consider rehydrating the class before passing to sink functions or
+      // create a variant of WorkflowInfo that corresponds to what we actually get in sinks.
+      // See issue #1635.
+      typedSearchAttributes: { searchAttributes: {} } as unknown as TypedSearchAttributes,
       historyLength: 3,
       continueAsNewSuggested: false,
       // values ignored for the purpose of comparison

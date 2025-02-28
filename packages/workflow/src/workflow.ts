@@ -1416,9 +1416,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
         ...info,
         searchAttributes: newSearchAttributes,
         // Create an empty copy and apply existing and new updates. Keep in mind the order matters here (existing first, new second - to possibly overwrite existing).
-        typedSearchAttributes: new TypedSearchAttributes()
-          .updateCopy([...info.typedSearchAttributes, ...searchAttributes])
-          .getAll(),
+        typedSearchAttributes: info.typedSearchAttributes.updateCopy([...searchAttributes]),
       };
     });
   } else {
@@ -1431,7 +1429,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
 
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
       // Create a new copy of the current state.
-      let typedSearchAttributes = new TypedSearchAttributes(info.typedSearchAttributes);
+      let typedSearchAttributes = info.typedSearchAttributes.updateCopy([]);
       const newSearchAttributes: SearchAttributes = { ...info.searchAttributes };
 
       // Upsert legacy search attributes into typedSearchAttributes.
@@ -1440,42 +1438,48 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
           throw new Error(`Search attribute value must be an array or undefined, got ${v}`);
         }
 
-        const typedKey = TypedSearchAttributes.getKeyFromUntyped(k, v);
-
-        /*
-          The following conditional blocks with 'continue' expressions handle special cases for untyped search attribute updates:
-            1. We cannot determine a valid typing for the given key.
-            (i.e. multi-value input for non keyword list, invalid objects/primitives, etc.)
-            2. The value is undefined/null/empty list, signifying deletion.
-
-            In case 1, this is undefined behaviour, so we skip the update (no-op).
-
-            In case 2, this is defined behaviour for deletion. We simply remove the search attribute from both untyped and 
-            typed search attributes.
-
-            After this point, we know we have a defined value with a valid type. We can apply the update.
-        */
-
-        // 1. Unable to discern a valid typing for the key.
-        // Skip applying this update and delete from both typed search attributes.
-        if (!typedKey) {
+        // The value is undefined or an empty list, this signifies deletion.
+        // Remove from both untyped & typed search attributes.
+        if (v === undefined || (Array.isArray(v) && v.length === 0)) {
+          // We cannot discern a valid key typing from these values.
+          // Instead, we do a "best effort" deletion from typed search attributes:
+          // - check if a matching key name exists, if so, remove it.
+          const matchingPair = typedSearchAttributes.getAll().find((pair) => pair.key.name === k);
+          if (matchingPair) {
+            typedSearchAttributes = typedSearchAttributes.updateCopy([
+              { key: matchingPair.key, value: null } as SearchAttributeUpdatePair,
+            ]);
+          }
+          delete newSearchAttributes[k];
           continue;
         }
 
-        // 2. The value is undefined/null/empty list, this signifies deletion.
-        // Delete from both untyped & typed search attributes.
-        if (v == null || (Array.isArray(v) && v.length === 0)) {
-          typedSearchAttributes = typedSearchAttributes.updateCopy([
-            { key: typedKey, value: null } as SearchAttributeUpdatePair,
-          ]);
-          delete newSearchAttributes[k];
+        // Attempt to discern a valid key typing for the update.
+        const typedKey = TypedSearchAttributes.getKeyFromUntyped(k, v);
+
+        // Unable to discern a valid key typing (no valid type for defined value).
+        // Skip applying this update (no-op).
+        if (typedKey === undefined) {
           continue;
+        }
+
+        // TEXT type is inferred from a string value, but it could also be KEYWORD.
+        // If a matching pair exists with KEYWORD type, use that instead.
+        if (typedKey.type === 'TEXT') {
+          const matchingPair = typedSearchAttributes.getAll().find((pair) => pair.key.name === typedKey.name);
+          if (matchingPair) {
+            typedKey.type = matchingPair.key.type;
+          }
         }
 
         let newValue: unknown = v;
         // Unpack value if it is a single-element array.
         if (v.length === 1) {
           newValue = v[0];
+          // Convert value back to Date.
+          if (typedKey.type === 'DATETIME') {
+            newValue = new Date(newValue as string);
+          }
         }
 
         // We have a defined value with valid type. Apply the update.
@@ -1487,7 +1491,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
       return {
         ...info,
         searchAttributes: newSearchAttributes,
-        typedSearchAttributes: typedSearchAttributes.getAll(),
+        typedSearchAttributes,
       };
     });
   }
