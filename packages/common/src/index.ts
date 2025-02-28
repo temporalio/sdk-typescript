@@ -24,6 +24,14 @@ export type { Timestamp, Duration, StringValue } from './time';
 export * from './workflow-handle';
 export * from './workflow-options';
 export * from './versioning-intent';
+export {
+  SearchAttributes,
+  SearchAttributeValue,
+  SearchAttributeType,
+  SearchAttributePair,
+  SearchAttributeUpdatePair,
+  TypedSearchAttributes,
+} from './search-attributes';
 
 /**
  * Encode a UTF-8 string into a Uint8Array

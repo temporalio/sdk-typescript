@@ -28,7 +28,6 @@ test('cancel-http-request', configMacro, async (t, config) => {
   t.pass();
 });
 
-// TODO(thomas): fix
 if ('promiseHooks' in v8) {
   // Skip in old node versions
   test('Stack trace query returns stack that makes sense', configMacro, async (t, config) => {

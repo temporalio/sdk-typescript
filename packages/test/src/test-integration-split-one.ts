@@ -666,7 +666,6 @@ test('Workflow can upsert Search Attributes', configMacro, async (t, config) => 
   const res = await worker.runUntil(handle.result());
   t.deepEqual(res, {
     CustomBoolField: [true],
-    CustomIntField: [], // clear
     CustomKeywordField: ['durable code'],
     CustomTextField: ['is useful'],
     CustomDatetimeField: [date.toISOString()],
@@ -723,6 +722,8 @@ test('Workflow can read WorkflowInfo', configMacro, async (t, config) => {
     runId: handle.firstExecutionRunId,
     taskQueue,
     searchAttributes: {},
+    // Typed search attributes gets serialized as an array.
+    typedSearchAttributes: [],
     workflowType: 'returnWorkflowInfo',
     workflowId: handle.workflowId,
     historyLength: 3,
