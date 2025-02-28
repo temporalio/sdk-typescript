@@ -34,8 +34,8 @@ import {
   decodeOptionalFailureToOptionalError,
   encodeMapToPayloads,
   encodeToPayloads,
-  filterNullAndUndefined,
 } from '@temporalio/common/lib/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import {
   ServiceError,

@@ -2,7 +2,7 @@ import { native } from '@temporalio/core-bridge';
 import { Logger, LogLevel } from '@temporalio/common';
 import { Duration, msToNumber } from '@temporalio/common/lib/time';
 import { DefaultLogger } from './logger';
-import { NativeLogCollector } from './native-log-forward';
+import { NativeLogCollector } from './runtime-logger';
 
 /**
  * Options used to create a Temporal Runtime.

@@ -20,6 +20,7 @@ export { Headers, Next } from './interceptors';
 export * from './interfaces';
 export * from './logger';
 export * from './priority';
+export * from './metrics';
 export * from './retry-policy';
 export type { Timestamp, Duration, StringValue } from './time';
 export * from './worker-deployments';

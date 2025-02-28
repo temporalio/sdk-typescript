@@ -8,11 +8,15 @@ import {
   FAILURE_SOURCE,
   IllegalStateError,
   LoadedDataConverter,
+  MetricMeter,
+  MetricTags,
   SdkComponent,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
+import { Logger, LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
+import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
 import { coresdk } from '@temporalio/proto';
 import {
   ActivityExecuteInput,
@@ -20,7 +24,6 @@ import {
   ActivityInterceptorsFactory,
   ActivityOutboundCallsInterceptor,
 } from './interceptors';
-import { Logger, withMetadata } from './logger';
 
 const UNINITIALIZED = Symbol('UNINITIALIZED');
 
@@ -46,15 +49,23 @@ export class Activity {
    */
   private readonly workerLogger;
 
+  /**
+   * Metric Meter with tags from this activity, including tags from interceptors.
+   */
+  private readonly metricMeter;
+
   constructor(
     public readonly info: Info,
     public readonly fn: ActivityFunction<any[], any> | undefined,
     public readonly dataConverter: LoadedDataConverter,
     public readonly heartbeatCallback: Context['heartbeat'],
     workerLogger: Logger,
+    workerMetricMeter: MetricMeter,
     interceptors: ActivityInterceptorsFactory[]
   ) {
-    this.workerLogger = withMetadata(workerLogger, () => this.getLogAttributes());
+    this.workerLogger = LoggerWithComposedMetadata.compose(workerLogger, this.getLogAttributes.bind(this));
+    this.metricMeter = MetricMeterWithComposedTags.compose(workerMetricMeter, this.getMetricTags.bind(this));
+
     const promise = new Promise<never>((_, reject) => {
       this.cancel = (reason: CancelReason) => {
         this.cancelReason = reason;
@@ -68,8 +79,9 @@ export class Activity {
       promise,
       this.abortController.signal,
       this.heartbeatCallback,
-      // This is the activity context logger
-      withMetadata(this.workerLogger, { sdkComponent: SdkComponent.activity })
+      // This is the activity context logger, to be used exclusively from user code
+      LoggerWithComposedMetadata.compose(this.workerLogger, { sdkComponent: SdkComponent.activity }),
+      this.metricMeter
     );
     // Prevent unhandled rejection
     promise.catch(() => undefined);
@@ -87,6 +99,17 @@ export class Activity {
     // In case some interceptor uses the logger while initializing...
     if (this.interceptors == null) return logAttributes;
     return composeInterceptors(this.interceptors.outbound, 'getLogAttributes', (a) => a)(logAttributes);
+  }
+
+  protected getMetricTags(): MetricTags {
+    const baseTags = {
+      namespace: this.info.workflowNamespace,
+      taskQueue: this.info.taskQueue,
+      activityType: this.info.activityType,
+    };
+    // In case some interceptors use the metric meter while initializing...
+    if (this.interceptors == null) return baseTags;
+    return composeInterceptors(this.interceptors.outbound, 'getMetricTags', (a) => a)(baseTags);
   }
 
   /**

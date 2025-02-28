@@ -2,11 +2,13 @@ import * as v8 from 'node:v8';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { native } from '@temporalio/core-bridge';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
-import { IllegalStateError, Logger, SdkComponent } from '@temporalio/common';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
+import { IllegalStateError, Logger, noopMetricMeter, SdkComponent, MetricMeter } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
+import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
 import { isFlushableLogger } from './logger';
+import { RuntimeMetricMeter } from './runtime-metrics';
 import { toNativeClientOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer, toMB } from './utils';
 import { CompiledRuntimeOptions, compileOptions, RuntimeOptions } from './runtime-options';
@@ -22,6 +24,9 @@ type TrackedNativeObject = native.Client | native.Worker | native.EphemeralServe
  */
 export class Runtime {
   public readonly logger: Logger;
+
+  /** The metric meter associated with this runtime. */
+  public readonly metricMeter: MetricMeter;
 
   /** Track the number of pending creation calls into the tokio runtime to prevent shut down */
   protected pendingCreations = 0;
@@ -45,6 +50,10 @@ export class Runtime {
     public readonly options: CompiledRuntimeOptions
   ) {
     this.logger = options.logger;
+    this.metricMeter = options.telemetryOptions.metricsExporter
+      ? MetricMeterWithComposedTags.compose(new RuntimeMetricMeter(this.native), {}, true)
+      : noopMetricMeter;
+
     this.checkHeapSizeLimit();
     this.setupShutdownHook();
   }
@@ -267,7 +276,9 @@ export class Runtime {
     if (this.native === undefined) return;
     try {
       if (Runtime._instance === this) delete Runtime._instance;
+      (this as any).metricMeter = noopMetricMeter;
       this.teardownShutdownHook();
+      // FIXME(JWH): I think we no longer need this, but will have to thoroughly validate.
       native.runtimeShutdown(this.native);
       this.flushLogs();
     } finally {
