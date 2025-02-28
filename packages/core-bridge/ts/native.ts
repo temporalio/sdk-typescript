@@ -372,3 +372,64 @@ type LogLevel = 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 type LogEntryMetadata = {
   [key: string]: string | number | boolean | LogEntryMetadata;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Metrics lang-to-core
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export interface NativeMetricMeter {
+  type: 'MetricMeter';
+}
+
+export interface NativeMetricCounter {
+  type: 'MetricCounter';
+}
+
+export interface NativeMetricHistogram {
+  type: 'MetricHistogram';
+}
+
+export interface NativeMetricGauge {
+  type: 'MetricGauge';
+}
+
+export declare function newMetricCounter(
+  runtime: Runtime,
+  name: string,
+  unit: string | undefined,
+  description: string | undefined
+): NativeMetricCounter;
+
+export declare function newMetricHistogram(
+  runtime: Runtime,
+  name: string,
+  valueType: 'int' | 'float',
+  unit: string | undefined,
+  description: string | undefined
+): NativeMetricHistogram;
+
+export declare function newMetricGauge(
+  runtime: Runtime,
+  name: string,
+  valueType: 'int' | 'float',
+  unit: string | undefined,
+  description: string | undefined
+): NativeMetricGauge;
+
+export declare function addMetricCounterValue(
+  counter: NativeMetricCounter,
+  value: number,
+  attrs: string // JSON string
+): void;
+
+export declare function recordMetricHistogramValue(
+  histogram: NativeMetricHistogram,
+  value: number,
+  attrs: string // JSON string
+): void;
+
+export declare function setMetricGaugeValue(
+  gauge: NativeMetricGauge,
+  value: number,
+  attrs: string // JSON string
+): void;

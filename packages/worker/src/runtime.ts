@@ -3,10 +3,24 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { native } from '@temporalio/core-bridge';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
-import { IllegalStateError, Logger, MetricMeter, noopMetricMeter, SdkComponent } from '@temporalio/common';
+import {
+  IllegalStateError,
+  Logger,
+  MetricMeter,
+  noopMetricMeter,
+  SdkComponent,
+  MetricCounter,
+  MetricGauge,
+  MetricHistogram,
+  MetricMeter,
+  MetricTags,
+  noopMetricMeter,
+  NumericMetricValueType,
+} from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { isFlushableLogger } from './logger';
+import { MetricsMeterWithComposedTags } from './metrics';
 import { toNativeClientOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer, toMB } from './utils';
 import { CompiledRuntimeOptions, compileOptions, RuntimeOptions } from './runtime-options';
@@ -387,5 +401,100 @@ export class Runtime {
     } catch (_e) {
       return undefined;
     }
+  }
+}
+
+class RuntimeMetricMeter implements MetricMeter {
+  public constructor(protected runtime: Runtime) {}
+
+  createCounter(name: string, unit?: string, description?: string): MetricCounter {
+    const nativeMetric = native.newMetricCounter(this.runtime.native, name, unit ?? '', description ?? '');
+    return new RuntimeMetricCounter(nativeMetric, name, unit, description);
+  }
+
+  createHistogram(
+    name: string,
+    valueType: NumericMetricValueType = 'int',
+    unit?: string,
+    description?: string
+  ): MetricHistogram {
+    const nativeMetric = native.newMetricHistogram(this.runtime.native, name, valueType, unit ?? '', description ?? '');
+    return new RuntimeMetricHistogram(nativeMetric, name, valueType, unit, description);
+  }
+
+  createGauge(
+    name: string,
+    valueType: NumericMetricValueType = 'int',
+    unit?: string,
+    description?: string
+  ): MetricGauge {
+    const nativeMetric = native.newMetricGauge(this.runtime.native, name, valueType, unit ?? '', description ?? '');
+    return new RuntimeMetricGauge(nativeMetric, name, valueType, unit, description);
+  }
+
+  withTags(extraTags: MetricTags): MetricMeter {
+    return MetricsMeterWithComposedTags.compose(this, extraTags);
+  }
+}
+
+class RuntimeMetricCounter implements MetricCounter {
+  public constructor(
+    private readonly native: native.NativeMetricCounter,
+    public readonly name: string,
+    public readonly unit: string | undefined,
+    public readonly description: string | undefined
+  ) {}
+
+  add(value: number, tags?: MetricTags): void {
+    if (value < 0) {
+      throw new Error('MetricCounter value must be non-negative');
+    }
+    native.addMetricCounterValue(this.native, value, JSON.stringify(tags ?? {}));
+  }
+
+  withTags(_tags: MetricTags): MetricCounter {
+    throw new Error('withTags is not supported on RuntimeMetricCounter');
+  }
+}
+
+class RuntimeMetricHistogram implements MetricHistogram {
+  public constructor(
+    private readonly native: native.NativeMetricHistogram,
+    public readonly name: string,
+    public readonly valueType: NumericMetricValueType,
+    public readonly unit: string | undefined,
+    public readonly description: string | undefined
+  ) {}
+
+  record(value: number, tags?: MetricTags): void {
+    if (value < 0) {
+      throw new Error('MetricHistogram value must be non-negative');
+    }
+    native.recordMetricHistogramValue(this.native, value, JSON.stringify(tags ?? {}));
+  }
+
+  withTags(_tags: MetricTags): MetricHistogram {
+    throw new Error('withTags is not supported on RuntimeMetricHistogram');
+  }
+}
+
+class RuntimeMetricGauge implements MetricGauge {
+  public constructor(
+    private readonly native: native.NativeMetricGauge,
+    public readonly name: string,
+    public readonly valueType: NumericMetricValueType,
+    public readonly unit: string | undefined,
+    public readonly description: string | undefined
+  ) {}
+
+  set(value: number, tags?: MetricTags): void {
+    if (value < 0) {
+      throw new Error('MetricGauge value must be non-negative');
+    }
+    native.setMetricGaugeValue(this.native, value, JSON.stringify(tags ?? {}));
+  }
+
+  withTags(_tags: MetricTags): MetricGauge {
+    throw new Error('withTags is not supported on RuntimeMetricGauge');
   }
 }
