@@ -20,9 +20,11 @@ import {
   WorkflowUpdateValidatorType,
   mapFromPayloads,
   fromPayloadsAtIndex,
+} from '@temporalio/common';
+import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
-} from '@temporalio/common';
+} from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';

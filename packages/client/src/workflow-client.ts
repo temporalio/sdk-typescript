@@ -22,8 +22,8 @@ import {
   decodeRetryState,
   encodeWorkflowIdConflictPolicy,
   WorkflowIdConflictPolicy,
-  encodeUnifiedSearchAttributes,
 } from '@temporalio/common';
+import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';

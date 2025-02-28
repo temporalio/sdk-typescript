@@ -1,11 +1,10 @@
 import { ServiceError as GrpcServiceError, status as grpcStatus } from '@grpc/grpc-js';
+import { LoadedDataConverter, NamespaceNotFoundError } from '@temporalio/common';
 import {
-  LoadedDataConverter,
-  NamespaceNotFoundError,
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
   searchAttributePayloadConverter,
-} from '@temporalio/common';
+} from '@temporalio/common/lib/converter/payload-search-attributes';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time';
 import { decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';

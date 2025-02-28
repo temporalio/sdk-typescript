@@ -22,11 +22,13 @@ import {
   WorkflowResultType,
   WorkflowReturnType,
   WorkflowUpdateValidatorType,
-  encodeUnifiedSearchAttributes,
-  searchAttributePayloadConverter,
-  typedSearchAttributePayloadConverter,
   SearchAttributeUpdatePair,
 } from '@temporalio/common';
+import {
+  encodeUnifiedSearchAttributes,
+  typedSearchAttributePayloadConverter,
+  searchAttributePayloadConverter,
+} from '@temporalio/common/lib/converter/payload-search-attributes';
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
 import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';

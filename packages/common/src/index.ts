@@ -12,8 +12,6 @@ export * from './converter/data-converter';
 export * from './converter/failure-converter';
 export * from './converter/payload-codec';
 export * from './converter/payload-converter';
-// TODO(thomas): remove
-export * from './converter/payload-search-attributes';
 export * from './converter/types';
 export * from './deprecated-time';
 export * from './errors';

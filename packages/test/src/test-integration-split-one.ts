@@ -17,7 +17,6 @@ import {
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
-  TypedSearchAttributes,
   WorkflowExecution,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
