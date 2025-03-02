@@ -41,6 +41,7 @@ import {
 } from '@temporalio/core-bridge';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
 import { Connection, TestService } from './connection';
+import pkg from './pkg';
 
 export { TimeSkippingServerConfig, DevServerConfig, EphemeralServerExecutable } from '@temporalio/core-bridge';
 export { EphemeralServerConfig };
@@ -155,6 +156,10 @@ function addDefaults(opts: TestWorkflowEnvironmentOptions): TestWorkflowEnvironm
   return {
     client: {},
     ...opts,
+    server: {
+      ...opts.server,
+      sdkVersion: pkg.version,
+    },
   };
 }
 
@@ -255,7 +260,7 @@ export class TestWorkflowEnvironment {
    */
   static async createTimeSkipping(opts?: TimeSkippingTestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
     return await this.create({
-      server: { type: 'time-skipping', ...opts?.server },
+      server: { type: 'time-skipping', ...opts?.server, sdkVersion: pkg.version },
       client: opts?.client,
       supportsTimeSkipping: true,
     });
@@ -284,7 +289,7 @@ export class TestWorkflowEnvironment {
    */
   static async createLocal(opts?: LocalTestWorkflowEnvironmentOptions): Promise<TestWorkflowEnvironment> {
     return await this.create({
-      server: { type: 'dev-server', ...opts?.server },
+      server: { type: 'dev-server', ...opts?.server, sdkVersion: pkg.version },
       client: opts?.client,
       namespace: opts?.server?.namespace,
       supportsTimeSkipping: false,

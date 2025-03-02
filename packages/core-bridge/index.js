@@ -13,7 +13,15 @@ function wrapErrors(fn) {
         const callback = args[args.length - 1];
         args[args.length - 1] = (e, x) => callback(convertFromNamedError(e, false), x);
       }
-      return fn(...args);
+
+      let res = fn(...args);
+
+      if (res instanceof Promise) {
+        return res.catch((e) => {
+          throw convertFromNamedError(e, false);
+        });
+      }
+      return res;
     } catch (e) {
       throw convertFromNamedError(e, true);
     }

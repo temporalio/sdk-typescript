@@ -137,13 +137,13 @@ interface EvictionWithRunID {
 
 export interface NativeWorkerLike {
   type: 'Worker';
-  initiateShutdown: Promisify<OmitFirstParam<typeof native.workerInitiateShutdown>>;
+  initiateShutdown: OmitFirstParam<typeof native.workerInitiateShutdown>;
   finalizeShutdown(): Promise<void>;
   flushCoreLogs(): void;
-  pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
-  pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
-  completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
-  completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
+  pollWorkflowActivation: OmitFirstParam<typeof native.workerPollWorkflowActivation>;
+  pollActivityTask: OmitFirstParam<typeof native.workerPollActivityTask>;
+  completeWorkflowActivation: OmitFirstParam<typeof native.workerCompleteWorkflowActivation>;
+  completeActivityTask: OmitFirstParam<typeof native.workerCompleteActivityTask>;
   recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
 }
 
@@ -172,12 +172,12 @@ function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string
 
 export class NativeWorker implements NativeWorkerLike {
   public readonly type = 'Worker';
-  public readonly pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
-  public readonly pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
-  public readonly completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
-  public readonly completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
+  public readonly pollWorkflowActivation: OmitFirstParam<typeof native.workerPollWorkflowActivation>;
+  public readonly pollActivityTask: OmitFirstParam<typeof native.workerPollActivityTask>;
+  public readonly completeWorkflowActivation: OmitFirstParam<typeof native.workerCompleteWorkflowActivation>;
+  public readonly completeActivityTask: OmitFirstParam<typeof native.workerCompleteActivityTask>;
   public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
-  public readonly initiateShutdown: Promisify<OmitFirstParam<typeof native.workerInitiateShutdown>>;
+  public readonly initiateShutdown: OmitFirstParam<typeof native.workerInitiateShutdown>;
 
   public static async create(
     connection: NativeConnection,
@@ -201,12 +201,12 @@ export class NativeWorker implements NativeWorkerLike {
     protected readonly runtime: Runtime,
     protected readonly nativeWorker: native.Worker
   ) {
-    this.pollWorkflowActivation = promisify(native.workerPollWorkflowActivation).bind(undefined, nativeWorker);
-    this.pollActivityTask = promisify(native.workerPollActivityTask).bind(undefined, nativeWorker);
-    this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
-    this.completeActivityTask = promisify(native.workerCompleteActivityTask).bind(undefined, nativeWorker);
+    this.pollWorkflowActivation = native.workerPollWorkflowActivation.bind(undefined, nativeWorker);
+    this.pollActivityTask = native.workerPollActivityTask.bind(undefined, nativeWorker);
+    this.completeWorkflowActivation = native.workerCompleteWorkflowActivation.bind(undefined, nativeWorker);
+    this.completeActivityTask = native.workerCompleteActivityTask.bind(undefined, nativeWorker);
     this.recordActivityHeartbeat = native.workerRecordActivityHeartbeat.bind(undefined, nativeWorker);
-    this.initiateShutdown = promisify(native.workerInitiateShutdown).bind(undefined, nativeWorker);
+    this.initiateShutdown = native.workerInitiateShutdown.bind(undefined, nativeWorker);
   }
 
   flushCoreLogs(): void {
@@ -809,21 +809,21 @@ export class Worker {
       throw new IllegalStateError(`Not running. Current state: ${this.state}`);
     }
     this.state = 'STOPPING';
-    this.nativeWorker
-      .initiateShutdown()
-      .then(() => {
-        // Core may have already returned a ShutdownError to our pollers in which
-        // case the state would transition to DRAINED
-        if (this.state === 'STOPPING') {
-          this.state = 'DRAINING';
-        }
-      })
-      .catch((error) => {
-        // This is totally unexpected. If we reach this point, something horribly wrong in the Worker
-        // state, and attempt to shutdown gracefully will very likely hang. Just terminate immediately.
-        this.logger.error('Failed to initiate shutdown', { error });
-        this.instantTerminateErrorSubject.error(error);
-      });
+    this.nativeWorker.initiateShutdown();
+    // FIXME: What to do with things below?
+    // .then(() => {
+    //   // Core may have already returned a ShutdownError to our pollers in which
+    //   // case the state would transition to DRAINED
+    //   if (this.state === 'STOPPING') {
+    //     this.state = 'DRAINING';
+    //   }
+    // })
+    // .catch((error) => {
+    //   // This is totally unexpected. If we reach this point, something horribly wrong in the Worker
+    //   // state, and attempt to shutdown gracefully will very likely hang. Just terminate immediately.
+    //   this.logger.error('Failed to initiate shutdown', { error });
+    //   this.instantTerminateErrorSubject.error(error);
+    // });
   }
 
   /**

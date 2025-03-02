@@ -516,7 +516,9 @@ export interface DevServerConfig {
  *
  * Both the time-skipping Test Server and Temporal CLI dev server are supported.
  */
-export type EphemeralServerConfig = TimeSkippingServerConfig | DevServerConfig;
+export type EphemeralServerConfig = (TimeSkippingServerConfig | DevServerConfig) & {
+  sdkVersion: string;
+};
 
 export interface Worker {
   type: 'Worker';
@@ -544,78 +546,62 @@ export interface ReplayWorker {
   pusher: HistoryPusher;
 }
 
-export declare type Callback<T> = (err: Error, result: T) => void;
-export declare type PollCallback = (err: Error, result: ArrayBuffer) => void;
-export declare type WorkerCallback = (err: Error, result: Worker) => void;
-export declare type ReplayWorkerCallback = (err: Error, worker: ReplayWorker) => void;
-export declare type ClientCallback = (err: Error, result: Client) => void;
-export declare type VoidCallback = (err: Error, result: void) => void;
-export declare type LogsCallback = (err: Error, result: LogEntry[]) => void;
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Runtime
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export declare function newRuntime(telemOptions: CompiledTelemetryOptions): Runtime;
+export declare function runtimeShutdown(runtime: Runtime): void;
 
-export declare function newClient(runtime: Runtime, clientOptions: ClientOptions, callback: ClientCallback): void;
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Client
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export declare function newWorker(client: Client, workerOptions: WorkerOptions, callback: WorkerCallback): void;
-
-export declare function newReplayWorker(
-  runtime: Runtime,
-  workerOptions: WorkerOptions,
-  callback: ReplayWorkerCallback
-): void;
-
-export declare function pushHistory(
-  pusher: HistoryPusher,
-  workflowId: string,
-  history: ArrayBuffer,
-  callback: VoidCallback
-): void;
-
-export declare function closeHistoryStream(pusher: HistoryPusher): void;
-
-export declare function workerInitiateShutdown(worker: Worker, callback: VoidCallback): void;
-
-export declare function workerFinalizeShutdown(worker: Worker): void;
-
-export declare function clientUpdateHeaders(
-  client: Client,
-  headers: Record<string, string>,
-  callback: VoidCallback
-): void;
-
-export declare function clientUpdateApiKey(client: Client, apiKey: string, callback: VoidCallback): void;
-
+export declare function newClient(runtime: Runtime, clientOptions: ClientOptions): Promise<Client>;
+export declare function clientUpdateHeaders(client: Client, headers: Record<string, string>): void;
+export declare function clientUpdateApiKey(client: Client, apiKey: string): void;
 export declare function clientClose(client: Client): void;
 
-export declare function runtimeShutdown(runtime: Runtime, callback: VoidCallback): void;
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Worker
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export declare function pollLogs(runtime: Runtime, callback: LogsCallback): void;
+export declare function newWorker(client: Client, workerOptions: WorkerOptions): Promise<Worker>;
+export declare function workerInitiateShutdown(worker: Worker): void;
+export declare function workerFinalizeShutdown(worker: Worker): void;
 
-export declare function workerPollWorkflowActivation(worker: Worker, callback: PollCallback): void;
+export declare function workerPollWorkflowActivation(worker: Worker): Promise<ArrayBuffer>;
+export declare function workerCompleteWorkflowActivation(worker: Worker, result: ArrayBuffer): Promise<void>;
 
-export declare function workerCompleteWorkflowActivation(
-  worker: Worker,
-  result: ArrayBuffer,
-  callback: VoidCallback
-): void;
-
-export declare function workerPollActivityTask(worker: Worker, callback: PollCallback): void;
-
-export declare function workerCompleteActivityTask(worker: Worker, result: ArrayBuffer, callback: VoidCallback): void;
-
+export declare function workerPollActivityTask(worker: Worker): Promise<ArrayBuffer>;
+export declare function workerCompleteActivityTask(worker: Worker, result: ArrayBuffer): Promise<void>;
 export declare function workerRecordActivityHeartbeat(worker: Worker, heartbeat: ArrayBuffer): void;
 
-export declare function getTimeOfDay(): [number, number];
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// ReplayWorker
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export declare function startEphemeralServer(
-  runtime: Runtime,
-  config: EphemeralServerConfig,
-  sdkVersion: string,
-  callback: Callback<EphemeralServer>
-): void;
+export declare function newReplayWorker(runtime: Runtime, workerOptions: WorkerOptions): ReplayWorker;
+export declare function pushHistory(pusher: HistoryPusher, workflowId: string, history: ArrayBuffer): Promise<void>;
+export declare function closeHistoryStream(pusher: HistoryPusher): void;
 
-export declare function shutdownEphemeralServer(server: EphemeralServer, callback: Callback<EphemeralServer>): void;
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Log Forwarding
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
+export declare function pollLogs(runtime: Runtime): LogEntry[];
+export declare function getTimeOfDay(): bigint;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Ephemeral Server
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export declare function startEphemeralServer(runtime: Runtime, config: EphemeralServerConfig): Promise<EphemeralServer>;
 export declare function getEphemeralServerTarget(server: EphemeralServer): string;
+export declare function shutdownEphemeralServer(server: EphemeralServer): Promise<void>;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Errors
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export { ShutdownError, TransportError, UnexpectedError } from './errors';
