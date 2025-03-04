@@ -275,6 +275,10 @@ const GenericConfigs = {
           type: 'fixed-size',
           numSlots: 1,
         },
+        nexusTaskSlotSupplier: {
+          type: 'fixed-size',
+          numSlots: 1,
+        },
       },
       nonStickyToStickyPollRatio: 0.5,
       workflowTaskPollerBehavior: {
@@ -282,6 +286,12 @@ const GenericConfigs = {
         maximum: 1,
       },
       activityTaskPollerBehavior: {
+        type: 'autoscaling',
+        minimum: 1,
+        initial: 5,
+        maximum: 100,
+      },
+      nexusTaskPollerBehavior: {
         type: 'autoscaling',
         minimum: 1,
         initial: 5,
