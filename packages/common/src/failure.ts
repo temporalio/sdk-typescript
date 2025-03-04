@@ -344,6 +344,20 @@ export class ChildWorkflowFailure extends TemporalFailure {
   }
 }
 
+@SymbolBasedInstanceOfError('NexusOperationFailure')
+export class NexusOperationFailure extends TemporalFailure {
+  public constructor(
+    public readonly scheduledEventId: number | undefined,
+    public readonly endpoint: string,
+    public readonly service: string,
+    public readonly operation: string,
+    public readonly operationToken: string | undefined,
+    cause?: Error
+  ) {
+    super('Nexus Operation completed unsuccessfully', cause);
+  }
+}
+
 /**
  * This exception is thrown in the following cases:
  *  - Workflow with the same Workflow ID is currently running and the {@link WorkflowOptions.workflowIdConflictPolicy} is `WORKFLOW_ID_CONFLICT_POLICY_FAIL`

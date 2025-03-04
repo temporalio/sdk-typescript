@@ -19,6 +19,8 @@ import {
 } from 'rxjs';
 import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import type { RawSourceMap } from 'source-map';
+import * as nexus from 'nexus-rpc';
+import { installAsyncLocalStorage } from 'nexus-rpc/lib/async-local-storage';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
   DataConverter,
@@ -32,6 +34,7 @@ import {
   ensureApplicationFailure,
   TypedSearchAttributes,
   decodePriority,
+  CancelledFailure,
 } from '@temporalio/common';
 import {
   decodeArrayFromPayloads,
@@ -95,6 +98,7 @@ import {
   ShutdownError,
   UnexpectedError,
 } from './errors';
+import { constructNexusHandlerInfo, handlerErrorToProto, NexusHandler, nexusLogAttributes } from './nexus';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -121,6 +125,15 @@ export type ActivityTaskWithBase64Token = {
   protobufEncodedTask: Buffer;
 };
 
+export type NexusTaskWithBase64Token = {
+  task: coresdk.nexus.NexusTask;
+  base64TaskToken: string;
+
+  // The unaltered protobuf-encoded NexusTask; kept so that it can be printed
+  // out for analysis if decoding fails at a later step.
+  protobufEncodedTask: Buffer;
+};
+
 interface EvictionWithRunID {
   runId: string;
   evictJob: coresdk.workflow_activation.IRemoveFromCache;
@@ -133,8 +146,10 @@ export interface NativeWorkerLike {
   flushCoreLogs(): void;
   pollWorkflowActivation: OmitFirstParam<typeof native.workerPollWorkflowActivation>;
   pollActivityTask: OmitFirstParam<typeof native.workerPollActivityTask>;
+  pollNexusTask: OmitFirstParam<typeof native.workerPollNexusTask>;
   completeWorkflowActivation: OmitFirstParam<typeof native.workerCompleteWorkflowActivation>;
   completeActivityTask: OmitFirstParam<typeof native.workerCompleteActivityTask>;
+  completeNexusTask: OmitFirstParam<typeof native.workerCompleteNexusTask>;
   recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
 }
 
@@ -167,6 +182,8 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly pollActivityTask: OmitFirstParam<typeof native.workerPollActivityTask>;
   public readonly completeWorkflowActivation: OmitFirstParam<typeof native.workerCompleteWorkflowActivation>;
   public readonly completeActivityTask: OmitFirstParam<typeof native.workerCompleteActivityTask>;
+  public readonly pollNexusTask: OmitFirstParam<typeof native.workerPollNexusTask>;
+  public readonly completeNexusTask: OmitFirstParam<typeof native.workerCompleteNexusTask>;
   public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
   public readonly initiateShutdown: OmitFirstParam<typeof native.workerInitiateShutdown>;
 
@@ -194,8 +211,10 @@ export class NativeWorker implements NativeWorkerLike {
   ) {
     this.pollWorkflowActivation = native.workerPollWorkflowActivation.bind(undefined, nativeWorker);
     this.pollActivityTask = native.workerPollActivityTask.bind(undefined, nativeWorker);
+    this.pollNexusTask = native.workerPollNexusTask.bind(undefined, nativeWorker);
     this.completeWorkflowActivation = native.workerCompleteWorkflowActivation.bind(undefined, nativeWorker);
     this.completeActivityTask = native.workerCompleteActivityTask.bind(undefined, nativeWorker);
+    this.completeNexusTask = native.workerCompleteNexusTask.bind(undefined, nativeWorker);
     this.recordActivityHeartbeat = native.workerRecordActivityHeartbeat.bind(undefined, nativeWorker);
     this.initiateShutdown = native.workerInitiateShutdown.bind(undefined, nativeWorker);
   }
@@ -422,6 +441,7 @@ export class Worker {
 
   protected readonly workflowPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
   protected readonly activityPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
+  protected readonly nexusPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
   /**
    * Whether or not this worker has an outstanding workflow poll request
    */
@@ -430,14 +450,21 @@ export class Worker {
    * Whether or not this worker has an outstanding activity poll request
    */
   protected hasOutstandingActivityPoll = false;
+  /**
+   * Whether or not this worker has an outstanding nexus poll request
+   */
+  protected hasOutstandingNexusPoll = false;
 
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightNonLocalActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightLocalActivitiesSubject = new BehaviorSubject<number>(0);
+  protected readonly numInFlightNexusOperationsSubject = new BehaviorSubject<number>(0);
   protected readonly numCachedWorkflowsSubject = new BehaviorSubject<number>(0);
   protected readonly numHeartbeatingActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly evictionsEmitter = new EventEmitter();
+
+  private readonly taskTokenToNexusHandler = new Map<string, NexusHandler>();
 
   protected static nativeWorkerCtor: NativeWorkerConstructor = NativeWorker;
   // Used to add uniqueness to replay worker task queue names
@@ -465,11 +492,11 @@ export class Worker {
         ...compiledOptions,
         ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
           ? {
-              // Avoid dumping workflow bundle code to the console
-              workflowBundle: <WorkflowBundle>{
-                code: `<string of length ${compiledOptions.workflowBundle.code.length}>`,
-              },
-            }
+            // Avoid dumping workflow bundle code to the console
+            workflowBundle: <WorkflowBundle>{
+              code: `<string of length ${compiledOptions.workflowBundle.code.length}>`,
+            },
+          }
           : {}),
       },
     });
@@ -493,6 +520,10 @@ export class Worker {
       throw err;
     }
     extractReferenceHolders(connection).add(nativeWorker);
+    if (options.nexusServices?.length) {
+      // Must be done once per process, safe to call multiple times, the function is memoized.
+      await installAsyncLocalStorage();
+    }
     return new this(runtime, nativeWorker, workflowCreator, compiledOptionsWithBuildId, logger, connection);
   }
 
@@ -679,7 +710,7 @@ export class Worker {
       ) {
         logger.warn(
           'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
-            'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
+          'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
         );
       }
 
@@ -852,8 +883,8 @@ export class Worker {
    */
   protected pollLoop$<T>(pollFn: () => Promise<T>): Observable<T> {
     return from(
-      (async function* () {
-        for (;;) {
+      (async function*() {
+        for (; ;) {
           try {
             yield await pollFn();
           } catch (err) {
@@ -888,14 +919,14 @@ export class Worker {
               // so it can be cancelled if requested
               let output:
                 | {
-                    type: 'result';
-                    result: coresdk.activity_result.IActivityExecutionResult;
-                  }
+                  type: 'result';
+                  result: coresdk.activity_result.IActivityExecutionResult;
+                }
                 | {
-                    type: 'run';
-                    activity: Activity;
-                    input: ActivityExecuteInput;
-                  }
+                  type: 'run';
+                  activity: Activity;
+                  input: ActivityExecuteInput;
+                }
                 | { type: 'ignore' };
               switch (variant) {
                 case 'start': {
@@ -1077,6 +1108,112 @@ export class Worker {
   }
 
   /**
+   * Process Nexus tasks
+   */
+  protected nexusOperator(): OperatorFunction<NexusTaskWithBase64Token, Uint8Array> {
+    return pipe(
+      mergeMap(async ({ task, base64TaskToken, protobufEncodedTask }): Promise<coresdk.nexus.INexusTaskCompletion | undefined> => {
+        const { variant } = task;
+        if (!variant) {
+          throw new TypeError('Got a nexus task without a "variant" attribute');
+        }
+
+        switch (variant) {
+          case 'task': {
+            if (task.task == null) {
+              throw new IllegalStateError(`Got empty task for task variant with token: ${base64TaskToken}`);
+            }
+            return await this.handleNexusRunTask(task.task, base64TaskToken, protobufEncodedTask);
+          }
+          case 'cancelTask': {
+            const nexusHandler = this.taskTokenToNexusHandler.get(base64TaskToken);
+            if (nexusHandler == null) {
+              this.logger.trace('Tried to cancel a non-existing nexus handler', {
+                taskToken: base64TaskToken,
+              });
+              break;
+            }
+            // NOTE: nexus handler will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
+            this.logger.trace('Cancelling nexus handler', nexusLogAttributes(nexusHandler.info));
+            let reason = 'unkown';
+            if (task.cancelTask?.reason != null) {
+              reason = coresdk.nexus.NexusTaskCancelReason[task.cancelTask.reason];
+            }
+            nexusHandler.abortController.abort(new CancelledFailure(reason));
+            return { ackCancel: true, taskToken: task.cancelTask?.taskToken }
+          }
+        }
+      }),
+      filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
+      map((result) => coresdk.nexus.NexusTaskCompletion.encodeDelimited(result).finish())
+    );
+  }
+
+  private async handleNexusRunTask(
+    task: temporal.api.workflowservice.v1.IPollNexusTaskQueueResponse,
+    base64TaskToken: string,
+    protobufEncodedTask: ArrayBuffer
+  ) {
+    let info: nexus.HandlerInfo | undefined = undefined;
+    if (task.taskToken == null) {
+      throw new nexus.HandlerError({
+        type: 'INTERNAL',
+        message: 'Task missing request task token',
+      });
+    }
+    const { taskToken } = task;
+    try {
+      const ctrl = new AbortController();
+
+      info = constructNexusHandlerInfo(task.request, ctrl.signal);
+
+      const service = this.options.nexusServices.get(info.service);
+      const handler = service?.get(info.operation);
+      if (typeof handler !== 'function' && typeof handler !== 'object') {
+        throw new nexus.HandlerError({
+          type: 'NOT_FOUND',
+          message: `Nexus handler not registered for service: ${info.service}, operation: ${info.operation}`,
+        });
+      }
+      const nexusHandler = new NexusHandler(
+        taskToken,
+        info,
+        ctrl,
+        handler,
+        this.options.loadedDataConverter,
+        this.logger
+      );
+      this.taskTokenToNexusHandler.set(base64TaskToken, nexusHandler);
+      this.numInFlightNexusOperationsSubject.next(this.numInFlightNexusOperationsSubject.value + 1);
+      try {
+        return await nexusHandler.run(task);
+      } finally {
+        this.numInFlightNexusOperationsSubject.next(this.numInFlightNexusOperationsSubject.value - 1);
+        this.taskTokenToNexusHandler.delete(base64TaskToken);
+      }
+    } catch (e) {
+      let handlerErr: nexus.HandlerError;
+      this.logger.error(`Error while processing Nexus task: ${errorMessage(e)}`, {
+        ...(info ? nexusLogAttributes(info) : {}),
+        error: e,
+        taskEncoded: Buffer.from(protobufEncodedTask).toString('base64'),
+      });
+      if (e instanceof nexus.HandlerError) {
+        handlerErr = e;
+      } else {
+        handlerErr = new nexus.HandlerError({
+          type: 'INTERNAL',
+          cause: e,
+        });
+      }
+      return {
+        taskToken,
+        error: await handlerErrorToProto(this.options.loadedDataConverter, handlerErr),
+      };
+    }
+  }
+
+  /**
    * Process activations from the same workflow execution to an observable of completions.
    *
    * Injects a synthetic eviction activation when the worker transitions to no longer polling.
@@ -1149,9 +1286,9 @@ export class Worker {
         const completion = synthetic
           ? undefined
           : coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
-              runId: activation.runId,
-              successful: {},
-            }).finish();
+            runId: activation.runId,
+            successful: {},
+          }).finish();
         return { state: undefined, output: { close, completion } };
       }
 
@@ -1620,6 +1757,54 @@ export class Worker {
     );
   }
 
+  protected nexusPoll$(): Observable<NexusTaskWithBase64Token> {
+    return this.pollLoop$(async () => {
+      this.hasOutstandingNexusPoll = true;
+      let buffer: Buffer;
+      try {
+        buffer = await this.nativeWorker.pollNexusTask();
+      } finally {
+        this.hasOutstandingNexusPoll = false;
+      }
+      const task = coresdk.nexus.NexusTask.decode(new Uint8Array(buffer));
+      const taskToken = task.task?.taskToken || task.cancelTask?.taskToken;
+      if (taskToken == null) {
+        throw new TypeError('Got a nexus task without a task token');
+      }
+      const base64TaskToken = formatTaskToken(taskToken);
+      this.logger.trace('Got nexus task', {
+        taskToken: base64TaskToken,
+        ...task,
+      });
+      return { task, base64TaskToken, protobufEncodedTask: buffer };
+    }).pipe(
+      tap({
+        complete: () => {
+          this.nexusPollerStateSubject.next('SHUTDOWN');
+        },
+        error: () => {
+          this.nexusPollerStateSubject.next('FAILED');
+        },
+      })
+    );
+  }
+
+  protected nexus$(): Observable<void> {
+    // This Worker did not register any nexus services, return early.
+    if (this.options.nexusServices?.size === 0) {
+      if (!this.isReplayWorker) this.logger.info('No nexus services registered, not polling for nexus tasks');
+      this.nexusPollerStateSubject.next('SHUTDOWN');
+      return EMPTY;
+    }
+    return this.nexusPoll$().pipe(
+      this.nexusOperator(),
+      mergeMap(async (completion) => {
+        await this.nativeWorker.completeNexusTask(Buffer.from(completion.buffer, completion.byteOffset));
+      }),
+      tap({ complete: () => this.logger.debug('Nexus Worker terminated') })
+    );
+  }
+
   protected takeUntilState<T>(state: State): MonoTypeOperatorFunction<T> {
     return takeUntil(this.stateSubject.pipe(filter((value) => value === state)));
   }
@@ -1744,7 +1929,7 @@ export class Worker {
             this.instantTerminateErrorSubject.pipe(this.takeUntilState('DRAINED')),
             this.forceShutdown$(),
             this.activityHeartbeat$(),
-            merge(this.workflow$(), this.activity$()).pipe(
+            merge(this.workflow$(), this.activity$(), this.nexus$()).pipe(
               tap({
                 complete: () => {
                   this.state = 'DRAINED';

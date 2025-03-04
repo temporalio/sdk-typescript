@@ -92,6 +92,17 @@ export async function decodeArrayFromPayloads(
 }
 
 /**
+ * Decode `payloads` and then return {@link arrayFromPayloads}`.
+ */
+export async function decodeFromPayload(converter: LoadedDataConverter, payloads?: Payload | null): Promise<unknown> {
+  if (payloads == null) {
+    return undefined;
+  }
+  const { payloadConverter, payloadCodecs } = converter;
+  return payloadConverter.fromPayload(await decodeSingle(payloadCodecs, payloads));
+}
+
+/**
  * Decode `payloads` and then return {@link fromPayloadsAtIndex}.
  */
 export async function decodeFromPayloadsAtIndex<T>(

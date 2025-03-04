@@ -75,6 +75,10 @@ test('Worker can run with mixed slot suppliers in tuner', async (t) => {
         type: 'fixed-size',
         numSlots: 10,
       },
+      nexusTaskSlotSupplier: {
+        type: 'fixed-size',
+        numSlots: 10,
+      },
     },
   });
   const result = await worker.runUntil(executeWorkflow(successString));
@@ -122,6 +126,11 @@ test('Can assume defaults for resource based options', async (t) => {
         tunerOptions: resourceBasedTunerOptions,
         maximumSlots: 50,
       },
+      nexusTaskSlotSupplier: {
+        type: 'resource-based',
+        tunerOptions: resourceBasedTunerOptions,
+        maximumSlots: 50,
+      },
     },
   });
   await worker2.runUntil(Promise.resolve());
@@ -151,6 +160,10 @@ test('Cannot construct worker tuner with multiple different tuner options', asyn
           tunerOptions: tunerOptions2,
         },
         localActivityTaskSlotSupplier: {
+          type: 'fixed-size',
+          numSlots: 10,
+        },
+        nexusTaskSlotSupplier: {
           type: 'fixed-size',
           numSlots: 10,
         },
@@ -225,6 +238,7 @@ test('Custom slot supplier works', async (t) => {
       workflowTaskSlotSupplier: slotSupplier,
       activityTaskSlotSupplier: slotSupplier,
       localActivityTaskSlotSupplier: slotSupplier,
+      nexusTaskSlotSupplier: slotSupplier,
     },
   });
   const result = await worker.runUntil(executeWorkflow(doesActivity));
@@ -278,6 +292,7 @@ test('Custom slot supplier sees aborts', async (t) => {
       workflowTaskSlotSupplier: slotSupplier,
       activityTaskSlotSupplier: slotSupplier,
       localActivityTaskSlotSupplier: slotSupplier,
+      nexusTaskSlotSupplier: slotSupplier,
     },
   });
   const runprom = worker.run();
@@ -324,6 +339,7 @@ test('Throwing slot supplier avoids blowing everything up', async (t) => {
       workflowTaskSlotSupplier: slotSupplier,
       activityTaskSlotSupplier: slotSupplier,
       localActivityTaskSlotSupplier: slotSupplier,
+      nexusTaskSlotSupplier: slotSupplier,
     },
   });
   const result = await worker.runUntil(executeWorkflow(successString));
@@ -357,6 +373,7 @@ test('Undefined slot supplier avoids blowing everything up', async (t) => {
       workflowTaskSlotSupplier: slotSupplier,
       activityTaskSlotSupplier: slotSupplier,
       localActivityTaskSlotSupplier: slotSupplier,
+      nexusTaskSlotSupplier: slotSupplier,
     },
   });
   const result = await worker.runUntil(executeWorkflow(successString));
