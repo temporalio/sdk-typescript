@@ -277,6 +277,7 @@ export function encodeSchedulePolicies(
     catchupWindow: msOptionalToTs(policies?.catchupWindow),
     overlapPolicy: policies?.overlap ? encodeScheduleOverlapPolicy(policies.overlap) : undefined,
     pauseOnFailure: policies?.pauseOnFailure,
+    keepOriginalWorkflowId: policies?.keepOriginalWorkflowId,
   };
 }
 

@@ -57,6 +57,13 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
      * @default false
      */
     pauseOnFailure?: boolean;
+
+    /**
+     * If true, and the action would start a workflow, a timestamp will not be appended to the scheduled workflow id.
+     *
+     * @default false
+     */
+    keepOriginalWorkflowId?: boolean;
   };
 
   /**
@@ -275,6 +282,13 @@ export type ScheduleDescription = {
      * to start after the failed one finishes.
      */
     pauseOnFailure: boolean;
+
+    /**
+     * If true, and the action would start a workflow, a timestamp will not be appended to the scheduled workflow id.
+     *
+     * @default false
+     */
+    keepOriginalWorkflowId: boolean;
   };
 
   /**
