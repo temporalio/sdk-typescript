@@ -433,6 +433,8 @@ export type EphemeralServerExecutable =
        * @default "default" - get the best version for the current SDK version.
        */
       version?: string;
+      /** How long to cache the download for. Undefined means forever. */
+      ttlMs?: number;
     }
   | {
       type: 'existing-path';

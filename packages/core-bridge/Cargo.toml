@@ -3,7 +3,7 @@ name = "temporal-sdk-typescript-bridge"
 version = "0.1.0"
 authors = ["Roey Berman <roey@temporal.io>"]
 license = "MIT"
-edition = "2018"
+edition = "2024"
 exclude = ["index.node", "sdk-core"]
 
 [lib]

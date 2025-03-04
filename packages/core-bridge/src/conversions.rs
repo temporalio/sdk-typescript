@@ -568,6 +568,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     .unwrap_or_else(|| "default".to_owned());
                 let dest_dir =
                     js_optional_value_getter!(cx, &js_executable, "downloadDir", JsString);
+                let ttl = js_optional_value_getter!(cx, &self, "ttlMs", JsNumber);
 
                 let exec_version = match version.as_str() {
                     "default" => {
@@ -581,6 +582,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 temporal_sdk_core::ephemeral_server::EphemeralExe::CachedDownload {
                     version: exec_version,
                     dest_dir,
+                    ttl: ttl.map(|ttl| Duration::from_millis(ttl as u64)),
                 }
             }
             "existing-path" => {
