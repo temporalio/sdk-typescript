@@ -69,12 +69,6 @@ export class WorkflowCodecRunner {
                     headers: noopDecodeMap(job.queryWorkflow.headers),
                   }
                 : null,
-              cancelWorkflow: job.cancelWorkflow
-                ? {
-                    ...job.cancelWorkflow,
-                    details: await decodeOptional(this.codecs, job.cancelWorkflow.details),
-                  }
-                : null,
               doUpdate: job.doUpdate
                 ? {
                     ...job.doUpdate,
@@ -175,6 +169,25 @@ export class WorkflowCodecRunner {
                           ),
                         }
                       : null,
+                  }
+                : null,
+              resolveNexusOperation: job.resolveNexusOperation
+                ? {
+                    ...job.resolveNexusOperation,
+                    result: {
+                      completed: job.resolveNexusOperation.result?.completed
+                        ? await decodeOptionalSingle(this.codecs, job.resolveNexusOperation.result?.completed)
+                        : null,
+                      failed: job.resolveNexusOperation.result?.failed
+                        ? await decodeOptionalFailure(this.codecs, job.resolveNexusOperation.result?.failed)
+                        : null,
+                      cancelled: job.resolveNexusOperation.result?.cancelled
+                        ? await decodeOptionalFailure(this.codecs, job.resolveNexusOperation.result?.cancelled)
+                        : null,
+                      timedOut: job.resolveNexusOperation.result?.cancelled
+                        ? await decodeOptionalFailure(this.codecs, job.resolveNexusOperation.result?.timedOut)
+                        : null,
+                    },
                   }
                 : null,
               resolveSignalExternalWorkflow: job.resolveSignalExternalWorkflow
@@ -302,6 +315,12 @@ export class WorkflowCodecRunner {
                               arguments: await encodeOptional(this.codecs, command.scheduleLocalActivity.arguments),
                               // don't encode headers
                               headers: noopEncodeMap(command.scheduleLocalActivity.headers),
+                            }
+                          : undefined,
+                        scheduleNexusOperation: command.scheduleNexusOperation
+                          ? {
+                              ...command.scheduleNexusOperation,
+                              input: await encodeOptionalSingle(this.codecs, command.scheduleNexusOperation.input),
                             }
                           : undefined,
                         modifyWorkflowProperties: command.modifyWorkflowProperties

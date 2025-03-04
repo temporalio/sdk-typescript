@@ -5,20 +5,20 @@ use prost::Message;
 use std::{cell::RefCell, sync::Arc};
 use temporal_sdk_core::replay::HistoryForReplay;
 use temporal_sdk_core::{
+    Worker as CoreWorker,
     api::{
-        errors::{CompleteActivityError, CompleteWfError, PollError},
         Worker as CoreWorkerTrait,
+        errors::{CompleteActivityError, CompleteWfError, PollError},
     },
     protos::{
         coresdk::{
-            workflow_completion::WorkflowActivationCompletion, ActivityHeartbeat,
-            ActivityTaskCompletion,
+            ActivityHeartbeat, ActivityTaskCompletion,
+            workflow_completion::WorkflowActivationCompletion,
         },
         temporal::api::history::v1::History,
     },
-    Worker as CoreWorker,
 };
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 /// Worker struct, hold a reference for the channel sender responsible for sending requests from
@@ -209,9 +209,7 @@ pub async fn handle_poll_activity_task_request(
         Err(err) => {
             send_error(channel, callback, move |cx| match err {
                 PollError::ShutDown => make_named_error_from_error(cx, SHUTDOWN_ERROR, err),
-                PollError::TonicError(_) => {
-                    make_named_error_from_error(cx, TRANSPORT_ERROR, err)
-                }
+                PollError::TonicError(_) => make_named_error_from_error(cx, TRANSPORT_ERROR, err),
             });
         }
     }

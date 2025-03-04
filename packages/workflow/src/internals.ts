@@ -609,6 +609,14 @@ export class Activator implements ActivationHandler {
     }
   }
 
+  public resolveNexusOperationStart(_: coresdk.workflow_activation.IResolveNexusOperationStart): void {
+    throw new Error('TODO');
+  }
+
+  public resolveNexusOperation(_: coresdk.workflow_activation.IResolveNexusOperation): void {
+    throw new Error('TODO');
+  }
+
   // Intentionally non-async function so this handler doesn't show up in the stack trace
   protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
     const fn = this.queryHandlers.get(queryName)?.handler;
