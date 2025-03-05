@@ -1,5 +1,17 @@
 use neon::prelude::*;
 
+#[derive(thiserror::Error, Debug)]
+pub enum ThrowableError {
+    #[error("Transport error: {0}")]
+    TransportError(String),
+    #[error("Shutdown error: {0}")]
+    ShutdownError(String),
+    #[error("Unexpected error: {0}")]
+    UnexpectedError(String),
+    #[error("Illegal state error: {0}")]
+    IllegalStateError(String),
+}
+
 pub trait JavaScriptContextCustomErrors<'a>: Context<'a> {
     fn throw_illegal_state_error<S: AsRef<str>, T>(&mut self, message: S) -> NeonResult<T>;
 

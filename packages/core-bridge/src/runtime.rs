@@ -2,7 +2,9 @@ use crate::conversions::*;
 use crate::errors::JavaScriptContextCustomErrors;
 use neon::types::JsBigInt;
 use neon::{context::Context, prelude::*};
+use std::future::Future;
 use std::net::SocketAddr;
+use std::pin::Pin;
 use std::{
     cell::RefCell,
     sync::Arc,
@@ -143,6 +145,149 @@ impl BoxedRuntimeRefExt for Handle<'_, BoxedRuntimeRef> {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+pub trait FutureToPromise {
+    fn future_to_promise<'a, C, F, R, T, E, S>(
+        &self,
+        cx: &mut C,
+        future: F,
+        settle_fn: S,
+    ) -> JsResult<'a, JsPromise>
+    where
+        C: Context<'a>,
+        F: Future<Output = Result<R, E>> + Send + 'static,
+        R: Send + 'static,
+        E: Send + 'static,
+        S: for<'b> FnOnce(&mut TaskContext<'b>, Result<R, E>) -> JsResult<'b, T> + Send + 'static,
+        T: Object;
+}
+
+// Implementation for plain RuntimeHandle
+impl FutureToPromise for RuntimeHandle {
+    fn future_to_promise<'a, C, F, R, T, E, S>(
+        &self,
+        cx: &mut C,
+        future: F,
+        settle_fn: S,
+    ) -> JsResult<'a, JsPromise>
+    where
+        C: Context<'a>,
+        F: Future<Output = Result<R, E>> + Send + 'static,
+        R: Send + 'static,
+        E: Send + 'static,
+        S: for<'b> FnOnce(&mut TaskContext<'b>, Result<R, E>) -> JsResult<'b, T> + Send + 'static,
+        T: Object,
+    {
+        let (deferred, promise) = cx.promise();
+        let cx_channel = self.cx_channel.clone();
+
+        self.core_runtime.tokio_handle().spawn(async move {
+            let result = future.await;
+
+            deferred.try_settle_with(cx_channel.as_ref(), move |mut cx| {
+                settle_fn(&mut cx, result)
+            });
+        });
+
+        Ok(promise)
+    }
+}
+
+// Implementation for Arc<RuntimeHandle>
+impl FutureToPromise for Arc<RuntimeHandle> {
+    fn future_to_promise<'a, C, F, R, T, E, S>(
+        &self,
+        cx: &mut C,
+        future: F,
+        settle_fn: S,
+    ) -> JsResult<'a, JsPromise>
+    where
+        C: Context<'a>,
+        F: Future<Output = Result<R, E>> + Send + 'static,
+        R: Send + 'static,
+        E: Send + 'static,
+        S: for<'b> FnOnce(&mut TaskContext<'b>, Result<R, E>) -> JsResult<'b, T> + Send + 'static,
+        T: Object,
+    {
+        let handle_ref: &RuntimeHandle = self.as_ref();
+        handle_ref.future_to_promise(cx, future, settle_fn)
+    }
+}
+
+// pub trait SpawnWithPromise {
+//     /// Spawns an async task that returns a Result, then settles the promise with the result
+//     ///
+//     /// * `future_fn` - A function that creates a future and runs on a tokio thread
+//     /// * `settle_fn` - A function that runs on the JS thread to convert the result to a JS value
+//     fn spawn_with_promise<'a, C, F, R, T, E, S>(
+//         &self,
+//         cx: &mut C,
+//         future_fn: F,
+//         settle_fn: S,
+//     ) -> JsResult<'a, JsPromise>
+//     where
+//         C: Context<'a>,
+//         F: FnOnce() -> Pin<Box<dyn Future<Output = Result<R, E>> + Send>> + Send + 'static,
+//         R: Send + 'static,
+//         E: Send + 'static,
+//         S: for<'b> FnOnce(&mut TaskContext<'b>, Result<R, E>) -> JsResult<'b, T> + Send + 'static,
+//         T: Object;
+// }
+
+// // Implementation for plain RuntimeHandle
+// impl SpawnWithPromise for RuntimeHandle {
+//     fn spawn_with_promise<'a, C, F, R, T, E, S>(
+//         &self,
+//         cx: &mut C,
+//         future_fn: F,
+//         settle_fn: S,
+//     ) -> JsResult<'a, JsPromise>
+//     where
+//         C: Context<'a>,
+//         F: FnOnce() -> Pin<Box<dyn Future<Output = Result<R, E>> + Send>> + Send + 'static,
+//         R: Send + 'static,
+//         E: Send + 'static,
+//         S: for<'b> FnOnce(&mut TaskContext<'b>, Result<R, E>) -> JsResult<'b, T> + Send + 'static,
+//         T: Object,
+//     {
+//         let (deferred, promise) = cx.promise();
+//         let cx_channel = self.cx_channel.clone();
+
+//         self.core_runtime.tokio_handle().spawn(async move {
+//             let result = future_fn().await;
+
+//             deferred.try_settle_with(cx_channel.as_ref(), move |mut cx| {
+//                 settle_fn(&mut cx, result)
+//             });
+//         });
+
+//         Ok(promise)
+//     }
+// }
+
+//         S: for<'a> FnOnce(&mut TaskContext<'a>, Result<R, E>) -> JsResult<'a, T> + Send + 'static,
+//         T: Object;
+
+// // Implementation for Arc<RuntimeHandle>
+// impl SpawnWithPromise for Arc<RuntimeHandle> {
+//     fn spawn_with_promise<'a, C, F, R, T, E, S>(
+//         &self,
+//         cx: &mut C,
+//         future_fn: F,
+//         settle_fn: S,
+//     ) -> JsResult<'a, JsPromise>
+//     where
+//         C: Context<'a>,
+//         F: FnOnce() -> Future<Output = Result<R, E> + Send> + Send + 'static,
+//         R: Send + 'static,
+//         E: Send + 'static,
+//         S: for<'b> FnOnce(&mut TaskContext<'b>, Result<R, E>) -> JsResult<'b, T> + Send + 'static,
+//         T: Object,
+//     {
+//         let handle_ref: &RuntimeHandle = self.as_ref();
+//         handle_ref.spawn_with_promise(cx, future_fn, settle_fn)
+//     }
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

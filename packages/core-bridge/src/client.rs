@@ -1,7 +1,7 @@
 use crate::{
     conversions::*,
     errors::*,
-    runtime::{BoxedRuntimeRef, RuntimeHandle},
+    runtime::{BoxedRuntimeRef, FutureToPromise, RuntimeHandle},
 };
 use neon::{context::Context, prelude::*};
 use std::{cell::RefCell, sync::Arc};
@@ -42,7 +42,7 @@ pub type CoreClient = RetryClient<ConfiguredClient<TemporalServiceClientWithMetr
 
 /// Create a connected gRPC client which can be used to initialize workers.
 pub fn client_new(mut cx: FunctionContext) -> JsResult<JsPromise> {
-    let runtime = cx.argument::<BoxedRuntimeRef>(0)?;
+    let runtime: Handle<BoxedRuntimeRef> = cx.argument(0)?;
     let runtime_ref = runtime.borrow();
     let runtime_handle = runtime_ref
         .as_ref()
@@ -51,46 +51,35 @@ pub fn client_new(mut cx: FunctionContext) -> JsResult<JsPromise> {
 
     let client_options = cx.argument::<JsObject>(1)?.as_client_options(&mut cx)?;
 
-    let (deferred, promise) = cx.promise();
-
     let metric_meter = runtime_handle
         .core_runtime
         .telemetry()
         .get_temporal_metric_meter();
 
-    runtime_handle
-        .core_runtime
-        .tokio_handle()
-        .spawn(async move {
-            let result = client_options.connect_no_namespace(metric_meter).await;
-
-            let cx_channel = runtime_handle.cx_channel.clone();
-            deferred
-                .try_settle_with(cx_channel.as_ref(), move |mut cx: TaskContext| {
-                    let runtime_handle = runtime_handle.clone();
-                    match result {
-                        Ok(client) => {
-                            let client_handle = ClientHandle {
-                                runtime_handle: runtime_handle.clone(),
-                                core_client: client,
-                            };
-                            Ok(cx.boxed(RefCell::new(Some(client_handle))))
-                        }
-                        Err(ClientInitError::SystemInfoCallError(e)) => cx.throw_transport_error(
-                            format!("Failed to call GetSystemInfo: {}", e),
-                        )?,
-                        Err(ClientInitError::TonicTransportError(e)) => {
-                            cx.throw_transport_error(e.to_string())?
-                        }
-                        Err(ClientInitError::InvalidUri(e)) => {
-                            cx.throw_type_error(e.to_string())?
-                        }
-                    }
-                })
-                .unwrap(); // Not much we can do at this point. It's time to panic.
-        });
-
-    Ok(promise)
+    let _guard = runtime_handle.core_runtime.tokio_handle().enter();
+    runtime_handle.clone().future_to_promise(
+        &mut cx,
+        async move {
+            let core_client = client_options
+                .clone()
+                .connect_no_namespace(metric_meter)
+                .await?;
+            Ok(ClientHandle {
+                runtime_handle,
+                core_client,
+            })
+        },
+        move |cx, result| match result {
+            Ok(client_handle) => Ok(cx.boxed(RefCell::new(Some(client_handle)))),
+            Err(ClientInitError::SystemInfoCallError(e)) => {
+                cx.throw_transport_error(format!("Failed to call GetSystemInfo: {}", e))?
+            }
+            Err(ClientInitError::TonicTransportError(e)) => {
+                cx.throw_transport_error(e.to_string())?
+            }
+            Err(ClientInitError::InvalidUri(e)) => cx.throw_type_error(e.to_string())?,
+        },
+    )
 }
 
 /// Update a Client's HTTP request headers

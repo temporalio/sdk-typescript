@@ -5,6 +5,7 @@ use std::sync::Arc;
 use crate::conversions::*;
 use crate::errors::*;
 use crate::runtime::BoxedRuntimeRef;
+use crate::runtime::FutureToPromise;
 use crate::runtime::RuntimeHandle;
 use neon::prelude::*;
 use temporal_sdk_core::ephemeral_server::EphemeralServer as CoreEphemeralServer;
@@ -34,8 +35,51 @@ impl Finalize for EphemeralServerHandle {}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Start an ephemeral Temporal server
-pub fn start_ephemeral_server(mut cx: FunctionContext) -> JsResult<JsPromise> {
-    let runtime = cx.argument::<BoxedRuntimeRef>(0)?;
+pub fn start_dev_server(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let runtime: Handle<BoxedRuntimeRef> = cx.argument(0)?;
+    let runtime_ref = runtime.borrow();
+    let runtime_handle = runtime_ref
+        .as_ref()
+        .expect("Tried to use Runtime after it has been shutdown")
+        .clone();
+
+    let server_options = cx
+        .argument::<JsObject>(1)?
+        .as_ephemeral_server_config(&mut cx)?;
+
+    let EphemeralServerConfig::DevServer(config) = server_options else {
+        return cx.throw_type_error("Invalid ephemeral server config: expected 'dev-server'")?;
+    };
+
+    let _guard = runtime_handle.core_runtime.tokio_handle().enter();
+    runtime_handle.clone().future_to_promise(
+        &mut cx,
+        async move {
+            // Node intentionally drops stdout/stderr on process fork for security reasons,
+            // which is causing various issues with ephemeral servers. To work around that
+            // behavior, we explicitly force stdout/stderr on the child process.
+            let stdout = Stdio::from(std::io::stdout());
+            let stderr = Stdio::from(std::io::stderr());
+
+            let core_server = config.start_server_with_output(stdout, stderr).await?;
+
+            Ok(EphemeralServerHandle {
+                runtime_handle,
+                core_server,
+            })
+        },
+        move |cx, result: Result<EphemeralServerHandle, Error>| match result {
+            Ok(server_handle) => Ok(cx.boxed(RefCell::new(Some(server_handle)))),
+            Err(err) => {
+                cx.throw_unexpected_error(format!("Failed to start ephemeral server: {}", err))?
+            }
+        },
+    )
+}
+
+/// Start an ephemeral Temporal server
+pub fn start_test_server(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let runtime: Handle<BoxedRuntimeRef> = cx.argument(0)?;
     let runtime_ref = runtime.borrow();
     let runtime_handle = runtime_ref
         .as_ref()
@@ -48,41 +92,81 @@ pub fn start_ephemeral_server(mut cx: FunctionContext) -> JsResult<JsPromise> {
 
     let (deferred, promise) = cx.promise();
 
-    runtime_handle
-        .core_runtime
-        .tokio_handle()
-        .spawn(async move {
+    let _guard = runtime_handle.core_runtime.tokio_handle().enter();
+    runtime_handle.clone().future_to_promise(
+        &mut cx,
+        async move {
             let stdout = Stdio::from(std::io::stdout());
             let stderr = Stdio::from(std::io::stderr());
-            let result = match server_options {
-                EphemeralServerConfig::TestServer(config) => {
-                    config.start_server_with_output(stdout, stderr).await
-                }
-                EphemeralServerConfig::DevServer(config) => {
-                    config.start_server_with_output(stdout, stderr).await
-                }
+            let core_server = match server_options {
+                EphemeralServerConfig::TestServer(config) => config
+                    .start_server_with_output(stdout, stderr)
+                    .await
+                    .map_err(|e| e.downcast())?,
+                EphemeralServerConfig::DevServer(config) => config
+                    .start_server_with_output(stdout, stderr)
+                    .await
+                    .map_err(|e| e.downcast())?,
             };
+            Ok(EphemeralServerHandle {
+                runtime_handle,
+                core_server,
+            })
+        },
+        move |cx, result: Result<EphemeralServerHandle, Error>| match result {
+            Ok(server_handle) => Ok(cx.boxed(RefCell::new(Some(server_handle)))),
+            Err(err) => {
+                cx.throw_unexpected_error(format!("Failed to start ephemeral server: {}", err))?
+            }
+        },
+    );
 
-            let cx_channel = runtime_handle.cx_channel.clone();
-            deferred
-                .try_settle_with(cx_channel.as_ref(), move |mut cx: TaskContext| {
-                    let runtime_handle = runtime_handle.clone();
-                    match result {
-                        Ok(server) => {
-                            let server_handle = EphemeralServerHandle {
-                                runtime_handle: runtime_handle.clone(),
-                                core_server: server,
-                            };
-                            Ok(cx.boxed(RefCell::new(Some(server_handle))))
-                        }
-                        Err(err) => cx.throw_unexpected_error(format!(
-                            "Failed to start ephemeral server: {}",
-                            err
-                        ))?,
-                    }
-                })
-                .unwrap(); // Not much we can do at this point. It's time to panic.
-        });
+    Ok(promise)
+}
+
+/// Start an ephemeral Temporal server
+pub fn start_ephemeral_server(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let runtime: Handle<BoxedRuntimeRef> = cx.argument(0)?;
+    let runtime_ref = runtime.borrow();
+    let runtime_handle = runtime_ref
+        .as_ref()
+        .expect("Tried to use Runtime after it has been shutdown")
+        .clone();
+
+    let server_options = cx
+        .argument::<JsObject>(1)?
+        .as_ephemeral_server_config(&mut cx)?;
+
+    let (deferred, promise) = cx.promise();
+
+    let _guard = runtime_handle.core_runtime.tokio_handle().enter();
+    runtime_handle.clone().future_to_promise(
+        &mut cx,
+        async move {
+            let stdout = Stdio::from(std::io::stdout());
+            let stderr = Stdio::from(std::io::stderr());
+            let core_server = match server_options {
+                EphemeralServerConfig::TestServer(config) => config
+                    .start_server_with_output(stdout, stderr)
+                    .await
+                    .map_err(|e| e.downcast())?,
+                EphemeralServerConfig::DevServer(config) => config
+                    .start_server_with_output(stdout, stderr)
+                    .await
+                    .map_err(|e| e.downcast())?,
+            };
+            Ok(EphemeralServerHandle {
+                runtime_handle,
+                core_server,
+            })
+        },
+        move |cx, result: Result<EphemeralServerHandle, Error>| match result {
+            Ok(server_handle) => Ok(cx.boxed(RefCell::new(Some(server_handle)))),
+            Err(err) => {
+                cx.throw_unexpected_error(format!("Failed to start ephemeral server: {}", err))?
+            }
+        },
+    );
 
     Ok(promise)
 }

@@ -2662,6 +2662,7 @@ dependencies = [
  "serde_json",
  "temporal-client",
  "temporal-sdk-core",
+ "thiserror 2.0.11",
  "tokio",
  "tokio-stream",
 ]
