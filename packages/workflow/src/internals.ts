@@ -41,12 +41,14 @@ import {
   WorkflowInfo,
   WorkflowCreateOptionsInternal,
   ActivationCompletion,
+  DefaultUpdateHandler,
 } from './interfaces';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
 import { SdkFlag, assertValidFlag } from './flags';
 import { executeWithLifecycleLogging, log } from './logs';
+import { DefaultUpdateHandler } from './interfaces';
 
 const StartChildWorkflowExecutionFailedCause = {
   WORKFLOW_ALREADY_EXISTS: 'WORKFLOW_ALREADY_EXISTS',
@@ -188,6 +190,11 @@ export class Activator implements ActivationHandler {
    * A signal handler that catches calls for non-registered signal names.
    */
   defaultSignalHandler?: DefaultSignalHandler;
+
+  /**
+   * A update handler that catches calls for non-registered update names.
+   */
+  defaultUpdateHandler?: DefaultUpdateHandler;
 
   /**
    * Source map file for looking up the source files in response to __enhanced_stack_trace
@@ -665,11 +672,16 @@ export class Activator implements ActivationHandler {
     if (!protocolInstanceId) {
       throw new TypeError('Missing activation update protocolInstanceId');
     }
-    const entry = this.updateHandlers.get(name);
-    if (!entry) {
+    if (!this.updateHandlers.get(name) && !this.defaultUpdateHandler) {
       this.bufferedUpdates.push(activation);
       return;
     }
+    
+    const entry = this.updateHandlers.get(name) ?? {
+        handler: this.defaultUpdateHandler,
+        // Default to a warning policy.
+        unfinishedPolicy: HandlerUnfinishedPolicy.WARN_AND_ABANDON,
+    };
 
     const makeInput = (): UpdateInput => ({
       updateId,
@@ -758,13 +770,19 @@ export class Activator implements ActivationHandler {
   public dispatchBufferedUpdates(): void {
     const bufferedUpdates = this.bufferedUpdates;
     while (bufferedUpdates.length) {
-      const foundIndex = bufferedUpdates.findIndex((update) => this.updateHandlers.has(update.name as string));
-      if (foundIndex === -1) {
-        // No buffered Updates have a handler yet.
-        break;
+      // We have a default update handler, so all updates are dispatchable.
+      if (this.defaultUpdateHandler) {
+        const update = bufferedUpdates.shift();
+        this.doUpdate(update);
+      } else {
+        const foundIndex = bufferedUpdates.findIndex((update) => this.updateHandlers.has(update.name as string));
+        if (foundIndex === -1) {
+          // No buffered Updates have a handler yet.
+          break;
+        }
+        const [update] = bufferedUpdates.splice(foundIndex, 1);
+        this.doUpdate(update);
       }
-      const [update] = bufferedUpdates.splice(foundIndex, 1);
-      this.doUpdate(update);
     }
   }
 

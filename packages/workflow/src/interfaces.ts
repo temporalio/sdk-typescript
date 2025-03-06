@@ -539,6 +539,11 @@ export type Handler<
 export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => void | Promise<void>;
 
 /**
+ * A handler function accepting update calls for non-registered update names.
+ */
+export type DefaultUpdateHandler = (...args: any[]) => Promise<any> | any;
+
+/**
  * A validation function capable of accepting the arguments for a given UpdateDefinition.
  */
 export type UpdateValidator<Args extends any[]> = (...args: Args) => void;
