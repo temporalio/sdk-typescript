@@ -14,7 +14,7 @@ import {
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { decode as payloadDecode, decodeFromPayloadsAtIndex } from '@temporalio/common/lib/internal-non-workflow';
 
-import { condition, defineQuery, setHandler, sleep } from '@temporalio/workflow';
+import { condition, defineQuery, defineSignal, setDefaultQueryHandler, setHandler, sleep } from '@temporalio/workflow';
 import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';
 import * as activities from './activities';
 import * as workflows from './workflows';
@@ -696,4 +696,44 @@ test('Query does not cause condition to be triggered', configMacro, async (t, co
   await handle.terminate();
   // Worker did not crash
   t.pass();
+});
+
+const completeSignal = defineSignal("complete");
+const definedQuery = defineQuery('query-handler-type');
+
+export async function workflowWithMaybeDefinedQuery(useDefinedQuery: boolean): Promise<void> {
+    let complete = false;
+    setHandler(completeSignal, () => { complete = true });
+    setDefaultQueryHandler(() => 'got-default-query-handler');
+    if (useDefinedQuery) {
+        setHandler(definedQuery, () => 'got-defined-query-handler');
+    }
+  
+    await condition(() => complete);
+}
+
+test('default query handler is used if requested query does not exist', configMacro, async (t, config) => {
+  const { env, createWorkerWithDefaults } = config;
+  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+  const worker = await createWorkerWithDefaults(t, { activities });
+  const handle = await startWorkflow(workflowWithMaybeDefinedQuery, {
+    args: [false],
+  });
+  await worker.runUntil(async () => {
+    const result = await handle.query('query-handler-type');
+    t.is(result, 'got-default-query-handler');
+  });
+});
+
+test('default query handler is not used if requested query exists', configMacro, async (t, config) => {
+  const { env, createWorkerWithDefaults } = config;
+  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+  const worker = await createWorkerWithDefaults(t, { activities });
+  const handle = await startWorkflow(workflowWithMaybeDefinedQuery, {
+    args: [true],
+  });
+  await worker.runUntil(async () => {
+    const result = await handle.query('query-handler-type');
+    t.is(result, 'got-defined-query-handler');
+  });
 });
