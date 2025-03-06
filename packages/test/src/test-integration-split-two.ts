@@ -698,18 +698,20 @@ test('Query does not cause condition to be triggered', configMacro, async (t, co
   t.pass();
 });
 
-const completeSignal = defineSignal("complete");
+const completeSignal = defineSignal('complete');
 const definedQuery = defineQuery('query-handler-type');
 
 export async function workflowWithMaybeDefinedQuery(useDefinedQuery: boolean): Promise<void> {
-    let complete = false;
-    setHandler(completeSignal, () => { complete = true });
-    setDefaultQueryHandler(() => 'got-default-query-handler');
-    if (useDefinedQuery) {
-        setHandler(definedQuery, () => 'got-defined-query-handler');
-    }
-  
-    await condition(() => complete);
+  let complete = false;
+  setHandler(completeSignal, () => {
+    complete = true;
+  });
+  setDefaultQueryHandler(() => 'got-default-query-handler');
+  if (useDefinedQuery) {
+    setHandler(definedQuery, () => 'got-defined-query-handler');
+  }
+
+  await condition(() => complete);
 }
 
 test('default query handler is used if requested query does not exist', configMacro, async (t, config) => {

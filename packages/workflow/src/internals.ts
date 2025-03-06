@@ -190,10 +190,10 @@ export class Activator implements ActivationHandler {
    */
   defaultSignalHandler?: DefaultSignalHandler;
 
-    /**
+  /**
    * A query handler that catches calls for non-registered query names.
    */
-    defaultQueryHandler?: DefaultQueryHandler;
+  defaultQueryHandler?: DefaultQueryHandler;
 
   /**
    * Source map file for looking up the source files in response to __enhanced_stack_trace
