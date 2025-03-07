@@ -56,7 +56,6 @@ pub fn client_new(mut cx: FunctionContext) -> JsResult<JsPromise> {
         .telemetry()
         .get_temporal_metric_meter();
 
-    let _guard = runtime_handle.core_runtime.tokio_handle().enter();
     runtime_handle.clone().future_to_promise(
         &mut cx,
         async move {
@@ -64,6 +63,7 @@ pub fn client_new(mut cx: FunctionContext) -> JsResult<JsPromise> {
                 .clone()
                 .connect_no_namespace(metric_meter)
                 .await?;
+
             Ok(ClientHandle {
                 runtime_handle,
                 core_client,
@@ -72,12 +72,12 @@ pub fn client_new(mut cx: FunctionContext) -> JsResult<JsPromise> {
         move |cx, result| match result {
             Ok(client_handle) => Ok(cx.boxed(RefCell::new(Some(client_handle)))),
             Err(ClientInitError::SystemInfoCallError(e)) => {
-                cx.throw_transport_error(format!("Failed to call GetSystemInfo: {}", e))?
+                cx.throw_transport_error(format!("Failed to call GetSystemInfo: {:?}", e))?
             }
             Err(ClientInitError::TonicTransportError(e)) => {
-                cx.throw_transport_error(e.to_string())?
+                cx.throw_transport_error(format!("{:?}", e))?
             }
-            Err(ClientInitError::InvalidUri(e)) => cx.throw_type_error(e.to_string())?,
+            Err(ClientInitError::InvalidUri(e)) => cx.throw_type_error(format!("{:?}", e))?,
         },
     )
 }
@@ -237,7 +237,7 @@ impl ClientOptionsConversions for Handle<'_, JsObject> {
             None => None,
             Some(h) => Some(h.as_hash_map_of_string_to_string(cx).map_err(|reason| {
                 cx.throw_type_error::<_, HashMap<String, String>>(format!(
-                    "Invalid metadata: {}",
+                    "Invalid metadata: {:?}",
                     reason
                 ))
                 .unwrap_err()

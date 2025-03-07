@@ -2650,6 +2650,7 @@ dependencies = [
 name = "temporal-sdk-typescript-bridge"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "futures",
  "log",
@@ -2662,7 +2663,6 @@ dependencies = [
  "serde_json",
  "temporal-client",
  "temporal-sdk-core",
- "thiserror 2.0.11",
  "tokio",
  "tokio-stream",
 ]

@@ -468,7 +468,7 @@ export class Worker {
     });
     const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(options, logger);
-    logger.info('Creating worker', {
+    logger.debug('Creating worker', {
       options: {
         ...compiledOptions,
         ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)

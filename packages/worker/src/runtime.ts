@@ -420,7 +420,7 @@ export class Runtime {
    * @hidden
    */
   public async deregisterWorker(worker: native.Worker): Promise<void> {
-    native.workerFinalizeShutdown(worker);
+    await native.workerFinalizeShutdown(worker);
     this.backRefs.delete(worker);
     await this.shutdownIfIdle();
   }

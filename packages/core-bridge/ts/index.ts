@@ -568,7 +568,7 @@ export declare function clientClose(client: Client): void;
 
 export declare function newWorker(client: Client, workerOptions: WorkerOptions): Promise<Worker>;
 export declare function workerInitiateShutdown(worker: Worker): void;
-export declare function workerFinalizeShutdown(worker: Worker): void;
+export declare function workerFinalizeShutdown(worker: Worker): Promise<void>;
 
 export declare function workerPollWorkflowActivation(worker: Worker): Promise<ArrayBuffer>;
 export declare function workerCompleteWorkflowActivation(worker: Worker, result: ArrayBuffer): Promise<void>;

@@ -4,7 +4,6 @@ use neon::types::JsBigInt;
 use neon::{context::Context, prelude::*};
 use std::future::Future;
 use std::net::SocketAddr;
-use std::pin::Pin;
 use std::{
     cell::RefCell,
     sync::Arc,
@@ -62,7 +61,7 @@ pub fn runtime_new(mut cx: FunctionContext) -> JsResult<BoxedRuntimeRef> {
         runtime_options.telemetry_options,
         TokioRuntimeBuilder::default(),
     )
-    .or_else(|err| cx.throw_error(format!("Failed to initialize Core Runtime: {}", err)))?;
+    .or_else(|err| cx.throw_error(format!("Failed to initialize Core Runtime: {:?}", err)))?;
 
     match runtime_options.metrics_options {
         Some(MetricsConfig::Prometheus(prom_opts)) => {
@@ -70,7 +69,7 @@ pub fn runtime_new(mut cx: FunctionContext) -> JsResult<BoxedRuntimeRef> {
 
             let exporter = start_prometheus_metric_exporter(prom_opts).or_else(|err| {
                 cx.throw_error(format!(
-                    "Failed to start prometheus metrics exporter: {}",
+                    "Failed to start prometheus metrics exporter: {:?}",
                     err
                 ))
             })?;
@@ -83,7 +82,7 @@ pub fn runtime_new(mut cx: FunctionContext) -> JsResult<BoxedRuntimeRef> {
             let _guard = core_runtime.tokio_handle().enter();
 
             let exporter = build_otlp_metric_exporter(otel_opts).or_else(|err| {
-                cx.throw_error(format!("Failed to start OTel metrics exporter: {}", err))
+                cx.throw_error(format!("Failed to start OTel metrics exporter: {:?}", err))
             })?;
 
             core_runtime
@@ -146,6 +145,16 @@ impl BoxedRuntimeRefExt for Handle<'_, BoxedRuntimeRef> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#[macro_export]
+macro_rules! enter_sync {
+    ($runtime:expr) => {
+        if let Some(subscriber) = $runtime.core_runtime.telemetry().trace_subscriber() {
+            temporal_sdk_core::telemetry::set_trace_subscriber_for_current_thread(subscriber);
+        }
+        let _guard = $runtime.core_runtime.tokio_handle().enter();
+    };
+}
+
 pub trait FutureToPromise {
     fn future_to_promise<'a, C, F, R, T, E, S>(
         &self,
@@ -155,11 +164,13 @@ pub trait FutureToPromise {
     ) -> JsResult<'a, JsPromise>
     where
         C: Context<'a>,
-        F: Future<Output = Result<R, E>> + Send + 'static,
+        F: Future<Output = anyhow::Result<R, E>> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
-        S: for<'b> FnOnce(&mut TaskContext<'b>, Result<R, E>) -> JsResult<'b, T> + Send + 'static,
-        T: Object;
+        S: for<'b> FnOnce(&mut TaskContext<'b>, anyhow::Result<R, E>) -> JsResult<'b, T>
+            + Send
+            + 'static,
+        T: Value;
 }
 
 // Implementation for plain RuntimeHandle
@@ -172,21 +183,29 @@ impl FutureToPromise for RuntimeHandle {
     ) -> JsResult<'a, JsPromise>
     where
         C: Context<'a>,
-        F: Future<Output = Result<R, E>> + Send + 'static,
+        F: Future<Output = anyhow::Result<R, E>> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
-        S: for<'b> FnOnce(&mut TaskContext<'b>, Result<R, E>) -> JsResult<'b, T> + Send + 'static,
-        T: Object,
+        S: for<'b> FnOnce(&mut TaskContext<'b>, anyhow::Result<R, E>) -> JsResult<'b, T>
+            + Send
+            + 'static,
+        T: Value,
     {
         let (deferred, promise) = cx.promise();
         let cx_channel = self.cx_channel.clone();
 
+        let tokio_handle = self.core_runtime.tokio_handle();
+
+        let _guard = tokio_handle.clone().enter();
+
         self.core_runtime.tokio_handle().spawn(async move {
             let result = future.await;
 
-            deferred.try_settle_with(cx_channel.as_ref(), move |mut cx| {
-                settle_fn(&mut cx, result)
-            });
+            if let Err(err) =
+                deferred.try_settle_with(&cx_channel, move |mut cx| settle_fn(&mut cx, result))
+            {
+                eprint!("Failed to complete JS Promise: {:?}", err);
+            }
         });
 
         Ok(promise)
@@ -203,91 +222,18 @@ impl FutureToPromise for Arc<RuntimeHandle> {
     ) -> JsResult<'a, JsPromise>
     where
         C: Context<'a>,
-        F: Future<Output = Result<R, E>> + Send + 'static,
+        F: Future<Output = anyhow::Result<R, E>> + Send + 'static,
         R: Send + 'static,
         E: Send + 'static,
-        S: for<'b> FnOnce(&mut TaskContext<'b>, Result<R, E>) -> JsResult<'b, T> + Send + 'static,
-        T: Object,
+        S: for<'b> FnOnce(&mut TaskContext<'b>, anyhow::Result<R, E>) -> JsResult<'b, T>
+            + Send
+            + 'static,
+        T: Value,
     {
         let handle_ref: &RuntimeHandle = self.as_ref();
         handle_ref.future_to_promise(cx, future, settle_fn)
     }
 }
-
-// pub trait SpawnWithPromise {
-//     /// Spawns an async task that returns a Result, then settles the promise with the result
-//     ///
-//     /// * `future_fn` - A function that creates a future and runs on a tokio thread
-//     /// * `settle_fn` - A function that runs on the JS thread to convert the result to a JS value
-//     fn spawn_with_promise<'a, C, F, R, T, E, S>(
-//         &self,
-//         cx: &mut C,
-//         future_fn: F,
-//         settle_fn: S,
-//     ) -> JsResult<'a, JsPromise>
-//     where
-//         C: Context<'a>,
-//         F: FnOnce() -> Pin<Box<dyn Future<Output = Result<R, E>> + Send>> + Send + 'static,
-//         R: Send + 'static,
-//         E: Send + 'static,
-//         S: for<'b> FnOnce(&mut TaskContext<'b>, Result<R, E>) -> JsResult<'b, T> + Send + 'static,
-//         T: Object;
-// }
-
-// // Implementation for plain RuntimeHandle
-// impl SpawnWithPromise for RuntimeHandle {
-//     fn spawn_with_promise<'a, C, F, R, T, E, S>(
-//         &self,
-//         cx: &mut C,
-//         future_fn: F,
-//         settle_fn: S,
-//     ) -> JsResult<'a, JsPromise>
-//     where
-//         C: Context<'a>,
-//         F: FnOnce() -> Pin<Box<dyn Future<Output = Result<R, E>> + Send>> + Send + 'static,
-//         R: Send + 'static,
-//         E: Send + 'static,
-//         S: for<'b> FnOnce(&mut TaskContext<'b>, Result<R, E>) -> JsResult<'b, T> + Send + 'static,
-//         T: Object,
-//     {
-//         let (deferred, promise) = cx.promise();
-//         let cx_channel = self.cx_channel.clone();
-
-//         self.core_runtime.tokio_handle().spawn(async move {
-//             let result = future_fn().await;
-
-//             deferred.try_settle_with(cx_channel.as_ref(), move |mut cx| {
-//                 settle_fn(&mut cx, result)
-//             });
-//         });
-
-//         Ok(promise)
-//     }
-// }
-
-//         S: for<'a> FnOnce(&mut TaskContext<'a>, Result<R, E>) -> JsResult<'a, T> + Send + 'static,
-//         T: Object;
-
-// // Implementation for Arc<RuntimeHandle>
-// impl SpawnWithPromise for Arc<RuntimeHandle> {
-//     fn spawn_with_promise<'a, C, F, R, T, E, S>(
-//         &self,
-//         cx: &mut C,
-//         future_fn: F,
-//         settle_fn: S,
-//     ) -> JsResult<'a, JsPromise>
-//     where
-//         C: Context<'a>,
-//         F: FnOnce() -> Future<Output = Result<R, E> + Send> + Send + 'static,
-//         R: Send + 'static,
-//         E: Send + 'static,
-//         S: for<'b> FnOnce(&mut TaskContext<'b>, Result<R, E>) -> JsResult<'b, T> + Send + 'static,
-//         T: Object,
-//     {
-//         let handle_ref: &RuntimeHandle = self.as_ref();
-//         handle_ref.spawn_with_promise(cx, future_fn, settle_fn)
-//     }
-// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -403,7 +349,7 @@ impl RuntimeOptionsConversions for Handle<'_, JsObject> {
                     Ok(url) => options.url(url),
                     Err(e) => {
                         return cx.throw_type_error(format!(
-                            "Invalid telemetryOptions.metrics.otel.url: {}",
+                            "Invalid telemetryOptions.metrics.otel.url: {:?}",
                             e
                         ))?;
                     }
@@ -472,7 +418,7 @@ impl RuntimeOptionsConversions for Handle<'_, JsObject> {
 
         Ok(RuntimeOptions {
             telemetry_options: telemetry_opts.build().map_err(|reason| {
-                cx.throw_type_error::<_, TelemetryOptions>(format!("{}", reason))
+                cx.throw_type_error::<_, TelemetryOptions>(format!("{:?}", reason))
                     .unwrap_err()
             })?,
             metrics_options: metrics_opts,
