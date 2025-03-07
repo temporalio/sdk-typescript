@@ -363,6 +363,22 @@ function makeSetPatchMarker(myPatchId: string, deprecated: boolean): coresdk.wor
   };
 }
 
+function makeUpdateActivationJob(
+  id: string,
+  protocolInstanceId: string,
+  name: string,
+  input: unknown
+): coresdk.workflow_activation.IWorkflowActivationJob {
+  return {
+    doUpdate: {
+      id,
+      protocolInstanceId,
+      name,
+      input: toPayloads(defaultPayloadConverter, input),
+    },
+  };
+}
+
 function makeUpdateAcceptedResponse(id: string): coresdk.workflow_commands.IWorkflowCommand {
   return {
     updateResponse: {
@@ -2420,23 +2436,9 @@ test('Signals/Updates/Activities/Timers - Trace promises completion order - pre-
       ...makeActivation(
         undefined,
         makeSignalWorkflowJob('aaSignal', ['signal1']),
-        {
-          doUpdate: {
-            id: 'first',
-            name: 'aaUpdate',
-            protocolInstanceId: '1',
-            input: toPayloads(defaultPayloadConverter, ['update1']),
-          },
-        },
+        makeUpdateActivationJob('first', '1', 'aaUpdate', ['update1']),
         makeSignalWorkflowJob('aaSignal', ['signal2']),
-        {
-          doUpdate: {
-            id: 'second',
-            name: 'aaUpdate',
-            protocolInstanceId: '2',
-            input: toPayloads(defaultPayloadConverter, ['update2']),
-          },
-        },
+        makeUpdateActivationJob('second', '2', 'aaUpdate', ['update2']),
         makeFireTimerJob(1),
         makeResolveActivityJob(1, { completed: {} })
       ),
@@ -2499,23 +2501,9 @@ test('Signals/Updates/Activities/Timers - Trace promises completion order - 1.11
       ...makeActivation(
         undefined,
         makeSignalWorkflowJob('aaSignal', ['signal1']),
-        {
-          doUpdate: {
-            id: 'first',
-            name: 'aaUpdate',
-            protocolInstanceId: '1',
-            input: toPayloads(defaultPayloadConverter, ['update1']),
-          },
-        },
+        makeUpdateActivationJob('first', '1', 'aaUpdate', ['update1']),
         makeSignalWorkflowJob('aaSignal', ['signal2']),
-        {
-          doUpdate: {
-            id: 'second',
-            name: 'aaUpdate',
-            protocolInstanceId: '2',
-            input: toPayloads(defaultPayloadConverter, ['update2']),
-          },
-        },
+        makeUpdateActivationJob('second', '2', 'aaUpdate', ['update2']),
         makeFireTimerJob(1),
         makeResolveActivityJob(1, { completed: {} })
       ),
@@ -2555,62 +2543,13 @@ test('Buffered updates are dispatched in the correct order - updatesOrdering', a
       makeActivation(
         undefined,
         makeInitializeWorkflowJob(workflowType),
-        {
-          doUpdate: {
-            id: '1',
-            protocolInstanceId: '1',
-            name: 'non-existant',
-            input: toPayloads(defaultPayloadConverter, 1),
-          },
-        },
-        {
-          doUpdate: {
-            id: '2',
-            protocolInstanceId: '2',
-            name: 'updateA',
-            input: toPayloads(defaultPayloadConverter, 2),
-          },
-        },
-        {
-          doUpdate: {
-            id: '3',
-            protocolInstanceId: '3',
-            name: 'updateA',
-            input: toPayloads(defaultPayloadConverter, 3),
-          },
-        },
-        {
-          doUpdate: {
-            id: '4',
-            protocolInstanceId: '4',
-            name: 'updateC',
-            input: toPayloads(defaultPayloadConverter, 4),
-          },
-        },
-        {
-          doUpdate: {
-            id: '5',
-            protocolInstanceId: '5',
-            name: 'updateB',
-            input: toPayloads(defaultPayloadConverter, 5),
-          },
-        },
-        {
-          doUpdate: {
-            id: '6',
-            protocolInstanceId: '6',
-            name: 'non-existant',
-            input: toPayloads(defaultPayloadConverter, 6),
-          },
-        },
-        {
-          doUpdate: {
-            id: '7',
-            protocolInstanceId: '7',
-            name: 'updateB',
-            input: toPayloads(defaultPayloadConverter, 7),
-          },
-        }
+        makeUpdateActivationJob('1', '1', 'non-existant', 1),
+        makeUpdateActivationJob('2', '2', 'updateA', 2),
+        makeUpdateActivationJob('3', '3', 'updateA', 3),
+        makeUpdateActivationJob('4', '4', 'updateC', 4),
+        makeUpdateActivationJob('5', '5', 'updateB', 5),
+        makeUpdateActivationJob('6', '6', 'non-existant', 6),
+        makeUpdateActivationJob('7', '7', 'updateB', 7)
       )
     );
 
@@ -2671,70 +2610,14 @@ test('Buffered updates are reentrant - updatesAreReentrant', async (t) => {
       makeActivation(
         undefined,
         makeInitializeWorkflowJob(workflowType),
-        {
-          doUpdate: {
-            id: '1',
-            protocolInstanceId: '1',
-            name: 'non-existant',
-            input: toPayloads(defaultPayloadConverter, 1),
-          },
-        },
-        {
-          doUpdate: {
-            id: '2',
-            protocolInstanceId: '2',
-            name: 'updateA',
-            input: toPayloads(defaultPayloadConverter, 2),
-          },
-        },
-        {
-          doUpdate: {
-            id: '3',
-            protocolInstanceId: '3',
-            name: 'updateA',
-            input: toPayloads(defaultPayloadConverter, 3),
-          },
-        },
-        {
-          doUpdate: {
-            id: '4',
-            protocolInstanceId: '4',
-            name: 'updateC',
-            input: toPayloads(defaultPayloadConverter, 4),
-          },
-        },
-        {
-          doUpdate: {
-            id: '5',
-            protocolInstanceId: '5',
-            name: 'updateB',
-            input: toPayloads(defaultPayloadConverter, 5),
-          },
-        },
-        {
-          doUpdate: {
-            id: '6',
-            protocolInstanceId: '6',
-            name: 'non-existant',
-            input: toPayloads(defaultPayloadConverter, 6),
-          },
-        },
-        {
-          doUpdate: {
-            id: '7',
-            protocolInstanceId: '7',
-            name: 'updateB',
-            input: toPayloads(defaultPayloadConverter, 7),
-          },
-        },
-        {
-          doUpdate: {
-            id: '8',
-            protocolInstanceId: '8',
-            name: 'updateC',
-            input: toPayloads(defaultPayloadConverter, 8),
-          },
-        }
+        makeUpdateActivationJob('1', '1', 'non-existant', 1),
+        makeUpdateActivationJob('2', '2', 'updateA', 2),
+        makeUpdateActivationJob('3', '3', 'updateA', 3),
+        makeUpdateActivationJob('4', '4', 'updateC', 4),
+        makeUpdateActivationJob('5', '5', 'updateB', 5),
+        makeUpdateActivationJob('6', '6', 'non-existant', 6),
+        makeUpdateActivationJob('7', '7', 'updateB', 7),
+        makeUpdateActivationJob('8', '8', 'updateC', 8)
       )
     );
 
