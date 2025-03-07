@@ -363,6 +363,24 @@ function makeSetPatchMarker(myPatchId: string, deprecated: boolean): coresdk.wor
   };
 }
 
+function makeUpdateAcceptedResponse(id: string): coresdk.workflow_commands.IWorkflowCommand {
+  return {
+    updateResponse: {
+      protocolInstanceId: id,
+      accepted: {},
+    },
+  };
+}
+
+function makeUpdateCompleteResponse(id: string, result: unknown): coresdk.workflow_commands.IWorkflowCommand {
+  return {
+    updateResponse: {
+      protocolInstanceId: id,
+      completed: defaultPayloadConverter.toPayload(result),
+    },
+  };
+}
+
 test('random', async (t) => {
   const { logs, workflowType } = t.context;
   {
@@ -2524,6 +2542,246 @@ test('Signals/Updates/Activities/Timers - Trace promises completion order - 1.11
           ),
         ],
         [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
+      )
+    );
+  }
+});
+
+test('Buffered updates are dispatched in the correct order - updatesOrdering', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(
+      t,
+      makeActivation(
+        undefined,
+        makeInitializeWorkflowJob(workflowType),
+        {
+          doUpdate: {
+            id: '1',
+            protocolInstanceId: '1',
+            name: 'non-existant',
+            input: toPayloads(defaultPayloadConverter, 1),
+          },
+        },
+        {
+          doUpdate: {
+            id: '2',
+            protocolInstanceId: '2',
+            name: 'updateA',
+            input: toPayloads(defaultPayloadConverter, 2),
+          },
+        },
+        {
+          doUpdate: {
+            id: '3',
+            protocolInstanceId: '3',
+            name: 'updateA',
+            input: toPayloads(defaultPayloadConverter, 3),
+          },
+        },
+        {
+          doUpdate: {
+            id: '4',
+            protocolInstanceId: '4',
+            name: 'updateC',
+            input: toPayloads(defaultPayloadConverter, 4),
+          },
+        },
+        {
+          doUpdate: {
+            id: '5',
+            protocolInstanceId: '5',
+            name: 'updateB',
+            input: toPayloads(defaultPayloadConverter, 5),
+          },
+        },
+        {
+          doUpdate: {
+            id: '6',
+            protocolInstanceId: '6',
+            name: 'non-existant',
+            input: toPayloads(defaultPayloadConverter, 6),
+          },
+        },
+        {
+          doUpdate: {
+            id: '7',
+            protocolInstanceId: '7',
+            name: 'updateB',
+            input: toPayloads(defaultPayloadConverter, 7),
+          },
+        }
+      )
+    );
+
+    // The activation above:
+    // - initializes the workflow
+    // - buffers all its updates (we attempt update jobs first, but since there are no handlers, they get buffered)
+    // - enters the workflow code
+    // - workflow code sets handler for updateA
+    //   - handler is registered for updateA
+    //   - we attempt to dispatch buffered updates
+    //     - buffered updates for handler A are *accepted* but not executed
+    //    (executing an update is a promise/async, so it instead goes on the node event queue)
+    // - we continue/re-enter the workflow code
+    // - ...and do the same pattern for updateB, the default update handler, the updateC
+    // - once updates have been accepted, node processes the waiting events in its queue (the waiting updates)
+    //   - these are processesed in FIFO order, so we get execution for updateA, then updateB, the default handler, then updateC
+
+    // As such, the expected order of these updates is the order that the handlers were registered.
+    // Note that because the default handler was registered *before* updateC, all remaining buffered updates were dispatched
+    // to it, including the update for updateC.
+
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess(
+        [
+          // FIFO accepted order
+          makeUpdateAcceptedResponse('2'),
+          makeUpdateAcceptedResponse('3'),
+          makeUpdateAcceptedResponse('5'),
+          makeUpdateAcceptedResponse('7'),
+          makeUpdateAcceptedResponse('1'),
+          makeUpdateAcceptedResponse('4'),
+          makeUpdateAcceptedResponse('6'),
+          // FIFO executed order
+          makeUpdateCompleteResponse('2', { handler: 'updateA', args: [2] }),
+          makeUpdateCompleteResponse('3', { handler: 'updateA', args: [3] }),
+          makeUpdateCompleteResponse('5', { handler: 'updateB', args: [5] }),
+          makeUpdateCompleteResponse('7', { handler: 'updateB', args: [7] }),
+          makeUpdateCompleteResponse('1', { handler: 'default', updateName: 'non-existant', args: [1] }),
+          // updateC handled by default handler.
+          makeUpdateCompleteResponse('4', { handler: 'default', updateName: 'updateC', args: [4] }),
+          makeUpdateCompleteResponse('6', { handler: 'default', updateName: 'non-existant', args: [6] }),
+          // No expected update response from updateC handler
+          makeCompleteWorkflowExecution(),
+        ]
+        // [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
+      )
+    );
+  }
+});
+
+test('Buffered updates are reentrant - updatesAreReentrant', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(
+      t,
+      makeActivation(
+        undefined,
+        makeInitializeWorkflowJob(workflowType),
+        {
+          doUpdate: {
+            id: '1',
+            protocolInstanceId: '1',
+            name: 'non-existant',
+            input: toPayloads(defaultPayloadConverter, 1),
+          },
+        },
+        {
+          doUpdate: {
+            id: '2',
+            protocolInstanceId: '2',
+            name: 'updateA',
+            input: toPayloads(defaultPayloadConverter, 2),
+          },
+        },
+        {
+          doUpdate: {
+            id: '3',
+            protocolInstanceId: '3',
+            name: 'updateA',
+            input: toPayloads(defaultPayloadConverter, 3),
+          },
+        },
+        {
+          doUpdate: {
+            id: '4',
+            protocolInstanceId: '4',
+            name: 'updateC',
+            input: toPayloads(defaultPayloadConverter, 4),
+          },
+        },
+        {
+          doUpdate: {
+            id: '5',
+            protocolInstanceId: '5',
+            name: 'updateB',
+            input: toPayloads(defaultPayloadConverter, 5),
+          },
+        },
+        {
+          doUpdate: {
+            id: '6',
+            protocolInstanceId: '6',
+            name: 'non-existant',
+            input: toPayloads(defaultPayloadConverter, 6),
+          },
+        },
+        {
+          doUpdate: {
+            id: '7',
+            protocolInstanceId: '7',
+            name: 'updateB',
+            input: toPayloads(defaultPayloadConverter, 7),
+          },
+        },
+        {
+          doUpdate: {
+            id: '8',
+            protocolInstanceId: '8',
+            name: 'updateC',
+            input: toPayloads(defaultPayloadConverter, 8),
+          },
+        }
+      )
+    );
+
+    // The activation above:
+    // - initializes the workflow
+    // - buffers all its updates (we attempt update jobs first, but since there are no handlers, they get buffered)
+    // - enters the workflow code
+    // - workflow code sets handler for updateA
+    //   - handler is registered for updateA
+    //   - we attempt to dispatch buffered updates
+    //     - buffered updates for handler A are *accepted* but not executed
+    //    (executing an update is a promise/async, so it instead goes on the node event queue)
+    //  - however, there is no more workflow code, node dequues event queue and we immediately run the update handler
+    //    (we begin executing the update which...)
+    //    - deletes the current handler and registers the next one (updateB)
+    //  - this pattern repeats (updateA -> updateB -> updateC -> default) until there are no more updates to handle
+    //  - at this point, all updates have been accepted and are executing
+    //  - due to the call order in the workflow, the completion order of the updates follows the call stack, LIFO
+
+    // This workflow is interesting in that updates are accepted FIFO, but executed LIFO
+
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess(
+        [
+          // FIFO accepted order
+          makeUpdateAcceptedResponse('2'),
+          makeUpdateAcceptedResponse('5'),
+          makeUpdateAcceptedResponse('4'),
+          makeUpdateAcceptedResponse('1'),
+          makeUpdateAcceptedResponse('3'),
+          makeUpdateAcceptedResponse('7'),
+          makeUpdateAcceptedResponse('8'),
+          makeUpdateAcceptedResponse('6'),
+          // LIFO executed order
+          makeUpdateCompleteResponse('6', { handler: 'default', updateName: 'non-existant', args: [6] }),
+          makeUpdateCompleteResponse('8', { handler: 'updateC', args: [8] }),
+          makeUpdateCompleteResponse('7', { handler: 'updateB', args: [7] }),
+          makeUpdateCompleteResponse('3', { handler: 'updateA', args: [3] }),
+          makeUpdateCompleteResponse('1', { handler: 'default', updateName: 'non-existant', args: [1] }),
+          makeUpdateCompleteResponse('4', { handler: 'updateC', args: [4] }),
+          makeUpdateCompleteResponse('5', { handler: 'updateB', args: [5] }),
+          makeUpdateCompleteResponse('2', { handler: 'updateA', args: [2] }),
+          makeCompleteWorkflowExecution(),
+        ]
+        // [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
       )
     );
   }

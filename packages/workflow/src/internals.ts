@@ -48,7 +48,6 @@ import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
 import { SdkFlag, assertValidFlag } from './flags';
 import { executeWithLifecycleLogging, log } from './logs';
-import { DefaultUpdateHandler } from './interfaces';
 
 const StartChildWorkflowExecutionFailedCause = {
   WORKFLOW_ALREADY_EXISTS: 'WORKFLOW_ALREADY_EXISTS',
@@ -676,11 +675,15 @@ export class Activator implements ActivationHandler {
       this.bufferedUpdates.push(activation);
       return;
     }
-    
+
     const entry = this.updateHandlers.get(name) ?? {
-        handler: this.defaultUpdateHandler,
-        // Default to a warning policy.
-        unfinishedPolicy: HandlerUnfinishedPolicy.WARN_AND_ABANDON,
+      // Logically, this must be defined as we got passed the conditional above
+      // pushing to the buffer. But Typescript doesn't know that so we use a
+      // non-null assertion (!).
+      handler: (...args: any[]) => this.defaultUpdateHandler!(name, ...args),
+      validator: undefined,
+      // Default to a warning policy.
+      unfinishedPolicy: HandlerUnfinishedPolicy.WARN_AND_ABANDON,
     };
 
     const makeInput = (): UpdateInput => ({
@@ -773,7 +776,9 @@ export class Activator implements ActivationHandler {
       // We have a default update handler, so all updates are dispatchable.
       if (this.defaultUpdateHandler) {
         const update = bufferedUpdates.shift();
-        this.doUpdate(update);
+        // Logically, this must be defined as we're in the loop.
+        // But Typescript doesn't know that so we use a non-null assertion (!).
+        this.doUpdate(update!);
       } else {
         const foundIndex = bufferedUpdates.findIndex((update) => this.updateHandlers.has(update.name as string));
         if (foundIndex === -1) {
