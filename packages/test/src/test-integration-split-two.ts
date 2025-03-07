@@ -712,12 +712,12 @@ export async function workflowWithMaybeDefinedQuery(useDefinedQuery: boolean): P
   setHandler(completeSignal, () => {
     complete = true;
   });
-  setDefaultQueryHandler((queryName: string, ...args: any[]) => { 
-    return { name: 'default', queryName, args }
+  setDefaultQueryHandler((queryName: string, ...args: any[]) => {
+    return { name: 'default', queryName, args };
   });
   if (useDefinedQuery) {
     setHandler(definedQuery, (...args: any[]) => {
-      return { name: definedQuery.name, args }
+      return { name: definedQuery.name, args };
     });
   }
 
@@ -732,7 +732,7 @@ test('default query handler is used if requested query does not exist', configMa
     args: [false],
   });
   await worker.runUntil(async () => {
-    const args = ["test", "args"]
+    const args = ['test', 'args'];
     const result = await handle.query(definedQuery, ...args);
     t.deepEqual(result, { name: 'default', queryName: definedQuery.name, args });
   });
@@ -746,7 +746,7 @@ test('default query handler is not used if requested query exists', configMacro,
     args: [true],
   });
   await worker.runUntil(async () => {
-    const args = ["test", "args"]
+    const args = ['test', 'args'];
     const result = await handle.query('query-handler-type', ...args);
     t.deepEqual(result, { name: definedQuery.name, args });
   });
