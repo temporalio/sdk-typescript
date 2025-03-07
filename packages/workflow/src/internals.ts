@@ -619,8 +619,9 @@ export class Activator implements ActivationHandler {
   protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
     let fn = this.queryHandlers.get(queryName)?.handler;
     // Fallback to default query handler if no handler is registered.
-    if (fn === undefined) {
-      fn = this.defaultQueryHandler;
+    if (fn === undefined && this.defaultQueryHandler !== undefined) {
+      // Use non-null assertion because Typescript can't tell that defaultQueryHandler cannot be undefined here.
+      fn = (...args) => this.defaultQueryHandler!(queryName, ...args);
     }
     // No handler or default registered, fail.
     if (fn === undefined) {

@@ -1332,10 +1332,8 @@ export function setDefaultQueryHandler(handler: DefaultQueryHandler | undefined)
   const activator = assertInWorkflowContext(
     'Workflow.setDefaultQueryHandler(...) may only be used from a Workflow Execution.'
   );
-  if (typeof handler === 'function') {
+  if (typeof handler === 'function' || handler === undefined) {
     activator.defaultQueryHandler = handler;
-  } else if (handler == null) {
-    activator.defaultQueryHandler = undefined;
   } else {
     throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
   }

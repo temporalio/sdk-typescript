@@ -699,16 +699,26 @@ test('Query does not cause condition to be triggered', configMacro, async (t, co
 });
 
 const completeSignal = defineSignal('complete');
-const definedQuery = defineQuery('query-handler-type');
+const definedQuery = defineQuery<QueryNameAndArgs>('query-handler-type');
+
+interface QueryNameAndArgs {
+  name: string;
+  queryName?: string;
+  args: any[];
+}
 
 export async function workflowWithMaybeDefinedQuery(useDefinedQuery: boolean): Promise<void> {
   let complete = false;
   setHandler(completeSignal, () => {
     complete = true;
   });
-  setDefaultQueryHandler(() => 'got-default-query-handler');
+  setDefaultQueryHandler((queryName: string, ...args: any[]) => { 
+    return { name: 'default', queryName, args }
+  });
   if (useDefinedQuery) {
-    setHandler(definedQuery, () => 'got-defined-query-handler');
+    setHandler(definedQuery, (...args: any[]) => {
+      return { name: definedQuery.name, args }
+    });
   }
 
   await condition(() => complete);
@@ -722,8 +732,9 @@ test('default query handler is used if requested query does not exist', configMa
     args: [false],
   });
   await worker.runUntil(async () => {
-    const result = await handle.query('query-handler-type');
-    t.is(result, 'got-default-query-handler');
+    const args = ["test", "args"]
+    const result = await handle.query(definedQuery, ...args);
+    t.deepEqual(result, { name: 'default', queryName: definedQuery.name, args });
   });
 });
 
@@ -735,7 +746,8 @@ test('default query handler is not used if requested query exists', configMacro,
     args: [true],
   });
   await worker.runUntil(async () => {
-    const result = await handle.query('query-handler-type');
-    t.is(result, 'got-defined-query-handler');
+    const args = ["test", "args"]
+    const result = await handle.query('query-handler-type', ...args);
+    t.deepEqual(result, { name: definedQuery.name, args });
   });
 });
