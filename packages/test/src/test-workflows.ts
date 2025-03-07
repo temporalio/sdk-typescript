@@ -367,14 +367,14 @@ function makeUpdateActivationJob(
   id: string,
   protocolInstanceId: string,
   name: string,
-  input: unknown
+  input: unknown[]
 ): coresdk.workflow_activation.IWorkflowActivationJob {
   return {
     doUpdate: {
       id,
       protocolInstanceId,
       name,
-      input: toPayloads(defaultPayloadConverter, input),
+      input: toPayloads(defaultPayloadConverter, ...input),
     },
   };
 }
@@ -2543,13 +2543,13 @@ test('Buffered updates are dispatched in the correct order - updatesOrdering', a
       makeActivation(
         undefined,
         makeInitializeWorkflowJob(workflowType),
-        makeUpdateActivationJob('1', '1', 'non-existant', 1),
-        makeUpdateActivationJob('2', '2', 'updateA', 2),
-        makeUpdateActivationJob('3', '3', 'updateA', 3),
-        makeUpdateActivationJob('4', '4', 'updateC', 4),
-        makeUpdateActivationJob('5', '5', 'updateB', 5),
-        makeUpdateActivationJob('6', '6', 'non-existant', 6),
-        makeUpdateActivationJob('7', '7', 'updateB', 7)
+        makeUpdateActivationJob('1', '1', 'non-existant', [1]),
+        makeUpdateActivationJob('2', '2', 'updateA', [2]),
+        makeUpdateActivationJob('3', '3', 'updateA', [3]),
+        makeUpdateActivationJob('4', '4', 'updateC', [4]),
+        makeUpdateActivationJob('5', '5', 'updateB', [5]),
+        makeUpdateActivationJob('6', '6', 'non-existant', [6]),
+        makeUpdateActivationJob('7', '7', 'updateB', [7])
       )
     );
 
@@ -2610,14 +2610,14 @@ test('Buffered updates are reentrant - updatesAreReentrant', async (t) => {
       makeActivation(
         undefined,
         makeInitializeWorkflowJob(workflowType),
-        makeUpdateActivationJob('1', '1', 'non-existant', 1),
-        makeUpdateActivationJob('2', '2', 'updateA', 2),
-        makeUpdateActivationJob('3', '3', 'updateA', 3),
-        makeUpdateActivationJob('4', '4', 'updateC', 4),
-        makeUpdateActivationJob('5', '5', 'updateB', 5),
-        makeUpdateActivationJob('6', '6', 'non-existant', 6),
-        makeUpdateActivationJob('7', '7', 'updateB', 7),
-        makeUpdateActivationJob('8', '8', 'updateC', 8)
+        makeUpdateActivationJob('1', '1', 'non-existant', [1]),
+        makeUpdateActivationJob('2', '2', 'updateA', [2]),
+        makeUpdateActivationJob('3', '3', 'updateA', [3]),
+        makeUpdateActivationJob('4', '4', 'updateC', [4]),
+        makeUpdateActivationJob('5', '5', 'updateB', [5]),
+        makeUpdateActivationJob('6', '6', 'non-existant', [6]),
+        makeUpdateActivationJob('7', '7', 'updateB', [7]),
+        makeUpdateActivationJob('8', '8', 'updateC', [8])
       )
     );
 
