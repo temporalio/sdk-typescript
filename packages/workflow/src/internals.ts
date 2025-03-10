@@ -671,20 +671,23 @@ export class Activator implements ActivationHandler {
     if (!protocolInstanceId) {
       throw new TypeError('Missing activation update protocolInstanceId');
     }
-    if (!this.updateHandlers.get(name) && !this.defaultUpdateHandler) {
+
+    const entry =
+      this.updateHandlers.get(name) ??
+      (this.defaultUpdateHandler
+        ? {
+            handler: this.defaultUpdateHandler.bind(name),
+            validator: undefined,
+            // Default to a warning policy.
+            unfinishedPolicy: HandlerUnfinishedPolicy.WARN_AND_ABANDON,
+          }
+        : null);
+
+    // If we don't have an entry from either source, buffer and return
+    if (entry === null) {
       this.bufferedUpdates.push(activation);
       return;
     }
-
-    const entry = this.updateHandlers.get(name) ?? {
-      // Logically, this must be defined as we got passed the conditional above
-      // pushing to the buffer. But Typescript doesn't know that so we use a
-      // non-null assertion (!).
-      handler: (...args: any[]) => this.defaultUpdateHandler!(name, ...args),
-      validator: undefined,
-      // Default to a warning policy.
-      unfinishedPolicy: HandlerUnfinishedPolicy.WARN_AND_ABANDON,
-    };
 
     const makeInput = (): UpdateInput => ({
       updateId,

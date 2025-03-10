@@ -541,7 +541,7 @@ export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => v
 /**
  * A handler function accepting update calls for non-registered update names.
  */
-export type DefaultUpdateHandler = (updateName: string, ...args: any[]) => Promise<any> | any;
+export type DefaultUpdateHandler = (updateName: string, ...args: unknown[]) => Promise<unknown> | unknown;
 
 /**
  * A validation function capable of accepting the arguments for a given UpdateDefinition.
