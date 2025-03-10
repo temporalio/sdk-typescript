@@ -541,7 +541,7 @@ export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => v
 /**
  * A handler function accepting query calls for non-registered query names.
  */
-export type DefaultQueryHandler = (queryName: string, ...args: any[]) => any;
+export type DefaultQueryHandler = (queryName: string, ...args: unknown[]) => unknown;
 
 /**
  * A validation function capable of accepting the arguments for a given UpdateDefinition.
