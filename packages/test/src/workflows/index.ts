@@ -92,3 +92,4 @@ export * from './workflow-cancellation-scenarios';
 export * from './upsert-and-read-memo';
 export * from './updates-ordering';
 export * from './wait-on-signal-then-activity';
+export * from './workflow-with-default-handlers';

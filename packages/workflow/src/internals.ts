@@ -31,6 +31,12 @@ import {
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';
+import {
+  ENHANCED_STACK_TRACE_RESERVED_PREFIX,
+  STACK_TRACE_RESERVED_PREFIX,
+  isReservedName,
+  throwIfReservedName,
+} from '@temporalio/common/lib/reserved';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
@@ -260,7 +266,7 @@ export class Activator implements ActivationHandler {
    */
   public readonly queryHandlers = new Map<string, WorkflowQueryAnnotatedType>([
     [
-      '__stack_trace',
+      STACK_TRACE_RESERVED_PREFIX,
       {
         handler: () => {
           return this.getStackTraces()
@@ -271,7 +277,7 @@ export class Activator implements ActivationHandler {
       },
     ],
     [
-      '__enhanced_stack_trace',
+      ENHANCED_STACK_TRACE_RESERVED_PREFIX,
       {
         handler: (): EnhancedStackTrace => {
           const { sourceMap } = this;
@@ -679,17 +685,28 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing query activation attributes');
     }
 
+    const queryInput = {
+      queryName: queryType,
+      args: arrayFromPayloads(this.payloadConverter, activation.arguments),
+      queryId,
+      headers: headers ?? {},
+    };
+
+    // Skip interceptors if this is an internal query.
+    if (isReservedName(queryType)) {
+      this.queryWorkflowNextHandler(queryInput).then(
+        (result) => this.completeQuery(queryId, result),
+        (reason) => this.failQuery(queryId, reason)
+      );
+      return;
+    }
+
     const execute = composeInterceptors(
       this.interceptors.inbound,
       'handleQuery',
       this.queryWorkflowNextHandler.bind(this)
     );
-    execute({
-      queryName: queryType,
-      args: arrayFromPayloads(this.payloadConverter, activation.arguments),
-      queryId,
-      headers: headers ?? {},
-    }).then(
+    execute(queryInput).then(
       (result) => this.completeQuery(queryId, result),
       (reason) => this.failQuery(queryId, reason)
     );
@@ -847,6 +864,8 @@ export class Activator implements ActivationHandler {
     if (fn) {
       return await fn(...args);
     } else if (this.defaultSignalHandler) {
+      // Do not call default signal handler with reserved signal name.
+      throwIfReservedName('signal', signalName);
       return await this.defaultSignalHandler(signalName, ...args);
     } else {
       throw new IllegalStateError(`No registered signal handler for signal: ${signalName}`);

@@ -21,6 +21,12 @@ import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/v
 import { SdkFlag, SdkFlags } from '@temporalio/workflow/lib/flags';
 import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
+import {
+  ENHANCED_STACK_TRACE_RESERVED_PREFIX,
+  reservedPrefixes,
+  STACK_TRACE_RESERVED_PREFIX,
+  TEMPORAL_RESERVED_PREFIX,
+} from '@temporalio/common/lib/reserved';
 import * as activityFunctions from './activities';
 import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 import { ProcessedSignal } from './workflows';

@@ -57,6 +57,7 @@ import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
 import { native } from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
+import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
@@ -469,6 +470,8 @@ export class Worker {
   public static async create(options: WorkerOptions): Promise<Worker> {
     const runtime = Runtime.instance();
     const logger = LoggerWithComposedMetadata.compose(runtime.logger, {
+    throwIfReservedName('task queue', options.taskQueue);
+    const logger = withMetadata(Runtime.instance().logger, {
       sdkComponent: SdkComponent.worker,
       taskQueue: options.taskQueue ?? 'default',
     });
