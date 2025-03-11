@@ -20,6 +20,12 @@ import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/v
 import { SdkFlag, SdkFlags } from '@temporalio/workflow/lib/flags';
 import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
+import {
+  ENHANCED_STACK_TRACE_RESERVED_PREFIX,
+  reservedPrefixes,
+  STACK_TRACE_RESERVED_PREFIX,
+  TEMPORAL_RESERVED_PREFIX,
+} from '@temporalio/common/lib/reserved';
 import * as activityFunctions from './activities';
 import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 import { ProcessedSignal } from './workflows';
@@ -2527,4 +2533,84 @@ test('Signals/Updates/Activities/Timers - Trace promises completion order - 1.11
       )
     );
   }
+});
+
+test('Default query handler fail activations with reserved names - workflowWithDefaultHandlers', async (t) => {
+  const { workflowType } = t.context;
+
+  await activate(t, makeActivation(undefined, makeInitializeWorkflowJob(workflowType)));
+
+  for (const prefix of reservedPrefixes) {
+    const completion = await activate(t, makeActivation(undefined, makeQueryWorkflowJob('1', prefix + '_query')));
+
+    compareCompletion(t, completion, {
+      failed: {
+        failure: {
+          ...completion.failed?.failure,
+          // We only care about the error message.
+          message: `Cannot register query name: '${prefix}_query', with reserved prefix: '${prefix}'`,
+        },
+      },
+    });
+  }
+});
+
+test('Default signal handler fail activations with temporal prefix - workflowWithDefaultHandlers', async (t) => {
+  const { workflowType } = t.context;
+
+  await activate(t, makeActivation(undefined, makeInitializeWorkflowJob(workflowType)));
+  const signalName = TEMPORAL_RESERVED_PREFIX + '_signal';
+  const job = makeSignalWorkflowJob(signalName, []);
+
+  const completion = await activate(t, makeActivation(undefined, job));
+
+  compareCompletion(t, completion, {
+    failed: {
+      failure: {
+        ...completion.failed?.failure,
+        // We only care about the error message.
+        message: `Cannot register signal name: '${signalName}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`,
+      },
+    },
+  });
+});
+
+test('Default signal handler fail activations with stack trace prefix - workflowWithDefaultHandlers', async (t) => {
+  const { workflowType } = t.context;
+
+  await activate(t, makeActivation(undefined, makeInitializeWorkflowJob(workflowType)));
+  const signalName = STACK_TRACE_RESERVED_PREFIX + '_signal';
+  const job = makeSignalWorkflowJob(signalName, []);
+
+  const completion = await activate(t, makeActivation(undefined, job));
+
+  compareCompletion(t, completion, {
+    failed: {
+      failure: {
+        ...completion.failed?.failure,
+        // We only care about the error message.
+        message: `Cannot register signal name: '${signalName}', with reserved prefix: '${STACK_TRACE_RESERVED_PREFIX}'`,
+      },
+    },
+  });
+});
+
+test('Default signal handler fail activations with enhanced stack trace prefix - workflowWithDefaultHandlers', async (t) => {
+  const { workflowType } = t.context;
+
+  await activate(t, makeActivation(undefined, makeInitializeWorkflowJob(workflowType)));
+  const signalName = ENHANCED_STACK_TRACE_RESERVED_PREFIX + '_signal';
+  const job = makeSignalWorkflowJob(signalName, []);
+
+  const completion = await activate(t, makeActivation(undefined, job));
+
+  compareCompletion(t, completion, {
+    failed: {
+      failure: {
+        ...completion.failed?.failure,
+        // We only care about the error message.
+        message: `Cannot register signal name: '${signalName}', with reserved prefix: '${ENHANCED_STACK_TRACE_RESERVED_PREFIX}'`,
+      },
+    },
+  });
 });
