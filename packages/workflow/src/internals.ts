@@ -41,6 +41,7 @@ import {
   WorkflowInfo,
   WorkflowCreateOptionsInternal,
   ActivationCompletion,
+  DefaultQueryHandler,
 } from './interfaces';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
@@ -188,6 +189,11 @@ export class Activator implements ActivationHandler {
    * A signal handler that catches calls for non-registered signal names.
    */
   defaultSignalHandler?: DefaultSignalHandler;
+
+  /**
+   * A query handler that catches calls for non-registered query names.
+   */
+  defaultQueryHandler?: DefaultQueryHandler;
 
   /**
    * Source map file for looking up the source files in response to __enhanced_stack_trace
@@ -619,7 +625,11 @@ export class Activator implements ActivationHandler {
 
   // Intentionally non-async function so this handler doesn't show up in the stack trace
   protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
-    const fn = this.queryHandlers.get(queryName)?.handler;
+    let fn = this.queryHandlers.get(queryName)?.handler;
+    if (fn === undefined && this.defaultQueryHandler !== undefined) {
+      fn = this.defaultQueryHandler.bind(this, queryName);
+    }
+    // No handler or default registered, fail.
     if (fn === undefined) {
       const knownQueryTypes = [...this.queryHandlers.keys()].join(' ');
       // Fail the query
@@ -629,6 +639,7 @@ export class Activator implements ActivationHandler {
         )
       );
     }
+    // Execute handler.
     try {
       const ret = fn(...args);
       if (ret instanceof Promise) {
