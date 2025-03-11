@@ -23,6 +23,7 @@ import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
 import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 import { ProcessedSignal } from './workflows';
+import { reservedPrefixes } from '@temporalio/common/src/reserved';
 
 export interface Context {
   workflow: VMWorkflow | ReusableVMWorkflow;
@@ -2525,6 +2526,80 @@ test('Signals/Updates/Activities/Timers - Trace promises completion order - 1.11
         ],
         [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
       )
+    );
+  }
+});
+
+test('Default query handler fail activations with reserved names - workflowWithDefaultHandlers', async (t) => {
+  const { workflowType } = t.context;
+  
+  await activate(
+    t,
+    makeActivation(
+      undefined, 
+      makeInitializeWorkflowJob(workflowType),
+    ),
+  );
+
+  for (const prefix of reservedPrefixes) {
+    const completion = await activate(
+      t,
+      makeActivation(
+        undefined, 
+        makeQueryWorkflowJob("1", prefix + '_query')
+      ),
+    );
+
+    compareCompletion(
+      t,
+      completion,
+      {
+        failed: {
+          failure: {
+            ...completion.failed?.failure,
+            // We only care about the error message.
+            message: `Cannot register query name: \'${prefix}_query\', with reserved prefix: \'${prefix}\'`,
+          }
+        }
+      }
+    );
+  }
+});
+
+test('Default signal handler fail activations with reserved names - workflowWithDefaultHandlers', async (t) => {
+  const { workflowType } = t.context;
+  
+  await activate(
+    t,
+    makeActivation(
+      undefined, 
+      makeInitializeWorkflowJob(workflowType),
+    ),
+  );
+
+  for (const prefix of reservedPrefixes) {
+    const job = makeSignalWorkflowJob(prefix + '_signal', []);
+
+    const completion = await activate(
+      t,
+      makeActivation(
+        undefined,
+        job
+      ),
+    );
+
+    compareCompletion(
+      t,
+      completion,
+      {
+        failed: {
+          failure: {
+            ...completion.failed?.failure,
+            // We only care about the error message.
+            message: `Cannot register signal name: \'${prefix}_signal\', with reserved prefix: \'${prefix}\'`,
+          }
+        }
+      }
     );
   }
 });
