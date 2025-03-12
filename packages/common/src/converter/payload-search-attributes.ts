@@ -8,6 +8,7 @@ import {
   isValidValueForType,
   TypedSearchAttributeValue,
   SearchAttributePair,
+  SearchAttributeUpdatePair,
   TypedSearchAttributeUpdateValue,
 } from '../search-attributes';
 import { PayloadConverter, JsonPayloadConverter, mapFromPayloads, mapToPayloads } from './payload-converter';
@@ -164,17 +165,17 @@ export const typedSearchAttributePayloadConverter = new TypedSearchAttributePayl
 // If both params are provided, conflicting keys will be overwritten by typedSearchAttributes.
 export function encodeUnifiedSearchAttributes(
   searchAttributes?: SearchAttributes,
-  typedSearchAttributes?: TypedSearchAttributes | SearchAttributePair[]
+  typedSearchAttributes?: TypedSearchAttributes | SearchAttributeUpdatePair[]
 ): Record<string, Payload> {
   return {
     ...(searchAttributes ? mapToPayloads(searchAttributePayloadConverter, searchAttributes) : {}),
     ...(typedSearchAttributes
-      ? mapToPayloads<string, TypedSearchAttributeValue<SearchAttributeType>>(
+      ? mapToPayloads<string, TypedSearchAttributeUpdateValue<SearchAttributeType>>(
           typedSearchAttributePayloadConverter,
           Object.fromEntries(
             (Array.isArray(typedSearchAttributes) ? typedSearchAttributes : typedSearchAttributes.getAll()).map(
               (pair) => {
-                return [pair.key.name, new TypedSearchAttributeValue(pair.key.type, pair.value)];
+                return [pair.key.name, new TypedSearchAttributeUpdateValue(pair.key.type, pair.value)];
               }
             )
           )

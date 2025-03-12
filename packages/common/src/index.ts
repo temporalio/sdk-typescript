@@ -31,6 +31,8 @@ export {
   SearchAttributePair,
   SearchAttributeUpdatePair,
   TypedSearchAttributes,
+  defineSearchKey,
+  defineSearchAttribute,
 } from './search-attributes';
 
 /**

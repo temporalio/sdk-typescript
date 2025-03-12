@@ -10,7 +10,6 @@ import {
   mapToPayloads,
   QueryDefinition,
   SearchAttributes,
-  SearchAttributeType,
   SearchAttributeValue,
   SignalDefinition,
   toPayloads,
@@ -26,14 +25,12 @@ import {
 } from '@temporalio/common';
 import {
   encodeUnifiedSearchAttributes,
-  typedSearchAttributePayloadConverter,
   searchAttributePayloadConverter,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
 import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
-import { TypedSearchAttributeUpdateValue } from '@temporalio/common/lib/search-attributes';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import {
@@ -1334,35 +1331,26 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
  * Updates this Workflow's Search Attributes by merging the provided `searchAttributes` with the existing Search
  * Attributes, `workflowInfo().searchAttributes`.
  *
- * Search attributes can be upserted using either SearchAttributes (deprecated) or SearchAttributeUpdatePair[]
+ * Search attributes can be upserted using either SearchAttributes (deprecated) or SearchAttributeUpdatePair[] (preferred)
  *
- * Upserting a workflow's search attributes using SearchAttributes (deprecated):
- *
- * ```ts
- * upsertSearchAttributes({
- *   CustomIntField: [1],
- *   CustomBoolField: [true]
- * });
- * upsertSearchAttributes({
- *   CustomIntField: [42],
- *   CustomKeywordField: ['durable code', 'is great']
- * });
- * ```
- *
- * Equivalently, upserting a workflow's search attributes using SearchAttributeUpdatePair[]:
+ * Upserting a workflow's search attributes using SearchAttributeUpdatePair[]:
  *
  * ```ts
+ * const intKey = defineSearchKey('CustomIntField', 'INT');
+ * const boolKey = defineSearchKey('CustomBoolField', 'BOOL');
+ * const keywordListKey = defineSearchKey('CustomKeywordField', 'KEYWORD_LIST');
+ *
  * upsertSearchAttributes([
- *  { key: { name: 'CustomIntField', type: 'INT' }, value: 1 },
- *  { key: { name: 'CustomBoolField', type: 'BOOL' }, value: true },
+ *  defineSearchAttribute(intKey, 1),
+ *  defineSearchAttribute(boolKey, true)
  * ]);
  * upsertSearchAttributes([
- *  { key: { name: 'CustomIntField', type: 'INT' }, value: 42 },
- *  { key: { name: 'CustomKeywordField', type: 'KEYWORD_LIST' }, value: ['durable code', 'is great'] },
+ *  defineSearchAttribute(intKey, 42),
+ *  defineSearchAttribute(keywordListKey, ['durable code', 'is great'])
  * ]);
  * ```
  *
- * Both upserts would result in the Workflow having these Search Attributes:
+ * Would result in the Workflow having these Search Attributes:
  *
  * ```ts
  * {
@@ -1372,9 +1360,10 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
  * }
  * ```
  *
- * @param searchAttributes The Record to merge. Use a value of `[]` to clear a Search Attribute.
+ * @param searchAttributes The Record to merge.
+ * If using SearchAttributeUpdatePair[] (preferred), set a value to null to remove the search attribute.
+ * If using SearchAttributes (deprecated), set a value to undefined or an empty list to remove the search attribute.
  */
-
 export function upsertSearchAttributes(searchAttributes: SearchAttributes | SearchAttributeUpdatePair[]): void {
   const activator = assertInWorkflowContext(
     'Workflow.upsertSearchAttributes(...) may only be used from a Workflow Execution.'
@@ -1388,15 +1377,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
     // Typed search attributes
     activator.pushCommand({
       upsertWorkflowSearchAttributes: {
-        searchAttributes: mapToPayloads<string, TypedSearchAttributeUpdateValue<SearchAttributeType>>(
-          typedSearchAttributePayloadConverter,
-          Object.fromEntries(
-            searchAttributes.map((pair) => [
-              pair.key.name,
-              new TypedSearchAttributeUpdateValue(pair.key.type, pair.value),
-            ])
-          )
-        ),
+        searchAttributes: encodeUnifiedSearchAttributes(undefined, searchAttributes),
       },
     });
 
@@ -1404,7 +1385,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
       // Create a copy of the current state.
       const newSearchAttributes: SearchAttributes = { ...info.searchAttributes };
       for (const pair of searchAttributes) {
-        if (pair.value === null) {
+        if (pair.value == null) {
           // If the value is null, remove the search attribute.
           // We don't mutate the existing state (just the new map) so this is safe.
           delete newSearchAttributes[pair.key.name];
@@ -1442,7 +1423,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
 
         // The value is undefined or an empty list, this signifies deletion.
         // Remove from both untyped & typed search attributes.
-        if (v === undefined || (Array.isArray(v) && v.length === 0)) {
+        if (v == null || (Array.isArray(v) && v.length === 0)) {
           // We cannot discern a valid key typing from these values.
           // Instead, we do a "best effort" deletion from typed search attributes:
           // - check if a matching key name exists, if so, remove it.

@@ -287,3 +287,14 @@ export class TypedSearchAttributes {
     }
   }
 }
+
+export function defineSearchKey<T extends SearchAttributeType>(name: string, type: T): SearchAttributeKey<T> {
+  return { name, type };
+}
+
+export function defineSearchAttribute<T extends SearchAttributeType>(
+  key: SearchAttributeKey<T>,
+  value: IndexedValueTypeMapping[T]
+): SearchAttributePair {
+  return { key, value } as SearchAttributePair;
+}
