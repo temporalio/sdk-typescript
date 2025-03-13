@@ -25,14 +25,15 @@ export * from './workflow-handle';
 export * from './workflow-options';
 export * from './versioning-intent';
 export {
-  SearchAttributes,
-  SearchAttributeValue,
+  SearchAttributes, // eslint-disable-line deprecation/deprecation
+  SearchAttributeValue, // eslint-disable-line deprecation/deprecation
   SearchAttributeType,
   SearchAttributePair,
   SearchAttributeUpdatePair,
   TypedSearchAttributes,
-  defineSearchKey,
-  defineSearchAttribute,
+  createSearchAttributeKey,
+  createSearchAttributePair,
+  createSearchAttributeUpdatePair,
 } from './search-attributes';
 
 /**

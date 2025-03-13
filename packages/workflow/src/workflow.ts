@@ -387,8 +387,8 @@ function startChildWorkflowExecutionNextHandler({
         parentClosePolicy: encodeParentClosePolicy(options.parentClosePolicy),
         cronSchedule: options.cronSchedule,
         searchAttributes:
-          options.searchAttributes || options.typedSearchAttributes
-            ? encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes)
+          options.searchAttributes || options.typedSearchAttributes // eslint-disable-line deprecation/deprecation
+            ? encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) // eslint-disable-line deprecation/deprecation
             : undefined,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
@@ -930,8 +930,8 @@ export function makeContinueAsNewFunc<F extends Workflow>(
         taskQueue: options.taskQueue,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
         searchAttributes:
-          options.searchAttributes || options.typedSearchAttributes
-            ? encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes)
+          options.searchAttributes || options.typedSearchAttributes // eslint-disable-line deprecation/deprecation
+            ? encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) // eslint-disable-line deprecation/deprecation
             : undefined,
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
@@ -954,7 +954,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
  *
  * @example
  *
- *```ts
+ * ```ts
  *import { continueAsNew } from '@temporalio/workflow';
 import { SearchAttributeType } from '@temporalio/common';
  *
@@ -962,7 +962,7 @@ import { SearchAttributeType } from '@temporalio/common';
  *  // ... Workflow logic
  *  await continueAsNew<typeof myWorkflow>(n + 1);
  *}
- *```
+ * ```
  */
 export function continueAsNew<F extends Workflow>(...args: Parameters<F>): Promise<never> {
   return makeContinueAsNewFunc()(...args);
@@ -1383,7 +1383,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
 
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
       // Create a copy of the current state.
-      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes };
+      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes }; // eslint-disable-line deprecation/deprecation
       for (const pair of searchAttributes) {
         if (pair.value == null) {
           // If the value is null, remove the search attribute.
@@ -1413,7 +1413,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
       // Create a new copy of the current state.
       let typedSearchAttributes = info.typedSearchAttributes.updateCopy([]);
-      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes };
+      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes }; // eslint-disable-line deprecation/deprecation
 
       // Upsert legacy search attributes into typedSearchAttributes.
       for (const [k, v] of Object.entries(searchAttributes)) {

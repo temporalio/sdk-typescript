@@ -7,6 +7,9 @@ import {
   SearchAttributePair,
   SearchAttributeType,
   SearchAttributeUpdatePair,
+  createSearchAttributeKey,
+  createSearchAttributePair,
+  createSearchAttributeUpdatePair,
 } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import {
@@ -45,22 +48,28 @@ const untypedAttrsInput: SearchAttributes = {
 
 // The corresponding typed search attributes from untypedSearchAttributes.
 const typedFromUntypedInput: SearchAttributePair[] = [
-  { key: { name: 'untyped_single_string', type: SearchAttributeType.TEXT }, value: 'one' },
-  { key: { name: 'untyped_single_int', type: SearchAttributeType.INT }, value: 1 },
-  { key: { name: 'untyped_single_double', type: SearchAttributeType.DOUBLE }, value: 1.23 },
-  { key: { name: 'untyped_single_bool', type: SearchAttributeType.BOOL }, value: true },
-  { key: { name: 'untyped_single_date', type: SearchAttributeType.DATETIME }, value: date },
-  { key: { name: 'untyped_multi_string', type: SearchAttributeType.KEYWORD_LIST }, value: ['one', 'two'] },
+  createSearchAttributePair(createSearchAttributeKey('untyped_single_string', SearchAttributeType.TEXT), 'one'),
+  createSearchAttributePair(createSearchAttributeKey('untyped_single_int', SearchAttributeType.INT), 1),
+  createSearchAttributePair(createSearchAttributeKey('untyped_single_double', SearchAttributeType.DOUBLE), 1.23),
+  createSearchAttributePair(createSearchAttributeKey('untyped_single_bool', SearchAttributeType.BOOL), true),
+  createSearchAttributePair(createSearchAttributeKey('untyped_single_date', SearchAttributeType.DATETIME), date),
+  createSearchAttributePair(createSearchAttributeKey('untyped_multi_string', SearchAttributeType.KEYWORD_LIST), [
+    'one',
+    'two',
+  ]),
 ];
 
 const typedAttrsListInput: SearchAttributePair[] = [
-  { key: { name: 'typed_text', type: SearchAttributeType.TEXT }, value: 'typed_text' },
-  { key: { name: 'typed_keyword', type: SearchAttributeType.KEYWORD }, value: 'typed_keyword' },
-  { key: { name: 'typed_int', type: SearchAttributeType.INT }, value: 123 },
-  { key: { name: 'typed_double', type: SearchAttributeType.DOUBLE }, value: 123.45 },
-  { key: { name: 'typed_bool', type: SearchAttributeType.BOOL }, value: true },
-  { key: { name: 'typed_datetime', type: SearchAttributeType.DATETIME }, value: date },
-  { key: { name: 'typed_keyword_list', type: SearchAttributeType.KEYWORD_LIST }, value: ['typed', 'keywords'] },
+  createSearchAttributePair(createSearchAttributeKey('typed_text', SearchAttributeType.TEXT), 'typed_text'),
+  createSearchAttributePair(createSearchAttributeKey('typed_keyword', SearchAttributeType.KEYWORD), 'typed_keyword'),
+  createSearchAttributePair(createSearchAttributeKey('typed_int', SearchAttributeType.INT), 123),
+  createSearchAttributePair(createSearchAttributeKey('typed_double', SearchAttributeType.DOUBLE), 123.45),
+  createSearchAttributePair(createSearchAttributeKey('typed_bool', SearchAttributeType.BOOL), true),
+  createSearchAttributePair(createSearchAttributeKey('typed_datetime', SearchAttributeType.DATETIME), date),
+  createSearchAttributePair(createSearchAttributeKey('typed_keyword_list', SearchAttributeType.KEYWORD_LIST), [
+    'typed',
+    'keywords',
+  ]),
 ];
 
 const typedAttrsObjInput = new TypedSearchAttributes(typedAttrsListInput);
@@ -151,7 +160,7 @@ test('does not allow non-integer values for integer search attributes', async (t
       typedSearchAttributes: [
         // Use a double value for an integer search attribute.
         // This is legal at compile-time, but should error at runtime when converting to payload.
-        { key: { name: erroneousKeyName, type: SearchAttributeType.INT }, value: 123.4 },
+        createSearchAttributePair(createSearchAttributeKey(erroneousKeyName, SearchAttributeType.INT), 123.4),
       ],
     });
   } catch (err) {
@@ -164,6 +173,7 @@ test('does not allow non-integer values for integer search attributes', async (t
 });
 
 interface TestInputSearchAttributes {
+  name: string;
   input: {
     searchAttributes?: SearchAttributes;
     typedSearchAttributes?: TypedSearchAttributes | SearchAttributePair[];
@@ -178,6 +188,7 @@ interface TestInputSearchAttributes {
 const inputTestCases: TestInputSearchAttributes[] = [
   // Input only untyped search attributes
   {
+    name: 'only-untyped-search-attributes',
     input: {
       searchAttributes: untypedAttrsInput,
     },
@@ -188,6 +199,7 @@ const inputTestCases: TestInputSearchAttributes[] = [
   },
   // Input only typed search attributes as a list
   {
+    name: 'only-typed-search-attributes-list',
     input: {
       typedSearchAttributes: typedAttrsListInput,
     },
@@ -198,6 +210,7 @@ const inputTestCases: TestInputSearchAttributes[] = [
   },
   // Input only typed search attributes as an object
   {
+    name: 'only-typed-search-attributes-obj',
     input: {
       typedSearchAttributes: typedAttrsObjInput,
     },
@@ -208,6 +221,7 @@ const inputTestCases: TestInputSearchAttributes[] = [
   },
   // Input both untyped and typed search attributes
   {
+    name: 'both-untyped-and-typed-sa',
     input: {
       searchAttributes: {
         ...untypedAttrsInput,
@@ -228,7 +242,7 @@ const inputTestCases: TestInputSearchAttributes[] = [
 
 test('creating schedules with various input search attributes', async (t) => {
   await Promise.all(
-    inputTestCases.map(async ({ input, expected }) => {
+    inputTestCases.map(async ({ input, expected, name }) => {
       const { taskQueue } = helpers(t);
       const client = t.context.env.client;
       const action: ScheduleOptionsAction = {
@@ -245,8 +259,8 @@ test('creating schedules with various input search attributes', async (t) => {
         ...input,
       });
       const desc = await handle.describe();
-      t.deepEqual(desc.searchAttributes, expected.searchAttributes);
-      t.deepEqual(desc.typedSearchAttributes, expected.typedSearchAttributes);
+      t.deepEqual(desc.searchAttributes, expected.searchAttributes, name); // eslint-disable-line deprecation/deprecation
+      t.deepEqual(desc.typedSearchAttributes, expected.typedSearchAttributes, name);
     })
   );
 });
@@ -304,32 +318,43 @@ test('upsert works with various search attribute mutations', async (t) => {
     const { typed_bool, ...untypedUpdateExpected } = untypedUpdateAttrs;
 
     assertWorkflowInfoSearchAttributes(t, res, untypedUpdateExpected, [
-      { key: { name: 'typed_text', type: SearchAttributeType.TEXT }, value: 'new_value' },
-      { key: { name: 'typed_keyword', type: SearchAttributeType.KEYWORD }, value: 'new_keyword' },
-      { key: { name: 'typed_int', type: SearchAttributeType.INT }, value: 2 },
-      { key: { name: 'typed_double', type: SearchAttributeType.DOUBLE }, value: 2.34 },
-      { key: { name: 'typed_keyword_list', type: SearchAttributeType.KEYWORD_LIST }, value: ['three', 'four', 'five'] },
-      { key: { name: 'typed_datetime', type: SearchAttributeType.DATETIME }, value: secondDate },
+      createSearchAttributePair(createSearchAttributeKey('typed_text', SearchAttributeType.TEXT), 'new_value'),
+      createSearchAttributePair(createSearchAttributeKey('typed_keyword', SearchAttributeType.KEYWORD), 'new_keyword'),
+      createSearchAttributePair(createSearchAttributeKey('typed_int', SearchAttributeType.INT), 2),
+      createSearchAttributePair(createSearchAttributeKey('typed_double', SearchAttributeType.DOUBLE), 2.34),
+      createSearchAttributePair(createSearchAttributeKey('typed_keyword_list', SearchAttributeType.KEYWORD_LIST), [
+        'three',
+        'four',
+        'five',
+      ]),
+      createSearchAttributePair(createSearchAttributeKey('typed_datetime', SearchAttributeType.DATETIME), secondDate),
     ]);
 
     assertWorkflowDescSearchAttributes(t, desc, untypedUpdateExpected, [
-      { key: { name: 'typed_text', type: SearchAttributeType.TEXT }, value: 'new_value' },
-      { key: { name: 'typed_keyword', type: SearchAttributeType.KEYWORD }, value: 'new_keyword' },
-      { key: { name: 'typed_int', type: SearchAttributeType.INT }, value: 2 },
-      { key: { name: 'typed_double', type: SearchAttributeType.DOUBLE }, value: 2.34 },
-      { key: { name: 'typed_keyword_list', type: SearchAttributeType.KEYWORD_LIST }, value: ['three', 'four', 'five'] },
-      { key: { name: 'typed_datetime', type: SearchAttributeType.DATETIME }, value: secondDate },
+      createSearchAttributePair(createSearchAttributeKey('typed_text', SearchAttributeType.TEXT), 'new_value'),
+      createSearchAttributePair(createSearchAttributeKey('typed_keyword', SearchAttributeType.KEYWORD), 'new_keyword'),
+      createSearchAttributePair(createSearchAttributeKey('typed_int', SearchAttributeType.INT), 2),
+      createSearchAttributePair(createSearchAttributeKey('typed_double', SearchAttributeType.DOUBLE), 2.34),
+      createSearchAttributePair(createSearchAttributeKey('typed_keyword_list', SearchAttributeType.KEYWORD_LIST), [
+        'three',
+        'four',
+        'five',
+      ]),
+      createSearchAttributePair(createSearchAttributeKey('typed_datetime', SearchAttributeType.DATETIME), secondDate),
     ]);
 
     // Update search attributes with typed input.
     const typedUpdateAttrs: SearchAttributeUpdatePair[] = [
       // Delete key.
-      { key: { name: 'typed_text', type: SearchAttributeType.TEXT }, value: null },
-      { key: { name: 'typed_int', type: SearchAttributeType.INT }, value: 3 },
-      { key: { name: 'typed_double', type: SearchAttributeType.DOUBLE }, value: 3.45 },
-      { key: { name: 'typed_keyword_list', type: SearchAttributeType.KEYWORD_LIST }, value: ['six', 'seven'] },
+      createSearchAttributeUpdatePair(createSearchAttributeKey('typed_text', SearchAttributeType.TEXT), null),
+      createSearchAttributeUpdatePair(createSearchAttributeKey('typed_int', SearchAttributeType.INT), 3),
+      createSearchAttributeUpdatePair(createSearchAttributeKey('typed_double', SearchAttributeType.DOUBLE), 3.45),
+      createSearchAttributeUpdatePair(
+        createSearchAttributeKey('typed_keyword_list', SearchAttributeType.KEYWORD_LIST),
+        ['six', 'seven']
+      ),
       // Add key.
-      { key: { name: 'typed_bool', type: SearchAttributeType.BOOL }, value: false },
+      createSearchAttributeUpdatePair(createSearchAttributeKey('typed_bool', SearchAttributeType.BOOL), false),
     ];
 
     // Update search attributes with typed input.
@@ -349,21 +374,27 @@ test('upsert works with various search attribute mutations', async (t) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { typed_keyword, typed_datetime, ...newDescExpected } = expectedUntyped;
     const expectedTyped = [
-      { key: { name: 'typed_int', type: SearchAttributeType.INT }, value: 3 },
-      { key: { name: 'typed_double', type: SearchAttributeType.DOUBLE }, value: 3.45 },
-      { key: { name: 'typed_keyword_list', type: SearchAttributeType.KEYWORD_LIST }, value: ['six', 'seven'] },
-      { key: { name: 'typed_bool', type: SearchAttributeType.BOOL }, value: false },
-      { key: { name: 'typed_keyword', type: SearchAttributeType.KEYWORD }, value: 'new_keyword' },
-      { key: { name: 'typed_datetime', type: SearchAttributeType.DATETIME }, value: secondDate },
+      createSearchAttributePair(createSearchAttributeKey('typed_int', SearchAttributeType.INT), 3),
+      createSearchAttributePair(createSearchAttributeKey('typed_double', SearchAttributeType.DOUBLE), 3.45),
+      createSearchAttributePair(createSearchAttributeKey('typed_keyword_list', SearchAttributeType.KEYWORD_LIST), [
+        'six',
+        'seven',
+      ]),
+      createSearchAttributePair(createSearchAttributeKey('typed_bool', SearchAttributeType.BOOL), false),
+      createSearchAttributePair(createSearchAttributeKey('typed_keyword', SearchAttributeType.KEYWORD), 'new_keyword'),
+      createSearchAttributePair(createSearchAttributeKey('typed_datetime', SearchAttributeType.DATETIME), secondDate),
     ];
 
     const expectedDescTyped = [
-      { key: { name: 'typed_int', type: SearchAttributeType.INT }, value: 3 },
-      { key: { name: 'typed_double', type: SearchAttributeType.DOUBLE }, value: 3.45 },
-      { key: { name: 'typed_keyword_list', type: SearchAttributeType.KEYWORD_LIST }, value: ['six', 'seven'] },
-      { key: { name: 'typed_bool', type: SearchAttributeType.BOOL }, value: false },
-      { key: { name: 'typed_keyword', type: SearchAttributeType.KEYWORD }, value: 'new_keyword' },
-      { key: { name: 'typed_datetime', type: SearchAttributeType.DATETIME }, value: secondDate },
+      createSearchAttributePair(createSearchAttributeKey('typed_int', SearchAttributeType.INT), 3),
+      createSearchAttributePair(createSearchAttributeKey('typed_double', SearchAttributeType.DOUBLE), 3.45),
+      createSearchAttributePair(createSearchAttributeKey('typed_keyword_list', SearchAttributeType.KEYWORD_LIST), [
+        'six',
+        'seven',
+      ]),
+      createSearchAttributePair(createSearchAttributeKey('typed_bool', SearchAttributeType.BOOL), false),
+      createSearchAttributePair(createSearchAttributeKey('typed_keyword', SearchAttributeType.KEYWORD), 'new_keyword'),
+      createSearchAttributePair(createSearchAttributeKey('typed_datetime', SearchAttributeType.DATETIME), secondDate),
     ];
 
     assertWorkflowInfoSearchAttributes(t, res, expectedUntyped, expectedTyped);
@@ -381,7 +412,7 @@ function assertWorkflowInfoSearchAttributes(
 ) {
   // Check initial search attributes are present.
   // Response from query serializes datetime attributes to strings so we serialize our expected responses.
-  t.deepEqual(res.searchAttributes, normalizeSearchAttrs(searchAttributes));
+  t.deepEqual(res.searchAttributes, normalizeSearchAttrs(searchAttributes)); // eslint-disable-line deprecation/deprecation
   // This casting is necessary because res.typedSearchAttributes has actually been serialized by its toJSON method
   // (returning an array of SearchAttributePair), but is not reflected in its type definition.
   assertMatchingSearchAttributePairs(t, res.typedSearchAttributes as unknown as SearchAttributePair[], searchAttrPairs);
@@ -394,9 +425,11 @@ function assertWorkflowDescSearchAttributes(
   searchAttrPairs: SearchAttributePair[]
 ) {
   // Check that all search attributes are present in the workflow description's search attributes.
-  t.like(desc.searchAttributes, searchAttributes);
+  t.like(desc.searchAttributes, searchAttributes); // eslint-disable-line deprecation/deprecation
   const descOmittingBuildIds = desc.typedSearchAttributes
-    .updateCopy([{ key: { name: 'BuildIds', type: SearchAttributeType.KEYWORD_LIST }, value: null }])
+    .updateCopy([
+      createSearchAttributeUpdatePair(createSearchAttributeKey('BuildIds', SearchAttributeType.KEYWORD_LIST), null),
+    ])
     .getAll();
   assertMatchingSearchAttributePairs(t, descOmittingBuildIds, searchAttrPairs);
 }

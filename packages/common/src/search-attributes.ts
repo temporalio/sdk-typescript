@@ -1,14 +1,12 @@
 import type { temporal } from '@temporalio/proto';
 import { makeProtoEnumConverters } from './internal-workflow';
 
-/**
- * If another SDK creates a Search Attribute that's not an array, we wrap it in an array.
- *
- * Dates are serialized as ISO strings.
- */
-export type SearchAttributeValueOrReadonly = SearchAttributeValue | Readonly<SearchAttributeValue> | undefined;
-export type SearchAttributes = Record<string, SearchAttributeValueOrReadonly>;
-export type SearchAttributeValue = string[] | number[] | boolean[] | Date[];
+/** @deprecated: Use {@link TypedSearchAttributes} instead */
+export type SearchAttributeValueOrReadonly = SearchAttributeValue | Readonly<SearchAttributeValue> | undefined; // eslint-disable-line deprecation/deprecation
+/** @deprecated: Use {@link TypedSearchAttributes} instead */
+export type SearchAttributes = Record<string, SearchAttributeValueOrReadonly>; // eslint-disable-line deprecation/deprecation
+/** @deprecated: Use {@link TypedSearchAttributes} instead */
+export type SearchAttributeValue = string[] | number[] | boolean[] | Date[]; // eslint-disable-line deprecation/deprecation
 
 export const SearchAttributeType = {
   TEXT: 'TEXT',
@@ -162,6 +160,7 @@ export class TypedSearchAttributes {
   }
 
   /**
+   * @hidden
    * Return JSON representation of this class as SearchAttributePair[]
    * Default toJSON method is not used because it's JSON representation includes private state.
    */
@@ -210,7 +209,7 @@ export class TypedSearchAttributes {
 
   static getKeyFromUntyped(
     key: string,
-    value: SearchAttributeValueOrReadonly
+    value: SearchAttributeValueOrReadonly // eslint-disable-line deprecation/deprecation
   ): SearchAttributeKey<SearchAttributeType> | undefined {
     if (value == null) {
       return;
@@ -288,13 +287,20 @@ export class TypedSearchAttributes {
   }
 }
 
-export function defineSearchKey<T extends SearchAttributeType>(name: string, type: T): SearchAttributeKey<T> {
+export function createSearchAttributeKey<T extends SearchAttributeType>(name: string, type: T): SearchAttributeKey<T> {
   return { name, type };
 }
 
-export function defineSearchAttribute<T extends SearchAttributeType>(
+export function createSearchAttributePair<T extends SearchAttributeType>(
   key: SearchAttributeKey<T>,
   value: IndexedValueTypeMapping[T]
 ): SearchAttributePair {
   return { key, value } as SearchAttributePair;
+}
+
+export function createSearchAttributeUpdatePair<T extends SearchAttributeType>(
+  key: SearchAttributeKey<T>,
+  value: IndexedValueTypeMapping[T] | null
+): SearchAttributeUpdatePair {
+  return { key, value } as SearchAttributeUpdatePair;
 }
