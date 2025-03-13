@@ -621,8 +621,8 @@ test('WorkflowHandle.describe result is wrapped', configMacro, async (t, config)
   }
 });
 
+// eslint-disable-next-line deprecation/deprecation
 export async function returnSearchAttributes(): Promise<SearchAttributes | undefined> {
-  // eslint-disable-line deprecation/deprecation
   const sa = workflowInfo().searchAttributes!; // eslint-disable-line @typescript-eslint/no-non-null-assertion, deprecation/deprecation
   const datetime = (sa.CustomDatetimeField as Array<Date>)[0];
   return {

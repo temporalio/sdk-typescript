@@ -184,14 +184,12 @@ export function encodeUnifiedSearchAttributes(
   };
 }
 
+// eslint-disable-next-line deprecation/deprecation
 export function decodeSearchAttributes(indexedFields: Record<string, Payload> | undefined | null): SearchAttributes {
-  // eslint-disable-line deprecation/deprecation
-  // eslint-disable-line deprecation/deprecation
   if (!indexedFields) return {};
   return Object.fromEntries(
+    // eslint-disable-next-line deprecation/deprecation
     Object.entries(mapFromPayloads(searchAttributePayloadConverter, indexedFields) as SearchAttributes).filter(
-      // eslint-disable-line deprecation/deprecation
-      // eslint-disable-line deprecation/deprecation
       ([_, v]) => v && v.length > 0
     ) // Filter out empty arrays returned by pre 1.18 servers
   );

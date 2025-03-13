@@ -35,8 +35,8 @@ const test = makeTestFunction({
 const date = new Date();
 const secondDate = new Date(date.getTime() + 1000);
 
+// eslint-disable-next-line deprecation/deprecation
 const untypedAttrsInput: SearchAttributes = {
-  // eslint-disable-line deprecation/deprecation
   untyped_single_string: ['one'],
   untyped_single_int: [1],
   untyped_single_double: [1.23],
@@ -71,8 +71,8 @@ const typedAttrsListInput: SearchAttributePair[] = [
 const typedAttrsObjInput = new TypedSearchAttributes(typedAttrsListInput);
 
 // The corresponding untyped search attributes from typedSearchAttributesList.
+// eslint-disable-next-line deprecation/deprecation
 const untypedFromTypedInput: SearchAttributes = {
-  // eslint-disable-line deprecation/deprecation
   typed_text: ['typed_text'],
   typed_keyword: ['typed_keyword'],
   typed_int: [123],
@@ -295,8 +295,8 @@ test('upsert works with various search attribute mutations', async (t) => {
     assertWorkflowDescSearchAttributes(t, desc, untypedFromTypedInput, typedAttrsListInput);
 
     // Update search attributes with untyped input.
+    // eslint-disable-next-line deprecation/deprecation
     const untypedUpdateAttrs: SearchAttributes = {
-      // eslint-disable-line deprecation/deprecation
       typed_text: ['new_value'],
       typed_keyword: ['new_keyword'],
       typed_int: [2],
@@ -428,8 +428,8 @@ function assertWorkflowDescSearchAttributes(
   assertMatchingSearchAttributePairs(t, descOmittingBuildIds, searchAttrPairs);
 }
 
+// eslint-disable-next-line deprecation/deprecation
 function normalizeSearchAttrs(attrs: SearchAttributes): SearchAttributes {
-  // eslint-disable-line deprecation/deprecation
   const res: SearchAttributes = {}; // eslint-disable-line deprecation/deprecation
   for (const [key, value] of Object.entries(attrs)) {
     if (Array.isArray(value) && value.length === 1 && value[0] instanceof Date) {

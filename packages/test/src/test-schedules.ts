@@ -180,8 +180,8 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(describedSchedule.action.type, 'startWorkflow');
       t.is(describedSchedule.action.workflowType, 'dummyWorkflow');
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
+      // eslint-disable-next-line deprecation/deprecation
       t.deepEqual(describedSchedule.action.searchAttributes, {
-        // eslint-disable-line deprecation/deprecation
         CustomKeywordField: ['test-value2'],
         CustomIntField: [42],
       });
@@ -229,8 +229,8 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(describedSchedule.action.workflowType, 'dummyWorkflowWith2Args');
       t.deepEqual(describedSchedule.action.args, [3, 4]);
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
+      // eslint-disable-next-line deprecation/deprecation
       t.deepEqual(describedSchedule.action.searchAttributes, {
-        // eslint-disable-line deprecation/deprecation
         CustomKeywordField: ['test-value2'],
         CustomIntField: [42],
       });
