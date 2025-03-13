@@ -378,7 +378,7 @@ function makeUpdateActivationJob(
     },
   };
 }
-ddd
+
 function makeUpdateAcceptedResponse(id: string): coresdk.workflow_commands.IWorkflowCommand {
   return {
     updateResponse: {
