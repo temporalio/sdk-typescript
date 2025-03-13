@@ -370,11 +370,11 @@ if (RUN_INTEGRATION_TESTS) {
   test('Sink functions contains upserted search attributes', async (t) => {
     const taskQueue = `${__filename}-${t.title}`;
 
-    const recordedMessages = Array<{ message: string; searchAttributes: SearchAttributes }>();
+    const recordedMessages = Array<{ message: string; searchAttributes: SearchAttributes }>(); // eslint-disable-line deprecation/deprecation
     const sinks = asSdkLoggerSink(async (info, message, _attrs) => {
       recordedMessages.push({
         message,
-        searchAttributes: info.searchAttributes,
+        searchAttributes: info.searchAttributes, // eslint-disable-line deprecation/deprecation
       });
     });
 

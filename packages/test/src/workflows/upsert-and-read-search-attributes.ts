@@ -1,6 +1,7 @@
 import { SearchAttributes, upsertSearchAttributes, workflowInfo } from '@temporalio/workflow';
 
 export async function upsertAndReadSearchAttributes(msSinceEpoch: number): Promise<SearchAttributes | undefined> {
+  // eslint-disable-line deprecation/deprecation
   upsertSearchAttributes({
     CustomIntField: [123],
     CustomBoolField: [true],
@@ -12,5 +13,5 @@ export async function upsertAndReadSearchAttributes(msSinceEpoch: number): Promi
     CustomDatetimeField: [new Date(msSinceEpoch)],
     CustomDoubleField: [3.14],
   });
-  return workflowInfo().searchAttributes;
+  return workflowInfo().searchAttributes; // eslint-disable-line deprecation/deprecation
 }

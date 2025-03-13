@@ -1365,6 +1365,7 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
  * If using SearchAttributes (deprecated), set a value to undefined or an empty list to remove the search attribute.
  */
 export function upsertSearchAttributes(searchAttributes: SearchAttributes | SearchAttributeUpdatePair[]): void {
+  // eslint-disable-line deprecation/deprecation
   const activator = assertInWorkflowContext(
     'Workflow.upsertSearchAttributes(...) may only be used from a Workflow Execution.'
   );
@@ -1392,7 +1393,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
         } else {
           newSearchAttributes[pair.key.name] = Array.isArray(pair.value)
             ? pair.value
-            : ([pair.value] as SearchAttributeValue);
+            : ([pair.value] as SearchAttributeValue); // eslint-disable-line deprecation/deprecation
         }
       }
       return {

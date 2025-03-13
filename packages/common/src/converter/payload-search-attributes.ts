@@ -164,7 +164,7 @@ export const typedSearchAttributePayloadConverter = new TypedSearchAttributePayl
 
 // If both params are provided, conflicting keys will be overwritten by typedSearchAttributes.
 export function encodeUnifiedSearchAttributes(
-  searchAttributes?: SearchAttributes,
+  searchAttributes?: SearchAttributes, // eslint-disable-line deprecation/deprecation
   typedSearchAttributes?: TypedSearchAttributes | SearchAttributeUpdatePair[]
 ): Record<string, Payload> {
   return {
@@ -185,9 +185,13 @@ export function encodeUnifiedSearchAttributes(
 }
 
 export function decodeSearchAttributes(indexedFields: Record<string, Payload> | undefined | null): SearchAttributes {
+  // eslint-disable-line deprecation/deprecation
+  // eslint-disable-line deprecation/deprecation
   if (!indexedFields) return {};
   return Object.fromEntries(
     Object.entries(mapFromPayloads(searchAttributePayloadConverter, indexedFields) as SearchAttributes).filter(
+      // eslint-disable-line deprecation/deprecation
+      // eslint-disable-line deprecation/deprecation
       ([_, v]) => v && v.length > 0
     ) // Filter out empty arrays returned by pre 1.18 servers
   );

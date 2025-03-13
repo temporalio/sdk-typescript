@@ -243,9 +243,9 @@ export class ScheduleClient extends BaseClient {
       },
       memo: opts.memo ? { fields: await encodeMapToPayloads(this.dataConverter, opts.memo) } : undefined,
       searchAttributes:
-        opts.searchAttributes || opts.typedSearchAttributes
+        opts.searchAttributes || opts.typedSearchAttributes // eslint-disable-line deprecation/deprecation
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes),
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes), // eslint-disable-line deprecation/deprecation
             }
           : undefined,
       initialPatch: {

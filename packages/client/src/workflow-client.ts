@@ -1218,9 +1218,9 @@ export class WorkflowClient extends BaseClient {
       retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
       memo: options.memo ? { fields: await encodeMapToPayloads(this.dataConverter, options.memo) } : undefined,
       searchAttributes:
-        options.searchAttributes || options.typedSearchAttributes
+        options.searchAttributes || options.typedSearchAttributes // eslint-disable-line deprecation/deprecation
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes),
+              indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes), // eslint-disable-line deprecation/deprecation
             }
           : undefined,
       cronSchedule: options.cronSchedule,
@@ -1286,9 +1286,9 @@ export class WorkflowClient extends BaseClient {
       retryPolicy: opts.retry ? compileRetryPolicy(opts.retry) : undefined,
       memo: opts.memo ? { fields: await encodeMapToPayloads(this.dataConverter, opts.memo) } : undefined,
       searchAttributes:
-        opts.searchAttributes || opts.typedSearchAttributes
+        opts.searchAttributes || opts.typedSearchAttributes // eslint-disable-line deprecation/deprecation
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes),
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes), // eslint-disable-line deprecation/deprecation
             }
           : undefined,
       cronSchedule: opts.cronSchedule,

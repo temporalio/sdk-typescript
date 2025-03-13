@@ -48,7 +48,7 @@ export interface WorkflowExecutionInfo {
   closeTime?: Date;
   memo?: Record<string, unknown>;
   /** @deprecated Use {@link typedSearchAttributes} instead. */
-  searchAttributes: SearchAttributes;
+  searchAttributes: SearchAttributes; // eslint-disable-line deprecation/deprecation
   typedSearchAttributes: TypedSearchAttributes;
   parentExecution?: Required<proto.temporal.api.common.v1.IWorkflowExecution>;
   raw: RawWorkflowExecutionInfo;
@@ -58,7 +58,7 @@ export interface CountWorkflowExecution {
   count: number;
   groups: {
     count: number;
-    groupValues: SearchAttributeValue[];
+    groupValues: SearchAttributeValue[]; // eslint-disable-line deprecation/deprecation
   }[];
 }
 

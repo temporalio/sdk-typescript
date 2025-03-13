@@ -43,7 +43,7 @@ export interface WorkflowInfo {
    * This value may change during the lifetime of an Execution.
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  readonly searchAttributes: SearchAttributes;
+  readonly searchAttributes: SearchAttributes; // eslint-disable-line deprecation/deprecation
 
   /**
    * Indexed information attached to the Workflow Execution, exposed through an interface.
@@ -263,7 +263,7 @@ export interface ContinueAsNewOptions {
    * Searchable attributes to attach to next Workflow run
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes?: SearchAttributes;
+  searchAttributes?: SearchAttributes; // eslint-disable-line deprecation/deprecation
   /**
    * Specifies additional indexed information to attach to the Workflow Execution. More info:
    * https://docs.temporal.io/docs/typescript/search-attributes

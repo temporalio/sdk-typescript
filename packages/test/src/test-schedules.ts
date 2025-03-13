@@ -181,6 +181,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(describedSchedule.action.workflowType, 'dummyWorkflow');
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
       t.deepEqual(describedSchedule.action.searchAttributes, {
+        // eslint-disable-line deprecation/deprecation
         CustomKeywordField: ['test-value2'],
         CustomIntField: [42],
       });
@@ -229,6 +230,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.deepEqual(describedSchedule.action.args, [3, 4]);
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
       t.deepEqual(describedSchedule.action.searchAttributes, {
+        // eslint-disable-line deprecation/deprecation
         CustomKeywordField: ['test-value2'],
         CustomIntField: [42],
       });
@@ -579,7 +581,7 @@ if (RUN_INTEGRATION_TESTS) {
     const expectedIds: string[] = [];
     for (let i = 0; i < 4; i++) {
       const scheduleId = `test-query-${groupId}-${i + 1}`;
-      const searchAttributes: SearchAttributes = {};
+      const searchAttributes: SearchAttributes = {}; // eslint-disable-line deprecation/deprecation
       if (i < 2) {
         searchAttributes['CustomKeywordField'] = ['some-value'];
         expectedIds.push(scheduleId);

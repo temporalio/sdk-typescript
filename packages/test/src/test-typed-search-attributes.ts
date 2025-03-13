@@ -38,6 +38,7 @@ const date = new Date();
 const secondDate = new Date(date.getTime() + 1000);
 
 const untypedAttrsInput: SearchAttributes = {
+  // eslint-disable-line deprecation/deprecation
   untyped_single_string: ['one'],
   untyped_single_int: [1],
   untyped_single_double: [1.23],
@@ -76,6 +77,7 @@ const typedAttrsObjInput = new TypedSearchAttributes(typedAttrsListInput);
 
 // The corresponding untyped search attributes from typedSearchAttributesList.
 const untypedFromTypedInput: SearchAttributes = {
+  // eslint-disable-line deprecation/deprecation
   typed_text: ['typed_text'],
   typed_keyword: ['typed_keyword'],
   typed_int: [123],
@@ -175,11 +177,11 @@ test('does not allow non-integer values for integer search attributes', async (t
 interface TestInputSearchAttributes {
   name: string;
   input: {
-    searchAttributes?: SearchAttributes;
+    searchAttributes?: SearchAttributes; // eslint-disable-line deprecation/deprecation
     typedSearchAttributes?: TypedSearchAttributes | SearchAttributePair[];
   };
   expected: {
-    searchAttributes?: SearchAttributes;
+    searchAttributes?: SearchAttributes; // eslint-disable-line deprecation/deprecation
     typedSearchAttributes?: TypedSearchAttributes;
   };
 }
@@ -267,7 +269,7 @@ test('creating schedules with various input search attributes', async (t) => {
 
 export const getWorkflowInfo = defineQuery<WorkflowInfo>('getWorkflowInfo');
 export const mutateSearchAttributes =
-  defineSignal<[SearchAttributes | SearchAttributeUpdatePair[]]>('mutateSearchAttributes');
+  defineSignal<[SearchAttributes | SearchAttributeUpdatePair[]]>('mutateSearchAttributes'); // eslint-disable-line deprecation/deprecation
 export const complete = defineSignal('complete');
 
 export async function changeSearchAttributes(): Promise<void> {
@@ -299,6 +301,7 @@ test('upsert works with various search attribute mutations', async (t) => {
 
     // Update search attributes with untyped input.
     const untypedUpdateAttrs: SearchAttributes = {
+      // eslint-disable-line deprecation/deprecation
       typed_text: ['new_value'],
       typed_keyword: ['new_keyword'],
       typed_int: [2],
@@ -407,7 +410,7 @@ test('upsert works with various search attribute mutations', async (t) => {
 function assertWorkflowInfoSearchAttributes(
   t: ExecutionContext<Context>,
   res: WorkflowInfo,
-  searchAttributes: SearchAttributes,
+  searchAttributes: SearchAttributes, // eslint-disable-line deprecation/deprecation
   searchAttrPairs: SearchAttributePair[]
 ) {
   // Check initial search attributes are present.
@@ -421,7 +424,7 @@ function assertWorkflowInfoSearchAttributes(
 function assertWorkflowDescSearchAttributes(
   t: ExecutionContext<Context>,
   desc: WorkflowExecutionDescription,
-  searchAttributes: SearchAttributes,
+  searchAttributes: SearchAttributes, // eslint-disable-line deprecation/deprecation
   searchAttrPairs: SearchAttributePair[]
 ) {
   // Check that all search attributes are present in the workflow description's search attributes.
@@ -435,7 +438,8 @@ function assertWorkflowDescSearchAttributes(
 }
 
 function normalizeSearchAttrs(attrs: SearchAttributes): SearchAttributes {
-  const res: SearchAttributes = {};
+  // eslint-disable-line deprecation/deprecation
+  const res: SearchAttributes = {}; // eslint-disable-line deprecation/deprecation
   for (const [key, value] of Object.entries(attrs)) {
     if (Array.isArray(value) && value.length === 1 && value[0] instanceof Date) {
       res[key] = [value[0].toISOString()];

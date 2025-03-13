@@ -257,9 +257,9 @@ export async function encodeScheduleAction(
       retryPolicy: action.retry ? compileRetryPolicy(action.retry) : undefined,
       memo: action.memo ? { fields: await encodeMapToPayloads(dataConverter, action.memo) } : undefined,
       searchAttributes:
-        action.searchAttributes || action.typedSearchAttributes
+        action.searchAttributes || action.typedSearchAttributes // eslint-disable-line deprecation/deprecation
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(action.searchAttributes, action.typedSearchAttributes),
+              indexedFields: encodeUnifiedSearchAttributes(action.searchAttributes, action.typedSearchAttributes), // eslint-disable-line deprecation/deprecation
             }
           : undefined,
       header: { fields: headers },

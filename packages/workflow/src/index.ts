@@ -60,8 +60,8 @@ export {
   PayloadConverter,
   RetryPolicy,
   rootCause,
-  SearchAttributes,
-  SearchAttributeValue,
+  SearchAttributes, // eslint-disable-line deprecation/deprecation
+  SearchAttributeValue, // eslint-disable-line deprecation/deprecation
   ServerFailure,
   TemporalFailure,
   TerminatedFailure,

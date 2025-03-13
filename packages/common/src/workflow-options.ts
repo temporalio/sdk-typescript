@@ -177,7 +177,7 @@ export interface BaseWorkflowOptions {
    *
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes?: SearchAttributes;
+  searchAttributes?: SearchAttributes; // eslint-disable-line deprecation/deprecation
 
   /**
    * Specifies additional indexed information to attach to the Workflow Execution. More info:
