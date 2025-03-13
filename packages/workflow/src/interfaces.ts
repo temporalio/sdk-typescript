@@ -281,7 +281,7 @@ export interface ContinueAsNewOptions {
    *
    * @default 'COMPATIBLE'
    *
-   * @experimental
+   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
   versioningIntent?: VersioningIntent;
 }
@@ -451,7 +451,7 @@ export interface ChildWorkflowOptions extends CommonWorkflowOptions {
    *
    * @default 'COMPATIBLE'
    *
-   * @experimental
+   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
   versioningIntent?: VersioningIntent;
 }
@@ -559,6 +559,11 @@ export type Handler<
  * A handler function accepting signal calls for non-registered signal names.
  */
 export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => void | Promise<void>;
+
+/**
+ * A handler function accepting query calls for non-registered query names.
+ */
+export type DefaultQueryHandler = (queryName: string, ...args: unknown[]) => unknown;
 
 /**
  * A validation function capable of accepting the arguments for a given UpdateDefinition.

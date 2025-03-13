@@ -30,6 +30,7 @@
     "@opentelemetry/core": "^1.19.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.46.0",
     "@opentelemetry/sdk-node": "^0.46.0",
+    "@opentelemetry/sdk-trace-base": "^1.19.0",
     "@opentelemetry/semantic-conventions": "^1.19.0",
     "@temporalio/activity": "file:../activity",
     "@temporalio/client": "file:../client",

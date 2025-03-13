@@ -24,20 +24,6 @@ export type { TLSConfig, ProxyConfig, HttpConnectProxyConfig };
 /** @deprecated Import from @temporalio/common instead */
 export { LogLevel };
 
-type Shadow<Base, New> = Base extends object
-  ? New extends object
-    ? {
-        [K in keyof Base | keyof New]: K extends keyof Base
-          ? K extends keyof New
-            ? Shadow<Base[K], New[K]>
-            : Base[K]
-          : K extends keyof New
-            ? New[K]
-            : never;
-      }
-    : New
-  : New;
-
 export interface RetryOptions {
   /** Initial wait time before the first retry. */
   initialInterval: number;
@@ -75,8 +61,6 @@ export interface ClientOptions {
 
   /**
    * Proxying configuration.
-   *
-   * @experimental
    */
   proxy?: ProxyConfig;
 
@@ -99,12 +83,18 @@ export interface ClientOptions {
    * Set statically at connection time, can be replaced later using {@link clientUpdateApiKey}.
    */
   apiKey?: string;
+
+  /**
+   * If set to true, error code labels will not be included on request failure
+   * metrics emitted by this Client.
+   *
+   * @default false
+   */
+  disableErrorCodeMetricTags?: boolean;
 }
 
 /**
  * Log directly to console
- *
- * @experimental
  */
 export interface ConsoleLogger {
   console: {}; // eslint-disable-line @typescript-eslint/no-empty-object-type
@@ -112,8 +102,6 @@ export interface ConsoleLogger {
 
 /**
  * Forward logs to {@link Runtime} logger
- *
- * @experimental
  */
 export interface ForwardLogger {
   forward: {
@@ -128,61 +116,100 @@ export interface ForwardLogger {
 
 /**
  * Logger types supported by Core
- *
- * @experimental
  */
 export type Logger = ConsoleLogger | ForwardLogger;
 
 /**
  * OpenTelemetry Collector options for exporting metrics or traces
- *
- * @experimental
  */
 export interface OtelCollectorExporter {
   otel: {
     /**
      * URL of a gRPC OpenTelemetry collector.
      *
-     * Syntax should generally look like `http://server:4317` (the `grpc://` is also fine). Core's OTLP
-     * metric exporter does not support the 'OTLP/HTTP' protocol (e.g. `http://server:4318/v1/metrics`).
-     * For greater flexibility, you may setup an OTel collector running as a sidecar (e.g. to proxy
-     * OTLP/gRPC requests to a remote OTLP/HTTP endpoint).
+     * Syntax generally looks like `http://server:4317` or `grpc://server:4317` for OTLP/gRPC exporters,
+     * or `http://server:4318/v1/metrics` for OTLP/HTTP exporters. Make sure to set the `http` option
+     * to `true` for OTLP/HTTP endpoints.
      *
      * @format Starts with "grpc://" or "http://" for an unsecured connection (typical),
      *         or "grpcs://" or "https://" for a TLS connection.
      * @note The `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable, if set, will override this property.
      */
     url: string;
+
+    /**
+     * If set to true, the exporter will use OTLP/HTTP instead of OTLP/gRPC.
+     *
+     * @default false meaning that the exporter will use OTLP/gRPC.
+     */
+    http?: boolean;
+
     /**
      * Optional set of HTTP request headers to send to Collector (e.g. for authentication)
      */
     headers?: Record<string, string>;
+
     /**
      * Specify how frequently in metrics should be exported.
      *
      * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
-     * @defaults 1 second
+     * @default 1 second
      */
     metricsExportInterval?: Duration;
+
     /**
      * If set to true, the exporter will use seconds for durations instead of milliseconds.
+     *
+     * @default false
      */
     useSecondsForDurations?: boolean;
+
+    /**
+     * Determines if the metrics exporter should use cumulative or delta temporality.
+
+     * See the [OpenTelemetry specification](https://github.com/open-telemetry/opentelemetry-specification/blob/ce50e4634efcba8da445cc23523243cb893905cb/specification/metrics/datamodel.md#temporality)
+     * for more information.
+     *
+     * @default 'cumulative'
+     */
+    temporality?: 'cumulative' | 'delta';
+
+    /**
+     * Overrides boundary values for histogram metrics.
+     *
+     * The key is the metric name and the value is the list of bucket boundaries.
+     *
+     * For example:
+     *
+     * ```
+     * {
+     *   "request_latency": [1, 5, 10, 25, 50, 100, 250, 500, 1000],
+     * }
+     * ```
+     *
+     * The metric name will apply regardless of name prefixing.
+     *
+     * See [this doc](https://docs.rs/opentelemetry_sdk/latest/opentelemetry_sdk/metrics/enum.Aggregation.html#variant.ExplicitBucketHistogram.field.boundaries)
+     * for the exact meaning of boundaries.
+     */
+    histogramBucketOverrides?: Record<string, number[]>;
   };
 }
 
-/** @experimental */
-export type CompiledOtelMetricsExporter = Shadow<
-  OtelCollectorExporter,
-  {
-    otel: { metricsExportInterval: number };
-  }
->;
+interface CompiledOtelMetricsExporter {
+  otel: {
+    url: string;
+    http: boolean;
+    headers: Record<string, string> | undefined;
+    metricsExportInterval: number;
+    useSecondsForDurations: boolean;
+    temporality: 'cumulative' | 'delta';
+    histogramBucketOverrides: Record<string, number[]> | undefined;
+  };
+}
 
 /**
  * Prometheus metrics exporter options
- *
- * @experimental
  */
 export interface PrometheusMetricsExporter {
   prometheus: {
@@ -195,34 +222,88 @@ export interface PrometheusMetricsExporter {
     bindAddress: string;
     /**
      * If set to true, all counter names will include a "_total" suffix.
+     *
+     * @default false
      */
     countersTotalSuffix?: boolean;
     /**
      * If set to true, all histograms will include the unit in their name as a suffix.
      * EX: "_milliseconds"
+     *
+     * @default false
      */
     unitSuffix?: boolean;
     /**
      * If set to true, the exporter will use seconds for durations instead of milliseconds.
+     *
+     * @default false
      */
     useSecondsForDurations?: boolean;
+
+    /**
+     * Overrides boundary values for histogram metrics.
+     *
+     * The key is the metric name and the value is the list of bucket boundaries.
+     *
+     * For example:
+     *
+     * ```
+     * {
+     *   "request_latency": [1, 5, 10, 25, 50, 100, 250, 500, 1000],
+     * }
+     * ```
+     *
+     * The metric name will apply regardless of name prefixing.
+     *
+     * See [this doc](https://docs.rs/opentelemetry_sdk/latest/opentelemetry_sdk/metrics/enum.Aggregation.html#variant.ExplicitBucketHistogram.field.boundaries)
+     * for the exact meaning of boundaries.
+     */
+    histogramBucketOverrides?: Record<string, number[]>;
+  };
+}
+
+interface CompiledPrometheusMetricsExporter {
+  prometheus: {
+    bindAddress: string;
+    countersTotalSuffix: boolean;
+    unitSuffix: boolean;
+    useSecondsForDurations: boolean;
+    histogramBucketOverrides: Record<string, number[]> | undefined;
   };
 }
 
 /**
  * Metrics exporters supported by Core
- *
- * `temporality` is the type of aggregation temporality for metric export. Applies to both Prometheus and OpenTelemetry exporters.
- *
- * See the [OpenTelemetry specification](https://github.com/open-telemetry/opentelemetry-specification/blob/ce50e4634efcba8da445cc23523243cb893905cb/specification/metrics/datamodel.md#temporality) for more information.
- *
- * @experimental
  */
 export type MetricsExporter = {
+  /**
+   * Determines if the metrics exporter should use cumulative or delta temporality.
+   * Only applies to OpenTelemetry exporter.
+   *
+   * @deprecated Use 'otel.temporality' instead
+   */
   temporality?: 'cumulative' | 'delta';
+
+  /**
+   * A prefix to add to all metrics.
+   *
+   * @default 'temporal_'
+   */
+  metricPrefix?: string;
+
+  /**
+   * Tags to add to all metrics emitted by the worker.
+   */
+  globalTags?: Record<string, string>;
+
+  /**
+   * Whether to put the service_name on every metric.
+   *
+   * @default true
+   */
+  attachServiceName?: boolean;
 } & (PrometheusMetricsExporter | OtelCollectorExporter);
 
-/** @experimental */
 export interface TelemetryOptions {
   /**
    * A string in the env filter format specified here:
@@ -235,10 +316,9 @@ export interface TelemetryOptions {
   tracingFilter?: string;
 
   /**
-   * If set true, do not prefix metrics with `temporal_`. Will be removed eventually as
-   * the prefix is consistent with other SDKs.
+   * If set true, do not prefix metrics with `temporal_`.
    *
-   * @default `false`
+   * @deprecated Use `metrics.metricPrefix` instead
    */
   noTemporalPrefixForMetrics?: boolean;
 
@@ -258,9 +338,9 @@ export interface TelemetryOptions {
      * If `logging.filter` is missing, the following legacy values (if present) will be used instead (in the given order):
      * - {@link ForwardLogger.forward.level} => `makeTelemetryFilterString({ core: level, other: level })`
      * - {@link TelemetryOptions.tracingFilter}
-     * - Default value of `makeTelemetryFilterString({ core: 'INFO', other: 'INFO'})`
+     * - Default value of `makeTelemetryFilterString({ core: 'WARN', other: 'ERROR'})`
      *
-     * @default `makeTelemetryFilterString({ core: 'INFO', other: 'INFO'})` (with some exceptions, as described in backward compatibility note above)
+     * @default `makeTelemetryFilterString({ core: 'WARN', other: 'ERROR'})` (with some exceptions, as described in backward compatibility note above)
      */
     filter?: string;
   } & Partial<Logger>;
@@ -278,9 +358,7 @@ export interface TelemetryOptions {
   tracing?: unknown;
 }
 
-/** @experimental */
 export type CompiledTelemetryOptions = {
-  noTemporalPrefixForMetrics?: boolean;
   logging: {
     filter: string;
   } & (
@@ -288,94 +366,29 @@ export type CompiledTelemetryOptions = {
     | { forward: {} /* eslint-disable-line @typescript-eslint/no-empty-object-type */ }
   );
   metrics?: {
-    temporality?: 'cumulative' | 'delta';
-  } & (PrometheusMetricsExporter | CompiledOtelMetricsExporter);
+    metricPrefix: string;
+    globalTags: Record<string, string> | undefined;
+    attachServiceName: boolean;
+  } & (CompiledPrometheusMetricsExporter | CompiledOtelMetricsExporter);
 };
 
 export interface WorkerOptions {
-  /**
-   * A human-readable string that can identify your worker
-   */
   identity: string;
-  /**
-   * A string that should be unique to the exact worker code/binary being executed
-   */
   buildId: string;
-  /**
-   * If set true, this worker opts into the worker versioning feature. This ensures it only receives
-   * workflow tasks for workflows which it claims to be compatible with.
-   *
-   * For more information, see https://docs.temporal.io/workers#worker-versioning
-   */
   useVersioning: boolean;
-
-  /**
-   * The task queue the worker will pull from
-   */
   taskQueue: string;
-
-  /**
-   * The tuner the worker will use
-   */
   tuner: WorkerTuner;
-
   nonStickyToStickyPollRatio: number;
-
-  /**
-   * Maximum number of Workflow tasks to poll concurrently.
-   */
   maxConcurrentWorkflowTaskPolls: number;
-
-  /**
-   * Maximum number of Activity tasks to poll concurrently.
-   */
   maxConcurrentActivityTaskPolls: number;
-
-  /**
-   * If set to `false` this worker will only handle workflow tasks and local activities, it will not
-   * poll for activity tasks.
-   */
   enableNonLocalActivities: boolean;
-
-  /**
-   * How long a workflow task is allowed to sit on the sticky queue before it is timed out
-   * and moved to the non-sticky queue where it may be picked up by any worker.
-   */
   stickyQueueScheduleToStartTimeoutMs: number;
-
-  /**
-   * Maximum number of Workflow instances to cache before automatic eviction
-   */
   maxCachedWorkflows: number;
-  /**
-   * Longest interval for throttling activity heartbeats
-   * @default 60 seconds
-   */
   maxHeartbeatThrottleIntervalMs: number;
-
-  /**
-   * Default interval for throttling activity heartbeats in case
-   * `ActivityOptions.heartbeat_timeout` is unset.
-   * When the timeout *is* set in the `ActivityOptions`, throttling is set to
-   * `heartbeat_timeout * 0.8`.
-   * @default 30 seconds
-   */
   defaultHeartbeatThrottleIntervalMs: number;
-
-  /**
-   * Sets the maximum number of activities per second the task queue will dispatch, controlled
-   * server-side. Note that this only takes effect upon an activity poll request. If multiple
-   * workers on the same queue have different values set, they will thrash with the last poller
-   * winning.
-   */
   maxTaskQueueActivitiesPerSecond?: number;
-
-  /**
-   * Limits the number of activities per second that this worker will process. The worker will
-   * not poll for new activities if by doing so it might receive and execute an activity which
-   * would cause it to exceed this limit. Must be a positive floating point number.
-   */
   maxActivitiesPerSecond?: number;
+  shutdownGraceTimeMs: number;
 }
 
 export type LogEntryMetadata = {
@@ -454,6 +467,10 @@ export interface DevServerConfig {
   type: 'dev-server';
   executable?: EphemeralServerExecutable;
   /**
+   * Sqlite DB filename if persisting or non-persistent if none (default).
+   */
+  dbFilename?: string;
+  /**
    * Namespace to use - created at startup.
    *
    * @default "default"
@@ -466,24 +483,24 @@ export interface DevServerConfig {
    */
   ip?: string;
   /**
-   * Sqlite DB filename if persisting or non-persistent if none (default).
+   * Port to listen on; defaults to find a random free port.
    */
-  db_filename?: string;
+  port?: number;
   /**
    * Whether to enable the UI.
    *
-   * @default false
+   * @default true if `uiPort` is set; defaults to `false` otherwise.
    */
   ui?: boolean;
+  /**
+   * Port to listen on for the UI; if `ui` is true, defaults to `port + 1000`.
+   */
+  uiPort?: number;
   /**
    * Log format and level
    * @default { format: "pretty", level" "warn" }
    */
   log?: { format: string; level: string };
-  /**
-   * Optional port to listen on, defaults to find a random free port.
-   */
-  port?: number;
   /**
    * Extra args to pass to the executable command.
    *

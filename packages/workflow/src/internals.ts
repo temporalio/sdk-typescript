@@ -43,6 +43,7 @@ import {
   WorkflowInfo,
   WorkflowCreateOptionsInternal,
   ActivationCompletion,
+  DefaultQueryHandler,
 } from './interfaces';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
@@ -192,6 +193,11 @@ export class Activator implements ActivationHandler {
   defaultSignalHandler?: DefaultSignalHandler;
 
   /**
+   * A query handler that catches calls for non-registered query names.
+   */
+  defaultQueryHandler?: DefaultQueryHandler;
+
+  /**
    * Source map file for looking up the source files in response to __enhanced_stack_trace
    */
   protected readonly sourceMap: RawSourceMap;
@@ -205,6 +211,38 @@ export class Activator implements ActivationHandler {
     promiseToStack: new Map(),
     childToParent: new Map(),
   };
+
+  /**
+   * The error that caused the current Workflow Task to fail. Sets if a non-`TemporalFailure`
+   * error bubbles up out of the Workflow function, or out of a Signal or Update handler. We
+   * capture errors this way because those functions are not technically awaited when started,
+   * but left to run asynchronously. There is therefore no real "parent" function that can
+   * directly handle those errors, and not capturing it would result in an Unhandled Promise
+   * Rejection. So instead, we buffer the error here, to then be processed in the context
+   * of our own synchronous Activation handling event loop.
+   *
+   * Our code does a best effort to stop processing the current activation as soon as possible
+   * after this field is set:
+   *  - If an error is thrown while executing code synchronously (e.g. anything before the
+   *    first `await` statement in a Workflow function or a signal/update handler), the error
+   *    will be _immediately_ rethrown, which will prevent execution of further jobs in the
+   *    current activation. We know we're currently running code synchronously thanks to the
+   *    `rethrowSynchronously` flag below.
+   *  - It an error is thrown while executing microtasks, then the error will be rethrown on
+   *    the next call to `tryUnblockConditions()`.
+   *
+   * Unfortunately, there's no way for us to prevent further execution of microtasks that have
+   * already been scheduled, nor those that will be recursively scheduled from those microtasks.
+   * Should more errors get thrown while settling microtasks, those will be ignored (i.e. only
+   * the first captured error is preserved).
+   */
+  public workflowTaskError: unknown;
+
+  /**
+   * Set to true when running synchronous code (e.g. while processing activation jobs and when calling
+   * `tryUnblockConditions()`). While this flag is set, it is safe to let errors bubble up.
+   */
+  public rethrowSynchronously = false;
 
   public readonly rootScope = new RootCancellationScope();
 
@@ -583,7 +621,11 @@ export class Activator implements ActivationHandler {
 
   // Intentionally non-async function so this handler doesn't show up in the stack trace
   protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
-    const fn = this.queryHandlers.get(queryName)?.handler;
+    let fn = this.queryHandlers.get(queryName)?.handler;
+    if (fn === undefined && this.defaultQueryHandler !== undefined) {
+      fn = this.defaultQueryHandler.bind(this, queryName);
+    }
+    // No handler or default registered, fail.
     if (fn === undefined) {
       const knownQueryTypes = [...this.queryHandlers.keys()].join(' ');
       // Fail the query
@@ -593,6 +635,7 @@ export class Activator implements ActivationHandler {
         )
       );
     }
+    // Execute handler.
     try {
       const ret = fn(...args);
       if (ret instanceof Promise) {
@@ -707,7 +750,7 @@ export class Activator implements ActivationHandler {
           if (error instanceof TemporalFailure) {
             this.rejectUpdate(protocolInstanceId, error);
           } else {
-            throw error;
+            this.handleWorkflowFailure(error);
           }
         })
         .finally(() => this.inProgressUpdates.delete(updateId));
@@ -834,6 +877,8 @@ export class Activator implements ActivationHandler {
   }
 
   public warnIfUnfinishedHandlers(): void {
+    if (this.workflowTaskError) return;
+
     const getWarnable = (handlerExecutions: Iterable<MessageHandlerExecution>): MessageHandlerExecution[] => {
       return Array.from(handlerExecutions).filter(
         (ex) => ex.unfinishedPolicy === HandlerUnfinishedPolicy.WARN_AND_ABANDON
@@ -945,17 +990,12 @@ export class Activator implements ActivationHandler {
    * Transforms failures into a command to be sent to the server.
    * Used to handle any failure emitted by the Workflow.
    */
-  async handleWorkflowFailure(error: unknown): Promise<void> {
+  handleWorkflowFailure(error: unknown): void {
     if (this.cancelled && isCancellation(error)) {
       this.pushCommand({ cancelWorkflowExecution: {} }, true);
     } else if (error instanceof ContinueAsNew) {
       this.pushCommand({ continueAsNewWorkflowExecution: error.command }, true);
-    } else {
-      if (!(error instanceof TemporalFailure)) {
-        // This results in an unhandled rejection which will fail the activation
-        // preventing it from completing.
-        throw error;
-      }
+    } else if (error instanceof TemporalFailure) {
       // Fail the workflow. We do not want to issue unfinishedHandlers warnings. To achieve that, we
       // mark all handlers as completed now.
       this.inProgressSignals.clear();
@@ -968,7 +1008,27 @@ export class Activator implements ActivationHandler {
         },
         true
       );
+    } else {
+      this.recordWorkflowTaskError(error);
     }
+  }
+
+  recordWorkflowTaskError(error: unknown): void {
+    // Only keep the first error that bubbles up; subsequent errors will be ignored.
+    if (this.workflowTaskError === undefined) this.workflowTaskError = error;
+
+    // Immediately rethrow the error if we know it is safe to do so (i.e. we are not running async
+    // microtasks). Otherwise, the error will be rethrown whenever we get an opportunity to do so,
+    // e.g. the next time `tryUnblockConditions()` is called.
+    if (this.rethrowSynchronously) this.maybeRethrowWorkflowTaskError();
+  }
+
+  /**
+   * If a Workflow Task error was captured, and we are running in synchronous mode,
+   * then bubble it up now. This is safe to call even if there is no error to rethrow.
+   */
+  maybeRethrowWorkflowTaskError(): void {
+    if (this.workflowTaskError) throw this.workflowTaskError;
   }
 
   private completeQuery(queryId: string, result: unknown): void {

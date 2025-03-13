@@ -14,18 +14,18 @@ type IUpdateWorkerBuildIdCompatibilityRequest =
 type GetWorkerTaskReachabilityResponse = temporal.api.workflowservice.v1.GetWorkerTaskReachabilityResponse;
 
 /**
- * @experimental
+ * @experimental The Worker Versioning API is still being designed. Major changes are expected.
  */
 export type TaskQueueClientOptions = BaseClientOptions;
 
 /**
- * @experimental
+ * @experimental The Worker Versioning API is still being designed. Major changes are expected.
  */
 export type LoadedTaskQueueClientOptions = LoadedWithDefaults<TaskQueueClientOptions>;
 
 /**
  * A stand-in for a Build Id for unversioned Workers
- * @experimental
+ * @experimental The Worker Versioning API is still being designed. Major changes are expected.
  */
 export const UnversionedBuildId = Symbol.for('__temporal_unversionedBuildId');
 export type UnversionedBuildIdType = typeof UnversionedBuildId;
@@ -33,7 +33,7 @@ export type UnversionedBuildIdType = typeof UnversionedBuildId;
 /**
  * Client for starting Workflow executions and creating Workflow handles
  *
- * @experimental
+ * @experimental The Worker Versioning API is still being designed. Major changes are expected.
  */
 export class TaskQueueClient extends BaseClient {
   public readonly options: LoadedTaskQueueClientOptions;
@@ -285,7 +285,7 @@ export function reachabilityResponseFromProto(resp: GetWorkerTaskReachabilityRes
  * - Id passed is incorrect
  * - Build Id has been scavenged by the server.
  *
- * @experimental
+ * @experimental The Worker Versioning API is still being designed. Major changes are expected.
  */
 @SymbolBasedInstanceOfError('BuildIdNotFoundError')
 export class BuildIdNotFoundError extends Error {}

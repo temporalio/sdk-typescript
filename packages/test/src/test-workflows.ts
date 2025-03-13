@@ -1647,9 +1647,16 @@ test('globalOverrides', async (t) => {
 
 test('logAndTimeout', async (t) => {
   const { workflowType, workflow } = t.context;
-  await t.throwsAsync(activate(t, makeStartWorkflow(workflowType)), {
-    code: 'ERR_SCRIPT_EXECUTION_TIMEOUT',
-    message: 'Script execution timed out after 400ms',
+  const completion = await activate(t, makeStartWorkflow(workflowType));
+  compareCompletion(t, completion, {
+    failed: {
+      failure: {
+        message: 'Script execution timed out after 400ms',
+        source: 'TypeScriptSDK',
+        stackTrace: 'Error: Script execution timed out after 400ms',
+        cause: undefined,
+      },
+    },
   });
   const calls = await workflow.getAndResetSinkCalls();
   // Ignore LogTimestamp and workflowInfo for the purpose of this comparison

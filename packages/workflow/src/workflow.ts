@@ -56,6 +56,7 @@ import {
   UpdateInfo,
   encodeChildWorkflowCancellationType,
   encodeParentClosePolicy,
+  DefaultQueryHandler,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
@@ -1309,7 +1310,7 @@ export function setHandler<
  *
  * Signals are dispatched to the default signal handler in the order that they were accepted by the server.
  *
- * If this function is called multiple times for a given signal or query name the last handler will overwrite any previous calls.
+ * If this function is called multiple times for a given signal name the last handler will overwrite any previous calls.
  *
  * @param handler a function that will handle signals for non-registered signal names, or `undefined` to unset the handler.
  */
@@ -1322,6 +1323,26 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
     activator.dispatchBufferedSignals();
   } else if (handler == null) {
     activator.defaultSignalHandler = undefined;
+  } else {
+    throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
+  }
+}
+
+/**
+ * Set a query handler function that will handle query calls for non-registered query names.
+ *
+ * Queries are dispatched to the default query handler in the order that they were accepted by the server.
+ *
+ * If this function is called multiple times for a given query name the last handler will overwrite any previous calls.
+ *
+ * @param handler a function that will handle queries for non-registered query names, or `undefined` to unset the handler.
+ */
+export function setDefaultQueryHandler(handler: DefaultQueryHandler | undefined): void {
+  const activator = assertInWorkflowContext(
+    'Workflow.setDefaultQueryHandler(...) may only be used from a Workflow Execution.'
+  );
+  if (typeof handler === 'function' || handler === undefined) {
+    activator.defaultQueryHandler = handler;
   } else {
     throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
   }
