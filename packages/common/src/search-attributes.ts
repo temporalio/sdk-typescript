@@ -80,6 +80,10 @@ export interface SearchAttributeKey<T extends SearchAttributeType> {
   type: T;
 }
 
+export function defineSearchAttributeKey<T extends SearchAttributeType>(name: string, type: T): SearchAttributeKey<T> {
+  return { name, type };
+}
+
 class BaseSearchAttributeValue<T extends SearchAttributeType, V = IndexedValueTypeMapping[T]> {
   private readonly _type: T;
   private readonly _value: V;
@@ -285,22 +289,4 @@ export class TypedSearchAttributes {
         return;
     }
   }
-}
-
-export function createSearchAttributeKey<T extends SearchAttributeType>(name: string, type: T): SearchAttributeKey<T> {
-  return { name, type };
-}
-
-export function createSearchAttributePair<T extends SearchAttributeType>(
-  key: SearchAttributeKey<T>,
-  value: IndexedValueTypeMapping[T]
-): SearchAttributePair {
-  return { key, value } as SearchAttributePair;
-}
-
-export function createSearchAttributeUpdatePair<T extends SearchAttributeType>(
-  key: SearchAttributeKey<T>,
-  value: IndexedValueTypeMapping[T] | null
-): SearchAttributeUpdatePair {
-  return { key, value } as SearchAttributeUpdatePair;
 }
