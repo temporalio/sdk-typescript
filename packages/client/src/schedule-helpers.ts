@@ -1,14 +1,10 @@
 import Long from 'long'; // eslint-disable-line import/no-named-as-default
+import { compileRetryPolicy, decompileRetryPolicy, extractWorkflowType, LoadedDataConverter } from '@temporalio/common';
 import {
-  compileRetryPolicy,
-  decompileRetryPolicy,
-  extractWorkflowType,
-  LoadedDataConverter,
-  mapFromPayloads,
-  mapToPayloads,
-  searchAttributePayloadConverter,
-  SearchAttributes,
-} from '@temporalio/common';
+  encodeUnifiedSearchAttributes,
+  decodeSearchAttributes,
+  decodeTypedSearchAttributes,
+} from '@temporalio/common/lib/converter/payload-search-attributes';
 import { Headers } from '@temporalio/common/lib/interceptors';
 import {
   decodeArrayFromPayloads,
@@ -260,11 +256,12 @@ export async function encodeScheduleAction(
       workflowTaskTimeout: msOptionalToTs(action.workflowTaskTimeout),
       retryPolicy: action.retry ? compileRetryPolicy(action.retry) : undefined,
       memo: action.memo ? { fields: await encodeMapToPayloads(dataConverter, action.memo) } : undefined,
-      searchAttributes: action.searchAttributes
-        ? {
-            indexedFields: mapToPayloads(searchAttributePayloadConverter, action.searchAttributes),
-          }
-        : undefined,
+      searchAttributes:
+        action.searchAttributes || action.typedSearchAttributes // eslint-disable-line deprecation/deprecation
+          ? {
+              indexedFields: encodeUnifiedSearchAttributes(action.searchAttributes, action.typedSearchAttributes), // eslint-disable-line deprecation/deprecation
+            }
+          : undefined,
       header: { fields: headers },
     },
   };
@@ -326,31 +323,14 @@ export async function decodeScheduleAction(
       args: await decodeArrayFromPayloads(dataConverter, pb.startWorkflow.input?.payloads),
       memo: await decodeMapFromPayloads(dataConverter, pb.startWorkflow.memo?.fields),
       retry: decompileRetryPolicy(pb.startWorkflow.retryPolicy),
-      searchAttributes: Object.fromEntries(
-        Object.entries(
-          mapFromPayloads(
-            searchAttributePayloadConverter,
-            pb.startWorkflow.searchAttributes?.indexedFields ?? {}
-          ) as SearchAttributes
-        )
-      ),
+      searchAttributes: decodeSearchAttributes(pb.startWorkflow.searchAttributes?.indexedFields),
+      typedSearchAttributes: decodeTypedSearchAttributes(pb.startWorkflow.searchAttributes?.indexedFields),
       workflowExecutionTimeout: optionalTsToMs(pb.startWorkflow.workflowExecutionTimeout),
       workflowRunTimeout: optionalTsToMs(pb.startWorkflow.workflowRunTimeout),
       workflowTaskTimeout: optionalTsToMs(pb.startWorkflow.workflowTaskTimeout),
     };
   }
   throw new TypeError('Unsupported schedule action');
-}
-
-export function decodeSearchAttributes(
-  pb: temporal.api.common.v1.ISearchAttributes | undefined | null
-): SearchAttributes {
-  if (!pb?.indexedFields) return {};
-  return Object.fromEntries(
-    Object.entries(mapFromPayloads(searchAttributePayloadConverter, pb.indexedFields) as SearchAttributes).filter(
-      ([_, v]) => v && v.length > 0
-    ) // Filter out empty arrays returned by pre 1.18 servers
-  );
 }
 
 export function decodeScheduleRunningActions(

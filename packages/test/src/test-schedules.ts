@@ -10,9 +10,9 @@ import {
   ScheduleHandle,
   ScheduleSummary,
   ScheduleUpdateOptions,
-  SearchAttributes,
 } from '@temporalio/client';
 import { msToNumber } from '@temporalio/common/lib/time';
+import { SearchAttributes, SearchAttributeType, TypedSearchAttributes } from '@temporalio/common';
 import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS } from './helpers';
 
 export interface Context {
@@ -168,6 +168,9 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
+        typedSearchAttributes: new TypedSearchAttributes([
+          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
+        ]),
       },
     });
 
@@ -177,7 +180,18 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(describedSchedule.action.type, 'startWorkflow');
       t.is(describedSchedule.action.workflowType, 'dummyWorkflow');
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
-      t.deepEqual(describedSchedule.action.searchAttributes?.CustomKeywordField, ['test-value2']);
+      // eslint-disable-next-line deprecation/deprecation
+      t.deepEqual(describedSchedule.action.searchAttributes, {
+        CustomKeywordField: ['test-value2'],
+        CustomIntField: [42],
+      });
+      t.deepEqual(
+        describedSchedule.action.typedSearchAttributes,
+        new TypedSearchAttributes([
+          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
+          { key: { name: 'CustomKeywordField', type: SearchAttributeType.KEYWORD }, value: 'test-value2' },
+        ])
+      );
     } finally {
       await handle.delete();
     }
@@ -186,24 +200,26 @@ if (RUN_INTEGRATION_TESTS) {
   test.serial('Can create schedule with startWorkflow action (with args)', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-startWorkflow-action-${randomUUID()}`;
-    const action = {
-      type: 'startWorkflow',
-      workflowType: dummyWorkflowWith2Args,
-      args: [3, 4],
-      taskQueue,
-      memo: {
-        'my-memo': 'foo',
-      },
-      searchAttributes: {
-        CustomKeywordField: ['test-value2'],
-      },
-    } as const;
     const handle = await client.schedule.create({
       scheduleId,
       spec: {
         calendars: [{ hour: { start: 2, end: 7, step: 1 } }],
       },
-      action,
+      action: {
+        type: 'startWorkflow',
+        workflowType: dummyWorkflowWith2Args,
+        args: [3, 4],
+        taskQueue,
+        memo: {
+          'my-memo': 'foo',
+        },
+        searchAttributes: {
+          CustomKeywordField: ['test-value2'],
+        },
+        typedSearchAttributes: new TypedSearchAttributes([
+          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
+        ]),
+      },
     });
 
     try {
@@ -213,7 +229,18 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(describedSchedule.action.workflowType, 'dummyWorkflowWith2Args');
       t.deepEqual(describedSchedule.action.args, [3, 4]);
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
-      t.deepEqual(describedSchedule.action.searchAttributes?.CustomKeywordField, ['test-value2']);
+      // eslint-disable-next-line deprecation/deprecation
+      t.deepEqual(describedSchedule.action.searchAttributes, {
+        CustomKeywordField: ['test-value2'],
+        CustomIntField: [42],
+      });
+      t.deepEqual(
+        describedSchedule.action.typedSearchAttributes,
+        new TypedSearchAttributes([
+          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
+          { key: { name: 'CustomKeywordField', type: SearchAttributeType.KEYWORD }, value: 'test-value2' },
+        ])
+      );
     } finally {
       await handle.delete();
     }
@@ -324,6 +351,9 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
+        typedSearchAttributes: new TypedSearchAttributes([
+          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
+        ]),
       },
     });
 
@@ -551,7 +581,7 @@ if (RUN_INTEGRATION_TESTS) {
     const expectedIds: string[] = [];
     for (let i = 0; i < 4; i++) {
       const scheduleId = `test-query-${groupId}-${i + 1}`;
-      const searchAttributes: SearchAttributes = {};
+      const searchAttributes: SearchAttributes = {}; // eslint-disable-line deprecation/deprecation
       if (i < 2) {
         searchAttributes['CustomKeywordField'] = ['some-value'];
         expectedIds.push(scheduleId);
@@ -568,6 +598,9 @@ if (RUN_INTEGRATION_TESTS) {
             taskQueue,
           },
           searchAttributes,
+          typedSearchAttributes: new TypedSearchAttributes([
+            { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
+          ]),
         })
       );
     }
