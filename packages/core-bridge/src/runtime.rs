@@ -10,15 +10,16 @@ use std::{
 };
 use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics};
 use temporal_sdk_core::{
+    ClientOptions, CoreRuntime, RetryClient, TokioRuntimeBuilder, WorkerConfig,
     api::telemetry::CoreTelemetry,
     ephemeral_server::EphemeralServer as CoreEphemeralServer,
     init_replay_worker, init_worker,
     replay::{HistoryForReplay, ReplayWorkerInput},
-    ClientOptions, CoreRuntime, RetryClient, TokioRuntimeBuilder, WorkerConfig,
 };
 use tokio::sync::{
-    mpsc::{channel, unbounded_channel, Sender, UnboundedReceiver, UnboundedSender},
-    oneshot, Mutex,
+    Mutex,
+    mpsc::{Sender, UnboundedReceiver, UnboundedSender, channel, unbounded_channel},
+    oneshot,
 };
 use tokio_stream::wrappers::ReceiverStream;
 

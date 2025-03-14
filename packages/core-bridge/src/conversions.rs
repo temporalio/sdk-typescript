@@ -13,10 +13,13 @@ use temporal_sdk_core::api::{
     worker::SlotKind,
 };
 use temporal_sdk_core::{
+    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, ResourceBasedSlotsOptions,
+    ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions, RetryConfig, SlotSupplierOptions,
+    TlsConfig, TunerHolderOptionsBuilder, Url,
     api::telemetry::{Logger, MetricTemporality, TelemetryOptions, TelemetryOptionsBuilder},
     api::{
         telemetry::{
-            metrics::CoreMeter, OtelCollectorOptionsBuilder, PrometheusExporterOptionsBuilder,
+            OtelCollectorOptionsBuilder, PrometheusExporterOptionsBuilder, metrics::CoreMeter,
         },
         worker::{WorkerConfig, WorkerConfigBuilder},
     },
@@ -25,9 +28,6 @@ use temporal_sdk_core::{
         TestServerConfigBuilder,
     },
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
-    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, ResourceBasedSlotsOptions,
-    ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions, RetryConfig, SlotSupplierOptions,
-    TlsConfig, TunerHolderOptionsBuilder, Url,
 };
 
 mod slot_supplier_bridge;
@@ -568,6 +568,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     .unwrap_or_else(|| "default".to_owned());
                 let dest_dir =
                     js_optional_value_getter!(cx, &js_executable, "downloadDir", JsString);
+                let ttl = js_optional_value_getter!(cx, &self, "ttlMs", JsNumber);
 
                 let exec_version = match version.as_str() {
                     "default" => {
@@ -581,6 +582,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 temporal_sdk_core::ephemeral_server::EphemeralExe::CachedDownload {
                     version: exec_version,
                     dest_dir,
+                    ttl: ttl.map(|ttl| Duration::from_millis(ttl as u64)),
                 }
             }
             "existing-path" => {
