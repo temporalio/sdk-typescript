@@ -412,7 +412,7 @@ export const [encodeParentClosePolicy, decodeParentClosePolicy] = makeProtoEnumC
   'PARENT_CLOSE_POLICY_'
 );
 
-export interface ChildWorkflowOptions extends CommonWorkflowOptions {
+export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workflowIdConflictPolicy'> {
   /**
    * Workflow id to use when starting. If not specified a UUID is generated. Note that it is
    * dangerous as in case of client side retries no deduplication will happen based on the
