@@ -90,14 +90,14 @@ export {
  *
  * @example
  *
- *```ts
+ * ```ts
  *import { CompleteAsyncError } from '@temporalio/activity';
  *
  *export async function myActivity(): Promise<never> {
  *  // ...
  *  throw new CompleteAsyncError();
  *}
- *```
+ * ```
  */
 @SymbolBasedInstanceOfError('CompleteAsyncError')
 export class CompleteAsyncError extends Error {}

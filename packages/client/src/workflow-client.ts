@@ -4,11 +4,9 @@ import {
   BaseWorkflowHandle,
   CancelledFailure,
   compileRetryPolicy,
-  mapToPayloads,
   HistoryAndWorkflowId,
   QueryDefinition,
   RetryState,
-  searchAttributePayloadConverter,
   SignalDefinition,
   UpdateDefinition,
   TerminatedFailure,
@@ -25,6 +23,7 @@ import {
   encodeWorkflowIdConflictPolicy,
   WorkflowIdConflictPolicy,
 } from '@temporalio/common';
+import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
@@ -1218,11 +1217,12 @@ export class WorkflowClient extends BaseClient {
       workflowStartDelay: options.startDelay,
       retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
       memo: options.memo ? { fields: await encodeMapToPayloads(this.dataConverter, options.memo) } : undefined,
-      searchAttributes: options.searchAttributes
-        ? {
-            indexedFields: mapToPayloads(searchAttributePayloadConverter, options.searchAttributes),
-          }
-        : undefined,
+      searchAttributes:
+        options.searchAttributes || options.typedSearchAttributes // eslint-disable-line deprecation/deprecation
+          ? {
+              indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes), // eslint-disable-line deprecation/deprecation
+            }
+          : undefined,
       cronSchedule: options.cronSchedule,
       header: { fields: headers },
     };
@@ -1265,6 +1265,7 @@ export class WorkflowClient extends BaseClient {
   protected async createStartWorkflowRequest(input: WorkflowStartInput): Promise<StartWorkflowExecutionRequest> {
     const { options: opts, workflowType, headers } = input;
     const { identity, namespace } = this.options;
+
     return {
       namespace,
       identity,
@@ -1284,11 +1285,12 @@ export class WorkflowClient extends BaseClient {
       workflowStartDelay: opts.startDelay,
       retryPolicy: opts.retry ? compileRetryPolicy(opts.retry) : undefined,
       memo: opts.memo ? { fields: await encodeMapToPayloads(this.dataConverter, opts.memo) } : undefined,
-      searchAttributes: opts.searchAttributes
-        ? {
-            indexedFields: mapToPayloads(searchAttributePayloadConverter, opts.searchAttributes),
-          }
-        : undefined,
+      searchAttributes:
+        opts.searchAttributes || opts.typedSearchAttributes // eslint-disable-line deprecation/deprecation
+          ? {
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes), // eslint-disable-line deprecation/deprecation
+            }
+          : undefined,
       cronSchedule: opts.cronSchedule,
       header: { fields: headers },
     };

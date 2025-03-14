@@ -610,19 +610,20 @@ test('WorkflowHandle.describe result is wrapped', configMacro, async (t, config)
   t.deepEqual(execution.type, 'argsAndReturn');
   t.deepEqual(execution.memo, { note: 'foo' });
   t.true(execution.startTime instanceof Date);
-  t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']);
-  t.deepEqual(execution.searchAttributes!.CustomIntField, [1]);
-  t.deepEqual(execution.searchAttributes!.CustomDatetimeField, [date]);
-  const binSum = execution.searchAttributes!.BinaryChecksums as string[];
+  t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']); // eslint-disable-line deprecation/deprecation
+  t.deepEqual(execution.searchAttributes!.CustomIntField, [1]); // eslint-disable-line deprecation/deprecation
+  t.deepEqual(execution.searchAttributes!.CustomDatetimeField, [date]); // eslint-disable-line deprecation/deprecation
+  const binSum = execution.searchAttributes!.BinaryChecksums as string[]; // eslint-disable-line deprecation/deprecation
   if (binSum != null) {
     t.regex(binSum[0], /@temporalio\/worker@/);
   } else {
-    t.deepEqual(execution.searchAttributes!.BuildIds, ['unversioned', `unversioned:${worker.options.buildId}`]);
+    t.deepEqual(execution.searchAttributes!.BuildIds, ['unversioned', `unversioned:${worker.options.buildId}`]); // eslint-disable-line deprecation/deprecation
   }
 });
 
+// eslint-disable-next-line deprecation/deprecation
 export async function returnSearchAttributes(): Promise<SearchAttributes | undefined> {
-  const sa = workflowInfo().searchAttributes!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+  const sa = workflowInfo().searchAttributes!; // eslint-disable-line @typescript-eslint/no-non-null-assertion, deprecation/deprecation
   const datetime = (sa.CustomDatetimeField as Array<Date>)[0];
   return {
     ...sa,
@@ -666,13 +667,12 @@ test('Workflow can upsert Search Attributes', configMacro, async (t, config) => 
   const res = await worker.runUntil(handle.result());
   t.deepEqual(res, {
     CustomBoolField: [true],
-    CustomIntField: [], // clear
     CustomKeywordField: ['durable code'],
     CustomTextField: ['is useful'],
     CustomDatetimeField: [date.toISOString()],
     CustomDoubleField: [3.14],
   });
-  const { searchAttributes } = await handle.describe();
+  const { searchAttributes } = await handle.describe(); // eslint-disable-line deprecation/deprecation
   const { BinaryChecksums, BuildIds, ...rest } = searchAttributes;
   t.deepEqual(rest, {
     CustomBoolField: [true],
@@ -723,6 +723,8 @@ test('Workflow can read WorkflowInfo', configMacro, async (t, config) => {
     runId: handle.firstExecutionRunId,
     taskQueue,
     searchAttributes: {},
+    // Typed search attributes gets serialized as an array.
+    typedSearchAttributes: [],
     workflowType: 'returnWorkflowInfo',
     workflowId: handle.workflowId,
     historyLength: 3,

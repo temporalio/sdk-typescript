@@ -60,6 +60,8 @@ export {
   PayloadConverter,
   RetryPolicy,
   rootCause,
+  SearchAttributes, // eslint-disable-line deprecation/deprecation
+  SearchAttributeValue, // eslint-disable-line deprecation/deprecation
   ServerFailure,
   TemporalFailure,
   TerminatedFailure,
@@ -71,8 +73,6 @@ export {
   ActivityInterface, // eslint-disable-line deprecation/deprecation
   Payload,
   QueryDefinition,
-  SearchAttributes,
-  SearchAttributeValue,
   SignalDefinition,
   UntypedActivities,
   Workflow,
