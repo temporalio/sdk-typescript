@@ -1,4 +1,4 @@
-use crate::helpers::{get_optional, js_getter};
+use crate::conversions::*;
 use log::{error, warn};
 use neon::types::JsNull;
 use neon::{

@@ -1,4 +1,3 @@
-import { promisify } from 'node:util';
 import * as v8 from 'node:v8';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -20,7 +19,7 @@ import { IllegalStateError, LogMetadata, SdkComponent } from '@temporalio/common
 import { temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { msToNumber } from '@temporalio/common/lib/time';
-import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
+import { DefaultLogger, LogEntry, Logger, LogTimestamp } from './logger';
 import { compileConnectionOptions, getDefaultConnectionOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer, toMB } from './utils';
 import pkg from './pkg';
@@ -283,12 +282,11 @@ export class Runtime {
       return;
     }
 
-    const poll = promisify(pollLogs);
-    const doPoll = async () => {
-      const logs = await poll(this.native);
+    const doPoll = () => {
+      const logs = pollLogs(this.native);
       for (const log of logs) {
         const meta: LogMetadata = {
-          [LogTimestamp]: timeOfDayToBigint(log.timestamp),
+          [LogTimestamp]: log.timestamp,
           sdkComponent: SdkComponent.core,
           ...log.fields,
         };
@@ -298,7 +296,7 @@ export class Runtime {
 
     try {
       for (;;) {
-        await doPoll();
+        doPoll();
         logger.flush();
         if (this.stopPollingForLogs) {
           break;
@@ -358,7 +356,7 @@ export class Runtime {
       tls: normalizeTlsConfig(compiledServerOptions.tls),
       url: options?.tls ? `https://${compiledServerOptions.address}` : `http://${compiledServerOptions.address}`,
     };
-    return await this.createNative(promisify(newClient), this.native, clientOptions);
+    return await this.createNative(newClient, this.native, clientOptions);
   }
 
   /**
@@ -380,14 +378,13 @@ export class Runtime {
    * @hidden
    */
   public async registerWorker(client: native.Client, options: native.WorkerOptions): Promise<native.Worker> {
-    return await this.createNative(promisify(native.newWorker), client, options);
+    return await this.createNative(native.newWorker, client, options);
   }
 
   /** @hidden */
   public async createReplayWorker(options: native.WorkerOptions): Promise<native.ReplayWorker> {
     return await this.createNativeNoBackRef(async () => {
-      const fn = promisify(native.newReplayWorker);
-      const replayWorker = await fn(this.native, options);
+      const replayWorker = await native.newReplayWorker(this.native, options);
       this.backRefs.add(replayWorker.worker);
       return replayWorker;
     });
@@ -402,7 +399,7 @@ export class Runtime {
    */
   public async pushHistory(pusher: native.HistoryPusher, workflowId: string, history: History): Promise<void> {
     const encoded = byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish());
-    return await promisify(native.pushHistory)(pusher, workflowId, encoded);
+    return await native.pushHistory(pusher, workflowId, encoded);
   }
 
   /**
@@ -423,7 +420,7 @@ export class Runtime {
    * @hidden
    */
   public async deregisterWorker(worker: native.Worker): Promise<void> {
-    native.workerFinalizeShutdown(worker);
+    await native.workerFinalizeShutdown(worker);
     this.backRefs.delete(worker);
     await this.shutdownIfIdle();
   }
@@ -435,7 +432,7 @@ export class Runtime {
    * @hidden
    */
   public async createEphemeralServer(options: native.EphemeralServerConfig): Promise<native.EphemeralServer> {
-    return await this.createNative(promisify(native.startEphemeralServer), this.native, options, pkg.version);
+    return await this.createNative(native.startEphemeralServer, this.native, options);
   }
 
   /**
@@ -445,7 +442,7 @@ export class Runtime {
    * @hidden
    */
   public async shutdownEphemeralServer(server: native.EphemeralServer): Promise<void> {
-    await promisify(native.shutdownEphemeralServer)(server);
+    await native.shutdownEphemeralServer(server);
     this.backRefs.delete(server);
     await this.shutdownIfIdle();
   }
@@ -504,7 +501,8 @@ export class Runtime {
     this.stopPollingForLogsCallback?.();
     // This will effectively drain all logs
     await this.logPollPromise;
-    await promisify(runtimeShutdown)(this.native);
+    runtimeShutdown(this.native);
+    delete (this as any).native;
   }
 
   /**

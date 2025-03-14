@@ -17,6 +17,7 @@ lto = true
 incremental = false
 
 [dependencies]
+anyhow = "1.0"
 async-trait = "0.1.83"
 futures = { version = "0.3", features = ["executor"] }
 log = "0.4"

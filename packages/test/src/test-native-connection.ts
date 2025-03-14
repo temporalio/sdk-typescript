@@ -65,7 +65,7 @@ if (RUN_INTEGRATION_TESTS) {
     await conn.close();
     await t.throwsAsync(() => conn.close(), {
       instanceOf: IllegalStateError,
-      message: 'Client already closed',
+      message: 'Client has already been closed',
     });
   });
 

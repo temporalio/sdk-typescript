@@ -47,14 +47,6 @@ function defaultLogFunction(entry: LogEntry): void {
 }
 
 /**
- * Takes a `[seconds, nanos]` tuple as returned from getTimeOfDay and turns it into bigint.
- */
-export function timeOfDayToBigint(timeOfDay: [number, number]): bigint {
-  const [seconds, nanos] = timeOfDay;
-  return BigInt(seconds) * 1_000_000_000n + BigInt(nanos);
-}
-
-/**
  * Default worker logger - uses a default log function to log messages to `console.error`.
  * See constructor arguments for customization.
  */
@@ -77,7 +69,7 @@ export class DefaultLogger implements Logger {
         level,
         message,
         meta: Object.keys(rest).length === 0 ? undefined : rest,
-        timestampNanos: timestampNanos ?? timeOfDayToBigint(getTimeOfDay()),
+        timestampNanos: timestampNanos ?? getTimeOfDay(),
       });
     }
   }

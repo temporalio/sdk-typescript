@@ -1,11 +1,7 @@
-import util from 'node:util';
 import { IllegalStateError } from '@temporalio/common';
 import { Client, Worker, clientUpdateHeaders, TransportError, clientUpdateApiKey } from '@temporalio/core-bridge';
 import { NativeConnectionOptions } from './connection-options';
 import { Runtime } from './runtime';
-
-const updateHeaders = util.promisify(clientUpdateHeaders);
-const updateApiKey = util.promisify(clientUpdateApiKey);
 
 /**
  * A Native Connection object that delegates calls to the Rust Core binary extension.
@@ -74,7 +70,7 @@ export class NativeConnection {
    * Use {@link NativeConnectionOptions.metadata} to set the initial metadata for client creation.
    */
   async setMetadata(metadata: Record<string, string>): Promise<void> {
-    await updateHeaders(this.nativeClient, metadata);
+    clientUpdateHeaders(this.nativeClient, metadata);
   }
 
   /**
@@ -84,7 +80,7 @@ export class NativeConnection {
    * Use {@link NativeConnectionOptions.apiKey} to set the initial metadata for client creation.
    */
   async setApiKey(apiKey: string): Promise<void> {
-    await updateApiKey(this.nativeClient, apiKey);
+    clientUpdateApiKey(this.nativeClient, apiKey);
   }
 }
 

@@ -132,13 +132,6 @@ export {
 
 export {
   /**
-   * @deprecated This function is meant for internal usage. Don't use it.
-   */
-  timeOfDayToBigint,
-} from './logger';
-
-export {
-  /**
    * @deprecated Import error classes directly
    */
   errors,
