@@ -10,6 +10,8 @@ import {
   QueryDefinition,
   Duration,
   VersioningIntent,
+  TypedSearchAttributes,
+  SearchAttributePair,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -39,8 +41,16 @@ export interface WorkflowInfo {
    * Indexed information attached to the Workflow Execution
    *
    * This value may change during the lifetime of an Execution.
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  readonly searchAttributes: SearchAttributes;
+  readonly searchAttributes: SearchAttributes; // eslint-disable-line deprecation/deprecation
+
+  /**
+   * Indexed information attached to the Workflow Execution, exposed through an interface.
+   *
+   * This value may change during the lifetime of an Execution.
+   */
+  readonly typedSearchAttributes: TypedSearchAttributes;
 
   /**
    * Non-indexed information attached to the Workflow Execution
@@ -251,8 +261,20 @@ export interface ContinueAsNewOptions {
   memo?: Record<string, unknown>;
   /**
    * Searchable attributes to attach to next Workflow run
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes?: SearchAttributes;
+  searchAttributes?: SearchAttributes; // eslint-disable-line deprecation/deprecation
+  /**
+   * Specifies additional indexed information to attach to the Workflow Execution. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
+   * Note that search attributes are not encoded, as such, do not include any sensitive information.
+   *
+   * If both {@link searchAttributes} and {@link typedSearchAttributes} are provided, conflicting keys will be overwritten
+   * by {@link typedSearchAttributes}.
+   */
+  typedSearchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
   /**
    * When using the Worker Versioning feature, specifies whether this Workflow should
    * Continue-as-New onto a worker with a compatible Build Id or not. See {@link VersioningIntent}.
@@ -390,7 +412,7 @@ export const [encodeParentClosePolicy, decodeParentClosePolicy] = makeProtoEnumC
   'PARENT_CLOSE_POLICY_'
 );
 
-export interface ChildWorkflowOptions extends CommonWorkflowOptions {
+export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workflowIdConflictPolicy'> {
   /**
    * Workflow id to use when starting. If not specified a UUID is generated. Note that it is
    * dangerous as in case of client side retries no deduplication will happen based on the

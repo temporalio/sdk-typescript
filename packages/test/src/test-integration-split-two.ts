@@ -7,10 +7,10 @@ import {
   ApplicationFailure,
   defaultPayloadConverter,
   Payload,
-  searchAttributePayloadConverter,
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
 } from '@temporalio/common';
+import { searchAttributePayloadConverter } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { decode as payloadDecode, decodeFromPayloadsAtIndex } from '@temporalio/common/lib/internal-non-workflow';
 
@@ -96,7 +96,7 @@ test('WorkflowOptions are passed correctly', configMacro, async (t, config) => {
     ),
     [3]
   );
-  t.deepEqual(execution.searchAttributes!.CustomIntField, [3]);
+  t.deepEqual(execution.searchAttributes!.CustomIntField, [3]); // eslint-disable-line deprecation/deprecation
   t.is(execution.raw.executionConfig?.taskQueue?.name, 'diff-task-queue');
   t.is(
     execution.raw.executionConfig?.taskQueue?.kind,
@@ -224,8 +224,8 @@ test('continue-as-new-to-same-workflow keeps memo and search attributes', config
     const execution = await handle.describe();
     t.not(execution.runId, handle.firstExecutionRunId);
     t.deepEqual(execution.memo, { note: 'foo' });
-    t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']);
-    t.deepEqual(execution.searchAttributes!.CustomIntField, [1]);
+    t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']); // eslint-disable-line deprecation/deprecation
+    t.deepEqual(execution.searchAttributes!.CustomIntField, [1]); // eslint-disable-line deprecation/deprecation
   });
 });
 
@@ -253,8 +253,8 @@ test(
       t.is(info.type, 'sleeper');
       t.not(info.runId, handle.firstExecutionRunId);
       t.deepEqual(info.memo, { note: 'foo' });
-      t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value']);
-      t.deepEqual(info.searchAttributes!.CustomIntField, [1]);
+      t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value']); // eslint-disable-line deprecation/deprecation
+      t.deepEqual(info.searchAttributes!.CustomIntField, [1]); // eslint-disable-line deprecation/deprecation
     });
   }
 );
@@ -291,8 +291,8 @@ test('continue-as-new-to-different-workflow can set memo and search attributes',
     t.is(info.type, 'sleeper');
     t.not(info.runId, handle.firstExecutionRunId);
     t.deepEqual(info.memo, { note: 'bar' });
-    t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value-2']);
-    t.deepEqual(info.searchAttributes!.CustomIntField, [3]);
+    t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value-2']); // eslint-disable-line deprecation/deprecation
+    t.deepEqual(info.searchAttributes!.CustomIntField, [3]); // eslint-disable-line deprecation/deprecation
   });
 });
 
