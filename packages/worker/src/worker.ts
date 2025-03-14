@@ -89,6 +89,7 @@ import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
 import { CombinedWorkerRunError, GracefulShutdownPeriodExpiredError, PromiseCompletionTimeoutError } from './errors';
+import { throwIfReservedName } from '@temporalio/common/src/reserved';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -463,6 +464,7 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
+    throwIfReservedName('task queue', options.taskQueue)
     const logger = withMetadata(Runtime.instance().logger, {
       sdkComponent: SdkComponent.worker,
       taskQueue: options.taskQueue ?? 'default',

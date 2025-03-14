@@ -62,6 +62,7 @@ import { LocalActivityDoBackoff } from './errors';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
 import { untrackPromise } from './stack-helpers';
 import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
+import { throwIfReservedName } from '@temporalio/common/src/reserved';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
@@ -1267,6 +1268,8 @@ export function setHandler<
   options?: QueryHandlerOptions | SignalHandlerOptions | UpdateHandlerOptions<Args>
 ): void {
   const activator = assertInWorkflowContext('Workflow.setHandler(...) may only be used from a Workflow Execution.');
+  // Cannot register handler for reserved names
+  throwIfReservedName(def.type, def.name)
   const description = options?.description;
   if (def.type === 'update') {
     if (typeof handler === 'function') {

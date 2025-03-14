@@ -50,6 +50,8 @@ import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
 import { SdkFlag, assertValidFlag } from './flags';
 import { executeWithLifecycleLogging, log } from './logs';
+import { ENHANCED_STACK_TRACE_RESERVED_PREFIX, isReservedName, throwIfReservedName } from '@temporalio/common/src/reserved';
+import { STACK_TRACE_RESERVED_PREFIX } from '../../common/src/reserved';
 
 const StartChildWorkflowExecutionFailedCause = {
   WORKFLOW_ALREADY_EXISTS: 'WORKFLOW_ALREADY_EXISTS',
@@ -251,7 +253,7 @@ export class Activator implements ActivationHandler {
    */
   public readonly queryHandlers = new Map<string, WorkflowQueryAnnotatedType>([
     [
-      '__stack_trace',
+      STACK_TRACE_RESERVED_PREFIX,
       {
         handler: () => {
           return this.getStackTraces()
@@ -262,7 +264,7 @@ export class Activator implements ActivationHandler {
       },
     ],
     [
-      '__enhanced_stack_trace',
+      ENHANCED_STACK_TRACE_RESERVED_PREFIX,
       {
         handler: (): EnhancedStackTrace => {
           const { sourceMap } = this;
@@ -631,6 +633,8 @@ export class Activator implements ActivationHandler {
   protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
     let fn = this.queryHandlers.get(queryName)?.handler;
     if (fn === undefined && this.defaultQueryHandler !== undefined) {
+      // Do not call default query handler with reserved query name.
+      throwIfReservedName('query', queryName)
       fn = this.defaultQueryHandler.bind(this, queryName);
     }
     // No handler or default registered, fail.
@@ -661,17 +665,28 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing query activation attributes');
     }
 
+    const queryInput = {
+      queryName: queryType,
+      args: arrayFromPayloads(this.payloadConverter, activation.arguments),
+      queryId,
+      headers: headers ?? {},
+    }
+
+    // Skip interceptors if this is an internal query.
+    if (isReservedName(queryType)) {
+      this.queryWorkflowNextHandler(queryInput).then(
+        (result) => this.completeQuery(queryId, result),
+        (reason) => this.failQuery(queryId, reason)
+      );
+      return
+    }
+
     const execute = composeInterceptors(
       this.interceptors.inbound,
       'handleQuery',
       this.queryWorkflowNextHandler.bind(this)
     );
-    execute({
-      queryName: queryType,
-      args: arrayFromPayloads(this.payloadConverter, activation.arguments),
-      queryId,
-      headers: headers ?? {},
-    }).then(
+    execute(queryInput).then(
       (result) => this.completeQuery(queryId, result),
       (reason) => this.failQuery(queryId, reason)
     );
@@ -809,6 +824,8 @@ export class Activator implements ActivationHandler {
     if (fn) {
       return await fn(...args);
     } else if (this.defaultSignalHandler) {
+      // Do not call default signal handler with reserved signal name.
+      throwIfReservedName('signal', signalName)
       return await this.defaultSignalHandler(signalName, ...args);
     } else {
       throw new IllegalStateError(`No registered signal handler for signal: ${signalName}`);

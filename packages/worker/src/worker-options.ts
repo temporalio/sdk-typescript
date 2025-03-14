@@ -18,6 +18,7 @@ import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 import { asNativeTuner, WorkerTuner } from './worker-tuner';
+import { throwIfReservedName } from '@temporalio/common/src/reserved';
 
 export type { WebpackConfiguration };
 
@@ -822,6 +823,9 @@ export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): Co
   }
 
   const activities = new Map(Object.entries(opts.activities ?? {}).filter(([_, v]) => typeof v === 'function'));
+  for (const activityName of activities.keys()) {
+    throwIfReservedName('activity', activityName)
+  }
   const tuner = asNativeTuner(opts.tuner, logger);
 
   return {
