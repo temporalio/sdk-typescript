@@ -82,10 +82,6 @@ if (RUN_INTEGRATION_TESTS) {
       telemetryOptions: { logging: { forward: {}, filter: makeTelemetryFilterString({ core: 'DEBUG' }) } },
     });
     try {
-      {
-        const runtime = Runtime.instance();
-        t.is(runtime.options.logger, logger);
-      }
       await new Client().workflow.start('not-existant', { taskQueue: 'q1', workflowId: uuid4() });
       const worker = await Worker.create({
         ...defaultOptions,
@@ -97,7 +93,7 @@ if (RUN_INTEGRATION_TESTS) {
             if (!logEntries.some((x) => x.message === 'Failing workflow task'))
               throw new Error('Waiting for failing workflow task');
           },
-          { maxTimeout: 5000, retries: 50 }
+          { maxTimeout: 200, minTimeout: 20, retries: 40 }
         )
       );
 
@@ -116,12 +112,5 @@ if (RUN_INTEGRATION_TESTS) {
     } finally {
       await Runtime.instance().shutdown();
     }
-  });
-
-  test.serial('Runtime.install() throws meaningful error when passed invalid telemetryOptions.logging.filter', (t) => {
-    t.throws(() => Runtime.install({ telemetryOptions: { logging: { filter: 2 as any } } }), {
-      instanceOf: TypeError,
-      message: 'Invalid filter',
-    });
   });
 }

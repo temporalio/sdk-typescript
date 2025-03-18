@@ -1,6 +1,9 @@
 import { IllegalStateError } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
-import { ShutdownError, TransportError, UnexpectedError } from '@temporalio/core-bridge';
+import { errors as bridgeErrors } from '@temporalio/core-bridge';
+
+const { ShutdownError, TransportError, UnexpectedError } = bridgeErrors;
+export { ShutdownError, TransportError, UnexpectedError };
 
 /**
  * Thrown from JS if Worker does not shutdown in configured period

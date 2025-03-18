@@ -1,16 +1,30 @@
 import { formatWithOptions } from 'node:util';
 import * as supportsColor from 'supports-color';
-import { getTimeOfDay } from '@temporalio/core-bridge';
+import { native } from '@temporalio/core-bridge';
 import { LogLevel, LogMetadata, Logger } from '@temporalio/common';
 
 /** @deprecated Import from @temporalio/common instead */
 export { LogLevel, LogMetadata, Logger };
 
 export interface LogEntry {
-  level: LogLevel;
+  /**
+   * Log message
+   */
   message: string;
+
+  /**
+   * Log level
+   */
+  level: LogLevel;
+
+  /**
+   * Time since epoch, in nanoseconds.
+   */
   timestampNanos: bigint;
-  /** Custom attributes */
+
+  /**
+   * Custom attributes
+   */
   meta?: LogMetadata;
 }
 
@@ -47,14 +61,6 @@ function defaultLogFunction(entry: LogEntry): void {
 }
 
 /**
- * Takes a `[seconds, nanos]` tuple as returned from getTimeOfDay and turns it into bigint.
- */
-export function timeOfDayToBigint(timeOfDay: [number, number]): bigint {
-  const [seconds, nanos] = timeOfDay;
-  return BigInt(seconds) * 1_000_000_000n + BigInt(nanos);
-}
-
-/**
  * Default worker logger - uses a default log function to log messages to `console.error`.
  * See constructor arguments for customization.
  */
@@ -77,7 +83,7 @@ export class DefaultLogger implements Logger {
         level,
         message,
         meta: Object.keys(rest).length === 0 ? undefined : rest,
-        timestampNanos: timestampNanos ?? timeOfDayToBigint(getTimeOfDay()),
+        timestampNanos: timestampNanos ?? native.getTimeOfDay(),
       });
     }
   }
@@ -174,4 +180,12 @@ class LoggerWithMetadata implements Logger {
     }
     return [...chain, meta];
   }
+}
+
+export interface FlushableLogger extends Logger {
+  flush(): void;
+}
+
+export function isFlushableLogger(logger: Logger): logger is FlushableLogger {
+  return 'flush' in logger && typeof logger.flush === 'function';
 }

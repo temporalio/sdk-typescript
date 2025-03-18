@@ -1,13 +1,13 @@
-import * as native from '@temporalio/core-bridge';
+import { native } from '@temporalio/core-bridge';
 import {
-  normalizeGrpcEndpointAddress,
   joinProtoHostPort,
+  normalizeGrpcEndpointAddress,
+  normalizeTlsConfig,
   parseHttpConnectProxyAddress,
+  ProxyConfig,
+  TLSConfig,
 } from '@temporalio/common/lib/internal-non-workflow';
 import pkg from './pkg';
-
-type TLSConfig = native.TLSConfig;
-type ProxyConfig = native.ProxyConfig;
 
 export { TLSConfig, ProxyConfig };
 
@@ -61,40 +61,50 @@ export interface NativeConnectionOptions {
   disableErrorCodeMetricTags?: boolean;
 }
 
-export type RequiredNativeConnectionOptions = Omit<
-  Required<NativeConnectionOptions>,
-  'tls' | 'proxy' | 'metadata' | 'apiKey'
-> & {
-  tls?: NativeConnectionOptions['tls'];
-  proxy?: NativeConnectionOptions['proxy'];
-  metadata?: NativeConnectionOptions['metadata'];
-  apiKey?: NativeConnectionOptions['apiKey'];
-  sdkVersion: string;
-};
+// Compile to Native ///////////////////////////////////////////////////////////////////////////////
 
-export function getDefaultConnectionOptions(): RequiredNativeConnectionOptions {
-  return {
-    address: 'localhost:7233',
-    sdkVersion: pkg.version,
-    disableErrorCodeMetricTags: false,
-  };
-}
+export function toNativeClientOptions(options: NativeConnectionOptions): native.ClientOptions {
+  const address = normalizeGrpcEndpointAddress(options.address ?? 'localhost:7233', DEFAULT_TEMPORAL_GRPC_PORT);
 
-export function compileConnectionOptions(options: RequiredNativeConnectionOptions): RequiredNativeConnectionOptions {
-  const { address, ...rest } = options;
-  const proxyOpts: Partial<RequiredNativeConnectionOptions> = {};
+  const tlsInput = normalizeTlsConfig(options.tls);
+  const tls: native.TLSConfig | null = tlsInput
+    ? {
+        serverRootCaCertificate: tlsInput.serverRootCACertificate ?? null,
+        clientCertPair: tlsInput.clientCertPair ?? null,
+        serverNameOverride: tlsInput.serverNameOverride ?? null,
+      }
+    : null;
+
+  let proxy: native.ProxyConfig | null = null;
   if (options.proxy?.targetHost) {
-    const { targetHost: target, basicAuth } = options.proxy;
+    const { targetHost: target } = options.proxy;
     const { hostname: host, port } = parseHttpConnectProxyAddress(target);
-    proxyOpts.proxy = {
+    const basicAuth = options.proxy.basicAuth
+      ? {
+          username: options.proxy.basicAuth.username,
+          password: options.proxy.basicAuth.password,
+        }
+      : null;
+    proxy = {
       type: 'http-connect',
       targetHost: joinProtoHostPort({ hostname: host, port }),
       basicAuth,
     };
   }
+
+  if (options?.apiKey && options.metadata?.['Authorization']) {
+    throw new TypeError(
+      'Both `apiKey` option and `Authorization` header were provided. Only one makes sense to use at a time.'
+    );
+  }
+
   return {
-    ...rest,
-    address: normalizeGrpcEndpointAddress(address, DEFAULT_TEMPORAL_GRPC_PORT),
-    ...proxyOpts,
+    url: tls ? `https://${address}` : `http://${address}`,
+    sdkVersion: pkg.version,
+    tls,
+    proxy,
+    metadata: options.metadata ?? null,
+    apiKey: options.apiKey ?? null,
+    disableErrorCodeMetricTags: options.disableErrorCodeMetricTags ?? false,
   };
 }
