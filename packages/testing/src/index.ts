@@ -28,23 +28,132 @@ import {
   defaultFailureConverter,
   defaultPayloadConverter,
   TypedSearchAttributes,
+  SearchAttributeType,
 } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { ActivityInterceptorsFactory, DefaultLogger, NativeConnection, Runtime } from '@temporalio/worker';
 import { withMetadata } from '@temporalio/worker/lib/logger';
 import { Activity } from '@temporalio/worker/lib/activity';
-import {
-  EphemeralServer,
-  EphemeralServerConfig,
-  getEphemeralServerTarget,
-  DevServerConfig,
-  TimeSkippingServerConfig,
-} from '@temporalio/core-bridge';
+import { native } from '@temporalio/core-bridge';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
 import { Connection, TestService } from './connection';
+import pkg from './pkg';
 
-export { TimeSkippingServerConfig, DevServerConfig, EphemeralServerExecutable } from '@temporalio/core-bridge';
-export { EphemeralServerConfig };
+/**
+ * Which version of the executable to run.
+ */
+export type EphemeralServerExecutable =
+  | {
+      type: 'cached-download';
+      /**
+       * Download destination directory or the system's temp directory if none set.
+       */
+      downloadDir?: string;
+      /**
+       * Optional version, can be set to a specific server release or "default" or "latest".
+       *
+       * At the time of writing the the server is released as part of the Java SDK - (https://github.com/temporalio/sdk-java/releases).
+       *
+       * @default "default" - get the best version for the current SDK version.
+       */
+      version?: string;
+
+      /** How long to cache the download for. Default to 1 day. */
+      ttl?: Duration;
+    }
+  | {
+      type: 'existing-path';
+      /** Path to executable */
+      path: string;
+    };
+
+/**
+ * Configuration for the time-skipping test server.
+ */
+export interface TimeSkippingServerConfig {
+  type: 'time-skipping';
+
+  executable?: EphemeralServerExecutable;
+
+  /**
+   * Optional port to listen on, defaults to find a random free port.
+   */
+  port?: number;
+
+  /**
+   * Extra args to pass to the executable command.
+   *
+   * Note that the Test Server implementation may be changed to another one in the future. Therefore, there is
+   * no guarantee that server options, and particularly those provided through the `extraArgs` array, will continue to
+   * be supported in the future.
+   */
+  extraArgs?: string[];
+}
+
+/**
+ * Configuration for the Temporal CLI Dev Server.
+ */
+export interface DevServerConfig {
+  type: 'dev-server';
+
+  executable?: EphemeralServerExecutable;
+
+  /**
+   * Sqlite DB filename if persisting or non-persistent if none (default).
+   */
+  dbFilename?: string;
+
+  /**
+   * Namespace to use - created at startup.
+   *
+   * @default "default"
+   */
+  namespace?: string;
+
+  /**
+   * IP to bind to.
+   *
+   * @default localhost
+   */
+  ip?: string;
+
+  /**
+   * Port to listen on; defaults to find a random free port.
+   */
+  port?: number;
+
+  /**
+   * Whether to enable the UI.
+   *
+   * @default true if `uiPort` is set; defaults to `false` otherwise.
+   */
+  ui?: boolean;
+
+  /**
+   * Port to listen on for the UI; if `ui` is true, defaults to `port + 1000`.
+   */
+  uiPort?: number;
+
+  /**
+   * Log format and level
+   * @default { format: "pretty", level" "warn" }
+   */
+  log?: { format: string; level: string };
+
+  /**
+   * Extra args to pass to the executable command.
+   *
+   * Note that the Dev Server implementation may be changed to another one in the future. Therefore, there is no
+   * guarantee that Dev Server options, and particularly those provided through the `extraArgs` array, will continue to
+   * be supported in the future.
+   */
+  extraArgs?: string[];
+
+  /**
+   * Search attributes to be registered with the dev server.
+   */
+  searchAttributes?: SearchAttributeKey<SearchAttributeType>[];
+}
 
 export interface TimeSkippingWorkflowClientOptions extends WorkflowClientOptions {
   connection: Connection;
@@ -130,7 +239,7 @@ export type ClientOptionsForTestEnv = Omit<ClientOptions, 'namespace' | 'connect
  * Options for {@link TestWorkflowEnvironment.create}
  */
 export type TestWorkflowEnvironmentOptions = {
-  server: EphemeralServerConfig;
+  server: DevServerConfig | TimeSkippingServerConfig;
   client?: ClientOptionsForTestEnv;
 };
 
@@ -156,6 +265,9 @@ function addDefaults(opts: TestWorkflowEnvironmentOptions): TestWorkflowEnvironm
   return {
     client: {},
     ...opts,
+    server: {
+      ...opts.server,
+    },
   };
 }
 
@@ -202,9 +314,10 @@ export class TestWorkflowEnvironment {
   public readonly nativeConnection: NativeConnection;
 
   protected constructor(
+    private readonly runtime: Runtime,
     public readonly options: TestWorkflowEnvironmentOptionsWithDefaults,
     public readonly supportsTimeSkipping: boolean,
-    protected readonly server: EphemeralServer,
+    protected readonly server: native.EphemeralServer,
     connection: Connection,
     nativeConnection: NativeConnection,
     namespace: string | undefined
@@ -315,22 +428,33 @@ export class TestWorkflowEnvironment {
       optsWithDefaults.server.extraArgs = newArgs;
     }
 
-    const server = await Runtime.instance().createEphemeralServer(optsWithDefaults.server);
-    const address = getEphemeralServerTarget(server);
+    const runtime = Runtime.instance();
+    const server = await runtime.createEphemeralServer(compileEphemeralServerConfig(optsWithDefaults.server));
+    const address = native.getEphemeralServerTarget(server);
 
     const nativeConnection = await NativeConnection.connect({ address });
     const connection = await Connection.connect({ address });
 
-    return new this(optsWithDefaults, supportsTimeSkipping, server, connection, nativeConnection, namespace);
+    return new this(runtime, optsWithDefaults, supportsTimeSkipping, server, connection, nativeConnection, namespace);
   }
 
   /**
    * Kill the test server process and close the connection to it
    */
   async teardown(): Promise<void> {
-    await this.connection.close();
-    await this.nativeConnection.close();
-    await Runtime.instance().shutdownEphemeralServer(this.server);
+    await this.connection.close().catch((e) => {
+      console.error(e);
+      /* ignore */
+    });
+    await this.nativeConnection.close().catch((e) => {
+      console.error(e);
+      /* ignore */
+    });
+    await this.runtime.shutdownEphemeralServer(this.server).catch((e) => {
+      console.error(e);
+      /* ignore */
+    });
+    console.log('teardown done');
   }
 
   /**
@@ -468,5 +592,60 @@ export class MockActivityEnvironment extends events.EventEmitter {
    */
   public async run<P extends any[], R, F extends ActivityFunction<P, R>>(fn: F, ...args: P): Promise<R> {
     return this.activity.runNoEncoding(fn as ActivityFunction<any, any>, { args, headers: {} }) as Promise<R>;
+  }
+}
+
+function compileEphemeralServerConfig(
+  server: DevServerConfig | TimeSkippingServerConfig
+): native.EphemeralServerConfig {
+  switch (server.type) {
+    case 'dev-server':
+      return {
+        type: 'dev-server',
+        executable: compileServerExecutableConfig(server.executable),
+        ip: server.ip ?? '127.0.0.1',
+        port: server.port ?? null,
+        ui: server.ui ?? false,
+        uiPort: server.uiPort ?? null,
+        namespace: server.namespace ?? 'default',
+        dbFilename: server.dbFilename ?? null,
+        log: server.log ?? { format: 'pretty', level: 'warn' },
+        extraArgs: server.extraArgs ?? [],
+      };
+
+    case 'time-skipping':
+      return {
+        type: 'time-skipping',
+        executable: compileServerExecutableConfig(server.executable),
+        port: server.port ?? null,
+        extraArgs: server.extraArgs ?? [],
+      };
+
+    default:
+      throw new TypeError(`Unsupported server type: ${String((server as any).type)}`);
+  }
+}
+
+function compileServerExecutableConfig(
+  executable: EphemeralServerExecutable = { type: 'cached-download' }
+): native.EphemeralServerExecutableConfig {
+  switch (executable.type) {
+    case 'cached-download':
+      return {
+        type: 'cached-download',
+        downloadDir: executable.downloadDir ?? null,
+        version: executable.version ?? 'default',
+        ttl: msToNumber(executable.ttl ?? '1d'),
+        sdkVersion: pkg.version,
+      };
+
+    case 'existing-path':
+      return {
+        type: 'existing-path',
+        path: executable.path,
+      };
+
+    default:
+      throw new TypeError(`Unsupported server executable type: ${String((executable as any).type)}`);
   }
 }

@@ -7,8 +7,8 @@ export function toMB(bytes: number, fractionDigits = 2): string {
   return (bytes / 1024 / 1024).toFixed(fractionDigits);
 }
 
-export function byteArrayToBuffer(array: Uint8Array): ArrayBuffer {
-  return array.buffer.slice(array.byteOffset, array.byteLength + array.byteOffset);
+export function byteArrayToBuffer(array: Uint8Array): Buffer {
+  return Buffer.from(array, array.byteOffset, array.byteLength + array.byteOffset);
 }
 
 export function convertToParentWorkflowType(

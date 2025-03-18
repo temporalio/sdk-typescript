@@ -58,7 +58,11 @@ async function withFakeGrpcServer(
       });
       fn(addr.port)
         .catch((e) => reject(e))
-        .finally(() => srv.close((_) => resolve()));
+        .finally(() => {
+          srv.close((_e) => {
+            resolve();
+          });
+        });
     });
   });
 }
@@ -81,7 +85,11 @@ async function withHttpServer(
       });
       fn(addr.port)
         .catch((e) => reject(e))
-        .finally(() => srv.close((_) => resolve()));
+        .finally(() => {
+          srv.close((_e) => {
+            resolve();
+          });
+        });
     });
   });
 }
@@ -89,7 +97,7 @@ async function withHttpServer(
 test.serial('Runtime.install() throws meaningful error when passed invalid metrics.otel.url', async (t) => {
   t.throws(() => Runtime.install({ telemetryOptions: { metrics: { otel: { url: ':invalid' } } } }), {
     instanceOf: TypeError,
-    message: /Invalid telemetryOptions.metrics.otel.url/,
+    message: /metricsExporter.otel.url/,
   });
 });
 
@@ -106,106 +114,102 @@ test.serial('Runtime.install() accepts metrics.otel.url without headers', async 
 test.serial('Exporting OTEL metrics from Core works', async (t) => {
   let resolveCapturedRequest = (_req: http2.Http2ServerRequest) => undefined as void;
   const capturedRequest = new Promise<http2.Http2ServerRequest>((r) => (resolveCapturedRequest = r));
-  try {
-    await withFakeGrpcServer(async (port: number) => {
-      Runtime.install({
-        telemetryOptions: {
-          metrics: {
-            otel: {
-              url: `http://127.0.0.1:${port}`,
-              headers: {
-                'x-test-header': 'test-value',
-              },
-              metricsExportInterval: 10,
+
+  await withFakeGrpcServer(async (port: number) => {
+    Runtime.install({
+      telemetryOptions: {
+        metrics: {
+          otel: {
+            url: `http://127.0.0.1:${port}`,
+            headers: {
+              'x-test-header': 'test-value',
             },
+            metricsExportInterval: 10,
           },
         },
-      });
+      },
+    });
 
-      const localEnv = await TestWorkflowEnvironment.createLocal();
-      try {
-        const worker = await Worker.create({
-          connection: localEnv.nativeConnection,
-          workflowsPath: require.resolve('./workflows'),
+    const localEnv = await TestWorkflowEnvironment.createLocal();
+    try {
+      const worker = await Worker.create({
+        connection: localEnv.nativeConnection,
+        workflowsPath: require.resolve('./workflows'),
+        taskQueue: 'test-otel',
+      });
+      const client = new WorkflowClient({
+        connection: localEnv.connection,
+      });
+      await worker.runUntil(async () => {
+        await client.execute(workflows.successString, {
           taskQueue: 'test-otel',
+          workflowId: uuid4(),
         });
-        const client = new WorkflowClient({
-          connection: localEnv.connection,
-        });
-        await worker.runUntil(async () => {
-          await client.execute(workflows.successString, {
-            taskQueue: 'test-otel',
-            workflowId: uuid4(),
-          });
-          const req = await Promise.race([
-            capturedRequest,
-            await new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 2000)),
-          ]);
-          t.truthy(req);
-          t.is(req?.url, '/opentelemetry.proto.collector.metrics.v1.MetricsService/Export');
-          t.is(req?.headers['x-test-header'], 'test-value');
-        });
-      } finally {
-        await localEnv.teardown();
-      }
-    }, resolveCapturedRequest);
-  } finally {
-    // Cleanup the runtime so that it doesn't interfere with other tests
-    await Runtime._instance?.shutdown();
-  }
+        const req = await Promise.race([
+          capturedRequest,
+          await new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 2000)),
+        ]);
+        t.truthy(req);
+        t.is(req?.url, '/opentelemetry.proto.collector.metrics.v1.MetricsService/Export');
+        t.is(req?.headers['x-test-header'], 'test-value');
+      });
+    } finally {
+      await localEnv.teardown();
+      // Cleanup the runtime so that it doesn't interfere with other tests
+      await Runtime._instance?.shutdown();
+    }
+  }, resolveCapturedRequest);
 });
 
 test.serial('Exporting OTEL metrics using OTLP/HTTP from Core works', async (t) => {
   let resolveCapturedRequest = (_req: http.IncomingMessage) => undefined as void;
   const capturedRequest = new Promise<http.IncomingMessage>((r) => (resolveCapturedRequest = r));
-  try {
-    await withHttpServer(async (port: number) => {
-      Runtime.install({
-        telemetryOptions: {
-          metrics: {
-            otel: {
-              url: `http://127.0.0.1:${port}/v1/metrics`,
-              http: true,
-              headers: {
-                'x-test-header': 'test-value',
-              },
-              metricsExportInterval: 10,
+  // try {
+  await withHttpServer(async (port: number) => {
+    Runtime.install({
+      telemetryOptions: {
+        metrics: {
+          otel: {
+            url: `http://127.0.0.1:${port}/v1/metrics`,
+            http: true,
+            headers: {
+              'x-test-header': 'test-value',
             },
+            metricsExportInterval: 10,
           },
         },
-      });
+      },
+    });
 
-      const localEnv = await TestWorkflowEnvironment.createLocal();
-      try {
-        const worker = await Worker.create({
-          connection: localEnv.nativeConnection,
-          workflowsPath: require.resolve('./workflows'),
+    const localEnv = await TestWorkflowEnvironment.createLocal();
+    try {
+      const worker = await Worker.create({
+        connection: localEnv.nativeConnection,
+        workflowsPath: require.resolve('./workflows'),
+        taskQueue: 'test-otel',
+      });
+      const client = new WorkflowClient({
+        connection: localEnv.connection,
+      });
+      await worker.runUntil(async () => {
+        await client.execute(workflows.successString, {
           taskQueue: 'test-otel',
+          workflowId: uuid4(),
         });
-        const client = new WorkflowClient({
-          connection: localEnv.connection,
-        });
-        await worker.runUntil(async () => {
-          await client.execute(workflows.successString, {
-            taskQueue: 'test-otel',
-            workflowId: uuid4(),
-          });
-          const req = await Promise.race([
-            capturedRequest,
-            await new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 2000)),
-          ]);
-          t.truthy(req);
-          t.is(req?.url, '/v1/metrics');
-          t.is(req?.headers['x-test-header'], 'test-value');
-        });
-      } finally {
-        await localEnv.teardown();
-      }
-    }, resolveCapturedRequest);
-  } finally {
-    // Cleanup the runtime so that it doesn't interfere with other tests
-    await Runtime._instance?.shutdown();
-  }
+        const req = await Promise.race([
+          capturedRequest,
+          await new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 2000)),
+        ]);
+        t.truthy(req);
+        t.is(req?.url, '/v1/metrics');
+        t.is(req?.headers['x-test-header'], 'test-value');
+      });
+    } finally {
+      await localEnv.teardown();
+      // Cleanup the runtime so that it doesn't interfere with other tests
+      await Runtime._instance?.shutdown();
+    }
+  }, resolveCapturedRequest);
 });
 
 if (RUN_INTEGRATION_TESTS) {

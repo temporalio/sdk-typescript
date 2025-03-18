@@ -1,7 +1,6 @@
 import vm from 'node:vm';
 import { IllegalStateError } from '@temporalio/common';
-import { getTimeOfDay } from '@temporalio/core-bridge';
-import { timeOfDayToBigint } from '../logger';
+import { native } from '@temporalio/core-bridge';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import {
@@ -59,7 +58,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
     workflowModule.initRuntime({
       ...options,
       sourceMap: this.workflowBundle.sourceMap,
-      getTimeOfDay: () => timeOfDayToBigint(getTimeOfDay()),
+      getTimeOfDay: native.getTimeOfDay,
       registeredActivityNames: this.registeredActivityNames,
     });
     const activator = context.__TEMPORAL_ACTIVATOR__ as any;

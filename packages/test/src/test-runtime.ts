@@ -121,7 +121,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.serial('Runtime.install() throws meaningful error when passed invalid telemetryOptions.logging.filter', (t) => {
     t.throws(() => Runtime.install({ telemetryOptions: { logging: { filter: 2 as any } } }), {
       instanceOf: TypeError,
-      message: 'Invalid filter',
+      message: /logExporter.console.filter/,
     });
   });
 }

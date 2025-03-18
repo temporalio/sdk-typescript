@@ -1,4 +1,5 @@
 {
   "temporal.replayerEntrypoint": "packages/test/src/debug-replayer.ts",
-  "rust-analyzer.linkedProjects": ["./packages/core-bridge/Cargo.toml"]
+  "rust-analyzer.linkedProjects": ["./packages/core-bridge/Cargo.toml"],
+  "vim.textwidth": 100
 }
