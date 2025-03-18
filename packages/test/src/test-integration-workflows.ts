@@ -2,7 +2,7 @@ import { setTimeout as setTimeoutPromise } from 'timers/promises';
 import { randomUUID } from 'crypto';
 import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { isGrpcServiceError, ServiceError, WorkflowFailedError } from '@temporalio/client';
+import { WorkflowFailedError } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -1313,24 +1313,8 @@ test('Count workflow executions', async (t) => {
 });
 
 test('can register search attributes to dev server', async (t) => {
-  const { startWorkflow } = helpers(t);
   const key = defineSearchAttributeKey('new-search-attr', SearchAttributeType.INT);
   const newSearchAttribute: SearchAttributePair = { key, value: 12 };
-
-  // Ensure that search attribute is not registered on current env.
-  try {
-    await startWorkflow(completableWorkflow, { typedSearchAttributes: [newSearchAttribute] });
-  } catch (err) {
-    if (
-      err instanceof ServiceError &&
-      isGrpcServiceError(err.cause) &&
-      err.cause.details.includes('Namespace default has no mapping defined for search attribute new-search-attr')
-    ) {
-      // Expected error
-    } else {
-      throw err;
-    }
-  }
 
   // Create new test environment with search attribute registered.
   const env = await createLocalTestEnvironment({

@@ -459,10 +459,6 @@ export interface TimeSkippingServerConfig {
    * be supported in the future.
    */
   extraArgs?: string[];
-  /**
-   * Search attributes to be registered with the dev server.
-   */
-  searchAttributes?: SearchAttributeKey<SearchAttributeType>[];
 }
 
 /**

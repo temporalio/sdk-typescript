@@ -84,14 +84,14 @@ export async function createTestWorkflowBundle({
   });
 }
 
-export const defaultSearchAttributes = [
-  defineSearchAttributeKey('CustomIntField', SearchAttributeType.INT),
-  defineSearchAttributeKey('CustomBoolField', SearchAttributeType.BOOL),
-  defineSearchAttributeKey('CustomKeywordField', SearchAttributeType.KEYWORD),
-  defineSearchAttributeKey('CustomTextField', SearchAttributeType.TEXT),
-  defineSearchAttributeKey('CustomDatetimeField', SearchAttributeType.DATETIME),
-  defineSearchAttributeKey('CustomDoubleField', SearchAttributeType.DOUBLE),
-];
+export const defaultSAKeys = {
+  CustomIntField: defineSearchAttributeKey('CustomIntField', SearchAttributeType.INT),
+  CustomBoolField: defineSearchAttributeKey('CustomBoolField', SearchAttributeType.BOOL),
+  CustomKeywordField: defineSearchAttributeKey('CustomKeywordField', SearchAttributeType.KEYWORD),
+  CustomTextField: defineSearchAttributeKey('CustomTextField', SearchAttributeType.TEXT),
+  CustomDatetimeField: defineSearchAttributeKey('CustomDatetimeField', SearchAttributeType.DATETIME),
+  CustomDoubleField: defineSearchAttributeKey('CustomDoubleField', SearchAttributeType.DOUBLE),
+};
 
 export async function createLocalTestEnvironment(
   opts?: LocalTestWorkflowEnvironmentOptions
@@ -99,7 +99,7 @@ export async function createLocalTestEnvironment(
   return await TestWorkflowEnvironment.createLocal({
     ...(opts || {}), // Use provided options or default to an empty object
     server: {
-      searchAttributes: defaultSearchAttributes,
+      searchAttributes: Object.values(defaultSAKeys),
       ...(opts?.server || {}), // Use provided server options or default to an empty object
       extraArgs: [
         ...defaultDynamicConfigOptions.flatMap((opt) => ['--dynamic-config-value', opt]),

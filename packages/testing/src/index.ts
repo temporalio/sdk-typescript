@@ -305,7 +305,7 @@ export class TestWorkflowEnvironment {
     const optsWithDefaults = addDefaults(filterNullAndUndefined(rest));
 
     // Add search attributes to CLI server arguments
-    if (optsWithDefaults.server.searchAttributes) {
+    if ('searchAttributes' in optsWithDefaults.server && optsWithDefaults.server.searchAttributes) {
       let newArgs: string[] = [];
       for (const { name, type } of optsWithDefaults.server.searchAttributes) {
         newArgs.push('--search-attribute');
