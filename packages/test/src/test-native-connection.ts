@@ -48,7 +48,7 @@ test('NativeConnection.connect() throws meaningful error when passed invalid add
 test('NativeConnection.connect() throws meaningful error when passed invalid clientCertPair', async (t) => {
   await t.throwsAsync(NativeConnection.connect({ tls: { clientCertPair: {} as any } }), {
     instanceOf: TypeError,
-    message: 'Invalid or missing serverOptions.tls.clientCertPair.crt',
+    message: /tls\.clientCertPair\.crt: Missing property/,
   });
 });
 

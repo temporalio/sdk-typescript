@@ -1,7 +1,7 @@
 import { ExecutionContext } from 'ava';
-import { ResourceBasedTunerOptions } from '@temporalio/core-bridge';
 import {
   CustomSlotSupplier,
+  ResourceBasedTunerOptions,
   SlotInfo,
   SlotMarkUsedContext,
   SlotPermit,

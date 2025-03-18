@@ -9,7 +9,7 @@ import * as workflows from './workflows';
 test.serial('Runtime.install() throws meaningful error when passed invalid metrics.prometheus.bindAddress', (t) => {
   t.throws(() => Runtime.install({ telemetryOptions: { metrics: { prometheus: { bindAddress: ':invalid' } } } }), {
     instanceOf: TypeError,
-    message: 'Invalid telemetryOptions.metrics.prometheus.bindAddress',
+    message: /metricsExporter.prometheus.bindAddress/,
   });
 });
 

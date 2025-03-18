@@ -7,8 +7,7 @@
 import { setTimeout } from 'timers/promises';
 import { randomUUID } from 'crypto';
 import test from 'ava';
-import { Runtime, PromiseCompletionTimeoutError } from '@temporalio/worker';
-import { TransportError, UnexpectedError } from '@temporalio/core-bridge';
+import { Runtime, PromiseCompletionTimeoutError, TransportError, UnexpectedError } from '@temporalio/worker';
 import { Client } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
@@ -21,15 +20,17 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue: t.title.replace(/ /g, '_'),
     });
     t.is(worker.getState(), 'INITIALIZED');
+    t.not(Runtime._instance, undefined);
     const p = worker.run();
     t.is(worker.getState(), 'RUNNING');
     process.emit('SIGINT', 'SIGINT');
     // Shutdown callback is enqueued as a microtask
     await new Promise((resolve) => process.nextTick(resolve));
-    t.is(worker.getState(), 'STOPPING');
+    t.is(worker.getState(), 'DRAINING');
     await p;
     t.is(worker.getState(), 'STOPPED');
     await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
+    t.is(Runtime._instance, undefined);
   });
 
   test.serial("Worker.runUntil doesn't hang if provided promise survives to Worker's shutdown", async (t) => {
@@ -37,6 +38,7 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       taskQueue: t.title.replace(/ /g, '_'),
     });
+    t.not(Runtime._instance, undefined);
     const p = worker.runUntil(
       new Promise(() => {
         /* a promise that will never unblock */
@@ -44,9 +46,10 @@ if (RUN_INTEGRATION_TESTS) {
     );
     t.is(worker.getState(), 'RUNNING');
     worker.shutdown();
-    t.is(worker.getState(), 'STOPPING');
+    t.is(worker.getState(), 'DRAINING');
     await t.throwsAsync(p, { instanceOf: PromiseCompletionTimeoutError });
     t.is(worker.getState(), 'STOPPED');
+    t.is(Runtime._instance, undefined);
   });
 
   test.serial('Worker shuts down gracefully if interrupted before running', async (t) => {
@@ -148,7 +151,7 @@ test.serial('Mocked run shuts down gracefully if interrupted before running', as
     const worker = isolateFreeWorker({
       taskQueue: t.title.replace(/ /g, '_'),
     });
-    // worker.native.initiateShutdown = () => new Promise(() => undefined);
+    // worker.native.initiateShutdown = () => undefined;
     t.is(worker.getState(), 'INITIALIZED');
     process.emit('SIGINT', 'SIGINT');
     const p = worker.run();
@@ -169,7 +172,7 @@ test.serial('Mocked run throws if not shut down gracefully', async (t) => {
   const p = worker.run();
   t.is(worker.getState(), 'RUNNING');
   // Make sure shutdown never resolves
-  worker.native.initiateShutdown = () => new Promise(() => undefined);
+  worker.native.initiateShutdown = () => undefined;
   worker.shutdown();
   await t.throwsAsync(p, {
     message: 'Timed out while waiting for worker to shutdown gracefully',
@@ -183,7 +186,7 @@ test.serial('Mocked throws combined error in runUntil', async (t) => {
     shutdownForceTime: '5ms',
     taskQueue: t.title.replace(/ /g, '_'),
   });
-  worker.native.initiateShutdown = () => new Promise(() => undefined);
+  worker.native.initiateShutdown = () => undefined;
   const err = await t.throwsAsync(
     worker.runUntil(async () => {
       throw new Error('inner');

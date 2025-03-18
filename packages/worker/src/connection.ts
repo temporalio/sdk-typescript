@@ -1,11 +1,8 @@
-import util from 'node:util';
 import { IllegalStateError } from '@temporalio/common';
-import { Client, Worker, clientUpdateHeaders, TransportError, clientUpdateApiKey } from '@temporalio/core-bridge';
+import { native } from '@temporalio/core-bridge';
+import { TransportError } from './errors';
 import { NativeConnectionOptions } from './connection-options';
 import { Runtime } from './runtime';
-
-const updateHeaders = util.promisify(clientUpdateHeaders);
-const updateApiKey = util.promisify(clientUpdateApiKey);
 
 /**
  * A Native Connection object that delegates calls to the Rust Core binary extension.
@@ -18,20 +15,24 @@ export class NativeConnection {
   /**
    * referenceHolders is used internally by the framework, it can be accessed with `extractReferenceHolders` (below)
    */
-  private readonly referenceHolders = new Set<Worker>();
+  private readonly referenceHolders = new Set<native.Worker>();
 
   /**
    * nativeClient is intentionally left private, framework code can access it with `extractNativeClient` (below)
    */
-  protected constructor(private nativeClient: Client) {}
+  protected constructor(
+    private readonly runtime: Runtime,
+    private readonly nativeClient: native.Client
+  ) {}
 
   /**
    * @deprecated use `connect` instead
    */
   static async create(options?: NativeConnectionOptions): Promise<NativeConnection> {
     try {
-      const client = await Runtime.instance().createNativeClient(options);
-      return new this(client);
+      const runtime = Runtime.instance();
+      const client = await runtime.createNativeClient(options);
+      return new this(runtime, client);
     } catch (err) {
       if (err instanceof TransportError) {
         throw new TransportError(err.message);
@@ -45,8 +46,9 @@ export class NativeConnection {
    */
   static async connect(options?: NativeConnectionOptions): Promise<NativeConnection> {
     try {
-      const client = await Runtime.instance().createNativeClient(options);
-      return new this(client);
+      const runtime = Runtime.instance();
+      const client = await runtime.createNativeClient(options);
+      return new this(runtime, client);
     } catch (err) {
       if (err instanceof TransportError) {
         throw new TransportError(err.message);
@@ -65,7 +67,7 @@ export class NativeConnection {
     if (this.referenceHolders.size > 0) {
       throw new IllegalStateError('Cannot close connection while Workers hold a reference to it');
     }
-    await Runtime.instance().closeNativeClient(this.nativeClient);
+    await this.runtime.closeNativeClient(this.nativeClient);
   }
 
   /**
@@ -74,7 +76,7 @@ export class NativeConnection {
    * Use {@link NativeConnectionOptions.metadata} to set the initial metadata for client creation.
    */
   async setMetadata(metadata: Record<string, string>): Promise<void> {
-    await updateHeaders(this.nativeClient, metadata);
+    native.clientUpdateHeaders(this.nativeClient, metadata);
   }
 
   /**
@@ -84,7 +86,7 @@ export class NativeConnection {
    * Use {@link NativeConnectionOptions.apiKey} to set the initial metadata for client creation.
    */
   async setApiKey(apiKey: string): Promise<void> {
-    await updateApiKey(this.nativeClient, apiKey);
+    native.clientUpdateApiKey(this.nativeClient, apiKey);
   }
 }
 
@@ -93,7 +95,7 @@ export class NativeConnection {
  *
  * Only meant to be used by the framework.
  */
-export function extractNativeClient(conn: NativeConnection): Client {
+export function extractNativeClient(conn: NativeConnection): native.Client {
   return (conn as any).nativeClient;
 }
 
@@ -102,7 +104,7 @@ export function extractNativeClient(conn: NativeConnection): Client {
  *
  * Only meant to be used by the framework.
  */
-export function extractReferenceHolders(conn: NativeConnection): Set<Worker> {
+export function extractReferenceHolders(conn: NativeConnection): Set<native.Worker> {
   return (conn as any).referenceHolders;
 }
 
