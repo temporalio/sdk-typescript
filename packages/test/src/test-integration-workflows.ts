@@ -10,11 +10,19 @@ import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
 import { defineQuery, defineSignal } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
-import { ActivityCancellationType, ApplicationFailure, WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
+import {
+  ActivityCancellationType,
+  ApplicationFailure,
+  defineSearchAttributeKey,
+  SearchAttributePair,
+  SearchAttributeType,
+  TypedSearchAttributes,
+  WorkflowExecutionAlreadyStartedError,
+} from '@temporalio/common';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
-import { Context, helpers, makeTestFunction } from './helpers-integration';
+import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
 import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS } from './helpers';
 
@@ -1302,4 +1310,30 @@ test('Count workflow executions', async (t) => {
       { count: 3, groupValues: [['Completed']] },
     ],
   });
+});
+
+test('can register search attributes to dev server', async (t) => {
+  const key = defineSearchAttributeKey('new-search-attr', SearchAttributeType.INT);
+  const newSearchAttribute: SearchAttributePair = { key, value: 12 };
+
+  // Create new test environment with search attribute registered.
+  const env = await createLocalTestEnvironment({
+    server: {
+      searchAttributes: [key],
+    },
+  });
+
+  const newClient = env.client;
+  // Expect workflow with search attribute to start without error.
+  const handle = await newClient.workflow.start(completableWorkflow, {
+    args: [true],
+    workflowId: randomUUID(),
+    taskQueue: 'new-env-tq',
+    typedSearchAttributes: [newSearchAttribute],
+  });
+  // Expect workflow description to have search attribute.
+  const desc = await handle.describe();
+  t.deepEqual(desc.typedSearchAttributes, new TypedSearchAttributes([newSearchAttribute]));
+  t.deepEqual(desc.searchAttributes, { 'new-search-attr': [12] }); // eslint-disable-line deprecation/deprecation
+  await env.teardown();
 });
