@@ -28,6 +28,7 @@ const test = makeTestFunction({
   workflowEnvironmentOpts: {
     server: {
       namespace: 'test-typed-search-attributes',
+      searchAttributes: [],
     },
   },
 });

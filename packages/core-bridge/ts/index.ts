@@ -1,6 +1,7 @@
-import { LogLevel, Duration } from '@temporalio/common';
+import { LogLevel, Duration, SearchAttributeType } from '@temporalio/common';
 import type { TLSConfig, ProxyConfig, HttpConnectProxyConfig } from '@temporalio/common/lib/internal-non-workflow';
 import { WorkerTuner } from './worker-tuner';
+import { SearchAttributeKey } from '@temporalio/common/src/search-attributes';
 
 export {
   WorkerTuner,
@@ -511,6 +512,10 @@ export interface DevServerConfig {
    * be supported in the future.
    */
   extraArgs?: string[];
+  /**
+   * Search attributes to be registered with the dev server.
+   */
+  searchAttributes?: SearchAttributeKey<SearchAttributeType>[];
 }
 
 /**

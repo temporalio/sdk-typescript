@@ -20,6 +20,7 @@ import {
   defineSearchAttributeKey,
 } from '@temporalio/common';
 import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS, waitUntil } from './helpers';
+import { defaultSAKeys } from './helpers-integration';
 
 export interface Context {
   client: Client;
@@ -174,9 +175,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: new TypedSearchAttributes([
-          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
-        ]),
+        typedSearchAttributes: new TypedSearchAttributes([{ key: defaultSAKeys.CustomIntField, value: 42 }]),
       },
     });
 
@@ -194,8 +193,8 @@ if (RUN_INTEGRATION_TESTS) {
       t.deepEqual(
         describedSchedule.action.typedSearchAttributes,
         new TypedSearchAttributes([
-          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
-          { key: { name: 'CustomKeywordField', type: SearchAttributeType.KEYWORD }, value: 'test-value2' },
+          { key: defaultSAKeys.CustomIntField, value: 42 },
+          { key: defaultSAKeys.CustomKeywordField, value: 'test-value2' },
         ])
       );
     } finally {
@@ -222,9 +221,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: new TypedSearchAttributes([
-          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
-        ]),
+        typedSearchAttributes: new TypedSearchAttributes([{ key: defaultSAKeys.CustomIntField, value: 42 }]),
       },
     });
 
@@ -243,8 +240,8 @@ if (RUN_INTEGRATION_TESTS) {
       t.deepEqual(
         describedSchedule.action.typedSearchAttributes,
         new TypedSearchAttributes([
-          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
-          { key: { name: 'CustomKeywordField', type: SearchAttributeType.KEYWORD }, value: 'test-value2' },
+          { key: defaultSAKeys.CustomIntField, value: 42 },
+          { key: defaultSAKeys.CustomKeywordField, value: 'test-value2' },
         ])
       );
     } finally {
@@ -357,9 +354,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
-        typedSearchAttributes: new TypedSearchAttributes([
-          { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
-        ]),
+        typedSearchAttributes: new TypedSearchAttributes([{ key: defaultSAKeys.CustomIntField, value: 42 }]),
       },
     });
 
@@ -604,9 +599,7 @@ if (RUN_INTEGRATION_TESTS) {
             taskQueue,
           },
           searchAttributes,
-          typedSearchAttributes: new TypedSearchAttributes([
-            { key: { name: 'CustomIntField', type: SearchAttributeType.INT }, value: 42 },
-          ]),
+          typedSearchAttributes: new TypedSearchAttributes([{ key: defaultSAKeys.CustomIntField, value: 42 }]),
         })
       );
     }
