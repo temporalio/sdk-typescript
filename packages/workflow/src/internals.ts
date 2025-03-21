@@ -417,7 +417,7 @@ export class Activator implements ActivationHandler {
 
   public readonly registeredActivityNames: Set<string>;
 
-  public currentDetails: string = "";
+  public currentDetails: string = '';
 
   constructor({
     info,

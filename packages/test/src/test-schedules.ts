@@ -758,4 +758,31 @@ if (RUN_INTEGRATION_TESTS) {
       await handle.delete();
     }
   });
+
+  test.serial('User metadata on schedule', async (t) => {
+    const { client } = t.context;
+    const scheduleId = `schedule-with-user-metadata-${randomUUID()}`;
+    const handle = await client.schedule.create({
+      scheduleId,
+      spec: {},
+      action: {
+        type: 'startWorkflow',
+        workflowType: dummyWorkflow,
+        taskQueue,
+        staticSummary: 'schedule static summary',
+        staticDetails: 'schedule static details',
+      },
+    });
+
+    try {
+      const describedSchedule = await handle.describe();
+      t.deepEqual(describedSchedule.spec.calendars, []);
+      t.deepEqual(describedSchedule.spec.intervals, []);
+      t.deepEqual(describedSchedule.spec.skip, []);
+      t.deepEqual(describedSchedule.action.staticSummary, 'schedule static summary');
+      t.deepEqual(describedSchedule.action.staticDetails, 'schedule static details');
+    } finally {
+      await handle.delete();
+    }
+  });
 }

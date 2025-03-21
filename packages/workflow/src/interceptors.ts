@@ -7,7 +7,7 @@
  */
 
 import { ActivityOptions, Headers, LocalActivityOptions, Next, Timestamp, WorkflowExecution } from '@temporalio/common';
-import type { coresdk, temporal } from '@temporalio/proto';
+import type { coresdk } from '@temporalio/proto';
 import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 
 export { Next, Headers };
@@ -105,7 +105,7 @@ export interface StartChildWorkflowExecutionInput {
 
 /**
  * User metadata that can be attached to workflow commands.
- * 
+ *
  * Current used for:
  * - startTimer, scheduleActivity/scheduleLocalActivity commands
  * - internal metadata query
@@ -122,7 +122,7 @@ export interface UserMetadata {
  */
 export interface WorkflowCommandOptions {
   /** User metadata for the command that may be persisted to history */
-  readonly userMetadata?: UserMetadata
+  readonly userMetadata?: UserMetadata;
 }
 
 /** Input for WorkflowOutboundCallsInterceptor.startTimer */

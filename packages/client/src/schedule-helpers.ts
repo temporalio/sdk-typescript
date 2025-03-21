@@ -1,5 +1,11 @@
 import Long from 'long'; // eslint-disable-line import/no-named-as-default
-import { compileRetryPolicy, decompileRetryPolicy, extractWorkflowType, JsonPayloadConverter, LoadedDataConverter } from '@temporalio/common';
+import {
+  compileRetryPolicy,
+  decompileRetryPolicy,
+  extractWorkflowType,
+  JsonPayloadConverter,
+  LoadedDataConverter,
+} from '@temporalio/common';
 import {
   encodeUnifiedSearchAttributes,
   decodeSearchAttributes,
@@ -239,7 +245,7 @@ export async function encodeScheduleAction(
   action: CompiledScheduleAction,
   headers: Headers
 ): Promise<temporal.api.schedule.v1.IScheduleAction> {
-  const jsonConverter = new JsonPayloadConverter()
+  const jsonConverter = new JsonPayloadConverter();
   return {
     startWorkflow: {
       workflowId: action.workflowId,
@@ -263,10 +269,10 @@ export async function encodeScheduleAction(
             }
           : undefined,
       header: { fields: headers },
-      userMetadata: { 
-        summary: jsonConverter.toPayload(action.staticSummary), 
-        details: jsonConverter.toPayload(action.staticDetails) 
-      }
+      userMetadata: {
+        summary: jsonConverter.toPayload(action.staticSummary),
+        details: jsonConverter.toPayload(action.staticDetails),
+      },
     },
   };
 }
@@ -316,6 +322,8 @@ export async function decodeScheduleAction(
   pb: temporal.api.schedule.v1.IScheduleAction
 ): Promise<ScheduleDescriptionAction> {
   if (pb.startWorkflow) {
+    const jsonConverter = new JsonPayloadConverter();
+    const userMetadata = pb.startWorkflow?.userMetadata;
     return {
       type: 'startWorkflow',
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -332,6 +340,8 @@ export async function decodeScheduleAction(
       workflowExecutionTimeout: optionalTsToMs(pb.startWorkflow.workflowExecutionTimeout),
       workflowRunTimeout: optionalTsToMs(pb.startWorkflow.workflowRunTimeout),
       workflowTaskTimeout: optionalTsToMs(pb.startWorkflow.workflowTaskTimeout),
+      staticSummary: userMetadata?.summary ? jsonConverter.fromPayload(userMetadata.summary) : undefined,
+      staticDetails: userMetadata?.details ? jsonConverter.fromPayload(userMetadata.details) : undefined,
     };
   }
   throw new TypeError('Unsupported schedule action');

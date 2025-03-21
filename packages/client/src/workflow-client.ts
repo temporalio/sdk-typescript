@@ -1229,8 +1229,8 @@ export class WorkflowClient extends BaseClient {
       header: { fields: headers },
       userMetadata: {
         summary: jsonConverter.toPayload(options?.staticSummary),
-        details: jsonConverter.toPayload(options?.staticDetails)
-      }
+        details: jsonConverter.toPayload(options?.staticDetails),
+      },
     };
     try {
       return (await this.workflowService.signalWithStartWorkflowExecution(req)).runId;
@@ -1271,7 +1271,7 @@ export class WorkflowClient extends BaseClient {
   protected async createStartWorkflowRequest(input: WorkflowStartInput): Promise<StartWorkflowExecutionRequest> {
     const { options: opts, workflowType, headers } = input;
     const { identity, namespace } = this.options;
-    const jsonConverter = new JsonPayloadConverter()
+    const jsonConverter = new JsonPayloadConverter();
     return {
       namespace,
       identity,
@@ -1301,8 +1301,8 @@ export class WorkflowClient extends BaseClient {
       header: { fields: headers },
       userMetadata: {
         summary: jsonConverter.toPayload(opts?.staticSummary),
-        details: jsonConverter.toPayload(opts?.staticDetails)
-      }
+        details: jsonConverter.toPayload(opts?.staticDetails),
+      },
     };
   }
 
@@ -1436,8 +1436,8 @@ export class WorkflowClient extends BaseClient {
           workflowExecution: { workflowId, runId },
         });
         const info = await executionInfoFromRaw(raw.workflowExecutionInfo ?? {}, this.client.dataConverter, raw);
-        const jsonConverter = new JsonPayloadConverter()
-        const userMetadata = raw.executionConfig?.userMetadata
+        const jsonConverter = new JsonPayloadConverter();
+        const userMetadata = raw.executionConfig?.userMetadata;
         return {
           ...info,
           staticDetails: userMetadata?.details ? jsonConverter.fromPayload(userMetadata.details) : undefined,
