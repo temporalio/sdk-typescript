@@ -1,5 +1,5 @@
 import Long from 'long'; // eslint-disable-line import/no-named-as-default
-import { compileRetryPolicy, decompileRetryPolicy, extractWorkflowType, LoadedDataConverter } from '@temporalio/common';
+import { compileRetryPolicy, decompileRetryPolicy, extractWorkflowType, JsonPayloadConverter, LoadedDataConverter } from '@temporalio/common';
 import {
   encodeUnifiedSearchAttributes,
   decodeSearchAttributes,
@@ -189,8 +189,7 @@ export function decodeOptionalStructuredCalendarSpecs(
 }
 
 export function compileScheduleOptions(options: ScheduleOptions): CompiledScheduleOptions {
-  const workflowTypeOrFunc = options.action.workflowType;
-  const workflowType = extractWorkflowType(workflowTypeOrFunc);
+  const workflowType = extractWorkflowType(options.action.workflowType);
   return {
     ...options,
     action: {
@@ -240,6 +239,7 @@ export async function encodeScheduleAction(
   action: CompiledScheduleAction,
   headers: Headers
 ): Promise<temporal.api.schedule.v1.IScheduleAction> {
+  const jsonConverter = new JsonPayloadConverter()
   return {
     startWorkflow: {
       workflowId: action.workflowId,
@@ -263,6 +263,10 @@ export async function encodeScheduleAction(
             }
           : undefined,
       header: { fields: headers },
+      userMetadata: { 
+        summary: jsonConverter.toPayload(action.staticSummary), 
+        details: jsonConverter.toPayload(action.staticDetails) 
+      }
     },
   };
 }

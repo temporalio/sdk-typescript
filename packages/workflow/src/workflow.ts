@@ -22,6 +22,7 @@ import {
   WorkflowReturnType,
   WorkflowUpdateValidatorType,
   SearchAttributeUpdatePair,
+  JsonPayloadConverter,
 } from '@temporalio/common';
 import {
   encodeUnifiedSearchAttributes,
@@ -112,6 +113,9 @@ function timerNextHandler(input: TimerInput) {
         seq: input.seq,
         startToFireTimeout: msToTs(input.durationMs),
       },
+      userMetadata: {
+        summary: new JsonPayloadConverter().toPayload(input.cmdOpts?.userMetadata?.summary)
+      }
     });
     activator.completions.timer.set(input.seq, {
       resolve,
@@ -128,7 +132,7 @@ function timerNextHandler(input: TimerInput) {
  * @param ms sleep duration - number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}.
  * If given a negative number or 0, value will be set to 1.
  */
-export function sleep(ms: Duration): Promise<void> {
+export function sleep(ms: Duration, summary?: string): Promise<void> {
   const activator = assertInWorkflowContext('Workflow.sleep(...) may only be used from a Workflow Execution');
   const seq = activator.nextSeqs.timer++;
 
@@ -139,6 +143,7 @@ export function sleep(ms: Duration): Promise<void> {
   return execute({
     durationMs,
     seq,
+    cmdOpts: { userMetadata: { summary }}
   });
 }
 
@@ -154,7 +159,7 @@ const validateLocalActivityOptions = validateActivityOptions;
 /**
  * Push a scheduleActivity command into activator accumulator and register completion
  */
-function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
+function scheduleActivityNextHandler({ options, args, headers, seq, activityType, cmdOpts }: ActivityInput): Promise<unknown> {
   const activator = getActivator();
   validateActivityOptions(options);
   return new Promise((resolve, reject) => {
@@ -194,6 +199,9 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
       },
+      userMetadata: { 
+        summary: new JsonPayloadConverter().toPayload(cmdOpts?.userMetadata?.summary)
+      }
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -213,6 +221,7 @@ async function scheduleLocalActivityNextHandler({
   activityType,
   attempt,
   originalScheduleTime,
+  cmdOpts
 }: LocalActivityInput): Promise<unknown> {
   const activator = getActivator();
   // Eagerly fail the local activity (which will in turn fail the workflow task.
@@ -259,6 +268,9 @@ async function scheduleLocalActivityNextHandler({
         headers,
         cancellationType: encodeActivityCancellationType(options.cancellationType),
       },
+      userMetadata: { 
+        summary: new JsonPayloadConverter().toPayload(cmdOpts?.userMetadata?.summary)
+      }
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -271,7 +283,7 @@ async function scheduleLocalActivityNextHandler({
  * Schedule an activity and run outbound interceptors
  * @hidden
  */
-export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
+export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions, summary?: string): Promise<R> {
   const activator = assertInWorkflowContext(
     'Workflow.scheduleActivity(...) may only be used from a Workflow Execution'
   );
@@ -287,6 +299,7 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
     options,
     args,
     seq,
+    cmdOpts: { userMetadata: { summary }}
   }) as Promise<R>;
 }
 
@@ -297,7 +310,8 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
 export async function scheduleLocalActivity<R>(
   activityType: string,
   args: any[],
-  options: LocalActivityOptions
+  options: LocalActivityOptions,
+  summary?: string,
 ): Promise<R> {
   const activator = assertInWorkflowContext(
     'Workflow.scheduleLocalActivity(...) may only be used from a Workflow Execution'
@@ -326,6 +340,7 @@ export async function scheduleLocalActivity<R>(
         seq,
         attempt,
         originalScheduleTime,
+        cmdOpts: { userMetadata: { summary }}
       })) as Promise<R>;
     } catch (err) {
       if (err instanceof LocalActivityDoBackoff) {
@@ -506,38 +521,26 @@ export type ActivityInterfaceFor<T> = {
  *
  * @return a {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy | Proxy} for
  *         which each attribute is a callable Activity function
- *
- * @example
- * ```ts
- * import { proxyActivities } from '@temporalio/workflow';
- * import * as activities from '../activities';
- *
- * // Setup Activities from module exports
- * const { httpGet, otherActivity } = proxyActivities<typeof activities>({
- *   startToCloseTimeout: '30 minutes',
- * });
- *
- * // Setup Activities from an explicit interface (e.g. when defined by another SDK)
- * interface JavaActivities {
- *   httpGetFromJava(url: string): Promise<string>
- *   someOtherJavaActivity(arg1: number, arg2: string): Promise<string>;
- * }
- *
- * const {
- *   httpGetFromJava,
- *   someOtherJavaActivity
- * } = proxyActivities<JavaActivities>({
- *   taskQueue: 'java-worker-taskQueue',
- *   startToCloseTimeout: '5m',
- * });
- *
- * export function execute(): Promise<void> {
- *   const response = await httpGet("http://example.com");
- *   // ...
- * }
- * ```
  */
-export function proxyActivities<A = UntypedActivities>(options: ActivityOptions): ActivityInterfaceFor<A> {
+export function proxyActivities<A = UntypedActivities>(options: ActivityOptions): ActivityInterfaceFor<A>;
+
+/**
+ * Configure Activity functions with given {@link ActivityOptions} and a summary.
+ *
+ * @param options Activity options
+ * @param summary A description of the activity's purpose, useful for debugging and monitoring
+ * @return a {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy | Proxy} for
+ *         which each attribute is a callable Activity function with the provided summary
+ */
+export function proxyActivities<A = UntypedActivities>(
+  options: ActivityOptions, 
+  summary: string
+): ActivityInterfaceFor<A>;
+
+export function proxyActivities<A = UntypedActivities>(
+  options: ActivityOptions,
+  summary?: string
+): ActivityInterfaceFor<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
@@ -551,7 +554,7 @@ export function proxyActivities<A = UntypedActivities>(options: ActivityOptions)
           throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
         }
         return function activityProxyFunction(...args: unknown[]): Promise<unknown> {
-          return scheduleActivity(activityType, args, options);
+          return scheduleActivity(activityType, args, options, summary);
         };
       },
     }
@@ -568,7 +571,25 @@ export function proxyActivities<A = UntypedActivities>(options: ActivityOptions)
  *
  * @see {@link proxyActivities} for examples
  */
-export function proxyLocalActivities<A = UntypedActivities>(options: LocalActivityOptions): ActivityInterfaceFor<A> {
+export function proxyLocalActivities<A = UntypedActivities>(options: LocalActivityOptions): ActivityInterfaceFor<A>;
+
+/**
+ * Configure Local Activity functions with given {@link LocalActivityOptions} and a summary.
+ *
+ * @param options Local activity options
+ * @param summary A description of the activity's purpose, useful for debugging and monitoring
+ * @return a {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy | Proxy}
+ *         for which each attribute is a callable Activity function with the provided summary
+ */
+export function proxyLocalActivities<A = UntypedActivities>(
+  options: LocalActivityOptions,
+  summary: string
+): ActivityInterfaceFor<A>;
+
+export function proxyLocalActivities<A = UntypedActivities>(
+  options: LocalActivityOptions,
+  summary?: string
+): ActivityInterfaceFor<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
@@ -582,7 +603,7 @@ export function proxyLocalActivities<A = UntypedActivities>(options: LocalActivi
           throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
         }
         return function localActivityProxyFunction(...args: unknown[]) {
-          return scheduleLocalActivity(activityType, args, options);
+          return scheduleLocalActivity(activityType, args, options, summary);
         };
       },
     }
@@ -1590,3 +1611,13 @@ export function allHandlersFinished(): boolean {
 export const stackTraceQuery = defineQuery<string>('__stack_trace');
 export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanced_stack_trace');
 export const workflowMetadataQuery = defineQuery<temporal.api.sdk.v1.IWorkflowMetadata>('__temporal_workflow_metadata');
+
+export function getCurrentDetails(): string {
+  const activator = assertInWorkflowContext('getCurrentDetails() may only be used from a Workflow Execution.');
+  return activator.currentDetails;
+}
+
+export function setCurrentDetails(details: string): void {
+  const activator = assertInWorkflowContext('getCurrentDetails() may only be used from a Workflow Execution.');
+  activator.currentDetails = details;
+}

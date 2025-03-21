@@ -65,6 +65,8 @@ export interface CountWorkflowExecution {
 export type WorkflowExecutionDescription = Replace<
   WorkflowExecutionInfo,
   {
+    staticSummary?: string;
+    staticDetails?: string;
     raw: DescribeWorkflowExecutionResponse;
   }
 >;

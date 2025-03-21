@@ -190,6 +190,21 @@ export interface BaseWorkflowOptions {
    * by {@link typedSearchAttributes}.
    */
   typedSearchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
+
+  /**
+   * General fixed details for this workflow execution that may appear in UI/CLI. 
+   * This can be in Temporal markdown format and can span multiple lines.
+   * 
+   * @experimental 
+   */
+  staticDetails?: string;
+  /**
+   * A single-line fixed summary for this workflow execution that may appear in the UI/CLI.
+   * This can be in single-line Temporal markdown format.
+   * 
+   * @experimental
+   */
+  staticSummary?: string;
 }
 
 export type WithWorkflowArgs<W extends Workflow, T> = T &
