@@ -40,6 +40,8 @@ import {
   SignalWorkflowInput,
   StartChildWorkflowExecutionInput,
   TimerInput,
+  UserMetadata,
+  WorkflowCommandOptions,
 } from './interceptors';
 import {
   ChildWorkflowCancellationType,
@@ -82,6 +84,27 @@ export function addDefaultWorkflowOptions<T extends Workflow>(
   };
 }
 
+function addUserMetadata(userMetadata?: UserMetadata): temporal.api.sdk.v1.IUserMetadata | undefined {
+  if (userMetadata == null) {
+    return undefined
+  }
+
+  const jsonConverter = new JsonPayloadConverter();
+  return {
+    summary: jsonConverter.toPayload(userMetadata.summary),
+    details: jsonConverter.toPayload(userMetadata.details),
+  }
+}
+
+function addWorkflowCommandOptions(cmdOpts?: WorkflowCommandOptions): object {
+  if (cmdOpts == null) {
+    return {}
+  }
+  return {
+    userMetadata: addUserMetadata(cmdOpts.userMetadata)
+  }
+}
+
 /**
  * Push a startTimer command into state accumulator and register completion
  */
@@ -113,9 +136,7 @@ function timerNextHandler(input: TimerInput) {
         seq: input.seq,
         startToFireTimeout: msToTs(input.durationMs),
       },
-      userMetadata: {
-        summary: new JsonPayloadConverter().toPayload(input.cmdOpts?.userMetadata?.summary)
-      }
+      ...addWorkflowCommandOptions(input.cmdOpts)
     });
     activator.completions.timer.set(input.seq, {
       resolve,
@@ -199,9 +220,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
       },
-      userMetadata: { 
-        summary: new JsonPayloadConverter().toPayload(cmdOpts?.userMetadata?.summary)
-      }
+      ...addWorkflowCommandOptions(cmdOpts)
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -268,9 +287,7 @@ async function scheduleLocalActivityNextHandler({
         headers,
         cancellationType: encodeActivityCancellationType(options.cancellationType),
       },
-      userMetadata: { 
-        summary: new JsonPayloadConverter().toPayload(cmdOpts?.userMetadata?.summary)
-      }
+      ...addWorkflowCommandOptions(cmdOpts)
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -515,50 +532,99 @@ export type ActivityInterfaceFor<T> = {
 };
 
 /**
+ * Extends ActivityInterfaceFor to include the withSummaries method
+ */
+export type ActivityInterfaceWithSummaries<A> = ActivityInterfaceFor<A> & {
+  /**
+   * Provide descriptive summaries for activities
+   * @param summaries Record mapping activity names to their summary descriptions
+   * @returns A new proxy with the provided summaries
+   */
+  withSummaries(summaries: Record<string, string>): ActivityInterfaceFor<A>;
+};
+
+/**
  * Configure Activity functions with given {@link ActivityOptions}.
  *
  * This method may be called multiple times to setup Activities with different options.
  *
  * @return a {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy | Proxy} for
  *         which each attribute is a callable Activity function
- */
-export function proxyActivities<A = UntypedActivities>(options: ActivityOptions): ActivityInterfaceFor<A>;
-
-/**
- * Configure Activity functions with given {@link ActivityOptions} and a summary.
  *
- * @param options Activity options
- * @param summary A description of the activity's purpose, useful for debugging and monitoring
- * @return a {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy | Proxy} for
- *         which each attribute is a callable Activity function with the provided summary
+ * @example
+ * ```ts
+ * import { proxyActivities } from '@temporalio/workflow';
+ * import * as activities from '../activities';
+ *
+ * // Setup Activities from module exports
+ * const { httpGet, otherActivity } = proxyActivities<typeof activities>({
+ *   startToCloseTimeout: '30 minutes',
+ * });
+ * 
+ * // Setup Activities with summaries for better observability
+ * const { 
+ *   httpGet, 
+ *   processData,
+ *   saveResults 
+ * } = proxyActivities<typeof activities>({
+ *   startToCloseTimeout: '10m',
+ * }).withSummaries({
+ *   httpGet: 'Fetches data from external API',
+ *   processData: 'Processes the fetched data',
+ *   saveResults: 'Saves processed results to database'
+ * });
+ *
+ * // Setup Activities from an explicit interface (e.g. when defined by another SDK)
+ * interface JavaActivities {
+ *   httpGetFromJava(url: string): Promise<string>
+ *   someOtherJavaActivity(arg1: number, arg2: string): Promise<string>;
+ * }
+ *
+ * const {
+ *   httpGetFromJava,
+ *   someOtherJavaActivity
+ * } = proxyActivities<JavaActivities>({
+ *   taskQueue: 'java-worker-taskQueue',
+ *   startToCloseTimeout: '5m',
+ * });
+ *
+ * export function execute(): Promise<void> {
+ *   const response = await httpGet("http://example.com");
+ *   // ...
+ * }
+ * ```
  */
-export function proxyActivities<A = UntypedActivities>(
-  options: ActivityOptions, 
-  summary: string
-): ActivityInterfaceFor<A>;
-
 export function proxyActivities<A = UntypedActivities>(
   options: ActivityOptions,
-  summary?: string
-): ActivityInterfaceFor<A> {
+): ActivityInterfaceWithSummaries<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
   // Validate as early as possible for immediate user feedback
   validateActivityOptions(options);
-  return new Proxy(
-    {},
-    {
-      get(_, activityType) {
-        if (typeof activityType !== 'string') {
-          throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
+  
+  function createActivityProxy(summaries: Record<string, string> = {}): ActivityInterfaceWithSummaries<A> {
+    return new Proxy({} as ActivityInterfaceWithSummaries<A>, {
+      get(_, prop) {
+        if (prop === 'withSummaries') {
+          return function withSummaries(newSummaries: Record<string, string>): ActivityInterfaceFor<A> {
+            return createActivityProxy(newSummaries);
+          };
         }
+        
+        if (typeof prop !== 'string') {
+          throw new TypeError(`Only strings are supported for Activity types, got: ${String(prop)}`);
+        }
+        
         return function activityProxyFunction(...args: unknown[]): Promise<unknown> {
-          return scheduleActivity(activityType, args, options, summary);
+          const summary = summaries[prop];
+          return scheduleActivity(prop, args, options, summary);
         };
       },
-    }
-  ) as any;
+    });
+  }
+  
+  return createActivityProxy();
 }
 
 /**
@@ -571,43 +637,37 @@ export function proxyActivities<A = UntypedActivities>(
  *
  * @see {@link proxyActivities} for examples
  */
-export function proxyLocalActivities<A = UntypedActivities>(options: LocalActivityOptions): ActivityInterfaceFor<A>;
-
-/**
- * Configure Local Activity functions with given {@link LocalActivityOptions} and a summary.
- *
- * @param options Local activity options
- * @param summary A description of the activity's purpose, useful for debugging and monitoring
- * @return a {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy | Proxy}
- *         for which each attribute is a callable Activity function with the provided summary
- */
 export function proxyLocalActivities<A = UntypedActivities>(
-  options: LocalActivityOptions,
-  summary: string
-): ActivityInterfaceFor<A>;
-
-export function proxyLocalActivities<A = UntypedActivities>(
-  options: LocalActivityOptions,
-  summary?: string
-): ActivityInterfaceFor<A> {
+  options: LocalActivityOptions
+): ActivityInterfaceWithSummaries<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
   // Validate as early as possible for immediate user feedback
   validateLocalActivityOptions(options);
-  return new Proxy(
-    {},
-    {
-      get(_, activityType) {
-        if (typeof activityType !== 'string') {
-          throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
+  
+  function createLocalActivityProxy(summaries: Record<string, string> = {}): ActivityInterfaceWithSummaries<A> {
+    return new Proxy({} as ActivityInterfaceWithSummaries<A>, {
+      get(_, prop) {
+        if (prop === 'withSummaries') {
+          return function withSummaries(newSummaries: Record<string, string>): ActivityInterfaceFor<A> {
+            return createLocalActivityProxy(newSummaries);
+          };
         }
-        return function localActivityProxyFunction(...args: unknown[]) {
-          return scheduleLocalActivity(activityType, args, options, summary);
+        
+        if (typeof prop !== 'string') {
+          throw new TypeError(`Only strings are supported for Activity types, got: ${String(prop)}`);
+        }
+        
+        return function localActivityProxyFunction(...args: unknown[]): Promise<unknown> {
+          const summary = summaries[prop];
+          return scheduleLocalActivity(prop, args, options, summary);
         };
       },
-    }
-  ) as any;
+    });
+  }
+  
+  return createLocalActivityProxy();
 }
 
 // TODO: deprecate this patch after "enough" time has passed
@@ -977,13 +1037,13 @@ export function makeContinueAsNewFunc<F extends Workflow>(
  * @example
  *
  * ```ts
- *import { continueAsNew } from '@temporalio/workflow';
-import { SearchAttributeType } from '@temporalio/common';
+ * import { continueAsNew } from '@temporalio/workflow';
+ * import { SearchAttributeType } from '@temporalio/common';
  *
- *export async function myWorkflow(n: number): Promise<void> {
- *  // ... Workflow logic
- *  await continueAsNew<typeof myWorkflow>(n + 1);
- *}
+ * export async function myWorkflow(n: number): Promise<void> {
+ *   // ... Workflow logic
+ *   await continueAsNew<typeof myWorkflow>(n + 1);
+ * }
  * ```
  */
 export function continueAsNew<F extends Workflow>(...args: Parameters<F>): Promise<never> {
