@@ -165,7 +165,7 @@ export function sleep(ms: Duration, summary?: string): Promise<void> {
   return execute({
     durationMs,
     seq,
-    cmdOpts: { userMetadata: { summary } },
+    ...(summary !== undefined && { cmdOpts: { userMetadata: { summary } } }),
   });
 }
 
@@ -329,7 +329,7 @@ export function scheduleActivity<R>(
     options,
     args,
     seq,
-    cmdOpts: { userMetadata: { summary } },
+    ...(summary !== undefined && { cmdOpts: { userMetadata: { summary } } }),
   }) as Promise<R>;
 }
 
@@ -370,7 +370,7 @@ export async function scheduleLocalActivity<R>(
         seq,
         attempt,
         originalScheduleTime,
-        cmdOpts: { userMetadata: { summary } },
+        ...(summary !== undefined && { cmdOpts: { userMetadata: { summary } } }),
       })) as Promise<R>;
     } catch (err) {
       if (err instanceof LocalActivityDoBackoff) {
