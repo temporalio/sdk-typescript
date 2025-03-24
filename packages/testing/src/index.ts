@@ -27,6 +27,7 @@ import {
   Logger,
   defaultFailureConverter,
   defaultPayloadConverter,
+  TypedSearchAttributes,
 } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { ActivityInterceptorsFactory, DefaultLogger, NativeConnection, Runtime } from '@temporalio/worker';
@@ -302,6 +303,18 @@ export class TestWorkflowEnvironment {
   ): Promise<TestWorkflowEnvironment> {
     const { supportsTimeSkipping, namespace, ...rest } = opts;
     const optsWithDefaults = addDefaults(filterNullAndUndefined(rest));
+
+    // Add search attributes to CLI server arguments
+    if ('searchAttributes' in optsWithDefaults.server && optsWithDefaults.server.searchAttributes) {
+      let newArgs: string[] = [];
+      for (const { name, type } of optsWithDefaults.server.searchAttributes) {
+        newArgs.push('--search-attribute');
+        newArgs.push(`${name}=${TypedSearchAttributes.toMetadataType(type)}`);
+      }
+      newArgs = newArgs.concat(optsWithDefaults.server.extraArgs ?? []);
+      optsWithDefaults.server.extraArgs = newArgs;
+    }
+
     const server = await Runtime.instance().createEphemeralServer(optsWithDefaults.server);
     const address = getEphemeralServerTarget(server);
 

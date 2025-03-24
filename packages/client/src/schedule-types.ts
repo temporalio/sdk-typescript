@@ -142,7 +142,7 @@ export type CompiledScheduleOptions = Replace<
  * The specification of an updated Schedule, as expected by {@link ScheduleHandle.update}.
  */
 export type ScheduleUpdateOptions<A extends ScheduleOptionsAction = ScheduleOptionsAction> = Replace<
-  Omit<ScheduleOptions, 'scheduleId' | 'memo' | 'searchAttributes' | 'typedSearchAttributes'>,
+  Omit<ScheduleOptions, 'scheduleId' | 'memo'>,
   {
     action: A;
     state: Omit<ScheduleOptions['state'], 'triggerImmediately' | 'backfill'>;

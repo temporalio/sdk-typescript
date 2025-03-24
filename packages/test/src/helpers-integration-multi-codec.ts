@@ -10,7 +10,7 @@ import {
   createLocalTestEnvironment,
   makeConfigurableEnvironmentTestFn,
 } from './helpers-integration';
-import { ByteSkewerPayloadCodec, registerDefaultCustomSearchAttributes, Worker } from './helpers';
+import { ByteSkewerPayloadCodec, Worker } from './helpers';
 
 // Note: re-export shared workflows (or long workflows)
 export * from './workflows';
@@ -43,7 +43,6 @@ export function makeTestFn(makeBundle: () => Promise<WorkflowBundle>): TestFn<Te
           const env = await createLocalTestEnvironment({
             client: { dataConverter },
           });
-          await registerDefaultCustomSearchAttributes(env.connection);
 
           configs.push({
             loadedDataConverter,
