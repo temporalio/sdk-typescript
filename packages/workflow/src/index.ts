@@ -96,6 +96,7 @@ export {
   StackTraceFileSlice,
   ParentClosePolicy,
   ParentWorkflowInfo,
+  RootWorkflowInfo,
   StackTraceSDKInfo,
   StackTrace,
   UnsafeWorkflowInfo,
