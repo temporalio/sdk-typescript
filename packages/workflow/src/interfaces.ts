@@ -63,6 +63,11 @@ export interface WorkflowInfo {
   readonly parent?: ParentWorkflowInfo;
 
   /**
+   * Root Workflow info
+   */
+  readonly root?: RootWorkflowInfo;
+
+  /**
    * Result from the previous Run (present if this is a Cron Workflow or was Continued As New).
    *
    * An array of values, since other SDKs may return multiple values from a Workflow.
@@ -226,6 +231,11 @@ export interface ParentWorkflowInfo {
   workflowId: string;
   runId: string;
   namespace: string;
+}
+
+export interface RootWorkflowInfo {
+  workflowId: string;
+  runId: string;
 }
 
 /**
