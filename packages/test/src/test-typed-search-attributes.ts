@@ -135,7 +135,7 @@ if (test?.serial?.before) {
         Object.keys(untypedKeys).every((key) => key in resp.customAttributes) &&
         Object.keys(typedKeys).every((key) => key in resp.customAttributes)
       );
-    }, 300);
+    }, 5000);
   });
 }
 
