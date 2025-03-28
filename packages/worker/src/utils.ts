@@ -1,5 +1,5 @@
-import type { coresdk } from '@temporalio/proto';
-import { IllegalStateError, ParentWorkflowInfo } from '@temporalio/workflow';
+import type { coresdk, temporal } from '@temporalio/proto';
+import { IllegalStateError, ParentWorkflowInfo, RootWorkflowInfo } from '@temporalio/workflow';
 
 export const MiB = 1024 ** 2;
 
@@ -26,5 +26,21 @@ export function convertToParentWorkflowType(
     workflowId: parent.workflowId,
     runId: parent.runId,
     namespace: parent.namespace,
+  };
+}
+
+export function convertToRootWorkflowType(
+  root: temporal.api.common.v1.IWorkflowExecution | null | undefined
+): RootWorkflowInfo | undefined {
+  if (root == null) {
+    return undefined;
+  }
+  if (!root.workflowId || !root.runId) {
+    throw new IllegalStateError('Root workflow execution is missing a field that should be defined');
+  }
+
+  return {
+    workflowId: root.workflowId,
+    runId: root.runId,
   };
 }
