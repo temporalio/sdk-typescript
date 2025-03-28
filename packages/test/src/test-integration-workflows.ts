@@ -1347,7 +1347,7 @@ export async function ChildWorkflowInfo(): Promise<workflow.RootWorkflowInfo | u
   return workflow.workflowInfo().root;
 }
 
-export async function WithChildWorkflow(childWfId: string) {
+export async function WithChildWorkflow(childWfId: string): Promise<workflow.RootWorkflowInfo | undefined> {
   return await workflow.executeChild(ChildWorkflowInfo, {
     workflowId: childWfId,
   });
@@ -1380,12 +1380,12 @@ test('root execution is exposed', async (t) => {
     const childDesc = await childHandle.describe();
     const parentDesc = await handle.describe();
 
-    t.true(childDesc.rootExecution?.workflowId == parentDesc.workflowId);
-    t.true(childDesc.rootExecution?.runId == parentDesc.runId);
+    t.true(childDesc.rootExecution?.workflowId === parentDesc.workflowId);
+    t.true(childDesc.rootExecution?.runId === parentDesc.runId);
 
     await childHandle.signal(unblockSignal);
     const childWfInfoRoot = await handle.result();
-    t.true(childWfInfoRoot?.workflowId == parentDesc.workflowId);
-    t.true(childWfInfoRoot?.runId == parentDesc.runId);
+    t.true(childWfInfoRoot?.workflowId === parentDesc.workflowId);
+    t.true(childWfInfoRoot?.runId === parentDesc.runId);
   });
 });
