@@ -24,7 +24,7 @@ import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
-import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS } from './helpers';
+import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -1336,4 +1336,56 @@ test('can register search attributes to dev server', async (t) => {
   t.deepEqual(desc.typedSearchAttributes, new TypedSearchAttributes([newSearchAttribute]));
   t.deepEqual(desc.searchAttributes, { 'new-search-attr': [12] }); // eslint-disable-line deprecation/deprecation
   await env.teardown();
+});
+
+export async function ChildWorkflowInfo(): Promise<workflow.RootWorkflowInfo | undefined> {
+  let blocked = true;
+  workflow.setHandler(unblockSignal, () => {
+    blocked = false;
+  });
+  await workflow.condition(() => !blocked);
+  return workflow.workflowInfo().root;
+}
+
+export async function WithChildWorkflow(childWfId: string) {
+  return await workflow.executeChild(ChildWorkflowInfo, {
+    workflowId: childWfId,
+  });
+}
+
+test('root execution is exposed', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+
+  await worker.runUntil(async () => {
+    const childWfId = 'child-wf-id';
+    const handle = await startWorkflow(WithChildWorkflow, {
+      args: [childWfId],
+    });
+
+    const childHandle = t.context.env.client.workflow.getHandle(childWfId);
+    const childStarted = async (): Promise<boolean> => {
+      try {
+        await childHandle.describe();
+        return true;
+      } catch (e) {
+        if (e instanceof workflow.WorkflowNotFoundError) {
+          return false;
+        } else {
+          throw e;
+        }
+      }
+    };
+    await waitUntil(childStarted, 3000);
+    const childDesc = await childHandle.describe();
+    const parentDesc = await handle.describe();
+
+    t.true(childDesc.rootExecution?.workflowId == parentDesc.workflowId);
+    t.true(childDesc.rootExecution?.runId == parentDesc.runId);
+
+    await childHandle.signal(unblockSignal);
+    const childWfInfoRoot = await handle.result();
+    t.true(childWfInfoRoot?.workflowId == parentDesc.workflowId);
+    t.true(childWfInfoRoot?.runId == parentDesc.runId);
+  });
 });
