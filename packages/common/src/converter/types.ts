@@ -19,3 +19,9 @@ export const encodingKeys = {
 } as const;
 
 export const METADATA_MESSAGE_TYPE_KEY = 'messageType';
+
+/**
+ * Metadata key used to identify a RawValue payload.
+ * A RawValue payload is a payload intended to bypass normal payload conversion.
+ */
+export const METADATA_RAW_VALUE_KEY = 'rawValue';

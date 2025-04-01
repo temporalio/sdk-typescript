@@ -14,11 +14,14 @@ import {
   ActivityCancellationType,
   ApplicationFailure,
   defineSearchAttributeKey,
+  METADATA_ENCODING_KEY,
+  RawValue,
   SearchAttributePair,
   SearchAttributeType,
   TypedSearchAttributes,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
+import { temporal } from '@temporalio/proto';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
@@ -384,7 +387,10 @@ test('Query workflow metadata returns handler descriptions', async (t) => {
 
   await worker.runUntil(async () => {
     const handle = await startWorkflow(queryWorkflowMetadata);
-    const meta = await handle.query(workflow.workflowMetadataQuery);
+    const rawValue = await handle.query(workflow.workflowMetadataQuery);
+    const meta = workflow.defaultPayloadConverter.fromPayload(
+      rawValue.payload
+    ) as temporal.api.sdk.v1.IWorkflowMetadata;
     t.is(meta.definition?.type, 'queryWorkflowMetadata');
     const queryDefinitions = meta.definition?.queryDefinitions;
     // Three built-in ones plus dummyQuery1 and dummyQuery2
@@ -1336,4 +1342,41 @@ test('can register search attributes to dev server', async (t) => {
   t.deepEqual(desc.typedSearchAttributes, new TypedSearchAttributes([newSearchAttribute]));
   t.deepEqual(desc.searchAttributes, { 'new-search-attr': [12] }); // eslint-disable-line deprecation/deprecation
   await env.teardown();
+});
+
+export async function rawValueWorkflow(rawValue: RawValue): Promise<RawValue> {
+  const { rawValueActivity } = workflow.proxyActivities({ startToCloseTimeout: '10s' });
+  return await rawValueActivity(rawValue);
+}
+
+test('workflow and activity can receive/return RawValue', async (t) => {
+  const { executeWorkflow, createWorker } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      async rawValueActivity(rawValue: RawValue): Promise<RawValue> {
+        return rawValue;
+      },
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const testValue = 'test';
+    const rawValueWithKey: RawValue = new RawValue(workflow.defaultPayloadConverter.toPayload(testValue));
+    const res = await executeWorkflow(rawValueWorkflow, {
+      args: [rawValueWithKey],
+    });
+    // Compare payloads. Explicitly convert to Uint8Array because the actual
+    // returned payload has Buffer types.
+    console.log('RETURNED', res);
+    const actualMetadata = res.payload.metadata![METADATA_ENCODING_KEY];
+    const expectedMetadata = rawValueWithKey.payload.metadata![METADATA_ENCODING_KEY];
+    t.deepEqual(new Uint8Array(actualMetadata), new Uint8Array(expectedMetadata));
+    const actualData = res.payload.data!;
+    const expectedData = rawValueWithKey.payload.data!;
+    t.deepEqual(new Uint8Array(actualData), new Uint8Array(expectedData));
+
+    // Compare value from wrapped payload.
+    const resValue = workflow.defaultPayloadConverter.fromPayload(res.payload);
+    t.deepEqual(resValue, testValue);
+  });
 });
