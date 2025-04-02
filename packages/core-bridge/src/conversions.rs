@@ -10,7 +10,7 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use temporal_client::HttpConnectProxyOptions;
 use temporal_sdk_core::api::{
     telemetry::{HistogramBucketOverrides, OtlpProtocol},
-    worker::SlotKind,
+    worker::{PollerBehavior, SlotKind},
 };
 use temporal_sdk_core::{
     ClientOptions, ClientOptionsBuilder, ClientTlsConfig, ResourceBasedSlotsOptions,
@@ -523,8 +523,8 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .use_worker_versioning(js_value_getter!(cx, self, "useVersioning", JsBoolean))
             .no_remote_activities(!enable_remote_activities)
             .tuner(tuner)
-            .max_concurrent_wft_polls(max_concurrent_wft_polls)
-            .max_concurrent_at_polls(max_concurrent_at_polls)
+            .workflow_task_poller_behavior(PollerBehavior::SimpleMaximum(max_concurrent_wft_polls))
+            .activity_task_poller_behavior(PollerBehavior::SimpleMaximum(max_concurrent_at_polls))
             .nonsticky_to_sticky_poll_ratio(nonsticky_to_sticky_poll_ratio)
             .max_cached_workflows(max_cached_workflows)
             .sticky_queue_schedule_to_start_timeout(sticky_queue_schedule_to_start_timeout)
