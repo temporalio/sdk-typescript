@@ -15,7 +15,8 @@ import {
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
-import type { coresdk } from '@temporalio/proto';
+import { coresdk, temporal } from '@temporalio/proto';
+import Priority = temporal.api.common.v1.Priority;
 
 /**
  * Workflow Execution information
@@ -183,6 +184,11 @@ export interface WorkflowInfo {
   readonly currentBuildId?: string;
 
   readonly unsafe: UnsafeWorkflowInfo;
+
+  /**
+   * Priority for a workflow
+   */
+  readonly priority?: Priority;
 }
 
 /**

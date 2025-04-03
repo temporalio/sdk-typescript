@@ -1268,6 +1268,7 @@ export class Worker {
       cronSchedule,
       workflowExecutionExpirationTime,
       cronScheduleToScheduleInterval,
+      priority
     } = initWorkflowJob;
 
     // Note that we can't do payload convertion here, as there's no guarantee that converted payloads would be safe to
@@ -1304,6 +1305,7 @@ export class Worker {
         now: () => Date.now(), // re-set in initRuntime
         isReplaying: activation.isReplaying,
       },
+      priority: temporal.api.common.v1.Priority.create(priority || undefined),
     };
     const logAttributes = workflowLogAttributes(workflowInfo);
     this.logger.trace('Creating workflow', logAttributes);
@@ -1898,6 +1900,7 @@ async function extractActivityInfo(
       start.currentAttemptScheduledTime,
       'currentAttemptScheduledTime'
     ),
+    priority: temporal.api.common.v1.Priority.create(start.priority),
   };
 }
 

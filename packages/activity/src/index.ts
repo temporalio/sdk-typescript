@@ -73,6 +73,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { Logger, Duration, LogLevel, LogMetadata } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { coresdk, temporal } from '@temporalio/proto';
 
 export {
   ActivityFunction,
@@ -198,6 +199,10 @@ export interface Info {
    * For Local Activities, this is set to the Workflow's Task Queue.
    */
   readonly taskQueue: string;
+  /**
+   * Priority for Activity
+   */
+  readonly priority?: temporal.api.common.v1.Priority
 }
 
 /**

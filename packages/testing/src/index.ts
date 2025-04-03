@@ -427,6 +427,7 @@ export const defaultActivityInfo: activity.Info = {
   startToCloseTimeoutMs: 1000,
   scheduleToCloseTimeoutMs: 1000,
   currentAttemptScheduledTimestampMs: 1,
+  priority: undefined,
 };
 
 /**

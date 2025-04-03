@@ -1,7 +1,7 @@
 import { CommonWorkflowOptions, SignalDefinition, WithWorkflowArgs, Workflow } from '@temporalio/common';
 import { Duration, msOptionalToTs } from '@temporalio/common/lib/time';
 import { Replace } from '@temporalio/common/lib/type-helpers';
-import { google } from '@temporalio/proto';
+import { google, temporal } from '@temporalio/proto';
 
 export * from '@temporalio/common/lib/workflow-options';
 
@@ -41,6 +41,12 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
    *
    */
   startDelay?: Duration;
+
+  /**
+   * Priority of this workflow.
+   *
+   */
+  priority?: temporal.api.common.v1.Priority
 }
 
 export type WithCompiledWorkflowOptions<T extends WorkflowOptions> = Replace<
