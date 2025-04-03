@@ -30,7 +30,7 @@ pub trait ObjectExt: Object {
     }
 }
 
-impl<'cx> ObjectExt for JsObject {}
+impl ObjectExt for JsObject {}
 
 pub use ObjectExt as _;
 
@@ -39,7 +39,7 @@ pub trait FunctionContextExt {
     fn argument_into<T: TryFromJs>(&mut self, index: usize) -> BridgeResult<T>;
 }
 
-impl<'cx> FunctionContextExt for FunctionContext<'cx> {
+impl FunctionContextExt for FunctionContext<'_> {
     fn argument_into<T: TryFromJs>(&mut self, index: usize) -> BridgeResult<T> {
         let value = self.argument::<JsValue>(index)?;
         <T>::try_from_js(self, value).field(format!("args[{}]", index).as_str())

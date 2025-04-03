@@ -19,7 +19,7 @@ macro_rules! enter_sync {
 }
 
 impl RuntimeHandle {
-    pub fn future_to_promise<'a, F, R>(&self, future: F) -> BridgeResult<BridgeFuture<R>>
+    pub fn future_to_promise<F, R>(&self, future: F) -> BridgeResult<BridgeFuture<R>>
     where
         F: Future<Output = Result<R, BridgeError>> + Send + 'static,
         R: TryIntoJs + Send + 'static,

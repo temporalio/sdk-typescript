@@ -15,9 +15,9 @@ use std::time::Duration;
 use std::{cell::RefCell, sync::Arc};
 use temporal_sdk_core::api::errors::{CompleteActivityError, CompleteWfError};
 use temporal_sdk_core::api::worker::{
-    ActivitySlotKind, LocalActivitySlotKind, SlotInfo as CoreSlotInfo, SlotInfoTrait as _,
-    SlotKindType as CoreSlotKindType, SlotMarkUsedContext as CoreSlotMarkUsedContext,
-    SlotReleaseContext as CoreSlotReleaseContext,
+    ActivitySlotKind, LocalActivitySlotKind, PollerBehavior, SlotInfo as CoreSlotInfo,
+    SlotInfoTrait as _, SlotKindType as CoreSlotKindType,
+    SlotMarkUsedContext as CoreSlotMarkUsedContext, SlotReleaseContext as CoreSlotReleaseContext,
     SlotReservationContext as CoreSlotReservationContext, SlotSupplier as CoreSlotSupplier,
     SlotSupplierPermit as CoreSlotSupplierPermit, WorkflowSlotKind,
 };
@@ -282,7 +282,7 @@ pub fn worker_initiate_shutdown(worker: WorkerHandle) -> BridgeResult<()> {
 pub fn worker_finalize_shutdown(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let worker = cx.argument::<BoxedWorker>(0)?;
     let future = worker_finalize_shutdown_impl(worker).into_throw(&mut cx)?;
-    Ok(future.try_into_js(&mut cx)?)
+    future.try_into_js(&mut cx)
 }
 
 pub fn worker_finalize_shutdown_impl(
@@ -534,7 +534,7 @@ impl WorkerTuner {
 
         tuner_holder
             .build_tuner_holder()
-            .map(|tuner_holder| Arc::new(tuner_holder))
+            .map(Arc::new)
             .map_err(|e| format!("Invalid tuner options: {:?}", e))
     }
 }
@@ -661,18 +661,16 @@ impl<SK: SlotKind + Send + Sync + 'static> CoreSlotSupplier for SlotSupplierBrid
         let result = self.options.try_reserve_slot.call_and_block((reserve_ctx,));
 
         match result {
-            Ok(res) => {
-                return res.map(|permit| {
-                    CoreSlotSupplierPermit::with_user_data(BridgePermitData {
-                        permit: Arc::new(permit),
-                    })
-                });
-            }
+            Ok(res) => res.map(|permit| {
+                CoreSlotSupplierPermit::with_user_data(BridgePermitData {
+                    permit: Arc::new(permit),
+                })
+            }),
             Err(err) => {
                 log::warn!("Error reserving {} slot: {:?}", SK::kind(), err);
-                return None;
+                None
             }
-        };
+        }
     }
 
     fn mark_slot_used(&self, ctx: &dyn CoreSlotMarkUsedContext<SlotKind = Self::SlotKind>) {
@@ -823,9 +821,9 @@ impl TryIntoJs for SlotKindType {
     }
 }
 
-impl Into<SlotKindType> for CoreSlotKindType {
-    fn into(self) -> SlotKindType {
-        match self {
+impl From<CoreSlotKindType> for SlotKindType {
+    fn from(val: CoreSlotKindType) -> Self {
+        match val {
             CoreSlotKindType::Workflow => SlotKindType::Workflow,
             CoreSlotKindType::Activity => SlotKindType::Activity,
             CoreSlotKindType::LocalActivity => SlotKindType::LocalActivity,

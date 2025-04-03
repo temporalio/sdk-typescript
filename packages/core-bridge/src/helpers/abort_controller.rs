@@ -38,7 +38,7 @@ impl AbortController {
         )
     }
 
-    pub fn abort(&self, reason: impl Into<String>) -> () {
+    pub fn abort(&self, reason: impl Into<String>) {
         self.inner.abort(reason);
     }
 }
@@ -129,7 +129,7 @@ impl AbortControllerInner {
     }
 
     /// Immediately abort the `AbortController`, causing the JS side `signal` to fire.
-    fn abort(&self, reason: impl Into<String>) -> () {
+    fn abort(&self, reason: impl Into<String>) {
         let reason = reason.into();
         if let Ok(()) = self.aborted.set(reason.clone()) {
             // If we haven't created the JS AbortController yet, there's nothing to abort

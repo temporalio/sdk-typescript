@@ -36,6 +36,7 @@ import { withMetadata } from '@temporalio/worker/lib/logger';
 import { Activity } from '@temporalio/worker/lib/activity';
 import { native } from '@temporalio/core-bridge';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
+import { SearchAttributeKey } from '@temporalio/common/lib/search-attributes';
 import { Connection, TestService } from './connection';
 import pkg from './pkg';
 

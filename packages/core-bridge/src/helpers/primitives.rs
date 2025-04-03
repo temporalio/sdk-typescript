@@ -97,7 +97,7 @@ impl TryFromJs for f64 {
         cx: &mut impl Context<'cx>,
         js_value: Handle<'b, JsValue>,
     ) -> BridgeResult<Self> {
-        Ok(js_value.downcast::<JsNumber, _>(cx)?.value(cx) as f64)
+        Ok(js_value.downcast::<JsNumber, _>(cx)?.value(cx))
     }
 }
 
@@ -150,9 +150,8 @@ impl TryFromJs for Vec<u8> {
     ) -> BridgeResult<Self> {
         Ok(js_value
             .downcast::<JsBuffer, _>(cx)
-            .map_err(|e| {
+            .inspect_err(|_e| {
                 log_js_object(cx, &js_value);
-                e
             })?
             .as_slice(cx)
             .to_vec())
