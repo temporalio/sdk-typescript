@@ -365,6 +365,40 @@ function makeSetPatchMarker(myPatchId: string, deprecated: boolean): coresdk.wor
   };
 }
 
+function makeUpdateActivationJob(
+  id: string,
+  protocolInstanceId: string,
+  name: string,
+  input: unknown[]
+): coresdk.workflow_activation.IWorkflowActivationJob {
+  return {
+    doUpdate: {
+      id,
+      protocolInstanceId,
+      name,
+      input: toPayloads(defaultPayloadConverter, ...input),
+    },
+  };
+}
+
+function makeUpdateAcceptedResponse(id: string): coresdk.workflow_commands.IWorkflowCommand {
+  return {
+    updateResponse: {
+      protocolInstanceId: id,
+      accepted: {},
+    },
+  };
+}
+
+function makeUpdateCompleteResponse(id: string, result: unknown): coresdk.workflow_commands.IWorkflowCommand {
+  return {
+    updateResponse: {
+      protocolInstanceId: id,
+      completed: defaultPayloadConverter.toPayload(result),
+    },
+  };
+}
+
 test('random', async (t) => {
   const { logs, workflowType } = t.context;
   {
@@ -2404,23 +2438,9 @@ test('Signals/Updates/Activities/Timers - Trace promises completion order - pre-
       ...makeActivation(
         undefined,
         makeSignalWorkflowJob('aaSignal', ['signal1']),
-        {
-          doUpdate: {
-            id: 'first',
-            name: 'aaUpdate',
-            protocolInstanceId: '1',
-            input: toPayloads(defaultPayloadConverter, ['update1']),
-          },
-        },
+        makeUpdateActivationJob('first', '1', 'aaUpdate', ['update1']),
         makeSignalWorkflowJob('aaSignal', ['signal2']),
-        {
-          doUpdate: {
-            id: 'second',
-            name: 'aaUpdate',
-            protocolInstanceId: '2',
-            input: toPayloads(defaultPayloadConverter, ['update2']),
-          },
-        },
+        makeUpdateActivationJob('second', '2', 'aaUpdate', ['update2']),
         makeFireTimerJob(1),
         makeResolveActivityJob(1, { completed: {} })
       ),
@@ -2483,23 +2503,9 @@ test('Signals/Updates/Activities/Timers - Trace promises completion order - 1.11
       ...makeActivation(
         undefined,
         makeSignalWorkflowJob('aaSignal', ['signal1']),
-        {
-          doUpdate: {
-            id: 'first',
-            name: 'aaUpdate',
-            protocolInstanceId: '1',
-            input: toPayloads(defaultPayloadConverter, ['update1']),
-          },
-        },
+        makeUpdateActivationJob('first', '1', 'aaUpdate', ['update1']),
         makeSignalWorkflowJob('aaSignal', ['signal2']),
-        {
-          doUpdate: {
-            id: 'second',
-            name: 'aaUpdate',
-            protocolInstanceId: '2',
-            input: toPayloads(defaultPayloadConverter, ['update2']),
-          },
-        },
+        makeUpdateActivationJob('second', '2', 'aaUpdate', ['update2']),
         makeFireTimerJob(1),
         makeResolveActivityJob(1, { completed: {} })
       ),
@@ -2526,6 +2532,141 @@ test('Signals/Updates/Activities/Timers - Trace promises completion order - 1.11
           ),
         ],
         [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
+      )
+    );
+  }
+});
+
+test('Buffered updates are dispatched in the correct order - updatesOrdering', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(
+      t,
+      makeActivation(
+        undefined,
+        makeInitializeWorkflowJob(workflowType),
+        makeUpdateActivationJob('1', '1', 'non-existant', [1]),
+        makeUpdateActivationJob('2', '2', 'updateA', [2]),
+        makeUpdateActivationJob('3', '3', 'updateA', [3]),
+        makeUpdateActivationJob('4', '4', 'updateC', [4]),
+        makeUpdateActivationJob('5', '5', 'updateB', [5]),
+        makeUpdateActivationJob('6', '6', 'non-existant', [6]),
+        makeUpdateActivationJob('7', '7', 'updateB', [7])
+      )
+    );
+
+    // The activation above:
+    // - initializes the workflow
+    // - buffers all its updates (we attempt update jobs first, but since there are no handlers, they get buffered)
+    // - enters the workflow code
+    // - workflow code sets handler for updateA
+    //   - handler is registered for updateA
+    //   - we attempt to dispatch buffered updates
+    //     - buffered updates for handler A are *accepted* but not executed
+    //    (executing an update is a promise/async, so it instead goes on the node event queue)
+    // - we continue/re-enter the workflow code
+    // - ...and do the same pattern for updateB, the default update handler, the updateC
+    // - once updates have been accepted, node processes the waiting events in its queue (the waiting updates)
+    //   - these are processesed in FIFO order, so we get execution for updateA, then updateB, the default handler, then updateC
+
+    // As such, the expected order of these updates is the order that the handlers were registered.
+    // Note that because the default handler was registered *before* updateC, all remaining buffered updates were dispatched
+    // to it, including the update for updateC.
+
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess(
+        [
+          // FIFO accepted order
+          makeUpdateAcceptedResponse('2'),
+          makeUpdateAcceptedResponse('3'),
+          makeUpdateAcceptedResponse('5'),
+          makeUpdateAcceptedResponse('7'),
+          makeUpdateAcceptedResponse('1'),
+          makeUpdateAcceptedResponse('4'),
+          makeUpdateAcceptedResponse('6'),
+          // FIFO executed order
+          makeUpdateCompleteResponse('2', { handler: 'updateA', args: [2] }),
+          makeUpdateCompleteResponse('3', { handler: 'updateA', args: [3] }),
+          makeUpdateCompleteResponse('5', { handler: 'updateB', args: [5] }),
+          makeUpdateCompleteResponse('7', { handler: 'updateB', args: [7] }),
+          makeUpdateCompleteResponse('1', { handler: 'default', updateName: 'non-existant', args: [1] }),
+          // updateC handled by default handler.
+          makeUpdateCompleteResponse('4', { handler: 'default', updateName: 'updateC', args: [4] }),
+          makeUpdateCompleteResponse('6', { handler: 'default', updateName: 'non-existant', args: [6] }),
+          // No expected update response from updateC handler
+          makeCompleteWorkflowExecution(),
+        ]
+        // [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
+      )
+    );
+  }
+});
+
+test('Buffered updates are reentrant - updatesAreReentrant', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(
+      t,
+      makeActivation(
+        undefined,
+        makeInitializeWorkflowJob(workflowType),
+        makeUpdateActivationJob('1', '1', 'non-existant', [1]),
+        makeUpdateActivationJob('2', '2', 'updateA', [2]),
+        makeUpdateActivationJob('3', '3', 'updateA', [3]),
+        makeUpdateActivationJob('4', '4', 'updateC', [4]),
+        makeUpdateActivationJob('5', '5', 'updateB', [5]),
+        makeUpdateActivationJob('6', '6', 'non-existant', [6]),
+        makeUpdateActivationJob('7', '7', 'updateB', [7]),
+        makeUpdateActivationJob('8', '8', 'updateC', [8])
+      )
+    );
+
+    // The activation above:
+    // - initializes the workflow
+    // - buffers all its updates (we attempt update jobs first, but since there are no handlers, they get buffered)
+    // - enters the workflow code
+    // - workflow code sets handler for updateA
+    //   - handler is registered for updateA
+    //   - we attempt to dispatch buffered updates
+    //     - buffered updates for handler A are *accepted* but not executed
+    //    (executing an update is a promise/async, so it instead goes on the node event queue)
+    //  - however, there is no more workflow code, node dequues event queue and we immediately run the update handler
+    //    (we begin executing the update which...)
+    //    - deletes the current handler and registers the next one (updateB)
+    //  - this pattern repeats (updateA -> updateB -> updateC -> default) until there are no more updates to handle
+    //  - at this point, all updates have been accepted and are executing
+    //  - due to the call order in the workflow, the completion order of the updates follows the call stack, LIFO
+
+    // This workflow is interesting in that updates are accepted FIFO, but executed LIFO
+
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess(
+        [
+          // FIFO accepted order
+          makeUpdateAcceptedResponse('2'),
+          makeUpdateAcceptedResponse('5'),
+          makeUpdateAcceptedResponse('4'),
+          makeUpdateAcceptedResponse('1'),
+          makeUpdateAcceptedResponse('3'),
+          makeUpdateAcceptedResponse('7'),
+          makeUpdateAcceptedResponse('8'),
+          makeUpdateAcceptedResponse('6'),
+          // LIFO executed order
+          makeUpdateCompleteResponse('6', { handler: 'default', updateName: 'non-existant', args: [6] }),
+          makeUpdateCompleteResponse('8', { handler: 'updateC', args: [8] }),
+          makeUpdateCompleteResponse('7', { handler: 'updateB', args: [7] }),
+          makeUpdateCompleteResponse('3', { handler: 'updateA', args: [3] }),
+          makeUpdateCompleteResponse('1', { handler: 'default', updateName: 'non-existant', args: [1] }),
+          makeUpdateCompleteResponse('4', { handler: 'updateC', args: [4] }),
+          makeUpdateCompleteResponse('5', { handler: 'updateB', args: [5] }),
+          makeUpdateCompleteResponse('2', { handler: 'updateA', args: [2] }),
+          makeCompleteWorkflowExecution(),
+        ]
+        // [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
       )
     );
   }
