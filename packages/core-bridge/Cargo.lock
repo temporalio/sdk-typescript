@@ -204,6 +204,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bridge-macros"
+version = "0.1.0"
+dependencies = [
+ "convert_case",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -288,6 +298,15 @@ name = "constant_time_eq"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
+
+[[package]]
+name = "convert_case"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
+dependencies = [
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "core-foundation"
@@ -2683,11 +2702,12 @@ dependencies = [
 name = "temporal-sdk-typescript-bridge"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
+ "bridge-macros",
  "futures",
  "log",
  "neon",
- "once_cell",
  "opentelemetry 0.24.0",
  "parking_lot",
  "prost",
@@ -2695,6 +2715,7 @@ dependencies = [
  "serde_json",
  "temporal-client",
  "temporal-sdk-core",
+ "thiserror 2.0.12",
  "tokio",
  "tokio-stream",
 ]
@@ -3052,6 +3073,12 @@ name = "unicode-ident"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a5f39404a5da50712a4c1eecf25e90dd62b613502b7e925fd4e4d19b5c96512"
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6ccf251212114b54433ec949fd6a7841275f9ada20dddd2f29e9ceea4501493"
 
 [[package]]
 name = "unicode-xid"

@@ -1,7 +1,7 @@
 import { ExecutionContext } from 'ava';
-import { ResourceBasedTunerOptions } from '@temporalio/core-bridge';
 import {
   CustomSlotSupplier,
+  ResourceBasedTunerOptions,
   SlotInfo,
   SlotMarkUsedContext,
   SlotPermit,
@@ -252,15 +252,30 @@ class BlockingSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplier<SI
   aborts = 0;
 
   async reserveSlot(_: SlotReserveContext, abortSignal: AbortSignal): Promise<SlotPermit> {
-    abortSignal.throwIfAborted();
-    const abortPromise = new Promise<never>((_, reject) => {
-      abortSignal.addEventListener('abort', () => {
+    // Check if already aborted
+    if (abortSignal.aborted) {
+      this.aborts++;
+      throw abortSignal.reason;
+    }
+
+    return new Promise<SlotPermit>((resolve, reject) => {
+      // Set up abort listener
+      const abortHandler = () => {
         this.aborts++;
-        reject(abortSignal.reason);
-      });
+        reject(abortSignal.reason || new Error('Aborted'));
+      };
+
+      // Add the abort event listener
+      abortSignal.addEventListener('abort', abortHandler);
+
+      // This promise will never resolve - it's blocking forever
+      // In a real implementation, you'd resolve when a slot becomes available
+
+      // Clean up if somehow the promise does get resolved
+      return () => {
+        abortSignal.removeEventListener('abort', abortHandler);
+      };
     });
-    await abortPromise;
-    throw new Error('Should not reach here');
   }
 
   tryReserveSlot(_: SlotReserveContext): SlotPermit | null {

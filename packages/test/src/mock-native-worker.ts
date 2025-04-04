@@ -34,14 +34,14 @@ export type Task =
   | { activity: coresdk.activity_task.IActivityTask };
 
 export class MockNativeWorker implements NativeWorkerLike {
-  public readonly type = 'Worker';
+  public readonly type = 'worker';
   flushCoreLogs(): void {
     // noop
   }
-  activityTasks: Array<Promise<ArrayBuffer>> = [];
-  workflowActivations: Array<Promise<ArrayBuffer>> = [];
-  activityCompletionCallback?: (arr: ArrayBuffer) => void;
-  workflowCompletionCallback?: (arr: ArrayBuffer) => void;
+  activityTasks: Array<Promise<Buffer>> = [];
+  workflowActivations: Array<Promise<Buffer>> = [];
+  activityCompletionCallback?: (arr: Buffer) => void;
+  workflowCompletionCallback?: (arr: Buffer) => void;
   activityHeartbeatCallback?: (taskToken: Uint8Array, details: any) => void;
   reject?: (err: Error) => void;
   namespace = 'mock';
@@ -52,14 +52,14 @@ export class MockNativeWorker implements NativeWorkerLike {
   }
 
   public static async createReplay(): Promise<NativeReplayHandle> {
-    return { worker: new this(), historyPusher: { type: 'HistoryPusher' } };
+    return { worker: new this(), historyPusher: { type: 'history-pusher' } };
   }
 
   public async finalizeShutdown(): Promise<void> {
     // Nothing to do here
   }
 
-  public async initiateShutdown(): Promise<void> {
+  public initiateShutdown(): void {
     const shutdownErrorPromise = Promise.reject(new ShutdownError('Core is shut down'));
     shutdownErrorPromise.catch(() => {
       /* avoid unhandled rejection */
@@ -68,7 +68,7 @@ export class MockNativeWorker implements NativeWorkerLike {
     this.workflowActivations.unshift(shutdownErrorPromise);
   }
 
-  public async pollWorkflowActivation(): Promise<ArrayBuffer> {
+  public async pollWorkflowActivation(): Promise<Buffer> {
     for (;;) {
       const task = this.workflowActivations.pop();
       if (task !== undefined) {
@@ -78,7 +78,7 @@ export class MockNativeWorker implements NativeWorkerLike {
     }
   }
 
-  public async pollActivityTask(): Promise<ArrayBuffer> {
+  public async pollActivityTask(): Promise<Buffer> {
     for (;;) {
       const task = this.activityTasks.pop();
       if (task !== undefined) {
@@ -88,12 +88,12 @@ export class MockNativeWorker implements NativeWorkerLike {
     }
   }
 
-  public async completeWorkflowActivation(result: ArrayBuffer): Promise<void> {
+  public async completeWorkflowActivation(result: Buffer): Promise<void> {
     this.workflowCompletionCallback!(result);
     this.workflowCompletionCallback = undefined;
   }
 
-  public async completeActivityTask(result: ArrayBuffer): Promise<void> {
+  public async completeActivityTask(result: Buffer): Promise<void> {
     this.activityCompletionCallback!(result);
     this.activityCompletionCallback = undefined;
   }
@@ -116,7 +116,7 @@ export class MockNativeWorker implements NativeWorkerLike {
   ): Promise<coresdk.workflow_completion.WorkflowActivationCompletion> {
     const arr = coresdk.workflow_activation.WorkflowActivation.encode(activation).finish();
     const buffer = byteArrayToBuffer(arr);
-    const result = await new Promise<ArrayBuffer>((resolve) => {
+    const result = await new Promise<Buffer>((resolve) => {
       this.workflowCompletionCallback = resolve;
       this.workflowActivations.unshift(Promise.resolve(buffer));
     });
@@ -127,14 +127,14 @@ export class MockNativeWorker implements NativeWorkerLike {
     addActivityStartDefaults(task);
     const arr = coresdk.activity_task.ActivityTask.encode(task).finish();
     const buffer = byteArrayToBuffer(arr);
-    const result = await new Promise<ArrayBuffer>((resolve) => {
+    const result = await new Promise<Buffer>((resolve) => {
       this.activityCompletionCallback = resolve;
       this.activityTasks.unshift(Promise.resolve(buffer));
     });
     return coresdk.ActivityTaskCompletion.decodeDelimited(new Uint8Array(result));
   }
 
-  public recordActivityHeartbeat(buffer: ArrayBuffer): void {
+  public recordActivityHeartbeat(buffer: Buffer): void {
     const { taskToken, details } = coresdk.ActivityHeartbeat.decodeDelimited(new Uint8Array(buffer));
     const arg = fromPayloadsAtIndex(defaultPayloadConverter, 0, details);
     this.activityHeartbeatCallback!(taskToken, arg);
@@ -159,12 +159,13 @@ export class Worker extends RealWorker {
   }
 
   public constructor(workflowCreator: WorkflowCreator, opts: CompiledWorkerOptions) {
-    const logger = withMetadata(Runtime.instance().logger, {
+    const runtime = Runtime.instance();
+    const logger = withMetadata(runtime.logger, {
       sdkComponent: SdkComponent.worker,
       taskQueue: opts.taskQueue,
     });
     const nativeWorker = new MockNativeWorker();
-    super(nativeWorker, workflowCreator, opts, logger);
+    super(runtime, nativeWorker, workflowCreator, opts, logger);
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {

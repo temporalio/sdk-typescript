@@ -54,7 +54,7 @@ function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }) {
         recordedLogs![workflowId] ??= [];
         recordedLogs![workflowId].push(entry);
       })
-    : new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel);
+    : new DefaultLogger((process.env.TEST_LOG_LEVEL || 'WARN').toUpperCase() as LogLevel);
   Runtime.install({
     logger,
     telemetryOptions: {

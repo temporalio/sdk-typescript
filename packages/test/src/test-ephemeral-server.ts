@@ -69,6 +69,9 @@ test('TestEnvironment sets up dev server with db filename', async (t) => {
   try {
     const testEnv = await TestWorkflowEnvironment.createLocal({
       server: {
+        executable: {
+          type: 'cached-download',
+        },
         dbFilename,
       },
     });
@@ -123,5 +126,20 @@ test('TestEnvironment sets up dev server with custom ui port', async (t) => {
     t.pass();
   } finally {
     await testEnv.teardown();
+  }
+});
+
+test("TestEnvironment doesn't hang on fail to download", async (t) => {
+  try {
+    await TestWorkflowEnvironment.createLocal({
+      server: {
+        executable: {
+          type: 'cached-download',
+          version: '999.999.999',
+        },
+      },
+    });
+  } catch (_e) {
+    t.pass();
   }
 });
