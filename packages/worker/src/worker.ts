@@ -56,6 +56,7 @@ import * as native from '@temporalio/core-bridge';
 import { ShutdownError, UnexpectedError } from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
+import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
@@ -463,6 +464,7 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
+    throwIfReservedName('task queue', options.taskQueue);
     const logger = withMetadata(Runtime.instance().logger, {
       sdkComponent: SdkComponent.worker,
       taskQueue: options.taskQueue ?? 'default',
