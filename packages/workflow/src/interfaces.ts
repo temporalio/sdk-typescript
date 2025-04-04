@@ -12,11 +12,11 @@ import {
   VersioningIntent,
   TypedSearchAttributes,
   SearchAttributePair,
+  Priority,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
-import { coresdk, temporal } from '@temporalio/proto';
-import Priority = temporal.api.common.v1.Priority;
+import { coresdk } from '@temporalio/proto';
 
 /**
  * Workflow Execution information

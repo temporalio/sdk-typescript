@@ -70,10 +70,9 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Logger, Duration, LogLevel, LogMetadata } from '@temporalio/common';
+import { Logger, Duration, LogLevel, LogMetadata, Priority } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
-import { coresdk, temporal } from '@temporalio/proto';
 
 export {
   ActivityFunction,
@@ -202,7 +201,7 @@ export interface Info {
   /**
    * Priority for Activity
    */
-  readonly priority?: temporal.api.common.v1.Priority
+  readonly priority?: Priority;
 }
 
 /**

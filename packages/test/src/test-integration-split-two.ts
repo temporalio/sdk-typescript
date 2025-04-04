@@ -7,6 +7,7 @@ import {
   ApplicationFailure,
   defaultPayloadConverter,
   Payload,
+  Priority,
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
 } from '@temporalio/common';
@@ -75,7 +76,7 @@ test.macro(configMacro);
 //     workflowExecutionTimeout: '3s',
 //     workflowTaskTimeout: '1s',
 //     taskQueue: 'diff-task-queue',
-//     priority: Priority.create({ priorityKey: 1 })
+//     priority: new Priority(1),
 //   } as const;
 //   const handle = await startWorkflow(workflows.sleeper, options);
 //   async function fromPayload(payload: Payload) {
@@ -761,17 +762,20 @@ test('Priority', configMacro, async (t, config) =>  {
   const worker = await createWorkerWithDefaults(t);
   const options = {
     args: [false, 1],
-    priority: Priority.create({ priorityKey: 1 })
+    priority: new Priority(1),
   } as const;
   const handle = await startWorkflow(workflows.priorityWorkflow, options);
   await t.throwsAsync(worker.runUntil(handle.result()), {
     instanceOf: WorkflowFailedError,
     message: 'Workflow execution timed out',
   });
+  await handle.result();
   // const execution = await handle.describe();
   let firstChild = true;
   const history = await handle.fetchHistory();
+  console.log("events");
   for (const event of history?.events ?? []) {
+    console.log("\t", event)
     switch (event.eventType) {
       case temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED:
         t.deepEqual(

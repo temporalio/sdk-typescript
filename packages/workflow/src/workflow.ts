@@ -393,6 +393,7 @@ function startChildWorkflowExecutionNextHandler({
             : undefined,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
+        priority: options.priority,
       },
     });
     activator.completions.childWorkflowStart.set(seq, {

@@ -1,9 +1,9 @@
-import { coresdk, temporal } from '@temporalio/proto';
+import type { coresdk } from '@temporalio/proto';
 import { RetryPolicy } from './retry-policy';
 import { Duration } from './time';
 import { VersioningIntent } from './versioning-intent';
 import { makeProtoEnumConverters } from './internal-workflow';
-import Priority = temporal.api.common.v1.Priority;
+import { Priority } from './priority';
 
 export const ActivityCancellationType = {
   TRY_CANCEL: 'TRY_CANCEL',

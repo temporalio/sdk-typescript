@@ -32,6 +32,7 @@ import {
   ApplicationFailure,
   ensureApplicationFailure,
   TypedSearchAttributes,
+  Priority,
 } from '@temporalio/common';
 import {
   decodeArrayFromPayloads,
@@ -1305,7 +1306,7 @@ export class Worker {
         now: () => Date.now(), // re-set in initRuntime
         isReplaying: activation.isReplaying,
       },
-      priority: temporal.api.common.v1.Priority.create(priority || undefined),
+      priority: Priority.fromProto(initWorkflowJob.priority),
     };
     const logAttributes = workflowLogAttributes(workflowInfo);
     this.logger.trace('Creating workflow', logAttributes);
@@ -1900,7 +1901,7 @@ async function extractActivityInfo(
       start.currentAttemptScheduledTime,
       'currentAttemptScheduledTime'
     ),
-    priority: temporal.api.common.v1.Priority.create(start.priority),
+    priority: Priority.fromProto(start.priority),
   };
 }
 
