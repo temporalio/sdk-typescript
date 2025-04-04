@@ -4,6 +4,7 @@ import { RetryPolicy } from './retry-policy';
 import { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
 import { SearchAttributePair, SearchAttributes, TypedSearchAttributes } from './search-attributes';
+import { Priority } from './priority';
 
 /**
  * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
@@ -190,6 +191,11 @@ export interface BaseWorkflowOptions {
    * by {@link typedSearchAttributes}.
    */
   typedSearchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
+
+  /**
+   * Priority of a workflow
+   */
+  priority?: Priority;
 }
 
 export type WithWorkflowArgs<W extends Workflow, T> = T &

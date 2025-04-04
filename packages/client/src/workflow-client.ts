@@ -1225,6 +1225,7 @@ export class WorkflowClient extends BaseClient {
           : undefined,
       cronSchedule: options.cronSchedule,
       header: { fields: headers },
+      priority: options.priority,
     };
     try {
       return (await this.workflowService.signalWithStartWorkflowExecution(req)).runId;
@@ -1293,6 +1294,7 @@ export class WorkflowClient extends BaseClient {
           : undefined,
       cronSchedule: opts.cronSchedule,
       header: { fields: headers },
+      priority: opts.priority,
     };
   }
 
