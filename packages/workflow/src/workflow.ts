@@ -22,6 +22,7 @@ import {
   WorkflowReturnType,
   WorkflowUpdateValidatorType,
   SearchAttributeUpdatePair,
+  JsonPayloadConverter,
 } from '@temporalio/common';
 import {
   encodeUnifiedSearchAttributes,
@@ -39,6 +40,8 @@ import {
   SignalWorkflowInput,
   StartChildWorkflowExecutionInput,
   TimerInput,
+  UserMetadata,
+  WorkflowCommandOptions,
 } from './interceptors';
 import {
   ChildWorkflowCancellationType,
@@ -81,6 +84,27 @@ export function addDefaultWorkflowOptions<T extends Workflow>(
   };
 }
 
+function addUserMetadata(userMetadata?: UserMetadata): temporal.api.sdk.v1.IUserMetadata | undefined {
+  if (userMetadata == null) {
+    return undefined;
+  }
+
+  const jsonConverter = new JsonPayloadConverter();
+  return {
+    summary: jsonConverter.toPayload(userMetadata.summary),
+    details: jsonConverter.toPayload(userMetadata.details),
+  };
+}
+
+function addWorkflowCommandOptions(cmdOpts?: WorkflowCommandOptions): object {
+  if (cmdOpts == null) {
+    return {};
+  }
+  return {
+    userMetadata: addUserMetadata(cmdOpts.userMetadata),
+  };
+}
+
 /**
  * Push a startTimer command into state accumulator and register completion
  */
@@ -112,6 +136,7 @@ function timerNextHandler(input: TimerInput) {
         seq: input.seq,
         startToFireTimeout: msToTs(input.durationMs),
       },
+      ...addWorkflowCommandOptions(input.cmdOpts),
     });
     activator.completions.timer.set(input.seq, {
       resolve,
@@ -127,8 +152,9 @@ function timerNextHandler(input: TimerInput) {
  *
  * @param ms sleep duration - number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}.
  * If given a negative number or 0, value will be set to 1.
+ * @param summary a short summary/description of the timer. Can serve as a timer ID.
  */
-export function sleep(ms: Duration): Promise<void> {
+export function sleep(ms: Duration, summary?: string): Promise<void> {
   const activator = assertInWorkflowContext('Workflow.sleep(...) may only be used from a Workflow Execution');
   const seq = activator.nextSeqs.timer++;
 
@@ -139,6 +165,7 @@ export function sleep(ms: Duration): Promise<void> {
   return execute({
     durationMs,
     seq,
+    ...(summary !== undefined && { cmdOpts: { userMetadata: { summary } } }),
   });
 }
 
@@ -154,7 +181,14 @@ const validateLocalActivityOptions = validateActivityOptions;
 /**
  * Push a scheduleActivity command into activator accumulator and register completion
  */
-function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
+function scheduleActivityNextHandler({
+  options,
+  args,
+  headers,
+  seq,
+  activityType,
+  cmdOpts,
+}: ActivityInput): Promise<unknown> {
   const activator = getActivator();
   validateActivityOptions(options);
   return new Promise((resolve, reject) => {
@@ -194,6 +228,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
       },
+      ...addWorkflowCommandOptions(cmdOpts),
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -213,6 +248,7 @@ async function scheduleLocalActivityNextHandler({
   activityType,
   attempt,
   originalScheduleTime,
+  cmdOpts,
 }: LocalActivityInput): Promise<unknown> {
   const activator = getActivator();
   // Eagerly fail the local activity (which will in turn fail the workflow task.
@@ -259,6 +295,7 @@ async function scheduleLocalActivityNextHandler({
         headers,
         cancellationType: encodeActivityCancellationType(options.cancellationType),
       },
+      ...addWorkflowCommandOptions(cmdOpts),
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -271,7 +308,12 @@ async function scheduleLocalActivityNextHandler({
  * Schedule an activity and run outbound interceptors
  * @hidden
  */
-export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
+export function scheduleActivity<R>(
+  activityType: string,
+  args: any[],
+  options: ActivityOptions,
+  summary?: string
+): Promise<R> {
   const activator = assertInWorkflowContext(
     'Workflow.scheduleActivity(...) may only be used from a Workflow Execution'
   );
@@ -287,6 +329,7 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
     options,
     args,
     seq,
+    ...(summary !== undefined && { cmdOpts: { userMetadata: { summary } } }),
   }) as Promise<R>;
 }
 
@@ -297,7 +340,8 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
 export async function scheduleLocalActivity<R>(
   activityType: string,
   args: any[],
-  options: LocalActivityOptions
+  options: LocalActivityOptions,
+  summary?: string
 ): Promise<R> {
   const activator = assertInWorkflowContext(
     'Workflow.scheduleLocalActivity(...) may only be used from a Workflow Execution'
@@ -326,6 +370,7 @@ export async function scheduleLocalActivity<R>(
         seq,
         attempt,
         originalScheduleTime,
+        ...(summary !== undefined && { cmdOpts: { userMetadata: { summary } } }),
       })) as Promise<R>;
     } catch (err) {
       if (err instanceof LocalActivityDoBackoff) {
@@ -500,6 +545,18 @@ export type ActivityInterfaceFor<T> = {
 };
 
 /**
+ * Extends ActivityInterfaceFor to include the withSummaries method
+ */
+export type ActivityInterfaceWithSummaries<A> = ActivityInterfaceFor<A> & {
+  /**
+   * Provide descriptive summaries for activities
+   * @param summaries Record mapping activity names to their summary descriptions
+   * @returns A new proxy with the provided summaries
+   */
+  withSummaries(summaries: Record<string, string>): ActivityInterfaceFor<A>;
+};
+
+/**
  * Configure Activity functions with given {@link ActivityOptions}.
  *
  * This method may be called multiple times to setup Activities with different options.
@@ -515,6 +572,19 @@ export type ActivityInterfaceFor<T> = {
  * // Setup Activities from module exports
  * const { httpGet, otherActivity } = proxyActivities<typeof activities>({
  *   startToCloseTimeout: '30 minutes',
+ * });
+ *
+ * // Setup Activities with summaries for better observability
+ * const {
+ *   httpGet,
+ *   processData,
+ *   saveResults
+ * } = proxyActivities<typeof activities>({
+ *   startToCloseTimeout: '10m',
+ * }).withSummaries({
+ *   httpGet: 'Fetches data from external API',
+ *   processData: 'Processes the fetched data',
+ *   saveResults: 'Saves processed results to database'
  * });
  *
  * // Setup Activities from an explicit interface (e.g. when defined by another SDK)
@@ -537,25 +607,35 @@ export type ActivityInterfaceFor<T> = {
  * }
  * ```
  */
-export function proxyActivities<A = UntypedActivities>(options: ActivityOptions): ActivityInterfaceFor<A> {
+export function proxyActivities<A = UntypedActivities>(options: ActivityOptions): ActivityInterfaceWithSummaries<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
   // Validate as early as possible for immediate user feedback
   validateActivityOptions(options);
-  return new Proxy(
-    {},
-    {
-      get(_, activityType) {
-        if (typeof activityType !== 'string') {
-          throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
+
+  function createActivityProxy(summaries: Record<string, string> = {}): ActivityInterfaceWithSummaries<A> {
+    return new Proxy({} as ActivityInterfaceWithSummaries<A>, {
+      get(_, prop) {
+        if (prop === 'withSummaries') {
+          return function withSummaries(newSummaries: Record<string, string>): ActivityInterfaceWithSummaries<A> {
+            return createActivityProxy(newSummaries);
+          };
         }
+
+        if (typeof prop !== 'string') {
+          throw new TypeError(`Only strings are supported for Activity types, got: ${String(prop)}`);
+        }
+
         return function activityProxyFunction(...args: unknown[]): Promise<unknown> {
-          return scheduleActivity(activityType, args, options);
+          const summary = summaries[prop];
+          return scheduleActivity(prop, args, options, summary);
         };
       },
-    }
-  ) as any;
+    });
+  }
+
+  return createActivityProxy();
 }
 
 /**
@@ -568,25 +648,37 @@ export function proxyActivities<A = UntypedActivities>(options: ActivityOptions)
  *
  * @see {@link proxyActivities} for examples
  */
-export function proxyLocalActivities<A = UntypedActivities>(options: LocalActivityOptions): ActivityInterfaceFor<A> {
+export function proxyLocalActivities<A = UntypedActivities>(
+  options: LocalActivityOptions
+): ActivityInterfaceWithSummaries<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
   // Validate as early as possible for immediate user feedback
   validateLocalActivityOptions(options);
-  return new Proxy(
-    {},
-    {
-      get(_, activityType) {
-        if (typeof activityType !== 'string') {
-          throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
+
+  function createLocalActivityProxy(summaries: Record<string, string> = {}): ActivityInterfaceWithSummaries<A> {
+    return new Proxy({} as ActivityInterfaceWithSummaries<A>, {
+      get(_, prop) {
+        if (prop === 'withSummaries') {
+          return function withSummaries(newSummaries: Record<string, string>): ActivityInterfaceWithSummaries<A> {
+            return createLocalActivityProxy(newSummaries);
+          };
         }
-        return function localActivityProxyFunction(...args: unknown[]) {
-          return scheduleLocalActivity(activityType, args, options);
+
+        if (typeof prop !== 'string') {
+          throw new TypeError(`Only strings are supported for Activity types, got: ${String(prop)}`);
+        }
+
+        return function localActivityProxyFunction(...args: unknown[]): Promise<unknown> {
+          const summary = summaries[prop];
+          return scheduleLocalActivity(prop, args, options, summary);
         };
       },
-    }
-  ) as any;
+    });
+  }
+
+  return createLocalActivityProxy();
 }
 
 // TODO: deprecate this patch after "enough" time has passed
@@ -956,13 +1048,13 @@ export function makeContinueAsNewFunc<F extends Workflow>(
  * @example
  *
  * ```ts
- *import { continueAsNew } from '@temporalio/workflow';
-import { SearchAttributeType } from '@temporalio/common';
+ * import { continueAsNew } from '@temporalio/workflow';
+ * import { SearchAttributeType } from '@temporalio/common';
  *
- *export async function myWorkflow(n: number): Promise<void> {
- *  // ... Workflow logic
- *  await continueAsNew<typeof myWorkflow>(n + 1);
- *}
+ * export async function myWorkflow(n: number): Promise<void> {
+ *   // ... Workflow logic
+ *   await continueAsNew<typeof myWorkflow>(n + 1);
+ * }
  * ```
  */
 export function continueAsNew<F extends Workflow>(...args: Parameters<F>): Promise<never> {
@@ -1590,3 +1682,13 @@ export function allHandlersFinished(): boolean {
 export const stackTraceQuery = defineQuery<string>('__stack_trace');
 export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanced_stack_trace');
 export const workflowMetadataQuery = defineQuery<temporal.api.sdk.v1.IWorkflowMetadata>('__temporal_workflow_metadata');
+
+export function getCurrentDetails(): string {
+  const activator = assertInWorkflowContext('getCurrentDetails() may only be used from a Workflow Execution.');
+  return activator.currentDetails;
+}
+
+export function setCurrentDetails(details: string): void {
+  const activator = assertInWorkflowContext('getCurrentDetails() may only be used from a Workflow Execution.');
+  activator.currentDetails = details;
+}
