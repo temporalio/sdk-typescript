@@ -813,8 +813,9 @@ export class Worker {
       this.nativeWorker.initiateShutdown();
       this.state = 'DRAINING';
     } catch (error) {
-      // This is totally unexpected. If we reach this point, something horribly wrong in the Worker
-      // state, and attempt to shutdown gracefully will very likely hang. Just terminate immediately.
+      // This is totally unexpected. If we reach this point, there'ssomething horribly
+      // wrong with the Worker state, and attempt to shutdown gracefully will very
+      // likely hang. Just terminate immediately.
       this.logger.error('Failed to initiate shutdown', { error });
       this.instantTerminateErrorSubject.error(error);
     }

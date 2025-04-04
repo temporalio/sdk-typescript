@@ -18,8 +18,6 @@ import { MiB } from './utils';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 import { asNativeTuner, WorkerTuner } from './worker-tuner';
 
-// ddd /////////////////////////////////////////////////////////////////////////////////////////////
-
 /**
  * Options to configure the {@link Worker}
  *
@@ -529,6 +527,7 @@ export interface ReplayWorkerOptions
     | 'stickyQueueScheduleToStartTimeout'
     | 'maxCachedWorkflows'
     | 'useVersioning'
+    | ''
   > {
   /**
    *  A optional name for this replay worker. It will be combined with an incremental ID to form a unique
