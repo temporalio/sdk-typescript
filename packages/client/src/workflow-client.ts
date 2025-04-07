@@ -22,6 +22,7 @@ import {
   decodeRetryState,
   encodeWorkflowIdConflictPolicy,
   WorkflowIdConflictPolicy,
+  compilePriority,
 } from '@temporalio/common';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -1225,7 +1226,7 @@ export class WorkflowClient extends BaseClient {
           : undefined,
       cronSchedule: options.cronSchedule,
       header: { fields: headers },
-      priority: options.priority,
+      priority: options.priority ? compilePriority(options.priority) : undefined,
     };
     try {
       return (await this.workflowService.signalWithStartWorkflowExecution(req)).runId;
@@ -1294,7 +1295,7 @@ export class WorkflowClient extends BaseClient {
           : undefined,
       cronSchedule: opts.cronSchedule,
       header: { fields: headers },
-      priority: opts.priority,
+      priority: opts.priority ? compilePriority(opts.priority) : undefined,
     };
   }
 

@@ -32,7 +32,7 @@ import {
   ApplicationFailure,
   ensureApplicationFailure,
   TypedSearchAttributes,
-  Priority,
+  decodePriority,
 } from '@temporalio/common';
 import {
   decodeArrayFromPayloads,
@@ -1269,7 +1269,7 @@ export class Worker {
       cronSchedule,
       workflowExecutionExpirationTime,
       cronScheduleToScheduleInterval,
-      priority
+      priority,
     } = initWorkflowJob;
 
     // Note that we can't do payload convertion here, as there's no guarantee that converted payloads would be safe to
@@ -1306,7 +1306,7 @@ export class Worker {
         now: () => Date.now(), // re-set in initRuntime
         isReplaying: activation.isReplaying,
       },
-      priority: Priority.fromProto(initWorkflowJob.priority),
+      priority: decodePriority(priority),
     };
     const logAttributes = workflowLogAttributes(workflowInfo);
     this.logger.trace('Creating workflow', logAttributes);
@@ -1901,7 +1901,7 @@ async function extractActivityInfo(
       start.currentAttemptScheduledTime,
       'currentAttemptScheduledTime'
     ),
-    priority: Priority.fromProto(start.priority),
+    priority: decodePriority(start.priority),
   };
 }
 

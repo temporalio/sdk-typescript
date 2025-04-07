@@ -1,5 +1,4 @@
-// TODO: type import here?
-import { temporal } from '@temporalio/proto';
+import type { temporal } from '@temporalio/proto';
 
 /**
  * Priority contains metadata that controls relative ordering of task processing when tasks are
@@ -14,7 +13,7 @@ import { temporal } from '@temporalio/proto';
  * 1. First, consider "priority_key": lower number goes first.
  * (more will be added here later)
  */
-export class Priority {
+export interface Priority {
   /**
    * Priority key is a positive integer from 1 to n, where smaller integers
    * correspond to higher priorities (tasks run sooner). In general, tasks in
@@ -26,35 +25,30 @@ export class Priority {
    *
    * The default priority is (min+max)/2. With the default max of 5 and min of 1, that comes out to 3.
    */
-  public readonly priorityKey?: number;
+  priorityKey?: number;
+}
 
-  static readonly default = new Priority(undefined);
+/**
+ * Turn a proto compatible Priority into a TS Priority
+ */
+export function decodePriority(proto: temporal.api.common.v1.IPriority | null | undefined): Priority {
+  return { priorityKey: proto?.priorityKey ?? undefined };
+}
 
-  constructor(priorityKey?: number) {
-    if (priorityKey !== undefined && priorityKey !== null) {
-      if (!Number.isInteger(priorityKey)) {
-        throw new TypeError('priorityKey must be an integer');
-      }
-      if (priorityKey < 1) {
-        throw new RangeError('priorityKey must be a positive integer');
-      }
+/**
+ * Turn a TS Priority into a proto compatible Priority
+ */
+export function compilePriority(priority: Priority): temporal.api.common.v1.IPriority {
+  if (priority.priorityKey !== undefined && priority.priorityKey !== null) {
+    if (!Number.isInteger(priority.priorityKey)) {
+      throw new TypeError('priorityKey must be an integer');
     }
-    this.priorityKey = priorityKey ?? undefined;
+    if (priority.priorityKey < 1) {
+      throw new RangeError('priorityKey must be a positive integer');
+    }
   }
 
-  /**
-   * Create a `Priority` instance from the protobuf message.
-   */
-  static fromProto(proto: temporal.api.common.v1.IPriority | null | undefined): Priority {
-    return new Priority(proto?.priorityKey ?? undefined);
-  }
-
-  /**
-   * Convert this instance to a protobuf message.
-   */
-  toProto(): temporal.api.common.v1.Priority {
-    return temporal.api.common.v1.Priority.create({
-      priorityKey: this.priorityKey ?? 0,
-    });
-  }
+  return {
+    priorityKey: priority.priorityKey ?? 0,
+  };
 }
