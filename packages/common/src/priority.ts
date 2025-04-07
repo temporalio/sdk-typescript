@@ -31,8 +31,8 @@ export interface Priority {
 /**
  * Turn a proto compatible Priority into a TS Priority
  */
-export function decodePriority(proto: temporal.api.common.v1.IPriority | null | undefined): Priority {
-  return { priorityKey: proto?.priorityKey ?? undefined };
+export function decodePriority(priority?: temporal.api.common.v1.IPriority | null): Priority {
+  return { priorityKey: priority?.priorityKey ?? undefined };
 }
 
 /**

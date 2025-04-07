@@ -133,7 +133,7 @@ if (RUN_INTEGRATION_TESTS) {
       unsafe: {
         isReplaying: false,
       } as UnsafeWorkflowInfo,
-      priority: undefined,
+      priority: {},
     };
 
     t.deepEqual(recordedCalls, [
