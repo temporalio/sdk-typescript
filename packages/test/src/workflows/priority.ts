@@ -1,5 +1,4 @@
 import { executeChild, proxyActivities, startChild, workflowInfo } from '@temporalio/workflow';
-import { Priority } from '@temporalio/common';
 import type * as activities from '../activities';
 
 const { echo } = proxyActivities<typeof activities>({ startToCloseTimeout: '5s', priority: { priorityKey: 5 } });

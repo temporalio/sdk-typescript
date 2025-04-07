@@ -43,7 +43,7 @@ export function compilePriority(priority: Priority): temporal.api.common.v1.IPri
     if (!Number.isInteger(priority.priorityKey)) {
       throw new TypeError('priorityKey must be an integer');
     }
-    if (priority.priorityKey < 1) {
+    if (priority.priorityKey < 0) {
       throw new RangeError('priorityKey must be a positive integer');
     }
   }
