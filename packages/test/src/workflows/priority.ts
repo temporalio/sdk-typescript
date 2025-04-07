@@ -6,6 +6,9 @@ const { echo } = proxyActivities<typeof activities>({ startToCloseTimeout: '5s',
 
 export async function priorityWorkflow(stopAfterCheck: boolean, expectedPriority: number | undefined): Promise<void> {
   const info = workflowInfo();
+  if (!info.priority) {
+    throw new Error(`undefined priority`);
+  }
   if (info.priority?.priorityKey !== expectedPriority) {
     throw new Error(
       `workflow priority ${info.priority?.priorityKey} doesn't match expected priority ${expectedPriority}`
