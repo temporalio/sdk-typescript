@@ -69,7 +69,7 @@ import {
 } from './replay';
 import { History, Runtime } from './runtime';
 import { CloseableGroupedObservable, closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
-import { byteArrayToBuffer, convertToParentWorkflowType, convertToRootWorkflowType } from './utils';
+import { byteArrayToBuffer, convertDeploymentVersion, convertToParentWorkflowType, convertToRootWorkflowType } from './utils';
 import {
   CompiledWorkerOptions,
   CompiledWorkerOptionsWithBuildId,
@@ -1292,7 +1292,8 @@ export class Worker {
       // A zero value means that it was not set by the server
       historySize: activation.historySizeBytes.toNumber(),
       continueAsNewSuggested: activation.continueAsNewSuggested,
-      currentBuildId: activation.buildIdForCurrentTask,
+      currentBuildId: activation.deploymentVersionForCurrentTask?.buildId ?? '',
+      currentDeploymentVersion: convertDeploymentVersion(activation.deploymentVersionForCurrentTask),
       unsafe: {
         now: () => Date.now(), // re-set in initRuntime
         isReplaying: activation.isReplaying,
