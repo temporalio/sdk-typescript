@@ -1,3 +1,4 @@
+import { WorkerDeploymentVersion } from '@temporalio/common';
 import type { coresdk, temporal } from '@temporalio/proto';
 import { IllegalStateError, ParentWorkflowInfo, RootWorkflowInfo } from '@temporalio/workflow';
 
@@ -26,6 +27,19 @@ export function convertToParentWorkflowType(
     workflowId: parent.workflowId,
     runId: parent.runId,
     namespace: parent.namespace,
+  };
+}
+
+export function convertDeploymentVersion(
+  v: coresdk.common.IWorkerDeploymentVersion | null | undefined
+): WorkerDeploymentVersion | undefined {
+  if (!v) {
+    return undefined;
+  }
+
+  return {
+    buildId: v.buildId ?? '',
+    deploymentName: v.deploymentName ?? '',
   };
 }
 

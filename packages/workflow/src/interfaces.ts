@@ -12,6 +12,7 @@ import {
   TypedSearchAttributes,
   SearchAttributePair,
   Priority,
+  WorkerDeploymentVersion,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -195,8 +196,19 @@ export interface WorkflowInfo {
    * task was completed by a worker without a Build ID. If this worker is the one executing this
    * task for the first time and has a Build ID set, then its ID will be used. This value may change
    * over the lifetime of the workflow run, but is deterministic and safe to use for branching.
+   *
+   * @deprecated Use `currentDeploymentVersion` instead
    */
   readonly currentBuildId?: string;
+
+  /**
+   * The Deployment Version of the worker which executed the current Workflow Task. May be undefined
+   * if the task was completed by a worker without a Deployment Version. If this worker is the one
+   * executing this task for the first time and has a Deployment Version set, then its ID will be
+   * used. This value may change over the lifetime of the workflow run, but is deterministic and
+   * safe to use for branching.
+   */
+  readonly currentDeploymentVersion?: WorkerDeploymentVersion;
 
   readonly unsafe: UnsafeWorkflowInfo;
 
