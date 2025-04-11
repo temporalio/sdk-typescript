@@ -8,26 +8,30 @@ use neon::{
 use slot_supplier_bridge::SlotSupplierBridge;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use temporal_client::HttpConnectProxyOptions;
-use temporal_sdk_core::api::{
-    telemetry::{HistogramBucketOverrides, OtlpProtocol},
-    worker::{PollerBehavior, SlotKind},
-};
 use temporal_sdk_core::{
     ClientOptions, ClientOptionsBuilder, ClientTlsConfig, ResourceBasedSlotsOptions,
     ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions, RetryConfig, SlotSupplierOptions,
     TlsConfig, TunerHolderOptionsBuilder, Url,
-    api::telemetry::{Logger, MetricTemporality, TelemetryOptions, TelemetryOptionsBuilder},
     api::{
         telemetry::{
-            OtelCollectorOptionsBuilder, PrometheusExporterOptionsBuilder, metrics::CoreMeter,
+            Logger, MetricTemporality, OtelCollectorOptionsBuilder,
+            PrometheusExporterOptionsBuilder, TelemetryOptions, TelemetryOptionsBuilder,
+            metrics::CoreMeter,
         },
-        worker::{WorkerConfig, WorkerConfigBuilder},
+        worker::{WorkerConfig, WorkerConfigBuilder, WorkerDeploymentVersion},
     },
     ephemeral_server::{
         TemporalDevServerConfig, TemporalDevServerConfigBuilder, TestServerConfig,
         TestServerConfigBuilder,
     },
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
+};
+use temporal_sdk_core::{
+    api::{
+        telemetry::{HistogramBucketOverrides, OtlpProtocol},
+        worker::{PollerBehavior, SlotKind, WorkerDeploymentOptions, WorkerVersioningStrategy},
+    },
+    protos::temporal::api::enums::v1::VersioningBehavior,
 };
 
 mod slot_supplier_bridge;
@@ -517,10 +521,48 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             return cx.throw_error("Missing tuner");
         };
 
+        let build_id = js_value_getter!(cx, self, "buildId", JsString);
+        let use_worker_versioning = js_value_getter!(cx, self, "useVersioning", JsBoolean);
+        let deployment_options = js_optional_getter!(cx, self, "workerDeploymentOptions", JsObject);
+
+        let versioning_strategy = if let Some(dopts) = deployment_options {
+            let use_worker_versioning =
+                js_value_getter!(cx, &dopts, "useWorkerVersioning", JsBoolean);
+            let default_versioning_behavior =
+                js_optional_value_getter!(cx, &dopts, "defaultVersioningBehavior", JsString);
+            let default_versioning_behavior = match default_versioning_behavior.as_deref() {
+                Some("pinned") => Some(VersioningBehavior::Pinned),
+                Some("auto-upgrade") => Some(VersioningBehavior::AutoUpgrade),
+                None => None,
+                _ => return cx.throw_error("Invalid default versioning behavior"),
+            };
+            let version = {
+                let wdv = js_getter!(cx, &dopts, "version", JsObject);
+                let build_id = js_value_getter!(cx, &wdv, "buildId", JsString);
+                let deployment_name = js_value_getter!(cx, &wdv, "deploymentName", JsString);
+                WorkerDeploymentVersion {
+                    build_id,
+                    deployment_name,
+                }
+            };
+            WorkerVersioningStrategy::WorkerDeploymentBased(WorkerDeploymentOptions {
+                version,
+                use_worker_versioning,
+                default_versioning_behavior,
+            })
+        } else if use_worker_versioning && !build_id.is_empty() {
+            WorkerVersioningStrategy::LegacyBuildIdBased { build_id }
+        } else if !build_id.is_empty() {
+            WorkerVersioningStrategy::None { build_id }
+        } else {
+            WorkerVersioningStrategy::None {
+                build_id: "".to_string(),
+            }
+        };
+
         match WorkerConfigBuilder::default()
-            .worker_build_id(js_value_getter!(cx, self, "buildId", JsString))
+            .versioning_strategy(versioning_strategy)
             .client_identity_override(Some(js_value_getter!(cx, self, "identity", JsString)))
-            .use_worker_versioning(js_value_getter!(cx, self, "useVersioning", JsBoolean))
             .no_remote_activities(!enable_remote_activities)
             .tuner(tuner)
             .workflow_task_poller_behavior(PollerBehavior::SimpleMaximum(max_concurrent_wft_polls))
