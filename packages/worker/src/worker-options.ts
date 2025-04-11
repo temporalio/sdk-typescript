@@ -1,7 +1,13 @@
 import * as os from 'node:os';
 import * as v8 from 'node:v8';
 import type { Configuration as WebpackConfiguration } from 'webpack';
-import { ActivityFunction, DataConverter, LoadedDataConverter } from '@temporalio/common';
+import {
+  ActivityFunction,
+  DataConverter,
+  LoadedDataConverter,
+  VersioningBehavior,
+  WorkerDeploymentVersion,
+} from '@temporalio/common';
 import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
@@ -99,6 +105,7 @@ export interface WorkerOptions {
    * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
    *
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+   * @deprecated Use {@link deploymentVersion} instead.
    */
   buildId?: string;
 
@@ -110,8 +117,31 @@ export interface WorkerOptions {
    * For more information, see https://docs.temporal.io/workers#worker-versioning
    *
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+   * @deprecated Use {@link deploymentVersion} instead.
    */
   useVersioning?: boolean;
+
+  /**
+   * Deployment options for the worker. Exclusive with `build_id` and `use_worker_versioning`.
+
+   * @experimental Deployment based versioning is still experimental.
+   */
+  workerDeploymentOptions?: {
+    /**
+     * The deployment version of the worker.
+     */
+    version: WorkerDeploymentVersion;
+
+    /**
+     * Whether to use deployment-based worker versioning.
+     */
+    useWorkerVersioning: boolean;
+
+    /**
+     * If specified, the default versioning behavior to use for all workflows on this worker.
+     */
+    defaultVersioningBehavior?: VersioningBehavior;
+  };
 
   /**
    * The namespace this worker will connect to

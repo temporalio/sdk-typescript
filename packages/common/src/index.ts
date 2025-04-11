@@ -22,6 +22,7 @@ export * from './logger';
 export * from './priority';
 export * from './retry-policy';
 export type { Timestamp, Duration, StringValue } from './time';
+export * from './worker-deployments';
 export * from './workflow-handle';
 export * from './workflow-options';
 export * from './versioning-intent';
