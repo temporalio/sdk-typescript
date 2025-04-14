@@ -14,6 +14,7 @@ import {
   SearchAttributePair,
   Priority,
   WorkerDeploymentVersion,
+  VersioningBehavior,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -610,4 +611,21 @@ export type UpdateHandlerOptions<Args extends any[]> = {
 export interface ActivationCompletion {
   commands: coresdk.workflow_commands.IWorkflowCommand[];
   usedInternalFlags: number[];
+}
+
+/**
+ * Options that can be used when defining a workflow via {@link defineWorkflowWithOptions}.
+ */
+export interface WorkflowDefinitionOptions {
+  versioningBehavior?: VersioningBehavior;
+}
+
+type AsyncFunction<Args extends any[], ReturnType> = (...args: Args) => Promise<ReturnType>;
+
+/**
+ * A workflow function that has been defined with options from {@link WorkflowDefinitionOptions}.
+ */
+export interface WorkflowFunctionWithOptions<Args extends any[], ReturnType> extends AsyncFunction<Args, ReturnType> {
+  __temporal_is_workflow_function_with_options: true;
+  options: WorkflowDefinitionOptions;
 }

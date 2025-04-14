@@ -58,6 +58,8 @@ import {
   encodeChildWorkflowCancellationType,
   encodeParentClosePolicy,
   DefaultQueryHandler,
+  WorkflowDefinitionOptions,
+  WorkflowFunctionWithOptions,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
@@ -1588,6 +1590,22 @@ export function upsertMemo(memo: Record<string, unknown>): void {
 export function allHandlersFinished(): boolean {
   const activator = assertInWorkflowContext('allHandlersFinished() may only be used from a Workflow Execution.');
   return activator.inProgressSignals.size === 0 && activator.inProgressUpdates.size === 0;
+}
+
+/**
+* Can be used to define workflow functions with certain options specified at definition time.
+
+* @param options Options for the workflow defintion.
+* @param fn The workflow function.
+* @returns The same passed in workflow function, with the specified options applied. You can export
+* this function to make it available as a workflow function.
+*/
+export function defineWorkflowWithOptions<A extends any[], RT>(
+  options: WorkflowDefinitionOptions,
+  fn: (...args: A) => Promise<RT>
+): WorkflowFunctionWithOptions<A, RT> {
+  const wrappedFn = Object.assign(fn, { options, __temporal_is_workflow_function_with_options: true as const });
+  return wrappedFn;
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');
