@@ -20,6 +20,8 @@ import {
   WorkflowUpdateValidatorType,
   mapFromPayloads,
   fromPayloadsAtIndex,
+  WorkflowFunctionWithOptions,
+  VersioningBehavior,
 } from '@temporalio/common';
 import {
   decodeSearchAttributes,
@@ -27,7 +29,7 @@ import {
 } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
-import type { coresdk, temporal } from '@temporalio/proto';
+import { coresdk, temporal } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
@@ -382,7 +384,7 @@ export class Activator implements ActivationHandler {
   /**
    * Reference to the current Workflow, initialized when a Workflow is started
    */
-  public workflow?: Workflow;
+  public workflow?: Workflow | WorkflowFunctionWithOptions<any[], any>;
 
   /**
    * Information about the current Workflow
@@ -423,6 +425,8 @@ export class Activator implements ActivationHandler {
   public readonly getTimeOfDay: () => bigint;
 
   public readonly registeredActivityNames: Set<string>;
+
+  public versioningBehavior?: VersioningBehavior;
 
   constructor({
     info,
@@ -493,9 +497,16 @@ export class Activator implements ActivationHandler {
   }
 
   concludeActivation(): ActivationCompletion {
+    let versioningBehavior;
+    if (this.versioningBehavior === 'auto-upgrade') {
+      versioningBehavior = temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_AUTO_UPGRADE;
+    } else if (this.versioningBehavior === 'pinned') {
+      versioningBehavior = temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED;
+    }
     return {
       commands: this.commands.splice(0),
       usedInternalFlags: [...this.knownFlags],
+      versioningBehavior: versioningBehavior,
     };
   }
 

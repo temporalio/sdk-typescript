@@ -4,8 +4,12 @@
  * @experimental Worker deployments are experimental
  */
 export interface WorkerDeploymentVersion {
-  buildId: string;
-  deploymentName: string;
+  readonly buildId: string;
+  readonly deploymentName: string;
+}
+
+export function toCanonicalString(version: WorkerDeploymentVersion): string {
+  return `${version.deploymentName}.${version.buildId}`;
 }
 
 export type VersioningBehavior = 'pinned' | 'auto-upgrade';
