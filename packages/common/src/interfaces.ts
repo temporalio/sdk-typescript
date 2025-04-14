@@ -1,4 +1,5 @@
 import type { temporal } from '@temporalio/proto';
+import { WorkflowFunctionWithOptions } from './workflow-definition-options';
 
 export type Payload = temporal.api.common.v1.IPayload;
 

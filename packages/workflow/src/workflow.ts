@@ -58,13 +58,12 @@ import {
   encodeChildWorkflowCancellationType,
   encodeParentClosePolicy,
   DefaultQueryHandler,
-  WorkflowDefinitionOptions,
-  WorkflowFunctionWithOptions,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
 import { untrackPromise } from './stack-helpers';
 import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
+import { WorkflowDefinitionOptions, WorkflowFunctionWithOptions } from '@temporalio/common';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
@@ -1604,7 +1603,10 @@ export function defineWorkflowWithOptions<A extends any[], RT>(
   options: WorkflowDefinitionOptions,
   fn: (...args: A) => Promise<RT>
 ): WorkflowFunctionWithOptions<A, RT> {
-  const wrappedFn = Object.assign(fn, { options, __temporal_is_workflow_function_with_options: true as const });
+  const wrappedFn = Object.assign(fn, {
+    options,
+    __temporal_is_workflow_function_with_options: true as const,
+  });
   return wrappedFn;
 }
 
