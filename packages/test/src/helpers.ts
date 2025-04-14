@@ -11,6 +11,7 @@ import { Payload, PayloadCodec } from '@temporalio/common';
 import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 import * as iface from '@temporalio/proto';
 import {
+  ExistingServerTestWorkflowEnvironmentOptions,
   LocalTestWorkflowEnvironmentOptions,
   TestWorkflowEnvironment as RealTestWorkflowEnvironment,
   TimeSkippingTestWorkflowEnvironmentOptions,
@@ -212,6 +213,12 @@ export class TestWorkflowEnvironment extends RealTestWorkflowEnvironment {
           }
         : undefined),
     });
+  }
+
+  static async createExistingServer(
+    opts?: ExistingServerTestWorkflowEnvironmentOptions
+  ): Promise<TestWorkflowEnvironment> {
+    return RealTestWorkflowEnvironment.createExistingServer(opts);
   }
 }
 
