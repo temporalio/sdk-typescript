@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { IllegalStateError } from '@temporalio/common';
+import { IllegalStateError, isWorkflowFunctionWithOptions } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
@@ -79,7 +79,10 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
     const workflowFn = mod[activator.info.workflowType];
     const defaultWorkflowFn = mod['default'];
 
-    if (typeof workflowFn === 'function') {
+    if (isWorkflowFunctionWithOptions(workflowFn)) {
+      activator.workflow = workflowFn;
+      activator.versioningBehavior = workflowFn.options.versioningBehavior;
+    } else if (typeof workflowFn === 'function') {
       activator.workflow = workflowFn;
     } else if (typeof defaultWorkflowFn === 'function') {
       activator.workflow = defaultWorkflowFn;
