@@ -130,7 +130,7 @@ export type ClientOptionsForTestEnv = Omit<ClientOptions, 'namespace' | 'connect
  * Options for {@link TestWorkflowEnvironment.create}
  */
 export type TestWorkflowEnvironmentOptions = {
-  server: EphemeralServerConfig;
+  server?: EphemeralServerConfig;
   client?: ClientOptionsForTestEnv;
 };
 
@@ -150,7 +150,17 @@ export type LocalTestWorkflowEnvironmentOptions = {
   client?: ClientOptionsForTestEnv;
 };
 
-export type TestWorkflowEnvironmentOptionsWithDefaults = Required<TestWorkflowEnvironmentOptions>;
+/**
+ * Options for {@link TestWorkflowEnvironment.createExistingServer}
+ */
+export type ExistingServerTestWorkflowEnvironmentOptions = {
+  /** If not set, defaults to localhost:7233 */
+  address?: string;
+  client?: ClientOptions;
+};
+
+export type TestWorkflowEnvironmentOptionsWithDefaults = Required<Pick<TestWorkflowEnvironmentOptions, 'client'>> &
+  TestWorkflowEnvironmentOptions;
 
 function addDefaults(opts: TestWorkflowEnvironmentOptions): TestWorkflowEnvironmentOptionsWithDefaults {
   return {
@@ -204,7 +214,7 @@ export class TestWorkflowEnvironment {
   protected constructor(
     public readonly options: TestWorkflowEnvironmentOptionsWithDefaults,
     public readonly supportsTimeSkipping: boolean,
-    protected readonly server: EphemeralServer,
+    protected readonly server: EphemeralServer | undefined,
     connection: Connection,
     nativeConnection: NativeConnection,
     namespace: string | undefined
@@ -241,7 +251,7 @@ export class TestWorkflowEnvironment {
    * environment, not to the workflow under test. We highly recommend running tests serially when using a single
    * environment or creating a separate environment per test.
    *
-   * By default, the latest release of the Test Serveer will be downloaded and cached to a temporary directory
+   * By default, the latest release of the Test Server will be downloaded and cached to a temporary directory
    * (e.g. `$TMPDIR/temporal-test-server-sdk-typescript-*` or `%TEMP%/temporal-test-server-sdk-typescript-*.exe`). Note
    * that existing cached binairies will be reused without validation that they are still up-to-date, until the SDK
    * itself is updated. Alternatively, a specific version number of the Test Server may be provided, or the path to an
@@ -292,6 +302,17 @@ export class TestWorkflowEnvironment {
     });
   }
 
+  static async createExistingServer(
+    opts?: ExistingServerTestWorkflowEnvironmentOptions
+  ): Promise<TestWorkflowEnvironment> {
+    return await this.create({
+      server: undefined,
+      client: opts?.client,
+      namespace: opts?.client?.namespace ?? 'default',
+      supportsTimeSkipping: false,
+    });
+  }
+
   /**
    * Create a new test environment
    */
@@ -299,24 +320,31 @@ export class TestWorkflowEnvironment {
     opts: TestWorkflowEnvironmentOptions & {
       supportsTimeSkipping: boolean;
       namespace?: string;
+      address?: string;
     }
   ): Promise<TestWorkflowEnvironment> {
     const { supportsTimeSkipping, namespace, ...rest } = opts;
     const optsWithDefaults = addDefaults(filterNullAndUndefined(rest));
 
-    // Add search attributes to CLI server arguments
-    if ('searchAttributes' in optsWithDefaults.server && optsWithDefaults.server.searchAttributes) {
-      let newArgs: string[] = [];
-      for (const { name, type } of optsWithDefaults.server.searchAttributes) {
-        newArgs.push('--search-attribute');
-        newArgs.push(`${name}=${TypedSearchAttributes.toMetadataType(type)}`);
+    let address: string;
+    let server: EphemeralServer | undefined;
+    if (optsWithDefaults.server !== undefined) {
+      // Add search attributes to CLI server arguments
+      if ('searchAttributes' in optsWithDefaults.server && optsWithDefaults.server.searchAttributes) {
+        let newArgs: string[] = [];
+        for (const { name, type } of optsWithDefaults.server.searchAttributes) {
+          newArgs.push('--search-attribute');
+          newArgs.push(`${name}=${TypedSearchAttributes.toMetadataType(type)}`);
+        }
+        newArgs = newArgs.concat(optsWithDefaults.server.extraArgs ?? []);
+        optsWithDefaults.server.extraArgs = newArgs;
       }
-      newArgs = newArgs.concat(optsWithDefaults.server.extraArgs ?? []);
-      optsWithDefaults.server.extraArgs = newArgs;
-    }
 
-    const server = await Runtime.instance().createEphemeralServer(optsWithDefaults.server);
-    const address = getEphemeralServerTarget(server);
+      server = await Runtime.instance().createEphemeralServer(optsWithDefaults.server);
+      address = getEphemeralServerTarget(server);
+    } else {
+      address = opts.address ?? 'localhost:7233';
+    }
 
     const nativeConnection = await NativeConnection.connect({ address });
     const connection = await Connection.connect({ address });
@@ -330,7 +358,9 @@ export class TestWorkflowEnvironment {
   async teardown(): Promise<void> {
     await this.connection.close();
     await this.nativeConnection.close();
-    await Runtime.instance().shutdownEphemeralServer(this.server);
+    if (this.server !== undefined) {
+      await Runtime.instance().shutdownEphemeralServer(this.server);
+    }
   }
 
   /**

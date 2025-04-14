@@ -140,7 +140,14 @@ export function makeTestFunction(opts: {
   return makeConfigurableEnvironmentTestFn<Context>({
     recordedLogs: opts.recordedLogs,
     createTestContext: async (_t: ExecutionContext): Promise<Context> => {
-      const env = await createLocalTestEnvironment(opts.workflowEnvironmentOpts);
+      let env: TestWorkflowEnvironment;
+      if (process.env.TEMPORAL_SERVICE_ADDRESS) {
+        env = await TestWorkflowEnvironment.createExistingServer({
+          address: process.env.TEMPORAL_SERVICE_ADDRESS,
+        });
+      } else {
+        env = await createLocalTestEnvironment(opts.workflowEnvironmentOpts);
+      }
       return {
         workflowBundle: await createTestWorkflowBundle({
           workflowsPath: opts.workflowsPath,
