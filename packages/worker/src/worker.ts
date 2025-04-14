@@ -1272,7 +1272,7 @@ export class Worker {
       priority,
     } = initWorkflowJob;
 
-    // Note that we can't do payload convertion here, as there's no guarantee that converted payloads would be safe to
+    // Note that we can't do payload conversion here, as there's no guarantee that converted payloads would be safe to
     // transfer through the V8 message port. Those will therefore be set in the Activator's initializeWorkflow job handler.
     const workflowInfo: WorkflowInfo = {
       workflowId,

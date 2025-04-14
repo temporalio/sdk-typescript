@@ -560,8 +560,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             }
         };
 
-        dbg!("!!!! versioning strategy is: {:?}", &versioning_strategy);
-
         match WorkerConfigBuilder::default()
             .versioning_strategy(versioning_strategy)
             .client_identity_override(Some(js_value_getter!(cx, self, "identity", JsString)))

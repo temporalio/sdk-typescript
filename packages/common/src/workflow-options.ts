@@ -5,6 +5,7 @@ import { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
 import { SearchAttributePair, SearchAttributes, TypedSearchAttributes } from './search-attributes';
 import { Priority } from './priority';
+import { WorkflowFunctionWithOptions } from './workflow-definition-options';
 
 /**
  * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
@@ -243,7 +244,9 @@ export interface WorkflowDurationOptions {
 
 export type CommonWorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
 
-export function extractWorkflowType<T extends Workflow>(workflowTypeOrFunc: string | T): string {
+export function extractWorkflowType<T extends Workflow>(
+  workflowTypeOrFunc: string | T | WorkflowFunctionWithOptions<any[], any>
+): string {
   if (typeof workflowTypeOrFunc === 'string') return workflowTypeOrFunc as string;
   if (typeof workflowTypeOrFunc === 'function') {
     if (workflowTypeOrFunc?.name) return workflowTypeOrFunc.name;
@@ -252,4 +255,8 @@ export function extractWorkflowType<T extends Workflow>(workflowTypeOrFunc: stri
   throw new TypeError(
     `Invalid workflow type: expected either a string or a function, got '${typeof workflowTypeOrFunc}'`
   );
+}
+
+export function isWorkflowFunctionWithOptions(obj: any): obj is WorkflowFunctionWithOptions<any[], any> {
+  return obj.__temporal_is_workflow_function_with_options === true;
 }

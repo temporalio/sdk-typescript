@@ -9,8 +9,9 @@ import asyncRetry from 'async-retry';
 import { Client } from '@temporalio/client';
 import { Worker } from './helpers';
 import * as activities from './activities';
-import { WorkerDeploymentVersion } from '@temporalio/common';
+import { toCanonicalString, WorkerDeploymentVersion } from '@temporalio/common';
 import { makeTestFunction } from './helpers-integration';
+import { unblockSignal, versionQuery } from './workflows/';
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
@@ -33,7 +34,7 @@ test('Worker deployment based versioning', async (t) => {
   };
 
   const worker1 = await Worker.create({
-    workflowsPath: require.resolve('./workflows'),
+    workflowsPath: require.resolve('./deployment-versioning-v1'),
     activities,
     taskQueue,
     workerDeploymentOptions: {
@@ -47,7 +48,7 @@ test('Worker deployment based versioning', async (t) => {
   });
 
   const worker2 = await Worker.create({
-    workflowsPath: require.resolve('./workflows'),
+    workflowsPath: require.resolve('./deployment-versioning-v2'),
     activities,
     taskQueue,
     workerDeploymentOptions: {
@@ -61,7 +62,7 @@ test('Worker deployment based versioning', async (t) => {
   });
 
   const worker3 = await Worker.create({
-    workflowsPath: require.resolve('./workflows'),
+    workflowsPath: require.resolve('./deployment-versioning-v3'),
     activities,
     taskQueue,
     workerDeploymentOptions: {
@@ -79,11 +80,11 @@ test('Worker deployment based versioning', async (t) => {
   await setCurrentDeploymentVersion(client, describeResp1.conflictToken, w1DeploymentVersion);
 
   // Start workflow 1 which will use the 1.0 worker on auto-upgrade
-  const wf1 = await client.workflow.start('autoUpgradeWorkflow', {
+  const wf1 = await client.workflow.start('deploymentVersioning', {
     taskQueue,
-    workflowId: 'basic-versioning-v1-' + randomUUID(),
+    workflowId: 'deployment-versioning-v1-' + randomUUID(),
   });
-  const state1 = await wf1.query('state');
+  const state1 = await wf1.query(versionQuery);
   assert.equal(state1, 'v1');
 
   // Wait for worker 2 to be visible and set as current version
@@ -91,11 +92,11 @@ test('Worker deployment based versioning', async (t) => {
   await setCurrentDeploymentVersion(client, describeResp2.conflictToken, w2DeploymentVersion);
 
   // Start workflow 2 which will use the 2.0 worker pinned
-  const wf2 = await client.workflow.start('pinnedWorkflow', {
+  const wf2 = await client.workflow.start('deploymentVersioning', {
     taskQueue,
-    workflowId: 'basic-versioning-v2-' + randomUUID(),
+    workflowId: 'deployment-versioning-v2-' + randomUUID(),
   });
-  const state2 = await wf2.query('state');
+  const state2 = await wf2.query(versionQuery);
   assert.equal(state2, 'v2');
 
   // Wait for worker 3 to be visible and set as current version
@@ -103,17 +104,17 @@ test('Worker deployment based versioning', async (t) => {
   await setCurrentDeploymentVersion(client, describeResp3.conflictToken, w3DeploymentVersion);
 
   // Start workflow 3 which will use the 3.0 worker on auto-upgrade
-  const wf3 = await client.workflow.start('autoUpgradeWorkflow', {
+  const wf3 = await client.workflow.start('deploymentVersioning', {
     taskQueue,
-    workflowId: 'basic-versioning-v3-' + randomUUID(),
+    workflowId: 'deployment-versioning-v3-' + randomUUID(),
   });
-  const state3 = await wf3.query('state');
+  const state3 = await wf3.query(versionQuery);
   assert.equal(state3, 'v3');
 
   // Signal all workflows to finish
-  await wf1.signal('doFinish');
-  await wf2.signal('doFinish');
-  await wf3.signal('doFinish');
+  await wf1.signal(unblockSignal);
+  await wf2.signal(unblockSignal);
+  await wf3.signal(unblockSignal);
 
   const res1 = await wf1.result();
   const res2 = await wf2.result();
@@ -132,27 +133,139 @@ test('Worker deployment based versioning', async (t) => {
   t.pass();
 });
 
+test('Worker deployment based versioning with ramping', async (t) => {
+  const taskQueue = 'worker-deployment-based-ramping-' + randomUUID();
+  const deploymentName = 'deployment-ramping-' + randomUUID();
+  const client = t.context.env.client;
+
+  const v1 = {
+    buildId: '1.0',
+    deploymentName: deploymentName,
+  };
+  const v2 = {
+    buildId: '2.0',
+    deploymentName: deploymentName,
+  };
+
+  const worker1 = await Worker.create({
+    workflowsPath: require.resolve('./deployment-versioning-v1'),
+    activities,
+    taskQueue,
+    workerDeploymentOptions: {
+      useWorkerVersioning: true,
+      version: v1,
+    },
+  });
+  const worker1Promise = worker1.run();
+  worker1Promise.catch((err) => {
+    t.fail('Worker 1.0 run error: ' + JSON.stringify(err));
+  });
+
+  const worker2 = await Worker.create({
+    workflowsPath: require.resolve('./deployment-versioning-v2'),
+    activities,
+    taskQueue,
+    workerDeploymentOptions: {
+      useWorkerVersioning: true,
+      version: v2,
+    },
+  });
+  const worker2Promise = worker2.run();
+  worker2Promise.catch((err) => {
+    t.fail('Worker 2.0 run error: ' + JSON.stringify(err));
+  });
+
+  // Wait for worker deployments to be visible
+  await waitUntilWorkerDeploymentVisible(client, v1);
+  const describeResp = await waitUntilWorkerDeploymentVisible(client, v2);
+
+  // Set current version to v1 and ramp v2 to 100%
+  let conflictToken = (await setCurrentDeploymentVersion(client, describeResp.conflictToken, v1)).conflictToken;
+  conflictToken = (await setRampingVersion(client, conflictToken, v2, 100)).conflictToken;
+
+  // Run workflows and verify they run on v2
+  for (let i = 0; i < 3; i++) {
+    const wf = await client.workflow.start('deploymentVersioning', {
+      taskQueue,
+      workflowId: `versioning-ramp-100-${i}-${randomUUID()}`,
+    });
+    await wf.signal(unblockSignal);
+    const res = await wf.result();
+    assert.equal(res, 'version-v2');
+  }
+
+  // Set ramp to 0, expecting workflows to run on v1
+  conflictToken = (await setRampingVersion(client, conflictToken, v2, 0)).conflictToken;
+  for (let i = 0; i < 3; i++) {
+    const wf = await client.workflow.start('deploymentVersioning', {
+      taskQueue,
+      workflowId: `versioning-ramp-0-${i}-${randomUUID()}`,
+    });
+    await wf.signal(unblockSignal);
+    const res = await wf.result();
+    assert.equal(res, 'version-v1');
+  }
+
+  // Set ramp to 50 and eventually verify workflows run on both versions
+  await setRampingVersion(client, conflictToken, v2, 50);
+  const seenResults = new Set<string>();
+
+  const runAndRecord = async () => {
+    const wf = await client.workflow.start('deploymentVersioning', {
+      taskQueue,
+      workflowId: `versioning-ramp-50-${randomUUID()}`,
+    });
+    await wf.signal(unblockSignal);
+    return await wf.result();
+  };
+
+  await asyncRetry(
+    async () => {
+      const res = await runAndRecord();
+      seenResults.add(res);
+      if (!seenResults.has('version-v1') || !seenResults.has('version-v2')) {
+        throw new Error('Not all versions seen yet');
+      }
+    },
+    { maxTimeout: 1000, retries: 20 }
+  );
+
+  worker1.shutdown();
+  worker2.shutdown();
+  await worker1Promise;
+  await worker2Promise;
+  t.pass();
+});
+
+async function setRampingVersion(
+  client: Client,
+  conflictToken: Uint8Array,
+  version: WorkerDeploymentVersion,
+  percentage: number
+) {
+  return await client.workflowService.setWorkerDeploymentRampingVersion({
+    namespace: client.options.namespace,
+    deploymentName: version.deploymentName,
+    version: toCanonicalString(version),
+    conflictToken,
+    percentage,
+  });
+}
+
 async function waitUntilWorkerDeploymentVisible(client: Client, version: WorkerDeploymentVersion) {
   return await asyncRetry(
     async () => {
-      try {
-        const resp = await client.workflowService.describeWorkerDeployment({
-          namespace: client.options.namespace,
-          deploymentName: version.deploymentName,
-        });
-
-        const isVersionVisible = resp.workerDeploymentInfo!.versionSummaries!.some(
-          (vs) => vs.version === version.buildId
-        );
-
-        if (!isVersionVisible) {
-          throw new Error('Version not visible yet');
-        }
-
-        return resp;
-      } catch (error) {
-        throw error;
+      const resp = await client.workflowService.describeWorkerDeployment({
+        namespace: client.options.namespace,
+        deploymentName: version.deploymentName,
+      });
+      const isVersionVisible = resp.workerDeploymentInfo!.versionSummaries!.some(
+        (vs) => vs.version === toCanonicalString(version)
+      );
+      if (!isVersionVisible) {
+        throw new Error('Version not visible yet');
       }
+      return resp;
     },
     { maxTimeout: 1000, retries: 10 }
   );
@@ -166,7 +279,7 @@ async function setCurrentDeploymentVersion(
   return await client.workflowService.setWorkerDeploymentCurrentVersion({
     namespace: client.options.namespace,
     deploymentName: version.deploymentName,
-    version: version.buildId,
+    version: toCanonicalString(version),
     conflictToken,
   });
 }
