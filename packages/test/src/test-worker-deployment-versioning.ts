@@ -12,6 +12,7 @@ import * as activities from './activities';
 import { toCanonicalString, WorkerDeploymentVersion } from '@temporalio/common';
 import { makeTestFunction } from './helpers-integration';
 import { unblockSignal, versionQuery } from './workflows/';
+import { temporal } from '@temporalio/proto';
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
@@ -40,6 +41,7 @@ test('Worker deployment based versioning', async (t) => {
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: w1DeploymentVersion,
+      defaultVersioningBehavior: 'pinned',
     },
   });
   const worker1Promise = worker1.run();
@@ -54,6 +56,7 @@ test('Worker deployment based versioning', async (t) => {
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: w2DeploymentVersion,
+      defaultVersioningBehavior: 'pinned',
     },
   });
   const worker2Promise = worker2.run();
@@ -68,6 +71,7 @@ test('Worker deployment based versioning', async (t) => {
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: w3DeploymentVersion,
+      defaultVersioningBehavior: 'pinned',
     },
   });
   const worker3Promise = worker3.run();
@@ -154,6 +158,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: v1,
+      defaultVersioningBehavior: 'pinned',
     },
   });
   const worker1Promise = worker1.run();
@@ -168,6 +173,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: v2,
+      defaultVersioningBehavior: 'pinned',
     },
   });
   const worker2Promise = worker2.run();
@@ -234,6 +240,116 @@ test('Worker deployment based versioning with ramping', async (t) => {
   worker2.shutdown();
   await worker1Promise;
   await worker2Promise;
+  t.pass();
+});
+
+test('Worker deployment with dynamic workflow on run', async (t) => {
+  if (t.context.env.supportsTimeSkipping) {
+    t.pass("Test Server doesn't support worker deployments");
+    return;
+  }
+
+  const taskQueue = 'worker-deployment-dynamic-' + randomUUID();
+  const deploymentName = 'deployment-dynamic-' + randomUUID();
+  const client = t.context.env.client;
+
+  const version = {
+    buildId: '1.0',
+    deploymentName: deploymentName,
+  };
+
+  const worker = await Worker.create({
+    workflowsPath: require.resolve('./deployment-versioning-v1'),
+    activities,
+    taskQueue,
+    workerDeploymentOptions: {
+      useWorkerVersioning: true,
+      version: version,
+      defaultVersioningBehavior: 'auto-upgrade',
+    },
+  });
+
+  const workerPromise = worker.run();
+  workerPromise.catch((err) => {
+    t.fail('Worker run error: ' + JSON.stringify(err));
+  });
+
+  const describeResp = await waitUntilWorkerDeploymentVisible(client, version);
+  await setCurrentDeploymentVersion(client, describeResp.conflictToken, version);
+
+  const wf = await client.workflow.start('cooldynamicworkflow', {
+    taskQueue,
+    workflowId: 'dynamic-workflow-versioning-' + randomUUID(),
+  });
+
+  const result = await wf.result();
+  assert.equal(result, 'dynamic');
+
+  // Check history for versioning behavior
+  const history = await wf.fetchHistory();
+
+  const hasPinnedVersioningBehavior = history.events!.some(
+    (event) =>
+      event.workflowTaskCompletedEventAttributes &&
+      event.workflowTaskCompletedEventAttributes.versioningBehavior ===
+        temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
+  );
+  assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
+
+  worker.shutdown();
+  await workerPromise;
+  t.pass();
+});
+
+test('Workflows can use default versioning behavior', async (t) => {
+  const taskQueue = 'task-queue-default-versioning-' + randomUUID();
+  const deploymentName = 'deployment-default-versioning-' + randomUUID();
+  const client = t.context.env.client;
+
+  const workerV1 = {
+    buildId: '1.0',
+    deploymentName: deploymentName,
+  };
+
+  const worker = await Worker.create({
+    workflowsPath: require.resolve('./deployment-versioning-no-annotations'),
+    activities,
+    taskQueue,
+    workerDeploymentOptions: {
+      useWorkerVersioning: true,
+      version: workerV1,
+      defaultVersioningBehavior: 'pinned',
+    },
+  });
+
+  const workerPromise = worker.run();
+  workerPromise.catch((err) => {
+    t.fail('Worker run error: ' + JSON.stringify(err));
+  });
+
+  const describeResp = await waitUntilWorkerDeploymentVisible(client, workerV1);
+  await setCurrentDeploymentVersion(client, describeResp.conflictToken, workerV1);
+
+  const wf = await client.workflow.start('noVersioningAnnotationWorkflow', {
+    taskQueue,
+    workflowId: 'default-versioning-behavior-' + randomUUID(),
+  });
+
+  await wf.result();
+
+  // Check history for versioning behavior
+  const history = await wf.fetchHistory();
+
+  const hasPinnedVersioningBehavior = history.events!.some(
+    (event) =>
+      event.workflowTaskCompletedEventAttributes &&
+      event.workflowTaskCompletedEventAttributes.versioningBehavior ===
+        temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
+  );
+  assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
+
+  worker.shutdown();
+  await workerPromise;
   t.pass();
 });
 
