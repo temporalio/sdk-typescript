@@ -258,5 +258,6 @@ export function extractWorkflowType<T extends Workflow>(
 }
 
 export function isWorkflowFunctionWithOptions(obj: any): obj is WorkflowFunctionWithOptions<any[], any> {
+  if (obj === undefined || obj === null) return false;
   return obj.__temporal_is_workflow_function_with_options === true;
 }
