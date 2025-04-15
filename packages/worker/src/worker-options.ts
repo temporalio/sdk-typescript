@@ -138,11 +138,10 @@ export interface WorkerOptions {
     useWorkerVersioning: boolean;
 
     /**
-     * If specified, the default versioning behavior to use for all workflows on this worker.
-     * If not specified, and `useWorkerVersioning` is true, workflows that do not specify a
-     * versioning behavior via {@link TODO} will cause an error to be thrown on startup.
+     * The default versioning behavior to use for all workflows on this worker. Specifying a default
+     * behavior is required,
      */
-    defaultVersioningBehavior?: VersioningBehavior;
+    defaultVersioningBehavior: VersioningBehavior;
   };
 
   /**

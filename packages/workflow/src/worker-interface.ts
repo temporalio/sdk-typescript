@@ -82,6 +82,9 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
     if (isWorkflowFunctionWithOptions(workflowFn)) {
       activator.workflow = workflowFn;
       activator.versioningBehavior = workflowFn.options.versioningBehavior;
+    } else if (isWorkflowFunctionWithOptions(defaultWorkflowFn)) {
+      activator.workflow = defaultWorkflowFn;
+      activator.versioningBehavior = defaultWorkflowFn.options.versioningBehavior;
     } else if (typeof workflowFn === 'function') {
       activator.workflow = workflowFn;
     } else if (typeof defaultWorkflowFn === 'function') {
