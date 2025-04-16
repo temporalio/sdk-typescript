@@ -498,7 +498,7 @@ export class Activator implements ActivationHandler {
     return {
       commands: this.commands.splice(0),
       usedInternalFlags: [...this.knownFlags],
-      versioningBehavior: versioningBehavior,
+      versioningBehavior,
     };
   }
 

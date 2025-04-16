@@ -7,12 +7,12 @@ import assert from 'assert';
 import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
 import { Client } from '@temporalio/client';
+import { toCanonicalString, WorkerDeploymentVersion } from '@temporalio/common';
+import { temporal } from '@temporalio/proto';
 import { Worker } from './helpers';
 import * as activities from './activities';
-import { toCanonicalString, WorkerDeploymentVersion } from '@temporalio/common';
 import { makeTestFunction } from './helpers-integration';
-import { unblockSignal, versionQuery } from './workflows/';
-import { temporal } from '@temporalio/proto';
+import { unblockSignal, versionQuery } from './workflows';
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
@@ -23,15 +23,15 @@ test('Worker deployment based versioning', async (t) => {
 
   const w1DeploymentVersion = {
     buildId: '1.0',
-    deploymentName: deploymentName,
+    deploymentName,
   };
   const w2DeploymentVersion = {
     buildId: '2.0',
-    deploymentName: deploymentName,
+    deploymentName,
   };
   const w3DeploymentVersion = {
     buildId: '3.0',
-    deploymentName: deploymentName,
+    deploymentName,
   };
 
   const worker1 = await Worker.create({
@@ -144,11 +144,11 @@ test('Worker deployment based versioning with ramping', async (t) => {
 
   const v1 = {
     buildId: '1.0',
-    deploymentName: deploymentName,
+    deploymentName,
   };
   const v2 = {
     buildId: '2.0',
-    deploymentName: deploymentName,
+    deploymentName,
   };
 
   const worker1 = await Worker.create({
@@ -255,7 +255,7 @@ test('Worker deployment with dynamic workflow on run', async (t) => {
 
   const version = {
     buildId: '1.0',
-    deploymentName: deploymentName,
+    deploymentName,
   };
 
   const worker = await Worker.create({
@@ -264,7 +264,7 @@ test('Worker deployment with dynamic workflow on run', async (t) => {
     taskQueue,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
-      version: version,
+      version,
       defaultVersioningBehavior: 'auto-upgrade',
     },
   });
@@ -308,7 +308,7 @@ test('Workflows can use default versioning behavior', async (t) => {
 
   const workerV1 = {
     buildId: '1.0',
-    deploymentName: deploymentName,
+    deploymentName,
   };
 
   const worker = await Worker.create({
@@ -337,9 +337,7 @@ test('Workflows can use default versioning behavior', async (t) => {
 
   await wf.result();
 
-  // Check history for versioning behavior
   const history = await wf.fetchHistory();
-
   const hasPinnedVersioningBehavior = history.events!.some(
     (event) =>
       event.workflowTaskCompletedEventAttributes &&
