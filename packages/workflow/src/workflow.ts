@@ -32,6 +32,7 @@ import { versioningIntentToProto } from '@temporalio/common/lib/versioning-inten
 import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
+import { WorkflowDefinitionOptions, WorkflowFunctionWithOptions } from '@temporalio/common';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import {
@@ -63,7 +64,6 @@ import { LocalActivityDoBackoff } from './errors';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
 import { untrackPromise } from './stack-helpers';
 import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
-import { WorkflowDefinitionOptions, WorkflowFunctionWithOptions } from '@temporalio/common';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
@@ -1592,13 +1592,35 @@ export function allHandlersFinished(): boolean {
 }
 
 /**
-* Can be used to define workflow functions with certain options specified at definition time.
-
-* @param options Options for the workflow defintion.
-* @param fn The workflow function.
-* @returns The same passed in workflow function, with the specified options applied. You can export
-* this function to make it available as a workflow function.
-*/
+ * Can be used to alter or define workflow functions with certain options specified at definition
+ * time. In order to ensure that workflows are loaded properly by their name, you typically will not
+ * need to use the return value of this function.
+ *
+ * @example
+ * For example:
+ * ```ts
+ * defineWorkflowWithOptions({ versioningBehavior: 'pinned' }, myWorkflow);
+ * export async function myWorkflow(): Promise<string> {
+ *   // Workflow code here
+ *   return "hi";
+ * }
+ * ```
+ *
+ * @example
+ * To annotate a default or dynamic workflow:
+ * ```ts
+ * export default defineWorkflowWithOptions({ versioningBehavior: 'pinned' }, myDefaultWorkflow);
+ * async function myDefaultWorkflow(): Promise<string> {
+ *   // Workflow code here
+ *   return "hi";
+ * }
+ * ```
+ *
+ * @param options Options for the workflow defintion.
+ * @param fn The workflow function.
+ * @returns The same passed in workflow function, with the specified options applied. You can export
+ * this function to make it available as a workflow function.
+ */
 export function defineWorkflowWithOptions<A extends any[], RT>(
   options: WorkflowDefinitionOptions,
   fn: (...args: A) => Promise<RT>

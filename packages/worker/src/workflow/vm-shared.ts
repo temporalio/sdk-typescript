@@ -14,9 +14,9 @@ import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { Activator } from '@temporalio/workflow/lib/internals';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import { UnhandledRejectionError } from '../errors';
+import { convertDeploymentVersion } from '../utils';
 import { Workflow } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
-import { convertDeploymentVersion } from '../utils';
 
 // Best effort to catch unhandled rejections from workflow code.
 // We crash the thread if we cannot find the culprit.

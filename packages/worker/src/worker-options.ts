@@ -123,7 +123,7 @@ export interface WorkerOptions {
 
   /**
    * Deployment options for the worker. Exclusive with `build_id` and `use_worker_versioning`.
-
+   *
    * @experimental Deployment based versioning is still experimental.
    */
   workerDeploymentOptions?: {

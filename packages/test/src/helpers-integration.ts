@@ -101,11 +101,6 @@ export async function createLocalTestEnvironment(
     ...(opts || {}), // Use provided options or default to an empty object
     server: {
       searchAttributes: Object.values(defaultSAKeys),
-      // TODO: Remove after next CLI release
-      executable: {
-        type: 'cached-download',
-        version: 'v1.3.1-priority.0',
-      },
       ...(opts?.server || {}), // Use provided server options or default to an empty object
       extraArgs: [
         ...defaultDynamicConfigOptions.flatMap((opt) => ['--dynamic-config-value', opt]),
