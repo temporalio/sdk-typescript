@@ -794,8 +794,8 @@ export type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
 
 function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): WorkerOptionsWithDefaults {
   const {
-    buildId,
-    useVersioning,
+    buildId, // eslint-disable-line deprecation/deprecation
+    useVersioning, // eslint-disable-line deprecation/deprecation
     maxCachedWorkflows,
     showStackTraceSources,
     namespace,

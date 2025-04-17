@@ -1,4 +1,4 @@
-import { CancelledFailure, setHandler, condition, defineWorkflowWithOptions } from '@temporalio/workflow';
+import { setHandler, condition, defineWorkflowWithOptions } from '@temporalio/workflow';
 import { unblockSignal, versionQuery } from '../workflows';
 
 defineWorkflowWithOptions({ versioningBehavior: 'pinned' }, deploymentVersioning);
