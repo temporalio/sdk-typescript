@@ -18,7 +18,7 @@ const test = makeTestFunction({ workflowsPath: __filename });
 test('Worker deployment based versioning', async (t) => {
   const taskQueue = 'worker-deployment-based-versioning-' + randomUUID();
   const deploymentName = 'deployment-' + randomUUID();
-  const client = t.context.env.client;
+  const { client, nativeConnection } = t.context.env;
 
   const w1DeploymentVersion = {
     buildId: '1.0',
@@ -41,6 +41,7 @@ test('Worker deployment based versioning', async (t) => {
       version: w1DeploymentVersion,
       defaultVersioningBehavior: 'PINNED',
     },
+    connection: nativeConnection,
   });
   const worker1Promise = worker1.run();
   worker1Promise.catch((err) => {
@@ -55,6 +56,7 @@ test('Worker deployment based versioning', async (t) => {
       version: w2DeploymentVersion,
       defaultVersioningBehavior: 'PINNED',
     },
+    connection: nativeConnection,
   });
   const worker2Promise = worker2.run();
   worker2Promise.catch((err) => {
@@ -69,6 +71,7 @@ test('Worker deployment based versioning', async (t) => {
       version: w3DeploymentVersion,
       defaultVersioningBehavior: 'PINNED',
     },
+    connection: nativeConnection,
   });
   const worker3Promise = worker3.run();
   worker3Promise.catch((err) => {
@@ -136,7 +139,7 @@ test('Worker deployment based versioning', async (t) => {
 test('Worker deployment based versioning with ramping', async (t) => {
   const taskQueue = 'worker-deployment-based-ramping-' + randomUUID();
   const deploymentName = 'deployment-ramping-' + randomUUID();
-  const client = t.context.env.client;
+  const { client, nativeConnection } = t.context.env;
 
   const v1 = {
     buildId: '1.0',
@@ -155,6 +158,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
       version: v1,
       defaultVersioningBehavior: 'PINNED',
     },
+    connection: nativeConnection,
   });
   const worker1Promise = worker1.run();
   worker1Promise.catch((err) => {
@@ -169,6 +173,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
       version: v2,
       defaultVersioningBehavior: 'PINNED',
     },
+    connection: nativeConnection,
   });
   const worker2Promise = worker2.run();
   worker2Promise.catch((err) => {
@@ -245,7 +250,7 @@ test('Worker deployment with dynamic workflow on run', async (t) => {
 
   const taskQueue = 'worker-deployment-dynamic-' + randomUUID();
   const deploymentName = 'deployment-dynamic-' + randomUUID();
-  const client = t.context.env.client;
+  const { client, nativeConnection } = t.context.env;
 
   const version = {
     buildId: '1.0',
@@ -260,6 +265,7 @@ test('Worker deployment with dynamic workflow on run', async (t) => {
       version,
       defaultVersioningBehavior: 'AUTO_UPGRADE',
     },
+    connection: nativeConnection,
   });
 
   const workerPromise = worker.run();
@@ -297,7 +303,7 @@ test('Worker deployment with dynamic workflow on run', async (t) => {
 test('Workflows can use default versioning behavior', async (t) => {
   const taskQueue = 'task-queue-default-versioning-' + randomUUID();
   const deploymentName = 'deployment-default-versioning-' + randomUUID();
-  const client = t.context.env.client;
+  const { client, nativeConnection } = t.context.env;
 
   const workerV1 = {
     buildId: '1.0',
@@ -312,6 +318,7 @@ test('Workflows can use default versioning behavior', async (t) => {
       version: workerV1,
       defaultVersioningBehavior: 'PINNED',
     },
+    connection: nativeConnection,
   });
 
   const workerPromise = worker.run();
