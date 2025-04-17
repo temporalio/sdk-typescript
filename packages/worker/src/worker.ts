@@ -154,7 +154,8 @@ interface WorkflowWithLogAttributes {
 }
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
-  if (options.buildId != null) {
+  const bid = options.buildId; // eslint-disable-line deprecation/deprecation
+  if (bid != null) {
     return options as CompiledWorkerOptionsWithBuildId;
   }
   const suffix = bundleCode ? `+${crypto.createHash('sha256').update(bundleCode).digest('hex')}` : '';

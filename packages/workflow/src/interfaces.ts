@@ -13,7 +13,6 @@ import {
   SearchAttributePair,
   Priority,
   WorkerDeploymentVersion,
-  VersioningBehavior,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';

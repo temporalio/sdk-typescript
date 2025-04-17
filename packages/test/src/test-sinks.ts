@@ -94,7 +94,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
 
     // Capture volatile values that are hard to predict
-    const { historySize, startTime, runStartTime, currentBuildId } = recordedCalls[0].info;
+    const { historySize, startTime, runStartTime, currentBuildId } = recordedCalls[0].info; // eslint-disable-line deprecation/deprecation
     t.true(historySize > 300);
 
     const info: WorkflowInfo = {
