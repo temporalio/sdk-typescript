@@ -13,10 +13,11 @@ import {
   SearchAttributePair,
   Priority,
   WorkerDeploymentVersion,
+  VersioningBehavior,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
-import type { coresdk, temporal } from '@temporalio/proto';
+import type { coresdk } from '@temporalio/proto';
 
 /**
  * Workflow Execution information
@@ -611,5 +612,5 @@ export type UpdateHandlerOptions<Args extends any[]> = {
 export interface ActivationCompletion {
   commands: coresdk.workflow_commands.IWorkflowCommand[];
   usedInternalFlags: number[];
-  versioningBehavior?: temporal.api.enums.v1.VersioningBehavior;
+  versioningBehavior?: VersioningBehavior;
 }

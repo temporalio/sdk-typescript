@@ -39,7 +39,7 @@ test('Worker deployment based versioning', async (t) => {
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: w1DeploymentVersion,
-      defaultVersioningBehavior: 'pinned',
+      defaultVersioningBehavior: 'PINNED',
     },
   });
   const worker1Promise = worker1.run();
@@ -53,7 +53,7 @@ test('Worker deployment based versioning', async (t) => {
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: w2DeploymentVersion,
-      defaultVersioningBehavior: 'pinned',
+      defaultVersioningBehavior: 'PINNED',
     },
   });
   const worker2Promise = worker2.run();
@@ -67,7 +67,7 @@ test('Worker deployment based versioning', async (t) => {
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: w3DeploymentVersion,
-      defaultVersioningBehavior: 'pinned',
+      defaultVersioningBehavior: 'PINNED',
     },
   });
   const worker3Promise = worker3.run();
@@ -153,7 +153,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: v1,
-      defaultVersioningBehavior: 'pinned',
+      defaultVersioningBehavior: 'PINNED',
     },
   });
   const worker1Promise = worker1.run();
@@ -167,7 +167,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: v2,
-      defaultVersioningBehavior: 'pinned',
+      defaultVersioningBehavior: 'PINNED',
     },
   });
   const worker2Promise = worker2.run();
@@ -258,7 +258,7 @@ test('Worker deployment with dynamic workflow on run', async (t) => {
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version,
-      defaultVersioningBehavior: 'auto-upgrade',
+      defaultVersioningBehavior: 'AUTO_UPGRADE',
     },
   });
 
@@ -310,7 +310,7 @@ test('Workflows can use default versioning behavior', async (t) => {
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: workerV1,
-      defaultVersioningBehavior: 'pinned',
+      defaultVersioningBehavior: 'PINNED',
     },
   });
 

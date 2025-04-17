@@ -1,7 +1,7 @@
 import { setHandler, condition, defineWorkflowWithOptions } from '@temporalio/workflow';
 import { unblockSignal, versionQuery } from '../workflows';
 
-defineWorkflowWithOptions({ versioningBehavior: 'auto-upgrade' }, deploymentVersioning);
+defineWorkflowWithOptions({ versioningBehavior: 'AUTO_UPGRADE' }, deploymentVersioning);
 export async function deploymentVersioning(): Promise<string> {
   let doFinish = false;
   setHandler(unblockSignal, () => void (doFinish = true));
@@ -11,7 +11,7 @@ export async function deploymentVersioning(): Promise<string> {
 }
 
 // Dynamic/default workflow handler
-export default defineWorkflowWithOptions({ versioningBehavior: 'pinned' }, _default);
+export default defineWorkflowWithOptions({ versioningBehavior: 'PINNED' }, _default);
 async function _default(): Promise<string> {
   return 'dynamic';
 }

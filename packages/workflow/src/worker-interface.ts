@@ -3,9 +3,14 @@
  *
  * @module
  */
-import { IllegalStateError, isWorkflowFunctionWithOptions } from '@temporalio/common';
+import {
+  encodeVersioningBehavior,
+  IllegalStateError,
+  isWorkflowFunctionWithOptions,
+  VersioningBehavior,
+} from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { coresdk } from '@temporalio/proto';
+import { coresdk, temporal } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
 import { disableUpdateStorage } from './update-scope';
 import { WorkflowInterceptorsFactory } from './interceptors';
@@ -209,7 +214,11 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
     }
     return {
       runId: activator.info.runId,
-      successful: { ...activationCompletion, commands },
+      successful: {
+        ...activationCompletion,
+        commands,
+        versioningBehavior: encodeVersioningBehavior(activationCompletion.versioningBehavior),
+      },
     };
   } finally {
     activator.rethrowSynchronously = false;
