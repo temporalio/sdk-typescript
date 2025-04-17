@@ -29,7 +29,7 @@ import {
 } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
-import { coresdk, temporal } from '@temporalio/proto';
+import type { coresdk, temporal } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
@@ -497,16 +497,10 @@ export class Activator implements ActivationHandler {
   }
 
   concludeActivation(): ActivationCompletion {
-    let versioningBehavior;
-    if (this.versioningBehavior === 'auto-upgrade') {
-      versioningBehavior = temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_AUTO_UPGRADE;
-    } else if (this.versioningBehavior === 'pinned') {
-      versioningBehavior = temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED;
-    }
     return {
       commands: this.commands.splice(0),
       usedInternalFlags: [...this.knownFlags],
-      versioningBehavior,
+      versioningBehavior: this.versioningBehavior,
     };
   }
 
