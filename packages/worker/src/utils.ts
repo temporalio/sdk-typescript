@@ -33,7 +33,7 @@ export function convertToParentWorkflowType(
 export function convertDeploymentVersion(
   v: coresdk.common.IWorkerDeploymentVersion | null | undefined
 ): WorkerDeploymentVersion | undefined {
-  if (!v) {
+  if (v == null) {
     return undefined;
   }
 

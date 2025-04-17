@@ -10,7 +10,6 @@ import { Client } from '@temporalio/client';
 import { toCanonicalString, WorkerDeploymentVersion } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { Worker } from './helpers';
-import * as activities from './activities';
 import { makeTestFunction } from './helpers-integration';
 import { unblockSignal, versionQuery } from './workflows';
 
@@ -36,7 +35,6 @@ test('Worker deployment based versioning', async (t) => {
 
   const worker1 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v1'),
-    activities,
     taskQueue,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
@@ -51,7 +49,6 @@ test('Worker deployment based versioning', async (t) => {
 
   const worker2 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v2'),
-    activities,
     taskQueue,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
@@ -66,7 +63,6 @@ test('Worker deployment based versioning', async (t) => {
 
   const worker3 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v3'),
-    activities,
     taskQueue,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
@@ -153,7 +149,6 @@ test('Worker deployment based versioning with ramping', async (t) => {
 
   const worker1 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v1'),
-    activities,
     taskQueue,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
@@ -168,7 +163,6 @@ test('Worker deployment based versioning with ramping', async (t) => {
 
   const worker2 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v2'),
-    activities,
     taskQueue,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
@@ -260,7 +254,6 @@ test('Worker deployment with dynamic workflow on run', async (t) => {
 
   const worker = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v1'),
-    activities,
     taskQueue,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
@@ -313,7 +306,6 @@ test('Workflows can use default versioning behavior', async (t) => {
 
   const worker = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-no-annotations'),
-    activities,
     taskQueue,
     workerDeploymentOptions: {
       useWorkerVersioning: true,

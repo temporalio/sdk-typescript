@@ -494,7 +494,7 @@ export async function buildIdTester(): Promise<void> {
   });
 
   workflow.setHandler(getBuildIdQuery, () => {
-    return workflow.workflowInfo().currentBuildId ?? '';
+    return workflow.workflowInfo().currentBuildId ?? ''; // eslint-disable-line deprecation/deprecation
   });
 
   // The unblock signal will only be sent once we are in Worker 1.1.
