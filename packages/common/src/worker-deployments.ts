@@ -1,3 +1,6 @@
+import { temporal } from '@temporalio/proto';
+import { makeProtoEnumConverters } from './internal-workflow';
+
 /**
  * Represents the version of a specific worker deployment.
  *
@@ -25,4 +28,23 @@ export function toCanonicalString(version: WorkerDeploymentVersion): string {
  *
  * @experimental Deployment based versioning is experimental and may change in the future.
  */
-export type VersioningBehavior = 'pinned' | 'auto-upgrade';
+export const VersioningBehavior = {
+  PINNED: 'PINNED',
+  AUTO_UPGRADE: 'AUTO_UPGRADE',
+} as const;
+export type VersioningBehavior = (typeof VersioningBehavior)[keyof typeof VersioningBehavior];
+
+export const [encodeVersioningBehavior, decodeVersioningBehavior] = makeProtoEnumConverters<
+  temporal.api.enums.v1.VersioningBehavior,
+  typeof temporal.api.enums.v1.VersioningBehavior,
+  keyof typeof temporal.api.enums.v1.VersioningBehavior,
+  typeof VersioningBehavior,
+  'VERSIONING_BEHAVIOR_'
+>(
+  {
+    [VersioningBehavior.PINNED]: 1,
+    [VersioningBehavior.AUTO_UPGRADE]: 2,
+    UNSPECIFIED: 0,
+  } as const,
+  'VERSIONING_BEHAVIOR_'
+);

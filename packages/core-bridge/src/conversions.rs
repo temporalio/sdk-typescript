@@ -531,8 +531,8 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             let default_versioning_behavior =
                 js_optional_value_getter!(cx, &dopts, "defaultVersioningBehavior", JsString);
             let default_versioning_behavior = match default_versioning_behavior.as_deref() {
-                Some("pinned") => Some(VersioningBehavior::Pinned),
-                Some("auto-upgrade") => Some(VersioningBehavior::AutoUpgrade),
+                Some("PINNED") => Some(VersioningBehavior::Pinned),
+                Some("AUTO_UPGRADE") => Some(VersioningBehavior::AutoUpgrade),
                 None => None,
                 _ => return cx.throw_error("Invalid default versioning behavior"),
             };
