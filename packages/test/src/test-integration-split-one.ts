@@ -733,7 +733,7 @@ test('Workflow can read WorkflowInfo', configMacro, async (t, config) => {
     historySize: res.historySize,
     startTime: res.startTime,
     runStartTime: res.runStartTime,
-    currentBuildId: res.currentBuildId,
+    currentBuildId: res.currentBuildId, // eslint-disable-line deprecation/deprecation
     // unsafe.now is a function, so doesn't make it through serialization, but .now is required, so we need to cast
     unsafe: { isReplaying: false } as UnsafeWorkflowInfo,
     priority: {},
