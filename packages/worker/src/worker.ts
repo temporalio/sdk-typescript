@@ -71,7 +71,7 @@ import {
 } from './replay';
 import { History, Runtime } from './runtime';
 import { CloseableGroupedObservable, closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
-import { byteArrayToBuffer, convertToParentWorkflowType } from './utils';
+import { byteArrayToBuffer, convertDeploymentVersion, convertToParentWorkflowType } from './utils';
 import {
   CompiledWorkerOptions,
   CompiledWorkerOptionsWithBuildId,
@@ -165,7 +165,8 @@ interface WorkflowWithLogAttributes {
 }
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
-  if (options.buildId != null) {
+  const bid = options.buildId; // eslint-disable-line deprecation/deprecation
+  if (bid != null) {
     return options as CompiledWorkerOptionsWithBuildId;
   }
   const suffix = bundleCode ? `+${crypto.createHash('sha256').update(bundleCode).digest('hex')}` : '';
@@ -1272,7 +1273,7 @@ export class Worker {
       priority,
     } = initWorkflowJob;
 
-    // Note that we can't do payload convertion here, as there's no guarantee that converted payloads would be safe to
+    // Note that we can't do payload conversion here, as there's no guarantee that converted payloads would be safe to
     // transfer through the V8 message port. Those will therefore be set in the Activator's initializeWorkflow job handler.
     const workflowInfo: WorkflowInfo = {
       workflowId,
@@ -1301,7 +1302,8 @@ export class Worker {
       // A zero value means that it was not set by the server
       historySize: activation.historySizeBytes.toNumber(),
       continueAsNewSuggested: activation.continueAsNewSuggested,
-      currentBuildId: activation.buildIdForCurrentTask,
+      currentBuildId: activation.deploymentVersionForCurrentTask?.buildId ?? '',
+      currentDeploymentVersion: convertDeploymentVersion(activation.deploymentVersionForCurrentTask),
       unsafe: {
         now: () => Date.now(), // re-set in initRuntime
         isReplaying: activation.isReplaying,

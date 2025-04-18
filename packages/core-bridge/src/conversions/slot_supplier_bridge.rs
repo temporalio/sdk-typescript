@@ -13,7 +13,7 @@ use prost::Message;
 use std::{cell::RefCell, marker::PhantomData, sync::Arc, time::Duration};
 use temporal_sdk_core::api::worker::{
     SlotKind, SlotKindType, SlotMarkUsedContext, SlotReleaseContext, SlotReservationContext,
-    SlotSupplier, SlotSupplierPermit,
+    SlotSupplier, SlotSupplierPermit, WorkerDeploymentVersion,
 };
 use tokio::sync::oneshot;
 
@@ -76,7 +76,7 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
             let rcb = self.reserve_cb.clone();
             let task_queue = ctx.task_queue().to_string();
             let worker_identity = ctx.worker_identity().to_string();
-            let worker_build_id = ctx.worker_build_id().to_string();
+            let worker_deployment_version = ctx.worker_deployment_version().clone();
             let is_sticky = ctx.is_sticky();
 
             let (callback_fut, _abort_on_drop) = match self
@@ -85,7 +85,7 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
                     let context = Self::mk_reserve_ctx(
                         task_queue,
                         worker_identity,
-                        worker_build_id,
+                        worker_deployment_version,
                         is_sticky,
                         &mut cx,
                     )?;
@@ -157,7 +157,7 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
         let rcb = self.try_reserve_cb.clone();
         let task_queue = ctx.task_queue().to_string();
         let worker_identity = ctx.worker_identity().to_string();
-        let worker_build_id = ctx.worker_build_id().to_string();
+        let worker_deployment_version = ctx.worker_deployment_version().clone();
         let is_sticky = ctx.is_sticky();
 
         // This is... unfortunate but since this method is called from an async context way up
@@ -170,7 +170,7 @@ impl<SK: SlotKind + Send + Sync> SlotSupplier for SlotSupplierBridge<SK> {
             let context = Self::mk_reserve_ctx(
                 task_queue,
                 worker_identity,
-                worker_build_id,
+                worker_deployment_version,
                 is_sticky,
                 &mut cx,
             )?;
@@ -262,7 +262,7 @@ impl<SK: SlotKind> SlotSupplierBridge<SK> {
     fn mk_reserve_ctx<'a, C: Context<'a>>(
         task_queue: String,
         worker_identity: String,
-        worker_build_id: String,
+        worker_deployment_version: Option<WorkerDeploymentVersion>,
         is_sticky: bool,
         cx: &mut C,
     ) -> NeonResult<Handle<'a, JsValue>> {
@@ -278,8 +278,22 @@ impl<SK: SlotKind> SlotSupplierBridge<SK> {
         context.set(cx, "taskQueue", tq)?;
         let wid = cx.string(worker_identity);
         context.set(cx, "workerIdentity", wid)?;
-        let bid = cx.string(worker_build_id);
+        let bid = cx.string(
+            worker_deployment_version
+                .as_ref()
+                .map(|v| v.build_id.clone())
+                .unwrap_or_default(),
+        );
         context.set(cx, "workerBuildId", bid)?;
+        let depver = cx.empty_object();
+        depver.set(cx, "buildId", bid)?;
+        let depname_str = cx.string(
+            worker_deployment_version
+                .map(|v| v.deployment_name)
+                .unwrap_or_default(),
+        );
+        depver.set(cx, "deploymentName", depname_str)?;
+        context.set(cx, "workerDeploymentVersion", depver)?;
         let is_sticky = cx.boolean(is_sticky);
         context.set(cx, "isSticky", is_sticky)?;
         let context = context.as_value(cx);

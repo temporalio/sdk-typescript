@@ -1,4 +1,10 @@
-import { LogLevel, Duration, SearchAttributeType } from '@temporalio/common';
+import {
+  LogLevel,
+  Duration,
+  SearchAttributeType,
+  WorkerDeploymentVersion,
+  VersioningBehavior,
+} from '@temporalio/common';
 import type { TLSConfig, ProxyConfig, HttpConnectProxyConfig } from '@temporalio/common/lib/internal-non-workflow';
 import { WorkerTuner } from './worker-tuner';
 import { SearchAttributeKey } from '@temporalio/common/src/search-attributes';
@@ -390,6 +396,11 @@ export interface WorkerOptions {
   maxTaskQueueActivitiesPerSecond?: number;
   maxActivitiesPerSecond?: number;
   shutdownGraceTimeMs: number;
+  workerDeploymentOptions?: {
+    version: WorkerDeploymentVersion;
+    useWorkerVersioning: boolean;
+    defaultVersioningBehavior?: VersioningBehavior;
+  };
 }
 
 export type LogEntryMetadata = {

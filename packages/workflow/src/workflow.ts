@@ -23,6 +23,8 @@ import {
   WorkflowUpdateValidatorType,
   SearchAttributeUpdatePair,
   compilePriority,
+  WorkflowDefinitionOptions,
+  WorkflowFunctionWithOptions,
 } from '@temporalio/common';
 import {
   encodeUnifiedSearchAttributes,
@@ -1588,6 +1590,47 @@ export function upsertMemo(memo: Record<string, unknown>): void {
 export function allHandlersFinished(): boolean {
   const activator = assertInWorkflowContext('allHandlersFinished() may only be used from a Workflow Execution.');
   return activator.inProgressSignals.size === 0 && activator.inProgressUpdates.size === 0;
+}
+
+/**
+ * Can be used to alter or define workflow functions with certain options specified at definition
+ * time. In order to ensure that workflows are loaded properly by their name, you typically will not
+ * need to use the return value of this function.
+ *
+ * @example
+ * For example:
+ * ```ts
+ * defineWorkflowWithOptions({ versioningBehavior: 'pinned' }, myWorkflow);
+ * export async function myWorkflow(): Promise<string> {
+ *   // Workflow code here
+ *   return "hi";
+ * }
+ * ```
+ *
+ * @example
+ * To annotate a default or dynamic workflow:
+ * ```ts
+ * export default defineWorkflowWithOptions({ versioningBehavior: 'pinned' }, myDefaultWorkflow);
+ * async function myDefaultWorkflow(): Promise<string> {
+ *   // Workflow code here
+ *   return "hi";
+ * }
+ * ```
+ *
+ * @param options Options for the workflow defintion.
+ * @param fn The workflow function.
+ * @returns The same passed in workflow function, with the specified options applied. You can export
+ * this function to make it available as a workflow function.
+ */
+export function defineWorkflowWithOptions<A extends any[], RT>(
+  options: WorkflowDefinitionOptions,
+  fn: (...args: A) => Promise<RT>
+): WorkflowFunctionWithOptions<A, RT> {
+  const wrappedFn = Object.assign(fn, {
+    options,
+    __temporal_is_workflow_function_with_options: true as const,
+  });
+  return wrappedFn;
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');

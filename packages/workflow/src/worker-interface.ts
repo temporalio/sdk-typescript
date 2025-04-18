@@ -3,9 +3,14 @@
  *
  * @module
  */
-import { IllegalStateError } from '@temporalio/common';
+import {
+  encodeVersioningBehavior,
+  IllegalStateError,
+  isWorkflowFunctionWithOptions,
+  VersioningBehavior,
+} from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { coresdk } from '@temporalio/proto';
+import { coresdk, temporal } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
 import { disableUpdateStorage } from './update-scope';
 import { WorkflowInterceptorsFactory } from './interceptors';
@@ -79,7 +84,13 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
     const workflowFn = mod[activator.info.workflowType];
     const defaultWorkflowFn = mod['default'];
 
-    if (typeof workflowFn === 'function') {
+    if (isWorkflowFunctionWithOptions(workflowFn)) {
+      activator.workflow = workflowFn;
+      activator.versioningBehavior = workflowFn.options.versioningBehavior;
+    } else if (isWorkflowFunctionWithOptions(defaultWorkflowFn)) {
+      activator.workflow = defaultWorkflowFn;
+      activator.versioningBehavior = defaultWorkflowFn.options.versioningBehavior;
+    } else if (typeof workflowFn === 'function') {
       activator.workflow = workflowFn;
     } else if (typeof defaultWorkflowFn === 'function') {
       activator.workflow = defaultWorkflowFn;
@@ -203,7 +214,11 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
     }
     return {
       runId: activator.info.runId,
-      successful: { ...activationCompletion, commands },
+      successful: {
+        ...activationCompletion,
+        commands,
+        versioningBehavior: encodeVersioningBehavior(activationCompletion.versioningBehavior),
+      },
     };
   } finally {
     activator.rethrowSynchronously = false;
