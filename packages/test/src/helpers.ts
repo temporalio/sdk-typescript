@@ -38,8 +38,7 @@ export const REUSE_V8_CONTEXT = inWorkflowContext() || isSet(process.env.REUSE_V
 export const RUN_TIME_SKIPPING_TESTS =
   inWorkflowContext() || !(process.platform === 'linux' && process.arch === 'arm64');
 
-// TODO: Remove after next CLI release
-export const TESTS_CLI_VERSION = inWorkflowContext() ? '' : 'v1.3.1-priority.0';
+export const TESTS_CLI_VERSION = inWorkflowContext() ? '' : process.env.TESTS_CLI_VERSION;
 
 export const TESTS_TIME_SKIPPING_SERVER_VERSION = inWorkflowContext()
   ? ''

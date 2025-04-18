@@ -125,7 +125,7 @@ export interface ActivityOptions {
   versioningIntent?: VersioningIntent;
 
   /**
-   * Priority of an activity
+   * Priority of this activity
    */
   priority?: Priority;
 }

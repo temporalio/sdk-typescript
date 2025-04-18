@@ -186,7 +186,7 @@ export interface WorkflowInfo {
   readonly unsafe: UnsafeWorkflowInfo;
 
   /**
-   * Priority of a workflow
+   * Priority of this workflow
    */
   readonly priority?: Priority;
 }

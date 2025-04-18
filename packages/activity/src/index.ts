@@ -199,7 +199,7 @@ export interface Info {
    */
   readonly taskQueue: string;
   /**
-   * Priority of an Activity
+   * Priority of this activity
    */
   readonly priority?: Priority;
 }
