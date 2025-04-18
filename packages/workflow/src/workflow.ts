@@ -22,6 +22,7 @@ import {
   WorkflowReturnType,
   WorkflowUpdateValidatorType,
   SearchAttributeUpdatePair,
+  compilePriority,
 } from '@temporalio/common';
 import {
   encodeUnifiedSearchAttributes,
@@ -193,6 +194,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         cancellationType: encodeActivityCancellationType(options.cancellationType),
         doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
+        priority: options.priority ? compilePriority(options.priority) : undefined,
       },
     });
     activator.completions.activity.set(seq, {
@@ -393,6 +395,7 @@ function startChildWorkflowExecutionNextHandler({
             : undefined,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
+        priority: options.priority ? compilePriority(options.priority) : undefined,
       },
     });
     activator.completions.childWorkflowStart.set(seq, {

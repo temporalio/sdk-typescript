@@ -12,6 +12,7 @@ import {
   VersioningIntent,
   TypedSearchAttributes,
   SearchAttributePair,
+  Priority,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -183,6 +184,11 @@ export interface WorkflowInfo {
   readonly currentBuildId?: string;
 
   readonly unsafe: UnsafeWorkflowInfo;
+
+  /**
+   * Priority of this workflow
+   */
+  readonly priority?: Priority;
 }
 
 /**

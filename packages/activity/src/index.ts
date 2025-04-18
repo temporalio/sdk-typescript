@@ -70,7 +70,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Logger, Duration, LogLevel, LogMetadata } from '@temporalio/common';
+import { Logger, Duration, LogLevel, LogMetadata, Priority } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
@@ -198,6 +198,10 @@ export interface Info {
    * For Local Activities, this is set to the Workflow's Task Queue.
    */
   readonly taskQueue: string;
+  /**
+   * Priority of this activity
+   */
+  readonly priority?: Priority;
 }
 
 /**

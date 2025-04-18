@@ -1,5 +1,5 @@
 import { ServiceError as GrpcServiceError, status as grpcStatus } from '@grpc/grpc-js';
-import { LoadedDataConverter, NamespaceNotFoundError } from '@temporalio/common';
+import { decodePriority, LoadedDataConverter, NamespaceNotFoundError } from '@temporalio/common';
 import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
@@ -79,6 +79,7 @@ export async function executionInfoFromRaw<T>(
         }
       : undefined,
     raw: rawDataToEmbed,
+    priority: decodePriority(raw.priority),
   };
 }
 
