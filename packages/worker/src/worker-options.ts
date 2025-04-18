@@ -6,8 +6,7 @@ import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
 import { Context } from '@temporalio/activity';
-import { checkExtends } from '@temporalio/common/lib/type-helpers';
-import { WorkerOptions as NativeWorkerOptions, WorkerTuner as NativeWorkerTuner } from '@temporalio/core-bridge';
+import { native } from '@temporalio/core-bridge';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
@@ -18,43 +17,6 @@ import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 import { asNativeTuner, WorkerTuner } from './worker-tuner';
-
-export type { WebpackConfiguration };
-
-export interface WorkflowBundlePath {
-  codePath: string;
-}
-
-/**
- * Note this no longer contains a source map.
- * The name was preserved to avoid breaking backwards compatibility.
- *
- * @deprecated
- */
-export interface WorkflowBundlePathWithSourceMap {
-  codePath: string;
-  sourceMapPath: string;
-}
-
-export interface WorkflowBundle {
-  code: string;
-}
-
-export type WorkflowBundleOption =
-  | WorkflowBundle
-  | WorkflowBundleWithSourceMap
-  | WorkflowBundlePath
-  | WorkflowBundlePathWithSourceMap; // eslint-disable-line deprecation/deprecation
-
-export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundle {
-  const opt = bundleOpt as any; // Cast to access properties without TS complaining
-  return typeof opt.code === 'string';
-}
-
-export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundlePath {
-  const opt = bundleOpt as any; // Cast to access properties without TS complaining
-  return typeof opt.codePath === 'string';
-}
 
 /**
  * Options to configure the {@link Worker}
@@ -537,68 +499,7 @@ export interface WorkerOptions {
   };
 }
 
-/**
- * WorkerOptions with all of the Worker required attributes
- */
-export type WorkerOptionsWithDefaults = WorkerOptions &
-  Required<
-    Pick<
-      WorkerOptions,
-      | 'namespace'
-      | 'identity'
-      | 'useVersioning'
-      | 'shutdownGraceTime'
-      | 'maxConcurrentWorkflowTaskPolls'
-      | 'maxConcurrentActivityTaskPolls'
-      | 'nonStickyToStickyPollRatio'
-      | 'enableNonLocalActivities'
-      | 'stickyQueueScheduleToStartTimeout'
-      | 'maxCachedWorkflows'
-      | 'workflowThreadPoolSize'
-      | 'maxHeartbeatThrottleInterval'
-      | 'defaultHeartbeatThrottleInterval'
-      | 'showStackTraceSources'
-      | 'debugMode'
-      | 'reuseV8Context'
-      | 'tuner'
-    >
-  > & {
-    interceptors: Required<WorkerInterceptors>;
-
-    /**
-     * Time to wait for result when calling a Workflow isolate function.
-     * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
-     *
-     * This value is not exposed at the moment.
-     *
-     * @default 5s
-     */
-    isolateExecutionTimeout: Duration;
-  };
-
-/**
- * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms
- * formatted strings to numbers.
- */
-export interface CompiledWorkerOptions
-  extends Omit<WorkerOptionsWithDefaults, 'interceptors' | 'activities' | 'tuner'> {
-  interceptors: CompiledWorkerInterceptors;
-  shutdownGraceTimeMs: number;
-  shutdownForceTimeMs?: number;
-  isolateExecutionTimeoutMs: number;
-  stickyQueueScheduleToStartTimeoutMs: number;
-  maxHeartbeatThrottleIntervalMs: number;
-  defaultHeartbeatThrottleIntervalMs: number;
-  loadedDataConverter: LoadedDataConverter;
-  activities: Map<string, ActivityFunction>;
-  tuner: NativeWorkerTuner;
-}
-
-export type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
-  buildId: string;
-};
-
-checkExtends<NativeWorkerOptions, CompiledWorkerOptionsWithBuildId>();
+// Replay Worker ///////////////////////////////////////////////////////////////////////////////////
 
 /**
  * {@link WorkerOptions} with inapplicable-to-replay fields removed.
@@ -635,6 +536,47 @@ export interface ReplayWorkerOptions
    */
   replayName?: string;
 }
+
+// Workflow Bundle /////////////////////////////////////////////////////////////////////////////////
+
+export type { WebpackConfiguration };
+
+export interface WorkflowBundlePath {
+  codePath: string;
+}
+
+/**
+ * Note this no longer contains a source map.
+ * The name was preserved to avoid breaking backwards compatibility.
+ *
+ * @deprecated
+ */
+export interface WorkflowBundlePathWithSourceMap {
+  codePath: string;
+  sourceMapPath: string;
+}
+
+export interface WorkflowBundle {
+  code: string;
+}
+
+export type WorkflowBundleOption =
+  | WorkflowBundle
+  | WorkflowBundleWithSourceMap
+  | WorkflowBundlePath
+  | WorkflowBundlePathWithSourceMap; // eslint-disable-line deprecation/deprecation
+
+export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundle {
+  const opt = bundleOpt as any; // Cast to access properties without TS complaining
+  return typeof opt.code === 'string';
+}
+
+export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundlePath {
+  const opt = bundleOpt as any; // Cast to access properties without TS complaining
+  return typeof opt.codePath === 'string';
+}
+
+// Sinks and Interceptors //////////////////////////////////////////////////////////////////////////
 
 /**
  * Build the sink used internally by the SDK to forwards log messages from the Workflow sandbox to an actual logger.
@@ -696,6 +638,69 @@ function compileWorkerInterceptors({
     workflowModules,
   };
 }
+
+// Compile Options /////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * WorkerOptions with all of the Worker required attributes
+ */
+export type WorkerOptionsWithDefaults = WorkerOptions &
+  Required<
+    Pick<
+      WorkerOptions,
+      | 'namespace'
+      | 'identity'
+      | 'useVersioning'
+      | 'shutdownGraceTime'
+      | 'maxConcurrentWorkflowTaskPolls'
+      | 'maxConcurrentActivityTaskPolls'
+      | 'nonStickyToStickyPollRatio'
+      | 'enableNonLocalActivities'
+      | 'stickyQueueScheduleToStartTimeout'
+      | 'maxCachedWorkflows'
+      | 'workflowThreadPoolSize'
+      | 'maxHeartbeatThrottleInterval'
+      | 'defaultHeartbeatThrottleInterval'
+      | 'showStackTraceSources'
+      | 'debugMode'
+      | 'reuseV8Context'
+      | 'tuner'
+    >
+  > & {
+    interceptors: Required<WorkerInterceptors>;
+
+    /**
+     * Time to wait for result when calling a Workflow isolate function.
+     * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
+     *
+     * This value is not exposed at the moment.
+     *
+     * @default 5s
+     */
+    isolateExecutionTimeout: Duration;
+  };
+
+/**
+ * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms
+ * formatted strings to numbers.
+ */
+export interface CompiledWorkerOptions
+  extends Omit<WorkerOptionsWithDefaults, 'interceptors' | 'activities' | 'tuner'> {
+  interceptors: CompiledWorkerInterceptors;
+  shutdownGraceTimeMs: number;
+  shutdownForceTimeMs?: number;
+  isolateExecutionTimeoutMs: number;
+  stickyQueueScheduleToStartTimeoutMs: number;
+  maxHeartbeatThrottleIntervalMs: number;
+  defaultHeartbeatThrottleIntervalMs: number;
+  loadedDataConverter: LoadedDataConverter;
+  activities: Map<string, ActivityFunction>;
+  tuner: native.WorkerTunerOptions;
+}
+
+export type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
+  buildId: string;
+};
 
 function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): WorkerOptionsWithDefaults {
   const {
@@ -839,6 +844,30 @@ export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): Co
     tuner,
   };
 }
+
+export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): native.WorkerOptions {
+  return {
+    identity: opts.identity,
+    buildId: opts.buildId,
+    useVersioning: opts.useVersioning,
+    taskQueue: opts.taskQueue,
+    namespace: opts.namespace,
+    tuner: opts.tuner,
+    nonStickyToStickyPollRatio: opts.nonStickyToStickyPollRatio,
+    maxConcurrentWorkflowTaskPolls: opts.maxConcurrentWorkflowTaskPolls,
+    maxConcurrentActivityTaskPolls: opts.maxConcurrentActivityTaskPolls,
+    enableNonLocalActivities: opts.enableNonLocalActivities,
+    stickyQueueScheduleToStartTimeout: msToNumber(opts.stickyQueueScheduleToStartTimeout),
+    maxCachedWorkflows: opts.maxCachedWorkflows,
+    maxHeartbeatThrottleInterval: msToNumber(opts.maxHeartbeatThrottleInterval),
+    defaultHeartbeatThrottleInterval: msToNumber(opts.defaultHeartbeatThrottleInterval),
+    maxTaskQueueActivitiesPerSecond: opts.maxTaskQueueActivitiesPerSecond ?? null,
+    maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
+    shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
+  };
+}
+
+// Utils ///////////////////////////////////////////////////////////////////////////////////////////
 
 function isSet(env: string | undefined): boolean {
   if (env === undefined) return false;

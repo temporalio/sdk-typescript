@@ -82,7 +82,10 @@ test('TestEnvironment sets up dev server with db filename', async (t) => {
 });
 
 test('TestEnvironment sets up dev server with custom port and ui', async (t) => {
-  const port = await getRandomPort();
+  // FIXME: We'd really need to assert that the UI port is not being used by another process.
+  let port = await getRandomPort();
+  if (port > 65535 - 1000) port = 65535 - 1000;
+
   const testEnv = await TestWorkflowEnvironment.createLocal({
     server: {
       ip: '127.0.0.1',
@@ -123,5 +126,20 @@ test('TestEnvironment sets up dev server with custom ui port', async (t) => {
     t.pass();
   } finally {
     await testEnv.teardown();
+  }
+});
+
+test("TestEnvironment doesn't hang on fail to download", async (t) => {
+  try {
+    await TestWorkflowEnvironment.createLocal({
+      server: {
+        executable: {
+          type: 'cached-download',
+          version: '999.999.999',
+        },
+      },
+    });
+  } catch (_e) {
+    t.pass();
   }
 });
