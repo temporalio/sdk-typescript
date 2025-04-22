@@ -1082,7 +1082,7 @@ if (RUN_TIME_SKIPPING_TESTS) {
 }
 
 export async function rootWorkflow(): Promise<string> {
-  var result = '';
+  let result = '';
   if (!workflow.workflowInfo().rootWorkflow) {
     result += 'empty';
   } else {
