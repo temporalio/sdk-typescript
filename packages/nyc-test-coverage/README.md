@@ -88,3 +88,8 @@ afterAll(() => {
   workflowCoverage.mergeIntoGlobalCoverage();
 });
 ```
+
+## Usage with vitest
+
+This package works with [vitest](https://vitest.dev/) code coverage. Make sure you have configured vitest to use the 
+`instanbul` provider https://vitest.dev/guide/coverage.html#coverage-providers.
