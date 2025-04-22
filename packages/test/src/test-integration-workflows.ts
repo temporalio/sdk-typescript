@@ -1081,6 +1081,30 @@ if (RUN_TIME_SKIPPING_TESTS) {
   });
 }
 
+export async function rootWorkflow(): Promise<string> {
+  var result = '';
+  if (!workflow.workflowInfo().rootWorkflow) {
+    result += 'empty';
+  } else {
+    result += workflow.workflowInfo().rootWorkflow.workflowId;
+  }
+  if (!workflow.workflowInfo().parent) {
+    result += ' ';
+    result += await workflow.executeChild(rootWorkflow, { args: [] });
+  }
+  return result;
+}
+
+test('Workflow can return root workflow', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(rootWorkflow, { workflowId: 'test-root-workflow-length', args: [] });
+    const result = await handle.result();
+    t.deepEqual(result, 'empty test-root-workflow-length');
+  });
+});
+
 export async function upsertAndReadMemo(memo: Record<string, unknown>): Promise<Record<string, unknown> | undefined> {
   workflow.upsertMemo(memo);
   return workflow.workflowInfo().memo;

@@ -92,6 +92,7 @@ export {
   ContinueAsNew,
   ContinueAsNewOptions,
   EnhancedStackTrace,
+  RootWorkflowInfo,
   StackTraceFileLocation,
   StackTraceFileSlice,
   ParentClosePolicy,

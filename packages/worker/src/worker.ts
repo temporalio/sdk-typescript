@@ -71,7 +71,7 @@ import {
 } from './replay';
 import { History, Runtime } from './runtime';
 import { CloseableGroupedObservable, closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
-import { byteArrayToBuffer, convertToParentWorkflowType } from './utils';
+import { byteArrayToBuffer, convertToParentWorkflowType, convertToRootWorkflowType } from './utils';
 import {
   CompiledWorkerOptions,
   CompiledWorkerOptionsWithBuildId,
@@ -1270,6 +1270,7 @@ export class Worker {
       workflowExecutionExpirationTime,
       cronScheduleToScheduleInterval,
       priority,
+      rootWorkflow,
     } = initWorkflowJob;
 
     // Note that we can't do payload convertion here, as there's no guarantee that converted payloads would be safe to
@@ -1307,6 +1308,7 @@ export class Worker {
         isReplaying: activation.isReplaying,
       },
       priority: decodePriority(priority),
+      rootWorkflow: convertToRootWorkflowType(rootWorkflow),
     };
     const logAttributes = workflowLogAttributes(workflowInfo);
     this.logger.trace('Creating workflow', logAttributes);
