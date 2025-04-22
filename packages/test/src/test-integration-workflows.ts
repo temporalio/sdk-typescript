@@ -1086,7 +1086,7 @@ export async function rootWorkflow(): Promise<string> {
   if (!workflow.workflowInfo().rootWorkflow) {
     result += 'empty';
   } else {
-    result += workflow.workflowInfo().rootWorkflow.workflowId;
+    result += workflow.workflowInfo().rootWorkflow!.workflowId;
   }
   if (!workflow.workflowInfo().parent) {
     result += ' ';
