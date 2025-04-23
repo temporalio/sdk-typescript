@@ -1,8 +1,8 @@
 import { v4 as uuid } from 'uuid';
 import fetch from 'node-fetch';
+import test from 'ava';
 import { Runtime, Worker } from '@temporalio/worker';
 import { getRandomPort, TestWorkflowEnvironment } from './helpers';
-import test from 'ava';
 import * as activities from './activities';
 import * as workflows from './workflows';
 
@@ -64,7 +64,7 @@ test.serial('Can run autoscaling polling worker', async (t) => {
 
     const workflowPromises = Array(20)
       .fill(0)
-      .map(async (_, i) => {
+      .map(async (_) => {
         const handle = await localEnv.client.workflow.start(workflows.waitOnSignalThenActivity, {
           taskQueue,
           workflowId: `resource-based-${uuid()}`,
