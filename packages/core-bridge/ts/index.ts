@@ -379,6 +379,20 @@ export type CompiledTelemetryOptions = {
   } & (CompiledPrometheusMetricsExporter | CompiledOtelMetricsExporter);
 };
 
+export type PollerBehavior = PollerBehaviorSimpleMaximum | PollerBehaviorAutoscaling;
+
+export interface PollerBehaviorAutoscaling {
+  type: 'autoscaling';
+  minimum: number;
+  maximum: number;
+  initial: number;
+}
+
+export interface PollerBehaviorSimpleMaximum {
+  type: 'simple-maximum';
+  maximum: number;
+}
+
 export interface WorkerOptions {
   identity: string;
   buildId: string;
@@ -386,8 +400,8 @@ export interface WorkerOptions {
   taskQueue: string;
   tuner: WorkerTuner;
   nonStickyToStickyPollRatio: number;
-  maxConcurrentWorkflowTaskPolls: number;
-  maxConcurrentActivityTaskPolls: number;
+  workflowTaskPollerBehavior: PollerBehavior;
+  activityTaskPollerBehavior: PollerBehavior;
   enableNonLocalActivities: boolean;
   stickyQueueScheduleToStartTimeoutMs: number;
   maxCachedWorkflows: number;

@@ -363,6 +363,20 @@ export interface WorkerOptions {
   maxConcurrentActivityTaskPolls?: number;
 
   /**
+   * Specify the behavior of workflow task polling.
+   *
+   * @default A fixed maximum whose value is min(10, maxConcurrentWorkflowTaskExecutions).
+   */
+  workflowTaskPollerBehavior?: PollerBehavior;
+
+  /**
+   * Specify the behavior of activity task polling.
+   *
+   * @default A fixed maximum whose value is min(10, maxConcurrentActivityTaskExecutions).
+   */
+  activityTaskPollerBehavior?: PollerBehavior;
+
+  /**
    * How long a workflow task is allowed to sit on the sticky queue before it is timed out
    * and moved to the non-sticky queue where it may be picked up by any worker.
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
@@ -568,6 +582,20 @@ export interface WorkerOptions {
   };
 }
 
+export type PollerBehavior = PollerBehaviorSimpleMaximum | PollerBehaviorAutoscaling;
+
+export interface PollerBehaviorAutoscaling {
+  type: 'autoscaling';
+  minimum?: number;
+  maximum?: number;
+  initial?: number;
+}
+
+export interface PollerBehaviorSimpleMaximum {
+  type: 'simple-maximum';
+  maximum?: number;
+}
+
 /**
  * WorkerOptions with all of the Worker required attributes
  */
@@ -579,8 +607,6 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'identity'
       | 'useVersioning'
       | 'shutdownGraceTime'
-      | 'maxConcurrentWorkflowTaskPolls'
-      | 'maxConcurrentActivityTaskPolls'
       | 'nonStickyToStickyPollRatio'
       | 'enableNonLocalActivities'
       | 'stickyQueueScheduleToStartTimeout'
@@ -605,6 +631,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
      * @default 5s
      */
     isolateExecutionTimeout: Duration;
+    workflowTaskPollerBehavior: Required<PollerBehavior>;
+    activityTaskPollerBehavior: Required<PollerBehavior>;
   };
 
 /**
@@ -741,6 +769,8 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
     maxConcurrentActivityTaskExecutions,
     maxConcurrentLocalActivityExecutions,
     maxConcurrentWorkflowTaskExecutions,
+    workflowTaskPollerBehavior,
+    activityTaskPollerBehavior,
     ...rest
   } = options;
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
@@ -793,6 +823,21 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
     };
   }
 
+  const createPollerBehavior = (defaultMax: number, behavior?: PollerBehavior): Required<PollerBehavior> =>
+    !behavior
+      ? { type: 'simple-maximum', maximum: defaultMax }
+      : behavior.type === 'simple-maximum'
+        ? { type: 'simple-maximum', maximum: behavior.maximum ?? defaultMax }
+        : {
+            type: 'autoscaling',
+            minimum: behavior.minimum ?? 1,
+            initial: behavior.initial ?? 5,
+            maximum: behavior.maximum ?? 100,
+          };
+
+  const wftPollerBehavior = createPollerBehavior(maxWFTPolls, workflowTaskPollerBehavior);
+  const atPollerBehavior = createPollerBehavior(maxATPolls, activityTaskPollerBehavior);
+
   return {
     namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
@@ -800,8 +845,8 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
     buildId,
     shutdownGraceTime: 0,
     enableNonLocalActivities: true,
-    maxConcurrentWorkflowTaskPolls: maxWFTPolls,
-    maxConcurrentActivityTaskPolls: maxATPolls,
+    workflowTaskPollerBehavior: wftPollerBehavior,
+    activityTaskPollerBehavior: atPollerBehavior,
     stickyQueueScheduleToStartTimeout: '10s',
     maxHeartbeatThrottleInterval: '60s',
     defaultHeartbeatThrottleInterval: '30s',
