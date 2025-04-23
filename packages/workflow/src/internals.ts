@@ -22,6 +22,7 @@ import {
   fromPayloadsAtIndex,
   WorkflowFunctionWithOptions,
   VersioningBehavior,
+  WorkflowDefinitionOptions,
 } from '@temporalio/common';
 import {
   decodeSearchAttributes,
@@ -419,6 +420,7 @@ export class Activator implements ActivationHandler {
   public readonly registeredActivityNames: Set<string>;
 
   public versioningBehavior?: VersioningBehavior;
+  public workflowDefinitionOptionsGetter?: () => WorkflowDefinitionOptions;
 
   constructor({
     info,
@@ -534,6 +536,9 @@ export class Activator implements ActivationHandler {
           ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter)
           : undefined,
     }));
+    if (this.workflowDefinitionOptionsGetter) {
+      this.versioningBehavior = this.workflowDefinitionOptionsGetter().versioningBehavior;
+    }
   }
 
   public cancelWorkflow(_activation: coresdk.workflow_activation.ICancelWorkflow): void {

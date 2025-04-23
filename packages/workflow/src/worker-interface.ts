@@ -3,14 +3,9 @@
  *
  * @module
  */
-import {
-  encodeVersioningBehavior,
-  IllegalStateError,
-  isWorkflowFunctionWithOptions,
-  VersioningBehavior,
-} from '@temporalio/common';
+import { encodeVersioningBehavior, IllegalStateError, isWorkflowFunctionWithOptions } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { coresdk, temporal } from '@temporalio/proto';
+import { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
 import { disableUpdateStorage } from './update-scope';
 import { WorkflowInterceptorsFactory } from './interceptors';
@@ -86,10 +81,18 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
 
     if (isWorkflowFunctionWithOptions(workflowFn)) {
       activator.workflow = workflowFn;
-      activator.versioningBehavior = workflowFn.options.versioningBehavior;
+      if (typeof workflowFn.options === 'object') {
+        activator.versioningBehavior = workflowFn.options.versioningBehavior;
+      } else {
+        activator.workflowDefinitionOptionsGetter = workflowFn.options;
+      }
     } else if (isWorkflowFunctionWithOptions(defaultWorkflowFn)) {
       activator.workflow = defaultWorkflowFn;
-      activator.versioningBehavior = defaultWorkflowFn.options.versioningBehavior;
+      if (typeof defaultWorkflowFn.options === 'object') {
+        activator.versioningBehavior = defaultWorkflowFn.options.versioningBehavior;
+      } else {
+        activator.workflowDefinitionOptionsGetter = defaultWorkflowFn.options;
+      }
     } else if (typeof workflowFn === 'function') {
       activator.workflow = workflowFn;
     } else if (typeof defaultWorkflowFn === 'function') {

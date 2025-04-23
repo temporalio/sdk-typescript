@@ -6,11 +6,12 @@
 import assert from 'assert';
 import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
+import { ExecutionContext } from 'ava';
 import { Client } from '@temporalio/client';
 import { toCanonicalString, WorkerDeploymentVersion } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { Worker } from './helpers';
-import { makeTestFunction } from './helpers-integration';
+import { Context, makeTestFunction } from './helpers-integration';
 import { unblockSignal, versionQuery } from './workflows';
 
 const test = makeTestFunction({ workflowsPath: __filename });
@@ -242,7 +243,11 @@ test('Worker deployment based versioning with ramping', async (t) => {
   t.pass();
 });
 
-test('Worker deployment with dynamic workflow on run', async (t) => {
+async function testWorkerDeploymentWithDynamicBehavior(
+  t: ExecutionContext<Context>,
+  workflowName: string,
+  expectedResult: string
+) {
   if (t.context.env.supportsTimeSkipping) {
     t.pass("Test Server doesn't support worker deployments");
     return;
@@ -276,17 +281,15 @@ test('Worker deployment with dynamic workflow on run', async (t) => {
   const describeResp = await waitUntilWorkerDeploymentVisible(client, version);
   await setCurrentDeploymentVersion(client, describeResp.conflictToken, version);
 
-  const wf = await client.workflow.start('cooldynamicworkflow', {
+  const wf = await client.workflow.start(workflowName, {
     taskQueue,
     workflowId: 'dynamic-workflow-versioning-' + randomUUID(),
   });
 
   const result = await wf.result();
-  assert.equal(result, 'dynamic');
+  assert.equal(result, expectedResult);
 
-  // Check history for versioning behavior
   const history = await wf.fetchHistory();
-
   const hasPinnedVersioningBehavior = history.events!.some(
     (event) =>
       event.workflowTaskCompletedEventAttributes &&
@@ -298,6 +301,14 @@ test('Worker deployment with dynamic workflow on run', async (t) => {
   worker.shutdown();
   await workerPromise;
   t.pass();
+}
+
+test('Worker deployment with dynamic workflow static behavior', async (t) => {
+  await testWorkerDeploymentWithDynamicBehavior(t, 'cooldynamicworkflow', 'dynamic');
+});
+
+test('Worker deployment with behavior in getter', async (t) => {
+  await testWorkerDeploymentWithDynamicBehavior(t, 'usesGetter', 'usesGetter');
 });
 
 test('Workflows can use default versioning behavior', async (t) => {

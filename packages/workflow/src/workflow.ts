@@ -23,7 +23,7 @@ import {
   WorkflowUpdateValidatorType,
   SearchAttributeUpdatePair,
   compilePriority,
-  WorkflowDefinitionOptions,
+  WorkflowDefinitionOptionsOrGetter,
   WorkflowFunctionWithOptions,
 } from '@temporalio/common';
 import {
@@ -1617,13 +1617,15 @@ export function allHandlersFinished(): boolean {
  * }
  * ```
  *
- * @param options Options for the workflow defintion.
+ * @param options Options for the workflow defintion, or a function that returns options. If a
+ * function is provided, it will be called once just before the workflow function is called for the
+ * first time.
  * @param fn The workflow function.
  * @returns The same passed in workflow function, with the specified options applied. You can export
  * this function to make it available as a workflow function.
  */
 export function defineWorkflowWithOptions<A extends any[], RT>(
-  options: WorkflowDefinitionOptions,
+  options: WorkflowDefinitionOptionsOrGetter,
   fn: (...args: A) => Promise<RT>
 ): WorkflowFunctionWithOptions<A, RT> {
   const wrappedFn = Object.assign(fn, {
