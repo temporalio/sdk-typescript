@@ -97,6 +97,7 @@ pub(crate) trait ObjectHandleConversionsExt {
         cx: &mut FunctionContext,
         rbo: &mut Option<ResourceBasedSlotsOptions>,
     ) -> NeonResult<SlotSupplierOptions<SK>>;
+    fn into_poller_behavior(self, cx: &mut FunctionContext) -> NeonResult<PollerBehavior>;
 }
 
 impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
@@ -446,10 +447,6 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
         let task_queue = js_value_getter!(cx, self, "taskQueue", JsString);
         let enable_remote_activities =
             js_value_getter!(cx, self, "enableNonLocalActivities", JsBoolean);
-        let max_concurrent_wft_polls =
-            js_value_getter!(cx, self, "maxConcurrentWorkflowTaskPolls", JsNumber) as usize;
-        let max_concurrent_at_polls =
-            js_value_getter!(cx, self, "maxConcurrentActivityTaskPolls", JsNumber) as usize;
         let sticky_queue_schedule_to_start_timeout = Duration::from_millis(js_value_getter!(
             cx,
             self,
@@ -560,13 +557,16 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             }
         };
 
+        let wft_poller_behavior = js_getter!(cx, self, "workflowTaskPollerBehavior", JsObject)
+            .into_poller_behavior(cx)?;
+        let act_poller_behavior = js_getter!(cx, self, "activityTaskPollerBehavior", JsObject)
+            .into_poller_behavior(cx)?;
+
         match WorkerConfigBuilder::default()
             .versioning_strategy(versioning_strategy)
             .client_identity_override(Some(js_value_getter!(cx, self, "identity", JsString)))
             .no_remote_activities(!enable_remote_activities)
             .tuner(tuner)
-            .workflow_task_poller_behavior(PollerBehavior::SimpleMaximum(max_concurrent_wft_polls))
-            .activity_task_poller_behavior(PollerBehavior::SimpleMaximum(max_concurrent_at_polls))
             .nonsticky_to_sticky_poll_ratio(nonsticky_to_sticky_poll_ratio)
             .max_cached_workflows(max_cached_workflows)
             .sticky_queue_schedule_to_start_timeout(sticky_queue_schedule_to_start_timeout)
@@ -577,6 +577,8 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .default_heartbeat_throttle_interval(default_heartbeat_throttle_interval)
             .max_worker_activities_per_second(max_worker_activities_per_second)
             .max_task_queue_activities_per_second(max_task_queue_activities_per_second)
+            .workflow_task_poller_behavior(wft_poller_behavior)
+            .activity_task_poller_behavior(act_poller_behavior)
             .build()
         {
             Ok(worker_cfg) => Ok(worker_cfg),
@@ -736,5 +738,26 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             }
             _ => cx.throw_type_error("Invalid slot supplier type"),
         }
+    }
+
+    fn into_poller_behavior(self, cx: &mut FunctionContext) -> NeonResult<PollerBehavior> {
+        Ok(
+            match js_value_getter!(cx, &self, "type", JsString).as_str() {
+                "simple-maximum" => PollerBehavior::SimpleMaximum(js_value_getter!(
+                    cx, &self, "maximum", JsNumber
+                ) as usize),
+                "autoscaling" => PollerBehavior::Autoscaling {
+                    minimum: js_value_getter!(cx, &self, "minimum", JsNumber) as usize,
+                    maximum: js_value_getter!(cx, &self, "maximum", JsNumber) as usize,
+                    initial: js_value_getter!(cx, &self, "initial", JsNumber) as usize,
+                },
+                other => {
+                    return cx.throw_error(format!(
+                        "Invalid workflow task poller behavior type: {}",
+                        other
+                    ));
+                }
+            },
+        )
     }
 }
