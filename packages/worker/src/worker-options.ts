@@ -584,15 +584,41 @@ export interface WorkerOptions {
 
 export type PollerBehavior = PollerBehaviorSimpleMaximum | PollerBehaviorAutoscaling;
 
+/**
+ * A poller behavior that will automatically scale the number of pollers based on feedback
+ * from the server. A slot must be available before beginning polling.
+ */
 export interface PollerBehaviorAutoscaling {
   type: 'autoscaling';
+  /**
+   * At least this many poll calls will always be attempted (assuming slots are available).
+   * Cannot be lower than 1. Defaults to 1.
+   */
   minimum?: number;
+  /**
+   * At most this many poll calls will ever be open at once. Must be >= `minimum`.
+   * Defaults to 100.
+   */
   maximum?: number;
+  /**
+   * This many polls will be attempted initially before scaling kicks in. Must be between
+   * `minimum` and `maximum`.
+   * Defaults to 5.
+   */
   initial?: number;
 }
 
+/**
+ * A poller behavior that will attempt to poll as long as a slot is available, up to the
+ * provided maximum.
+ */
 export interface PollerBehaviorSimpleMaximum {
   type: 'simple-maximum';
+  /**
+   * The maximum poller number, assumes the same default as described in
+   * {@link WorkerOptions.maxConcurrentWorkflowTaskPolls} or
+   * {@link WorkerOptions.maxConcurrentActivityTaskPolls}.
+   */
   maximum?: number;
 }
 
