@@ -1,7 +1,6 @@
 import type { RawSourceMap } from 'source-map';
 import {
   RetryPolicy,
-  TemporalFailure,
   CommonWorkflowOptions,
   HandlerUnfinishedPolicy,
   SearchAttributes,
@@ -73,7 +72,7 @@ export interface WorkflowInfo {
   /**
    * Failure from the previous Run (present when this Run is a retry, or the last Run of a Cron Workflow failed)
    */
-  readonly lastFailure?: TemporalFailure;
+  readonly lastFailure?: Error;
 
   /**
    * Length of Workflow history up until the current Workflow Task.

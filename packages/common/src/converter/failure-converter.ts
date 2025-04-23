@@ -75,7 +75,7 @@ export interface FailureConverter {
    *
    * The returned error must be an instance of `TemporalFailure`.
    */
-  failureToError(err: ProtoFailure, payloadConverter: PayloadConverter): TemporalFailure;
+  failureToError(err: ProtoFailure, payloadConverter: PayloadConverter): Error;
 }
 
 /**
@@ -198,7 +198,7 @@ export class DefaultFailureConverter implements FailureConverter {
     );
   }
 
-  failureToError(failure: ProtoFailure, payloadConverter: PayloadConverter): TemporalFailure {
+  failureToError(failure: ProtoFailure, payloadConverter: PayloadConverter): Error {
     if (failure.encodedAttributes) {
       const attrs = payloadConverter.fromPayload<DefaultEncodedFailureAttributes>(failure.encodedAttributes);
       // Don't apply encodedAttributes unless they conform to an expected schema
@@ -351,7 +351,7 @@ export class DefaultFailureConverter implements FailureConverter {
   optionalFailureToOptionalError(
     failure: ProtoFailure | undefined | null,
     payloadConverter: PayloadConverter
-  ): TemporalFailure | undefined {
+  ): Error | undefined {
     return failure ? this.failureToError(failure, payloadConverter) : undefined;
   }
 
