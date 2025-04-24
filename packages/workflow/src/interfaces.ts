@@ -63,7 +63,18 @@ export interface WorkflowInfo {
   readonly parent?: ParentWorkflowInfo;
 
   /**
-   * Root Workflow info
+   * The root workflow execution, defined as follows:
+   * 1. A workflow without a parent workflow is its own root workflow.
+   * 2. A workflow with a parent workflow has the same root workflow as
+   * its parent.
+   *
+   * When there is no parent workflow, i.e., the workflow is its own root workflow,
+   * this field is `undefined`.
+   *
+   * Note that Continue-as-New (or reset) propagates the workflow parentage relationship,
+   * and therefore, whether the new workflow has the same root workflow as the original one
+   * depends on whether it had a parent.
+   *
    */
   readonly root?: RootWorkflowInfo;
 
