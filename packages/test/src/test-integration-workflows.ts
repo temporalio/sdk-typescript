@@ -1389,3 +1389,26 @@ test('root execution is exposed', async (t) => {
     t.true(childWfInfoRoot?.runId === parentDesc.runId);
   });
 });
+
+export async function rootWorkflow(): Promise<string> {
+  let result = '';
+  if (!workflow.workflowInfo().root) {
+    result += 'empty';
+  } else {
+    result += workflow.workflowInfo().root!.workflowId;
+  }
+  if (!workflow.workflowInfo().parent) {
+    result += ' ';
+    result += await workflow.executeChild(rootWorkflow);
+  }
+  return result;
+}
+
+test('Workflow can return root workflow', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(rootWorkflow, { workflowId: 'test-root-workflow-length' });
+    t.deepEqual(result, 'empty test-root-workflow-length');
+  });
+});
