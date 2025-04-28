@@ -1593,14 +1593,12 @@ export function allHandlersFinished(): boolean {
 }
 
 /**
- * Can be used to alter or define workflow functions with certain options specified at definition
- * time. In order to ensure that workflows are loaded properly by their name, you typically will not
- * need to use the return value of this function.
+ * Can be used to alter workflow functions with certain options specified at definition time.
  *
  * @example
  * For example:
  * ```ts
- * defineWorkflowWithOptions({ versioningBehavior: 'pinned' }, myWorkflow);
+ * setWorkflowOptions({ versioningBehavior: 'PINNED' }, myWorkflow);
  * export async function myWorkflow(): Promise<string> {
  *   // Workflow code here
  *   return "hi";
@@ -1610,29 +1608,25 @@ export function allHandlersFinished(): boolean {
  * @example
  * To annotate a default or dynamic workflow:
  * ```ts
- * export default defineWorkflowWithOptions({ versioningBehavior: 'pinned' }, myDefaultWorkflow);
- * async function myDefaultWorkflow(): Promise<string> {
+ * export default async function (): Promise<string> {
  *   // Workflow code here
  *   return "hi";
  * }
+ * setWorkflowOptions({ versioningBehavior: 'PINNED' }, module.exports.default);
  * ```
  *
  * @param options Options for the workflow defintion, or a function that returns options. If a
  * function is provided, it will be called once just before the workflow function is called for the
- * first time.
+ * first time. It is safe to call {@link workflowInfo} inside such a function.
  * @param fn The workflow function.
- * @returns The same passed in workflow function, with the specified options applied. You can export
- * this function to make it available as a workflow function.
  */
-export function defineWorkflowWithOptions<A extends any[], RT>(
+export function setWorkflowOptions<A extends any[], RT>(
   options: WorkflowDefinitionOptionsOrGetter,
   fn: (...args: A) => Promise<RT>
-): WorkflowFunctionWithOptions<A, RT> {
-  const wrappedFn = Object.assign(fn, {
-    options,
-    __temporal_is_workflow_function_with_options: true as const,
+) {
+  Object.assign(fn, {
+    workflowDefinitionOptions: options,
   });
-  return wrappedFn;
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');

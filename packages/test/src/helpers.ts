@@ -215,10 +215,10 @@ export class TestWorkflowEnvironment extends RealTestWorkflowEnvironment {
     });
   }
 
-  static async createExistingServer(
+  static async createFromExistingServer(
     opts?: ExistingServerTestWorkflowEnvironmentOptions
   ): Promise<TestWorkflowEnvironment> {
-    return RealTestWorkflowEnvironment.createExistingServer(opts);
+    return RealTestWorkflowEnvironment.createFromExistingServer(opts);
   }
 }
 

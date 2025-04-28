@@ -137,7 +137,7 @@ export function makeTestFunction(opts: {
     createTestContext: async (_t: ExecutionContext): Promise<Context> => {
       let env: TestWorkflowEnvironment;
       if (process.env.TEMPORAL_SERVICE_ADDRESS) {
-        env = await TestWorkflowEnvironment.createExistingServer({
+        env = await TestWorkflowEnvironment.createFromExistingServer({
           address: process.env.TEMPORAL_SERVICE_ADDRESS,
         });
       } else {

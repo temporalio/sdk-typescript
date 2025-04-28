@@ -151,7 +151,7 @@ export type LocalTestWorkflowEnvironmentOptions = {
 };
 
 /**
- * Options for {@link TestWorkflowEnvironment.createExistingServer}
+ * Options for {@link TestWorkflowEnvironment.createFromExistingServer}
  */
 export type ExistingServerTestWorkflowEnvironmentOptions = {
   /** If not set, defaults to localhost:7233 */
@@ -302,7 +302,7 @@ export class TestWorkflowEnvironment {
     });
   }
 
-  static async createExistingServer(
+  static async createFromExistingServer(
     opts?: ExistingServerTestWorkflowEnvironmentOptions
   ): Promise<TestWorkflowEnvironment> {
     return await this.create({

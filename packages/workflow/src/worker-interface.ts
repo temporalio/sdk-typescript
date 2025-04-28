@@ -79,24 +79,28 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
     const workflowFn = mod[activator.info.workflowType];
     const defaultWorkflowFn = mod['default'];
 
-    if (isWorkflowFunctionWithOptions(workflowFn)) {
-      activator.workflow = workflowFn;
-      if (typeof workflowFn.options === 'object') {
-        activator.versioningBehavior = workflowFn.options.versioningBehavior;
+    if (typeof workflowFn === 'function') {
+      if (isWorkflowFunctionWithOptions(workflowFn)) {
+        activator.workflow = workflowFn;
+        if (typeof workflowFn.workflowDefinitionOptions === 'object') {
+          activator.versioningBehavior = workflowFn.workflowDefinitionOptions.versioningBehavior;
+        } else {
+          activator.workflowDefinitionOptionsGetter = workflowFn.workflowDefinitionOptions;
+        }
       } else {
-        activator.workflowDefinitionOptionsGetter = workflowFn.options;
+        activator.workflow = workflowFn;
       }
-    } else if (isWorkflowFunctionWithOptions(defaultWorkflowFn)) {
-      activator.workflow = defaultWorkflowFn;
-      if (typeof defaultWorkflowFn.options === 'object') {
-        activator.versioningBehavior = defaultWorkflowFn.options.versioningBehavior;
-      } else {
-        activator.workflowDefinitionOptionsGetter = defaultWorkflowFn.options;
-      }
-    } else if (typeof workflowFn === 'function') {
-      activator.workflow = workflowFn;
     } else if (typeof defaultWorkflowFn === 'function') {
-      activator.workflow = defaultWorkflowFn;
+      if (isWorkflowFunctionWithOptions(defaultWorkflowFn)) {
+        activator.workflow = defaultWorkflowFn;
+        if (typeof defaultWorkflowFn.workflowDefinitionOptions === 'object') {
+          activator.versioningBehavior = defaultWorkflowFn.workflowDefinitionOptions.versioningBehavior;
+        } else {
+          activator.workflowDefinitionOptionsGetter = defaultWorkflowFn.workflowDefinitionOptions;
+        }
+      } else {
+        activator.workflow = defaultWorkflowFn;
+      }
     } else {
       const details =
         workflowFn === undefined
