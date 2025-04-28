@@ -260,5 +260,5 @@ export function extractWorkflowType<T extends Workflow>(
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 export function isWorkflowFunctionWithOptions(obj: any): obj is WorkflowFunctionWithOptions<any[], any> {
   if (obj == null) return false;
-  return obj.__temporal_is_workflow_function_with_options === true;
+  return Object.hasOwn(obj, 'workflowDefinitionOptions');
 }
