@@ -1,7 +1,7 @@
 import { VersioningBehavior } from './worker-deployments';
 
 /**
- * Options that can be used when defining a workflow via {@link defineWorkflowWithOptions}.
+ * Options that can be used when defining a workflow via {@link setWorkflowOptions}.
  */
 export interface WorkflowDefinitionOptions {
   versioningBehavior?: VersioningBehavior;
@@ -14,6 +14,5 @@ export type WorkflowDefinitionOptionsOrGetter = WorkflowDefinitionOptions | (() 
  * A workflow function that has been defined with options from {@link WorkflowDefinitionOptions}.
  */
 export interface WorkflowFunctionWithOptions<Args extends any[], ReturnType> extends AsyncFunction<Args, ReturnType> {
-  __temporal_is_workflow_function_with_options: true;
-  options: WorkflowDefinitionOptionsOrGetter;
+  workflowDefinitionOptions: WorkflowDefinitionOptionsOrGetter;
 }
