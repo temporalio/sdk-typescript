@@ -1,4 +1,6 @@
-use crate::{conversions::ObjectHandleConversionsExt, errors::*, helpers::*, runtime::*};
+use crate::{
+    client::BoxedClient, conversions::ObjectHandleConversionsExt, errors::*, helpers::*, runtime::*,
+};
 use futures::stream::StreamExt;
 use neon::{prelude::*, types::buffer::TypedArray};
 use prost::Message;

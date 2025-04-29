@@ -31,3 +31,4 @@ once_cell = "1.19"
 temporal-sdk-core = { version = "*", path = "./sdk-core/core", features = ["ephemeral-server"] }
 temporal-client = { version = "*", path = "./sdk-core/client" }
 tokio-stream = "0.1"
+tonic = "0.12"
