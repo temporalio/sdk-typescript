@@ -76,6 +76,7 @@ test.serial('Can run autoscaling polling worker', async (t) => {
     await Promise.all(workflowPromises);
     worker.shutdown();
     await workerPromise;
+    t.pass();
   } finally {
     await localEnv.teardown();
   }

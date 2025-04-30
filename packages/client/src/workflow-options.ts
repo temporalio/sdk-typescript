@@ -2,9 +2,7 @@ import {
   CommonWorkflowOptions,
   SignalDefinition,
   WithWorkflowArgs,
-  WorkerDeploymentVersion,
   Workflow,
-  VersioningBehavior,
   VersioningOverride,
   toCanonicalString,
 } from '@temporalio/common';
