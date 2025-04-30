@@ -24,7 +24,6 @@ import {
   SearchAttributeUpdatePair,
   compilePriority,
   WorkflowDefinitionOptionsOrGetter,
-  WorkflowFunctionWithOptions,
 } from '@temporalio/common';
 import {
   encodeUnifiedSearchAttributes,
@@ -1623,7 +1622,7 @@ export function allHandlersFinished(): boolean {
 export function setWorkflowOptions<A extends any[], RT>(
   options: WorkflowDefinitionOptionsOrGetter,
   fn: (...args: A) => Promise<RT>
-) {
+): void {
   Object.assign(fn, {
     workflowDefinitionOptions: options,
   });
