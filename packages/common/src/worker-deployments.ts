@@ -22,8 +22,8 @@ export function toCanonicalString(version: WorkerDeploymentVersion): string {
 /**
  * Specifies when a workflow might move from a worker of one Build Id to another.
  *
- * * 'pinned' - The workflow will be pinned to the current Build ID unless manually moved.
- * * 'auto-upgrade' - The workflow will automatically move to the latest version (default Build ID
+ * * 'PINNED' - The workflow will be pinned to the current Build ID unless manually moved.
+ * * 'AUTO_UPGRADE' - The workflow will automatically move to the latest version (default Build ID
  *    of the task queue) when the next task is dispatched.
  *
  * @experimental Deployment based versioning is experimental and may change in the future.
@@ -48,3 +48,12 @@ export const [encodeVersioningBehavior, decodeVersioningBehavior] = makeProtoEnu
   } as const,
   'VERSIONING_BEHAVIOR_'
 );
+
+/**
+ * Represents versioning overrides. For example, when starting workflows.
+ *
+ * If set to 'AUTO_UPGRADE', the Workflow will run as if it is using {@link VersioningBehavior.AUTO_UPGRADE}.
+ * Otherwise, you select a pinned behavior, and a specific version to pin to. Currently only one
+ * such behavior exists, but more will be added in the future.
+ */
+export type VersioningOverride = { pinned_behavior: 'PINNED'; version: WorkerDeploymentVersion } | 'AUTO_UPGRADE';

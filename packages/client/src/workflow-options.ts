@@ -1,7 +1,14 @@
-import { CommonWorkflowOptions, SignalDefinition, WithWorkflowArgs, Workflow } from '@temporalio/common';
+import {
+  CommonWorkflowOptions,
+  SignalDefinition,
+  WithWorkflowArgs,
+  Workflow,
+  VersioningOverride,
+  toCanonicalString,
+} from '@temporalio/common';
 import { Duration, msOptionalToTs } from '@temporalio/common/lib/time';
 import { Replace } from '@temporalio/common/lib/type-helpers';
-import { google } from '@temporalio/proto';
+import { google, temporal } from '@temporalio/proto';
 
 export * from '@temporalio/common/lib/workflow-options';
 
@@ -38,9 +45,15 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
 
   /**
    * Amount of time to wait before starting the workflow.
-   *
    */
   startDelay?: Duration;
+
+  /**
+   * Override the versioning behavior of the Workflow that is about to be started.
+   *
+   * @experimental Deployment based versioning is experimental and may change in the future.
+   */
+  versioningOverride?: VersioningOverride;
 }
 
 export type WithCompiledWorkflowOptions<T extends WorkflowOptions> = Replace<
@@ -50,11 +63,13 @@ export type WithCompiledWorkflowOptions<T extends WorkflowOptions> = Replace<
     workflowRunTimeout?: google.protobuf.IDuration;
     workflowTaskTimeout?: google.protobuf.IDuration;
     startDelay?: google.protobuf.IDuration;
+    versioningOverride?: temporal.api.workflow.v1.IVersioningOverride;
   }
 >;
 
 export function compileWorkflowOptions<T extends WorkflowOptions>(options: T): WithCompiledWorkflowOptions<T> {
-  const { workflowExecutionTimeout, workflowRunTimeout, workflowTaskTimeout, startDelay, ...rest } = options;
+  const { workflowExecutionTimeout, workflowRunTimeout, workflowTaskTimeout, startDelay, versioningOverride, ...rest } =
+    options;
 
   return {
     ...rest,
@@ -62,6 +77,7 @@ export function compileWorkflowOptions<T extends WorkflowOptions>(options: T): W
     workflowRunTimeout: msOptionalToTs(workflowRunTimeout),
     workflowTaskTimeout: msOptionalToTs(workflowTaskTimeout),
     startDelay: msOptionalToTs(startDelay),
+    versioningOverride: versioningOverrideToProto(versioningOverride),
   };
 }
 
@@ -109,3 +125,19 @@ export interface WorkflowSignalWithStartOptionsWithArgs<SignalArgs extends any[]
  * Options for starting a Workflow
  */
 export type WorkflowStartOptions<T extends Workflow = Workflow> = WithWorkflowArgs<T, WorkflowOptions>;
+
+function versioningOverrideToProto(
+  vo: VersioningOverride | undefined
+): temporal.api.workflow.v1.IVersioningOverride | undefined {
+  if (!vo) return undefined;
+  // TODO: Remove deprecated field assignments when versioning is non-experimental
+  if (vo === 'AUTO_UPGRADE') {
+    return {
+      behavior: temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_AUTO_UPGRADE,
+    };
+  }
+  return {
+    behavior: temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED,
+    pinnedVersion: toCanonicalString(vo.version),
+  };
+}
