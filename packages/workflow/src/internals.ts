@@ -625,7 +625,7 @@ export class Activator implements ActivationHandler {
   protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
     let fn = this.queryHandlers.get(queryName)?.handler;
     if (fn === undefined && this.defaultQueryHandler !== undefined) {
-      fn = this.defaultQueryHandler.bind(this, queryName);
+      fn = this.defaultQueryHandler.bind(undefined, queryName);
     }
     // No handler or default registered, fail.
     if (fn === undefined) {
@@ -687,7 +687,7 @@ export class Activator implements ActivationHandler {
       this.updateHandlers.get(name) ??
       (this.defaultUpdateHandler
         ? {
-            handler: this.defaultUpdateHandler.bind(this, name),
+            handler: this.defaultUpdateHandler.bind(undefined, name),
             validator: undefined,
             // Default to a warning policy.
             unfinishedPolicy: HandlerUnfinishedPolicy.WARN_AND_ABANDON,
