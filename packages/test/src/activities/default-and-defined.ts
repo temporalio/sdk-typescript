@@ -1,3 +1,5 @@
+import { activityInfo } from "@temporalio/activity";
+
 export interface NameAndArgs {
   name: string;
   activityName?: string;
@@ -9,5 +11,5 @@ export async function definedActivity(...args: unknown[]): Promise<NameAndArgs> 
 }
 
 export default async function (...args: unknown[]): Promise<NameAndArgs> {
-  return { name: 'default', activityName: 'definedActivity', args };
+  return { name: 'default', activityName: activityInfo().activityType, args };
 }

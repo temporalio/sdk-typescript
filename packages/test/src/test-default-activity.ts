@@ -15,7 +15,7 @@ test('Uses default activity if no matching activity exists', async (t) => {
     const res = await executeWorkflow(workflowWithMaybeDefinedActivity, {
       args: [false, activityArgs],
     });
-    t.deepEqual(res, { name: 'default', activityName: 'definedActivity', args: activityArgs });
+    t.deepEqual(res, { name: 'default', activityName: 'nonExistentActivity', args: activityArgs });
   });
 });
 
