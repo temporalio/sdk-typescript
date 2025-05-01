@@ -1,4 +1,4 @@
-import { activityInfo } from "@temporalio/activity";
+import { activityInfo } from '@temporalio/activity';
 
 export interface NameAndArgs {
   name: string;
