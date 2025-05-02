@@ -1,4 +1,4 @@
-use crate::helpers::*;
+use crate::{client::RpcCall, helpers::*};
 use neon::{
     context::Context,
     handle::Handle,
@@ -75,6 +75,7 @@ pub(crate) trait ObjectHandleConversionsExt {
     fn as_client_options(&self, ctx: &mut FunctionContext) -> NeonResult<ClientOptions>;
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemOptsRes>;
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig>;
+    fn as_rpc_call(&self, cx: &mut FunctionContext) -> NeonResult<RpcCall>;
     fn as_ephemeral_server_config(
         &self,
         cx: &mut FunctionContext,
@@ -694,5 +695,24 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             }
             _ => cx.throw_type_error("Invalid slot supplier type"),
         }
+    }
+
+    fn as_rpc_call(&self, cx: &mut FunctionContext) -> NeonResult<RpcCall> {
+        Ok(RpcCall {
+            rpc: js_value_getter!(cx, &self, "rpc", JsString),
+            req: get_vec(cx, self, "req", "req")?,
+            retry: js_value_getter!(cx, &self, "retry", JsBoolean),
+            metadata: js_getter!(cx, self, "metadata", JsObject)
+                .as_hash_map_of_string_to_string(cx)
+                .map_err(|reason| {
+                    cx.throw_type_error::<_, HashMap<String, String>>(format!(
+                        "Invalid metadata: {}",
+                        reason
+                    ))
+                    .unwrap_err()
+                })?,
+            timeout_millis: js_optional_value_getter!(cx, &self, "timeoutMs", JsNumber)
+                .map(|val| val as u64),
+        })
     }
 }

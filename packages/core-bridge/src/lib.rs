@@ -1,3 +1,4 @@
+mod client;
 mod conversions;
 mod errors;
 mod helpers;
@@ -5,6 +6,7 @@ mod runtime;
 mod testing;
 mod worker;
 
+use crate::client::*;
 use crate::runtime::*;
 use crate::worker::*;
 use neon::prelude::*;
@@ -17,6 +19,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("newClient", client_new)?;
     cx.export_function("clientUpdateHeaders", client_update_headers)?;
     cx.export_function("clientUpdateApiKey", client_update_api_key)?;
+    cx.export_function("clientSendRequest", client_send_request)?;
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("newReplayWorker", replay_worker_new)?;
     cx.export_function("pushHistory", push_history)?;
