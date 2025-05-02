@@ -78,6 +78,12 @@ export async function executionInfoFromRaw<T>(
           runId: raw.parentExecution.runId!,
         }
       : undefined,
+    rootExecution: raw.rootExecution
+      ? {
+          workflowId: raw.rootExecution.workflowId!,
+          runId: raw.rootExecution.runId!,
+        }
+      : undefined,
     raw: rawDataToEmbed,
     priority: decodePriority(raw.priority),
   };

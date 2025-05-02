@@ -51,6 +51,7 @@ export interface WorkflowExecutionInfo {
   searchAttributes: SearchAttributes; // eslint-disable-line deprecation/deprecation
   typedSearchAttributes: TypedSearchAttributes;
   parentExecution?: Required<proto.temporal.api.common.v1.IWorkflowExecution>;
+  rootExecution?: Required<proto.temporal.api.common.v1.IWorkflowExecution>;
   raw: RawWorkflowExecutionInfo;
   priority?: Priority;
 }
