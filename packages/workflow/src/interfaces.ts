@@ -1,7 +1,6 @@
 import type { RawSourceMap } from 'source-map';
 import {
   RetryPolicy,
-  TemporalFailure,
   CommonWorkflowOptions,
   HandlerUnfinishedPolicy,
   SearchAttributes,
@@ -10,6 +9,9 @@ import {
   QueryDefinition,
   Duration,
   VersioningIntent,
+  TypedSearchAttributes,
+  SearchAttributePair,
+  Priority,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -39,8 +41,16 @@ export interface WorkflowInfo {
    * Indexed information attached to the Workflow Execution
    *
    * This value may change during the lifetime of an Execution.
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  readonly searchAttributes: SearchAttributes;
+  readonly searchAttributes: SearchAttributes; // eslint-disable-line deprecation/deprecation
+
+  /**
+   * Indexed information attached to the Workflow Execution, exposed through an interface.
+   *
+   * This value may change during the lifetime of an Execution.
+   */
+  readonly typedSearchAttributes: TypedSearchAttributes;
 
   /**
    * Non-indexed information attached to the Workflow Execution
@@ -62,7 +72,7 @@ export interface WorkflowInfo {
   /**
    * Failure from the previous Run (present when this Run is a retry, or the last Run of a Cron Workflow failed)
    */
-  readonly lastFailure?: TemporalFailure;
+  readonly lastFailure?: Error;
 
   /**
    * Length of Workflow history up until the current Workflow Task.
@@ -173,6 +183,11 @@ export interface WorkflowInfo {
   readonly currentBuildId?: string;
 
   readonly unsafe: UnsafeWorkflowInfo;
+
+  /**
+   * Priority of this workflow
+   */
+  readonly priority?: Priority;
 }
 
 /**
@@ -251,8 +266,20 @@ export interface ContinueAsNewOptions {
   memo?: Record<string, unknown>;
   /**
    * Searchable attributes to attach to next Workflow run
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes?: SearchAttributes;
+  searchAttributes?: SearchAttributes; // eslint-disable-line deprecation/deprecation
+  /**
+   * Specifies additional indexed information to attach to the Workflow Execution. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
+   * Note that search attributes are not encoded, as such, do not include any sensitive information.
+   *
+   * If both {@link searchAttributes} and {@link typedSearchAttributes} are provided, conflicting keys will be overwritten
+   * by {@link typedSearchAttributes}.
+   */
+  typedSearchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
   /**
    * When using the Worker Versioning feature, specifies whether this Workflow should
    * Continue-as-New onto a worker with a compatible Build Id or not. See {@link VersioningIntent}.
@@ -390,7 +417,7 @@ export const [encodeParentClosePolicy, decodeParentClosePolicy] = makeProtoEnumC
   'PARENT_CLOSE_POLICY_'
 );
 
-export interface ChildWorkflowOptions extends CommonWorkflowOptions {
+export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workflowIdConflictPolicy'> {
   /**
    * Workflow id to use when starting. If not specified a UUID is generated. Note that it is
    * dangerous as in case of client side retries no deduplication will happen based on the
@@ -537,6 +564,11 @@ export type Handler<
  * A handler function accepting signal calls for non-registered signal names.
  */
 export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => void | Promise<void>;
+
+/**
+ * A handler function accepting query calls for non-registered query names.
+ */
+export type DefaultQueryHandler = (queryName: string, ...args: unknown[]) => unknown;
 
 /**
  * A validation function capable of accepting the arguments for a given UpdateDefinition.

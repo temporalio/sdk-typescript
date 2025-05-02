@@ -3,6 +3,7 @@ import v8 from 'node:v8';
 import { readFileSync } from 'node:fs';
 import pkg from '@temporalio/worker/lib/pkg';
 import { bundleWorkflowCode } from '@temporalio/worker';
+import { temporal } from '@temporalio/proto';
 import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import { configurableHelpers } from './helpers-integration';
 import { withZeroesHTTPServer } from './zeroes-http-server';
@@ -28,7 +29,6 @@ test('cancel-http-request', configMacro, async (t, config) => {
   t.pass();
 });
 
-// TODO(thomas): fix
 if ('promiseHooks' in v8) {
   // Skip in old node versions
   test('Stack trace query returns stack that makes sense', configMacro, async (t, config) => {
@@ -141,3 +141,56 @@ if ('promiseHooks' in v8) {
     t.deepEqual(Object.entries(enhancedStack.sources), expectedSources);
   });
 }
+
+test(
+  'priorities can be specified and propagated across child workflows and activities',
+  configMacro,
+  async (t, config) => {
+    const { env, createWorkerWithDefaults } = config;
+    const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+    const worker = await createWorkerWithDefaults(t, { activities });
+    const handle = await startWorkflow(workflows.priorityWorkflow, {
+      args: [false, 1],
+      priority: { priorityKey: 1 },
+    });
+    await worker.runUntil(handle.result());
+    let firstChild = true;
+    const history = await handle.fetchHistory();
+    console.log('events');
+    for (const event of history?.events ?? []) {
+      switch (event.eventType) {
+        case temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED:
+          t.deepEqual(event.workflowExecutionStartedEventAttributes?.priority?.priorityKey, 1);
+          break;
+        case temporal.api.enums.v1.EventType.EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED: {
+          const pri = event.startChildWorkflowExecutionInitiatedEventAttributes?.priority?.priorityKey;
+          if (firstChild) {
+            t.deepEqual(pri, 4);
+            firstChild = false;
+          } else {
+            t.deepEqual(pri, 2);
+          }
+          break;
+        }
+        case temporal.api.enums.v1.EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED:
+          t.deepEqual(event.activityTaskScheduledEventAttributes?.priority?.priorityKey, 5);
+          break;
+      }
+    }
+  }
+);
+
+test('workflow start without priorities sees undefined for the key', configMacro, async (t, config) => {
+  const { env, createWorkerWithDefaults } = config;
+  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+  const worker = await createWorkerWithDefaults(t, { activities });
+  console.log('STARTING WORKFLOW');
+
+  const handle1 = await startWorkflow(workflows.priorityWorkflow, {
+    args: [true, undefined],
+  });
+  await worker.runUntil(handle1.result());
+
+  // check occurs in the workflow, need an assert in the test itself in order to run
+  t.true(true);
+});

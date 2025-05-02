@@ -10,10 +10,10 @@ import {
   METADATA_ENCODING_KEY,
   METADATA_MESSAGE_TYPE_KEY,
   PayloadConverterError,
-  SearchAttributePayloadConverter,
   UndefinedPayloadConverter,
   ValueError,
 } from '@temporalio/common';
+import { SearchAttributePayloadConverter } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { encode } from '@temporalio/common/lib/encoding';
 import {
   DefaultPayloadConverterWithProtobufs,

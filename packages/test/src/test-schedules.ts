@@ -10,10 +10,17 @@ import {
   ScheduleHandle,
   ScheduleSummary,
   ScheduleUpdateOptions,
-  SearchAttributes,
+  ScheduleDescription,
 } from '@temporalio/client';
 import { msToNumber } from '@temporalio/common/lib/time';
-import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS } from './helpers';
+import {
+  SearchAttributeType,
+  SearchAttributes,
+  TypedSearchAttributes,
+  defineSearchAttributeKey,
+} from '@temporalio/common';
+import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS, waitUntil } from './helpers';
+import { defaultSAKeys } from './helpers-integration';
 
 export interface Context {
   client: Client;
@@ -168,6 +175,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
+        typedSearchAttributes: new TypedSearchAttributes([{ key: defaultSAKeys.CustomIntField, value: 42 }]),
       },
     });
 
@@ -177,7 +185,18 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(describedSchedule.action.type, 'startWorkflow');
       t.is(describedSchedule.action.workflowType, 'dummyWorkflow');
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
-      t.deepEqual(describedSchedule.action.searchAttributes?.CustomKeywordField, ['test-value2']);
+      // eslint-disable-next-line deprecation/deprecation
+      t.deepEqual(describedSchedule.action.searchAttributes, {
+        CustomKeywordField: ['test-value2'],
+        CustomIntField: [42],
+      });
+      t.deepEqual(
+        describedSchedule.action.typedSearchAttributes,
+        new TypedSearchAttributes([
+          { key: defaultSAKeys.CustomIntField, value: 42 },
+          { key: defaultSAKeys.CustomKeywordField, value: 'test-value2' },
+        ])
+      );
     } finally {
       await handle.delete();
     }
@@ -186,24 +205,24 @@ if (RUN_INTEGRATION_TESTS) {
   test.serial('Can create schedule with startWorkflow action (with args)', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-startWorkflow-action-${randomUUID()}`;
-    const action = {
-      type: 'startWorkflow',
-      workflowType: dummyWorkflowWith2Args,
-      args: [3, 4],
-      taskQueue,
-      memo: {
-        'my-memo': 'foo',
-      },
-      searchAttributes: {
-        CustomKeywordField: ['test-value2'],
-      },
-    } as const;
     const handle = await client.schedule.create({
       scheduleId,
       spec: {
         calendars: [{ hour: { start: 2, end: 7, step: 1 } }],
       },
-      action,
+      action: {
+        type: 'startWorkflow',
+        workflowType: dummyWorkflowWith2Args,
+        args: [3, 4],
+        taskQueue,
+        memo: {
+          'my-memo': 'foo',
+        },
+        searchAttributes: {
+          CustomKeywordField: ['test-value2'],
+        },
+        typedSearchAttributes: new TypedSearchAttributes([{ key: defaultSAKeys.CustomIntField, value: 42 }]),
+      },
     });
 
     try {
@@ -213,7 +232,18 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(describedSchedule.action.workflowType, 'dummyWorkflowWith2Args');
       t.deepEqual(describedSchedule.action.args, [3, 4]);
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
-      t.deepEqual(describedSchedule.action.searchAttributes?.CustomKeywordField, ['test-value2']);
+      // eslint-disable-next-line deprecation/deprecation
+      t.deepEqual(describedSchedule.action.searchAttributes, {
+        CustomKeywordField: ['test-value2'],
+        CustomIntField: [42],
+      });
+      t.deepEqual(
+        describedSchedule.action.typedSearchAttributes,
+        new TypedSearchAttributes([
+          { key: defaultSAKeys.CustomIntField, value: 42 },
+          { key: defaultSAKeys.CustomKeywordField, value: 'test-value2' },
+        ])
+      );
     } finally {
       await handle.delete();
     }
@@ -324,6 +354,7 @@ if (RUN_INTEGRATION_TESTS) {
         searchAttributes: {
           CustomKeywordField: ['test-value2'],
         },
+        typedSearchAttributes: new TypedSearchAttributes([{ key: defaultSAKeys.CustomIntField, value: 42 }]),
       },
     });
 
@@ -551,7 +582,7 @@ if (RUN_INTEGRATION_TESTS) {
     const expectedIds: string[] = [];
     for (let i = 0; i < 4; i++) {
       const scheduleId = `test-query-${groupId}-${i + 1}`;
-      const searchAttributes: SearchAttributes = {};
+      const searchAttributes: SearchAttributes = {}; // eslint-disable-line deprecation/deprecation
       if (i < 2) {
         searchAttributes['CustomKeywordField'] = ['some-value'];
         expectedIds.push(scheduleId);
@@ -568,6 +599,7 @@ if (RUN_INTEGRATION_TESTS) {
             taskQueue,
           },
           searchAttributes,
+          typedSearchAttributes: new TypedSearchAttributes([{ key: defaultSAKeys.CustomIntField, value: 42 }]),
         })
       );
     }
@@ -721,6 +753,130 @@ if (RUN_INTEGRATION_TESTS) {
       for (let i = 0; i < checks.length; i++) {
         t.deepEqual(describedCalendars[i], checks[i].expected, checks[i].comment);
       }
+    } finally {
+      await handle.delete();
+    }
+  });
+
+  test.serial('Can update search attributes of a schedule', async (t) => {
+    const { client } = t.context;
+    const scheduleId = `can-update-search-attributes-of-schedule-${randomUUID()}`;
+
+    // Helper to wait for search attribute changes to propagate.
+    const waitForAttributeChange = async (
+      handle: ScheduleHandle,
+      attributeName: string,
+      shouldExist: boolean
+    ): Promise<ScheduleDescription> => {
+      await waitUntil(async () => {
+        const desc = await handle.describe();
+        const exists =
+          desc.typedSearchAttributes.getAll().find((pair) => pair.key.name === attributeName) !== undefined;
+        return exists === shouldExist;
+      }, 300);
+      return await handle.describe();
+    };
+
+    // Create a schedule with search attributes.
+    const handle = await client.schedule.create({
+      scheduleId,
+      spec: {
+        calendars: [{ hour: { start: 2, end: 7, step: 1 } }],
+      },
+      action: {
+        type: 'startWorkflow',
+        workflowType: dummyWorkflow,
+        taskQueue,
+      },
+      searchAttributes: {
+        CustomKeywordField: ['keyword-one'],
+      },
+      typedSearchAttributes: [{ key: defineSearchAttributeKey('CustomIntField', SearchAttributeType.INT), value: 1 }],
+    });
+
+    // Check the search attributes are part of the schedule description.
+    const desc = await handle.describe();
+    // eslint-disable-next-line deprecation/deprecation
+    t.deepEqual(desc.searchAttributes, {
+      CustomKeywordField: ['keyword-one'],
+      CustomIntField: [1],
+    });
+    t.deepEqual(
+      desc.typedSearchAttributes,
+      new TypedSearchAttributes([
+        { key: defineSearchAttributeKey('CustomIntField', SearchAttributeType.INT), value: 1 },
+        { key: defineSearchAttributeKey('CustomKeywordField', SearchAttributeType.KEYWORD), value: 'keyword-one' },
+      ])
+    );
+
+    // Perform a series of updates to schedule's search attributes.
+    try {
+      // Update existing search attributes, add new ones.
+      await handle.update((desc) => ({
+        ...desc,
+        searchAttributes: {
+          CustomKeywordField: ['keyword-two'],
+          // Add a new search attribute.
+          CustomDoubleField: [1.5],
+        },
+        typedSearchAttributes: [
+          { key: defineSearchAttributeKey('CustomIntField', SearchAttributeType.INT), value: 2 },
+          // Add a new typed search attribute.
+          { key: defineSearchAttributeKey('CustomTextField', SearchAttributeType.TEXT), value: 'new-text' },
+        ],
+      }));
+
+      let desc = await waitForAttributeChange(handle, 'CustomTextField', true);
+      // eslint-disable-next-line deprecation/deprecation
+      t.deepEqual(desc.searchAttributes, {
+        CustomKeywordField: ['keyword-two'],
+        CustomIntField: [2],
+        CustomDoubleField: [1.5],
+        CustomTextField: ['new-text'],
+      });
+      t.deepEqual(
+        desc.typedSearchAttributes,
+        new TypedSearchAttributes([
+          { key: defineSearchAttributeKey('CustomIntField', SearchAttributeType.INT), value: 2 },
+          { key: defineSearchAttributeKey('CustomKeywordField', SearchAttributeType.KEYWORD), value: 'keyword-two' },
+          { key: defineSearchAttributeKey('CustomTextField', SearchAttributeType.TEXT), value: 'new-text' },
+          { key: defineSearchAttributeKey('CustomDoubleField', SearchAttributeType.DOUBLE), value: 1.5 },
+        ])
+      );
+
+      // Update and remove some search attributes. We remove a search attribute by omitting an existing key from the update.
+      await handle.update((desc) => ({
+        ...desc,
+        searchAttributes: {
+          CustomKeywordField: ['keyword-three'],
+        },
+        typedSearchAttributes: [{ key: defineSearchAttributeKey('CustomIntField', SearchAttributeType.INT), value: 3 }],
+      }));
+
+      desc = await waitForAttributeChange(handle, 'CustomTextField', false);
+      // eslint-disable-next-line deprecation/deprecation
+      t.deepEqual(desc.searchAttributes, {
+        CustomKeywordField: ['keyword-three'],
+        CustomIntField: [3],
+      });
+      t.deepEqual(
+        desc.typedSearchAttributes,
+        new TypedSearchAttributes([
+          { key: defineSearchAttributeKey('CustomIntField', SearchAttributeType.INT), value: 3 },
+          { key: defineSearchAttributeKey('CustomKeywordField', SearchAttributeType.KEYWORD), value: 'keyword-three' },
+        ])
+      );
+
+      // Remove all search attributes.
+      await handle.update((desc) => ({
+        ...desc,
+        searchAttributes: {},
+        typedSearchAttributes: [],
+      }));
+
+      desc = await waitForAttributeChange(handle, 'CustomIntField', false);
+      t.deepEqual(desc.searchAttributes, {}); // eslint-disable-line deprecation/deprecation
+      t.deepEqual(desc.typedSearchAttributes, new TypedSearchAttributes([]));
     } finally {
       await handle.delete();
     }

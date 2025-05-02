@@ -8,6 +8,7 @@ import {
   ChildWorkflowHandle,
   Workflow,
   defineUpdate,
+  ChildWorkflowOptions,
 } from '@temporalio/workflow';
 import { WorkflowHandle, WorkflowUpdateStage } from '@temporalio/client';
 
@@ -179,5 +180,13 @@ test('startUpdate and executeUpdate call signatures', async (t) => {
     // valid
     await handle.executeUpdate(unaryUpdate, { args: [1] });
   }
+  t.pass();
+});
+
+test('ChildWorkflowOptions workflowIdConflictPolicy', (t) => {
+  const options: ChildWorkflowOptions = {
+    // @ts-expect-error: workflowIdConflictPolicy is not a valid option
+    workflowIdConflictPolicy: 'USE_EXISTING',
+  };
   t.pass();
 });

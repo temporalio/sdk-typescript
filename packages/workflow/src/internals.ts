@@ -19,10 +19,12 @@ import {
   WorkflowUpdateType,
   WorkflowUpdateValidatorType,
   mapFromPayloads,
-  searchAttributePayloadConverter,
   fromPayloadsAtIndex,
-  SearchAttributes,
 } from '@temporalio/common';
+import {
+  decodeSearchAttributes,
+  decodeTypedSearchAttributes,
+} from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';
@@ -41,6 +43,7 @@ import {
   WorkflowInfo,
   WorkflowCreateOptionsInternal,
   ActivationCompletion,
+  DefaultQueryHandler,
 } from './interfaces';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
@@ -188,6 +191,11 @@ export class Activator implements ActivationHandler {
    * A signal handler that catches calls for non-registered signal names.
    */
   defaultSignalHandler?: DefaultSignalHandler;
+
+  /**
+   * A query handler that catches calls for non-registered query names.
+   */
+  defaultQueryHandler?: DefaultQueryHandler;
 
   /**
    * Source map file for looking up the source files in response to __enhanced_stack_trace
@@ -510,8 +518,10 @@ export class Activator implements ActivationHandler {
     // Most things related to initialization have already been handled in the constructor
     this.mutateWorkflowInfo((info) => ({
       ...info,
-      searchAttributes:
-        (mapFromPayloads(searchAttributePayloadConverter, searchAttributes?.indexedFields) as SearchAttributes) ?? {},
+
+      searchAttributes: decodeSearchAttributes(searchAttributes?.indexedFields),
+      typedSearchAttributes: decodeTypedSearchAttributes(searchAttributes?.indexedFields),
+
       memo: mapFromPayloads(this.payloadConverter, memo?.fields),
       lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads),
       lastFailure:
@@ -609,9 +619,21 @@ export class Activator implements ActivationHandler {
     }
   }
 
+  public resolveNexusOperationStart(_: coresdk.workflow_activation.IResolveNexusOperationStart): void {
+    throw new Error('TODO');
+  }
+
+  public resolveNexusOperation(_: coresdk.workflow_activation.IResolveNexusOperation): void {
+    throw new Error('TODO');
+  }
+
   // Intentionally non-async function so this handler doesn't show up in the stack trace
   protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
-    const fn = this.queryHandlers.get(queryName)?.handler;
+    let fn = this.queryHandlers.get(queryName)?.handler;
+    if (fn === undefined && this.defaultQueryHandler !== undefined) {
+      fn = this.defaultQueryHandler.bind(this, queryName);
+    }
+    // No handler or default registered, fail.
     if (fn === undefined) {
       const knownQueryTypes = [...this.queryHandlers.keys()].join(' ');
       // Fail the query
@@ -621,6 +643,7 @@ export class Activator implements ActivationHandler {
         )
       );
     }
+    // Execute handler.
     try {
       const ret = fn(...args);
       if (ret instanceof Promise) {

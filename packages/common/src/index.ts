@@ -19,11 +19,21 @@ export * from './failure';
 export { Headers, Next } from './interceptors';
 export * from './interfaces';
 export * from './logger';
+export * from './priority';
 export * from './retry-policy';
 export type { Timestamp, Duration, StringValue } from './time';
 export * from './workflow-handle';
 export * from './workflow-options';
 export * from './versioning-intent';
+export {
+  SearchAttributes, // eslint-disable-line deprecation/deprecation
+  SearchAttributeValue, // eslint-disable-line deprecation/deprecation
+  SearchAttributeType,
+  SearchAttributePair,
+  SearchAttributeUpdatePair,
+  TypedSearchAttributes,
+  defineSearchAttributeKey,
+} from './search-attributes';
 
 /**
  * Encode a UTF-8 string into a Uint8Array

@@ -12,7 +12,15 @@ export class ShutdownError extends Error {}
  * once this error is encountered
  */
 @SymbolBasedInstanceOfError('TransportError')
-export class TransportError extends Error {}
+export class TransportError extends Error {
+  constructor(
+    message: string,
+    public readonly code?: number,
+    public readonly metadata?: Record<string, ArrayBuffer | string>
+  ) {
+    super(message);
+  }
+}
 
 /**
  * Something unexpected happened, considered fatal
@@ -39,7 +47,7 @@ export function convertFromNamedError(e: unknown, keepStackTrace: boolean): unkn
     let newerr: Error;
     switch (e.name) {
       case 'TransportError':
-        newerr = new TransportError(e.message);
+        newerr = new TransportError(e.message, (e as any).code, (e as any).metadata);
         newerr.stack = keepStackTrace ? e.stack : undefined;
         return newerr;
 

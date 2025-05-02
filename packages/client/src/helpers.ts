@@ -1,11 +1,10 @@
 import { ServiceError as GrpcServiceError, status as grpcStatus } from '@grpc/grpc-js';
+import { decodePriority, LoadedDataConverter, NamespaceNotFoundError } from '@temporalio/common';
 import {
-  LoadedDataConverter,
-  mapFromPayloads,
-  NamespaceNotFoundError,
+  decodeSearchAttributes,
+  decodeTypedSearchAttributes,
   searchAttributePayloadConverter,
-  SearchAttributes,
-} from '@temporalio/common';
+} from '@temporalio/common/lib/converter/payload-search-attributes';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time';
 import { decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
@@ -71,11 +70,8 @@ export async function executionInfoFromRaw<T>(
     executionTime: optionalTsToDate(raw.executionTime),
     closeTime: optionalTsToDate(raw.closeTime),
     memo: await decodeMapFromPayloads(dataConverter, raw.memo?.fields),
-    searchAttributes: Object.fromEntries(
-      Object.entries(
-        mapFromPayloads(searchAttributePayloadConverter, raw.searchAttributes?.indexedFields ?? {}) as SearchAttributes
-      ).filter(([_, v]) => v && v.length > 0) // Filter out empty arrays returned by pre 1.18 servers
-    ),
+    searchAttributes: decodeSearchAttributes(raw.searchAttributes?.indexedFields),
+    typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes?.indexedFields),
     parentExecution: raw.parentExecution
       ? {
           workflowId: raw.parentExecution.workflowId!,
@@ -83,6 +79,7 @@ export async function executionInfoFromRaw<T>(
         }
       : undefined,
     raw: rawDataToEmbed,
+    priority: decodePriority(raw.priority),
   };
 }
 

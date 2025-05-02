@@ -1,4 +1,4 @@
-use crate::helpers::*;
+use crate::{client::RpcCall, helpers::*};
 use neon::{
     context::Context,
     handle::Handle,
@@ -10,13 +10,16 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use temporal_client::HttpConnectProxyOptions;
 use temporal_sdk_core::api::{
     telemetry::{HistogramBucketOverrides, OtlpProtocol},
-    worker::SlotKind,
+    worker::{PollerBehavior, SlotKind},
 };
 use temporal_sdk_core::{
+    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, ResourceBasedSlotsOptions,
+    ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions, RetryConfig, SlotSupplierOptions,
+    TlsConfig, TunerHolderOptionsBuilder, Url,
     api::telemetry::{Logger, MetricTemporality, TelemetryOptions, TelemetryOptionsBuilder},
     api::{
         telemetry::{
-            metrics::CoreMeter, OtelCollectorOptionsBuilder, PrometheusExporterOptionsBuilder,
+            OtelCollectorOptionsBuilder, PrometheusExporterOptionsBuilder, metrics::CoreMeter,
         },
         worker::{WorkerConfig, WorkerConfigBuilder},
     },
@@ -25,9 +28,6 @@ use temporal_sdk_core::{
         TestServerConfigBuilder,
     },
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
-    ClientOptions, ClientOptionsBuilder, ClientTlsConfig, ResourceBasedSlotsOptions,
-    ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions, RetryConfig, SlotSupplierOptions,
-    TlsConfig, TunerHolderOptionsBuilder, Url,
 };
 
 mod slot_supplier_bridge;
@@ -75,6 +75,7 @@ pub(crate) trait ObjectHandleConversionsExt {
     fn as_client_options(&self, ctx: &mut FunctionContext) -> NeonResult<ClientOptions>;
     fn as_telemetry_options(&self, cx: &mut FunctionContext) -> NeonResult<TelemOptsRes>;
     fn as_worker_config(&self, cx: &mut FunctionContext) -> NeonResult<WorkerConfig>;
+    fn as_rpc_call(&self, cx: &mut FunctionContext) -> NeonResult<RpcCall>;
     fn as_ephemeral_server_config(
         &self,
         cx: &mut FunctionContext,
@@ -523,8 +524,8 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             .use_worker_versioning(js_value_getter!(cx, self, "useVersioning", JsBoolean))
             .no_remote_activities(!enable_remote_activities)
             .tuner(tuner)
-            .max_concurrent_wft_polls(max_concurrent_wft_polls)
-            .max_concurrent_at_polls(max_concurrent_at_polls)
+            .workflow_task_poller_behavior(PollerBehavior::SimpleMaximum(max_concurrent_wft_polls))
+            .activity_task_poller_behavior(PollerBehavior::SimpleMaximum(max_concurrent_at_polls))
             .nonsticky_to_sticky_poll_ratio(nonsticky_to_sticky_poll_ratio)
             .max_cached_workflows(max_cached_workflows)
             .sticky_queue_schedule_to_start_timeout(sticky_queue_schedule_to_start_timeout)
@@ -568,6 +569,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     .unwrap_or_else(|| "default".to_owned());
                 let dest_dir =
                     js_optional_value_getter!(cx, &js_executable, "downloadDir", JsString);
+                let ttl = js_optional_value_getter!(cx, &self, "ttlMs", JsNumber);
 
                 let exec_version = match version.as_str() {
                     "default" => {
@@ -581,6 +583,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 temporal_sdk_core::ephemeral_server::EphemeralExe::CachedDownload {
                     version: exec_version,
                     dest_dir,
+                    ttl: ttl.map(|ttl| Duration::from_millis(ttl as u64)),
                 }
             }
             "existing-path" => {
@@ -692,5 +695,24 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             }
             _ => cx.throw_type_error("Invalid slot supplier type"),
         }
+    }
+
+    fn as_rpc_call(&self, cx: &mut FunctionContext) -> NeonResult<RpcCall> {
+        Ok(RpcCall {
+            rpc: js_value_getter!(cx, &self, "rpc", JsString),
+            req: get_vec(cx, self, "req", "req")?,
+            retry: js_value_getter!(cx, &self, "retry", JsBoolean),
+            metadata: js_getter!(cx, self, "metadata", JsObject)
+                .as_hash_map_of_string_to_string(cx)
+                .map_err(|reason| {
+                    cx.throw_type_error::<_, HashMap<String, String>>(format!(
+                        "Invalid metadata: {}",
+                        reason
+                    ))
+                    .unwrap_err()
+                })?,
+            timeout_millis: js_optional_value_getter!(cx, &self, "timeoutMs", JsNumber)
+                .map(|val| val as u64),
+        })
     }
 }

@@ -1,4 +1,10 @@
-use crate::{conversions::*, errors::*, helpers::*, worker::*};
+use crate::{
+    client::{BoxedClient, Client, CoreClient, RpcCall, RpcError, client_invoke},
+    conversions::*,
+    errors::*,
+    helpers::*,
+    worker::*,
+};
 use neon::{context::Context, prelude::*};
 use std::{
     cell::{Cell, RefCell},
@@ -8,21 +14,20 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics};
+use temporal_client::ClientInitError;
 use temporal_sdk_core::{
+    ClientOptions, CoreRuntime, TokioRuntimeBuilder, WorkerConfig,
     api::telemetry::CoreTelemetry,
     ephemeral_server::EphemeralServer as CoreEphemeralServer,
     init_replay_worker, init_worker,
     replay::{HistoryForReplay, ReplayWorkerInput},
-    ClientOptions, CoreRuntime, RetryClient, TokioRuntimeBuilder, WorkerConfig,
 };
 use tokio::sync::{
-    mpsc::{channel, unbounded_channel, Sender, UnboundedReceiver, UnboundedSender},
-    oneshot, Mutex,
+    Mutex,
+    mpsc::{Sender, UnboundedReceiver, UnboundedSender, channel, unbounded_channel},
+    oneshot,
 };
 use tokio_stream::wrappers::ReceiverStream;
-
-pub type CoreClient = RetryClient<ConfiguredClient<TemporalServiceClientWithMetrics>>;
 
 #[derive(Clone)]
 pub struct EphemeralServer {
@@ -39,15 +44,6 @@ pub struct RuntimeHandle {
 /// Box it so we can use the runtime from JS
 pub type BoxedRuntime = JsBox<Arc<RuntimeHandle>>;
 impl Finalize for RuntimeHandle {}
-
-#[derive(Clone)]
-pub struct Client {
-    pub(crate) runtime: Arc<RuntimeHandle>,
-    pub(crate) core_client: Arc<CoreClient>,
-}
-
-pub type BoxedClient = JsBox<RefCell<Option<Client>>>;
-impl Finalize for Client {}
 
 /// A request from JS to bridge to core
 pub enum RuntimeRequest {
@@ -109,6 +105,11 @@ pub enum RuntimeRequest {
     UpdateClientApiKey {
         client: Arc<CoreClient>,
         key: String,
+        callback: Root<JsFunction>,
+    },
+    SendClientRequest {
+        client: Arc<CoreClient>,
+        call: RpcCall,
         callback: Root<JsFunction>,
     },
 }
@@ -218,6 +219,46 @@ pub fn start_bridge_loop(
                     client.get_client().set_api_key(Some(key));
                     send_result(channel.clone(), callback, |cx| Ok(cx.undefined()));
                 }
+                RuntimeRequest::SendClientRequest { client, call, callback } => {
+                    core_runtime.tokio_handle().spawn(async move {
+                        match client_invoke((*client).clone(), call).await {
+                            Ok(bytes) => send_result(channel.clone(), callback, move |cx| {
+                                JsArrayBuffer::from_slice(cx, &bytes)
+                            }),
+                            Err(err) => send_error(channel.clone(), callback, |cx| {
+                                match err {
+                                    RpcError::Tonic(err) => {
+                                        let code = cx.number(err.code() as u32);
+                                        let metadata = JsObject::new(cx);
+                                        let details = err.details();
+                                        if !details.is_empty() {
+                                            let k = cx.string("grpc-status-details-bin");
+                                            let v = JsArrayBuffer::from_slice(cx, details)?;
+                                            metadata.set(cx, k, v)?;
+                                        }
+                                        let jserr = make_named_error_from_string(cx, TRANSPORT_ERROR, err.message())?;
+                                        for (k, v) in err.metadata().clone().into_headers().iter() {
+                                            let is_bin = k.to_string().ends_with("-bin");
+                                            let js_k = cx.string(k);
+                                            if is_bin {
+                                                let js_v = JsArrayBuffer::from_slice(cx, v.as_bytes())?;
+                                                metadata.set(cx, js_k, js_v)?;
+                                            } else {
+                                                let js_v = cx.string(v.to_str().unwrap());
+                                                metadata.set(cx, js_k, js_v)?;
+                                            };
+                                        }
+                                        jserr.set(cx, "code", code)?;
+                                        jserr.set(cx, "metadata", metadata)?;
+                                        Ok(jserr)
+                                    }
+                                    RpcError::Decode(err) => make_named_error_from_string(cx, UNEXPECTED_ERROR, format!("Invalid proto: {}", err)),
+                                    RpcError::Type(err) => JsError::type_error(cx, err),
+                                }
+                            }),
+                        }
+                    });
+                },
                 RuntimeRequest::PollLogs { callback } => {
                     let logs = core_runtime.telemetry().fetch_buffered_logs();
                     send_result(channel.clone(), callback, |cx| {
@@ -470,58 +511,6 @@ pub fn client_close(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         make_named_error_from_string(&mut cx, ILLEGAL_STATE_ERROR, "Client already closed")
             .and_then(|err| cx.throw(err))?;
     };
-    Ok(cx.undefined())
-}
-
-/// Update a Client's HTTP request headers
-pub fn client_update_headers(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let client = cx.argument::<BoxedClient>(0)?;
-    let headers = cx
-        .argument::<JsObject>(1)?
-        .as_hash_map_of_string_to_string(&mut cx)?;
-    let callback = cx.argument::<JsFunction>(2)?;
-
-    match client.borrow().as_ref() {
-        None => {
-            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Client")?;
-        }
-        Some(client) => {
-            let request = RuntimeRequest::UpdateClientHeaders {
-                client: client.core_client.clone(),
-                headers,
-                callback: callback.root(&mut cx),
-            };
-            if let Err(err) = client.runtime.sender.send(request) {
-                callback_with_unexpected_error(&mut cx, callback, err)?;
-            };
-        }
-    }
-
-    Ok(cx.undefined())
-}
-
-/// Update a Client's API key
-pub fn client_update_api_key(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let client = cx.argument::<BoxedClient>(0)?;
-    let key = cx.argument::<JsString>(1)?.value(&mut cx);
-    let callback = cx.argument::<JsFunction>(2)?;
-
-    match client.borrow().as_ref() {
-        None => {
-            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Client")?;
-        }
-        Some(client) => {
-            let request = RuntimeRequest::UpdateClientApiKey {
-                client: client.core_client.clone(),
-                key,
-                callback: callback.root(&mut cx),
-            };
-            if let Err(err) = client.runtime.sender.send(request) {
-                callback_with_unexpected_error(&mut cx, callback, err)?;
-            };
-        }
-    }
-
     Ok(cx.undefined())
 }
 

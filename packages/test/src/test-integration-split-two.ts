@@ -7,14 +7,14 @@ import {
   ApplicationFailure,
   defaultPayloadConverter,
   Payload,
-  searchAttributePayloadConverter,
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
 } from '@temporalio/common';
+import { searchAttributePayloadConverter } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { decode as payloadDecode, decodeFromPayloadsAtIndex } from '@temporalio/common/lib/internal-non-workflow';
 
-import { condition, defineQuery, setHandler, sleep } from '@temporalio/workflow';
+import { condition, defineQuery, defineSignal, setDefaultQueryHandler, setHandler, sleep } from '@temporalio/workflow';
 import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';
 import * as activities from './activities';
 import * as workflows from './workflows';
@@ -96,7 +96,7 @@ test('WorkflowOptions are passed correctly', configMacro, async (t, config) => {
     ),
     [3]
   );
-  t.deepEqual(execution.searchAttributes!.CustomIntField, [3]);
+  t.deepEqual(execution.searchAttributes!.CustomIntField, [3]); // eslint-disable-line deprecation/deprecation
   t.is(execution.raw.executionConfig?.taskQueue?.name, 'diff-task-queue');
   t.is(
     execution.raw.executionConfig?.taskQueue?.kind,
@@ -224,8 +224,8 @@ test('continue-as-new-to-same-workflow keeps memo and search attributes', config
     const execution = await handle.describe();
     t.not(execution.runId, handle.firstExecutionRunId);
     t.deepEqual(execution.memo, { note: 'foo' });
-    t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']);
-    t.deepEqual(execution.searchAttributes!.CustomIntField, [1]);
+    t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']); // eslint-disable-line deprecation/deprecation
+    t.deepEqual(execution.searchAttributes!.CustomIntField, [1]); // eslint-disable-line deprecation/deprecation
   });
 });
 
@@ -253,8 +253,8 @@ test(
       t.is(info.type, 'sleeper');
       t.not(info.runId, handle.firstExecutionRunId);
       t.deepEqual(info.memo, { note: 'foo' });
-      t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value']);
-      t.deepEqual(info.searchAttributes!.CustomIntField, [1]);
+      t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value']); // eslint-disable-line deprecation/deprecation
+      t.deepEqual(info.searchAttributes!.CustomIntField, [1]); // eslint-disable-line deprecation/deprecation
     });
   }
 );
@@ -291,8 +291,8 @@ test('continue-as-new-to-different-workflow can set memo and search attributes',
     t.is(info.type, 'sleeper');
     t.not(info.runId, handle.firstExecutionRunId);
     t.deepEqual(info.memo, { note: 'bar' });
-    t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value-2']);
-    t.deepEqual(info.searchAttributes!.CustomIntField, [3]);
+    t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value-2']); // eslint-disable-line deprecation/deprecation
+    t.deepEqual(info.searchAttributes!.CustomIntField, [3]); // eslint-disable-line deprecation/deprecation
   });
 });
 
@@ -696,4 +696,58 @@ test('Query does not cause condition to be triggered', configMacro, async (t, co
   await handle.terminate();
   // Worker did not crash
   t.pass();
+});
+
+const completeSignal = defineSignal('complete');
+const definedQuery = defineQuery<QueryNameAndArgs>('query-handler-type');
+
+interface QueryNameAndArgs {
+  name: string;
+  queryName?: string;
+  args: any[];
+}
+
+export async function workflowWithMaybeDefinedQuery(useDefinedQuery: boolean): Promise<void> {
+  let complete = false;
+  setHandler(completeSignal, () => {
+    complete = true;
+  });
+  setDefaultQueryHandler((queryName: string, ...args: any[]) => {
+    return { name: 'default', queryName, args };
+  });
+  if (useDefinedQuery) {
+    setHandler(definedQuery, (...args: any[]) => {
+      return { name: definedQuery.name, args };
+    });
+  }
+
+  await condition(() => complete);
+}
+
+test('default query handler is used if requested query does not exist', configMacro, async (t, config) => {
+  const { env, createWorkerWithDefaults } = config;
+  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+  const worker = await createWorkerWithDefaults(t, { activities });
+  const handle = await startWorkflow(workflowWithMaybeDefinedQuery, {
+    args: [false],
+  });
+  await worker.runUntil(async () => {
+    const args = ['test', 'args'];
+    const result = await handle.query(definedQuery, ...args);
+    t.deepEqual(result, { name: 'default', queryName: definedQuery.name, args });
+  });
+});
+
+test('default query handler is not used if requested query exists', configMacro, async (t, config) => {
+  const { env, createWorkerWithDefaults } = config;
+  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+  const worker = await createWorkerWithDefaults(t, { activities });
+  const handle = await startWorkflow(workflowWithMaybeDefinedQuery, {
+    args: [true],
+  });
+  await worker.runUntil(async () => {
+    const args = ['test', 'args'];
+    const result = await handle.query('query-handler-type', ...args);
+    t.deepEqual(result, { name: definedQuery.name, args });
+  });
 });
