@@ -117,6 +117,7 @@ if (RUN_INTEGRATION_TESTS) {
       lastResult: undefined,
       memo: {},
       parent: undefined,
+      root: undefined,
       searchAttributes: {},
       // FIXME: consider rehydrating the class before passing to sink functions or
       // create a variant of WorkflowInfo that corresponds to what we actually get in sinks.

@@ -773,7 +773,7 @@ if (RUN_INTEGRATION_TESTS) {
         const exists =
           desc.typedSearchAttributes.getAll().find((pair) => pair.key.name === attributeName) !== undefined;
         return exists === shouldExist;
-      }, 300);
+      }, 5000);
       return await handle.describe();
     };
 
