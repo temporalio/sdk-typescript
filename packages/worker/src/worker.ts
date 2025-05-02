@@ -926,7 +926,8 @@ export class Worker {
                     );
 
                     const { activityType } = info;
-                    const fn = this.options.activities.get(activityType);
+                    // Use the corresponding activity if it exists, otherwise, fallback to default activity function (if exists)
+                    const fn = this.options.activities.get(activityType) ?? this.options.activities.get('default');
                     if (typeof fn !== 'function') {
                       throw ApplicationFailure.create({
                         type: 'NotFoundError',
