@@ -271,6 +271,7 @@ impl<SK: SlotKind> SlotSupplierBridge<SK> {
             SlotKindType::Workflow => "workflow",
             SlotKindType::Activity => "activity",
             SlotKindType::LocalActivity => "local-activity",
+            SlotKindType::Nexus => "nexus",
         });
         context.set(cx, "slotType", slottype)?;
         let tq = cx.string(task_queue);

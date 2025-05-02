@@ -51,6 +51,7 @@ export * from './noncancellable-shields-children';
 export * from './partial-noncancelable';
 export * from './patched';
 export * from './patched-top-level';
+export * from './priority';
 export * from './promise-all';
 export * from './promise-race';
 export * from './promise-then-promise';

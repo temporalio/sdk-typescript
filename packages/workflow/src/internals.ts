@@ -19,10 +19,12 @@ import {
   WorkflowUpdateType,
   WorkflowUpdateValidatorType,
   mapFromPayloads,
-  searchAttributePayloadConverter,
   fromPayloadsAtIndex,
-  SearchAttributes,
 } from '@temporalio/common';
+import {
+  decodeSearchAttributes,
+  decodeTypedSearchAttributes,
+} from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';
@@ -522,8 +524,10 @@ export class Activator implements ActivationHandler {
     // Most things related to initialization have already been handled in the constructor
     this.mutateWorkflowInfo((info) => ({
       ...info,
-      searchAttributes:
-        (mapFromPayloads(searchAttributePayloadConverter, searchAttributes?.indexedFields) as SearchAttributes) ?? {},
+
+      searchAttributes: decodeSearchAttributes(searchAttributes?.indexedFields),
+      typedSearchAttributes: decodeTypedSearchAttributes(searchAttributes?.indexedFields),
+
       memo: mapFromPayloads(this.payloadConverter, memo?.fields),
       lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads),
       lastFailure:
@@ -619,6 +623,14 @@ export class Activator implements ActivationHandler {
       }
       reject(this.failureToError(failure));
     }
+  }
+
+  public resolveNexusOperationStart(_: coresdk.workflow_activation.IResolveNexusOperationStart): void {
+    throw new Error('TODO');
+  }
+
+  public resolveNexusOperation(_: coresdk.workflow_activation.IResolveNexusOperation): void {
+    throw new Error('TODO');
   }
 
   // Intentionally non-async function so this handler doesn't show up in the stack trace

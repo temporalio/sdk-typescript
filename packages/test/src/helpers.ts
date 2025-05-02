@@ -1,24 +1,24 @@
 import * as fs from 'fs/promises';
 import * as net from 'net';
 import path from 'path';
-import StackUtils from 'stack-utils';
-import ava, { TestFn } from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
+import ava, { TestFn } from 'ava';
+import StackUtils from 'stack-utils';
 import { v4 as uuid4 } from 'uuid';
-import { inWorkflowContext, WorkflowInfo } from '@temporalio/workflow';
-import { Payload, PayloadCodec } from '@temporalio/common';
-import { Worker as RealWorker, WorkerOptions } from '@temporalio/worker';
-import * as worker from '@temporalio/worker';
 import { Client, Connection } from '@temporalio/client';
+import { Payload, PayloadCodec } from '@temporalio/common';
+import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 import * as iface from '@temporalio/proto';
 import {
   LocalTestWorkflowEnvironmentOptions,
   TestWorkflowEnvironment as RealTestWorkflowEnvironment,
   TimeSkippingTestWorkflowEnvironmentOptions,
 } from '@temporalio/testing';
+import * as worker from '@temporalio/worker';
+import { Worker as RealWorker, WorkerOptions } from '@temporalio/worker';
+import { inWorkflowContext, WorkflowInfo } from '@temporalio/workflow';
 import { LoggerSinksInternal as DefaultLoggerSinks } from '@temporalio/workflow/lib/logs';
-import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 
 export function u8(s: string): Uint8Array {
   // TextEncoder requires lib "dom"
@@ -33,12 +33,13 @@ function isSet(env: string | undefined, def: boolean): boolean {
   return env === '1' || env === 't' || env === 'true';
 }
 
-export const RUN_INTEGRATION_TESTS = inWorkflowContext() || isSet(process.env.RUN_INTEGRATION_TESTS, false);
+export const RUN_INTEGRATION_TESTS = inWorkflowContext() || isSet(process.env.RUN_INTEGRATION_TESTS, true);
 export const REUSE_V8_CONTEXT = inWorkflowContext() || isSet(process.env.REUSE_V8_CONTEXT, true);
 export const RUN_TIME_SKIPPING_TESTS =
   inWorkflowContext() || !(process.platform === 'linux' && process.arch === 'arm64');
 
 export const TESTS_CLI_VERSION = inWorkflowContext() ? '' : process.env.TESTS_CLI_VERSION;
+
 export const TESTS_TIME_SKIPPING_SERVER_VERSION = inWorkflowContext()
   ? ''
   : process.env.TESTS_TIME_SKIPPING_SERVER_VERSION;

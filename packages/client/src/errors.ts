@@ -1,5 +1,5 @@
 import { ServiceError as GrpcServiceError, status } from '@grpc/grpc-js';
-import { RetryState, TemporalFailure } from '@temporalio/common';
+import { RetryState } from '@temporalio/common';
 import { isError, isRecord, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
 /**
@@ -28,7 +28,7 @@ export class ServiceError extends Error {
 export class WorkflowFailedError extends Error {
   public constructor(
     message: string,
-    public readonly cause: TemporalFailure | undefined,
+    public readonly cause: Error | undefined,
     public readonly retryState: RetryState
   ) {
     super(message);
@@ -43,7 +43,7 @@ export class WorkflowFailedError extends Error {
 export class WorkflowUpdateFailedError extends Error {
   public constructor(
     message: string,
-    public readonly cause: TemporalFailure | undefined
+    public readonly cause: Error | undefined
   ) {
     super(message);
   }

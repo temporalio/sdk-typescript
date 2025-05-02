@@ -1,8 +1,10 @@
 import type { temporal } from '@temporalio/proto';
-import { SearchAttributes, Workflow } from './interfaces';
+import { Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
 import { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
+import { SearchAttributePair, SearchAttributes, TypedSearchAttributes } from './search-attributes';
+import { Priority } from './priority';
 
 /**
  * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
@@ -173,8 +175,27 @@ export interface BaseWorkflowOptions {
    * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
+   *
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes?: SearchAttributes;
+  searchAttributes?: SearchAttributes; // eslint-disable-line deprecation/deprecation
+
+  /**
+   * Specifies additional indexed information to attach to the Workflow Execution. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
+   * Note that search attributes are not encoded, as such, do not include any sensitive information.
+   *
+   * If both {@link searchAttributes} and {@link typedSearchAttributes} are provided, conflicting keys will be overwritten
+   * by {@link typedSearchAttributes}.
+   */
+  typedSearchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
+
+  /**
+   * Priority of a workflow
+   */
+  priority?: Priority;
 }
 
 export type WithWorkflowArgs<W extends Workflow, T> = T &

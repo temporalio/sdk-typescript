@@ -1,5 +1,5 @@
 import type * as grpc from '@grpc/grpc-js';
-import type { SearchAttributes, SearchAttributeValue } from '@temporalio/common';
+import type { TypedSearchAttributes, SearchAttributes, SearchAttributeValue, Priority } from '@temporalio/common';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import * as proto from '@temporalio/proto';
 import { Replace } from '@temporalio/common/lib/type-helpers';
@@ -47,16 +47,19 @@ export interface WorkflowExecutionInfo {
   executionTime?: Date;
   closeTime?: Date;
   memo?: Record<string, unknown>;
-  searchAttributes: SearchAttributes;
+  /** @deprecated Use {@link typedSearchAttributes} instead. */
+  searchAttributes: SearchAttributes; // eslint-disable-line deprecation/deprecation
+  typedSearchAttributes: TypedSearchAttributes;
   parentExecution?: Required<proto.temporal.api.common.v1.IWorkflowExecution>;
   raw: RawWorkflowExecutionInfo;
+  priority?: Priority;
 }
 
 export interface CountWorkflowExecution {
   count: number;
   groups: {
     count: number;
-    groupValues: SearchAttributeValue[];
+    groupValues: SearchAttributeValue[]; // eslint-disable-line deprecation/deprecation
   }[];
 }
 

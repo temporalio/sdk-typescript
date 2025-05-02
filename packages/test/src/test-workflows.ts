@@ -11,6 +11,7 @@ import {
   SdkComponent,
   Payload,
   toPayloads,
+  TypedSearchAttributes,
 } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk, temporal } from '@temporalio/proto';
@@ -113,6 +114,7 @@ async function createWorkflow(
       taskTimeoutMs: 1000,
       taskQueue: 'test',
       searchAttributes: {},
+      typedSearchAttributes: new TypedSearchAttributes(),
       historyLength: 3,
       historySize: 300,
       continueAsNewSuggested: false,

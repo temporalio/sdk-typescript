@@ -1,6 +1,7 @@
-import { LogLevel, Duration } from '@temporalio/common';
+import { LogLevel, Duration, SearchAttributeType } from '@temporalio/common';
 import type { TLSConfig, ProxyConfig, HttpConnectProxyConfig } from '@temporalio/common/lib/internal-non-workflow';
 import { WorkerTuner } from './worker-tuner';
+import { SearchAttributeKey } from '@temporalio/common/src/search-attributes';
 
 export {
   WorkerTuner,
@@ -40,6 +41,29 @@ export interface RetryOptions {
   maxElapsedTime?: number;
   /** Maximum number of retry attempts. */
   maxRetries: number;
+}
+
+export interface RpcCall {
+  /**
+   * gRPC method name.
+   */
+  rpc: string;
+  /**
+   * Protobuf request input encoded into an ArrayBuffer.
+   */
+  req: ArrayBuffer;
+  /**
+   * A boolean indicating whether this call should be auto-retried.
+   */
+  retry: boolean;
+  /**
+   * Metadata to attach to the call.
+   */
+  metadata: Record<string, string>;
+  /**
+   * Request timeout in milliseconds.
+   */
+  timeoutMs?: number;
 }
 
 export interface ClientOptions {
@@ -433,6 +457,8 @@ export type EphemeralServerExecutable =
        * @default "default" - get the best version for the current SDK version.
        */
       version?: string;
+      /** How long to cache the download for. Undefined means forever. */
+      ttlMs?: number;
     }
   | {
       type: 'existing-path';
@@ -509,6 +535,10 @@ export interface DevServerConfig {
    * be supported in the future.
    */
   extraArgs?: string[];
+  /**
+   * Search attributes to be registered with the dev server.
+   */
+  searchAttributes?: SearchAttributeKey<SearchAttributeType>[];
 }
 
 /**
@@ -545,7 +575,7 @@ export interface ReplayWorker {
 }
 
 export declare type Callback<T> = (err: Error, result: T) => void;
-export declare type PollCallback = (err: Error, result: ArrayBuffer) => void;
+export declare type BufferCallback = (err: Error, result: ArrayBuffer) => void;
 export declare type WorkerCallback = (err: Error, result: Worker) => void;
 export declare type ReplayWorkerCallback = (err: Error, worker: ReplayWorker) => void;
 export declare type ClientCallback = (err: Error, result: Client) => void;
@@ -585,13 +615,15 @@ export declare function clientUpdateHeaders(
 
 export declare function clientUpdateApiKey(client: Client, apiKey: string, callback: VoidCallback): void;
 
+export declare function clientSendRequest(client: Client, call: RpcCall, callback: BufferCallback): void;
+
 export declare function clientClose(client: Client): void;
 
 export declare function runtimeShutdown(runtime: Runtime, callback: VoidCallback): void;
 
 export declare function pollLogs(runtime: Runtime, callback: LogsCallback): void;
 
-export declare function workerPollWorkflowActivation(worker: Worker, callback: PollCallback): void;
+export declare function workerPollWorkflowActivation(worker: Worker, callback: BufferCallback): void;
 
 export declare function workerCompleteWorkflowActivation(
   worker: Worker,
@@ -599,7 +631,7 @@ export declare function workerCompleteWorkflowActivation(
   callback: VoidCallback
 ): void;
 
-export declare function workerPollActivityTask(worker: Worker, callback: PollCallback): void;
+export declare function workerPollActivityTask(worker: Worker, callback: BufferCallback): void;
 
 export declare function workerCompleteActivityTask(worker: Worker, result: ArrayBuffer, callback: VoidCallback): void;
 
