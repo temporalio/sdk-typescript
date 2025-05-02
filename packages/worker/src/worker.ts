@@ -71,7 +71,7 @@ import {
 } from './replay';
 import { History, Runtime } from './runtime';
 import { CloseableGroupedObservable, closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
-import { byteArrayToBuffer, convertToParentWorkflowType } from './utils';
+import { byteArrayToBuffer, convertToParentWorkflowType, convertToRootWorkflowType } from './utils';
 import {
   CompiledWorkerOptions,
   CompiledWorkerOptionsWithBuildId,
@@ -1259,6 +1259,7 @@ export class Worker {
       randomnessSeed,
       workflowType,
       parentWorkflowInfo,
+      rootWorkflow,
       workflowExecutionTimeout,
       workflowRunTimeout,
       workflowTaskTimeout,
@@ -1281,6 +1282,7 @@ export class Worker {
       searchAttributes: {},
       typedSearchAttributes: new TypedSearchAttributes(),
       parent: convertToParentWorkflowType(parentWorkflowInfo),
+      root: convertToRootWorkflowType(rootWorkflow),
       taskQueue: this.options.taskQueue,
       namespace: this.options.namespace,
       firstExecutionRunId,
