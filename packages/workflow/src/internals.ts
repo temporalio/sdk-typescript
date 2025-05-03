@@ -43,6 +43,7 @@ import {
   WorkflowInfo,
   WorkflowCreateOptionsInternal,
   ActivationCompletion,
+  DefaultUpdateHandler,
   DefaultQueryHandler,
 } from './interfaces';
 import { type SinkCall } from './sinks';
@@ -191,6 +192,11 @@ export class Activator implements ActivationHandler {
    * A signal handler that catches calls for non-registered signal names.
    */
   defaultSignalHandler?: DefaultSignalHandler;
+
+  /**
+   * A update handler that catches calls for non-registered update names.
+   */
+  defaultUpdateHandler?: DefaultUpdateHandler;
 
   /**
    * A query handler that catches calls for non-registered query names.
@@ -631,7 +637,7 @@ export class Activator implements ActivationHandler {
   protected queryWorkflowNextHandler({ queryName, args }: QueryInput): Promise<unknown> {
     let fn = this.queryHandlers.get(queryName)?.handler;
     if (fn === undefined && this.defaultQueryHandler !== undefined) {
-      fn = this.defaultQueryHandler.bind(this, queryName);
+      fn = this.defaultQueryHandler.bind(undefined, queryName);
     }
     // No handler or default registered, fail.
     if (fn === undefined) {
@@ -688,8 +694,20 @@ export class Activator implements ActivationHandler {
     if (!protocolInstanceId) {
       throw new TypeError('Missing activation update protocolInstanceId');
     }
-    const entry = this.updateHandlers.get(name);
-    if (!entry) {
+
+    const entry =
+      this.updateHandlers.get(name) ??
+      (this.defaultUpdateHandler
+        ? {
+            handler: this.defaultUpdateHandler.bind(undefined, name),
+            validator: undefined,
+            // Default to a warning policy.
+            unfinishedPolicy: HandlerUnfinishedPolicy.WARN_AND_ABANDON,
+          }
+        : null);
+
+    // If we don't have an entry from either source, buffer and return
+    if (entry === null) {
       this.bufferedUpdates.push(activation);
       return;
     }
@@ -781,13 +799,21 @@ export class Activator implements ActivationHandler {
   public dispatchBufferedUpdates(): void {
     const bufferedUpdates = this.bufferedUpdates;
     while (bufferedUpdates.length) {
-      const foundIndex = bufferedUpdates.findIndex((update) => this.updateHandlers.has(update.name as string));
-      if (foundIndex === -1) {
-        // No buffered Updates have a handler yet.
-        break;
+      // We have a default update handler, so all updates are dispatchable.
+      if (this.defaultUpdateHandler) {
+        const update = bufferedUpdates.shift();
+        // Logically, this must be defined as we're in the loop.
+        // But Typescript doesn't know that so we use a non-null assertion (!).
+        this.doUpdate(update!);
+      } else {
+        const foundIndex = bufferedUpdates.findIndex((update) => this.updateHandlers.has(update.name as string));
+        if (foundIndex === -1) {
+          // No buffered Updates have a handler yet.
+          break;
+        }
+        const [update] = bufferedUpdates.splice(foundIndex, 1);
+        this.doUpdate(update);
       }
-      const [update] = bufferedUpdates.splice(foundIndex, 1);
-      this.doUpdate(update);
     }
   }
 

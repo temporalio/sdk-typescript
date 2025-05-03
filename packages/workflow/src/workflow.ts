@@ -57,6 +57,7 @@ import {
   UpdateInfo,
   encodeChildWorkflowCancellationType,
   encodeParentClosePolicy,
+  DefaultUpdateHandler,
   DefaultQueryHandler,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
@@ -1326,6 +1327,29 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
     activator.dispatchBufferedSignals();
   } else if (handler == null) {
     activator.defaultSignalHandler = undefined;
+  } else {
+    throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
+  }
+}
+
+/**
+ * Set a update handler function that will handle updates calls for non-registered update names.
+ *
+ * Updates are dispatched to the default update handler in the order that they were accepted by the server.
+ *
+ * If this function is called multiple times for a given update name the last handler will overwrite any previous calls.
+ *
+ * @param handler a function that will handle updates for non-registered update names, or `undefined` to unset the handler.
+ */
+export function setDefaultUpdateHandler(handler: DefaultUpdateHandler | undefined): void {
+  const activator = assertInWorkflowContext(
+    'Workflow.setDefaultUpdateHandler(...) may only be used from a Workflow Execution.'
+  );
+  if (typeof handler === 'function') {
+    activator.defaultUpdateHandler = handler;
+    activator.dispatchBufferedUpdates();
+  } else if (handler == null) {
+    activator.defaultUpdateHandler = undefined;
   } else {
     throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
   }

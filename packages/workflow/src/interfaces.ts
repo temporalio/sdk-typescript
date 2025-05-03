@@ -587,6 +587,11 @@ export type Handler<
 export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => void | Promise<void>;
 
 /**
+ * A handler function accepting update calls for non-registered update names.
+ */
+export type DefaultUpdateHandler = (updateName: string, ...args: unknown[]) => Promise<unknown> | unknown;
+
+/**
  * A handler function accepting query calls for non-registered query names.
  */
 export type DefaultQueryHandler = (queryName: string, ...args: unknown[]) => unknown;
