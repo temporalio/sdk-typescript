@@ -2,11 +2,10 @@ import * as v8 from 'node:v8';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { native } from '@temporalio/core-bridge';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import {
   IllegalStateError,
   Logger,
-  MetricMeter,
   noopMetricMeter,
   SdkComponent,
   MetricCounter,
@@ -14,7 +13,6 @@ import {
   MetricHistogram,
   MetricMeter,
   MetricTags,
-  noopMetricMeter,
   NumericMetricValueType,
 } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';

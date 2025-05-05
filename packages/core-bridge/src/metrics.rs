@@ -1,16 +1,30 @@
-use crate::runtime::*;
-use neon::{context::Context, prelude::*};
+use std::ops::Deref;
+use std::{collections::HashMap, sync::Arc};
+
+use anyhow::Context as _;
+use neon::prelude::*;
 use serde::Deserialize;
-use std::{cell::RefCell, collections::HashMap, sync::Arc};
+
 use temporal_sdk_core::api::telemetry::metrics::{
-    CoreMeter, Counter, Gauge, Histogram, MetricParametersBuilder, NewAttributes, TemporalMeter,
+    CoreMeter, Counter as CoreCounter, Gauge as CoreGauge, Histogram as CoreHistogram,
+    MetricParametersBuilder, NewAttributes, TemporalMeter,
 };
-use temporal_sdk_core::api::telemetry::metrics::{GaugeF64, HistogramF64};
+use temporal_sdk_core::api::telemetry::metrics::{
+    GaugeF64 as CoreGaugeF64, HistogramF64 as CoreHistogramF64,
+};
 use temporal_sdk_core::api::telemetry::metrics::{
     MetricKeyValue as CoreMetricKeyValue, MetricValue as CoreMetricValue,
 };
 
-pub fn init(cx: &mut FunctionContext) -> NeonResult<()> {
+use bridge_macros::js_function;
+
+use crate::helpers::{
+    BridgeError, BridgeResult, JsonString, MutableFinalize, OpaqueInboundHandle,
+    OpaqueOutboundHandle,
+};
+use crate::runtime::*;
+
+pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<()> {
     cx.export_function("newMetricCounter", new_metric_counter)?;
     cx.export_function("newMetricHistogram", new_metric_histogram)?;
     cx.export_function("newMetricGauge", new_metric_gauge)?;
@@ -19,6 +33,12 @@ pub fn init(cx: &mut FunctionContext) -> NeonResult<()> {
     cx.export_function("setMetricGaugeValue", set_metric_gauge_value)?;
 
     Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MetricAttributes {
+    #[serde(flatten)]
+    pub attributes: HashMap<String, MetricValue>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,22 +61,193 @@ impl From<MetricValue> for CoreMetricValue {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct MetricAttributes {
-    #[serde(flatten)]
-    pub attributes: HashMap<String, MetricValue>,
+pub struct CounterHandle {
+    pub(crate) meter: TemporalMeter,
+    pub(crate) counter: Arc<dyn CoreCounter>,
 }
 
-pub fn parse_metric_attributes(
-    cx: &mut FunctionContext,
-    attrs: String,
-) -> NeonResult<NewAttributes> {
-    // FIXME: Consider using a serde visitor instead of JSON -> HashMap -> iterating on KV -> NewAttributes
-    let attrs = serde_json::from_str::<MetricAttributes>(&attrs).map_err(|e| {
-        cx.throw_type_error::<_, MetricAttributes>(format!("Invalid metric attributes. {:?}", e))
-            .unwrap_err()
-    })?;
+impl MutableFinalize for CounterHandle {}
 
+pub enum HistogramHandle {
+    HistogramInt(TemporalMeter, Arc<dyn CoreHistogram>),
+    HistogramF64(TemporalMeter, Arc<dyn CoreHistogramF64>),
+}
+impl MutableFinalize for HistogramHandle {}
+
+pub enum GaugeHandle {
+    GaugeInt(TemporalMeter, Arc<dyn CoreGauge>),
+    GaugeF64(TemporalMeter, Arc<dyn CoreGaugeF64>),
+}
+impl MutableFinalize for GaugeHandle {}
+
+/// Create a new metric counter
+#[js_function]
+pub fn new_metric_counter(
+    runtime: OpaqueInboundHandle<Runtime>,
+    name: String,
+    unit: String,
+    description: String,
+) -> BridgeResult<OpaqueOutboundHandle<CounterHandle>> {
+    let meter = runtime
+        .borrow()?
+        .core_runtime
+        .telemetry()
+        .get_metric_meter()
+        // FIXME: Unexpected or something else?
+        .ok_or(BridgeError::UnexpectedError(
+            "Failed to get metric meter".into(),
+        ))?;
+
+    let params = MetricParametersBuilder::default()
+        .name(name)
+        .unit(unit)
+        .description(description)
+        .build()
+        .context("Failed to build metric parameters")?;
+
+    let counter = meter.inner.counter(params);
+
+    Ok(OpaqueOutboundHandle::new({
+        CounterHandle { meter, counter }
+    }))
+}
+
+#[js_function]
+pub fn new_metric_histogram(
+    runtime: OpaqueInboundHandle<Runtime>,
+    name: String,
+    value_type: String,
+    unit: String,
+    description: String,
+) -> BridgeResult<OpaqueOutboundHandle<HistogramHandle>> {
+    let meter = runtime
+        .borrow()?
+        .core_runtime
+        .telemetry()
+        .get_metric_meter()
+        // FIXME: Unexpected or something else?
+        .ok_or(BridgeError::UnexpectedError(
+            "Failed to get metric meter".into(),
+        ))?;
+
+    let params = MetricParametersBuilder::default()
+        .name(name)
+        .unit(unit)
+        .description(description)
+        .build()
+        .context("Failed to build metric parameters")?;
+
+    let histogram_handle = match value_type.as_str() {
+        "int" => HistogramHandle::HistogramInt(meter.clone(), meter.inner.histogram(params)),
+        "float" => HistogramHandle::HistogramF64(meter.clone(), meter.inner.histogram_f64(params)),
+        _ => Err(BridgeError::InvalidVariant {
+            enum_name: "HistogramValueType".into(),
+            variant: value_type.into(),
+        })?,
+    };
+
+    Ok(OpaqueOutboundHandle::new(histogram_handle))
+}
+
+#[js_function]
+pub fn new_metric_gauge(
+    runtime: OpaqueInboundHandle<Runtime>,
+    name: String,
+    value_type: String,
+    unit: String,
+    description: String,
+) -> BridgeResult<OpaqueOutboundHandle<GaugeHandle>> {
+    let meter = runtime
+        .borrow()?
+        .core_runtime
+        .telemetry()
+        .get_metric_meter()
+        .ok_or(BridgeError::UnexpectedError(
+            "Failed to get metric meter".into(),
+        ))?;
+
+    let params = MetricParametersBuilder::default()
+        .name(name)
+        .unit(unit)
+        .description(description)
+        .build()
+        .context("Failed to build metric parameters")?;
+
+    let gauge_handle = match value_type.as_str() {
+        "int" => GaugeHandle::GaugeInt(meter.clone(), meter.inner.gauge(params)),
+        "float" => GaugeHandle::GaugeF64(meter.clone(), meter.inner.gauge_f64(params)),
+        _ => Err(BridgeError::InvalidVariant {
+            enum_name: "GaugeValueType".into(),
+            variant: value_type.into(),
+        })?,
+    };
+
+    Ok(OpaqueOutboundHandle::new(gauge_handle))
+}
+
+#[js_function]
+pub fn add_metric_counter_value(
+    counter_handle: OpaqueInboundHandle<CounterHandle>,
+    value: f64,
+    attributes: JsonString<MetricAttributes>,
+) -> BridgeResult<()> {
+    let counter_handle = counter_handle.borrow()?;
+    let attributes = parse_metric_attributes(attributes.value);
+    let attributes = counter_handle.meter.inner.new_attributes(attributes);
+    counter_handle.counter.add(value as u64, &attributes);
+
+    Ok(())
+}
+
+#[js_function]
+pub fn record_metric_histogram_value(
+    histogram_handle: OpaqueInboundHandle<HistogramHandle>,
+    value: f64, // FIXME: We're loosing precision here
+    attributes: JsonString<MetricAttributes>,
+) -> BridgeResult<()> {
+    let histogram_handle = histogram_handle.borrow()?;
+    let attributes = parse_metric_attributes(attributes.value);
+
+    match histogram_handle.deref() {
+        HistogramHandle::HistogramInt(meter, hist) => {
+            let attributes = meter.inner.new_attributes(attributes);
+            hist.record(value as u64, &attributes);
+        }
+        HistogramHandle::HistogramF64(meter, hist) => {
+            let attributes = meter.inner.new_attributes(attributes);
+            hist.record(value, &attributes);
+        }
+    };
+
+    Ok(())
+}
+
+#[js_function]
+pub fn set_metric_gauge_value(
+    gauge_handle: OpaqueInboundHandle<GaugeHandle>,
+    value: f64, // FIXME: We're loosing precision here
+    attributes: JsonString<MetricAttributes>,
+) -> BridgeResult<()> {
+    let gauge_handle = gauge_handle.borrow()?;
+    let attributes = parse_metric_attributes(attributes.value);
+
+    match gauge_handle.deref() {
+        GaugeHandle::GaugeInt(meter, gauge) => {
+            let attributes = meter.inner.new_attributes(attributes);
+            gauge.record(value as u64, &attributes);
+        }
+        GaugeHandle::GaugeF64(meter, gauge) => {
+            let attributes = meter.inner.new_attributes(attributes);
+            gauge.record(value, &attributes);
+        }
+    }
+
+    Ok(())
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+fn parse_metric_attributes(attrs: MetricAttributes) -> NewAttributes {
     let attrs = attrs
         .attributes
         .into_iter()
@@ -65,179 +256,5 @@ pub fn parse_metric_attributes(
             value: value.into(),
         })
         .collect();
-
-    Ok(NewAttributes { attributes: attrs })
-}
-
-pub struct CounterHandle {
-    pub(crate) meter: TemporalMeter,
-    pub(crate) counter: Arc<dyn Counter>,
-}
-pub type BoxedCounterHandle = JsBox<RefCell<Option<CounterHandle>>>;
-impl Finalize for CounterHandle {}
-
-pub enum HistogramHandle {
-    HistogramInt(TemporalMeter, Arc<dyn Histogram>),
-    HistogramF64(TemporalMeter, Arc<dyn HistogramF64>),
-}
-pub type BoxedHistogramHandle = JsBox<RefCell<Option<HistogramHandle>>>;
-impl Finalize for HistogramHandle {}
-
-pub enum GaugeHandle {
-    GaugeInt(TemporalMeter, Arc<dyn Gauge>),
-    GaugeF64(TemporalMeter, Arc<dyn GaugeF64>),
-}
-pub type BoxedGaugeHandle = JsBox<RefCell<Option<GaugeHandle>>>;
-impl Finalize for GaugeHandle {}
-
-/// Create a new metric counter
-pub fn new_metric_counter(mut cx: FunctionContext) -> JsResult<BoxedCounterHandle> {
-    let runtime = cx.argument::<BoxedRuntime>(0)?;
-    let unit = cx.argument::<JsString>(2)?.value(&mut cx);
-    let description = cx.argument::<JsString>(3)?.value(&mut cx);
-
-    let mut builder = MetricParametersBuilder::default();
-    builder.name(cx.argument::<JsString>(1)?.value(&mut cx));
-    builder.unit(unit);
-    builder.description(description);
-
-    let meter = runtime
-        .core_runtime
-        .telemetry()
-        .get_metric_meter()
-        .expect("Failed to get metric meter");
-
-    let counter = meter.inner.counter(builder.build().unwrap());
-
-    Ok(cx.boxed(RefCell::new(Some(CounterHandle { meter, counter }))))
-}
-
-pub fn new_metric_histogram(mut cx: FunctionContext) -> JsResult<BoxedHistogramHandle> {
-    let runtime = cx.argument::<BoxedRuntime>(0)?;
-    let name = cx.argument::<JsString>(1)?.value(&mut cx);
-    let value_type = cx.argument::<JsString>(2)?.value(&mut cx);
-    let unit = cx.argument::<JsString>(3)?.value(&mut cx);
-    let description = cx.argument::<JsString>(4)?.value(&mut cx);
-
-    let mut builder = MetricParametersBuilder::default();
-    builder.name(name);
-    builder.unit(unit);
-    builder.description(description);
-
-    let meter = runtime
-        .core_runtime
-        .telemetry()
-        .get_metric_meter()
-        .expect("Failed to get metric meter");
-
-    let histogram_handle = match value_type.as_str() {
-        "int" => HistogramHandle::HistogramInt(
-            meter.clone(),
-            meter.inner.histogram(builder.build().unwrap()),
-        ),
-        "float" => HistogramHandle::HistogramF64(
-            meter.clone(),
-            meter.inner.histogram_f64(builder.build().unwrap()),
-        ),
-        _ => panic!("Invalid value type"),
-    };
-
-    Ok(cx.boxed(RefCell::new(Some(histogram_handle))))
-}
-
-pub fn new_metric_gauge(mut cx: FunctionContext) -> JsResult<BoxedGaugeHandle> {
-    let runtime = cx.argument::<BoxedRuntime>(0)?;
-    let name = cx.argument::<JsString>(1)?.value(&mut cx);
-    let value_type = cx.argument::<JsString>(2)?.value(&mut cx);
-    let unit = cx.argument::<JsString>(3)?.value(&mut cx);
-    let description = cx.argument::<JsString>(4)?.value(&mut cx);
-
-    let mut builder = MetricParametersBuilder::default();
-    builder.name(name);
-    builder.unit(unit);
-    builder.description(description);
-
-    let meter = runtime
-        .core_runtime
-        .telemetry()
-        .get_metric_meter()
-        .expect("Failed to get metric meter");
-
-    let gauge_handle = match value_type.as_str() {
-        "int" => GaugeHandle::GaugeInt(meter.clone(), meter.inner.gauge(builder.build().unwrap())),
-        "float" => GaugeHandle::GaugeF64(
-            meter.clone(),
-            meter.inner.gauge_f64(builder.build().unwrap()),
-        ),
-        _ => panic!("Invalid value type"),
-    };
-
-    Ok(cx.boxed(RefCell::new(Some(gauge_handle))))
-}
-
-pub fn add_metric_counter_value(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let counter_handle = cx.argument::<BoxedCounterHandle>(0)?;
-    let value = cx.argument::<JsNumber>(1)?.value(&mut cx);
-    let attributes = cx.argument::<JsString>(2)?.value(&mut cx);
-
-    match counter_handle.borrow().as_ref() {
-        Some(CounterHandle { meter, counter }) => {
-            let attributes = parse_metric_attributes(&mut cx, attributes)?;
-            let attributes = meter.inner.new_attributes(attributes);
-            counter.add(value as u64, &attributes);
-        }
-        None => cx
-            .throw_error::<_, _>("Counter handle is not initialized")
-            .unwrap(),
-    }
-
-    Ok(cx.undefined())
-}
-
-pub fn record_metric_histogram_value(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let histogram_handle = cx.argument::<BoxedHistogramHandle>(0)?;
-    let value = cx.argument::<JsNumber>(1)?.value(&mut cx);
-    let attributes = cx.argument::<JsString>(2)?.value(&mut cx);
-
-    match histogram_handle.borrow().as_ref() {
-        Some(HistogramHandle::HistogramInt(meter, hist)) => {
-            let attributes = parse_metric_attributes(&mut cx, attributes)?;
-            let attributes = meter.inner.new_attributes(attributes);
-            hist.record(value as u64, &attributes);
-        }
-        Some(HistogramHandle::HistogramF64(meter, hist)) => {
-            let attributes = parse_metric_attributes(&mut cx, attributes)?;
-            let attributes = meter.inner.new_attributes(attributes);
-            hist.record(value, &attributes);
-        }
-        None => cx
-            .throw_error::<_, _>("Histogram handle is not initialized")
-            .unwrap(),
-    };
-
-    Ok(cx.undefined())
-}
-
-pub fn set_metric_gauge_value(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let gauge_handle = cx.argument::<BoxedGaugeHandle>(0)?;
-    let value = cx.argument::<JsNumber>(1)?.value(&mut cx);
-    let attributes = cx.argument::<JsString>(2)?.value(&mut cx);
-
-    match gauge_handle.borrow().as_ref() {
-        Some(GaugeHandle::GaugeInt(meter, gauge)) => {
-            let attributes = parse_metric_attributes(&mut cx, attributes)?;
-            let attributes = meter.inner.new_attributes(attributes);
-            gauge.record(value as u64, &attributes);
-        }
-        Some(GaugeHandle::GaugeF64(meter, gauge)) => {
-            let attributes = parse_metric_attributes(&mut cx, attributes)?;
-            let attributes = meter.inner.new_attributes(attributes);
-            gauge.record(value, &attributes);
-        }
-        None => cx
-            .throw_error::<_, _>("Gauge handle is not initialized")
-            .unwrap(),
-    }
-
-    Ok(cx.undefined())
+    NewAttributes { attributes: attrs }
 }
