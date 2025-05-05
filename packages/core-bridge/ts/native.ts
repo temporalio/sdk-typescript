@@ -179,8 +179,8 @@ export interface WorkerOptions {
   namespace: string;
   tuner: WorkerTunerOptions;
   nonStickyToStickyPollRatio: number;
-  maxConcurrentWorkflowTaskPolls: number;
-  maxConcurrentActivityTaskPolls: number;
+  workflowTaskPollerBehavior: PollerBehavior;
+  activityTaskPollerBehavior: PollerBehavior;
   enableNonLocalActivities: boolean;
   stickyQueueScheduleToStartTimeout: number;
   maxCachedWorkflows: number;
@@ -190,6 +190,18 @@ export interface WorkerOptions {
   maxActivitiesPerSecond: Option<number>;
   shutdownGraceTime: number;
 }
+
+export type PollerBehavior =
+  | {
+      type: 'simple-maximum';
+      maximum: number;
+    }
+  | {
+      type: 'autoscaling';
+      minimum: number;
+      maximum: number;
+      initial: number;
+    };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Worker Tuner

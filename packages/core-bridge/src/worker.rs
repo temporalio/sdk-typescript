@@ -410,8 +410,9 @@ mod config {
         ResourceBasedSlotsOptions, ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions,
         SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptionsBuilder,
         api::worker::{
-            ActivitySlotKind, LocalActivitySlotKind, PollerBehavior, SlotKind, WorkerConfig,
-            WorkerConfigBuilder, WorkerConfigBuilderError, WorkflowSlotKind,
+            ActivitySlotKind, LocalActivitySlotKind, PollerBehavior as CorePollerBehavior,
+            SlotKind, WorkerConfig, WorkerConfigBuilder, WorkerConfigBuilderError,
+            WorkflowSlotKind,
         },
     };
 
@@ -428,8 +429,8 @@ mod config {
         namespace: String,
         tuner: WorkerTuner,
         non_sticky_to_sticky_poll_ratio: f32,
-        max_concurrent_workflow_task_polls: usize,
-        max_concurrent_activity_task_polls: usize,
+        workflow_task_poller_behavior: PollerBehavior,
+        activity_task_poller_behavior: PollerBehavior,
         enable_non_local_activities: bool,
         sticky_queue_schedule_to_start_timeout: Duration,
         max_cached_workflows: usize,
@@ -438,6 +439,18 @@ mod config {
         max_activities_per_second: Option<f64>,
         max_task_queue_activities_per_second: Option<f64>,
         shutdown_grace_time: Option<Duration>,
+    }
+
+    #[derive(TryFromJs)]
+    pub enum PollerBehavior {
+        SimpleMaximum {
+            maximum: usize,
+        },
+        Autoscaling {
+            minimum: usize,
+            maximum: usize,
+            initial: usize,
+        },
     }
 
     impl BridgeWorkerOptions {
@@ -452,12 +465,8 @@ mod config {
                 .namespace(self.namespace)
                 .tuner(self.tuner.into_core_config()?)
                 .nonsticky_to_sticky_poll_ratio(self.non_sticky_to_sticky_poll_ratio)
-                .workflow_task_poller_behavior(PollerBehavior::SimpleMaximum(
-                    self.max_concurrent_workflow_task_polls,
-                ))
-                .activity_task_poller_behavior(PollerBehavior::SimpleMaximum(
-                    self.max_concurrent_activity_task_polls,
-                ))
+                .workflow_task_poller_behavior(self.workflow_task_poller_behavior)
+                .activity_task_poller_behavior(self.activity_task_poller_behavior)
                 .no_remote_activities(!self.enable_non_local_activities)
                 .sticky_queue_schedule_to_start_timeout(self.sticky_queue_schedule_to_start_timeout)
                 .max_cached_workflows(self.max_cached_workflows)
@@ -467,6 +476,25 @@ mod config {
                 .max_worker_activities_per_second(self.max_activities_per_second)
                 .graceful_shutdown_period(self.shutdown_grace_time)
                 .build()
+        }
+    }
+
+    impl From<PollerBehavior> for CorePollerBehavior {
+        fn from(val: PollerBehavior) -> Self {
+            match val {
+                PollerBehavior::SimpleMaximum { maximum } => {
+                    CorePollerBehavior::SimpleMaximum(maximum)
+                }
+                PollerBehavior::Autoscaling {
+                    minimum,
+                    maximum,
+                    initial,
+                } => CorePollerBehavior::Autoscaling {
+                    minimum,
+                    maximum,
+                    initial,
+                },
+            }
         }
     }
 
