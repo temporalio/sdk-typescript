@@ -5,13 +5,14 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import arg from 'arg';
-import { LogLevel, TelemetryOptions } from '@temporalio/core-bridge';
 import { Connection } from '@temporalio/client';
 import {
   DefaultLogger,
   LogEntry,
+  LogLevel,
   NativeConnection,
   Runtime,
+  TelemetryOptions,
   Worker,
   makeTelemetryFilterString,
 } from '@temporalio/worker';

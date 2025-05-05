@@ -416,7 +416,9 @@ export class Activator implements ActivationHandler {
   sinkCalls = Array<SinkCall>();
 
   /**
-   * A nanosecond resolution time function, externally injected
+   * A nanosecond resolution time function, externally injected. This is used to
+   * precisely sort logs entries emitted from the Workflow Context vs those emitted
+   * from other sources (e.g. main thread, Core, etc).
    */
   public readonly getTimeOfDay: () => bigint;
 

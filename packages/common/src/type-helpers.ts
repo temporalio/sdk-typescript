@@ -1,9 +1,20 @@
+export type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
+
 /** Shorthand alias */
 export type AnyFunc = (...args: any[]) => any;
+
 /** A tuple without its last element */
 export type OmitLast<T> = T extends [...infer REST, any] ? REST : never;
+
 /** F with all arguments but the last */
 export type OmitLastParam<F extends AnyFunc> = (...args: OmitLast<Parameters<F>>) => ReturnType<F>;
+
+export type OmitFirst<T> = T extends [any, ...infer REST] ? REST : never;
+
+export type OmitFirstParam<T> = T extends (...args: any[]) => any
+  ? (...args: OmitFirst<Parameters<T>>) => ReturnType<T>
+  : never;
+
 /** Require that T has at least one of the provided properties defined */
 export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Pick<T, Exclude<keyof T, Keys>> &
   {

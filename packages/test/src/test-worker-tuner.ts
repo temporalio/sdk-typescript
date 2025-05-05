@@ -1,7 +1,7 @@
 import { ExecutionContext } from 'ava';
-import { ResourceBasedTunerOptions } from '@temporalio/core-bridge';
 import {
   CustomSlotSupplier,
+  ResourceBasedTunerOptions,
   SlotInfo,
   SlotMarkUsedContext,
   SlotPermit,
@@ -47,11 +47,6 @@ test('Worker can run with resource based tuner', async (t) => {
         rampThrottle: 20,
       },
     },
-    // FIXME(JWH): Resource Based Tuner does not guarantee that at least one permit would be
-    // allocated to a non-sticky pollers, which means the worker may not be able to poll for a
-    // WFT from the normal TQ before this test times out. For now, let's completely disable usage
-    // of sticky TQ. Rmeove this once https://github.com/temporalio/sdk-core/issues/775 gets fixed.
-    maxCachedWorkflows: 0,
   });
   const result = await worker.runUntil(executeWorkflow(successString));
   t.is(result, 'success');
@@ -219,6 +214,7 @@ class MySS<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
   }
 }
 
+// FIXME: This test is flaky. To be reviewed at a later time.
 test('Custom slot supplier works', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
   const slotSupplier = new MySS(t);

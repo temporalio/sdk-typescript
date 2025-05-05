@@ -3,6 +3,7 @@ import anyTest, { ExecutionContext, TestFn } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { bundleWorkflowCode, WorkflowBundle } from '@temporalio/worker';
 import { Connection } from '@temporalio/client';
+import { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker, TestWorkflowEnvironment, testTimeSkipping as anyTestTimeSkipping, getRandomPort } from './helpers';
 
 interface Context {
@@ -82,7 +83,10 @@ test('TestEnvironment sets up dev server with db filename', async (t) => {
 });
 
 test('TestEnvironment sets up dev server with custom port and ui', async (t) => {
-  const port = await getRandomPort();
+  // FIXME: We'd really need to assert that the UI port is not being used by another process.
+  let port = await getRandomPort();
+  if (port > 65535 - 1000) port = 65535 - 1000;
+
   const testEnv = await TestWorkflowEnvironment.createLocal({
     server: {
       ip: '127.0.0.1',
@@ -113,7 +117,7 @@ test('TestEnvironment sets up dev server with custom port and ui', async (t) => 
 
 test('TestEnvironment sets up dev server with custom ui port', async (t) => {
   const port = await getRandomPort();
-  const testEnv = await TestWorkflowEnvironment.createLocal({
+  const testEnv = await RealTestWorkflowEnvironment.createLocal({
     server: {
       uiPort: port,
     },
@@ -123,5 +127,23 @@ test('TestEnvironment sets up dev server with custom ui port', async (t) => {
     t.pass();
   } finally {
     await testEnv.teardown();
+  }
+});
+
+test("TestEnvironment doesn't hang on fail to download", async (t) => {
+  try {
+    // Our internal TestWorkflowEnvironment helper may override the executable version
+    // if TESTS_CLI_VERSION is set, which would cause this test to fail. To avoid that,
+    // we use the RealTestWorkflowEnvironment directly.
+    await RealTestWorkflowEnvironment.createLocal({
+      server: {
+        executable: {
+          type: 'cached-download',
+          version: '999.999.999',
+        },
+      },
+    });
+  } catch (_e) {
+    t.pass();
   }
 });

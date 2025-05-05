@@ -1,545 +1,467 @@
-use crate::{
-    client::{BoxedClient, Client, CoreClient, RpcCall, RpcError, client_invoke},
-    conversions::*,
-    errors::*,
-    helpers::*,
-    worker::*,
-};
-use neon::{context::Context, prelude::*};
-use std::{
-    cell::{Cell, RefCell},
-    collections::HashMap,
-    ops::Deref,
-    process::Stdio,
-    sync::Arc,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
-use temporal_client::ClientInitError;
+use std::{sync::Arc, time::Duration};
+
+use anyhow::Context as _;
+use futures::channel::mpsc::Receiver;
+use neon::prelude::*;
+use tracing::{Instrument, warn};
+
 use temporal_sdk_core::{
-    ClientOptions, CoreRuntime, TokioRuntimeBuilder, WorkerConfig,
-    api::telemetry::CoreTelemetry,
-    ephemeral_server::EphemeralServer as CoreEphemeralServer,
-    init_replay_worker, init_worker,
-    replay::{HistoryForReplay, ReplayWorkerInput},
+    CoreRuntime, TokioRuntimeBuilder,
+    api::telemetry::{
+        CoreLog, OtelCollectorOptions as CoreOtelCollectorOptions,
+        PrometheusExporterOptions as CorePrometheusExporterOptions, metrics::CoreMeter,
+    },
+    telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
 };
-use tokio::sync::{
-    Mutex,
-    mpsc::{Sender, UnboundedReceiver, UnboundedSender, channel, unbounded_channel},
-    oneshot,
+
+use bridge_macros::js_function;
+use tokio_stream::StreamExt as _;
+
+use crate::{
+    helpers::{handles::MutableFinalize, *},
+    logs::LogEntry,
 };
-use tokio_stream::wrappers::ReceiverStream;
 
-#[derive(Clone)]
-pub struct EphemeralServer {
-    pub(crate) runtime: Arc<RuntimeHandle>,
-    pub(crate) core_server: Arc<Mutex<CoreEphemeralServer>>,
-}
-pub type BoxedEphemeralServer = JsBox<RefCell<Option<EphemeralServer>>>;
-impl Finalize for EphemeralServer {}
-
-pub struct RuntimeHandle {
-    pub(crate) sender: UnboundedSender<RuntimeRequest>,
-}
-
-/// Box it so we can use the runtime from JS
-pub type BoxedRuntime = JsBox<Arc<RuntimeHandle>>;
-impl Finalize for RuntimeHandle {}
-
-/// A request from JS to bridge to core
-pub enum RuntimeRequest {
-    /// A request to shutdown the runtime, breaks from the thread loop.
-    Shutdown {
-        /// Used to send the result back into JS
-        callback: Root<JsFunction>,
-    },
-    /// A request to create a client in a runtime
-    CreateClient {
-        runtime: Arc<RuntimeHandle>,
-        options: ClientOptions,
-        /// Used to send the result back into JS
-        callback: Root<JsFunction>,
-    },
-    /// A request to update a client's HTTP request headers
-    UpdateClientHeaders {
-        client: Arc<CoreClient>,
-        headers: HashMap<String, String>,
-        /// Used to send the result back into JS
-        callback: Root<JsFunction>,
-    },
-    /// A request to create a new Worker using a connected client
-    InitWorker {
-        /// Worker configuration e.g. limits and task queue
-        config: WorkerConfig,
-        /// A client created with a [CreateClient] request
-        client: Arc<CoreClient>,
-        /// Used to send the result back into JS
-        callback: Root<JsFunction>,
-    },
-    /// A request to register a replay worker
-    InitReplayWorker {
-        runtime: Arc<RuntimeHandle>,
-        /// Worker configuration. Must have unique task queue name.
-        config: WorkerConfig,
-        /// Used to send the result back into JS
-        callback: Root<JsFunction>,
-    },
-    /// A request to drain logs from core so they can be emitted in node
-    PollLogs {
-        /// Logs are sent to this function
-        callback: Root<JsFunction>,
-    },
-    StartEphemeralServer {
-        runtime: Arc<RuntimeHandle>,
-        config: EphemeralServerConfig,
-        callback: Root<JsFunction>,
-    },
-    ShutdownEphemeralServer {
-        server: Arc<Mutex<CoreEphemeralServer>>,
-        callback: Root<JsFunction>,
-    },
-    PushReplayHistory {
-        tx: Sender<HistoryForReplay>,
-        pushme: HistoryForReplay,
-        callback: Root<JsFunction>,
-    },
-    UpdateClientApiKey {
-        client: Arc<CoreClient>,
-        key: String,
-        callback: Root<JsFunction>,
-    },
-    SendClientRequest {
-        client: Arc<CoreClient>,
-        call: RpcCall,
-        callback: Root<JsFunction>,
-    },
-}
-
-/// Builds a tokio runtime and starts polling on [RuntimeRequest]s via an internal channel.
-/// Bridges requests from JS to core and sends responses back to JS using a neon::Channel.
-/// Blocks current thread until a [Shutdown] request is received in channel.
-pub fn start_bridge_loop(
-    telemetry_options: TelemOptsRes,
-    channel: Arc<Channel>,
-    receiver: &mut UnboundedReceiver<RuntimeRequest>,
-    result_sender: oneshot::Sender<Result<(), String>>,
-) {
-    let mut tokio_builder = tokio::runtime::Builder::new_multi_thread();
-    tokio_builder.enable_all().thread_name("core");
-    let telem_opts = telemetry_options.0;
-    let meter_maker = telemetry_options.1;
-    let tokio_builder: TokioRuntimeBuilder<Box<dyn Fn() + Send + Sync>> = TokioRuntimeBuilder {
-        inner: tokio_builder,
-        lang_on_thread_start: None,
+#[macro_export]
+macro_rules! enter_sync {
+    ($runtime:expr) => {
+        let _trace_subscriber_guard = $runtime
+            .telemetry()
+            .trace_subscriber()
+            .map(|sub| tracing::subscriber::set_default(sub));
+        let _tokio_handle_guard = $runtime.tokio_handle().enter();
     };
-    let mut core_runtime =
-        CoreRuntime::new(telem_opts, tokio_builder).expect("Failed to create CoreRuntime");
-
-    core_runtime.tokio_handle().block_on(async {
-        if let Some(meter_maker) = meter_maker {
-            match meter_maker() {
-                Ok(meter) => {
-                    core_runtime.telemetry_mut().attach_late_init_metrics(meter);
-                }
-                Err(err) => {
-                    result_sender
-                        .send(Err(format!("Failed to create meter: {}", err)))
-                        .unwrap_or_else(|_| {
-                            panic!("Failed to report runtime start error: {}", err)
-                        });
-                    return;
-                }
-            }
-        }
-        result_sender
-            .send(Ok(()))
-            .expect("Failed to report runtime start success");
-
-        loop {
-            let request_option = receiver.recv().await;
-            let request = match request_option {
-                None => break,
-                Some(request) => request,
-            };
-
-            let channel = channel.clone();
-
-            match request {
-                RuntimeRequest::Shutdown { callback } => {
-                    send_result(channel, callback, |cx| Ok(cx.undefined()));
-                    break;
-                }
-                RuntimeRequest::CreateClient {
-                    runtime,
-                    options,
-                    callback,
-                } => {
-                    let mm = core_runtime.telemetry().get_temporal_metric_meter();
-                    core_runtime.tokio_handle().spawn(async move {
-                        match options
-                            .connect_no_namespace(mm)
-                            .await
-                        {
-                            Err(err) => {
-                                send_error(channel.clone(), callback, |cx| match err {
-                                    ClientInitError::SystemInfoCallError(e) => {
-                                        make_named_error_from_string(
-                                            cx,
-                                            TRANSPORT_ERROR,
-                                            format!("Failed to call GetSystemInfo: {}", e),
-                                        )
-                                    }
-                                    ClientInitError::TonicTransportError(e) => {
-                                        make_named_error_from_error(cx, TRANSPORT_ERROR, e)
-                                    }
-                                    ClientInitError::InvalidUri(e) => {
-                                        Ok(JsError::type_error(cx, format!("{}", e))?)
-                                    }
-                                });
-                            }
-                            Ok(client) => {
-                                send_result(channel.clone(), callback, |cx| {
-                                    Ok(cx.boxed(RefCell::new(Some(Client {
-                                        runtime,
-                                        core_client: Arc::new(client),
-                                    }))))
-                                });
-                            }
-                        }
-                    });
-                }
-                RuntimeRequest::UpdateClientHeaders {
-                    client,
-                    headers,
-                    callback,
-                } => {
-                    client.get_client().set_headers(headers);
-                    send_result(channel.clone(), callback, |cx| Ok(cx.undefined()));
-                }
-                RuntimeRequest::UpdateClientApiKey { client, key, callback } => {
-                    client.get_client().set_api_key(Some(key));
-                    send_result(channel.clone(), callback, |cx| Ok(cx.undefined()));
-                }
-                RuntimeRequest::SendClientRequest { client, call, callback } => {
-                    core_runtime.tokio_handle().spawn(async move {
-                        match client_invoke((*client).clone(), call).await {
-                            Ok(bytes) => send_result(channel.clone(), callback, move |cx| {
-                                JsArrayBuffer::from_slice(cx, &bytes)
-                            }),
-                            Err(err) => send_error(channel.clone(), callback, |cx| {
-                                match err {
-                                    RpcError::Tonic(err) => {
-                                        let code = cx.number(err.code() as u32);
-                                        let metadata = JsObject::new(cx);
-                                        let details = err.details();
-                                        if !details.is_empty() {
-                                            let k = cx.string("grpc-status-details-bin");
-                                            let v = JsArrayBuffer::from_slice(cx, details)?;
-                                            metadata.set(cx, k, v)?;
-                                        }
-                                        let jserr = make_named_error_from_string(cx, TRANSPORT_ERROR, err.message())?;
-                                        for (k, v) in err.metadata().clone().into_headers().iter() {
-                                            let is_bin = k.to_string().ends_with("-bin");
-                                            let js_k = cx.string(k);
-                                            if is_bin {
-                                                let js_v = JsArrayBuffer::from_slice(cx, v.as_bytes())?;
-                                                metadata.set(cx, js_k, js_v)?;
-                                            } else {
-                                                let js_v = cx.string(v.to_str().unwrap());
-                                                metadata.set(cx, js_k, js_v)?;
-                                            };
-                                        }
-                                        jserr.set(cx, "code", code)?;
-                                        jserr.set(cx, "metadata", metadata)?;
-                                        Ok(jserr)
-                                    }
-                                    RpcError::Decode(err) => make_named_error_from_string(cx, UNEXPECTED_ERROR, format!("Invalid proto: {}", err)),
-                                    RpcError::Type(err) => JsError::type_error(cx, err),
-                                }
-                            }),
-                        }
-                    });
-                },
-                RuntimeRequest::PollLogs { callback } => {
-                    let logs = core_runtime.telemetry().fetch_buffered_logs();
-                    send_result(channel.clone(), callback, |cx| {
-                        let logarr = cx.empty_array();
-                        for (i, cl) in logs.into_iter().enumerate() {
-                            // Not much to do here except for panic when there's an error here.
-                            let logobj = cx.empty_object();
-
-                            let level = cx.string(cl.level.to_string());
-                            logobj.set(cx, "level", level).unwrap();
-
-                            let ts = system_time_to_js(cx, cl.timestamp).unwrap();
-                            logobj.set(cx, "timestamp", ts).unwrap();
-
-                            let msg = cx.string(cl.message);
-                            logobj.set(cx, "message", msg).unwrap();
-
-                            let fieldsobj = hashmap_to_js_value(cx, cl.fields);
-                            logobj.set(cx, "fields", fieldsobj.unwrap()).unwrap();
-
-                            let target = cx.string(cl.target);
-                            logobj.set(cx, "target", target).unwrap();
-
-                            logarr.set(cx, i as u32, logobj).unwrap();
-                        }
-                        Ok(logarr)
-                    });
-                }
-                RuntimeRequest::InitWorker {
-                    config,
-                    client,
-                    callback,
-                } => {
-                    let client = (*client).clone();
-                    match init_worker(&core_runtime, config, client) {
-                        Ok(worker) => {
-                            core_runtime.tokio_handle().spawn(start_worker_loop(
-                                worker,
-                                channel,
-                                callback,
-                                None,
-                            ));
-                        }
-                        Err(err) => send_error(channel.clone(), callback, move |cx| {
-                            make_named_error_from_error(cx, UNEXPECTED_ERROR, err.deref())
-                        }),
-                    }
-                }
-                RuntimeRequest::InitReplayWorker {
-                    runtime,
-                    config,
-                    callback,
-                } => {
-                    let (tunnel, stream) = HistoryForReplayTunnel::new(runtime);
-                    match init_replay_worker(ReplayWorkerInput::new(config, Box::pin(stream))) {
-                        Ok(worker) => {
-                            core_runtime.tokio_handle().spawn(start_worker_loop(
-                                worker,
-                                channel.clone(),
-                                callback,
-                                Some(tunnel),
-                            ));
-                        }
-                        Err(err) => send_error(channel.clone(), callback, move |cx| {
-                            make_named_error_from_error(cx, UNEXPECTED_ERROR, err.deref())
-                        }),
-                    };
-                }
-                RuntimeRequest::StartEphemeralServer {
-                    runtime,
-                    config,
-                    callback,
-                } => {
-                    core_runtime.tokio_handle().spawn(async move {
-                        let stdout = Stdio::from(std::io::stdout());
-                        let stderr = Stdio::from(std::io::stderr());
-                        let result = match config {
-                            EphemeralServerConfig::TestServer(config) => {
-                                config.start_server_with_output(stdout, stderr).await
-                            }
-                            EphemeralServerConfig::DevServer(config) => {
-                                config.start_server_with_output(stdout, stderr).await
-                            }
-                        };
-                        match result {
-                            Err(err) => {
-                                let err_str = format!("Failed to start ephemeral server: {}", err);
-                                send_error(channel.clone(), callback, |cx| {
-                                    make_named_error_from_string(cx, UNEXPECTED_ERROR, err_str)
-                                });
-                            }
-                            Ok(server) => {
-                                send_result(channel.clone(), callback, |cx| {
-                                    Ok(cx.boxed(RefCell::new(Some(EphemeralServer {
-                                        runtime,
-                                        core_server: Arc::new(Mutex::new(server)),
-                                    }))))
-                                });
-                            }
-                        }
-                    });
-                }
-                RuntimeRequest::ShutdownEphemeralServer { server, callback } => {
-                    core_runtime.tokio_handle().spawn(async move {
-                        void_future_to_js(
-                            channel,
-                            callback,
-                            async move {
-                                let mut guard = server.lock().await;
-                                guard.shutdown().await
-                            },
-                            |cx, err| {
-                                make_named_error_from_string(
-                                    cx,
-                                    UNEXPECTED_ERROR,
-                                    format!("Failed to start test server: {}", err),
-                                )
-                            },
-                        ).await
-                    });
-                }
-                RuntimeRequest::PushReplayHistory {
-                    tx,
-                    pushme,
-                    callback,
-                } => {
-                    core_runtime.tokio_handle().spawn(async move {
-                        let sendfut = async move {
-                            tx.send(pushme).await.map_err(|e| {
-                                format!(
-                                    "Receive side of history replay channel is gone. This is an sdk bug. {:?}",
-                                    e
-                                )
-                            })
-                        };
-                        void_future_to_js(channel, callback, sendfut, |cx, err| {
-                            make_named_error_from_string(
-                                cx,
-                                UNEXPECTED_ERROR,
-                                format!("Error pushing replay history {}", err),
-                            )
-                        }).await
-                    });
-                }
-            }
-        }
-    })
 }
 
-// Below are functions exported to JS
+pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<()> {
+    cx.export_function("newRuntime", runtime_new)?;
+    cx.export_function("runtimeShutdown", runtime_shutdown)?;
 
-/// Convert Rust SystemTime into a JS array with 2 numbers (seconds, nanos)
-pub fn system_time_to_js<'a, C>(cx: &mut C, time: SystemTime) -> NeonResult<Handle<'a, JsArray>>
-where
-    C: Context<'a>,
-{
-    let nanos = time
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or(Duration::ZERO)
-        .as_nanos();
-    let only_nanos = cx.number((nanos % 1_000_000_000) as f64);
-    let ts_seconds = cx.number((nanos / 1_000_000_000) as f64);
-    let ts = cx.empty_array();
-    ts.set(cx, 0, ts_seconds).unwrap();
-    ts.set(cx, 1, only_nanos).unwrap();
-    Ok(ts)
+    Ok(())
 }
 
-/// Helper to get the current time in nanosecond resolution.
-pub fn get_time_of_day(mut cx: FunctionContext) -> JsResult<JsArray> {
-    system_time_to_js(&mut cx, SystemTime::now())
+pub struct Runtime {
+    // Public because it's accessed from all other modules
+    #[allow(clippy::struct_field_names)]
+    pub(crate) core_runtime: Arc<CoreRuntime>,
+
+    log_exporter_task: Option<Arc<tokio::task::JoinHandle<()>>>,
+    metrics_exporter_task: Option<Arc<tokio::task::AbortHandle>>,
+
+    // For some unknown reason, the otel metrics exporter will go crazy on shutdown in some
+    // scenarios if we don't hold on to the `CoreOtelMeter` till the `Runtime` finally gets dropped.
+    _otel_metrics_exporter: Option<Arc<dyn CoreMeter + 'static>>,
 }
 
 /// Initialize Core global telemetry and create the tokio runtime required to run Core.
 /// This should typically be called once on process startup.
-/// Immediately spawns a poller thread that will block on [RuntimeRequest]s
-pub fn runtime_new(mut cx: FunctionContext) -> JsResult<BoxedRuntime> {
-    let telemetry_options = cx.argument::<JsObject>(0)?.as_telemetry_options(&mut cx)?;
-    let channel = Arc::new(cx.channel());
-    let (sender, mut receiver) = unbounded_channel::<RuntimeRequest>();
+#[js_function]
+pub fn runtime_new(
+    bridge_options: config::RuntimeOptions,
+) -> BridgeResult<OpaqueOutboundHandle<Runtime>> {
+    let (telemetry_options, metrics_options, logging_options) = bridge_options.try_into()?;
 
-    // FIXME: This is a temporary fix to get sync notifications of errors while initializing the runtime.
-    //        The proper fix would be to avoid spawning a new thread here, so that start_bridge_loop
-    //        can simply yeild back a Result. But early attempts to do just that caused panics
-    //        on runtime shutdown, so let's use this hack until we can dig deeper.
-    let (result_sender, result_receiver) = oneshot::channel::<Result<(), String>>();
+    // Create core runtime which starts tokio multi-thread runtime
+    let mut core_runtime = CoreRuntime::new(telemetry_options, TokioRuntimeBuilder::default())
+        .context("Failed to initialize Core Runtime")?;
 
-    std::thread::spawn(move || {
-        start_bridge_loop(telemetry_options, channel, &mut receiver, result_sender)
-    });
+    enter_sync!(core_runtime);
 
-    if let Ok(Err(e)) = result_receiver.blocking_recv() {
-        Err(cx.throw_error::<_, String>(e).unwrap_err())?;
-    }
+    // Run the metrics exporter task, if needed. Created after Runtime since it needs Tokio handle
+    let (prom_metrics_exporter_task, otel_metrics_exporter) = match metrics_options {
+        Some(BridgeMetricsExporter::Prometheus(prom_opts)) => {
+            let exporter = start_prometheus_metric_exporter(prom_opts)
+                .context("Failed to start prometheus metrics exporter")?;
 
-    Ok(cx.boxed(Arc::new(RuntimeHandle { sender })))
-}
+            core_runtime
+                .telemetry_mut()
+                .attach_late_init_metrics(exporter.meter);
 
-/// Shutdown the Core instance and break out of the thread loop
-pub fn runtime_shutdown(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let runtime = cx.argument::<BoxedRuntime>(0)?;
-    let callback = cx.argument::<JsFunction>(1)?;
-    let request = RuntimeRequest::Shutdown {
-        callback: callback.root(&mut cx),
-    };
-    if let Err(err) = runtime.sender.send(request) {
-        callback_with_unexpected_error(&mut cx, callback, err)?;
-    };
-    Ok(cx.undefined())
-}
+            (Some(exporter.abort_handle), None)
+        }
+        Some(BridgeMetricsExporter::Otel(otel_opts)) => {
+            let exporter = build_otlp_metric_exporter(otel_opts)
+                .context("Failed to start OTel metrics exporter")?;
 
-/// Request to drain forwarded logs from core
-pub fn poll_logs(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let runtime = cx.argument::<BoxedRuntime>(0)?;
-    let callback = cx.argument::<JsFunction>(1)?;
-    let request = RuntimeRequest::PollLogs {
-        callback: callback.root(&mut cx),
-    };
-    if let Err(err) = runtime.sender.send(request) {
-        callback_with_unexpected_error(&mut cx, callback, err)?;
-    }
-    Ok(cx.undefined())
-}
+            let exporter: Arc<dyn CoreMeter + 'static> = Arc::new(exporter);
+            core_runtime
+                .telemetry_mut()
+                .attach_late_init_metrics(exporter.clone());
 
-/// Create a connected gRPC client which can be used to initialize workers.
-/// Client will be returned in the supplied `callback`.
-pub fn client_new(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let runtime = cx.argument::<BoxedRuntime>(0)?;
-    let opts = cx.argument::<JsObject>(1)?;
-    let callback = cx.argument::<JsFunction>(2)?;
-
-    let client_options = opts.as_client_options(&mut cx)?;
-
-    let request = RuntimeRequest::CreateClient {
-        runtime: (**runtime).clone(),
-        options: client_options,
-        callback: callback.root(&mut cx),
-    };
-    if let Err(err) = runtime.sender.send(request) {
-        callback_with_unexpected_error(&mut cx, callback, err)?;
+            (None, Some(exporter))
+        }
+        None => (None, None),
     };
 
-    Ok(cx.undefined())
-}
+    // Run the log exporter task, if needed. Created after Runtime since it needs Tokio handle.
+    let log_exporter_task = if let BridgeLogExporter::Push { stream, receiver } = logging_options {
+        let log_exporter_task = Arc::new(core_runtime.tokio_handle().spawn(async move {
+            let mut stream = std::pin::pin!(stream.chunks_timeout(
+                config::FORWARD_LOG_BUFFER_SIZE,
+                Duration::from_millis(config::FORWARD_LOG_MAX_FREQ_MS)
+            ));
 
-/// Drop a reference to a Client, once all references are dropped, the Client will be closed.
-pub fn client_close(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let client = cx.argument::<BoxedClient>(0)?;
-    if client.replace(None).is_none() {
-        make_named_error_from_string(&mut cx, ILLEGAL_STATE_ERROR, "Client already closed")
-            .and_then(|err| cx.throw(err))?;
+            while let Some(core_logs) = stream.next().await {
+                // We silently swallow errors here because logging them could
+                // cause a bad loop and we don't want to assume console presence
+                let core_logs = core_logs
+                    .into_iter()
+                    .filter_map(|log| JsonString::<LogEntry>::try_from(log).ok())
+                    .collect::<Vec<_>>();
+                let _ = receiver.call_on_js_thread((core_logs,));
+            }
+        }));
+        Some(log_exporter_task)
+    } else {
+        None
     };
-    Ok(cx.undefined())
+
+    Ok(OpaqueOutboundHandle::new(Runtime {
+        core_runtime: Arc::new(core_runtime),
+        log_exporter_task,
+        metrics_exporter_task: prom_metrics_exporter_task.map(Arc::new),
+        _otel_metrics_exporter: otel_metrics_exporter,
+    }))
 }
 
-pub(crate) struct HistoryForReplayTunnel {
-    pub(crate) runtime: Arc<RuntimeHandle>,
-    sender: Cell<Option<Sender<HistoryForReplay>>>,
+/// Stop the bridge runtime. In practice, this simply drops the Runtime out of the Handle, and is
+/// therefore exactly the same as just waiting for the lang-side GC to do its job, but this function
+/// gives us a bit more control on when that happens, which is useful when starting/stopping
+/// runtimes at a high pace, e.g. during tests execution.
+#[js_function]
+pub fn runtime_shutdown(runtime: OpaqueInboundHandle<Runtime>) -> BridgeResult<()> {
+    std::mem::drop(runtime.take()?);
+    Ok(())
 }
-impl HistoryForReplayTunnel {
-    fn new(runtime: Arc<RuntimeHandle>) -> (Self, ReceiverStream<HistoryForReplay>) {
-        let (sender, rx) = channel(1);
-        (
-            HistoryForReplayTunnel {
-                runtime,
-                sender: Cell::new(Some(sender)),
-            },
-            ReceiverStream::new(rx),
-        )
-    }
-    pub fn get_chan(&self) -> Result<Sender<HistoryForReplay>, &'static str> {
-        let chan = self.sender.take();
-        self.sender.set(chan.clone());
-        if let Some(chan) = chan {
-            Ok(chan)
-        } else {
-            Err("History replay channel is already closed")
+
+/// Drop will handle the cleanup
+impl MutableFinalize for Runtime {}
+
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        if let Some(handle) = self.log_exporter_task.take() {
+            // FIXME: Flush logs before shutting down
+            handle.abort();
+        }
+
+        if let Some(handle) = self.metrics_exporter_task.take() {
+            handle.abort();
         }
     }
-    pub fn shutdown(&self) {
-        self.sender.take();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+pub trait RuntimeExt {
+    /// Spawn a future on the Tokio runtime, and immediately return a JS `Promise` that will resolve
+    /// when that future completes.
+    fn future_to_promise<F, R>(&self, future: F) -> BridgeResult<BridgeFuture<R>>
+    where
+        F: Future<Output = Result<R, BridgeError>> + Send + 'static,
+        R: TryIntoJs + Send + 'static;
+
+    /// Spawn a future on the Tokio runtime, and let it run to completion without waiting for it to
+    /// complete. Should any error occur, we'll try to send them to this Runtime's logger, but may
+    /// end up or silently dropping entries in some extreme cases.
+    fn spawn_and_forget<F>(&self, future: F)
+    where
+        F: Future<Output = Result<(), BridgeError>> + Send + 'static;
+}
+
+impl RuntimeExt for CoreRuntime {
+    fn future_to_promise<F, R>(&self, future: F) -> BridgeResult<BridgeFuture<R>>
+    where
+        F: Future<Output = Result<R, BridgeError>> + Send + 'static,
+        R: TryIntoJs + Send + 'static,
+    {
+        enter_sync!(self);
+        Ok(BridgeFuture::new(Box::pin(
+            future.instrument(tracing::info_span!("future_to_promise")),
+        )))
+    }
+
+    fn spawn_and_forget<F>(&self, future: F)
+    where
+        F: Future<Output = Result<(), BridgeError>> + Send + 'static,
+    {
+        enter_sync!(self);
+        self.tokio_handle().spawn(async move {
+            let result = future.await;
+            if let Err(err) = result {
+                warn!("Error executing fire-and-forget async task: {err:?}");
+            }
+        });
     }
 }
-impl Finalize for HistoryForReplayTunnel {}
+
+impl RuntimeExt for Arc<CoreRuntime> {
+    fn future_to_promise<F, R>(&self, future: F) -> BridgeResult<BridgeFuture<R>>
+    where
+        F: Future<Output = Result<R, BridgeError>> + Send + 'static,
+        R: TryIntoJs + Send + 'static,
+    {
+        self.as_ref().future_to_promise(future)
+    }
+
+    fn spawn_and_forget<F>(&self, future: F)
+    where
+        F: Future<Output = Result<(), BridgeError>> + Send + 'static,
+    {
+        self.as_ref().spawn_and_forget(future);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Debug, Clone)]
+pub enum BridgeMetricsExporter {
+    Prometheus(CorePrometheusExporterOptions),
+    Otel(CoreOtelCollectorOptions),
+}
+
+pub enum BridgeLogExporter {
+    Console,
+    Push {
+        stream: Receiver<CoreLog>,
+        receiver: JsCallback<(Vec<JsonString<LogEntry>>,), ()>,
+    },
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+mod config {
+    use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
+
+    use anyhow::Context as _;
+
+    use neon::prelude::*;
+    use temporal_sdk_core::{
+        Url,
+        api::telemetry::{
+            HistogramBucketOverrides, Logger as CoreTelemetryLogger, MetricTemporality,
+            OtelCollectorOptions as CoreOtelCollectorOptions, OtelCollectorOptionsBuilder,
+            OtlpProtocol, PrometheusExporterOptions as CorePrometheusExporterOptions,
+            PrometheusExporterOptionsBuilder, TelemetryOptions as CoreTelemetryOptions,
+            TelemetryOptionsBuilder,
+        },
+        telemetry::CoreLogStreamConsumer,
+    };
+
+    use bridge_macros::TryFromJs;
+
+    use crate::{
+        helpers::{BridgeError, BridgeResult, JsCallback, JsonString, TryFromJs},
+        logs::LogEntry,
+    };
+
+    use super::BridgeLogExporter;
+
+    pub(super) const FORWARD_LOG_BUFFER_SIZE: usize = 2048;
+    pub(super) const FORWARD_LOG_MAX_FREQ_MS: u64 = 10;
+
+    #[derive(Debug, Clone, TryFromJs)]
+    pub(super) struct RuntimeOptions {
+        log_exporter: LogExporterOptions,
+        telemetry: TelemetryOptions,
+        metrics_exporter: Option<MetricsExporterOptions>,
+    }
+
+    #[derive(Debug, Clone, TryFromJs)]
+    pub(super) struct TelemetryOptions {
+        attach_service_name: bool,
+        metric_prefix: String,
+    }
+
+    #[derive(Debug, Clone, TryFromJs)]
+    pub(super) enum LogExporterOptions {
+        Console {
+            filter: String,
+        },
+        Forward {
+            filter: String,
+            receiver: JsCallback<(Vec<JsonString<LogEntry>>,), ()>,
+        },
+    }
+
+    #[derive(Debug, Clone, TryFromJs)]
+    pub(super) enum MetricsExporterOptions {
+        Prometheus(PrometheusMetricsExporterConfig),
+        Otel(OtelMetricsExporterConfig),
+    }
+
+    #[derive(Debug, Clone, TryFromJs)]
+    pub(super) struct PrometheusMetricsExporterConfig {
+        socket_addr: SocketAddr,
+        global_tags: HashMap<String, String>,
+        counters_total_suffix: bool,
+        unit_suffix: bool,
+        use_seconds_for_durations: bool,
+        histogram_bucket_overrides: HashMap<String, Vec<f64>>,
+    }
+
+    #[derive(Debug, Clone, TryFromJs)]
+    pub(super) struct OtelMetricsExporterConfig {
+        url: Url,
+        headers: HashMap<String, String>,
+        metric_periodicity: Duration,
+        metric_temporality: StringEncoded<MetricTemporality>,
+        global_tags: HashMap<String, String>,
+        use_seconds_for_durations: bool,
+        histogram_bucket_overrides: HashMap<String, Vec<f64>>,
+        protocol: StringEncoded<OtlpProtocol>,
+    }
+
+    /// A private newtype so that we can implement `TryFromJs` on simple externally defined enums
+    #[derive(Debug, Clone)]
+    struct StringEncoded<T>(T);
+
+    impl
+        TryInto<(
+            CoreTelemetryOptions,
+            Option<super::BridgeMetricsExporter>,
+            super::BridgeLogExporter,
+        )> for RuntimeOptions
+    {
+        type Error = BridgeError;
+        fn try_into(
+            self,
+        ) -> BridgeResult<(
+            CoreTelemetryOptions,
+            Option<super::BridgeMetricsExporter>,
+            super::BridgeLogExporter,
+        )> {
+            let (telemetry_logger, log_exporter) = match self.log_exporter {
+                LogExporterOptions::Console { filter } => (
+                    CoreTelemetryLogger::Console { filter },
+                    BridgeLogExporter::Console,
+                ),
+                LogExporterOptions::Forward { filter, receiver } => {
+                    let (consumer, stream) = CoreLogStreamConsumer::new(FORWARD_LOG_BUFFER_SIZE);
+                    (
+                        CoreTelemetryLogger::Push {
+                            filter,
+                            consumer: Arc::new(consumer),
+                        },
+                        BridgeLogExporter::Push { stream, receiver },
+                    )
+                }
+            };
+
+            let mut telemetry_options = TelemetryOptionsBuilder::default();
+            let telemetry_options = telemetry_options
+                .logging(telemetry_logger)
+                .metric_prefix(self.telemetry.metric_prefix)
+                .attach_service_name(self.telemetry.attach_service_name)
+                .build()
+                .context("Failed to build telemetry options")?;
+
+            let metrics_exporter = self
+                .metrics_exporter
+                .map(std::convert::TryInto::try_into)
+                .transpose()?;
+
+            Ok((telemetry_options, metrics_exporter, log_exporter))
+        }
+    }
+
+    impl TryInto<super::BridgeMetricsExporter> for MetricsExporterOptions {
+        type Error = BridgeError;
+        fn try_into(self) -> BridgeResult<super::BridgeMetricsExporter> {
+            match self {
+                Self::Prometheus(prom) => {
+                    Ok(super::BridgeMetricsExporter::Prometheus(prom.try_into()?))
+                }
+                Self::Otel(otel) => Ok(super::BridgeMetricsExporter::Otel(otel.try_into()?)),
+            }
+        }
+    }
+
+    impl TryInto<CorePrometheusExporterOptions> for PrometheusMetricsExporterConfig {
+        type Error = BridgeError;
+
+        fn try_into(self) -> BridgeResult<CorePrometheusExporterOptions> {
+            let mut options = PrometheusExporterOptionsBuilder::default();
+            let options = options
+                .socket_addr(self.socket_addr)
+                .counters_total_suffix(self.counters_total_suffix)
+                .unit_suffix(self.unit_suffix)
+                .use_seconds_for_durations(self.use_seconds_for_durations)
+                .histogram_bucket_overrides(HistogramBucketOverrides {
+                    overrides: self.histogram_bucket_overrides,
+                })
+                .global_tags(self.global_tags)
+                .build()
+                .context("Failed to build prometheus exporter options")?;
+
+            Ok(options)
+        }
+    }
+
+    impl TryInto<CoreOtelCollectorOptions> for OtelMetricsExporterConfig {
+        type Error = BridgeError;
+
+        fn try_into(self) -> BridgeResult<CoreOtelCollectorOptions> {
+            let mut options = OtelCollectorOptionsBuilder::default();
+            let options = options
+                .url(self.url)
+                .protocol(*self.protocol)
+                .headers(self.headers)
+                .metric_periodicity(self.metric_periodicity)
+                .use_seconds_for_durations(self.use_seconds_for_durations)
+                .metric_temporality(*self.metric_temporality)
+                .histogram_bucket_overrides(HistogramBucketOverrides {
+                    overrides: self.histogram_bucket_overrides,
+                })
+                .global_tags(self.global_tags)
+                .build()
+                .context("Failed to build otel exporter options")?;
+
+            Ok(options)
+        }
+    }
+
+    impl TryFromJs for StringEncoded<OtlpProtocol> {
+        fn try_from_js<'cx, 'b>(
+            cx: &mut impl Context<'cx>,
+            js_value: Handle<'b, JsValue>,
+        ) -> BridgeResult<Self> {
+            let value = js_value.downcast::<JsString, _>(cx)?;
+            let value = value.value(cx);
+
+            match value.as_str() {
+                "http" => Ok(Self(OtlpProtocol::Http)),
+                "grpc" => Ok(Self(OtlpProtocol::Grpc)),
+                _ => Err(BridgeError::TypeError {
+                    field: None,
+                    message: "Expected either 'http' or 'grpc'".to_string(),
+                }),
+            }
+        }
+    }
+
+    impl TryFromJs for StringEncoded<MetricTemporality> {
+        fn try_from_js<'cx, 'b>(
+            cx: &mut impl Context<'cx>,
+            js_value: Handle<'b, JsValue>,
+        ) -> BridgeResult<Self> {
+            let value = js_value.downcast::<JsString, _>(cx)?;
+            let value = value.value(cx);
+
+            match value.as_str() {
+                "cumulative" => Ok(Self(MetricTemporality::Cumulative)),
+                "delta" => Ok(Self(MetricTemporality::Delta)),
+                _ => Err(BridgeError::TypeError {
+                    field: None,
+                    message: "Expected either 'cumulative' or 'delta'".to_string(),
+                }),
+            }
+        }
+    }
+
+    impl<T> std::ops::Deref for StringEncoded<T> {
+        type Target = T;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+}

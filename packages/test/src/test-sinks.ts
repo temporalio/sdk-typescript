@@ -442,8 +442,6 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       taskQueue,
       sinks,
-      maxCachedWorkflows: 2,
-      maxConcurrentWorkflowTaskExecutions: 2,
 
       // Cut down on execution time
       stickyQueueScheduleToStartTimeout: 1,
