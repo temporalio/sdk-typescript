@@ -27,7 +27,11 @@ export * from './workflows';
 const test = makeTestFn(() => createTestWorkflowBundle({ workflowsPath: __filename }));
 test.macro(configMacro);
 
-test('WorkflowOptions are passed correctly with defaults', configMacro, async (t, config) => {
+// FIXME: Unless we add .serial() here, ava tries to start all async tests in parallel, which
+//        is ok in most environments, but has been causing flakyness in CI, especially on Windows.
+//        We can probably avoid this by using larger runners, and there is some opportunity for
+//        optimization here, but for now, let's just run these tests serially.
+test.serial('WorkflowOptions are passed correctly with defaults', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow, taskQueue } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -61,7 +65,7 @@ test('WorkflowOptions are passed correctly with defaults', configMacro, async (t
   t.is(execution.raw.executionConfig?.workflowExecutionTimeout, null);
 });
 
-test('WorkflowOptions are passed correctly', configMacro, async (t, config) => {
+test.serial('WorkflowOptions are passed correctly', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   // Throws because we use a different task queue
@@ -108,7 +112,7 @@ test('WorkflowOptions are passed correctly', configMacro, async (t, config) => {
   t.is(tsToMs(execution.raw.executionConfig!.defaultWorkflowTaskTimeout!), msToNumber(options.workflowTaskTimeout));
 });
 
-test('WorkflowHandle.result() throws if terminated', configMacro, async (t, config) => {
+test.serial('WorkflowHandle.result() throws if terminated', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -127,7 +131,7 @@ test('WorkflowHandle.result() throws if terminated', configMacro, async (t, conf
   );
 });
 
-test('WorkflowHandle.result() throws if continued as new', configMacro, async (t, config) => {
+test.serial('WorkflowHandle.result() throws if continued as new', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -161,7 +165,7 @@ test('WorkflowHandle.result() throws if continued as new', configMacro, async (t
   });
 });
 
-test('WorkflowHandle.result() follows chain of execution', configMacro, async (t, config) => {
+test.serial('WorkflowHandle.result() follows chain of execution', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -173,7 +177,7 @@ test('WorkflowHandle.result() follows chain of execution', configMacro, async (t
   t.pass();
 });
 
-test('continue-as-new-to-different-workflow', configMacro, async (t, config) => {
+test.serial('continue-as-new-to-different-workflow', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults, loadedDataConverter } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -204,7 +208,7 @@ test('continue-as-new-to-different-workflow', configMacro, async (t, config) => 
   });
 });
 
-test('continue-as-new-to-same-workflow keeps memo and search attributes', configMacro, async (t, config) => {
+test.serial('continue-as-new-to-same-workflow keeps memo and search attributes', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -229,7 +233,7 @@ test('continue-as-new-to-same-workflow keeps memo and search attributes', config
   });
 });
 
-test(
+test.serial(
   'continue-as-new-to-different-workflow keeps memo and search attributes by default',
   configMacro,
   async (t, config) => {
@@ -259,44 +263,48 @@ test(
   }
 );
 
-test('continue-as-new-to-different-workflow can set memo and search attributes', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
-  const handle = await startWorkflow(workflows.continueAsNewToDifferentWorkflow, {
-    args: [
-      1,
-      {
-        memo: {
-          note: 'bar',
+test.serial(
+  'continue-as-new-to-different-workflow can set memo and search attributes',
+  configMacro,
+  async (t, config) => {
+    const { env, createWorkerWithDefaults } = config;
+    const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+    const worker = await createWorkerWithDefaults(t);
+    const handle = await startWorkflow(workflows.continueAsNewToDifferentWorkflow, {
+      args: [
+        1,
+        {
+          memo: {
+            note: 'bar',
+          },
+          searchAttributes: {
+            CustomKeywordField: ['test-value-2'],
+            CustomIntField: [3],
+          },
         },
-        searchAttributes: {
-          CustomKeywordField: ['test-value-2'],
-          CustomIntField: [3],
-        },
+      ],
+      followRuns: true,
+      memo: {
+        note: 'foo',
       },
-    ],
-    followRuns: true,
-    memo: {
-      note: 'foo',
-    },
-    searchAttributes: {
-      CustomKeywordField: ['test-value'],
-      CustomIntField: [1],
-    },
-  });
-  await worker.runUntil(async () => {
-    await handle.result();
-    const info = await handle.describe();
-    t.is(info.type, 'sleeper');
-    t.not(info.runId, handle.firstExecutionRunId);
-    t.deepEqual(info.memo, { note: 'bar' });
-    t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value-2']); // eslint-disable-line deprecation/deprecation
-    t.deepEqual(info.searchAttributes!.CustomIntField, [3]); // eslint-disable-line deprecation/deprecation
-  });
-});
+      searchAttributes: {
+        CustomKeywordField: ['test-value'],
+        CustomIntField: [1],
+      },
+    });
+    await worker.runUntil(async () => {
+      await handle.result();
+      const info = await handle.describe();
+      t.is(info.type, 'sleeper');
+      t.not(info.runId, handle.firstExecutionRunId);
+      t.deepEqual(info.memo, { note: 'bar' });
+      t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value-2']); // eslint-disable-line deprecation/deprecation
+      t.deepEqual(info.searchAttributes!.CustomIntField, [3]); // eslint-disable-line deprecation/deprecation
+    });
+  }
+);
 
-test('signalWithStart works as intended and returns correct runId', configMacro, async (t, config) => {
+test.serial('signalWithStart works as intended and returns correct runId', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { taskQueue } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -331,7 +339,7 @@ test('signalWithStart works as intended and returns correct runId', configMacro,
   });
 });
 
-test('activity-failures', configMacro, async (t, config) => {
+test.serial('activity-failures', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t, { activities });
@@ -344,7 +352,7 @@ export async function sleepInvalidDuration(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, -1));
 }
 
-test('sleepInvalidDuration is caught in Workflow runtime', configMacro, async (t, config) => {
+test.serial('sleepInvalidDuration is caught in Workflow runtime', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
 
   const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
@@ -353,7 +361,7 @@ test('sleepInvalidDuration is caught in Workflow runtime', configMacro, async (t
   t.pass();
 });
 
-test('unhandledRejection causes WFT to fail', configMacro, async (t, config) => {
+test.serial('unhandledRejection causes WFT to fail', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -388,7 +396,7 @@ export async function throwObject(): Promise<void> {
   throw { plainObject: true };
 }
 
-test('throwObject includes message with our recommendation', configMacro, async (t, config) => {
+test.serial('throwObject includes message with our recommendation', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -421,7 +429,7 @@ export async function throwBigInt(): Promise<void> {
   throw 42n;
 }
 
-test('throwBigInt includes message with our recommendation', configMacro, async (t, config) => {
+test.serial('throwBigInt includes message with our recommendation', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -450,7 +458,7 @@ test('throwBigInt includes message with our recommendation', configMacro, async 
   await handle.terminate();
 });
 
-test('Workflow RetryPolicy kicks in with retryable failure', configMacro, async (t, config) => {
+test.serial('Workflow RetryPolicy kicks in with retryable failure', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -470,7 +478,7 @@ test('Workflow RetryPolicy kicks in with retryable failure', configMacro, async 
   });
 });
 
-test('Workflow RetryPolicy ignored with nonRetryable failure', configMacro, async (t, config) => {
+test.serial('Workflow RetryPolicy ignored with nonRetryable failure', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -495,7 +503,7 @@ test('Workflow RetryPolicy ignored with nonRetryable failure', configMacro, asyn
   });
 });
 
-test('WorkflowClient.start fails with WorkflowExecutionAlreadyStartedError', configMacro, async (t, config) => {
+test.serial('WorkflowClient.start fails with WorkflowExecutionAlreadyStartedError', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow, taskQueue } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -521,7 +529,7 @@ test('WorkflowClient.start fails with WorkflowExecutionAlreadyStartedError', con
   }
 });
 
-test(
+test.serial(
   'WorkflowClient.signalWithStart fails with WorkflowExecutionAlreadyStartedError',
   configMacro,
   async (t, config) => {
@@ -549,7 +557,7 @@ test(
   }
 );
 
-test('Handle from WorkflowClient.start follows only own execution chain', configMacro, async (t, config) => {
+test.serial('Handle from WorkflowClient.start follows only own execution chain', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -571,33 +579,37 @@ test('Handle from WorkflowClient.start follows only own execution chain', config
   });
 });
 
-test('Handle from WorkflowClient.signalWithStart follows only own execution chain', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { taskQueue } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
-  const client = env.client;
-  const handleFromThrowerStart = await client.workflow.signalWithStart(workflows.throwAsync, {
-    taskQueue,
-    workflowId: uuid4(),
-    signal: 'unblock',
-  });
-  const handleFromGet = client.workflow.getHandle(handleFromThrowerStart.workflowId);
-  await worker.runUntil(async () => {
-    await t.throwsAsync(handleFromGet.result(), { message: /.*/ });
-    const handleFromSleeperStart = await client.workflow.start(workflows.sleeper, {
+test.serial(
+  'Handle from WorkflowClient.signalWithStart follows only own execution chain',
+  configMacro,
+  async (t, config) => {
+    const { env, createWorkerWithDefaults } = config;
+    const { taskQueue } = configurableHelpers(t, t.context.workflowBundle, env);
+    const worker = await createWorkerWithDefaults(t);
+    const client = env.client;
+    const handleFromThrowerStart = await client.workflow.signalWithStart(workflows.throwAsync, {
       taskQueue,
-      workflowId: handleFromThrowerStart.workflowId,
-      args: [1_000_000],
+      workflowId: uuid4(),
+      signal: 'unblock',
     });
-    try {
-      await t.throwsAsync(handleFromThrowerStart.result(), { message: 'Workflow execution failed' });
-    } finally {
-      await handleFromSleeperStart.terminate();
-    }
-  });
-});
+    const handleFromGet = client.workflow.getHandle(handleFromThrowerStart.workflowId);
+    await worker.runUntil(async () => {
+      await t.throwsAsync(handleFromGet.result(), { message: /.*/ });
+      const handleFromSleeperStart = await client.workflow.start(workflows.sleeper, {
+        taskQueue,
+        workflowId: handleFromThrowerStart.workflowId,
+        args: [1_000_000],
+      });
+      try {
+        await t.throwsAsync(handleFromThrowerStart.result(), { message: 'Workflow execution failed' });
+      } finally {
+        await handleFromSleeperStart.terminate();
+      }
+    });
+  }
+);
 
-test('Handle from WorkflowClient.getHandle follows only own execution chain', configMacro, async (t, config) => {
+test.serial('Handle from WorkflowClient.getHandle follows only own execution chain', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow, taskQueue } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -621,7 +633,7 @@ test('Handle from WorkflowClient.getHandle follows only own execution chain', co
   });
 });
 
-test('Handle from WorkflowClient.start terminates run after continue as new', configMacro, async (t, config) => {
+test.serial('Handle from WorkflowClient.start terminates run after continue as new', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
@@ -639,7 +651,7 @@ test('Handle from WorkflowClient.start terminates run after continue as new', co
   });
 });
 
-test(
+test.serial(
   'Handle from WorkflowClient.getHandle does not terminate run after continue as new if given runId',
   configMacro,
   async (t, config) => {
@@ -666,7 +678,7 @@ test(
   }
 );
 
-test(
+test.serial(
   'Runtime does not issue cancellations for activities and timers that throw during validation',
   configMacro,
   async (t, config) => {
@@ -686,7 +698,7 @@ export async function queryAndCondition(): Promise<void> {
   await condition(() => mutated);
 }
 
-test('Query does not cause condition to be triggered', configMacro, async (t, config) => {
+test.serial('Query does not cause condition to be triggered', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
 
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
@@ -724,7 +736,7 @@ export async function workflowWithMaybeDefinedQuery(useDefinedQuery: boolean): P
   await condition(() => complete);
 }
 
-test('default query handler is used if requested query does not exist', configMacro, async (t, config) => {
+test.serial('default query handler is used if requested query does not exist', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t, { activities });
@@ -738,7 +750,7 @@ test('default query handler is used if requested query does not exist', configMa
   });
 });
 
-test('default query handler is not used if requested query exists', configMacro, async (t, config) => {
+test.serial('default query handler is not used if requested query exists', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t, { activities });

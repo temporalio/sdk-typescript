@@ -298,6 +298,8 @@ test('Start of workflow respects workflow id conflict policy', async (t) => {
   });
 });
 
+// FIXME: This test is passing, but spitting out "signalTarget not exported by
+//        the workflow bundle" errors. To be revisited at a later time.
 test('Start of workflow with signal respects conflict id policy', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const wfid = `${taskQueue}-` + randomUUID();

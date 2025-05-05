@@ -1,124 +1,17 @@
-import { promisify } from 'node:util';
 import * as v8 from 'node:v8';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
-import { Heap } from 'heap-js';
-import * as native from '@temporalio/core-bridge';
-import {
-  pollLogs,
-  runtimeShutdown,
-  newClient,
-  newRuntime,
-  TelemetryOptions,
-  CompiledTelemetryOptions,
-  ForwardLogger,
-  MetricsExporter,
-  OtelCollectorExporter,
-} from '@temporalio/core-bridge';
-import { filterNullAndUndefined, normalizeTlsConfig } from '@temporalio/common/lib/internal-non-workflow';
-import { IllegalStateError, LogMetadata, SdkComponent } from '@temporalio/common';
+import { native } from '@temporalio/core-bridge';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
+import { IllegalStateError, Logger, SdkComponent } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
-import { msToNumber } from '@temporalio/common/lib/time';
-import { DefaultLogger, LogEntry, Logger, LogTimestamp, timeOfDayToBigint } from './logger';
-import { compileConnectionOptions, getDefaultConnectionOptions, NativeConnectionOptions } from './connection-options';
+import { isFlushableLogger } from './logger';
+import { toNativeClientOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer, toMB } from './utils';
-import pkg from './pkg';
+import { CompiledRuntimeOptions, compileOptions, RuntimeOptions } from './runtime-options';
 
 export { History };
-
-function isForwardingLogger(opts: TelemetryOptions['logging']): opts is ForwardLogger {
-  return Object.hasOwnProperty.call(opts, 'forward');
-}
-
-function isOtelCollectorExporter(opts: MetricsExporter): opts is OtelCollectorExporter {
-  return Object.hasOwnProperty.call(opts, 'otel');
-}
-
-/**
- * Options used to create a Core runtime
- */
-export interface RuntimeOptions {
-  /**
-   * Automatically shut down workers on any of these signals.
-   * @default
-   * ```ts
-   * ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2']
-   * ```
-   */
-  shutdownSignals?: NodeJS.Signals[];
-
-  /** Telemetry options for traces/metrics/logging */
-  telemetryOptions?: TelemetryOptions;
-  /**
-   * Custom logger for logging events from the SDK, by default we log everything to stderr
-   * at the INFO level. See https://docs.temporal.io/typescript/logging/ for more info.
-   */
-  logger?: Logger;
-}
-
-export interface CompiledRuntimeOptions {
-  shutdownSignals: NodeJS.Signals[];
-  telemetryOptions: CompiledTelemetryOptions;
-  logger: Logger;
-}
-
-export interface MakeTelemetryFilterStringOptions {
-  /**
-   * Determines which level of verbosity to keep for _SDK Core_'s related events.
-   * Any event with a verbosity level less than that value will be discarded.
-   * Possible values are, in order: 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'.
-   */
-  core: native.LogLevel;
-
-  /**
-   * Determines which level of verbosity to keep for events related to third
-   * party native packages imported by SDK Core. Any event with a verbosity level
-   * less than that value will be discarded. Possible values are, in order:
-   * 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'.
-   *
-   * @defaults `'INFO'`
-   */
-  other?: native.LogLevel;
-}
-
-/**
- * A helper to build a filter string for use in `RuntimeOptions.telemetryOptions.tracingFilter`.
- *
- * Example:
- *  ```
- *  telemetryOptions: {
- *    logging: {
- *     filter: makeTelemetryFilterString({ core: 'TRACE', other: 'DEBUG' });
- *     // ...
- *    },
- *  }
- * ```
- */
-export function makeTelemetryFilterString(options: MakeTelemetryFilterStringOptions): string {
-  const { core, other } = { other: 'INFO', ...options };
-  return `${other},temporal_sdk_core=${core},temporal_client=${core},temporal_sdk=${core}`;
-}
-
-/** A logger that buffers logs from both Node.js and Rust Core and emits logs in the right order */
-class BufferedLogger extends DefaultLogger {
-  protected buffer = new Heap<LogEntry>((a, b) => Number(a.timestampNanos - b.timestampNanos));
-
-  constructor(protected readonly next: Logger) {
-    super('TRACE', (entry) => this.buffer.add(entry));
-  }
-
-  /** Flush all buffered logs into the logger supplied to the constructor */
-  flush(): void {
-    for (const entry of this.buffer) {
-      this.next.log(entry.level, entry.message, {
-        ...entry.meta,
-        [LogTimestamp]: entry.timestampNanos,
-      });
-    }
-    this.buffer.clear();
-  }
-}
 
 type TrackedNativeObject = native.Client | native.Worker | native.EphemeralServer;
 
@@ -128,14 +21,13 @@ type TrackedNativeObject = native.Client | native.Worker | native.EphemeralServe
  * Use {@link install} in order to customize the server connection options or other global process options.
  */
 export class Runtime {
+  public readonly logger: Logger;
+
   /** Track the number of pending creation calls into the tokio runtime to prevent shut down */
   protected pendingCreations = 0;
   /** Track the registered native objects to automatically shutdown when all have been deregistered */
   protected readonly backRefs = new Set<TrackedNativeObject>();
-  protected stopPollingForLogs = false;
-  protected stopPollingForLogsCallback?: () => void;
-  protected readonly logPollPromise: Promise<void>;
-  public readonly logger: Logger;
+
   protected readonly shutdownSignalCallbacks = new Set<() => void>();
   protected state: 'RUNNING' | 'SHUTTING_DOWN' = 'RUNNING';
 
@@ -152,13 +44,7 @@ export class Runtime {
     public readonly native: native.Runtime,
     public readonly options: CompiledRuntimeOptions
   ) {
-    if (this.isForwardingLogs()) {
-      const logger = (this.logger = new BufferedLogger(this.options.logger));
-      this.logPollPromise = this.initLogPolling(logger);
-    } else {
-      this.logger = this.options.logger;
-      this.logPollPromise = Promise.resolve();
-    }
+    this.logger = options.logger;
     this.checkHeapSizeLimit();
     this.setupShutdownHook();
   }
@@ -201,8 +87,8 @@ export class Runtime {
    * Factory function for creating a new Core instance, not exposed because Core is meant to be used as a singleton
    */
   protected static create(options: RuntimeOptions, instantiator: 'install' | 'instance'): Runtime {
-    const compiledOptions = this.compileOptions(options);
-    const runtime = newRuntime(compiledOptions.telemetryOptions);
+    const compiledOptions = compileOptions(options);
+    const runtime = native.newRuntime(compiledOptions.telemetryOptions);
 
     // Remember the provided options in case Core is reinstantiated after being shut down
     this.defaultOptions = options;
@@ -211,129 +97,12 @@ export class Runtime {
     return this._instance;
   }
 
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-  protected static compileOptions(options: RuntimeOptions): CompiledRuntimeOptions {
-    // eslint-disable-next-line deprecation/deprecation
-    const { logging, metrics, tracingFilter, noTemporalPrefixForMetrics } = options.telemetryOptions ?? {};
-
-    const defaultFilter =
-      tracingFilter ??
-      makeTelemetryFilterString({
-        core: 'WARN',
-        other: 'ERROR',
-      });
-    const loggingFilter = logging?.filter;
-
-    // eslint-disable-next-line deprecation/deprecation
-    const forwardLevel = (logging as ForwardLogger | undefined)?.forward?.level;
-    const forwardLevelFilter =
-      forwardLevel &&
-      makeTelemetryFilterString({
-        core: forwardLevel,
-        other: forwardLevel,
-      });
-
-    return {
-      shutdownSignals: options.shutdownSignals ?? ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
-      telemetryOptions: {
-        logging:
-          !!logging && isForwardingLogger(logging)
-            ? {
-                filter: loggingFilter ?? forwardLevelFilter ?? defaultFilter,
-                forward: {},
-              }
-            : {
-                filter: loggingFilter ?? defaultFilter,
-                console: {},
-              },
-        metrics: metrics && {
-          metricPrefix: metrics.metricPrefix ?? (noTemporalPrefixForMetrics ? '' : 'temporal_'),
-          globalTags: metrics.globalTags,
-          attachServiceName: metrics.attachServiceName ?? true,
-          ...(isOtelCollectorExporter(metrics)
-            ? {
-                otel: {
-                  url: metrics.otel.url,
-                  http: metrics.otel.http ?? false,
-                  headers: metrics.otel.headers ?? {},
-                  metricsExportInterval: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
-                  // eslint-disable-next-line deprecation/deprecation
-                  temporality: metrics.otel.temporality ?? metrics.temporality ?? 'cumulative',
-                  useSecondsForDurations: metrics.otel.useSecondsForDurations ?? false,
-                  histogramBucketOverrides: metrics.otel.histogramBucketOverrides,
-                },
-              }
-            : {
-                prometheus: {
-                  bindAddress: metrics.prometheus.bindAddress,
-                  unitSuffix: metrics.prometheus.unitSuffix ?? false,
-                  countersTotalSuffix: metrics.prometheus.countersTotalSuffix ?? false,
-                  useSecondsForDurations: metrics.prometheus.useSecondsForDurations ?? false,
-                  histogramBucketOverrides: metrics.prometheus.histogramBucketOverrides,
-                },
-              }),
-        },
-      },
-      logger: options.logger ?? new DefaultLogger('INFO'),
-    };
-  }
-
-  protected async initLogPolling(logger: BufferedLogger): Promise<void> {
-    if (!this.isForwardingLogs()) {
-      return;
-    }
-
-    const poll = promisify(pollLogs);
-    const doPoll = async () => {
-      const logs = await poll(this.native);
-      for (const log of logs) {
-        const meta: LogMetadata = {
-          [LogTimestamp]: timeOfDayToBigint(log.timestamp),
-          sdkComponent: SdkComponent.core,
-          ...log.fields,
-        };
-        logger.log(log.level, log.message, meta);
-      }
-    };
-
-    try {
-      for (;;) {
-        await doPoll();
-        logger.flush();
-        if (this.stopPollingForLogs) {
-          break;
-        }
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, 3);
-          this.stopPollingForLogsCallback = resolve;
-        });
-      }
-    } catch (error) {
-      // Log using the original logger instead of buffering
-      this.options.logger.warn('Error gathering forwarded logs from core', {
-        error,
-        sdkComponent: SdkComponent.worker,
-      });
-    } finally {
-      logger.flush();
-    }
-  }
-
-  protected isForwardingLogs(): boolean {
-    const logger = this.options.telemetryOptions.logging;
-    return logger != null && isForwardingLogger(logger);
-  }
-
   /**
    * Flush any buffered logs.
-   *
-   * This is a noop in case the instance is configured with
-   * `logForwardingLevel=OFF`.
    */
   flushLogs(): void {
-    if (this.isForwardingLogs()) {
-      const logger = this.logger as BufferedLogger;
-      logger.flush();
+    if (isFlushableLogger(this.logger)) {
+      this.logger.flush();
     }
   }
 
@@ -344,21 +113,11 @@ export class Runtime {
    * @hidden
    */
   public async createNativeClient(options?: NativeConnectionOptions): Promise<native.Client> {
-    const compiledServerOptions = compileConnectionOptions({
-      ...getDefaultConnectionOptions(),
-      ...filterNullAndUndefined(options ?? {}),
-    });
-    if (options?.apiKey && compiledServerOptions.metadata?.['Authorization']) {
-      throw new TypeError(
-        'Both `apiKey` option and `Authorization` header were provided. Only one makes sense to use at a time.'
-      );
-    }
-    const clientOptions = {
-      ...compiledServerOptions,
-      tls: normalizeTlsConfig(compiledServerOptions.tls),
-      url: options?.tls ? `https://${compiledServerOptions.address}` : `http://${compiledServerOptions.address}`,
-    };
-    return await this.createNative(promisify(newClient), this.native, clientOptions);
+    return await this.createNative(
+      native.newClient,
+      this.native,
+      toNativeClientOptions(filterNullAndUndefined(options ?? {}))
+    );
   }
 
   /**
@@ -380,16 +139,20 @@ export class Runtime {
    * @hidden
    */
   public async registerWorker(client: native.Client, options: native.WorkerOptions): Promise<native.Worker> {
-    return await this.createNative(promisify(native.newWorker), client, options);
+    return await this.createNativeNoBackRef(async () => {
+      const worker = native.newWorker(client, options);
+      await native.workerValidate(worker);
+      this.backRefs.add(worker);
+      return worker;
+    });
   }
 
   /** @hidden */
-  public async createReplayWorker(options: native.WorkerOptions): Promise<native.ReplayWorker> {
+  public async createReplayWorker(options: native.WorkerOptions): Promise<[native.Worker, native.HistoryPusher]> {
     return await this.createNativeNoBackRef(async () => {
-      const fn = promisify(native.newReplayWorker);
-      const replayWorker = await fn(this.native, options);
-      this.backRefs.add(replayWorker.worker);
-      return replayWorker;
+      const [worker, pusher] = native.newReplayWorker(this.native, options);
+      this.backRefs.add(worker);
+      return [worker, pusher];
     });
   }
 
@@ -402,7 +165,7 @@ export class Runtime {
    */
   public async pushHistory(pusher: native.HistoryPusher, workflowId: string, history: History): Promise<void> {
     const encoded = byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish());
-    return await promisify(native.pushHistory)(pusher, workflowId, encoded);
+    return await native.pushHistory(pusher, workflowId, encoded);
   }
 
   /**
@@ -423,9 +186,12 @@ export class Runtime {
    * @hidden
    */
   public async deregisterWorker(worker: native.Worker): Promise<void> {
-    native.workerFinalizeShutdown(worker);
-    this.backRefs.delete(worker);
-    await this.shutdownIfIdle();
+    try {
+      await native.workerFinalizeShutdown(worker);
+    } finally {
+      this.backRefs.delete(worker);
+      await this.shutdownIfIdle();
+    }
   }
 
   /**
@@ -435,7 +201,7 @@ export class Runtime {
    * @hidden
    */
   public async createEphemeralServer(options: native.EphemeralServerConfig): Promise<native.EphemeralServer> {
-    return await this.createNative(promisify(native.startEphemeralServer), this.native, options, pkg.version);
+    return await this.createNative(native.newEphemeralServer, this.native, options);
   }
 
   /**
@@ -445,7 +211,7 @@ export class Runtime {
    * @hidden
    */
   public async shutdownEphemeralServer(server: native.EphemeralServer): Promise<void> {
-    await promisify(native.shutdownEphemeralServer)(server);
+    await native.ephemeralServerShutdown(server);
     this.backRefs.delete(server);
     await this.shutdownIfIdle();
   }
@@ -494,24 +260,26 @@ export class Runtime {
    *
    * If the runtime is polling on Core logs, wait for those logs to be collected.
    *
-   * Hidden in the docs because it is only meant to be used for testing.
    * @hidden
+   * @internal
    */
   public async shutdown(): Promise<void> {
-    delete Runtime._instance;
-    this.teardownShutdownHook();
-    this.stopPollingForLogs = true;
-    this.stopPollingForLogsCallback?.();
-    // This will effectively drain all logs
-    await this.logPollPromise;
-    await promisify(runtimeShutdown)(this.native);
+    if (this.native === undefined) return;
+    try {
+      if (Runtime._instance === this) delete Runtime._instance;
+      this.teardownShutdownHook();
+      native.runtimeShutdown(this.native);
+      this.flushLogs();
+    } finally {
+      delete (this as any).native;
+    }
   }
 
   /**
    * Used by Workers to register for shutdown signals
    *
-   * Hidden in the docs because it is only meant to be used internally by the Worker.
    * @hidden
+   * @internal
    */
   public registerShutdownSignalCallback(callback: () => void): void {
     if (this.state === 'RUNNING') {
@@ -524,8 +292,8 @@ export class Runtime {
   /**
    * Used by Workers to deregister handlers registered with {@link registerShutdownSignalCallback}
    *
-   * Hidden in the docs because it is only meant to be used internally by the Worker.
    * @hidden
+   * @internal
    */
   public deregisterShutdownSignalCallback(callback: () => void): void {
     this.shutdownSignalCallbacks.delete(callback);

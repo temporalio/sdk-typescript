@@ -20,7 +20,8 @@ export class ValueError extends Error {
 export class PayloadConverterError extends ValueError {}
 
 /**
- * Used in different parts of the SDK to note that something unexpected has happened.
+ * Signals that a requested operation can't be completed because it is illegal given the
+ * current state of the object; e.g. trying to use a resource after it has been closed.
  */
 @SymbolBasedInstanceOfError('IllegalStateError')
 export class IllegalStateError extends Error {}

@@ -1,56 +1,12 @@
-import util from 'node:util';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as grpc from '@grpc/grpc-js';
 import * as proto from 'protobufjs';
-
 import { IllegalStateError } from '@temporalio/common';
-import {
-  Client,
-  Worker,
-  clientUpdateHeaders,
-  TransportError,
-  clientUpdateApiKey,
-  clientSendRequest,
-} from '@temporalio/core-bridge';
+import { native } from '@temporalio/core-bridge';
 import { ConnectionLike, Metadata, CallContext, WorkflowService } from '@temporalio/client';
+import { TransportError } from './errors';
 import { NativeConnectionOptions } from './connection-options';
 import { Runtime } from './runtime';
-
-const updateHeaders = util.promisify(clientUpdateHeaders);
-const updateApiKey = util.promisify(clientUpdateApiKey);
-
-class ServiceError extends Error implements grpc.ServiceError {
-  constructor(
-    message: string,
-    public readonly code: grpc.StatusObject['code'],
-    public readonly details: string,
-    public readonly metadata: grpc.Metadata
-  ) {
-    super(message);
-  }
-}
-
-function serviceErrorFromError(err: unknown): ServiceError {
-  if (err instanceof TransportError) {
-    const metadata = new grpc.Metadata();
-    for (const [k, v] of Object.entries(err.metadata ?? {})) {
-      if (typeof v === 'string') {
-        metadata.set(k, v);
-      } else {
-        metadata.set(k, Buffer.from(v));
-      }
-    }
-    const se = new ServiceError(err.message, err.code ?? 0, '', metadata);
-    se.stack = err.stack;
-    return se;
-  }
-  if (err instanceof Error) {
-    const se = new ServiceError(err.message, 0, '', new grpc.Metadata());
-    se.stack = err.stack;
-    return se;
-  }
-  return new ServiceError(`Unknown error: ${err}`, 0, '', new grpc.Metadata());
-}
 
 /**
  * A Native Connection object that delegates calls to the Rust Core binary extension.
@@ -63,7 +19,7 @@ export class NativeConnection implements ConnectionLike {
   /**
    * referenceHolders is used internally by the framework, it can be accessed with `extractReferenceHolders` (below)
    */
-  private readonly referenceHolders = new Set<Worker>();
+  private readonly referenceHolders = new Set<native.Worker>();
 
   public readonly workflowService: WorkflowService;
   readonly callContextStorage = new AsyncLocalStorage<CallContext>();
@@ -71,7 +27,10 @@ export class NativeConnection implements ConnectionLike {
   /**
    * nativeClient is intentionally left private, framework code can access it with `extractNativeClient` (below)
    */
-  protected constructor(private nativeClient: Client) {
+  protected constructor(
+    private readonly runtime: Runtime,
+    private readonly nativeClient: native.Client
+  ) {
     this.workflowService = WorkflowService.create(this.sendRequest.bind(this), false, false);
   }
 
@@ -92,40 +51,29 @@ export class NativeConnection implements ConnectionLike {
     if (resolvedResponseType == null) {
       throw new TypeError(`Invalid request method: ${method.name}`);
     }
+
     // TODO: add support for abortSignal
+
     const ctx = this.callContextStorage.getStore() ?? {};
     const metadata =
       ctx.metadata != null ? Object.fromEntries(Object.entries(ctx.metadata).map(([k, v]) => [k, v.toString()])) : {};
 
-    const timeoutMs = ctx.deadline ? getRelativeTimeout(ctx.deadline) : undefined;
+    const req = {
+      rpc: method.name,
+      req: requestData,
+      retry: true,
+      metadata,
+      timeout: ctx.deadline ? getRelativeTimeout(ctx.deadline) : null,
+    };
 
-    try {
-      clientSendRequest(
-        this.nativeClient,
-        {
-          rpc: method.name,
-          req: requestData,
-          retry: true,
-          metadata,
-          timeoutMs,
-        },
-        (err, bytes) => {
-          if (err != null) {
-            try {
-              callback(serviceErrorFromError(err));
-            } catch (err) {
-              // In case conversion throws, make sure we don't end up with an unhandled exception.
-              callback(serviceErrorFromError(err));
-            }
-            return;
-          }
-          const response = resolvedResponseType.decode(Buffer.from(bytes));
-          callback(null, response);
-        }
-      );
-    } catch (err) {
-      callback(serviceErrorFromError(err));
-    }
+    native.clientSendRequest(this.nativeClient, req).then(
+      (res) => {
+        callback(null, resolvedResponseType.decode(Buffer.from(res)));
+      },
+      (err) => {
+        callback(err);
+      }
+    );
   }
 
   /**
@@ -206,8 +154,9 @@ export class NativeConnection implements ConnectionLike {
    */
   static async create(options?: NativeConnectionOptions): Promise<NativeConnection> {
     try {
-      const client = await Runtime.instance().createNativeClient(options);
-      return new this(client);
+      const runtime = Runtime.instance();
+      const client = await runtime.createNativeClient(options);
+      return new this(runtime, client);
     } catch (err) {
       if (err instanceof TransportError) {
         throw new TransportError(err.message);
@@ -221,8 +170,9 @@ export class NativeConnection implements ConnectionLike {
    */
   static async connect(options?: NativeConnectionOptions): Promise<NativeConnection> {
     try {
-      const client = await Runtime.instance().createNativeClient(options);
-      return new this(client);
+      const runtime = Runtime.instance();
+      const client = await runtime.createNativeClient(options);
+      return new this(runtime, client);
     } catch (err) {
       if (err instanceof TransportError) {
         throw new TransportError(err.message);
@@ -241,8 +191,7 @@ export class NativeConnection implements ConnectionLike {
     if (this.referenceHolders.size > 0) {
       throw new IllegalStateError('Cannot close connection while Workers hold a reference to it');
     }
-    await Runtime.instance().closeNativeClient(this.nativeClient);
-    this.callContextStorage.disable();
+    await this.runtime.closeNativeClient(this.nativeClient);
   }
 
   /**
@@ -251,7 +200,7 @@ export class NativeConnection implements ConnectionLike {
    * Use {@link NativeConnectionOptions.metadata} to set the initial metadata for client creation.
    */
   async setMetadata(metadata: Record<string, string>): Promise<void> {
-    await updateHeaders(this.nativeClient, metadata);
+    native.clientUpdateHeaders(this.nativeClient, metadata);
   }
 
   /**
@@ -261,7 +210,7 @@ export class NativeConnection implements ConnectionLike {
    * Use {@link NativeConnectionOptions.apiKey} to set the initial metadata for client creation.
    */
   async setApiKey(apiKey: string): Promise<void> {
-    await updateApiKey(this.nativeClient, apiKey);
+    native.clientUpdateApiKey(this.nativeClient, apiKey);
   }
 }
 
@@ -270,7 +219,7 @@ export class NativeConnection implements ConnectionLike {
  *
  * Only meant to be used by the framework.
  */
-export function extractNativeClient(conn: NativeConnection): Client {
+export function extractNativeClient(conn: NativeConnection): native.Client {
   return (conn as any).nativeClient;
 }
 
@@ -279,7 +228,7 @@ export function extractNativeClient(conn: NativeConnection): Client {
  *
  * Only meant to be used by the framework.
  */
-export function extractReferenceHolders(conn: NativeConnection): Set<Worker> {
+export function extractReferenceHolders(conn: NativeConnection): Set<native.Worker> {
   return (conn as any).referenceHolders;
 }
 

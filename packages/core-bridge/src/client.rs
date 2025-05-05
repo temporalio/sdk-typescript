@@ -1,33 +1,162 @@
-use crate::{conversions::ObjectHandleConversionsExt, helpers::*, runtime::*};
-use neon::prelude::*;
-use prost::DecodeError;
-use std::collections::HashMap;
-use std::str::FromStr;
+use std::str::FromStr as _;
 use std::time::Duration;
-use std::{cell::RefCell, sync::Arc};
-use temporal_client::{
-    ConfiguredClient, RetryClient, TemporalServiceClientWithMetrics, WorkflowService,
-};
+use std::{collections::HashMap, sync::Arc};
+
+use neon::prelude::*;
 use tonic::metadata::MetadataKey;
 
-#[derive(Clone)]
-pub struct Client {
-    pub(crate) runtime: Arc<RuntimeHandle>,
-    pub(crate) core_client: Arc<CoreClient>,
+use temporal_sdk_core::{ClientOptions as CoreClientOptions, CoreRuntime, RetryClient};
+
+use bridge_macros::{TryFromJs, js_function};
+use temporal_client::{
+    ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics, WorkflowService,
+};
+
+use crate::runtime::Runtime;
+use crate::{helpers::*, runtime::RuntimeExt as _};
+
+pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<()> {
+    cx.export_function("newClient", client_new)?;
+    cx.export_function("clientUpdateHeaders", client_update_headers)?;
+    cx.export_function("clientUpdateApiKey", client_update_api_key)?;
+    cx.export_function("clientSendRequest", client_send_request)?;
+    cx.export_function("clientClose", client_close)?;
+
+    Ok(())
 }
 
-pub type CoreClient = RetryClient<ConfiguredClient<TemporalServiceClientWithMetrics>>;
+type CoreClient = RetryClient<ConfiguredClient<TemporalServiceClientWithMetrics>>;
 
-pub(crate) type BoxedClient = JsBox<RefCell<Option<Client>>>;
-impl Finalize for Client {}
+pub struct Client {
+    // These fields are pub because they are accessed from Worker::new
+    pub(crate) core_runtime: Arc<CoreRuntime>,
+    pub(crate) core_client: CoreClient,
+}
 
-#[derive(Debug)]
+/// Create a connected gRPC client which can be used to initialize workers.
+#[js_function]
+pub fn client_new(
+    runtime: OpaqueInboundHandle<Runtime>,
+    config: config::ClientOptions,
+) -> BridgeResult<BridgeFuture<OpaqueOutboundHandle<Client>>> {
+    let runtime = runtime.borrow()?.core_runtime.clone();
+    let config: CoreClientOptions = config.try_into()?;
+
+    runtime.clone().future_to_promise(async move {
+        let metric_meter = runtime.clone().telemetry().get_temporal_metric_meter();
+        let res = config.connect_no_namespace(metric_meter).await;
+
+        let core_client = match res {
+            Ok(core_client) => core_client,
+            Err(ClientInitError::SystemInfoCallError(e)) => Err(BridgeError::TransportError(
+                format!("Failed to call GetSystemInfo: {e}"),
+            ))?,
+            Err(ClientInitError::TonicTransportError(e)) => {
+                Err(BridgeError::TransportError(format!("{e:?}")))?
+            }
+            Err(ClientInitError::InvalidUri(e)) => Err(BridgeError::TypeError {
+                message: e.to_string(),
+                field: None,
+            })?,
+        };
+
+        Ok(OpaqueOutboundHandle::new(Client {
+            core_runtime: runtime,
+            core_client,
+        }))
+    })
+}
+
+/// Update a Client's HTTP request headers
+#[js_function]
+pub fn client_update_headers(
+    client: OpaqueInboundHandle<Client>,
+    headers: HashMap<String, String>,
+) -> BridgeResult<()> {
+    client
+        .borrow()?
+        .core_client
+        .get_client()
+        .set_headers(headers);
+    Ok(())
+}
+
+/// Update a Client's API key
+#[js_function]
+pub fn client_update_api_key(client: OpaqueInboundHandle<Client>, key: String) -> BridgeResult<()> {
+    client
+        .borrow()?
+        .core_client
+        .get_client()
+        .set_api_key(Some(key));
+    Ok(())
+}
+
+#[js_function]
+pub fn client_close(client: OpaqueInboundHandle<Client>) -> BridgeResult<()> {
+    // Just drop the client; there's actually no "close" method on Client.
+    let _ = client.take()?;
+    Ok(())
+}
+
+// Just drop the client, there's really nothing more to do.
+impl MutableFinalize for Client {}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Debug, TryFromJs)]
 pub struct RpcCall {
     pub rpc: String,
     pub req: Vec<u8>,
     pub retry: bool,
     pub metadata: HashMap<String, String>,
-    pub timeout_millis: Option<u64>,
+    pub timeout: Option<Duration>,
+}
+
+/// Send a request using the provided Client
+#[js_function]
+pub fn client_send_request(
+    client: OpaqueInboundHandle<Client>,
+    call: RpcCall,
+) -> BridgeResult<BridgeFuture<Vec<u8>>> {
+    let client = client.borrow()?;
+    let core_runtime = client.core_runtime.clone();
+    let core_client = client.core_client.clone();
+
+    // FIXME: "large future with a size of 18560 bytes"
+    core_runtime.future_to_promise(async move { client_invoke(core_client, call).await })
+}
+
+/// Indicates that a gRPC request failed
+const SERVICE_ERROR: &str = "ServiceError";
+
+impl TryIntoJs for tonic::Status {
+    type Output = JsError;
+    fn try_into_js<'cx>(self, cx: &mut impl Context<'cx>) -> JsResult<'cx, Self::Output> {
+        let jsmetadata = cx.empty_object();
+
+        let details = self.details();
+        if !details.is_empty() {
+            jsmetadata.set_property_from(cx, "grpc-status-details-bin", details)?;
+        }
+
+        let metadata = self.metadata().clone();
+        for (k, v) in &metadata.into_headers() {
+            let k: &str = k.as_ref();
+            if k.ends_with("-bin") {
+                jsmetadata.set_property_from(cx, k, v.as_bytes())?;
+            } else {
+                jsmetadata.set_property_from(cx, k, v.to_str().unwrap())?;
+            }
+        }
+
+        let jserr = cx.error(self.message())?;
+        jserr.set_property_from(cx, "name", SERVICE_ERROR)?;
+        jserr.set_property_from(cx, "code", self.code() as u32)?;
+        jserr.set_property(cx, "metadata", jsmetadata)?;
+
+        Ok(jserr)
+    }
 }
 
 macro_rules! rpc_call {
@@ -40,123 +169,9 @@ macro_rules! rpc_call {
     };
 }
 
-#[derive(Debug)]
-pub enum RpcError {
-    Decode(DecodeError),
-    Tonic(tonic::Status),
-    Type(String),
-}
-
-fn rpc_req<P: prost::Message + Default>(call: RpcCall) -> Result<tonic::Request<P>, RpcError> {
-    let proto = P::decode(&*call.req).map_err(RpcError::Decode)?;
-    let mut req = tonic::Request::new(proto);
-    for (k, v) in call.metadata {
-        req.metadata_mut().insert(
-            MetadataKey::from_str(k.as_str())
-                .map_err(|err| RpcError::Type(format!("Invalid metadata key: {}", err)))?,
-            v.parse()
-                .map_err(|err| RpcError::Type(format!("Invalid metadata value: {}", err)))?,
-        );
-    }
-    if let Some(timeout_millis) = call.timeout_millis {
-        req.set_timeout(Duration::from_millis(timeout_millis));
-    }
-    Ok(req)
-}
-
-fn rpc_resp<P>(res: Result<tonic::Response<P>, tonic::Status>) -> Result<Vec<u8>, RpcError>
-where
-    P: prost::Message,
-    P: Default,
-{
-    match res {
-        Ok(resp) => Ok(resp.get_ref().encode_to_vec()),
-        Err(err) => Err(RpcError::Tonic(err)),
-    }
-}
-
-/// Update a Client's HTTP request headers
-pub fn client_update_headers(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let client = cx.argument::<BoxedClient>(0)?;
-    let headers = cx
-        .argument::<JsObject>(1)?
-        .as_hash_map_of_string_to_string(&mut cx)?;
-    let callback = cx.argument::<JsFunction>(2)?;
-
-    match client.borrow().as_ref() {
-        None => {
-            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Client")?;
-        }
-        Some(client) => {
-            let request = RuntimeRequest::UpdateClientHeaders {
-                client: client.core_client.clone(),
-                headers,
-                callback: callback.root(&mut cx),
-            };
-            if let Err(err) = client.runtime.sender.send(request) {
-                callback_with_unexpected_error(&mut cx, callback, err)?;
-            };
-        }
-    }
-
-    Ok(cx.undefined())
-}
-
-/// Update a Client's API key
-pub fn client_update_api_key(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let client = cx.argument::<BoxedClient>(0)?;
-    let key = cx.argument::<JsString>(1)?.value(&mut cx);
-    let callback = cx.argument::<JsFunction>(2)?;
-
-    match client.borrow().as_ref() {
-        None => {
-            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Client")?;
-        }
-        Some(client) => {
-            let request = RuntimeRequest::UpdateClientApiKey {
-                client: client.core_client.clone(),
-                key,
-                callback: callback.root(&mut cx),
-            };
-            if let Err(err) = client.runtime.sender.send(request) {
-                callback_with_unexpected_error(&mut cx, callback, err)?;
-            };
-        }
-    }
-
-    Ok(cx.undefined())
-}
-
-/// Send a request using the provided Client
-pub fn client_send_request(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    let client = cx.argument::<BoxedClient>(0)?;
-    let call = cx.argument::<JsObject>(1)?;
-    let callback = cx.argument::<JsFunction>(2)?;
-
-    match client.borrow().as_ref() {
-        None => {
-            callback_with_unexpected_error(&mut cx, callback, "Tried to use closed Client")?;
-        }
-        Some(client) => {
-            let call = call.as_rpc_call(&mut cx)?;
-            let request = RuntimeRequest::SendClientRequest {
-                client: client.core_client.clone(),
-                call,
-                callback: callback.root(&mut cx),
-            };
-            if let Err(err) = client.runtime.sender.send(request) {
-                callback_with_unexpected_error(&mut cx, callback, err)?;
-            };
-        }
-    }
-
-    Ok(cx.undefined())
-}
-
-pub async fn client_invoke(
-    mut retry_client: CoreClient,
-    call: RpcCall,
-) -> Result<Vec<u8>, RpcError> {
+// FIXME: "this function may allocate 1400106 bytes on the stack"
+#[allow(clippy::too_many_lines)]
+async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeResult<Vec<u8>> {
     match call.rpc.as_str() {
         "CountWorkflowExecutions" => {
             rpc_call!(retry_client, call, count_workflow_executions)
@@ -382,6 +397,154 @@ pub async fn client_invoke(
         "UpdateWorkerVersioningRules" => {
             rpc_call!(retry_client, call, update_worker_versioning_rules)
         }
-        _ => Err(RpcError::Type(format!("Unknown RPC call {}", call.rpc))),
+        _ => Err(BridgeError::TypeError {
+            field: None,
+            message: format!("Unknown RPC call {}", call.rpc),
+        }),
+    }
+}
+
+fn rpc_req<P: prost::Message + Default>(call: RpcCall) -> BridgeResult<tonic::Request<P>> {
+    let proto = P::decode(&*call.req).map_err(|err| BridgeError::TypeError {
+        field: None,
+        message: format!("Cannot decode response from buffer: {err:?}"),
+    })?;
+
+    let mut req = tonic::Request::new(proto);
+    for (k, v) in call.metadata {
+        req.metadata_mut().insert(
+            MetadataKey::from_str(k.as_str()).map_err(|err| BridgeError::TypeError {
+                field: None,
+                message: format!("Invalid metadata key: {err}"),
+            })?,
+            v.parse().map_err(|err| BridgeError::TypeError {
+                field: None,
+                message: format!("Invalid metadata value: {err}"),
+            })?,
+        );
+    }
+
+    if let Some(timeout) = call.timeout {
+        req.set_timeout(timeout);
+    }
+
+    Ok(req)
+}
+
+fn rpc_resp<P>(res: Result<tonic::Response<P>, tonic::Status>) -> BridgeResult<Vec<u8>>
+where
+    P: prost::Message + Default,
+{
+    match res {
+        Ok(resp) => Ok(resp.get_ref().encode_to_vec()),
+        Err(err) => Err(BridgeError::ServiceError(err)),
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+mod config {
+    use std::collections::HashMap;
+
+    use anyhow::Context as _;
+
+    use temporal_client::HttpConnectProxyOptions;
+    use temporal_sdk_core::{
+        ClientOptions as CoreClientOptions, ClientOptionsBuilder,
+        ClientTlsConfig as CoreClientTlsConfig, TlsConfig as CoreTlsConfig, Url,
+    };
+
+    use bridge_macros::TryFromJs;
+
+    use crate::helpers::*;
+
+    #[derive(Debug, Clone, TryFromJs)]
+    pub(super) struct ClientOptions {
+        target_url: Url,
+        client_name: String,
+        client_version: String,
+        tls: Option<TlsConfig>,
+        http_connect_proxy: Option<HttpConnectProxy>,
+        headers: Option<HashMap<String, String>>,
+        api_key: Option<String>,
+        disable_error_code_metric_tags: bool,
+    }
+
+    #[derive(Debug, Clone, TryFromJs)]
+    #[allow(clippy::struct_field_names)]
+    struct TlsConfig {
+        domain: Option<String>,
+        server_root_ca_cert: Option<Vec<u8>>,
+        client_tls_config: Option<TlsConfigClientCertPair>,
+    }
+
+    #[derive(Debug, Clone, TryFromJs)]
+    struct TlsConfigClientCertPair {
+        client_cert: Vec<u8>,
+        client_private_key: Vec<u8>,
+    }
+
+    #[derive(Debug, Clone, TryFromJs)]
+    struct HttpConnectProxy {
+        target_host: String,
+        basic_auth: Option<HttpConnectProxyBasicAuth>,
+    }
+
+    #[derive(Debug, Clone, TryFromJs)]
+    struct HttpConnectProxyBasicAuth {
+        username: String,
+        password: String,
+    }
+
+    impl TryInto<CoreClientOptions> for ClientOptions {
+        type Error = BridgeError;
+        fn try_into(self) -> Result<CoreClientOptions, Self::Error> {
+            let mut builder = ClientOptionsBuilder::default();
+
+            if let Some(tls) = self.tls {
+                builder.tls_cfg(tls.into());
+            }
+
+            let client_options = builder
+                .target_url(self.target_url)
+                .client_name(self.client_name)
+                .client_version(self.client_version)
+                // tls_cfg -- above
+                .http_connect_proxy(self.http_connect_proxy.map(Into::into))
+                .headers(self.headers)
+                .api_key(self.api_key)
+                .disable_error_code_metric_tags(self.disable_error_code_metric_tags)
+                // identity -- skipped: will be set on worker
+                // retry_config -- skipped: worker overrides anyway
+                // override_origin -- skipped: will default to tls_cfg.domain
+                // keep_alive -- skipped: defaults to true; is there any reason to disable this?
+                // skip_get_system_info -- skipped: defaults to false; is there any reason to set this?
+                .build()
+                .context("Invalid Client options")?;
+
+            Ok(client_options)
+        }
+    }
+
+    impl From<TlsConfig> for CoreTlsConfig {
+        fn from(val: TlsConfig) -> Self {
+            Self {
+                domain: val.domain,
+                server_root_ca_cert: val.server_root_ca_cert,
+                client_tls_config: val.client_tls_config.map(|pair| CoreClientTlsConfig {
+                    client_cert: pair.client_cert,
+                    client_private_key: pair.client_private_key,
+                }),
+            }
+        }
+    }
+
+    impl From<HttpConnectProxy> for HttpConnectProxyOptions {
+        fn from(val: HttpConnectProxy) -> Self {
+            Self {
+                target_addr: val.target_host,
+                basic_auth: val.basic_auth.map(|auth| (auth.username, auth.password)),
+            }
+        }
     }
 }

@@ -8,47 +8,31 @@
  * @module
  */
 
-export {
-  ConsoleLogger,
-  ForwardLogger,
-  Logger as TelemLogger,
-  MetricsExporter,
-  OtelCollectorExporter,
-  PrometheusMetricsExporter,
-  TelemetryOptions,
-  CustomSlotSupplier,
-  SlotInfo,
-  WorkflowSlotInfo,
-  LocalActivitySlotInfo,
-  ActivitySlotInfo,
-  SlotMarkUsedContext,
-  SlotPermit,
-  SlotReleaseContext,
-  SlotReserveContext,
-} from '@temporalio/core-bridge';
 export { NativeConnection } from './connection';
-export { NativeConnectionOptions, RequiredNativeConnectionOptions, TLSConfig } from './connection-options';
+export { NativeConnectionOptions, TLSConfig } from './connection-options';
 export { startDebugReplayer } from './debug-replayer';
 export { IllegalStateError } from '@temporalio/common';
-export {
-  ShutdownError,
-  TransportError,
-  UnexpectedError,
-  SlotSupplier,
-  ResourceBasedSlotOptions,
-  ResourceBasedTunerOptions,
-  FixedSizeSlotSupplier,
-} from '@temporalio/core-bridge';
 export {
   CombinedWorkerRunError,
   CombinedWorkerRunErrorCause,
   GracefulShutdownPeriodExpiredError,
-  UnhandledRejectionError,
   PromiseCompletionTimeoutError,
+  UnhandledRejectionError,
 } from './errors';
 export * from './interceptors';
 export { DefaultLogger, LogEntry, LogLevel, LogMetadata, LogTimestamp, Logger } from './logger';
-export { History, Runtime, RuntimeOptions, makeTelemetryFilterString } from './runtime';
+export { History, Runtime } from './runtime';
+export {
+  RuntimeOptions,
+  makeTelemetryFilterString,
+  ConsoleLogger,
+  ForwardLogger,
+  LogExporterConfig,
+  MetricsExporterConfig,
+  OtelCollectorExporter,
+  PrometheusMetricsExporter,
+  TelemetryOptions,
+} from './runtime-options';
 export * from './sinks';
 export { DataConverter, defaultPayloadConverter, State, Worker, WorkerStatus } from './worker';
 export {
@@ -61,7 +45,25 @@ export {
 } from './worker-options';
 export { ReplayError, ReplayHistoriesIterable, ReplayResult } from './replay';
 export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
-export { WorkerTuner } from './worker-tuner';
+export {
+  WorkerTuner,
+  TunerHolder,
+  SlotSupplier,
+  ResourceBasedTuner,
+  ResourceBasedTunerOptions,
+  ResourceBasedSlotOptions,
+  ResourceBasedSlotsForType,
+  FixedSizeSlotSupplier,
+  CustomSlotSupplier,
+  SlotInfo,
+  WorkflowSlotInfo,
+  ActivitySlotInfo,
+  LocalActivitySlotInfo,
+  SlotPermit,
+  SlotReserveContext,
+  SlotMarkUsedContext,
+  SlotReleaseContext,
+} from './worker-tuner';
 
 /* eslint-disable deprecation/deprecation */
 // Anything below this line is deprecated
@@ -132,19 +134,34 @@ export {
 
 export {
   /**
-   * @deprecated This function is meant for internal usage. Don't use it.
-   */
-  timeOfDayToBigint,
-} from './logger';
-
-export {
-  /**
    * @deprecated Import error classes directly
    */
   errors,
+  /**
+   * @deprecated - meant for internal use only
+   * @hidden
+   */
+  ShutdownError,
+  /**
+   * @deprecated - meant for internal use only
+   * @hidden
+   */
+  TransportError,
+  /**
+   * @deprecated - meant for internal use only
+   * @hidden
+   */
+  UnexpectedError,
 } from './errors';
 
 /**
  * @deprecated Including `defaultWorkflowInterceptorModules` in BundlerOptions.workflowInterceptorModules is no longer required.
  */
 export const defaultWorkflowInterceptorModules = [];
+
+export {
+  /**
+   * @deprecated Use {@link MetricsExporterConfig} instead.
+   */
+  MetricsExporterConfig as MetricsExporter,
+} from './runtime-options';

@@ -12,8 +12,8 @@
 import { Worker as NodeWorker } from 'node:worker_threads';
 import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, type SinkCall } from '@temporalio/workflow';
-import { UnexpectedError } from '@temporalio/core-bridge';
 import { Logger } from '@temporalio/common';
+import { UnexpectedError } from '../errors';
 import {
   WorkflowBundleWithSourceMapAndFilename,
   WorkerThreadInput,
