@@ -283,6 +283,20 @@ export interface WorkerOptions {
   maxConcurrentWorkflowTaskPolls?: number;
 
   /**
+   * Specify the behavior of workflow task polling.
+   *
+   * @default A fixed maximum whose value is min(10, maxConcurrentWorkflowTaskExecutions).
+   */
+  workflowTaskPollerBehavior?: PollerBehavior;
+
+  /**
+   * Specify the behavior of activity task polling.
+   *
+   * @default A fixed maximum whose value is min(10, maxConcurrentActivityTaskExecutions).
+   */
+  activityTaskPollerBehavior?: PollerBehavior;
+
+  /**
    * Maximum number of Activity tasks to poll concurrently.
    *
    * Increase this setting if your Worker is failing to fill in all of its
@@ -499,6 +513,48 @@ export interface WorkerOptions {
   };
 }
 
+export type PollerBehavior = PollerBehaviorSimpleMaximum | PollerBehaviorAutoscaling;
+
+/**
+ * A poller behavior that will automatically scale the number of pollers based on feedback
+ * from the server. A slot must be available before beginning polling.
+ *
+ * @experimental Poller autoscaling is currently experimental and may change in future versions.
+ */
+export interface PollerBehaviorAutoscaling {
+  type: 'autoscaling';
+  /**
+   * At least this many poll calls will always be attempted (assuming slots are available).
+   * Cannot be lower than 1. Defaults to 1.
+   */
+  minimum?: number;
+  /**
+   * At most this many poll calls will ever be open at once. Must be >= `minimum`.
+   * Defaults to 100.
+   */
+  maximum?: number;
+  /**
+   * This many polls will be attempted initially before scaling kicks in. Must be between
+   * `minimum` and `maximum`.
+   * Defaults to 5.
+   */
+  initial?: number;
+}
+
+/**
+ * A poller behavior that will attempt to poll as long as a slot is available, up to the
+ * provided maximum.
+ */
+export interface PollerBehaviorSimpleMaximum {
+  type: 'simple-maximum';
+  /**
+   * The maximum poller number, assumes the same default as described in
+   * {@link WorkerOptions.maxConcurrentWorkflowTaskPolls} or
+   * {@link WorkerOptions.maxConcurrentActivityTaskPolls}.
+   */
+  maximum?: number;
+}
+
 // Replay Worker ///////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -517,6 +573,8 @@ export interface ReplayWorkerOptions
     | 'maxConcurrentWorkflowTaskExecutions'
     | 'maxConcurrentActivityTaskPolls'
     | 'maxConcurrentWorkflowTaskPolls'
+    | 'workflowTaskPollerBehavior'
+    | 'activityTaskPollerBehavior'
     | 'nonStickyToStickyPollRatio'
     | 'maxHeartbeatThrottleInterval'
     | 'defaultHeartbeatThrottleInterval'
@@ -652,8 +710,6 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'identity'
       | 'useVersioning'
       | 'shutdownGraceTime'
-      | 'maxConcurrentWorkflowTaskPolls'
-      | 'maxConcurrentActivityTaskPolls'
       | 'nonStickyToStickyPollRatio'
       | 'enableNonLocalActivities'
       | 'stickyQueueScheduleToStartTimeout'
@@ -678,6 +734,9 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
      * @default 5s
      */
     isolateExecutionTimeout: Duration;
+
+    workflowTaskPollerBehavior: Required<PollerBehavior>;
+    activityTaskPollerBehavior: Required<PollerBehavior>;
   };
 
 /**
@@ -715,6 +774,8 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
     maxConcurrentActivityTaskExecutions,
     maxConcurrentLocalActivityExecutions,
     maxConcurrentWorkflowTaskExecutions,
+    workflowTaskPollerBehavior,
+    activityTaskPollerBehavior,
     ...rest
   } = options;
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
@@ -767,6 +828,21 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
     };
   }
 
+  const createPollerBehavior = (defaultMax: number, behavior?: PollerBehavior): Required<PollerBehavior> =>
+    !behavior
+      ? { type: 'simple-maximum', maximum: defaultMax }
+      : behavior.type === 'simple-maximum'
+        ? { type: 'simple-maximum', maximum: behavior.maximum ?? defaultMax }
+        : {
+            type: 'autoscaling',
+            minimum: behavior.minimum ?? 1,
+            initial: behavior.initial ?? 5,
+            maximum: behavior.maximum ?? 100,
+          };
+
+  const wftPollerBehavior = createPollerBehavior(maxWFTPolls, workflowTaskPollerBehavior);
+  const atPollerBehavior = createPollerBehavior(maxATPolls, activityTaskPollerBehavior);
+
   return {
     namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
@@ -774,8 +850,8 @@ function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): Worker
     buildId,
     shutdownGraceTime: 0,
     enableNonLocalActivities: true,
-    maxConcurrentWorkflowTaskPolls: maxWFTPolls,
-    maxConcurrentActivityTaskPolls: maxATPolls,
+    workflowTaskPollerBehavior: wftPollerBehavior,
+    activityTaskPollerBehavior: atPollerBehavior,
     stickyQueueScheduleToStartTimeout: '10s',
     maxHeartbeatThrottleInterval: '60s',
     defaultHeartbeatThrottleInterval: '30s',
@@ -854,8 +930,8 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     namespace: opts.namespace,
     tuner: opts.tuner,
     nonStickyToStickyPollRatio: opts.nonStickyToStickyPollRatio,
-    maxConcurrentWorkflowTaskPolls: opts.maxConcurrentWorkflowTaskPolls,
-    maxConcurrentActivityTaskPolls: opts.maxConcurrentActivityTaskPolls,
+    workflowTaskPollerBehavior: toNativeTaskPollerBehavior(opts.workflowTaskPollerBehavior),
+    activityTaskPollerBehavior: toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior),
     enableNonLocalActivities: opts.enableNonLocalActivities,
     stickyQueueScheduleToStartTimeout: msToNumber(opts.stickyQueueScheduleToStartTimeout),
     maxCachedWorkflows: opts.maxCachedWorkflows,
@@ -865,6 +941,25 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
   };
+}
+
+export function toNativeTaskPollerBehavior(behavior: Required<PollerBehavior>): native.PollerBehavior {
+  switch (behavior.type) {
+    case 'simple-maximum':
+      return {
+        type: 'simple-maximum',
+        maximum: behavior.maximum,
+      };
+    case 'autoscaling':
+      return {
+        type: 'autoscaling',
+        minimum: behavior.minimum,
+        initial: behavior.initial,
+        maximum: behavior.maximum,
+      };
+    default:
+      throw new Error(`Unknown poller behavior type: ${(behavior as any).type}`);
+  }
 }
 
 // Utils ///////////////////////////////////////////////////////////////////////////////////////////

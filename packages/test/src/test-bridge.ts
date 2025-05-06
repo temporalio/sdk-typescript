@@ -277,8 +277,16 @@ const GenericConfigs = {
         },
       },
       nonStickyToStickyPollRatio: 0.5,
-      maxConcurrentWorkflowTaskPolls: 1,
-      maxConcurrentActivityTaskPolls: 1,
+      workflowTaskPollerBehavior: {
+        type: 'simple-maximum',
+        maximum: 1,
+      },
+      activityTaskPollerBehavior: {
+        type: 'autoscaling',
+        minimum: 1,
+        initial: 5,
+        maximum: 100,
+      },
       enableNonLocalActivities: false,
       stickyQueueScheduleToStartTimeout: 1000,
       maxCachedWorkflows: 1000,
