@@ -3,6 +3,7 @@ import {
   MetricGauge,
   MetricHistogram,
   MetricMeter,
+  MetricsMeterWithComposedTags,
   MetricTags,
   NumericMetricValueType,
 } from '@temporalio/common';
@@ -11,6 +12,127 @@ import { proxySinks, Sink, Sinks } from './sinks';
 import { workflowInfo } from './workflow';
 import { assertInWorkflowContext } from './global-attributes';
 
+class WorkflowMetricMeterImpl implements MetricMeter {
+  constructor() {}
+
+  createCounter(name: string, unit?: string, description?: string): MetricCounter {
+    assertInWorkflowContext("Workflow's `metricMeter` can only be used while in Workflow Context");
+    return new WorkflowMetricCounter(name, unit, description);
+  }
+
+  createHistogram(
+    name: string,
+    valueType: NumericMetricValueType = 'int',
+    unit?: string,
+    description?: string
+  ): MetricHistogram {
+    assertInWorkflowContext("Workflow's `metricMeter` can only be used while in Workflow Context");
+    return new WorkflowMetricHistogram(name, valueType, unit, description);
+  }
+
+  createGauge(
+    name: string,
+    valueType: NumericMetricValueType = 'int',
+    unit?: string,
+    description?: string
+  ): MetricGauge {
+    assertInWorkflowContext("Workflow's `metricMeter` can only be used while in Workflow Context");
+    return new WorkflowMetricGauge(name, valueType, unit, description);
+  }
+
+  withTags(_tags: MetricTags): MetricMeter {
+    assertInWorkflowContext("Workflow's `metricMeter` can only be used while in Workflow Context");
+    // Tags composition is handled by a MetricsMeterWithComposedTags wrapper over this one
+    throw new Error(`withTags is not supported directly on WorkflowMetricMeter`);
+  }
+}
+
+class WorkflowMetricCounter implements MetricCounter {
+  constructor(
+    public readonly name: string,
+    public readonly unit: string | undefined,
+    public readonly description: string | undefined
+  ) {}
+
+  add(value: number, extraTags: MetricTags = {}): void {
+    if (!workflowInfo().unsafe.isReplaying) {
+      metricsSink.addMetricCounterValue(this.name, this.unit, this.description, value, extraTags);
+    }
+  }
+
+  withTags(_tags: MetricTags): MetricCounter {
+    // Tags composition is handled by a MetricsMeterWithComposedTags wrapper over this one
+    throw new Error(`withTags is not supported directly on WorkflowMetricCounter`);
+  }
+}
+
+class WorkflowMetricHistogram implements MetricHistogram {
+  constructor(
+    public readonly name: string,
+    public readonly valueType: NumericMetricValueType,
+    public readonly unit: string | undefined,
+    public readonly description: string | undefined
+  ) {}
+
+  record(value: number, extraTags: MetricTags = {}): void {
+    if (!workflowInfo().unsafe.isReplaying) {
+      metricsSink.recordMetricHistogramValue(this.name, this.valueType, this.unit, this.description, value, extraTags);
+    }
+  }
+
+  withTags(_tags: MetricTags): MetricHistogram {
+    // Tags composition is handled by a MetricsMeterWithComposedTags wrapper over this one
+    throw new Error(`withTags is not supported directly on WorkflowMetricHistogram`);
+  }
+}
+
+class WorkflowMetricGauge implements MetricGauge {
+  constructor(
+    public readonly name: string,
+    public readonly valueType: NumericMetricValueType,
+    public readonly unit: string | undefined,
+    public readonly description: string | undefined
+  ) {}
+
+  set(value: number, tags?: MetricTags): void {
+    if (!workflowInfo().unsafe.isReplaying) {
+      metricsSink.setMetricGaugeValue(this.name, this.valueType, this.unit, this.description, value, tags ?? {});
+    }
+  }
+
+  withTags(_tags: MetricTags): MetricGauge {
+    // Tags composition is handled by a MetricsMeterWithComposedTags wrapper over this one
+    throw new Error(`withTags is not supported directly on WorkflowMetricGauge`);
+  }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Note: given that forwarding metrics outside of the sanbox can be quite chatty and add non
+// negligeable overhead, we eagerly check for `isReplaying` and completely skip doing sink
+// calls if we are replaying.
+const metricsSink = proxySinks<MetricSinks>().__temporal_metrics;
+
+/**
+ * Sink interface for forwarding metrics from the Workflow sandbox to the Worker.
+ *
+ * These sink functions are not intended to be called directly from workflow code; instead,
+ * developers should use the `metricsMeter` object exposed to workflow code by the SDK, which
+ * provides an API that is easier to work with.
+ *
+ * This sink interface is also not meant to be implemented by user.
+ *
+ * @hidden
+ * @internal Users should not implement this interface, nor use it directly. Use `metricsMeter` instead.
+ */
+export interface MetricSinks extends Sinks {
+  __temporal_metrics: WorkflowMetricMeter;
+}
+
+/**
+ * @hidden
+ * @internal Users should not implement this interface, nor use it directly. Use `metricsMeter` instead.
+ */
 export interface WorkflowMetricMeter extends Sink {
   addMetricCounterValue(
     metricName: string,
@@ -40,118 +162,12 @@ export interface WorkflowMetricMeter extends Sink {
 }
 
 /**
- * Sink interface for forwarding metrics from the Workflow sandbox to the Worker.
+ * A MetricMeter that can be used to emit metrics from within a Workflow.
  *
- * These sink functions are not intended to be called directly from workflow code; instead,
- * developers should use the `metricsMeter` object exposed to workflow code by the SDK, which
- * provides an API that is easier to work with.
- *
- * This sink interface is also not meant to be implemented by user.
+ * @experimental The Metric API is an experimental feature and may be subject to change.
  */
-export interface MetricSinks extends Sinks {
-  __temporal_metrics: WorkflowMetricMeter;
-}
-
-// Note: given that forwarding metrics outside of the sanbox can be quite chatty and add non
-// negligeable overhead, we eagerly check for `isReplaying` and completely skip doing sink
-// calls if we are replaying.
-const metricsSink = proxySinks<MetricSinks>().__temporal_metrics;
-
-class WorkflowMetricCounter implements MetricCounter {
-  constructor(
-    public readonly name: string,
-    public readonly unit: string | undefined,
-    public readonly description: string | undefined
-  ) {}
-
-  add(value: number, extraTags?: MetricTags | undefined): void {
-    if (!workflowInfo().unsafe.isReplaying) {
-      metricsSink.addMetricCounterValue(this.name, this.unit, this.description, value, extraTags ?? {});
-    }
-  }
-
-  withTags(extraTags: MetricTags): MetricCounter {
-    // FIXME: Add support for tags
-    return this;
-  }
-}
-
-class WorkflowMetricHistogram implements MetricHistogram {
-  constructor(
-    public readonly name: string,
-    public readonly valueType: NumericMetricValueType,
-    public readonly unit: string | undefined,
-    public readonly description: string | undefined
-  ) {}
-
-  record(value: number, extraTags?: MetricTags | undefined): void {
-    if (!workflowInfo().unsafe.isReplaying) {
-      metricsSink.recordMetricHistogramValue(
-        this.name,
-        this.valueType,
-        this.unit,
-        this.description,
-        value,
-        extraTags ?? {}
-      );
-    }
-  }
-
-  withTags(extraTags: MetricTags): MetricHistogram {
-    // FIXME: Add support for tags
-    return this;
-  }
-}
-
-class WorkflowMetricGauge implements MetricGauge {
-  constructor(
-    public readonly name: string,
-    public readonly valueType: NumericMetricValueType,
-    public readonly unit: string | undefined,
-    public readonly description: string | undefined
-  ) {}
-
-  set(value: number, tags?: MetricTags): void {
-    if (!workflowInfo().unsafe.isReplaying) {
-      metricsSink.setMetricGaugeValue(this.name, this.valueType, this.unit, this.description, value, tags ?? {});
-    }
-  }
-
-  withTags(extraTags: MetricTags): MetricGauge {
-    // FIXME: Add support for tags
-    return this;
-  }
-}
-
-class WorkflowMetricMeterImpl implements MetricMeter {
-  constructor() {}
-
-  createCounter(name: string, unit?: string, description?: string): MetricCounter {
-    return new WorkflowMetricCounter(name, unit, description);
-  }
-
-  createHistogram(
-    name: string,
-    valueType: NumericMetricValueType = 'int',
-    unit?: string,
-    description?: string
-  ): MetricHistogram {
-    return new WorkflowMetricHistogram(name, valueType, unit, description);
-  }
-
-  createGauge(
-    name: string,
-    valueType: NumericMetricValueType = 'int',
-    unit?: string,
-    description?: string
-  ): MetricGauge {
-    return new WorkflowMetricGauge(name, valueType, unit, description);
-  }
-
-  withTags(extraTags: MetricTags): MetricMeter {
-    // FIXME: Add support for tags
-    return this;
-  }
-}
-
-export const metricsMeter: MetricMeter = new WorkflowMetricMeterImpl();
+export const metricsMeter: MetricMeter = MetricsMeterWithComposedTags.compose(
+  new WorkflowMetricMeterImpl(),
+  () => ({}), // FIXME: Add base tags + call getTags interceptor
+  true
+);

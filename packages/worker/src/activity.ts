@@ -15,6 +15,8 @@ import {
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
+import { Logger, LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
+import { MetricsMeterWithComposedTags } from '@temporalio/common/lib/metrics';
 import { coresdk } from '@temporalio/proto';
 import {
   ActivityExecuteInput,
@@ -22,8 +24,6 @@ import {
   ActivityInterceptorsFactory,
   ActivityOutboundCallsInterceptor,
 } from './interceptors';
-import { Logger, LoggerWithComposedMetadata } from './logger';
-import { MetricsMeterWithComposedTags } from './metrics';
 
 const UNINITIALIZED = Symbol('UNINITIALIZED');
 

@@ -6,7 +6,7 @@ import { coresdk } from '@temporalio/proto';
 import { DefaultLogger, Runtime, ShutdownError } from '@temporalio/worker';
 import { byteArrayToBuffer } from '@temporalio/worker/lib/utils';
 import { NativeReplayHandle, NativeWorkerLike, Worker as RealWorker } from '@temporalio/worker/lib/worker';
-import { LoggerWithComposedMetadata } from '@temporalio/worker/lib/logger';
+import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
 import { CompiledWorkerOptions, compileWorkerOptions, WorkerOptions } from '@temporalio/worker/lib/worker-options';
 import type { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';
 import * as activities from './activities';

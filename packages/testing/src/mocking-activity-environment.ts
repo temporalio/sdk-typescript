@@ -10,8 +10,8 @@ import {
   MetricMeter,
   noopMetricMeter,
 } from '@temporalio/common';
+import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
 import { ActivityInterceptorsFactory, DefaultLogger } from '@temporalio/worker';
-import { LoggerWithComposedMetadata } from '@temporalio/worker/lib/logger';
 import { Activity } from '@temporalio/worker/lib/activity';
 
 export interface MockActivityEnvironmentOptions {

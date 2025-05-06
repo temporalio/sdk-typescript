@@ -51,6 +51,7 @@ import {
   tsToDate,
   tsToMs,
 } from '@temporalio/common/lib/time';
+import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
 import { errorMessage, NonNullableObject, OmitFirstParam } from '@temporalio/common/lib/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
 import { native } from '@temporalio/core-bridge';
@@ -59,7 +60,7 @@ import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
-import { Logger, LoggerWithComposedMetadata } from './logger';
+import { Logger } from './logger';
 import pkg from './pkg';
 import {
   EvictionReason,
@@ -459,7 +460,7 @@ export class Worker {
       sdkComponent: SdkComponent.worker,
       taskQueue: options.taskQueue ?? 'default',
     });
-    const metricMeter = Runtime.instance().metricMeter.withTags({
+    const metricMeter = runtime.metricMeter.withTags({
       namespace: options.namespace ?? 'default',
       taskQueue: options.taskQueue ?? 'default',
     });

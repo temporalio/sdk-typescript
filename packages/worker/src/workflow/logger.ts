@@ -1,7 +1,8 @@
 import { type LoggerSinksInternal } from '@temporalio/workflow/lib/logs';
 import { SdkComponent } from '@temporalio/common';
+import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
 import { type InjectedSinks } from '../sinks';
-import { LoggerWithComposedMetadata, type Logger } from '../logger';
+import { type Logger } from '../logger';
 
 /**
  * Injects a logger sink that forwards to the worker's logger
