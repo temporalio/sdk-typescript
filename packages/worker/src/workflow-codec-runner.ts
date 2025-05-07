@@ -72,7 +72,7 @@ export class WorkflowCodecRunner {
               cancelWorkflow: job.cancelWorkflow
                 ? {
                     ...job.cancelWorkflow,
-                    details: await decodeOptional(this.codecs, job.cancelWorkflow.details),
+                    details: null, // Not supported yet
                   }
                 : null,
               doUpdate: job.doUpdate
