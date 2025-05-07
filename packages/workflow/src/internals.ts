@@ -523,6 +523,16 @@ export class Activator implements ActivationHandler {
     }
   }
 
+  public resolveNexusOperationStart(_activation: coresdk.workflow_activation.IResolveNexusOperationStart): void {
+    // This will never be called as we can't produce Nexus-related commands anyway
+    throw new Error('Nexus is not yet implemented');
+  }
+
+  public resolveNexusOperation(_activation: coresdk.workflow_activation.IResolveNexusOperation): void {
+    // This will never be called as we can't produce Nexus-related commands anyway
+    throw new Error('Nexus is not yet implemented');
+  }
+
   public resolveChildWorkflowExecutionStart(
     activation: coresdk.workflow_activation.IResolveChildWorkflowExecutionStart
   ): void {

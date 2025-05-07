@@ -126,6 +126,16 @@ export class WorkflowCodecRunner {
                       : null,
                   }
                 : null,
+              resolveNexusOperationStart: job.resolveNexusOperationStart
+                ? ((() => {
+                    throw new Error('Nexus is not yet implemented');
+                  }) as any)
+                : null,
+              resolveNexusOperation: job.resolveNexusOperation
+                ? ((() => {
+                    throw new Error('Nexus is not yet implemented');
+                  }) as any)
+                : null,
               resolveChildWorkflowExecution: job.resolveChildWorkflowExecution
                 ? {
                     ...job.resolveChildWorkflowExecution,
@@ -314,6 +324,12 @@ export class WorkflowCodecRunner {
                                   command.modifyWorkflowProperties.upsertedMemo?.fields
                                 ),
                               },
+                            }
+                          : undefined,
+                        scheduleNexusOperation: command.scheduleNexusOperation
+                          ? {
+                              ...command.scheduleNexusOperation,
+                              nexusHeader: command.scheduleNexusOperation.nexusHeader ?? undefined,
                             }
                           : undefined,
                       }

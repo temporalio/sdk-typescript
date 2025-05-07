@@ -504,6 +504,7 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                 temporal_sdk_core::ephemeral_server::EphemeralExe::CachedDownload {
                     version: exec_version,
                     dest_dir,
+                    ttl: None,
                 }
             }
             "existing-path" => {
