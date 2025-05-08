@@ -147,7 +147,22 @@ module.exports = {
             {
               origins: [
                 {
-                  files: ['../*/src/**/*.ts', '../*/src/*.ts', '../create-project/samples/*.ts'],
+                  pattern: '../*/src/**/*.ts',
+                  owner: 'temporalio',
+                  repo: 'sdk-typescript',
+                  ref: 'main',
+                },
+                {
+                  pattern: '../*/src/*.ts',
+                  owner: 'temporalio',
+                  repo: 'sdk-typescript',
+                  ref: 'main',
+                },
+                {
+                  pattern: '../create-project/samples/*.ts',
+                  owner: 'temporalio',
+                  repo: 'sdk-typescript',
+                  ref: 'main',
                 },
                 {
                   owner: 'temporalio',
