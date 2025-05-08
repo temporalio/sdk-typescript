@@ -6,7 +6,7 @@ use std::{cell::RefCell, sync::Arc};
 use temporal_sdk_core::replay::HistoryForReplay;
 use temporal_sdk_core::{
     api::{
-        errors::{CompleteActivityError, CompleteWfError, PollActivityError, PollWfError},
+        errors::{CompleteActivityError, CompleteWfError, PollError},
         Worker as CoreWorkerTrait,
     },
     protos::{
@@ -181,8 +181,8 @@ async fn handle_poll_workflow_activation_request(
         }
         Err(err) => {
             send_error(channel, callback, move |cx| match err {
-                PollWfError::ShutDown => make_named_error_from_error(cx, SHUTDOWN_ERROR, err),
-                PollWfError::TonicError(_) => make_named_error_from_error(cx, TRANSPORT_ERROR, err),
+                PollError::ShutDown => make_named_error_from_error(cx, SHUTDOWN_ERROR, err),
+                PollError::TonicError(_) => make_named_error_from_error(cx, TRANSPORT_ERROR, err),
             });
         }
     }
@@ -208,10 +208,8 @@ pub async fn handle_poll_activity_task_request(
         }
         Err(err) => {
             send_error(channel, callback, move |cx| match err {
-                PollActivityError::ShutDown => make_named_error_from_error(cx, SHUTDOWN_ERROR, err),
-                PollActivityError::TonicError(_) => {
-                    make_named_error_from_error(cx, TRANSPORT_ERROR, err)
-                }
+                PollError::ShutDown => make_named_error_from_error(cx, SHUTDOWN_ERROR, err),
+                PollError::TonicError(_) => make_named_error_from_error(cx, TRANSPORT_ERROR, err),
             });
         }
     }

@@ -72,7 +72,7 @@ export class WorkflowCodecRunner {
               cancelWorkflow: job.cancelWorkflow
                 ? {
                     ...job.cancelWorkflow,
-                    details: await decodeOptional(this.codecs, job.cancelWorkflow.details),
+                    details: null, // Not supported yet
                   }
                 : null,
               doUpdate: job.doUpdate
@@ -125,6 +125,16 @@ export class WorkflowCodecRunner {
                         }
                       : null,
                   }
+                : null,
+              resolveNexusOperationStart: job.resolveNexusOperationStart
+                ? ((() => {
+                    throw new Error('Nexus is not yet implemented');
+                  }) as any)
+                : null,
+              resolveNexusOperation: job.resolveNexusOperation
+                ? ((() => {
+                    throw new Error('Nexus is not yet implemented');
+                  }) as any)
                 : null,
               resolveChildWorkflowExecution: job.resolveChildWorkflowExecution
                 ? {
@@ -314,6 +324,12 @@ export class WorkflowCodecRunner {
                                   command.modifyWorkflowProperties.upsertedMemo?.fields
                                 ),
                               },
+                            }
+                          : undefined,
+                        scheduleNexusOperation: command.scheduleNexusOperation
+                          ? {
+                              ...command.scheduleNexusOperation,
+                              nexusHeader: command.scheduleNexusOperation.nexusHeader ?? undefined,
                             }
                           : undefined,
                       }

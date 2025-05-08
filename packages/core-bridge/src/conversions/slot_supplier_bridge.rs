@@ -271,6 +271,10 @@ impl<SK: SlotKind> SlotSupplierBridge<SK> {
             SlotKindType::Workflow => "workflow",
             SlotKindType::Activity => "activity",
             SlotKindType::LocalActivity => "local-activity",
+            SlotKindType::Nexus => {
+                // This won't get hit as we'll not even try to run a Nexus poller
+                panic!("Nexus is not yet implemented");
+            }
         });
         context.set(cx, "slotType", slottype)?;
         let tq = cx.string(task_queue);
