@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as grpc from '@grpc/grpc-js';
-import type { RPCImpl } from 'protobufjs';
+import type * as proto from 'protobufjs';
 import {
   filterNullAndUndefined,
   normalizeTlsConfig,
@@ -8,6 +8,7 @@ import {
   normalizeGrpcEndpointAddress,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { Duration, msOptionalToNumber } from '@temporalio/common/lib/time';
+import { type temporal } from '@temporalio/proto';
 import { isGrpcServiceError, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 import pkg from './pkg';
@@ -419,7 +420,7 @@ export class Connection {
   }: ConnectionCtorOptions) {
     this.options = options;
     this.client = client;
-    this.workflowService = workflowService;
+    this.workflowService = this.withNamespaceHeaderInjector(workflowService);
     this.operatorService = operatorService;
     this.healthService = healthService;
     this.callContextStorage = callContextStorage;
@@ -433,8 +434,12 @@ export class Connection {
     interceptors,
     staticMetadata,
     apiKeyFnRef,
-  }: RPCImplOptions): RPCImpl {
-    return (method: { name: string }, requestData: any, callback: grpc.requestCallback<any>) => {
+  }: RPCImplOptions): proto.RPCImpl {
+    return (
+      method: proto.Method | proto.rpc.ServiceMethod<proto.Message<any>, proto.Message<any>>,
+      requestData: Uint8Array,
+      callback: grpc.requestCallback<any>
+    ) => {
       const metadataContainer = new grpc.Metadata();
       const { metadata, deadline, abortSignal } = callContextStorage.getStore() ?? {};
       if (apiKeyFnRef.fn) {
@@ -449,6 +454,7 @@ export class Connection {
           metadataContainer.set(k, v);
         }
       }
+
       const call = client.makeUnaryRequest(
         `/${serviceName}/${method.name}`,
         (arg: any) => arg,
@@ -458,6 +464,7 @@ export class Connection {
         { interceptors, deadline },
         callback
       );
+
       if (abortSignal != null) {
         abortSignal.addEventListener('abort', () => call.cancel());
       }
@@ -507,6 +514,8 @@ export class Connection {
    *
    * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
    */
+  // FIXME: `abortSignal` should be cumulative, i.e. if a signal is already set, it should be added
+  //        to the list of signals, and both the new and existing signal should abort the request.
   async withAbortSignal<ReturnType>(abortSignal: AbortSignal, fn: () => Promise<ReturnType>): Promise<ReturnType> {
     const cc = this.callContextStorage.getStore();
     return await this.callContextStorage.run({ ...cc, abortSignal }, fn);
@@ -604,5 +613,26 @@ export class Connection {
   public async close(): Promise<void> {
     this.client.close();
     this.callContextStorage.disable();
+  }
+
+  private withNamespaceHeaderInjector(
+    workflowService: temporal.api.workflowservice.v1.WorkflowService
+  ): temporal.api.workflowservice.v1.WorkflowService {
+    const wrapper: any = {};
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+    for (const [methodName, methodImpl] of Object.entries(workflowService) as [string, Function][]) {
+      if (typeof methodImpl !== 'function') continue;
+
+      wrapper[methodName] = (...args: any[]) => {
+        const namespace = args[0]?.namespace;
+        if (namespace) {
+          return this.withMetadata({ 'temporal-namespace': namespace }, () => methodImpl.apply(workflowService, args));
+        } else {
+          return methodImpl.apply(workflowService, args);
+        }
+      };
+    }
+    return wrapper as WorkflowService;
   }
 }
