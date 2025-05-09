@@ -1,6 +1,6 @@
 import { native } from '@temporalio/core-bridge';
 import { Duration, msToNumber } from '@temporalio/common/lib/time';
-import { Logger } from '@temporalio/common';
+import { Logger, WorkerDeploymentVersion } from '@temporalio/common';
 
 /**
  * A worker tuner allows the customization of the performance characteristics of workers by
@@ -210,6 +210,11 @@ export interface LocalActivitySlotInfo {
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface SlotPermit {}
 
+/**
+ * Context for reserving a slot.
+ *
+ * @experimental Worker Tuner is an experimental feature and may be subject to change.
+ */
 export interface SlotReserveContext {
   /**
    * The type of slot trying to be reserved
@@ -230,6 +235,11 @@ export interface SlotReserveContext {
    * The build id of the worker that is requesting the reservation
    */
   workerBuildId: string;
+
+  /**
+   * The deployment version of the worker that is requesting the reservation
+   */
+  workerDeploymentVersion?: WorkerDeploymentVersion;
 
   /**
    * True iff this is a reservation for a sticky poll for a workflow task
@@ -391,7 +401,7 @@ function addResourceBasedSlotDefaults(
   }
 }
 
-class NativeifiedCustomSlotSupplier<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
+class NativeifiedCustomSlotSupplier<SI extends SlotInfo> implements native.CustomSlotSupplierOptions<SI> {
   readonly type = 'custom';
 
   constructor(
@@ -404,14 +414,18 @@ class NativeifiedCustomSlotSupplier<SI extends SlotInfo> implements CustomSlotSu
     this.releaseSlot = this.releaseSlot.bind(this);
   }
 
-  async reserveSlot(ctx: SlotReserveContext, abortSignal: AbortSignal): Promise<SlotPermit> {
+  async reserveSlot(ctx: native.SlotReserveContext, abortSignal: AbortSignal): Promise<SlotPermit> {
+    if (ctx.slotType === 'nexus') {
+      throw new Error('nexus not yet supported in slot suppliers');
+    }
     try {
       const result = await this.supplier.reserveSlot(
         {
           slotType: ctx.slotType,
           taskQueue: ctx.taskQueue,
           workerIdentity: ctx.workerIdentity,
-          workerBuildId: ctx.workerBuildId,
+          workerBuildId: ctx.workerDeploymentVersion?.buildId ?? '',
+          workerDeploymentVersion: ctx.workerDeploymentVersion ?? undefined,
           isSticky: ctx.isSticky,
         },
         abortSignal
@@ -425,13 +439,17 @@ class NativeifiedCustomSlotSupplier<SI extends SlotInfo> implements CustomSlotSu
     }
   }
 
-  tryReserveSlot(ctx: SlotReserveContext): SlotPermit | null {
+  tryReserveSlot(ctx: native.SlotReserveContext): SlotPermit | null {
+    if (ctx.slotType === 'nexus') {
+      throw new Error('nexus not yet supported in slot suppliers');
+    }
     try {
       const result = this.supplier.tryReserveSlot({
         slotType: ctx.slotType,
         taskQueue: ctx.taskQueue,
         workerIdentity: ctx.workerIdentity,
-        workerBuildId: ctx.workerBuildId,
+        workerBuildId: ctx.workerDeploymentVersion?.buildId ?? '',
+        workerDeploymentVersion: ctx.workerDeploymentVersion ?? undefined,
         isSticky: ctx.isSticky,
       });
       return result ?? null;
@@ -441,7 +459,7 @@ class NativeifiedCustomSlotSupplier<SI extends SlotInfo> implements CustomSlotSu
     }
   }
 
-  markSlotUsed(ctx: SlotMarkUsedContext<SI>): void {
+  markSlotUsed(ctx: native.SlotMarkUsedContext<SI>): void {
     try {
       this.supplier.markSlotUsed({
         slotInfo: ctx.slotInfo,
@@ -452,7 +470,7 @@ class NativeifiedCustomSlotSupplier<SI extends SlotInfo> implements CustomSlotSu
     }
   }
 
-  releaseSlot(ctx: SlotReleaseContext<SI>): void {
+  releaseSlot(ctx: native.SlotReleaseContext<SI>): void {
     try {
       this.supplier.releaseSlot({
         slotInfo: ctx.slotInfo ?? undefined,
