@@ -164,9 +164,9 @@ export class Activity {
     });
   }
 
-  public runNoEncoding(fn: ActivityFunction<any[], any>, input: ActivityExecuteInput): Promise<unknown> {
+  public runNoEncoding<F extends ActivityFunction>(fn: F, input: ActivityExecuteInput): ReturnType<F> {
     if (this.fn !== undefined) throw new IllegalStateError('Activity function is defined');
-    return asyncLocalStorage.run(this.context, () => this.execute(fn, input));
+    return asyncLocalStorage.run(this.context, () => this.execute(fn, input)) as ReturnType<F>;
   }
 }
 

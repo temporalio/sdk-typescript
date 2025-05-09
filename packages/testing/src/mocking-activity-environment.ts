@@ -54,8 +54,8 @@ export class MockActivityEnvironment extends events.EventEmitter {
   /**
    * Run a function in Activity Context
    */
-  public async run<F extends ActivityFunction>(fn: F, ...args: Parameters<F>): ReturnType<F> {
-    return this.activity.runNoEncoding(fn as ActivityFunction<any, any>, { args, headers: {} }) as Promise<R>;
+  public run<F extends ActivityFunction>(fn: F, ...args: Parameters<F>): ReturnType<F> {
+    return this.activity.runNoEncoding(fn, { args, headers: {} }) as ReturnType<F>;
   }
 }
 
