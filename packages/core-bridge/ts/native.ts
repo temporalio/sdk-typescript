@@ -372,3 +372,98 @@ type LogLevel = 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 type LogEntryMetadata = {
   [key: string]: string | number | boolean | LogEntryMetadata;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Custom Metrics
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export interface NativeMetricMeter {
+  type: 'metric-meter';
+}
+
+export interface NativeMetricCounter {
+  type: 'metric-counter';
+}
+
+export interface NativeMetricHistogram {
+  type: 'metric-histogram';
+}
+
+export interface NativeMetricHistogramF64 {
+  type: 'metric-histogram-f64';
+}
+
+export interface NativeMetricGauge {
+  type: 'metric-gauge';
+}
+
+export interface NativeMetricGaugeF64 {
+  type: 'metric-gauge-f64';
+}
+
+export type MetricAttributes = Record<string, string | number | boolean>;
+
+export declare function newMetricCounter(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): NativeMetricCounter;
+
+export declare function newMetricHistogram(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): NativeMetricHistogram;
+
+export declare function newMetricHistogramF64(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): NativeMetricHistogramF64;
+
+export declare function newMetricGauge(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): NativeMetricGauge;
+
+export declare function newMetricGaugeF64(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): NativeMetricGaugeF64;
+
+export declare function addMetricCounterValue(
+  counter: NativeMetricCounter,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
+export declare function recordMetricHistogramValue(
+  histogram: NativeMetricHistogram,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
+export declare function recordMetricHistogramF64Value(
+  histogram: NativeMetricHistogramF64,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
+export declare function setMetricGaugeValue(
+  gauge: NativeMetricGauge,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
+export declare function setMetricGaugeF64Value(
+  gauge: NativeMetricGaugeF64,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;

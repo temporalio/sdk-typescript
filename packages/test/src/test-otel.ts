@@ -225,6 +225,10 @@ test.serial('Exporting OTEL metrics using OTLP/HTTP from Core works', async (t) 
   } finally {
     // Cleanup the runtime so that it doesn't interfere with other tests
     await Runtime._instance?.shutdown();
+
+    // Runtime remembers options from previous install() calls. Make sure we completely wipe them out.
+    await Runtime.install({});
+    await Runtime._instance?.shutdown();
   }
 });
 

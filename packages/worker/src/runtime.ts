@@ -2,11 +2,13 @@ import * as v8 from 'node:v8';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { native } from '@temporalio/core-bridge';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
-import { IllegalStateError, Logger, SdkComponent } from '@temporalio/common';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
+import { IllegalStateError, Logger, noopMetricMeter, SdkComponent, MetricMeter } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
+import { MetricsMeterWithComposedTags } from '@temporalio/common/lib/metrics';
 import { isFlushableLogger } from './logger';
+import { RuntimeMetricMeter } from './runtime-metrics';
 import { toNativeClientOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer, toMB } from './utils';
 import { CompiledRuntimeOptions, compileOptions, RuntimeOptions } from './runtime-options';
@@ -31,6 +33,9 @@ export class Runtime {
   protected readonly shutdownSignalCallbacks = new Set<() => void>();
   protected state: 'RUNNING' | 'SHUTTING_DOWN' = 'RUNNING';
 
+  /** The metric meter associated with this runtime. */
+  public readonly metricMeter: MetricMeter;
+
   static _instance?: Runtime;
   static instantiator?: 'install' | 'instance';
 
@@ -45,6 +50,10 @@ export class Runtime {
     public readonly options: CompiledRuntimeOptions
   ) {
     this.logger = options.logger;
+    this.metricMeter = options.telemetryOptions.metricsExporter
+      ? MetricsMeterWithComposedTags.compose(new RuntimeMetricMeter(this.native), {}, true)
+      : noopMetricMeter;
+
     this.checkHeapSizeLimit();
     this.setupShutdownHook();
   }

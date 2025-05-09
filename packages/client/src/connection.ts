@@ -2,11 +2,11 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import * as grpc from '@grpc/grpc-js';
 import type * as proto from 'protobufjs';
 import {
-  filterNullAndUndefined,
   normalizeTlsConfig,
   TLSConfig,
   normalizeGrpcEndpointAddress,
 } from '@temporalio/common/lib/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { Duration, msOptionalToNumber } from '@temporalio/common/lib/time';
 import { type temporal } from '@temporalio/proto';
 import { isGrpcServiceError, ServiceError } from './errors';

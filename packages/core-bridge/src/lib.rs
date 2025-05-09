@@ -17,6 +17,7 @@ pub mod helpers;
 
 mod client;
 mod logs;
+mod metrics;
 mod runtime;
 mod testing;
 mod worker;
@@ -25,6 +26,7 @@ mod worker;
 fn main(mut cx: neon::prelude::ModuleContext) -> neon::prelude::NeonResult<()> {
     client::init(&mut cx)?;
     logs::init(&mut cx)?;
+    metrics::init(&mut cx)?;
     runtime::init(&mut cx)?;
     testing::init(&mut cx)?;
     worker::init(&mut cx)?;
