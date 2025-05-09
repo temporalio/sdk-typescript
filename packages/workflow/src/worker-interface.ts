@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { IllegalStateError } from '@temporalio/common';
+import { encodeVersioningBehavior, IllegalStateError, isWorkflowFunctionWithOptions } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
@@ -80,9 +80,27 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
     const defaultWorkflowFn = mod['default'];
 
     if (typeof workflowFn === 'function') {
-      activator.workflow = workflowFn;
+      if (isWorkflowFunctionWithOptions(workflowFn)) {
+        activator.workflow = workflowFn;
+        if (typeof workflowFn.workflowDefinitionOptions === 'object') {
+          activator.versioningBehavior = workflowFn.workflowDefinitionOptions.versioningBehavior;
+        } else {
+          activator.workflowDefinitionOptionsGetter = workflowFn.workflowDefinitionOptions;
+        }
+      } else {
+        activator.workflow = workflowFn;
+      }
     } else if (typeof defaultWorkflowFn === 'function') {
-      activator.workflow = defaultWorkflowFn;
+      if (isWorkflowFunctionWithOptions(defaultWorkflowFn)) {
+        activator.workflow = defaultWorkflowFn;
+        if (typeof defaultWorkflowFn.workflowDefinitionOptions === 'object') {
+          activator.versioningBehavior = defaultWorkflowFn.workflowDefinitionOptions.versioningBehavior;
+        } else {
+          activator.workflowDefinitionOptionsGetter = defaultWorkflowFn.workflowDefinitionOptions;
+        }
+      } else {
+        activator.workflow = defaultWorkflowFn;
+      }
     } else {
       const details =
         workflowFn === undefined
@@ -203,7 +221,11 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
     }
     return {
       runId: activator.info.runId,
-      successful: { ...activationCompletion, commands },
+      successful: {
+        ...activationCompletion,
+        commands,
+        versioningBehavior: encodeVersioningBehavior(activationCompletion.versioningBehavior),
+      },
     };
   } finally {
     activator.rethrowSynchronously = false;

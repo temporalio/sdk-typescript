@@ -20,6 +20,9 @@ import {
   WorkflowUpdateValidatorType,
   mapFromPayloads,
   fromPayloadsAtIndex,
+  WorkflowFunctionWithOptions,
+  VersioningBehavior,
+  WorkflowDefinitionOptions,
 } from '@temporalio/common';
 import {
   decodeSearchAttributes,
@@ -382,7 +385,7 @@ export class Activator implements ActivationHandler {
   /**
    * Reference to the current Workflow, initialized when a Workflow is started
    */
-  public workflow?: Workflow;
+  public workflow?: Workflow | WorkflowFunctionWithOptions<any[], any>;
 
   /**
    * Information about the current Workflow
@@ -423,6 +426,9 @@ export class Activator implements ActivationHandler {
   public readonly getTimeOfDay: () => bigint;
 
   public readonly registeredActivityNames: Set<string>;
+
+  public versioningBehavior?: VersioningBehavior;
+  public workflowDefinitionOptionsGetter?: () => WorkflowDefinitionOptions;
 
   constructor({
     info,
@@ -496,6 +502,7 @@ export class Activator implements ActivationHandler {
     return {
       commands: this.commands.splice(0),
       usedInternalFlags: [...this.knownFlags],
+      versioningBehavior: this.versioningBehavior,
     };
   }
 
@@ -537,6 +544,9 @@ export class Activator implements ActivationHandler {
           ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter)
           : undefined,
     }));
+    if (this.workflowDefinitionOptionsGetter) {
+      this.versioningBehavior = this.workflowDefinitionOptionsGetter().versioningBehavior;
+    }
   }
 
   public cancelWorkflow(_activation: coresdk.workflow_activation.ICancelWorkflow): void {

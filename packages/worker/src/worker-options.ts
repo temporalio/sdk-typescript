@@ -1,7 +1,13 @@
 import * as os from 'node:os';
 import * as v8 from 'node:v8';
 import type { Configuration as WebpackConfiguration } from 'webpack';
-import { ActivityFunction, DataConverter, LoadedDataConverter } from '@temporalio/common';
+import {
+  ActivityFunction,
+  DataConverter,
+  LoadedDataConverter,
+  VersioningBehavior,
+  WorkerDeploymentVersion,
+} from '@temporalio/common';
 import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
@@ -61,6 +67,7 @@ export interface WorkerOptions {
    * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
    *
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+   * @deprecated Use {@link workerDeploymentOptions} instead.
    */
   buildId?: string;
 
@@ -72,8 +79,16 @@ export interface WorkerOptions {
    * For more information, see https://docs.temporal.io/workers#worker-versioning
    *
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+   * @deprecated Use {@link workerDeploymentOptions} instead.
    */
   useVersioning?: boolean;
+
+  /**
+   * Deployment options for the worker. Exclusive with `build_id` and `use_worker_versioning`.
+   *
+   * @experimental Deployment based versioning is still experimental.
+   */
+  workerDeploymentOptions?: WorkerDeploymentOptions;
 
   /**
    * The namespace this worker will connect to
@@ -555,6 +570,30 @@ export interface PollerBehaviorSimpleMaximum {
   maximum?: number;
 }
 
+/**
+ * Allows specifying the deployment version of the worker and whether to use deployment-based
+ * worker versioning.
+ *
+ * @experimental Deployment based versioning is still experimental.
+ */
+export type WorkerDeploymentOptions = {
+  /**
+   * The deployment version of the worker.
+   */
+  version: WorkerDeploymentVersion;
+
+  /**
+   * Whether to use deployment-based worker versioning.
+   */
+  useWorkerVersioning: boolean;
+
+  /**
+   * The default versioning behavior to use for all workflows on this worker. Specifying a default
+   * behavior is required.
+   */
+  defaultVersioningBehavior: VersioningBehavior;
+};
+
 // Replay Worker ///////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -763,8 +802,8 @@ export type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
 
 function addDefaultWorkerOptions(options: WorkerOptions, logger: Logger): WorkerOptionsWithDefaults {
   const {
-    buildId,
-    useVersioning,
+    buildId, // eslint-disable-line deprecation/deprecation
+    useVersioning, // eslint-disable-line deprecation/deprecation
     maxCachedWorkflows,
     showStackTraceSources,
     namespace,
@@ -924,8 +963,9 @@ export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): Co
 export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): native.WorkerOptions {
   return {
     identity: opts.identity,
-    buildId: opts.buildId,
-    useVersioning: opts.useVersioning,
+    buildId: opts.buildId, // eslint-disable-line deprecation/deprecation
+    useVersioning: opts.useVersioning, // eslint-disable-line deprecation/deprecation
+    workerDeploymentOptions: toNativeDeploymentOptions(opts.workerDeploymentOptions),
     taskQueue: opts.taskQueue,
     namespace: opts.namespace,
     tuner: opts.tuner,
@@ -960,6 +1000,29 @@ export function toNativeTaskPollerBehavior(behavior: Required<PollerBehavior>): 
     default:
       throw new Error(`Unknown poller behavior type: ${(behavior as any).type}`);
   }
+}
+
+function toNativeDeploymentOptions(options?: WorkerDeploymentOptions): native.WorkerDeploymentOptions | null {
+  if (options === undefined) {
+    return null;
+  }
+  let vb: native.VersioningBehavior;
+  switch (options.defaultVersioningBehavior) {
+    case 'PINNED':
+      vb = { type: 'pinned' };
+      break;
+    case 'AUTO_UPGRADE':
+      vb = { type: 'auto-upgrade' };
+      break;
+    default:
+      options.defaultVersioningBehavior satisfies never;
+      throw new Error(`Unknown versioning behavior: ${options.defaultVersioningBehavior}`);
+  }
+  return {
+    version: options.version,
+    useWorkerVersioning: options.useWorkerVersioning,
+    defaultVersioningBehavior: vb,
+  };
 }
 
 // Utils ///////////////////////////////////////////////////////////////////////////////////////////
