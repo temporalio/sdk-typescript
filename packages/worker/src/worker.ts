@@ -69,7 +69,12 @@ import {
 } from './replay';
 import { History, Runtime } from './runtime';
 import { CloseableGroupedObservable, closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
-import { byteArrayToBuffer, convertDeploymentVersion, convertToParentWorkflowType, convertToRootWorkflowType } from './utils';
+import {
+  byteArrayToBuffer,
+  convertDeploymentVersion,
+  convertToParentWorkflowType,
+  convertToRootWorkflowType,
+} from './utils';
 import {
   CompiledWorkerOptions,
   CompiledWorkerOptionsWithBuildId,

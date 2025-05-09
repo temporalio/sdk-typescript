@@ -260,6 +260,7 @@ const GenericConfigs = {
       taskQueue: 'default',
       identity: 'test-worker',
       buildId: 'test-build-id',
+      workerDeploymentOptions: null,
       useVersioning: false,
       namespace: 'default',
       tuner: {
