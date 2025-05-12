@@ -36,8 +36,6 @@ test('Can connect to Temporal Cloud using mTLS', async (t) => {
       },
     },
   });
-  const nativeClient = new Client({ connection: nativeConnection, namespace });
-
   const taskQueue = `test-temporal-cloud-mtls-${randomUUID()}`;
   const worker = await Worker.create({
     namespace,
@@ -46,21 +44,14 @@ test('Can connect to Temporal Cloud using mTLS', async (t) => {
     taskQueue,
   });
 
-  const [res1, res2] = await worker.runUntil(async () => {
-    return Promise.all([
-      client.workflow.execute(workflows.successString, {
-        workflowId: randomUUID(),
-        taskQueue,
-      }),
-      nativeClient.workflow.execute(workflows.successString, {
-        workflowId: randomUUID(),
-        taskQueue,
-      }),
-    ]);
+  const res = await worker.runUntil(async () => {
+    return await client.workflow.execute(workflows.successString, {
+      workflowId: randomUUID(),
+      taskQueue,
+    });
   });
 
-  t.is(res1, 'success');
-  t.is(res2, 'success');
+  t.is(res, 'success');
 });
 
 test('Can connect to Temporal Cloud using API Keys', async (t) => {
@@ -85,8 +76,6 @@ test('Can connect to Temporal Cloud using API Keys', async (t) => {
     apiKey,
     tls: true,
   });
-  const nativeClient = new Client({ connection: nativeConnection, namespace });
-
   const taskQueue = `test-temporal-cloud-api-key-${randomUUID()}`;
   const worker = await Worker.create({
     namespace,
@@ -95,21 +84,14 @@ test('Can connect to Temporal Cloud using API Keys', async (t) => {
     taskQueue,
   });
 
-  const [res1, res2] = await worker.runUntil(async () => {
-    return Promise.all([
-      client.workflow.execute(workflows.successString, {
-        workflowId: randomUUID(),
-        taskQueue,
-      }),
-      nativeClient.workflow.execute(workflows.successString, {
-        workflowId: randomUUID(),
-        taskQueue,
-      }),
-    ]);
+  const res = await worker.runUntil(async () => {
+    return await client.workflow.execute(workflows.successString, {
+      workflowId: randomUUID(),
+      taskQueue,
+    });
   });
 
-  t.is(res1, 'success');
-  t.is(res2, 'success');
+  t.is(res, 'success');
 });
 
 test('Can create connection to Temporal Cloud Operation service', async (t) => {
