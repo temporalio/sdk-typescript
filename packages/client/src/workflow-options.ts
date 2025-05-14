@@ -130,14 +130,20 @@ function versioningOverrideToProto(
   vo: VersioningOverride | undefined
 ): temporal.api.workflow.v1.IVersioningOverride | undefined {
   if (!vo) return undefined;
+
   // TODO: Remove deprecated field assignments when versioning is non-experimental
   if (vo === 'AUTO_UPGRADE') {
     return {
+      autoUpgrade: true,
       behavior: temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_AUTO_UPGRADE,
     };
   }
+
   return {
+    pinned: {
+      version: vo.pinnedTo,
+    },
     behavior: temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED,
-    pinnedVersion: toCanonicalString(vo.version),
+    pinnedVersion: toCanonicalString(vo.pinnedTo),
   };
 }

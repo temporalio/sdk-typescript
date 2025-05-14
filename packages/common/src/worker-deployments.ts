@@ -51,9 +51,20 @@ export const [encodeVersioningBehavior, decodeVersioningBehavior] = makeProtoEnu
 
 /**
  * Represents versioning overrides. For example, when starting workflows.
- *
- * If set to 'AUTO_UPGRADE', the Workflow will run as if it is using {@link VersioningBehavior.AUTO_UPGRADE}.
- * Otherwise, you select a pinned behavior, and a specific version to pin to. Currently only one
- * such behavior exists, but more will be added in the future.
  */
-export type VersioningOverride = { pinned_behavior: 'PINNED'; version: WorkerDeploymentVersion } | 'AUTO_UPGRADE';
+export type VersioningOverride = PinnedVersioningOverride | 'AUTO_UPGRADE';
+
+/**
+ * Workflow will be pinned to a specific deployment version.
+ */
+export interface PinnedVersioningOverride {
+  /**
+   * The worker deployment version to pin the workflow to.
+   */
+  pinnedTo: WorkerDeploymentVersion;
+}
+
+/**
+ * The workflow will auto-upgrade to the current deployment version on the next workflow task.
+ */
+export type AutoUpgradeVersioningOverride = 'AUTO_UPGRADE';

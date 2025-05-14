@@ -361,6 +361,65 @@ test('Workflows can use default versioning behavior', async (t) => {
   t.pass();
 });
 
+test('Workflow versioningOverride overrides default versioning behavior', async (t) => {
+  const taskQueue = 'task-queue-versioning-override-' + randomUUID();
+  const { client, nativeConnection } = t.context.env;
+
+  const workerV1 = {
+    buildId: '1.0',
+    deploymentName: 'deployment-versioning-override-' + randomUUID(),
+  };
+
+  const worker1 = await Worker.create({
+    workflowsPath: require.resolve('./deployment-versioning-v1'),
+    taskQueue,
+    workerDeploymentOptions: {
+      useWorkerVersioning: true,
+      version: workerV1,
+      defaultVersioningBehavior: 'AUTO_UPGRADE',
+    },
+    connection: nativeConnection,
+  });
+  const worker1Promise = worker1.run();
+  worker1Promise.catch((err) => {
+    t.fail('Worker 1.0 run error: ' + err);
+  });
+
+  // Wait for workers to be visible and set current version to v1
+  const describeResp = await waitUntilWorkerDeploymentVisible(client, workerV1);
+  await setCurrentDeploymentVersion(client, describeResp.conflictToken, workerV1);
+
+  // Start workflow with PINNED to v1 versioningOverride - should use v1 despite AUTO_UPGRADE default
+  const wfPinned = await client.workflow.start('deploymentVersioning', {
+    taskQueue,
+    workflowId: 'versioning-override-pinned-v1-' + randomUUID(),
+    versioningOverride: {
+      pinnedTo: workerV1,
+    },
+  });
+  const statePinned = await wfPinned.query(versionQuery);
+  assert.equal(statePinned, 'v1');
+
+  await wfPinned.signal(unblockSignal);
+
+  // Get results and check versioning behavior
+  const historyPinned = await wfPinned.fetchHistory();
+  const hasPinnedVersioningBehavior = historyPinned.events!.some(
+    (event) =>
+      event.workflowExecutionStartedEventAttributes?.versioningOverride?.behavior ===
+        temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED ||
+      event.workflowExecutionStartedEventAttributes?.versioningOverride?.pinned != null
+  );
+  assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
+
+  const resPinned = await wfPinned.result();
+  assert.equal(resPinned, 'version-v1');
+
+  worker1.shutdown();
+  await worker1Promise;
+  t.pass();
+});
+
 async function setRampingVersion(
   client: Client,
   conflictToken: Uint8Array,
