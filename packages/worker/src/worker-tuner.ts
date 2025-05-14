@@ -233,11 +233,15 @@ export interface SlotReserveContext {
 
   /**
    * The build id of the worker that is requesting the reservation
+   *
+   * @deprecated Use {@link workerDeploymentVersion} instead.
    */
   workerBuildId: string;
 
   /**
    * The deployment version of the worker that is requesting the reservation
+   *
+   * @experimental Worker deployments are an experimental feature and may be subject to change.
    */
   workerDeploymentVersion?: WorkerDeploymentVersion;
 

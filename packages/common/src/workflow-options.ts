@@ -256,9 +256,3 @@ export function extractWorkflowType<T extends Workflow>(
     `Invalid workflow type: expected either a string or a function, got '${typeof workflowTypeOrFunc}'`
   );
 }
-
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-export function isWorkflowFunctionWithOptions(obj: any): obj is WorkflowFunctionWithOptions<any[], any> {
-  if (obj == null) return false;
-  return Object.hasOwn(obj, 'workflowDefinitionOptions');
-}

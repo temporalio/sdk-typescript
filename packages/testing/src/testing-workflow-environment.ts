@@ -1,5 +1,5 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
-import { AsyncCompletionClient, Client, WorkflowClient, ClientOptions } from '@temporalio/client';
+import { AsyncCompletionClient, Client, WorkflowClient } from '@temporalio/client';
 import { Duration, TypedSearchAttributes } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { NativeConnection, Runtime } from '@temporalio/worker';
@@ -31,7 +31,9 @@ export type TimeSkippingTestWorkflowEnvironmentOptions = {
 export type ExistingServerTestWorkflowEnvironmentOptions = {
   /** If not set, defaults to localhost:7233 */
   address?: string;
-  client?: ClientOptions;
+  /** If not set, defaults to default */
+  namespace?: string;
+  client?: ClientOptionsForTestEnv;
 };
 
 /**
@@ -177,7 +179,7 @@ export class TestWorkflowEnvironment {
     return await this.create({
       server: { type: 'existing' },
       client: opts?.client,
-      namespace: opts?.client?.namespace ?? 'default',
+      namespace: opts?.namespace ?? 'default',
       supportsTimeSkipping: false,
       address: opts?.address,
     });

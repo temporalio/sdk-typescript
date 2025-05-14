@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { encodeVersioningBehavior, IllegalStateError, isWorkflowFunctionWithOptions } from '@temporalio/common';
+import { encodeVersioningBehavior, IllegalStateError, WorkflowFunctionWithOptions } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
@@ -275,4 +275,9 @@ export function dispose(): void {
   } finally {
     activator.rethrowSynchronously = false;
   }
+}
+
+function isWorkflowFunctionWithOptions(obj: any): obj is WorkflowFunctionWithOptions<any[], any> {
+  if (obj == null) return false;
+  return Object.hasOwn(obj, 'workflowDefinitionOptions');
 }

@@ -46,7 +46,7 @@ test('Worker deployment based versioning', async (t) => {
   });
   const worker1Promise = worker1.run();
   worker1Promise.catch((err) => {
-    t.fail('Worker 1.0 run error: ' + JSON.stringify(err));
+    t.fail('Worker 1.0 run error: ' + err);
   });
 
   const worker2 = await Worker.create({
@@ -61,7 +61,7 @@ test('Worker deployment based versioning', async (t) => {
   });
   const worker2Promise = worker2.run();
   worker2Promise.catch((err) => {
-    t.fail('Worker 2.0 run error: ' + JSON.stringify(err));
+    t.fail('Worker 2.0 run error: ' + err);
   });
 
   const worker3 = await Worker.create({
@@ -76,7 +76,7 @@ test('Worker deployment based versioning', async (t) => {
   });
   const worker3Promise = worker3.run();
   worker3Promise.catch((err) => {
-    t.fail('Worker 3.0 run error: ' + JSON.stringify(err));
+    t.fail('Worker 3.0 run error: ' + err);
   });
 
   // Wait for worker 1 to be visible and set as current version
@@ -163,7 +163,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
   });
   const worker1Promise = worker1.run();
   worker1Promise.catch((err) => {
-    t.fail('Worker 1.0 run error: ' + JSON.stringify(err));
+    t.fail('Worker 1.0 run error: ' + err);
   });
 
   const worker2 = await Worker.create({
@@ -178,7 +178,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
   });
   const worker2Promise = worker2.run();
   worker2Promise.catch((err) => {
-    t.fail('Worker 2.0 run error: ' + JSON.stringify(err));
+    t.fail('Worker 2.0 run error: ' + err);
   });
 
   // Wait for worker deployments to be visible
@@ -275,7 +275,7 @@ async function testWorkerDeploymentWithDynamicBehavior(
 
   const workerPromise = worker.run();
   workerPromise.catch((err) => {
-    t.fail('Worker run error: ' + JSON.stringify(err));
+    t.fail('Worker run error: ' + err);
   });
 
   const describeResp = await waitUntilWorkerDeploymentVisible(client, version);
@@ -334,7 +334,7 @@ test('Workflows can use default versioning behavior', async (t) => {
 
   const workerPromise = worker.run();
   workerPromise.catch((err) => {
-    t.fail('Worker run error: ' + JSON.stringify(err));
+    t.fail('Worker run error: ' + err);
   });
 
   const describeResp = await waitUntilWorkerDeploymentVisible(client, workerV1);
