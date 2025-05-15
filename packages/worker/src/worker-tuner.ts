@@ -172,7 +172,7 @@ export interface CustomSlotSupplier<SI extends SlotInfo> {
    *
    * @param ctx The context for marking a slot as used.
    */
-  markSlotUsed(slot: SlotMarkUsedContext<SI>): void;
+  markSlotUsed(ctx: SlotMarkUsedContext<SI>): void;
 
   /**
    * This function is called once a permit is no longer needed. This could be because the task has
@@ -181,7 +181,7 @@ export interface CustomSlotSupplier<SI extends SlotInfo> {
    *
    * @param ctx The context for releasing a slot.
    */
-  releaseSlot(slot: SlotReleaseContext<SI>): void;
+  releaseSlot(ctx: SlotReleaseContext<SI>): void;
 }
 
 export type SlotInfo = WorkflowSlotInfo | ActivitySlotInfo | LocalActivitySlotInfo;
