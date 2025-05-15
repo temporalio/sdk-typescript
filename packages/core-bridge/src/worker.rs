@@ -476,8 +476,6 @@ mod config {
     #[derive(TryFromJs)]
     pub struct BridgeWorkerOptions {
         identity: String,
-        build_id: String,
-        use_versioning: bool,
         task_queue: String,
         namespace: String,
         tuner: WorkerTuner,
@@ -513,8 +511,6 @@ mod config {
             let mut builder = WorkerConfigBuilder::default();
             builder
                 .client_identity_override(Some(self.identity))
-                .worker_build_id(self.build_id)
-                .use_worker_versioning(self.use_versioning)
                 .task_queue(self.task_queue)
                 .namespace(self.namespace)
                 .tuner(self.tuner.into_core_config()?)
@@ -698,7 +694,7 @@ mod custom_slot_supplier {
                     slot_type: SK::kind().into(),
                     task_queue: ctx.task_queue().to_string(),
                     worker_identity: ctx.worker_identity().to_string(),
-                    worker_build_id: ctx.worker_build_id().to_string(),
+                    worker_build_id: "".to_owned(),
                     is_sticky: ctx.is_sticky(),
                 };
 
@@ -739,7 +735,7 @@ mod custom_slot_supplier {
                 slot_type: SK::kind().into(),
                 task_queue: ctx.task_queue().to_string(),
                 worker_identity: ctx.worker_identity().to_string(),
-                worker_build_id: ctx.worker_build_id().to_string(),
+                worker_build_id: "".to_owned(),
                 is_sticky: ctx.is_sticky(),
             };
 

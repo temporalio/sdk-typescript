@@ -1421,7 +1421,7 @@ export class Worker {
       // A zero value means that it was not set by the server
       historySize: activation.historySizeBytes.toNumber(),
       continueAsNewSuggested: activation.continueAsNewSuggested,
-      currentBuildId: activation.buildIdForCurrentTask,
+      // currentBuildId: activation.buildIdForCurrentTask,
       unsafe: {
         now: () => Date.now(), // re-set in initRuntime
         isReplaying: activation.isReplaying,
