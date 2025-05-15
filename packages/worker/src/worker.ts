@@ -492,11 +492,11 @@ export class Worker {
         ...compiledOptions,
         ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
           ? {
-            // Avoid dumping workflow bundle code to the console
-            workflowBundle: <WorkflowBundle>{
-              code: `<string of length ${compiledOptions.workflowBundle.code.length}>`,
-            },
-          }
+              // Avoid dumping workflow bundle code to the console
+              workflowBundle: <WorkflowBundle>{
+                code: `<string of length ${compiledOptions.workflowBundle.code.length}>`,
+              },
+            }
           : {}),
       },
     });
@@ -710,7 +710,7 @@ export class Worker {
       ) {
         logger.warn(
           'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
-          'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
+            'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
         );
       }
 
@@ -883,8 +883,8 @@ export class Worker {
    */
   protected pollLoop$<T>(pollFn: () => Promise<T>): Observable<T> {
     return from(
-      (async function*() {
-        for (; ;) {
+      (async function* () {
+        for (;;) {
           try {
             yield await pollFn();
           } catch (err) {
@@ -919,14 +919,14 @@ export class Worker {
               // so it can be cancelled if requested
               let output:
                 | {
-                  type: 'result';
-                  result: coresdk.activity_result.IActivityExecutionResult;
-                }
+                    type: 'result';
+                    result: coresdk.activity_result.IActivityExecutionResult;
+                  }
                 | {
-                  type: 'run';
-                  activity: Activity;
-                  input: ActivityExecuteInput;
-                }
+                    type: 'run';
+                    activity: Activity;
+                    input: ActivityExecuteInput;
+                  }
                 | { type: 'ignore' };
               switch (variant) {
                 case 'start': {
@@ -1112,38 +1112,44 @@ export class Worker {
    */
   protected nexusOperator(): OperatorFunction<NexusTaskWithBase64Token, Uint8Array> {
     return pipe(
-      mergeMap(async ({ task, base64TaskToken, protobufEncodedTask }): Promise<coresdk.nexus.INexusTaskCompletion | undefined> => {
-        const { variant } = task;
-        if (!variant) {
-          throw new TypeError('Got a nexus task without a "variant" attribute');
-        }
+      mergeMap(
+        async ({
+          task,
+          base64TaskToken,
+          protobufEncodedTask,
+        }): Promise<coresdk.nexus.INexusTaskCompletion | undefined> => {
+          const { variant } = task;
+          if (!variant) {
+            throw new TypeError('Got a nexus task without a "variant" attribute');
+          }
 
-        switch (variant) {
-          case 'task': {
-            if (task.task == null) {
-              throw new IllegalStateError(`Got empty task for task variant with token: ${base64TaskToken}`);
+          switch (variant) {
+            case 'task': {
+              if (task.task == null) {
+                throw new IllegalStateError(`Got empty task for task variant with token: ${base64TaskToken}`);
+              }
+              return await this.handleNexusRunTask(task.task, base64TaskToken, protobufEncodedTask);
             }
-            return await this.handleNexusRunTask(task.task, base64TaskToken, protobufEncodedTask);
-          }
-          case 'cancelTask': {
-            const nexusHandler = this.taskTokenToNexusHandler.get(base64TaskToken);
-            if (nexusHandler == null) {
-              this.logger.trace('Tried to cancel a non-existing nexus handler', {
-                taskToken: base64TaskToken,
-              });
-              break;
+            case 'cancelTask': {
+              const nexusHandler = this.taskTokenToNexusHandler.get(base64TaskToken);
+              if (nexusHandler == null) {
+                this.logger.trace('Tried to cancel a non-existing nexus handler', {
+                  taskToken: base64TaskToken,
+                });
+                break;
+              }
+              // NOTE: nexus handler will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
+              this.logger.trace('Cancelling nexus handler', nexusLogAttributes(nexusHandler.info));
+              let reason = 'unkown';
+              if (task.cancelTask?.reason != null) {
+                reason = coresdk.nexus.NexusTaskCancelReason[task.cancelTask.reason];
+              }
+              nexusHandler.abortController.abort(new CancelledFailure(reason));
+              return { ackCancel: true, taskToken: task.cancelTask?.taskToken };
             }
-            // NOTE: nexus handler will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
-            this.logger.trace('Cancelling nexus handler', nexusLogAttributes(nexusHandler.info));
-            let reason = 'unkown';
-            if (task.cancelTask?.reason != null) {
-              reason = coresdk.nexus.NexusTaskCancelReason[task.cancelTask.reason];
-            }
-            nexusHandler.abortController.abort(new CancelledFailure(reason));
-            return { ackCancel: true, taskToken: task.cancelTask?.taskToken }
           }
         }
-      }),
+      ),
       filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
       map((result) => coresdk.nexus.NexusTaskCompletion.encodeDelimited(result).finish())
     );
@@ -1278,9 +1284,9 @@ export class Worker {
         const completion = synthetic
           ? undefined
           : coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
-            runId: activation.runId,
-            successful: {},
-          }).finish();
+              runId: activation.runId,
+              successful: {},
+            }).finish();
         return { state: undefined, output: { close, completion } };
       }
 

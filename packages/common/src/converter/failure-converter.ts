@@ -32,21 +32,20 @@ const NexusHandlerErrorRetryBehavior = {
 type NexusHandlerErrorRetryBehavior =
   (typeof NexusHandlerErrorRetryBehavior)[keyof typeof NexusHandlerErrorRetryBehavior];
 
-const [encodeNexusHandlerErrorRetryBehavior, decodeNexusHandlerErrorRetryBehavior] =
-  makeProtoEnumConverters<
-    temporal.api.enums.v1.NexusHandlerErrorRetryBehavior,
-    typeof temporal.api.enums.v1.NexusHandlerErrorRetryBehavior,
-    keyof typeof temporal.api.enums.v1.NexusHandlerErrorRetryBehavior,
-    typeof NexusHandlerErrorRetryBehavior,
-    'NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_'
-  >(
-    {
-      UNSPECIFIED: 0,
-      [NexusHandlerErrorRetryBehavior.RETRYABLE]: 1,
-      [NexusHandlerErrorRetryBehavior.NON_RETRYABLE]: 2,
-    } as const,
-    'NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_'
-  );
+const [encodeNexusHandlerErrorRetryBehavior, decodeNexusHandlerErrorRetryBehavior] = makeProtoEnumConverters<
+  temporal.api.enums.v1.NexusHandlerErrorRetryBehavior,
+  typeof temporal.api.enums.v1.NexusHandlerErrorRetryBehavior,
+  keyof typeof temporal.api.enums.v1.NexusHandlerErrorRetryBehavior,
+  typeof NexusHandlerErrorRetryBehavior,
+  'NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_'
+>(
+  {
+    UNSPECIFIED: 0,
+    [NexusHandlerErrorRetryBehavior.RETRYABLE]: 1,
+    [NexusHandlerErrorRetryBehavior.NON_RETRYABLE]: 2,
+  } as const,
+  'NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_'
+);
 
 function combineRegExp(...regexps: RegExp[]): RegExp {
   return new RegExp(regexps.map((x) => `(?:${x.source})`).join('|'));
@@ -379,9 +378,9 @@ export class DefaultFailureConverter implements FailureConverter {
       if (err instanceof nexus.HandlerError) {
         let retryBehavior: temporal.api.enums.v1.NexusHandlerErrorRetryBehavior | undefined = undefined;
         if (err.retryable === true) {
-          retryBehavior = encodeNexusHandlerErrorRetryBehavior("RETRYABLE");
+          retryBehavior = encodeNexusHandlerErrorRetryBehavior('RETRYABLE');
         } else if (err.retryable === false) {
-          retryBehavior = encodeNexusHandlerErrorRetryBehavior("NON_RETRYABLE");
+          retryBehavior = encodeNexusHandlerErrorRetryBehavior('NON_RETRYABLE');
         }
 
         return {

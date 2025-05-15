@@ -15,7 +15,11 @@ import {
 } from '@temporalio/common';
 import { temporal, coresdk } from '@temporalio/proto';
 import { HandlerContext } from '@temporalio/nexus/lib/context';
-import { encodeToPayload, encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
+import {
+  encodeToPayload,
+  encodeErrorToFailure,
+  decodeOptionalSingle,
+} from '@temporalio/common/lib/internal-non-workflow';
 import { fixBuffers } from '@temporalio/common/lib/proto-utils';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { isGrpcServiceError, ServiceError } from '@temporalio/client';
@@ -122,9 +126,12 @@ export class NexusHandler {
       // empty Content.
       const input = new nexus.LazyValue(
         new PayloadSerializer(this.dataConverter.payloadConverter, decoded ?? undefined),
-        {},
+        {}
       );
-      const result = await this.invokeUserCode('startOperation', this.serviceRegistry.start.bind(this.serviceRegistry, this.info.service, this.info.operation, input, options));
+      const result = await this.invokeUserCode(
+        'startOperation',
+        this.serviceRegistry.start.bind(this.serviceRegistry, this.info.service, this.info.operation, input, options)
+      );
       if (isAsyncResult(result)) {
         return {
           taskToken: this.taskToken,
@@ -180,7 +187,10 @@ export class NexusHandler {
     options: nexus.CancelOperationOptions
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
-      await this.invokeUserCode('cancelOperation', this.serviceRegistry.cancel.bind(this.serviceRegistry, this.info.service, this.info.operation, token, options));
+      await this.invokeUserCode(
+        'cancelOperation',
+        this.serviceRegistry.cancel.bind(this.serviceRegistry, this.info.service, this.info.operation, token, options)
+      );
       return {
         taskToken: this.taskToken,
         completed: {
@@ -340,11 +350,11 @@ function convertKnownErrors(err: unknown): nexus.HandlerError {
         case (status.ABORTED, status.UNAVAILABLE):
           return new nexus.HandlerError({ type: 'UNAVAILABLE', cause: err });
         case (status.CANCELLED,
-          status.DATA_LOSS,
-          status.INTERNAL,
-          status.UNKNOWN,
-          status.UNAUTHENTICATED,
-          status.PERMISSION_DENIED):
+        status.DATA_LOSS,
+        status.INTERNAL,
+        status.UNKNOWN,
+        status.UNAUTHENTICATED,
+        status.PERMISSION_DENIED):
           // Note that UNAUTHENTICATED and PERMISSION_DENIED have Nexus error types but we convert to internal because
           // this is not a client auth error and happens when the handler fails to auth with Temporal and should be
           // considered retryable.
@@ -420,8 +430,8 @@ function nexusLinkToProtoLink(nlink: nexus.Link): temporal.api.nexus.v1.ILink {
 class PayloadSerializer implements nexus.Serializer {
   constructor(
     readonly payloadConverter: PayloadConverter,
-    readonly payload?: Payload,
-  ) { }
+    readonly payload?: Payload
+  ) {}
 
   deserialize<T>(): T {
     if (this.payload == null) {
@@ -432,6 +442,6 @@ class PayloadSerializer implements nexus.Serializer {
 
   /** Not used in this path */
   serialize(): nexus.Content {
-    throw new Error("not implemented");
+    throw new Error('not implemented');
   }
 }

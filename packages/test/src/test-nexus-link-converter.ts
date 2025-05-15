@@ -59,7 +59,7 @@ test('convertNexusLinkToLinkWorkflowEvent with an event type in PascalCase', (t)
       'temporal:///namespaces/ns2/workflows/wid2/rid2/history?referenceType=RequestIdReference&requestID=req-123&eventType=WorkflowTaskCompleted'
     ),
     type: WORKFLOW_EVENT_TYPE,
-  }
+  };
 
   const workflowEventLink = convertNexusLinkToWorkflowEventLink(nexusLink);
   t.is(workflowEventLink.requestIdRef?.eventType, EventType.EVENT_TYPE_WORKFLOW_TASK_COMPLETED);
