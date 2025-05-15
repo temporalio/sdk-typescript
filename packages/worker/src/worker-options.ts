@@ -794,7 +794,7 @@ export interface CompiledWorkerOptions
   defaultHeartbeatThrottleIntervalMs: number;
   loadedDataConverter: LoadedDataConverter;
   activities: Map<string, ActivityFunction>;
-  nexusServices: Map<string, Map<string, nexus.OperationHandler<any, any> | nexus.SyncOperationHandler<any, any>>>;
+  nexusServiceRegistry?: nexus.ServiceRegistry;
   tuner: native.WorkerTunerOptions;
 }
 
@@ -968,41 +968,17 @@ export function compileWorkerOptions(rawOpts: WorkerOptions, logger: Logger): Co
     defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
     loadedDataConverter: loadDataConverter(opts.dataConverter),
     activities,
-    nexusServices: compileNexusServices(opts),
+    nexusServiceRegistry: nexusServiceRegistryFromOptions(opts),
     enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,
     tuner,
   };
 }
 
-function compileNexusServices(opts: WorkerOptions) {
-  const nexusServices = new Map<
-    string,
-    Map<string, nexus.OperationHandler<any, any> | nexus.SyncOperationHandler<any, any>>
-  >();
-  for (const s of opts.nexusServices ?? []) {
-    if (!s.name) {
-      throw new TypeError('Tried to register a Nexus service with no name');
-    }
-    if (nexusServices.has(s.name)) {
-      throw new TypeError(`Duplicate registration of nexus service ${s.name}`);
-    }
-    const ops = new Map<string, nexus.OperationHandler<any, any> | nexus.SyncOperationHandler<any, any>>();
-    for (const [k, op] of Object.entries(s.operations)) {
-      if (!op.name) {
-        throw new TypeError(`Tried to register a Nexus operation with no name for service ${s.name} with key ${k}`);
-      }
-      if (ops.has(op.name)) {
-        throw new TypeError(`Operation with name ${op.name} already registered for service ${s.name}`);
-      }
-      const handler = s.handlers[k];
-      if (!handler) {
-        throw new TypeError(`No handler registred for ${k} on service ${s.name}`);
-      }
-      ops.set(op.name, handler);
-    }
-    nexusServices.set(s.name, ops);
+function nexusServiceRegistryFromOptions(opts: WorkerOptions): nexus.ServiceRegistry | undefined {
+  if (opts.nexusServices == null || opts.nexusServices.length === 0) {
+    return undefined;
   }
-  return nexusServices;
+  return new nexus.ServiceRegistry(opts.nexusServices);
 }
 
 export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): native.WorkerOptions {

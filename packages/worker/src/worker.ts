@@ -1167,19 +1167,11 @@ export class Worker {
 
       info = constructNexusHandlerInfo(task.request, ctrl.signal);
 
-      const service = this.options.nexusServices.get(info.service);
-      const handler = service?.get(info.operation);
-      if (typeof handler !== 'function' && typeof handler !== 'object') {
-        throw new nexus.HandlerError({
-          type: 'NOT_FOUND',
-          message: `Nexus handler not registered for service: ${info.service}, operation: ${info.operation}`,
-        });
-      }
       const nexusHandler = new NexusHandler(
         taskToken,
         info,
         ctrl,
-        handler,
+        this.options.nexusServiceRegistry!, // Must be defined if we are handling Nexus tasks.
         this.options.loadedDataConverter,
         this.logger
       );
@@ -1791,7 +1783,7 @@ export class Worker {
 
   protected nexus$(): Observable<void> {
     // This Worker did not register any nexus services, return early.
-    if (this.options.nexusServices?.size === 0) {
+    if (this.options.nexusServiceRegistry == null) {
       if (!this.isReplayWorker) this.logger.info('No nexus services registered, not polling for nexus tasks');
       this.nexusPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
