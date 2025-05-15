@@ -19,7 +19,7 @@ import { encodeToPayload, encodeErrorToFailure, decodeOptionalSingle } from '@te
 import { fixBuffers } from '@temporalio/common/lib/proto-utils';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { isGrpcServiceError, ServiceError } from '@temporalio/client';
-import { Logger, withMetadata } from './logger';
+import { Logger, withMetadata } from '../logger';
 
 const UNINITIALIZED = Symbol();
 // fullName isn't part of the generated typed unfortunately.
