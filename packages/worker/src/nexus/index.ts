@@ -22,7 +22,7 @@ import {
 } from '@temporalio/common/lib/internal-non-workflow';
 import { fixBuffers } from '@temporalio/common/lib/proto-utils';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
-import { isGrpcServiceError, ServiceError } from '@temporalio/client';
+import { Client, isGrpcServiceError, ServiceError } from '@temporalio/client';
 import { Logger, withMetadata } from '../logger';
 
 const UNINITIALIZED = Symbol();
@@ -80,6 +80,7 @@ export class NexusHandler {
   constructor(
     public readonly taskToken: Uint8Array,
     public readonly info: nexus.HandlerInfo,
+    public readonly client: Client,
     public readonly abortController: AbortController,
     public readonly serviceRegistry: nexus.ServiceRegistry,
     public readonly dataConverter: LoadedDataConverter,
@@ -276,10 +277,17 @@ export class NexusHandler {
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     const context: HandlerContext = {
       info: this.info,
+      client: this.client,
       links: [],
       log: withMetadata(this.workerLogger, { sdkComponent: SdkComponent.nexus }),
     };
-    return await withContext(context, this.execute.bind(this, task));
+    let execute = this.execute.bind(this, task);
+    // Ensure that client calls made with the worker's client in this handler's context are tied to the abort signal.
+    // TODO: Actually support canceling requests backed by NativeConnection. Once it does, this functionality should be
+    // tested.
+    // TS can't infer this and typing out the types is redundant and hard to read.
+    execute = this.client.withAbortSignal.bind(this.client, this.info.abortSignal, execute) as any;
+    return await withContext(context, execute);
   }
 }
 

@@ -465,7 +465,7 @@ mod config {
 
     use temporal_sdk_core::{
         api::worker::{
-            ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind, PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder, WorkerConfigBuilderError, WorkflowSlotKind
+            ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind, PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder, WorkerConfigBuilderError, WorkerVersioningStrategy, WorkflowSlotKind
         }, ResourceBasedSlotsOptions, ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions, SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptionsBuilder
     };
 
@@ -510,6 +510,7 @@ mod config {
             // Set all other options
             let mut builder = WorkerConfigBuilder::default();
             builder
+                .versioning_strategy(WorkerVersioningStrategy::None{build_id: "".to_owned()})
                 .client_identity_override(Some(self.identity))
                 .task_queue(self.task_queue)
                 .namespace(self.namespace)

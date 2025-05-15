@@ -56,6 +56,7 @@ import {
 import { errorMessage, NonNullableObject, OmitFirstParam } from '@temporalio/common/lib/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
 import { native } from '@temporalio/core-bridge';
+import { Client } from '@temporalio/client';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
@@ -455,6 +456,8 @@ export class Worker {
    */
   protected hasOutstandingNexusPoll = false;
 
+  private client?: Client;
+
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightNonLocalActivitiesSubject = new BehaviorSubject<number>(0);
@@ -492,11 +495,11 @@ export class Worker {
         ...compiledOptions,
         ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
           ? {
-              // Avoid dumping workflow bundle code to the console
-              workflowBundle: <WorkflowBundle>{
-                code: `<string of length ${compiledOptions.workflowBundle.code.length}>`,
-              },
-            }
+            // Avoid dumping workflow bundle code to the console
+            workflowBundle: <WorkflowBundle>{
+              code: `<string of length ${compiledOptions.workflowBundle.code.length}>`,
+            },
+          }
           : {}),
       },
     });
@@ -710,7 +713,7 @@ export class Worker {
       ) {
         logger.warn(
           'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
-            'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
+          'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
         );
       }
 
@@ -756,6 +759,15 @@ export class Worker {
     protected readonly isReplayWorker: boolean = false
   ) {
     this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodecs);
+    if (connection !== null) {
+      this.client = new Client({
+        namespace: options.namespace,
+        connection,
+        identity: options.identity,
+        dataConverter: options.dataConverter,
+        // TODO: support interceptors.
+      });
+    }
   }
 
   /**
@@ -883,8 +895,8 @@ export class Worker {
    */
   protected pollLoop$<T>(pollFn: () => Promise<T>): Observable<T> {
     return from(
-      (async function* () {
-        for (;;) {
+      (async function*() {
+        for (; ;) {
           try {
             yield await pollFn();
           } catch (err) {
@@ -919,14 +931,14 @@ export class Worker {
               // so it can be cancelled if requested
               let output:
                 | {
-                    type: 'result';
-                    result: coresdk.activity_result.IActivityExecutionResult;
-                  }
+                  type: 'result';
+                  result: coresdk.activity_result.IActivityExecutionResult;
+                }
                 | {
-                    type: 'run';
-                    activity: Activity;
-                    input: ActivityExecuteInput;
-                  }
+                  type: 'run';
+                  activity: Activity;
+                  input: ActivityExecuteInput;
+                }
                 | { type: 'ignore' };
               switch (variant) {
                 case 'start': {
@@ -1176,6 +1188,7 @@ export class Worker {
       const nexusHandler = new NexusHandler(
         taskToken,
         info,
+        this.client!, // Must be defined if we are handling Nexus tasks.
         ctrl,
         this.options.nexusServiceRegistry!, // Must be defined if we are handling Nexus tasks.
         this.options.loadedDataConverter,
@@ -1284,9 +1297,9 @@ export class Worker {
         const completion = synthetic
           ? undefined
           : coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
-              runId: activation.runId,
-              successful: {},
-            }).finish();
+            runId: activation.runId,
+            successful: {},
+          }).finish();
         return { state: undefined, output: { close, completion } };
       }
 

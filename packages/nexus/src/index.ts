@@ -1,1 +1,1 @@
-export { log } from './context';
+export { log, getClient } from './context';

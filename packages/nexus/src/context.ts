@@ -1,16 +1,14 @@
 import { HandlerContext as BaseHandlerContext, getHandlerContext } from 'nexus-rpc/lib/handler';
 import { Logger, LogLevel, LogMetadata } from '@temporalio/common';
+import { Client } from '@temporalio/client';
 
 export interface HandlerContext extends BaseHandlerContext {
   log: Logger;
+  client: Client;
 }
 
 function getLogger() {
-  const ctx = getHandlerContext<HandlerContext>();
-  if (ctx == null) {
-    throw new ReferenceError('HandlerContext uninitialized');
-  }
-  return ctx.log;
+  return getHandlerContext<HandlerContext>().log;
 }
 
 /**
@@ -36,3 +34,13 @@ export const log: Logger = {
     return getLogger().error(message, meta);
   },
 };
+
+/**
+ * Returns a client to be used in a Nexus Operation's context, this Client is powered by the same Connection that the
+ * worker was created with.
+ */
+export function getClient(): Client {
+  return getHandlerContext<HandlerContext>().client;
+}
+
+// TODO: also support getting a metrics handler.
