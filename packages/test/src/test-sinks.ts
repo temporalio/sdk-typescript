@@ -2,7 +2,7 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Connection, WorkflowClient } from '@temporalio/client';
-import { DefaultLogger, InjectedSinks, Runtime, WorkerOptions, LogEntry } from '@temporalio/worker';
+import { DefaultLogger, InjectedSinks, Runtime, WorkerOptions, LogEntry, NativeConnection } from '@temporalio/worker';
 import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/lib/interfaces';
 import { SdkComponent, TypedSearchAttributes } from '@temporalio/common';
@@ -21,6 +21,7 @@ class DependencyError extends Error {
 
 if (RUN_INTEGRATION_TESTS) {
   const recordedLogs: { [workflowId: string]: LogEntry[] } = {};
+  let nativeConnection: NativeConnection;
 
   test.before(async (_) => {
     await registerDefaultCustomSearchAttributes(await Connection.connect({}));
@@ -31,6 +32,17 @@ if (RUN_INTEGRATION_TESTS) {
         recordedLogs[workflowId].push(entry);
       }),
     });
+
+    // FIXME(JWH): At some point, tests in this file ends up creating a situation where we no longer have any
+    // native resource tracked by the lang side Runtime object, so the lang Runtime tries to shutdown itself,
+    // but in the mean time, another test tries to create another resource. which results in a rust side
+    // finalization error. Holding on to a nativeConnection object avoids that situation. That's a dirty hack.
+    // Proper fix will be implemented in a distinct PR.
+    nativeConnection = await NativeConnection.connect({});
+  });
+
+  test.after.always(async () => {
+    await nativeConnection.close();
   });
 
   test('Worker injects sinks', async (t) => {
@@ -298,7 +310,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId }));
     const history = await client.getHandle(workflowId).fetchHistory();
 
-    // Last 3 events are WorkflowExecutionStarted, WorkflowTaskCompleted and WorkflowExecutionCompleted
+    // Last 3 events are WorkflowTaskStarted, WorkflowTaskCompleted and WorkflowExecutionCompleted
     history.events = history!.events!.slice(0, -3);
 
     recordedMessages.length = 0;

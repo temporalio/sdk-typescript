@@ -4,7 +4,7 @@ import { Duration, TypedSearchAttributes } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { NativeConnection, Runtime } from '@temporalio/worker';
 import { native } from '@temporalio/core-bridge';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { Connection } from './connection';
 import { toNativeEphemeralServerConfig, DevServerConfig, TimeSkippingServerConfig } from './ephemeral-server';
 import { ClientOptionsForTestEnv, TestEnvClient } from './client';

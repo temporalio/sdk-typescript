@@ -404,3 +404,93 @@ type LogLevel = 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 type LogEntryMetadata = {
   [key: string]: string | number | boolean | LogEntryMetadata;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Custom Metrics
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export interface MetricMeter {
+  type: 'metric-meter';
+}
+
+export interface MetricCounter {
+  type: 'metric-counter';
+}
+
+export interface MetricHistogram {
+  type: 'metric-histogram';
+}
+
+export interface MetricHistogramF64 {
+  type: 'metric-histogram-f64';
+}
+
+export interface MetricGauge {
+  type: 'metric-gauge';
+}
+
+export interface MetricGaugeF64 {
+  type: 'metric-gauge-f64';
+}
+
+export type MetricAttributes = Record<string, string | number | boolean>;
+
+export declare function newMetricCounter(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): MetricCounter;
+
+export declare function newMetricHistogram(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): MetricHistogram;
+
+export declare function newMetricHistogramF64(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): MetricHistogramF64;
+
+export declare function newMetricGauge(runtime: Runtime, name: string, unit: string, description: string): MetricGauge;
+
+export declare function newMetricGaugeF64(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): MetricGaugeF64;
+
+export declare function addMetricCounterValue(
+  counter: MetricCounter,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
+export declare function recordMetricHistogramValue(
+  histogram: MetricHistogram,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
+export declare function recordMetricHistogramF64Value(
+  histogram: MetricHistogramF64,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
+export declare function setMetricGaugeValue(
+  gauge: MetricGauge,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
+export declare function setMetricGaugeF64Value(
+  gauge: MetricGaugeF64,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;

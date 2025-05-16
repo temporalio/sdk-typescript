@@ -19,6 +19,7 @@ import {
   LogLevel,
   ReplayWorkerOptions,
   Runtime,
+  RuntimeOptions,
   WorkerOptions,
   WorkflowBundle,
   WorkflowBundleWithSourceMap,
@@ -48,7 +49,7 @@ const defaultDynamicConfigOptions = [
   'worker.removableBuildIdDurationSinceDefault=1',
 ];
 
-function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }) {
+function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }, runtimeOpts?: Partial<RuntimeOptions>) {
   const logger = recordedLogs
     ? new DefaultLogger('DEBUG', (entry) => {
         const workflowId = (entry.meta as any)?.workflowInfo?.workflowId ?? (entry.meta as any)?.workflowId;
@@ -57,9 +58,12 @@ function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }) {
       })
     : new DefaultLogger((process.env.TEST_LOG_LEVEL || 'WARN').toUpperCase() as LogLevel);
   Runtime.install({
+    ...runtimeOpts,
     logger,
     telemetryOptions: {
+      ...runtimeOpts?.telemetryOptions,
       logging: {
+        ...runtimeOpts?.telemetryOptions?.logging,
         filter: makeTelemetryFilterString({
           core: (process.env.TEST_LOG_LEVEL || 'INFO').toUpperCase() as LogLevel,
         }),
@@ -114,11 +118,14 @@ export function makeConfigurableEnvironmentTestFn<T>(opts: {
   recordedLogs?: { [workflowId: string]: LogEntry[] };
   createTestContext: (t: ExecutionContext) => Promise<T>;
   teardown: (t: T) => Promise<void>;
+  runtimeOpts?: Partial<RuntimeOptions> | (() => Promise<[Partial<RuntimeOptions>, Partial<T>]>) | undefined;
 }): TestFn<T> {
   const test = anyTest as TestFn<T>;
   test.before(async (t) => {
-    setupRuntime(opts.recordedLogs);
-    t.context = await opts.createTestContext(t);
+    const [runtimeOpts, extraContext] =
+      typeof opts.runtimeOpts === 'function' ? await opts.runtimeOpts() : [opts.runtimeOpts, {}];
+    setupRuntime(opts.recordedLogs, runtimeOpts);
+    t.context = { ...(await opts.createTestContext(t)), ...extraContext };
   });
   test.after.always(async (t) => {
     await opts.teardown(t.context);
@@ -126,15 +133,17 @@ export function makeConfigurableEnvironmentTestFn<T>(opts: {
   return test;
 }
 
-export function makeTestFunction(opts: {
+export function makeTestFunction<C extends Context = Context>(opts: {
   workflowsPath: string;
   workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
   workflowInterceptorModules?: string[];
   recordedLogs?: { [workflowId: string]: LogEntry[] };
-}): TestFn<Context> {
-  return makeConfigurableEnvironmentTestFn<Context>({
+  runtimeOpts?: Partial<RuntimeOptions> | (() => Promise<[Partial<RuntimeOptions>, Partial<C>]>) | undefined;
+}): TestFn<C> {
+  return makeConfigurableEnvironmentTestFn<C>({
     recordedLogs: opts.recordedLogs,
-    createTestContext: async (_t: ExecutionContext): Promise<Context> => {
+    runtimeOpts: opts.runtimeOpts,
+    createTestContext: async (_t: ExecutionContext): Promise<C> => {
       let env: TestWorkflowEnvironment;
       if (process.env.TEMPORAL_SERVICE_ADDRESS) {
         env = await TestWorkflowEnvironment.createFromExistingServer({
@@ -149,9 +158,9 @@ export function makeTestFunction(opts: {
           workflowInterceptorModules: opts.workflowInterceptorModules,
         }),
         env,
-      };
+      } as unknown as C;
     },
-    teardown: async (c: Context) => {
+    teardown: async (c: C) => {
       await c.env.teardown();
     },
   });
