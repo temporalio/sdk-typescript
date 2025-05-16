@@ -23,6 +23,7 @@ import {
   WorkflowUpdateValidatorType,
   SearchAttributeUpdatePair,
   compilePriority,
+  WorkflowDefinitionOptionsOrGetter,
 } from '@temporalio/common';
 import {
   encodeUnifiedSearchAttributes,
@@ -1612,6 +1613,43 @@ export function upsertMemo(memo: Record<string, unknown>): void {
 export function allHandlersFinished(): boolean {
   const activator = assertInWorkflowContext('allHandlersFinished() may only be used from a Workflow Execution.');
   return activator.inProgressSignals.size === 0 && activator.inProgressUpdates.size === 0;
+}
+
+/**
+ * Can be used to alter workflow functions with certain options specified at definition time.
+ *
+ * @example
+ * For example:
+ * ```ts
+ * setWorkflowOptions({ versioningBehavior: 'PINNED' }, myWorkflow);
+ * export async function myWorkflow(): Promise<string> {
+ *   // Workflow code here
+ *   return "hi";
+ * }
+ * ```
+ *
+ * @example
+ * To annotate a default or dynamic workflow:
+ * ```ts
+ * export default async function (): Promise<string> {
+ *   // Workflow code here
+ *   return "hi";
+ * }
+ * setWorkflowOptions({ versioningBehavior: 'PINNED' }, module.exports.default);
+ * ```
+ *
+ * @param options Options for the workflow defintion, or a function that returns options. If a
+ * function is provided, it will be called once just before the workflow function is called for the
+ * first time. It is safe to call {@link workflowInfo} inside such a function.
+ * @param fn The workflow function.
+ */
+export function setWorkflowOptions<A extends any[], RT>(
+  options: WorkflowDefinitionOptionsOrGetter,
+  fn: (...args: A) => Promise<RT>
+): void {
+  Object.assign(fn, {
+    workflowDefinitionOptions: options,
+  });
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');

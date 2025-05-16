@@ -179,6 +179,9 @@ async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeRes
         "CreateSchedule" => {
             rpc_call!(retry_client, call, create_schedule)
         }
+        "CreateWorkflowRule" => {
+            rpc_call!(retry_client, call, create_workflow_rule)
+        }
         "DeleteSchedule" => {
             rpc_call!(retry_client, call, delete_schedule)
         }
@@ -190,6 +193,9 @@ async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeRes
         }
         "DeleteWorkflowExecution" => {
             rpc_call!(retry_client, call, delete_workflow_execution)
+        }
+        "DeleteWorkflowRule" => {
+            rpc_call!(retry_client, call, delete_workflow_rule)
         }
         "DescribeBatchOperation" => {
             rpc_call!(retry_client, call, describe_batch_operation)
@@ -209,6 +215,9 @@ async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeRes
         }
         "DescribeWorkflowExecution" => {
             rpc_call!(retry_client, call, describe_workflow_execution)
+        }
+        "DescribeWorkflowRule" => {
+            rpc_call!(retry_client, call, describe_workflow_rule)
         }
         "ExecuteMultiOperation" => rpc_call!(retry_client, call, execute_multi_operation),
         "GetClusterInfo" => rpc_call!(retry_client, call, get_cluster_info),
@@ -265,6 +274,9 @@ async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeRes
         }
         "ListWorkflowExecutions" => {
             rpc_call!(retry_client, call, list_workflow_executions)
+        }
+        "ListWorkflowRules" => {
+            rpc_call!(retry_client, call, list_workflow_rules)
         }
         "PatchSchedule" => {
             rpc_call!(retry_client, call, patch_schedule)
@@ -367,6 +379,9 @@ async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeRes
         }
         "TerminateWorkflowExecution" => {
             rpc_call!(retry_client, call, terminate_workflow_execution)
+        }
+        "TriggerWorkflowRule" => {
+            rpc_call!(retry_client, call, trigger_workflow_rule)
         }
         "UnpauseActivity" => {
             rpc_call!(retry_client, call, unpause_activity)

@@ -9,6 +9,9 @@ use proc_macro::TokenStream;
 use syn::{DeriveInput, parse_macro_input};
 
 /// Procedural macro for defining bridge types with compile-time field name conversion
+///
+/// Note that enum types must all be defined on the JS side as objects with a `type` field which
+/// is the kebab-case representation of the enum variant.
 #[proc_macro_derive(TryFromJs)]
 pub fn try_from_js(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
