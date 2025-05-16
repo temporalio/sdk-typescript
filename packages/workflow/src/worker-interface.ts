@@ -80,33 +80,22 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
     const defaultWorkflowFn = mod['default'];
 
     if (typeof workflowFn === 'function') {
-      if (isWorkflowFunctionWithOptions(workflowFn)) {
-        activator.workflow = workflowFn;
-        if (typeof workflowFn.workflowDefinitionOptions === 'object') {
-          activator.versioningBehavior = workflowFn.workflowDefinitionOptions.versioningBehavior;
-        } else {
-          activator.workflowDefinitionOptionsGetter = workflowFn.workflowDefinitionOptions;
-        }
-      } else {
-        activator.workflow = workflowFn;
-      }
+      activator.workflow = workflowFn;
     } else if (typeof defaultWorkflowFn === 'function') {
-      if (isWorkflowFunctionWithOptions(defaultWorkflowFn)) {
-        activator.workflow = defaultWorkflowFn;
-        if (typeof defaultWorkflowFn.workflowDefinitionOptions === 'object') {
-          activator.versioningBehavior = defaultWorkflowFn.workflowDefinitionOptions.versioningBehavior;
-        } else {
-          activator.workflowDefinitionOptionsGetter = defaultWorkflowFn.workflowDefinitionOptions;
-        }
-      } else {
-        activator.workflow = defaultWorkflowFn;
-      }
+      activator.workflow = defaultWorkflowFn;
     } else {
       const details =
         workflowFn === undefined
           ? 'no such function is exported by the workflow bundle'
           : `expected a function, but got: '${typeof workflowFn}'`;
       throw new TypeError(`Failed to initialize workflow of type '${activator.info.workflowType}': ${details}`);
+    }
+    if (isWorkflowFunctionWithOptions(activator.workflow)) {
+      if (typeof activator.workflow.workflowDefinitionOptions === 'object') {
+        activator.versioningBehavior = activator.workflow.workflowDefinitionOptions.versioningBehavior;
+      } else {
+        activator.workflowDefinitionOptionsGetter = activator.workflow.workflowDefinitionOptions;
+      }
     }
   } finally {
     activator.rethrowSynchronously = false;
