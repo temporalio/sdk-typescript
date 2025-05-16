@@ -1,25 +1,24 @@
 {
-  "name": "@temporalio/common",
+  "name": "@temporalio/nexus",
   "version": "1.11.5",
-  "description": "Common library for code that's used across the Client, Worker, and/or Workflow",
+  "description": "Temporal.io SDK Nexus sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
   "keywords": [
     "temporal",
     "workflow",
-    "worker"
+    "worker",
+    "activity"
   ],
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@temporalio/proto": "file:../proto",
+    "@temporalio/common": "file:../common",
     "long": "^5.2.3",
-    "ms": "^3.0.0-canary.1",
-    "nexus-rpc": "file:../../../nexus-sdk-typescript",
-    "proto3-json-serializer": "^2.0.0"
+    "nexus-rpc": "file:../../../nexus-sdk-typescript"
   },
-  "devDependencies": {
-    "protobufjs": "^7.2.5"
+  "engines": {
+    "node": ">= 18.0.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -27,14 +26,11 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/temporalio/sdk-typescript.git",
-    "directory": "packages/common"
+    "directory": "packages/nexus"
   },
-  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/common",
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/nexus",
   "publishConfig": {
     "access": "public"
-  },
-  "engines": {
-    "node": ">= 18.0.0"
   },
   "files": [
     "src",
