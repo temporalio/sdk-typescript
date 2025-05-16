@@ -1,1 +1,8 @@
-export { log, getClient } from './context';
+export {
+  log,
+  getClient,
+  startWorkflow,
+  WorkflowHandle,
+  WorkflowRunOperation,
+  WorkflowRunOperationHandler,
+} from './context';

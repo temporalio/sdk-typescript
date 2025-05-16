@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import anyTest, { TestFn } from 'ava';
 import getPort from 'get-port';
+import Long from 'long';
 import * as nexus from 'nexus-rpc';
 import * as protoJsonSerializer from 'proto3-json-serializer';
 import * as temporalnexus from '@temporalio/nexus';
@@ -16,6 +17,7 @@ import {
   defaultPayloadConverter,
   SdkComponent,
 } from '@temporalio/common';
+import { convertWorkflowEventLinkToNexusLink, convertNexusLinkToWorkflowEventLink } from '@temporalio/nexus/lib/link-converter';
 import { cleanStackTrace } from './helpers';
 
 export interface Context {
@@ -38,7 +40,19 @@ test.before(async (t) => {
   Runtime.install({ logger });
   t.context.httpPort = await getPort();
   t.context.env = await testing.TestWorkflowEnvironment.createLocal({
-    server: { extraArgs: ['--http-port', `${t.context.httpPort}`] },
+    server: {
+      extraArgs: [
+        '--http-port', `${t.context.httpPort}`,
+        // SDK tests use arbitrary callback URLs, permit that on the server
+        '--dynamic-config-value', 'component.callbacks.allowedAddresses=[{"Pattern":"*","AllowInsecure":true}]',
+        '--dynamic-config-value', 'history.enableRequestIdRefLinks=true',
+      ],
+      executable: {
+        type: 'cached-download',
+        // TODO: remove this version override when CLI 1.4.0 is out.
+        version: 'v1.3.1-nexus-links.0',
+      },
+    },
   });
   t.context.logEntries = logEntries;
 });
@@ -52,7 +66,7 @@ test.beforeEach(async (t) => {
   const { env } = t.context;
   const response = await env.connection.operatorService.createNexusEndpoint({
     spec: {
-      name: t.title.replaceAll(' ', '-'),
+      name: t.title.replaceAll(/[\s,]/g, '-'),
       target: {
         worker: {
           namespace: 'default',
@@ -569,4 +583,103 @@ test('getClient is available in handler context', async (t) => {
     const output = await res.json();
     t.is(output, true);
   });
+});
+
+test('WorkflowRunOperation attaches callback, link, and request ID', async (t) => {
+  const { env, taskQueue, httpPort, endpointId } = t.context;
+  const requestId1 = randomUUID();
+  const requestId2 = randomUUID();
+  const workflowId = t.title;
+
+  const w = await Worker.create({
+    connection: env.nativeConnection,
+    namespace: env.namespace,
+    taskQueue,
+    nexusServices: [
+      nexus.serviceHandler(
+        nexus.service('testService', {
+          testOp: nexus.operation<void, void>(),
+        }),
+        {
+          testOp: new temporalnexus.WorkflowRunOperation<void, void>(async (_, options) => {
+            return await temporalnexus.startWorkflow('some-workflow', {
+              workflowId,
+              taskQueue,
+              // To test attaching multiple callers to the same operation.
+              workflowIdConflictPolicy: 'USE_EXISTING',
+            }, options);
+          }),
+        }
+      ),
+    ],
+  });
+
+  const callbackURL = 'http://not-found';
+  const workflowLink = {
+    namespace: 'default',
+    workflowId: 'wid',
+    runId: 'runId',
+    eventRef: {
+      eventId: Long.fromNumber(5),
+      eventType: root.temporal.api.enums.v1.EventType.EVENT_TYPE_NEXUS_OPERATION_SCHEDULED,
+    },
+  };
+  const nexusLink = convertWorkflowEventLinkToNexusLink(workflowLink);
+
+  // TODO: callback, link
+  await w.runUntil(async () => {
+    const backlinks = [];
+    for (const requestId of [requestId1, requestId2]) {
+      const endpointUrl = new URL(`http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testOp`);
+      endpointUrl.searchParams.set('callback', callbackURL);
+      let res = await fetch(endpointUrl.toString(), {
+        method: 'POST',
+        body: JSON.stringify('hello'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Nexus-Request-Id': requestId,
+          'Nexus-Callback-Token': 'token',
+          'Nexus-Link': `<${nexusLink.url}>; type="${nexusLink.type}"`,
+        },
+      });
+      t.true(res.ok);
+      const output = (await res.json()) as { token: string; state: nexus.OperationState };
+      t.is(output.state, 'running');
+      console.log(res.headers.get('Nexus-Link'));
+      const m = /<([^>]+)>; type="([^"]+)"/.exec(res.headers.get('Nexus-Link') ?? '');
+      t.truthy(m);
+      const [_, url, type] = m!;
+      const backlink = convertNexusLinkToWorkflowEventLink({ url: new URL(url), type });
+      backlinks.push(backlink);
+    }
+
+    t.is(backlinks[0].eventRef?.eventType, root.temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED);
+    t.deepEqual(backlinks[0].eventRef?.eventId, Long.fromNumber(1));
+    t.is(backlinks[0].workflowId, workflowId);
+
+    console.log(backlinks[1])
+    t.is(backlinks[1].requestIdRef?.eventType, root.temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_OPTIONS_UPDATED);
+    t.deepEqual(backlinks[1].requestIdRef?.requestId, requestId2);
+    t.is(backlinks[1].workflowId, workflowId);
+  });
+
+  const description = await env.client.workflow.getHandle(workflowId).describe();
+  // Ensure that request IDs are propagated.
+  t.truthy(description.raw.workflowExtendedInfo?.requestIdInfos?.[requestId1]);
+  t.truthy(description.raw.workflowExtendedInfo?.requestIdInfos?.[requestId2]);
+
+  // Ensure that callbacks are attached.
+  t.is(description.raw.callbacks?.length, 2);
+  // Don't bother verifying the second callback.
+  const callback = description.raw.callbacks?.[0].callback;
+  t.is(callback?.nexus?.url, callbackURL);
+  t.deepEqual(callback?.nexus?.header, { token: 'token' });
+  t.is(callback?.links?.length, 1);
+  const actualLink = callback!.links![0]!.workflowEvent;
+
+  t.deepEqual(actualLink?.namespace, workflowLink.namespace);
+  t.deepEqual(actualLink?.workflowId, workflowLink.workflowId);
+  t.deepEqual(actualLink?.runId, workflowLink.runId);
+  t.deepEqual(actualLink?.eventRef?.eventType, workflowLink.eventRef.eventType);
+  t.deepEqual(actualLink?.eventRef?.eventId, workflowLink.eventRef.eventId);
 });

@@ -79,6 +79,7 @@ export async function handlerErrorToProto(
 export class NexusHandler {
   constructor(
     public readonly taskToken: Uint8Array,
+    public readonly namespace: string,
     public readonly info: nexus.HandlerInfo,
     public readonly client: Client,
     public readonly abortController: AbortController,
@@ -251,6 +252,8 @@ export class NexusHandler {
         headers: headersProxy(task.request.header),
         requestId: variant.requestId ?? undefined,
         links: (variant.links ?? []).map(protoLinkToNexusLink),
+        callbackURL: variant.callback ?? undefined,
+        callbackHeaders: variant.callbackHeader ?? undefined,
       });
     } else if (task.request?.cancelOperation != null) {
       const variant = task.request?.cancelOperation;
@@ -278,6 +281,7 @@ export class NexusHandler {
     const context: HandlerContext = {
       info: this.info,
       client: this.client,
+      namespace: this.namespace,
       links: [],
       log: withMetadata(this.workerLogger, { sdkComponent: SdkComponent.nexus }),
     };

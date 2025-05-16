@@ -91,6 +91,7 @@ import {
 } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
 import { WorkflowUpdateStage, encodeWorkflowUpdateStage } from './workflow-update-stage';
+import { InternalWorkflowStartOptions, InternalWorkflowStartOptionsKey } from './internal';
 
 const UpdateWorkflowExecutionLifecycleStage = temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
 
@@ -1251,7 +1252,12 @@ export class WorkflowClient extends BaseClient {
     const req = await this.createStartWorkflowRequest(input);
     const { options: opts, workflowType } = input;
     try {
-      return (await this.workflowService.startWorkflowExecution(req)).runId;
+      const response = await this.workflowService.startWorkflowExecution(req);
+      const internalOptions = (opts as any)[InternalWorkflowStartOptionsKey] as InternalWorkflowStartOptions | undefined;
+      if (internalOptions != null) {
+        internalOptions.backLink = response.link ?? undefined;
+      }
+      return response.runId;
     } catch (err: any) {
       if (err.code === grpcStatus.ALREADY_EXISTS) {
         throw new WorkflowExecutionAlreadyStartedError(
@@ -1267,11 +1273,13 @@ export class WorkflowClient extends BaseClient {
   protected async createStartWorkflowRequest(input: WorkflowStartInput): Promise<StartWorkflowExecutionRequest> {
     const { options: opts, workflowType, headers } = input;
     const { identity, namespace } = this.options;
+    const internalOptions = (opts as any)[InternalWorkflowStartOptionsKey] as InternalWorkflowStartOptions | undefined;
 
+    console.log(internalOptions);
     return {
       namespace,
       identity,
-      requestId: uuid4(),
+      requestId: internalOptions?.requestId ?? uuid4(),
       workflowId: opts.workflowId,
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(opts.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(opts.workflowIdConflictPolicy),
@@ -1296,6 +1304,7 @@ export class WorkflowClient extends BaseClient {
       cronSchedule: opts.cronSchedule,
       header: { fields: headers },
       priority: opts.priority ? compilePriority(opts.priority) : undefined,
+      ...internalOptions,
     };
   }
 
