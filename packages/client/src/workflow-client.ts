@@ -1228,6 +1228,7 @@ export class WorkflowClient extends BaseClient {
       cronSchedule: options.cronSchedule,
       header: { fields: headers },
       priority: options.priority ? compilePriority(options.priority) : undefined,
+      versioningOverride: options.versioningOverride ?? undefined,
     };
     try {
       return (await this.workflowService.signalWithStartWorkflowExecution(req)).runId;
@@ -1253,7 +1254,9 @@ export class WorkflowClient extends BaseClient {
     const { options: opts, workflowType } = input;
     try {
       const response = await this.workflowService.startWorkflowExecution(req);
-      const internalOptions = (opts as any)[InternalWorkflowStartOptionsKey] as InternalWorkflowStartOptions | undefined;
+      const internalOptions = (opts as any)[InternalWorkflowStartOptionsKey] as
+        | InternalWorkflowStartOptions
+        | undefined;
       if (internalOptions != null) {
         internalOptions.backLink = response.link ?? undefined;
       }
@@ -1304,6 +1307,7 @@ export class WorkflowClient extends BaseClient {
       cronSchedule: opts.cronSchedule,
       header: { fields: headers },
       priority: opts.priority ? compilePriority(opts.priority) : undefined,
+      versioningOverride: opts.versioningOverride ?? undefined,
       ...internalOptions,
     };
   }

@@ -37,13 +37,13 @@ export function loadWorkflowRunOperationToken(data: string): WorkflowRunOperatio
   try {
     decoded = base64URLDecodeNoPadding(data);
   } catch (err) {
-    throw new TypeError('failed to decode token', {cause: err});
+    throw new TypeError('failed to decode token', { cause: err });
   }
   let token: WorkflowRunOperationToken;
   try {
     token = JSON.parse(decoded);
   } catch (err) {
-    throw new TypeError('failed to unmarshal workflow run operation token', {cause: err});
+    throw new TypeError('failed to unmarshal workflow run operation token', { cause: err });
   }
   if (token.t !== OPERATION_TOKEN_TYPE_WORKFLOW_RUN) {
     throw new TypeError(`invalid workflow token type: ${token.t}, expected: ${OPERATION_TOKEN_TYPE_WORKFLOW_RUN}`);
@@ -68,11 +68,11 @@ function base64URLDecodeNoPadding(str: string): string {
   if (!/^[-A-Za-z0-9_]*$/.test(str)) {
     throw new TypeError('invalid base64URL encoded string: contains invalid characters');
   }
-  
+
   const paddingLength = str.length % 4;
   if (paddingLength > 0) {
     str += '='.repeat(4 - paddingLength);
   }
-  
+
   return Buffer.from(str, 'base64url').toString('utf-8');
 }

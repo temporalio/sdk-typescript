@@ -7,14 +7,20 @@ use tokio::sync::mpsc::{Sender, channel};
 use tokio_stream::wrappers::ReceiverStream;
 
 use temporal_sdk_core::{
+    CoreRuntime,
     api::{
-        errors::{CompleteActivityError, CompleteNexusError, CompleteWfError, PollError}, Worker as CoreWorkerTrait
-    }, init_replay_worker, init_worker, protos::{
+        Worker as CoreWorkerTrait,
+        errors::{CompleteActivityError, CompleteNexusError, CompleteWfError, PollError},
+    },
+    init_replay_worker, init_worker,
+    protos::{
         coresdk::{
-            nexus::NexusTaskCompletion, workflow_completion::WorkflowActivationCompletion, ActivityHeartbeat, ActivityTaskCompletion
+            ActivityHeartbeat, ActivityTaskCompletion, nexus::NexusTaskCompletion,
+            workflow_completion::WorkflowActivationCompletion,
         },
         temporal::api::history::v1::History,
-    }, replay::{HistoryForReplay, ReplayWorkerInput}, CoreRuntime
+    },
+    replay::{HistoryForReplay, ReplayWorkerInput},
 };
 
 use bridge_macros::js_function;
@@ -26,7 +32,7 @@ use crate::{
     runtime::{Runtime, RuntimeExt},
 };
 
-pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<()> {
+pub fn init(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("workerValidate", worker_validate)?;
 
@@ -275,12 +281,10 @@ pub fn worker_complete_nexus_task(
     worker: OpaqueInboundHandle<Worker>,
     completion: Vec<u8>,
 ) -> BridgeResult<BridgeFuture<()>> {
-    let nexus_completion =
-        NexusTaskCompletion::decode_length_delimited(completion.as_slice()).map_err(|err| {
-            BridgeError::TypeError {
-                field: None,
-                message: format!("Cannot decode Completion from buffer: {err:?}"),
-            }
+    let nexus_completion = NexusTaskCompletion::decode_length_delimited(completion.as_slice())
+        .map_err(|err| BridgeError::TypeError {
+            field: None,
+            message: format!("Cannot decode Completion from buffer: {err:?}"),
         })?;
 
     let worker_ref = worker.borrow()?;
@@ -292,11 +296,10 @@ pub fn worker_complete_nexus_task(
             .complete_nexus_task(nexus_completion)
             .await
             .map_err(|err| match err {
-                CompleteNexusError::NexusNotEnabled {
-                } => BridgeError::UnexpectedError(format!("{err}")),
-                CompleteNexusError::MalformedNexusCompletion {
-                    reason,
-                } => BridgeError::TypeError {
+                CompleteNexusError::NexusNotEnabled {} => {
+                    BridgeError::UnexpectedError(format!("{err}"))
+                }
+                CompleteNexusError::MalformedNexusCompletion { reason } => BridgeError::TypeError {
                     field: None,
                     message: format!("Malformed nexus Completion: {reason:?}"),
                 },
@@ -462,20 +465,38 @@ impl MutableFinalize for HistoryForReplayTunnelHandle {}
 
 mod config {
     use std::{sync::Arc, time::Duration};
+    use temporal_sdk_core::ResourceBasedSlotsOptions;
+    use temporal_sdk_core::ResourceBasedSlotsOptionsBuilder;
+    use temporal_sdk_core::ResourceSlotOptions;
+    use temporal_sdk_core::SlotSupplierOptions as CoreSlotSupplierOptions;
+    use temporal_sdk_core::TunerHolder;
+    use temporal_sdk_core::TunerHolderOptionsBuilder;
 
     use temporal_sdk_core::{
         api::worker::{
-            ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind, PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder, WorkerConfigBuilderError, WorkerVersioningStrategy, WorkflowSlotKind
-        }, ResourceBasedSlotsOptions, ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions, SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptionsBuilder
+            ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
+            PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder,
+            WorkerConfigBuilderError, WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
+            WorkerDeploymentVersion as CoreWorkerDeploymentVersion, WorkflowSlotKind,
+        },
+        protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior,
     };
 
-    use bridge_macros::TryFromJs;
-
     use super::custom_slot_supplier::CustomSlotSupplierOptions;
+    use crate::helpers::TryIntoJs;
+    use bridge_macros::TryFromJs;
+    use neon::context::Context;
+    use neon::object::Object;
+    use neon::prelude::JsResult;
+    use neon::types::JsObject;
+    use temporal_sdk_core::api::worker::WorkerVersioningStrategy;
 
     #[derive(TryFromJs)]
     pub struct BridgeWorkerOptions {
         identity: String,
+        build_id: String,
+        use_versioning: bool,
+        worker_deployment_options: Option<WorkerDeploymentOptions>,
         task_queue: String,
         namespace: String,
         tuner: WorkerTuner,
@@ -505,13 +526,47 @@ mod config {
         },
     }
 
+    #[derive(TryFromJs)]
+    pub struct WorkerDeploymentOptions {
+        version: WorkerDeploymentVersion,
+        use_worker_versioning: bool,
+        default_versioning_behavior: VersioningBehavior,
+    }
+
+    #[derive(TryFromJs)]
+    pub struct WorkerDeploymentVersion {
+        build_id: String,
+        deployment_name: String,
+    }
+
+    #[derive(TryFromJs)]
+    pub enum VersioningBehavior {
+        Pinned,
+        AutoUpgrade,
+    }
+
     impl BridgeWorkerOptions {
         pub(crate) fn into_core_config(self) -> Result<WorkerConfig, WorkerConfigBuilderError> {
             // Set all other options
             let mut builder = WorkerConfigBuilder::default();
             builder
-                .versioning_strategy(WorkerVersioningStrategy::None{build_id: "".to_owned()})
+                .versioning_strategy(WorkerVersioningStrategy::None {
+                    build_id: "".to_owned(),
+                })
                 .client_identity_override(Some(self.identity))
+                .versioning_strategy({
+                    if let Some(dopts) = self.worker_deployment_options {
+                        WorkerVersioningStrategy::WorkerDeploymentBased(dopts.into())
+                    } else if self.use_versioning {
+                        WorkerVersioningStrategy::LegacyBuildIdBased {
+                            build_id: self.build_id,
+                        }
+                    } else {
+                        WorkerVersioningStrategy::None {
+                            build_id: self.build_id,
+                        }
+                    }
+                })
                 .task_queue(self.task_queue)
                 .namespace(self.namespace)
                 .tuner(self.tuner.into_core_config()?)
@@ -534,9 +589,7 @@ mod config {
     impl From<PollerBehavior> for CorePollerBehavior {
         fn from(val: PollerBehavior) -> Self {
             match val {
-                PollerBehavior::SimpleMaximum { maximum } => {
-                    Self::SimpleMaximum(maximum)
-                }
+                PollerBehavior::SimpleMaximum { maximum } => Self::SimpleMaximum(maximum),
                 PollerBehavior::Autoscaling {
                     minimum,
                     maximum,
@@ -546,6 +599,56 @@ mod config {
                     maximum,
                     initial,
                 },
+            }
+        }
+    }
+
+    impl From<WorkerDeploymentOptions> for CoreWorkerDeploymentOptions {
+        fn from(val: WorkerDeploymentOptions) -> Self {
+            Self {
+                version: val.version.into(),
+                use_worker_versioning: val.use_worker_versioning,
+                default_versioning_behavior: Some(val.default_versioning_behavior.into()),
+            }
+        }
+    }
+
+    impl From<WorkerDeploymentVersion> for CoreWorkerDeploymentVersion {
+        fn from(val: WorkerDeploymentVersion) -> Self {
+            Self {
+                build_id: val.build_id,
+                deployment_name: val.deployment_name,
+            }
+        }
+    }
+
+    impl From<CoreWorkerDeploymentVersion> for WorkerDeploymentVersion {
+        fn from(val: CoreWorkerDeploymentVersion) -> Self {
+            Self {
+                build_id: val.build_id,
+                deployment_name: val.deployment_name,
+            }
+        }
+    }
+
+    impl TryIntoJs for WorkerDeploymentVersion {
+        type Output = JsObject;
+
+        fn try_into_js<'cx>(self, cx: &mut impl Context<'cx>) -> JsResult<'cx, Self::Output> {
+            let obj = cx.empty_object();
+            let bid = self.build_id.try_into_js(cx)?;
+            obj.set(cx, "buildId", bid)?;
+            let dn = self.deployment_name.try_into_js(cx)?;
+            obj.set(cx, "deploymentName", dn)?;
+            Ok(obj)
+        }
+    }
+
+    impl From<VersioningBehavior> for CoreVersioningBehavior {
+        fn from(val: VersioningBehavior) -> Self {
+            match val {
+                VersioningBehavior::Pinned => Self::Pinned,
+                VersioningBehavior::AutoUpgrade => Self::AutoUpgrade,
             }
         }
     }
@@ -576,9 +679,8 @@ mod config {
                 self.local_activity_task_slot_supplier
                     .into_slot_supplier(&mut rbo),
             );
-            tuner_holder.nexus_slot_options(
-                self.nexus_task_slot_supplier.into_slot_supplier(&mut rbo)
-            );
+            tuner_holder
+                .nexus_slot_options(self.nexus_task_slot_supplier.into_slot_supplier(&mut rbo));
             if let Some(rbo) = rbo {
                 tuner_holder.resource_based_options(rbo);
             }
@@ -669,7 +771,7 @@ mod custom_slot_supplier {
     use tracing::warn;
 
     use crate::helpers::*;
-
+    use crate::worker::config::WorkerDeploymentVersion;
     // Custom Slot Supplier ////////////////////////////////////////////////////////////////////////////
 
     pub(super) struct SlotSupplierBridge<SK: SlotKind + Send + Sync + 'static> {
@@ -695,7 +797,10 @@ mod custom_slot_supplier {
                     slot_type: SK::kind().into(),
                     task_queue: ctx.task_queue().to_string(),
                     worker_identity: ctx.worker_identity().to_string(),
-                    worker_build_id: "".to_owned(),
+                    worker_deployment_version: ctx
+                        .worker_deployment_version()
+                        .clone()
+                        .map(Into::into),
                     is_sticky: ctx.is_sticky(),
                 };
 
@@ -736,7 +841,7 @@ mod custom_slot_supplier {
                 slot_type: SK::kind().into(),
                 task_queue: ctx.task_queue().to_string(),
                 worker_identity: ctx.worker_identity().to_string(),
-                worker_build_id: "".to_owned(),
+                worker_deployment_version: ctx.worker_deployment_version().clone().map(Into::into),
                 is_sticky: ctx.is_sticky(),
             };
 
@@ -865,7 +970,7 @@ mod custom_slot_supplier {
         slot_type: SlotKindType,
         task_queue: String,
         worker_identity: String,
-        worker_build_id: String,
+        worker_deployment_version: Option<WorkerDeploymentVersion>,
         is_sticky: bool,
     }
 

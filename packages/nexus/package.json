@@ -14,6 +14,7 @@
   "license": "MIT",
   "dependencies": {
     "@temporalio/common": "file:../common",
+    "long": "^5.2.3",
     "nexus-rpc": "file:../../../nexus-sdk-typescript"
   },
   "engines": {
@@ -25,7 +26,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/temporalio/sdk-typescript.git",
-    "directory": "packages/activity"
+    "directory": "packages/nexus"
   },
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/nexus",
   "publishConfig": {

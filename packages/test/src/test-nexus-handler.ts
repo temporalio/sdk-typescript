@@ -17,7 +17,10 @@ import {
   defaultPayloadConverter,
   SdkComponent,
 } from '@temporalio/common';
-import { convertWorkflowEventLinkToNexusLink, convertNexusLinkToWorkflowEventLink } from '@temporalio/nexus/lib/link-converter';
+import {
+  convertWorkflowEventLinkToNexusLink,
+  convertNexusLinkToWorkflowEventLink,
+} from '@temporalio/nexus/lib/link-converter';
 import { cleanStackTrace } from './helpers';
 
 export interface Context {
@@ -42,10 +45,13 @@ test.before(async (t) => {
   t.context.env = await testing.TestWorkflowEnvironment.createLocal({
     server: {
       extraArgs: [
-        '--http-port', `${t.context.httpPort}`,
+        '--http-port',
+        `${t.context.httpPort}`,
         // SDK tests use arbitrary callback URLs, permit that on the server
-        '--dynamic-config-value', 'component.callbacks.allowedAddresses=[{"Pattern":"*","AllowInsecure":true}]',
-        '--dynamic-config-value', 'history.enableRequestIdRefLinks=true',
+        '--dynamic-config-value',
+        'component.callbacks.allowedAddresses=[{"Pattern":"*","AllowInsecure":true}]',
+        '--dynamic-config-value',
+        'history.enableRequestIdRefLinks=true',
       ],
       executable: {
         type: 'cached-download',
@@ -564,7 +570,9 @@ test('getClient is available in handler context', async (t) => {
         }),
         {
           async testSyncOp() {
-            const systemInfo = await temporalnexus.getClient().connection.workflowService.getSystemInfo({ namespace: 'default' });
+            const systemInfo = await temporalnexus
+              .getClient()
+              .connection.workflowService.getSystemInfo({ namespace: 'default' });
             return systemInfo.capabilities?.nexus ?? false;
           },
         }
@@ -602,12 +610,16 @@ test('WorkflowRunOperation attaches callback, link, and request ID', async (t) =
         }),
         {
           testOp: new temporalnexus.WorkflowRunOperation<void, void>(async (_, options) => {
-            return await temporalnexus.startWorkflow('some-workflow', {
-              workflowId,
-              taskQueue,
-              // To test attaching multiple callers to the same operation.
-              workflowIdConflictPolicy: 'USE_EXISTING',
-            }, options);
+            return await temporalnexus.startWorkflow(
+              'some-workflow',
+              {
+                workflowId,
+                taskQueue,
+                // To test attaching multiple callers to the same operation.
+                workflowIdConflictPolicy: 'USE_EXISTING',
+              },
+              options
+            );
           }),
         }
       ),
@@ -630,9 +642,11 @@ test('WorkflowRunOperation attaches callback, link, and request ID', async (t) =
   await w.runUntil(async () => {
     const backlinks = [];
     for (const requestId of [requestId1, requestId2]) {
-      const endpointUrl = new URL(`http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testOp`);
+      const endpointUrl = new URL(
+        `http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testOp`
+      );
       endpointUrl.searchParams.set('callback', callbackURL);
-      let res = await fetch(endpointUrl.toString(), {
+      const res = await fetch(endpointUrl.toString(), {
         method: 'POST',
         body: JSON.stringify('hello'),
         headers: {
@@ -657,8 +671,11 @@ test('WorkflowRunOperation attaches callback, link, and request ID', async (t) =
     t.deepEqual(backlinks[0].eventRef?.eventId, Long.fromNumber(1));
     t.is(backlinks[0].workflowId, workflowId);
 
-    console.log(backlinks[1])
-    t.is(backlinks[1].requestIdRef?.eventType, root.temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_OPTIONS_UPDATED);
+    console.log(backlinks[1]);
+    t.is(
+      backlinks[1].requestIdRef?.eventType,
+      root.temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_OPTIONS_UPDATED
+    );
     t.deepEqual(backlinks[1].requestIdRef?.requestId, requestId2);
     t.is(backlinks[1].workflowId, workflowId);
   });

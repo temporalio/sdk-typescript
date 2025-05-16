@@ -56,7 +56,11 @@ export interface WorkflowHandle<_T> {
   readonly runId: string;
 }
 
-export async function startWorkflow<T extends Workflow>(workflowTypeOrFunc: string | T, workflowOptions: WorkflowStartOptions<T>, nexusOptions: nexus.StartOperationOptions): Promise<WorkflowHandle<T>> {
+export async function startWorkflow<T extends Workflow>(
+  workflowTypeOrFunc: string | T,
+  workflowOptions: WorkflowStartOptions<T>,
+  nexusOptions: nexus.StartOperationOptions
+): Promise<WorkflowHandle<T>> {
   const links = Array<temporal.api.common.v1.ILink>();
   if (nexusOptions.links?.length > 0) {
     for (const l of nexusOptions.links) {
@@ -82,7 +86,7 @@ export async function startWorkflow<T extends Workflow>(workflowTypeOrFunc: stri
   if (nexusOptions.callbackURL) {
     internalOptions.completionCallbacks = [
       {
-        nexus: {url: nexusOptions.callbackURL, header: nexusOptions.callbackHeaders},
+        nexus: { url: nexusOptions.callbackURL, header: nexusOptions.callbackHeaders },
         links, // pass in links here as well, the server dedupes them.
       },
     ];
@@ -93,16 +97,19 @@ export async function startWorkflow<T extends Workflow>(workflowTypeOrFunc: stri
     try {
       handlerLinks().push(convertWorkflowEventLinkToNexusLink(internalOptions.backLink.workflowEvent));
     } catch (error) {
-        log.warn('failed to convert Workflow event link to Nexus link', { error });
+      log.warn('failed to convert Workflow event link to Nexus link', { error });
     }
   }
   return { workflowId: handle.workflowId, runId: handle.firstExecutionRunId };
 }
 
-export type WorkflowRunOperationHandler<I, O> = (input: I, options: nexus.StartOperationOptions) => Promise<WorkflowHandle<O>>;
+export type WorkflowRunOperationHandler<I, O> = (
+  input: I,
+  options: nexus.StartOperationOptions
+) => Promise<WorkflowHandle<O>>;
 
 export class WorkflowRunOperation<I, O> implements nexus.OperationHandler<I, O> {
-  constructor(readonly handler: WorkflowRunOperationHandler<I, O>) { }
+  constructor(readonly handler: WorkflowRunOperationHandler<I, O>) {}
 
   async start(input: I, options: nexus.StartOperationOptions): Promise<nexus.HandlerStartOperationResult<O>> {
     const { namespace } = getHandlerContext<HandlerContext>();

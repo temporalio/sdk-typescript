@@ -24,19 +24,29 @@ anyhow = "1.0"
 async-trait = "0.1.83"
 bridge-macros = { path = "bridge-macros" }
 futures = { version = "0.3", features = ["executor"] }
-neon = { version = "1.0.0", default-features = false, features = ["napi-6", "futures"] }
-opentelemetry = "0.26"
+neon = { version = "1.0.0", default-features = false, features = [
+    "napi-6",
+    "futures",
+] }
+opentelemetry = "0.29"
 os_pipe = "1.2.1"
 parking_lot = "0.12"
 prost = "0.13"
 prost-types = "0.13"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-temporal-sdk-core = { version = "*", path = "./sdk-core/core", features = ["ephemeral-server"] }
+temporal-sdk-core = { version = "*", path = "./sdk-core/core", features = [
+    "ephemeral-server",
+] }
 temporal-client = { version = "*", path = "./sdk-core/client" }
 thiserror = "2"
 tokio = "1.13"
 tokio-stream = "0.1"
 tonic = "0.12"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", default-features = false, features = ["parking_lot", "env-filter", "registry", "ansi"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+    "parking_lot",
+    "env-filter",
+    "registry",
+    "ansi",
+] }
