@@ -124,7 +124,15 @@ export class NexusHandler {
     options: nexus.StartOperationOptions
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
-      const decoded = await decodeOptionalSingle(this.dataConverter.payloadCodecs, payload);
+      let decoded: Payload | undefined | null;
+      try {
+        decoded = await decodeOptionalSingle(this.dataConverter.payloadCodecs, payload);
+      } catch (err) {
+        throw new nexus.HandlerError({
+          type: 'BAD_REQUEST',
+          message: `Failed to decode payload: ${err}`,
+        });
+      }
       // Nexus headers have string values and Temporal Payloads have binary values. Instead of converting Payload
       // instances into Content instances, we embed the Payload in the serializer and pretend we are deserializing an
       // empty Content.
@@ -452,7 +460,14 @@ class PayloadSerializer implements nexus.Serializer {
     if (this.payload == null) {
       return undefined as T;
     }
+    try {
     return this.payloadConverter.fromPayload(this.payload);
+    } catch (err) {
+      throw new nexus.HandlerError({
+        type: 'BAD_REQUEST',
+        message: `Failed to deserialize input: ${err}`,
+      });
+    }
   }
 
   /** Not used in this path */

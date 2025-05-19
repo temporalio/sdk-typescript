@@ -390,6 +390,18 @@ test('start operation handler errors', async (t) => {
     at ServiceRegistry.start (/Users/bergundy/temporal/nexus-sdk-typescript/src/operation.ts)`
       );
     }
+    {
+      const res = await fetch(`http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op`, {
+        method: 'POST',
+        body: 'invalid',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      t.is(res.status, 400);
+      const { message } = await res.json() as { message: string };
+      t.is(message, 'Failed to deserialize input: SyntaxError: Unexpected token \'i\', "invalid" is not valid JSON');
+    }
   });
 });
 
