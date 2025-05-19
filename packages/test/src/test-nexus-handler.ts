@@ -47,9 +47,10 @@ test.before(async (t) => {
       extraArgs: [
         '--http-port',
         `${t.context.httpPort}`,
-        // SDK tests use arbitrary callback URLs, permit that on the server
+        // SDK tests use arbitrary callback URLs, permit that on the server.
         '--dynamic-config-value',
         'component.callbacks.allowedAddresses=[{"Pattern":"*","AllowInsecure":true}]',
+        // TODO: remove this config when it becomes the default on the server.
         '--dynamic-config-value',
         'history.enableRequestIdRefLinks=true',
       ],
@@ -638,7 +639,6 @@ test('WorkflowRunOperation attaches callback, link, and request ID', async (t) =
   };
   const nexusLink = convertWorkflowEventLinkToNexusLink(workflowLink);
 
-  // TODO: callback, link
   await w.runUntil(async () => {
     const backlinks = [];
     for (const requestId of [requestId1, requestId2]) {

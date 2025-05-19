@@ -7,6 +7,7 @@ import { InternalWorkflowStartOptionsKey, InternalWorkflowStartOptions } from '@
 import { generateWorkflowRunOperationToken, loadWorkflowRunOperationToken } from './token';
 import { convertNexusLinkToWorkflowEventLink, convertWorkflowEventLinkToNexusLink } from './link-converter';
 
+// Context used internally in the SDK to propagate information from the worker to the Temporal Nexus helpers.
 export interface HandlerContext extends BaseHandlerContext {
   log: Logger;
   client: Client;
@@ -44,18 +45,27 @@ export const log: Logger = {
 // TODO: also support getting a metrics handler.
 
 /**
- * Returns a client to be used in a Nexus Operation's context, this Client is powered by the same Connection that the
- * worker was created with.
+ * Returns a client to be used in a Nexus Operation's context, this Client is powered by the same NativeConnection that
+ * the worker was created with.
  */
 export function getClient(): Client {
   return getHandlerContext<HandlerContext>().client;
 }
 
+/**
+ * A handle to a running workflow that is returned by the {@link startWorkflow} helper.
+ * This handle should be returned by {@link WorkflowRunOperationHandler} implementations.
+ */
 export interface WorkflowHandle<_T> {
   readonly workflowId: string;
   readonly runId: string;
 }
 
+/**
+ * Starts a workflow run for a {@link WorkflowRunOperationHandler}, linking the execution chain to a Nexus Operation
+ * (subsequent runs started from continue-as-new and retries). Automatically propagates the callback, request ID, and
+ * back and forward links from the Nexus options to the Workflow.
+ */
 export async function startWorkflow<T extends Workflow>(
   workflowTypeOrFunc: string | T,
   workflowOptions: WorkflowStartOptions<T>,
@@ -87,7 +97,7 @@ export async function startWorkflow<T extends Workflow>(
     internalOptions.completionCallbacks = [
       {
         nexus: { url: nexusOptions.callbackURL, header: nexusOptions.callbackHeaders },
-        links, // pass in links here as well, the server dedupes them.
+        links, // pass in links here as well for older servers, newer servers dedupe them.
       },
     ];
   }
@@ -103,11 +113,17 @@ export async function startWorkflow<T extends Workflow>(
   return { workflowId: handle.workflowId, runId: handle.firstExecutionRunId };
 }
 
+/**
+ * A handler function for the {@link WorkflowRunOperation} constructor.
+ */
 export type WorkflowRunOperationHandler<I, O> = (
   input: I,
   options: nexus.StartOperationOptions
 ) => Promise<WorkflowHandle<O>>;
 
+/**
+ * A Nexus Operation implementation that is backed by a Workflow run.
+ */
 export class WorkflowRunOperation<I, O> implements nexus.OperationHandler<I, O> {
   constructor(readonly handler: WorkflowRunOperationHandler<I, O>) {}
 

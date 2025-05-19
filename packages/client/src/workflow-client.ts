@@ -1278,7 +1278,6 @@ export class WorkflowClient extends BaseClient {
     const { identity, namespace } = this.options;
     const internalOptions = (opts as any)[InternalWorkflowStartOptionsKey] as InternalWorkflowStartOptions | undefined;
 
-    console.log(internalOptions);
     return {
       namespace,
       identity,

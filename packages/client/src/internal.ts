@@ -2,6 +2,8 @@ import { temporal } from '@temporalio/proto';
 
 // A key used internally to pass "hidden options to the WorkflowClient.start() call.
 export const InternalWorkflowStartOptionsKey = Symbol.for('__temporal_client_internal_workflow_start_options');
+
+// Hidden internal workflow start options, used by the temporal nexus helpers.
 export interface InternalWorkflowStartOptions {
   requestId?: string;
   /**
