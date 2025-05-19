@@ -64,7 +64,7 @@ export async function handlerErrorToProto(
     // TODO: this messes up the call stack and creates unnecessary nesting.
     //
     // Create an error without capturing a stack trace.
-    const wrapped = Object.create(Error.prototype);
+    const wrapped = Object.create(ApplicationFailure.prototype);
     wrapped.message = err.message;
     wrapped.stack = err.stack;
     cause = wrapped;
@@ -80,6 +80,7 @@ export class NexusHandler {
   constructor(
     public readonly taskToken: Uint8Array,
     public readonly namespace: string,
+    public readonly taskQueue: string,
     public readonly info: nexus.HandlerInfo,
     public readonly client: Client,
     public readonly abortController: AbortController,
@@ -106,9 +107,10 @@ export class NexusHandler {
     let { cause } = err;
     if (cause == null) {
       // Create an error without capturing a stack trace.
-      const wrapped = Object.create(Error.prototype);
+      const wrapped = Object.create(ApplicationFailure.prototype);
       wrapped.message = err.message;
       wrapped.stack = err.stack;
+      wrapped.nonRetryable = true;
       cause = wrapped;
     }
     return {
@@ -282,6 +284,7 @@ export class NexusHandler {
       info: this.info,
       client: this.client,
       namespace: this.namespace,
+      taskQueue: this.taskQueue,
       links: [],
       log: withMetadata(this.workerLogger, { sdkComponent: SdkComponent.nexus }),
     };

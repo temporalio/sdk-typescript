@@ -5,4 +5,5 @@ export {
   WorkflowHandle,
   WorkflowRunOperation,
   WorkflowRunOperationHandler,
+  WorkflowStartOptions,
 } from './context';

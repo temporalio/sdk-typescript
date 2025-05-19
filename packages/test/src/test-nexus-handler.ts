@@ -613,13 +613,12 @@ test('WorkflowRunOperation attaches callback, link, and request ID', async (t) =
           testOp: new temporalnexus.WorkflowRunOperation<void, void>(async (_, options) => {
             return await temporalnexus.startWorkflow(
               'some-workflow',
+              options,
               {
                 workflowId,
-                taskQueue,
                 // To test attaching multiple callers to the same operation.
                 workflowIdConflictPolicy: 'USE_EXISTING',
               },
-              options
             );
           }),
         }

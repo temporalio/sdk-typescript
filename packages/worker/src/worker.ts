@@ -1194,6 +1194,7 @@ export class Worker {
       const nexusHandler = new NexusHandler(
         taskToken,
         this.options.namespace,
+        this.options.taskQueue,
         info,
         this.client!, // Must be defined if we are handling Nexus tasks.
         ctrl,

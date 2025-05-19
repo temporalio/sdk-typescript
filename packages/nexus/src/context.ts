@@ -1,17 +1,19 @@
 import * as nexus from 'nexus-rpc';
 import { HandlerContext as BaseHandlerContext, getHandlerContext, handlerLinks } from 'nexus-rpc/lib/handler';
 import { Logger, LogLevel, LogMetadata, Workflow } from '@temporalio/common';
-import { Client, WorkflowStartOptions } from '@temporalio/client';
+import { Client, WorkflowStartOptions as ClientWorkflowStartOptions } from '@temporalio/client';
 import { temporal } from '@temporalio/proto';
 import { InternalWorkflowStartOptionsKey, InternalWorkflowStartOptions } from '@temporalio/client/lib/internal';
 import { generateWorkflowRunOperationToken, loadWorkflowRunOperationToken } from './token';
 import { convertNexusLinkToWorkflowEventLink, convertWorkflowEventLinkToNexusLink } from './link-converter';
+import { Replace } from '@temporalio/common/src/type-helpers';
 
 // Context used internally in the SDK to propagate information from the worker to the Temporal Nexus helpers.
 export interface HandlerContext extends BaseHandlerContext {
   log: Logger;
   client: Client;
   namespace: string;
+  taskQueue: string;
 }
 
 function getLogger() {
@@ -62,15 +64,23 @@ export interface WorkflowHandle<_T> {
 }
 
 /**
+ * Options for starting a workflow using {@link startWorkflow}, this type is identical to the client's
+ * `WorkflowStartOptions` with the exception that `taskQueue` is optional and defaults to the current worker's task
+ * queue.
+ */
+export type WorkflowStartOptions<T extends Workflow> = Replace<ClientWorkflowStartOptions<T>, { taskQueue?: string }>;
+
+/**
  * Starts a workflow run for a {@link WorkflowRunOperationHandler}, linking the execution chain to a Nexus Operation
  * (subsequent runs started from continue-as-new and retries). Automatically propagates the callback, request ID, and
  * back and forward links from the Nexus options to the Workflow.
  */
 export async function startWorkflow<T extends Workflow>(
   workflowTypeOrFunc: string | T,
-  workflowOptions: WorkflowStartOptions<T>,
-  nexusOptions: nexus.StartOperationOptions
+  nexusOptions: nexus.StartOperationOptions,
+  workflowOptions: WorkflowStartOptions<T>
 ): Promise<WorkflowHandle<T>> {
+  const { client, taskQueue } = getHandlerContext<HandlerContext>();
   const links = Array<temporal.api.common.v1.ILink>();
   if (nexusOptions.links?.length > 0) {
     for (const l of nexusOptions.links) {
@@ -101,8 +111,13 @@ export async function startWorkflow<T extends Workflow>(
       },
     ];
   }
-  (workflowOptions as any)[InternalWorkflowStartOptionsKey] = internalOptions;
-  const handle = await getClient().workflow.start<T>(workflowTypeOrFunc, workflowOptions);
+  const { taskQueue: userSpeficiedTaskQueue, ...rest } = workflowOptions;
+  const startOptions: ClientWorkflowStartOptions = {
+    ...rest,
+    taskQueue: userSpeficiedTaskQueue || taskQueue,
+    [InternalWorkflowStartOptionsKey]: internalOptions,
+  };
+  const handle = await client.workflow.start(workflowTypeOrFunc, startOptions);
   if (internalOptions.backLink?.workflowEvent != null) {
     try {
       handlerLinks().push(convertWorkflowEventLinkToNexusLink(internalOptions.backLink.workflowEvent));
@@ -125,7 +140,7 @@ export type WorkflowRunOperationHandler<I, O> = (
  * A Nexus Operation implementation that is backed by a Workflow run.
  */
 export class WorkflowRunOperation<I, O> implements nexus.OperationHandler<I, O> {
-  constructor(readonly handler: WorkflowRunOperationHandler<I, O>) {}
+  constructor(readonly handler: WorkflowRunOperationHandler<I, O>) { }
 
   async start(input: I, options: nexus.StartOperationOptions): Promise<nexus.HandlerStartOperationResult<O>> {
     const { namespace } = getHandlerContext<HandlerContext>();
