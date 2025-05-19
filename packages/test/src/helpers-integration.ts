@@ -126,15 +126,15 @@ export function makeConfigurableEnvironmentTestFn<T>(opts: {
   return test;
 }
 
-export function makeTestFunction(opts: {
+export interface TestFunctionOptions {
   workflowsPath: string;
   workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
   workflowInterceptorModules?: string[];
   recordedLogs?: { [workflowId: string]: LogEntry[] };
-}): TestFn<Context> {
-  return makeConfigurableEnvironmentTestFn<Context>({
-    recordedLogs: opts.recordedLogs,
-    createTestContext: async (_t: ExecutionContext): Promise<Context> => {
+}
+
+export function makeDefaultTestContextFunction(opts: TestFunctionOptions) { 
+    return async (_t: ExecutionContext): Promise<Context> => {
       let env: TestWorkflowEnvironment;
       if (process.env.TEMPORAL_SERVICE_ADDRESS) {
         env = await TestWorkflowEnvironment.createFromExistingServer({
@@ -150,7 +150,13 @@ export function makeTestFunction(opts: {
         }),
         env,
       };
-    },
+    }
+}
+
+export function makeTestFunction(opts: TestFunctionOptions): TestFn<Context> {
+  return makeConfigurableEnvironmentTestFn<Context>({
+    recordedLogs: opts.recordedLogs,
+    createTestContext: makeDefaultTestContextFunction(opts),
     teardown: async (c: Context) => {
       await c.env.teardown();
     },

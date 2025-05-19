@@ -154,6 +154,8 @@ export class Activator implements ActivationHandler {
     childWorkflowComplete: new Map<number, Completion>(),
     signalWorkflow: new Map<number, Completion>(),
     cancelWorkflow: new Map<number, Completion>(),
+    nexusOperationStart: new Map<number, Completion>(),
+    nexusOperationComplete: new Map<number, Completion>(),
   };
 
   /**
@@ -372,6 +374,7 @@ export class Activator implements ActivationHandler {
     signalWorkflow: 1,
     cancelWorkflow: 1,
     condition: 1,
+    nexusOperation: 1,
     // Used internally to keep track of active stack traces
     stack: 1,
   };
@@ -637,12 +640,35 @@ export class Activator implements ActivationHandler {
     }
   }
 
-  public resolveNexusOperationStart(_: coresdk.workflow_activation.IResolveNexusOperationStart): void {
-    throw new Error('TODO');
+  public resolveNexusOperationStart(activation: coresdk.workflow_activation.IResolveNexusOperationStart): void {
+    const { resolve, reject } = this.consumeCompletion('nexusOperationStart', getSeq(activation));
+    if (!activation.cancelledBeforeStart) {
+      resolve({ token: activation.operationId });
+    } else {
+      reject(this.failureToError(activation.cancelledBeforeStart));
+    }
   }
 
-  public resolveNexusOperation(_: coresdk.workflow_activation.IResolveNexusOperation): void {
-    throw new Error('TODO');
+  public resolveNexusOperation(activation: coresdk.workflow_activation.IResolveNexusOperation): void {
+    const seq = getSeq(activation);
+    const start = this.maybeConsumeCompletion('nexusOperationStart', seq);
+    const complete = this.consumeCompletion('nexusOperationComplete', seq);
+    if (activation.result?.completed) {
+      start?.resolve({});
+      complete.resolve(this.payloadConverter.fromPayload(activation.result.completed));
+    } else if (activation.result?.failed) {
+      const err = this.failureToError(activation.result.failed);
+      start?.reject(err);
+      complete.reject(err);
+    } else if (activation.result?.cancelled) {
+      const err = this.failureToError(activation.result.cancelled);
+      start?.reject(err);
+      complete.reject(err);
+    } else if (activation.result?.timedOut) {
+      const err = this.failureToError(activation.result.timedOut);
+      start?.reject(err);
+      complete.reject(err);
+    }
   }
 
   // Intentionally non-async function so this handler doesn't show up in the stack trace
