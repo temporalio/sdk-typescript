@@ -57,9 +57,9 @@ struct AbortControllerJsCounterpart {
 }
 
 const STATE_UNINITIALIZED: u8 = 0;
-const STATE_ARMED: u8 = 1;
-const STATE_ABORTED: u8 = 2;
-const STATE_DISARMED: u8 = 3;
+const STATE_ARMED: u8 = 1 << 0;
+const STATE_ABORTED: u8 = 1 << 1;
+const STATE_DISARMED: u8 = STATE_ARMED | STATE_ABORTED;
 
 impl AbortController {
     /// Create a new `AbortController`.

@@ -7,11 +7,8 @@ import {
   encodeUnifiedSearchAttributes,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors, Headers } from '@temporalio/common/lib/interceptors';
-import {
-  encodeMapToPayloads,
-  decodeMapFromPayloads,
-  filterNullAndUndefined,
-} from '@temporalio/common/lib/internal-non-workflow';
+import { encodeMapToPayloads, decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import {
   optionalDateToTs,

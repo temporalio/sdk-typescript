@@ -7,7 +7,7 @@
  */
 
 import { Context as ActivityContext } from '@temporalio/activity';
-import { Headers, Next } from '@temporalio/common';
+import { Headers, MetricTags, Next } from '@temporalio/common';
 
 export { Next, Headers };
 
@@ -41,6 +41,9 @@ export interface ActivityInboundCallsInterceptorFactory {
 /** Input for ActivityOutboundCallsInterceptor.getLogAttributes */
 export type GetLogAttributesInput = Record<string, unknown>;
 
+/** Input for ActivityOutboundCallsInterceptor.getMetricTags */
+export type GetMetricTagsInput = MetricTags;
+
 /**
  * Implement any of these methods to intercept Activity outbound calls
  */
@@ -51,6 +54,15 @@ export interface ActivityOutboundCallsInterceptor {
    * The attributes returned in this call are attached to every log message.
    */
   getLogAttributes?: (input: GetLogAttributesInput, next: Next<this, 'getLogAttributes'>) => Record<string, unknown>;
+
+  /**
+   * Called once every time a metric is emitted from an Activity metric
+   * (ie. a metric created from {@link activity.metricMeter}).
+   *
+   * Tags returned by this hook are _prepended_ to tags defined at the metric level and tags defined
+   * on the emitter function itself.
+   */
+  getMetricTags?: (input: GetMetricTagsInput, next: Next<this, 'getMetricTags'>) => MetricTags;
 }
 
 export interface ActivityInterceptors {
