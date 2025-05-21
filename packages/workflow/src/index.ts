@@ -121,8 +121,4 @@ export {
   LoggerSinksDeprecated as LoggerSinks,
 } from './logs';
 
-export {
-  createNexusClient,
-  NexusClient,
-  NexusOperationHandle,
-}from './nexus';
+export { createNexusClient, NexusClient, NexusOperationHandle } from './nexus';

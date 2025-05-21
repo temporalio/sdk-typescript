@@ -140,7 +140,7 @@ export type WorkflowRunOperationHandler<I, O> = (
  * A Nexus Operation implementation that is backed by a Workflow run.
  */
 export class WorkflowRunOperation<I, O> implements nexus.OperationHandler<I, O> {
-  constructor(readonly handler: WorkflowRunOperationHandler<I, O>) { }
+  constructor(readonly handler: WorkflowRunOperationHandler<I, O>) {}
 
   async start(input: I, options: nexus.StartOperationOptions): Promise<nexus.HandlerStartOperationResult<O>> {
     const { namespace } = getHandlerContext<HandlerContext>();

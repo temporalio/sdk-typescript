@@ -10,30 +10,30 @@ export interface NexusClient<T extends nexus.Service> {
   /**
    * Start a Nexus Operation and wait for its completion taking a {@link nexus.operation}.
    */
-  executeOperation<O extends T["operations"][keyof T["operations"]]>(
+  executeOperation<O extends T['operations'][keyof T['operations']]>(
     op: O,
     input: nexus.OperationInput<O>,
-    options?: Partial<StartNexusOperationOptions>,
+    options?: Partial<StartNexusOperationOptions>
   ): Promise<nexus.OperationOutput<O>>;
 
   /**
    * Start a Nexus Operation and wait for its completion taking an operation name.
    */
-  executeOperation<K extends nexus.OperationKey<T["operations"]>>(
+  executeOperation<K extends nexus.OperationKey<T['operations']>>(
     op: K,
-    input: nexus.OperationInput<T["operations"][K]>,
-    options?: Partial<StartNexusOperationOptions>,
-  ): Promise<nexus.OperationOutput<T["operations"][K]>>;
+    input: nexus.OperationInput<T['operations'][K]>,
+    options?: Partial<StartNexusOperationOptions>
+  ): Promise<nexus.OperationOutput<T['operations'][K]>>;
 
   /**
    * Start a Nexus Operation taking a {@link nexus.operation}.
    *
    * Returns a handle that can be used to wait for the operation's result.
    */
-  startOperation<O extends T["operations"][keyof T["operations"]]>(
+  startOperation<O extends T['operations'][keyof T['operations']]>(
     op: O,
     input: nexus.OperationInput<O>,
-    options?: Partial<StartNexusOperationOptions>,
+    options?: Partial<StartNexusOperationOptions>
   ): Promise<NexusOperationHandle<nexus.OperationOutput<O>>>;
 
   /**
@@ -41,11 +41,11 @@ export interface NexusClient<T extends nexus.Service> {
    *
    * Returns a handle that can be used to wait for the operation's result.
    */
-  startOperation<K extends nexus.OperationKey<T["operations"]>>(
+  startOperation<K extends nexus.OperationKey<T['operations']>>(
     op: K,
-    input: nexus.OperationInput<T["operations"][K]>,
-    options?: Partial<StartNexusOperationOptions>,
-  ): Promise<NexusOperationHandle<nexus.OperationOutput<T["operations"][K]>>>;
+    input: nexus.OperationInput<T['operations'][K]>,
+    options?: Partial<StartNexusOperationOptions>
+  ): Promise<NexusOperationHandle<nexus.OperationOutput<T['operations'][K]>>>;
 }
 
 /**
@@ -88,7 +88,11 @@ export function createNexusClient<T extends nexus.Service>(options: NexusClientO
       const handle = await client.startOperation(operation, input, operationOptions);
       return await handle.result();
     },
-    startOperation: async (operation: string | nexus.Operation<any, any>, input: unknown, operationOptions?: StartNexusOperationOptions) => {
+    startOperation: async (
+      operation: string | nexus.Operation<any, any>,
+      input: unknown,
+      operationOptions?: StartNexusOperationOptions
+    ) => {
       const opName = typeof operation === 'string' ? options.service.operations[operation].name : operation.name;
 
       const activator = getActivator();
@@ -111,15 +115,21 @@ export function createNexusClient<T extends nexus.Service>(options: NexusClientO
         token,
         async result() {
           return await completePromise;
-        }
-      }
+        },
+      };
     },
   };
   return client as any;
 }
 
 export function startNexusOperationNextHandler({
-  input, endpoint, service, options, operation, seq, nexusHeader,
+  input,
+  endpoint,
+  service,
+  options,
+  operation,
+  seq,
+  nexusHeader,
 }: StartNexusOperationInput): [Promise<StartNexusOperationOutput>, Promise<unknown>] {
   const activator = getActivator();
   const startPromise = new Promise<StartNexusOperationOutput>((resolve, reject) => {

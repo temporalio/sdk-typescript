@@ -6,7 +6,7 @@ import { helpers, makeTestFunction } from './helpers-integration';
 import { randomUUID } from 'crypto';
 import { ApplicationFailure, CancelledFailure, NexusOperationFailure } from '@temporalio/common';
 
-const service = nexus.service("test", {
+const service = nexus.service('test', {
   syncOp: nexus.operation<string, string>({ name: 'my-sync-op' }),
   asyncOp: nexus.operation<string, string>(),
 });
@@ -93,14 +93,10 @@ test('Nexus Operation from a Workflow', async (t) => {
               details: ['a detail'],
             });
           }
-          return await temporalnexus.startWorkflow(
-            handler,
-            options,
-            {
-              workflowId: randomUUID(),
-              args: [action],
-            },
-          );
+          return await temporalnexus.startWorkflow(handler, options, {
+            workflowId: randomUUID(),
+            args: [action],
+          });
         }),
       }),
     ],
@@ -110,71 +106,91 @@ test('Nexus Operation from a Workflow', async (t) => {
       args: [endpoint, 'syncOp', 'pass'],
     });
     t.is(res, 'pass');
-    let err = await t.throwsAsync(() => executeWorkflow(caller, {
-      args: [endpoint, 'syncOp', 'throwHandlerError'],
-    }), {
-      instanceOf: WorkflowFailedError,
-    });
+    let err = await t.throwsAsync(
+      () =>
+        executeWorkflow(caller, {
+          args: [endpoint, 'syncOp', 'throwHandlerError'],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
     t.true(
       err instanceof WorkflowFailedError &&
-      err.cause instanceof NexusOperationFailure &&
-      err.cause.cause instanceof nexus.HandlerError &&
-      err.cause.cause.type === 'INTERNAL'
+        err.cause instanceof NexusOperationFailure &&
+        err.cause.cause instanceof nexus.HandlerError &&
+        err.cause.cause.type === 'INTERNAL'
     );
 
     res = await executeWorkflow(caller, {
       args: [endpoint, 'asyncOp', 'pass'],
     });
     t.is(res, 'pass');
-    err = await t.throwsAsync(() => executeWorkflow(caller, {
-      args: [endpoint, 'asyncOp', 'waitForCancel'],
-    }), {
-      instanceOf: WorkflowFailedError,
-    });
+    err = await t.throwsAsync(
+      () =>
+        executeWorkflow(caller, {
+          args: [endpoint, 'asyncOp', 'waitForCancel'],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
     t.true(
       err instanceof WorkflowFailedError &&
-      err.cause instanceof NexusOperationFailure &&
-      err.cause.cause instanceof CancelledFailure
+        err.cause instanceof NexusOperationFailure &&
+        err.cause.cause instanceof CancelledFailure
     );
 
-    err = await t.throwsAsync(() => executeWorkflow(caller, {
-      args: [endpoint, 'asyncOp', 'throwOperationError'],
-    }), {
-      instanceOf: WorkflowFailedError,
-    });
+    err = await t.throwsAsync(
+      () =>
+        executeWorkflow(caller, {
+          args: [endpoint, 'asyncOp', 'throwOperationError'],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
     t.true(
       err instanceof WorkflowFailedError &&
-      err.cause instanceof NexusOperationFailure &&
-      err.cause.cause instanceof ApplicationFailure 
+        err.cause instanceof NexusOperationFailure &&
+        err.cause.cause instanceof ApplicationFailure
     );
 
-    err = await t.throwsAsync(() => executeWorkflow(caller, {
-      args: [endpoint, 'asyncOp', 'throwApplicationFailure'],
-    }), {
-      instanceOf: WorkflowFailedError,
-    });
+    err = await t.throwsAsync(
+      () =>
+        executeWorkflow(caller, {
+          args: [endpoint, 'asyncOp', 'throwApplicationFailure'],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
     t.true(
       err instanceof WorkflowFailedError &&
-      err.cause instanceof NexusOperationFailure &&
-      err.cause.cause instanceof nexus.HandlerError &&
-      err.cause.cause.cause instanceof ApplicationFailure &&
-      err.cause.cause.cause.message === 'test asked to fail' &&
-      err.cause.cause.cause.details?.length === 1 &&
-      err.cause.cause.cause.details[0] === 'a detail'
+        err.cause instanceof NexusOperationFailure &&
+        err.cause.cause instanceof nexus.HandlerError &&
+        err.cause.cause.cause instanceof ApplicationFailure &&
+        err.cause.cause.cause.message === 'test asked to fail' &&
+        err.cause.cause.cause.details?.length === 1 &&
+        err.cause.cause.cause.details[0] === 'a detail'
     );
 
-    err = await t.throwsAsync(() => executeWorkflow(caller, {
-      args: [endpoint, 'asyncOp', 'failWorkflow'],
-    }), {
-      instanceOf: WorkflowFailedError,
-    });
+    err = await t.throwsAsync(
+      () =>
+        executeWorkflow(caller, {
+          args: [endpoint, 'asyncOp', 'failWorkflow'],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
     t.true(
       err instanceof WorkflowFailedError &&
-      err.cause instanceof NexusOperationFailure &&
-      err.cause.cause instanceof ApplicationFailure &&
-      err.cause.cause.message === 'test asked to fail' &&
-      err.cause.cause.details?.length === 1 &&
-      err.cause.cause.details[0] === 'a detail'
+        err.cause instanceof NexusOperationFailure &&
+        err.cause.cause instanceof ApplicationFailure &&
+        err.cause.cause.message === 'test asked to fail' &&
+        err.cause.cause.details?.length === 1 &&
+        err.cause.cause.details[0] === 'a detail'
     );
   });
 });

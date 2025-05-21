@@ -399,7 +399,7 @@ test('start operation handler errors', async (t) => {
         },
       });
       t.is(res.status, 400);
-      const { message } = await res.json() as { message: string };
+      const { message } = (await res.json()) as { message: string };
       t.is(message, 'Failed to deserialize input: SyntaxError: Unexpected token \'i\', "invalid" is not valid JSON');
     }
   });
@@ -623,15 +623,11 @@ test('WorkflowRunOperation attaches callback, link, and request ID', async (t) =
         }),
         {
           testOp: new temporalnexus.WorkflowRunOperation<void, void>(async (_, options) => {
-            return await temporalnexus.startWorkflow(
-              'some-workflow',
-              options,
-              {
-                workflowId,
-                // To test attaching multiple callers to the same operation.
-                workflowIdConflictPolicy: 'USE_EXISTING',
-              },
-            );
+            return await temporalnexus.startWorkflow('some-workflow', options, {
+              workflowId,
+              // To test attaching multiple callers to the same operation.
+              workflowIdConflictPolicy: 'USE_EXISTING',
+            });
           }),
         }
       ),

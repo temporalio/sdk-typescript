@@ -461,7 +461,7 @@ class PayloadSerializer implements nexus.Serializer {
       return undefined as T;
     }
     try {
-    return this.payloadConverter.fromPayload(this.payload);
+      return this.payloadConverter.fromPayload(this.payload);
     } catch (err) {
       throw new nexus.HandlerError({
         type: 'BAD_REQUEST',

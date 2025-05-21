@@ -149,7 +149,7 @@ export interface StartNexusOperationInput {
   options: StartNexusOperationOptions;
   operation: string;
   seq: number;
-  nexusHeader: Record<string, string>,
+  nexusHeader: Record<string, string>;
 }
 
 export interface StartNexusOperationOutput {

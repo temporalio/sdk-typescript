@@ -133,24 +133,24 @@ export interface TestFunctionOptions {
   recordedLogs?: { [workflowId: string]: LogEntry[] };
 }
 
-export function makeDefaultTestContextFunction(opts: TestFunctionOptions) { 
-    return async (_t: ExecutionContext): Promise<Context> => {
-      let env: TestWorkflowEnvironment;
-      if (process.env.TEMPORAL_SERVICE_ADDRESS) {
-        env = await TestWorkflowEnvironment.createFromExistingServer({
-          address: process.env.TEMPORAL_SERVICE_ADDRESS,
-        });
-      } else {
-        env = await createLocalTestEnvironment(opts.workflowEnvironmentOpts);
-      }
-      return {
-        workflowBundle: await createTestWorkflowBundle({
-          workflowsPath: opts.workflowsPath,
-          workflowInterceptorModules: opts.workflowInterceptorModules,
-        }),
-        env,
-      };
+export function makeDefaultTestContextFunction(opts: TestFunctionOptions) {
+  return async (_t: ExecutionContext): Promise<Context> => {
+    let env: TestWorkflowEnvironment;
+    if (process.env.TEMPORAL_SERVICE_ADDRESS) {
+      env = await TestWorkflowEnvironment.createFromExistingServer({
+        address: process.env.TEMPORAL_SERVICE_ADDRESS,
+      });
+    } else {
+      env = await createLocalTestEnvironment(opts.workflowEnvironmentOpts);
     }
+    return {
+      workflowBundle: await createTestWorkflowBundle({
+        workflowsPath: opts.workflowsPath,
+        workflowInterceptorModules: opts.workflowInterceptorModules,
+      }),
+      env,
+    };
+  };
 }
 
 export function makeTestFunction(opts: TestFunctionOptions): TestFn<Context> {
