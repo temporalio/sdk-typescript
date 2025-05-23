@@ -1,5 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import * as nexus from 'nexus-rpc';
-import { HandlerContext as BaseHandlerContext, getHandlerContext, handlerLinks } from 'nexus-rpc/lib/handler';
 import { Logger, LogLevel, LogMetadata, Workflow } from '@temporalio/common';
 import { Client, WorkflowStartOptions as ClientWorkflowStartOptions } from '@temporalio/client';
 import { temporal } from '@temporalio/proto';
@@ -9,15 +9,31 @@ import { convertNexusLinkToWorkflowEventLink, convertWorkflowEventLinkToNexusLin
 import { Replace } from '@temporalio/common/src/type-helpers';
 
 // Context used internally in the SDK to propagate information from the worker to the Temporal Nexus helpers.
-export interface HandlerContext extends BaseHandlerContext {
+export interface HandlerContext {
   log: Logger;
   client: Client;
   namespace: string;
   taskQueue: string;
 }
 
+// Make it safe to use @temporalio/nexus with multiple versions installed.
+const asyncLocalStorageSymbol = Symbol.for('__temporal_nexus_context_storage__');
+if (!(globalThis as any)[asyncLocalStorageSymbol]) {
+  (globalThis as any)[asyncLocalStorageSymbol] = new AsyncLocalStorage<HandlerContext>();
+}
+
+export const asyncLocalStorage: AsyncLocalStorage<HandlerContext> = (globalThis as any)[asyncLocalStorageSymbol];
+
+function getHandlerContext(): HandlerContext {
+  const ctx = asyncLocalStorage.getStore();
+  if (ctx == null) {
+    throw new ReferenceError('Not in a Nexus handler context');
+  }
+  return ctx;
+}
+
 function getLogger() {
-  return getHandlerContext<HandlerContext>().log;
+  return getHandlerContext().log;
 }
 
 /**
@@ -51,7 +67,7 @@ export const log: Logger = {
  * the worker was created with.
  */
 export function getClient(): Client {
-  return getHandlerContext<HandlerContext>().client;
+  return getHandlerContext().client;
 }
 
 /**
@@ -76,14 +92,14 @@ export type WorkflowStartOptions<T extends Workflow> = Replace<ClientWorkflowSta
  * back and forward links from the Nexus options to the Workflow.
  */
 export async function startWorkflow<T extends Workflow>(
+  ctx: nexus.StartOperationContext,
   workflowTypeOrFunc: string | T,
-  nexusOptions: nexus.StartOperationOptions,
   workflowOptions: WorkflowStartOptions<T>
 ): Promise<WorkflowHandle<T>> {
-  const { client, taskQueue } = getHandlerContext<HandlerContext>();
+  const { client, taskQueue } = getHandlerContext();
   const links = Array<temporal.api.common.v1.ILink>();
-  if (nexusOptions.links?.length > 0) {
-    for (const l of nexusOptions.links) {
+  if (ctx.callerLinks?.length > 0) {
+    for (const l of ctx.callerLinks) {
       try {
         links.push({
           workflowEvent: convertNexusLinkToWorkflowEventLink(l),
@@ -93,7 +109,7 @@ export async function startWorkflow<T extends Workflow>(
       }
     }
   }
-  const internalOptions: InternalWorkflowStartOptions = { links, requestId: nexusOptions.requestId };
+  const internalOptions: InternalWorkflowStartOptions = { links, requestId: ctx.requestId };
 
   if (workflowOptions.workflowIdConflictPolicy === 'USE_EXISTING') {
     internalOptions.onConflictOptions = {
@@ -103,10 +119,10 @@ export async function startWorkflow<T extends Workflow>(
     };
   }
 
-  if (nexusOptions.callbackURL) {
+  if (ctx.callbackURL) {
     internalOptions.completionCallbacks = [
       {
-        nexus: { url: nexusOptions.callbackURL, header: nexusOptions.callbackHeaders },
+        nexus: { url: ctx.callbackURL, header: ctx.callbackHeaders },
         links, // pass in links here as well for older servers, newer servers dedupe them.
       },
     ];
@@ -120,7 +136,7 @@ export async function startWorkflow<T extends Workflow>(
   const handle = await client.workflow.start(workflowTypeOrFunc, startOptions);
   if (internalOptions.backLink?.workflowEvent != null) {
     try {
-      handlerLinks().push(convertWorkflowEventLinkToNexusLink(internalOptions.backLink.workflowEvent));
+      ctx.handlerLinks.push(convertWorkflowEventLinkToNexusLink(internalOptions.backLink.workflowEvent));
     } catch (error) {
       log.warn('failed to convert Workflow event link to Nexus link', { error });
     }
@@ -132,8 +148,8 @@ export async function startWorkflow<T extends Workflow>(
  * A handler function for the {@link WorkflowRunOperation} constructor.
  */
 export type WorkflowRunOperationHandler<I, O> = (
-  input: I,
-  options: nexus.StartOperationOptions
+  ctx: nexus.StartOperationContext,
+  input: I
 ) => Promise<WorkflowHandle<O>>;
 
 /**
@@ -142,20 +158,20 @@ export type WorkflowRunOperationHandler<I, O> = (
 export class WorkflowRunOperation<I, O> implements nexus.OperationHandler<I, O> {
   constructor(readonly handler: WorkflowRunOperationHandler<I, O>) {}
 
-  async start(input: I, options: nexus.StartOperationOptions): Promise<nexus.HandlerStartOperationResult<O>> {
-    const { namespace } = getHandlerContext<HandlerContext>();
-    const handle = await this.handler(input, options);
+  async start(ctx: nexus.StartOperationContext, input: I): Promise<nexus.HandlerStartOperationResult<O>> {
+    const { namespace } = getHandlerContext();
+    const handle = await this.handler(ctx, input);
     return { token: generateWorkflowRunOperationToken(namespace, handle.workflowId) };
   }
-  getResult(_token: string, _options: nexus.GetOperationResultOptions): Promise<O> {
+  getResult(_ctx: nexus.GetOperationResultContext, _token: string): Promise<O> {
     // Not implemented in Temporal yet.
     throw new nexus.HandlerError({ type: 'NOT_IMPLEMENTED', message: 'Method not implemented' });
   }
-  getInfo(_token: string, _options: nexus.GetOperationInfoOptions): Promise<nexus.OperationInfo> {
+  getInfo(_ctx: nexus.GetOperationInfoContext, _token: string): Promise<nexus.OperationInfo> {
     // Not implemented in Temporal yet.
     throw new nexus.HandlerError({ type: 'NOT_IMPLEMENTED', message: 'Method not implemented' });
   }
-  async cancel(token: string, _options: nexus.CancelOperationOptions): Promise<void> {
+  async cancel(_ctx: nexus.CancelOperationContext, token: string): Promise<void> {
     const decoded = loadWorkflowRunOperationToken(token);
     await getClient().workflow.getHandle(decoded.wid).cancel();
   }

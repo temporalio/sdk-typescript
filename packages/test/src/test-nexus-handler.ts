@@ -100,13 +100,13 @@ test('sync operation handler happy path', async (t) => {
           testSyncOp: nexus.operation<string, string>(),
         }),
         {
-          async testSyncOp(input, options) {
+          async testSyncOp(ctx, input) {
             // Testing headers normalization to lower case.
-            if (options.headers.Test !== 'true') {
+            if (ctx.headers.Test !== 'true') {
               throw new nexus.HandlerError({ message: 'expected test header to be set to true', type: 'BAD_REQUEST' });
             }
             // Echo links back to the caller.
-            nexus.handlerLinks().push(...options.links);
+            ctx.handlerLinks.push(...ctx.callerLinks);
             return input;
           },
         }
@@ -148,10 +148,10 @@ test('operation handler cancelation', async (t) => {
           testSyncOp: nexus.operation<void, void>(),
         }),
         {
-          async testSyncOp(_, options) {
+          async testSyncOp(ctx) {
             p = new Promise((_, reject) => {
-              options.abortSignal.onabort = () => {
-                reject(options.abortSignal.reason);
+              ctx.abortSignal.onabort = () => {
+                reject(ctx.abortSignal.reason);
               };
               // never resolve this promise.
             });
@@ -194,23 +194,23 @@ test('async operation handler happy path', async (t) => {
         }),
         {
           testAsyncOp: {
-            async start(input, options): Promise<nexus.HandlerStartOperationResult<string>> {
+            async start(ctx, input): Promise<nexus.HandlerStartOperationResult<string>> {
               if (input !== 'hello') {
                 throw new nexus.HandlerError({ message: 'expected input to equal "hello"', type: 'BAD_REQUEST' });
               }
-              if (options.headers.test !== 'true') {
+              if (ctx.headers.test !== 'true') {
                 throw new nexus.HandlerError({
                   message: 'expected test header to be set to true',
                   type: 'BAD_REQUEST',
                 });
               }
-              if (!options.requestId) {
+              if (!ctx.requestId) {
                 throw new nexus.HandlerError({ message: 'expected requestId to be set', type: 'BAD_REQUEST' });
               }
-              return { token: options.requestId };
+              return { token: ctx.requestId };
             },
-            async cancel(token, options) {
-              if (options.headers.test !== 'true') {
+            async cancel(ctx, token) {
+              if (ctx.headers.test !== 'true') {
                 throw new nexus.HandlerError({
                   message: 'expected test header to be set to true',
                   type: 'BAD_REQUEST',
@@ -278,7 +278,7 @@ test('start operation handler errors', async (t) => {
           op: nexus.operation<string, string>(),
         }),
         {
-          async op(outcome) {
+          async op(_ctx, outcome) {
             switch (outcome) {
               case 'NonRetryableApplicationFailure':
                 throw ApplicationFailure.create({
@@ -422,8 +422,8 @@ test('cancel operation handler errors', async (t) => {
             async start() {
               throw new Error('not implemented');
             },
-            async cancel(_token, options) {
-              switch (options.headers.outcome) {
+            async cancel(ctx, _token) {
+              switch (ctx.headers.outcome) {
                 case 'NonRetryableApplicationFailure':
                   throw ApplicationFailure.create({
                     nonRetryable: true,
@@ -534,7 +534,7 @@ test('logger is available in handler context', async (t) => {
           testSyncOp: nexus.operation<string, string>(),
         }),
         {
-          async testSyncOp(input: string) {
+          async testSyncOp(_ctx, input) {
             temporalnexus.log.info('handler ran', { input });
             return input;
           },
@@ -622,8 +622,8 @@ test('WorkflowRunOperation attaches callback, link, and request ID', async (t) =
           testOp: nexus.operation<void, void>(),
         }),
         {
-          testOp: new temporalnexus.WorkflowRunOperation<void, void>(async (_, options) => {
-            return await temporalnexus.startWorkflow('some-workflow', options, {
+          testOp: new temporalnexus.WorkflowRunOperation<void, void>(async (ctx) => {
+            return await temporalnexus.startWorkflow(ctx, 'some-workflow', {
               workflowId,
               // To test attaching multiple callers to the same operation.
               workflowIdConflictPolicy: 'USE_EXISTING',

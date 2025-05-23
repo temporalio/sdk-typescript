@@ -62,7 +62,7 @@ test('Nexus Operation from a Workflow', async (t) => {
   const worker = await createWorker({
     nexusServices: [
       nexus.serviceHandler(service, {
-        async syncOp(action) {
+        async syncOp(_ctx, action) {
           if (action === 'pass') {
             return action;
           }
@@ -78,7 +78,7 @@ test('Nexus Operation from a Workflow', async (t) => {
             message: 'invalid action',
           });
         },
-        asyncOp: new temporalnexus.WorkflowRunOperation<string, string>(async (action, options) => {
+        asyncOp: new temporalnexus.WorkflowRunOperation<string, string>(async (ctx, action) => {
           if (action === 'throwOperationError') {
             throw new nexus.OperationError({
               state: 'failed',
@@ -93,7 +93,7 @@ test('Nexus Operation from a Workflow', async (t) => {
               details: ['a detail'],
             });
           }
-          return await temporalnexus.startWorkflow(handler, options, {
+          return await temporalnexus.startWorkflow(ctx, handler, {
             workflowId: randomUUID(),
             args: [action],
           });

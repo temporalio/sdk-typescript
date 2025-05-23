@@ -20,7 +20,6 @@ import {
 import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import type { RawSourceMap } from 'source-map';
 import * as nexus from 'nexus-rpc';
-import { installAsyncLocalStorage } from 'nexus-rpc/lib/async-local-storage';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
   DataConverter,
@@ -529,10 +528,6 @@ export class Worker {
       throw err;
     }
     extractReferenceHolders(connection).add(nativeWorker);
-    if (options.nexusServices?.length) {
-      // Must be done once per process, safe to call multiple times, the function is memoized.
-      await installAsyncLocalStorage();
-    }
     return new this(runtime, nativeWorker, workflowCreator, compiledOptionsWithBuildId, logger, connection);
   }
 

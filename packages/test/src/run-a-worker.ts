@@ -28,7 +28,7 @@ async function main() {
           bar: nexus.operation<string, string>(),
         }),
         {
-          async bar(input, _options) {
+          async bar(_ctx, input) {
             return input;
           },
         }

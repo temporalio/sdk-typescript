@@ -3,7 +3,6 @@ import { status } from '@grpc/grpc-js';
 import * as protobuf from 'protobufjs';
 import * as protoJsonSerializer from 'proto3-json-serializer';
 
-import { withContext } from 'nexus-rpc/lib/handler';
 import {
   ApplicationFailure,
   CancelledFailure,
@@ -14,7 +13,7 @@ import {
   SdkComponent,
 } from '@temporalio/common';
 import { temporal, coresdk } from '@temporalio/proto';
-import { HandlerContext } from '@temporalio/nexus/lib/context';
+import { asyncLocalStorage } from '@temporalio/nexus/lib/context';
 import {
   encodeToPayload,
   encodeErrorToFailure,
@@ -120,8 +119,8 @@ export class NexusHandler {
   }
 
   protected async startOperation(
-    payload: Payload | undefined,
-    options: nexus.StartOperationOptions
+    ctx: nexus.StartOperationContext,
+    payload: Payload | undefined
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
       let decoded: Payload | undefined | null;
@@ -142,7 +141,7 @@ export class NexusHandler {
       );
       const result = await this.invokeUserCode(
         'startOperation',
-        this.serviceRegistry.start.bind(this.serviceRegistry, this.info.service, this.info.operation, input, options)
+        this.serviceRegistry.start.bind(this.serviceRegistry, ctx, input)
       );
       if (isAsyncResult(result)) {
         return {
@@ -151,7 +150,7 @@ export class NexusHandler {
             startOperation: {
               asyncSuccess: {
                 operationToken: result.token,
-                links: nexus.handlerLinks().map(nexusLinkToProtoLink),
+                links: ctx.handlerLinks.map(nexusLinkToProtoLink),
               },
             },
           },
@@ -163,7 +162,7 @@ export class NexusHandler {
             startOperation: {
               syncSuccess: {
                 payload: await encodeToPayload(this.dataConverter, result.value),
-                links: nexus.handlerLinks().map(nexusLinkToProtoLink),
+                links: ctx.handlerLinks.map(nexusLinkToProtoLink),
               },
             },
           },
@@ -195,13 +194,13 @@ export class NexusHandler {
   }
 
   protected async cancelOperation(
+    ctx: nexus.CancelOperationContext,
     token: string,
-    options: nexus.CancelOperationOptions
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
       await this.invokeUserCode(
         'cancelOperation',
-        this.serviceRegistry.cancel.bind(this.serviceRegistry, this.info.service, this.info.operation, token, options)
+        this.serviceRegistry.cancel.bind(this.serviceRegistry, ctx, token)
       );
       return {
         taskToken: this.taskToken,
@@ -257,14 +256,16 @@ export class NexusHandler {
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     if (task.request?.startOperation != null) {
       const variant = task.request?.startOperation;
-      return await this.startOperation(variant.payload ?? undefined, {
+      return await this.startOperation({
         abortSignal: this.abortController.signal,
         headers: headersProxy(task.request.header),
         requestId: variant.requestId ?? undefined,
-        links: (variant.links ?? []).map(protoLinkToNexusLink),
+        callerLinks: (variant.links ?? []).map(protoLinkToNexusLink),
         callbackURL: variant.callback ?? undefined,
         callbackHeaders: variant.callbackHeader ?? undefined,
-      });
+        handlerLinks: [],
+        info: this.info,
+      }, variant.payload ?? undefined);
     } else if (task.request?.cancelOperation != null) {
       const variant = task.request?.cancelOperation;
       if (variant.operationToken == null) {
@@ -273,10 +274,11 @@ export class NexusHandler {
           message: 'Request missing operation token',
         });
       }
-      return await this.cancelOperation(variant.operationToken, {
+      return await this.cancelOperation({
         abortSignal: this.abortController.signal,
         headers: headersProxy(task.request.header),
-      });
+        info: this.info,
+      }, variant.operationToken);
     } else {
       throw new nexus.HandlerError({
         type: 'NOT_IMPLEMENTED',
@@ -288,21 +290,18 @@ export class NexusHandler {
   public async run(
     task: temporal.api.workflowservice.v1.IPollNexusTaskQueueResponse
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
-    const context: HandlerContext = {
-      info: this.info,
-      client: this.client,
-      namespace: this.namespace,
-      taskQueue: this.taskQueue,
-      links: [],
-      log: withMetadata(this.workerLogger, { sdkComponent: SdkComponent.nexus }),
-    };
     let execute = this.execute.bind(this, task);
     // Ensure that client calls made with the worker's client in this handler's context are tied to the abort signal.
     // TODO: Actually support canceling requests backed by NativeConnection. Once it does, this functionality should be
     // tested.
     // TS can't infer this and typing out the types is redundant and hard to read.
-    execute = this.client.withAbortSignal.bind(this.client, this.info.abortSignal, execute) as any;
-    return await withContext(context, execute);
+    execute = this.client.withAbortSignal.bind(this.client, this.abortController.signal, execute) as any;
+    return await asyncLocalStorage.run({
+      client: this.client,
+      namespace: this.namespace,
+      taskQueue: this.taskQueue,
+      log: withMetadata(this.workerLogger, { sdkComponent: SdkComponent.nexus }),
+    }, execute);
   }
 }
 
@@ -461,7 +460,7 @@ class PayloadSerializer implements nexus.Serializer {
       return undefined as T;
     }
     try {
-      return this.payloadConverter.fromPayload(this.payload);
+    return this.payloadConverter.fromPayload(this.payload);
     } catch (err) {
       throw new nexus.HandlerError({
         type: 'BAD_REQUEST',
