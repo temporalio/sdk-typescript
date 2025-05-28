@@ -80,7 +80,7 @@ export class NexusHandler {
     public readonly taskToken: Uint8Array,
     public readonly namespace: string,
     public readonly taskQueue: string,
-    public readonly info: nexus.HandlerInfo,
+    public readonly context: nexus.OperationContext,
     public readonly client: Client,
     public readonly abortController: AbortController,
     public readonly serviceRegistry: nexus.ServiceRegistry,
@@ -93,11 +93,7 @@ export class NexusHandler {
      */
     private readonly workerLogger: Logger
   ) {
-    this.workerLogger = withMetadata(workerLogger, () => this.getLogAttributes());
-  }
-
-  protected getLogAttributes(): Record<string, unknown> {
-    return nexusLogAttributes(this.info);
+    this.workerLogger = withMetadata(workerLogger, () => nexusLogAttributes(this.context));
   }
 
   protected async operationErrorToProto(
@@ -257,14 +253,12 @@ export class NexusHandler {
     if (task.request?.startOperation != null) {
       const variant = task.request?.startOperation;
       return await this.startOperation({
-        abortSignal: this.abortController.signal,
-        headers: headersProxy(task.request.header),
+        ...this.context,
         requestId: variant.requestId ?? undefined,
         callerLinks: (variant.links ?? []).map(protoLinkToNexusLink),
         callbackURL: variant.callback ?? undefined,
         callbackHeaders: variant.callbackHeader ?? undefined,
         handlerLinks: [],
-        info: this.info,
       }, variant.payload ?? undefined);
     } else if (task.request?.cancelOperation != null) {
       const variant = task.request?.cancelOperation;
@@ -275,9 +269,7 @@ export class NexusHandler {
         });
       }
       return await this.cancelOperation({
-        abortSignal: this.abortController.signal,
-        headers: headersProxy(task.request.header),
-        info: this.info,
+        ...this.context,
       }, variant.operationToken);
     } else {
       throw new nexus.HandlerError({
@@ -305,10 +297,10 @@ export class NexusHandler {
   }
 }
 
-export function constructNexusHandlerInfo(
+export function constructNexusOperationContext(
   request: temporal.api.nexus.v1.IRequest | null | undefined,
   abortSignal: AbortSignal
-): nexus.HandlerInfo {
+): nexus.OperationContext {
   const base = {
     abortSignal,
     headers: headersProxy(request?.header),
@@ -340,10 +332,10 @@ export function constructNexusHandlerInfo(
   });
 }
 
-export function nexusLogAttributes(info: nexus.HandlerInfo): Record<string, unknown> {
+export function nexusLogAttributes(ctx: nexus.OperationContext): Record<string, unknown> {
   return {
-    service: info.service,
-    operation: info.operation,
+    service: ctx.service,
+    operation: ctx.operation,
   };
 }
 

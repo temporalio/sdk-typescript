@@ -103,7 +103,7 @@ import {
   ShutdownError,
   UnexpectedError,
 } from './errors';
-import { constructNexusHandlerInfo, handlerErrorToProto, NexusHandler, nexusLogAttributes } from './nexus';
+import { constructNexusOperationContext, handlerErrorToProto, NexusHandler, nexusLogAttributes } from './nexus';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -1152,7 +1152,7 @@ export class Worker {
                 break;
               }
               // NOTE: nexus handler will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
-              this.logger.trace('Cancelling nexus handler', nexusLogAttributes(nexusHandler.info));
+              this.logger.trace('Cancelling nexus handler', nexusLogAttributes(nexusHandler.context));
               let reason = 'unkown';
               if (task.cancelTask?.reason != null) {
                 reason = coresdk.nexus.NexusTaskCancelReason[task.cancelTask.reason];
@@ -1173,7 +1173,7 @@ export class Worker {
     base64TaskToken: string,
     protobufEncodedTask: ArrayBuffer
   ) {
-    let info: nexus.HandlerInfo | undefined = undefined;
+    let ctx: nexus.OperationContext | undefined = undefined;
     if (task.taskToken == null) {
       throw new nexus.HandlerError({
         type: 'INTERNAL',
@@ -1184,13 +1184,13 @@ export class Worker {
     try {
       const ctrl = new AbortController();
 
-      info = constructNexusHandlerInfo(task.request, ctrl.signal);
+      ctx = constructNexusOperationContext(task.request, ctrl.signal);
 
       const nexusHandler = new NexusHandler(
         taskToken,
         this.options.namespace,
         this.options.taskQueue,
-        info,
+        ctx,
         this.client!, // Must be defined if we are handling Nexus tasks.
         ctrl,
         this.options.nexusServiceRegistry!, // Must be defined if we are handling Nexus tasks.
@@ -1208,7 +1208,7 @@ export class Worker {
     } catch (e) {
       let handlerErr: nexus.HandlerError;
       this.logger.error(`Error while processing Nexus task: ${errorMessage(e)}`, {
-        ...(info ? nexusLogAttributes(info) : {}),
+        ...(ctx ? nexusLogAttributes(ctx) : {}),
         error: e,
         taskEncoded: Buffer.from(protobufEncodedTask).toString('base64'),
       });
