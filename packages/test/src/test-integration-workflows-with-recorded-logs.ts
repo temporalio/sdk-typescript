@@ -1,6 +1,6 @@
 import { ExecutionContext } from 'ava';
 import * as workflow from '@temporalio/workflow';
-import { HandlerUnfinishedPolicy } from '@temporalio/common';
+import { ApplicationFailureCategory, HandlerUnfinishedPolicy } from '@temporalio/common';
 import { LogEntry } from '@temporalio/worker';
 import { WorkflowFailedError, WorkflowUpdateFailedError } from '@temporalio/client';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
@@ -469,3 +469,44 @@ async function assertWorkflowUpdateFailedBecauseWorkflowCompleted(t: ExecutionCo
   t.true((cause as workflow.ApplicationFailure).type === 'AcceptedUpdateCompletedWorkflow');
   t.regex((cause as workflow.ApplicationFailure).message, /Workflow completed before the Update completed/);
 }
+
+export async function raiseErrorWorkflow(useBenign: boolean): Promise<void> {
+  await workflow
+    .proxyActivities({ startToCloseTimeout: '10s', retry: { maximumAttempts: 1 } })
+    .throwApplicationFailureActivity(useBenign);
+}
+
+test('Application failure category controls log level', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      async throwApplicationFailureActivity(useBenign: boolean) {
+        throw workflow.ApplicationFailure.create({
+          category: useBenign ? ApplicationFailureCategory.BENIGN : undefined,
+        });
+      },
+    },
+  });
+
+  await worker.runUntil(async () => {
+    // Run with BENIGN
+    let handle = await startWorkflow(raiseErrorWorkflow, { args: [true] });
+    try {
+      await handle.result();
+    } catch (_) {
+      const logs = recordedLogs[handle.workflowId];
+      const activityFailureLog = logs.find((log) => log.message.includes('Activity failed'));
+      t.true(activityFailureLog !== undefined && activityFailureLog.level === 'DEBUG');
+    }
+
+    // Run without BENIGN
+    handle = await startWorkflow(raiseErrorWorkflow, { args: [false] });
+    try {
+      await handle.result();
+    } catch (_) {
+      const logs = recordedLogs[handle.workflowId];
+      const activityFailureLog = logs.find((log) => log.message.includes('Activity failed'));
+      t.true(activityFailureLog !== undefined && activityFailureLog.level === 'WARN');
+    }
+  });
+});

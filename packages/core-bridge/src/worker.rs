@@ -520,9 +520,7 @@ mod config {
     impl From<PollerBehavior> for CorePollerBehavior {
         fn from(val: PollerBehavior) -> Self {
             match val {
-                PollerBehavior::SimpleMaximum { maximum } => {
-                    Self::SimpleMaximum(maximum)
-                }
+                PollerBehavior::SimpleMaximum { maximum } => Self::SimpleMaximum(maximum),
                 PollerBehavior::Autoscaling {
                     minimum,
                     maximum,
@@ -771,10 +769,7 @@ mod custom_slot_supplier {
                 slot_type: SK::kind().into(),
                 task_queue: ctx.task_queue().to_string(),
                 worker_identity: ctx.worker_identity().to_string(),
-                worker_deployment_version: ctx
-                    .worker_deployment_version()
-                    .clone()
-                    .map(Into::into),
+                worker_deployment_version: ctx.worker_deployment_version().clone().map(Into::into),
                 is_sticky: ctx.is_sticky(),
             };
 
