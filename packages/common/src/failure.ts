@@ -101,10 +101,15 @@ export const [encodeRetryState, decodeRetryState] = makeProtoEnumConverters<
   'RETRY_STATE_'
 );
 
+/**
+ * A category to describe the severity and change the observability behavior of an application failure.
+ *
+ * Currently, observability behaviour changes are limited to:
+ * - activities that fail due to a BENIGN application failure emit DEBUG level logs and do not record metrics
+ *
+ * @experimental Category is a new feature and may be subject to change.
+ */
 export const ApplicationFailureCategory = {
-  /**
-   * BENIGN category errors emit DEBUG level logs and do not record metrics
-   */
   BENIGN: 'BENIGN',
 } as const;
 
@@ -288,7 +293,7 @@ export interface ApplicationFailureOptions {
 
   /**
    * Severity category of the application error.
-   * Maps to corresponding client-side logging/metrics behaviors.
+   * Affects worker-side logging and metrics behavior of this failure.
    */
   category?: ApplicationFailureCategory;
 }
