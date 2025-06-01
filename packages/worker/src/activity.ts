@@ -1,6 +1,8 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import { asyncLocalStorage, CompleteAsyncError, Context, Info } from '@temporalio/activity';
 import {
+  ActivityCancellationDetails,
+  ActivityCancellationDetailsHolder,
   ActivityFunction,
   ApplicationFailure,
   CancelledFailure,
@@ -34,8 +36,9 @@ export type CancelReason =
 
 export class Activity {
   protected cancelReason?: CancelReason;
+  protected cancellationDetails: ActivityCancellationDetailsHolder;
   public readonly context: Context;
-  public cancel: (reason: CancelReason) => void = () => undefined;
+  public cancel: (reason: CancelReason, details: ActivityCancellationDetails) => void = () => undefined;
   public readonly abortController: AbortController = new AbortController();
   public readonly interceptors: {
     inbound: ActivityInboundCallsInterceptor[];
@@ -65,10 +68,11 @@ export class Activity {
   ) {
     this.workerLogger = LoggerWithComposedMetadata.compose(workerLogger, this.getLogAttributes.bind(this));
     this.metricMeter = MetricMeterWithComposedTags.compose(workerMetricMeter, this.getMetricTags.bind(this));
-
+    this.cancellationDetails = {};
     const promise = new Promise<never>((_, reject) => {
-      this.cancel = (reason: CancelReason) => {
+      this.cancel = (reason: CancelReason, details: ActivityCancellationDetails) => {
         this.cancelReason = reason;
+        this.cancellationDetails.details = details;
         const err = new CancelledFailure(reason);
         this.abortController.abort(err);
         reject(err);
@@ -81,7 +85,8 @@ export class Activity {
       this.heartbeatCallback,
       // This is the activity context logger, to be used exclusively from user code
       LoggerWithComposedMetadata.compose(this.workerLogger, { sdkComponent: SdkComponent.activity }),
-      this.metricMeter
+      this.metricMeter,
+      this.cancellationDetails
     );
     // Prevent unhandled rejection
     promise.catch(() => undefined);
