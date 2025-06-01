@@ -45,7 +45,7 @@ import {
   hasActivityHeartbeat,
   helpers,
   makeTestFunction,
-  setActivityPauseState,
+  setActivityState,
 } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
 import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
@@ -1459,7 +1459,7 @@ test('Activity pause returns expected cancellation details', async (t) => {
     }, 10000);
 
     // Now pause the activity
-    await setActivityPauseState(handle, testActivityId, true);
+    await setActivityState(handle, testActivityId, 'pause');
     // Get the result - should contain pause cancellation details
     const result = await handle.result();
 
@@ -1494,12 +1494,44 @@ test('Activity can be cancelled via pause and retry after unpause', async (t) =>
       return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
     }, 10000);
 
-    await setActivityPauseState(handle, testActivityId, true);
+    await setActivityState(handle, testActivityId, 'pause');
     await waitUntil(async () => hasActivityHeartbeat(handle, testActivityId, 'finally-complete'), 10000);
-    await setActivityPauseState(handle, testActivityId, false);
+    await setActivityState(handle, testActivityId, 'unpause');
 
     const result = await handle.result();
     t.true(result == null);
+  });
+});
+
+test('Activity reset returns expected cancellation details', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      heartbeatCancellationDetailsActivity,
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const testActivityId = randomUUID();
+    const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, true, 2] });
+
+    // Wait for it to exist and heartbeat
+    await waitUntil(async () => {
+      const { raw } = await handle.describe();
+      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
+      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
+    }, 10000);
+
+    await setActivityState(handle, testActivityId, 'reset');
+    const result = await handle.result();
+    t.deepEqual(result, {
+      cancelRequested: false,
+      notFound: false,
+      paused: false,
+      timedOut: false,
+      workerShutdown: false,
+      reset: true,
+    });
   });
 });
 
