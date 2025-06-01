@@ -296,7 +296,11 @@ export function configurableHelpers<T>(
   };
 }
 
-export async function setActivityPauseState(handle: WorkflowHandle, activityId: string, pause: boolean): Promise<void> {
+export async function setActivityState(
+  handle: WorkflowHandle,
+  activityId: string,
+  state: 'pause' | 'unpause' | 'reset'
+): Promise<void> {
   const desc = await handle.describe();
   const req = {
     namespace: handle.client.options.namespace,
@@ -306,10 +310,13 @@ export async function setActivityPauseState(handle: WorkflowHandle, activityId: 
     },
     id: activityId,
   };
-  if (pause) {
+  if (state === 'pause') {
     await handle.client.workflowService.pauseActivity(req);
-  } else {
+  } else if (state === 'unpause') {
     await handle.client.workflowService.unpauseActivity(req);
+  } else {
+    const resetReq = { ...req, resetHeartbeat: true };
+    await handle.client.workflowService.resetActivity(resetReq);
   }
   await waitUntil(async () => {
     const { raw } = await handle.describe();
@@ -317,11 +324,18 @@ export async function setActivityPauseState(handle: WorkflowHandle, activityId: 
     // If we are pausing: success when either
     //  • paused flag is true  OR
     //  • the activity vanished (it completed / retried)
-    if (pause) return activityInfo ? activityInfo.paused ?? false : true;
-    // If we are unpausing: success when either
-    //  • paused flag is false  OR
-    //  • the activity vanished (already completed)
-    return activityInfo ? !activityInfo.paused : true;
+    if (state === 'pause') {
+      return activityInfo ? activityInfo.paused ?? false : true;
+    } else if (state === 'unpause') {
+      // If we are unpausing: success when either
+      //  • paused flag is false  OR
+      //  • the activity vanished (already completed)
+      return activityInfo ? !activityInfo.paused : true;
+    } else {
+      // If we are resetting, success when heartbeat
+      // details are reset.
+      return activityInfo?.heartbeatDetails === null;
+    }
   }, 15000);
 }
 
