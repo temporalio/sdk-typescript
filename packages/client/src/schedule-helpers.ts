@@ -15,7 +15,9 @@ import { Headers } from '@temporalio/common/lib/interceptors';
 import {
   decodeArrayFromPayloads,
   decodeMapFromPayloads,
+  decodeOptionalSinglePayload,
   encodeMapToPayloads,
+  encodeOptionalToPayload,
   encodeToPayloads,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
@@ -245,7 +247,6 @@ export async function encodeScheduleAction(
   action: CompiledScheduleAction,
   headers: Headers
 ): Promise<temporal.api.schedule.v1.IScheduleAction> {
-  const jsonConverter = new JsonPayloadConverter();
   return {
     startWorkflow: {
       workflowId: action.workflowId,
@@ -270,8 +271,8 @@ export async function encodeScheduleAction(
           : undefined,
       header: { fields: headers },
       userMetadata: {
-        summary: jsonConverter.toPayload(action.staticSummary),
-        details: jsonConverter.toPayload(action.staticDetails),
+        summary: await encodeOptionalToPayload(dataConverter, action?.staticSummary),
+        details: await encodeOptionalToPayload(dataConverter, action?.staticDetails),
       },
     },
   };
@@ -322,7 +323,6 @@ export async function decodeScheduleAction(
   pb: temporal.api.schedule.v1.IScheduleAction
 ): Promise<ScheduleDescriptionAction> {
   if (pb.startWorkflow) {
-    const jsonConverter = new JsonPayloadConverter();
     const userMetadata = pb.startWorkflow?.userMetadata;
     return {
       type: 'startWorkflow',
@@ -340,8 +340,8 @@ export async function decodeScheduleAction(
       workflowExecutionTimeout: optionalTsToMs(pb.startWorkflow.workflowExecutionTimeout),
       workflowRunTimeout: optionalTsToMs(pb.startWorkflow.workflowRunTimeout),
       workflowTaskTimeout: optionalTsToMs(pb.startWorkflow.workflowTaskTimeout),
-      staticSummary: userMetadata?.summary ? jsonConverter.fromPayload(userMetadata.summary) : undefined,
-      staticDetails: userMetadata?.details ? jsonConverter.fromPayload(userMetadata.details) : undefined,
+      staticSummary: await decodeOptionalSinglePayload(dataConverter, userMetadata?.summary) ?? undefined,
+      staticDetails: await decodeOptionalSinglePayload(dataConverter, userMetadata?.details) ?? undefined,
     };
   }
   throw new TypeError('Unsupported schedule action');

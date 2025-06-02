@@ -22,7 +22,6 @@ import {
   decodeRetryState,
   encodeWorkflowIdConflictPolicy,
   WorkflowIdConflictPolicy,
-  JsonPayloadConverter,
 } from '@temporalio/common';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -32,7 +31,9 @@ import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
   decodeOptionalFailureToOptionalError,
+  decodeOptionalSinglePayload,
   encodeMapToPayloads,
+  encodeOptionalToPayload,
   encodeToPayloads,
   filterNullAndUndefined,
 } from '@temporalio/common/lib/internal-non-workflow';
@@ -1197,7 +1198,6 @@ export class WorkflowClient extends BaseClient {
   protected async _signalWithStartWorkflowHandler(input: WorkflowSignalWithStartInput): Promise<string> {
     const { identity } = this.options;
     const { options, workflowType, signalName, signalArgs, headers } = input;
-    const jsonConverter = new JsonPayloadConverter();
     const req: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest = {
       namespace: this.options.namespace,
       identity,
@@ -1228,8 +1228,8 @@ export class WorkflowClient extends BaseClient {
       cronSchedule: options.cronSchedule,
       header: { fields: headers },
       userMetadata: {
-        summary: jsonConverter.toPayload(options?.staticSummary),
-        details: jsonConverter.toPayload(options?.staticDetails),
+        summary: await encodeOptionalToPayload(this.dataConverter, options?.staticSummary),
+        details: await encodeOptionalToPayload(this.dataConverter, options?.staticDetails),
       },
     };
     try {
@@ -1271,7 +1271,6 @@ export class WorkflowClient extends BaseClient {
   protected async createStartWorkflowRequest(input: WorkflowStartInput): Promise<StartWorkflowExecutionRequest> {
     const { options: opts, workflowType, headers } = input;
     const { identity, namespace } = this.options;
-    const jsonConverter = new JsonPayloadConverter();
     return {
       namespace,
       identity,
@@ -1300,8 +1299,8 @@ export class WorkflowClient extends BaseClient {
       cronSchedule: opts.cronSchedule,
       header: { fields: headers },
       userMetadata: {
-        summary: jsonConverter.toPayload(opts?.staticSummary),
-        details: jsonConverter.toPayload(opts?.staticDetails),
+        summary: await encodeOptionalToPayload(this.dataConverter, opts?.staticSummary),
+        details: await encodeOptionalToPayload(this.dataConverter, opts?.staticDetails),
       },
     };
   }
@@ -1436,12 +1435,11 @@ export class WorkflowClient extends BaseClient {
           workflowExecution: { workflowId, runId },
         });
         const info = await executionInfoFromRaw(raw.workflowExecutionInfo ?? {}, this.client.dataConverter, raw);
-        const jsonConverter = new JsonPayloadConverter();
         const userMetadata = raw.executionConfig?.userMetadata;
         return {
           ...info,
-          staticDetails: userMetadata?.details ? jsonConverter.fromPayload(userMetadata.details) : undefined,
-          staticSummary: userMetadata?.summary ? jsonConverter.fromPayload(userMetadata.summary) : undefined,
+          staticDetails: await decodeOptionalSinglePayload(this.client.dataConverter, userMetadata?.details) ?? undefined,
+          staticSummary: await decodeOptionalSinglePayload(this.client.dataConverter, userMetadata?.summary) ?? undefined,
           raw,
         };
       },
