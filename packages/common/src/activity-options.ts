@@ -122,6 +122,14 @@ export interface ActivityOptions {
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
   versioningIntent?: VersioningIntent;
+
+  /**
+   * A single-line fixed summary for this workflow execution that may appear in the UI/CLI.
+   * This can be in single-line Temporal markdown format.
+   *
+   * @experimental User metadata is a new API and suspectible to change.
+   */
+  staticSummary?: string;
 }
 
 /**
@@ -186,4 +194,12 @@ export interface LocalActivityOptions {
    * - `ABANDON` - Do not request cancellation of the activity and immediately report cancellation to the workflow.
    */
   cancellationType?: ActivityCancellationType;
+
+  /**
+   * A single-line fixed summary for this workflow execution that may appear in the UI/CLI.
+   * This can be in single-line Temporal markdown format.
+   *
+   * @experimental User metadata is a new API and suspectible to change.
+   */
+  staticSummary?: string;
 }

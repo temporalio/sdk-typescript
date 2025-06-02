@@ -95,13 +95,13 @@ export async function encodeToPayload(converter: LoadedDataConverter, value: unk
  * Run {@link PayloadConverter.toPayload} on an optional value, and then encode it.
  */
 export async function encodeOptionalToPayload(
-  converter: LoadedDataConverter, 
+  converter: LoadedDataConverter,
   value: unknown
 ): Promise<Payload | null | undefined> {
   if (value == null) return value;
-  
+
   const { payloadConverter, payloadCodecs } = converter;
-  const payload = payloadConverter.toPayload(value);  
+  const payload = payloadConverter.toPayload(value);
   return await encodeSingle(payloadCodecs, payload);
 }
 

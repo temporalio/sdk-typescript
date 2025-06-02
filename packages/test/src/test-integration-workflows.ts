@@ -14,13 +14,13 @@ import {
   ActivityCancellationType,
   ApplicationFailure,
   defineSearchAttributeKey,
-  JsonPayloadConverter,
   SearchAttributePair,
   SearchAttributeType,
   TypedSearchAttributes,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
+import { decodeOptionalSinglePayload } from '@temporalio/common/lib/internal-non-workflow';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
@@ -1348,12 +1348,15 @@ export async function userMetadataWorkflow(): Promise<string> {
   });
 
   // That workflow should call an activity (with summary)
-  const { activityWithSummary } = workflow.proxyActivities({ scheduleToCloseTimeout: '10s' }).withSummaries({
-    activityWithSummary: 'activity summary',
-  });
-  await activityWithSummary();
+  const { activityWithSummary } = workflow.proxyActivities({ scheduleToCloseTimeout: '10s' });
+  await activityWithSummary.runWithOptions(
+    {
+      staticSummary: 'activity summary',
+    },
+    []
+  );
   // Should have a timer (with summary)
-  await workflow.sleep(5, 'timer summary');
+  await workflow.sleep(5, { summary: 'timer summary' });
   // Set current details
   workflow.setCurrentDetails('current wf details');
   // Unblock on var -> query current details (or return)
@@ -1377,8 +1380,8 @@ test('User metadata on workflow, timer, activity', async (t) => {
     });
     // Describe workflow -> static summary, static details
     const desc = await handle.describe();
-    t.true(desc.staticSummary === 'wf static summary');
-    t.true(desc.staticDetails === 'wf static details');
+    t.true((await desc.staticSummary()) === 'wf static summary');
+    t.true((await desc.staticDetails()) === 'wf static details');
 
     await handle.signal('done');
     const res = await handle.result();
@@ -1392,15 +1395,38 @@ test('User metadata on workflow, timer, activity', async (t) => {
         runId: handle.firstExecutionRunId,
       },
     });
-    const jsonConverter = new JsonPayloadConverter();
     for (const event of resp.history?.events ?? []) {
       if (event.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED) {
-        t.deepEqual(jsonConverter.fromPayload(event.userMetadata?.summary ?? {}), 'wf static summary');
-        t.deepEqual(jsonConverter.fromPayload(event.userMetadata?.details ?? {}), 'wf static details');
+        t.deepEqual(
+          await decodeOptionalSinglePayload(
+            t.context.env.client.options.loadedDataConverter,
+            event.userMetadata?.summary ?? {}
+          ),
+          'wf static summary'
+        );
+        t.deepEqual(
+          await decodeOptionalSinglePayload(
+            t.context.env.client.options.loadedDataConverter,
+            event.userMetadata?.details ?? {}
+          ),
+          'wf static details'
+        );
       } else if (event.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED) {
-        t.deepEqual(jsonConverter.fromPayload(event.userMetadata?.summary ?? {}), 'activity summary');
+        t.deepEqual(
+          await decodeOptionalSinglePayload(
+            t.context.env.client.options.loadedDataConverter,
+            event.userMetadata?.summary ?? {}
+          ),
+          'activity summary'
+        );
       } else if (event.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_TIMER_STARTED) {
-        t.deepEqual(jsonConverter.fromPayload(event.userMetadata?.summary ?? {}), 'timer summary');
+        t.deepEqual(
+          await decodeOptionalSinglePayload(
+            t.context.env.client.options.loadedDataConverter,
+            event.userMetadata?.summary ?? {}
+          ),
+          'timer summary'
+        );
       }
     }
 

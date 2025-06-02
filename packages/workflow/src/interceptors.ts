@@ -80,7 +80,6 @@ export interface ActivityInput {
   readonly options: ActivityOptions;
   readonly headers: Headers;
   readonly seq: number;
-  readonly cmdOpts?: WorkflowCommandOptions;
 }
 
 /** Input for WorkflowOutboundCallsInterceptor.scheduleLocalActivity */
@@ -92,7 +91,6 @@ export interface LocalActivityInput {
   readonly seq: number;
   readonly originalScheduleTime?: Timestamp;
   readonly attempt: number;
-  readonly cmdOpts?: WorkflowCommandOptions;
 }
 
 /** Input for WorkflowOutboundCallsInterceptor.startChildWorkflowExecution */
@@ -117,19 +115,17 @@ export interface UserMetadata {
   details?: string;
 }
 
-/**
- * Options that can be attached to workflow commands.
- */
-export interface WorkflowCommandOptions {
-  /** User metadata for the command that may be persisted to history */
-  readonly userMetadata?: UserMetadata;
-}
-
 /** Input for WorkflowOutboundCallsInterceptor.startTimer */
 export interface TimerInput {
   readonly durationMs: number;
   readonly seq: number;
-  readonly cmdOpts?: WorkflowCommandOptions;
+  readonly options?: TimerOptions;
+}
+
+/** Options for starting a timer (i.e. sleep) */
+export interface TimerOptions {
+  /** @experimental A single line summary of the command's purpose */
+  readonly summary?: string;
 }
 
 /**

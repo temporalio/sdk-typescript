@@ -1438,8 +1438,10 @@ export class WorkflowClient extends BaseClient {
         const userMetadata = raw.executionConfig?.userMetadata;
         return {
           ...info,
-          staticDetails: await decodeOptionalSinglePayload(this.client.dataConverter, userMetadata?.details) ?? undefined,
-          staticSummary: await decodeOptionalSinglePayload(this.client.dataConverter, userMetadata?.summary) ?? undefined,
+          staticDetails: async () =>
+            (await decodeOptionalSinglePayload(this.client.dataConverter, userMetadata?.details)) ?? undefined,
+          staticSummary: async () =>
+            (await decodeOptionalSinglePayload(this.client.dataConverter, userMetadata?.summary)) ?? undefined,
           raw,
         };
       },
