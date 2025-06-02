@@ -13,19 +13,22 @@ export class ActivityCancellationDetails {
   readonly paused: boolean;
   readonly timedOut: boolean;
   readonly workerShutdown: boolean;
+  readonly reset: boolean;
 
   private constructor(
     notFound: boolean = false,
     cancelRequested: boolean = false,
     paused: boolean = false,
     timedOut: boolean = false,
-    workerShutdown: boolean = false
+    workerShutdown: boolean = false,
+    reset: boolean = false
   ) {
     this.notFound = notFound;
     this.cancelRequested = cancelRequested;
     this.paused = paused;
     this.timedOut = timedOut;
     this.workerShutdown = workerShutdown;
+    this.reset = reset;
   }
 
   static fromProto(
@@ -39,7 +42,8 @@ export class ActivityCancellationDetails {
       proto.isCancelled ?? false,
       proto.isPaused ?? false,
       proto.isTimedOut ?? false,
-      proto.isWorkerShutdown ?? false
+      proto.isWorkerShutdown ?? false,
+      proto.isReset ?? false
     );
   }
 }
