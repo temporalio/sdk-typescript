@@ -30,7 +30,7 @@ import * as workflow from '@temporalio/workflow';
 import { temporal } from '@temporalio/proto';
 import { defineSearchAttributeKey, SearchAttributeType } from '@temporalio/common/lib/search-attributes';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-import { Worker, TestWorkflowEnvironment, test as anyTest, bundlerOptions } from './helpers';
+import { Worker, TestWorkflowEnvironment, test as anyTest, bundlerOptions, waitUntil } from './helpers';
 
 export interface Context {
   env: TestWorkflowEnvironment;
@@ -38,6 +38,7 @@ export interface Context {
 }
 
 const defaultDynamicConfigOptions = [
+  'frontend.activityAPIsEnabled=true',
   'frontend.enableExecuteMultiOperation=true',
   'frontend.workerVersioningDataAPIs=true',
   'frontend.workerVersioningWorkflowAPIs=true',
@@ -282,6 +283,48 @@ export function configurableHelpers<T>(
       }
     },
   };
+}
+
+export async function assertPendingActivityExistsEventually(
+  handle: WorkflowHandle<workflow.Workflow>,
+  activityId: string,
+  timeoutMs: number
+): Promise<temporal.api.workflow.v1.IPendingActivityInfo> {
+  let activityInfo: temporal.api.workflow.v1.IPendingActivityInfo | undefined;
+  try {
+    await waitUntil(async () => {
+      const desc = await handle.describe();
+      activityInfo = desc.raw.pendingActivities?.find((pa) => pa.activityId === activityId);
+      return activityInfo !== undefined;
+    }, timeoutMs);
+  } catch {
+    throw new Error(`Unable to find pending activity for activity ${activityId}`);
+  }
+  return activityInfo as temporal.api.workflow.v1.IPendingActivityInfo;
+}
+
+export async function setActivityPauseState(handle: WorkflowHandle, activityId: string, pause: boolean): Promise<void> {
+  const desc = await handle.describe();
+  const req = {
+    namespace: handle.client.options.namespace,
+    execution: {
+      workflowId: desc.raw.workflowExecutionInfo?.execution?.workflowId,
+      runId: desc.raw.workflowExecutionInfo?.execution?.runId,
+    },
+    id: activityId,
+  };
+  if (pause) {
+    await handle.client.workflowService.pauseActivity(req);
+  } else {
+    await handle.client.workflowService.unpauseActivity(req);
+  }
+  await waitUntil(async () => {
+    const info = await assertPendingActivityExistsEventually(handle, activityId, 10000);
+    if (pause) {
+      return info.paused ?? false;
+    }
+    return !info.paused;
+  }, 10000);
 }
 
 export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment = t.context.env): Helpers {
