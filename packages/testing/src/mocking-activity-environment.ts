@@ -30,7 +30,7 @@ export interface MockActivityEnvironmentOptions {
  * will immediately be in a cancelled state.
  */
 export class MockActivityEnvironment extends events.EventEmitter {
-  public cancel: (reason?: any) => void = () => undefined;
+  public cancel: (reason?: any, details?: any) => void = () => undefined;
   public readonly context: activity.Context;
   private readonly activity: Activity;
 
