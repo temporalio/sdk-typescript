@@ -550,18 +550,19 @@ export type ActivityFunctionWithOptions<T extends ActivityFunction> = T & {
  *   startToCloseTimeout: '30 minutes',
  * });
  *
- * // Setup Activities with summaries for better observability
- * const {
- *   httpGet,
- *   processData,
- *   saveResults
- * } = proxyActivities<typeof activities>({
- *   startToCloseTimeout: '10m',
- * }).withSummaries({
- *   httpGet: 'Fetches data from external API',
- *   processData: 'Processes the fetched data',
- *   saveResults: 'Saves processed results to database'
- * });
+ * // Use activities with default options
+ * const result1 = await httpGet('http://example.com');
+ *
+ * // Override options for specific activity calls
+ * const result2 = await httpGet.runWithOptions({
+ *   staticSummary: 'Fetches data from external API',
+ *   scheduleToCloseTimeout: '5m'
+ * }, ['http://api.example.com']);
+ *
+ * const result3 = await otherActivity.runWithOptions({
+ *   staticSummary: 'Processes the fetched data',
+ *   taskQueue: 'special-task-queue'
+ * }, [data]);
  *
  * // Setup Activities from an explicit interface (e.g. when defined by another SDK)
  * interface JavaActivities {
@@ -579,6 +580,11 @@ export type ActivityFunctionWithOptions<T extends ActivityFunction> = T & {
  *
  * export function execute(): Promise<void> {
  *   const response = await httpGet("http://example.com");
+ *   // Or with custom options:
+ *   const response2 = await httpGetFromJava.runWithOptions({
+ *     staticSummary: 'Java HTTP call with timeout override',
+ *     startToCloseTimeout: '2m'
+ *   }, ["http://fast-api.example.com"]);
  *   // ...
  * }
  * ```
