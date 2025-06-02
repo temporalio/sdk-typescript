@@ -2,7 +2,7 @@ import { Payload } from '../interfaces';
 import { arrayFromPayloads, fromPayloadsAtIndex, toPayloads } from '../converter/payload-converter';
 import { PayloadConverterError } from '../errors';
 import { PayloadCodec } from '../converter/payload-codec';
-import { ProtoFailure, TemporalFailure } from '../failure';
+import { ProtoFailure } from '../failure';
 import { LoadedDataConverter } from '../converter/data-converter';
 import { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
 
@@ -134,7 +134,7 @@ export async function decodeFromPayloadsAtIndex<T>(
 export async function decodeOptionalFailureToOptionalError(
   converter: LoadedDataConverter,
   failure: ProtoFailure | undefined | null
-): Promise<TemporalFailure | undefined> {
+): Promise<Error | undefined> {
   const { failureConverter, payloadConverter, payloadCodecs } = converter;
   return failure
     ? failureConverter.failureToError(await decodeFailure(payloadCodecs, failure), payloadConverter)

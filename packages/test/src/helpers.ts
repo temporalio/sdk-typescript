@@ -11,6 +11,7 @@ import { Payload, PayloadCodec } from '@temporalio/common';
 import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 import * as iface from '@temporalio/proto';
 import {
+  ExistingServerTestWorkflowEnvironmentOptions,
   LocalTestWorkflowEnvironmentOptions,
   TestWorkflowEnvironment as RealTestWorkflowEnvironment,
   TimeSkippingTestWorkflowEnvironmentOptions,
@@ -39,6 +40,7 @@ export const RUN_TIME_SKIPPING_TESTS =
   inWorkflowContext() || !(process.platform === 'linux' && process.arch === 'arm64');
 
 export const TESTS_CLI_VERSION = inWorkflowContext() ? '' : process.env.TESTS_CLI_VERSION;
+
 export const TESTS_TIME_SKIPPING_SERVER_VERSION = inWorkflowContext()
   ? ''
   : process.env.TESTS_TIME_SKIPPING_SERVER_VERSION;
@@ -211,6 +213,12 @@ export class TestWorkflowEnvironment extends RealTestWorkflowEnvironment {
           }
         : undefined),
     });
+  }
+
+  static async createFromExistingServer(
+    opts?: ExistingServerTestWorkflowEnvironmentOptions
+  ): Promise<TestWorkflowEnvironment> {
+    return RealTestWorkflowEnvironment.createFromExistingServer(opts);
   }
 }
 

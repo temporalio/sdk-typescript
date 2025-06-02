@@ -6,7 +6,15 @@
  * @module
  */
 
-import { ActivityOptions, Headers, LocalActivityOptions, Next, Timestamp, WorkflowExecution } from '@temporalio/common';
+import {
+  ActivityOptions,
+  Headers,
+  LocalActivityOptions,
+  MetricTags,
+  Next,
+  Timestamp,
+  WorkflowExecution,
+} from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
 import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 
@@ -160,6 +168,9 @@ export interface SignalWorkflowInput {
 /** Input for WorkflowOutboundCallsInterceptor.getLogAttributes */
 export type GetLogAttributesInput = Record<string, unknown>;
 
+/** Input for WorkflowOutboundCallsInterceptor.getMetricTags */
+export type GetMetricTagsInput = MetricTags;
+
 /**
  * Implement any of these methods to intercept Workflow code calls to the Temporal APIs, like scheduling an activity and starting a timer
  */
@@ -210,6 +221,15 @@ export interface WorkflowOutboundCallsInterceptor {
    * The attributes returned in this call are attached to every log message.
    */
   getLogAttributes?: (input: GetLogAttributesInput, next: Next<this, 'getLogAttributes'>) => Record<string, unknown>;
+
+  /**
+   * Called once every time a metric is emitted from a Workflow metric (ie. a metric created
+   * from {@link workflow.metricMeter}).
+   *
+   * Tags returned by this hook are _prepended_ to tags defined at the metric level and tags
+   * defined on the emitter function itself.
+   */
+  getMetricTags?: (input: GetMetricTagsInput, next: Next<this, 'getMetricTags'>) => MetricTags;
 }
 
 /** Input for WorkflowInternalsInterceptor.concludeActivation */

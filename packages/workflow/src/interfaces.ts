@@ -1,7 +1,6 @@
 import type { RawSourceMap } from 'source-map';
 import {
   RetryPolicy,
-  TemporalFailure,
   CommonWorkflowOptions,
   HandlerUnfinishedPolicy,
   SearchAttributes,
@@ -12,6 +11,9 @@ import {
   VersioningIntent,
   TypedSearchAttributes,
   SearchAttributePair,
+  Priority,
+  WorkerDeploymentVersion,
+  VersioningBehavior,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -63,6 +65,22 @@ export interface WorkflowInfo {
   readonly parent?: ParentWorkflowInfo;
 
   /**
+   * The root workflow execution, defined as follows:
+   * 1. A workflow without a parent workflow is its own root workflow.
+   * 2. A workflow with a parent workflow has the same root workflow as
+   * its parent.
+   *
+   * When there is no parent workflow, i.e., the workflow is its own root workflow,
+   * this field is `undefined`.
+   *
+   * Note that Continue-as-New (or reset) propagates the workflow parentage relationship,
+   * and therefore, whether the new workflow has the same root workflow as the original one
+   * depends on whether it had a parent.
+   *
+   */
+  readonly root?: RootWorkflowInfo;
+
+  /**
    * Result from the previous Run (present if this is a Cron Workflow or was Continued As New).
    *
    * An array of values, since other SDKs may return multiple values from a Workflow.
@@ -72,7 +90,7 @@ export interface WorkflowInfo {
   /**
    * Failure from the previous Run (present when this Run is a retry, or the last Run of a Cron Workflow failed)
    */
-  readonly lastFailure?: TemporalFailure;
+  readonly lastFailure?: Error;
 
   /**
    * Length of Workflow history up until the current Workflow Task.
@@ -179,10 +197,28 @@ export interface WorkflowInfo {
    * task was completed by a worker without a Build ID. If this worker is the one executing this
    * task for the first time and has a Build ID set, then its ID will be used. This value may change
    * over the lifetime of the workflow run, but is deterministic and safe to use for branching.
+   *
+   * @deprecated Use `currentDeploymentVersion` instead
    */
   readonly currentBuildId?: string;
 
+  /**
+   * The Deployment Version of the worker which executed the current Workflow Task. May be undefined
+   * if the task was completed by a worker without a Deployment Version. If this worker is the one
+   * executing this task for the first time and has a Deployment Version set, then its ID will be
+   * used. This value may change over the lifetime of the workflow run, but is deterministic and
+   * safe to use for branching.
+   *
+   * @experimental Deployment based versioning is experimental and may change in the future.
+   */
+  readonly currentDeploymentVersion?: WorkerDeploymentVersion;
+
   readonly unsafe: UnsafeWorkflowInfo;
+
+  /**
+   * Priority of this workflow
+   */
+  readonly priority?: Priority;
 }
 
 /**
@@ -221,6 +257,11 @@ export interface ParentWorkflowInfo {
   workflowId: string;
   runId: string;
   namespace: string;
+}
+
+export interface RootWorkflowInfo {
+  workflowId: string;
+  runId: string;
 }
 
 /**
@@ -561,6 +602,11 @@ export type Handler<
 export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => void | Promise<void>;
 
 /**
+ * A handler function accepting update calls for non-registered update names.
+ */
+export type DefaultUpdateHandler = (updateName: string, ...args: unknown[]) => Promise<unknown> | unknown;
+
+/**
  * A handler function accepting query calls for non-registered query names.
  */
 export type DefaultQueryHandler = (queryName: string, ...args: unknown[]) => unknown;
@@ -592,4 +638,5 @@ export type UpdateHandlerOptions<Args extends any[]> = {
 export interface ActivationCompletion {
   commands: coresdk.workflow_commands.IWorkflowCommand[];
   usedInternalFlags: number[];
+  versioningBehavior?: VersioningBehavior;
 }

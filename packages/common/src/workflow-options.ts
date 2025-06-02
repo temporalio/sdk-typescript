@@ -4,6 +4,8 @@ import { RetryPolicy } from './retry-policy';
 import { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
 import { SearchAttributePair, SearchAttributes, TypedSearchAttributes } from './search-attributes';
+import { Priority } from './priority';
+import { WorkflowFunctionWithOptions } from './workflow-definition-options';
 
 /**
  * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
@@ -205,6 +207,11 @@ export interface BaseWorkflowOptions {
    * @experimental User metadata is a new API and suspectible to change.
    */
   staticSummary?: string;
+
+  /**
+   * Priority of a workflow
+   */
+  priority?: Priority;
 }
 
 export type WithWorkflowArgs<W extends Workflow, T> = T &
@@ -252,7 +259,9 @@ export interface WorkflowDurationOptions {
 
 export type CommonWorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
 
-export function extractWorkflowType<T extends Workflow>(workflowTypeOrFunc: string | T): string {
+export function extractWorkflowType<T extends Workflow>(
+  workflowTypeOrFunc: string | T | WorkflowFunctionWithOptions<any[], any>
+): string {
   if (typeof workflowTypeOrFunc === 'string') return workflowTypeOrFunc as string;
   if (typeof workflowTypeOrFunc === 'function') {
     if (workflowTypeOrFunc?.name) return workflowTypeOrFunc.name;

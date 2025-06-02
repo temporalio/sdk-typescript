@@ -22,6 +22,7 @@ import {
   decodeRetryState,
   encodeWorkflowIdConflictPolicy,
   WorkflowIdConflictPolicy,
+  compilePriority,
 } from '@temporalio/common';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -35,8 +36,8 @@ import {
   encodeMapToPayloads,
   encodeOptionalToPayload,
   encodeToPayloads,
-  filterNullAndUndefined,
 } from '@temporalio/common/lib/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import {
   ServiceError,
@@ -1231,6 +1232,8 @@ export class WorkflowClient extends BaseClient {
         summary: await encodeOptionalToPayload(this.dataConverter, options?.staticSummary),
         details: await encodeOptionalToPayload(this.dataConverter, options?.staticDetails),
       },
+      priority: options.priority ? compilePriority(options.priority) : undefined,
+      versioningOverride: options.versioningOverride ?? undefined,
     };
     try {
       return (await this.workflowService.signalWithStartWorkflowExecution(req)).runId;
@@ -1302,6 +1305,8 @@ export class WorkflowClient extends BaseClient {
         summary: await encodeOptionalToPayload(this.dataConverter, opts?.staticSummary),
         details: await encodeOptionalToPayload(this.dataConverter, opts?.staticDetails),
       },
+      priority: opts.priority ? compilePriority(opts.priority) : undefined,
+      versioningOverride: opts.versioningOverride ?? undefined,
     };
   }
 

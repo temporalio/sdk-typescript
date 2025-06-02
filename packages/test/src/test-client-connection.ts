@@ -1,8 +1,9 @@
 import { fork } from 'node:child_process';
 import * as http2 from 'node:http2';
-import util from 'node:util';
-import path from 'node:path';
-import fs from 'node:fs/promises';
+import * as util from 'node:util';
+import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
+import assert from 'node:assert';
 import test, { TestFn } from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
@@ -129,6 +130,47 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
   setTimeout(() => ctrl.abort(), 10);
   const err = await t.throwsAsync(conn.withAbortSignal(ctrl.signal, () => conn.workflowService.updateNamespace({})));
   t.true(isGrpcCancelledError(err));
+});
+
+test('apiKey sets temporal-namespace header appropriately', async (t) => {
+  let getSystemInfoHeaders: grpc.Metadata = new grpc.Metadata();
+  let startWorkflowExecutionHeaders: grpc.Metadata = new grpc.Metadata();
+
+  const server = new grpc.Server();
+  server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
+    getSystemInfo(
+      call: grpc.ServerUnaryCall<
+        temporal.api.workflowservice.v1.IGetSystemInfoRequest,
+        temporal.api.workflowservice.v1.IGetSystemInfoResponse
+      >,
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+    ) {
+      getSystemInfoHeaders = call.metadata.clone();
+      callback(null, {});
+    },
+    startWorkflowExecution(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
+      startWorkflowExecutionHeaders = call.metadata.clone();
+      callback(null, {});
+    },
+  });
+  const port = await bindLocalhost(server);
+  const conn = await Connection.connect({
+    address: `127.0.0.1:${port}`,
+    metadata: { staticKey: 'set' },
+    apiKey: 'test-token',
+  });
+
+  await conn.workflowService.startWorkflowExecution({ namespace: 'test-namespace' });
+
+  assert(getSystemInfoHeaders !== undefined);
+  t.deepEqual(getSystemInfoHeaders.get('temporal-namespace'), []);
+  t.deepEqual(getSystemInfoHeaders.get('authorization'), ['Bearer test-token']);
+  t.deepEqual(getSystemInfoHeaders.get('staticKey'), ['set']);
+
+  assert(startWorkflowExecutionHeaders);
+  t.deepEqual(startWorkflowExecutionHeaders.get('temporal-namespace'), ['test-namespace']);
+  t.deepEqual(startWorkflowExecutionHeaders.get('authorization'), ['Bearer test-token']);
+  t.deepEqual(startWorkflowExecutionHeaders.get('staticKey'), ['set']);
 });
 
 test('Connection can connect using "[ipv6]:port" address', async (t) => {

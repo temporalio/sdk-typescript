@@ -1,5 +1,12 @@
 import Long from 'long'; // eslint-disable-line import/no-named-as-default
-import { compileRetryPolicy, decompileRetryPolicy, extractWorkflowType, LoadedDataConverter } from '@temporalio/common';
+import {
+  compilePriority,
+  compileRetryPolicy,
+  decodePriority,
+  decompileRetryPolicy,
+  extractWorkflowType,
+  LoadedDataConverter,
+} from '@temporalio/common';
 import {
   encodeUnifiedSearchAttributes,
   decodeSearchAttributes,
@@ -268,6 +275,7 @@ export async function encodeScheduleAction(
         summary: await encodeOptionalToPayload(dataConverter, action?.staticSummary),
         details: await encodeOptionalToPayload(dataConverter, action?.staticDetails),
       },
+      priority: action.priority ? compilePriority(action.priority) : undefined,
     },
   };
 }
@@ -336,6 +344,7 @@ export async function decodeScheduleAction(
       workflowTaskTimeout: optionalTsToMs(pb.startWorkflow.workflowTaskTimeout),
       staticSummary: (await decodeOptionalSinglePayload(dataConverter, userMetadata?.summary)) ?? undefined,
       staticDetails: (await decodeOptionalSinglePayload(dataConverter, userMetadata?.details)) ?? undefined,
+      priority: decodePriority(pb.startWorkflow.priority),
     };
   }
   throw new TypeError('Unsupported schedule action');

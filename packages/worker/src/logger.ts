@@ -1,24 +1,31 @@
 import { formatWithOptions } from 'node:util';
 import * as supportsColor from 'supports-color';
-import { getTimeOfDay } from '@temporalio/core-bridge';
+import { native } from '@temporalio/core-bridge';
 import { LogLevel, LogMetadata, Logger } from '@temporalio/common';
 
 /** @deprecated Import from @temporalio/common instead */
 export { LogLevel, LogMetadata, Logger };
 
 export interface LogEntry {
-  level: LogLevel;
+  /**
+   * Log message
+   */
   message: string;
-  timestampNanos: bigint;
-  /** Custom attributes */
-  meta?: LogMetadata;
-}
 
-/**
- * @internal
- */
-interface LoggerWithColorSupport extends Logger {
-  [loggerHasColorsSymbol]?: boolean;
+  /**
+   * Log level
+   */
+  level: LogLevel;
+
+  /**
+   * Time since epoch, in nanoseconds.
+   */
+  timestampNanos: bigint;
+
+  /**
+   * Custom attributes
+   */
+  meta?: LogMetadata;
 }
 
 export const LogTimestamp = Symbol.for('log_timestamp');
@@ -47,14 +54,6 @@ function defaultLogFunction(entry: LogEntry): void {
 }
 
 /**
- * Takes a `[seconds, nanos]` tuple as returned from getTimeOfDay and turns it into bigint.
- */
-export function timeOfDayToBigint(timeOfDay: [number, number]): bigint {
-  const [seconds, nanos] = timeOfDay;
-  return BigInt(seconds) * 1_000_000_000n + BigInt(nanos);
-}
-
-/**
  * Default worker logger - uses a default log function to log messages to `console.error`.
  * See constructor arguments for customization.
  */
@@ -77,7 +76,7 @@ export class DefaultLogger implements Logger {
         level,
         message,
         meta: Object.keys(rest).length === 0 ? undefined : rest,
-        timestampNanos: timestampNanos ?? timeOfDayToBigint(getTimeOfDay()),
+        timestampNanos: timestampNanos ?? native.getTimeOfDay(),
       });
     }
   }
@@ -106,72 +105,21 @@ export class DefaultLogger implements Logger {
 /**
  * @internal
  */
+interface LoggerWithColorSupport extends Logger {
+  [loggerHasColorsSymbol]?: boolean;
+}
+
+/**
+ * @internal
+ */
 export function hasColorSupport(logger: Logger): boolean {
   return (logger as LoggerWithColorSupport)[loggerHasColorsSymbol] ?? false;
 }
 
-export function withMetadata(logger: Logger, meta: LogMetadata | (() => LogMetadata)): Logger {
-  return new LoggerWithMetadata(logger, meta);
+export interface FlushableLogger extends Logger {
+  flush(): void;
 }
 
-class LoggerWithMetadata implements Logger {
-  private parentLogger: Logger;
-  private metaChain: (LogMetadata | (() => LogMetadata))[];
-
-  constructor(parent: Logger, meta: LogMetadata | (() => LogMetadata)) {
-    // Flatten recusive LoggerWithMetadata instances
-    if (parent instanceof LoggerWithMetadata) {
-      this.parentLogger = parent.parentLogger;
-      this.metaChain = LoggerWithMetadata.appendToChain(parent.metaChain, meta);
-    } else {
-      this.parentLogger = parent;
-      this.metaChain = [meta];
-    }
-    (this as LoggerWithColorSupport)[loggerHasColorsSymbol] = hasColorSupport(parent);
-  }
-
-  log(level: LogLevel, message: string, meta?: LogMetadata): void {
-    this.parentLogger.log(level, message, this.resolveMetadata(meta));
-  }
-
-  trace(message: string, meta?: LogMetadata): void {
-    this.parentLogger.trace(message, this.resolveMetadata(meta));
-  }
-
-  debug(message: string, meta?: LogMetadata): void {
-    this.parentLogger.debug(message, this.resolveMetadata(meta));
-  }
-
-  info(message: string, meta?: LogMetadata): void {
-    this.parentLogger.info(message, this.resolveMetadata(meta));
-  }
-
-  warn(message: string, meta?: LogMetadata): void {
-    this.parentLogger.warn(message, this.resolveMetadata(meta));
-  }
-
-  error(message: string, meta?: LogMetadata): void {
-    this.parentLogger.error(message, this.resolveMetadata(meta));
-  }
-
-  private resolveMetadata(meta?: LogMetadata): LogMetadata {
-    const resolved = {};
-    for (const contributor of this.metaChain) {
-      Object.assign(resolved, typeof contributor === 'function' ? contributor() : contributor);
-    }
-    Object.assign(resolved, meta);
-    return resolved;
-  }
-
-  /**
-   * Append a metadata contributor to the chain, merging it with the former last contributor if both are plain objects
-   */
-  private static appendToChain(chain: (LogMetadata | (() => LogMetadata))[], meta: LogMetadata | (() => LogMetadata)) {
-    if (chain.length === 0) return [meta];
-    const last = chain[chain.length - 1];
-    if (typeof last === 'object' && typeof meta === 'object') {
-      return [...chain.slice(0, -1), { ...last, ...meta }];
-    }
-    return [...chain, meta];
-  }
+export function isFlushableLogger(logger: Logger): logger is FlushableLogger {
+  return 'flush' in logger && typeof logger.flush === 'function';
 }

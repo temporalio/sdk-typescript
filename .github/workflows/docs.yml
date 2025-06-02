@@ -15,6 +15,12 @@ on:
       VERCEL_TOKEN:
         required: false
         description: The Vercel token. Required if 'publish_target' is set.
+      VERCEL_ORG_ID:
+        required: false
+        description: The Vercel token. Required if 'publish_target' is set.
+      VERCEL_PROJECT_ID:
+        required: false
+        description: The Vercel token. Required if 'publish_target' is set.
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -62,10 +68,11 @@ jobs:
 
       - name: Publish docs
         if: ${{ inputs.publish_target }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           npx vercel deploy packages/docs/build \
             -t '${{ secrets.VERCEL_TOKEN }}' \
-            --name typescript \
-            --scope temporal \
             --yes \
             ${{ inputs.publish_target == 'prod' && '--prod' || '' }}

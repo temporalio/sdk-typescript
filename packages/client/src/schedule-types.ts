@@ -819,6 +819,7 @@ export type ScheduleDescriptionStartWorkflowAction = ScheduleSummaryStartWorkflo
     | 'workflowTaskTimeout'
     | 'staticSummary'
     | 'staticDetails'
+    | 'priority'
   >;
 
 // Invariant: an existing ScheduleDescriptionAction can be used as is to create or update a schedule
