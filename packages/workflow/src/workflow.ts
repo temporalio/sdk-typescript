@@ -204,9 +204,11 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         versioningIntent: versioningIntentToProto(options.versioningIntent),
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
-      userMetadata: options && {
-        summary: options.staticSummary ? activator.payloadConverter.toPayload(options.staticSummary) : undefined,
-      },
+      userMetadata: options.staticSummary
+        ? {
+            summary: activator.payloadConverter.toPayload(options.staticSummary),
+          }
+        : undefined,
     });
     activator.completions.activity.set(seq, {
       resolve,
