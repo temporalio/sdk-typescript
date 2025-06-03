@@ -645,28 +645,29 @@ export function proxyLocalActivities<A = UntypedActivities>(
   // Validate as early as possible for immediate user feedback
   validateLocalActivityOptions(options);
 
-  function createLocalActivityProxy(summaries: Record<string, string> = {}): ActivityInterfaceWithOptions<A> {
+  function createActivityProxy(options: ActivityOptions): ActivityInterfaceWithOptions<A> {
     return new Proxy({} as ActivityInterfaceWithOptions<A>, {
-      get(_, prop) {
-        if (prop === 'withSummaries') {
-          return function withSummaries(newSummaries: Record<string, string>): ActivityInterfaceWithOptions<A> {
-            return createLocalActivityProxy(newSummaries);
-          };
+      get(_, activityType) {
+        if (typeof activityType !== 'string') {
+          throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
         }
 
-        if (typeof prop !== 'string') {
-          throw new TypeError(`Only strings are supported for Activity types, got: ${String(prop)}`);
+        function activityProxyFunction(...args: unknown[]): Promise<unknown> {
+          return scheduleLocalActivity(activityType as string, args, options);
         }
 
-        return function localActivityProxyFunction(...args: unknown[]): Promise<unknown> {
-          const summary = summaries[prop];
-          return scheduleLocalActivity(prop, args, options, summary);
+        activityProxyFunction.runWithOptions = function (
+          overrideOptions: ActivityOptions,
+          args: any[]
+        ): Promise<unknown> {
+          return scheduleLocalActivity(activityType, args, { ...options, ...overrideOptions });
         };
+
+        return activityProxyFunction;
       },
     });
   }
-
-  return createLocalActivityProxy();
+  return createActivityProxy(options);
 }
 
 // TODO: deprecate this patch after "enough" time has passed
