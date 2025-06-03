@@ -32,7 +32,9 @@ import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
   decodeOptionalFailureToOptionalError,
+  decodeOptionalSinglePayload,
   encodeMapToPayloads,
+  encodeOptionalToPayload,
   encodeToPayloads,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
@@ -511,7 +513,7 @@ export class WorkflowClient extends BaseClient {
 
   protected async _start<T extends Workflow>(
     workflowTypeOrFunc: string | T,
-    options: WithWorkflowArgs<T, WorkflowOptions>,
+    options: WorkflowStartOptions<T>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<string> {
     const workflowType = extractWorkflowType(workflowTypeOrFunc);
@@ -1226,6 +1228,10 @@ export class WorkflowClient extends BaseClient {
           : undefined,
       cronSchedule: options.cronSchedule,
       header: { fields: headers },
+      userMetadata: {
+        summary: await encodeOptionalToPayload(this.dataConverter, options?.staticSummary),
+        details: await encodeOptionalToPayload(this.dataConverter, options?.staticDetails),
+      },
       priority: options.priority ? compilePriority(options.priority) : undefined,
       versioningOverride: options.versioningOverride ?? undefined,
     };
@@ -1268,7 +1274,6 @@ export class WorkflowClient extends BaseClient {
   protected async createStartWorkflowRequest(input: WorkflowStartInput): Promise<StartWorkflowExecutionRequest> {
     const { options: opts, workflowType, headers } = input;
     const { identity, namespace } = this.options;
-
     return {
       namespace,
       identity,
@@ -1296,6 +1301,10 @@ export class WorkflowClient extends BaseClient {
           : undefined,
       cronSchedule: opts.cronSchedule,
       header: { fields: headers },
+      userMetadata: {
+        summary: await encodeOptionalToPayload(this.dataConverter, opts?.staticSummary),
+        details: await encodeOptionalToPayload(this.dataConverter, opts?.staticDetails),
+      },
       priority: opts.priority ? compilePriority(opts.priority) : undefined,
       versioningOverride: opts.versioningOverride ?? undefined,
     };
@@ -1431,8 +1440,13 @@ export class WorkflowClient extends BaseClient {
           workflowExecution: { workflowId, runId },
         });
         const info = await executionInfoFromRaw(raw.workflowExecutionInfo ?? {}, this.client.dataConverter, raw);
+        const userMetadata = raw.executionConfig?.userMetadata;
         return {
           ...info,
+          staticDetails: async () =>
+            (await decodeOptionalSinglePayload(this.client.dataConverter, userMetadata?.details)) ?? undefined,
+          staticSummary: async () =>
+            (await decodeOptionalSinglePayload(this.client.dataConverter, userMetadata?.summary)) ?? undefined,
           raw,
         };
       },

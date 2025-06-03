@@ -109,10 +109,31 @@ export interface StartChildWorkflowExecutionInput {
   readonly seq: number;
 }
 
+/**
+ * User metadata that can be attached to workflow commands.
+ *
+ * Current used for:
+ * - startTimer, scheduleActivity/scheduleLocalActivity commands
+ * - internal metadata query
+ */
+export interface UserMetadata {
+  /** @experimental A single line summary of the command's purpose */
+  summary?: string;
+  /** @experimental Additional details about the command for longer-text description, can span multiple lines */
+  details?: string;
+}
+
 /** Input for WorkflowOutboundCallsInterceptor.startTimer */
 export interface TimerInput {
   readonly durationMs: number;
   readonly seq: number;
+  readonly options?: TimerOptions;
+}
+
+/** Options for starting a timer (i.e. sleep) */
+export interface TimerOptions {
+  /** @experimental A single line summary of the command's purpose */
+  readonly summary?: string;
 }
 
 /**

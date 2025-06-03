@@ -16,7 +16,9 @@ import { Headers } from '@temporalio/common/lib/interceptors';
 import {
   decodeArrayFromPayloads,
   decodeMapFromPayloads,
+  decodeOptionalSinglePayload,
   encodeMapToPayloads,
+  encodeOptionalToPayload,
   encodeToPayloads,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
@@ -196,8 +198,7 @@ export function decodeOptionalStructuredCalendarSpecs(
 }
 
 export function compileScheduleOptions(options: ScheduleOptions): CompiledScheduleOptions {
-  const workflowTypeOrFunc = options.action.workflowType;
-  const workflowType = extractWorkflowType(workflowTypeOrFunc);
+  const workflowType = extractWorkflowType(options.action.workflowType);
   return {
     ...options,
     action: {
@@ -270,6 +271,10 @@ export async function encodeScheduleAction(
             }
           : undefined,
       header: { fields: headers },
+      userMetadata: {
+        summary: await encodeOptionalToPayload(dataConverter, action?.staticSummary),
+        details: await encodeOptionalToPayload(dataConverter, action?.staticDetails),
+      },
       priority: action.priority ? compilePriority(action.priority) : undefined,
     },
   };
@@ -320,6 +325,7 @@ export async function decodeScheduleAction(
   pb: temporal.api.schedule.v1.IScheduleAction
 ): Promise<ScheduleDescriptionAction> {
   if (pb.startWorkflow) {
+    const userMetadata = pb.startWorkflow?.userMetadata;
     return {
       type: 'startWorkflow',
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -336,6 +342,8 @@ export async function decodeScheduleAction(
       workflowExecutionTimeout: optionalTsToMs(pb.startWorkflow.workflowExecutionTimeout),
       workflowRunTimeout: optionalTsToMs(pb.startWorkflow.workflowRunTimeout),
       workflowTaskTimeout: optionalTsToMs(pb.startWorkflow.workflowTaskTimeout),
+      staticSummary: (await decodeOptionalSinglePayload(dataConverter, userMetadata?.summary)) ?? undefined,
+      staticDetails: (await decodeOptionalSinglePayload(dataConverter, userMetadata?.details)) ?? undefined,
       priority: decodePriority(pb.startWorkflow.priority),
     };
   }

@@ -8,7 +8,7 @@ import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
-import { defineQuery, defineSignal } from '@temporalio/workflow';
+import { defineQuery, defineSignal, setHandler } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import {
   ActivityCancellationType,
@@ -19,6 +19,8 @@ import {
   TypedSearchAttributes,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
+import { temporal } from '@temporalio/proto';
+import { decodeOptionalSinglePayload } from '@temporalio/common/lib/internal-non-workflow';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
@@ -1412,5 +1414,104 @@ test('Workflow can return root workflow', async (t) => {
   await worker.runUntil(async () => {
     const result = await executeWorkflow(rootWorkflow, { workflowId: 'test-root-workflow-length' });
     t.deepEqual(result, 'empty test-root-workflow-length');
+  });
+});
+
+export async function userMetadataWorkflow(): Promise<string> {
+  let done = false;
+  const signalDef = defineSignal('done');
+  setHandler(signalDef, () => {
+    done = true;
+  });
+
+  // That workflow should call an activity (with summary)
+  const { activityWithSummary } = workflow.proxyActivities({ scheduleToCloseTimeout: '10s' });
+  await activityWithSummary.runWithOptions(
+    {
+      staticSummary: 'activity summary',
+    },
+    []
+  );
+  // Should have a timer (with summary)
+  await workflow.sleep(5, { summary: 'timer summary' });
+  // Set current details
+  workflow.setCurrentDetails('current wf details');
+  // Unblock on var -> query current details (or return)
+  await workflow.condition(() => done);
+  return workflow.getCurrentDetails();
+}
+
+test('User metadata on workflow, timer, activity', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      async activityWithSummary() {},
+    },
+  });
+
+  await worker.runUntil(async () => {
+    // Start a workflow with static details
+    const handle = await startWorkflow(userMetadataWorkflow, {
+      staticSummary: 'wf static summary',
+      staticDetails: 'wf static details',
+    });
+    // Describe workflow -> static summary, static details
+    const desc = await handle.describe();
+    t.true((await desc.staticSummary()) === 'wf static summary');
+    t.true((await desc.staticDetails()) === 'wf static details');
+
+    await handle.signal('done');
+    const res = await handle.result();
+    t.true(res === 'current wf details');
+
+    // Get history events for timer and activity summaries.
+    const resp = await t.context.env.client.workflowService.getWorkflowExecutionHistory({
+      namespace: t.context.env.client.options.namespace,
+      execution: {
+        workflowId: handle.workflowId,
+        runId: handle.firstExecutionRunId,
+      },
+    });
+    for (const event of resp.history?.events ?? []) {
+      if (event.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED) {
+        t.deepEqual(
+          await decodeOptionalSinglePayload(
+            t.context.env.client.options.loadedDataConverter,
+            event.userMetadata?.summary ?? {}
+          ),
+          'wf static summary'
+        );
+        t.deepEqual(
+          await decodeOptionalSinglePayload(
+            t.context.env.client.options.loadedDataConverter,
+            event.userMetadata?.details ?? {}
+          ),
+          'wf static details'
+        );
+      } else if (event.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED) {
+        t.deepEqual(
+          await decodeOptionalSinglePayload(
+            t.context.env.client.options.loadedDataConverter,
+            event.userMetadata?.summary ?? {}
+          ),
+          'activity summary'
+        );
+      } else if (event.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_TIMER_STARTED) {
+        t.deepEqual(
+          await decodeOptionalSinglePayload(
+            t.context.env.client.options.loadedDataConverter,
+            event.userMetadata?.summary ?? {}
+          ),
+          'timer summary'
+        );
+      }
+    }
+
+    // Run metadata query -> get current details
+    const wfMetadata = (await handle.query('__temporal_workflow_metadata')) as temporal.api.sdk.v1.IWorkflowMetadata;
+    t.deepEqual(wfMetadata.definition?.signalDefinitions?.length, 1);
+    t.deepEqual(wfMetadata.definition?.signalDefinitions?.[0].name, 'done');
+    t.deepEqual(wfMetadata.definition?.queryDefinitions?.length, 3); // default queries
+    t.deepEqual(wfMetadata.currentDetails, 'current wf details');
   });
 });
