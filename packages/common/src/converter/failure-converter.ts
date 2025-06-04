@@ -6,8 +6,10 @@ import {
   ApplicationFailure,
   CancelledFailure,
   ChildWorkflowFailure,
+  decodeApplicationFailureCategory,
   decodeRetryState,
   decodeTimeoutType,
+  encodeApplicationFailureCategory,
   encodeRetryState,
   encodeTimeoutType,
   FAILURE_SOURCE,
@@ -158,7 +160,9 @@ export class DefaultFailureConverter implements FailureConverter {
         failure.applicationFailureInfo.type,
         Boolean(failure.applicationFailureInfo.nonRetryable),
         arrayFromPayloads(payloadConverter, failure.applicationFailureInfo.details?.payloads),
-        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter),
+        undefined,
+        decodeApplicationFailureCategory(failure.applicationFailureInfo.category)
       );
     }
     if (failure.serverFailureInfo) {
@@ -338,6 +342,7 @@ export class DefaultFailureConverter implements FailureConverter {
                 ? { payloads: toPayloads(payloadConverter, ...err.details) }
                 : undefined,
             nextRetryDelay: msOptionalToTs(err.nextRetryDelay),
+            category: encodeApplicationFailureCategory(err.category),
           },
         };
       }

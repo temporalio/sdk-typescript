@@ -108,6 +108,7 @@ export { log } from './logs';
 export { Trigger } from './trigger';
 export * from './workflow';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
+export { metricMeter } from './metrics';
 
 // Anything below this line is deprecated
 

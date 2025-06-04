@@ -34,6 +34,7 @@ import {
   TypedSearchAttributes,
   decodePriority,
   CancelledFailure,
+  MetricMeter,
 } from '@temporalio/common';
 import {
   decodeArrayFromPayloads,
@@ -52,6 +53,7 @@ import {
   tsToDate,
   tsToMs,
 } from '@temporalio/common/lib/time';
+import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
 import { errorMessage, NonNullableObject, OmitFirstParam } from '@temporalio/common/lib/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
 import { native } from '@temporalio/core-bridge';
@@ -61,7 +63,7 @@ import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
-import { Logger, withMetadata } from './logger';
+import { Logger } from './logger';
 import pkg from './pkg';
 import {
   EvictionReason,
@@ -164,8 +166,12 @@ export interface NativeReplayHandle {
 }
 
 interface NativeWorkerConstructor {
-  create(connection: NativeConnection, options: CompiledWorkerOptionsWithBuildId): Promise<NativeWorkerLike>;
-  createReplay(options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle>;
+  create(
+    runtime: Runtime,
+    connection: NativeConnection,
+    options: CompiledWorkerOptionsWithBuildId
+  ): Promise<NativeWorkerLike>;
+  createReplay(runtime: Runtime, options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle>;
 }
 
 interface WorkflowWithLogAttributes {
@@ -194,16 +200,18 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly initiateShutdown: OmitFirstParam<typeof native.workerInitiateShutdown>;
 
   public static async create(
+    runtime: Runtime,
     connection: NativeConnection,
     options: CompiledWorkerOptionsWithBuildId
   ): Promise<NativeWorkerLike> {
-    const runtime = Runtime.instance();
     const nativeWorker = await runtime.registerWorker(extractNativeClient(connection), toNativeWorkerOptions(options));
     return new NativeWorker(runtime, nativeWorker);
   }
 
-  public static async createReplay(options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle> {
-    const runtime = Runtime.instance();
+  public static async createReplay(
+    runtime: Runtime,
+    options: CompiledWorkerOptionsWithBuildId
+  ): Promise<NativeReplayHandle> {
     const [worker, historyPusher] = await runtime.createReplayWorker(toNativeWorkerOptions(options));
     return {
       worker: new NativeWorker(runtime, worker),
@@ -489,12 +497,16 @@ export class Worker {
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
     const runtime = Runtime.instance();
-    const logger = withMetadata(runtime.logger, {
+    const logger = LoggerWithComposedMetadata.compose(runtime.logger, {
       sdkComponent: SdkComponent.worker,
       taskQueue: options.taskQueue ?? 'default',
     });
+    const metricMeter = runtime.metricMeter.withTags({
+      namespace: options.namespace ?? 'default',
+      taskQueue: options.taskQueue ?? 'default',
+    });
     const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
-    const compiledOptions = compileWorkerOptions(options, logger);
+    const compiledOptions = compileWorkerOptions(options, logger, metricMeter);
     logger.debug('Creating worker', {
       options: {
         ...compiledOptions,
@@ -519,7 +531,7 @@ export class Worker {
     let nativeWorker: NativeWorkerLike;
     const compiledOptionsWithBuildId = addBuildIdIfMissing(compiledOptions, bundle?.code);
     try {
-      nativeWorker = await nativeWorkerCtor.create(connection, compiledOptionsWithBuildId);
+      nativeWorker = await nativeWorkerCtor.create(runtime, connection, compiledOptionsWithBuildId);
     } catch (err) {
       // We just created this connection, close it
       if (!options.connection) {
@@ -528,7 +540,15 @@ export class Worker {
       throw err;
     }
     extractReferenceHolders(connection).add(nativeWorker);
-    return new this(runtime, nativeWorker, workflowCreator, compiledOptionsWithBuildId, logger, connection);
+    return new this(
+      runtime,
+      nativeWorker,
+      workflowCreator,
+      compiledOptionsWithBuildId,
+      logger,
+      metricMeter,
+      connection
+    );
   }
 
   protected static async createWorkflowCreator(
@@ -596,7 +616,7 @@ export class Worker {
     histories: ReplayHistoriesIterable
   ): AsyncIterableIterator<ReplayResult> {
     const [worker, pusher] = await this.constructReplayWorker(options);
-    const rt = Runtime.instance();
+    const rt = worker.runtime;
     const evictions = on(worker.evictionsEmitter, 'eviction') as AsyncIterableIterator<[EvictionWithRunID]>;
     const runPromise = worker.run().then(() => {
       throw new ShutdownError('Worker was shutdown');
@@ -677,19 +697,26 @@ export class Worker {
     };
     this.replayWorkerCount++;
     const runtime = Runtime.instance();
-    const logger = withMetadata(runtime.logger, {
+    const logger = LoggerWithComposedMetadata.compose(runtime.logger, {
       sdkComponent: 'worker',
       taskQueue: fixedUpOptions.taskQueue,
     });
-    const compiledOptions = compileWorkerOptions(fixedUpOptions, logger);
+    const metricMeter = runtime.metricMeter.withTags({
+      namespace: 'default',
+      taskQueue: fixedUpOptions.taskQueue,
+    });
+    const compiledOptions = compileWorkerOptions(fixedUpOptions, logger, metricMeter);
     const bundle = await this.getOrCreateBundle(compiledOptions, logger);
     if (!bundle) {
       throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
     }
     const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions, logger);
-    const replayHandle = await nativeWorkerCtor.createReplay(addBuildIdIfMissing(compiledOptions, bundle.code));
+    const replayHandle = await nativeWorkerCtor.createReplay(
+      runtime,
+      addBuildIdIfMissing(compiledOptions, bundle.code)
+    );
     return [
-      new this(runtime, replayHandle.worker, workflowCreator, compiledOptions, logger, undefined, true),
+      new this(runtime, replayHandle.worker, workflowCreator, compiledOptions, logger, metricMeter, undefined, true),
       replayHandle.historyPusher,
     ];
   }
@@ -756,6 +783,7 @@ export class Worker {
     public readonly options: CompiledWorkerOptions,
     /** Logger bound to 'sdkComponent: worker' */
     protected readonly logger: Logger,
+    protected readonly metricMeter: MetricMeter,
     protected readonly connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
@@ -1002,6 +1030,7 @@ export class Worker {
                           },
                         }),
                       this.logger,
+                      this.metricMeter,
                       this.options.interceptors.activity
                     );
                     output = { type: 'run', activity, input };

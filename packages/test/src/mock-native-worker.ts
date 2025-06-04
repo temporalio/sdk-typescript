@@ -6,7 +6,8 @@ import { coresdk } from '@temporalio/proto';
 import { DefaultLogger, Runtime, ShutdownError } from '@temporalio/worker';
 import { byteArrayToBuffer } from '@temporalio/worker/lib/utils';
 import { NativeReplayHandle, NativeWorkerLike, Worker as RealWorker } from '@temporalio/worker/lib/worker';
-import { withMetadata } from '@temporalio/worker/lib/logger';
+import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
+import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
 import { CompiledWorkerOptions, compileWorkerOptions, WorkerOptions } from '@temporalio/worker/lib/worker-options';
 import type { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';
 import * as activities from './activities';
@@ -170,12 +171,12 @@ export class Worker extends RealWorker {
 
   public constructor(workflowCreator: WorkflowCreator, opts: CompiledWorkerOptions) {
     const runtime = Runtime.instance();
-    const logger = withMetadata(runtime.logger, {
+    const logger = LoggerWithComposedMetadata.compose(runtime.logger, {
       sdkComponent: SdkComponent.worker,
       taskQueue: opts.taskQueue,
     });
     const nativeWorker = new MockNativeWorker();
-    super(runtime, nativeWorker, workflowCreator, opts, logger);
+    super(runtime, nativeWorker, workflowCreator, opts, logger, runtime.metricMeter);
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
@@ -191,8 +192,13 @@ export const defaultOptions: WorkerOptions = {
 };
 
 export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Worker {
-  const logger = withMetadata(Runtime.instance().logger, {
+  const runtime = Runtime.instance();
+  const logger = LoggerWithComposedMetadata.compose(runtime.logger, {
     sdkComponent: SdkComponent.worker,
+    taskQueue: options.taskQueue ?? 'default',
+  });
+  const metricMeter = MetricMeterWithComposedTags.compose(runtime.metricMeter, {
+    namespace: options.namespace ?? 'default',
     taskQueue: options.taskQueue ?? 'default',
   });
   return new Worker(
@@ -204,6 +210,6 @@ export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Work
         /* Nothing to destroy */
       },
     },
-    compileWorkerOptions(options, logger)
+    compileWorkerOptions(options, logger, metricMeter)
   );
 }
