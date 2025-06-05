@@ -164,9 +164,12 @@ export function makeDefaultTestContextFunction<C extends Context = Context>(opts
 export function makeTestFunction<C extends Context = Context>(opts: TestFunctionOptions<C>): TestFn<C> {
   return makeConfigurableEnvironmentTestFn<C>({
     recordedLogs: opts.recordedLogs,
+    runtimeOpts: opts.runtimeOpts,
     createTestContext: makeDefaultTestContextFunction(opts),
     teardown: async (c: C) => {
-      await c.env.teardown();
+      if (c.env) {
+        await c.env.teardown();
+      }
     },
   });
 }

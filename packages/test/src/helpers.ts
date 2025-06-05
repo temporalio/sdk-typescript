@@ -76,7 +76,10 @@ export function cleanOptionalStackTrace(stackTrace: string | undefined | null): 
 export function cleanStackTrace(ostack: string): string {
   // For some reason, a code snippet with carret on error location is sometime prepended before the actual stacktrace.
   // If there is such a snippet, get rid of it.
-  const stack = ostack.replace(/^.*\n[ ]*\^[ ]*\n+/gms, '');
+  let stack = ostack.replace(/^.*\n[ ]*\^[ ]*\n+/gms, '');
+
+  // FIXME: Find a better way to handle package vendoring; this will come back again.
+  stack = stack.replaceAll(/\([^() ]*\/nexus-sdk-typescript\/src/g, '(nexus-rpc-sdk/src');
 
   const su = new StackUtils({ cwd: path.join(__dirname, '../..') });
   const firstLine = stack.split('\n')[0];
@@ -122,6 +125,7 @@ export const bundlerOptions = {
     '@temporalio/activity',
     '@temporalio/client',
     '@temporalio/testing',
+    '@temporalio/nexus',
     '@temporalio/worker',
     'ava',
     'crypto',

@@ -1,5 +1,3 @@
-// TODO: Remove /Users/bergundy/... for stack traces, requires publishing nexus-rpc.
-
 import { randomUUID } from 'node:crypto';
 import anyTest, { TestFn } from 'ava';
 import getPort from 'get-port';
@@ -337,7 +335,7 @@ test('start operation handler errors', async (t) => {
         `ApplicationFailure: deliberate failure
     at Function.create (common/src/failure.ts)
     at op (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.start (/Users/bergundy/temporal/nexus-sdk-typescript/src/operation.ts)`
+    at ServiceRegistry.start (nexus-rpc-sdk/src/handler.ts)`
       );
       t.deepEqual((err as ApplicationFailure).details, ['details']);
       t.is((err as ApplicationFailure).failure?.source, 'TypeScriptSDK');
@@ -363,7 +361,7 @@ test('start operation handler errors', async (t) => {
         cleanStackTrace(err.stack!),
         `HandlerError: deliberate error
     at op (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.start (/Users/bergundy/temporal/nexus-sdk-typescript/src/operation.ts)`
+    at ServiceRegistry.start (nexus-rpc-sdk/src/handler.ts)`
       );
     }
     {
@@ -387,7 +385,7 @@ test('start operation handler errors', async (t) => {
         cleanStackTrace(err.stack!),
         `OperationError: deliberate error
     at op (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.start (/Users/bergundy/temporal/nexus-sdk-typescript/src/operation.ts)`
+    at ServiceRegistry.start (nexus-rpc-sdk/src/operation.ts)`
       );
     }
     {
@@ -486,7 +484,7 @@ test('cancel operation handler errors', async (t) => {
         `ApplicationFailure: deliberate failure
     at Function.create (common/src/failure.ts)
     at Object.cancel (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.cancel (/Users/bergundy/temporal/nexus-sdk-typescript/src/operation.ts)`
+    at ServiceRegistry.cancel (nexus-rpc-sdk/src/handler.ts)`
       );
       t.deepEqual((err as ApplicationFailure).details, ['details']);
       t.is((err as ApplicationFailure).failure?.source, 'TypeScriptSDK');
@@ -515,7 +513,7 @@ test('cancel operation handler errors', async (t) => {
         cleanStackTrace(err.stack!),
         `HandlerError: deliberate error
     at Object.cancel (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.cancel (/Users/bergundy/temporal/nexus-sdk-typescript/src/operation.ts)`
+    at ServiceRegistry.cancel (nexus-rpc-sdk/src/handler.ts)`
       );
     }
   });

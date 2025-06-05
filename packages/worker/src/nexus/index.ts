@@ -19,10 +19,11 @@ import {
   encodeErrorToFailure,
   decodeOptionalSingle,
 } from '@temporalio/common/lib/internal-non-workflow';
+import { LoggerWithComposedMetadata } from '@temporalio/common';
 import { fixBuffers } from '@temporalio/common/lib/proto-utils';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { Client, isGrpcServiceError, ServiceError } from '@temporalio/client';
-import { Logger, withMetadata } from '../logger';
+import { Logger } from '../logger';
 
 const UNINITIALIZED = Symbol();
 // fullName isn't part of the generated typed unfortunately.
@@ -93,7 +94,7 @@ export class NexusHandler {
      */
     private readonly workerLogger: Logger
   ) {
-    this.workerLogger = withMetadata(workerLogger, () => nexusLogAttributes(this.context));
+    this.workerLogger = LoggerWithComposedMetadata.compose(workerLogger, () => nexusLogAttributes(this.context));
   }
 
   protected async operationErrorToProto(
@@ -191,13 +192,10 @@ export class NexusHandler {
 
   protected async cancelOperation(
     ctx: nexus.CancelOperationContext,
-    token: string,
+    token: string
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
-      await this.invokeUserCode(
-        'cancelOperation',
-        this.serviceRegistry.cancel.bind(this.serviceRegistry, ctx, token)
-      );
+      await this.invokeUserCode('cancelOperation', this.serviceRegistry.cancel.bind(this.serviceRegistry, ctx, token));
       return {
         taskToken: this.taskToken,
         completed: {
@@ -252,14 +250,17 @@ export class NexusHandler {
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     if (task.request?.startOperation != null) {
       const variant = task.request?.startOperation;
-      return await this.startOperation({
-        ...this.context,
-        requestId: variant.requestId ?? undefined,
-        callerLinks: (variant.links ?? []).map(protoLinkToNexusLink),
-        callbackURL: variant.callback ?? undefined,
-        callbackHeaders: variant.callbackHeader ?? undefined,
-        handlerLinks: [],
-      }, variant.payload ?? undefined);
+      return await this.startOperation(
+        {
+          ...this.context,
+          requestId: variant.requestId ?? undefined,
+          callerLinks: (variant.links ?? []).map(protoLinkToNexusLink),
+          callbackURL: variant.callback ?? undefined,
+          callbackHeaders: variant.callbackHeader ?? undefined,
+          handlerLinks: [],
+        },
+        variant.payload ?? undefined
+      );
     } else if (task.request?.cancelOperation != null) {
       const variant = task.request?.cancelOperation;
       if (variant.operationToken == null) {
@@ -268,9 +269,12 @@ export class NexusHandler {
           message: 'Request missing operation token',
         });
       }
-      return await this.cancelOperation({
-        ...this.context,
-      }, variant.operationToken);
+      return await this.cancelOperation(
+        {
+          ...this.context,
+        },
+        variant.operationToken
+      );
     } else {
       throw new nexus.HandlerError({
         type: 'NOT_IMPLEMENTED',
@@ -288,12 +292,15 @@ export class NexusHandler {
     // tested.
     // TS can't infer this and typing out the types is redundant and hard to read.
     execute = this.client.withAbortSignal.bind(this.client, this.abortController.signal, execute) as any;
-    return await asyncLocalStorage.run({
-      client: this.client,
-      namespace: this.namespace,
-      taskQueue: this.taskQueue,
-      log: withMetadata(this.workerLogger, { sdkComponent: SdkComponent.nexus }),
-    }, execute);
+    return await asyncLocalStorage.run(
+      {
+        client: this.client,
+        namespace: this.namespace,
+        taskQueue: this.taskQueue,
+        log: LoggerWithComposedMetadata.compose(this.workerLogger, { sdkComponent: SdkComponent.nexus }),
+      },
+      execute
+    );
   }
 }
 
@@ -452,7 +459,7 @@ class PayloadSerializer implements nexus.Serializer {
       return undefined as T;
     }
     try {
-    return this.payloadConverter.fromPayload(this.payload);
+      return this.payloadConverter.fromPayload(this.payload);
     } catch (err) {
       throw new nexus.HandlerError({
         type: 'BAD_REQUEST',

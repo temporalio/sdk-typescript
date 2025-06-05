@@ -1,10 +1,10 @@
+import { randomUUID } from 'crypto';
 import * as nexus from 'nexus-rpc';
+import { ApplicationFailure, CancelledFailure, NexusOperationFailure } from '@temporalio/common';
 import { WorkflowFailedError } from '@temporalio/client';
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
-import { randomUUID } from 'crypto';
-import { ApplicationFailure, CancelledFailure, NexusOperationFailure } from '@temporalio/common';
 
 const service = nexus.service('test', {
   syncOp: nexus.operation<string, string>({ name: 'my-sync-op' }),

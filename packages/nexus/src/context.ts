@@ -1,12 +1,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as nexus from 'nexus-rpc';
 import { Logger, LogLevel, LogMetadata, Workflow } from '@temporalio/common';
+import { Replace } from '@temporalio/common/lib/type-helpers';
 import { Client, WorkflowStartOptions as ClientWorkflowStartOptions } from '@temporalio/client';
 import { temporal } from '@temporalio/proto';
 import { InternalWorkflowStartOptionsKey, InternalWorkflowStartOptions } from '@temporalio/client/lib/internal';
 import { generateWorkflowRunOperationToken, loadWorkflowRunOperationToken } from './token';
 import { convertNexusLinkToWorkflowEventLink, convertWorkflowEventLinkToNexusLink } from './link-converter';
-import { Replace } from '@temporalio/common/src/type-helpers';
 
 // Context used internally in the SDK to propagate information from the worker to the Temporal Nexus helpers.
 export interface HandlerContext {
