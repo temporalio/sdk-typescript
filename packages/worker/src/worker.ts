@@ -1187,7 +1187,7 @@ export class Worker {
                 reason = coresdk.nexus.NexusTaskCancelReason[task.cancelTask.reason];
               }
               nexusHandler.abortController.abort(new CancelledFailure(reason));
-              return { ackCancel: true, taskToken: task.cancelTask?.taskToken };
+              return;
             }
           }
         }
