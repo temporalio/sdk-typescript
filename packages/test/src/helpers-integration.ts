@@ -133,35 +133,43 @@ export function makeConfigurableEnvironmentTestFn<T>(opts: {
   return test;
 }
 
-export function makeTestFunction<C extends Context = Context>(opts: {
+export interface TestFunctionOptions<C extends Context> {
   workflowsPath: string;
   workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
   workflowInterceptorModules?: string[];
   recordedLogs?: { [workflowId: string]: LogEntry[] };
   runtimeOpts?: Partial<RuntimeOptions> | (() => Promise<[Partial<RuntimeOptions>, Partial<C>]>) | undefined;
-}): TestFn<C> {
+}
+
+export function makeDefaultTestContextFunction<C extends Context = Context>(opts: TestFunctionOptions<C>) {
+  return async (_t: ExecutionContext): Promise<C> => {
+    let env: TestWorkflowEnvironment;
+    if (process.env.TEMPORAL_SERVICE_ADDRESS) {
+      env = await TestWorkflowEnvironment.createFromExistingServer({
+        address: process.env.TEMPORAL_SERVICE_ADDRESS,
+      });
+    } else {
+      env = await createLocalTestEnvironment(opts.workflowEnvironmentOpts);
+    }
+    return {
+      workflowBundle: await createTestWorkflowBundle({
+        workflowsPath: opts.workflowsPath,
+        workflowInterceptorModules: opts.workflowInterceptorModules,
+      }),
+      env,
+    } as unknown as C;
+  };
+}
+
+export function makeTestFunction<C extends Context = Context>(opts: TestFunctionOptions<C>): TestFn<C> {
   return makeConfigurableEnvironmentTestFn<C>({
     recordedLogs: opts.recordedLogs,
     runtimeOpts: opts.runtimeOpts,
-    createTestContext: async (_t: ExecutionContext): Promise<C> => {
-      let env: TestWorkflowEnvironment;
-      if (process.env.TEMPORAL_SERVICE_ADDRESS) {
-        env = await TestWorkflowEnvironment.createFromExistingServer({
-          address: process.env.TEMPORAL_SERVICE_ADDRESS,
-        });
-      } else {
-        env = await createLocalTestEnvironment(opts.workflowEnvironmentOpts);
-      }
-      return {
-        workflowBundle: await createTestWorkflowBundle({
-          workflowsPath: opts.workflowsPath,
-          workflowInterceptorModules: opts.workflowInterceptorModules,
-        }),
-        env,
-      } as unknown as C;
-    },
+    createTestContext: makeDefaultTestContextFunction(opts),
     teardown: async (c: C) => {
-      await c.env.teardown();
+      if (c.env) {
+        await c.env.teardown();
+      }
     },
   });
 }

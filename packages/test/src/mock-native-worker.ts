@@ -94,9 +94,19 @@ export class MockNativeWorker implements NativeWorkerLike {
     this.workflowCompletionCallback = undefined;
   }
 
+  public async pollNexusTask(): Promise<Buffer> {
+    // Not implementing this in the mock worker, testing with real worker instead.
+    throw new Error('not implemented');
+  }
+
   public async completeActivityTask(result: Buffer): Promise<void> {
     this.activityCompletionCallback!(result);
     this.activityCompletionCallback = undefined;
+  }
+
+  public async completeNexusTask(_result: Buffer): Promise<void> {
+    // Not implementing this in the mock worker, testing with real worker instead.
+    throw new Error('not implemented');
   }
 
   public emit(task: Task): void {

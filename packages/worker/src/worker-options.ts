@@ -1,6 +1,7 @@
 import * as os from 'node:os';
 import * as v8 from 'node:v8';
 import type { Configuration as WebpackConfiguration } from 'webpack';
+import * as nexus from 'nexus-rpc';
 import {
   ActivityFunction,
   DataConverter,
@@ -110,6 +111,11 @@ export interface WorkerOptions {
   activities?: object;
 
   /**
+   * An array of nexus services
+   */
+  nexusServices?: nexus.ServiceHandler[];
+
+  /**
    * Path to look up workflows in, any function exported in this path will be registered as a Workflows in this Worker.
    *
    * If this option is provided to {@link Worker.create}, Webpack compliation will be triggered.
@@ -196,6 +202,16 @@ export interface WorkerOptions {
    * @default 100 if no {@link tuner} is set
    */
   maxConcurrentLocalActivityExecutions?: number;
+
+  /**
+   * Maximum number of Nexus tasks to execute concurrently.
+   * Adjust this to improve Worker resource consumption.
+   *
+   * Mutually exclusive with the {@link tuner} option.
+   *
+   * @default 100 if no {@link tuner} is set
+   */
+  maxConcurrentNexusTaskExecutions?: number;
 
   /**
    * Whether or not to poll on the Activity task queue.
@@ -314,6 +330,13 @@ export interface WorkerOptions {
   activityTaskPollerBehavior?: PollerBehavior;
 
   /**
+   * Specify the behavior of Nexus task polling.
+   *
+   * @default A fixed maximum whose value is min(10, maxConcurrentNexusTaskExecutions).
+   */
+  nexusTaskPollerBehavior?: PollerBehavior;
+
+  /**
    * Maximum number of Activity tasks to poll concurrently.
    *
    * Increase this setting if your Worker is failing to fill in all of its
@@ -323,6 +346,17 @@ export interface WorkerOptions {
    * @default min(10, maxConcurrentActivityTaskExecutions)
    */
   maxConcurrentActivityTaskPolls?: number;
+
+  /**
+   * Maximum number of Nexus tasks to poll concurrently.
+   *
+   * Increase this setting if your Worker is failing to fill in all of its
+   * `maxConcurrentNexusTaskExecutions` slots despite a low match rate of Nexus
+   * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
+   * `maxConcurrentNexusTaskExecutions`.
+   * @default min(10, maxConcurrentNexusTaskExecutions)
+   */
+  maxConcurrentNexusTaskPolls?: number;
 
   /**
    * How long a workflow task is allowed to sit on the sticky queue before it is timed out
@@ -566,8 +600,9 @@ export interface PollerBehaviorSimpleMaximum {
   type: 'simple-maximum';
   /**
    * The maximum poller number, assumes the same default as described in
-   * {@link WorkerOptions.maxConcurrentWorkflowTaskPolls} or
-   * {@link WorkerOptions.maxConcurrentActivityTaskPolls}.
+   * {@link WorkerOptions.maxConcurrentWorkflowTaskPolls},
+   * {@link WorkerOptions.maxConcurrentActivityTaskPolls}, or
+   * {@link WorkerOptions.maxConcurrentNexusTaskPolls} .
    */
   maximum?: number;
 }
@@ -608,14 +643,18 @@ export interface ReplayWorkerOptions
     | 'namespace'
     | 'taskQueue'
     | 'activities'
+    | 'nexusServices'
     | 'tuner'
     | 'maxConcurrentActivityTaskExecutions'
     | 'maxConcurrentLocalActivityExecutions'
     | 'maxConcurrentWorkflowTaskExecutions'
+    | 'maxConcurrentNexusTaskExecutions'
     | 'maxConcurrentActivityTaskPolls'
     | 'maxConcurrentWorkflowTaskPolls'
+    | 'maxConcurrentNexusTaskPolls'
     | 'workflowTaskPollerBehavior'
     | 'activityTaskPollerBehavior'
+    | 'nexusTaskPollerBehavior'
     | 'nonStickyToStickyPollRatio'
     | 'maxHeartbeatThrottleInterval'
     | 'defaultHeartbeatThrottleInterval'
@@ -778,6 +817,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
 
     workflowTaskPollerBehavior: Required<PollerBehavior>;
     activityTaskPollerBehavior: Required<PollerBehavior>;
+    nexusTaskPollerBehavior: Required<PollerBehavior>;
   };
 
 /**
@@ -785,7 +825,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
  * formatted strings to numbers.
  */
 export interface CompiledWorkerOptions
-  extends Omit<WorkerOptionsWithDefaults, 'interceptors' | 'activities' | 'tuner'> {
+  extends Omit<WorkerOptionsWithDefaults, 'interceptors' | 'activities' | 'nexusServices' | 'tuner'> {
   interceptors: CompiledWorkerInterceptors;
   shutdownGraceTimeMs: number;
   shutdownForceTimeMs?: number;
@@ -795,6 +835,7 @@ export interface CompiledWorkerOptions
   defaultHeartbeatThrottleIntervalMs: number;
   loadedDataConverter: LoadedDataConverter;
   activities: Map<string, ActivityFunction>;
+  nexusServiceRegistry?: nexus.ServiceRegistry;
   tuner: native.WorkerTunerOptions;
 }
 
@@ -818,9 +859,11 @@ function addDefaultWorkerOptions(
     interceptors,
     maxConcurrentActivityTaskExecutions,
     maxConcurrentLocalActivityExecutions,
+    maxConcurrentNexusTaskExecutions,
     maxConcurrentWorkflowTaskExecutions,
     workflowTaskPollerBehavior,
     activityTaskPollerBehavior,
+    nexusTaskPollerBehavior,
     ...rest
   } = options;
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
@@ -839,6 +882,7 @@ function addDefaultWorkerOptions(
   // Difficult to predict appropriate poll numbers for resource based slots
   let maxWFTPolls = 10;
   let maxATPolls = 10;
+  let maxNexusTaskPolls = 10;
   let setTuner: WorkerTuner;
   if (rest.tuner !== undefined) {
     if (maxConcurrentActivityTaskExecutions !== undefined) {
@@ -853,10 +897,12 @@ function addDefaultWorkerOptions(
     setTuner = rest.tuner;
   } else {
     const maxWft = maxConcurrentWorkflowTaskExecutions ?? 40;
-    maxWFTPolls = Math.min(10, maxWft);
+    maxWFTPolls = Math.min(maxWFTPolls, maxWft);
     const maxAT = maxConcurrentActivityTaskExecutions ?? 100;
-    maxATPolls = Math.min(10, maxAT);
+    maxATPolls = Math.min(maxATPolls, maxAT);
     const maxLAT = maxConcurrentLocalActivityExecutions ?? 100;
+    const maxNexusTasks = maxConcurrentNexusTaskExecutions ?? 100;
+    maxNexusTaskPolls = Math.min(maxNexusTaskPolls, maxNexusTasks);
     setTuner = {
       workflowTaskSlotSupplier: {
         type: 'fixed-size',
@@ -869,6 +915,10 @@ function addDefaultWorkerOptions(
       localActivityTaskSlotSupplier: {
         type: 'fixed-size',
         numSlots: maxLAT,
+      },
+      nexusTaskSlotSupplier: {
+        type: 'fixed-size',
+        numSlots: maxNexusTasks,
       },
     };
   }
@@ -887,6 +937,7 @@ function addDefaultWorkerOptions(
 
   const wftPollerBehavior = createPollerBehavior(maxWFTPolls, workflowTaskPollerBehavior);
   const atPollerBehavior = createPollerBehavior(maxATPolls, activityTaskPollerBehavior);
+  const nexusPollerBehavior = createPollerBehavior(maxNexusTaskPolls, nexusTaskPollerBehavior);
 
   return {
     namespace: namespace ?? 'default',
@@ -897,6 +948,7 @@ function addDefaultWorkerOptions(
     enableNonLocalActivities: true,
     workflowTaskPollerBehavior: wftPollerBehavior,
     activityTaskPollerBehavior: atPollerBehavior,
+    nexusTaskPollerBehavior: nexusPollerBehavior,
     stickyQueueScheduleToStartTimeout: '10s',
     maxHeartbeatThrottleInterval: '60s',
     defaultHeartbeatThrottleInterval: '30s',
@@ -966,9 +1018,17 @@ export function compileWorkerOptions(
     defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
     loadedDataConverter: loadDataConverter(opts.dataConverter),
     activities,
+    nexusServiceRegistry: nexusServiceRegistryFromOptions(opts),
     enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,
     tuner,
   };
+}
+
+function nexusServiceRegistryFromOptions(opts: WorkerOptions): nexus.ServiceRegistry | undefined {
+  if (opts.nexusServices == null || opts.nexusServices.length === 0) {
+    return undefined;
+  }
+  return new nexus.ServiceRegistry(opts.nexusServices);
 }
 
 export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): native.WorkerOptions {
@@ -983,6 +1043,7 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     nonStickyToStickyPollRatio: opts.nonStickyToStickyPollRatio,
     workflowTaskPollerBehavior: toNativeTaskPollerBehavior(opts.workflowTaskPollerBehavior),
     activityTaskPollerBehavior: toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior),
+    nexusTaskPollerBehavior: toNativeTaskPollerBehavior(opts.nexusTaskPollerBehavior),
     enableNonLocalActivities: opts.enableNonLocalActivities,
     stickyQueueScheduleToStartTimeout: msToNumber(opts.stickyQueueScheduleToStartTimeout),
     maxCachedWorkflows: opts.maxCachedWorkflows,
