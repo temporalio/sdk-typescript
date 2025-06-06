@@ -166,11 +166,19 @@ test('operation handler cancelation', async (t) => {
       {
         method: 'POST',
         headers: {
-          'Request-Timeout': '3s',
+          'Request-Timeout': '2s',
         },
       }
     );
     t.is(res.status, 520 /* UPSTREAM_TIMEOUT */);
+    // Give time for the worker to actually process the timeout; otherwise the operation
+    // may end up being cancelled because of the worker shutdown rather than the timeout.
+    await Promise.race([
+      p?.catch(() => undefined),
+      new Promise((resolve) => {
+        setTimeout(resolve, 2000).unref();
+      }),
+    ]);
   });
   t.truthy(p);
   await t.throwsAsync(p!, { instanceOf: CancelledFailure, message: 'TIMED_OUT' });
