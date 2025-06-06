@@ -76,16 +76,12 @@ export function cleanOptionalStackTrace(stackTrace: string | undefined | null): 
 export function cleanStackTrace(ostack: string): string {
   // For some reason, a code snippet with carret on error location is sometime prepended before the actual stacktrace.
   // If there is such a snippet, get rid of it.
-  let stack = ostack.replace(/^.*\n[ ]*\^[ ]*\n+/gms, '');
-
-  // FIXME: Find a better way to handle package vendoring; this will come back again.
-  stack = stack.replaceAll(/\([^() ]*\/nexus-sdk-typescript\/src/g, '(nexus-rpc/src');
-  stack = stack.replaceAll(/\([^() ]*\/node_modules\//g, '(');
+  const stack = ostack.replace(/^.*\n[ ]*\^[ ]*\n+/gms, '');
 
   const su = new StackUtils({ cwd: path.join(__dirname, '../..') });
   const firstLine = stack.split('\n')[0];
   const cleanedStack = su.clean(stack).trimEnd();
-  const normalizedStack =
+  let normalizedStack =
     cleanedStack &&
     cleanedStack
       .replace(/:\d+:\d+/g, '')
@@ -93,7 +89,11 @@ export function cleanStackTrace(ostack: string): string {
       .replace(/\[as fn\] /, '')
       // Avoid https://github.com/nodejs/node/issues/42417
       .replace(/at null\./g, 'at ')
-      .replace(/\\/g, '/');
+      .replace(/\\/g, '/')
+      .replaceAll(/\([^() ]*\/node_modules\//g, '(');
+
+  // FIXME: Find a better way to handle package vendoring; this will come back again.
+  normalizedStack = normalizedStack.replaceAll(/\([^() ]*\/nexus-sdk-typescript\/src/g, '(nexus-rpc/src');
 
   return normalizedStack ? `${firstLine}\n${normalizedStack}` : firstLine;
 }
