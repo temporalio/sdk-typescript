@@ -80,6 +80,7 @@ export function cleanStackTrace(ostack: string): string {
 
   // FIXME: Find a better way to handle package vendoring; this will come back again.
   stack = stack.replaceAll(/\([^() ]*\/nexus-sdk-typescript\/src/g, '(nexus-rpc/src');
+  stack = stack.replaceAll(/\([^() ]*\/node_modules\//g, '(');
 
   const su = new StackUtils({ cwd: path.join(__dirname, '../..') });
   const firstLine = stack.split('\n')[0];
