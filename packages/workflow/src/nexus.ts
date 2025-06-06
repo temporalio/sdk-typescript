@@ -156,8 +156,8 @@ export function startNexusOperationNextHandler({
     getActivator().pushCommand({
       scheduleNexusOperation: {
         seq,
-        endpoint: endpoint,
-        service: service,
+        endpoint,
+        service,
         operation,
         nexusHeader,
         input: activator.payloadConverter.toPayload(input),

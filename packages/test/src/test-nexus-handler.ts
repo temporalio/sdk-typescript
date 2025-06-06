@@ -114,7 +114,7 @@ test('sync operation handler happy path', async (t) => {
 
   await w.runUntil(async () => {
     const res = await fetch(
-      `http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
+      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
       {
         method: 'POST',
         body: JSON.stringify('hello'),
@@ -162,7 +162,7 @@ test('operation handler cancelation', async (t) => {
 
   await w.runUntil(async () => {
     const res = await fetch(
-      `http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
+      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
       {
         method: 'POST',
         headers: {
@@ -234,7 +234,7 @@ test('async operation handler happy path', async (t) => {
   });
 
   await w.runUntil(async () => {
-    let res = await fetch(`http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/async-op`, {
+    let res = await fetch(`http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/async-op`, {
       method: 'POST',
       body: JSON.stringify('hello'),
       headers: {
@@ -250,7 +250,7 @@ test('async operation handler happy path', async (t) => {
     t.is(output.state, 'running');
 
     res = await fetch(
-      `http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/async-op/cancel`,
+      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/async-op/cancel`,
       {
         method: 'POST',
         headers: {
@@ -308,7 +308,7 @@ test('start operation handler errors', async (t) => {
 
   await w.runUntil(async () => {
     {
-      const res = await fetch(`http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op`, {
+      const res = await fetch(`http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op`, {
         method: 'POST',
         body: JSON.stringify('NonRetryableApplicationFailure'),
         headers: {
@@ -341,7 +341,7 @@ test('start operation handler errors', async (t) => {
       t.is((err as ApplicationFailure).failure?.source, 'TypeScriptSDK');
     }
     {
-      const res = await fetch(`http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op`, {
+      const res = await fetch(`http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op`, {
         method: 'POST',
         body: JSON.stringify('NonRetryableInternalHandlerError'),
         headers: {
@@ -365,7 +365,7 @@ test('start operation handler errors', async (t) => {
       );
     }
     {
-      const res = await fetch(`http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op`, {
+      const res = await fetch(`http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op`, {
         method: 'POST',
         body: JSON.stringify('OperationError'),
         headers: {
@@ -389,7 +389,7 @@ test('start operation handler errors', async (t) => {
       );
     }
     {
-      const res = await fetch(`http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op`, {
+      const res = await fetch(`http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op`, {
         method: 'POST',
         body: 'invalid',
         headers: {
@@ -455,7 +455,7 @@ test('cancel operation handler errors', async (t) => {
   await w.runUntil(async () => {
     {
       const res = await fetch(
-        `http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op/cancel`,
+        `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op/cancel`,
         {
           method: 'POST',
           headers: {
@@ -491,7 +491,7 @@ test('cancel operation handler errors', async (t) => {
     }
     {
       const res = await fetch(
-        `http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op/cancel`,
+        `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op/cancel`,
         {
           method: 'POST',
           headers: {
@@ -543,7 +543,7 @@ test('logger is available in handler context', async (t) => {
 
   await w.runUntil(async () => {
     const res = await fetch(
-      `http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
+      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
       {
         method: 'POST',
         body: JSON.stringify('hello'),
@@ -593,7 +593,7 @@ test('getClient is available in handler context', async (t) => {
 
   await w.runUntil(async () => {
     const res = await fetch(
-      `http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
+      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
       {
         method: 'POST',
       }
@@ -648,7 +648,7 @@ test('WorkflowRunOperation attaches callback, link, and request ID', async (t) =
     const backlinks = [];
     for (const requestId of [requestId1, requestId2]) {
       const endpointUrl = new URL(
-        `http://localhost:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testOp`
+        `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testOp`
       );
       endpointUrl.searchParams.set('callback', callbackURL);
       const res = await fetch(endpointUrl.toString(), {

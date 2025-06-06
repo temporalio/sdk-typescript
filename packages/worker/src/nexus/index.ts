@@ -11,6 +11,7 @@ import {
   Payload,
   PayloadConverter,
   SdkComponent,
+  LoggerWithComposedMetadata,
 } from '@temporalio/common';
 import { temporal, coresdk } from '@temporalio/proto';
 import { asyncLocalStorage } from '@temporalio/nexus/lib/context';
@@ -19,7 +20,6 @@ import {
   encodeErrorToFailure,
   decodeOptionalSingle,
 } from '@temporalio/common/lib/internal-non-workflow';
-import { LoggerWithComposedMetadata } from '@temporalio/common';
 import { fixBuffers } from '@temporalio/common/lib/proto-utils';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { Client, isGrpcServiceError, ServiceError } from '@temporalio/client';
