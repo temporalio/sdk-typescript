@@ -398,7 +398,8 @@ test('start operation handler errors', async (t) => {
       });
       t.is(res.status, 400);
       const { message } = (await res.json()) as { message: string };
-      t.is(message, 'Failed to deserialize input: SyntaxError: Unexpected token \'i\', "invalid" is not valid JSON');
+      // Exact error message varies between Node versions.
+      t.regex(message, /Failed to deserialize input: SyntaxError: Unexpected token .* JSON/);
     }
   });
 });
