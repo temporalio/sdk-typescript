@@ -147,7 +147,7 @@ export class NexusHandler {
             startOperation: {
               asyncSuccess: {
                 operationToken: result.token,
-                links: ctx.handlerLinks.map(nexusLinkToProtoLink),
+                links: ctx.outboundLinks.map(nexusLinkToProtoLink),
               },
             },
           },
@@ -159,7 +159,7 @@ export class NexusHandler {
             startOperation: {
               syncSuccess: {
                 payload: await encodeToPayload(this.dataConverter, result.value),
-                links: ctx.handlerLinks.map(nexusLinkToProtoLink),
+                links: ctx.outboundLinks.map(nexusLinkToProtoLink),
               },
             },
           },
@@ -254,10 +254,10 @@ export class NexusHandler {
         {
           ...this.context,
           requestId: variant.requestId ?? undefined,
-          callerLinks: (variant.links ?? []).map(protoLinkToNexusLink),
+          inboundLinks: (variant.links ?? []).map(protoLinkToNexusLink),
           callbackURL: variant.callback ?? undefined,
           callbackHeaders: variant.callbackHeader ?? undefined,
-          handlerLinks: [],
+          outboundLinks: [],
         },
         variant.payload ?? undefined
       );

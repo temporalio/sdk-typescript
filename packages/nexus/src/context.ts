@@ -98,8 +98,8 @@ export async function startWorkflow<T extends Workflow>(
 ): Promise<WorkflowHandle<T>> {
   const { client, taskQueue } = getHandlerContext();
   const links = Array<temporal.api.common.v1.ILink>();
-  if (ctx.callerLinks?.length > 0) {
-    for (const l of ctx.callerLinks) {
+  if (ctx.inboundLinks?.length > 0) {
+    for (const l of ctx.inboundLinks) {
       try {
         links.push({
           workflowEvent: convertNexusLinkToWorkflowEventLink(l),
@@ -136,7 +136,7 @@ export async function startWorkflow<T extends Workflow>(
   const handle = await client.workflow.start(workflowTypeOrFunc, startOptions);
   if (internalOptions.backLink?.workflowEvent != null) {
     try {
-      ctx.handlerLinks.push(convertWorkflowEventLinkToNexusLink(internalOptions.backLink.workflowEvent));
+      ctx.outboundLinks.push(convertWorkflowEventLinkToNexusLink(internalOptions.backLink.workflowEvent));
     } catch (error) {
       log.warn('failed to convert Workflow event link to Nexus link', { error });
     }

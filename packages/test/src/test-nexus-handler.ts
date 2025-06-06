@@ -104,7 +104,7 @@ test('sync operation handler happy path', async (t) => {
               throw new nexus.HandlerError({ message: 'expected test header to be set to true', type: 'BAD_REQUEST' });
             }
             // Echo links back to the caller.
-            ctx.handlerLinks.push(...ctx.callerLinks);
+            ctx.outboundLinks.push(...ctx.inboundLinks);
             return input;
           },
         }

@@ -51,7 +51,7 @@
     "glob": "^10.3.10",
     "istanbul-lib-coverage": "^3.2.2",
     "long": "^5.2.3",
-    "nexus-rpc": "github:nexus-rpc/sdk-typescript#pull/5/head",
+    "nexus-rpc": "github:nexus-rpc/sdk-typescript#pull/6/head",
     "node-fetch": "^2.7.0",
     "proto3-json-serializer": "^2.0.0",
     "protobufjs": "^7.2.5",
