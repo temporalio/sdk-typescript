@@ -88,6 +88,7 @@
     "packages/core-bridge",
     "packages/create-project",
     "packages/interceptors-opentelemetry",
+    "packages/nexus",
     "packages/nyc-test-coverage",
     "packages/proto",
     "packages/test",
