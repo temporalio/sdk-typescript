@@ -23,8 +23,7 @@
   "scripts": {},
   "dependencies": {
     "@temporalio/common": "file:../common",
-    "@temporalio/proto": "file:../proto",
-    "nexus-rpc": "file:../../../nexus-sdk-typescript"
+    "@temporalio/proto": "file:../proto"
   },
   "devDependencies": {
     "source-map": "^0.7.4"

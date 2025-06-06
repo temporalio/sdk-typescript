@@ -79,7 +79,7 @@ export function cleanStackTrace(ostack: string): string {
   let stack = ostack.replace(/^.*\n[ ]*\^[ ]*\n+/gms, '');
 
   // FIXME: Find a better way to handle package vendoring; this will come back again.
-  stack = stack.replaceAll(/\([^() ]*\/nexus-sdk-typescript\/src/g, '(nexus-rpc-sdk/src');
+  stack = stack.replaceAll(/\([^() ]*\/nexus-sdk-typescript\/src/g, '(nexus-rpc/src');
 
   const su = new StackUtils({ cwd: path.join(__dirname, '../..') });
   const firstLine = stack.split('\n')[0];

@@ -50,6 +50,7 @@
     "@temporalio/testing": "file:packages/testing",
     "@temporalio/worker": "file:packages/worker",
     "@temporalio/workflow": "file:packages/workflow",
+    "nexus-rpc": "github:nexus-rpc/sdk-typescript#pull/5/head",
     "temporalio": "file:packages/meta"
   },
   "devDependencies": {

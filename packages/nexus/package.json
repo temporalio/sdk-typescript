@@ -15,7 +15,7 @@
   "dependencies": {
     "@temporalio/common": "file:../common",
     "long": "^5.2.3",
-    "nexus-rpc": "file:../../../nexus-sdk-typescript"
+    "nexus-rpc": "^0.0.1"
   },
   "engines": {
     "node": ">= 18.0.0"

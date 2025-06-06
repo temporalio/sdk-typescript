@@ -28,7 +28,6 @@
     "memfs": "^4.6.0",
     "proto3-json-serializer": "^2.0.0",
     "protobufjs": "^7.2.5",
-    "nexus-rpc": "file:../../../nexus-sdk-typescript",
     "rxjs": "^7.8.1",
     "source-map": "^0.7.4",
     "source-map-loader": "^4.0.2",

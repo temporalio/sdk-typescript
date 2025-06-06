@@ -15,7 +15,6 @@
     "@temporalio/proto": "file:../proto",
     "long": "^5.2.3",
     "ms": "^3.0.0-canary.1",
-    "nexus-rpc": "file:../../../nexus-sdk-typescript",
     "proto3-json-serializer": "^2.0.0"
   },
   "devDependencies": {

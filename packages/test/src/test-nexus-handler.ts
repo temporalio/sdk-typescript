@@ -335,7 +335,7 @@ test('start operation handler errors', async (t) => {
         `ApplicationFailure: deliberate failure
     at Function.create (common/src/failure.ts)
     at op (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.start (nexus-rpc-sdk/src/handler.ts)`
+    at ServiceRegistry.start (nexus-rpc/src/handler.ts)`
       );
       t.deepEqual((err as ApplicationFailure).details, ['details']);
       t.is((err as ApplicationFailure).failure?.source, 'TypeScriptSDK');
