@@ -81,7 +81,7 @@ export const defaultActivityInfo: activity.Info = {
   heartbeatDetails: undefined,
   activityNamespace: 'default',
   workflowNamespace: 'default',
-  workflowExecution: { workflowId: 'test', runId: 'dead-beef' },
+  workflowExecution: { workflowId: 'test', runId: '00000000-0000-0000-0000-000000000000' },
   scheduledTimestampMs: 1,
   startToCloseTimeoutMs: 1000,
   scheduleToCloseTimeoutMs: 1000,
