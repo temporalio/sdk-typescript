@@ -14,6 +14,7 @@ export {
   TestWorkflowEnvironment,
   type LocalTestWorkflowEnvironmentOptions,
   type TimeSkippingTestWorkflowEnvironmentOptions,
+  type ExistingServerTestWorkflowEnvironmentOptions,
 } from './testing-workflow-environment';
 
 export {

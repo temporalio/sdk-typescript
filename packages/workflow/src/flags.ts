@@ -72,5 +72,5 @@ type AltConditionFn = (ctx: { info: WorkflowInfo }) => boolean;
 
 function buildIdSdkVersionMatches(version: RegExp): AltConditionFn {
   const regex = new RegExp(`^@temporalio/worker@(${version.source})[+]`);
-  return ({ info }) => info.currentBuildId != null && regex.test(info.currentBuildId);
+  return ({ info }) => info.currentBuildId != null && regex.test(info.currentBuildId); // eslint-disable-line deprecation/deprecation
 }

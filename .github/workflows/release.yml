@@ -304,6 +304,12 @@ jobs:
         shell: bash
         run: node scripts/create-certs-dir.js "${{ runner.temp }}/certs"
         if: matrix.server == 'cloud'
+        env:
+          # These env vars are used by the hello-world-mtls sample
+          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
+          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
 
       - name: Test run a workflow (non-cloud)
         run: node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
@@ -311,16 +317,19 @@ jobs:
         if: matrix.server == 'cli'
 
       - name: Test run a workflow (cloud)
-        run: node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
+        if: matrix.server == 'cloud'
+        run: |
+          # The required environment variables must be present for releases (this must be run from the official repo)
+          node scripts/create-certs-dir.js ${{ steps.tmp-dir.outputs.dir }}/certs
+          node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
         shell: bash
         env:
           # These env vars are used by the hello-world-mtls sample
-          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud
+          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
           TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
           TEMPORAL_CLIENT_CERT_PATH: ${{ runner.temp }}/certs/client.pem
           TEMPORAL_CLIENT_KEY_PATH: ${{ runner.temp }}/certs/client.key
-          TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}-{2}', matrix.platform, matrix.node, matrix.sample) }}
-        if: matrix.server == 'cloud'
+          TEMPORAL_TASK_QUEUE: ${{ format('tssdk-ci-{0}-{1}-sample-hello-world-mtls-{2}-{3}', matrix.platform, matrix.node, github.run_id, github.run_attempt) }}
 
       - name: Destroy certs dir
         if: always()

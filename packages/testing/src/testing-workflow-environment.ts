@@ -4,7 +4,7 @@ import { Duration, TypedSearchAttributes } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { NativeConnection, Runtime } from '@temporalio/worker';
 import { native } from '@temporalio/core-bridge';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { Connection } from './connection';
 import { toNativeEphemeralServerConfig, DevServerConfig, TimeSkippingServerConfig } from './ephemeral-server';
 import { ClientOptionsForTestEnv, TestEnvClient } from './client';
@@ -22,6 +22,17 @@ export type LocalTestWorkflowEnvironmentOptions = {
  */
 export type TimeSkippingTestWorkflowEnvironmentOptions = {
   server?: Omit<TimeSkippingServerConfig, 'type'>;
+  client?: ClientOptionsForTestEnv;
+};
+
+/**
+ * Options for {@link TestWorkflowEnvironment.createExistingServer}
+ */
+export type ExistingServerTestWorkflowEnvironmentOptions = {
+  /** If not set, defaults to localhost:7233 */
+  address?: string;
+  /** If not set, defaults to default */
+  namespace?: string;
   client?: ClientOptionsForTestEnv;
 };
 
@@ -72,7 +83,7 @@ export class TestWorkflowEnvironment {
     private readonly runtime: Runtime,
     public readonly options: TestWorkflowEnvironmentOptionsWithDefaults,
     public readonly supportsTimeSkipping: boolean,
-    protected readonly server: native.EphemeralServer,
+    protected readonly server: native.EphemeralServer | 'existing',
     connection: Connection,
     nativeConnection: NativeConnection,
     namespace: string | undefined
@@ -107,9 +118,9 @@ export class TestWorkflowEnvironment {
    * environment, not to the workflow under test. We highly recommend running tests serially when using a single
    * environment or creating a separate environment per test.
    *
-   * By default, the latest release of the Test Serveer will be downloaded and cached to a temporary directory
+   * By default, the latest release of the Test Server will be downloaded and cached to a temporary directory
    * (e.g. `$TMPDIR/temporal-test-server-sdk-typescript-*` or `%TEMP%/temporal-test-server-sdk-typescript-*.exe`). Note
-   * that existing cached binairies will be reused without validation that they are still up-to-date, until the SDK
+   * that existing cached binaries will be reused without validation that they are still up-to-date, until the SDK
    * itself is updated. Alternatively, a specific version number of the Test Server may be provided, or the path to an
    * existing Test Server binary may be supplied; see {@link LocalTestWorkflowEnvironmentOptions.server.executable}.
    *
@@ -141,7 +152,7 @@ export class TestWorkflowEnvironment {
    *
    * By default, the latest release of the CLI will be downloaded and cached to a temporary directory
    * (e.g. `$TMPDIR/temporal-sdk-typescript-*` or `%TEMP%/temporal-sdk-typescript-*.exe`). Note that existing cached
-   * binairies will be reused without validation that they are still up-to-date, until the SDK itself is updated.
+   * binaries will be reused without validation that they are still up-to-date, until the SDK itself is updated.
    * Alternatively, a specific version number of the CLI may be provided, or the path to an existing CLI binary may be
    * supplied; see {@link LocalTestWorkflowEnvironmentOptions.server.executable}.
    *
@@ -159,31 +170,55 @@ export class TestWorkflowEnvironment {
   }
 
   /**
+   * Create a new test environment using an existing server. You must already be running a server, which the test
+   * environment will connect to.
+   */
+  static async createFromExistingServer(
+    opts?: ExistingServerTestWorkflowEnvironmentOptions
+  ): Promise<TestWorkflowEnvironment> {
+    return await this.create({
+      server: { type: 'existing' },
+      client: opts?.client,
+      namespace: opts?.namespace ?? 'default',
+      supportsTimeSkipping: false,
+      address: opts?.address,
+    });
+  }
+
+  /**
    * Create a new test environment
    */
   private static async create(
     opts: TestWorkflowEnvironmentOptions & {
       supportsTimeSkipping: boolean;
       namespace?: string;
+      address?: string;
     }
   ): Promise<TestWorkflowEnvironment> {
     const { supportsTimeSkipping, namespace, ...rest } = opts;
     const optsWithDefaults = addDefaults(filterNullAndUndefined(rest));
 
-    // Add search attributes to CLI server arguments
-    if ('searchAttributes' in optsWithDefaults.server && optsWithDefaults.server.searchAttributes) {
-      let newArgs: string[] = [];
-      for (const { name, type } of optsWithDefaults.server.searchAttributes) {
-        newArgs.push('--search-attribute');
-        newArgs.push(`${name}=${TypedSearchAttributes.toMetadataType(type)}`);
-      }
-      newArgs = newArgs.concat(optsWithDefaults.server.extraArgs ?? []);
-      optsWithDefaults.server.extraArgs = newArgs;
-    }
-
+    let address: string;
     const runtime = Runtime.instance();
-    const server = await runtime.createEphemeralServer(toNativeEphemeralServerConfig(optsWithDefaults.server));
-    const address = native.ephemeralServerGetTarget(server);
+    let server: native.EphemeralServer | 'existing';
+    if (optsWithDefaults.server.type !== 'existing') {
+      // Add search attributes to CLI server arguments
+      if ('searchAttributes' in optsWithDefaults.server && optsWithDefaults.server.searchAttributes) {
+        let newArgs: string[] = [];
+        for (const { name, type } of optsWithDefaults.server.searchAttributes) {
+          newArgs.push('--search-attribute');
+          newArgs.push(`${name}=${TypedSearchAttributes.toMetadataType(type)}`);
+        }
+        newArgs = newArgs.concat(optsWithDefaults.server.extraArgs ?? []);
+        optsWithDefaults.server.extraArgs = newArgs;
+      }
+
+      server = await runtime.createEphemeralServer(toNativeEphemeralServerConfig(optsWithDefaults.server));
+      address = native.ephemeralServerGetTarget(server);
+    } else {
+      address = opts.address ?? 'localhost:7233';
+      server = 'existing';
+    }
 
     const nativeConnection = await NativeConnection.connect({ address });
     const connection = await Connection.connect({ address });
@@ -203,16 +238,18 @@ export class TestWorkflowEnvironment {
       console.error(e);
       /* ignore */
     });
-    await this.runtime.shutdownEphemeralServer(this.server).catch((e) => {
-      console.error(e);
-      /* ignore */
-    });
+    if (this.server !== 'existing') {
+      await this.runtime.shutdownEphemeralServer(this.server).catch((e) => {
+        console.error(e);
+        /* ignore */
+      });
+    }
   }
 
   /**
    * Wait for `durationMs` in "server time".
    *
-   * This awaits using regular setTimeout in regular environments, or manually skips time in time-skipping environments.
+   * This awaits using regular setTimeout in regular environments or manually skips time in time-skipping environments.
    *
    * Useful for simulating events far into the future like completion of long running activities.
    *
@@ -281,9 +318,11 @@ export class TestWorkflowEnvironment {
  * Options for {@link TestWorkflowEnvironment.create}
  */
 type TestWorkflowEnvironmentOptions = {
-  server: DevServerConfig | TimeSkippingServerConfig;
+  server: DevServerConfig | TimeSkippingServerConfig | ExistingServerConfig;
   client?: ClientOptionsForTestEnv;
 };
+
+type ExistingServerConfig = { type: 'existing' };
 
 type TestWorkflowEnvironmentOptionsWithDefaults = Required<TestWorkflowEnvironmentOptions>;
 

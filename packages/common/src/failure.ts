@@ -101,6 +101,34 @@ export const [encodeRetryState, decodeRetryState] = makeProtoEnumConverters<
   'RETRY_STATE_'
 );
 
+/**
+ * A category to describe the severity and change the observability behavior of an application failure.
+ *
+ * Currently, observability behaviour changes are limited to:
+ * - activities that fail due to a BENIGN application failure emit DEBUG level logs and do not record metrics
+ *
+ * @experimental Category is a new feature and may be subject to change.
+ */
+export const ApplicationFailureCategory = {
+  BENIGN: 'BENIGN',
+} as const;
+
+export type ApplicationFailureCategory = (typeof ApplicationFailureCategory)[keyof typeof ApplicationFailureCategory];
+
+export const [encodeApplicationFailureCategory, decodeApplicationFailureCategory] = makeProtoEnumConverters<
+  temporal.api.enums.v1.ApplicationErrorCategory,
+  typeof temporal.api.enums.v1.ApplicationErrorCategory,
+  keyof typeof temporal.api.enums.v1.ApplicationErrorCategory,
+  typeof ApplicationFailureCategory,
+  'APPLICATION_ERROR_CATEGORY_'
+>(
+  {
+    [ApplicationFailureCategory.BENIGN]: 1,
+    UNSPECIFIED: 0,
+  } as const,
+  'APPLICATION_ERROR_CATEGORY_'
+);
+
 export type WorkflowExecution = temporal.api.common.v1.IWorkflowExecution;
 
 /**
@@ -172,7 +200,8 @@ export class ApplicationFailure extends TemporalFailure {
     public readonly nonRetryable?: boolean | undefined | null,
     public readonly details?: unknown[] | undefined | null,
     cause?: Error,
-    public readonly nextRetryDelay?: Duration | undefined | null
+    public readonly nextRetryDelay?: Duration | undefined | null,
+    public readonly category?: ApplicationFailureCategory | undefined | null
   ) {
     super(message, cause);
   }
@@ -195,8 +224,8 @@ export class ApplicationFailure extends TemporalFailure {
    * By default, will be retryable (unless its `type` is included in {@link RetryPolicy.nonRetryableErrorTypes}).
    */
   public static create(options: ApplicationFailureOptions): ApplicationFailure {
-    const { message, type, nonRetryable = false, details, nextRetryDelay, cause } = options;
-    return new this(message, type, nonRetryable, details, cause, nextRetryDelay);
+    const { message, type, nonRetryable = false, details, nextRetryDelay, cause, category } = options;
+    return new this(message, type, nonRetryable, details, cause, nextRetryDelay, category);
   }
 
   /**
@@ -261,6 +290,12 @@ export interface ApplicationFailureOptions {
    * Cause of the failure
    */
   cause?: Error;
+
+  /**
+   * Severity category of the application error.
+   * Affects worker-side logging and metrics behavior of this failure.
+   */
+  category?: ApplicationFailureCategory;
 }
 
 /**

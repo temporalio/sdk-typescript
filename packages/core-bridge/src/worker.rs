@@ -32,7 +32,7 @@ use crate::{
     runtime::{Runtime, RuntimeExt},
 };
 
-pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<()> {
+pub fn init(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("workerValidate", worker_validate)?;
 
@@ -412,19 +412,27 @@ mod config {
         api::worker::{
             ActivitySlotKind, LocalActivitySlotKind, PollerBehavior as CorePollerBehavior,
             SlotKind, WorkerConfig, WorkerConfigBuilder, WorkerConfigBuilderError,
-            WorkflowSlotKind,
+            WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
+            WorkerDeploymentVersion as CoreWorkerDeploymentVersion, WorkflowSlotKind,
         },
+        protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior,
     };
 
-    use bridge_macros::TryFromJs;
-
     use super::custom_slot_supplier::CustomSlotSupplierOptions;
+    use crate::helpers::TryIntoJs;
+    use bridge_macros::TryFromJs;
+    use neon::context::Context;
+    use neon::object::Object;
+    use neon::prelude::JsResult;
+    use neon::types::JsObject;
+    use temporal_sdk_core::api::worker::WorkerVersioningStrategy;
 
     #[derive(TryFromJs)]
     pub struct BridgeWorkerOptions {
         identity: String,
         build_id: String,
         use_versioning: bool,
+        worker_deployment_options: Option<WorkerDeploymentOptions>,
         task_queue: String,
         namespace: String,
         tuner: WorkerTuner,
@@ -453,14 +461,44 @@ mod config {
         },
     }
 
+    #[derive(TryFromJs)]
+    pub struct WorkerDeploymentOptions {
+        version: WorkerDeploymentVersion,
+        use_worker_versioning: bool,
+        default_versioning_behavior: VersioningBehavior,
+    }
+
+    #[derive(TryFromJs)]
+    pub struct WorkerDeploymentVersion {
+        build_id: String,
+        deployment_name: String,
+    }
+
+    #[derive(TryFromJs)]
+    pub enum VersioningBehavior {
+        Pinned,
+        AutoUpgrade,
+    }
+
     impl BridgeWorkerOptions {
         pub(crate) fn into_core_config(self) -> Result<WorkerConfig, WorkerConfigBuilderError> {
             // Set all other options
             let mut builder = WorkerConfigBuilder::default();
             builder
                 .client_identity_override(Some(self.identity))
-                .worker_build_id(self.build_id)
-                .use_worker_versioning(self.use_versioning)
+                .versioning_strategy({
+                    if let Some(dopts) = self.worker_deployment_options {
+                        WorkerVersioningStrategy::WorkerDeploymentBased(dopts.into())
+                    } else if self.use_versioning {
+                        WorkerVersioningStrategy::LegacyBuildIdBased {
+                            build_id: self.build_id,
+                        }
+                    } else {
+                        WorkerVersioningStrategy::None {
+                            build_id: self.build_id,
+                        }
+                    }
+                })
                 .task_queue(self.task_queue)
                 .namespace(self.namespace)
                 .tuner(self.tuner.into_core_config()?)
@@ -482,18 +520,66 @@ mod config {
     impl From<PollerBehavior> for CorePollerBehavior {
         fn from(val: PollerBehavior) -> Self {
             match val {
-                PollerBehavior::SimpleMaximum { maximum } => {
-                    CorePollerBehavior::SimpleMaximum(maximum)
-                }
+                PollerBehavior::SimpleMaximum { maximum } => Self::SimpleMaximum(maximum),
                 PollerBehavior::Autoscaling {
                     minimum,
                     maximum,
                     initial,
-                } => CorePollerBehavior::Autoscaling {
+                } => Self::Autoscaling {
                     minimum,
                     maximum,
                     initial,
                 },
+            }
+        }
+    }
+
+    impl From<WorkerDeploymentOptions> for CoreWorkerDeploymentOptions {
+        fn from(val: WorkerDeploymentOptions) -> Self {
+            Self {
+                version: val.version.into(),
+                use_worker_versioning: val.use_worker_versioning,
+                default_versioning_behavior: Some(val.default_versioning_behavior.into()),
+            }
+        }
+    }
+
+    impl From<WorkerDeploymentVersion> for CoreWorkerDeploymentVersion {
+        fn from(val: WorkerDeploymentVersion) -> Self {
+            Self {
+                build_id: val.build_id,
+                deployment_name: val.deployment_name,
+            }
+        }
+    }
+
+    impl From<CoreWorkerDeploymentVersion> for WorkerDeploymentVersion {
+        fn from(val: CoreWorkerDeploymentVersion) -> Self {
+            Self {
+                build_id: val.build_id,
+                deployment_name: val.deployment_name,
+            }
+        }
+    }
+
+    impl TryIntoJs for WorkerDeploymentVersion {
+        type Output = JsObject;
+
+        fn try_into_js<'cx>(self, cx: &mut impl Context<'cx>) -> JsResult<'cx, Self::Output> {
+            let obj = cx.empty_object();
+            let bid = self.build_id.try_into_js(cx)?;
+            obj.set(cx, "buildId", bid)?;
+            let dn = self.deployment_name.try_into_js(cx)?;
+            obj.set(cx, "deploymentName", dn)?;
+            Ok(obj)
+        }
+    }
+
+    impl From<VersioningBehavior> for CoreVersioningBehavior {
+        fn from(val: VersioningBehavior) -> Self {
+            match val {
+                VersioningBehavior::Pinned => Self::Pinned,
+                VersioningBehavior::AutoUpgrade => Self::AutoUpgrade,
             }
         }
     }
@@ -613,7 +699,7 @@ mod custom_slot_supplier {
     use tracing::warn;
 
     use crate::helpers::*;
-
+    use crate::worker::config::WorkerDeploymentVersion;
     // Custom Slot Supplier ////////////////////////////////////////////////////////////////////////////
 
     pub(super) struct SlotSupplierBridge<SK: SlotKind + Send + Sync + 'static> {
@@ -639,7 +725,10 @@ mod custom_slot_supplier {
                     slot_type: SK::kind().into(),
                     task_queue: ctx.task_queue().to_string(),
                     worker_identity: ctx.worker_identity().to_string(),
-                    worker_build_id: ctx.worker_build_id().to_string(),
+                    worker_deployment_version: ctx
+                        .worker_deployment_version()
+                        .clone()
+                        .map(Into::into),
                     is_sticky: ctx.is_sticky(),
                 };
 
@@ -680,7 +769,7 @@ mod custom_slot_supplier {
                 slot_type: SK::kind().into(),
                 task_queue: ctx.task_queue().to_string(),
                 worker_identity: ctx.worker_identity().to_string(),
-                worker_build_id: ctx.worker_build_id().to_string(),
+                worker_deployment_version: ctx.worker_deployment_version().clone().map(Into::into),
                 is_sticky: ctx.is_sticky(),
             };
 
@@ -809,7 +898,7 @@ mod custom_slot_supplier {
         slot_type: SlotKindType,
         task_queue: String,
         worker_identity: String,
-        worker_build_id: String,
+        worker_deployment_version: Option<WorkerDeploymentVersion>,
         is_sticky: bool,
     }
 

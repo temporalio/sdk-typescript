@@ -41,6 +41,7 @@ export type JsonString<_T> = string;
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export declare function newRuntime(telemOptions: RuntimeOptions): Runtime;
+
 export declare function runtimeShutdown(runtime: Runtime): void;
 
 export interface Runtime {
@@ -98,9 +99,13 @@ export interface OtelMetricsExporterOptions {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export declare function newClient(runtime: Runtime, clientOptions: ClientOptions): Promise<Client>;
+
 export declare function clientUpdateHeaders(client: Client, headers: Record<string, string>): void;
+
 export declare function clientUpdateApiKey(client: Client, apiKey: string): void;
+
 export declare function clientSendRequest(client: Client, call: RpcCall): Promise<Buffer>;
+
 export declare function clientClose(client: Client): void;
 
 export interface Client {
@@ -155,16 +160,21 @@ export interface RpcCall {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export declare function newWorker(client: Client, workerOptions: WorkerOptions): Worker;
+
 export declare function workerValidate(worker: Worker): Promise<void>;
 
 export declare function workerPollWorkflowActivation(worker: Worker): Promise<Buffer>;
+
 export declare function workerCompleteWorkflowActivation(worker: Worker, result: Buffer): Promise<void>;
 
 export declare function workerPollActivityTask(worker: Worker): Promise<Buffer>;
+
 export declare function workerCompleteActivityTask(worker: Worker, result: Buffer): Promise<void>;
+
 export declare function workerRecordActivityHeartbeat(worker: Worker, heartbeat: Buffer): void;
 
 export declare function workerInitiateShutdown(worker: Worker): void;
+
 export declare function workerFinalizeShutdown(worker: Worker): Promise<void>;
 
 export interface Worker {
@@ -175,6 +185,7 @@ export interface WorkerOptions {
   identity: string;
   buildId: string;
   useVersioning: boolean;
+  workerDeploymentOptions: Option<WorkerDeploymentOptions>;
   taskQueue: string;
   namespace: string;
   tuner: WorkerTunerOptions;
@@ -202,6 +213,19 @@ export type PollerBehavior =
       maximum: number;
       initial: number;
     };
+
+export type WorkerDeploymentOptions = {
+  version: WorkerDeploymentVersion;
+  useWorkerVersioning: boolean;
+  defaultVersioningBehavior: VersioningBehavior;
+};
+
+export type WorkerDeploymentVersion = {
+  buildId: string;
+  deploymentName: string;
+};
+
+export type VersioningBehavior = { type: 'pinned' } | { type: 'auto-upgrade' };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Worker Tuner
@@ -238,9 +262,13 @@ interface ResourceBasedTunerOptions {
 
 export interface CustomSlotSupplierOptions<SI extends SlotInfo> {
   type: 'custom';
+
   reserveSlot(ctx: SlotReserveContext, abortSignal: AbortSignal): Promise<SlotPermit>;
+
   tryReserveSlot(ctx: SlotReserveContext): Option<SlotPermit>;
+
   markSlotUsed(ctx: SlotMarkUsedContext<SI>): void;
+
   releaseSlot(ctx: SlotReleaseContext<SI>): void;
 }
 
@@ -268,7 +296,7 @@ export interface SlotReserveContext {
   slotType: SlotInfo['type'];
   taskQueue: string;
   workerIdentity: string;
-  workerBuildId: string;
+  workerDeploymentVersion: Option<WorkerDeploymentVersion>;
   isSticky: boolean;
 }
 
@@ -290,7 +318,9 @@ export interface SlotPermit {}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export declare function newReplayWorker(runtime: Runtime, workerOptions: WorkerOptions): [Worker, HistoryPusher];
+
 export declare function pushHistory(pusher: HistoryPusher, workflowId: string, history: Buffer): Promise<void>;
+
 export declare function closeHistoryStream(pusher: HistoryPusher): void;
 
 export interface HistoryPusher {
@@ -302,7 +332,9 @@ export interface HistoryPusher {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export declare function newEphemeralServer(runtime: Runtime, config: EphemeralServerConfig): Promise<EphemeralServer>;
+
 export declare function ephemeralServerGetTarget(server: EphemeralServer): string;
+
 export declare function ephemeralServerShutdown(server: EphemeralServer): Promise<void>;
 
 export interface EphemeralServer {
@@ -372,3 +404,93 @@ type LogLevel = 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 type LogEntryMetadata = {
   [key: string]: string | number | boolean | LogEntryMetadata;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Custom Metrics
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export interface MetricMeter {
+  type: 'metric-meter';
+}
+
+export interface MetricCounter {
+  type: 'metric-counter';
+}
+
+export interface MetricHistogram {
+  type: 'metric-histogram';
+}
+
+export interface MetricHistogramF64 {
+  type: 'metric-histogram-f64';
+}
+
+export interface MetricGauge {
+  type: 'metric-gauge';
+}
+
+export interface MetricGaugeF64 {
+  type: 'metric-gauge-f64';
+}
+
+export type MetricAttributes = Record<string, string | number | boolean>;
+
+export declare function newMetricCounter(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): MetricCounter;
+
+export declare function newMetricHistogram(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): MetricHistogram;
+
+export declare function newMetricHistogramF64(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): MetricHistogramF64;
+
+export declare function newMetricGauge(runtime: Runtime, name: string, unit: string, description: string): MetricGauge;
+
+export declare function newMetricGaugeF64(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): MetricGaugeF64;
+
+export declare function addMetricCounterValue(
+  counter: MetricCounter,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
+export declare function recordMetricHistogramValue(
+  histogram: MetricHistogram,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
+export declare function recordMetricHistogramF64Value(
+  histogram: MetricHistogramF64,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
+export declare function setMetricGaugeValue(
+  gauge: MetricGauge,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
+export declare function setMetricGaugeF64Value(
+  gauge: MetricGaugeF64,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
