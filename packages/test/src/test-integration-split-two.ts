@@ -2,7 +2,7 @@
 import asyncRetry from 'async-retry';
 import { v4 as uuid4 } from 'uuid';
 import * as iface from '@temporalio/proto';
-import { WorkflowContinuedAsNewError, WorkflowFailedError } from '@temporalio/client';
+import { WorkflowContinuedAsNewError, WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
 import {
   ApplicationFailure,
   defaultPayloadConverter,
@@ -20,6 +20,7 @@ import {
   defineSignal,
   defineUpdate,
   setDefaultQueryHandler,
+  setDefaultSignalHandler,
   setHandler,
   sleep,
 } from '@temporalio/workflow';
@@ -857,5 +858,73 @@ test('Workflow failure if define signals/updates/queries with reserved prefixes'
       { name: 'Error', message: `Cannot register query name: '${prefix}_query', with reserved prefix: '${prefix}'` },
     ]);
     // }
+  });
+});
+
+export async function workflowWithDefaultHandlers(): Promise<void> {
+  let unblocked = false;
+  setHandler(defineSignal('unblock'), () => {
+    unblocked = true;
+  });
+
+  setDefaultQueryHandler(() => {});
+  setDefaultSignalHandler(() => {});
+  setDefaultUpdateHandler({
+    handler: () => {},
+  });
+
+  await condition(() => unblocked);
+}
+
+test('Default handlers fail WFT given reserved prefix', configMacro, async (t, config) => {
+  const { env, createWorkerWithDefaults } = config;
+  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+  const worker = await createWorkerWithDefaults(t);
+
+  const assertWftFailure = async (
+    handle: WorkflowHandle,
+    name: string,
+    prefix: string,
+    handlerType: 'query' | 'signal' | 'update'
+  ) => {
+    await asyncRetry(
+      async () => {
+        const history = await handle.fetchHistory();
+        const wftFailedEvent = history.events?.findLast((ev) => ev.workflowTaskFailedEventAttributes);
+        if (wftFailedEvent === undefined) {
+          throw new Error('No WFT failed event found');
+        }
+        const { failure } = wftFailedEvent.workflowTaskFailedEventAttributes ?? {};
+        if (!failure) {
+          return t.fail('Expected failure in workflowTaskFailedEventAttributes');
+        }
+        t.is(failure.message, `Cannot use ${handlerType} name: '${name}', with reserved prefix: '${prefix}'`);
+      },
+      { minTimeout: 300, factor: 1, retries: 10 }
+    );
+  };
+
+  await worker.runUntil(async () => {
+    for (const prefix of reservedPrefixes) {
+      // Test Query
+      let handle = await startWorkflow(workflowWithDefaultHandlers);
+      const queryName = `${prefix}_query`;
+      await t.throwsAsync(handle.query(queryName), undefined, `Query ${queryName} should fail`);
+      await assertWftFailure(handle, queryName, prefix, 'query');
+      await handle.terminate();
+       // Test Signal
+       handle = await startWorkflow(workflowWithDefaultHandlers);
+       const signalName = `${prefix}_signal`;
+       await handle.signal(signalName);
+       await assertWftFailure(handle, signalName, prefix, 'signal');
+       await handle.terminate();
+ 
+       // Test Update
+       handle = await startWorkflow(workflowWithDefaultHandlers);
+       const updateName = `${prefix}_update`;
+       await t.throwsAsync(handle.executeUpdate(updateName), undefined, `Update ${updateName} should fail`);
+       await assertWftFailure(handle, updateName, prefix, 'update');
+       await handle.terminate();
+    }
   });
 });

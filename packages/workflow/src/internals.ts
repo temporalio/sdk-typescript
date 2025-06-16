@@ -33,8 +33,9 @@ import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflo
 import type { coresdk, temporal } from '@temporalio/proto';
 import {
   ENHANCED_STACK_TRACE_RESERVED_PREFIX,
+  ReservedPrefixError,
   STACK_TRACE_RESERVED_PREFIX,
-  isReservedName,
+  maybeGetReservedPrefix,
   throwIfReservedName,
 } from '@temporalio/common/lib/reserved';
 import { alea, RNG } from './alea';
@@ -685,28 +686,27 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing query activation attributes');
     }
 
-    const queryInput = {
+    const reservedPrefix = maybeGetReservedPrefix(queryType)
+    if (reservedPrefix) {
+      // Must have (internal) query handler for reserved query.
+      if (!this.queryHandlers.has(queryType)) {
+        throw new ReservedPrefixError('query', queryType, reservedPrefix);
+      }
+    }
+
+    // Skip interceptors if it is an internal query
+    let interceptors = reservedPrefix ? [] : this.interceptors.inbound
+    const execute = composeInterceptors(
+      interceptors,
+      'handleQuery',
+      this.queryWorkflowNextHandler.bind(this)
+    );
+    execute({
       queryName: queryType,
       args: arrayFromPayloads(this.payloadConverter, activation.arguments),
       queryId,
       headers: headers ?? {},
-    };
-
-    // Skip interceptors if this is an internal query.
-    if (isReservedName(queryType)) {
-      this.queryWorkflowNextHandler(queryInput).then(
-        (result) => this.completeQuery(queryId, result),
-        (reason) => this.failQuery(queryId, reason)
-      );
-      return;
-    }
-
-    const execute = composeInterceptors(
-      this.interceptors.inbound,
-      'handleQuery',
-      this.queryWorkflowNextHandler.bind(this)
-    );
-    execute(queryInput).then(
+    }).then(
       (result) => this.completeQuery(queryId, result),
       (reason) => this.failQuery(queryId, reason)
     );
@@ -737,6 +737,11 @@ export class Activator implements ActivationHandler {
 
     // If we don't have an entry from either source, buffer and return
     if (entry === null) {
+      const reservedPrefix = maybeGetReservedPrefix(name);
+      if (reservedPrefix) {
+        // Must have (internal) update handler for reserved update.
+        throw new ReservedPrefixError('update', name, reservedPrefix);
+      }
       this.bufferedUpdates.push(activation);
       return;
     }
@@ -864,8 +869,6 @@ export class Activator implements ActivationHandler {
     if (fn) {
       return await fn(...args);
     } else if (this.defaultSignalHandler) {
-      // Do not call default signal handler with reserved signal name.
-      throwIfReservedName('signal', signalName);
       return await this.defaultSignalHandler(signalName, ...args);
     } else {
       throw new IllegalStateError(`No registered signal handler for signal: ${signalName}`);
@@ -876,6 +879,14 @@ export class Activator implements ActivationHandler {
     const { signalName, headers } = activation;
     if (!signalName) {
       throw new TypeError('Missing activation signalName');
+    }
+
+    const reservedPrefix = maybeGetReservedPrefix(signalName);
+    if (reservedPrefix) {
+      if (!this.signalHandlers.has(signalName)) {
+        // Must have (internal) signal handler for reserved signal.
+        throw new ReservedPrefixError('signal', signalName, reservedPrefix);
+      }
     }
 
     if (!this.signalHandlers.has(signalName) && !this.defaultSignalHandler) {

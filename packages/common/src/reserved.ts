@@ -8,14 +8,21 @@ export const reservedPrefixes = [
   ENHANCED_STACK_TRACE_RESERVED_PREFIX,
 ];
 
-export function throwIfReservedName(type: string, name: string): void {
-  const prefix = isReservedName(name);
-  if (prefix) {
-    throw Error(`Cannot register ${type} name: '${name}', with reserved prefix: '${prefix}'`);
+export class ReservedPrefixError extends Error {
+  constructor(type: string, name: string, prefix: string) {
+    super(`Cannot use ${type} name: '${name}', with reserved prefix: '${prefix}'`);
+    this.name = 'ReservedPrefixError';
   }
 }
 
-export function isReservedName(name: string): string | undefined {
+export function throwIfReservedName(type: string, name: string): void {
+  const prefix = maybeGetReservedPrefix(name);
+  if (prefix) {
+    throw new ReservedPrefixError(type, name, prefix);
+  }
+}
+
+export function maybeGetReservedPrefix(name: string): string | undefined {
   for (const prefix of reservedPrefixes) {
     if (name.startsWith(prefix)) {
       return prefix;
