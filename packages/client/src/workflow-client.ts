@@ -23,8 +23,8 @@ import {
   encodeWorkflowIdConflictPolicy,
   WorkflowIdConflictPolicy,
   compilePriority,
-  encodeUserMetadata,
 } from '@temporalio/common';
+import { encodeUserMetadata } from '@temporalio/common/lib/user-metadata';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { History } from '@temporalio/common/lib/proto-utils';

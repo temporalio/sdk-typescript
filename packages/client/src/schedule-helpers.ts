@@ -6,9 +6,8 @@ import {
   decompileRetryPolicy,
   extractWorkflowType,
   LoadedDataConverter,
-  encodeUserMetadata,
-  decodeUserMetadata,
 } from '@temporalio/common';
+import { encodeUserMetadata, decodeUserMetadata } from '@temporalio/common/lib/user-metadata';
 import {
   encodeUnifiedSearchAttributes,
   decodeSearchAttributes,

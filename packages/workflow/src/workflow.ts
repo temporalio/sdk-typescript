@@ -24,8 +24,8 @@ import {
   WorkflowUpdateValidatorType,
   SearchAttributeUpdatePair,
   WorkflowDefinitionOptionsOrGetter,
-  userMetadataToPayload,
 } from '@temporalio/common';
+import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import {
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
@@ -34,7 +34,7 @@ import { versioningIntentToProto } from '@temporalio/common/lib/versioning-inten
 import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
-import { deepMerge } from '@temporalio/common/lib/internal-workflow/objects-helpers';
+import { deepMerge } from '@temporalio/common/lib/internal-workflow';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import {
