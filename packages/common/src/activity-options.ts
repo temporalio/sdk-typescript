@@ -125,12 +125,12 @@ export interface ActivityOptions {
   versioningIntent?: VersioningIntent;
 
   /**
-   * A single-line fixed summary for this workflow execution that may appear in the UI/CLI.
+   * A fixed, single-line fixed summary for this workflow execution that may appear in the UI/CLI.
    * This can be in single-line Temporal markdown format.
    *
    * @experimental User metadata is a new API and suspectible to change.
    */
-  staticSummary?: string;
+  summary?: string;
 
   /**
    * Priority of this activity
@@ -202,10 +202,10 @@ export interface LocalActivityOptions {
   cancellationType?: ActivityCancellationType;
 
   /**
-   * A single-line fixed summary for this workflow execution that may appear in the UI/CLI.
+   * A fixed, single-line fixed summary for this workflow execution that may appear in the UI/CLI.
    * This can be in single-line Temporal markdown format.
    *
    * @experimental User metadata is a new API and suspectible to change.
    */
-  staticSummary?: string;
+  summary?: string;
 }

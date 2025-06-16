@@ -23,6 +23,7 @@ import {
   encodeWorkflowIdConflictPolicy,
   WorkflowIdConflictPolicy,
   compilePriority,
+  encodeUserMetadata,
 } from '@temporalio/common';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -34,7 +35,6 @@ import {
   decodeOptionalFailureToOptionalError,
   decodeOptionalSinglePayload,
   encodeMapToPayloads,
-  encodeOptionalToPayload,
   encodeToPayloads,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
@@ -1228,10 +1228,7 @@ export class WorkflowClient extends BaseClient {
           : undefined,
       cronSchedule: options.cronSchedule,
       header: { fields: headers },
-      userMetadata: {
-        summary: await encodeOptionalToPayload(this.dataConverter, options?.staticSummary),
-        details: await encodeOptionalToPayload(this.dataConverter, options?.staticDetails),
-      },
+      userMetadata: await encodeUserMetadata(this.dataConverter, options.staticSummary, options.staticDetails),
       priority: options.priority ? compilePriority(options.priority) : undefined,
       versioningOverride: options.versioningOverride ?? undefined,
     };
@@ -1301,10 +1298,7 @@ export class WorkflowClient extends BaseClient {
           : undefined,
       cronSchedule: opts.cronSchedule,
       header: { fields: headers },
-      userMetadata: {
-        summary: await encodeOptionalToPayload(this.dataConverter, opts?.staticSummary),
-        details: await encodeOptionalToPayload(this.dataConverter, opts?.staticDetails),
-      },
+      userMetadata: await encodeUserMetadata(this.dataConverter, opts.staticSummary, opts.staticDetails),
       priority: opts.priority ? compilePriority(opts.priority) : undefined,
       versioningOverride: opts.versioningOverride ?? undefined,
     };

@@ -1,5 +1,5 @@
 import { Payload } from '../interfaces';
-import { arrayFromPayloads, fromPayloadsAtIndex, toPayloads } from '../converter/payload-converter';
+import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from '../converter/payload-converter';
 import { PayloadConverterError } from '../errors';
 import { PayloadCodec } from '../converter/payload-codec';
 import { ProtoFailure } from '../failure';
@@ -77,7 +77,7 @@ export async function decodeOptionalSinglePayload<T>(
   dataConverter: LoadedDataConverter,
   payload?: Payload | null | undefined
 ): Promise<T | null | undefined> {
-  const { payloadCodecs, payloadConverter } = dataConverter;
+  const { payloadConverter, payloadCodecs } = dataConverter;
   const decoded = await decodeOptionalSingle(payloadCodecs, payload);
   if (decoded == null) return decoded;
   return payloadConverter.fromPayload(decoded);
@@ -94,15 +94,13 @@ export async function encodeToPayload(converter: LoadedDataConverter, value: unk
 /**
  * Run {@link PayloadConverter.toPayload} on an optional value, and then encode it.
  */
-export async function encodeOptionalToPayload(
-  converter: LoadedDataConverter,
+export function encodeOptionalToPayload(
+  payloadConverter: PayloadConverter,
   value: unknown
-): Promise<Payload | null | undefined> {
+): Payload | null | undefined {
   if (value == null) return value;
 
-  const { payloadConverter, payloadCodecs } = converter;
-  const payload = payloadConverter.toPayload(value);
-  return await encodeSingle(payloadCodecs, payload);
+  return payloadConverter.toPayload(value);
 }
 
 /**

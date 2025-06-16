@@ -1417,35 +1417,75 @@ test('Workflow can return root workflow', async (t) => {
   });
 });
 
-export async function userMetadataWorkflow(): Promise<string> {
+export async function userMetadataWorkflow(): Promise<{
+  currentDetails: string;
+  childWorkflowId: string;
+  childRunId: string;
+}> {
   let done = false;
   const signalDef = defineSignal('done');
-  setHandler(signalDef, () => {
-    done = true;
-  });
+  setHandler(
+    signalDef,
+    () => {
+      done = true;
+    },
+    { description: 'signal-desc' }
+  );
 
   // That workflow should call an activity (with summary)
-  const { activityWithSummary } = workflow.proxyActivities({ scheduleToCloseTimeout: '10s' });
-  await activityWithSummary.runWithOptions(
+  const { activityWithSummary } = workflow.proxyActivities({
+    scheduleToCloseTimeout: '10s',
+    scheduleToStartTimeout: '10s',
+  });
+  await activityWithSummary.executeWithOptions(
     {
-      staticSummary: 'activity summary',
+      summary: 'activity summary',
+      retry: {
+        initialInterval: '1s',
+        maximumAttempts: 5,
+        maximumInterval: '10s',
+      },
+      scheduleToStartTimeout: '5s',
     },
     []
   );
-  // Should have a timer (with summary)
+  const { localActivityWithSummary } = workflow.proxyLocalActivities({ scheduleToCloseTimeout: '10s' });
+  await localActivityWithSummary.executeWithOptions(
+    {
+      summary: 'local activity summary',
+      retry: {
+        maximumAttempts: 2,
+        nonRetryableErrorTypes: ['CustomError'],
+      },
+      scheduleToStartTimeout: '5s',
+    },
+    []
+  );
+  // Timer (with summary)
   await workflow.sleep(5, { summary: 'timer summary' });
   // Set current details
   workflow.setCurrentDetails('current wf details');
-  // Unblock on var -> query current details (or return)
+  // Start child workflow
+  const child_handle = await workflow.startChild(completableWorkflow, {
+    args: [false],
+    staticDetails: 'child details',
+    staticSummary: 'child summary',
+  });
+
   await workflow.condition(() => done);
-  return workflow.getCurrentDetails();
+  return {
+    currentDetails: workflow.getCurrentDetails(),
+    childWorkflowId: child_handle.workflowId,
+    childRunId: child_handle.firstExecutionRunId,
+  };
 }
 
-test('User metadata on workflow, timer, activity', async (t) => {
+test('User metadata on workflow, timer, activity, child', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker({
     activities: {
       async activityWithSummary() {},
+      async localActivityWithSummary() {},
     },
   });
 
@@ -1462,9 +1502,15 @@ test('User metadata on workflow, timer, activity', async (t) => {
 
     await handle.signal('done');
     const res = await handle.result();
-    t.true(res === 'current wf details');
+    t.true(res.currentDetails === 'current wf details');
 
-    // Get history events for timer and activity summaries.
+    // Get child workflow handle and verify metadata
+    const childHandle = t.context.env.client.workflow.getHandle(res.childWorkflowId, res.childRunId);
+    const childDesc = await childHandle.describe();
+    t.true((await childDesc.staticSummary()) === 'child summary');
+    t.true((await childDesc.staticDetails()) === 'child details');
+
+    // Get history events for main workflow.
     const resp = await t.context.env.client.workflowService.getWorkflowExecutionHistory({
       namespace: t.context.env.client.options.namespace,
       execution: {
@@ -1477,14 +1523,14 @@ test('User metadata on workflow, timer, activity', async (t) => {
         t.deepEqual(
           await decodeOptionalSinglePayload(
             t.context.env.client.options.loadedDataConverter,
-            event.userMetadata?.summary ?? {}
+            event.userMetadata?.summary
           ),
           'wf static summary'
         );
         t.deepEqual(
           await decodeOptionalSinglePayload(
             t.context.env.client.options.loadedDataConverter,
-            event.userMetadata?.details ?? {}
+            event.userMetadata?.details
           ),
           'wf static details'
         );
@@ -1492,25 +1538,60 @@ test('User metadata on workflow, timer, activity', async (t) => {
         t.deepEqual(
           await decodeOptionalSinglePayload(
             t.context.env.client.options.loadedDataConverter,
-            event.userMetadata?.summary ?? {}
+            event.userMetadata?.summary
           ),
           'activity summary'
         );
+        // Assert that the overriden activity options are what we expect.
+        const attrs = event.activityTaskScheduledEventAttributes;
+        t.is(tsToMs(attrs?.scheduleToCloseTimeout), 10000);
+        t.is(tsToMs(attrs?.scheduleToStartTimeout), 5000);
+        const retryPolicy = attrs?.retryPolicy;
+        t.is(retryPolicy?.maximumAttempts, 5);
+        t.is(tsToMs(retryPolicy?.initialInterval), 1000);
+        t.is(tsToMs(retryPolicy?.maximumInterval), 10000);
       } else if (event.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_TIMER_STARTED) {
         t.deepEqual(
           await decodeOptionalSinglePayload(
             t.context.env.client.options.loadedDataConverter,
-            event.userMetadata?.summary ?? {}
+            event.userMetadata?.summary
           ),
           'timer summary'
         );
       }
     }
+    // Get history events for child workflow.
+    const childResp = await t.context.env.client.workflowService.getWorkflowExecutionHistory({
+      namespace: t.context.env.client.options.namespace,
+      execution: {
+        workflowId: res.childWorkflowId,
+        runId: res.childRunId,
+      },
+    });
 
+    for (const event of childResp.history?.events ?? []) {
+      if (event.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED) {
+        t.deepEqual(
+          await decodeOptionalSinglePayload(
+            t.context.env.client.options.loadedDataConverter,
+            event.userMetadata?.summary
+          ),
+          'child summary'
+        );
+        t.deepEqual(
+          await decodeOptionalSinglePayload(
+            t.context.env.client.options.loadedDataConverter,
+            event.userMetadata?.details
+          ),
+          'child details'
+        );
+      }
+    }
     // Run metadata query -> get current details
     const wfMetadata = (await handle.query('__temporal_workflow_metadata')) as temporal.api.sdk.v1.IWorkflowMetadata;
     t.deepEqual(wfMetadata.definition?.signalDefinitions?.length, 1);
     t.deepEqual(wfMetadata.definition?.signalDefinitions?.[0].name, 'done');
+    t.deepEqual(wfMetadata.definition?.signalDefinitions?.[0].description, 'signal-desc');
     t.deepEqual(wfMetadata.definition?.queryDefinitions?.length, 3); // default queries
     t.deepEqual(wfMetadata.currentDetails, 'current wf details');
   });

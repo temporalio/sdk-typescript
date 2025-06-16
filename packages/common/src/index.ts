@@ -37,6 +37,7 @@ export {
   TypedSearchAttributes,
   defineSearchAttributeKey,
 } from './search-attributes';
+export * from './user-metadata';
 
 /**
  * Encode a UTF-8 string into a Uint8Array
