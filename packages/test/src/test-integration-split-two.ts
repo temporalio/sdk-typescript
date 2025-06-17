@@ -2,7 +2,7 @@
 import asyncRetry from 'async-retry';
 import { v4 as uuid4 } from 'uuid';
 import * as iface from '@temporalio/proto';
-import { WorkflowContinuedAsNewError, WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
+import { WorkflowContinuedAsNewError, WorkflowFailedError } from '@temporalio/client';
 import {
   ApplicationFailure,
   defaultPayloadConverter,
@@ -14,18 +14,7 @@ import { searchAttributePayloadConverter } from '@temporalio/common/lib/converte
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { decode as payloadDecode, decodeFromPayloadsAtIndex } from '@temporalio/common/lib/internal-non-workflow';
 
-import {
-  condition,
-  defineQuery,
-  defineSignal,
-  defineUpdate,
-  setDefaultQueryHandler,
-  setDefaultSignalHandler,
-  setDefaultUpdateHandler,
-  setHandler,
-  sleep,
-} from '@temporalio/workflow';
-import { ReservedPrefixError, reservedPrefixes } from '@temporalio/common/lib/reserved';
+import { condition, defineQuery, defineSignal, setDefaultQueryHandler, setHandler, sleep } from '@temporalio/workflow';
 import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';
 import * as activities from './activities';
 import * as workflows from './workflows';

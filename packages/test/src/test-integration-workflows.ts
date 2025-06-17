@@ -1,6 +1,6 @@
-import asyncRetry from 'async-retry';
 import { setTimeout as setTimeoutPromise } from 'timers/promises';
 import { randomUUID } from 'crypto';
+import asyncRetry from 'async-retry';
 import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
 import { WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
@@ -9,7 +9,16 @@ import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
-import { condition, defineQuery, defineSignal, defineUpdate, setDefaultQueryHandler, setDefaultSignalHandler, setDefaultUpdateHandler, setHandler } from '@temporalio/workflow';
+import {
+  condition,
+  defineQuery,
+  defineSignal,
+  defineUpdate,
+  setDefaultQueryHandler,
+  setDefaultSignalHandler,
+  setDefaultUpdateHandler,
+  setHandler,
+} from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import {
   ActivityCancellationType,
@@ -20,13 +29,13 @@ import {
   TypedSearchAttributes,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
+import { reservedPrefixes } from '@temporalio/common/lib/reserved';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
 import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
-import { reservedPrefixes } from '@temporalio/common/src/reserved';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -1493,9 +1502,18 @@ test('Workflow failure if define signals/updates/queries with reserved prefixes'
         args: [prefix],
       });
       t.deepEqual(result, [
-        { name: 'ReservedPrefixError', message: `Cannot use signal name: '${prefix}_signal', with reserved prefix: '${prefix}'` },
-        { name: 'ReservedPrefixError', message: `Cannot use update name: '${prefix}_update', with reserved prefix: '${prefix}'` },
-        { name: 'ReservedPrefixError', message: `Cannot use query name: '${prefix}_query', with reserved prefix: '${prefix}'` },
+        {
+          name: 'ReservedPrefixError',
+          message: `Cannot use signal name: '${prefix}_signal', with reserved prefix: '${prefix}'`,
+        },
+        {
+          name: 'ReservedPrefixError',
+          message: `Cannot use update name: '${prefix}_update', with reserved prefix: '${prefix}'`,
+        },
+        {
+          name: 'ReservedPrefixError',
+          message: `Cannot use query name: '${prefix}_query', with reserved prefix: '${prefix}'`,
+        },
       ]);
     }
   });
@@ -1518,10 +1536,7 @@ test('Default handlers fail given reserved prefix', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
 
-  const assertWftFailure = async (
-    handle: WorkflowHandle,
-    errMsg: string,
-  ) => {
+  const assertWftFailure = async (handle: WorkflowHandle, errMsg: string) => {
     await asyncRetry(
       async () => {
         const history = await handle.fetchHistory();
@@ -1541,27 +1556,27 @@ test('Default handlers fail given reserved prefix', async (t) => {
 
   await worker.runUntil(async () => {
     for (const prefix of reservedPrefixes) {
-      
       // Reserved query
       let handle = await startWorkflow(workflowWithDefaultHandlers);
       const queryName = `${prefix}_query`;
-      await t.throwsAsync(handle.query(queryName, { timeout: 1000 }), {
-        // ReservedPrefixError transforms to a QueryNotRegisteredError on the way back from server
-        name: 'QueryNotRegisteredError',
-        message: `Cannot use query name: '${queryName}', with reserved prefix: '${prefix}'`,
-      }, `Query ${queryName} should fail`);
+      await t.throwsAsync(
+        handle.query(queryName, { timeout: 1000 }),
+        {
+          // ReservedPrefixError transforms to a QueryNotRegisteredError on the way back from server
+          name: 'QueryNotRegisteredError',
+          message: `Cannot use query name: '${queryName}', with reserved prefix: '${prefix}'`,
+        },
+        `Query ${queryName} should fail`
+      );
       await handle.terminate();
-    
 
-    
       // Reserved signal
       handle = await startWorkflow(workflowWithDefaultHandlers);
       const signalName = `${prefix}_signal`;
       await handle.signal(signalName);
       await assertWftFailure(handle, `Cannot use signal name: '${signalName}', with reserved prefix: '${prefix}'`);
       await handle.terminate();
-    
-    
+
       // Reserved update
       handle = await startWorkflow(workflowWithDefaultHandlers);
       const updateName = `${prefix}_update`;

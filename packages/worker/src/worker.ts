@@ -57,6 +57,7 @@ import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
 import { native } from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
+import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
@@ -102,7 +103,6 @@ import {
   ShutdownError,
   UnexpectedError,
 } from './errors';
-import { throwIfReservedName } from '@temporalio/common/src/reserved';
 
 export { DataConverter, defaultPayloadConverter };
 
