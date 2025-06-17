@@ -1,14 +1,15 @@
+import asyncRetry from 'async-retry';
 import { setTimeout as setTimeoutPromise } from 'timers/promises';
 import { randomUUID } from 'crypto';
 import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { WorkflowFailedError } from '@temporalio/client';
+import { WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
-import { defineQuery, defineSignal } from '@temporalio/workflow';
+import { condition, defineQuery, defineSignal, defineUpdate, setDefaultQueryHandler, setDefaultSignalHandler, setDefaultUpdateHandler, setHandler } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import {
   ActivityCancellationType,
@@ -25,6 +26,7 @@ import * as workflows from './workflows';
 import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
 import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
+import { reservedPrefixes } from '@temporalio/common/src/reserved';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -1412,5 +1414,164 @@ test('Workflow can return root workflow', async (t) => {
   await worker.runUntil(async () => {
     const result = await executeWorkflow(rootWorkflow, { workflowId: 'test-root-workflow-length' });
     t.deepEqual(result, 'empty test-root-workflow-length');
+  });
+});
+
+test('Cannot register activities using reserved prefixes', async (t) => {
+  const { createWorker } = helpers(t);
+
+  for (const prefix of reservedPrefixes) {
+    const activityName = prefix + '_test';
+    await t.throwsAsync(
+      createWorker({
+        activities: { [activityName]: () => {} },
+      }),
+      {
+        name: 'ReservedPrefixError',
+        message: `Cannot use activity name: '${activityName}', with reserved prefix: '${prefix}'`,
+      }
+    );
+  }
+});
+
+test('Cannot register task queues using reserved prefixes', async (t) => {
+  const { createWorker } = helpers(t);
+
+  for (const prefix of reservedPrefixes) {
+    const taskQueue = prefix + '_test';
+
+    await t.throwsAsync(
+      createWorker({
+        taskQueue,
+      }),
+      {
+        name: 'ReservedPrefixError',
+        message: `Cannot use task queue name: '${taskQueue}', with reserved prefix: '${prefix}'`,
+      }
+    );
+  }
+});
+
+interface HandlerError {
+  name: string;
+  message: string;
+}
+
+export async function workflowBadPrefixHandler(prefix: string): Promise<HandlerError[]> {
+  // Re-package errors, default payload converter has trouble converting native errors (no 'data' field).
+  const expectedErrors: HandlerError[] = [];
+  try {
+    setHandler(defineSignal(prefix + '_signal'), () => {});
+  } catch (e) {
+    if (e instanceof Error) {
+      expectedErrors.push({ name: e.name, message: e.message });
+    }
+  }
+  try {
+    setHandler(defineUpdate(prefix + '_update'), () => {});
+  } catch (e) {
+    if (e instanceof Error) {
+      expectedErrors.push({ name: e.name, message: e.message });
+    }
+  }
+  try {
+    setHandler(defineQuery(prefix + '_query'), () => {});
+  } catch (e) {
+    if (e instanceof Error) {
+      expectedErrors.push({ name: e.name, message: e.message });
+    }
+  }
+  return expectedErrors;
+}
+
+test('Workflow failure if define signals/updates/queries with reserved prefixes', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    for (const prefix of reservedPrefixes) {
+      const result = await executeWorkflow(workflowBadPrefixHandler, {
+        args: [prefix],
+      });
+      t.deepEqual(result, [
+        { name: 'ReservedPrefixError', message: `Cannot use signal name: '${prefix}_signal', with reserved prefix: '${prefix}'` },
+        { name: 'ReservedPrefixError', message: `Cannot use update name: '${prefix}_update', with reserved prefix: '${prefix}'` },
+        { name: 'ReservedPrefixError', message: `Cannot use query name: '${prefix}_query', with reserved prefix: '${prefix}'` },
+      ]);
+    }
+  });
+});
+
+export async function workflowWithDefaultHandlers(): Promise<void> {
+  let unblocked = false;
+  setHandler(defineSignal('unblock'), () => {
+    unblocked = true;
+  });
+
+  setDefaultQueryHandler(() => {});
+  setDefaultSignalHandler(() => {});
+  setDefaultUpdateHandler(() => {});
+
+  await condition(() => unblocked);
+}
+
+test('Default handlers fail given reserved prefix', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+
+  const assertWftFailure = async (
+    handle: WorkflowHandle,
+    errMsg: string,
+  ) => {
+    await asyncRetry(
+      async () => {
+        const history = await handle.fetchHistory();
+        const wftFailedEvent = history.events?.findLast((ev) => ev.workflowTaskFailedEventAttributes);
+        if (wftFailedEvent === undefined) {
+          throw new Error('No WFT failed event found');
+        }
+        const { failure } = wftFailedEvent.workflowTaskFailedEventAttributes ?? {};
+        if (!failure) {
+          return t.fail('Expected failure in workflowTaskFailedEventAttributes');
+        }
+        t.is(failure.message, errMsg);
+      },
+      { minTimeout: 300, factor: 1, retries: 10 }
+    );
+  };
+
+  await worker.runUntil(async () => {
+    for (const prefix of reservedPrefixes) {
+      
+      // Reserved query
+      let handle = await startWorkflow(workflowWithDefaultHandlers);
+      const queryName = `${prefix}_query`;
+      await t.throwsAsync(handle.query(queryName, { timeout: 1000 }), {
+        // ReservedPrefixError transforms to a QueryNotRegisteredError on the way back from server
+        name: 'QueryNotRegisteredError',
+        message: `Cannot use query name: '${queryName}', with reserved prefix: '${prefix}'`,
+      }, `Query ${queryName} should fail`);
+      await handle.terminate();
+    
+
+    
+      // Reserved signal
+      handle = await startWorkflow(workflowWithDefaultHandlers);
+      const signalName = `${prefix}_signal`;
+      await handle.signal(signalName);
+      await assertWftFailure(handle, `Cannot use signal name: '${signalName}', with reserved prefix: '${prefix}'`);
+      await handle.terminate();
+    
+    
+      // Reserved update
+      handle = await startWorkflow(workflowWithDefaultHandlers);
+      const updateName = `${prefix}_update`;
+      handle.executeUpdate(updateName).catch(() => {
+        // Expect failure. The error caught here is a WorkflowNotFound because
+        // the workflow will have already failed, so the update cannot go through.
+        // We assert on the expected failure below.
+      });
+      await assertWftFailure(handle, `Cannot use update name: '${updateName}', with reserved prefix: '${prefix}'`);
+      await handle.terminate();
+    }
   });
 });

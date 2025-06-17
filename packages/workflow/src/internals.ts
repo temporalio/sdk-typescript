@@ -36,7 +36,6 @@ import {
   ReservedPrefixError,
   STACK_TRACE_RESERVED_PREFIX,
   maybeGetReservedPrefix,
-  throwIfReservedName,
 } from '@temporalio/common/lib/reserved';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
@@ -686,7 +685,7 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing query activation attributes');
     }
 
-    const reservedPrefix = maybeGetReservedPrefix(queryType)
+    const reservedPrefix = maybeGetReservedPrefix(queryType);
     if (reservedPrefix) {
       // Must have (internal) query handler for reserved query.
       if (!this.queryHandlers.has(queryType)) {
@@ -695,12 +694,8 @@ export class Activator implements ActivationHandler {
     }
 
     // Skip interceptors if it is an internal query
-    let interceptors = reservedPrefix ? [] : this.interceptors.inbound
-    const execute = composeInterceptors(
-      interceptors,
-      'handleQuery',
-      this.queryWorkflowNextHandler.bind(this)
-    );
+    const interceptors = reservedPrefix ? [] : this.interceptors.inbound;
+    const execute = composeInterceptors(interceptors, 'handleQuery', this.queryWorkflowNextHandler.bind(this));
     execute({
       queryName: queryType,
       args: arrayFromPayloads(this.payloadConverter, activation.arguments),
@@ -723,6 +718,11 @@ export class Activator implements ActivationHandler {
     if (!protocolInstanceId) {
       throw new TypeError('Missing activation update protocolInstanceId');
     }
+    const reservedPrefix = maybeGetReservedPrefix(name);
+    if (reservedPrefix && !this.updateHandlers.get(name)) {
+      // Must have (internal) update handler for reserved update.
+      throw new ReservedPrefixError('update', name, reservedPrefix);
+    }
 
     const entry =
       this.updateHandlers.get(name) ??
@@ -737,11 +737,6 @@ export class Activator implements ActivationHandler {
 
     // If we don't have an entry from either source, buffer and return
     if (entry === null) {
-      const reservedPrefix = maybeGetReservedPrefix(name);
-      if (reservedPrefix) {
-        // Must have (internal) update handler for reserved update.
-        throw new ReservedPrefixError('update', name, reservedPrefix);
-      }
       this.bufferedUpdates.push(activation);
       return;
     }

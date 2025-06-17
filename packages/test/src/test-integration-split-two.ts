@@ -21,10 +21,11 @@ import {
   defineUpdate,
   setDefaultQueryHandler,
   setDefaultSignalHandler,
+  setDefaultUpdateHandler,
   setHandler,
   sleep,
 } from '@temporalio/workflow';
-import { reservedPrefixes } from '@temporalio/common/lib/reserved';
+import { ReservedPrefixError, reservedPrefixes } from '@temporalio/common/lib/reserved';
 import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';
 import * as activities from './activities';
 import * as workflows from './workflows';
@@ -771,160 +772,5 @@ test.serial('default query handler is not used if requested query exists', confi
     const args = ['test', 'args'];
     const result = await handle.query('query-handler-type', ...args);
     t.deepEqual(result, { name: definedQuery.name, args });
-  });
-});
-
-test('Cannot register activities using reserved prefixes', configMacro, async (t, config) => {
-  const { createWorkerWithDefaults } = config;
-
-  for (const prefix of reservedPrefixes) {
-    const activityName = prefix + '_test';
-    await t.throwsAsync(
-      createWorkerWithDefaults(t, {
-        activities: { [activityName]: () => {} },
-      }),
-      {
-        instanceOf: Error,
-        message: `Cannot register activity name: '${activityName}', with reserved prefix: '${prefix}'`,
-      }
-    );
-  }
-});
-
-test('Cannot register task queues using reserved prefixes', configMacro, async (t, config) => {
-  const { createWorkerWithDefaults } = config;
-
-  for (const prefix of reservedPrefixes) {
-    const taskQueue = prefix + '_test';
-
-    await t.throwsAsync(
-      createWorkerWithDefaults(t, {
-        taskQueue,
-      }),
-      {
-        instanceOf: Error,
-        message: `Cannot register task queue name: '${taskQueue}', with reserved prefix: '${prefix}'`,
-      }
-    );
-  }
-});
-
-interface HandlerError {
-  name: string;
-  message: string;
-}
-
-export async function workflowBadPrefixHandler(prefix: string): Promise<HandlerError[]> {
-  // Re-package errors, default payload converter has trouble converting native errors (no 'data' field).
-  const expectedErrors: HandlerError[] = [];
-  try {
-    setHandler(defineSignal(prefix + '_signal'), () => {});
-  } catch (e) {
-    if (e instanceof Error) {
-      expectedErrors.push({ name: e.name, message: e.message });
-    }
-  }
-  try {
-    setHandler(defineUpdate(prefix + '_update'), () => {});
-  } catch (e) {
-    if (e instanceof Error) {
-      expectedErrors.push({ name: e.name, message: e.message });
-    }
-  }
-  try {
-    setHandler(defineQuery(prefix + '_query'), () => {});
-  } catch (e) {
-    if (e instanceof Error) {
-      expectedErrors.push({ name: e.name, message: e.message });
-    }
-  }
-  return expectedErrors;
-}
-
-test('Workflow failure if define signals/updates/queries with reserved prefixes', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
-  await worker.runUntil(async () => {
-    const prefix = reservedPrefixes[0];
-    // for (const prefix of reservedPrefixes) {
-    const result = await executeWorkflow(workflowBadPrefixHandler, {
-      args: [prefix],
-    });
-    console.log('result', result);
-    t.deepEqual(result, [
-      { name: 'Error', message: `Cannot register signal name: '${prefix}_signal', with reserved prefix: '${prefix}'` },
-      { name: 'Error', message: `Cannot register update name: '${prefix}_update', with reserved prefix: '${prefix}'` },
-      { name: 'Error', message: `Cannot register query name: '${prefix}_query', with reserved prefix: '${prefix}'` },
-    ]);
-    // }
-  });
-});
-
-export async function workflowWithDefaultHandlers(): Promise<void> {
-  let unblocked = false;
-  setHandler(defineSignal('unblock'), () => {
-    unblocked = true;
-  });
-
-  setDefaultQueryHandler(() => {});
-  setDefaultSignalHandler(() => {});
-  setDefaultUpdateHandler({
-    handler: () => {},
-  });
-
-  await condition(() => unblocked);
-}
-
-test('Default handlers fail WFT given reserved prefix', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
-
-  const assertWftFailure = async (
-    handle: WorkflowHandle,
-    name: string,
-    prefix: string,
-    handlerType: 'query' | 'signal' | 'update'
-  ) => {
-    await asyncRetry(
-      async () => {
-        const history = await handle.fetchHistory();
-        const wftFailedEvent = history.events?.findLast((ev) => ev.workflowTaskFailedEventAttributes);
-        if (wftFailedEvent === undefined) {
-          throw new Error('No WFT failed event found');
-        }
-        const { failure } = wftFailedEvent.workflowTaskFailedEventAttributes ?? {};
-        if (!failure) {
-          return t.fail('Expected failure in workflowTaskFailedEventAttributes');
-        }
-        t.is(failure.message, `Cannot use ${handlerType} name: '${name}', with reserved prefix: '${prefix}'`);
-      },
-      { minTimeout: 300, factor: 1, retries: 10 }
-    );
-  };
-
-  await worker.runUntil(async () => {
-    for (const prefix of reservedPrefixes) {
-      // Test Query
-      let handle = await startWorkflow(workflowWithDefaultHandlers);
-      const queryName = `${prefix}_query`;
-      await t.throwsAsync(handle.query(queryName), undefined, `Query ${queryName} should fail`);
-      await assertWftFailure(handle, queryName, prefix, 'query');
-      await handle.terminate();
-       // Test Signal
-       handle = await startWorkflow(workflowWithDefaultHandlers);
-       const signalName = `${prefix}_signal`;
-       await handle.signal(signalName);
-       await assertWftFailure(handle, signalName, prefix, 'signal');
-       await handle.terminate();
- 
-       // Test Update
-       handle = await startWorkflow(workflowWithDefaultHandlers);
-       const updateName = `${prefix}_update`;
-       await t.throwsAsync(handle.executeUpdate(updateName), undefined, `Update ${updateName} should fail`);
-       await assertWftFailure(handle, updateName, prefix, 'update');
-       await handle.terminate();
-    }
   });
 });

@@ -14,8 +14,6 @@ import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow'
 import { LoggerSinks } from '@temporalio/workflow';
 import { Context } from '@temporalio/activity';
 import { native } from '@temporalio/core-bridge';
-import { checkExtends } from '@temporalio/common/lib/type-helpers';
-import { WorkerOptions as NativeWorkerOptions, WorkerTuner as NativeWorkerTuner } from '@temporalio/core-bridge';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
