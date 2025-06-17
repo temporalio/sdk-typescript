@@ -1519,6 +1519,7 @@ test('Workflow failure if define signals/updates/queries with reserved prefixes'
   });
 });
 
+export const wfReadyQuery = defineQuery<boolean>('wf-ready');
 export async function workflowWithDefaultHandlers(): Promise<void> {
   let unblocked = false;
   setHandler(defineSignal('unblock'), () => {
@@ -1528,6 +1529,7 @@ export async function workflowWithDefaultHandlers(): Promise<void> {
   setDefaultQueryHandler(() => {});
   setDefaultSignalHandler(() => {});
   setDefaultUpdateHandler(() => {});
+  setHandler(wfReadyQuery, () => true);
 
   await condition(() => unblocked);
 }
@@ -1558,6 +1560,11 @@ test('Default handlers fail given reserved prefix', async (t) => {
     for (const prefix of reservedPrefixes) {
       // Reserved query
       let handle = await startWorkflow(workflowWithDefaultHandlers);
+      await asyncRetry(async () => {
+        if (!(await handle.query(wfReadyQuery))) {
+          throw new Error('Workflow not ready yet');
+        }
+      });
       const queryName = `${prefix}_query`;
       await t.throwsAsync(
         handle.query(queryName),
@@ -1572,6 +1579,11 @@ test('Default handlers fail given reserved prefix', async (t) => {
 
       // Reserved signal
       handle = await startWorkflow(workflowWithDefaultHandlers);
+      await asyncRetry(async () => {
+        if (!(await handle.query(wfReadyQuery))) {
+          throw new Error('Workflow not ready yet');
+        }
+      });
       const signalName = `${prefix}_signal`;
       await handle.signal(signalName);
       await assertWftFailure(handle, `Cannot use signal name: '${signalName}', with reserved prefix: '${prefix}'`);
@@ -1579,6 +1591,11 @@ test('Default handlers fail given reserved prefix', async (t) => {
 
       // Reserved update
       handle = await startWorkflow(workflowWithDefaultHandlers);
+      await asyncRetry(async () => {
+        if (!(await handle.query(wfReadyQuery))) {
+          throw new Error('Workflow not ready yet');
+        }
+      });
       const updateName = `${prefix}_update`;
       handle.executeUpdate(updateName).catch(() => {
         // Expect failure. The error caught here is a WorkflowNotFound because
