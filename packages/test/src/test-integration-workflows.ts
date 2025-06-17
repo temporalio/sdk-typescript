@@ -1560,7 +1560,7 @@ test('Default handlers fail given reserved prefix', async (t) => {
       let handle = await startWorkflow(workflowWithDefaultHandlers);
       const queryName = `${prefix}_query`;
       await t.throwsAsync(
-        handle.query(queryName, { timeout: 1000 }),
+        handle.query(queryName),
         {
           // ReservedPrefixError transforms to a QueryNotRegisteredError on the way back from server
           name: 'QueryNotRegisteredError',
