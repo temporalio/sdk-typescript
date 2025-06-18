@@ -156,7 +156,6 @@ test(
     await worker.runUntil(handle.result());
     let firstChild = true;
     const history = await handle.fetchHistory();
-    console.log('events');
     for (const event of history?.events ?? []) {
       switch (event.eventType) {
         case temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED:
@@ -184,7 +183,6 @@ test('workflow start without priorities sees undefined for the key', configMacro
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t, { activities });
-  console.log('STARTING WORKFLOW');
 
   const handle1 = await startWorkflow(workflows.priorityWorkflow, {
     args: [true, undefined],
