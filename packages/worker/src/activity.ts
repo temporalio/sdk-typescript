@@ -143,7 +143,9 @@ export class Activity {
         (error instanceof CancelledFailure || isAbortError(error)) &&
         this.context.cancellationSignal.aborted
       ) {
-        if (this.context.cancellationDetails.details?.paused) {
+        if (this.context.cancellationDetails.details?.reset) {
+          this.workerLogger.debug('Activity reset', { durationMs });
+        } else if (this.context.cancellationDetails.details?.paused) {
           this.workerLogger.debug('Activity paused', { durationMs });
         } else {
           this.workerLogger.debug('Activity completed as cancelled', { durationMs });
@@ -180,14 +182,17 @@ export class Activity {
         } else if (this.cancelReason) {
           // Either a CancelledFailure that we threw or AbortError from AbortController
           if (err instanceof CancelledFailure) {
-            // If cancel due to activity pause, emit an application failure for the pause.
-            if (this.context.cancellationDetails.details?.paused) {
+            // If cancel due to activity pause or reset, emit an application failure.
+            if (this.context.cancellationDetails.details?.paused || this.context.cancellationDetails.details?.reset) {
+              let message = 'Activity reset';
+              let errType = 'ActivityReset';
+              if (!this.context.cancellationDetails.details?.reset) {
+                message = 'Activity paused';
+                errType = 'ActivityPause';
+              }
               return {
                 failed: {
-                  failure: await encodeErrorToFailure(
-                    this.dataConverter,
-                    new ApplicationFailure('Activity paused', 'ActivityPause')
-                  ),
+                  failure: await encodeErrorToFailure(this.dataConverter, new ApplicationFailure(message, errType)),
                 },
               };
             } else {
