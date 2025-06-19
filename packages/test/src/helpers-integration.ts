@@ -303,7 +303,11 @@ export async function assertPendingActivityExistsEventually(
   return activityInfo as temporal.api.workflow.v1.IPendingActivityInfo;
 }
 
-export async function setActivityPauseState(handle: WorkflowHandle, activityId: string, pause: boolean): Promise<void> {
+export async function setActivityState(
+  handle: WorkflowHandle,
+  activityId: string,
+  state: 'pause' | 'unpause' | 'reset'
+): Promise<void> {
   const desc = await handle.describe();
   const req = {
     namespace: handle.client.options.namespace,
@@ -313,17 +317,24 @@ export async function setActivityPauseState(handle: WorkflowHandle, activityId: 
     },
     id: activityId,
   };
-  if (pause) {
+  if (state === 'pause') {
     await handle.client.workflowService.pauseActivity(req);
-  } else {
+  } else if (state === 'unpause') {
     await handle.client.workflowService.unpauseActivity(req);
+  } else {
+    const resetReq = { ...req, resetHeartbeat: true };
+    await handle.client.workflowService.resetActivity(resetReq);
   }
   await waitUntil(async () => {
     const info = await assertPendingActivityExistsEventually(handle, activityId, 10000);
-    if (pause) {
-      return info.paused ?? false;
+    if (state === 'pause') {
+      return info.paused === true;
+    } else if (state === 'unpause') {
+      return info.paused === false;
+    } else {
+      // Heartbeat details reset
+      return info.heartbeatDetails === null;
     }
-    return !info.paused;
   }, 10000);
 }
 
