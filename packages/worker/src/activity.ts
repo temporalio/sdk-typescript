@@ -5,6 +5,7 @@ import {
   ActivityCancellationDetailsHolder,
   ActivityFunction,
   ApplicationFailure,
+  ApplicationFailureCategory,
   CancelledFailure,
   ensureApplicationFailure,
   FAILURE_SOURCE,
@@ -151,7 +152,12 @@ export class Activity {
       } else if (error instanceof CompleteAsyncError) {
         this.workerLogger.debug('Activity will complete asynchronously', { durationMs });
       } else {
-        this.workerLogger.warn('Activity failed', { error, durationMs });
+        if (error instanceof ApplicationFailure && error.category === ApplicationFailureCategory.BENIGN) {
+          // Downgrade log level to DEBUG for benign application errors.
+          this.workerLogger.debug('Activity failed', { error, durationMs });
+        } else {
+          this.workerLogger.warn('Activity failed', { error, durationMs });
+        }
       }
     }
   }
