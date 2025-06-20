@@ -48,7 +48,7 @@
  *
  * 1. `await` on {@link Context.cancelled | `Context.current().cancelled`} or
  *    {@link Context.sleep | `Context.current().sleep()`}, which each throw a {@link CancelledFailure}.
- * 1. Pass the context's {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} at
+ * 2. Pass the context's {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} at
  *    {@link Context.cancellationSignal | `Context.current().cancellationSignal`} to a library that supports it.
  *
  * ### Examples
@@ -70,7 +70,16 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Logger, Duration, LogLevel, LogMetadata, MetricMeter, Priority } from '@temporalio/common';
+import {
+  Logger,
+  Duration,
+  LogLevel,
+  LogMetadata,
+  MetricMeter,
+  Priority,
+  ActivityCancellationDetailsHolder,
+  ActivityCancellationDetails,
+} from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
@@ -290,6 +299,11 @@ export class Context {
   public readonly metricMeter: MetricMeter;
 
   /**
+   * Holder object for activity cancellation details
+   */
+  public readonly cancellationDetails: ActivityCancellationDetailsHolder;
+
+  /**
    * **Not** meant to instantiated by Activity code, used by the worker.
    *
    * @ignore
@@ -300,7 +314,8 @@ export class Context {
     cancellationSignal: AbortSignal,
     heartbeat: (details?: any) => void,
     log: Logger,
-    metricMeter: MetricMeter
+    metricMeter: MetricMeter,
+    details: ActivityCancellationDetailsHolder
   ) {
     this.info = info;
     this.cancelled = cancelled;
@@ -308,6 +323,7 @@ export class Context {
     this.heartbeatFn = heartbeat;
     this.log = log;
     this.metricMeter = metricMeter;
+    this.cancellationDetails = details;
   }
 
   /**
@@ -425,6 +441,13 @@ export function heartbeat(details?: unknown): void {
  */
 export function cancelled(): Promise<never> {
   return Context.current().cancelled;
+}
+
+/**
+ * Returns the cancellation details for this activity, if any.
+ */
+export function cancellationDetails(): ActivityCancellationDetails | undefined {
+  return Context.current().cancellationDetails.details;
 }
 
 /**
