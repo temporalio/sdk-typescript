@@ -7,6 +7,7 @@ import {
   extractWorkflowType,
   LoadedDataConverter,
 } from '@temporalio/common';
+import { encodeUserMetadata, decodeUserMetadata } from '@temporalio/common/lib/user-metadata';
 import {
   encodeUnifiedSearchAttributes,
   decodeSearchAttributes,
@@ -196,8 +197,7 @@ export function decodeOptionalStructuredCalendarSpecs(
 }
 
 export function compileScheduleOptions(options: ScheduleOptions): CompiledScheduleOptions {
-  const workflowTypeOrFunc = options.action.workflowType;
-  const workflowType = extractWorkflowType(workflowTypeOrFunc);
+  const workflowType = extractWorkflowType(options.action.workflowType);
   return {
     ...options,
     action: {
@@ -270,6 +270,7 @@ export async function encodeScheduleAction(
             }
           : undefined,
       header: { fields: headers },
+      userMetadata: await encodeUserMetadata(dataConverter, action.staticSummary, action.staticDetails),
       priority: action.priority ? compilePriority(action.priority) : undefined,
     },
   };
@@ -320,6 +321,7 @@ export async function decodeScheduleAction(
   pb: temporal.api.schedule.v1.IScheduleAction
 ): Promise<ScheduleDescriptionAction> {
   if (pb.startWorkflow) {
+    const { staticSummary, staticDetails } = await decodeUserMetadata(dataConverter, pb.startWorkflow?.userMetadata);
     return {
       type: 'startWorkflow',
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -336,6 +338,8 @@ export async function decodeScheduleAction(
       workflowExecutionTimeout: optionalTsToMs(pb.startWorkflow.workflowExecutionTimeout),
       workflowRunTimeout: optionalTsToMs(pb.startWorkflow.workflowRunTimeout),
       workflowTaskTimeout: optionalTsToMs(pb.startWorkflow.workflowTaskTimeout),
+      staticSummary,
+      staticDetails,
       priority: decodePriority(pb.startWorkflow.priority),
     };
   }
