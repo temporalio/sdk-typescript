@@ -99,6 +99,7 @@ export {
   RootWorkflowInfo,
   StackTraceSDKInfo,
   StackTrace,
+  StartNexusOperationOptions,
   UnsafeWorkflowInfo,
   WorkflowInfo,
 } from './interfaces';
@@ -120,3 +121,5 @@ export {
   // eslint-disable-next-line deprecation/deprecation
   LoggerSinksDeprecated as LoggerSinks,
 } from './logs';
+
+export { createNexusClient, NexusClient, NexusOperationHandle } from './nexus';

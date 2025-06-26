@@ -16,7 +16,7 @@ import {
   WorkflowExecution,
 } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
-import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
+import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions, StartNexusOperationOptions } from './interfaces';
 
 export { Next, Headers };
 
@@ -149,6 +149,23 @@ export type GetLogAttributesInput = Record<string, unknown>;
 
 /** Input for WorkflowOutboundCallsInterceptor.getMetricTags */
 export type GetMetricTagsInput = MetricTags;
+
+/**
+ * Input for WorkflowOutboundCallsInterceptor.startNexusOperation.
+ */
+export interface StartNexusOperationInput {
+  input: unknown;
+  endpoint: string;
+  service: string;
+  options: StartNexusOperationOptions;
+  operation: string;
+  seq: number;
+  nexusHeader: Record<string, string>;
+}
+
+export interface StartNexusOperationOutput {
+  token?: string;
+}
 
 /**
  * Implement any of these methods to intercept Workflow code calls to the Temporal APIs, like scheduling an activity and starting a timer
