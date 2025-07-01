@@ -325,7 +325,7 @@ export interface ContinueAsNewOptions {
    * @deprecated In favor of the new Worker Deployment API.
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
-  versioningIntent?: VersioningIntent;
+  versioningIntent?: VersioningIntent; // eslint-disable-line deprecation/deprecation
 }
 
 /**
@@ -496,7 +496,7 @@ export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workf
    * @deprecated In favor of the new Worker Deployment API.
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
-  versioningIntent?: VersioningIntent;
+  versioningIntent?: VersioningIntent; // eslint-disable-line deprecation/deprecation
 }
 
 export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, 'workflowId' | 'cancellationType'>> & {
