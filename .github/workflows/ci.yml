@@ -77,6 +77,11 @@ jobs:
           version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upgrade Rust to at least 1.88.0
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+
       - name: Rust Cargo and Build cache
         if: steps.cached-artifact.outputs.cache-hit != 'true'
         uses: Swatinem/rust-cache@v2

@@ -75,6 +75,11 @@ jobs:
           version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upgrade Rust to at least 1.88.0
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+
       # FIXME: Setup volumes so that we can benefit from the cache in the Docker-build scenario.
       #        Or maybe just get rid of the cache entirely if it doesn't have sufficient benefits.
       - name: Rust Cargo and Build cache
