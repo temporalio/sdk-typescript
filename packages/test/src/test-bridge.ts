@@ -266,7 +266,7 @@ const GenericConfigs = {
       tuner: {
         workflowTaskSlotSupplier: {
           type: 'fixed-size',
-          numSlots: 1,
+          numSlots: 2,
         },
         activityTaskSlotSupplier: {
           type: 'fixed-size',
@@ -280,7 +280,7 @@ const GenericConfigs = {
       nonStickyToStickyPollRatio: 0.5,
       workflowTaskPollerBehavior: {
         type: 'simple-maximum',
-        maximum: 1,
+        maximum: 2,
       },
       activityTaskPollerBehavior: {
         type: 'autoscaling',

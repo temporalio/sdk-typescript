@@ -77,6 +77,9 @@ jobs:
           version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upgrade Rust to latest stable
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Rust Cargo and Build cache
         if: steps.cached-artifact.outputs.cache-hit != 'true'
         uses: Swatinem/rust-cache@v2

@@ -40,6 +40,11 @@ jobs:
           version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upgrade Rust to latest stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
       - name: Rust Cargo and Build cache
         uses: Swatinem/rust-cache@v2
         with:

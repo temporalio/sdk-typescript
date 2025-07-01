@@ -195,7 +195,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         headers,
         cancellationType: encodeActivityCancellationType(options.cancellationType),
         doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
-        versioningIntent: versioningIntentToProto(options.versioningIntent),
+        versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line deprecation/deprecation
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
     });
