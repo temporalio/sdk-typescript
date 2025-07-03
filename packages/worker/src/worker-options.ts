@@ -475,6 +475,23 @@ export interface WorkerOptions {
   sinks?: InjectedSinks<any>;
 
   /**
+   * The types of exceptions that, if a Workflow-thrown error extends, will cause the Workflow
+   * Execution or the Update to fail instead of suspending the Workflow via task failure.
+   *
+   * This property expects a record of Workflow-type names to the list of error types that will
+   * cause that type of Workflow to fail. Uses the `'*'` key to specify a list of error types that
+   * applies to all Workflow types.
+   *
+   * If either list of error types includes `NondeterminismError`, then non-determinism errors
+   * will cause the Workflow Excution to fail. If the list of error types includes `Error`, it
+   * effectively will fail a workflow/update in all user exception cases, including non-determinism
+   * errors.
+   *
+   * @experimental
+   */
+  workflowTypesToFailureErrors?: Record<'*' | string, (string | 'NondeterminismError' | 'Error')[]>;
+
+  /**
    * @deprecated SDK tracing is no longer supported. This option is ignored.
    */
   enableSDKTracing?: boolean;
@@ -972,6 +989,24 @@ export function compileWorkerOptions(
 }
 
 export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): native.WorkerOptions {
+  const workflowFailureErrors: native.WorkflowErrorType[] = [];
+  const workflowTypesToFailureErrors: Record<string, native.WorkflowErrorType[]> = {};
+
+  for (const [k, v] of Object.entries(opts.workflowTypesToFailureErrors ?? {})) {
+    const errorTypes: native.WorkflowErrorType[] = [];
+
+    // Core only cares about Non-Determinism Error; other error types are handled by lang side
+    if (v.includes('NondeterminismError') || v.includes('Error')) {
+      errorTypes.push({ type: 'nondeterminism' });
+    }
+
+    if (k === '*') {
+      workflowFailureErrors.push(...errorTypes);
+    } else {
+      workflowTypesToFailureErrors[k] = errorTypes;
+    }
+  }
+
   return {
     identity: opts.identity,
     buildId: opts.buildId, // eslint-disable-line deprecation/deprecation
@@ -983,7 +1018,7 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     nonStickyToStickyPollRatio: opts.nonStickyToStickyPollRatio,
     workflowTaskPollerBehavior: toNativeTaskPollerBehavior(opts.workflowTaskPollerBehavior),
     activityTaskPollerBehavior: toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior),
-    enableNonLocalActivities: opts.enableNonLocalActivities,
+    enableNonLocalActivities: opts.enableNonLocalActivities && opts.activities.size > 0,
     stickyQueueScheduleToStartTimeout: msToNumber(opts.stickyQueueScheduleToStartTimeout),
     maxCachedWorkflows: opts.maxCachedWorkflows,
     maxHeartbeatThrottleInterval: msToNumber(opts.maxHeartbeatThrottleInterval),
@@ -991,6 +1026,8 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     maxTaskQueueActivitiesPerSecond: opts.maxTaskQueueActivitiesPerSecond ?? null,
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
+    workflowFailureErrors,
+    workflowTypesToFailureErrors,
   };
 }
 
