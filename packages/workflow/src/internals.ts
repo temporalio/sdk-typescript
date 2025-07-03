@@ -31,6 +31,12 @@ import {
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';
+import {
+  ENHANCED_STACK_TRACE_RESERVED_PREFIX,
+  ReservedPrefixError,
+  STACK_TRACE_RESERVED_PREFIX,
+  maybeGetReservedPrefix,
+} from '@temporalio/common/lib/reserved';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
@@ -260,7 +266,7 @@ export class Activator implements ActivationHandler {
    */
   public readonly queryHandlers = new Map<string, WorkflowQueryAnnotatedType>([
     [
-      '__stack_trace',
+      STACK_TRACE_RESERVED_PREFIX,
       {
         handler: () => {
           return this.getStackTraces()
@@ -271,7 +277,7 @@ export class Activator implements ActivationHandler {
       },
     ],
     [
-      '__enhanced_stack_trace',
+      ENHANCED_STACK_TRACE_RESERVED_PREFIX,
       {
         handler: (): EnhancedStackTrace => {
           const { sourceMap } = this;
@@ -679,11 +685,17 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing query activation attributes');
     }
 
-    const execute = composeInterceptors(
-      this.interceptors.inbound,
-      'handleQuery',
-      this.queryWorkflowNextHandler.bind(this)
-    );
+    const reservedPrefix = maybeGetReservedPrefix(queryType);
+    if (reservedPrefix) {
+      // Must have (internal) query handler for reserved query.
+      if (!this.queryHandlers.has(queryType)) {
+        throw new ReservedPrefixError('query', queryType, reservedPrefix);
+      }
+    }
+
+    // Skip interceptors if it is an internal query
+    const interceptors = reservedPrefix ? [] : this.interceptors.inbound;
+    const execute = composeInterceptors(interceptors, 'handleQuery', this.queryWorkflowNextHandler.bind(this));
     execute({
       queryName: queryType,
       args: arrayFromPayloads(this.payloadConverter, activation.arguments),
@@ -705,6 +717,11 @@ export class Activator implements ActivationHandler {
     }
     if (!protocolInstanceId) {
       throw new TypeError('Missing activation update protocolInstanceId');
+    }
+    const reservedPrefix = maybeGetReservedPrefix(name);
+    if (reservedPrefix && !this.updateHandlers.get(name)) {
+      // Must have (internal) update handler for reserved update.
+      throw new ReservedPrefixError('update', name, reservedPrefix);
     }
 
     const entry =
@@ -857,6 +874,14 @@ export class Activator implements ActivationHandler {
     const { signalName, headers } = activation;
     if (!signalName) {
       throw new TypeError('Missing activation signalName');
+    }
+
+    const reservedPrefix = maybeGetReservedPrefix(signalName);
+    if (reservedPrefix) {
+      if (!this.signalHandlers.has(signalName)) {
+        // Must have (internal) signal handler for reserved signal.
+        throw new ReservedPrefixError('signal', signalName, reservedPrefix);
+      }
     }
 
     if (!this.signalHandlers.has(signalName) && !this.defaultSignalHandler) {
