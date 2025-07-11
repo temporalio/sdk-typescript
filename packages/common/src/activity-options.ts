@@ -125,7 +125,7 @@ export interface ActivityOptions {
   versioningIntent?: VersioningIntent;
 
   /**
-   * A fixed, single-line fixed summary for this workflow execution that may appear in the UI/CLI.
+   * A fixed, single-line summary for this workflow execution that may appear in the UI/CLI.
    * This can be in single-line Temporal markdown format.
    *
    * @experimental User metadata is a new API and suspectible to change.
@@ -202,7 +202,7 @@ export interface LocalActivityOptions {
   cancellationType?: ActivityCancellationType;
 
   /**
-   * A fixed, single-line fixed summary for this workflow execution that may appear in the UI/CLI.
+   * A fixed, single-line summary for this workflow execution that may appear in the UI/CLI.
    * This can be in single-line Temporal markdown format.
    *
    * @experimental User metadata is a new API and suspectible to change.
