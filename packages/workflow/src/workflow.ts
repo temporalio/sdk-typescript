@@ -23,6 +23,8 @@ import {
   WorkflowUpdateValidatorType,
   SearchAttributeUpdatePair,
   RawValue,
+  compilePriority,
+  WorkflowDefinitionOptionsOrGetter,
 } from '@temporalio/common';
 import {
   encodeUnifiedSearchAttributes,
@@ -56,6 +58,7 @@ import {
   UpdateInfo,
   encodeChildWorkflowCancellationType,
   encodeParentClosePolicy,
+  DefaultUpdateHandler,
   DefaultQueryHandler,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
@@ -192,7 +195,8 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         headers,
         cancellationType: encodeActivityCancellationType(options.cancellationType),
         doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
-        versioningIntent: versioningIntentToProto(options.versioningIntent),
+        versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line deprecation/deprecation
+        priority: options.priority ? compilePriority(options.priority) : undefined,
       },
     });
     activator.completions.activity.set(seq, {
@@ -392,7 +396,8 @@ function startChildWorkflowExecutionNextHandler({
             ? encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) // eslint-disable-line deprecation/deprecation
             : undefined,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
-        versioningIntent: versioningIntentToProto(options.versioningIntent),
+        versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line deprecation/deprecation
+        priority: options.priority ? compilePriority(options.priority) : undefined,
       },
     });
     activator.completions.childWorkflowStart.set(seq, {
@@ -936,7 +941,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
             : undefined,
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
-        versioningIntent: versioningIntentToProto(options.versioningIntent),
+        versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line deprecation/deprecation
       });
     });
     return fn({
@@ -1329,6 +1334,29 @@ export function setDefaultSignalHandler(handler: DefaultSignalHandler | undefine
 }
 
 /**
+ * Set a update handler function that will handle updates calls for non-registered update names.
+ *
+ * Updates are dispatched to the default update handler in the order that they were accepted by the server.
+ *
+ * If this function is called multiple times for a given update name the last handler will overwrite any previous calls.
+ *
+ * @param handler a function that will handle updates for non-registered update names, or `undefined` to unset the handler.
+ */
+export function setDefaultUpdateHandler(handler: DefaultUpdateHandler | undefined): void {
+  const activator = assertInWorkflowContext(
+    'Workflow.setDefaultUpdateHandler(...) may only be used from a Workflow Execution.'
+  );
+  if (typeof handler === 'function') {
+    activator.defaultUpdateHandler = handler;
+    activator.dispatchBufferedUpdates();
+  } else if (handler == null) {
+    activator.defaultUpdateHandler = undefined;
+  } else {
+    throw new TypeError(`Expected handler to be either a function or 'undefined'. Got: '${typeof handler}'`);
+  }
+}
+
+/**
  * Set a query handler function that will handle query calls for non-registered query names.
  *
  * Queries are dispatched to the default query handler in the order that they were accepted by the server.
@@ -1585,6 +1613,43 @@ export function upsertMemo(memo: Record<string, unknown>): void {
 export function allHandlersFinished(): boolean {
   const activator = assertInWorkflowContext('allHandlersFinished() may only be used from a Workflow Execution.');
   return activator.inProgressSignals.size === 0 && activator.inProgressUpdates.size === 0;
+}
+
+/**
+ * Can be used to alter workflow functions with certain options specified at definition time.
+ *
+ * @example
+ * For example:
+ * ```ts
+ * setWorkflowOptions({ versioningBehavior: 'PINNED' }, myWorkflow);
+ * export async function myWorkflow(): Promise<string> {
+ *   // Workflow code here
+ *   return "hi";
+ * }
+ * ```
+ *
+ * @example
+ * To annotate a default or dynamic workflow:
+ * ```ts
+ * export default async function (): Promise<string> {
+ *   // Workflow code here
+ *   return "hi";
+ * }
+ * setWorkflowOptions({ versioningBehavior: 'PINNED' }, module.exports.default);
+ * ```
+ *
+ * @param options Options for the workflow defintion, or a function that returns options. If a
+ * function is provided, it will be called once just before the workflow function is called for the
+ * first time. It is safe to call {@link workflowInfo} inside such a function.
+ * @param fn The workflow function.
+ */
+export function setWorkflowOptions<A extends any[], RT>(
+  options: WorkflowDefinitionOptionsOrGetter,
+  fn: (...args: A) => Promise<RT>
+): void {
+  Object.assign(fn, {
+    workflowDefinitionOptions: options,
+  });
 }
 
 export const stackTraceQuery = defineQuery<RawValue>('__stack_trace');

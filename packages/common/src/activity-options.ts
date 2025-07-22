@@ -3,6 +3,7 @@ import { RetryPolicy } from './retry-policy';
 import { Duration } from './time';
 import { VersioningIntent } from './versioning-intent';
 import { makeProtoEnumConverters } from './internal-workflow';
+import { Priority } from './priority';
 
 export const ActivityCancellationType = {
   TRY_CANCEL: 'TRY_CANCEL',
@@ -119,9 +120,15 @@ export interface ActivityOptions {
    *
    * @default 'COMPATIBLE'
    *
+   * @deprecated In favor of the new Worker Deployment API.
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
-  versioningIntent?: VersioningIntent;
+  versioningIntent?: VersioningIntent; // eslint-disable-line deprecation/deprecation
+
+  /**
+   * Priority of this activity
+   */
+  priority?: Priority;
 }
 
 /**

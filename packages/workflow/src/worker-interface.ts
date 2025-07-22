@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { IllegalStateError } from '@temporalio/common';
+import { encodeVersioningBehavior, IllegalStateError, WorkflowFunctionWithOptions } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
@@ -89,6 +89,13 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
           ? 'no such function is exported by the workflow bundle'
           : `expected a function, but got: '${typeof workflowFn}'`;
       throw new TypeError(`Failed to initialize workflow of type '${activator.info.workflowType}': ${details}`);
+    }
+    if (isWorkflowFunctionWithOptions(activator.workflow)) {
+      if (typeof activator.workflow.workflowDefinitionOptions === 'object') {
+        activator.versioningBehavior = activator.workflow.workflowDefinitionOptions.versioningBehavior;
+      } else {
+        activator.workflowDefinitionOptionsGetter = activator.workflow.workflowDefinitionOptions;
+      }
     }
   } finally {
     activator.rethrowSynchronously = false;
@@ -203,7 +210,11 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
     }
     return {
       runId: activator.info.runId,
-      successful: { ...activationCompletion, commands },
+      successful: {
+        ...activationCompletion,
+        commands,
+        versioningBehavior: encodeVersioningBehavior(activationCompletion.versioningBehavior),
+      },
     };
   } finally {
     activator.rethrowSynchronously = false;
@@ -253,4 +264,9 @@ export function dispose(): void {
   } finally {
     activator.rethrowSynchronously = false;
   }
+}
+
+function isWorkflowFunctionWithOptions(obj: any): obj is WorkflowFunctionWithOptions<any[], any> {
+  if (obj == null) return false;
+  return Object.hasOwn(obj, 'workflowDefinitionOptions');
 }

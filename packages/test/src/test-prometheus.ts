@@ -9,7 +9,7 @@ import * as workflows from './workflows';
 test.serial('Runtime.install() throws meaningful error when passed invalid metrics.prometheus.bindAddress', (t) => {
   t.throws(() => Runtime.install({ telemetryOptions: { metrics: { prometheus: { bindAddress: ':invalid' } } } }), {
     instanceOf: TypeError,
-    message: 'Invalid telemetryOptions.metrics.prometheus.bindAddress',
+    message: /metricsExporter.prometheus.socketAddr/,
   });
 });
 
@@ -80,6 +80,7 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
           useSecondsForDurations: true,
           histogramBucketOverrides: {
             request_latency: [3, 31, 314, 3141, 31415],
+            workflow_task_execution_latency: [3, 31, 314, 3141, 31415, 314159],
           },
         },
       },
@@ -118,6 +119,7 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
 
       // Verify histogram overrides
       t.assert(text.match(/temporal_request_latency_seconds_bucket.*,le="31415"/));
+      t.assert(text.match(/workflow_task_execution_latency.*,le="31415"/));
 
       // Verify prefix exists on client request metrics
       t.assert(text.includes('temporal_long_request'));

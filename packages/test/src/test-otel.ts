@@ -58,7 +58,17 @@ async function withFakeGrpcServer(
       });
       fn(addr.port)
         .catch((e) => reject(e))
-        .finally(() => srv.close((_) => resolve()));
+        .finally(() => {
+          resolve();
+
+          // The OTel exporter will try to flush metrics on drop, which may result in tons of ERROR
+          // messages on the console if the server has had time to complete shutdown before then.
+          // Delaying closing the server by 1 second is enough to avoid that situation, and doesn't
+          // need to be awaited, no that doesn't slow down tests.
+          setTimeout(() => {
+            srv.close();
+          }, 1000).unref();
+        });
     });
   });
 }
@@ -81,7 +91,17 @@ async function withHttpServer(
       });
       fn(addr.port)
         .catch((e) => reject(e))
-        .finally(() => srv.close((_) => resolve()));
+        .finally(() => {
+          resolve();
+
+          // The OTel exporter will try to flush metrics on drop, which may result in tons of ERROR
+          // messages on the console if the server has had time to complete shutdown before then.
+          // Delaying closing the server by 1 second is enough to avoid that situation, and doesn't
+          // need to be awaited, no that doesn't slow down tests.
+          setTimeout(() => {
+            srv.close();
+          }, 1000).unref();
+        });
     });
   });
 }
@@ -89,7 +109,7 @@ async function withHttpServer(
 test.serial('Runtime.install() throws meaningful error when passed invalid metrics.otel.url', async (t) => {
   t.throws(() => Runtime.install({ telemetryOptions: { metrics: { otel: { url: ':invalid' } } } }), {
     instanceOf: TypeError,
-    message: /Invalid telemetryOptions.metrics.otel.url/,
+    message: /metricsExporter.otel.url/,
   });
 });
 
@@ -365,8 +385,10 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  // Un-skip this test and run it by hand to inspect outputted traces
-  test.serial('Otel spans connected', async (t) => {
+  // FIXME: This tests take ~9 seconds to complete on my local machine, even
+  //        more in CI, and yet, it doesn't really do any assertion by itself.
+  //        To be revisited at a later time.
+  test.skip('Otel spans connected', async (t) => {
     const logger = new DefaultLogger('DEBUG');
     Runtime.install({
       logger,

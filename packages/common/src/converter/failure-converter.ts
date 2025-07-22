@@ -3,8 +3,10 @@ import {
   ApplicationFailure,
   CancelledFailure,
   ChildWorkflowFailure,
+  decodeApplicationFailureCategory,
   decodeRetryState,
   decodeTimeoutType,
+  encodeApplicationFailureCategory,
   encodeRetryState,
   encodeTimeoutType,
   FAILURE_SOURCE,
@@ -75,7 +77,7 @@ export interface FailureConverter {
    *
    * The returned error must be an instance of `TemporalFailure`.
    */
-  failureToError(err: ProtoFailure, payloadConverter: PayloadConverter): TemporalFailure;
+  failureToError(err: ProtoFailure, payloadConverter: PayloadConverter): Error;
 }
 
 /**
@@ -127,7 +129,9 @@ export class DefaultFailureConverter implements FailureConverter {
         failure.applicationFailureInfo.type,
         Boolean(failure.applicationFailureInfo.nonRetryable),
         arrayFromPayloads(payloadConverter, failure.applicationFailureInfo.details?.payloads),
-        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter),
+        undefined,
+        decodeApplicationFailureCategory(failure.applicationFailureInfo.category)
       );
     }
     if (failure.serverFailureInfo) {
@@ -198,7 +202,7 @@ export class DefaultFailureConverter implements FailureConverter {
     );
   }
 
-  failureToError(failure: ProtoFailure, payloadConverter: PayloadConverter): TemporalFailure {
+  failureToError(failure: ProtoFailure, payloadConverter: PayloadConverter): Error {
     if (failure.encodedAttributes) {
       const attrs = payloadConverter.fromPayload<DefaultEncodedFailureAttributes>(failure.encodedAttributes);
       // Don't apply encodedAttributes unless they conform to an expected schema
@@ -273,6 +277,7 @@ export class DefaultFailureConverter implements FailureConverter {
                 ? { payloads: toPayloads(payloadConverter, ...err.details) }
                 : undefined,
             nextRetryDelay: msOptionalToTs(err.nextRetryDelay),
+            category: encodeApplicationFailureCategory(err.category),
           },
         };
       }
@@ -351,7 +356,7 @@ export class DefaultFailureConverter implements FailureConverter {
   optionalFailureToOptionalError(
     failure: ProtoFailure | undefined | null,
     payloadConverter: PayloadConverter
-  ): TemporalFailure | undefined {
+  ): Error | undefined {
     return failure ? this.failureToError(failure, payloadConverter) : undefined;
   }
 

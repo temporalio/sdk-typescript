@@ -27,7 +27,7 @@ import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
-import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS } from './helpers';
+import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -301,6 +301,8 @@ test('Start of workflow respects workflow id conflict policy', async (t) => {
   });
 });
 
+// FIXME: This test is passing, but spitting out "signalTarget not exported by
+//        the workflow bundle" errors. To be revisited at a later time.
 test('Start of workflow with signal respects conflict id policy', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const wfid = `${taskQueue}-` + randomUUID();
@@ -500,7 +502,7 @@ export async function buildIdTester(): Promise<void> {
   });
 
   workflow.setHandler(getBuildIdQuery, () => {
-    return workflow.workflowInfo().currentBuildId ?? '';
+    return workflow.workflowInfo().currentBuildId ?? ''; // eslint-disable-line deprecation/deprecation
   });
 
   // The unblock signal will only be sent once we are in Worker 1.1.
@@ -1378,5 +1380,80 @@ test('workflow and activity can receive/return RawValue', async (t) => {
     // Compare value from wrapped payload.
     const resValue = workflow.defaultPayloadConverter.fromPayload(res.payload);
     t.deepEqual(resValue, testValue);
+    });
+});
+
+export async function ChildWorkflowInfo(): Promise<workflow.RootWorkflowInfo | undefined> {
+  let blocked = true;
+  workflow.setHandler(unblockSignal, () => {
+    blocked = false;
+  });
+  await workflow.condition(() => !blocked);
+  return workflow.workflowInfo().root;
+}
+
+export async function WithChildWorkflow(childWfId: string): Promise<workflow.RootWorkflowInfo | undefined> {
+  return await workflow.executeChild(ChildWorkflowInfo, {
+    workflowId: childWfId,
+  });
+}
+
+test('root execution is exposed', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+
+  await worker.runUntil(async () => {
+    const childWfId = 'child-wf-id';
+    const handle = await startWorkflow(WithChildWorkflow, {
+      args: [childWfId],
+    });
+
+    const childHandle = t.context.env.client.workflow.getHandle(childWfId);
+    const childStarted = async (): Promise<boolean> => {
+      try {
+        await childHandle.describe();
+        return true;
+      } catch (e) {
+        if (e instanceof workflow.WorkflowNotFoundError) {
+          return false;
+        } else {
+          throw e;
+        }
+      }
+    };
+    await waitUntil(childStarted, 5000);
+    const childDesc = await childHandle.describe();
+    const parentDesc = await handle.describe();
+
+    t.true(childDesc.rootExecution?.workflowId === parentDesc.workflowId);
+    t.true(childDesc.rootExecution?.runId === parentDesc.runId);
+
+    await childHandle.signal(unblockSignal);
+    const childWfInfoRoot = await handle.result();
+    t.true(childWfInfoRoot?.workflowId === parentDesc.workflowId);
+    t.true(childWfInfoRoot?.runId === parentDesc.runId);
+  });
+});
+
+export async function rootWorkflow(): Promise<string> {
+  let result = '';
+  if (!workflow.workflowInfo().root) {
+    result += 'empty';
+  } else {
+    result += workflow.workflowInfo().root!.workflowId;
+  }
+  if (!workflow.workflowInfo().parent) {
+    result += ' ';
+    result += await workflow.executeChild(rootWorkflow);
+  }
+  return result;
+}
+
+test('Workflow can return root workflow', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(rootWorkflow, { workflowId: 'test-root-workflow-length' });
+    t.deepEqual(result, 'empty test-root-workflow-length');
   });
 });

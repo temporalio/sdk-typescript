@@ -70,7 +70,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Logger, Duration, LogLevel, LogMetadata } from '@temporalio/common';
+import { Logger, Duration, LogLevel, LogMetadata, MetricMeter, Priority } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
@@ -198,6 +198,10 @@ export interface Info {
    * For Local Activities, this is set to the Workflow's Task Queue.
    */
   readonly taskQueue: string;
+  /**
+   * Priority of this activity
+   */
+  readonly priority?: Priority;
 }
 
 /**
@@ -278,6 +282,14 @@ export class Context {
   public log: Logger;
 
   /**
+   * Get the metric meter for this activity with activity-specific tags.
+   *
+   * To add custom tags, register a {@link ActivityOutboundCallsInterceptor} that
+   * intercepts the `getMetricTags()` method.
+   */
+  public readonly metricMeter: MetricMeter;
+
+  /**
    * **Not** meant to instantiated by Activity code, used by the worker.
    *
    * @ignore
@@ -287,13 +299,15 @@ export class Context {
     cancelled: Promise<never>,
     cancellationSignal: AbortSignal,
     heartbeat: (details?: any) => void,
-    log: Logger
+    log: Logger,
+    metricMeter: MetricMeter
   ) {
     this.info = info;
     this.cancelled = cancelled;
     this.cancellationSignal = cancellationSignal;
     this.heartbeatFn = heartbeat;
     this.log = log;
+    this.metricMeter = metricMeter;
   }
 
   /**
@@ -430,3 +444,26 @@ export function cancelled(): Promise<never> {
 export function cancellationSignal(): AbortSignal {
   return Context.current().cancellationSignal;
 }
+
+/**
+ * Get the metric meter for the current activity, with activity-specific tags.
+ *
+ * To add custom tags, register a {@link ActivityOutboundCallsInterceptor} that
+ * intercepts the `getMetricTags()` method.
+ *
+ * This is a shortcut for `Context.current().metricMeter` (see {@link Context.metricMeter}).
+ */
+export const metricMeter: MetricMeter = {
+  createCounter(name, unit, description) {
+    return Context.current().metricMeter.createCounter(name, unit, description);
+  },
+  createHistogram(name, valueType = 'int', unit, description) {
+    return Context.current().metricMeter.createHistogram(name, valueType, unit, description);
+  },
+  createGauge(name, valueType = 'int', unit, description) {
+    return Context.current().metricMeter.createGauge(name, valueType, unit, description);
+  },
+  withTags(tags) {
+    return Context.current().metricMeter.withTags(tags);
+  },
+};

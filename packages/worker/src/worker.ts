@@ -2,7 +2,6 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vm from 'node:vm';
-import { promisify } from 'node:util';
 import { EventEmitter, on } from 'node:events';
 import { setTimeout as setTimeoutCallback } from 'node:timers';
 import {
@@ -32,6 +31,8 @@ import {
   ApplicationFailure,
   ensureApplicationFailure,
   TypedSearchAttributes,
+  decodePriority,
+  MetricMeter,
 } from '@temporalio/common';
 import {
   decodeArrayFromPayloads,
@@ -50,16 +51,16 @@ import {
   tsToDate,
   tsToMs,
 } from '@temporalio/common/lib/time';
-import { errorMessage } from '@temporalio/common/lib/type-helpers';
+import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
+import { errorMessage, NonNullableObject, OmitFirstParam } from '@temporalio/common/lib/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
-import * as native from '@temporalio/core-bridge';
-import { ShutdownError, UnexpectedError } from '@temporalio/core-bridge';
+import { native } from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
-import { Logger, withMetadata } from './logger';
+import { Logger } from './logger';
 import pkg from './pkg';
 import {
   EvictionReason,
@@ -70,7 +71,12 @@ import {
 } from './replay';
 import { History, Runtime } from './runtime';
 import { CloseableGroupedObservable, closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
-import { byteArrayToBuffer, convertToParentWorkflowType } from './utils';
+import {
+  byteArrayToBuffer,
+  convertDeploymentVersion,
+  convertToParentWorkflowType,
+  convertToRootWorkflowType,
+} from './utils';
 import {
   CompiledWorkerOptions,
   CompiledWorkerOptionsWithBuildId,
@@ -78,6 +84,7 @@ import {
   isCodeBundleOption,
   isPathBundleOption,
   ReplayWorkerOptions,
+  toNativeWorkerOptions,
   WorkerOptions,
   WorkflowBundle,
 } from './worker-options';
@@ -88,7 +95,13 @@ import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
-import { CombinedWorkerRunError, GracefulShutdownPeriodExpiredError, PromiseCompletionTimeoutError } from './errors';
+import {
+  CombinedWorkerRunError,
+  GracefulShutdownPeriodExpiredError,
+  PromiseCompletionTimeoutError,
+  ShutdownError,
+  UnexpectedError,
+} from './errors';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -104,22 +117,6 @@ export { DataConverter, defaultPayloadConverter };
  */
 export type State = 'INITIALIZED' | 'RUNNING' | 'STOPPED' | 'STOPPING' | 'DRAINING' | 'DRAINED' | 'FAILED';
 
-type ExtractToPromise<T> = T extends (err: any, result: infer R) => void ? Promise<R> : never;
-// For some reason the lint rule doesn't realize that _I should be ignored
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-type Last<T extends any[]> = T extends [...infer _I, infer L] ? L : never;
-type LastParameter<F extends (...args: any) => any> = Last<Parameters<F>>;
-type OmitFirst<T> = T extends [any, ...infer REST] ? REST : never;
-type OmitLast<T> = T extends [...infer REST, any] ? REST : never;
-type OmitFirstParam<T> = T extends (...args: any[]) => any
-  ? (...args: OmitFirst<Parameters<T>>) => ReturnType<T>
-  : never;
-type Promisify<T> = T extends (...args: any[]) => void
-  ? (...args: OmitLast<Parameters<T>>) => ExtractToPromise<LastParameter<T>>
-  : never;
-
-type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
-
 type WorkflowActivation = coresdk.workflow_activation.WorkflowActivation;
 
 export type ActivityTaskWithBase64Token = {
@@ -128,7 +125,7 @@ export type ActivityTaskWithBase64Token = {
 
   // The unaltered protobuf-encoded ActivityTask; kept so that it can be printed
   // out for analysis if decoding fails at a later step.
-  protobufEncodedTask: ArrayBuffer;
+  protobufEncodedTask: Buffer;
 };
 
 interface EvictionWithRunID {
@@ -137,14 +134,14 @@ interface EvictionWithRunID {
 }
 
 export interface NativeWorkerLike {
-  type: 'Worker';
-  initiateShutdown: Promisify<OmitFirstParam<typeof native.workerInitiateShutdown>>;
+  type: 'worker';
+  initiateShutdown: OmitFirstParam<typeof native.workerInitiateShutdown>;
   finalizeShutdown(): Promise<void>;
   flushCoreLogs(): void;
-  pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
-  pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
-  completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
-  completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
+  pollWorkflowActivation: OmitFirstParam<typeof native.workerPollWorkflowActivation>;
+  pollActivityTask: OmitFirstParam<typeof native.workerPollActivityTask>;
+  completeWorkflowActivation: OmitFirstParam<typeof native.workerCompleteWorkflowActivation>;
+  completeActivityTask: OmitFirstParam<typeof native.workerCompleteActivityTask>;
   recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
 }
 
@@ -154,8 +151,12 @@ export interface NativeReplayHandle {
 }
 
 interface NativeWorkerConstructor {
-  create(connection: NativeConnection, options: CompiledWorkerOptionsWithBuildId): Promise<NativeWorkerLike>;
-  createReplay(options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle>;
+  create(
+    runtime: Runtime,
+    connection: NativeConnection,
+    options: CompiledWorkerOptionsWithBuildId
+  ): Promise<NativeWorkerLike>;
+  createReplay(runtime: Runtime, options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle>;
 }
 
 interface WorkflowWithLogAttributes {
@@ -164,7 +165,8 @@ interface WorkflowWithLogAttributes {
 }
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
-  if (options.buildId != null) {
+  const bid = options.buildId; // eslint-disable-line deprecation/deprecation
+  if (bid != null) {
     return options as CompiledWorkerOptionsWithBuildId;
   }
   const suffix = bundleCode ? `+${crypto.createHash('sha256').update(bundleCode).digest('hex')}` : '';
@@ -172,29 +174,31 @@ function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string
 }
 
 export class NativeWorker implements NativeWorkerLike {
-  public readonly type = 'Worker';
-  public readonly pollWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerPollWorkflowActivation>>;
-  public readonly pollActivityTask: Promisify<OmitFirstParam<typeof native.workerPollActivityTask>>;
-  public readonly completeWorkflowActivation: Promisify<OmitFirstParam<typeof native.workerCompleteWorkflowActivation>>;
-  public readonly completeActivityTask: Promisify<OmitFirstParam<typeof native.workerCompleteActivityTask>>;
+  public readonly type = 'worker';
+  public readonly pollWorkflowActivation: OmitFirstParam<typeof native.workerPollWorkflowActivation>;
+  public readonly pollActivityTask: OmitFirstParam<typeof native.workerPollActivityTask>;
+  public readonly completeWorkflowActivation: OmitFirstParam<typeof native.workerCompleteWorkflowActivation>;
+  public readonly completeActivityTask: OmitFirstParam<typeof native.workerCompleteActivityTask>;
   public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
-  public readonly initiateShutdown: Promisify<OmitFirstParam<typeof native.workerInitiateShutdown>>;
+  public readonly initiateShutdown: OmitFirstParam<typeof native.workerInitiateShutdown>;
 
   public static async create(
+    runtime: Runtime,
     connection: NativeConnection,
     options: CompiledWorkerOptionsWithBuildId
   ): Promise<NativeWorkerLike> {
-    const runtime = Runtime.instance();
-    const nativeWorker = await runtime.registerWorker(extractNativeClient(connection), options);
+    const nativeWorker = await runtime.registerWorker(extractNativeClient(connection), toNativeWorkerOptions(options));
     return new NativeWorker(runtime, nativeWorker);
   }
 
-  public static async createReplay(options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle> {
-    const runtime = Runtime.instance();
-    const replayer = await runtime.createReplayWorker(options);
+  public static async createReplay(
+    runtime: Runtime,
+    options: CompiledWorkerOptionsWithBuildId
+  ): Promise<NativeReplayHandle> {
+    const [worker, historyPusher] = await runtime.createReplayWorker(toNativeWorkerOptions(options));
     return {
-      worker: new NativeWorker(runtime, replayer.worker),
-      historyPusher: replayer.pusher,
+      worker: new NativeWorker(runtime, worker),
+      historyPusher,
     };
   }
 
@@ -202,12 +206,12 @@ export class NativeWorker implements NativeWorkerLike {
     protected readonly runtime: Runtime,
     protected readonly nativeWorker: native.Worker
   ) {
-    this.pollWorkflowActivation = promisify(native.workerPollWorkflowActivation).bind(undefined, nativeWorker);
-    this.pollActivityTask = promisify(native.workerPollActivityTask).bind(undefined, nativeWorker);
-    this.completeWorkflowActivation = promisify(native.workerCompleteWorkflowActivation).bind(undefined, nativeWorker);
-    this.completeActivityTask = promisify(native.workerCompleteActivityTask).bind(undefined, nativeWorker);
+    this.pollWorkflowActivation = native.workerPollWorkflowActivation.bind(undefined, nativeWorker);
+    this.pollActivityTask = native.workerPollActivityTask.bind(undefined, nativeWorker);
+    this.completeWorkflowActivation = native.workerCompleteWorkflowActivation.bind(undefined, nativeWorker);
+    this.completeActivityTask = native.workerCompleteActivityTask.bind(undefined, nativeWorker);
     this.recordActivityHeartbeat = native.workerRecordActivityHeartbeat.bind(undefined, nativeWorker);
-    this.initiateShutdown = promisify(native.workerInitiateShutdown).bind(undefined, nativeWorker);
+    this.initiateShutdown = native.workerInitiateShutdown.bind(undefined, nativeWorker);
   }
 
   flushCoreLogs(): void {
@@ -463,13 +467,18 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
-    const logger = withMetadata(Runtime.instance().logger, {
+    const runtime = Runtime.instance();
+    const logger = LoggerWithComposedMetadata.compose(runtime.logger, {
       sdkComponent: SdkComponent.worker,
       taskQueue: options.taskQueue ?? 'default',
     });
+    const metricMeter = runtime.metricMeter.withTags({
+      namespace: options.namespace ?? 'default',
+      taskQueue: options.taskQueue ?? 'default',
+    });
     const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
-    const compiledOptions = compileWorkerOptions(options, logger);
-    logger.info('Creating worker', {
+    const compiledOptions = compileWorkerOptions(options, logger, metricMeter);
+    logger.debug('Creating worker', {
       options: {
         ...compiledOptions,
         ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
@@ -493,7 +502,7 @@ export class Worker {
     let nativeWorker: NativeWorkerLike;
     const compiledOptionsWithBuildId = addBuildIdIfMissing(compiledOptions, bundle?.code);
     try {
-      nativeWorker = await nativeWorkerCtor.create(connection, compiledOptionsWithBuildId);
+      nativeWorker = await nativeWorkerCtor.create(runtime, connection, compiledOptionsWithBuildId);
     } catch (err) {
       // We just created this connection, close it
       if (!options.connection) {
@@ -502,7 +511,15 @@ export class Worker {
       throw err;
     }
     extractReferenceHolders(connection).add(nativeWorker);
-    return new this(nativeWorker, workflowCreator, compiledOptionsWithBuildId, logger, connection);
+    return new this(
+      runtime,
+      nativeWorker,
+      workflowCreator,
+      compiledOptionsWithBuildId,
+      logger,
+      metricMeter,
+      connection
+    );
   }
 
   protected static async createWorkflowCreator(
@@ -570,7 +587,7 @@ export class Worker {
     histories: ReplayHistoriesIterable
   ): AsyncIterableIterator<ReplayResult> {
     const [worker, pusher] = await this.constructReplayWorker(options);
-    const rt = Runtime.instance();
+    const rt = worker.runtime;
     const evictions = on(worker.evictionsEmitter, 'eviction') as AsyncIterableIterator<[EvictionWithRunID]>;
     const runPromise = worker.run().then(() => {
       throw new ShutdownError('Worker was shutdown');
@@ -650,19 +667,27 @@ export class Worker {
       ...options,
     };
     this.replayWorkerCount++;
-    const logger = withMetadata(Runtime.instance().logger, {
+    const runtime = Runtime.instance();
+    const logger = LoggerWithComposedMetadata.compose(runtime.logger, {
       sdkComponent: 'worker',
       taskQueue: fixedUpOptions.taskQueue,
     });
-    const compiledOptions = compileWorkerOptions(fixedUpOptions, logger);
+    const metricMeter = runtime.metricMeter.withTags({
+      namespace: 'default',
+      taskQueue: fixedUpOptions.taskQueue,
+    });
+    const compiledOptions = compileWorkerOptions(fixedUpOptions, logger, metricMeter);
     const bundle = await this.getOrCreateBundle(compiledOptions, logger);
     if (!bundle) {
       throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
     }
     const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions, logger);
-    const replayHandle = await nativeWorkerCtor.createReplay(addBuildIdIfMissing(compiledOptions, bundle.code));
+    const replayHandle = await nativeWorkerCtor.createReplay(
+      runtime,
+      addBuildIdIfMissing(compiledOptions, bundle.code)
+    );
     return [
-      new this(replayHandle.worker, workflowCreator, compiledOptions, logger, undefined, true),
+      new this(runtime, replayHandle.worker, workflowCreator, compiledOptions, logger, metricMeter, undefined, true),
       replayHandle.historyPusher,
     ];
   }
@@ -720,6 +745,7 @@ export class Worker {
    * Create a new Worker from nativeWorker.
    */
   protected constructor(
+    protected readonly runtime: Runtime,
     protected readonly nativeWorker: NativeWorkerLike,
     /**
      * Optional WorkflowCreator - if not provided, Worker will not poll on Workflows
@@ -728,6 +754,7 @@ export class Worker {
     public readonly options: CompiledWorkerOptions,
     /** Logger bound to 'sdkComponent: worker' */
     protected readonly logger: Logger,
+    protected readonly metricMeter: MetricMeter,
     protected readonly connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
@@ -793,38 +820,34 @@ export class Worker {
 
   /**
    * Start shutting down the Worker. The Worker stops polling for new tasks and sends
-   * {@link https://typescript.temporal.io/api/namespaces/activity#cancellation | cancellation} (via a
-   * {@link CancelledFailure} with `message` set to `'WORKER_SHUTDOWN'`) to running Activities. Note: if the Activity
-   * accepts cancellation (i.e. re-throws or allows the `CancelledFailure` to be thrown out of the Activity function),
-   * the Activity Task will be marked as failed, not cancelled. It's helpful for the Activity Task to be marked failed
-   * during shutdown because the Server will retry the Activity sooner (than if the Server had to wait for the Activity
-   * Task to time out).
+   * {@link https://typescript.temporal.io/api/namespaces/activity#cancellation | cancellation}
+   * (via a {@link CancelledFailure} with `message` set to `'WORKER_SHUTDOWN'`) to running Activities.
+   * Note: if the Activity accepts cancellation (i.e. re-throws or allows the `CancelledFailure`
+   * to be thrown out of the Activity function), the Activity Task will be marked as failed, not
+   * cancelled. It's helpful for the Activity Task to be marked failed during shutdown because the
+   * Server will retry the Activity sooner (than if the Server had to wait for the Activity Task
+   * to time out).
    *
-   * When called, immediately transitions {@link state} to `'STOPPING'` and asks Core to shut down. Once Core has
-   * confirmed that it's shutting down, the Worker enters `'DRAINING'` state unless the Worker has already been
-   * `'DRAINED'`. Once all currently running Activities and Workflow Tasks have completed, the Worker transitions to
-   * `'STOPPED'`.
+   * When called, immediately transitions {@link state} to `'STOPPING'` and asks Core to shut down.
+   * Once Core has confirmed that it's shutting down, the Worker enters `'DRAINING'` state. It will
+   * stay in that state until both task pollers receive a `ShutdownError`, at which point we'll
+   * transition to `DRAINED` state. Once all currently running Activities and Workflow Tasks have
+   * completed, the Worker transitions to `'STOPPED'`.
    */
   shutdown(): void {
     if (this.state !== 'RUNNING') {
       throw new IllegalStateError(`Not running. Current state: ${this.state}`);
     }
     this.state = 'STOPPING';
-    this.nativeWorker
-      .initiateShutdown()
-      .then(() => {
-        // Core may have already returned a ShutdownError to our pollers in which
-        // case the state would transition to DRAINED
-        if (this.state === 'STOPPING') {
-          this.state = 'DRAINING';
-        }
-      })
-      .catch((error) => {
-        // This is totally unexpected. If we reach this point, something horribly wrong in the Worker
-        // state, and attempt to shutdown gracefully will very likely hang. Just terminate immediately.
-        this.logger.error('Failed to initiate shutdown', { error });
-        this.instantTerminateErrorSubject.error(error);
-      });
+    try {
+      this.nativeWorker.initiateShutdown();
+      this.state = 'DRAINING';
+    } catch (error) {
+      // This is totally unexpected, and indicates there's something horribly wrong with the Worker
+      // state. Attempt to shutdown gracefully will very likely hang, so just terminate immediately.
+      this.logger.error('Failed to initiate shutdown', { error });
+      this.instantTerminateErrorSubject.error(error);
+    }
   }
 
   /**
@@ -925,7 +948,8 @@ export class Worker {
                     );
 
                     const { activityType } = info;
-                    const fn = this.options.activities.get(activityType);
+                    // Use the corresponding activity if it exists, otherwise, fallback to default activity function (if exists)
+                    const fn = this.options.activities.get(activityType) ?? this.options.activities.get('default');
                     if (typeof fn !== 'function') {
                       throw ApplicationFailure.create({
                         type: 'NotFoundError',
@@ -968,6 +992,7 @@ export class Worker {
                           },
                         }),
                       this.logger,
+                      this.metricMeter,
                       this.options.interceptors.activity
                     );
                     output = { type: 'run', activity, input };
@@ -1258,6 +1283,7 @@ export class Worker {
       randomnessSeed,
       workflowType,
       parentWorkflowInfo,
+      rootWorkflow,
       workflowExecutionTimeout,
       workflowRunTimeout,
       workflowTaskTimeout,
@@ -1268,9 +1294,10 @@ export class Worker {
       cronSchedule,
       workflowExecutionExpirationTime,
       cronScheduleToScheduleInterval,
+      priority,
     } = initWorkflowJob;
 
-    // Note that we can't do payload convertion here, as there's no guarantee that converted payloads would be safe to
+    // Note that we can't do payload conversion here, as there's no guarantee that converted payloads would be safe to
     // transfer through the V8 message port. Those will therefore be set in the Activator's initializeWorkflow job handler.
     const workflowInfo: WorkflowInfo = {
       workflowId,
@@ -1279,6 +1306,7 @@ export class Worker {
       searchAttributes: {},
       typedSearchAttributes: new TypedSearchAttributes(),
       parent: convertToParentWorkflowType(parentWorkflowInfo),
+      root: convertToRootWorkflowType(rootWorkflow),
       taskQueue: this.options.taskQueue,
       namespace: this.options.namespace,
       firstExecutionRunId,
@@ -1299,11 +1327,13 @@ export class Worker {
       // A zero value means that it was not set by the server
       historySize: activation.historySizeBytes.toNumber(),
       continueAsNewSuggested: activation.continueAsNewSuggested,
-      currentBuildId: activation.buildIdForCurrentTask,
+      currentBuildId: activation.deploymentVersionForCurrentTask?.buildId ?? '',
+      currentDeploymentVersion: convertDeploymentVersion(activation.deploymentVersionForCurrentTask),
       unsafe: {
         now: () => Date.now(), // re-set in initRuntime
         isReplaying: activation.isReplaying,
       },
+      priority: decodePriority(priority),
     };
     const logAttributes = workflowLogAttributes(workflowInfo);
     this.logger.trace('Creating workflow', logAttributes);
@@ -1519,7 +1549,7 @@ export class Worker {
   protected workflowPoll$(): Observable<WorkflowActivation> {
     return this.pollLoop$(async () => {
       this.hasOutstandingWorkflowPoll = true;
-      let buffer: ArrayBuffer;
+      let buffer: Buffer;
       try {
         buffer = await this.nativeWorker.pollWorkflowActivation();
       } finally {
@@ -1558,7 +1588,7 @@ export class Worker {
       mergeMap(this.handleWorkflowActivations.bind(this)),
       mergeMap(async (completion) => {
         try {
-          await this.nativeWorker.completeWorkflowActivation(completion.buffer.slice(completion.byteOffset));
+          await this.nativeWorker.completeWorkflowActivation(Buffer.from(completion, completion.byteOffset));
         } catch (error) {
           this.logger.error('Core reported failure in completeWorkflowActivation(). Initiating Worker shutdown.', {
             error,
@@ -1580,7 +1610,7 @@ export class Worker {
   protected activityPoll$(): Observable<ActivityTaskWithBase64Token> {
     return this.pollLoop$(async () => {
       this.hasOutstandingActivityPoll = true;
-      let buffer: ArrayBuffer;
+      let buffer: Buffer;
       try {
         buffer = await this.nativeWorker.pollActivityTask();
       } finally {
@@ -1620,7 +1650,7 @@ export class Worker {
     return this.activityPoll$().pipe(
       this.activityOperator(),
       mergeMap(async (completion) => {
-        await this.nativeWorker.completeActivityTask(completion.buffer.slice(completion.byteOffset));
+        await this.nativeWorker.completeActivityTask(Buffer.from(completion, completion.byteOffset));
       }),
       tap({ complete: () => this.logger.debug('Activity Worker terminated') })
     );
@@ -1731,7 +1761,7 @@ export class Worker {
     const shutdownCallback = () => {
       if (this.state === 'RUNNING') this.shutdown();
     };
-    Runtime.instance().registerShutdownSignalCallback(shutdownCallback);
+    this.runtime.registerShutdownSignalCallback(shutdownCallback);
 
     let fatalError: Error | undefined;
     const unexpectedErrorSubscription = this.unexpectedErrorSubject.subscribe({
@@ -1781,7 +1811,7 @@ export class Worker {
           { defaultValue: undefined }
         );
       } finally {
-        Runtime.instance().deregisterShutdownSignalCallback(shutdownCallback);
+        this.runtime.deregisterShutdownSignalCallback(shutdownCallback);
 
         await this.nativeWorker.finalizeShutdown();
       }
@@ -1898,6 +1928,7 @@ async function extractActivityInfo(
       start.currentAttemptScheduledTime,
       'currentAttemptScheduledTime'
     ),
+    priority: decodePriority(start.priority),
   };
 }
 

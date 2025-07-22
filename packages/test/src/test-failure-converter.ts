@@ -4,6 +4,7 @@ import {
   ApplicationFailure,
   DataConverter,
   DefaultEncodedFailureAttributes,
+  TemporalFailure,
 } from '@temporalio/common';
 import { proxyActivities } from '@temporalio/workflow';
 import { WorkflowFailedError } from '@temporalio/client';
@@ -45,6 +46,10 @@ test('Client and Worker use provided failureConverter', async (t) => {
     const handle = await env.client.workflow.start(workflow, { taskQueue, workflowId: randomUUID() });
     const err = (await worker.runUntil(t.throwsAsync(handle.result()))) as WorkflowFailedError;
     t.is(err.cause?.message, 'Activity task failed');
+    if (!(err.cause instanceof TemporalFailure)) {
+      t.fail('expected error cause to be a TemporalFailure');
+      return;
+    }
     t.is(err.cause?.cause?.message, 'error message');
     t.true(err.cause?.cause?.stack?.includes('ApplicationFailure: error message\n'));
 

@@ -19,6 +19,7 @@ env:
 
   # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
   # TESTS_CLI_VERSION: 'v0.13.2'
+  TESTS_CLI_VERSION: 'v1.3.1-persistence-fix.0'
   # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
@@ -76,6 +77,9 @@ jobs:
           version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upgrade Rust to latest stable
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Rust Cargo and Build cache
         if: steps.cached-artifact.outputs.cache-hit != 'true'
         uses: Swatinem/rust-cache@v2
@@ -104,7 +108,7 @@ jobs:
   # Run integration tests.
   # Uses the native binaries built in compile-native-binaries, but build `@temporalio/*` packages locally.
   integration-tests:
-    timeout-minutes: 15
+    timeout-minutes: 20
     needs:
       - compile-native-binaries-debug
     strategy:
@@ -129,14 +133,6 @@ jobs:
           - platform: windows-x64
             runner: windows-latest
             reuse-v8-context: true
-          # Node 22.12.0 on Windows incorrectly resolves `localhost` to `::1`, rather than both `::1` and `127.0.0.1`.
-          # We changed all of our internal tests to exclusively use `127.0.0.1`, but samples are still written to use
-          # `localhost`, which really is the proper thing to do in samples. So until this gets fixed upstream, we force
-          # the last known good version of Node on Windows.
-          # See https://github.com/nodejs/node/issues/56137 (_resolved_ already, but not yet released).
-          - platform: windows-x64
-            node: 22
-            node-release-override: 22.11.0
     runs-on: ${{ matrix.runner }}
     name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
     defaults:
@@ -212,25 +208,28 @@ jobs:
             --sqlite-pragma synchronous=OFF \
             --headless &> ./devserver.log &
 
-      # We write the certs to disk because it serves the sample. Written into /tmp/temporal-certs
-      - name: Create certs dir
-        run: node scripts/create-certs-dir.js ${{ steps.tmp-dir.outputs.dir }}/certs
-        if: ${{ vars.TEMPORAL_CLIENT_NAMESPACE != '' }}
-        env:
-          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
-          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
-
       - name: Run Tests
-        run: npm test
+        run: npm run test
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
-          # Cloud Tests will be skipped if TEMPORAL_CLIENT_CLOUD_API_KEY is left empty
-          TEMPORAL_CLOUD_SAAS_ADDRESS: ${{ vars.TEMPORAL_CLOUD_SAAS_ADDRESS || 'saas-api.tmprl.cloud:443' }}
-          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
-          TEMPORAL_CLIENT_CLOUD_API_VERSION: 2024-05-13-00
-          TEMPORAL_CLIENT_CLOUD_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          # For Temporal Cloud + mTLS tests
+          TEMPORAL_CLOUD_MTLS_TEST_TARGET_HOST: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
+          TEMPORAL_CLOUD_MTLS_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLOUD_MTLS_TEST_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+          TEMPORAL_CLOUD_MTLS_TEST_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
+
+          # For Temporal Cloud + API key tests
+          TEMPORAL_CLOUD_API_KEY_TEST_TARGET_HOST: us-west-2.aws.api.temporal.io:7233
+          TEMPORAL_CLOUD_API_KEY_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLOUD_API_KEY_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+
+          # For Temporal Cloud + Cloud Ops tests
+          TEMPORAL_CLOUD_OPS_TEST_TARGET_HOST: saas-api.tmprl.cloud:443
+          TEMPORAL_CLOUD_OPS_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLOUD_OPS_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLOUD_OPS_TEST_API_VERSION: 2024-05-13-00
 
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
@@ -241,17 +240,30 @@ jobs:
 
       # Sample 2: hello-world-mtls to cloud server
       - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
-        if: ${{ vars.TEMPORAL_CLIENT_NAMESPACE != '' }}
         run: |
+          if [ -z "$TEMPORAL_ADDRESS" ] || [ -z "$TEMPORAL_NAMESPACE" ] || [ -z "$TEMPORAL_CLIENT_CERT" ] || [ -z "$TEMPORAL_CLIENT_KEY" ]; then
+            echo "Skipping hello-world-mtls sample test as required environment variables are not set"
+            exit 0
+          fi
+
+          node scripts/create-certs-dir.js ${{ steps.tmp-dir.outputs.dir }}/certs
           node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls
           node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls"
         env:
           # These env vars are used by the hello-world-mtls sample
-          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud
+          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
           TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
+          TEMPORAL_TASK_QUEUE: ${{ format('tssdk-ci-{0}-{1}-sample-hello-world-mtls-{2}-{3}', matrix.platform, matrix.node, github.run_id, github.run_attempt) }}
+
           TEMPORAL_CLIENT_CERT_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.pem
           TEMPORAL_CLIENT_KEY_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.key
-          TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}-sample-hello-world-mtls', matrix.platform, matrix.node) }}
+
+      - name: Destroy certs dir
+        if: always()
+        run: rm -rf ${{ steps.tmp-dir.outputs.dir }}/certs
+        continue-on-error: true
 
       # Sample 3: fetch-esm to local server
       - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
@@ -260,11 +272,6 @@ jobs:
           node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm"
 
       # End samples
-
-      - name: Destroy certs dir
-        if: always()
-        run: rm -rf ${{ steps.tmp-dir.outputs.dir }}/certs
-        continue-on-error: true
 
       - name: Upload NPM logs
         uses: actions/upload-artifact@v4
@@ -293,7 +300,7 @@ jobs:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
       version: ${{github.event.pull_request.head.ref}}
       version-is-repo-ref: true
-      features-repo-ref: sdk-1403-ts-startUpdate-require-wait-stage
+      features-repo-ref: main
 
   stress-tests-no-reuse-context:
     name: Stress Tests (No Reuse V8 Context)
@@ -322,3 +329,5 @@ jobs:
     secrets:
       ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

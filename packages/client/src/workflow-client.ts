@@ -22,6 +22,7 @@ import {
   decodeRetryState,
   encodeWorkflowIdConflictPolicy,
   WorkflowIdConflictPolicy,
+  compilePriority,
 } from '@temporalio/common';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -33,8 +34,8 @@ import {
   decodeOptionalFailureToOptionalError,
   encodeMapToPayloads,
   encodeToPayloads,
-  filterNullAndUndefined,
 } from '@temporalio/common/lib/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import {
   ServiceError,
@@ -456,8 +457,6 @@ const withStartWorkflowOperationUsed: unique symbol = Symbol();
 /**
  * Define how to start a workflow when using {@link WorkflowClient.startUpdateWithStart} and
  * {@link WorkflowClient.executeUpdateWithStart}. `workflowIdConflictPolicy` is required in the options.
- *
- * @experimental Update-with-Start is an experimental feature and may be subject to change.
  */
 export class WithStartWorkflowOperation<T extends Workflow> {
   private [withStartWorkflowOperationUsed]: boolean = false;
@@ -628,8 +627,6 @@ export class WorkflowClient extends BaseClient {
    * succeeds.
    *
    * @returns the Update result
-   *
-   * @experimental Update-with-Start is an experimental feature and may be subject to change.
    */
   public async executeUpdateWithStart<T extends Workflow, Ret, Args extends any[]>(
     updateDef: UpdateDefinition<Ret, Args> | string,
@@ -662,8 +659,6 @@ export class WorkflowClient extends BaseClient {
    * {@link WithStartWorkflowOperation.workflowHandle}, whether or not the Update succeeds.
    *
    * @returns a {@link WorkflowUpdateHandle} to the started Update
-   *
-   * @experimental Update-with-Start is an experimental feature and may be subject to change.
    */
   public async startUpdateWithStart<T extends Workflow, Ret, Args extends any[]>(
     updateDef: UpdateDefinition<Ret, Args> | string,
@@ -1225,6 +1220,8 @@ export class WorkflowClient extends BaseClient {
           : undefined,
       cronSchedule: options.cronSchedule,
       header: { fields: headers },
+      priority: options.priority ? compilePriority(options.priority) : undefined,
+      versioningOverride: options.versioningOverride ?? undefined,
     };
     try {
       return (await this.workflowService.signalWithStartWorkflowExecution(req)).runId;
@@ -1293,6 +1290,8 @@ export class WorkflowClient extends BaseClient {
           : undefined,
       cronSchedule: opts.cronSchedule,
       header: { fields: headers },
+      priority: opts.priority ? compilePriority(opts.priority) : undefined,
+      versioningOverride: opts.versioningOverride ?? undefined,
     };
   }
 
