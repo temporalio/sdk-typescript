@@ -20,6 +20,7 @@ import {
   WorkflowUpdateValidatorType,
   mapFromPayloads,
   fromPayloadsAtIndex,
+  RawValue,
   WorkflowFunctionWithOptions,
   VersioningBehavior,
   WorkflowDefinitionOptions,
@@ -30,7 +31,7 @@ import {
 } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
-import type { coresdk, temporal } from '@temporalio/proto';
+import type { coresdk } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
@@ -41,7 +42,6 @@ import {
   DefaultSignalHandler,
   StackTraceSDKInfo,
   StackTraceFileSlice,
-  EnhancedStackTrace,
   StackTraceFileLocation,
   WorkflowInfo,
   WorkflowCreateOptionsInternal,
@@ -263,9 +263,11 @@ export class Activator implements ActivationHandler {
       '__stack_trace',
       {
         handler: () => {
-          return this.getStackTraces()
-            .map((s) => s.formatted)
-            .join('\n\n');
+          return new RawValue(
+            this.getStackTraces()
+              .map((s) => s.formatted)
+              .join('\n\n')
+          );
         },
         description: 'Returns a sensible stack trace.',
       },
@@ -273,7 +275,7 @@ export class Activator implements ActivationHandler {
     [
       '__enhanced_stack_trace',
       {
-        handler: (): EnhancedStackTrace => {
+        handler: (): RawValue => {
           const { sourceMap } = this;
           const sdk: StackTraceSDKInfo = { name: 'typescript', version: pkg.version };
           const stacks = this.getStackTraces().map(({ structured: locations }) => ({ locations }));
@@ -293,7 +295,7 @@ export class Activator implements ActivationHandler {
               }
             }
           }
-          return { sdk, stacks, sources };
+          return new RawValue({ sdk, stacks, sources });
         },
         description: 'Returns a stack trace annotated with source information.',
       },
@@ -301,7 +303,7 @@ export class Activator implements ActivationHandler {
     [
       '__temporal_workflow_metadata',
       {
-        handler: (): temporal.api.sdk.v1.IWorkflowMetadata => {
+        handler: (): RawValue => {
           const workflowType = this.info.workflowType;
           const queryDefinitions = Array.from(this.queryHandlers.entries()).map(([name, value]) => ({
             name,
@@ -315,14 +317,14 @@ export class Activator implements ActivationHandler {
             name,
             description: value.description,
           }));
-          return {
+          return new RawValue({
             definition: {
               type: workflowType,
               queryDefinitions,
               signalDefinitions,
               updateDefinitions,
             },
-          };
+          });
         },
         description: 'Returns metadata associated with this workflow.',
       },

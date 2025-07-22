@@ -22,6 +22,7 @@ import {
   WorkflowReturnType,
   WorkflowUpdateValidatorType,
   SearchAttributeUpdatePair,
+  RawValue,
   compilePriority,
   WorkflowDefinitionOptionsOrGetter,
 } from '@temporalio/common';

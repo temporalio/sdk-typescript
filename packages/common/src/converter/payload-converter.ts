@@ -100,6 +100,23 @@ export function mapFromPayloads<K extends string, T = unknown>(
   ) as Record<K, T>;
 }
 
+/**
+ * RawValue is a wrapper over a payload.
+ * A payload that belongs to a RawValue is special in that it bypasses user-defined payload converters,
+ * instead using the default payload converter. The payload still undergoes codec conversion.
+ */
+export class RawValue {
+  private readonly _payload: Payload;
+
+  constructor(value: unknown) {
+    this._payload = defaultPayloadConverter.toPayload(value);
+  }
+
+  get payload(): Payload {
+    return this._payload;
+  }
+}
+
 export interface PayloadConverterWithEncoding {
   /**
    * Converts a value to a {@link Payload}.
@@ -143,6 +160,9 @@ export class CompositePayloadConverter implements PayloadConverter {
    * Returns the first successful result, throws {@link ValueError} if there is no converter that can handle the value.
    */
   public toPayload<T>(value: T): Payload {
+    if (value instanceof RawValue) {
+      return value.payload;
+    }
     for (const converter of this.converters) {
       const result = converter.toPayload(value);
       if (result !== undefined) {
@@ -160,6 +180,7 @@ export class CompositePayloadConverter implements PayloadConverter {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');
     }
+
     const encoding = decode(payload.metadata[METADATA_ENCODING_KEY]);
     const converter = this.converterByEncoding.get(encoding);
     if (converter === undefined) {

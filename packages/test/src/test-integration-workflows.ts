@@ -14,11 +14,13 @@ import {
   ActivityCancellationType,
   ApplicationFailure,
   defineSearchAttributeKey,
+  RawValue,
   SearchAttributePair,
   SearchAttributeType,
   TypedSearchAttributes,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
+import { temporal } from '@temporalio/proto';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
@@ -386,7 +388,7 @@ test('Query workflow metadata returns handler descriptions', async (t) => {
 
   await worker.runUntil(async () => {
     const handle = await startWorkflow(queryWorkflowMetadata);
-    const meta = await handle.query(workflow.workflowMetadataQuery);
+    const meta = (await handle.query(workflow.workflowMetadataQuery)) as temporal.api.sdk.v1.IWorkflowMetadata;
     t.is(meta.definition?.type, 'queryWorkflowMetadata');
     const queryDefinitions = meta.definition?.queryDefinitions;
     // Three built-in ones plus dummyQuery1 and dummyQuery2
@@ -1338,6 +1340,31 @@ test('can register search attributes to dev server', async (t) => {
   t.deepEqual(desc.typedSearchAttributes, new TypedSearchAttributes([newSearchAttribute]));
   t.deepEqual(desc.searchAttributes, { 'new-search-attr': [12] }); // eslint-disable-line deprecation/deprecation
   await env.teardown();
+});
+
+export async function rawValueWorkflow(value: unknown): Promise<RawValue> {
+  const { rawValueActivity } = workflow.proxyActivities({ startToCloseTimeout: '10s' });
+  return await rawValueActivity(new RawValue(value));
+}
+
+test('workflow and activity can receive/return RawValue', async (t) => {
+  const { executeWorkflow, createWorker } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      async rawValueActivity(value: unknown): Promise<RawValue> {
+        return new RawValue(value);
+      },
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const testValue = 'test';
+    const rawValue = new RawValue(testValue);
+    const res = await executeWorkflow(rawValueWorkflow, {
+      args: [rawValue],
+    });
+    t.deepEqual(res, testValue);
+  });
 });
 
 export async function ChildWorkflowInfo(): Promise<workflow.RootWorkflowInfo | undefined> {
