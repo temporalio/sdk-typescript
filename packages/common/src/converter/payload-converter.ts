@@ -108,8 +108,8 @@ export function mapFromPayloads<K extends string, T = unknown>(
 export class RawValue {
   private readonly _payload: Payload;
 
-  constructor(payload: Payload) {
-    this._payload = payload;
+  constructor(value: unknown) {
+    this._payload = defaultPayloadConverter.toPayload(value);
   }
 
   get payload(): Payload {

@@ -18,16 +18,12 @@ export async function stackTracer(): Promise<[string, string]> {
   const [first] = await Promise.all([
     trigger,
     Promise.race([
-      queryOwnWf(wf.stackTraceQuery).then((stack) =>
-        trigger.resolve(defaultPayloadConverter.fromPayload(stack.payload))
-      ),
+      queryOwnWf(wf.stackTraceQuery).then((stack) => trigger.resolve(stack)),
       executeChild(unblockOrCancel),
       sleep(100_000),
     ]),
   ]);
-  const second = await queryOwnWf(wf.stackTraceQuery).then((stack) =>
-    defaultPayloadConverter.fromPayload<string>(stack.payload)
-  );
+  const second = await queryOwnWf(wf.stackTraceQuery);
   return [first, second];
 }
 
@@ -37,9 +33,7 @@ export async function enhancedStackTracer(): Promise<EnhancedStackTrace> {
   const [enhStack] = await Promise.all([
     trigger,
     Promise.race([
-      queryOwnWf(wf.enhancedStackTraceQuery).then((stack) =>
-        trigger.resolve(defaultPayloadConverter.fromPayload(stack.payload))
-      ),
+      queryOwnWf(wf.enhancedStackTraceQuery).then((stack) => trigger.resolve(stack)),
       executeChild(unblockOrCancel),
       sleep(100_000),
     ]),

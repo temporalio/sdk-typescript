@@ -33,6 +33,7 @@ import {
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
 import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import { temporal } from '@temporalio/proto';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import {
@@ -1652,6 +1653,6 @@ export function setWorkflowOptions<A extends any[], RT>(
   });
 }
 
-export const stackTraceQuery = defineQuery<RawValue>('__stack_trace');
-export const enhancedStackTraceQuery = defineQuery<RawValue>('__enhanced_stack_trace');
-export const workflowMetadataQuery = defineQuery<RawValue>('__temporal_workflow_metadata');
+export const stackTraceQuery = defineQuery<string>('__stack_trace');
+export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanced_stack_trace');
+export const workflowMetadataQuery = defineQuery<temporal.api.sdk.v1.IWorkflowMetadata>('__temporal_workflow_metadata');

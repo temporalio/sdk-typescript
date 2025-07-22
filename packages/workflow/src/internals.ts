@@ -264,11 +264,9 @@ export class Activator implements ActivationHandler {
       {
         handler: () => {
           return new RawValue(
-            defaultPayloadConverter.toPayload(
-              this.getStackTraces()
-                .map((s) => s.formatted)
-                .join('\n\n')
-            )
+            this.getStackTraces()
+              .map((s) => s.formatted)
+              .join('\n\n')
           );
         },
         description: 'Returns a sensible stack trace.',
@@ -297,7 +295,7 @@ export class Activator implements ActivationHandler {
               }
             }
           }
-          return new RawValue(defaultPayloadConverter.toPayload({ sdk, stacks, sources }));
+          return new RawValue({ sdk, stacks, sources });
         },
         description: 'Returns a stack trace annotated with source information.',
       },
@@ -319,16 +317,14 @@ export class Activator implements ActivationHandler {
             name,
             description: value.description,
           }));
-          return new RawValue(
-            defaultPayloadConverter.toPayload({
-              definition: {
-                type: workflowType,
-                queryDefinitions,
-                signalDefinitions,
-                updateDefinitions,
-              },
-            })
-          );
+          return new RawValue({
+            definition: {
+              type: workflowType,
+              queryDefinitions,
+              signalDefinitions,
+              updateDefinitions,
+            },
+          });
         },
         description: 'Returns metadata associated with this workflow.',
       },
