@@ -4,6 +4,7 @@
  */
 import * as wf from '@temporalio/workflow';
 import type { EnhancedStackTrace } from '@temporalio/workflow/lib/interfaces';
+import { defaultPayloadConverter } from '@temporalio/common/lib/converter/payload-converter';
 import type * as activities from '../activities';
 import { unblockOrCancel } from './unblock-or-cancel';
 
@@ -17,12 +18,16 @@ export async function stackTracer(): Promise<[string, string]> {
   const [first] = await Promise.all([
     trigger,
     Promise.race([
-      queryOwnWf(wf.stackTraceQuery).then((stack) => trigger.resolve(stack)),
+      queryOwnWf(wf.stackTraceQuery).then((stack) =>
+        trigger.resolve(defaultPayloadConverter.fromPayload(stack.payload))
+      ),
       executeChild(unblockOrCancel),
       sleep(100_000),
     ]),
   ]);
-  const second = await queryOwnWf(wf.stackTraceQuery);
+  const second = await queryOwnWf(wf.stackTraceQuery).then((stack) =>
+    defaultPayloadConverter.fromPayload<string>(stack.payload)
+  );
   return [first, second];
 }
 
@@ -32,7 +37,9 @@ export async function enhancedStackTracer(): Promise<EnhancedStackTrace> {
   const [enhStack] = await Promise.all([
     trigger,
     Promise.race([
-      queryOwnWf(wf.enhancedStackTraceQuery).then((stack) => trigger.resolve(stack)),
+      queryOwnWf(wf.enhancedStackTraceQuery).then((stack) =>
+        trigger.resolve(defaultPayloadConverter.fromPayload(stack.payload))
+      ),
       executeChild(unblockOrCancel),
       sleep(100_000),
     ]),

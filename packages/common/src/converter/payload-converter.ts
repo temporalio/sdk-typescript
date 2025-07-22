@@ -1,7 +1,7 @@
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import { Payload } from '../interfaces';
-import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, METADATA_RAW_VALUE_KEY } from './types';
+import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
 /**
  * Used by the framework to serialize/deserialize data like parameters and return values.
@@ -102,29 +102,11 @@ export function mapFromPayloads<K extends string, T = unknown>(
 
 /**
  * RawValue is a wrapper over a payload.
- * A payload that belongs to a RawValue is special in that it bypasses normal payload conversion,
- * but still undergoes codec conversion.
+ * A payload that belongs to a RawValue is special in that it bypasses user-defined payload converters,
+ * instead using the default payload converter. The payload still undergoes codec conversion.
  */
 export class RawValue {
   private readonly _payload: Payload;
-
-  /**
-   * Receives an incoming Payload and returns a RawValue wrapping it.
-   *
-   * Notably, this method strips any raw value metadata if it exists.
-   * This allows users to convert the payload back to its native representation.
-   *
-   * @param payload the incoming Payload
-   * @returns an instance of RawValue
-   */
-  static receive(payload: Payload): RawValue {
-    if (payload.metadata == null) {
-      throw new ValueError('Missing payload metadata');
-    }
-    // Remove the raw value identifier key (if it exists).
-    delete payload.metadata[METADATA_RAW_VALUE_KEY];
-    return new RawValue(payload);
-  }
 
   constructor(payload: Payload) {
     this._payload = payload;
@@ -132,25 +114,6 @@ export class RawValue {
 
   get payload(): Payload {
     return this._payload;
-  }
-
-  /**
-   * Sends the Payload from the RawValue.
-   *
-   * Notably, this method add raw value metadata to identify that the Payload
-   * belongs to a RawValue when we {@link receive}.
-   *
-   * @param payload the incoming Payload
-   * @returns an instance of RawValue
-   */
-  send(): Payload {
-    return {
-      metadata: {
-        ...this.payload.metadata,
-        [METADATA_RAW_VALUE_KEY]: encode('true'),
-      },
-      data: this.payload.data,
-    };
   }
 }
 
@@ -198,7 +161,7 @@ export class CompositePayloadConverter implements PayloadConverter {
    */
   public toPayload<T>(value: T): Payload {
     if (value instanceof RawValue) {
-      return value.send();
+      return value.payload;
     }
     for (const converter of this.converters) {
       const result = converter.toPayload(value);
@@ -216,11 +179,6 @@ export class CompositePayloadConverter implements PayloadConverter {
   public fromPayload<T>(payload: Payload): T {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');
-    }
-    // Payload is intended to be a RawValue.
-    // Avoid payload conversion, return payload wrapped as RawValue.
-    if (payload.metadata[METADATA_RAW_VALUE_KEY]) {
-      return RawValue.receive(payload) as T;
     }
 
     const encoding = decode(payload.metadata[METADATA_ENCODING_KEY]);

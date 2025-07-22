@@ -1587,6 +1587,6 @@ export function allHandlersFinished(): boolean {
   return activator.inProgressSignals.size === 0 && activator.inProgressUpdates.size === 0;
 }
 
-export const stackTraceQuery = defineQuery<string>('__stack_trace');
-export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanced_stack_trace');
+export const stackTraceQuery = defineQuery<RawValue>('__stack_trace');
+export const enhancedStackTraceQuery = defineQuery<RawValue>('__enhanced_stack_trace');
 export const workflowMetadataQuery = defineQuery<RawValue>('__temporal_workflow_metadata');
