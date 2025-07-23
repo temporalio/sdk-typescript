@@ -120,9 +120,10 @@ export interface ActivityOptions {
    *
    * @default 'COMPATIBLE'
    *
+   * @deprecated In favor of the new Worker Deployment API.
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
-  versioningIntent?: VersioningIntent;
+  versioningIntent?: VersioningIntent; // eslint-disable-line deprecation/deprecation
 
   /**
    * A fixed, single-line summary for this workflow execution that may appear in the UI/CLI.

@@ -1,3 +1,4 @@
+const { isPromise } = require('node:util/types');
 const { getPrebuiltPath } = require('./common');
 const typescriptExports = require('./lib/index');
 const { convertFromNamedError } = require('./lib/errors');
@@ -9,7 +10,7 @@ function wrapErrors(fn) {
   return (...args) => {
     try {
       let res = fn(...args);
-      if (res instanceof Promise) {
+      if (isPromise(res)) {
         return res.catch((e) => {
           throw convertFromNamedError(e, false);
         });
@@ -55,7 +56,7 @@ if (process.env.TEMPORAL_TRACE_NATIVE_CALLS?.toLowerCase() === 'true') {
 
         let res = fn(...args);
 
-        if (res instanceof Promise) {
+        if (isPromise(res)) {
           log(callid, `${fnname}() - received promise`);
           return res.then(
             (x) => {

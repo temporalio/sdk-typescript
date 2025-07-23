@@ -201,7 +201,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         headers,
         cancellationType: encodeActivityCancellationType(options.cancellationType),
         doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
-        versioningIntent: versioningIntentToProto(options.versioningIntent),
+        versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line deprecation/deprecation
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined),
@@ -404,7 +404,7 @@ function startChildWorkflowExecutionNextHandler({
             ? encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) // eslint-disable-line deprecation/deprecation
             : undefined,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
-        versioningIntent: versioningIntentToProto(options.versioningIntent),
+        versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line deprecation/deprecation
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options?.staticSummary, options?.staticDetails),
@@ -1024,7 +1024,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
             : undefined,
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
-        versioningIntent: versioningIntentToProto(options.versioningIntent),
+        versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line deprecation/deprecation
       });
     });
     return fn({
