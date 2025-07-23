@@ -1,2 +1,7 @@
 export * from './enums-helpers';
-export * from './objects-helpers';
+export {
+  filterNullAndUndefined,
+  mergeObjects,
+  // ts-prune-ignore-next
+  deepMerge,
+} from './objects-helpers';
