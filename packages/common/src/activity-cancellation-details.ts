@@ -45,7 +45,7 @@ export class ActivityCancellationDetails {
       paused: proto.isPaused ?? false,
       timedOut: proto.isTimedOut ?? false,
       workerShutdown: proto.isWorkerShutdown ?? false,
-      reset: proto.isReset ?? false
+      reset: proto.isReset ?? false,
     });
   }
 }

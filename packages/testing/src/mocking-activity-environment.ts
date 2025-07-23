@@ -31,10 +31,7 @@ export interface MockActivityEnvironmentOptions {
  * will immediately be in a cancelled state.
  */
 export class MockActivityEnvironment extends events.EventEmitter {
-  public cancel: (
-    reason?: CancelReason, 
-    details?: ActivityCancellationDetails
-  ) => void = () => undefined;
+  public cancel: (reason?: CancelReason, details?: ActivityCancellationDetails) => void = () => undefined;
   public readonly context: activity.Context;
   private readonly activity: Activity;
 
@@ -56,15 +53,12 @@ export class MockActivityEnvironment extends events.EventEmitter {
       opts?.interceptors ?? []
     );
     this.context = this.activity.context;
-    this.cancel = (
-      reason?: CancelReason,
-      details?: ActivityCancellationDetails
-    ) => {
+    this.cancel = (reason?: CancelReason, details?: ActivityCancellationDetails) => {
       // Default to CANCELLED if nothing provided.
-      const r = reason ?? "CANCELLED";
+      const r = reason ?? 'CANCELLED';
       const d = details ?? new ActivityCancellationDetails({ cancelRequested: true });
-      this.activity.cancel(r, d); 
-    }
+      this.activity.cancel(r, d);
+    };
   }
 
   /**
