@@ -21,7 +21,7 @@ use crate::helpers::{
     BridgeError, BridgeResult, JsonString, MutableFinalize, OpaqueInboundHandle,
     OpaqueOutboundHandle,
 };
-use crate::runtime::*;
+use crate::runtime::Runtime;
 
 pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<()> {
     cx.export_function("newMetricCounter", new_metric_counter)?;
@@ -91,10 +91,10 @@ pub enum MetricValue {
 impl From<MetricValue> for CoreMetricValue {
     fn from(value: MetricValue) -> Self {
         match value {
-            MetricValue::Int(i) => CoreMetricValue::Int(i),
-            MetricValue::Float(f) => CoreMetricValue::Float(f),
-            MetricValue::Bool(b) => CoreMetricValue::Bool(b),
-            MetricValue::String(s) => CoreMetricValue::String(s),
+            MetricValue::Int(i) => Self::Int(i),
+            MetricValue::Float(f) => Self::Float(f),
+            MetricValue::Bool(b) => Self::Bool(b),
+            MetricValue::String(s) => Self::String(s),
         }
     }
 }
