@@ -33,6 +33,7 @@ import { versioningIntentToProto } from '@temporalio/common/lib/versioning-inten
 import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
+import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import {
@@ -1272,6 +1273,8 @@ export function setHandler<
   options?: QueryHandlerOptions | SignalHandlerOptions | UpdateHandlerOptions<Args>
 ): void {
   const activator = assertInWorkflowContext('Workflow.setHandler(...) may only be used from a Workflow Execution.');
+  // Cannot register handler for reserved names
+  throwIfReservedName(def.type, def.name);
   const description = options?.description;
   if (def.type === 'update') {
     if (typeof handler === 'function') {

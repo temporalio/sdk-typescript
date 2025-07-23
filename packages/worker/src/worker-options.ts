@@ -14,6 +14,7 @@ import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow'
 import { LoggerSinks } from '@temporalio/workflow';
 import { Context } from '@temporalio/activity';
 import { native } from '@temporalio/core-bridge';
+import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
@@ -953,6 +954,20 @@ export function compileWorkerOptions(
   }
 
   const activities = new Map(Object.entries(opts.activities ?? {}).filter(([_, v]) => typeof v === 'function'));
+  for (const activityName of activities.keys()) {
+    throwIfReservedName('activity', activityName);
+  }
+
+  // Validate sink names to ensure they don't use reserved prefixes/names
+  if (opts.sinks) {
+    for (const sinkName of Object.keys(opts.sinks)) {
+      // Allow internal sinks used by the SDK
+      if (sinkName !== '__temporal_logger' && sinkName !== '__temporal_metrics') {
+        throwIfReservedName('sink', sinkName);
+      }
+    }
+  }
+
   const tuner = asNativeTuner(opts.tuner, logger);
 
   return {
