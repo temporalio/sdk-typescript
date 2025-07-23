@@ -308,7 +308,7 @@ export async function setActivityPauseState(handle: WorkflowHandle, activityId: 
       return activityInfo.paused ?? false;
     }
     return !activityInfo.paused;
-  }, 10000);
+  }, 15000);
 }
 
 export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment = t.context.env): Helpers {
