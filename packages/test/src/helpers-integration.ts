@@ -30,7 +30,7 @@ import * as workflow from '@temporalio/workflow';
 import { temporal } from '@temporalio/proto';
 import { defineSearchAttributeKey, SearchAttributeType } from '@temporalio/common/lib/search-attributes';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
-import { Worker, TestWorkflowEnvironment, test as anyTest, bundlerOptions } from './helpers';
+import { Worker, TestWorkflowEnvironment, test as anyTest, bundlerOptions, waitUntil } from './helpers';
 
 export interface Context {
   env: TestWorkflowEnvironment;
@@ -38,6 +38,7 @@ export interface Context {
 }
 
 const defaultDynamicConfigOptions = [
+  'frontend.activityAPIsEnabled=true',
   'frontend.enableExecuteMultiOperation=true',
   'frontend.workerVersioningDataAPIs=true',
   'frontend.workerVersioningWorkflowAPIs=true',
@@ -282,6 +283,32 @@ export function configurableHelpers<T>(
       }
     },
   };
+}
+
+export async function setActivityPauseState(handle: WorkflowHandle, activityId: string, pause: boolean): Promise<void> {
+  const desc = await handle.describe();
+  const req = {
+    namespace: handle.client.options.namespace,
+    execution: {
+      workflowId: desc.raw.workflowExecutionInfo?.execution?.workflowId,
+      runId: desc.raw.workflowExecutionInfo?.execution?.runId,
+    },
+    id: activityId,
+  };
+  if (pause) {
+    await handle.client.workflowService.pauseActivity(req);
+  } else {
+    await handle.client.workflowService.unpauseActivity(req);
+  }
+  await waitUntil(async () => {
+    const { raw } = await handle.describe();
+    const activityInfo = raw.pendingActivities?.find((act) => act.activityId === activityId);
+    if (!activityInfo) return false;
+    if (pause) {
+      return activityInfo.paused ?? false;
+    }
+    return !activityInfo.paused;
+  }, 15000);
 }
 
 export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment = t.context.env): Helpers {

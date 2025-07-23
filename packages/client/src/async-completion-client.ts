@@ -36,6 +36,13 @@ export class ActivityCompletionError extends Error {}
 export class ActivityCancelledError extends Error {}
 
 /**
+ * Thrown by {@link AsyncCompletionClient.heartbeat} when the reporting Activity
+ * has been paused.
+ */
+@SymbolBasedInstanceOfError('ActivityPausedError')
+export class ActivityPausedError extends Error {}
+
+/**
  * Options used to configure {@link AsyncCompletionClient}
  */
 export type AsyncCompletionClientOptions = BaseClientOptions;
@@ -211,6 +218,7 @@ export class AsyncCompletionClient extends BaseClient {
   async heartbeat(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
     const payloads = await encodeToPayloads(this.dataConverter, details);
     let cancelRequested = false;
+    let paused = false;
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
         const response = await this.workflowService.recordActivityTaskHeartbeat({
@@ -220,6 +228,7 @@ export class AsyncCompletionClient extends BaseClient {
           details: { payloads },
         });
         cancelRequested = !!response.cancelRequested;
+        paused = !!response.activityPaused;
       } else {
         const response = await this.workflowService.recordActivityTaskHeartbeatById({
           identity: this.options.identity,
@@ -228,12 +237,16 @@ export class AsyncCompletionClient extends BaseClient {
           details: { payloads },
         });
         cancelRequested = !!response.cancelRequested;
+        paused = !!response.activityPaused;
       }
     } catch (err) {
       this.handleError(err);
     }
     if (cancelRequested) {
       throw new ActivityCancelledError('cancelled');
+    }
+    if (paused) {
+      throw new ActivityPausedError('paused');
     }
   }
 }
