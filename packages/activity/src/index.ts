@@ -301,7 +301,7 @@ export class Context {
   /**
    * Holder object for activity cancellation details
    */
-  public readonly cancellationDetails: ActivityCancellationDetailsHolder;
+  private readonly _cancellationDetails: ActivityCancellationDetailsHolder;
 
   /**
    * **Not** meant to instantiated by Activity code, used by the worker.
@@ -323,7 +323,7 @@ export class Context {
     this.heartbeatFn = heartbeat;
     this.log = log;
     this.metricMeter = metricMeter;
-    this.cancellationDetails = details;
+    this._cancellationDetails = details;
   }
 
   /**
@@ -363,6 +363,10 @@ export class Context {
     });
     return Promise.race([this.cancelled.finally(() => clearTimeout(handle)), timer]);
   };
+
+  public cancellationDetails(): ActivityCancellationDetails | undefined {
+    return this._cancellationDetails.details;
+  }
 }
 
 /**
@@ -447,7 +451,7 @@ export function cancelled(): Promise<never> {
  * Returns the cancellation details for this activity, if any.
  */
 export function cancellationDetails(): ActivityCancellationDetails | undefined {
-  return Context.current().cancellationDetails.details;
+  return Context.current().cancellationDetails();
 }
 
 /**

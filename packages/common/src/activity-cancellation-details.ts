@@ -4,6 +4,15 @@ export interface ActivityCancellationDetailsHolder {
   details?: ActivityCancellationDetails;
 }
 
+export interface ActivityCancellationDetailsOptions {
+  notFound?: boolean;
+  cancelRequested?: boolean;
+  paused?: boolean;
+  timedOut?: boolean;
+  workerShutdown?: boolean;
+  reset?: boolean;
+}
+
 /**
  * Provides the reasons for the activity's cancellation. Cancellation details are set once and do not change once set.
  */
@@ -15,20 +24,13 @@ export class ActivityCancellationDetails {
   readonly workerShutdown: boolean;
   readonly reset: boolean;
 
-  private constructor(
-    notFound: boolean = false,
-    cancelRequested: boolean = false,
-    paused: boolean = false,
-    timedOut: boolean = false,
-    workerShutdown: boolean = false,
-    reset: boolean = false
-  ) {
-    this.notFound = notFound;
-    this.cancelRequested = cancelRequested;
-    this.paused = paused;
-    this.timedOut = timedOut;
-    this.workerShutdown = workerShutdown;
-    this.reset = reset;
+  public constructor(options: ActivityCancellationDetailsOptions = {}) {
+    this.notFound = options.notFound ?? false;
+    this.cancelRequested = options.cancelRequested ?? false;
+    this.paused = options.paused ?? false;
+    this.timedOut = options.timedOut ?? false;
+    this.workerShutdown = options.workerShutdown ?? false;
+    this.reset = options.reset ?? false;
   }
 
   static fromProto(
@@ -37,13 +39,13 @@ export class ActivityCancellationDetails {
     if (proto == null) {
       return new ActivityCancellationDetails();
     }
-    return new ActivityCancellationDetails(
-      proto.isNotFound ?? false,
-      proto.isCancelled ?? false,
-      proto.isPaused ?? false,
-      proto.isTimedOut ?? false,
-      proto.isWorkerShutdown ?? false,
-      proto.isReset ?? false
-    );
+    return new ActivityCancellationDetails({
+      notFound: proto.isNotFound ?? false,
+      cancelRequested: proto.isCancelled ?? false,
+      paused: proto.isPaused ?? false,
+      timedOut: proto.isTimedOut ?? false,
+      workerShutdown: proto.isWorkerShutdown ?? false,
+      reset: proto.isReset ?? false
+    });
   }
 }

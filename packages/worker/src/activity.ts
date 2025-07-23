@@ -144,7 +144,7 @@ export class Activity {
         (error instanceof CancelledFailure || isAbortError(error)) &&
         this.context.cancellationSignal.aborted
       ) {
-        if (this.context.cancellationDetails.details?.paused) {
+        if (this.context.cancellationDetails()?.paused) {
           this.workerLogger.debug('Activity paused', { durationMs });
         } else {
           this.workerLogger.debug('Activity completed as cancelled', { durationMs });
@@ -187,7 +187,7 @@ export class Activity {
           // Either a CancelledFailure that we threw or AbortError from AbortController
           if (err instanceof CancelledFailure) {
             // If cancel due to activity pause, emit an application failure for the pause.
-            if (this.context.cancellationDetails.details?.paused) {
+            if (this.context.cancellationDetails()?.paused) {
               return {
                 failed: {
                   failure: await encodeErrorToFailure(

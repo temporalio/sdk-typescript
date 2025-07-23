@@ -24,7 +24,7 @@ test('MockActivityEnvironment emits heartbeat events and can be cancelled', asyn
   const env = new MockActivityEnvironment();
   env.on('heartbeat', (d: unknown) => {
     if (d === 6) {
-      env.cancel('test');
+      env.cancel('CANCELLED');
     }
   });
   await t.throwsAsync(
