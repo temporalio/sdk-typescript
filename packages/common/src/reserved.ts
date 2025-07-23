@@ -1,31 +1,26 @@
 export const TEMPORAL_RESERVED_PREFIX = '__temporal_';
-export const STACK_TRACE_RESERVED_PREFIX = '__stack_trace';
-export const ENHANCED_STACK_TRACE_RESERVED_PREFIX = '__enhanced_stack_trace';
+export const STACK_TRACE_RESERVED_NAME = '__stack_trace';
+export const ENHANCED_STACK_TRACE_RESERVED_NAME = '__enhanced_stack_trace';
 
-export const reservedPrefixes = [
-  TEMPORAL_RESERVED_PREFIX,
-  STACK_TRACE_RESERVED_PREFIX,
-  ENHANCED_STACK_TRACE_RESERVED_PREFIX,
-];
+/**
+ * Valid entity types that can be checked for reserved name violations
+ */
+export type ReservedNameEntityType = 'query' | 'signal' | 'update' | 'activity' | 'task queue' | 'sink' | 'workflow';
 
-export class ReservedPrefixError extends Error {
-  constructor(type: string, name: string, prefix: string) {
-    super(`Cannot use ${type} name: '${name}', with reserved prefix: '${prefix}'`);
-    this.name = 'ReservedPrefixError';
+/**
+ * Validates if the provided name contains any reserved prefixes or matches any reserved names.
+ * Throws a TypeError if validation fails, with a specific message indicating whether the issue
+ * is with a reserved prefix or an exact match to a reserved name.
+ *
+ * @param type The entity type being checked
+ * @param name The name to check against reserved prefixes/names
+ */
+export function throwIfReservedName(type: ReservedNameEntityType, name: string): void {
+  if (name.startsWith(TEMPORAL_RESERVED_PREFIX)) {
+    throw new TypeError(`Cannot use ${type} name: '${name}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`);
   }
-}
 
-export function throwIfReservedName(type: string, name: string): void {
-  const prefix = maybeGetReservedPrefix(name);
-  if (prefix) {
-    throw new ReservedPrefixError(type, name, prefix);
-  }
-}
-
-export function maybeGetReservedPrefix(name: string): string | undefined {
-  for (const prefix of reservedPrefixes) {
-    if (name.startsWith(prefix)) {
-      return prefix;
-    }
+  if (name === STACK_TRACE_RESERVED_NAME || name === ENHANCED_STACK_TRACE_RESERVED_NAME) {
+    throw new TypeError(`Cannot use ${type} name: '${name}', which is a reserved name`);
   }
 }

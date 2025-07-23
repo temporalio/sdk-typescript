@@ -32,10 +32,9 @@ import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';
 import {
-  ENHANCED_STACK_TRACE_RESERVED_PREFIX,
-  ReservedPrefixError,
-  STACK_TRACE_RESERVED_PREFIX,
-  maybeGetReservedPrefix,
+  TEMPORAL_RESERVED_PREFIX,
+  STACK_TRACE_RESERVED_NAME,
+  ENHANCED_STACK_TRACE_RESERVED_NAME,
 } from '@temporalio/common/lib/reserved';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
@@ -266,7 +265,7 @@ export class Activator implements ActivationHandler {
    */
   public readonly queryHandlers = new Map<string, WorkflowQueryAnnotatedType>([
     [
-      STACK_TRACE_RESERVED_PREFIX,
+      STACK_TRACE_RESERVED_NAME,
       {
         handler: () => {
           return this.getStackTraces()
@@ -277,7 +276,7 @@ export class Activator implements ActivationHandler {
       },
     ],
     [
-      ENHANCED_STACK_TRACE_RESERVED_PREFIX,
+      ENHANCED_STACK_TRACE_RESERVED_NAME,
       {
         handler: (): EnhancedStackTrace => {
           const { sourceMap } = this;
@@ -685,16 +684,17 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing query activation attributes');
     }
 
-    const reservedPrefix = maybeGetReservedPrefix(queryType);
-    if (reservedPrefix) {
-      // Must have (internal) query handler for reserved query.
-      if (!this.queryHandlers.has(queryType)) {
-        throw new ReservedPrefixError('query', queryType, reservedPrefix);
-      }
+    // If query has __temporal_ prefix but no handler exists, throw error
+    if (queryType.startsWith(TEMPORAL_RESERVED_PREFIX) && !this.queryHandlers.has(queryType)) {
+      throw new TypeError(`Cannot use query name: '${queryType}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`);
     }
 
-    // Skip interceptors if it is an internal query
-    const interceptors = reservedPrefix ? [] : this.interceptors.inbound;
+    // Skip interceptors if it's an internal query.
+    const isInternalQuery =
+      queryType.startsWith(TEMPORAL_RESERVED_PREFIX) ||
+      queryType === STACK_TRACE_RESERVED_NAME ||
+      queryType === ENHANCED_STACK_TRACE_RESERVED_NAME;
+    const interceptors = isInternalQuery ? [] : this.interceptors.inbound;
     const execute = composeInterceptors(interceptors, 'handleQuery', this.queryWorkflowNextHandler.bind(this));
     execute({
       queryName: queryType,
@@ -718,10 +718,10 @@ export class Activator implements ActivationHandler {
     if (!protocolInstanceId) {
       throw new TypeError('Missing activation update protocolInstanceId');
     }
-    const reservedPrefix = maybeGetReservedPrefix(name);
-    if (reservedPrefix && !this.updateHandlers.get(name)) {
-      // Must have (internal) update handler for reserved update.
-      throw new ReservedPrefixError('update', name, reservedPrefix);
+
+    // If update has __temporal_ prefix but no handler exists, throw error
+    if (name.startsWith(TEMPORAL_RESERVED_PREFIX) && !this.updateHandlers.get(name)) {
+      throw new TypeError(`Cannot use update name: '${name}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`);
     }
 
     const entry =
@@ -876,12 +876,11 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing activation signalName');
     }
 
-    const reservedPrefix = maybeGetReservedPrefix(signalName);
-    if (reservedPrefix) {
-      if (!this.signalHandlers.has(signalName)) {
-        // Must have (internal) signal handler for reserved signal.
-        throw new ReservedPrefixError('signal', signalName, reservedPrefix);
-      }
+    // If signal has __temporal_ prefix but no handler exists, throw error
+    if (signalName.startsWith(TEMPORAL_RESERVED_PREFIX) && !this.signalHandlers.has(signalName)) {
+      throw new TypeError(
+        `Cannot use signal name: '${signalName}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`
+      );
     }
 
     if (!this.signalHandlers.has(signalName) && !this.defaultSignalHandler) {

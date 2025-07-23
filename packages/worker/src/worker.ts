@@ -468,6 +468,9 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
+    if (!options.taskQueue) {
+      throw new TypeError('Task queue name is required');
+    }
     throwIfReservedName('task queue', options.taskQueue);
     const runtime = Runtime.instance();
     const logger = LoggerWithComposedMetadata.compose(runtime.logger, {

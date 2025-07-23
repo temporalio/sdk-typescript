@@ -957,6 +957,17 @@ export function compileWorkerOptions(
   for (const activityName of activities.keys()) {
     throwIfReservedName('activity', activityName);
   }
+
+  // Validate sink names to ensure they don't use reserved prefixes/names
+  if (opts.sinks) {
+    for (const sinkName of Object.keys(opts.sinks)) {
+      // Allow internal sinks used by the SDK
+      if (sinkName !== '__temporal_logger' && sinkName !== '__temporal_metrics') {
+        throwIfReservedName('sink', sinkName);
+      }
+    }
+  }
+
   const tuner = asNativeTuner(opts.tuner, logger);
 
   return {
