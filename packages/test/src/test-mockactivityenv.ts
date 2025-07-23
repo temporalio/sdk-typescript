@@ -35,7 +35,7 @@ test('MockActivityEnvironment emits heartbeat events and can be cancelled', asyn
     }, 3),
     {
       instanceOf: activity.CancelledFailure,
-      message: 'test',
+      message: 'CANCELLED',
     }
   );
 });
