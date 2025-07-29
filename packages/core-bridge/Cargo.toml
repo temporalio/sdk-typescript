@@ -38,6 +38,7 @@ serde_json = "1.0"
 temporal-sdk-core = { version = "*", path = "./sdk-core/core", features = [
     "ephemeral-server",
 ] }
+temporal-sdk-core-api = { path = "./sdk-core/core-api", features = ["envconfig"] }
 temporal-client = { version = "*", path = "./sdk-core/client" }
 thiserror = "2"
 tokio = "1.13"

@@ -500,3 +500,75 @@ export declare function setMetricGaugeF64Value(
   value: number,
   attrs: JsonString<MetricAttributes>
 ): void;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Environment Configuration
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export declare function loadClientConfig(
+  path: Option<string>,
+  data: Option<Buffer>,
+  disableFile: boolean,
+  configFileStrict: boolean,
+  envVars: Option<Record<string, string>>
+): ClientConfig;
+
+export declare function loadClientConnectConfig(
+  profile: Option<string>,
+  path: Option<string>,
+  data: Option<Buffer>,
+  disableFile: boolean,
+  disableEnv: boolean,
+  configFileStrict: boolean,
+  envVars: Option<Record<string, string>>
+): ClientConfigProfile;
+
+export interface LoadClientConfigOptions {
+  path: Option<string>;
+  data: Option<Buffer>;
+  disableFile: boolean;
+  configFileStrict: boolean;
+  envVars: Option<Record<string, string>>;
+}
+
+export interface LoadClientConnectConfigOptions {
+  profile: Option<string>;
+  path: Option<string>;
+  data: Option<Buffer>;
+  disableFile: boolean;
+  disableEnv: boolean;
+  configFileStrict: boolean;
+  envVars: Option<Record<string, string>>;
+}
+
+export interface DataSource {
+  path: Option<string>;
+  data: Option<Buffer>;
+}
+
+export interface ClientConfig {
+  profiles: Record<string, ClientConfigProfile>;
+}
+
+export interface ClientConfigProfile {
+  address: Option<string>;
+  namespace: Option<string>;
+  apiKey: Option<string>;
+  tls: Option<ClientConfigTLS>;
+  codec: Option<ClientConfigCodec>;
+  grpcMeta: Record<string, string>;
+}
+
+export interface ClientConfigTLS {
+  disabled: boolean;
+  clientCert: Option<DataSource>;
+  clientKey: Option<DataSource>;
+  serverCaCert: Option<DataSource>;
+  serverName: Option<string>;
+  disableHostVerification: boolean;
+}
+
+export interface ClientConfigCodec {
+  endpoint: Option<string>;
+  auth: Option<string>;
+}
