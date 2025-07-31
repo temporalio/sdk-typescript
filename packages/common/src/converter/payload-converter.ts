@@ -100,12 +100,12 @@ export function mapFromPayloads<K extends string, T = unknown>(
   ) as Record<K, T>;
 }
 
+export declare const rawPayloadTypeBrand: unique symbol;
 /**
  * RawValue is a wrapper over a payload.
  * A payload that belongs to a RawValue is special in that it bypasses user-defined payload converters,
  * instead using the default payload converter. The payload still undergoes codec conversion.
  */
-export declare const rawPayloadTypeBrand: unique symbol;
 export class RawValue<T = unknown> {
   private readonly _payload: Payload;
   private readonly [rawPayloadTypeBrand]: T = undefined as T;
