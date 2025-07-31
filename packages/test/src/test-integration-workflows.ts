@@ -24,6 +24,7 @@ import {
   ActivityCancellationType,
   ApplicationFailure,
   defineSearchAttributeKey,
+  RawValue,
   SearchAttributePair,
   SearchAttributeType,
   TypedSearchAttributes,
@@ -1353,6 +1354,31 @@ test('can register search attributes to dev server', async (t) => {
   t.deepEqual(desc.typedSearchAttributes, new TypedSearchAttributes([newSearchAttribute]));
   t.deepEqual(desc.searchAttributes, { 'new-search-attr': [12] }); // eslint-disable-line deprecation/deprecation
   await env.teardown();
+});
+
+export async function rawValueWorkflow(value: unknown): Promise<RawValue> {
+  const { rawValueActivity } = workflow.proxyActivities({ startToCloseTimeout: '10s' });
+  return await rawValueActivity(new RawValue(value));
+}
+
+test('workflow and activity can receive/return RawValue', async (t) => {
+  const { executeWorkflow, createWorker } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      async rawValueActivity(value: unknown): Promise<RawValue> {
+        return new RawValue(value);
+      },
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const testValue = 'test';
+    const rawValue = new RawValue(testValue);
+    const res = await executeWorkflow(rawValueWorkflow, {
+      args: [rawValue],
+    });
+    t.deepEqual(res, testValue);
+  });
 });
 
 export async function ChildWorkflowInfo(): Promise<workflow.RootWorkflowInfo | undefined> {
