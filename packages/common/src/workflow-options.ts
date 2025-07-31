@@ -194,6 +194,21 @@ export interface BaseWorkflowOptions {
   typedSearchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
 
   /**
+   * General fixed details for this workflow execution that may appear in UI/CLI.
+   * This can be in Temporal markdown format and can span multiple lines.
+   *
+   * @experimental User metadata is a new API and suspectible to change.
+   */
+  staticDetails?: string;
+  /**
+   * A single-line fixed summary for this workflow execution that may appear in the UI/CLI.
+   * This can be in single-line Temporal markdown format.
+   *
+   * @experimental User metadata is a new API and suspectible to change.
+   */
+  staticSummary?: string;
+
+  /**
    * Priority of a workflow
    */
   priority?: Priority;
