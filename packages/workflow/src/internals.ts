@@ -724,6 +724,13 @@ export class Activator implements ActivationHandler {
       throw new TypeError(`Cannot use update name: '${name}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`);
     }
 
+    // Skip interceptors if it's an internal update.
+    const isInternalUpdate =
+      name.startsWith(TEMPORAL_RESERVED_PREFIX) ||
+      name === STACK_TRACE_RESERVED_NAME ||
+      name === ENHANCED_STACK_TRACE_RESERVED_NAME;
+    const interceptors = isInternalUpdate ? [] : this.interceptors.inbound;
+
     const entry =
       this.updateHandlers.get(name) ??
       (this.defaultUpdateHandler
@@ -780,7 +787,7 @@ export class Activator implements ActivationHandler {
       try {
         if (runValidator && entry.validator) {
           const validate = composeInterceptors(
-            this.interceptors.inbound,
+            interceptors,
             'validateUpdate',
             this.validateUpdateNextHandler.bind(this, entry.validator)
           );
@@ -793,7 +800,7 @@ export class Activator implements ActivationHandler {
       }
       this.acceptUpdate(protocolInstanceId);
       const execute = composeInterceptors(
-        this.interceptors.inbound,
+        interceptors,
         'handleUpdate',
         this.updateNextHandler.bind(this, entry.handler)
       );
@@ -883,6 +890,13 @@ export class Activator implements ActivationHandler {
       );
     }
 
+    // Skip interceptors if it's an internal signal.
+    const isInternalSignal =
+      signalName.startsWith(TEMPORAL_RESERVED_PREFIX) ||
+      signalName === STACK_TRACE_RESERVED_NAME ||
+      signalName === ENHANCED_STACK_TRACE_RESERVED_NAME;
+    const interceptors = isInternalSignal ? [] : this.interceptors.inbound;
+
     if (!this.signalHandlers.has(signalName) && !this.defaultSignalHandler) {
       this.bufferedSignals.push(activation);
       return;
@@ -896,11 +910,7 @@ export class Activator implements ActivationHandler {
 
     const signalExecutionNum = this.signalHandlerExecutionSeq++;
     this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
-    const execute = composeInterceptors(
-      this.interceptors.inbound,
-      'handleSignal',
-      this.signalWorkflowNextHandler.bind(this)
-    );
+    const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
     execute({
       args: arrayFromPayloads(this.payloadConverter, activation.input),
       signalName,
