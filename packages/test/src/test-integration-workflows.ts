@@ -20,7 +20,6 @@ import {
   TypedSearchAttributes,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
-import { temporal } from '@temporalio/proto';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
@@ -388,7 +387,7 @@ test('Query workflow metadata returns handler descriptions', async (t) => {
 
   await worker.runUntil(async () => {
     const handle = await startWorkflow(queryWorkflowMetadata);
-    const meta = (await handle.query(workflow.workflowMetadataQuery)) as temporal.api.sdk.v1.IWorkflowMetadata;
+    const meta = await handle.query(workflow.workflowMetadataQuery);
     t.is(meta.definition?.type, 'queryWorkflowMetadata');
     const queryDefinitions = meta.definition?.queryDefinitions;
     // Three built-in ones plus dummyQuery1 and dummyQuery2

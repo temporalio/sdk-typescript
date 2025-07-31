@@ -31,7 +31,7 @@ import {
 } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
-import type { coresdk } from '@temporalio/proto';
+import type { coresdk, temporal } from '@temporalio/proto';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
@@ -48,6 +48,7 @@ import {
   ActivationCompletion,
   DefaultUpdateHandler,
   DefaultQueryHandler,
+  EnhancedStackTrace,
 } from './interfaces';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
@@ -263,7 +264,7 @@ export class Activator implements ActivationHandler {
       '__stack_trace',
       {
         handler: () => {
-          return new RawValue(
+          return new RawValue<string>(
             this.getStackTraces()
               .map((s) => s.formatted)
               .join('\n\n')
@@ -295,7 +296,7 @@ export class Activator implements ActivationHandler {
               }
             }
           }
-          return new RawValue({ sdk, stacks, sources });
+          return new RawValue<EnhancedStackTrace>({ sdk, stacks, sources });
         },
         description: 'Returns a stack trace annotated with source information.',
       },
@@ -317,7 +318,7 @@ export class Activator implements ActivationHandler {
             name,
             description: value.description,
           }));
-          return new RawValue({
+          return new RawValue<temporal.api.sdk.v1.IWorkflowMetadata>({
             definition: {
               type: workflowType,
               queryDefinitions,

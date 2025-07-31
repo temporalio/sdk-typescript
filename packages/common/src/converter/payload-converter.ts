@@ -105,11 +105,13 @@ export function mapFromPayloads<K extends string, T = unknown>(
  * A payload that belongs to a RawValue is special in that it bypasses user-defined payload converters,
  * instead using the default payload converter. The payload still undergoes codec conversion.
  */
-export class RawValue {
+export declare const rawPayloadTypeBrand: unique symbol;
+export class RawValue<T = unknown> {
   private readonly _payload: Payload;
+  private readonly [rawPayloadTypeBrand]: T = undefined as T;
 
-  constructor(value: unknown) {
-    this._payload = defaultPayloadConverter.toPayload(value);
+  constructor(value: T, payloadConverter: PayloadConverter = defaultPayloadConverter) {
+    this._payload = payloadConverter.toPayload(value);
   }
 
   get payload(): Payload {
