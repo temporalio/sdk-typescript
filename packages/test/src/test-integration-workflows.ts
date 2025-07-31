@@ -2,7 +2,7 @@ import { setTimeout as setTimeoutPromise } from 'timers/promises';
 import { randomUUID } from 'crypto';
 import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { WorkflowFailedError } from '@temporalio/client';
+import { WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -11,6 +11,7 @@ import * as workflow from '@temporalio/workflow';
 import { defineQuery, defineSignal } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import {
+  ActivityCancellationDetails,
   ActivityCancellationType,
   ApplicationFailure,
   defineSearchAttributeKey,
@@ -23,9 +24,16 @@ import {
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
-import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
+import {
+  Context,
+  createLocalTestEnvironment,
+  helpers,
+  makeTestFunction,
+  setActivityPauseState,
+} from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
 import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
+import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -1438,5 +1446,147 @@ test('Workflow can return root workflow', async (t) => {
   await worker.runUntil(async () => {
     const result = await executeWorkflow(rootWorkflow, { workflowId: 'test-root-workflow-length' });
     t.deepEqual(result, 'empty test-root-workflow-length');
+  });
+});
+
+export const activityStartedQuery = workflow.defineQuery<boolean, [number]>('activityStarted');
+export const proceedSignal = workflow.defineSignal<[]>('proceed');
+
+export async function heartbeatPauseWorkflow(
+  activityId: string,
+  catchErr: boolean,
+  maximumAttempts: number
+): Promise<Array<ActivityCancellationDetails | undefined>> {
+  const { heartbeatCancellationDetailsActivity } = workflow.proxyActivities({
+    startToCloseTimeout: '5s',
+    activityId,
+    retry: {
+      maximumAttempts,
+    },
+    heartbeatTimeout: '1s',
+  });
+  const { heartbeatCancellationDetailsActivity2 } = workflow.proxyActivities({
+    startToCloseTimeout: '5s',
+    activityId: `${activityId}-2`,
+    retry: {
+      maximumAttempts,
+    },
+    heartbeatTimeout: '1s',
+  });
+
+  let activity1Started = false;
+  let activity2Started = false;
+
+  workflow.setHandler(activityStartedQuery, (num) => {
+    if (num === 1) return activity1Started;
+    return activity2Started;
+  });
+
+  let proceed = false;
+  workflow.setHandler(proceedSignal, () => {
+    proceed = true;
+  });
+
+  activity1Started = true;
+  const promise1 = heartbeatCancellationDetailsActivity(catchErr);
+
+  // Wait for the test to pause activity 1 and signal us to continue
+  await workflow.condition(() => proceed);
+  proceed = false; // reset for next step
+
+  activity2Started = true;
+  const promise2 = heartbeatCancellationDetailsActivity2(catchErr);
+
+  // Wait for the test to pause activity 2 and signal us to continue
+  await workflow.condition(() => proceed);
+
+  return Promise.all([promise1, promise2]);
+}
+
+test('Activity pause returns expected cancellation details', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      heartbeatCancellationDetailsActivity,
+      heartbeatCancellationDetailsActivity2: heartbeatCancellationDetailsActivity,
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const testActivityId = randomUUID();
+    const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, true, 1] });
+
+    await waitUntil(async () => handle.query(activityStartedQuery, 1), 5000);
+    await setActivityPauseState(handle, testActivityId, true);
+    await handle.signal(proceedSignal);
+
+    await waitUntil(async () => handle.query(activityStartedQuery, 2), 5000);
+    await setActivityPauseState(handle, `${testActivityId}-2`, true);
+    await handle.signal(proceedSignal);
+
+    const result = await handle.result();
+    t.deepEqual(result[0], {
+      cancelRequested: false,
+      notFound: false,
+      paused: true,
+      timedOut: false,
+      workerShutdown: false,
+      reset: false,
+    });
+    t.deepEqual(result[1], {
+      cancelRequested: false,
+      notFound: false,
+      paused: true,
+      timedOut: false,
+      workerShutdown: false,
+      reset: false,
+    });
+  });
+});
+
+test('Activity can pause and unpause', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  async function checkHeartbeatDetailsExist(handle: WorkflowHandle, activityId: string): Promise<boolean> {
+    const { raw } = await handle.describe();
+    const activityInfo = raw.pendingActivities?.find((act) => act.activityId === activityId);
+    if (!activityInfo) return false;
+
+    if (activityInfo.heartbeatDetails?.payloads) {
+      for (const payload of activityInfo.heartbeatDetails.payloads) {
+        if (payload.data && payload.data.length > 0) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  const worker = await createWorker({
+    activities: {
+      heartbeatCancellationDetailsActivity,
+      heartbeatCancellationDetailsActivity2: heartbeatCancellationDetailsActivity,
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const testActivityId = randomUUID();
+    const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, false, 2] });
+
+    await waitUntil(async () => handle.query(activityStartedQuery, 1), 5000);
+    await setActivityPauseState(handle, testActivityId, true);
+    await waitUntil(async () => checkHeartbeatDetailsExist(handle, testActivityId), 5000);
+    await setActivityPauseState(handle, testActivityId, false);
+    await handle.signal(proceedSignal);
+
+    await waitUntil(async () => handle.query(activityStartedQuery, 2), 5000);
+    await setActivityPauseState(handle, `${testActivityId}-2`, true);
+    await waitUntil(async () => checkHeartbeatDetailsExist(handle, `${testActivityId}-2`), 5000);
+    await setActivityPauseState(handle, `${testActivityId}-2`, false);
+    await handle.signal(proceedSignal);
+
+    const result = await handle.result();
+    // Undefined values are converted to null by data converter.
+    t.true(result[0] === null);
+    t.true(result[1] === null);
   });
 });
