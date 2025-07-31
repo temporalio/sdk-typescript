@@ -77,11 +77,11 @@ import {
   LogMetadata,
   MetricMeter,
   Priority,
-  ActivityCancellationDetailsHolder,
   ActivityCancellationDetails,
 } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
 
 export {
   ActivityFunction,
@@ -364,7 +364,13 @@ export class Context {
     return Promise.race([this.cancelled.finally(() => clearTimeout(handle)), timer]);
   };
 
-  public cancellationDetails(): ActivityCancellationDetails | undefined {
+  /**
+   * Return the cancellation details for this activity, if any.
+   * @returns an object with boolean properties that describes the reason for cancellation, or undefined if not cancelled.
+   *
+   * @experimental Activity cancellation details include usage of experimental features such as activity pause, and may be subject to change.
+   */
+  public get cancellationDetails(): ActivityCancellationDetails | undefined {
     return this._cancellationDetails.details;
   }
 }
@@ -448,10 +454,13 @@ export function cancelled(): Promise<never> {
 }
 
 /**
- * Returns the cancellation details for this activity, if any.
+ * Return the cancellation details for this activity, if any.
+ * @returns an object with boolean properties that describes the reason for cancellation, or undefined if not cancelled.
+ *
+ * @experimental Activity cancellation details include usage of experimental features such as activity pause, and may be subject to change.
  */
 export function cancellationDetails(): ActivityCancellationDetails | undefined {
-  return Context.current().cancellationDetails();
+  return Context.current().cancellationDetails;
 }
 
 /**

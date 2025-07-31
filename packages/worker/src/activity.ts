@@ -2,7 +2,6 @@ import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-
 import { asyncLocalStorage, CompleteAsyncError, Context, Info } from '@temporalio/activity';
 import {
   ActivityCancellationDetails,
-  ActivityCancellationDetailsHolder,
   ActivityFunction,
   ApplicationFailure,
   ApplicationFailureCategory,
@@ -21,6 +20,7 @@ import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { Logger, LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
 import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
 import { coresdk } from '@temporalio/proto';
+import { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
 import {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
@@ -144,7 +144,7 @@ export class Activity {
         (error instanceof CancelledFailure || isAbortError(error)) &&
         this.context.cancellationSignal.aborted
       ) {
-        if (this.context.cancellationDetails()?.paused) {
+        if (this.context.cancellationDetails?.paused) {
           this.workerLogger.debug('Activity paused', { durationMs });
         } else {
           this.workerLogger.debug('Activity completed as cancelled', { durationMs });
@@ -187,7 +187,7 @@ export class Activity {
           // Either a CancelledFailure that we threw or AbortError from AbortController
           if (err instanceof CancelledFailure) {
             // If cancel due to activity pause, emit an application failure for the pause.
-            if (this.context.cancellationDetails()?.paused) {
+            if (this.context.cancellationDetails?.paused) {
               return {
                 failed: {
                   failure: await encodeErrorToFailure(
