@@ -19,7 +19,6 @@ env:
 
   # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
   # TESTS_CLI_VERSION: 'v0.13.2'
-  TESTS_CLI_VERSION: 'v1.3.1-persistence-fix.0'
   # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
