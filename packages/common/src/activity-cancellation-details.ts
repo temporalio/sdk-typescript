@@ -1,5 +1,6 @@
 import type { coresdk } from '@temporalio/proto';
 
+// ts-prune-ignore-next
 export interface ActivityCancellationDetailsHolder {
   details?: ActivityCancellationDetails;
 }
