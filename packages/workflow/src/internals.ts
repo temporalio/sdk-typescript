@@ -20,6 +20,7 @@ import {
   WorkflowUpdateValidatorType,
   mapFromPayloads,
   fromPayloadsAtIndex,
+  RawValue,
   WorkflowFunctionWithOptions,
   VersioningBehavior,
   WorkflowDefinitionOptions,
@@ -41,13 +42,13 @@ import {
   DefaultSignalHandler,
   StackTraceSDKInfo,
   StackTraceFileSlice,
-  EnhancedStackTrace,
   StackTraceFileLocation,
   WorkflowInfo,
   WorkflowCreateOptionsInternal,
   ActivationCompletion,
   DefaultUpdateHandler,
   DefaultQueryHandler,
+  EnhancedStackTrace,
 } from './interfaces';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
@@ -263,9 +264,11 @@ export class Activator implements ActivationHandler {
       '__stack_trace',
       {
         handler: () => {
-          return this.getStackTraces()
-            .map((s) => s.formatted)
-            .join('\n\n');
+          return new RawValue<string>(
+            this.getStackTraces()
+              .map((s) => s.formatted)
+              .join('\n\n')
+          );
         },
         description: 'Returns a sensible stack trace.',
       },
@@ -273,7 +276,7 @@ export class Activator implements ActivationHandler {
     [
       '__enhanced_stack_trace',
       {
-        handler: (): EnhancedStackTrace => {
+        handler: (): RawValue => {
           const { sourceMap } = this;
           const sdk: StackTraceSDKInfo = { name: 'typescript', version: pkg.version };
           const stacks = this.getStackTraces().map(({ structured: locations }) => ({ locations }));
@@ -293,7 +296,7 @@ export class Activator implements ActivationHandler {
               }
             }
           }
-          return { sdk, stacks, sources };
+          return new RawValue<EnhancedStackTrace>({ sdk, stacks, sources });
         },
         description: 'Returns a stack trace annotated with source information.',
       },
@@ -301,7 +304,7 @@ export class Activator implements ActivationHandler {
     [
       '__temporal_workflow_metadata',
       {
-        handler: (): temporal.api.sdk.v1.IWorkflowMetadata => {
+        handler: (): RawValue => {
           const workflowType = this.info.workflowType;
           const queryDefinitions = Array.from(this.queryHandlers.entries()).map(([name, value]) => ({
             name,
@@ -315,14 +318,14 @@ export class Activator implements ActivationHandler {
             name,
             description: value.description,
           }));
-          return {
+          return new RawValue<temporal.api.sdk.v1.IWorkflowMetadata>({
             definition: {
               type: workflowType,
               queryDefinitions,
               signalDefinitions,
               updateDefinitions,
             },
-          };
+          });
         },
         description: 'Returns metadata associated with this workflow.',
       },
