@@ -935,10 +935,7 @@ export function compileWorkerOptions(
   // Validate sink names to ensure they don't use reserved prefixes/names
   if (rawOpts.sinks) {
     for (const sinkName of Object.keys(rawOpts.sinks)) {
-      // Allow internal sinks used by the SDK
-      if (sinkName !== '__temporal_logger' && sinkName !== '__temporal_metrics') {
-        throwIfReservedName('sink', sinkName);
-      }
+      throwIfReservedName('sink', sinkName);
     }
   }
 
