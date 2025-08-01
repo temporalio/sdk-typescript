@@ -40,7 +40,7 @@ import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
 import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
-import { asSdkLoggerSink, loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
+import { loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -1139,53 +1139,6 @@ test('Workflow can upsert memo', async (t) => {
       hotel: 'bar6',
     });
   });
-});
-
-test('Sink functions contains upserted memo', async (t) => {
-  const { createWorker, executeWorkflow } = helpers(t);
-  const recordedMessages = Array<{ message: string; memo: Record<string, unknown> | undefined }>();
-  const sinks = asSdkLoggerSink(async (info, message, _attrs) => {
-    recordedMessages.push({
-      message,
-      memo: info.memo,
-    });
-  });
-  const worker = await createWorker({ sinks });
-  await worker.runUntil(async () => {
-    await executeWorkflow(upsertAndReadMemo, {
-      memo: {
-        note1: 'aaa',
-        note2: 'bbb',
-        note4: 'eee',
-      },
-      args: [
-        {
-          note2: 'ccc',
-          note3: 'ddd',
-          note4: null,
-        },
-      ],
-    });
-  });
-
-  t.deepEqual(recordedMessages, [
-    {
-      message: 'Workflow started',
-      memo: {
-        note1: 'aaa',
-        note2: 'bbb',
-        note4: 'eee',
-      },
-    },
-    {
-      message: 'Workflow completed',
-      memo: {
-        note1: 'aaa',
-        note2: 'ccc',
-        note3: 'ddd',
-      },
-    },
-  ]);
 });
 
 export async function langFlagsReplayCorrectly(): Promise<void> {

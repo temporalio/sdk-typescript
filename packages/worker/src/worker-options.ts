@@ -698,8 +698,9 @@ export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
   // eslint-disable-next-line deprecation/deprecation
   if (!logger) return {} as InjectedSinks<LoggerSinks>;
 
-  // eslint-disable-next-line deprecation/deprecation
-  return initLoggerSink(logger) as unknown as InjectedSinks<LoggerSinks>;
+  // Register the logger sink with its historical name
+  const { __temporal_logger: defaultWorkerLogger } = initLoggerSink(logger);
+  return { defaultWorkerLogger } satisfies InjectedSinks<LoggerSinks>; // eslint-disable-line deprecation/deprecation
 }
 
 /**
