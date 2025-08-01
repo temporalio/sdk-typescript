@@ -32,8 +32,8 @@ import {
 } from '@temporalio/common';
 import {
   TEMPORAL_RESERVED_PREFIX,
-  STACK_TRACE_RESERVED_NAME,
-  ENHANCED_STACK_TRACE_RESERVED_NAME,
+  STACK_TRACE_QUERY_NAME,
+  ENHANCED_STACK_TRACE_QUERY_NAME,
 } from '@temporalio/common/lib/reserved';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
@@ -1456,7 +1456,7 @@ test('Workflow can return root workflow', async (t) => {
   });
 });
 
-const reservedNames = [TEMPORAL_RESERVED_PREFIX, STACK_TRACE_RESERVED_NAME, ENHANCED_STACK_TRACE_RESERVED_NAME];
+const reservedNames = [TEMPORAL_RESERVED_PREFIX, STACK_TRACE_QUERY_NAME, ENHANCED_STACK_TRACE_QUERY_NAME];
 
 test('Cannot register activities using reserved prefixes', async (t) => {
   const { createWorker } = helpers(t);

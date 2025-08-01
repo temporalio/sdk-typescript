@@ -34,8 +34,8 @@ import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflo
 import type { coresdk, temporal } from '@temporalio/proto';
 import {
   TEMPORAL_RESERVED_PREFIX,
-  STACK_TRACE_RESERVED_NAME,
-  ENHANCED_STACK_TRACE_RESERVED_NAME,
+  STACK_TRACE_QUERY_NAME,
+  ENHANCED_STACK_TRACE_QUERY_NAME,
 } from '@temporalio/common/lib/reserved';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
@@ -266,7 +266,7 @@ export class Activator implements ActivationHandler {
    */
   public readonly queryHandlers = new Map<string, WorkflowQueryAnnotatedType>([
     [
-      STACK_TRACE_RESERVED_NAME,
+      STACK_TRACE_QUERY_NAME,
       {
         handler: () => {
           return new RawValue<string>(
@@ -279,7 +279,7 @@ export class Activator implements ActivationHandler {
       },
     ],
     [
-      ENHANCED_STACK_TRACE_RESERVED_NAME,
+      ENHANCED_STACK_TRACE_QUERY_NAME,
       {
         handler: (): RawValue => {
           const { sourceMap } = this;
@@ -695,8 +695,8 @@ export class Activator implements ActivationHandler {
     // Skip interceptors if it's an internal query.
     const isInternalQuery =
       queryType.startsWith(TEMPORAL_RESERVED_PREFIX) ||
-      queryType === STACK_TRACE_RESERVED_NAME ||
-      queryType === ENHANCED_STACK_TRACE_RESERVED_NAME;
+      queryType === STACK_TRACE_QUERY_NAME ||
+      queryType === ENHANCED_STACK_TRACE_QUERY_NAME;
     const interceptors = isInternalQuery ? [] : this.interceptors.inbound;
     const execute = composeInterceptors(interceptors, 'handleQuery', this.queryWorkflowNextHandler.bind(this));
     execute({
@@ -730,8 +730,8 @@ export class Activator implements ActivationHandler {
     // Skip interceptors if it's an internal update.
     const isInternalUpdate =
       name.startsWith(TEMPORAL_RESERVED_PREFIX) ||
-      name === STACK_TRACE_RESERVED_NAME ||
-      name === ENHANCED_STACK_TRACE_RESERVED_NAME;
+      name === STACK_TRACE_QUERY_NAME ||
+      name === ENHANCED_STACK_TRACE_QUERY_NAME;
     const interceptors = isInternalUpdate ? [] : this.interceptors.inbound;
 
     const entry =
@@ -896,8 +896,8 @@ export class Activator implements ActivationHandler {
     // Skip interceptors if it's an internal signal.
     const isInternalSignal =
       signalName.startsWith(TEMPORAL_RESERVED_PREFIX) ||
-      signalName === STACK_TRACE_RESERVED_NAME ||
-      signalName === ENHANCED_STACK_TRACE_RESERVED_NAME;
+      signalName === STACK_TRACE_QUERY_NAME ||
+      signalName === ENHANCED_STACK_TRACE_QUERY_NAME;
     const interceptors = isInternalSignal ? [] : this.interceptors.inbound;
 
     if (!this.signalHandlers.has(signalName) && !this.defaultSignalHandler) {

@@ -1,6 +1,6 @@
 export const TEMPORAL_RESERVED_PREFIX = '__temporal_';
-export const STACK_TRACE_RESERVED_NAME = '__stack_trace';
-export const ENHANCED_STACK_TRACE_RESERVED_NAME = '__enhanced_stack_trace';
+export const STACK_TRACE_QUERY_NAME = '__stack_trace';
+export const ENHANCED_STACK_TRACE_QUERY_NAME = '__enhanced_stack_trace';
 
 /**
  * Valid entity types that can be checked for reserved name violations
@@ -20,7 +20,7 @@ export function throwIfReservedName(type: ReservedNameEntityType, name: string):
     throw new TypeError(`Cannot use ${type} name: '${name}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`);
   }
 
-  if (name === STACK_TRACE_RESERVED_NAME || name === ENHANCED_STACK_TRACE_RESERVED_NAME) {
+  if (name === STACK_TRACE_QUERY_NAME || name === ENHANCED_STACK_TRACE_QUERY_NAME) {
     throw new TypeError(`Cannot use ${type} name: '${name}', which is a reserved name`);
   }
 }

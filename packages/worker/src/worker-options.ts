@@ -932,6 +932,16 @@ export function compileWorkerOptions(
   logger: Logger,
   metricMeter: MetricMeter
 ): CompiledWorkerOptions {
+  // Validate sink names to ensure they don't use reserved prefixes/names
+  if (rawOpts.sinks) {
+    for (const sinkName of Object.keys(rawOpts.sinks)) {
+      // Allow internal sinks used by the SDK
+      if (sinkName !== '__temporal_logger' && sinkName !== '__temporal_metrics') {
+        throwIfReservedName('sink', sinkName);
+      }
+    }
+  }
+
   const opts = addDefaultWorkerOptions(rawOpts, logger, metricMeter);
   if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
     logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
@@ -956,16 +966,6 @@ export function compileWorkerOptions(
   const activities = new Map(Object.entries(opts.activities ?? {}).filter(([_, v]) => typeof v === 'function'));
   for (const activityName of activities.keys()) {
     throwIfReservedName('activity', activityName);
-  }
-
-  // Validate sink names to ensure they don't use reserved prefixes/names
-  if (opts.sinks) {
-    for (const sinkName of Object.keys(opts.sinks)) {
-      // Allow internal sinks used by the SDK
-      if (sinkName !== '__temporal_logger' && sinkName !== '__temporal_metrics') {
-        throwIfReservedName('sink', sinkName);
-      }
-    }
   }
 
   const tuner = asNativeTuner(opts.tuner, logger);
