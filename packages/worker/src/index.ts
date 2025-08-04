@@ -35,6 +35,7 @@ export {
 } from './runtime-options';
 export * from './sinks';
 export { DataConverter, defaultPayloadConverter, State, Worker, WorkerStatus } from './worker';
+export { Plugin, buildWorkerPluginChain, type WorkerConfig } from './plugin';
 export {
   CompiledWorkerOptions,
   ReplayWorkerOptions,

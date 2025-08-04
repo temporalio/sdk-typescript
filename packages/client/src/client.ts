@@ -6,6 +6,7 @@ import { ScheduleClient } from './schedule-client';
 import { QueryRejectCondition, WorkflowService } from './types';
 import { WorkflowClient } from './workflow-client';
 import { TaskQueueClient } from './task-queue-client';
+import { Plugin, buildPluginChain, type ClientConfig } from './plugin';
 
 export interface ClientOptions extends BaseClientOptions {
   /**
@@ -14,6 +15,15 @@ export interface ClientOptions extends BaseClientOptions {
    * Useful for injecting auth headers and tracing Workflow executions
    */
   interceptors?: ClientInterceptors;
+
+  /**
+   * List of plugins to register with the client.
+   * 
+   * Plugins allow you to extend and customize the behavior of Temporal clients through a chain of
+   * responsibility pattern. They can intercept and modify client creation, service connections,
+   * and other client operations.
+   */
+  plugins?: Plugin[];
 
   workflow?: {
     /**
@@ -32,6 +42,21 @@ export type LoadedClientOptions = LoadedWithDefaults<ClientOptions>;
  */
 export class Client extends BaseClient {
   public readonly options: LoadedClientOptions;
+
+  /**
+   * Apply plugins to client options
+   */
+  private static applyPlugins(options?: ClientOptions): ClientOptions {
+    if (!options?.plugins?.length) {
+      return options ?? {};
+    }
+
+    const pluginChain = buildPluginChain(options.plugins);
+    const clientConfig: ClientConfig = { ...options };
+    const processedConfig = pluginChain.configureClient(clientConfig);
+    
+    return { ...processedConfig };
+  }
   /**
    * Workflow sub-client - use to start and interact with Workflows
    */
@@ -52,9 +77,12 @@ export class Client extends BaseClient {
   public readonly taskQueue: TaskQueueClient;
 
   constructor(options?: ClientOptions) {
-    super(options);
+    // Process plugins first to allow them to modify configuration
+    const processedOptions = Client.applyPlugins(options);
+    
+    super(processedOptions);
 
-    const { interceptors, workflow, ...commonOptions } = options ?? {};
+    const { interceptors, workflow, plugins, ...commonOptions } = processedOptions ?? {};
 
     this.workflow = new WorkflowClient({
       ...commonOptions,
