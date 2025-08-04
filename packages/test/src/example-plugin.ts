@@ -1,5 +1,5 @@
-import { Plugin as ClientPlugin, ClientConfig } from '@temporalio/client';
-import { Plugin as WorkerPlugin, WorkerConfig } from '@temporalio/worker';
+import { ClientOptions } from '@temporalio/client';
+import { Plugin, WorkerOptions } from '@temporalio/worker';
 
 /**
  * Example plugin that demonstrates how to extend both client and worker functionality.
@@ -10,7 +10,7 @@ import { Plugin as WorkerPlugin, WorkerConfig } from '@temporalio/worker';
  * 3. Adds logging functionality
  * 4. Demonstrates the chain of responsibility pattern
  */
-export class ExamplePlugin extends WorkerPlugin {
+export class ExamplePlugin extends Plugin {
   private readonly customMetadata: Record<string, string>;
   private readonly taskQueuePrefix: string;
 
@@ -23,7 +23,7 @@ export class ExamplePlugin extends WorkerPlugin {
   /**
    * Configure client with custom metadata and logging
    */
-  configureClient(config: ClientConfig): ClientConfig {
+  configureClient(config: ClientOptions): ClientOptions {
     console.log('ExamplePlugin: Configuring client');
     
     // Add custom metadata to connection if it exists
@@ -49,7 +49,7 @@ export class ExamplePlugin extends WorkerPlugin {
   /**
    * Configure worker with custom task queue and additional settings
    */
-  configureWorker(config: WorkerConfig): WorkerConfig {
+  configureWorker(config: WorkerOptions): WorkerOptions {
     console.log('ExamplePlugin: Configuring worker');
     
     // Modify task queue name with prefix
@@ -72,15 +72,15 @@ export class ExamplePlugin extends WorkerPlugin {
 /**
  * Another example plugin that demonstrates plugin chaining
  */
-export class LoggingPlugin extends WorkerPlugin {
-  configureClient(config: ClientConfig): ClientConfig {
+export class LoggingPlugin extends Plugin {
+  configureClient(config: ClientOptions): ClientOptions {
     console.log('LoggingPlugin: Client configuration intercepted');
     console.log('LoggingPlugin: Client namespace:', config.namespace);
     
     return super.configureClient(config);
   }
 
-  configureWorker(config: WorkerConfig): WorkerConfig {
+  configureWorker(config: WorkerOptions): WorkerOptions {
     console.log('LoggingPlugin: Worker configuration intercepted');
     console.log('LoggingPlugin: Worker task queue:', config.taskQueue);
     console.log('LoggingPlugin: Worker namespace:', config.namespace);
@@ -135,7 +135,7 @@ export async function exampleWorkerUsage() {
 /**
  * Example plugin that could add custom activities
  */
-export class ActivityPlugin extends WorkerPlugin {
+export class ActivityPlugin extends Plugin {
   private activities: Record<string, Function>;
 
   constructor(activities: Record<string, Function>) {
@@ -143,7 +143,7 @@ export class ActivityPlugin extends WorkerPlugin {
     this.activities = activities;
   }
 
-  configureWorker(config: WorkerConfig): WorkerConfig {
+  configureWorker(config: WorkerOptions): WorkerOptions {
     console.log('ActivityPlugin: Adding custom activities');
     
     // Merge custom activities with existing ones

@@ -49,12 +49,7 @@ export abstract class Plugin {
   /**
    * Hook called when creating a client to allow modification of configuration.
    */
-  configureClient(config: ClientConfig): ClientConfig;
-
-  /**
-   * Hook called when connecting to the Temporal service.
-   */
-  async connectServiceClient(config: ConnectionOptions): Promise<ConnectionLike>;
+  configureClient(config: ClientOptions): ClientOptions;
 }
 ```
 
@@ -85,7 +80,7 @@ export abstract class Plugin extends ClientPlugin {
   /**
    * Hook called when creating a worker to allow modification of configuration.
    */
-  configureWorker(config: WorkerConfig): WorkerConfig;
+  configureWorker(config: WorkerOptions): WorkerOptions;
 }
 ```
 
@@ -97,7 +92,7 @@ export abstract class Plugin extends ClientPlugin {
 import { Plugin, Client } from '@temporalio/client';
 
 class CustomClientPlugin extends Plugin {
-  configureClient(config: ClientConfig): ClientConfig {
+  configureClient(config: ClientOptions): ClientOptions {
     // Add custom metadata
     console.log('Configuring client with custom settings');
     
@@ -125,7 +120,7 @@ const client = new Client({
 import { Plugin, Worker } from '@temporalio/worker';
 
 class CustomWorkerPlugin extends Plugin {
-  configureWorker(config: WorkerConfig): WorkerConfig {
+  configureWorker(config: WorkerOptions): WorkerOptions {
     // Modify task queue name
     const taskQueue = config.taskQueue ? `custom-${config.taskQueue}` : config.taskQueue;
     
@@ -197,19 +192,19 @@ const worker = await Worker.create({
 
 ```typescript
 class LoggingPlugin extends Plugin {
-  configureClient(config: ClientConfig): ClientConfig {
+  configureClient(config: ClientOptions): ClientOptions {
     console.log('LoggingPlugin: Client configuration');
     return super.configureClient(config);
   }
 
-  configureWorker(config: WorkerConfig): WorkerConfig {
+  configureWorker(config: WorkerOptions): WorkerOptions {
     console.log('LoggingPlugin: Worker configuration');
     return super.configureWorker(config);
   }
 }
 
 class MetricsPlugin extends Plugin {
-  configureClient(config: ClientConfig): ClientConfig {
+  configureClient(config: ClientOptions): ClientOptions {
     console.log('MetricsPlugin: Adding metrics interceptors');
     // Add metrics interceptors
     return super.configureClient(config);
@@ -272,7 +267,7 @@ private static applyPlugins(options?: ClientOptions): ClientOptions {
   }
 
   const pluginChain = buildPluginChain(options.plugins);
-  const clientConfig: ClientConfig = { ...options };
+  const clientConfig: ClientOptions = { ...options };
   const processedConfig = pluginChain.configureClient(clientConfig);
   
   return { ...processedConfig };

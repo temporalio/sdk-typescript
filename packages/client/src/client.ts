@@ -6,7 +6,7 @@ import { ScheduleClient } from './schedule-client';
 import { QueryRejectCondition, WorkflowService } from './types';
 import { WorkflowClient } from './workflow-client';
 import { TaskQueueClient } from './task-queue-client';
-import { Plugin, buildPluginChain, type ClientConfig } from './plugin';
+import { Plugin, buildPluginChain } from './plugin';
 
 export interface ClientOptions extends BaseClientOptions {
   /**
@@ -20,8 +20,7 @@ export interface ClientOptions extends BaseClientOptions {
    * List of plugins to register with the client.
    * 
    * Plugins allow you to extend and customize the behavior of Temporal clients through a chain of
-   * responsibility pattern. They can intercept and modify client creation, service connections,
-   * and other client operations.
+   * responsibility pattern. They can intercept and modify client creation.
    */
   plugins?: Plugin[];
 
@@ -52,7 +51,7 @@ export class Client extends BaseClient {
     }
 
     const pluginChain = buildPluginChain(options.plugins);
-    const clientConfig: ClientConfig = { ...options };
+    const clientConfig: ClientOptions = { ...options };
     const processedConfig = pluginChain.configureClient(clientConfig);
     
     return { ...processedConfig };
@@ -123,6 +122,7 @@ export class Client extends BaseClient {
       workflow: {
         queryRejectCondition: this.workflow.options.queryRejectCondition,
       },
+      plugins: plugins ?? [],
     };
   }
 

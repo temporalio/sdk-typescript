@@ -1,11 +1,5 @@
 import type { NativeConnection } from './connection';
-
-export interface WorkerConfig {
-  connection?: NativeConnection;
-  taskQueue?: string;
-  namespace?: string;
-  [key: string]: any;
-}
+import type { WorkerOptions } from './worker-options';
 
 /**
  * Base Plugin class for both client and worker functionality.
@@ -100,7 +94,7 @@ export abstract class Plugin {
    * Returns:
    *   The modified worker configuration.
    */
-  configureWorker(config: WorkerConfig): WorkerConfig {
+  configureWorker(config: WorkerOptions): WorkerOptions {
     return this.nextWorkerPlugin?.configureWorker(config) ?? config;
   }
 }
@@ -110,7 +104,7 @@ export abstract class Plugin {
  * This is the final plugin in the chain and provides the actual implementation.
  */
 class _RootWorkerPlugin extends Plugin {
-  configureWorker(config: WorkerConfig): WorkerConfig {
+  configureWorker(config: WorkerOptions): WorkerOptions {
     return config;
   }
 }

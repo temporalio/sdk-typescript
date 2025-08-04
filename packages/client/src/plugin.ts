@@ -1,10 +1,6 @@
 import type { ConnectionLike } from './types';
 import { Connection, type ConnectionOptions } from './connection';
-
-export interface ClientConfig {
-  connection?: ConnectionLike;
-  [key: string]: any;
-}
+import type { ClientOptions } from './client';
 
 /**
  * Abstract base class for Temporal plugins.
@@ -68,25 +64,8 @@ export abstract class Plugin {
    * Returns:
    *   The modified client configuration.
    */
-  configureClient(config: ClientConfig): ClientConfig {
+  configureClient(config: ClientOptions): ClientOptions {
     return this.nextClientPlugin?.configureClient(config) ?? config;
-  }
-
-  /**
-   * Hook called when connecting to the Temporal service.
-   * 
-   * This method is called during service client connection and allows plugins
-   * to intercept or modify the connection process. Plugins can modify connection
-   * parameters, add authentication, or provide custom connection logic.
-   * 
-   * Args:
-   *   config: The service connection configuration.
-   * 
-   * Returns:
-   *   The connected service client.
-   */
-  async connectServiceClient(config: ConnectionOptions): Promise<ConnectionLike> {
-    return this.nextClientPlugin?.connectServiceClient(config) ?? Connection.connect(config);
   }
 }
 
@@ -95,12 +74,8 @@ export abstract class Plugin {
  * This is the final plugin in the chain and provides the actual implementation.
  */
 class _RootPlugin extends Plugin {
-  configureClient(config: ClientConfig): ClientConfig {
+  configureClient(config: ClientOptions): ClientOptions {
     return config;
-  }
-
-  async connectServiceClient(config: ConnectionOptions): Promise<ConnectionLike> {
-    return Connection.connect(config);
   }
 }
 
