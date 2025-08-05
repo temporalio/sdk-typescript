@@ -35,6 +35,12 @@ export interface WorkflowStartUpdateInput {
   readonly options: WorkflowUpdateOptions;
 }
 
+/** Output for WorkflowClientInterceptor.startWithDetails */
+export interface WorkflowStartOutput {
+  readonly runId: string;
+  readonly eagerlyStarted: boolean;
+}
+
 /** Output for WorkflowClientInterceptor.startUpdate */
 export interface WorkflowStartUpdateOutput {
   readonly updateId: string;
@@ -120,6 +126,18 @@ export interface WorkflowClientInterceptor {
    * {@link signalWithStart} most likely needs to be implemented too
    */
   start?: (input: WorkflowStartInput, next: Next<this, 'start'>) => Promise<string /* runId */>;
+
+  /**
+   * Intercept a service call to startWorkflowExecution
+   *
+   * Successor to {@link start}. Unlike {@link start}, this method returns
+   * start details via {@link WorkflowStartOutput}.
+   *
+   * If you implement this method,
+   * {@link signalWithStart} most likely needs to be implemented too
+   */
+  startWithDetails?: (input: WorkflowStartInput, next: Next<this, 'startWithDetails'>) => Promise<WorkflowStartOutput>;
+
   /**
    * Intercept a service call to updateWorkflowExecution
    */

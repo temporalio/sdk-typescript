@@ -59,6 +59,7 @@ import {
   WorkflowStartUpdateOutput,
   WorkflowStartUpdateWithStartInput,
   WorkflowStartUpdateWithStartOutput,
+  WorkflowStartOutput,
 } from './interceptors';
 import {
   CountWorkflowExecution,
@@ -258,6 +259,15 @@ export interface WorkflowHandleWithFirstExecutionRunId<T extends Workflow = Work
    * Run Id of the first Execution in the Workflow Execution Chain.
    */
   readonly firstExecutionRunId: string;
+}
+
+/**
+ * This interface is exactly the same as {@link WorkflowHandleWithFirstExecutionRunId} except it
+ * includes the `eagerlyStarted` returned from {@link WorkflowClient.start}.
+ */
+export interface WorkflowHandleWithStartDetails<T extends Workflow = Workflow>
+  extends WorkflowHandleWithFirstExecutionRunId<T> {
+  readonly eagerlyStarted: boolean;
 }
 
 /**
@@ -511,14 +521,22 @@ export class WorkflowClient extends BaseClient {
     workflowTypeOrFunc: string | T,
     options: WithWorkflowArgs<T, WorkflowOptions>,
     interceptors: WorkflowClientInterceptor[]
-  ): Promise<string> {
+  ): Promise<WorkflowStartOutput> {
     const workflowType = extractWorkflowType(workflowTypeOrFunc);
     assertRequiredWorkflowOptions(options);
     const compiledOptions = compileWorkflowOptions(ensureArgs(options));
 
-    const start = composeInterceptors(interceptors, 'start', this._startWorkflowHandler.bind(this));
+    const adaptedInterceptors: WorkflowClientInterceptor[] = interceptors.map((i) =>
+      i.startWithDetails ? i : { ...i, startWithDetails: (input, next) => next(input) }
+    );
 
-    return start({
+    const startWithDetails = composeInterceptors(
+      adaptedInterceptors,
+      'startWithDetails',
+      this._startWorkflowHandler.bind(this)
+    );
+
+    return startWithDetails({
       options: compiledOptions,
       headers: {},
       workflowType,
@@ -534,7 +552,6 @@ export class WorkflowClient extends BaseClient {
     const { signal, signalArgs, ...rest } = options;
     assertRequiredWorkflowOptions(rest);
     const compiledOptions = compileWorkflowOptions(ensureArgs(rest));
-
     const signalWithStart = composeInterceptors(
       interceptors,
       'signalWithStart',
@@ -558,22 +575,25 @@ export class WorkflowClient extends BaseClient {
   public async start<T extends Workflow>(
     workflowTypeOrFunc: string | T,
     options: WorkflowStartOptions<T>
-  ): Promise<WorkflowHandleWithFirstExecutionRunId<T>> {
+  ): Promise<WorkflowHandleWithStartDetails<T>> {
     const { workflowId } = options;
     const interceptors = this.getOrMakeInterceptors(workflowId);
-    const runId = await this._start(workflowTypeOrFunc, { ...options, workflowId }, interceptors);
+    const wfStartOutput = await this._start(workflowTypeOrFunc, { ...options, workflowId }, interceptors);
     // runId is not used in handles created with `start*` calls because these
     // handles should allow interacting with the workflow if it continues as new.
-    const handle = this._createWorkflowHandle({
+    const baseHandle = this._createWorkflowHandle({
       workflowId,
       runId: undefined,
-      firstExecutionRunId: runId,
-      runIdForResult: runId,
+      firstExecutionRunId: wfStartOutput.runId,
+      runIdForResult: wfStartOutput.runId,
       interceptors,
       followRuns: options.followRuns ?? true,
-    }) as WorkflowHandleWithFirstExecutionRunId<T>; // Cast is safe because we know we add the firstExecutionRunId below
-    (handle as any) /* readonly */.firstExecutionRunId = runId;
-    return handle;
+    });
+    return {
+      ...baseHandle,
+      firstExecutionRunId: wfStartOutput.runId,
+      eagerlyStarted: wfStartOutput.eagerlyStarted,
+    };
   }
 
   /**
@@ -1242,11 +1262,15 @@ export class WorkflowClient extends BaseClient {
    *
    * Used as the final function of the start interceptor chain
    */
-  protected async _startWorkflowHandler(input: WorkflowStartInput): Promise<string> {
+  protected async _startWorkflowHandler(input: WorkflowStartInput): Promise<WorkflowStartOutput> {
     const req = await this.createStartWorkflowRequest(input);
     const { options: opts, workflowType } = input;
     try {
-      return (await this.workflowService.startWorkflowExecution(req)).runId;
+      const resp = await this.workflowService.startWorkflowExecution(req);
+      return {
+        runId: resp.runId,
+        eagerlyStarted: resp.eagerWorkflowTask != null,
+      };
     } catch (err: any) {
       if (err.code === grpcStatus.ALREADY_EXISTS) {
         throw new WorkflowExecutionAlreadyStartedError(
@@ -1262,6 +1286,13 @@ export class WorkflowClient extends BaseClient {
   protected async createStartWorkflowRequest(input: WorkflowStartInput): Promise<StartWorkflowExecutionRequest> {
     const { options: opts, workflowType, headers } = input;
     const { identity, namespace } = this.options;
+
+    if (opts.requestEagerStart && !('supportsEagerStart' in this.connection && this.connection.supportsEagerStart)) {
+      throw new Error(
+        'Eager workflow start requires a NativeConnection shared between client and worker. ' +
+          'Pass a NativeConnection via ClientOptions.connection, or disable requestEagerStart.'
+      );
+    }
 
     return {
       namespace,
@@ -1292,6 +1323,7 @@ export class WorkflowClient extends BaseClient {
       header: { fields: headers },
       priority: opts.priority ? compilePriority(opts.priority) : undefined,
       versioningOverride: opts.versioningOverride ?? undefined,
+      requestEagerExecution: opts.requestEagerStart,
     };
   }
 
