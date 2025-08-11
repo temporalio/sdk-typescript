@@ -330,6 +330,7 @@ export class Activator implements ActivationHandler {
               signalDefinitions,
               updateDefinitions,
             },
+            currentDetails: this.currentDetails,
           });
         },
         description: 'Returns metadata associated with this workflow.',
@@ -434,6 +435,8 @@ export class Activator implements ActivationHandler {
   public readonly getTimeOfDay: () => bigint;
 
   public readonly registeredActivityNames: Set<string>;
+
+  public currentDetails: string = '';
 
   public versioningBehavior?: VersioningBehavior;
   public workflowDefinitionOptionsGetter?: () => WorkflowDefinitionOptions;
