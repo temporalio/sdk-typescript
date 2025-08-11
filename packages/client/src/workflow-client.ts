@@ -529,9 +529,40 @@ export class WorkflowClient extends BaseClient {
     assertRequiredWorkflowOptions(options);
     const compiledOptions = compileWorkflowOptions(ensureArgs(options));
 
-    const adaptedInterceptors: WorkflowClientInterceptor[] = interceptors.map((i) =>
-      i.startWithDetails ? i : { ...i, startWithDetails: (input, next) => next(input) }
-    );
+    // Adapt legacy `start` interceptors to the new `startWithDetails` interface.
+    const adaptedInterceptors: WorkflowClientInterceptor[] = interceptors.map((i) => {
+      // If it already has the new method, or doesn't have the legacy one, no adaptation is needed.
+      if (i.startWithDetails || !i.start) {
+        return i;
+      }
+
+      // This interceptor has a legacy `start` but not `startWithDetails`. We'll adapt it.
+      return {
+        ...i,
+        startWithDetails: async (input, next): Promise<WorkflowStartOutput> => {
+          let downstreamOut: WorkflowStartOutput | undefined;
+
+          // Patched `next` for legacy `start` interceptors.
+          // Captures the full `WorkflowStartOutput` while returning `runId` as a string.
+          const patchedNext = async (patchedInput: WorkflowStartInput): Promise<string> => {
+            downstreamOut = await next(patchedInput);
+            return downstreamOut.runId;
+          };
+
+          const runIdFromLegacyInterceptor = await i.start!(input, patchedNext);
+
+          // If the interceptor short-circuited (didn't call `next`), `downstreamOut` will be undefined.
+          // In that case, we can't have an eager start.
+          if (downstreamOut === undefined) {
+            return { runId: runIdFromLegacyInterceptor, eagerlyStarted: false };
+          }
+
+          // If `next` was called, honor the `runId` from the legacy interceptor but preserve
+          // the `eagerlyStarted` status from the actual downstream call.
+          return { ...downstreamOut, runId: runIdFromLegacyInterceptor };
+        },
+      };
+    });
 
     const startWithDetails = composeInterceptors(
       adaptedInterceptors,
