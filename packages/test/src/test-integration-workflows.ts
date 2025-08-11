@@ -1763,23 +1763,17 @@ test('Workflow can be started eagerly with shared NativeConnection', async (t) =
 test('Error thrown when requestEagerStart is used with regular Connection', async (t) => {
   const { taskQueue } = helpers(t);
 
-  // Create a regular connection instead of native
-  const regularConnection = await Connection.connect();
-  const client = new WorkflowClient({ connection: regularConnection });
+  const client = new WorkflowClient({ connection: t.context.env.connection });
 
-  try {
-    await t.throwsAsync(
-      client.start(helloWorkflow, {
-        args: ['Temporal'],
-        workflowId: `eager-workflow-error-${randomUUID()}`,
-        taskQueue,
-        requestEagerStart: true,
-      }),
-      {
-        message: /Eager workflow start requires a NativeConnection/,
-      }
-    );
-  } finally {
-    await regularConnection.close();
-  }
+  await t.throwsAsync(
+    client.start(helloWorkflow, {
+      args: ['Temporal'],
+      workflowId: `eager-workflow-error-${randomUUID()}`,
+      taskQueue,
+      requestEagerStart: true,
+    }),
+    {
+      message: /Eager workflow start requires a NativeConnection/,
+    }
+  );
 });
