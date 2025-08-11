@@ -293,21 +293,6 @@ export async function getRandomPort(fn = (_port: number) => Promise.resolve()): 
   });
 }
 
-export function asSdkLoggerSink(
-  fn: (info: WorkflowInfo, message: string, attrs?: Record<string, unknown>) => Promise<void>,
-  opts?: Omit<worker.InjectedSinkFunction<any>, 'fn'>
-): worker.InjectedSinks<DefaultLoggerSinks> {
-  return {
-    __temporal_logger: {
-      trace: { fn, ...opts },
-      debug: { fn, ...opts },
-      info: { fn, ...opts },
-      warn: { fn, ...opts },
-      error: { fn, ...opts },
-    },
-  };
-}
-
 export async function loadHistory(fname: string): Promise<iface.temporal.api.history.v1.History> {
   const isJson = fname.endsWith('json');
   const fpath = path.resolve(__dirname, `../history_files/${fname}`);

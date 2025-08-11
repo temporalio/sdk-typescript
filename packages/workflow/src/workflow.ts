@@ -35,6 +35,7 @@ import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@t
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
 import { deepMerge } from '@temporalio/common/lib/internal-workflow';
+import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import {
@@ -1367,6 +1368,8 @@ export function setHandler<
   options?: QueryHandlerOptions | SignalHandlerOptions | UpdateHandlerOptions<Args>
 ): void {
   const activator = assertInWorkflowContext('Workflow.setHandler(...) may only be used from a Workflow Execution.');
+  // Cannot register handler for reserved names
+  throwIfReservedName(def.type, def.name);
   const description = options?.description;
   if (def.type === 'update') {
     if (typeof handler === 'function') {
