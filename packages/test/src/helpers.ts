@@ -18,8 +18,7 @@ import {
 } from '@temporalio/testing';
 import * as worker from '@temporalio/worker';
 import { Worker as RealWorker, WorkerOptions } from '@temporalio/worker';
-import { inWorkflowContext, WorkflowInfo } from '@temporalio/workflow';
-import { LoggerSinksInternal as DefaultLoggerSinks } from '@temporalio/workflow/lib/logs';
+import { inWorkflowContext } from '@temporalio/workflow';
 
 export function u8(s: string): Uint8Array {
   // TextEncoder requires lib "dom"

@@ -1,7 +1,7 @@
 import { temporal } from '@temporalio/proto';
-import { PayloadConverter } from './converter/payload-converter';
+import { convertOptionalToPayload, PayloadConverter } from './converter/payload-converter';
 import { LoadedDataConverter } from './converter/data-converter';
-import { encodeOptionalToPayload, decodeOptionalSinglePayload, encodeOptionalSingle } from './internal-non-workflow';
+import { decodeOptionalSinglePayload, encodeOptionalSingle } from './internal-non-workflow';
 
 /**
  * User metadata that can be attached to workflow commands.
@@ -20,8 +20,8 @@ export function userMetadataToPayload(
 ): temporal.api.sdk.v1.IUserMetadata | undefined {
   if (staticSummary == null && staticDetails == null) return undefined;
 
-  const summary = encodeOptionalToPayload(payloadConverter, staticSummary);
-  const details = encodeOptionalToPayload(payloadConverter, staticDetails);
+  const summary = convertOptionalToPayload(payloadConverter, staticSummary);
+  const details = convertOptionalToPayload(payloadConverter, staticDetails);
 
   if (summary == null && details == null) return undefined;
 
@@ -36,14 +36,8 @@ export async function encodeUserMetadata(
   if (staticSummary == null && staticDetails == null) return undefined;
 
   const { payloadConverter, payloadCodecs } = dataConverter;
-  const summary = await encodeOptionalSingle(
-    payloadCodecs,
-    await encodeOptionalToPayload(payloadConverter, staticSummary)
-  );
-  const details = await encodeOptionalSingle(
-    payloadCodecs,
-    await encodeOptionalToPayload(payloadConverter, staticDetails)
-  );
+  const summary = await encodeOptionalSingle(payloadCodecs, convertOptionalToPayload(payloadConverter, staticSummary));
+  const details = await encodeOptionalSingle(payloadCodecs, convertOptionalToPayload(payloadConverter, staticDetails));
 
   if (summary == null && details == null) return undefined;
 
@@ -59,8 +53,6 @@ export async function decodeUserMetadata(
 
   const staticSummary = (await decodeOptionalSinglePayload<string>(dataConverter, metadata.summary)) ?? undefined;
   const staticDetails = (await decodeOptionalSinglePayload<string>(dataConverter, metadata.details)) ?? undefined;
-
-  if (staticSummary == null && staticDetails == null) return res;
 
   return { staticSummary, staticDetails };
 }

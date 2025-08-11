@@ -92,18 +92,6 @@ export async function encodeToPayload(converter: LoadedDataConverter, value: unk
 }
 
 /**
- * Run {@link PayloadConverter.toPayload} on an optional value, and then encode it.
- */
-export function encodeOptionalToPayload(
-  payloadConverter: PayloadConverter,
-  value: unknown
-): Payload | null | undefined {
-  if (value == null) return value;
-
-  return payloadConverter.toPayload(value);
-}
-
-/**
  * Decode `payloads` and then return {@link arrayFromPayloads}`.
  */
 export async function decodeArrayFromPayloads(

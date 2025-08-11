@@ -834,7 +834,7 @@ export async function userMetadataWorkflow(): Promise<{
   // Set current details
   setCurrentDetails('current wf details');
   // Start child workflow
-  const child_handle = await startChild(completableWorkflow, {
+  const childHandle = await startChild(completableWorkflow, {
     args: [false],
     staticDetails: 'child details',
     staticSummary: 'child summary',
@@ -843,8 +843,8 @@ export async function userMetadataWorkflow(): Promise<{
   await condition(() => done);
   return {
     currentDetails: getCurrentDetails(),
-    childWorkflowId: child_handle.workflowId,
-    childRunId: child_handle.firstExecutionRunId,
+    childWorkflowId: childHandle.workflowId,
+    childRunId: childHandle.firstExecutionRunId,
   };
 }
 
@@ -867,18 +867,18 @@ test.serial('User metadata on workflow, timer, activity, child', configMacro, as
     });
     // Describe workflow -> static summary, static details
     const desc = await handle.describe();
-    t.true((await desc.staticSummary()) === 'wf static summary');
-    t.true((await desc.staticDetails()) === 'wf static details');
+    t.is(await desc.staticSummary(), 'wf static summary');
+    t.is(await desc.staticDetails(), 'wf static details');
 
     await handle.signal('done');
     const res = await handle.result();
-    t.true(res.currentDetails === 'current wf details');
+    t.is(res.currentDetails, 'current wf details');
 
     // Get child workflow handle and verify metadata
     const childHandle = env.client.workflow.getHandle(res.childWorkflowId, res.childRunId);
     const childDesc = await childHandle.describe();
-    t.true((await childDesc.staticSummary()) === 'child summary');
-    t.true((await childDesc.staticDetails()) === 'child details');
+    t.is(await childDesc.staticSummary(), 'child summary');
+    t.is(await childDesc.staticDetails(), 'child details');
 
     // Get history events for main workflow.
     const resp = await env.client.workflowService.getWorkflowExecutionHistory({
@@ -929,11 +929,11 @@ test.serial('User metadata on workflow, timer, activity, child', configMacro, as
 
     for (const event of childResp.history?.events ?? []) {
       if (event.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED) {
-        t.deepEqual(
+        t.is(
           await decodeOptionalSinglePayload(env.client.options.loadedDataConverter, event.userMetadata?.summary),
           'child summary'
         );
-        t.deepEqual(
+        t.is(
           await decodeOptionalSinglePayload(env.client.options.loadedDataConverter, event.userMetadata?.details),
           'child details'
         );
@@ -941,10 +941,10 @@ test.serial('User metadata on workflow, timer, activity, child', configMacro, as
     }
     // Run metadata query -> get current details
     const wfMetadata = (await handle.query('__temporal_workflow_metadata')) as temporal.api.sdk.v1.IWorkflowMetadata;
-    t.deepEqual(wfMetadata.definition?.signalDefinitions?.length, 1);
-    t.deepEqual(wfMetadata.definition?.signalDefinitions?.[0].name, 'done');
-    t.deepEqual(wfMetadata.definition?.signalDefinitions?.[0].description, 'signal-desc');
-    t.deepEqual(wfMetadata.definition?.queryDefinitions?.length, 3); // default queries
-    t.deepEqual(wfMetadata.currentDetails, 'current wf details');
+    t.is(wfMetadata.definition?.signalDefinitions?.length, 1);
+    t.is(wfMetadata.definition?.signalDefinitions?.[0].name, 'done');
+    t.is(wfMetadata.definition?.signalDefinitions?.[0].description, 'signal-desc');
+    t.is(wfMetadata.definition?.queryDefinitions?.length, 3); // default queries
+    t.is(wfMetadata.currentDetails, 'current wf details');
   });
 });
