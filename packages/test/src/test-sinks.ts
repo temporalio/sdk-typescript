@@ -6,7 +6,7 @@ import { DefaultLogger, InjectedSinks, Runtime, WorkerOptions, LogEntry, NativeC
 import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import { UnsafeWorkflowInfo } from '@temporalio/workflow/lib/interfaces';
 import { SdkComponent, TypedSearchAttributes } from '@temporalio/common';
-import { RUN_INTEGRATION_TESTS, Worker, asSdkLoggerSink, registerDefaultCustomSearchAttributes } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker, registerDefaultCustomSearchAttributes } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 
@@ -388,12 +388,19 @@ if (RUN_INTEGRATION_TESTS) {
     const taskQueue = `${__filename}-${t.title}`;
 
     const recordedMessages = Array<{ message: string; searchAttributes: SearchAttributes }>(); // eslint-disable-line deprecation/deprecation
-    const sinks = asSdkLoggerSink(async (info, message, _attrs) => {
-      recordedMessages.push({
-        message,
-        searchAttributes: info.searchAttributes, // eslint-disable-line deprecation/deprecation
-      });
-    });
+    const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
+      customLogger: {
+        info: {
+          fn: async (info, message) => {
+            recordedMessages.push({
+              message,
+              searchAttributes: info.searchAttributes, // eslint-disable-line deprecation/deprecation
+            });
+          },
+          callDuringReplay: false,
+        },
+      },
+    };
 
     const client = new WorkflowClient();
     const date = new Date();
@@ -413,17 +420,81 @@ if (RUN_INTEGRATION_TESTS) {
 
     t.deepEqual(recordedMessages, [
       {
-        message: 'Workflow started',
+        message: 'Before upsert',
         searchAttributes: {},
       },
       {
-        message: 'Workflow completed',
+        message: 'After upsert',
         searchAttributes: {
           CustomBoolField: [true],
           CustomKeywordField: ['durable code'],
           CustomTextField: ['is useful'],
           CustomDatetimeField: [date],
           CustomDoubleField: [3.14],
+        },
+      },
+    ]);
+  });
+
+  test('Sink functions contains upserted memo', async (t) => {
+    const taskQueue = `${__filename}-${t.title}`;
+    const client = new WorkflowClient();
+
+    const recordedMessages = Array<{ message: string; memo: Record<string, unknown> | undefined }>();
+    const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
+      customLogger: {
+        info: {
+          fn: async (info, message) => {
+            recordedMessages.push({
+              message,
+              memo: info.memo,
+            });
+          },
+          callDuringReplay: false,
+        },
+      },
+    };
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+    });
+
+    await worker.runUntil(
+      client.execute(workflows.upsertAndReadMemo, {
+        taskQueue,
+        workflowId: uuid4(),
+        memo: {
+          note1: 'aaa',
+          note2: 'bbb',
+          note4: 'eee',
+        },
+        args: [
+          {
+            note2: 'ccc',
+            note3: 'ddd',
+            note4: null,
+          },
+        ],
+      })
+    );
+
+    t.deepEqual(recordedMessages, [
+      {
+        message: 'Before upsert memo',
+        memo: {
+          note1: 'aaa',
+          note2: 'bbb',
+          note4: 'eee',
+        },
+      },
+      {
+        message: 'After upsert memo',
+        memo: {
+          note1: 'aaa',
+          note2: 'ccc',
+          note3: 'ddd',
         },
       },
     ]);

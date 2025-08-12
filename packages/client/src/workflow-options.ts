@@ -142,6 +142,7 @@ function versioningOverrideToProto(
   return {
     pinned: {
       version: vo.pinnedTo,
+      behavior: temporal.api.workflow.v1.VersioningOverride.PinnedOverrideBehavior.PINNED_OVERRIDE_BEHAVIOR_PINNED,
     },
     behavior: temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED,
     pinnedVersion: toCanonicalString(vo.pinnedTo),
