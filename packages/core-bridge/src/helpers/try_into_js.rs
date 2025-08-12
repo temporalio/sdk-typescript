@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -8,7 +9,8 @@ use neon::{
     prelude::Context,
     result::JsResult,
     types::{
-        JsArray, JsBigInt, JsBoolean, JsBuffer, JsNumber, JsString, JsUndefined, JsValue, Value,
+        JsArray, JsBigInt, JsBoolean, JsBuffer, JsNumber, JsObject, JsString, JsUndefined, JsValue,
+        Value,
     },
 };
 
@@ -61,6 +63,19 @@ impl<T: TryIntoJs> TryIntoJs for Vec<T> {
             array.set(cx, i as u32, item)?;
         }
         Ok(array)
+    }
+}
+
+impl<V: TryIntoJs> TryIntoJs for HashMap<String, V> {
+    type Output = JsObject;
+
+    fn try_into_js<'a>(self, cx: &mut impl Context<'a>) -> JsResult<'a, Self::Output> {
+        let obj = cx.empty_object();
+        for (k, v) in self {
+            let val = v.try_into_js(cx)?;
+            obj.set(cx, k.as_str(), val)?;
+        }
+        Ok(obj)
     }
 }
 
