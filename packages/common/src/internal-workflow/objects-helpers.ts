@@ -35,3 +35,33 @@ export function mergeObjects<T extends Record<string, any>>(
 
   return changed ? (merged as T) : original;
 }
+
+function isObject(item: any): item is Record<string, any> {
+  return item && typeof item === 'object' && !Array.isArray(item);
+}
+
+/**
+ * Recursively merges two objects, returning a new object.
+ *
+ * Properties from `source` will overwrite properties on `target`.
+ * Nested objects are merged recursively.
+ *
+ * Object fields in the returned object are references, as in,
+ * the returned object is not completely fresh.
+ */
+export function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
+  const output = { ...target };
+
+  if (isObject(target) && isObject(source)) {
+    for (const key of Object.keys(source)) {
+      const sourceValue = source[key];
+      if (isObject(sourceValue) && key in target && isObject(target[key] as any)) {
+        output[key as keyof T] = deepMerge(target[key], sourceValue);
+      } else {
+        (output as any)[key] = sourceValue;
+      }
+    }
+  }
+
+  return output;
+}

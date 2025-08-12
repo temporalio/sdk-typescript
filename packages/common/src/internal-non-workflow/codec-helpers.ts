@@ -1,5 +1,5 @@
 import { Payload } from '../interfaces';
-import { arrayFromPayloads, fromPayloadsAtIndex, toPayloads } from '../converter/payload-converter';
+import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from '../converter/payload-converter';
 import { PayloadConverterError } from '../errors';
 import { PayloadCodec } from '../converter/payload-codec';
 import { ProtoFailure } from '../failure';
@@ -70,6 +70,17 @@ export async function decodeOptionalSingle(
 ): Promise<DecodedPayload | null | undefined> {
   if (payload == null) return payload;
   return await decodeSingle(codecs, payload);
+}
+
+/** Run {@link PayloadCodec.decode} and convert from a single Payload */
+export async function decodeOptionalSinglePayload<T>(
+  dataConverter: LoadedDataConverter,
+  payload?: Payload | null | undefined
+): Promise<T | null | undefined> {
+  const { payloadConverter, payloadCodecs } = dataConverter;
+  const decoded = await decodeOptionalSingle(payloadCodecs, payload);
+  if (decoded == null) return decoded;
+  return payloadConverter.fromPayload(decoded);
 }
 
 /**

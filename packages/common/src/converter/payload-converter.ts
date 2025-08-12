@@ -45,6 +45,18 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
 }
 
 /**
+ * Run {@link PayloadConverter.toPayload} on an optional value, and then encode it.
+ */
+export function convertOptionalToPayload(
+  payloadConverter: PayloadConverter,
+  value: unknown
+): Payload | null | undefined {
+  if (value == null) return value;
+
+  return payloadConverter.toPayload(value);
+}
+
+/**
  * Run {@link PayloadConverter.toPayload} on each value in the map.
  *
  * @throws {@link ValueError} if conversion of any value in the map fails
