@@ -19,7 +19,6 @@ env:
 
   # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
   # TESTS_CLI_VERSION: 'v0.13.2'
-  TESTS_CLI_VERSION: 'v1.3.1-persistence-fix.0'
   # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
@@ -77,6 +76,9 @@ jobs:
           version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upgrade Rust to latest stable
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Rust Cargo and Build cache
         if: steps.cached-artifact.outputs.cache-hit != 'true'
         uses: Swatinem/rust-cache@v2
@@ -105,7 +107,7 @@ jobs:
   # Run integration tests.
   # Uses the native binaries built in compile-native-binaries, but build `@temporalio/*` packages locally.
   integration-tests:
-    timeout-minutes: 15
+    timeout-minutes: 20
     needs:
       - compile-native-binaries-debug
     strategy:

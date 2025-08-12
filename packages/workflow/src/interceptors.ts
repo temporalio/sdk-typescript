@@ -113,6 +113,13 @@ export interface StartChildWorkflowExecutionInput {
 export interface TimerInput {
   readonly durationMs: number;
   readonly seq: number;
+  readonly options?: TimerOptions;
+}
+
+/** Options for starting a timer (i.e. sleep) */
+export interface TimerOptions {
+  /** @experimental A fixed, single line summary of the command's purpose */
+  readonly summary?: string;
 }
 
 /**
