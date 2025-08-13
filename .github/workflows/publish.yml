@@ -1,0 +1,240 @@
+name: Publish NPM Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Target version to publish (e.g., 1.12.2, 2.0.0-rc.1, 1.12.3-canary.20241201)'
+        required: true
+        type: string
+      branch_ref:
+        description: 'Source branch to publish from (e.g., main, releases/1.12.x)'
+        required: true
+        type: string
+        default: 'main'
+      dry_run:
+        description: 'Run without actually publishing (for testing)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  # Compile native bridge code for each target platform.
+  # Uploads the native library for each target as a build artifact.
+  compile-native-binaries:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_24_x86_64
+            out-file: libtemporal_sdk_typescript_bridge.so
+            protobuf-url: https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-x86_64.zip
+          - platform: linux-arm
+            runner: ubuntu-24.04-arm64-2-core
+            target: aarch64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_24_aarch64
+            out-file: libtemporal_sdk_typescript_bridge.so
+            protobuf-url: https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-aarch_64.zip
+          - platform: macos-x64
+            runner: macos-13
+            target: x86_64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
+          - platform: macos-arm
+            runner: macos-14
+            target: aarch64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
+          - platform: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            out-file: temporal_sdk_typescript_bridge.dll
+    name: Compile Native Binaries (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch_ref }}
+          submodules: recursive
+
+      # Note we intentionally don't use the artifact cache here.
+      # Publishing a release deserves making a fresh build.
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
+          version: '23.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upgrade Rust to latest stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cargo and Build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/core-bridge -> target
+          prefix-key: corebridge-buildcache
+          shared-key: ${{ matrix.platform }}
+          env-vars: ''
+
+      - name: Compile rust code (non-Docker)
+        if: ${{ !matrix.container }}
+        working-directory: ./packages/core-bridge
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Compile rust code (Docker)
+        if: ${{ matrix.container }}
+        working-directory: ./packages/core-bridge
+        run: |
+          docker run --rm -v "$(pwd):/workspace" -w /workspace \
+            ${{ matrix.container }} \
+            sh -c '
+                curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+                curl -L -o /tmp/protoc.zip ${{ matrix.protobuf-url }}
+                unzip /tmp/protoc.zip -d $HOME/.protobuf
+                export PATH="$PATH:$HOME/.cargo/bin:$HOME/.protobuf/bin"
+
+                cargo build --release --target ${{ matrix.target }}
+            '
+
+      - name: Move built artifacts in place
+        working-directory: ./packages/core-bridge
+        run: |
+          mkdir -p ./releases/${{ matrix.target }}
+          cp target/${{ matrix.target }}/release/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
+
+      - name: Print required GLIBC version
+        if: startsWith(matrix.platform, 'linux')
+        working-directory: ./packages/core-bridge
+        run: |
+          objdump -T ./releases/${{ matrix.target }}/index.node |
+              grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -V | tail -1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corebridge-native-${{ matrix.platform }}
+          # Actual file will be named ${{ matrix.target }}/index.node
+          path: ./packages/core-bridge/releases/*/index.node
+
+  # Main publishing job that builds packages and publishes to NPM
+  build-and-publish-packages:
+    name: Build and Publish Packages
+    needs:
+      - compile-native-binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: recursive
+
+      - name: Download core-bridge native libraries
+        uses: actions/download-artifact@v4
+        with:
+          path: ./packages/core-bridge/releases/tmp
+
+      - name: Put native files into place
+        working-directory: ./packages/core-bridge/releases
+        run: |
+          mv tmp/corebridge-*/* ./
+          rm -rf tmp
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Get NPM cache directory
+        id: npm-cache-dir
+        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+
+      - name: Restore NPM cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: npm-main-linux-x64-${{ hashFiles('./package-lock.json') }}
+          restore-keys: |
+            npm-main-linux-x64-
+
+      - name: Install dependencies
+        # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors :(
+        run: |
+          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
+
+      - name: Build packages
+        run: npm run build -- --ignore @temporalio/core-bridge
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update version and create tag
+        run: |
+          npx lerna version ${{ inputs.version }} --force-publish='*' --yes
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Fix dependencies for publishing
+        run: |
+          git checkout -B fix-deps
+          node scripts/prepublish.mjs
+          git commit -am "Fix peer dependencies"
+
+      - name: Publish packages
+        if: ${{ !inputs.dry_run }}
+        run: |
+          if [[ ${{ inputs.version }} =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
+            npx lerna publish from-package --yes
+          else
+            npx lerna publish from-package --dist-tag next --yes
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Deprecate temporalio package
+        if: ${{ !inputs.dry_run }}
+        run: |
+          npm deprecate "temporalio@^${{ inputs.version }}" "Instead of installing temporalio, we recommend directly installing our packages: npm remove temporalio; npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        if: ${{ !inputs.dry_run }}
+        run: |
+          # Extract tag name from the version (lerna creates tags like v1.12.2)
+          tag_name="v${{ inputs.version }}"
+
+          # Create draft release
+          gh release create "$tag_name" \
+            --draft \
+            --title "$tag_name" \
+            --notes "Release $tag_name" \
+            --target ${{ inputs.branch_ref }}
+
+      - name: Publish Summary
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo "DRY RUN COMPLETED"
+          echo "Version: ${{ inputs.version }}"
+          echo "Branch: ${{ inputs.branch_ref }}"
+          echo "No packages were actually published"
+          echo "No GitHub release was created"
