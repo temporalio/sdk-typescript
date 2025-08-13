@@ -311,6 +311,28 @@ export async function setActivityPauseState(handle: WorkflowHandle, activityId: 
   }, 15000);
 }
 
+// Helper function to check if an activity has heartbeated
+export async function hasActivityHeartbeat(
+  handle: WorkflowHandle,
+  activityId: string,
+  expectedContent?: string
+): Promise<boolean> {
+  const { raw } = await handle.describe();
+  const activityInfo = raw.pendingActivities?.find((act) => act.activityId === activityId);
+  const heartbeatData = activityInfo?.heartbeatDetails?.payloads?.[0]?.data;
+  if (!heartbeatData) return false;
+
+  // If no expected content specified, just check that heartbeat data exists
+  if (!expectedContent) return true;
+
+  try {
+    const decoded = Buffer.from(heartbeatData).toString();
+    return decoded.includes(expectedContent);
+  } catch {
+    return false;
+  }
+}
+
 export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment = t.context.env): Helpers {
   return configurableHelpers(t, t.context.workflowBundle, testEnv);
 }

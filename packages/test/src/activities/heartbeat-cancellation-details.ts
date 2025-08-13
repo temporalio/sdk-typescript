@@ -11,7 +11,7 @@ export async function heartbeatCancellationDetailsActivity(
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
-      activity.heartbeat();
+      activity.heartbeat('heartbeated');
       await activity.sleep(300);
     } catch (err) {
       if (err instanceof activity.CancelledFailure && catchErr) {
