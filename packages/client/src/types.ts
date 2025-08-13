@@ -69,7 +69,23 @@ export type WorkflowExecutionDescription = Replace<
   {
     raw: DescribeWorkflowExecutionResponse;
   }
->;
+> & {
+  /**
+   * General fixed details for this workflow execution that may appear in UI/CLI.
+   * This can be in Temporal markdown format and can span multiple lines.
+   *
+   * @experimental User metadata is a new API and suspectible to change.
+   */
+  staticDetails: () => Promise<string | undefined>;
+
+  /**
+   * A single-line fixed summary for this workflow execution that may appear in the UI/CLI.
+   * This can be in single-line Temporal markdown format.
+   *
+   * @experimental User metadata is a new API and suspectible to change.
+   */
+  staticSummary: () => Promise<string | undefined>;
+};
 
 export type WorkflowService = proto.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = proto.temporal.api.workflowservice.v1;
