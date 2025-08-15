@@ -21,6 +21,7 @@ import {
 } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import {
+  ActivityCancellationDetails,
   ActivityCancellationType,
   ApplicationFailure,
   defineSearchAttributeKey,
@@ -38,8 +39,16 @@ import {
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
-import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
+import {
+  Context,
+  createLocalTestEnvironment,
+  hasActivityHeartbeat,
+  helpers,
+  makeTestFunction,
+  setActivityPauseState,
+} from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
+import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
 import { loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
 
 const test = makeTestFunction({
@@ -1406,6 +1415,91 @@ test('Workflow can return root workflow', async (t) => {
   await worker.runUntil(async () => {
     const result = await executeWorkflow(rootWorkflow, { workflowId: 'test-root-workflow-length' });
     t.deepEqual(result, 'empty test-root-workflow-length');
+  });
+});
+
+export async function heartbeatPauseWorkflow(
+  activityId: string,
+  catchErr: boolean,
+  maximumAttempts: number
+): Promise<ActivityCancellationDetails | undefined> {
+  const { heartbeatCancellationDetailsActivity } = workflow.proxyActivities({
+    startToCloseTimeout: '5s',
+    activityId,
+    retry: {
+      maximumAttempts,
+    },
+    heartbeatTimeout: '1s',
+  });
+
+  return await heartbeatCancellationDetailsActivity(catchErr);
+}
+
+test('Activity pause returns expected cancellation details', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    activities: {
+      heartbeatCancellationDetailsActivity,
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const testActivityId = randomUUID();
+    const handle = await startWorkflow(heartbeatPauseWorkflow, {
+      args: [testActivityId, true, 1],
+    });
+
+    // Wait for activity to appear in pending activities AND start heartbeating
+    await waitUntil(async () => {
+      const { raw } = await handle.describe();
+      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
+      // Check both: activity exists and has heartbeated
+      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
+    }, 10000);
+
+    // Now pause the activity
+    await setActivityPauseState(handle, testActivityId, true);
+    // Get the result - should contain pause cancellation details
+    const result = await handle.result();
+
+    t.deepEqual(result, {
+      cancelRequested: false,
+      notFound: false,
+      paused: true,
+      timedOut: false,
+      workerShutdown: false,
+      reset: false,
+    });
+  });
+});
+
+test('Activity can be cancelled via pause and retry after unpause', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    activities: {
+      heartbeatCancellationDetailsActivity,
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const testActivityId = randomUUID();
+    const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, false, 2] });
+
+    // Wait for it to exist and heartbeat
+    await waitUntil(async () => {
+      const { raw } = await handle.describe();
+      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
+      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
+    }, 10000);
+
+    await setActivityPauseState(handle, testActivityId, true);
+    await waitUntil(async () => hasActivityHeartbeat(handle, testActivityId, 'finally-complete'), 10000);
+    await setActivityPauseState(handle, testActivityId, false);
+
+    const result = await handle.result();
+    t.true(result == null);
   });
 });
 
