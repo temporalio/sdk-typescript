@@ -124,10 +124,7 @@ export class NexusHandler {
       try {
         decoded = await decodeOptionalSingle(this.dataConverter.payloadCodecs, payload);
       } catch (err) {
-        throw new nexus.HandlerError({
-          type: 'BAD_REQUEST',
-          message: `Failed to decode payload: ${err}`,
-        });
+        throw new nexus.HandlerError('BAD_REQUEST', `Failed to decode payload: ${err}`);
       }
       // Nexus headers have string values and Temporal Payloads have binary values. Instead of converting Payload
       // instances into Content instances, we embed the Payload in the serializer and pretend we are deserializing an
@@ -255,7 +252,7 @@ export class NexusHandler {
           ...this.context,
           requestId: variant.requestId ?? undefined,
           inboundLinks: (variant.links ?? []).map(protoLinkToNexusLink),
-          callbackURL: variant.callback ?? undefined,
+          callbackUrl: variant.callback ?? undefined,
           callbackHeaders: variant.callbackHeader ?? undefined,
           outboundLinks: [],
         },
@@ -264,10 +261,7 @@ export class NexusHandler {
     } else if (task.request?.cancelOperation != null) {
       const variant = task.request?.cancelOperation;
       if (variant.operationToken == null) {
-        throw new nexus.HandlerError({
-          type: 'BAD_REQUEST',
-          message: 'Request missing operation token',
-        });
+        throw new nexus.HandlerError('BAD_REQUEST', 'Request missing operation token');
       }
       return await this.cancelOperation(
         {
@@ -276,10 +270,7 @@ export class NexusHandler {
         variant.operationToken
       );
     } else {
-      throw new nexus.HandlerError({
-        type: 'NOT_IMPLEMENTED',
-        message: 'Request method not implemented',
-      });
+      throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Request method not implemented');
     }
   }
 
@@ -333,10 +324,7 @@ export function constructNexusOperationContext(
     }
     return { ...base, service: op.service, operation: op.operation };
   }
-  throw new nexus.HandlerError({
-    type: 'NOT_IMPLEMENTED',
-    message: 'Request method not implemented',
-  });
+  throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Request method not implemented');
 }
 
 export function nexusLogAttributes(ctx: nexus.OperationContext): Record<string, unknown> {
@@ -354,22 +342,18 @@ function isAsyncResult(
 
 function convertKnownErrors(err: unknown): nexus.HandlerError {
   if (err instanceof ApplicationFailure && err.nonRetryable) {
-    return new nexus.HandlerError({
-      type: 'INTERNAL',
-      cause: err,
-      retryable: false,
-    });
+    return new nexus.HandlerError('INTERNAL', undefined, { cause: err, retryableOverride: false });
   }
 
   if (err instanceof ServiceError) {
     if (isGrpcServiceError(err.cause)) {
       switch (err.cause.code) {
         case status.INVALID_ARGUMENT:
-          return new nexus.HandlerError({ type: 'BAD_REQUEST', cause: err });
+          return new nexus.HandlerError('BAD_REQUEST', undefined, { cause: err });
         case (status.ALREADY_EXISTS, status.FAILED_PRECONDITION, status.OUT_OF_RANGE):
-          return new nexus.HandlerError({ type: 'INTERNAL', cause: err, retryable: false });
+          return new nexus.HandlerError('INTERNAL', undefined, { cause: err, retryableOverride: false });
         case (status.ABORTED, status.UNAVAILABLE):
-          return new nexus.HandlerError({ type: 'UNAVAILABLE', cause: err });
+          return new nexus.HandlerError('UNAVAILABLE', undefined, { cause: err });
         case (status.CANCELLED,
         status.DATA_LOSS,
         status.INTERNAL,
@@ -379,20 +363,20 @@ function convertKnownErrors(err: unknown): nexus.HandlerError {
           // Note that UNAUTHENTICATED and PERMISSION_DENIED have Nexus error types but we convert to internal because
           // this is not a client auth error and happens when the handler fails to auth with Temporal and should be
           // considered retryable.
-          return new nexus.HandlerError({ type: 'INTERNAL', cause: err });
+          return new nexus.HandlerError('INTERNAL', undefined, { cause: err });
         case status.NOT_FOUND:
-          return new nexus.HandlerError({ type: 'NOT_FOUND', cause: err });
+          return new nexus.HandlerError('NOT_FOUND', undefined, { cause: err });
         case status.RESOURCE_EXHAUSTED:
-          return new nexus.HandlerError({ type: 'RESOURCE_EXHAUSTED', cause: err });
+          return new nexus.HandlerError('RESOURCE_EXHAUSTED', undefined, { cause: err });
         case status.UNIMPLEMENTED:
-          return new nexus.HandlerError({ type: 'NOT_IMPLEMENTED', cause: err });
+          return new nexus.HandlerError('NOT_IMPLEMENTED', undefined, { cause: err });
         case status.DEADLINE_EXCEEDED:
-          return new nexus.HandlerError({ type: 'UPSTREAM_TIMEOUT', cause: err });
+          return new nexus.HandlerError('UPSTREAM_TIMEOUT', undefined, { cause: err });
       }
     }
   }
 
-  return new nexus.HandlerError({ cause: err, type: 'INTERNAL' });
+  return new nexus.HandlerError('INTERNAL', undefined, { cause: err });
 }
 
 function headersProxy(initializer?: Record<string, string> | null): Record<string, string> {
@@ -421,16 +405,10 @@ function headersProxy(initializer?: Record<string, string> | null): Record<strin
 
 function protoLinkToNexusLink(plink: temporal.api.nexus.v1.ILink): nexus.Link {
   if (!plink.url) {
-    throw new nexus.HandlerError({
-      type: 'BAD_REQUEST',
-      message: 'empty link URL',
-    });
+    throw new nexus.HandlerError('BAD_REQUEST', 'empty link URL');
   }
   if (!plink.type) {
-    throw new nexus.HandlerError({
-      type: 'BAD_REQUEST',
-      message: 'empty link type',
-    });
+    throw new nexus.HandlerError('BAD_REQUEST', 'empty link type');
   }
   return {
     url: new URL(plink.url),
@@ -461,10 +439,7 @@ class PayloadSerializer implements nexus.Serializer {
     try {
       return this.payloadConverter.fromPayload(this.payload);
     } catch (err) {
-      throw new nexus.HandlerError({
-        type: 'BAD_REQUEST',
-        message: `Failed to deserialize input: ${err}`,
-      });
+      throw new nexus.HandlerError('BAD_REQUEST', `Failed to deserialize input: ${err}`);
     }
   }
 

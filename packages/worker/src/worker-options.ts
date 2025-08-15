@@ -113,7 +113,7 @@ export interface WorkerOptions {
   /**
    * An array of nexus services
    */
-  nexusServices?: nexus.ServiceHandler[];
+  nexusServices?: nexus.ServiceHandler<any>[];
 
   /**
    * Path to look up workflows in, any function exported in this path will be registered as a Workflows in this Worker.
@@ -1028,7 +1028,7 @@ function nexusServiceRegistryFromOptions(opts: WorkerOptions): nexus.ServiceRegi
   if (opts.nexusServices == null || opts.nexusServices.length === 0) {
     return undefined;
   }
-  return new nexus.ServiceRegistry(opts.nexusServices);
+  return nexus.ServiceRegistry.create(opts.nexusServices);
 }
 
 export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): native.WorkerOptions {

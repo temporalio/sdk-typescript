@@ -1204,10 +1204,7 @@ export class Worker {
   ) {
     let ctx: nexus.OperationContext | undefined = undefined;
     if (task.taskToken == null) {
-      throw new nexus.HandlerError({
-        type: 'INTERNAL',
-        message: 'Task missing request task token',
-      });
+      throw new nexus.HandlerError('INTERNAL', 'Task missing request task token');
     }
     const { taskToken } = task;
     try {
@@ -1244,10 +1241,7 @@ export class Worker {
       if (e instanceof nexus.HandlerError) {
         handlerErr = e;
       } else {
-        handlerErr = new nexus.HandlerError({
-          type: 'INTERNAL',
-          cause: e,
-        });
+        handlerErr = new nexus.HandlerError('INTERNAL', undefined, { cause: e });
       }
       return {
         taskToken,

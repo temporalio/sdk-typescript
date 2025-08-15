@@ -88,28 +88,28 @@ test.beforeEach(async (t) => {
 test('sync operation handler happy path', async (t) => {
   const { env, taskQueue, httpPort, endpointId } = t.context;
 
+  const testServiceHandler = nexus.serviceHandler(
+    nexus.service('testService', {
+      testSyncOp: nexus.operation<string, string>(),
+    }),
+    {
+      async testSyncOp(ctx, input) {
+        // Testing headers normalization to lower case.
+        if (ctx.headers.Test !== 'true') {
+          throw new nexus.HandlerError('BAD_REQUEST', 'expected test header to be set to true');
+        }
+        // Echo links back to the caller.
+        ctx.outboundLinks.push(...ctx.inboundLinks);
+        return input;
+      },
+    }
+  );
+
   const w = await Worker.create({
     connection: env.nativeConnection,
     namespace: env.namespace,
     taskQueue,
-    nexusServices: [
-      nexus.serviceHandler(
-        nexus.service('testService', {
-          testSyncOp: nexus.operation<string, string>(),
-        }),
-        {
-          async testSyncOp(ctx, input) {
-            // Testing headers normalization to lower case.
-            if (ctx.headers.Test !== 'true') {
-              throw new nexus.HandlerError({ message: 'expected test header to be set to true', type: 'BAD_REQUEST' });
-            }
-            // Echo links back to the caller.
-            ctx.outboundLinks.push(...ctx.inboundLinks);
-            return input;
-          },
-        }
-      ),
-    ],
+    nexusServices: [testServiceHandler],
   });
 
   await w.runUntil(async () => {
@@ -202,31 +202,22 @@ test('async operation handler happy path', async (t) => {
           testAsyncOp: {
             async start(ctx, input): Promise<nexus.HandlerStartOperationResult<string>> {
               if (input !== 'hello') {
-                throw new nexus.HandlerError({ message: 'expected input to equal "hello"', type: 'BAD_REQUEST' });
+                throw new nexus.HandlerError('BAD_REQUEST', 'expected input to equal "hello"');
               }
               if (ctx.headers.test !== 'true') {
-                throw new nexus.HandlerError({
-                  message: 'expected test header to be set to true',
-                  type: 'BAD_REQUEST',
-                });
+                throw new nexus.HandlerError('BAD_REQUEST', 'expected test header to be set to true');
               }
               if (!ctx.requestId) {
-                throw new nexus.HandlerError({ message: 'expected requestId to be set', type: 'BAD_REQUEST' });
+                throw new nexus.HandlerError('BAD_REQUEST', 'expected requestId to be set');
               }
-              return { token: ctx.requestId };
+              return nexus.HandlerStartOperationResult.async(ctx.requestId);
             },
             async cancel(ctx, token) {
               if (ctx.headers.test !== 'true') {
-                throw new nexus.HandlerError({
-                  message: 'expected test header to be set to true',
-                  type: 'BAD_REQUEST',
-                });
+                throw new nexus.HandlerError('BAD_REQUEST', 'expected test header to be set to true');
               }
               if (token !== requestId) {
-                throw new nexus.HandlerError({
-                  message: 'expected token to equal original requestId',
-                  type: 'BAD_REQUEST',
-                });
+                throw new nexus.HandlerError('BAD_REQUEST', 'expected token to equal original requestId');
               }
             },
             async getInfo() {
@@ -293,21 +284,11 @@ test('start operation handler errors', async (t) => {
                   details: ['details'],
                 });
               case 'NonRetryableInternalHandlerError':
-                throw new nexus.HandlerError({
-                  type: 'INTERNAL',
-                  message: 'deliberate error',
-                  retryable: false,
-                });
+                throw new nexus.HandlerError('INTERNAL', 'deliberate error', { retryableOverride: false });
               case 'OperationError':
-                throw new nexus.OperationError({
-                  state: 'failed',
-                  message: 'deliberate error',
-                });
+                throw new nexus.OperationError('failed', 'deliberate error');
             }
-            throw new nexus.HandlerError({
-              type: 'BAD_REQUEST',
-              message: 'invalid outcome requested',
-            });
+            throw new nexus.HandlerError('BAD_REQUEST', 'invalid outcome requested');
           },
         }
       ),
@@ -343,7 +324,7 @@ test('start operation handler errors', async (t) => {
         `ApplicationFailure: deliberate failure
     at Function.create (common/src/failure.ts)
     at op (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.start (nexus-rpc/src/handler.ts)`
+    at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
       );
       t.deepEqual((err as ApplicationFailure).details, ['details']);
       t.is((err as ApplicationFailure).failure?.source, 'TypeScriptSDK');
@@ -369,7 +350,7 @@ test('start operation handler errors', async (t) => {
         cleanStackTrace(err.stack!),
         `HandlerError: deliberate error
     at op (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.start (nexus-rpc/src/handler.ts)`
+    at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
       );
     }
     {
@@ -393,7 +374,7 @@ test('start operation handler errors', async (t) => {
         cleanStackTrace(err.stack!),
         `OperationError: deliberate error
     at op (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.start (nexus-rpc/src/handler.ts)`
+    at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
       );
     }
     {
@@ -438,16 +419,9 @@ test('cancel operation handler errors', async (t) => {
                     details: ['details'],
                   });
                 case 'NonRetryableInternalHandlerError':
-                  throw new nexus.HandlerError({
-                    type: 'INTERNAL',
-                    message: 'deliberate error',
-                    retryable: false,
-                  });
+                  throw new nexus.HandlerError('INTERNAL', 'deliberate error', { retryableOverride: false });
               }
-              throw new nexus.HandlerError({
-                type: 'BAD_REQUEST',
-                message: 'invalid outcome requested',
-              });
+              throw new nexus.HandlerError('BAD_REQUEST', 'invalid outcome requested');
             },
             async getInfo() {
               throw new Error('not implemented');
@@ -493,7 +467,7 @@ test('cancel operation handler errors', async (t) => {
         `ApplicationFailure: deliberate failure
     at Function.create (common/src/failure.ts)
     at Object.cancel (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.cancel (nexus-rpc/src/handler.ts)`
+    at ServiceRegistry.cancel (nexus-rpc/src/handler/service-registry.ts)`
       );
       t.deepEqual((err as ApplicationFailure).details, ['details']);
       t.is((err as ApplicationFailure).failure?.source, 'TypeScriptSDK');
@@ -522,7 +496,7 @@ test('cancel operation handler errors', async (t) => {
         cleanStackTrace(err.stack!),
         `HandlerError: deliberate error
     at Object.cancel (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.cancel (nexus-rpc/src/handler.ts)`
+    at ServiceRegistry.cancel (nexus-rpc/src/handler/service-registry.ts)`
       );
     }
   });

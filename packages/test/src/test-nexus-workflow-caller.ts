@@ -67,23 +67,13 @@ test('Nexus Operation from a Workflow', async (t) => {
             return action;
           }
           if (action === 'throwHandlerError') {
-            throw new nexus.HandlerError({
-              type: 'INTERNAL',
-              retryable: false,
-              message: 'test asked to fail',
-            });
+            throw new nexus.HandlerError('INTERNAL', 'test asked to fail', { retryableOverride: false });
           }
-          throw new nexus.HandlerError({
-            type: 'BAD_REQUEST',
-            message: 'invalid action',
-          });
+          throw new nexus.HandlerError('BAD_REQUEST', 'invalid action');
         },
         asyncOp: new temporalnexus.WorkflowRunOperation<string, string>(async (ctx, action) => {
           if (action === 'throwOperationError') {
-            throw new nexus.OperationError({
-              state: 'failed',
-              message: 'some message',
-            });
+            throw new nexus.OperationError('failed', 'some message');
           }
           if (action === 'throwApplicationFailure') {
             throw ApplicationFailure.create({
