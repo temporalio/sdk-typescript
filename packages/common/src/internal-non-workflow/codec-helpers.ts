@@ -1,5 +1,5 @@
 import { Payload } from '../interfaces';
-import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from '../converter/payload-converter';
+import { arrayFromPayloads, fromPayloadsAtIndex, toPayloads } from '../converter/payload-converter';
 import { PayloadConverterError } from '../errors';
 import { PayloadCodec } from '../converter/payload-codec';
 import { ProtoFailure } from '../failure';
