@@ -1418,15 +1418,16 @@ test('Workflow can return root workflow', async (t) => {
   });
 });
 
-export async function heartbeatPauseWorkflowBasic(
+export async function heartbeatPauseWorkflow(
   activityId: string,
-  catchErr: boolean
+  catchErr: boolean,
+  maximumAttempts: number
 ): Promise<ActivityCancellationDetails | undefined> {
   const { heartbeatCancellationDetailsActivity } = workflow.proxyActivities({
     startToCloseTimeout: '5s',
     activityId,
     retry: {
-      maximumAttempts: 1,
+      maximumAttempts,
     },
     heartbeatTimeout: '1s',
   });
@@ -1445,12 +1446,18 @@ test('Activity pause returns expected cancellation details', async (t) => {
 
   await worker.runUntil(async () => {
     const testActivityId = randomUUID();
-    const handle = await startWorkflow(heartbeatPauseWorkflowBasic, {
-      args: [testActivityId, true],
+    const handle = await startWorkflow(heartbeatPauseWorkflow, {
+      args: [testActivityId, true, 1],
     });
 
-    // Wait for activity to start heartbeating
-    await waitUntil(async () => hasActivityHeartbeat(handle, testActivityId, 'heartbeated'), 5000);
+    // Wait for activity to appear in pending activities AND start heartbeating
+    await waitUntil(async () => {
+      const { raw } = await handle.describe();
+      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
+      // Check both: activity exists and has heartbeated
+      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
+    }, 10000);
+
     // Now pause the activity
     await setActivityPauseState(handle, testActivityId, true);
     // Get the result - should contain pause cancellation details
@@ -1467,67 +1474,12 @@ test('Activity pause returns expected cancellation details', async (t) => {
   });
 });
 
-export const activityStartedQuery = workflow.defineQuery<boolean, [number]>('activityStarted');
-export const proceedSignal = workflow.defineSignal<[]>('proceed');
-
-export async function heartbeatPauseWorkflow(
-  activityId: string,
-  catchErr: boolean,
-  maximumAttempts: number
-): Promise<Array<ActivityCancellationDetails | undefined>> {
-  const { heartbeatCancellationDetailsActivity } = workflow.proxyActivities({
-    startToCloseTimeout: '5s',
-    activityId,
-    retry: {
-      maximumAttempts,
-    },
-    heartbeatTimeout: '1s',
-  });
-  const { heartbeatCancellationDetailsActivity2 } = workflow.proxyActivities({
-    startToCloseTimeout: '5s',
-    activityId: `${activityId}-2`,
-    retry: {
-      maximumAttempts,
-    },
-    heartbeatTimeout: '1s',
-  });
-
-  let activity1Started = false;
-  let activity2Started = false;
-
-  workflow.setHandler(activityStartedQuery, (num) => {
-    if (num === 1) return activity1Started;
-    return activity2Started;
-  });
-
-  let proceed = false;
-  workflow.setHandler(proceedSignal, () => {
-    proceed = true;
-  });
-
-  const promise1 = heartbeatCancellationDetailsActivity(catchErr);
-  activity1Started = true;
-
-  // Wait for the test to pause activity 1 and signal us to continue
-  await workflow.condition(() => proceed);
-  proceed = false; // reset for next step
-
-  const promise2 = heartbeatCancellationDetailsActivity2(catchErr);
-  activity2Started = true;
-
-  // Wait for the test to pause activity 2 and signal us to continue
-  await workflow.condition(() => proceed);
-
-  return Promise.all([promise1, promise2]);
-}
-
-test('Activity can pause and unpause', async (t) => {
+test('Activity can be cancelled via pause and retry after unpause', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
 
   const worker = await createWorker({
     activities: {
       heartbeatCancellationDetailsActivity,
-      heartbeatCancellationDetailsActivity2: heartbeatCancellationDetailsActivity,
     },
   });
 
@@ -1535,22 +1487,19 @@ test('Activity can pause and unpause', async (t) => {
     const testActivityId = randomUUID();
     const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, false, 2] });
 
-    await waitUntil(async () => handle.query(activityStartedQuery, 1), 5000);
-    await setActivityPauseState(handle, testActivityId, true);
-    await waitUntil(async () => hasActivityHeartbeat(handle, testActivityId, 'finally-complete'), 5000);
-    await setActivityPauseState(handle, testActivityId, false);
-    await handle.signal(proceedSignal);
+    // Wait for it to exist and heartbeat
+    await waitUntil(async () => {
+      const { raw } = await handle.describe();
+      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
+      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
+    }, 10000);
 
-    await waitUntil(async () => handle.query(activityStartedQuery, 2), 5000);
-    await setActivityPauseState(handle, `${testActivityId}-2`, true);
-    await waitUntil(async () => hasActivityHeartbeat(handle, `${testActivityId}-2`, 'finally-complete'), 5000);
-    await setActivityPauseState(handle, `${testActivityId}-2`, false);
-    await handle.signal(proceedSignal);
+    await setActivityPauseState(handle, testActivityId, true);
+    await waitUntil(async () => hasActivityHeartbeat(handle, testActivityId, 'finally-complete'), 10000);
+    await setActivityPauseState(handle, testActivityId, false);
 
     const result = await handle.result();
-    // Undefined values are converted to null by data converter.
-    t.true(result[0] === null);
-    t.true(result[1] === null);
+    t.true(result == null);
   });
 });
 

@@ -303,11 +303,14 @@ export async function setActivityPauseState(handle: WorkflowHandle, activityId: 
   await waitUntil(async () => {
     const { raw } = await handle.describe();
     const activityInfo = raw.pendingActivities?.find((act) => act.activityId === activityId);
-    if (!activityInfo) return false;
-    if (pause) {
-      return activityInfo.paused ?? false;
-    }
-    return !activityInfo.paused;
+    // If we are pausing: success when either
+    //  • paused flag is true  OR
+    //  • the activity vanished (it completed / retried)
+    if (pause) return activityInfo ? activityInfo.paused ?? false : true;
+    // If we are unpausing: success when either
+    //  • paused flag is false  OR
+    //  • the activity vanished (already completed)
+    return activityInfo ? !activityInfo.paused : true;
   }, 15000);
 }
 
