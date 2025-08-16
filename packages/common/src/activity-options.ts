@@ -120,9 +120,18 @@ export interface ActivityOptions {
    *
    * @default 'COMPATIBLE'
    *
+   * @deprecated In favor of the new Worker Deployment API.
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
-  versioningIntent?: VersioningIntent;
+  versioningIntent?: VersioningIntent; // eslint-disable-line deprecation/deprecation
+
+  /**
+   * A fixed, single-line summary for this workflow execution that may appear in the UI/CLI.
+   * This can be in single-line Temporal markdown format.
+   *
+   * @experimental User metadata is a new API and suspectible to change.
+   */
+  summary?: string;
 
   /**
    * Priority of this activity
@@ -192,4 +201,12 @@ export interface LocalActivityOptions {
    * - `ABANDON` - Do not request cancellation of the activity and immediately report cancellation to the workflow.
    */
   cancellationType?: ActivityCancellationType;
+
+  /**
+   * A fixed, single-line summary for this workflow execution that may appear in the UI/CLI.
+   * This can be in single-line Temporal markdown format.
+   *
+   * @experimental User metadata is a new API and suspectible to change.
+   */
+  summary?: string;
 }

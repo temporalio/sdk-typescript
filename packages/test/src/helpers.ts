@@ -18,8 +18,7 @@ import {
 } from '@temporalio/testing';
 import * as worker from '@temporalio/worker';
 import { Worker as RealWorker, WorkerOptions } from '@temporalio/worker';
-import { inWorkflowContext, WorkflowInfo } from '@temporalio/workflow';
-import { LoggerSinksInternal as DefaultLoggerSinks } from '@temporalio/workflow/lib/logs';
+import { inWorkflowContext } from '@temporalio/workflow';
 
 export function u8(s: string): Uint8Array {
   // TextEncoder requires lib "dom"
@@ -296,21 +295,6 @@ export async function getRandomPort(fn = (_port: number) => Promise.resolve()): 
         .finally(() => srv.close((_) => resolve(addr.port)));
     });
   });
-}
-
-export function asSdkLoggerSink(
-  fn: (info: WorkflowInfo, message: string, attrs?: Record<string, unknown>) => Promise<void>,
-  opts?: Omit<worker.InjectedSinkFunction<any>, 'fn'>
-): worker.InjectedSinks<DefaultLoggerSinks> {
-  return {
-    __temporal_logger: {
-      trace: { fn, ...opts },
-      debug: { fn, ...opts },
-      info: { fn, ...opts },
-      warn: { fn, ...opts },
-      error: { fn, ...opts },
-    },
-  };
 }
 
 export async function loadHistory(fname: string): Promise<iface.temporal.api.history.v1.History> {

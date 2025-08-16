@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use anyhow::Context as _;
 use neon::prelude::*;
@@ -21,7 +21,7 @@ use crate::helpers::{
     BridgeError, BridgeResult, JsonString, MutableFinalize, OpaqueInboundHandle,
     OpaqueOutboundHandle,
 };
-use crate::runtime::*;
+use crate::runtime::Runtime;
 
 pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<()> {
     cx.export_function("newMetricCounter", new_metric_counter)?;
@@ -44,32 +44,32 @@ pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<
 
 pub struct Counter {
     pub(crate) meter: TemporalMeter,
-    pub(crate) counter: Arc<dyn CoreCounter>,
+    pub(crate) counter: CoreCounter,
 }
 
 impl MutableFinalize for Counter {}
 
 pub struct Histogram {
     pub(crate) meter: TemporalMeter,
-    pub(crate) histogram: Arc<dyn CoreHistogram>,
+    pub(crate) histogram: CoreHistogram,
 }
 impl MutableFinalize for Histogram {}
 
 pub struct HistogramF64 {
     pub(crate) meter: TemporalMeter,
-    pub(crate) histogram: Arc<dyn CoreHistogramF64>,
+    pub(crate) histogram: CoreHistogramF64,
 }
 impl MutableFinalize for HistogramF64 {}
 
 pub struct Gauge {
     pub(crate) meter: TemporalMeter,
-    pub(crate) gauge: Arc<dyn CoreGauge>,
+    pub(crate) gauge: CoreGauge,
 }
 impl MutableFinalize for Gauge {}
 
 pub struct GaugeF64 {
     pub(crate) meter: TemporalMeter,
-    pub(crate) gauge: Arc<dyn CoreGaugeF64>,
+    pub(crate) gauge: CoreGaugeF64,
 }
 impl MutableFinalize for GaugeF64 {}
 
@@ -91,10 +91,10 @@ pub enum MetricValue {
 impl From<MetricValue> for CoreMetricValue {
     fn from(value: MetricValue) -> Self {
         match value {
-            MetricValue::Int(i) => CoreMetricValue::Int(i),
-            MetricValue::Float(f) => CoreMetricValue::Float(f),
-            MetricValue::Bool(b) => CoreMetricValue::Bool(b),
-            MetricValue::String(s) => CoreMetricValue::String(s),
+            MetricValue::Int(i) => Self::Int(i),
+            MetricValue::Float(f) => Self::Float(f),
+            MetricValue::Bool(b) => Self::Bool(b),
+            MetricValue::String(s) => Self::String(s),
         }
     }
 }

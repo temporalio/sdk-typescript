@@ -15,6 +15,7 @@ import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow'
 import { LoggerSinks } from '@temporalio/workflow';
 import { Context } from '@temporalio/activity';
 import { native } from '@temporalio/core-bridge';
+import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
 import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
@@ -736,8 +737,9 @@ export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
   // eslint-disable-next-line deprecation/deprecation
   if (!logger) return {} as InjectedSinks<LoggerSinks>;
 
-  // eslint-disable-next-line deprecation/deprecation
-  return initLoggerSink(logger) as unknown as InjectedSinks<LoggerSinks>;
+  // Register the logger sink with its historical name
+  const { __temporal_logger: defaultWorkerLogger } = initLoggerSink(logger);
+  return { defaultWorkerLogger } satisfies InjectedSinks<LoggerSinks>; // eslint-disable-line deprecation/deprecation
 }
 
 /**
@@ -983,6 +985,13 @@ export function compileWorkerOptions(
   logger: Logger,
   metricMeter: MetricMeter
 ): CompiledWorkerOptions {
+  // Validate sink names to ensure they don't use reserved prefixes/names
+  if (rawOpts.sinks) {
+    for (const sinkName of Object.keys(rawOpts.sinks)) {
+      throwIfReservedName('sink', sinkName);
+    }
+  }
+
   const opts = addDefaultWorkerOptions(rawOpts, logger, metricMeter);
   if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
     logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
@@ -1005,6 +1014,10 @@ export function compileWorkerOptions(
   }
 
   const activities = new Map(Object.entries(opts.activities ?? {}).filter(([_, v]) => typeof v === 'function'));
+  for (const activityName of activities.keys()) {
+    throwIfReservedName('activity', activityName);
+  }
+
   const tuner = asNativeTuner(opts.tuner, logger);
 
   return {

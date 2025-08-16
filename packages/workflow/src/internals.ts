@@ -20,6 +20,7 @@ import {
   WorkflowUpdateValidatorType,
   mapFromPayloads,
   fromPayloadsAtIndex,
+  RawValue,
   WorkflowFunctionWithOptions,
   VersioningBehavior,
   WorkflowDefinitionOptions,
@@ -31,6 +32,11 @@ import {
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';
+import {
+  TEMPORAL_RESERVED_PREFIX,
+  STACK_TRACE_QUERY_NAME,
+  ENHANCED_STACK_TRACE_QUERY_NAME,
+} from '@temporalio/common/lib/reserved';
 import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
@@ -41,13 +47,13 @@ import {
   DefaultSignalHandler,
   StackTraceSDKInfo,
   StackTraceFileSlice,
-  EnhancedStackTrace,
   StackTraceFileLocation,
   WorkflowInfo,
   WorkflowCreateOptionsInternal,
   ActivationCompletion,
   DefaultUpdateHandler,
   DefaultQueryHandler,
+  EnhancedStackTrace,
 } from './interfaces';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
@@ -262,20 +268,22 @@ export class Activator implements ActivationHandler {
    */
   public readonly queryHandlers = new Map<string, WorkflowQueryAnnotatedType>([
     [
-      '__stack_trace',
+      STACK_TRACE_QUERY_NAME,
       {
         handler: () => {
-          return this.getStackTraces()
-            .map((s) => s.formatted)
-            .join('\n\n');
+          return new RawValue<string>(
+            this.getStackTraces()
+              .map((s) => s.formatted)
+              .join('\n\n')
+          );
         },
         description: 'Returns a sensible stack trace.',
       },
     ],
     [
-      '__enhanced_stack_trace',
+      ENHANCED_STACK_TRACE_QUERY_NAME,
       {
-        handler: (): EnhancedStackTrace => {
+        handler: (): RawValue => {
           const { sourceMap } = this;
           const sdk: StackTraceSDKInfo = { name: 'typescript', version: pkg.version };
           const stacks = this.getStackTraces().map(({ structured: locations }) => ({ locations }));
@@ -295,7 +303,7 @@ export class Activator implements ActivationHandler {
               }
             }
           }
-          return { sdk, stacks, sources };
+          return new RawValue<EnhancedStackTrace>({ sdk, stacks, sources });
         },
         description: 'Returns a stack trace annotated with source information.',
       },
@@ -303,7 +311,7 @@ export class Activator implements ActivationHandler {
     [
       '__temporal_workflow_metadata',
       {
-        handler: (): temporal.api.sdk.v1.IWorkflowMetadata => {
+        handler: (): RawValue => {
           const workflowType = this.info.workflowType;
           const queryDefinitions = Array.from(this.queryHandlers.entries()).map(([name, value]) => ({
             name,
@@ -317,14 +325,15 @@ export class Activator implements ActivationHandler {
             name,
             description: value.description,
           }));
-          return {
+          return new RawValue<temporal.api.sdk.v1.IWorkflowMetadata>({
             definition: {
               type: workflowType,
               queryDefinitions,
               signalDefinitions,
               updateDefinitions,
             },
-          };
+            currentDetails: this.currentDetails,
+          });
         },
         description: 'Returns metadata associated with this workflow.',
       },
@@ -429,6 +438,8 @@ export class Activator implements ActivationHandler {
   public readonly getTimeOfDay: () => bigint;
 
   public readonly registeredActivityNames: Set<string>;
+
+  public currentDetails: string = '';
 
   public versioningBehavior?: VersioningBehavior;
   public workflowDefinitionOptionsGetter?: () => WorkflowDefinitionOptions;
@@ -705,11 +716,18 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing query activation attributes');
     }
 
-    const execute = composeInterceptors(
-      this.interceptors.inbound,
-      'handleQuery',
-      this.queryWorkflowNextHandler.bind(this)
-    );
+    // If query has __temporal_ prefix but no handler exists, throw error
+    if (queryType.startsWith(TEMPORAL_RESERVED_PREFIX) && !this.queryHandlers.has(queryType)) {
+      throw new TypeError(`Cannot use query name: '${queryType}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`);
+    }
+
+    // Skip interceptors if it's an internal query.
+    const isInternalQuery =
+      queryType.startsWith(TEMPORAL_RESERVED_PREFIX) ||
+      queryType === STACK_TRACE_QUERY_NAME ||
+      queryType === ENHANCED_STACK_TRACE_QUERY_NAME;
+    const interceptors = isInternalQuery ? [] : this.interceptors.inbound;
+    const execute = composeInterceptors(interceptors, 'handleQuery', this.queryWorkflowNextHandler.bind(this));
     execute({
       queryName: queryType,
       args: arrayFromPayloads(this.payloadConverter, activation.arguments),
@@ -732,6 +750,18 @@ export class Activator implements ActivationHandler {
     if (!protocolInstanceId) {
       throw new TypeError('Missing activation update protocolInstanceId');
     }
+
+    // If update has __temporal_ prefix but no handler exists, throw error
+    if (name.startsWith(TEMPORAL_RESERVED_PREFIX) && !this.updateHandlers.get(name)) {
+      throw new TypeError(`Cannot use update name: '${name}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`);
+    }
+
+    // Skip interceptors if it's an internal update.
+    const isInternalUpdate =
+      name.startsWith(TEMPORAL_RESERVED_PREFIX) ||
+      name === STACK_TRACE_QUERY_NAME ||
+      name === ENHANCED_STACK_TRACE_QUERY_NAME;
+    const interceptors = isInternalUpdate ? [] : this.interceptors.inbound;
 
     const entry =
       this.updateHandlers.get(name) ??
@@ -789,7 +819,7 @@ export class Activator implements ActivationHandler {
       try {
         if (runValidator && entry.validator) {
           const validate = composeInterceptors(
-            this.interceptors.inbound,
+            interceptors,
             'validateUpdate',
             this.validateUpdateNextHandler.bind(this, entry.validator)
           );
@@ -802,7 +832,7 @@ export class Activator implements ActivationHandler {
       }
       this.acceptUpdate(protocolInstanceId);
       const execute = composeInterceptors(
-        this.interceptors.inbound,
+        interceptors,
         'handleUpdate',
         this.updateNextHandler.bind(this, entry.handler)
       );
@@ -885,6 +915,20 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing activation signalName');
     }
 
+    // If signal has __temporal_ prefix but no handler exists, throw error
+    if (signalName.startsWith(TEMPORAL_RESERVED_PREFIX) && !this.signalHandlers.has(signalName)) {
+      throw new TypeError(
+        `Cannot use signal name: '${signalName}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`
+      );
+    }
+
+    // Skip interceptors if it's an internal signal.
+    const isInternalSignal =
+      signalName.startsWith(TEMPORAL_RESERVED_PREFIX) ||
+      signalName === STACK_TRACE_QUERY_NAME ||
+      signalName === ENHANCED_STACK_TRACE_QUERY_NAME;
+    const interceptors = isInternalSignal ? [] : this.interceptors.inbound;
+
     if (!this.signalHandlers.has(signalName) && !this.defaultSignalHandler) {
       this.bufferedSignals.push(activation);
       return;
@@ -898,11 +942,7 @@ export class Activator implements ActivationHandler {
 
     const signalExecutionNum = this.signalHandlerExecutionSeq++;
     this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
-    const execute = composeInterceptors(
-      this.interceptors.inbound,
-      'handleSignal',
-      this.signalWorkflowNextHandler.bind(this)
-    );
+    const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
     execute({
       args: arrayFromPayloads(this.payloadConverter, activation.input),
       signalName,

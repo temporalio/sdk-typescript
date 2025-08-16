@@ -14,7 +14,6 @@ env:
 
   # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
   # TESTS_CLI_VERSION: 'v0.13.2'
-  TESTS_CLI_VERSION: 'v1.3.1-persistence-fix.0'
   # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
@@ -74,6 +73,9 @@ jobs:
           # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
           version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upgrade Rust to latest stable
+        uses: dtolnay/rust-toolchain@stable
 
       # FIXME: Setup volumes so that we can benefit from the cache in the Docker-build scenario.
       #        Or maybe just get rid of the cache entirely if it doesn't have sufficient benefits.
