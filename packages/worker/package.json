@@ -26,7 +26,7 @@
     "heap-js": "^2.3.0",
     "long": "^5.2.3",
     "memfs": "^4.6.0",
-    "nexus-rpc": "github:nexus-rpc/sdk-typescript#pull/6/head",
+    "nexus-rpc": "github:nexus-rpc/sdk-typescript#main",
     "proto3-json-serializer": "^2.0.0",
     "protobufjs": "^7.2.5",
     "rxjs": "^7.8.1",

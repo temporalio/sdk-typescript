@@ -324,6 +324,7 @@ test('start operation handler errors', async (t) => {
         `ApplicationFailure: deliberate failure
     at Function.create (common/src/failure.ts)
     at op (test/src/test-nexus-handler.ts)
+    at Object.start (nexus-rpc/src/handler/operation-handler.ts)
     at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
       );
       t.deepEqual((err as ApplicationFailure).details, ['details']);
@@ -350,6 +351,7 @@ test('start operation handler errors', async (t) => {
         cleanStackTrace(err.stack!),
         `HandlerError: deliberate error
     at op (test/src/test-nexus-handler.ts)
+    at Object.start (nexus-rpc/src/handler/operation-handler.ts)
     at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
       );
     }
@@ -374,6 +376,7 @@ test('start operation handler errors', async (t) => {
         cleanStackTrace(err.stack!),
         `OperationError: deliberate error
     at op (test/src/test-nexus-handler.ts)
+    at Object.start (nexus-rpc/src/handler/operation-handler.ts)
     at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
       );
     }

@@ -6,7 +6,7 @@ import { StartNexusOperationOptions } from './interfaces';
 import { untrackPromise } from './stack-helpers';
 import { StartNexusOperationInput, StartNexusOperationOutput } from './interceptors';
 
-export interface NexusClient<T extends nexus.Service> {
+export interface NexusClient<T extends nexus.ServiceDefinition> {
   /**
    * Start a Nexus Operation and wait for its completion taking a {@link nexus.operation}.
    */
@@ -82,14 +82,14 @@ interface NexusClientOptions<T> {
 /**
  * Create a Nexus client for invoking Nexus Operations from a Workflow.
  */
-export function createNexusClient<T extends nexus.Service>(options: NexusClientOptions<T>): NexusClient<T> {
+export function createNexusClient<T extends nexus.ServiceDefinition>(options: NexusClientOptions<T>): NexusClient<T> {
   const client = {
     executeOperation: async (operation: any, input: unknown, operationOptions?: StartNexusOperationOptions) => {
       const handle = await client.startOperation(operation, input, operationOptions);
       return await handle.result();
     },
     startOperation: async (
-      operation: string | nexus.Operation<any, any>,
+      operation: string | T['operations'][nexus.OperationKey<T['operations']>],
       input: unknown,
       operationOptions?: StartNexusOperationOptions
     ) => {

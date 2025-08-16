@@ -119,10 +119,10 @@ export async function startWorkflow<T extends Workflow>(
     };
   }
 
-  if (ctx.callbackURL) {
+  if (ctx.callbackUrl) {
     internalOptions.completionCallbacks = [
       {
-        nexus: { url: ctx.callbackURL, header: ctx.callbackHeaders },
+        nexus: { url: ctx.callbackUrl, header: ctx.callbackHeaders },
         links, // pass in links here as well for older servers, newer servers dedupe them.
       },
     ];
@@ -161,15 +161,15 @@ export class WorkflowRunOperation<I, O> implements nexus.OperationHandler<I, O> 
   async start(ctx: nexus.StartOperationContext, input: I): Promise<nexus.HandlerStartOperationResult<O>> {
     const { namespace } = getHandlerContext();
     const handle = await this.handler(ctx, input);
-    return { token: generateWorkflowRunOperationToken(namespace, handle.workflowId) };
+    return nexus.HandlerStartOperationResult.async(generateWorkflowRunOperationToken(namespace, handle.workflowId));
   }
   getResult(_ctx: nexus.GetOperationResultContext, _token: string): Promise<O> {
     // Not implemented in Temporal yet.
-    throw new nexus.HandlerError({ type: 'NOT_IMPLEMENTED', message: 'Method not implemented' });
+    throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Method not implemented');
   }
   getInfo(_ctx: nexus.GetOperationInfoContext, _token: string): Promise<nexus.OperationInfo> {
     // Not implemented in Temporal yet.
-    throw new nexus.HandlerError({ type: 'NOT_IMPLEMENTED', message: 'Method not implemented' });
+    throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Method not implemented');
   }
   async cancel(_ctx: nexus.CancelOperationContext, token: string): Promise<void> {
     const decoded = loadWorkflowRunOperationToken(token);

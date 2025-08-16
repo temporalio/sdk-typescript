@@ -653,10 +653,13 @@ export class Activator implements ActivationHandler {
 
   public resolveNexusOperationStart(activation: coresdk.workflow_activation.IResolveNexusOperationStart): void {
     const { resolve, reject } = this.consumeCompletion('nexusOperationStart', getSeq(activation));
-    if (!activation.cancelledBeforeStart) {
-      resolve({ token: activation.operationId });
+    if (!activation.failed) {
+      resolve({ token: activation.operationToken });
     } else {
-      reject(this.failureToError(activation.cancelledBeforeStart));
+      reject(this.failureToError(activation.failed));
+      this.consumeCompletion('nexusOperationComplete', getSeq(activation)).reject(
+        this.failureToError(activation.failed)
+      );
     }
   }
 

@@ -231,22 +231,25 @@ export class DefaultFailureConverter implements FailureConverter {
       if (failure.cause == null) {
         throw new TypeError('Missing failure cause on nexusHandlerFailureInfo');
       }
-      let retryable: boolean | undefined = undefined;
+      let retryableOverride: boolean | undefined = undefined;
       const retryBehavior = decodeNexusHandlerErrorRetryBehavior(failure.nexusHandlerFailureInfo.retryBehavior);
       switch (retryBehavior) {
         case 'RETRYABLE':
-          retryable = true;
+          retryableOverride = true;
           break;
         case 'NON_RETRYABLE':
-          retryable = false;
+          retryableOverride = false;
           break;
       }
 
-      return new nexus.HandlerError({
-        type: (failure.nexusHandlerFailureInfo.type as nexus.HandlerErrorType) ?? 'INTERNAL',
-        cause: this.failureToError(failure.cause, payloadConverter),
-        retryable,
-      });
+      return new nexus.HandlerError(
+        (failure.nexusHandlerFailureInfo.type as nexus.HandlerErrorType) ?? 'INTERNAL',
+        undefined,
+        {
+          cause: this.failureToError(failure.cause, payloadConverter),
+          retryableOverride,
+        }
+      );
     }
     if (failure.nexusOperationExecutionFailureInfo) {
       return new NexusOperationFailure(
