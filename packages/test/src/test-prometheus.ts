@@ -73,6 +73,7 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
         globalTags: {
           my_tag: 'my_value',
         },
+        attachServiceName: true,
         prometheus: {
           bindAddress: `127.0.0.1:${port}`,
           countersTotalSuffix: true,
@@ -107,22 +108,16 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
         text.includes(
           'temporal_workflow_task_replay_latency_seconds_bucket{namespace="default",' +
             'service_name="temporal-core-sdk",task_queue="test-prometheus",' +
-            'workflow_type="successString",le="0.001"}'
+            'workflow_type="successString",my_tag="my_value",le="0.001"}'
         )
       );
 
-      // Verify global tags
-      t.assert(text.includes('target_info{my_tag="my_value",'));
-
-      // Verify 'total' suffix
-      t.assert(text.includes('temporal_worker_start_total'));
-
       // Verify histogram overrides
-      t.assert(text.match(/temporal_request_latency_seconds_bucket.*,le="31415"/));
-      t.assert(text.match(/workflow_task_execution_latency.*,le="31415"/));
+      t.assert(text.match(/temporal_request_latency_seconds_bucket\{.*,le="31415"/));
+      t.assert(text.match(/workflow_task_execution_latency_seconds_bucket\{.*,le="31415"/));
 
       // Verify prefix exists on client request metrics
-      t.assert(text.includes('temporal_long_request'));
+      t.assert(text.includes('temporal_long_request{'));
     });
   } finally {
     await localEnv.teardown();

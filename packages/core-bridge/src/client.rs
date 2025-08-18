@@ -272,6 +272,9 @@ async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeRes
         "ListWorkerDeployments" => {
             rpc_call!(retry_client, call, list_worker_deployments)
         }
+        "ListWorkers" => {
+            rpc_call!(retry_client, call, list_workers)
+        }
         "ListWorkflowExecutions" => {
             rpc_call!(retry_client, call, list_workflow_executions)
         }
@@ -300,6 +303,9 @@ async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeRes
         }
         "RecordActivityTaskHeartbeatById" => {
             rpc_call!(retry_client, call, record_activity_task_heartbeat_by_id)
+        }
+        "RecordWorkerHeartbeat" => {
+            rpc_call!(retry_client, call, record_worker_heartbeat)
         }
         "RegisterNamespace" => rpc_call!(retry_client, call, register_namespace),
         "RequestCancelWorkflowExecution" => {
