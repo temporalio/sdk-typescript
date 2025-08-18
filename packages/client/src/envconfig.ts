@@ -9,13 +9,11 @@ import type { ConnectionOptions } from './connection';
  *
  * It is defined as a tagged union, to be consumed by other parts of the SDK.
  */
-
 export type DataSource = { path: string } | { data: string | Buffer };
 
 interface ClientConfigTLSJSON {
   disabled?: boolean;
   serverName?: string;
-  // TODO(assess): name Ca -> CA ?
   serverCaCert?: Record<string, string>;
   clientCert?: Record<string, string>;
   clientKey?: Record<string, string>;
@@ -29,14 +27,14 @@ interface ClientConfigProfileJSON {
   grpcMeta?: Record<string, string>;
 }
 
-function recordToSource(d?: Record<string, any>): DataSource | undefined {
+function recordToSource(d?: Record<string, string>): DataSource | undefined {
   if (d === undefined) {
     return undefined;
   }
-  if (d.data !== undefined) {
+  if (d.data != null) {
     return { data: d.data };
   }
-  if (d.path !== undefined && typeof d.path === 'string') {
+  if (d.path != null && typeof d.path === 'string') {
     return { path: d.path };
   }
   return undefined;
@@ -83,7 +81,6 @@ function readSourceSync(source?: DataSource): Buffer | undefined {
   }
 
   if ('path' in source) {
-    // This is correct. It reads the whole file into a Buffer asynchronously.
     return fs.readFileSync(source.path);
   }
 
@@ -198,7 +195,12 @@ export class ClientConfigTLS {
     });
   }
 
-  // TODO(assess): add doc string
+  /**
+   * Converts this TLS configuration to a {@link TLSConfig} object for use with connections.
+   *
+   * @returns A TLSConfig object with the certificate data loaded from the configured sources,
+   *          or undefined if TLS is disabled.
+   */
   public toTLSConfig(): TLSConfig | undefined {
     if (this.disabled) {
       return undefined;
@@ -222,7 +224,6 @@ export class ClientConfigTLS {
   }
 }
 
-// TODO(assess): determine need for "ClientConnectConfig"
 interface ClientConnectConfig {
   connectionOptions: ConnectionOptions;
   namespace?: string;
@@ -269,7 +270,33 @@ export interface LoadClientProfileOptions {
   overrideEnvVars?: Record<string, string>;
 }
 
-// TODO(assess): docstring
+/**
+ * A client configuration profile loaded from environment variables and/or TOML configuration.
+ *
+ * This class represents a single named profile within a client configuration, containing
+ * all the necessary settings to establish a connection to a Temporal server, including
+ * address, namespace, authentication, TLS settings, and gRPC metadata.
+ *
+ * Configuration sources are loaded and merged in the following precedence (highest to lowest):
+ * 1. Environment variable overrides
+ * 2. TOML configuration file settings
+ * 3. Default values
+ *
+ * @example
+ * ```ts
+ * // Load the default profile from environment and default config locations
+ * const profile = ClientConfigProfile.load();
+ * const { connectionOptions, namespace } = profile.toClientConnectConfig();
+ * 
+ * // Load a specific profile with custom config source
+ * const customProfile = ClientConfigProfile.load({
+ *   profile: 'production',
+ *   configSource: { path: '/path/to/config.toml' }
+ * });
+ * ```
+ * 
+ * @experimental
+ */
 export class ClientConfigProfile {
   public readonly address?: string;
   public readonly namespace?: string;
@@ -322,7 +349,24 @@ export class ClientConfigProfile {
     });
   }
 
-  // TODO(assess): docstring
+  /**
+   * Converts this configuration profile to connection options for creating a Temporal client.
+   *
+   * This method validates that required settings are present and transforms the profile
+   * into the format expected by {@link Connection.connect} and related client constructors.
+   *
+   * @returns An object containing connection options and namespace settings
+   * @throws {Error} If the profile does not contain a required address field
+   *
+   * @example
+   * ```ts
+   * const profile = ClientConfigProfile.load({ profile: 'production' });
+   * const { connectionOptions, namespace } = profile.toClientConnectConfig();
+   * 
+   * const connection = await Connection.connect(connectionOptions);
+   * const client = new Client({ connection, namespace });
+   * ```
+   */
   public toClientConnectConfig(): ClientConnectConfig {
     if (!this.address) {
       throw new Error("Configuration profile must contain an 'address' to be used for client connection");
@@ -372,12 +416,45 @@ interface ClientConfigJSON {
   profiles: Record<string, ClientConfigProfileJSON>;
 }
 
-// TODO(assess): update docstrings
 /**
- * Client configuration loaded from TOML and environment variables.
+ * Client configuration container that manages multiple named profiles.
  *
- * This class is the TypeScript equivalent of the Python SDK's `ClientConfig`.
- * It contains a mapping of profile names to client profiles.
+ * This class loads and manages client configuration profiles from TOML files and
+ * environment variables, providing a centralized way to handle multiple Temporal
+ * server connection configurations. Each profile contains settings for server
+ * address, authentication, TLS, and other connection parameters.
+ *
+ * The configuration supports:
+ * - Loading from TOML configuration files 
+ * - Environment variable-based profile discovery via `TEMPORAL_CONFIG_FILE`
+ * - Multiple named profiles within a single configuration
+ * - JSON serialization for configuration persistence
+ * - Strict mode validation for configuration files
+ *
+ * This is the TypeScript equivalent of the Python SDK's `ClientConfig`.
+ *
+ * @example
+ * ```ts
+ * // Load all profiles from default config locations
+ * const config = ClientConfig.load();
+ * 
+ * // Access a specific profile
+ * const prodProfile = config.profiles['production'];
+ * if (prodProfile) {
+ *   const { connectionOptions, namespace } = prodProfile.toClientConnectConfig();
+ * }
+ * 
+ * // Load from a specific TOML file with strict validation
+ * const strictConfig = ClientConfig.load({
+ *   configSource: { path: './temporal-config.toml' },
+ *   configFileStrict: true
+ * });
+ * 
+ * // Convenience method to load a single profile directly
+ * const connectConfig = ClientConfig.loadClientConnectConfig({
+ *   profile: 'development'
+ * });
+ * ```
  *
  * @experimental
  */
