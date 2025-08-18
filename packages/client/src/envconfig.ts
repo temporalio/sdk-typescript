@@ -287,14 +287,14 @@ export interface LoadClientProfileOptions {
  * // Load the default profile from environment and default config locations
  * const profile = ClientConfigProfile.load();
  * const { connectionOptions, namespace } = profile.toClientConnectConfig();
- * 
+ *
  * // Load a specific profile with custom config source
  * const customProfile = ClientConfigProfile.load({
  *   profile: 'production',
  *   configSource: { path: '/path/to/config.toml' }
  * });
  * ```
- * 
+ *
  * @experimental
  */
 export class ClientConfigProfile {
@@ -362,7 +362,7 @@ export class ClientConfigProfile {
    * ```ts
    * const profile = ClientConfigProfile.load({ profile: 'production' });
    * const { connectionOptions, namespace } = profile.toClientConnectConfig();
-   * 
+   *
    * const connection = await Connection.connect(connectionOptions);
    * const client = new Client({ connection, namespace });
    * ```
@@ -425,7 +425,7 @@ interface ClientConfigJSON {
  * address, authentication, TLS, and other connection parameters.
  *
  * The configuration supports:
- * - Loading from TOML configuration files 
+ * - Loading from TOML configuration files
  * - Environment variable-based profile discovery via `TEMPORAL_CONFIG_FILE`
  * - Multiple named profiles within a single configuration
  * - JSON serialization for configuration persistence
@@ -437,19 +437,19 @@ interface ClientConfigJSON {
  * ```ts
  * // Load all profiles from default config locations
  * const config = ClientConfig.load();
- * 
+ *
  * // Access a specific profile
  * const prodProfile = config.profiles['production'];
  * if (prodProfile) {
  *   const { connectionOptions, namespace } = prodProfile.toClientConnectConfig();
  * }
- * 
+ *
  * // Load from a specific TOML file with strict validation
  * const strictConfig = ClientConfig.load({
  *   configSource: { path: './temporal-config.toml' },
  *   configFileStrict: true
  * });
- * 
+ *
  * // Convenience method to load a single profile directly
  * const connectConfig = ClientConfig.loadClientConnectConfig({
  *   profile: 'development'
