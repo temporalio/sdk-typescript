@@ -400,12 +400,16 @@ async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeRes
             rpc_call!(retry_client, call, update_namespace)
         }
         "UpdateSchedule" => rpc_call!(retry_client, call, update_schedule),
+        "UpdateWorkerConfig" => rpc_call!(retry_client, call, update_worker_config),
         "UpdateWorkerDeploymentVersionMetadata" => {
             rpc_call!(
                 retry_client,
                 call,
                 update_worker_deployment_version_metadata
             )
+        }
+        "UpdateTaskQueueConfig" => {
+            rpc_call!(retry_client, call, update_task_queue_config)
         }
         "UpdateWorkflowExecution" => {
             rpc_call!(retry_client, call, update_workflow_execution)
