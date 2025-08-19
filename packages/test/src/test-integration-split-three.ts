@@ -8,7 +8,7 @@ import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import { configurableHelpers } from './helpers-integration';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import * as activities from './activities';
-import { cleanOptionalStackTrace } from './helpers';
+import { approximatelyEqual, cleanOptionalStackTrace } from './helpers';
 import * as workflows from './workflows';
 
 const test = makeTestFn(() => bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') }));
@@ -151,7 +151,7 @@ test(
     const worker = await createWorkerWithDefaults(t, { activities });
     const handle = await startWorkflow(workflows.priorityWorkflow, {
       args: [false, 1],
-      priority: { priorityKey: 1 },
+      priority: { priorityKey: 1, fairnessKey: 'main-workflow', fairnessWeight: 3.0 },
     });
     await worker.runUntil(handle.result());
     let firstChild = true;
@@ -161,19 +161,28 @@ test(
       switch (event.eventType) {
         case temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED:
           t.deepEqual(event.workflowExecutionStartedEventAttributes?.priority?.priorityKey, 1);
+          t.deepEqual(event.workflowExecutionStartedEventAttributes?.priority?.fairnessKey, 'main-workflow');
+          t.deepEqual(event.workflowExecutionStartedEventAttributes?.priority?.fairnessWeight, 3.0);
           break;
         case temporal.api.enums.v1.EventType.EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED: {
-          const pri = event.startChildWorkflowExecutionInitiatedEventAttributes?.priority?.priorityKey;
+          const priority = event.startChildWorkflowExecutionInitiatedEventAttributes?.priority;
           if (firstChild) {
-            t.deepEqual(pri, 4);
+            t.deepEqual(priority?.priorityKey, 4);
+            t.deepEqual(priority?.fairnessKey, 'child-workflow-1');
+            t.deepEqual(priority?.fairnessWeight, 2.5);
             firstChild = false;
           } else {
-            t.deepEqual(pri, 2);
+            t.deepEqual(priority?.priorityKey, 2);
+            t.deepEqual(priority?.fairnessKey, 'child-workflow-2');
+            t.deepEqual(priority?.fairnessWeight, 1.0);
           }
           break;
         }
         case temporal.api.enums.v1.EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED:
           t.deepEqual(event.activityTaskScheduledEventAttributes?.priority?.priorityKey, 5);
+          t.deepEqual(event.activityTaskScheduledEventAttributes?.priority?.fairnessKey, 'fair-activity');
+          // For some insane reason when proto reads this event it mangles the number to 4.19999999 something. Thanks Javascript.
+          t.assert(approximatelyEqual(event.activityTaskScheduledEventAttributes?.priority?.fairnessWeight, 4.2));
           break;
       }
     }
