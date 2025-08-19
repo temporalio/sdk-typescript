@@ -24,7 +24,7 @@ import {
   WorkflowIdConflictPolicy,
   compilePriority,
 } from '@temporalio/common';
-import { encodeUserMetadata } from '@temporalio/common/lib/user-metadata';
+import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { History } from '@temporalio/common/lib/proto-utils';
