@@ -1,9 +1,16 @@
+import type { temporal } from '@temporalio/proto';
 import { Payload } from '../interfaces';
-import { arrayFromPayloads, fromPayloadsAtIndex, toPayloads } from '../converter/payload-converter';
+import {
+  arrayFromPayloads,
+  convertOptionalToPayload,
+  fromPayloadsAtIndex,
+  toPayloads,
+} from '../converter/payload-converter';
 import { PayloadConverterError } from '../errors';
 import { PayloadCodec } from '../converter/payload-codec';
 import { ProtoFailure } from '../failure';
 import { LoadedDataConverter } from '../converter/data-converter';
+import { UserMetadata } from '../user-metadata';
 import { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
 
 /**
@@ -358,4 +365,33 @@ export function noopDecodeMap<K extends string>(
   map: Record<K, Payload> | null | undefined
 ): Record<K, DecodedPayload> | null | undefined {
   return map as Record<K, DecodedPayload> | null | undefined;
+}
+
+export async function encodeUserMetadata(
+  dataConverter: LoadedDataConverter,
+  staticSummary: string | undefined,
+  staticDetails: string | undefined
+): Promise<temporal.api.sdk.v1.IUserMetadata | undefined> {
+  if (staticSummary == null && staticDetails == null) return undefined;
+
+  const { payloadConverter, payloadCodecs } = dataConverter;
+  const summary = await encodeOptionalSingle(payloadCodecs, convertOptionalToPayload(payloadConverter, staticSummary));
+  const details = await encodeOptionalSingle(payloadCodecs, convertOptionalToPayload(payloadConverter, staticDetails));
+
+  if (summary == null && details == null) return undefined;
+
+  return { summary, details };
+}
+
+export async function decodeUserMetadata(
+  dataConverter: LoadedDataConverter,
+  metadata: temporal.api.sdk.v1.IUserMetadata | undefined | null
+): Promise<UserMetadata> {
+  const res = { staticSummary: undefined, staticDetails: undefined };
+  if (metadata == null) return res;
+
+  const staticSummary = (await decodeOptionalSinglePayload<string>(dataConverter, metadata.summary)) ?? undefined;
+  const staticDetails = (await decodeOptionalSinglePayload<string>(dataConverter, metadata.details)) ?? undefined;
+
+  return { staticSummary, staticDetails };
 }
