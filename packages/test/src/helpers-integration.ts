@@ -332,9 +332,10 @@ export async function setActivityState(
       //  • the activity vanished (already completed)
       return activityInfo ? !activityInfo.paused : true;
     } else {
-      // If we are resetting, success when heartbeat
-      // details are reset.
-      return activityInfo?.heartbeatDetails === null;
+      // If we are resetting, success when either
+      //  • heartbeat details have been reset OR
+      //  • the activity vanished (completed / retried)
+      return activityInfo ? activityInfo.heartbeatDetails === null : true;
     }
   }, 15000);
 }
