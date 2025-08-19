@@ -1513,7 +1513,7 @@ test('Activity reset returns expected cancellation details', async (t) => {
 
   await worker.runUntil(async () => {
     const testActivityId = randomUUID();
-    const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, true, 2] });
+    const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, true, 1] });
 
     // Wait for it to exist and heartbeat
     await waitUntil(async () => {
