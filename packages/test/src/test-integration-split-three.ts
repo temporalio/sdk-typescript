@@ -193,7 +193,6 @@ test('workflow start without priorities sees undefined for the key', configMacro
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t, { activities });
-  console.log('STARTING WORKFLOW');
 
   const handle1 = await startWorkflow(workflows.priorityWorkflow, {
     args: [true, undefined],
