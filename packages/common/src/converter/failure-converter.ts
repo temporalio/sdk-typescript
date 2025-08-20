@@ -228,9 +228,6 @@ export class DefaultFailureConverter implements FailureConverter {
       );
     }
     if (failure.nexusHandlerFailureInfo) {
-      if (failure.cause == null) {
-        throw new TypeError('Missing failure cause on nexusHandlerFailureInfo');
-      }
       let retryableOverride: boolean | undefined = undefined;
       const retryBehavior = decodeNexusHandlerErrorRetryBehavior(failure.nexusHandlerFailureInfo.retryBehavior);
       switch (retryBehavior) {
@@ -244,15 +241,18 @@ export class DefaultFailureConverter implements FailureConverter {
 
       return new nexus.HandlerError(
         (failure.nexusHandlerFailureInfo.type as nexus.HandlerErrorType) ?? 'INTERNAL',
-        undefined,
+        // REVIEW: Python sets a default message here
+        failure.message ?? undefined,
         {
-          cause: this.failureToError(failure.cause, payloadConverter),
+          cause: this.optionalFailureToOptionalError(failure.cause, payloadConverter),
           retryableOverride,
         }
       );
     }
     if (failure.nexusOperationExecutionFailureInfo) {
       return new NexusOperationFailure(
+        // REVIEW: Python sets a default message here, and we used to do that too.
+        failure.message ?? undefined,
         failure.nexusOperationExecutionFailureInfo.scheduledEventId?.toNumber(),
         // We assume these will always be set or gracefully set to empty strings.
         failure.nexusOperationExecutionFailureInfo.endpoint ?? '',
@@ -304,6 +304,9 @@ export class DefaultFailureConverter implements FailureConverter {
   }
 
   errorToFailureInner(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
+    // REVIEW: If we really want not to have a NexusHandlerFailure, we could still attach the failure
+    //         proto failure to the nexus HandlerError object, by using a private symbol property.
+    //         Opinions?
     if (err instanceof TemporalFailure || err instanceof nexus.HandlerError) {
       if (err instanceof TemporalFailure && err.failure) return err.failure;
       const base = {
@@ -385,13 +388,17 @@ export class DefaultFailureConverter implements FailureConverter {
       }
       if (err instanceof nexus.HandlerError) {
         let retryBehavior: temporal.api.enums.v1.NexusHandlerErrorRetryBehavior | undefined = undefined;
-        if (err.retryable === true) {
-          retryBehavior = encodeNexusHandlerErrorRetryBehavior('RETRYABLE');
-        } else if (err.retryable === false) {
-          retryBehavior = encodeNexusHandlerErrorRetryBehavior('NON_RETRYABLE');
+        switch (err.retryableOverride) {
+          case true:
+            retryBehavior = encodeNexusHandlerErrorRetryBehavior('RETRYABLE');
+            break;
+          case false:
+            retryBehavior = encodeNexusHandlerErrorRetryBehavior('NON_RETRYABLE');
+            break;
         }
 
         return {
+          // REVIEW: Python sets a default message here
           ...base,
           nexusHandlerFailureInfo: {
             type: err.type,
@@ -401,6 +408,7 @@ export class DefaultFailureConverter implements FailureConverter {
       }
       if (err instanceof NexusOperationFailure) {
         return {
+          // REVIEW: Python sets a default message here
           ...base,
           nexusOperationExecutionFailureInfo: {
             scheduledEventId: err.scheduledEventId ? Long.fromNumber(err.scheduledEventId) : undefined,

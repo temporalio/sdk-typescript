@@ -24,7 +24,6 @@
     "@temporalio/workflow": "file:../workflow",
     "abort-controller": "^3.0.0",
     "heap-js": "^2.3.0",
-    "long": "^5.2.3",
     "memfs": "^4.6.0",
     "nexus-rpc": "github:nexus-rpc/sdk-typescript#main",
     "proto3-json-serializer": "^2.0.0",

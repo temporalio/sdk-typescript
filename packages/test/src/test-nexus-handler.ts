@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import anyTest, { TestFn } from 'ava';
-import getPort from 'get-port';
 import Long from 'long';
 import * as nexus from 'nexus-rpc';
 import * as protoJsonSerializer from 'proto3-json-serializer';
@@ -19,7 +18,7 @@ import {
   convertWorkflowEventLinkToNexusLink,
   convertNexusLinkToWorkflowEventLink,
 } from '@temporalio/nexus/lib/link-converter';
-import { cleanStackTrace } from './helpers';
+import { cleanStackTrace, getRandomPort } from './helpers';
 
 export interface Context {
   httpPort: number;
@@ -39,7 +38,7 @@ test.before(async (t) => {
   });
 
   Runtime.install({ logger });
-  t.context.httpPort = await getPort();
+  t.context.httpPort = await getRandomPort();
   t.context.env = await testing.TestWorkflowEnvironment.createLocal({
     server: {
       extraArgs: [
@@ -52,11 +51,6 @@ test.before(async (t) => {
         '--dynamic-config-value',
         'history.enableRequestIdRefLinks=true',
       ],
-      executable: {
-        type: 'cached-download',
-        // TODO: remove this version override when CLI 1.4.0 is out.
-        version: 'v1.3.1-nexus-links.0',
-      },
     },
   });
   t.context.logEntries = logEntries;
@@ -546,6 +540,7 @@ test('logger is available in handler context', async (t) => {
   t.is(entries[0].message, 'handler ran');
   t.deepEqual(entries[0].meta, {
     sdkComponent: SdkComponent.nexus,
+    namespace: env.namespace ?? 'default',
     service: 'testService',
     operation: 'testSyncOp',
     taskQueue,
@@ -590,7 +585,7 @@ test('getClient is available in handler context', async (t) => {
   });
 });
 
-test('WorkflowRunOperation attaches callback, link, and request ID', async (t) => {
+test('WorkflowRunOperationHandler attaches callback, link, and request ID', async (t) => {
   const { env, taskQueue, httpPort, endpointId } = t.context;
   const requestId1 = randomUUID();
   const requestId2 = randomUUID();
@@ -606,7 +601,7 @@ test('WorkflowRunOperation attaches callback, link, and request ID', async (t) =
           testOp: nexus.operation<void, void>(),
         }),
         {
-          testOp: new temporalnexus.WorkflowRunOperation<void, void>(async (ctx) => {
+          testOp: new temporalnexus.WorkflowRunOperationHandler<void, void>(async (ctx) => {
             return await temporalnexus.startWorkflow(ctx, 'some-workflow', {
               workflowId,
               // To test attaching multiple callers to the same operation.

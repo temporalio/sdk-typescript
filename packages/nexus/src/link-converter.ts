@@ -10,28 +10,13 @@ type RequestIdReference = temporal.api.common.v1.Link.WorkflowEvent.IRequestIdRe
 const LINK_EVENT_ID_PARAM = 'eventID';
 const LINK_EVENT_TYPE_PARAM = 'eventType';
 const LINK_REQUEST_ID_PARAM = 'requestID';
+const LINK_REFERENCE_TYPE_KEY = 'referenceType';
 
 const EVENT_REFERENCE_TYPE = 'EventReference';
 const REQUEST_ID_REFERENCE_TYPE = 'RequestIdReference';
 
 // fullName isn't part of the generated typed unfortunately.
 const WORKFLOW_EVENT_TYPE: string = (temporal.api.common.v1.Link.WorkflowEvent as any).fullName.slice(1);
-
-function pascalCaseToConstantCase(s: string) {
-  return s.replace(/[^\b][A-Z]/g, (m) => `${m[0]}_${m[1]}`).toUpperCase();
-}
-
-function constantCaseToPascalCase(s: string) {
-  return s.replace(/[A-Z]+_?/g, (m) => `${m[0]}${m.slice(1).toLocaleLowerCase()}`.replace(/_/, ''));
-}
-
-function normalizeEnumValue(value: string, prefix: string) {
-  value = pascalCaseToConstantCase(value);
-  if (!value.startsWith(prefix)) {
-    value = `${prefix}_${value}`;
-  }
-  return value;
-}
 
 export function convertWorkflowEventLinkToNexusLink(we: WorkflowEventLink): NexusLink {
   if (!we.namespace || !we.workflowId || !we.runId) {
@@ -70,7 +55,7 @@ export function convertNexusLinkToWorkflowEventLink(link: NexusLink): WorkflowEv
   const runId = decodeURIComponent(parts[5]);
 
   const query = link.url.searchParams;
-  const refType = query.get('referenceType');
+  const refType = query.get(LINK_REFERENCE_TYPE_KEY);
 
   const workflowEventLink: WorkflowEventLink = {
     namespace,
@@ -93,7 +78,7 @@ export function convertNexusLinkToWorkflowEventLink(link: NexusLink): WorkflowEv
 
 function convertLinkWorkflowEventEventReferenceToURLQuery(eventRef: EventReference): string {
   const params = new URLSearchParams();
-  params.set('referenceType', EVENT_REFERENCE_TYPE);
+  params.set(LINK_REFERENCE_TYPE_KEY, EVENT_REFERENCE_TYPE);
   if (eventRef.eventId != null) {
     const eventId = eventRef.eventId.toNumber();
     if (eventId > 0) {
@@ -126,7 +111,7 @@ function convertURLQueryToLinkWorkflowEventEventReference(query: URLSearchParams
 
 function convertLinkWorkflowEventRequestIdReferenceToURLQuery(requestIdRef: RequestIdReference): string {
   const params = new URLSearchParams();
-  params.set('referenceType', REQUEST_ID_REFERENCE_TYPE);
+  params.set(LINK_REFERENCE_TYPE_KEY, REQUEST_ID_REFERENCE_TYPE);
   if (requestIdRef.requestId != null) {
     params.set(LINK_REQUEST_ID_PARAM, requestIdRef.requestId);
   }
@@ -148,4 +133,20 @@ function convertURLQueryToLinkWorkflowEventRequestIdReference(query: URLSearchPa
     throw new TypeError(`Unknown eventType parameter: ${eventTypeParam}`);
   }
   return { requestId, eventType };
+}
+
+function normalizeEnumValue(value: string, prefix: string) {
+  value = pascalCaseToConstantCase(value);
+  if (!value.startsWith(prefix)) {
+    value = `${prefix}_${value}`;
+  }
+  return value;
+}
+
+function pascalCaseToConstantCase(s: string) {
+  return s.replace(/[^\b][A-Z]/g, (m) => `${m[0]}_${m[1]}`).toUpperCase();
+}
+
+function constantCaseToPascalCase(s: string) {
+  return s.replace(/[A-Z]+_?/g, (m) => `${m[0]}${m.slice(1).toLocaleLowerCase()}`.replace(/_/, ''));
 }

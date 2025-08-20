@@ -465,14 +465,10 @@ impl MutableFinalize for HistoryForReplayTunnelHandle {}
 
 mod config {
     use std::{sync::Arc, time::Duration};
-    use temporal_sdk_core::ResourceBasedSlotsOptions;
-    use temporal_sdk_core::ResourceBasedSlotsOptionsBuilder;
-    use temporal_sdk_core::ResourceSlotOptions;
-    use temporal_sdk_core::SlotSupplierOptions as CoreSlotSupplierOptions;
-    use temporal_sdk_core::TunerHolder;
-    use temporal_sdk_core::TunerHolderOptionsBuilder;
 
     use temporal_sdk_core::{
+        ResourceBasedSlotsOptions, ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions,
+        SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptionsBuilder,
         api::worker::{
             ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
             PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder,
@@ -550,9 +546,6 @@ mod config {
             // Set all other options
             let mut builder = WorkerConfigBuilder::default();
             builder
-                .versioning_strategy(WorkerVersioningStrategy::None {
-                    build_id: "".to_owned(),
-                })
                 .client_identity_override(Some(self.identity))
                 .versioning_strategy({
                     if let Some(dopts) = self.worker_deployment_options {
@@ -679,8 +672,10 @@ mod config {
                 self.local_activity_task_slot_supplier
                     .into_slot_supplier(&mut rbo),
             );
-            tuner_holder
-                .nexus_slot_options(self.nexus_task_slot_supplier.into_slot_supplier(&mut rbo));
+            tuner_holder.nexus_slot_options(
+                self.nexus_task_slot_supplier
+                    .into_slot_supplier(&mut rbo)
+            );
             if let Some(rbo) = rbo {
                 tuner_holder.resource_based_options(rbo);
             }

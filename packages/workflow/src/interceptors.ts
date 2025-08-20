@@ -6,6 +6,7 @@
 
 import {
   ActivityOptions,
+  Duration,
   Headers,
   LocalActivityOptions,
   MetricTags,
@@ -14,7 +15,7 @@ import {
   WorkflowExecution,
 } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
-import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions, StartNexusOperationOptions } from './interfaces';
+import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 
 export { Next, Headers };
 
@@ -154,6 +155,16 @@ export interface WorkflowOutboundCallsInterceptor {
   ) => Promise<unknown>;
 
   /**
+   * Called when Workflow starts a Nexus operation.
+   *
+   * @experimental Nexus support is experimental.
+   */
+  startNexusOperation?: (
+    input: StartNexusOperationInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'startNexusOperation'>
+  ) => Promise<StartNexusOperationOutput>;
+
+  /**
    * Called when Workflow starts a child workflow execution.
    *
    * The interceptor function returns 2 promises:
@@ -246,6 +257,62 @@ export interface LocalActivityInput {
 }
 
 /**
+ * Input for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
+ *
+ * @experimental Nexus support is experimental.
+ */
+export interface StartNexusOperationInput {
+  input: unknown;
+  endpoint: string;
+  service: string;
+  options: StartNexusOperationOptions;
+  operation: string;
+  seq: number;
+  nexusHeader: Record<string, string>;
+}
+
+/**
+ * Options for starting a Nexus Operation.
+ */
+export interface StartNexusOperationOptions {
+  /**
+   * The end to end timeout for the Nexus Operation.
+   *
+   * Optional: defaults to the maximum allowed by the Temporal server.
+   */
+  scheduleToCloseTimeout?: Duration;
+
+  /**
+   * A fixed, single-line summary for this Nexus Operation that may appear in the UI/CLI.
+   * This can be in single-line Temporal markdown format.
+   *
+   * @experimental User metadata is a new API and suspectible to change.
+   */
+  summary?: string;
+}
+
+/**
+ * Output for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
+ *
+ * @experimental Nexus support is experimental.
+ */
+export interface StartNexusOperationOutput {
+  /**
+   * The token for the Nexus Operation.
+   *
+   * May be undefined if the Nexus Operation completed synchronously, in which case the {@link result}
+   * will be immediately resolved.
+   */
+  token?: string;
+
+  /**
+   * A promise that will resolve when the Nexus operation completes, either with the result of the
+   * operation if it completed successfully, or a failure if the Nexus Operation failed.
+   */
+  result: Promise<unknown>;
+}
+
+/**
  * Input for {@link WorkflowOutboundCallsInterceptor.startChildWorkflowExecution}.
  */
 export interface StartChildWorkflowExecutionInput {
@@ -287,26 +354,6 @@ export interface ContinueAsNewInput {
  * Input for {@link WorkflowOutboundCallsInterceptor.continueAsNew}.
  */
 export type ContinueAsNewInputOptions = ContinueAsNewOptions & Required<Pick<ContinueAsNewOptions, 'workflowType'>>;
-
-/**
- * Input for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
- */
-export interface StartNexusOperationInput {
-  input: unknown;
-  endpoint: string;
-  service: string;
-  options: StartNexusOperationOptions;
-  operation: string;
-  seq: number;
-  nexusHeader: Record<string, string>;
-}
-
-/**
- * Output for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
- */
-export interface StartNexusOperationOutput {
-  token?: string;
-}
 
 /**
  * Input for {@link WorkflowOutboundCallsInterceptor.getLogAttributes}.

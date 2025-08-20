@@ -71,7 +71,7 @@ test('Nexus Operation from a Workflow', async (t) => {
           }
           throw new nexus.HandlerError('BAD_REQUEST', 'invalid action');
         },
-        asyncOp: new temporalnexus.WorkflowRunOperation<string, string>(async (ctx, action) => {
+        asyncOp: new temporalnexus.WorkflowRunOperationHandler<string, string>(async (ctx, action) => {
           if (action === 'throwOperationError') {
             throw new nexus.OperationError('failed', 'some message');
           }

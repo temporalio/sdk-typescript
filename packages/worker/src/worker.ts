@@ -107,7 +107,8 @@ import {
   ShutdownError,
   UnexpectedError,
 } from './errors';
-import { constructNexusOperationContext, handlerErrorToProto, NexusHandler, nexusLogAttributes } from './nexus';
+import { constructNexusOperationContext, NexusHandler } from './nexus';
+import { handlerErrorToProto } from './nexus/conversions';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -194,9 +195,9 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly type = 'worker';
   public readonly pollWorkflowActivation: OmitFirstParam<typeof native.workerPollWorkflowActivation>;
   public readonly pollActivityTask: OmitFirstParam<typeof native.workerPollActivityTask>;
+  public readonly pollNexusTask: OmitFirstParam<typeof native.workerPollNexusTask>;
   public readonly completeWorkflowActivation: OmitFirstParam<typeof native.workerCompleteWorkflowActivation>;
   public readonly completeActivityTask: OmitFirstParam<typeof native.workerCompleteActivityTask>;
-  public readonly pollNexusTask: OmitFirstParam<typeof native.workerPollNexusTask>;
   public readonly completeNexusTask: OmitFirstParam<typeof native.workerCompleteNexusTask>;
   public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
   public readonly initiateShutdown: OmitFirstParam<typeof native.workerInitiateShutdown>;
@@ -458,6 +459,7 @@ export class Worker {
   protected readonly workflowPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
   protected readonly activityPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
   protected readonly nexusPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
+
   /**
    * Whether or not this worker has an outstanding workflow poll request
    */
@@ -1198,7 +1200,7 @@ export class Worker {
                 break;
               }
               // NOTE: nexus handler will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
-              this.logger.trace('Cancelling nexus handler', nexusLogAttributes(nexusHandler.context));
+              this.logger.trace('Cancelling nexus handler', nexusHandler.getLogAttributes());
               let reason = 'unkown';
               if (task.cancelTask?.reason != null) {
                 reason = coresdk.nexus.NexusTaskCancelReason[task.cancelTask.reason];
@@ -1219,26 +1221,27 @@ export class Worker {
     base64TaskToken: string,
     protobufEncodedTask: ArrayBuffer
   ) {
-    let ctx: nexus.OperationContext | undefined = undefined;
-    if (task.taskToken == null) {
+    const { taskToken } = task;
+    if (taskToken == null) {
       throw new nexus.HandlerError('INTERNAL', 'Task missing request task token');
     }
-    const { taskToken } = task;
+
+    let nexusHandler: NexusHandler | undefined = undefined;
     try {
-      const ctrl = new AbortController();
+      const abortController = new AbortController();
 
-      ctx = constructNexusOperationContext(task.request, ctrl.signal);
-
-      const nexusHandler = new NexusHandler(
+      nexusHandler = new NexusHandler(
         taskToken,
         this.options.namespace,
         this.options.taskQueue,
-        ctx,
+        constructNexusOperationContext(task.request, abortController.signal),
         this.client!, // Must be defined if we are handling Nexus tasks.
-        ctrl,
+        abortController,
         this.options.nexusServiceRegistry!, // Must be defined if we are handling Nexus tasks.
         this.options.loadedDataConverter,
-        this.logger
+        this.logger,
+        this.metricMeter,
+        this.options.interceptors.nexus
       );
       this.taskTokenToNexusHandler.set(base64TaskToken, nexusHandler);
       this.numInFlightNexusOperationsSubject.next(this.numInFlightNexusOperationsSubject.value + 1);
@@ -1249,20 +1252,16 @@ export class Worker {
         this.taskTokenToNexusHandler.delete(base64TaskToken);
       }
     } catch (e) {
-      let handlerErr: nexus.HandlerError;
       this.logger.error(`Error while processing Nexus task: ${errorMessage(e)}`, {
-        ...(ctx ? nexusLogAttributes(ctx) : {}),
+        ...(nexusHandler?.getLogAttributes() ?? {}),
         error: e,
         taskEncoded: Buffer.from(protobufEncodedTask).toString('base64'),
       });
-      if (e instanceof nexus.HandlerError) {
-        handlerErr = e;
-      } else {
-        handlerErr = new nexus.HandlerError('INTERNAL', undefined, { cause: e });
-      }
+      const handlerError =
+        e instanceof nexus.HandlerError ? e : new nexus.HandlerError('INTERNAL', undefined, { cause: e });
       return {
         taskToken,
-        error: await handlerErrorToProto(this.options.loadedDataConverter, handlerErr),
+        error: await handlerErrorToProto(this.options.loadedDataConverter, handlerError),
       };
     }
   }

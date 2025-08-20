@@ -1,11 +1,17 @@
 import * as nexus from 'nexus-rpc';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
+import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
-import { StartNexusOperationOptions } from './interfaces';
 import { untrackPromise } from './stack-helpers';
-import { StartNexusOperationInput, StartNexusOperationOutput } from './interceptors';
+import { StartNexusOperationInput, StartNexusOperationOutput, StartNexusOperationOptions } from './interceptors';
 
+/**
+ * A Nexus client for invoking Nexus Operations for a specific service from a Workflow.
+ *
+ * @experimental Nexus support is experimental.
+ */
 export interface NexusClient<T extends nexus.ServiceDefinition> {
   /**
    * Start a Nexus Operation and wait for its completion taking a {@link nexus.operation}.
@@ -50,16 +56,20 @@ export interface NexusClient<T extends nexus.ServiceDefinition> {
 
 /**
  * A handle to a Nexus Operation.
+ *
+ * @experimental Nexus support is experimental.
  */
 export interface NexusOperationHandle<T> {
   /**
    * The operation's service name.
    */
   readonly service: string;
+
   /**
    * The name of the Operation.
    */
   readonly operation: string;
+
   /**
    * Operation token as set by the Operation's handler. May be empty if the operation completed synchronously.
    */
@@ -72,34 +82,52 @@ export interface NexusOperationHandle<T> {
 }
 
 /**
- * Options for {@createNexusClient}.
+ * Options for {@link createNexusClient}.
  */
-interface NexusClientOptions<T> {
+export interface NexusClientOptions<T> {
   endpoint: string;
   service: T;
 }
 
 /**
  * Create a Nexus client for invoking Nexus Operations from a Workflow.
+ *
+ * @experimental Nexus support is experimental.
  */
 export function createNexusClient<T extends nexus.ServiceDefinition>(options: NexusClientOptions<T>): NexusClient<T> {
-  const client = {
-    executeOperation: async (operation: any, input: unknown, operationOptions?: StartNexusOperationOptions) => {
-      const handle = await client.startOperation(operation, input, operationOptions);
-      return await handle.result();
-    },
-    startOperation: async (
+  class NexusClientImpl<T extends nexus.ServiceDefinition> implements NexusClient<T> {
+    async executeOperation<O extends T['operations'][keyof T['operations']]>(
       operation: string | T['operations'][nexus.OperationKey<T['operations']>],
-      input: unknown,
+      input: nexus.OperationInput<T['operations'][nexus.OperationKey<T['operations']>]>,
+      operationOptions?: Partial<StartNexusOperationOptions>
+    ): Promise<nexus.OperationOutput<O>> {
+      const handle = await this.startOperation(operation, input, operationOptions);
+      return await handle.result();
+    }
+
+    async startOperation<O extends T['operations'][keyof T['operations']]>(
+      operation: string | T['operations'][nexus.OperationKey<T['operations']>],
+      input: nexus.OperationInput<T['operations'][nexus.OperationKey<T['operations']>]>,
       operationOptions?: StartNexusOperationOptions
-    ) => {
+    ) {
       const opName = typeof operation === 'string' ? options.service.operations[operation].name : operation.name;
 
       const activator = getActivator();
       const seq = activator.nextSeqs.nexusOperation++;
 
+      const execute = composeInterceptors(
+        activator.interceptors.outbound,
+        'startNexusOperation',
+        startNexusOperationNextHandler
+      );
+
       // TODO: Do we want to make the interceptor async like we do for child workflow? That seems redundant.
-      const [startPromise, completePromise] = startNexusOperationNextHandler({
+      // REVIEW: I ended up changing this so that the interceptor returns a Promise<StartNexusOperationOutput>,
+      //         and the result promise is contained in that Output object. As a consequence of this,
+      //         the result promise/completion does not exist until the StartNexusOperation event is received.
+      //         That's totally different from what we did in ChildWorkflow, but I think that's cleaner from
+      //         interceptors point of view, and will make it easier to extend the API in the future.
+      const { token, result: resultPromise } = await execute({
         endpoint: options.endpoint,
         service: options.service.name,
         operation: opName,
@@ -108,21 +136,22 @@ export function createNexusClient<T extends nexus.ServiceDefinition>(options: Ne
         seq,
         input,
       });
-      const { token } = await startPromise;
+
       return {
         service: options.service.name,
         operation: opName,
         token,
-        async result() {
-          return await completePromise;
+        async result(): Promise<nexus.OperationOutput<O>> {
+          return resultPromise as nexus.OperationOutput<O>;
         },
       };
-    },
-  };
-  return client as any;
+    }
+  }
+
+  return new NexusClientImpl<T>();
 }
 
-export function startNexusOperationNextHandler({
+function startNexusOperationNextHandler({
   input,
   endpoint,
   service,
@@ -130,9 +159,10 @@ export function startNexusOperationNextHandler({
   operation,
   seq,
   nexusHeader,
-}: StartNexusOperationInput): [Promise<StartNexusOperationOutput>, Promise<unknown>] {
+}: StartNexusOperationInput): Promise<StartNexusOperationOutput> {
   const activator = getActivator();
-  const startPromise = new Promise<StartNexusOperationOutput>((resolve, reject) => {
+
+  return new Promise<StartNexusOperationOutput>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
       untrackPromise(scope.cancelRequested.catch(reject));
@@ -141,19 +171,22 @@ export function startNexusOperationNextHandler({
     if (scope.cancellable) {
       untrackPromise(
         scope.cancelRequested.catch(() => {
-          const complete = !activator.completions.nexusOperationComplete.has(seq);
+          const completed =
+            !activator.completions.nexusOperationStart.has(seq) &&
+            !activator.completions.nexusOperationComplete.has(seq);
 
-          if (!complete) {
+          if (!completed) {
             activator.pushCommand({
               requestCancelNexusOperation: { seq },
             });
           }
+
           // Nothing to cancel otherwise
         })
       );
     }
 
-    getActivator().pushCommand({
+    activator.pushCommand({
       scheduleNexusOperation: {
         seq,
         endpoint,
@@ -162,23 +195,14 @@ export function startNexusOperationNextHandler({
         nexusHeader,
         input: activator.payloadConverter.toPayload(input),
         scheduleToCloseTimeout: msOptionalToTs(options?.scheduleToCloseTimeout),
+        // FIXME(nexus-post-initial-release): cancellationType is not supported yet
       },
+      userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined),
     });
+
     activator.completions.nexusOperationStart.set(seq, {
       resolve,
       reject,
     });
   });
-
-  const completePromise = new Promise((resolve, reject) => {
-    activator.completions.nexusOperationComplete.set(seq, {
-      resolve,
-      reject,
-    });
-  });
-  untrackPromise(startPromise);
-  untrackPromise(completePromise);
-  // Prevent unhandled rejection because the completion might not be awaited
-  untrackPromise(completePromise.catch(() => undefined));
-  return [startPromise, completePromise];
 }

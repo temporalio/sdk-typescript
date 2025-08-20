@@ -379,9 +379,15 @@ export class ChildWorkflowFailure extends TemporalFailure {
   }
 }
 
+/**
+ * Thrown when a Nexus operation executed inside a Workflow fails.
+ *
+ * @experimental
+ */
 @SymbolBasedInstanceOfError('NexusOperationFailure')
 export class NexusOperationFailure extends TemporalFailure {
   public constructor(
+    message: string | undefined,
     public readonly scheduledEventId: number | undefined,
     public readonly endpoint: string,
     public readonly service: string,
@@ -389,9 +395,11 @@ export class NexusOperationFailure extends TemporalFailure {
     public readonly operationToken: string | undefined,
     cause?: Error
   ) {
-    super('Nexus Operation completed unsuccessfully', cause);
+    super(message, cause);
   }
 }
+
+// REVIEW: Have we decided on whether we want a NexusHandlerFailure?
 
 /**
  * This exception is thrown in the following cases:

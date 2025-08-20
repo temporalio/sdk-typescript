@@ -1,9 +1,14 @@
 export {
+  //
   log,
   getClient,
+  metricMeter,
+} from './context';
+
+export {
   startWorkflow,
   WorkflowHandle,
-  WorkflowRunOperation,
   WorkflowRunOperationHandler,
+  WorkflowRunOperationStartHandler,
   WorkflowStartOptions,
-} from './context';
+} from './workflow-helpers';

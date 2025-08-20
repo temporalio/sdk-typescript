@@ -180,6 +180,7 @@ export declare function workerCompleteActivityTask(worker: Worker, result: Buffe
 export declare function workerRecordActivityHeartbeat(worker: Worker, heartbeat: Buffer): void;
 
 export declare function workerPollNexusTask(worker: Worker): Promise<Buffer>;
+
 export declare function workerCompleteNexusTask(worker: Worker, result: Buffer): Promise<void>;
 
 export declare function workerInitiateShutdown(worker: Worker): void;

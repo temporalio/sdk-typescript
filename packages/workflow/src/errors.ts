@@ -30,6 +30,7 @@ export class LocalActivityDoBackoff extends Error {
 export function isCancellation(err: unknown): boolean {
   return (
     err instanceof CancelledFailure ||
-    ((err instanceof ActivityFailure || err instanceof ChildWorkflowFailure || err instanceof NexusOperationFailure) && err.cause instanceof CancelledFailure)
+    ((err instanceof ActivityFailure || err instanceof ChildWorkflowFailure || err instanceof NexusOperationFailure) &&
+      err.cause instanceof CancelledFailure)
   );
 }

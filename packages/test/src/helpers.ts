@@ -88,11 +88,12 @@ export function cleanStackTrace(ostack: string): string {
       .replace(/\[as fn\] /, '')
       // Avoid https://github.com/nodejs/node/issues/42417
       .replace(/at null\./g, 'at ')
-      .replace(/\\/g, '/')
-      .replaceAll(/\([^() ]*\/node_modules\//g, '(');
+      .replace(/\\/g, '/');
 
   // FIXME: Find a better way to handle package vendoring; this will come back again.
-  normalizedStack = normalizedStack.replaceAll(/\([^() ]*\/nexus-sdk-typescript\/src/g, '(nexus-rpc/src');
+  normalizedStack = normalizedStack
+    .replaceAll(/\([^() ]*\/node_modules\//g, '(')
+    .replaceAll(/\([^() ]*\/nexus-sdk-typescript\/src/g, '(nexus-rpc/src');
 
   return normalizedStack ? `${firstLine}\n${normalizedStack}` : firstLine;
 }

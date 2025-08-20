@@ -642,15 +642,3 @@ export interface ActivationCompletion {
   usedInternalFlags: number[];
   versioningBehavior?: VersioningBehavior;
 }
-
-/**
- * Options for starting a Nexus Operation.
- */
-export interface StartNexusOperationOptions {
-  /**
-   * The end to end timeout for the Nexus Operation.
-   *
-   * Optional: defaults to the maximum allowed by the Temporal server.
-   */
-  scheduleToCloseTimeout?: Duration;
-}

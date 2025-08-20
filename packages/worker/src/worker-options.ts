@@ -772,6 +772,7 @@ function compileWorkerInterceptors({
   client,
   activity,
   activityInbound, // eslint-disable-line deprecation/deprecation
+  nexus,
   workflowModules,
 }: Required<WorkerInterceptors>): CompiledWorkerInterceptors {
   return {
@@ -780,6 +781,7 @@ function compileWorkerInterceptors({
       schedule: client?.schedule ?? [],
     },
     activity: [...activityInbound.map((factory) => (ctx: Context) => ({ inbound: factory(ctx) })), ...activity],
+    nexus: nexus ?? [],
     workflowModules,
   };
 }
@@ -866,8 +868,8 @@ function addDefaultWorkerOptions(
     interceptors,
     maxConcurrentActivityTaskExecutions,
     maxConcurrentLocalActivityExecutions,
-    maxConcurrentNexusTaskExecutions,
     maxConcurrentWorkflowTaskExecutions,
+    maxConcurrentNexusTaskExecutions,
     workflowTaskPollerBehavior,
     activityTaskPollerBehavior,
     nexusTaskPollerBehavior,
@@ -971,6 +973,7 @@ function addDefaultWorkerOptions(
         schedule: interceptors?.client?.schedule ?? [],
       },
       activity: interceptors?.activity ?? [],
+      nexus: interceptors?.nexus ?? [],
       // eslint-disable-next-line deprecation/deprecation
       activityInbound: interceptors?.activityInbound ?? [],
       workflowModules: interceptors?.workflowModules ?? [],

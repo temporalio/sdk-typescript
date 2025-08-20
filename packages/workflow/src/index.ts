@@ -99,7 +99,6 @@ export {
   RootWorkflowInfo,
   StackTraceSDKInfo,
   StackTrace,
-  StartNexusOperationOptions,
   UnsafeWorkflowInfo,
   WorkflowInfo,
 } from './interfaces';
@@ -110,7 +109,11 @@ export * from './workflow';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 export { metricMeter } from './metrics';
 
-// Anything below this line is deprecated
+export { createNexusClient, NexusClientOptions, NexusClient, NexusOperationHandle } from './nexus';
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Deprecated APIs
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export {
   /**
@@ -121,5 +124,3 @@ export {
   // eslint-disable-next-line deprecation/deprecation
   LoggerSinksDeprecated as LoggerSinks,
 } from './logs';
-
-export { createNexusClient, NexusClient, NexusOperationHandle } from './nexus';

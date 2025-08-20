@@ -13,6 +13,7 @@
     { "path": "../cloud" },
     { "path": "../common" },
     { "path": "../interceptors-opentelemetry" },
+    { "path": "../nexus" },
     { "path": "../testing" },
     { "path": "../worker" },
     { "path": "../workflow" },
