@@ -35,6 +35,7 @@ import {
   decodePriority,
   CancelledFailure,
   MetricMeter,
+  ActivityCancellationDetails,
 } from '@temporalio/common';
 import {
   decodeArrayFromPayloads,
@@ -1031,7 +1032,12 @@ export class Worker {
                           base64TaskToken,
                           details,
                           onError() {
-                            activity?.cancel('HEARTBEAT_DETAILS_CONVERSION_FAILED'); // activity must be defined
+                            // activity must be defined
+                            // empty cancellation details, not corresponding detail for heartbeat detail conversion failure
+                            activity?.cancel(
+                              'HEARTBEAT_DETAILS_CONVERSION_FAILED',
+                              ActivityCancellationDetails.fromProto(undefined)
+                            );
                           },
                         }),
                       this.logger,
@@ -1070,11 +1076,15 @@ export class Worker {
                   // NOTE: activity will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
                   this.logger.trace('Cancelling activity', activityLogAttributes(activity.info));
                   const reason = task.cancel?.reason;
+                  const cancellationDetails = task.cancel?.details;
                   if (reason === undefined || reason === null) {
                     // Special case of Lang side cancellation during shutdown (see `activity.shutdown.evict` above)
-                    activity.cancel('WORKER_SHUTDOWN');
+                    activity.cancel('WORKER_SHUTDOWN', ActivityCancellationDetails.fromProto(cancellationDetails));
                   } else {
-                    activity.cancel(coresdk.activity_task.ActivityCancelReason[reason] as CancelReason);
+                    activity.cancel(
+                      coresdk.activity_task.ActivityCancelReason[reason] as CancelReason,
+                      ActivityCancellationDetails.fromProto(cancellationDetails)
+                    );
                   }
                   break;
                 }

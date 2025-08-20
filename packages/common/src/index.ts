@@ -8,6 +8,7 @@ import * as encoding from './encoding';
 import * as helpers from './type-helpers';
 
 export * from './activity-options';
+export { ActivityCancellationDetailsOptions, ActivityCancellationDetails } from './activity-cancellation-details';
 export * from './converter/data-converter';
 export * from './converter/failure-converter';
 export * from './converter/payload-codec';
