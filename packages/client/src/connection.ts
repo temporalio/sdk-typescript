@@ -12,7 +12,7 @@ import { type temporal } from '@temporalio/proto';
 import { isGrpcServiceError, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 import pkg from './pkg';
-import { CallContext, HealthService, Metadata, OperatorService, WorkflowService } from './types';
+import { CallContext, HealthService, Metadata, OperatorService, TestService, WorkflowService } from './types';
 
 /**
  * The default Temporal Server's TCP port for public gRPC connections.
@@ -138,6 +138,17 @@ export type ConnectionOptionsWithDefaults = Required<
   connectTimeoutMs: number;
 };
 
+export const InternalConnectionOptionsSymbol = Symbol('__temporal_internal_connection_options');
+export type InternalConnectionOptions = ConnectionOptions & {
+  [InternalConnectionOptionsSymbol]?: {
+    /**
+     * A symbol used internally to indicate whether support for TestService should be enabled on this
+     * connection. This is set to true on connections created internally by the `TestWorkflowEnvironment.createTimeSkipping()`
+     */
+    supportsTestService?: boolean;
+  };
+};
+
 export const LOCAL_TARGET = 'localhost:7233';
 
 function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults {
@@ -240,6 +251,13 @@ export interface ConnectionCtorOptions {
   readonly operatorService: OperatorService;
 
   /**
+   * Raw gRPC access to the Temporal test service.
+   *
+   * Will be `undefined` if connected to a server that does not support the test service.
+   */
+  readonly testService: TestService | undefined;
+
+  /**
    * Raw gRPC access to the standard gRPC {@link https://github.com/grpc/grpc/blob/92f58c18a8da2728f571138c37760a721c8915a2/doc/health-checking.md | health service}.
    */
   readonly healthService: HealthService;
@@ -287,6 +305,13 @@ export class Connection {
   public readonly operatorService: OperatorService;
 
   /**
+   * Raw gRPC access to the Temporal test service.
+   *
+   * Will be `undefined` if connected to a server that does not support the test service.
+   */
+  public readonly testService: TestService | undefined;
+
+  /**
    * Raw gRPC access to the standard gRPC {@link https://github.com/grpc/grpc/blob/92f58c18a8da2728f571138c37760a721c8915a2/doc/health-checking.md | health service}.
    */
   public readonly healthService: HealthService;
@@ -326,6 +351,7 @@ export class Connection {
       apiKeyFnRef,
     });
     const workflowService = WorkflowService.create(workflowRpcImpl, false, false);
+
     const operatorRpcImpl = this.generateRPCImplementation({
       serviceName: 'temporal.api.operatorservice.v1.OperatorService',
       client,
@@ -335,6 +361,20 @@ export class Connection {
       apiKeyFnRef,
     });
     const operatorService = OperatorService.create(operatorRpcImpl, false, false);
+
+    let testService: TestService | undefined = undefined;
+    if ((options as InternalConnectionOptions)?.[InternalConnectionOptionsSymbol]?.supportsTestService) {
+      const testRpcImpl = this.generateRPCImplementation({
+        serviceName: 'temporal.api.testservice.v1.TestService',
+        client,
+        callContextStorage,
+        interceptors: optionsWithDefaults?.interceptors,
+        staticMetadata: optionsWithDefaults.metadata,
+        apiKeyFnRef,
+      });
+      testService = TestService.create(testRpcImpl, false, false);
+    }
+
     const healthRpcImpl = this.generateRPCImplementation({
       serviceName: 'grpc.health.v1.Health',
       client,
@@ -350,6 +390,7 @@ export class Connection {
       callContextStorage,
       workflowService,
       operatorService,
+      testService,
       healthService,
       options: optionsWithDefaults,
       apiKeyFnRef,
@@ -414,6 +455,7 @@ export class Connection {
     client,
     workflowService,
     operatorService,
+    testService,
     healthService,
     callContextStorage,
     apiKeyFnRef,
@@ -422,6 +464,7 @@ export class Connection {
     this.client = client;
     this.workflowService = this.withNamespaceHeaderInjector(workflowService);
     this.operatorService = operatorService;
+    this.testService = testService;
     this.healthService = healthService;
     this.callContextStorage = callContextStorage;
     this.apiKeyFnRef = apiKeyFnRef;
