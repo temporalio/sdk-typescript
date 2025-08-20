@@ -7,7 +7,6 @@ import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import {
   configurableHelpers,
-  createLocalTestEnvironment,
   createTestWorkflowEnvironment,
   makeConfigurableEnvironmentTestFn,
 } from './helpers-integration';

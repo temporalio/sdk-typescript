@@ -145,7 +145,7 @@ export function makeTestFunction<C extends Context = Context>(opts: {
     recordedLogs: opts.recordedLogs,
     runtimeOpts: opts.runtimeOpts,
     createTestContext: async (_t: ExecutionContext): Promise<C> => {
-      let env: TestWorkflowEnvironment = await createTestWorkflowEnvironment(opts.workflowEnvironmentOpts);
+      const env = await createTestWorkflowEnvironment(opts.workflowEnvironmentOpts);
       return {
         workflowBundle: await createTestWorkflowBundle({
           workflowsPath: opts.workflowsPath,
@@ -160,7 +160,9 @@ export function makeTestFunction<C extends Context = Context>(opts: {
   });
 }
 
-export async function createTestWorkflowEnvironment(opts?: LocalTestWorkflowEnvironmentOptions) {
+export async function createTestWorkflowEnvironment(
+  opts?: LocalTestWorkflowEnvironmentOptions
+): Promise<TestWorkflowEnvironment> {
   let env: TestWorkflowEnvironment;
   if (process.env.TEMPORAL_SERVICE_ADDRESS) {
     env = await TestWorkflowEnvironment.createFromExistingServer({
