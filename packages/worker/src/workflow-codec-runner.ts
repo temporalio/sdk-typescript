@@ -335,6 +335,13 @@ export class WorkflowCodecRunner {
                               },
                             }
                           : undefined,
+                        userMetadata:
+                          command.userMetadata && (command.userMetadata.summary || command.userMetadata.details)
+                            ? {
+                                summary: await encodeOptionalSingle(this.codecs, command.userMetadata.summary),
+                                details: await encodeOptionalSingle(this.codecs, command.userMetadata.details),
+                              }
+                            : undefined,
                       }
                   ) ?? []
                 )

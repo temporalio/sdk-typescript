@@ -33,6 +33,7 @@ import {
   TypedSearchAttributes,
   decodePriority,
   MetricMeter,
+  ActivityCancellationDetails,
 } from '@temporalio/common';
 import {
   decodeArrayFromPayloads,
@@ -57,6 +58,7 @@ import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
 import { native } from '@temporalio/core-bridge';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
+import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
@@ -467,6 +469,10 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
+    if (!options.taskQueue) {
+      throw new TypeError('Task queue name is required');
+    }
+    throwIfReservedName('task queue', options.taskQueue);
     const runtime = Runtime.instance();
     const logger = LoggerWithComposedMetadata.compose(runtime.logger, {
       sdkComponent: SdkComponent.worker,
@@ -988,7 +994,12 @@ export class Worker {
                           base64TaskToken,
                           details,
                           onError() {
-                            activity?.cancel('HEARTBEAT_DETAILS_CONVERSION_FAILED'); // activity must be defined
+                            // activity must be defined
+                            // empty cancellation details, not corresponding detail for heartbeat detail conversion failure
+                            activity?.cancel(
+                              'HEARTBEAT_DETAILS_CONVERSION_FAILED',
+                              ActivityCancellationDetails.fromProto(undefined)
+                            );
                           },
                         }),
                       this.logger,
@@ -1027,11 +1038,15 @@ export class Worker {
                   // NOTE: activity will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
                   this.logger.trace('Cancelling activity', activityLogAttributes(activity.info));
                   const reason = task.cancel?.reason;
+                  const cancellationDetails = task.cancel?.details;
                   if (reason === undefined || reason === null) {
                     // Special case of Lang side cancellation during shutdown (see `activity.shutdown.evict` above)
-                    activity.cancel('WORKER_SHUTDOWN');
+                    activity.cancel('WORKER_SHUTDOWN', ActivityCancellationDetails.fromProto(cancellationDetails));
                   } else {
-                    activity.cancel(coresdk.activity_task.ActivityCancelReason[reason] as CancelReason);
+                    activity.cancel(
+                      coresdk.activity_task.ActivityCancelReason[reason] as CancelReason,
+                      ActivityCancellationDetails.fromProto(cancellationDetails)
+                    );
                   }
                   break;
                 }
