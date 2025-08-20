@@ -312,7 +312,7 @@ export async function saveHistory(fname: string, history: iface.temporal.api.his
 export function approximatelyEqual(
   a: number | null | undefined,
   b: number | null | undefined,
-  tolerance = Number.EPSILON
+  tolerance = 0.000001
 ): boolean {
   if (a === null || a === undefined || b === null || b === undefined) {
     return false;
