@@ -308,3 +308,14 @@ export async function saveHistory(fname: string, history: iface.temporal.api.his
   const fpath = path.resolve(__dirname, `../history_files/${fname}`);
   await fs.writeFile(fpath, historyToJSON(history));
 }
+
+export function approximatelyEqual(
+  a: number | null | undefined,
+  b: number | null | undefined,
+  tolerance = 0.000001
+): boolean {
+  if (a === null || a === undefined || b === null || b === undefined) {
+    return false;
+  }
+  return Math.abs(a - b) < tolerance;
+}

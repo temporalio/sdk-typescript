@@ -7,7 +7,7 @@ import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import {
   configurableHelpers,
-  createLocalTestEnvironment,
+  createTestWorkflowEnvironment,
   makeConfigurableEnvironmentTestFn,
 } from './helpers-integration';
 import { ByteSkewerPayloadCodec, Worker } from './helpers';
@@ -40,7 +40,7 @@ export function makeTestFn(makeBundle: () => Promise<WorkflowBundle>): TestFn<Te
             failureConverter: defaultFailureConverter,
           };
 
-          const env = await createLocalTestEnvironment({
+          const env = await createTestWorkflowEnvironment({
             client: { dataConverter },
           });
 
