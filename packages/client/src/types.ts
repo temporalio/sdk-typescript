@@ -91,6 +91,8 @@ export type WorkflowService = proto.temporal.api.workflowservice.v1.WorkflowServ
 export const { WorkflowService } = proto.temporal.api.workflowservice.v1;
 export type OperatorService = proto.temporal.api.operatorservice.v1.OperatorService;
 export const { OperatorService } = proto.temporal.api.operatorservice.v1;
+export type TestService = proto.temporal.api.testservice.v1.TestService;
+export const { TestService } = proto.temporal.api.testservice.v1;
 export type HealthService = proto.grpc.health.v1.Health;
 export const { Health: HealthService } = proto.grpc.health.v1;
 
@@ -117,9 +119,6 @@ export interface CallContext {
 
 /**
  * Connection interface used by high level SDK clients.
- *
- * NOTE: Currently the SDK only supports grpc-js based connection but in the future
- * we might support grpc-web and native Rust connections.
  */
 export interface ConnectionLike {
   workflowService: WorkflowService;

@@ -6,7 +6,8 @@ import test from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { Client, NamespaceNotFoundError, WorkflowNotFoundError } from '@temporalio/client';
-import { IllegalStateError, NativeConnection, TransportError } from '@temporalio/worker';
+import { InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
+import { IllegalStateError, NativeConnection, NativeConnectionOptions, TransportError } from '@temporalio/worker';
 import { temporal } from '@temporalio/proto';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -19,6 +20,30 @@ const workflowServicePackageDefinition = protoLoader.loadSync(
   { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream')] }
 );
 const workflowServiceProtoDescriptor = grpc.loadPackageDefinition(workflowServicePackageDefinition) as any;
+
+const operatorServicePackageDefinition = protoLoader.loadSync(
+  path.resolve(
+    __dirname,
+    '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream/temporal/api/operatorservice/v1/service.proto'
+  ),
+  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream')] }
+);
+const operatorServiceProtoDescriptor = grpc.loadPackageDefinition(operatorServicePackageDefinition) as any;
+
+const healthServicePackageDefinition = protoLoader.loadSync(
+  path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/grpc/health/v1/health.proto'),
+  { includeDirs: [] }
+);
+const healthServiceProtoDescriptor = grpc.loadPackageDefinition(healthServicePackageDefinition) as any;
+
+const testServicePackageDefinition = protoLoader.loadSync(
+  path.resolve(
+    __dirname,
+    '../../core-bridge/sdk-core/sdk-core-protos/protos/testsrv_upstream/temporal/api/testservice/v1/service.proto'
+  ),
+  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/testsrv_upstream')] }
+);
+const testServiceProtoDescriptor = grpc.loadPackageDefinition(testServicePackageDefinition) as any;
 
 async function bindLocalhostIpv6(server: grpc.Server): Promise<number> {
   return await util.promisify(server.bindAsync.bind(server))('[::1]:0', grpc.ServerCredentials.createInsecure());
@@ -235,7 +260,147 @@ test('all WorkflowService methods are implemented', async (t) => {
   server.forceShutdown();
 });
 
-test('can power client calls', async (t) => {
+test('all OperatorService methods are implemented', async (t) => {
+  const server = new grpc.Server();
+  const calledMethods = new Set<string>();
+  server.addService(
+    operatorServiceProtoDescriptor.temporal.api.operatorservice.v1.OperatorService.service,
+    new Proxy(
+      {},
+      {
+        get() {
+          return (
+            call: grpc.ServerUnaryCall<any, any>,
+            callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+          ) => {
+            const parts = call.getPath().split('/');
+            const method = parts[parts.length - 1];
+            calledMethods.add(method[0].toLowerCase() + method.slice(1));
+            callback(null, {});
+          };
+        },
+      }
+    )
+  );
+
+  const port = await util.promisify(server.bindAsync.bind(server))(
+    'localhost:0',
+    grpc.ServerCredentials.createInsecure()
+  );
+  const connection = await NativeConnection.connect({
+    address: `127.0.0.1:${port}`,
+  });
+
+  // Transform all methods from pascal case to lower case.
+  const methods = Object.keys(
+    operatorServiceProtoDescriptor.temporal.api.operatorservice.v1.OperatorService.service
+  ).map((k) => k[0].toLowerCase() + k.slice(1));
+  methods.sort();
+  for (const method of methods) {
+    await (connection.operatorService as any)[method]({});
+    t.true(calledMethods.has(method), `method ${method} not called`);
+  }
+
+  await connection.close();
+  server.forceShutdown();
+});
+
+test('all HealthService methods are implemented', async (t) => {
+  const server = new grpc.Server();
+  const calledMethods = new Set<string>();
+  server.addService(
+    healthServiceProtoDescriptor.grpc.health.v1.Health.service,
+    new Proxy(
+      {},
+      {
+        get() {
+          return (
+            call: grpc.ServerUnaryCall<any, any>,
+            callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+          ) => {
+            const parts = call.getPath().split('/');
+            const method = parts[parts.length - 1];
+            calledMethods.add(method[0].toLowerCase() + method.slice(1));
+            callback(null, {});
+          };
+        },
+      }
+    )
+  );
+
+  const port = await util.promisify(server.bindAsync.bind(server))(
+    'localhost:0',
+    grpc.ServerCredentials.createInsecure()
+  );
+  const connection = await NativeConnection.connect({
+    address: `127.0.0.1:${port}`,
+  });
+
+  // Transform all methods from pascal case to lower case.
+  const methods = Object.keys(healthServiceProtoDescriptor.grpc.health.v1.Health.service).map(
+    (k) => k[0].toLowerCase() + k.slice(1)
+  );
+  methods.sort();
+  for (const method of methods) {
+    // Intentionally ignore 'watch' because it's a streaming method.
+    if (method === 'watch') {
+      continue;
+    }
+    await (connection.healthService as any)[method]({});
+    t.true(calledMethods.has(method), `method ${method} not called`);
+  }
+
+  await connection.close();
+  server.forceShutdown();
+});
+
+test('all TestService methods are implemented', async (t) => {
+  const server = new grpc.Server();
+  const calledMethods = new Set<string>();
+  server.addService(
+    testServiceProtoDescriptor.temporal.api.testservice.v1.TestService.service,
+    new Proxy(
+      {},
+      {
+        get() {
+          return (
+            call: grpc.ServerUnaryCall<any, any>,
+            callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+          ) => {
+            const parts = call.getPath().split('/');
+            const method = parts[parts.length - 1];
+            calledMethods.add(method[0].toLowerCase() + method.slice(1));
+            callback(null, {});
+          };
+        },
+      }
+    )
+  );
+
+  const port = await util.promisify(server.bindAsync.bind(server))(
+    'localhost:0',
+    grpc.ServerCredentials.createInsecure()
+  );
+  const connection = await NativeConnection.connect(<NativeConnectionOptions & InternalConnectionOptions>{
+    address: `127.0.0.1:${port}`,
+    [InternalConnectionOptionsSymbol]: { supportsTestService: true },
+  });
+
+  // Transform all methods from pascal case to lower case.
+  const methods = Object.keys(testServiceProtoDescriptor.temporal.api.testservice.v1.TestService.service).map(
+    (k) => k[0].toLowerCase() + k.slice(1)
+  );
+  methods.sort();
+  for (const method of methods) {
+    await (connection.testService as any)[method]({});
+    t.true(calledMethods.has(method), `method ${method} not called`);
+  }
+
+  await connection.close();
+  server.forceShutdown();
+});
+
+test('can power workflow client calls', async (t) => {
   const env = await TestWorkflowEnvironment.createLocal();
   try {
     {

@@ -794,13 +794,14 @@ export class Worker {
     protected readonly isReplayWorker: boolean = false
   ) {
     this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodecs);
-    if (connection !== null) {
+    if (connection != null) {
+      // connection (and consequently client) will be set IIF this is not a replay worker.
       this.client = new Client({
         namespace: options.namespace,
         connection,
         identity: options.identity,
         dataConverter: options.dataConverter,
-        // TODO: support interceptors.
+        interceptors: options.interceptors.client,
       });
     }
   }
@@ -1040,6 +1041,7 @@ export class Worker {
                             );
                           },
                         }),
+                      this.client,
                       this.logger,
                       this.metricMeter,
                       this.options.interceptors.activity

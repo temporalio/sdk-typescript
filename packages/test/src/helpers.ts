@@ -282,6 +282,32 @@ export async function registerDefaultCustomSearchAttributes(connection: Connecti
   console.log(`... Registered (took ${timeTaken / 1000} sec)!`);
 }
 
+/**
+ * Return a random TCP port number, that is guaranteed to be either available, or to be in use.
+ *
+ * To get a port that is guaranteed to be available, simply call the function directly.
+ *
+ * ```ts
+ * const port = await getRandomPort();
+ * ```
+ *
+ * To get a port that is guaranteed to be in use, pass a function that will be called with the port
+ * number; the port is guaranteed to be in use until the function returns. This may be useful for
+ * example to test for proper error handling when a port is already in use.
+ *
+ * ```ts
+ * const port = await getRandomPort(async (port) => {
+ *     t.throws(
+ *       () => startMyService({ bindAddress: `127.0.0.1:${port}` }),
+ *       {
+ *         instanceOf: Error,
+ *         message: /(Address already in use|socket address)/,
+ *       }
+ *     );
+ *   });
+ * });
+ * ```
+ */
 export async function getRandomPort(fn = (_port: number) => Promise.resolve()): Promise<number> {
   return new Promise<number>((resolve, reject) => {
     const srv = net.createServer();
@@ -312,4 +338,15 @@ export async function loadHistory(fname: string): Promise<iface.temporal.api.his
 export async function saveHistory(fname: string, history: iface.temporal.api.history.v1.IHistory): Promise<void> {
   const fpath = path.resolve(__dirname, `../history_files/${fname}`);
   await fs.writeFile(fpath, historyToJSON(history));
+}
+
+export function approximatelyEqual(
+  a: number | null | undefined,
+  b: number | null | undefined,
+  tolerance = 0.000001
+): boolean {
+  if (a === null || a === undefined || b === null || b === undefined) {
+    return false;
+  }
+  return Math.abs(a - b) < tolerance;
 }

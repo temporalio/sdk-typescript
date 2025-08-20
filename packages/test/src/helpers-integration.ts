@@ -29,7 +29,6 @@ import {
 import * as workflow from '@temporalio/workflow';
 import { temporal } from '@temporalio/proto';
 import { defineSearchAttributeKey, SearchAttributeType } from '@temporalio/common/lib/search-attributes';
-import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { Worker, TestWorkflowEnvironment, test as anyTest, bundlerOptions, waitUntil } from './helpers';
 
 export interface Context {
@@ -142,26 +141,6 @@ export interface TestFunctionOptions<C extends Context> {
   runtimeOpts?: Partial<RuntimeOptions> | (() => Promise<[Partial<RuntimeOptions>, Partial<C>]>) | undefined;
 }
 
-export function makeDefaultTestContextFunction<C extends Context = Context>(opts: TestFunctionOptions<C>) {
-  return async (_t: ExecutionContext): Promise<C> => {
-    let env: TestWorkflowEnvironment;
-    if (process.env.TEMPORAL_SERVICE_ADDRESS) {
-      env = await TestWorkflowEnvironment.createFromExistingServer({
-        address: process.env.TEMPORAL_SERVICE_ADDRESS,
-      });
-    } else {
-      env = await createLocalTestEnvironment(opts.workflowEnvironmentOpts);
-    }
-    return {
-      workflowBundle: await createTestWorkflowBundle({
-        workflowsPath: opts.workflowsPath,
-        workflowInterceptorModules: opts.workflowInterceptorModules,
-      }),
-      env,
-    } as unknown as C;
-  };
-}
-
 export function makeTestFunction<C extends Context = Context>(opts: TestFunctionOptions<C>): TestFn<C> {
   return makeConfigurableEnvironmentTestFn<C>({
     recordedLogs: opts.recordedLogs,
@@ -173,6 +152,33 @@ export function makeTestFunction<C extends Context = Context>(opts: TestFunction
       }
     },
   });
+}
+
+export function makeDefaultTestContextFunction<C extends Context = Context>(opts: TestFunctionOptions<C>) {
+  return async (_t: ExecutionContext): Promise<C> => {
+    const env = await createTestWorkflowEnvironment(opts.workflowEnvironmentOpts);
+    return {
+      workflowBundle: await createTestWorkflowBundle({
+        workflowsPath: opts.workflowsPath,
+        workflowInterceptorModules: opts.workflowInterceptorModules,
+      }),
+      env,
+    } as unknown as C;
+  };
+}
+
+export async function createTestWorkflowEnvironment(
+  opts?: LocalTestWorkflowEnvironmentOptions
+): Promise<TestWorkflowEnvironment> {
+  let env: TestWorkflowEnvironment;
+  if (process.env.TEMPORAL_SERVICE_ADDRESS) {
+    env = await TestWorkflowEnvironment.createFromExistingServer({
+      address: process.env.TEMPORAL_SERVICE_ADDRESS,
+    });
+  } else {
+    env = await createLocalTestEnvironment(opts);
+  }
+  return env;
 }
 
 export interface Helpers {
@@ -208,9 +214,6 @@ export function configurableHelpers<T>(
         connection: testEnv.nativeConnection,
         workflowBundle,
         taskQueue,
-        interceptors: {
-          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(testEnv.connection) })],
-        },
         showStackTraceSources: true,
         ...opts,
       });

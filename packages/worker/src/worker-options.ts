@@ -769,11 +769,16 @@ export function appendDefaultInterceptors(
 }
 
 function compileWorkerInterceptors({
+  client,
   activity,
   activityInbound, // eslint-disable-line deprecation/deprecation
   workflowModules,
 }: Required<WorkerInterceptors>): CompiledWorkerInterceptors {
   return {
+    client: {
+      workflow: client?.workflow ?? [],
+      schedule: client?.schedule ?? [],
+    },
     activity: [...activityInbound.map((factory) => (ctx: Context) => ({ inbound: factory(ctx) })), ...activity],
     workflowModules,
   };
@@ -961,6 +966,10 @@ function addDefaultWorkerOptions(
     showStackTraceSources: showStackTraceSources ?? false,
     debugMode: debugMode ?? false,
     interceptors: {
+      client: {
+        workflow: interceptors?.client?.workflow ?? [],
+        schedule: interceptors?.client?.schedule ?? [],
+      },
       activity: interceptors?.activity ?? [],
       // eslint-disable-next-line deprecation/deprecation
       activityInbound: interceptors?.activityInbound ?? [],

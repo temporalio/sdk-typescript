@@ -1,7 +1,5 @@
 /**
- * Type definitions and generic helpers for interceptors.
- *
- * The Workflow specific interceptors are defined here.
+ * Type definitions for Workflow interceptors.
  *
  * @module
  */
@@ -20,35 +18,35 @@ import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions, StartNexusOpera
 
 export { Next, Headers };
 
-/** Input for WorkflowInboundCallsInterceptor.execute */
-export interface WorkflowExecuteInput {
-  readonly args: unknown[];
-  readonly headers: Headers;
+/**
+ * A function that instantiates {@link WorkflowInterceptors}.
+ *
+ * Workflow interceptor modules should export an `interceptors` function of this type.
+ *
+ * @example
+ *
+ * ```ts
+ * export function interceptors(): WorkflowInterceptors {
+ *   return {
+ *     inbound: [],   // Populate with list of inbound interceptor implementations
+ *     outbound: [],  // Populate with list of outbound interceptor implementations
+ *     internals: [], // Populate with list of internals interceptor implementations
+ *   };
+ * }
+ * ```
+ */
+export type WorkflowInterceptorsFactory = () => WorkflowInterceptors;
+
+/**
+ * A mapping from interceptor type to an optional list of interceptor implementations
+ */
+export interface WorkflowInterceptors {
+  inbound?: WorkflowInboundCallsInterceptor[];
+  outbound?: WorkflowOutboundCallsInterceptor[];
+  internals?: WorkflowInternalsInterceptor[];
 }
 
-/** Input for WorkflowInboundCallsInterceptor.handleUpdate and
- * WorkflowInboundCallsInterceptor.validateUpdate */
-export interface UpdateInput {
-  readonly updateId: string;
-  readonly name: string;
-  readonly args: unknown[];
-  readonly headers: Headers;
-}
-
-/** Input for WorkflowInboundCallsInterceptor.handleSignal */
-export interface SignalInput {
-  readonly signalName: string;
-  readonly args: unknown[];
-  readonly headers: Headers;
-}
-
-/** Input for WorkflowInboundCallsInterceptor.handleQuery */
-export interface QueryInput {
-  readonly queryId: string;
-  readonly queryName: string;
-  readonly args: unknown[];
-  readonly headers: Headers;
-}
+// Workflow Inbound Calls Interceptors /////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Implement any of these methods to intercept Workflow inbound calls like execution, and signal and query handling.
@@ -59,29 +57,173 @@ export interface WorkflowInboundCallsInterceptor {
    *
    * @return result of the Workflow execution
    */
-  execute?: (input: WorkflowExecuteInput, next: Next<this, 'execute'>) => Promise<unknown>;
+  execute?: (input: WorkflowExecuteInput, next: Next<WorkflowInboundCallsInterceptor, 'execute'>) => Promise<unknown>;
 
-  /** Called when Update handler is called
+  /**
+   * Called when Update handler is called
    *
    * @return result of the Update
    */
-  handleUpdate?: (input: UpdateInput, next: Next<this, 'handleUpdate'>) => Promise<unknown>;
+  handleUpdate?: (input: UpdateInput, next: Next<WorkflowInboundCallsInterceptor, 'handleUpdate'>) => Promise<unknown>;
 
-  /** Called when update validator called */
-  validateUpdate?: (input: UpdateInput, next: Next<this, 'validateUpdate'>) => void;
+  /**
+   * Called when update validator called
+   */
+  validateUpdate?: (input: UpdateInput, next: Next<WorkflowInboundCallsInterceptor, 'validateUpdate'>) => void;
 
-  /** Called when signal is delivered to a Workflow execution */
-  handleSignal?: (input: SignalInput, next: Next<this, 'handleSignal'>) => Promise<void>;
+  /**
+   * Called when signal is delivered to a Workflow execution
+   */
+  handleSignal?: (input: SignalInput, next: Next<WorkflowInboundCallsInterceptor, 'handleSignal'>) => Promise<void>;
 
   /**
    * Called when a Workflow is queried
    *
    * @return result of the query
    */
-  handleQuery?: (input: QueryInput, next: Next<this, 'handleQuery'>) => Promise<unknown>;
+  handleQuery?: (input: QueryInput, next: Next<WorkflowInboundCallsInterceptor, 'handleQuery'>) => Promise<unknown>;
 }
 
-/** Input for WorkflowOutboundCallsInterceptor.scheduleActivity */
+/**
+ * Input for {@link WorkflowInboundCallsInterceptor.execute}.
+ */
+export interface WorkflowExecuteInput {
+  readonly args: unknown[];
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link WorkflowInboundCallsInterceptor.handleUpdate} and {@link WorkflowInboundCallsInterceptor.validateUpdate}.
+ */
+export interface UpdateInput {
+  readonly updateId: string;
+  readonly name: string;
+  readonly args: unknown[];
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link WorkflowInboundCallsInterceptor.handleSignal}.
+ */
+export interface SignalInput {
+  readonly signalName: string;
+  readonly args: unknown[];
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link WorkflowInboundCallsInterceptor.handleQuery}.
+ */
+export interface QueryInput {
+  readonly queryId: string;
+  readonly queryName: string;
+  readonly args: unknown[];
+  readonly headers: Headers;
+}
+
+// Workflow Outbound Calls Interceptors /////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Implement any of these methods to intercept Workflow code calls to the Temporal APIs, like scheduling an activity
+ * and starting a timer.
+ */
+export interface WorkflowOutboundCallsInterceptor {
+  /**
+   * Called when Workflow starts a timer.
+   */
+  startTimer?: (input: TimerInput, next: Next<WorkflowOutboundCallsInterceptor, 'startTimer'>) => Promise<void>;
+
+  /**
+   * Called when Workflow schedules an Activity.
+   *
+   * @return result of the activity execution
+   */
+  scheduleActivity?: (
+    input: ActivityInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'scheduleActivity'>
+  ) => Promise<unknown>;
+
+  /**
+   * Called when Workflow schedules a local Activity.
+   *
+   * @return result of the activity execution
+   */
+  scheduleLocalActivity?: (
+    input: LocalActivityInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'scheduleLocalActivity'>
+  ) => Promise<unknown>;
+
+  /**
+   * Called when Workflow starts a child workflow execution.
+   *
+   * The interceptor function returns 2 promises:
+   * - The first resolves with the `runId` when the child workflow has started or rejects if failed to start.
+   * - The second resolves with the workflow result when the child workflow completes or rejects on failure.
+   */
+  startChildWorkflowExecution?: (
+    input: StartChildWorkflowExecutionInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'startChildWorkflowExecution'>
+  ) => Promise<[Promise<string>, Promise<unknown>]>;
+
+  /**
+   * Called when Workflow signals a child or external Workflow.
+   */
+  signalWorkflow?: (
+    input: SignalWorkflowInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'signalWorkflow'>
+  ) => Promise<void>;
+
+  /**
+   * Called when Workflow calls continueAsNew.
+   */
+  continueAsNew?: (
+    input: ContinueAsNewInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'continueAsNew'>
+  ) => Promise<never>;
+
+  /**
+   * Called on each invocation of the `workflow.log` methods.
+   *
+   * The attributes returned in this call are attached to every log message.
+   */
+  getLogAttributes?: (
+    input: GetLogAttributesInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'getLogAttributes'>
+  ) => Record<string, unknown>;
+
+  /**
+   * Called once every time a metric is emitted from a Workflow metric (ie. a metric created
+   * from {@link workflow.metricMeter}).
+   *
+   * Tags returned by this hook are _prepended_ to tags defined at the metric level and tags
+   * defined on the emitter function itself.
+   */
+  getMetricTags?: (
+    input: GetMetricTagsInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'getMetricTags'>
+  ) => MetricTags;
+}
+
+/**
+ * Input for {@link WorkflowOutboundCallsInterceptor.startTimer}
+ */
+export interface TimerInput {
+  readonly durationMs: number;
+  readonly seq: number;
+  readonly options?: TimerOptions;
+}
+
+/**
+ * Options for starting a timer (i.e. sleep)
+ */
+export interface TimerOptions {
+  /** @experimental A fixed, single line summary of the command's purpose */
+  readonly summary?: string;
+}
+
+/**
+ * Input for {@link WorkflowOutboundCallsInterceptor.scheduleActivity}.
+ */
 export interface ActivityInput {
   readonly activityType: string;
   readonly args: unknown[];
@@ -90,7 +232,9 @@ export interface ActivityInput {
   readonly seq: number;
 }
 
-/** Input for WorkflowOutboundCallsInterceptor.scheduleLocalActivity */
+/**
+ * Input for {@link WorkflowOutboundCallsInterceptor.scheduleLocalActivity}.
+ */
 export interface LocalActivityInput {
   readonly activityType: string;
   readonly args: unknown[];
@@ -101,7 +245,9 @@ export interface LocalActivityInput {
   readonly attempt: number;
 }
 
-/** Input for WorkflowOutboundCallsInterceptor.startChildWorkflowExecution */
+/**
+ * Input for {@link WorkflowOutboundCallsInterceptor.startChildWorkflowExecution}.
+ */
 export interface StartChildWorkflowExecutionInput {
   readonly workflowType: string;
   readonly options: ChildWorkflowOptionsWithDefaults;
@@ -109,32 +255,9 @@ export interface StartChildWorkflowExecutionInput {
   readonly seq: number;
 }
 
-/** Input for WorkflowOutboundCallsInterceptor.startTimer */
-export interface TimerInput {
-  readonly durationMs: number;
-  readonly seq: number;
-  readonly options?: TimerOptions;
-}
-
-/** Options for starting a timer (i.e. sleep) */
-export interface TimerOptions {
-  /** @experimental A fixed, single line summary of the command's purpose */
-  readonly summary?: string;
-}
-
 /**
- * Same as ContinueAsNewOptions but workflowType must be defined
+ * Input for {@link WorkflowOutboundCallsInterceptor.signalWorkflow}.
  */
-export type ContinueAsNewInputOptions = ContinueAsNewOptions & Required<Pick<ContinueAsNewOptions, 'workflowType'>>;
-
-/** Input for WorkflowOutboundCallsInterceptor.continueAsNew */
-export interface ContinueAsNewInput {
-  readonly args: unknown[];
-  readonly headers: Headers;
-  readonly options: ContinueAsNewInputOptions;
-}
-
-/** Input for WorkflowOutboundCallsInterceptor.signalWorkflow */
 export interface SignalWorkflowInput {
   readonly seq: number;
   readonly signalName: string;
@@ -151,14 +274,22 @@ export interface SignalWorkflowInput {
       };
 }
 
-/** Input for WorkflowOutboundCallsInterceptor.getLogAttributes */
-export type GetLogAttributesInput = Record<string, unknown>;
-
-/** Input for WorkflowOutboundCallsInterceptor.getMetricTags */
-export type GetMetricTagsInput = MetricTags;
+/**
+ * Input for {@link WorkflowOutboundCallsInterceptor.continueAsNew}.
+ */
+export interface ContinueAsNewInput {
+  readonly args: unknown[];
+  readonly headers: Headers;
+  readonly options: ContinueAsNewInputOptions;
+}
 
 /**
- * Input for WorkflowOutboundCallsInterceptor.startNexusOperation.
+ * Input for {@link WorkflowOutboundCallsInterceptor.continueAsNew}.
+ */
+export type ContinueAsNewInputOptions = ContinueAsNewOptions & Required<Pick<ContinueAsNewOptions, 'workflowType'>>;
+
+/**
+ * Input for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
  */
 export interface StartNexusOperationInput {
   input: unknown;
@@ -170,88 +301,24 @@ export interface StartNexusOperationInput {
   nexusHeader: Record<string, string>;
 }
 
+/**
+ * Output for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
+ */
 export interface StartNexusOperationOutput {
   token?: string;
 }
 
 /**
- * Implement any of these methods to intercept Workflow code calls to the Temporal APIs, like scheduling an activity and starting a timer
+ * Input for {@link WorkflowOutboundCallsInterceptor.getLogAttributes}.
  */
-export interface WorkflowOutboundCallsInterceptor {
-  /**
-   * Called when Workflow schedules an Activity
-   *
-   * @return result of the activity execution
-   */
-  scheduleActivity?: (input: ActivityInput, next: Next<this, 'scheduleActivity'>) => Promise<unknown>;
+export type GetLogAttributesInput = Record<string, unknown>;
 
-  /**
-   * Called when Workflow schedules a local Activity
-   *
-   * @return result of the activity execution
-   */
-  scheduleLocalActivity?: (input: LocalActivityInput, next: Next<this, 'scheduleLocalActivity'>) => Promise<unknown>;
+/**
+ * Input for {@link WorkflowOutboundCallsInterceptor.getMetricTags}.
+ */
+export type GetMetricTagsInput = MetricTags;
 
-  /**
-   * Called when Workflow starts a timer
-   */
-  startTimer?: (input: TimerInput, next: Next<this, 'startTimer'>) => Promise<void>;
-
-  /**
-   * Called when Workflow calls continueAsNew
-   */
-  continueAsNew?: (input: ContinueAsNewInput, next: Next<this, 'continueAsNew'>) => Promise<never>;
-
-  /**
-   * Called when Workflow signals a child or external Workflow
-   */
-  signalWorkflow?: (input: SignalWorkflowInput, next: Next<this, 'signalWorkflow'>) => Promise<void>;
-
-  /**
-   * Called when Workflow starts a child workflow execution, the interceptor function returns 2 promises:
-   *
-   * - The first resolves with the `runId` when the child workflow has started or rejects if failed to start.
-   * - The second resolves with the workflow result when the child workflow completes or rejects on failure.
-   */
-  startChildWorkflowExecution?: (
-    input: StartChildWorkflowExecutionInput,
-    next: Next<this, 'startChildWorkflowExecution'>
-  ) => Promise<[Promise<string>, Promise<unknown>]>;
-
-  /**
-   * Called on each invocation of the `workflow.log` methods.
-   *
-   * The attributes returned in this call are attached to every log message.
-   */
-  getLogAttributes?: (input: GetLogAttributesInput, next: Next<this, 'getLogAttributes'>) => Record<string, unknown>;
-
-  /**
-   * Called once every time a metric is emitted from a Workflow metric (ie. a metric created
-   * from {@link workflow.metricMeter}).
-   *
-   * Tags returned by this hook are _prepended_ to tags defined at the metric level and tags
-   * defined on the emitter function itself.
-   */
-  getMetricTags?: (input: GetMetricTagsInput, next: Next<this, 'getMetricTags'>) => MetricTags;
-}
-
-/** Input for WorkflowInternalsInterceptor.concludeActivation */
-export interface ConcludeActivationInput {
-  commands: coresdk.workflow_commands.IWorkflowCommand[];
-}
-
-/** Output for WorkflowInternalsInterceptor.concludeActivation */
-export type ConcludeActivationOutput = ConcludeActivationInput;
-
-/** Input for WorkflowInternalsInterceptor.activate */
-export interface ActivateInput {
-  activation: coresdk.workflow_activation.IWorkflowActivation;
-  batchIndex: number;
-}
-
-/** Input for WorkflowInternalsInterceptor.dispose */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface DisposeInput {}
+// Workflow Internals Interceptors /////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Interceptor for the internals of the Workflow runtime.
@@ -282,29 +349,27 @@ export interface WorkflowInternalsInterceptor {
 }
 
 /**
- * A mapping from interceptor type to an optional list of interceptor implementations
+ * Input for {@link WorkflowInternalsInterceptor.activate}
  */
-export interface WorkflowInterceptors {
-  inbound?: WorkflowInboundCallsInterceptor[];
-  outbound?: WorkflowOutboundCallsInterceptor[];
-  internals?: WorkflowInternalsInterceptor[];
+export interface ActivateInput {
+  activation: coresdk.workflow_activation.IWorkflowActivation;
+  batchIndex: number;
 }
 
 /**
- * A function that returns {@link WorkflowInterceptors} and takes no arguments.
- *
- * Workflow interceptor modules should export an `interceptors` function of this type.
- *
- * @example
- *
- * ```ts
- * export function interceptors(): WorkflowInterceptors {
- *   return {
- *     inbound: [],   // Populate with list of interceptor implementations
- *     outbound: [],  // Populate with list of interceptor implementations
- *     internals: [], // Populate with list of interceptor implementations
- *   };
- * }
- * ```
+ * Input for {@link WorkflowInternalsInterceptor.dispose}
  */
-export type WorkflowInterceptorsFactory = () => WorkflowInterceptors;
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface DisposeInput {}
+
+/**
+ * Input for {@link WorkflowInternalsInterceptor.concludeActivation}
+ */
+export interface ConcludeActivationInput {
+  commands: coresdk.workflow_commands.IWorkflowCommand[];
+}
+
+/**
+ * Output for {@link WorkflowInternalsInterceptor.concludeActivation}
+ */
+export type ConcludeActivationOutput = ConcludeActivationInput;
