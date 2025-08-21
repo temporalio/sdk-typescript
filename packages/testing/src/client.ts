@@ -2,21 +2,12 @@ import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-
 import {
   Client,
   ClientOptions,
+  Connection,
+  TestService,
   WorkflowClient,
   WorkflowClientOptions,
   WorkflowResultOptions,
 } from '@temporalio/client';
-import { Connection, TestService } from './connection';
-
-export interface TimeSkippingWorkflowClientOptions extends WorkflowClientOptions {
-  connection: Connection;
-  enableTimeSkipping: boolean;
-}
-
-export interface TestEnvClientOptions extends ClientOptions {
-  connection: Connection;
-  enableTimeSkipping: boolean;
-}
 
 /**
  * Subset of the "normal" client options that are used to create a client for the test environment.
@@ -24,18 +15,37 @@ export interface TestEnvClientOptions extends ClientOptions {
 export type ClientOptionsForTestEnv = Omit<ClientOptions, 'namespace' | 'connection'>;
 
 /**
- * A client with the exact same API as the "normal" client with 1 exception,
- * When this client waits on a Workflow's result, it will enable time skipping
- * in the test server.
+ * A client with the exact same API as the "normal" client with one exception:
+ * when `TestEnvClient.workflow` (an instance of {@link TimeSkippingWorkflowClient}) waits on a Workflow's result, it will enable time skipping
+ * in the Test Server.
+ */
+export class TimeSkippingClient extends Client {
+  constructor(options: ClientOptions) {
+    super(options);
+
+    // Recreate the client (this isn't optimal but it's better than adding public methods just for testing).
+    // NOTE: we cast to "any" to work around `workflow` being a readonly attribute.
+    (this as any).workflow = new TimeSkippingWorkflowClient({
+      ...this.workflow.options,
+      connection: options.connection,
+    });
+  }
+}
+
+/**
+ * A client with the exact same API as the "normal" client with one exception: when this client
+ * waits on a Workflow's result, it will enable time skipping in the Test Server.
  */
 export class TimeSkippingWorkflowClient extends WorkflowClient {
   protected readonly testService: TestService;
-  protected readonly enableTimeSkipping: boolean;
 
-  constructor(options: TimeSkippingWorkflowClientOptions) {
+  constructor(options: WorkflowClientOptions) {
     super(options);
-    this.enableTimeSkipping = options.enableTimeSkipping;
-    this.testService = options.connection.testService;
+    const testService = (options.connection as Connection).testService;
+    if (!testService) {
+      throw new TypeError('TestService must be present when creating a TimeSkippingWorkflowClient');
+    }
+    this.testService = testService;
   }
 
   /**
@@ -48,34 +58,11 @@ export class TimeSkippingWorkflowClient extends WorkflowClient {
     runId?: string | undefined,
     opts?: WorkflowResultOptions | undefined
   ): Promise<T> {
-    if (this.enableTimeSkipping) {
-      await this.testService.unlockTimeSkipping({});
-      try {
-        return await super.result(workflowId, runId, opts);
-      } finally {
-        await this.testService.lockTimeSkipping({});
-      }
-    } else {
+    await this.testService.unlockTimeSkipping({});
+    try {
       return await super.result(workflowId, runId, opts);
+    } finally {
+      await this.testService.lockTimeSkipping({});
     }
-  }
-}
-
-/**
- * A client with the exact same API as the "normal" client with one exception:
- * when `TestEnvClient.workflow` (an instance of {@link TimeSkippingWorkflowClient}) waits on a Workflow's result, it will enable time skipping
- * in the Test Server.
- */
-export class TestEnvClient extends Client {
-  constructor(options: TestEnvClientOptions) {
-    super(options);
-
-    // Recreate the client (this isn't optimal but it's better than adding public methods just for testing).
-    // NOTE: we cast to "any" to work around `workflow` being a readonly attribute.
-    (this as any).workflow = new TimeSkippingWorkflowClient({
-      ...this.workflow.options,
-      connection: options.connection,
-      enableTimeSkipping: options.enableTimeSkipping,
-    });
   }
 }

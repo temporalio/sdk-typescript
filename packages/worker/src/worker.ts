@@ -56,6 +56,7 @@ import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
 import { errorMessage, NonNullableObject, OmitFirstParam } from '@temporalio/common/lib/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
 import { native } from '@temporalio/core-bridge';
+import { Client } from '@temporalio/client';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
@@ -438,6 +439,7 @@ export class Worker {
 
   protected readonly workflowPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
   protected readonly activityPollerStateSubject = new BehaviorSubject<PollerState>('POLLING');
+
   /**
    * Whether or not this worker has an outstanding workflow poll request
    */
@@ -446,6 +448,8 @@ export class Worker {
    * Whether or not this worker has an outstanding activity poll request
    */
   protected hasOutstandingActivityPoll = false;
+
+  private client?: Client;
 
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
@@ -765,6 +769,16 @@ export class Worker {
     protected readonly isReplayWorker: boolean = false
   ) {
     this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodecs);
+    if (connection != null) {
+      // connection (and consequently client) will be set IIF this is not a replay worker.
+      this.client = new Client({
+        namespace: options.namespace,
+        connection,
+        identity: options.identity,
+        dataConverter: options.dataConverter,
+        interceptors: options.interceptors.client,
+      });
+    }
   }
 
   /**
@@ -1002,6 +1016,7 @@ export class Worker {
                             );
                           },
                         }),
+                      this.client,
                       this.logger,
                       this.metricMeter,
                       this.options.interceptors.activity

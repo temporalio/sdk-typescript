@@ -104,7 +104,13 @@ export declare function clientUpdateHeaders(client: Client, headers: Record<stri
 
 export declare function clientUpdateApiKey(client: Client, apiKey: string): void;
 
-export declare function clientSendRequest(client: Client, call: RpcCall): Promise<Buffer>;
+export declare function clientSendWorkflowServiceRequest(client: Client, call: RpcCall): Promise<Buffer>;
+
+export declare function clientSendOperatorServiceRequest(client: Client, call: RpcCall): Promise<Buffer>;
+
+export declare function clientSendTestServiceRequest(client: Client, call: RpcCall): Promise<Buffer>;
+
+export declare function clientSendHealthServiceRequest(client: Client, call: RpcCall): Promise<Buffer>;
 
 export declare function clientClose(client: Client): void;
 

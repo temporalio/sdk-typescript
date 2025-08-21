@@ -12,6 +12,7 @@ import {
   ActivityCancellationDetails,
 } from '@temporalio/common';
 import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
+import { Client } from '@temporalio/client';
 import { ActivityInterceptorsFactory, DefaultLogger } from '@temporalio/worker';
 import { Activity, CancelReason } from '@temporalio/worker/lib/activity';
 
@@ -19,6 +20,7 @@ export interface MockActivityEnvironmentOptions {
   interceptors?: ActivityInterceptorsFactory[];
   logger?: Logger;
   metricMeter?: MetricMeter;
+  client?: Client;
 }
 
 /**
@@ -48,6 +50,7 @@ export class MockActivityEnvironment extends events.EventEmitter {
       undefined,
       loadedDataConverter,
       heartbeatCallback,
+      opts?.client,
       LoggerWithComposedMetadata.compose(opts?.logger ?? new DefaultLogger(), { sdkComponent: SdkComponent.worker }),
       opts?.metricMeter ?? noopMetricMeter,
       opts?.interceptors ?? []

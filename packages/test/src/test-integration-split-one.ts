@@ -174,7 +174,6 @@ test.serial('activity-failure with Error', configMacro, async (t, config) => {
     dedent`
   Error: Fail me
       at throwAnError (test/src/activities/index.ts)
-      at ConnectionInjectorInterceptor.execute (test/src/activities/interceptors.ts)
   `
   );
 });
@@ -211,7 +210,6 @@ test.serial('activity-failure with ApplicationFailure', configMacro, async (t, c
   ApplicationFailure: Fail me
       at Function.nonRetryable (common/src/failure.ts)
       at throwAnError (test/src/activities/index.ts)
-      at ConnectionInjectorInterceptor.execute (test/src/activities/interceptors.ts)
     `
   );
 });

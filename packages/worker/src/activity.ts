@@ -19,6 +19,7 @@ import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { Logger, LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
 import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
+import { Client } from '@temporalio/client';
 import { coresdk } from '@temporalio/proto';
 import { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
 import {
@@ -41,10 +42,7 @@ export class Activity {
   public readonly context: Context;
   public cancel: (reason: CancelReason, details: ActivityCancellationDetails) => void = () => undefined;
   public readonly abortController: AbortController = new AbortController();
-  public readonly interceptors: {
-    inbound: ActivityInboundCallsInterceptor[];
-    outbound: ActivityOutboundCallsInterceptor[];
-  };
+
   /**
    * Logger bound to `sdkComponent: worker`, with metadata from this activity.
    * This is the logger to use for all log messages emitted by the activity
@@ -58,11 +56,17 @@ export class Activity {
    */
   private readonly metricMeter;
 
+  public readonly interceptors: {
+    inbound: ActivityInboundCallsInterceptor[];
+    outbound: ActivityOutboundCallsInterceptor[];
+  };
+
   constructor(
     public readonly info: Info,
     public readonly fn: ActivityFunction<any[], any> | undefined,
     public readonly dataConverter: LoadedDataConverter,
     public readonly heartbeatCallback: Context['heartbeat'],
+    private readonly _client: Client | undefined, // May be undefined in the case of MockActivityEnvironment
     workerLogger: Logger,
     workerMetricMeter: MetricMeter,
     interceptors: ActivityInterceptorsFactory[]
@@ -84,6 +88,7 @@ export class Activity {
       promise,
       this.abortController.signal,
       this.heartbeatCallback,
+      this._client,
       // This is the activity context logger, to be used exclusively from user code
       LoggerWithComposedMetadata.compose(this.workerLogger, { sdkComponent: SdkComponent.activity }),
       this.metricMeter,
@@ -162,11 +167,24 @@ export class Activity {
     }
   }
 
+  // Ensure that client calls made with the worker's client in this handler's context are tied
+  // to the abort signal. The fact that client can be undefined (i.e. in a MockActivityEnvironment)
+  // makes this a bit more complex.
+  private executeWithClient(fn: ActivityFunction<any[], any>, input: ActivityExecuteInput): Promise<unknown> {
+    if (this._client) {
+      return this._client.withAbortSignal(this.abortController.signal, () => {
+        return this.execute(fn, input);
+      });
+    } else {
+      return this.execute(fn, input);
+    }
+  }
+
   public run(input: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityExecutionResult> {
     return asyncLocalStorage.run(this.context, async (): Promise<coresdk.activity_result.IActivityExecutionResult> => {
       try {
         if (this.fn === undefined) throw new IllegalStateError('Activity function is not defined');
-        const result = await this.execute(this.fn, input);
+        const result = await this.executeWithClient(this.fn, input);
         return { completed: { result: await encodeToPayload(this.dataConverter, result) } };
       } catch (err) {
         if (err instanceof CompleteAsyncError) {
@@ -216,7 +234,7 @@ export class Activity {
 
   public runNoEncoding(fn: ActivityFunction<any[], any>, input: ActivityExecuteInput): Promise<unknown> {
     if (this.fn !== undefined) throw new IllegalStateError('Activity function is defined');
-    return asyncLocalStorage.run(this.context, () => this.execute(fn, input));
+    return asyncLocalStorage.run(this.context, () => this.executeWithClient(fn, input));
   }
 }
 
