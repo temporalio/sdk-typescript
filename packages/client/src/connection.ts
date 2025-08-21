@@ -138,12 +138,18 @@ export type ConnectionOptionsWithDefaults = Required<
   connectTimeoutMs: number;
 };
 
+/**
+ * A symbol used to attach extra, SDK-internal connection options.
+ *
+ * @internal
+ * @hidden
+ */
 export const InternalConnectionOptionsSymbol = Symbol('__temporal_internal_connection_options');
 export type InternalConnectionOptions = ConnectionOptions & {
   [InternalConnectionOptionsSymbol]?: {
     /**
-     * A symbol used internally to indicate whether support for TestService should be enabled on this
-     * connection. This is set to true on connections created internally by the `TestWorkflowEnvironment.createTimeSkipping()`
+     * Indicate whether the `TestService` should be enabled on this connection. This is set to true
+     * on connections created internally by `TestWorkflowEnvironment.createTimeSkipping()`.
      */
     supportsTestService?: boolean;
   };

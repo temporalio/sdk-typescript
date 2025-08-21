@@ -222,10 +222,8 @@ export class NativeConnection implements ConnectionLike {
    * Eagerly connect to the Temporal server and return a NativeConnection instance
    */
   static async connect(options?: NativeConnectionOptions): Promise<NativeConnection> {
-    let enableTestService = false;
-    if ((options as InternalConnectionOptions)?.[InternalConnectionOptionsSymbol]?.supportsTestService) {
-      enableTestService = true;
-    }
+    const internalOptions = (options as InternalConnectionOptions)?.[InternalConnectionOptionsSymbol] ?? {};
+    const enableTestService = internalOptions.supportsTestService ?? false;
 
     try {
       const runtime = Runtime.instance();

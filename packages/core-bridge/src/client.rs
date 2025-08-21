@@ -491,7 +491,6 @@ async fn client_invoke_workflow_service(
     }
 }
 
-#[allow(clippy::too_many_lines)]
 async fn client_invoke_operator_service(
     mut retry_client: CoreClient,
     call: RpcCall,
@@ -530,8 +529,6 @@ async fn client_invoke_operator_service(
     }
 }
 
-// FIXME: "this function may allocate 1400106 bytes on the stack"
-#[allow(clippy::too_many_lines)]
 async fn client_invoke_test_service(
     mut retry_client: CoreClient,
     call: RpcCall,
@@ -554,7 +551,6 @@ async fn client_invoke_test_service(
     }
 }
 
-#[allow(clippy::too_many_lines)]
 async fn client_invoke_health_service(
     mut retry_client: CoreClient,
     call: RpcCall,
@@ -563,7 +559,8 @@ async fn client_invoke_health_service(
 
     match call.rpc.as_str() {
         "Check" => rpc_call!(retry_client, call, check),
-        // Intentionally ignore 'watch' because it's a streaming method
+        // Intentionally ignore 'watch' because it's a streaming method, which is not currently
+        // supported by the macro and client-side code, and not needed anyway for any SDK use case.
         _ => Err(BridgeError::TypeError {
             field: None,
             message: format!("Unknown RPC call {}", call.rpc),
