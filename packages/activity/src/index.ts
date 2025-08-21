@@ -360,7 +360,7 @@ export class Context {
    * May throw an {@link IllegalStateError} if the Activity is running inside a `MockActivityEnvironment`
    * that was created without a Client.
    *
-   * @experimental Client support over `NativeConnection` is experimental. Error handling maybe
+   * @experimental Client support over `NativeConnection` is experimental. Error handling may be
    *               incomplete or different from what would be observed using a {@link Connection}
    *               instead. Client doesn't support cancellation through a Signal.
    */
@@ -511,7 +511,7 @@ export function cancellationSignal(): AbortSignal {
  *
  * This is a shortcut for `Context.current().client` (see {@link Context.client}).
  *
- * @experimental Client support over `NativeConnection` is experimental. Error handling maybe
+ * @experimental Client support over `NativeConnection` is experimental. Error handling may be
  *               incomplete or different from what would be observed using a {@link Connection}
  *               instead. Client doesn't support cancellation through a Signal.
  */
