@@ -277,6 +277,8 @@ export interface StartNexusOperationInput {
 
 /**
  * Options for starting a Nexus Operation.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationOptions {
   /**
