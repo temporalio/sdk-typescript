@@ -241,7 +241,7 @@ export class DefaultFailureConverter implements FailureConverter {
 
       return new nexus.HandlerError(
         (failure.nexusHandlerFailureInfo.type as nexus.HandlerErrorType) ?? 'INTERNAL',
-        // REVIEW: Python sets a default message here
+        // TODO(nexus/error): Maybe set a default message here, once we've decided on error handling.
         failure.message ?? undefined,
         {
           cause: this.optionalFailureToOptionalError(failure.cause, payloadConverter),
@@ -251,7 +251,7 @@ export class DefaultFailureConverter implements FailureConverter {
     }
     if (failure.nexusOperationExecutionFailureInfo) {
       return new NexusOperationFailure(
-        // REVIEW: Python sets a default message here, and we used to do that too.
+        // TODO(nexus/error): Maybe set a default message here, once we've decided on error handling.
         failure.message ?? undefined,
         failure.nexusOperationExecutionFailureInfo.scheduledEventId?.toNumber(),
         // We assume these will always be set or gracefully set to empty strings.
@@ -304,9 +304,9 @@ export class DefaultFailureConverter implements FailureConverter {
   }
 
   errorToFailureInner(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
-    // REVIEW: If we really want not to have a NexusHandlerFailure, we could still attach the failure
-    //         proto failure to the nexus HandlerError object, by using a private symbol property.
-    //         Opinions?
+    // TODO(nexus/error): If we decide not to have a NexusHandlerFailure, we could still attach the
+    //                    failure proto to the nexus HandlerError object, by using a private symbol
+    //                    property. To be considered once we have a decision on error handling.
     if (err instanceof TemporalFailure || err instanceof nexus.HandlerError) {
       if (err instanceof TemporalFailure && err.failure) return err.failure;
       const base = {
@@ -398,7 +398,7 @@ export class DefaultFailureConverter implements FailureConverter {
         }
 
         return {
-          // REVIEW: Python sets a default message here
+          // TODO(nexus/error): Maybe set a default message here, once we've decided on error handling.
           ...base,
           nexusHandlerFailureInfo: {
             type: err.type,
@@ -408,7 +408,7 @@ export class DefaultFailureConverter implements FailureConverter {
       }
       if (err instanceof NexusOperationFailure) {
         return {
-          // REVIEW: Python sets a default message here
+          // TODO(nexus/error): Maybe set a default message here, once we've decided on error handling.
           ...base,
           nexusOperationExecutionFailureInfo: {
             scheduledEventId: err.scheduledEventId ? Long.fromNumber(err.scheduledEventId) : undefined,

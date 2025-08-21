@@ -399,7 +399,7 @@ export class NexusOperationFailure extends TemporalFailure {
   }
 }
 
-// REVIEW: Have we decided on whether we want a NexusHandlerFailure?
+// TODO(nexus/error): Maybe add a NexusHandlerFailure class here, once we've decided on error handling.
 
 /**
  * This exception is thrown in the following cases:
