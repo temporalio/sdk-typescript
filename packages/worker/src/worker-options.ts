@@ -113,6 +113,8 @@ export interface WorkerOptions {
 
   /**
    * An array of nexus services
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
    */
   nexusServices?: nexus.ServiceHandler<any>[];
 
@@ -211,6 +213,8 @@ export interface WorkerOptions {
    * Mutually exclusive with the {@link tuner} option.
    *
    * @default 100 if no {@link tuner} is set
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
    */
   maxConcurrentNexusTaskExecutions?: number;
 
@@ -334,6 +338,8 @@ export interface WorkerOptions {
    * Specify the behavior of Nexus task polling.
    *
    * @default A fixed maximum whose value is min(10, maxConcurrentNexusTaskExecutions).
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
    */
   nexusTaskPollerBehavior?: PollerBehavior;
 
@@ -355,7 +361,10 @@ export interface WorkerOptions {
    * `maxConcurrentNexusTaskExecutions` slots despite a low match rate of Nexus
    * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
    * `maxConcurrentNexusTaskExecutions`.
+   *
    * @default min(10, maxConcurrentNexusTaskExecutions)
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
    */
   maxConcurrentNexusTaskPolls?: number;
 
