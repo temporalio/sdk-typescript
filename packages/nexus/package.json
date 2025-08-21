@@ -17,7 +17,7 @@
     "@temporalio/common": "file:../common",
     "@temporalio/proto": "file:../proto",
     "long": "^5.2.3",
-    "nexus-rpc": "github:nexus-rpc/sdk-typescript#main"
+    "nexus-rpc": "^0.0.1"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

@@ -24,7 +24,7 @@
   "dependencies": {
     "@temporalio/common": "file:../common",
     "@temporalio/proto": "file:../proto",
-    "nexus-rpc": "github:nexus-rpc/sdk-typescript#main"
+    "nexus-rpc": "^0.0.1"
   },
   "devDependencies": {
     "source-map": "^0.7.4"
