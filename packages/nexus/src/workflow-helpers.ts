@@ -11,6 +11,8 @@ import { getClient, getHandlerContext, log } from './context';
 /**
  * A handle to a running workflow that is returned by the {@link startWorkflow} helper.
  * This handle should be returned by {@link WorkflowRunOperationStartHandler} implementations.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface WorkflowHandle<_T> {
   readonly workflowId: string;
@@ -21,6 +23,8 @@ export interface WorkflowHandle<_T> {
  * Options for starting a workflow using {@link startWorkflow}, this type is identical to the
  * client's `WorkflowStartOptions` with the exception that `taskQueue` is optional and defaults
  * to the current worker's task queue.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export type WorkflowStartOptions<T extends Workflow> = Replace<ClientWorkflowStartOptions<T>, { taskQueue?: string }>;
 
@@ -30,7 +34,7 @@ export type WorkflowStartOptions<T extends Workflow> = Replace<ClientWorkflowSta
  * propagates the callback, request ID, and back and forward links from the Nexus options to the
  * Workflow.
  *
- * @experimental Nexus support is experimental.
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export async function startWorkflow<T extends Workflow>(
   ctx: nexus.StartOperationContext,
@@ -93,6 +97,8 @@ export async function startWorkflow<T extends Workflow>(
 
 /**
  * A handler function for the {@link WorkflowRunOperationHandler} constructor.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export type WorkflowRunOperationStartHandler<I, O> = (
   ctx: nexus.StartOperationContext,
@@ -101,6 +107,8 @@ export type WorkflowRunOperationStartHandler<I, O> = (
 
 /**
  * A Nexus Operation implementation that is backed by a Workflow run.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export class WorkflowRunOperationHandler<I, O> implements nexus.OperationHandler<I, O> {
   constructor(readonly handler: WorkflowRunOperationStartHandler<I, O>) {}

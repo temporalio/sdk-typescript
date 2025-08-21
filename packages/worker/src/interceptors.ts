@@ -90,8 +90,14 @@ export interface ActivityInboundCallsInterceptorFactory {
 // Nexus Interceptors
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
 export type NexusInterceptorsFactory = (ctx: nexus.OperationContext) => NexusInterceptors;
 
+/**
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
 export type NexusInterceptors = {
   inbound?: NexusInboundCallsInterceptor;
   outbound?: NexusOutboundCallsInterceptor;
@@ -100,7 +106,7 @@ export type NexusInterceptors = {
 /**
  * A function that takes a Nexus Context and returns an interceptor
  *
- * @experimental
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export type NexusInboundCallsInterceptor = {
   execute?: (
@@ -112,7 +118,7 @@ export type NexusInboundCallsInterceptor = {
 /**
  * Input for NexusInboundCallsInterceptor.execute
  *
- * @experimental
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface NexusExecuteInput {
   readonly args: unknown[];
@@ -122,7 +128,7 @@ export interface NexusExecuteInput {
 /**
  * Output for NexusInboundCallsInterceptor.execute
  *
- * @experimental
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface NexusExecuteOutput {
   readonly result: unknown;
@@ -131,7 +137,7 @@ export interface NexusExecuteOutput {
 /**
  * A function that takes a Nexus Context and returns an interceptor
  *
- * @experimental
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export type NexusOutboundCallsInterceptor = {
   getLogAttributes?: (
@@ -177,7 +183,7 @@ export interface WorkerInterceptors {
   /**
    * List of factory functions that instanciate {@link NexusInterceptors}s.
    *
-   * @experimental
+   * @experimental Nexus support in Temporal SDK is experimental.
    */
   nexus?: NexusInterceptorsFactory[];
 

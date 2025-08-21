@@ -10,7 +10,7 @@ import { StartNexusOperationInput, StartNexusOperationOutput, StartNexusOperatio
 /**
  * A Nexus client for invoking Nexus Operations for a specific service from a Workflow.
  *
- * @experimental Nexus support is experimental.
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface NexusClient<T extends nexus.ServiceDefinition> {
   /**
@@ -57,7 +57,7 @@ export interface NexusClient<T extends nexus.ServiceDefinition> {
 /**
  * A handle to a Nexus Operation.
  *
- * @experimental Nexus support is experimental.
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface NexusOperationHandle<T> {
   /**
@@ -92,7 +92,7 @@ export interface NexusClientOptions<T> {
 /**
  * Create a Nexus client for invoking Nexus Operations from a Workflow.
  *
- * @experimental Nexus support is experimental.
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export function createNexusClient<T extends nexus.ServiceDefinition>(options: NexusClientOptions<T>): NexusClient<T> {
   class NexusClientImpl<T extends nexus.ServiceDefinition> implements NexusClient<T> {

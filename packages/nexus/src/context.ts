@@ -46,7 +46,7 @@ export interface HandlerContext {
  * To customize log attributes, register a {@link nexus.NexusOutboundCallsInterceptor} that
  * intercepts the `getLogAttributes()` method.
  *
- * @experimental Nexus support is experimental.
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export const log: Logger = {
   log(level: LogLevel, message: string, meta?: LogMetadata): any {
@@ -75,7 +75,7 @@ export const log: Logger = {
  * To add custom tags, register a {@link nexus.NexusOutboundCallsInterceptor} that
  * intercepts the `getMetricTags()` method.
  *
- * @experimental Nexus support is experimental.
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export const metricMeter: MetricMeter = {
   createCounter(name, unit, description) {
@@ -96,7 +96,7 @@ export const metricMeter: MetricMeter = {
  * Returns a client to be used in a Nexus Operation's context, this Client is powered by the same
  * NativeConnection that the worker was created with.
  *
- * @experimental Nexus support is experimental.
+ * @experimental Nexus support in Temporal SDK is experimental.
  */
 export function getClient(): Client {
   return getHandlerContext().client;
