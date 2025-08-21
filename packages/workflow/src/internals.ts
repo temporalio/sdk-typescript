@@ -95,10 +95,9 @@ export interface PromiseStackStore {
   promiseToStack: Map<Promise<unknown>, Stack>;
 }
 
-export interface Completion {
-  resolve(val: unknown): unknown;
-
-  reject(reason: unknown): unknown;
+export interface Completion<Success> {
+  resolve(val: Success): void;
+  reject(reason: Error): void;
 }
 
 export interface Condition {
@@ -127,6 +126,8 @@ interface MessageHandlerExecution {
   id?: string;
 }
 
+type InferMapValue<T> = T extends Map<number, infer V> ? V : never;
+
 /**
  * Keeps all of the Workflow runtime state like pending completions for activities and timers.
  *
@@ -150,16 +151,17 @@ export class Activator implements ActivationHandler {
    * Cache for modules - referenced in reusable-vm.ts
    */
   readonly moduleCache = new Map<string, unknown>();
+
   /**
    * Map of task sequence to a Completion
    */
   readonly completions = {
-    timer: new Map<number, Completion>(),
-    activity: new Map<number, Completion>(),
-    childWorkflowStart: new Map<number, Completion>(),
-    childWorkflowComplete: new Map<number, Completion>(),
-    signalWorkflow: new Map<number, Completion>(),
-    cancelWorkflow: new Map<number, Completion>(),
+    timer: new Map<number, Completion<void>>(),
+    activity: new Map<number, Completion<unknown>>(),
+    childWorkflowStart: new Map<number, Completion<string>>(),
+    childWorkflowComplete: new Map<number, Completion<unknown>>(),
+    signalWorkflow: new Map<number, Completion<void>>(),
+    cancelWorkflow: new Map<number, Completion<void>>(),
   };
 
   /**
@@ -519,7 +521,7 @@ export class Activator implements ActivationHandler {
 
   public async startWorkflowNextHandler({ args }: WorkflowExecuteInput): Promise<any> {
     const { workflow } = this;
-    if (workflow === undefined) {
+    if (workflow == null) {
       throw new IllegalStateError('Workflow uninitialized');
     }
     return await workflow(...args);
@@ -583,12 +585,16 @@ export class Activator implements ActivationHandler {
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
-      const err = failure ? this.failureToError(failure) : undefined;
-      reject(err);
+      if (failure == null) {
+        throw new TypeError('Got failed result with no failure attribute');
+      }
+      reject(this.failureToError(failure));
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
-      const err = failure ? this.failureToError(failure) : undefined;
-      reject(err);
+      if (failure == null) {
+        throw new TypeError('Got cancelled result with no failure attribute');
+      }
+      reject(this.failureToError(failure));
     } else if (activation.result.backoff) {
       reject(new LocalActivityDoBackoff(activation.result.backoff));
     }
@@ -599,6 +605,9 @@ export class Activator implements ActivationHandler {
   ): void {
     const { resolve, reject } = this.consumeCompletion('childWorkflowStart', getSeq(activation));
     if (activation.succeeded) {
+      if (!activation.succeeded.runId) {
+        throw new TypeError('Got ResolveChildWorkflowExecutionStart with no runId');
+      }
       resolve(activation.succeeded.runId);
     } else if (activation.failed) {
       if (decodeStartChildWorkflowExecutionFailedCause(activation.failed.cause) !== 'WORKFLOW_ALREADY_EXISTS') {
@@ -635,13 +644,13 @@ export class Activator implements ActivationHandler {
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
-      if (failure === undefined || failure === null) {
+      if (failure == null) {
         throw new TypeError('Got failed result with no failure attribute');
       }
       reject(this.failureToError(failure));
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
-      if (failure === undefined || failure === null) {
+      if (failure == null) {
         throw new TypeError('Got cancelled result with no failure attribute');
       }
       reject(this.failureToError(failure));
@@ -749,7 +758,7 @@ export class Activator implements ActivationHandler {
         : null);
 
     // If we don't have an entry from either source, buffer and return
-    if (entry === null) {
+    if (entry == null) {
       this.bufferedUpdates.push(activation);
       return;
     }
@@ -1152,16 +1161,22 @@ export class Activator implements ActivationHandler {
   }
 
   /** Consume a completion if it exists in Workflow state */
-  private maybeConsumeCompletion(type: keyof Activator['completions'], taskSeq: number): Completion | undefined {
+  private maybeConsumeCompletion<K extends keyof Activator['completions']>(
+    type: K,
+    taskSeq: number
+  ): InferMapValue<Activator['completions'][K]> | undefined {
     const completion = this.completions[type].get(taskSeq);
     if (completion !== undefined) {
       this.completions[type].delete(taskSeq);
     }
-    return completion;
+    return completion as InferMapValue<Activator['completions'][K]> | undefined;
   }
 
   /** Consume a completion if it exists in Workflow state, throws if it doesn't */
-  private consumeCompletion(type: keyof Activator['completions'], taskSeq: number): Completion {
+  private consumeCompletion<K extends keyof Activator['completions']>(
+    type: K,
+    taskSeq: number
+  ): InferMapValue<Activator['completions'][K]> {
     const completion = this.maybeConsumeCompletion(type, taskSeq);
     if (completion === undefined) {
       throw new IllegalStateError(`No completion for taskSeq ${taskSeq}`);
@@ -1191,7 +1206,7 @@ export class Activator implements ActivationHandler {
 
 function getSeq<T extends { seq?: number | null }>(activation: T): number {
   const seq = activation.seq;
-  if (seq === undefined || seq === null) {
+  if (seq == null) {
     throw new TypeError(`Got activation with no seq attribute`);
   }
   return seq;
