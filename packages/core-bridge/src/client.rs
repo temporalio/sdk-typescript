@@ -530,7 +530,6 @@ async fn client_invoke_operator_service(
     }
 }
 
-// FIXME: "this function may allocate 1400106 bytes on the stack"
 #[allow(clippy::too_many_lines)]
 async fn client_invoke_test_service(
     mut retry_client: CoreClient,
