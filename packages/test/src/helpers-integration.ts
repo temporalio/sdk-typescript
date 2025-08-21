@@ -29,7 +29,6 @@ import {
 import * as workflow from '@temporalio/workflow';
 import { temporal } from '@temporalio/proto';
 import { defineSearchAttributeKey, SearchAttributeType } from '@temporalio/common/lib/search-attributes';
-import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { Worker, TestWorkflowEnvironment, test as anyTest, bundlerOptions, waitUntil } from './helpers';
 
 export interface Context {
@@ -134,30 +133,38 @@ export function makeConfigurableEnvironmentTestFn<T>(opts: {
   return test;
 }
 
-export function makeTestFunction<C extends Context = Context>(opts: {
+export interface TestFunctionOptions<C extends Context> {
   workflowsPath: string;
   workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
   workflowInterceptorModules?: string[];
   recordedLogs?: { [workflowId: string]: LogEntry[] };
   runtimeOpts?: Partial<RuntimeOptions> | (() => Promise<[Partial<RuntimeOptions>, Partial<C>]>) | undefined;
-}): TestFn<C> {
+}
+
+export function makeTestFunction<C extends Context = Context>(opts: TestFunctionOptions<C>): TestFn<C> {
   return makeConfigurableEnvironmentTestFn<C>({
     recordedLogs: opts.recordedLogs,
     runtimeOpts: opts.runtimeOpts,
-    createTestContext: async (_t: ExecutionContext): Promise<C> => {
-      const env = await createTestWorkflowEnvironment(opts.workflowEnvironmentOpts);
-      return {
-        workflowBundle: await createTestWorkflowBundle({
-          workflowsPath: opts.workflowsPath,
-          workflowInterceptorModules: opts.workflowInterceptorModules,
-        }),
-        env,
-      } as unknown as C;
-    },
+    createTestContext: makeDefaultTestContextFunction(opts),
     teardown: async (c: C) => {
-      await c.env.teardown();
+      if (c.env) {
+        await c.env.teardown();
+      }
     },
   });
+}
+
+export function makeDefaultTestContextFunction<C extends Context = Context>(opts: TestFunctionOptions<C>) {
+  return async (_t: ExecutionContext): Promise<C> => {
+    const env = await createTestWorkflowEnvironment(opts.workflowEnvironmentOpts);
+    return {
+      workflowBundle: await createTestWorkflowBundle({
+        workflowsPath: opts.workflowsPath,
+        workflowInterceptorModules: opts.workflowInterceptorModules,
+      }),
+      env,
+    } as unknown as C;
+  };
 }
 
 export async function createTestWorkflowEnvironment(
@@ -207,9 +214,6 @@ export function configurableHelpers<T>(
         connection: testEnv.nativeConnection,
         workflowBundle,
         taskQueue,
-        interceptors: {
-          activity: [() => ({ inbound: new ConnectionInjectorInterceptor(testEnv.connection) })],
-        },
         showStackTraceSources: true,
         ...opts,
       });

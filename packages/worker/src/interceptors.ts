@@ -7,6 +7,7 @@
  */
 
 import { Context as ActivityContext } from '@temporalio/activity';
+import { ClientInterceptors } from '@temporalio/client';
 import { Headers, MetricTags, Next } from '@temporalio/common';
 
 export { Next, Headers };
@@ -79,6 +80,14 @@ export type ActivityInterceptorsFactory = (ctx: ActivityContext) => ActivityInte
  * Structure for passing in Worker interceptors via {@link WorkerOptions}
  */
 export interface WorkerInterceptors {
+  /**
+   * Interceptors for the Client provided by the Worker to Activities.
+   *
+   * @experimental Client support over `NativeConnection` is experimental. Error handling may be
+   *               incomplete or different from what would be observed using a {@link Connection}
+   *               instead. Client doesn't support cancellation through a Signal.
+   */
+  client?: ClientInterceptors;
   /**
    * List of factory functions that instanciate {@link ActivityInboundCallsInterceptor}s and
    * {@link ActivityOutboundCallsInterceptor}s.

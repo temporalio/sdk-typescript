@@ -78,10 +78,12 @@ import {
   MetricMeter,
   Priority,
   ActivityCancellationDetails,
+  IllegalStateError,
 } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
+import { Client } from '@temporalio/client';
 
 export {
   ActivityFunction,
@@ -274,6 +276,11 @@ export class Context {
   protected readonly heartbeatFn: (details?: any) => void;
 
   /**
+   * The Worker's client, passed down through Activity context.
+   */
+  protected readonly _client: Client | undefined;
+
+  /**
    * The logger for this Activity.
    *
    * This defaults to the `Runtime`'s Logger (see {@link Runtime.logger}). Attributes from the current Activity context
@@ -313,6 +320,7 @@ export class Context {
     cancelled: Promise<never>,
     cancellationSignal: AbortSignal,
     heartbeat: (details?: any) => void,
+    client: Client | undefined,
     log: Logger,
     metricMeter: MetricMeter,
     details: ActivityCancellationDetailsHolder
@@ -321,6 +329,7 @@ export class Context {
     this.cancelled = cancelled;
     this.cancellationSignal = cancellationSignal;
     this.heartbeatFn = heartbeat;
+    this._client = client;
     this.log = log;
     this.metricMeter = metricMeter;
     this._cancellationDetails = details;
@@ -350,6 +359,25 @@ export class Context {
   public readonly heartbeat = (details?: unknown): void => {
     this.heartbeatFn(details);
   };
+
+  /**
+   * A Temporal Client, bound to the same Temporal Namespace as the Worker executing this Activity.
+   *
+   * May throw an {@link IllegalStateError} if the Activity is running inside a `MockActivityEnvironment`
+   * that was created without a Client.
+   *
+   * @experimental Client support over `NativeConnection` is experimental. Error handling may be
+   *               incomplete or different from what would be observed using a {@link Connection}
+   *               instead. Client doesn't support cancellation through a Signal.
+   */
+  public get client(): Client {
+    if (this._client === undefined) {
+      throw new IllegalStateError(
+        'No Client available. This may be a MockActivityEnvironment that was created without a Client.'
+      );
+    }
+    return this._client;
+  }
 
   /**
    * Helper function for sleeping in an Activity.
@@ -479,6 +507,22 @@ export function cancellationDetails(): ActivityCancellationDetails | undefined {
  */
 export function cancellationSignal(): AbortSignal {
   return Context.current().cancellationSignal;
+}
+
+/**
+ * A Temporal Client, bound to the same Temporal Namespace as the Worker executing this Activity.
+ *
+ * May throw an {@link IllegalStateError} if the Activity is running inside a `MockActivityEnvironment`
+ * that was created without a Client.
+ *
+ * This is a shortcut for `Context.current().client` (see {@link Context.client}).
+ *
+ * @experimental Client support over `NativeConnection` is experimental. Error handling may be
+ *               incomplete or different from what would be observed using a {@link Connection}
+ *               instead. Client doesn't support cancellation through a Signal.
+ */
+export function getClient(): Client {
+  return Context.current().client;
 }
 
 /**
