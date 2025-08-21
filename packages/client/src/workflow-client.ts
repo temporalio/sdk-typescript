@@ -1303,7 +1303,7 @@ export class WorkflowClient extends BaseClient {
       userMetadata: await encodeUserMetadata(this.dataConverter, opts.staticSummary, opts.staticDetails),
       priority: opts.priority ? compilePriority(opts.priority) : undefined,
       versioningOverride: opts.versioningOverride ?? undefined,
-      ...internalOptions,
+      ...filterNullAndUndefined(internalOptions ?? {}),
     };
   }
 
