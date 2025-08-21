@@ -491,7 +491,6 @@ async fn client_invoke_workflow_service(
     }
 }
 
-#[allow(clippy::too_many_lines)]
 async fn client_invoke_operator_service(
     mut retry_client: CoreClient,
     call: RpcCall,
@@ -530,7 +529,6 @@ async fn client_invoke_operator_service(
     }
 }
 
-#[allow(clippy::too_many_lines)]
 async fn client_invoke_test_service(
     mut retry_client: CoreClient,
     call: RpcCall,
@@ -553,7 +551,6 @@ async fn client_invoke_test_service(
     }
 }
 
-#[allow(clippy::too_many_lines)]
 async fn client_invoke_health_service(
     mut retry_client: CoreClient,
     call: RpcCall,
