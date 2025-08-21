@@ -559,7 +559,8 @@ async fn client_invoke_health_service(
 
     match call.rpc.as_str() {
         "Check" => rpc_call!(retry_client, call, check),
-        // Intentionally ignore 'watch' because it's a streaming method
+        // Intentionally ignore 'watch' because it's a streaming method, which is not currently
+        // supported by the macro and client-side code, and not needed anyway for any SDK use case.
         _ => Err(BridgeError::TypeError {
             field: None,
             message: format!("Unknown RPC call {}", call.rpc),
