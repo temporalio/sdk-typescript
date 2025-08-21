@@ -93,7 +93,7 @@ import {
 } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
 import { WorkflowUpdateStage, encodeWorkflowUpdateStage } from './workflow-update-stage';
-import { InternalWorkflowStartOptionsKey, WorkflowOptionsWithInternalWorkflowStartOptions } from './internal';
+import { InternalWorkflowStartOptionsSymbol, InternalWorkflowStartOptions } from './internal';
 
 const UpdateWorkflowExecutionLifecycleStage = temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
 
@@ -1249,7 +1249,7 @@ export class WorkflowClient extends BaseClient {
   protected async _startWorkflowHandler(input: WorkflowStartInput): Promise<string> {
     const req = await this.createStartWorkflowRequest(input);
     const { options: opts, workflowType } = input;
-    const internalOptions = (opts as WorkflowOptionsWithInternalWorkflowStartOptions)[InternalWorkflowStartOptionsKey];
+    const internalOptions = (opts as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
     try {
       const response = await this.workflowService.startWorkflowExecution(req);
       if (internalOptions != null) {
@@ -1271,7 +1271,7 @@ export class WorkflowClient extends BaseClient {
   protected async createStartWorkflowRequest(input: WorkflowStartInput): Promise<StartWorkflowExecutionRequest> {
     const { options: opts, workflowType, headers } = input;
     const { identity, namespace } = this.options;
-    const internalOptions = (opts as WorkflowOptionsWithInternalWorkflowStartOptions)[InternalWorkflowStartOptionsKey];
+    const internalOptions = (opts as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
 
     return {
       namespace,

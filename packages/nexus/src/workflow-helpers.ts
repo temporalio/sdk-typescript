@@ -3,7 +3,7 @@ import { Workflow } from '@temporalio/common';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { WorkflowStartOptions as ClientWorkflowStartOptions } from '@temporalio/client';
 import { temporal } from '@temporalio/proto';
-import { InternalWorkflowStartOptionsKey, InternalWorkflowStartOptions } from '@temporalio/client/lib/internal';
+import { InternalWorkflowStartOptionsSymbol, InternalWorkflowStartOptions } from '@temporalio/client/lib/internal';
 import { generateWorkflowRunOperationToken, loadWorkflowRunOperationToken } from './token';
 import { convertNexusLinkToWorkflowEventLink, convertWorkflowEventLinkToNexusLink } from './link-converter';
 import { getClient, getHandlerContext, log } from './context';
@@ -50,7 +50,10 @@ export async function startWorkflow<T extends Workflow>(
       }
     }
   }
-  const internalOptions: InternalWorkflowStartOptions = { links, requestId: ctx.requestId };
+  const internalOptions: InternalWorkflowStartOptions[typeof InternalWorkflowStartOptionsSymbol] = {
+    links,
+    requestId: ctx.requestId,
+  };
 
   if (workflowOptions.workflowIdConflictPolicy === 'USE_EXISTING') {
     internalOptions.onConflictOptions = {
@@ -73,7 +76,7 @@ export async function startWorkflow<T extends Workflow>(
   const startOptions: ClientWorkflowStartOptions = {
     ...rest,
     taskQueue: userSpeficiedTaskQueue || taskQueue,
-    [InternalWorkflowStartOptionsKey]: internalOptions,
+    [InternalWorkflowStartOptionsSymbol]: internalOptions,
   };
 
   const handle = await client.workflow.start(workflowTypeOrFunc, startOptions);
