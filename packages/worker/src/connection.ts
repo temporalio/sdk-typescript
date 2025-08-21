@@ -25,6 +25,7 @@ import { Runtime } from './runtime';
  * This class can be used to power `@temporalio/client`'s Client objects.
  */
 export class NativeConnection implements ConnectionLike {
+  public readonly supportsEagerStart = true;
   /**
    * referenceHolders is used internally by the framework, it can be accessed with `extractReferenceHolders` (below)
    */
