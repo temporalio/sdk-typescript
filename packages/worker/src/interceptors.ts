@@ -1,21 +1,22 @@
-/**
- * Definitions for Activity interceptors.
- *
- * (The Worker also accepts Workflow interceptors but those are passed as module names)
- *
- * @module
- */
-
 import { Context as ActivityContext } from '@temporalio/activity';
 import { ClientInterceptors } from '@temporalio/client';
 import { Headers, MetricTags, Next } from '@temporalio/common';
 
 export { Next, Headers };
 
-/** Input for ActivityInboundCallsInterceptor.execute */
-export interface ActivityExecuteInput {
-  readonly args: unknown[];
-  readonly headers: Headers;
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Activity Interceptors
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export type ActivityInterceptorsFactory = (ctx: ActivityContext) => ActivityInterceptors;
+
+/**
+ * A function that takes Activity Context and returns an interceptor
+ */
+
+export interface ActivityInterceptors {
+  inbound?: ActivityInboundCallsInterceptor;
+  outbound?: ActivityOutboundCallsInterceptor;
 }
 
 /**
@@ -27,23 +28,16 @@ export interface ActivityInboundCallsInterceptor {
    *
    * @return result of Activity function
    */
-  execute?: (input: ActivityExecuteInput, next: Next<this, 'execute'>) => Promise<unknown>;
+  execute?: (input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>) => Promise<unknown>;
 }
 
 /**
- * A function that takes Activity Context and returns an interceptor
- *
- * @deprecated Use {@link ActivityInterceptorsFactory} instead
+ * Input for {@link ActivityInboundCallsInterceptor.execute}
  */
-export interface ActivityInboundCallsInterceptorFactory {
-  (ctx: ActivityContext): ActivityInboundCallsInterceptor;
+export interface ActivityExecuteInput {
+  readonly args: unknown[];
+  readonly headers: Headers;
 }
-
-/** Input for ActivityOutboundCallsInterceptor.getLogAttributes */
-export type GetLogAttributesInput = Record<string, unknown>;
-
-/** Input for ActivityOutboundCallsInterceptor.getMetricTags */
-export type GetMetricTagsInput = MetricTags;
 
 /**
  * Implement any of these methods to intercept Activity outbound calls
@@ -54,7 +48,10 @@ export interface ActivityOutboundCallsInterceptor {
    *
    * The attributes returned in this call are attached to every log message.
    */
-  getLogAttributes?: (input: GetLogAttributesInput, next: Next<this, 'getLogAttributes'>) => Record<string, unknown>;
+  getLogAttributes?: (
+    input: GetLogAttributesInput,
+    next: Next<ActivityOutboundCallsInterceptor, 'getLogAttributes'>
+  ) => Record<string, unknown>;
 
   /**
    * Called once every time a metric is emitted from an Activity metric
@@ -63,18 +60,34 @@ export interface ActivityOutboundCallsInterceptor {
    * Tags returned by this hook are _prepended_ to tags defined at the metric level and tags defined
    * on the emitter function itself.
    */
-  getMetricTags?: (input: GetMetricTagsInput, next: Next<this, 'getMetricTags'>) => MetricTags;
-}
-
-export interface ActivityInterceptors {
-  inbound?: ActivityInboundCallsInterceptor;
-  outbound?: ActivityOutboundCallsInterceptor;
+  getMetricTags?: (
+    input: GetMetricTagsInput,
+    next: Next<ActivityOutboundCallsInterceptor, 'getMetricTags'>
+  ) => MetricTags;
 }
 
 /**
- * A function that takes Activity Context and returns an interceptor
+ * Input for {@link ActivityOutboundCallsInterceptor.getLogAttributes}
  */
-export type ActivityInterceptorsFactory = (ctx: ActivityContext) => ActivityInterceptors;
+export type GetLogAttributesInput = Record<string, unknown>;
+
+/**
+ * Input for {@link ActivityOutboundCallsInterceptor.getMetricTags}
+ */
+export type GetMetricTagsInput = MetricTags;
+
+/**
+ * A function that takes Activity Context and returns an interceptor
+ *
+ * @deprecated Use {@link ActivityInterceptorsFactory} instead
+ */
+export interface ActivityInboundCallsInterceptorFactory {
+  (ctx: ActivityContext): ActivityInboundCallsInterceptor;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Worker Interceptors Configuration
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Structure for passing in Worker interceptors via {@link WorkerOptions}
@@ -88,11 +101,13 @@ export interface WorkerInterceptors {
    *               instead. Client doesn't support cancellation through a Signal.
    */
   client?: ClientInterceptors;
+
   /**
    * List of factory functions that instanciate {@link ActivityInboundCallsInterceptor}s and
    * {@link ActivityOutboundCallsInterceptor}s.
    */
   activity?: ActivityInterceptorsFactory[];
+
   /**
    * List of factory functions returning {@link ActivityInboundCallsInterceptor}s. If both `activity` and
    * `activityInbound` is supplied, then entries from `activityInbound` will be prepended to inbound interceptors
@@ -101,6 +116,7 @@ export interface WorkerInterceptors {
    * @deprecated Use {@link WorkerInterceptors.activity} instead.
    */
   activityInbound?: ActivityInboundCallsInterceptorFactory[]; // eslint-disable-line deprecation/deprecation
+
   /**
    * List of modules to search for Workflow interceptors in
    * - Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}
