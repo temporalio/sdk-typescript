@@ -281,7 +281,10 @@ export class Context {
      */
     protected readonly heartbeatFn: (details?: any) => void,
 
-    private readonly _client: Client | undefined,
+    /**
+     * The Worker's client, passed down through Activity context.
+     */
+    protected readonly _client: Client | undefined,
 
     /**
      * The logger for this Activity.
@@ -311,7 +314,7 @@ export class Context {
     /**
      * Holder object for activity cancellation details
      */
-    private readonly _cancellationDetails: ActivityCancellationDetailsHolder
+    protected readonly _cancellationDetails: ActivityCancellationDetailsHolder
   ) {}
 
   /**

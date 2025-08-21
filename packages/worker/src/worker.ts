@@ -473,7 +473,7 @@ export class Worker {
    */
   protected hasOutstandingNexusPoll = false;
 
-  private client?: Client;
+  protected client?: Client;
 
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
