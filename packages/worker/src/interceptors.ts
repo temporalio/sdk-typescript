@@ -111,4 +111,4 @@ export interface WorkerInterceptors {
   workflowModules?: string[];
 }
 
-export type CompiledWorkerInterceptors = Required<Pick<WorkerInterceptors, 'activity' | 'workflowModules'>>;
+export type CompiledWorkerInterceptors = Required<Pick<WorkerInterceptors, 'client' | 'activity' | 'workflowModules'>>;
