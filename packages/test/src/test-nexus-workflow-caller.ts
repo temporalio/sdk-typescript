@@ -1,3 +1,4 @@
+import assert from 'assert';
 import { randomUUID } from 'crypto';
 import * as nexus from 'nexus-rpc';
 import { ApplicationFailure, CancelledFailure, NexusOperationFailure } from '@temporalio/common';
@@ -15,6 +16,8 @@ const test = makeTestFunction({
   workflowsPath: __filename,
   workflowInterceptorModules: [__filename],
 });
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export async function caller(endpoint: string, op: keyof typeof service.operations, action: string): Promise<string> {
   const client = workflow.createNexusClient({
@@ -183,4 +186,120 @@ test('Nexus Operation from a Workflow', async (t) => {
         err.cause.cause.details[0] === 'a detail'
     );
   });
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+type InputA = { a: string };
+type InputB = { b: string };
+
+const clientOperationTypeSafetyCheckerService = nexus.service('test', {
+  implicit: nexus.operation<InputA, InputA>(),
+  explicit: nexus.operation<InputB, InputB>({ name: 'my-custom-operation-name' }),
+});
+
+export async function clientOperationTypeSafetyCheckerWorkflow(endpoint: string): Promise<void> {
+  const Service = clientOperationTypeSafetyCheckerService;
+  const operations = Service.operations;
+  const client = workflow.createNexusClient({
+    endpoint,
+    service: Service,
+  });
+
+  // That's quite exhaustive, but we can't generalize these without risking compromising
+  // the validity of the compiler's type safety checks that we specifically want to test here.
+
+  // Case 1: Provide resolved OperationDefinition object, with correct input type
+  // There should be no compilation error, and it should execute successfully.
+  {
+    const wha = await client.startOperation(operations.implicit, { a: 'a' });
+    assert(((await wha.result()) satisfies InputA).a === 'a');
+
+    const whb = await client.startOperation(operations.explicit, { b: 'b' });
+    assert(((await whb.result()) satisfies InputB).b === 'b');
+  }
+
+  // Case 2: Provide the operation _property name_, with correct input type
+  //
+  // The _property name_ is the name of the property used to specify the operation in the
+  // `ServiceDefinition` object, which may differ from the value of the `name` property
+  // if one was explicitly specified on the OperationDefinition object).
+  // There should be no compilation error, and it should execute successfully.
+  {
+    const wha = await client.startOperation('implicit', { a: 'a' });
+    assert(((await wha.result()) satisfies InputA).a === 'a');
+
+    const whb = await client.startOperation('explicit', { b: 'b' });
+    assert(((await whb.result()) satisfies InputB).b === 'b');
+  }
+
+  // Case 3: Provide resolved OperationDefinition object, with _incorrect_ input type.
+  // Compiler should complain, and if forced to execute anyway, should result in a HandlerError.
+  {
+    // @ts-expect-error - Incompatible input type
+    const wha = await client.startOperation(operations.implicit, { x: 'x' });
+    assert(((await wha.result()) satisfies InputA as any).x === 'x');
+
+    // @ts-expect-error - Incompatible input type
+    const whb = await client.startOperation(operations.explicit, { x: 'x' });
+    assert(((await whb.result()) satisfies InputB as any).x === 'x');
+  }
+
+  // Case 4: Provide the operation _property name_, with _incorrect_ input type.
+  // Compiler should complain, and if forced to execute anyway, should result in a HandlerError.
+  {
+    // @ts-expect-error - Incompatible input type
+    const wha = await client.startOperation(operations.implicit, { x: 'x' });
+    assert(((await wha.result()) satisfies InputA as any).x === 'x');
+
+    // @ts-expect-error - Incompatible input type
+    const whb = await client.startOperation(operations.explicit, { x: 'x' });
+    assert(((await whb.result()) satisfies InputB as any).x === 'x');
+  }
+
+  // Case 5: Non-existent operation name
+  // Compiler should complain, and if forced to execute anyway, handler will throw a HandlerError.
+  {
+    try {
+      // @ts-expect-error - Incorrect operation name
+      await client.startOperation('non-existent', { x: 'x' });
+    } catch (err) {
+      assert(err instanceof NexusOperationFailure, `Expected a NexusOperationFailure, got ${err}`);
+      assert(err.cause instanceof nexus.HandlerError, `Expected casue to be a HandlerError, got ${err.cause}`);
+      assert(err.cause.type === 'NOT_FOUND', `Expected a NOT_FOUND error, got ${err.cause.type}`);
+    }
+  }
+}
+
+test('NexusClient is type-safe in regard to Operation Definitions', async (t) => {
+  const { createWorker, executeWorkflow, taskQueue } = helpers(t);
+  const endpoint = t.title.replaceAll(/[\s,]/g, '-') + '-' + randomUUID();
+  await t.context.env.connection.operatorService.createNexusEndpoint({
+    spec: {
+      name: endpoint,
+      target: {
+        worker: {
+          namespace: 'default',
+          taskQueue,
+        },
+      },
+    },
+  });
+  const worker = await createWorker({
+    nexusServices: [
+      nexus.serviceHandler(clientOperationTypeSafetyCheckerService, {
+        implicit: async (_ctx, input) => input,
+        explicit: async (_ctx, input) => input,
+      }),
+    ],
+  });
+  await worker.runUntil(async () => {
+    await executeWorkflow(clientOperationTypeSafetyCheckerWorkflow, {
+      args: [endpoint],
+    });
+  });
+
+  // Most of the checks here would be exposed as compile-time errors,
+  // and `executeWorkflow` will have thrown if any runtime error.
+  t.pass();
 });

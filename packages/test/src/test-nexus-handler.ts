@@ -4,6 +4,7 @@ import Long from 'long';
 import * as nexus from 'nexus-rpc';
 import * as protoJsonSerializer from 'proto3-json-serializer';
 import * as temporalnexus from '@temporalio/nexus';
+import * as temporalclient from '@temporalio/client';
 import * as root from '@temporalio/proto';
 import * as testing from '@temporalio/testing';
 import { DefaultLogger, LogEntry, Runtime, Worker } from '@temporalio/worker';
@@ -65,7 +66,7 @@ test.beforeEach(async (t) => {
   const { env } = t.context;
   const response = await env.connection.operatorService.createNexusEndpoint({
     spec: {
-      name: t.title.replaceAll(/[\s,]/g, '-'),
+      name: t.title.replaceAll(/[\s,.]/g, '-'),
       target: {
         worker: {
           namespace: 'default',
@@ -685,4 +686,29 @@ test('WorkflowRunOperationHandler attaches callback, link, and request ID', asyn
   t.deepEqual(actualLink?.runId, workflowLink.runId);
   t.deepEqual(actualLink?.eventRef?.eventType, workflowLink.eventRef.eventType);
   t.deepEqual(actualLink?.eventRef?.eventId, workflowLink.eventRef.eventId);
+});
+
+test('WorkflowRunOperationHandler does not accept WorkflowHandle from WorkflowClient.start', async (t) => {
+  // Dummy client, it won't actually be called.
+  const client: temporalclient.WorkflowClient = undefined as any;
+
+  nexus.serviceHandler(
+    nexus.service('testService', {
+      syncOperation: nexus.operation<void, void>(),
+    }),
+    {
+      syncOperation: new temporalnexus.WorkflowRunOperationHandler<void, void>(
+        // @ts-expect-error - Missing property [isNexusWorkflowHandle]
+        async (_ctx) => {
+          return await client.start('some-workflow', {
+            workflowId: 'some-workflow',
+            taskQueue: 'some-task-queue',
+          });
+        }
+      ),
+    }
+  );
+
+  // This test only checks for compile-time error.
+  t.pass();
 });

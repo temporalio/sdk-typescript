@@ -2,11 +2,13 @@ import * as nexus from 'nexus-rpc';
 import { Workflow } from '@temporalio/common';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { WorkflowStartOptions as ClientWorkflowStartOptions } from '@temporalio/client';
-import { temporal } from '@temporalio/proto';
+import { type temporal } from '@temporalio/proto';
 import { InternalWorkflowStartOptionsSymbol, InternalWorkflowStartOptions } from '@temporalio/client/lib/internal';
 import { generateWorkflowRunOperationToken, loadWorkflowRunOperationToken } from './token';
 import { convertNexusLinkToWorkflowEventLink, convertWorkflowEventLinkToNexusLink } from './link-converter';
 import { getClient, getHandlerContext, log } from './context';
+
+declare const isNexusWorkflowHandle: unique symbol;
 
 /**
  * A handle to a running workflow that is returned by the {@link startWorkflow} helper.
@@ -17,6 +19,18 @@ import { getClient, getHandlerContext, log } from './context';
 export interface WorkflowHandle<_T> {
   readonly workflowId: string;
   readonly runId: string;
+
+  /**
+   * Virtual type brand to maintain a distinction between {@link WorkflowHandle} provided by the
+   * {@link startWorkflow} helper (which will have attached links, request ID, completion URL, etc)
+   * and the `WorkflowHandle` type returned by the {@link WorkflowClient.start}.
+   *
+   * @internal
+   * @hidden
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  readonly [isNexusWorkflowHandle]: typeof isNexusWorkflowHandle;
 }
 
 /**
@@ -92,7 +106,10 @@ export async function startWorkflow<T extends Workflow>(
     }
   }
 
-  return { workflowId: handle.workflowId, runId: handle.firstExecutionRunId };
+  return {
+    workflowId: handle.workflowId,
+    runId: handle.firstExecutionRunId,
+  } as WorkflowHandle<T>;
 }
 
 /**
