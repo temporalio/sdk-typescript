@@ -16,6 +16,8 @@ export interface NexusClient<T extends nexus.ServiceDefinition> {
   /**
    * Start a Nexus Operation and wait for its completion taking a {@link nexus.operation}.
    * Returns the operation's result.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
    */
   executeOperation<O extends T['operations'][keyof T['operations']]>(
     op: O,
@@ -23,9 +25,18 @@ export interface NexusClient<T extends nexus.ServiceDefinition> {
     options?: Partial<StartNexusOperationOptions>
   ): Promise<nexus.OperationOutput<O>>;
 
+  // TODO(nexus/post-initial-release): Revisit the "Operation Property Name" terminology,
+  //                                   and reflect in the Nexus RPC SDK.
+
   /**
-   * Start a Nexus Operation and wait for its completion taking an Operation name.
+   * Start a Nexus Operation and wait for its completion, taking an Operation's _property name_.
    * Returns the operation's result.
+   *
+   * An Operation's _property name_ is the name of the property used to define that Operation in
+   * the {@link nexus.ServiceDefinition} object; it may differ from the value of the `name` property
+   * if one was explicitly specified on the {@link nexus.OperationDefinition} object.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
    */
   executeOperation<K extends nexus.OperationKey<T['operations']>>(
     op: K,
@@ -37,6 +48,8 @@ export interface NexusClient<T extends nexus.ServiceDefinition> {
    * Start a Nexus Operation taking a {@link nexus.operation}.
    *
    * Returns a handle that can be used to wait for the Operation's result.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
    */
   startOperation<O extends T['operations'][keyof T['operations']]>(
     op: O,
@@ -45,9 +58,14 @@ export interface NexusClient<T extends nexus.ServiceDefinition> {
   ): Promise<NexusOperationHandle<nexus.OperationOutput<O>>>;
 
   /**
-   * Start a Nexus Operation taking an Operation name.
-   *
+   * Start a Nexus Operation, taking an Operation's _property name_.
    * Returns a handle that can be used to wait for the Operation's result.
+   *
+   * An Operation's _property name_ is the name of the property used to define that Operation in
+   * the {@link nexus.ServiceDefinition} object; it may differ from the value of the `name` property
+   * if one was explicitly specified on the {@link nexus.OperationDefinition} object.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
    */
   startOperation<K extends nexus.OperationKey<T['operations']>>(
     op: K,
