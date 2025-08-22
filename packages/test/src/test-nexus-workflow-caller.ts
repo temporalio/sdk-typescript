@@ -285,11 +285,19 @@ test('NexusClient is type-safe in regard to Operation Definitions', async (t) =>
       },
     },
   });
+
+  // We intentionally use different property names here, to assert that the client side sent the
+  // correct op name to the server (i.e. the operation's name, not the operation property name).
+  const clientOperationTypeSafetyCheckerService = nexus.service('test', {
+    implicitImpl: nexus.operation<InputA, InputA>({ name: 'implicit' }),
+    explicitImpl: nexus.operation<InputB, InputB>({ name: 'my-custom-operation-name' }),
+  });
+
   const worker = await createWorker({
     nexusServices: [
       nexus.serviceHandler(clientOperationTypeSafetyCheckerService, {
-        implicit: async (_ctx, input) => input,
-        explicit: async (_ctx, input) => input,
+        implicitImpl: async (_ctx, input) => input,
+        explicitImpl: async (_ctx, input) => input,
       }),
     ],
   });
