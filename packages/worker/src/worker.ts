@@ -469,7 +469,7 @@ export class Worker {
    */
   protected hasOutstandingActivityPoll = false;
   /**
-   * Whether or not this worker has an outstanding nexus poll request
+   * Whether or not this worker has an outstanding Nexus poll request
    */
   protected hasOutstandingNexusPoll = false;
 
@@ -1194,13 +1194,13 @@ export class Worker {
             case 'cancelTask': {
               const nexusHandler = this.taskTokenToNexusHandler.get(base64TaskToken);
               if (nexusHandler == null) {
-                this.logger.trace('Tried to cancel a non-existing nexus handler', {
+                this.logger.trace('Tried to cancel a non-existing Nexus handler', {
                   taskToken: base64TaskToken,
                 });
                 break;
               }
-              // NOTE: nexus handler will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
-              this.logger.trace('Cancelling nexus handler', nexusHandler.getLogAttributes());
+              // NOTE: Nexus handler will not be considered cancelled until it confirms cancellation (by throwing a CancelledFailure)
+              this.logger.trace('Cancelling Nexus handler', nexusHandler.getLogAttributes());
               let reason = 'unkown';
               if (task.cancelTask?.reason != null) {
                 reason = coresdk.nexus.NexusTaskCancelReason[task.cancelTask.reason];
@@ -1823,10 +1823,10 @@ export class Worker {
       const task = coresdk.nexus.NexusTask.decode(new Uint8Array(buffer));
       const taskToken = task.task?.taskToken || task.cancelTask?.taskToken;
       if (taskToken == null) {
-        throw new TypeError('Got a nexus task without a task token');
+        throw new TypeError('Got a Nexus task without a task token');
       }
       const base64TaskToken = formatTaskToken(taskToken);
-      this.logger.trace('Got nexus task', {
+      this.logger.trace('Got Nexus task', {
         taskToken: base64TaskToken,
         ...task,
       });
@@ -1844,9 +1844,9 @@ export class Worker {
   }
 
   protected nexus$(): Observable<void> {
-    // This Worker did not register any nexus services, return early.
+    // This Worker did not register any Nexus services, return early.
     if (this.options.nexusServiceRegistry == null) {
-      if (!this.isReplayWorker) this.logger.info('No nexus services registered, not polling for nexus tasks');
+      if (!this.isReplayWorker) this.logger.info('No Nexus services registered, not polling for Nexus tasks');
       this.nexusPollerStateSubject.next('SHUTDOWN');
       return EMPTY;
     }

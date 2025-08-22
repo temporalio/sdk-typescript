@@ -23,7 +23,7 @@ export type ReplaceNested<T, ToReplace, ReplaceWith> = T extends (...args: any[]
   ? T
   : [keyof T] extends [never]
     ? T
-    : T extends Record<string, string> // Special exception for nexusHeader.
+    : T extends Record<string, string> // Special exception for Nexus Headers.
       ? T
       : T extends { [k: string]: ToReplace }
         ? {

@@ -155,7 +155,7 @@ export interface WorkflowOutboundCallsInterceptor {
   ) => Promise<unknown>;
 
   /**
-   * Called when Workflow starts a Nexus operation.
+   * Called when Workflow starts a Nexus Operation.
    *
    * @experimental Nexus support in Temporal SDK is experimental.
    */
@@ -231,7 +231,7 @@ export interface TimerOptions {
   /**
    * A fixed, single line summary of the command's purpose
    *
-   * @experimental User metadata is a new API and suspectible to change.
+   * @experimental User metadata is a new API and susceptible to change.
    */
   readonly summary?: string;
 }
@@ -266,13 +266,13 @@ export interface LocalActivityInput {
  * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationInput {
-  input: unknown;
-  endpoint: string;
-  service: string;
-  options: StartNexusOperationOptions;
-  operation: string;
-  seq: number;
-  nexusHeader: Record<string, string>;
+  readonly input: unknown;
+  readonly endpoint: string;
+  readonly service: string;
+  readonly options: StartNexusOperationOptions;
+  readonly operation: string;
+  readonly seq: number;
+  readonly headers: Record<string, string>;
 }
 
 /**
@@ -286,15 +286,15 @@ export interface StartNexusOperationOptions {
    *
    * Optional: defaults to the maximum allowed by the Temporal server.
    */
-  scheduleToCloseTimeout?: Duration;
+  readonly scheduleToCloseTimeout?: Duration;
 
   /**
    * A fixed, single-line summary for this Nexus Operation that may appear in the UI/CLI.
    * This can be in single-line Temporal markdown format.
    *
-   * @experimental User metadata is a new API and suspectible to change.
+   * @experimental User metadata is a new API and susceptible to change.
    */
-  summary?: string;
+  readonly summary?: string;
 }
 
 /**
@@ -306,16 +306,16 @@ export interface StartNexusOperationOutput {
   /**
    * The token for the Nexus Operation.
    *
-   * May be undefined if the Nexus Operation completed synchronously, in which case the {@link result}
+   * Undefined if the Nexus Operation completed synchronously, in which case the {@link result}
    * will be immediately resolved.
    */
-  token?: string;
+  readonly token?: string;
 
   /**
-   * A promise that will resolve when the Nexus operation completes, either with the result of the
-   * operation if it completed successfully, or a failure if the Nexus Operation failed.
+   * A promise that will resolve when the Nexus Operation completes, either with the result of the
+   * Operation if it completed successfully, or a failure if the Nexus Operation failed.
    */
-  result: Promise<unknown>;
+  readonly result: Promise<unknown>;
 }
 
 /**
@@ -405,8 +405,8 @@ export interface WorkflowInternalsInterceptor {
  * Input for {@link WorkflowInternalsInterceptor.activate}
  */
 export interface ActivateInput {
-  activation: coresdk.workflow_activation.IWorkflowActivation;
-  batchIndex: number;
+  readonly activation: coresdk.workflow_activation.IWorkflowActivation;
+  readonly batchIndex: number;
 }
 
 /**
@@ -419,7 +419,7 @@ export interface DisposeInput {}
  * Input for {@link WorkflowInternalsInterceptor.concludeActivation}
  */
 export interface ConcludeActivationInput {
-  commands: coresdk.workflow_commands.IWorkflowCommand[];
+  readonly commands: coresdk.workflow_commands.IWorkflowCommand[];
 }
 
 /**

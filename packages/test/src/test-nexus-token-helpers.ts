@@ -5,7 +5,7 @@ import {
   loadWorkflowRunOperationToken,
 } from '@temporalio/nexus/lib/token';
 
-test('encode and decode workflow run operation token', (t) => {
+test('encode and decode workflow run Operation token', (t) => {
   const expected = {
     t: 1,
     ns: 'ns',
@@ -16,14 +16,14 @@ test('encode and decode workflow run operation token', (t) => {
   t.deepEqual(decoded, expected);
 });
 
-test('decode workflow run operation token errors', (t) => {
+test('decode workflow run Operation token errors', (t) => {
   t.throws(() => loadWorkflowRunOperationToken(''), { message: /invalid workflow run token: token is empty/ });
 
   t.throws(() => loadWorkflowRunOperationToken('not-base64!@#$'), { message: /failed to decode token/ });
 
   const invalidJSONToken = base64URLEncodeNoPadding('invalid json');
   t.throws(() => loadWorkflowRunOperationToken(invalidJSONToken), {
-    message: /failed to unmarshal workflow run operation token/,
+    message: /failed to unmarshal workflow run Operation token/,
   });
 
   const invalidTypeToken = base64URLEncodeNoPadding('{"t":2}');

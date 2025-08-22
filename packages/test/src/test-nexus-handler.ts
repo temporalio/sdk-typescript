@@ -79,7 +79,7 @@ test.beforeEach(async (t) => {
   t.truthy(t.context.endpointId);
 });
 
-test('sync operation handler happy path', async (t) => {
+test('sync Operation Handler happy path', async (t) => {
   const { env, taskQueue, httpPort, endpointId } = t.context;
 
   const testServiceHandler = nexus.serviceHandler(
@@ -126,7 +126,7 @@ test('sync operation handler happy path', async (t) => {
   });
 });
 
-test('operation handler cancelation', async (t) => {
+test('Operation Handler cancelation', async (t) => {
   const { env, taskQueue, httpPort, endpointId } = t.context;
   let p: Promise<never> | undefined;
 
@@ -165,7 +165,7 @@ test('operation handler cancelation', async (t) => {
       }
     );
     t.is(res.status, 520 /* UPSTREAM_TIMEOUT */);
-    // Give time for the worker to actually process the timeout; otherwise the operation
+    // Give time for the worker to actually process the timeout; otherwise the Operation
     // may end up being cancelled because of the worker shutdown rather than the timeout.
     await Promise.race([
       p?.catch(() => undefined),
@@ -178,7 +178,7 @@ test('operation handler cancelation', async (t) => {
   await t.throwsAsync(p!, { instanceOf: CancelledFailure, message: 'TIMED_OUT' });
 });
 
-test('async operation handler happy path', async (t) => {
+test('async Operation Handler happy path', async (t) => {
   const { env, taskQueue, httpPort, endpointId } = t.context;
   const requestId = 'test-' + randomUUID();
 
@@ -189,7 +189,7 @@ test('async operation handler happy path', async (t) => {
     nexusServices: [
       nexus.serviceHandler(
         nexus.service('testService', {
-          // Also test custom operation name.
+          // Also test custom Operation name.
           testAsyncOp: nexus.operation<string, string>({ name: 'async-op' }),
         }),
         {
@@ -256,7 +256,7 @@ test('async operation handler happy path', async (t) => {
   });
 });
 
-test('start operation handler errors', async (t) => {
+test('start Operation Handler errors', async (t) => {
   const { env, taskQueue, httpPort, endpointId } = t.context;
 
   const w = await Worker.create({
@@ -390,7 +390,7 @@ test('start operation handler errors', async (t) => {
   });
 });
 
-test('cancel operation handler errors', async (t) => {
+test('cancel Operation Handler errors', async (t) => {
   const { env, taskQueue, httpPort, endpointId } = t.context;
 
   const w = await Worker.create({
@@ -604,7 +604,7 @@ test('WorkflowRunOperationHandler attaches callback, link, and request ID', asyn
           testOp: new temporalnexus.WorkflowRunOperationHandler<void, void>(async (ctx) => {
             return await temporalnexus.startWorkflow(ctx, 'some-workflow', {
               workflowId,
-              // To test attaching multiple callers to the same operation.
+              // To test attaching multiple callers to the same Operation.
               workflowIdConflictPolicy: 'USE_EXISTING',
             });
           }),

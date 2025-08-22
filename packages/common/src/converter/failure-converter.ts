@@ -25,7 +25,7 @@ import { isError } from '../type-helpers';
 import { msOptionalToTs } from '../time';
 import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './payload-converter';
 
-// Can't import enums into the workflow sandbox, use this helper type and enum converter instead.
+// Can't import proto enums into the workflow sandbox, use this helper type and enum converter instead.
 const NexusHandlerErrorRetryBehavior = {
   RETRYABLE: 'RETRYABLE',
   NON_RETRYABLE: 'NON_RETRYABLE',
@@ -305,7 +305,7 @@ export class DefaultFailureConverter implements FailureConverter {
 
   errorToFailureInner(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
     // TODO(nexus/error): If we decide not to have a NexusHandlerFailure, we could still attach the
-    //                    failure proto to the nexus HandlerError object, by using a private symbol
+    //                    failure proto to the Nexus HandlerError object, by using a private symbol
     //                    property. To be considered once we have a decision on error handling.
     if (err instanceof TemporalFailure || err instanceof nexus.HandlerError) {
       if (err instanceof TemporalFailure && err.failure) return err.failure;

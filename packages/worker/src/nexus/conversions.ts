@@ -120,7 +120,7 @@ export async function handlerErrorToProto(
   let { cause } = err;
   if (cause == null) {
     // TODO(nexus/error): I believe this is wrong, but leaving as-is until we have a decision on
-    //                    on how we want to encode nexus errors going forward.
+    //                    on how we want to encode Nexus errors going forward.
     //
     // Create an error without capturing a stack trace.
     const wrapped = Object.create(ApplicationFailure.prototype);

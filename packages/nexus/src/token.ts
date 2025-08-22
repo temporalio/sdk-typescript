@@ -10,7 +10,7 @@ export interface WorkflowRunOperationToken {
   v?: number;
 
   /**
-   * Type of the operation. Must be OPERATION_TOKEN_TYPE_WORKFLOW_RUN.
+   * Type of the Operation. Must be OPERATION_TOKEN_TYPE_WORKFLOW_RUN.
    */
   t: OperationTokenType;
 
@@ -26,8 +26,8 @@ export interface WorkflowRunOperationToken {
 }
 
 /**
- * OperationTokenType is used to identify the type of operation token.
- * Currently, we only have one type of operation token: WorkflowRun.
+ * OperationTokenType is used to identify the type of Operation token.
+ * Currently, we only have one type of Operation token: WorkflowRun.
  */
 type OperationTokenType = (typeof OperationTokenType)[keyof typeof OperationTokenType];
 
@@ -40,7 +40,7 @@ const OperationTokenType = {
 } as const;
 
 /**
- * Generate a workflow run operation token.
+ * Generate a workflow run Operation token.
  */
 export function generateWorkflowRunOperationToken(namespace: string, workflowId: string): string {
   const token: WorkflowRunOperationToken = {
@@ -52,7 +52,7 @@ export function generateWorkflowRunOperationToken(namespace: string, workflowId:
 }
 
 /**
- * Load and validate a workflow run operation token.
+ * Load and validate a workflow run Operation token.
  */
 export function loadWorkflowRunOperationToken(data: string): WorkflowRunOperationToken {
   if (!data) {
@@ -70,7 +70,7 @@ export function loadWorkflowRunOperationToken(data: string): WorkflowRunOperatio
   try {
     token = JSON.parse(decoded);
   } catch (err) {
-    throw new TypeError('failed to unmarshal workflow run operation token', { cause: err });
+    throw new TypeError('failed to unmarshal workflow run Operation token', { cause: err });
   }
 
   if (token.t !== OperationTokenType.WORKFLOW_RUN) {

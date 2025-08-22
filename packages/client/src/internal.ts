@@ -38,7 +38,7 @@ export interface InternalWorkflowStartOptions extends WorkflowOptions {
     /**
      * Conflict options for when USE_EXISTING is specified.
      *
-     * Used by the nexus WorkflowRunOperations to attach to a callback to a running workflow.
+     * Used by the Nexus WorkflowRunOperations to attach to a callback to a running workflow.
      */
     onConflictOptions?: temporal.api.workflow.v1.IOnConflictOptions;
   };

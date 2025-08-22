@@ -694,7 +694,7 @@ export class Activator implements ActivationHandler {
       const result = this.payloadConverter.fromPayload(activation.result.completed);
 
       // It is possible for ResolveNexusOperation to be received without a prior ResolveNexusOperationStart,
-      // e.g. either because the handler completed the operation synchronously.
+      // e.g. because the handler completed the Operation synchronously.
       const startCompletion = this.maybeConsumeCompletion('nexusOperationStart', seq);
       if (startCompletion) {
         startCompletion.resolve({ result: Promise.resolve(result) });

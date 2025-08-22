@@ -112,7 +112,7 @@ export interface WorkerOptions {
   activities?: object;
 
   /**
-   * An array of nexus services
+   * An array of Nexus services
    *
    * @experimental Nexus support in Temporal SDK is experimental.
    */

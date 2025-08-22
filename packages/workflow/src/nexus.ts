@@ -15,6 +15,7 @@ import { StartNexusOperationInput, StartNexusOperationOutput, StartNexusOperatio
 export interface NexusClient<T extends nexus.ServiceDefinition> {
   /**
    * Start a Nexus Operation and wait for its completion taking a {@link nexus.operation}.
+   * Returns the operation's result.
    */
   executeOperation<O extends T['operations'][keyof T['operations']]>(
     op: O,
@@ -23,7 +24,8 @@ export interface NexusClient<T extends nexus.ServiceDefinition> {
   ): Promise<nexus.OperationOutput<O>>;
 
   /**
-   * Start a Nexus Operation and wait for its completion taking an operation name.
+   * Start a Nexus Operation and wait for its completion taking an Operation name.
+   * Returns the operation's result.
    */
   executeOperation<K extends nexus.OperationKey<T['operations']>>(
     op: K,
@@ -34,7 +36,7 @@ export interface NexusClient<T extends nexus.ServiceDefinition> {
   /**
    * Start a Nexus Operation taking a {@link nexus.operation}.
    *
-   * Returns a handle that can be used to wait for the operation's result.
+   * Returns a handle that can be used to wait for the Operation's result.
    */
   startOperation<O extends T['operations'][keyof T['operations']]>(
     op: O,
@@ -43,9 +45,9 @@ export interface NexusClient<T extends nexus.ServiceDefinition> {
   ): Promise<NexusOperationHandle<nexus.OperationOutput<O>>>;
 
   /**
-   * Start a Nexus Operation taking an operation name.
+   * Start a Nexus Operation taking an Operation name.
    *
-   * Returns a handle that can be used to wait for the operation's result.
+   * Returns a handle that can be used to wait for the Operation's result.
    */
   startOperation<K extends nexus.OperationKey<T['operations']>>(
     op: K,
@@ -61,7 +63,7 @@ export interface NexusClient<T extends nexus.ServiceDefinition> {
  */
 export interface NexusOperationHandle<T> {
   /**
-   * The operation's service name.
+   * The Operation's service name.
    */
   readonly service: string;
 
@@ -71,7 +73,7 @@ export interface NexusOperationHandle<T> {
   readonly operation: string;
 
   /**
-   * Operation token as set by the Operation's handler. May be empty if the operation completed synchronously.
+   * Operation token as set by the Operation's handler. May be empty if the Operation completed synchronously.
    */
   readonly token?: string;
 
@@ -132,7 +134,7 @@ export function createNexusClient<T extends nexus.ServiceDefinition>(options: Ne
         service: options.service.name,
         operation: opName,
         options: operationOptions ?? {},
-        nexusHeader: {},
+        headers: {},
         seq,
         input,
       });
@@ -158,7 +160,7 @@ function startNexusOperationNextHandler({
   options,
   operation,
   seq,
-  nexusHeader,
+  headers,
 }: StartNexusOperationInput): Promise<StartNexusOperationOutput> {
   const activator = getActivator();
 
@@ -192,7 +194,7 @@ function startNexusOperationNextHandler({
         endpoint,
         service,
         operation,
-        nexusHeader,
+        nexusHeader: headers,
         input: activator.payloadConverter.toPayload(input),
         scheduleToCloseTimeout: msOptionalToTs(options?.scheduleToCloseTimeout),
         // FIXME(nexus-post-initial-release): cancellationType is not supported yet

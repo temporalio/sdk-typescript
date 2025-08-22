@@ -195,7 +195,7 @@ export class NexusHandler {
   }
 
   /**
-   * Actually executes the operation.
+   * Actually executes the Operation.
    *
    * Any call up to this function and including this one will be trimmed out of stack traces.
    */
@@ -218,7 +218,7 @@ export class NexusHandler {
     } else if (task.request?.cancelOperation != null) {
       const variant = task.request?.cancelOperation;
       if (variant.operationToken == null) {
-        throw new nexus.HandlerError('BAD_REQUEST', 'Request missing operation token');
+        throw new nexus.HandlerError('BAD_REQUEST', 'Request missing Operation token');
       }
       return await this.cancelOperation(
         {
