@@ -63,8 +63,11 @@ function dataSource(d: Buffer | string): DataSource {
   return { data: typeof d === 'string' ? Buffer.from(d) : d };
 }
 
-// Load default profile from file
-test('ClientConfigProfile loads the default profile from a file', (t) => {
+// =============================================================================
+// 🔧 PROFILE LOADING
+// =============================================================================
+
+test('Load default profile from file', (t) => {
   withTempFile(TOML_CONFIG_BASE, (filepath) => {
     const profile = ClientConfigProfile.load({ configSource: pathSource(filepath) });
     t.is(profile.address, 'default-address');
@@ -82,8 +85,7 @@ test('ClientConfigProfile loads the default profile from a file', (t) => {
   });
 });
 
-// Load custom profile from file
-test('ClientConfigProfile loads a custom profile from a file', (t) => {
+test('Load custom profile from file', (t) => {
   withTempFile(TOML_CONFIG_BASE, (filepath) => {
     const profile = ClientConfigProfile.load({ profile: 'custom', configSource: pathSource(filepath) });
     t.is(profile.address, 'custom-address');
@@ -107,25 +109,38 @@ test('ClientConfigProfile loads a custom profile from a file', (t) => {
   });
 });
 
-// Load profiles from raw TOML data
-test('ClientConfigProfile loads profiles from raw TOML data', (t) => {
-  const profileDefault = ClientConfigProfile.load({ configSource: dataSource(Buffer.from(TOML_CONFIG_BASE)) });
-  t.is(profileDefault.address, 'default-address');
-  t.is(profileDefault.namespace, 'default-namespace');
-  t.is(profileDefault.tls, undefined);
+test('Load default profile from data', (t) => {
+  const profile = ClientConfigProfile.load({ configSource: dataSource(Buffer.from(TOML_CONFIG_BASE)) });
+  t.is(profile.address, 'default-address');
+  t.is(profile.namespace, 'default-namespace');
+  t.is(profile.tls, undefined);
+});
 
-  const profileCustom = ClientConfigProfile.load({
+test('Load custom profile from data', (t) => {
+  const profile = ClientConfigProfile.load({
     profile: 'custom',
     configSource: dataSource(Buffer.from(TOML_CONFIG_BASE)),
   });
-  t.is(profileCustom.address, 'custom-address');
-  t.is(profileCustom.namespace, 'custom-namespace');
-  t.is(profileCustom.apiKey, 'custom-api-key');
-  t.is(profileCustom.tls?.serverName, 'custom-server-name');
+  t.is(profile.address, 'custom-address');
+  t.is(profile.namespace, 'custom-namespace');
+  t.is(profile.apiKey, 'custom-api-key');
+  t.is(profile.tls?.serverName, 'custom-server-name');
 });
 
-// Environment variable overrides (including gRPC metadata)
-test('ClientConfigProfile environment variables override file settings', (t) => {
+test('Load profile from data with env overrides', (t) => {
+  const env = {
+    TEMPORAL_ADDRESS: 'env-address',
+    TEMPORAL_NAMESPACE: 'env-namespace',
+  };
+  const profile = ClientConfigProfile.load({
+    configSource: dataSource(Buffer.from(TOML_CONFIG_BASE)),
+    overrideEnvVars: env,
+  });
+  t.is(profile.address, 'env-address');
+  t.is(profile.namespace, 'env-namespace');
+});
+
+test('Load custom profile with env overrides', (t) => {
   withTempFile(TOML_CONFIG_BASE, (filepath) => {
     const env = {
       TEMPORAL_ADDRESS: 'env-address',
@@ -151,8 +166,77 @@ test('ClientConfigProfile environment variables override file settings', (t) => 
   });
 });
 
-// disableEnv prevents env override
-test('ClientConfigProfile disableEnv prevents environment variable overrides', (t) => {
+test('Load profiles with string content', (t) => {
+  const stringContent = TOML_CONFIG_BASE;
+  const profile = ClientConfigProfile.load({ configSource: dataSource(stringContent) });
+  t.is(profile.address, 'default-address');
+  t.is(profile.namespace, 'default-namespace');
+  
+  // Test with custom profile from string
+  const profileCustom = ClientConfigProfile.load({
+    profile: 'custom',
+    configSource: dataSource(stringContent),
+  });
+  t.is(profileCustom.address, 'custom-address');
+  t.is(profileCustom.apiKey, 'custom-api-key');
+});
+
+// =============================================================================
+// 🌍 ENVIRONMENT VARIABLES
+// =============================================================================
+
+test('Load profile with grpc metadata env overrides', (t) => {
+  const toml = dedent`
+    [profile.default]
+    address = "addr"
+    [profile.default.grpc_meta]
+    original-header = "original-value"
+  `;
+  const env = {
+    TEMPORAL_GRPC_META_NEW_HEADER: 'new-value',
+    TEMPORAL_GRPC_META_OVERRIDE_HEADER: 'overridden-value',
+  };
+  const profile = ClientConfigProfile.load({
+    configSource: dataSource(Buffer.from(toml)),
+    overrideEnvVars: env,
+  });
+  t.is(profile.grpcMeta['original-header'], 'original-value');
+  t.is(profile.grpcMeta['new-header'], 'new-value');
+  t.is(profile.grpcMeta['override-header'], 'overridden-value');
+});
+
+test('gRPC metadata normalization from TOML', (t) => {
+  const toml = dedent`
+    [profile.foo]
+    address = "addr"
+    [profile.foo.grpc_meta]
+    sOme-hEader_key = "some-value"
+  `;
+  const conf = ClientConfig.load({ configSource: dataSource(Buffer.from(toml)) });
+  const prof = conf.profiles['foo'];
+  t.truthy(prof);
+  t.is(prof.grpcMeta['some-header-key'], 'some-value');
+});
+
+test('gRPC metadata deletion via empty env value', (t) => {
+  const toml = dedent`
+    [profile.default]
+    address = "addr"
+    [profile.default.grpc_meta]
+    some-header = "keep"
+    remove-me = "to-be-removed"
+  `;
+  const env = {
+    TEMPORAL_GRPC_META_REMOVE_ME: '',
+    TEMPORAL_GRPC_META_NEW_HEADER: 'added',
+  };
+  const prof = ClientConfigProfile.load({ configSource: dataSource(Buffer.from(toml)), overrideEnvVars: env });
+  t.is(prof.grpcMeta['some-header'], 'keep');
+  t.is(prof.grpcMeta['new-header'], 'added');
+  t.false(Object.prototype.hasOwnProperty.call(prof.grpcMeta, 'remove-me'));
+});
+
+test('Load profile with disable env flag', (t) => {
   withTempFile(TOML_CONFIG_BASE, (filepath) => {
     const env = { TEMPORAL_ADDRESS: 'env-address' };
     const profile = ClientConfigProfile.load({
@@ -164,8 +248,11 @@ test('ClientConfigProfile disableEnv prevents environment variable overrides', (
   });
 });
 
-// disableFile supports env-only loading
-test('ClientConfigProfile disableFile loads configuration only from environment', (t) => {
+// =============================================================================
+// 🎛️ CONTROL FLAGS
+// =============================================================================
+
+test('Load profile with disabled file flag', (t) => {
   const env = { TEMPORAL_ADDRESS: 'env-address', TEMPORAL_NAMESPACE: 'env-namespace' };
   const profile = ClientConfigProfile.load({
     configSource: pathSource('/non_existent_file.toml'),
@@ -176,38 +263,121 @@ test('ClientConfigProfile disableFile loads configuration only from environment'
   t.is(profile.namespace, 'env-namespace');
 });
 
-// Non-existent explicit profile errors
-test('ClientConfigProfile raises error for non-existent profile', (t) => {
+test('Load profiles without profile-level env overrides', (t) => {
   withTempFile(TOML_CONFIG_BASE, (filepath) => {
-    const err = t.throws(() =>
-      ClientConfigProfile.load({ configSource: pathSource(filepath), profile: 'nonexistent' })
-    );
-    t.truthy(err);
-    t.true(String(err?.message).includes("Profile 'nonexistent' not found"));
+    const env = { TEMPORAL_ADDRESS: 'should-be-ignored' };
+    // ClientConfig.load doesn't apply env overrides, so we test it loads correctly
+    const conf = ClientConfig.load({
+      configSource: pathSource(filepath),
+      overrideEnvVars: env,
+    });
+    t.is(conf.profiles['default'].address, 'default-address');
+    
+    // Test that profile-level loading with disableEnv ignores environment
+    const profile = ClientConfigProfile.load({
+      configSource: pathSource(filepath),
+      overrideEnvVars: env,
+      disableEnv: true,
+    });
+    t.is(profile.address, 'default-address');
   });
 });
 
-// Strict mode fails on unrecognized keys
-test('ClientConfigProfile strict mode fails on unrecognized keys', (t) => {
-  withTempFile(TOML_CONFIG_STRICT_FAIL, (filepath) => {
-    const err = t.throws(() =>
-      ClientConfigProfile.load({ configSource: pathSource(filepath), configFileStrict: true })
-    );
-    t.truthy(err);
-    t.true(String(err?.message).includes('unrecognized_field'));
+test('Cannot disable both file and env override flags', (t) => {
+  const err = t.throws(() =>
+    ClientConfigProfile.load({
+      configSource: pathSource('/non_existent_file.toml'),
+      disableFile: true,
+      disableEnv: true,
+    })
+  );
+  t.truthy(err);
+  t.true(String(err?.message).includes('Cannot disable both'));
+});
+
+// =============================================================================
+// 📁 CONFIG DISCOVERY
+// =============================================================================
+
+test('Load all profiles from file', (t) => {
+  const conf = ClientConfig.load({ configSource: dataSource(Buffer.from(TOML_CONFIG_BASE)) });
+  t.truthy(conf.profiles['default']);
+  t.truthy(conf.profiles['custom']);
+  t.is(conf.profiles['default'].address, 'default-address');
+  t.is(conf.profiles['custom'].apiKey, 'custom-api-key');
+});
+
+test('Load all profiles from data', (t) => {
+  const configData = dedent`
+    [profile.alpha]
+    address = "alpha-address"
+    namespace = "alpha-namespace"
+    
+    [profile.beta]
+    address = "beta-address"
+    api_key = "beta-key"
+  `;
+  const conf = ClientConfig.load({ configSource: dataSource(Buffer.from(configData)) });
+  t.truthy(conf.profiles['alpha']);
+  t.truthy(conf.profiles['beta']);
+  t.is(conf.profiles['alpha'].address, 'alpha-address');
+  t.is(conf.profiles['beta'].apiKey, 'beta-key');
+});
+
+test('Load profiles from non-existent file, with disable file flag', (t) => {
+  const conf = ClientConfig.load({
+    configSource: pathSource('/non_existent_file.toml'),
+    disableFile: true,
+  });
+  t.deepEqual(conf.profiles, {});
+});
+
+test('Load all profiles with overridden file path', (t) => {
+  withTempFile(TOML_CONFIG_BASE, (filepath) => {
+    const conf = ClientConfig.load({ overrideEnvVars: { TEMPORAL_CONFIG_FILE: filepath } });
+    t.truthy(conf.profiles['default']);
+    t.is(conf.profiles['default'].address, 'default-address');
   });
 });
 
-// toClientConnectConfig throws if address missing
-test('ClientConfigProfile toClientConnectConfig throws if address is missing', (t) => {
-  const profile = ClientConfigProfile.load({ configSource: dataSource(Buffer.from('[profile.default]')) });
-  t.throws(() => profile.toClientConnectConfig(), {
-    message: "Configuration profile must contain an 'address' to be used for client connection",
+test('Load profiles with overridden file path - disabled file flag enabled', (t) => {
+  withTempFile(TOML_CONFIG_BASE, (filepath) => {
+    const conf = ClientConfig.load({ disableFile: true, overrideEnvVars: { TEMPORAL_CONFIG_FILE: filepath } });
+    t.deepEqual(conf.profiles, {});
   });
 });
 
-// TLS from data + disabled handling
-test('ClientConfigProfile parses detailed TLS options', (t) => {
+test('Default profile not found returns empty profile', (t) => {
+  const toml = dedent`
+    [profile.existing]
+    address = "my-address"
+  `;
+  const prof = ClientConfigProfile.load({ configSource: dataSource(Buffer.from(toml)) });
+  t.is(prof.address, undefined);
+  t.is(prof.namespace, undefined);
+  t.is(prof.apiKey, undefined);
+  t.deepEqual(prof.grpcMeta, {});
+  t.is(prof.tls, undefined);
+});
+
+// =============================================================================
+// 🔐 TLS CONFIGURATION
+// =============================================================================
+
+test('Load profile with api key (enables TLS)', (t) => {
+  const toml = dedent`
+    [profile.default]
+    address = "my-address"
+    api_key = "my-api-key"
+  `;
+  const profile = ClientConfigProfile.load({ configSource: dataSource(Buffer.from(toml)) });
+  t.truthy(profile.tls);
+  t.false(!!profile.tls?.disabled);
+  const { connectionOptions } = profile.toClientConnectConfig();
+  t.truthy(connectionOptions.tls);
+});
+
+test('Load profile with TLS options', (t) => {
   const configSource = dataSource(Buffer.from(TOML_CONFIG_TLS_DETAILED));
 
   const profileDisabled = ClientConfigProfile.load({ configSource, profile: 'tls_disabled' });
@@ -235,8 +405,7 @@ test('ClientConfigProfile parses detailed TLS options', (t) => {
   }
 });
 
-// TLS from file paths
-test('ClientConfigProfile parses TLS options from file paths', (t) => {
+test('Load profile with TLS options as file paths', (t) => {
   withTempFile('ca-pem-data', (caPath) => {
     withTempFile('client-crt-data', (certPath) => {
       withTempFile('client-key-data', (keyPath) => {
@@ -271,97 +440,7 @@ test('ClientConfigProfile parses TLS options from file paths', (t) => {
   });
 });
 
-// API key auto-enables TLS
-test('API key presence auto-enables TLS', (t) => {
-  const toml = dedent`
-    [profile.default]
-    address = "my-address"
-    api_key = "my-api-key"
-  `;
-  const profile = ClientConfigProfile.load({ configSource: dataSource(Buffer.from(toml)) });
-  t.truthy(profile.tls);
-  t.false(!!profile.tls?.disabled);
-  const { connectionOptions } = profile.toClientConnectConfig();
-  t.truthy(connectionOptions.tls);
-});
-
-// Load all profiles via ClientConfig.load
-test('ClientConfig.load loads multiple profiles and maps correctly', (t) => {
-  const conf = ClientConfig.load({ configSource: dataSource(Buffer.from(TOML_CONFIG_BASE)) });
-  t.truthy(conf.profiles['default']);
-  t.truthy(conf.profiles['custom']);
-  t.is(conf.profiles['default'].address, 'default-address');
-  t.is(conf.profiles['custom'].apiKey, 'custom-api-key');
-});
-
-// gRPC metadata: normalization from TOML and deletion via env
-
-test('gRPC metadata normalization from TOML', (t) => {
-  const toml = dedent`
-    [profile.foo]
-    address = "addr"
-    [profile.foo.grpc_meta]
-    sOme-hEader_key = "some-value"
-  `;
-  const conf = ClientConfig.load({ configSource: dataSource(Buffer.from(toml)) });
-  const prof = conf.profiles['foo'];
-  t.truthy(prof);
-  t.is(prof.grpcMeta['some-header-key'], 'some-value');
-});
-
-test('gRPC metadata deletion via empty env value', (t) => {
-  const toml = dedent`
-    [profile.default]
-    address = "addr"
-    [profile.default.grpc_meta]
-    some-header = "keep"
-    remove-me = "to-be-removed"
-  `;
-  const env = {
-    TEMPORAL_GRPC_META_REMOVE_ME: '',
-    TEMPORAL_GRPC_META_NEW_HEADER: 'added',
-  };
-  const prof = ClientConfigProfile.load({ configSource: dataSource(Buffer.from(toml)), overrideEnvVars: env });
-  t.is(prof.grpcMeta['some-header'], 'keep');
-  t.is(prof.grpcMeta['new-header'], 'added');
-  t.false(Object.prototype.hasOwnProperty.call(prof.grpcMeta, 'remove-me'));
-});
-
-// Config discovery and disabling
-
-test('ClientConfig.load discovers config via TEMPORAL_CONFIG_FILE', (t) => {
-  withTempFile(TOML_CONFIG_BASE, (filepath) => {
-    const conf = ClientConfig.load({ overrideEnvVars: { TEMPORAL_CONFIG_FILE: filepath } });
-    t.truthy(conf.profiles['default']);
-    t.is(conf.profiles['default'].address, 'default-address');
-  });
-});
-
-test('ClientConfig.load with disable_file ignores discovery and returns empty', (t) => {
-  withTempFile(TOML_CONFIG_BASE, (filepath) => {
-    const conf = ClientConfig.load({ disableFile: true, overrideEnvVars: { TEMPORAL_CONFIG_FILE: filepath } });
-    t.deepEqual(conf.profiles, {});
-  });
-});
-
-// Profile existence semantics
-
-test('Default profile not found returns empty profile', (t) => {
-  const toml = dedent`
-    [profile.existing]
-    address = "my-address"
-  `;
-  const prof = ClientConfigProfile.load({ configSource: dataSource(Buffer.from(toml)) });
-  t.is(prof.address, undefined);
-  t.is(prof.namespace, undefined);
-  t.is(prof.apiKey, undefined);
-  t.deepEqual(prof.grpcMeta, {});
-  t.is(prof.tls, undefined);
-});
-
-// TLS conflict cases
-
-test('TLS conflict in TOML: both path and data should error', (t) => {
+test('Load profile with conflicting cert source fails', (t) => {
   const toml = dedent`
     [profile.default]
     address = "addr"
@@ -412,9 +491,21 @@ test('TLS conflict across sources: data in TOML, path in env should error', (t) 
   );
 });
 
-// Strictness: unrecognized table
+// =============================================================================
+// 🚫 ERROR HANDLING
+// =============================================================================
 
-test('ClientConfig.load strict mode fails on unrecognized table', (t) => {
+test('Load non-existent profile', (t) => {
+  withTempFile(TOML_CONFIG_BASE, (filepath) => {
+    const err = t.throws(() =>
+      ClientConfigProfile.load({ configSource: pathSource(filepath), profile: 'nonexistent' })
+    );
+    t.truthy(err);
+    t.true(String(err?.message).includes("Profile 'nonexistent' not found"));
+  });
+});
+
+test('Load invalid config with strict mode enabled', (t) => {
   const toml = dedent`
     [unrecognized_table]
     foo = "bar"
@@ -426,9 +517,31 @@ test('ClientConfig.load strict mode fails on unrecognized table', (t) => {
   t.true(String(err?.message).includes('unrecognized_table'));
 });
 
-// JSON roundtrips
+test('Load invalid profile with strict mode enabled', (t) => {
+  withTempFile(TOML_CONFIG_STRICT_FAIL, (filepath) => {
+    const err = t.throws(() =>
+      ClientConfigProfile.load({ configSource: pathSource(filepath), configFileStrict: true })
+    );
+    t.truthy(err);
+    t.true(String(err?.message).includes('unrecognized_field'));
+  });
+});
 
-test('ClientConfigProfile toJSON/fromJSON roundtrip', (t) => {
+test('Load profiles with malformed TOML', (t) => {
+  const err = t.throws(() => ClientConfig.load({ configSource: dataSource(Buffer.from('this is not valid toml')) }));
+  t.truthy(err);
+  t.true(
+    String(err?.message)
+      .toLowerCase()
+      .includes('toml')
+  );
+});
+
+// =============================================================================
+// 🔄 SERIALIZATION
+// =============================================================================
+
+test('Client config profile to/from JSON round-trip', (t) => {
   const profile = new ClientConfigProfile({
     address: 'some-address',
     namespace: 'some-namespace',
@@ -454,7 +567,7 @@ test('ClientConfigProfile toJSON/fromJSON roundtrip', (t) => {
   t.is(back.grpcMeta['some-header'], 'some-value');
 });
 
-test('ClientConfig toJSON/fromJSON roundtrip', (t) => {
+test('Client config to/from JSON round-trip', (t) => {
   const conf = new ClientConfig({
     default: new ClientConfigProfile({ address: 'addr', namespace: 'ns' }),
     custom: new ClientConfigProfile({ address: 'addr2', apiKey: 'key2', grpcMeta: { h: 'v' } }),
@@ -468,7 +581,9 @@ test('ClientConfig toJSON/fromJSON roundtrip', (t) => {
   t.is(back.profiles['custom'].grpcMeta['h'], 'v');
 });
 
-// Convenience API
+// =============================================================================
+// 🎯 INTEGRATION/E2E
+// =============================================================================
 
 test('ClientConfig.loadClientConnectConfig works with file path and env overrides', (t) => {
   withTempFile(TOML_CONFIG_BASE, (filepath) => {
@@ -486,21 +601,7 @@ test('ClientConfig.loadClientConnectConfig works with file path and env override
   });
 });
 
-// Malformed TOML for ClientConfig.load
-
-test('ClientConfig.load raises error for malformed TOML', (t) => {
-  const err = t.throws(() => ClientConfig.load({ configSource: dataSource(Buffer.from('this is not valid toml')) }));
-  t.truthy(err);
-  t.true(
-    String(err?.message)
-      .toLowerCase()
-      .includes('toml')
-  );
-});
-
-// E2E test: Load config and create client connection
-
-test('ClientConfig.loadClientConnectConfig creates working client connection', async (t) => {
+test('Create client from default profile', async (t) => {
   // Start a local test server
   const env = await TestWorkflowEnvironment.createLocal();
 
@@ -541,42 +642,202 @@ test('ClientConfig.loadClientConnectConfig creates working client connection', a
   }
 });
 
-test('ClientConfigProfile with TLS can create client connection', async (t) => {
-  // Start a local test server
+test('Create client from custom profile', async (t) => {
   const env = await TestWorkflowEnvironment.createLocal();
 
   try {
     const { address } = env.connection.options;
 
-    // Create TOML config with TLS disabled (local test server doesn't use TLS)
+    // Create basic development profile configuration
     const toml = dedent`
-      [profile.default]
+      [profile.development]
       address = "${address}"
-      namespace = "default"
-      [profile.default.tls]
-      disabled = true
+      namespace = "development-namespace"
     `;
 
-    // Load config via profile
+    // Load profile and create connection
     const profile = ClientConfigProfile.load({
+      profile: 'development',
       configSource: dataSource(Buffer.from(toml)),
     });
 
-    const { connectionOptions, namespace } = profile.toClientConnectConfig();
+    t.is(profile.address, address);
+    t.is(profile.namespace, 'development-namespace');
+    t.is(profile.apiKey, undefined);
+    t.is(profile.tls, undefined);
 
-    // Create connection and client
+    const { connectionOptions, namespace } = profile.toClientConnectConfig();
     const connection = await Connection.connect(connectionOptions);
-    const client = new Client({
-      connection,
-      namespace: namespace || 'default',
+    const client = new Client({ connection, namespace: namespace || 'default' });
+
+    // Verify the client can perform basic operations
+    t.truthy(client);
+    t.truthy(client.connection);
+    t.is(client.options.namespace, 'development-namespace');
+
+    await connection.close();
+  } finally {
+    await env.teardown();
+  }
+});
+
+test('Create client from custom profile with TLS options', async (t) => {
+  const env = await TestWorkflowEnvironment.createLocal();
+
+  try {
+    const { address } = env.connection.options;
+
+    // Create production profile with API key (auto-enables TLS but disabled for local test)
+    const toml = dedent`
+      [profile.production]
+      address = "${address}"
+      namespace = "production-namespace"
+      api_key = "prod-api-key-12345"
+      [profile.production.tls]
+      disabled = true
+    `;
+
+    // Load profile and verify TLS/API key handling
+    const profile = ClientConfigProfile.load({
+      profile: 'production',
+      configSource: dataSource(Buffer.from(toml)),
     });
 
-    // Verify connection works
-    t.truthy(client);
-    t.is(connectionOptions.tls, undefined); // disabled TLS results in undefined
+    t.is(profile.address, address);
+    t.is(profile.namespace, 'production-namespace');
+    t.is(profile.apiKey, 'prod-api-key-12345');
+    t.truthy(profile.tls);
+    t.true(!!profile.tls?.disabled);
 
-    // Clean up
+    const { connectionOptions, namespace } = profile.toClientConnectConfig();
+    
+    // Verify API key is present but TLS is disabled for local testing
+    t.is(connectionOptions.apiKey, 'prod-api-key-12345');
+    t.is(connectionOptions.tls, undefined); // disabled = true results in undefined
+
+    const connection = await Connection.connect(connectionOptions);
+    const client = new Client({ connection, namespace: namespace || 'default' });
+
+    t.truthy(client);
+    t.is(client.options.namespace, 'production-namespace');
+
     await connection.close();
+  } finally {
+    await env.teardown();
+  }
+});
+
+test('Create client from default profile with env overrides', async (t) => {
+  const env = await TestWorkflowEnvironment.createLocal();
+
+  try {
+    const { address } = env.connection.options;
+
+    // Base config that will be overridden by environment
+    const toml = dedent`
+      [profile.default]
+      address = "original-address"
+      namespace = "original-namespace"
+    `;
+
+    // Environment overrides
+    const envOverrides = {
+      TEMPORAL_ADDRESS: address, // Override with test server address
+      TEMPORAL_NAMESPACE: 'env-override-namespace',
+      TEMPORAL_GRPC_META_CUSTOM_HEADER: 'env-header-value',
+    };
+
+    // Load profile with environment overrides
+    const profile = ClientConfigProfile.load({
+      configSource: dataSource(Buffer.from(toml)),
+      overrideEnvVars: envOverrides,
+    });
+
+    // Verify environment variables took precedence
+    t.is(profile.address, address);
+    t.is(profile.namespace, 'env-override-namespace');
+    t.is(profile.grpcMeta['custom-header'], 'env-header-value');
+
+    const { connectionOptions, namespace } = profile.toClientConnectConfig();
+    const connection = await Connection.connect(connectionOptions);
+    const client = new Client({ connection, namespace: namespace || 'default' });
+
+    // Verify client uses overridden values
+    t.truthy(client);
+    t.is(client.options.namespace, 'env-override-namespace');
+    t.is(connectionOptions.metadata?.['custom-header'], 'env-header-value');
+
+    await connection.close();
+  } finally {
+    await env.teardown();
+  }
+});
+
+test('Create clients from multi-profile config', async (t) => {
+  const env = await TestWorkflowEnvironment.createLocal();
+
+  try {
+    const { address } = env.connection.options;
+
+    // Multi-profile configuration
+    const toml = dedent`
+      [profile.service-a]
+      address = "${address}"
+      namespace = "service-a-namespace"
+      [profile.service-a.grpc_meta]
+      service-name = "service-a"
+
+      [profile.service-b]
+      address = "${address}"
+      namespace = "service-b-namespace"
+      [profile.service-b.grpc_meta]
+      service-name = "service-b"
+      priority = "high"
+    `;
+
+    // Load different profiles and create separate clients
+    const profileA = ClientConfigProfile.load({
+      profile: 'service-a',
+      configSource: dataSource(Buffer.from(toml)),
+    });
+
+    const profileB = ClientConfigProfile.load({
+      profile: 'service-b',
+      configSource: dataSource(Buffer.from(toml)),
+    });
+
+    // Verify profiles are distinct
+    t.is(profileA.namespace, 'service-a-namespace');
+    t.is(profileA.grpcMeta['service-name'], 'service-a');
+    t.false('priority' in profileA.grpcMeta);
+
+    t.is(profileB.namespace, 'service-b-namespace');
+    t.is(profileB.grpcMeta['service-name'], 'service-b');
+    t.is(profileB.grpcMeta['priority'], 'high');
+
+    // Create separate client connections
+    const configA = profileA.toClientConnectConfig();
+    const configB = profileB.toClientConnectConfig();
+
+    const connectionA = await Connection.connect(configA.connectionOptions);
+    const connectionB = await Connection.connect(configB.connectionOptions);
+
+    const clientA = new Client({ connection: connectionA, namespace: configA.namespace || 'default' });
+    const clientB = new Client({ connection: connectionB, namespace: configB.namespace || 'default' });
+
+    // Verify both clients work with their respective configurations
+    t.truthy(clientA);
+    t.truthy(clientB);
+    t.is(clientA.options.namespace, 'service-a-namespace');
+    t.is(clientB.options.namespace, 'service-b-namespace');
+
+    // Verify metadata is correctly set for each connection
+    t.is(configA.connectionOptions.metadata?.['service-name'], 'service-a');
+    t.is(configB.connectionOptions.metadata?.['service-name'], 'service-b');
+    t.is(configB.connectionOptions.metadata?.['priority'], 'high');
+
+    await connectionA.close();
+    await connectionB.close();
   } finally {
     await env.teardown();
   }

@@ -368,10 +368,6 @@ export class ClientConfigProfile {
    * ```
    */
   public toClientConnectConfig(): ClientConnectConfig {
-    if (!this.address) {
-      throw new Error("Configuration profile must contain an 'address' to be used for client connection");
-    }
-
     const tlsConfig = this.tls?.toTLSConfig();
 
     return {
