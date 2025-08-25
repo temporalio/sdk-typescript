@@ -523,8 +523,7 @@ export type ActivityFunctionWithOptions<T extends ActivityFunction> = T & {
    * @param args: list of arguments
    * @returns return value of the activity
    *
-   * @experimental executeWithOptions is a new method to provide call-site options
-   * and is subject to change
+   * @experimental executeWithOptions is a new method to provide call-site options and is subject to change
    */
   executeWithOptions(options: ActivityOptions, args: Parameters<T>): Promise<Awaited<ReturnType<T>>>;
 };
@@ -545,8 +544,7 @@ export type LocalActivityFunctionWithOptions<T extends ActivityFunction> = T & {
    * @param args: list of arguments
    * @returns return value of the activity
    *
-   * @experimental executeWithOptions is a new method to provide call-site options
-   * and is subject to change
+   * @experimental executeWithOptions is a new method to provide call-site options and is subject to change
    */
   executeWithOptions(options: LocalActivityOptions, args: Parameters<T>): Promise<Awaited<ReturnType<T>>>;
 };

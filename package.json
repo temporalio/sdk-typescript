@@ -43,12 +43,14 @@
     "@temporalio/common": "file:packages/common",
     "@temporalio/create": "file:packages/create-project",
     "@temporalio/interceptors-opentelemetry": "file:packages/interceptors-opentelemetry",
+    "@temporalio/nexus": "file:packages/nexus",
     "@temporalio/nyc-test-coverage": "file:packages/nyc-test-coverage",
     "@temporalio/proto": "file:packages/proto",
     "@temporalio/test": "file:packages/test",
     "@temporalio/testing": "file:packages/testing",
     "@temporalio/worker": "file:packages/worker",
     "@temporalio/workflow": "file:packages/workflow",
+    "nexus-rpc": "^0.0.1",
     "temporalio": "file:packages/meta"
   },
   "devDependencies": {
@@ -86,6 +88,7 @@
     "packages/core-bridge",
     "packages/create-project",
     "packages/interceptors-opentelemetry",
+    "packages/nexus",
     "packages/nyc-test-coverage",
     "packages/proto",
     "packages/test",

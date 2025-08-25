@@ -129,7 +129,7 @@ export interface ActivityOptions {
    * A fixed, single-line summary for this workflow execution that may appear in the UI/CLI.
    * This can be in single-line Temporal markdown format.
    *
-   * @experimental User metadata is a new API and suspectible to change.
+   * @experimental User metadata is a new API and susceptible to change.
    */
   summary?: string;
 
@@ -206,7 +206,7 @@ export interface LocalActivityOptions {
    * A fixed, single-line summary for this workflow execution that may appear in the UI/CLI.
    * This can be in single-line Temporal markdown format.
    *
-   * @experimental User metadata is a new API and suspectible to change.
+   * @experimental User metadata is a new API and susceptible to change.
    */
   summary?: string;
 }

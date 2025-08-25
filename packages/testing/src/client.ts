@@ -16,8 +16,8 @@ export type ClientOptionsForTestEnv = Omit<ClientOptions, 'namespace' | 'connect
 
 /**
  * A client with the exact same API as the "normal" client with one exception:
- * when `TestEnvClient.workflow` (an instance of {@link TimeSkippingWorkflowClient}) waits on a Workflow's result, it will enable time skipping
- * in the Test Server.
+ * when `TestEnvClient.workflow` (an instance of {@link TimeSkippingWorkflowClient})
+ * waits on a Workflow's result, it will enable time skipping in the Test Server.
  */
 export class TimeSkippingClient extends Client {
   constructor(options: ClientOptions) {

@@ -6,6 +6,7 @@
 
 import {
   ActivityOptions,
+  Duration,
   Headers,
   LocalActivityOptions,
   MetricTags,
@@ -154,6 +155,16 @@ export interface WorkflowOutboundCallsInterceptor {
   ) => Promise<unknown>;
 
   /**
+   * Called when Workflow starts a Nexus Operation.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  startNexusOperation?: (
+    input: StartNexusOperationInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'startNexusOperation'>
+  ) => Promise<StartNexusOperationOutput>;
+
+  /**
    * Called when Workflow starts a child workflow execution.
    *
    * The interceptor function returns 2 promises:
@@ -217,7 +228,11 @@ export interface TimerInput {
  * Options for starting a timer (i.e. sleep)
  */
 export interface TimerOptions {
-  /** @experimental A fixed, single line summary of the command's purpose */
+  /**
+   * A fixed, single line summary of the command's purpose
+   *
+   * @experimental User metadata is a new API and susceptible to change.
+   */
   readonly summary?: string;
 }
 
@@ -243,6 +258,64 @@ export interface LocalActivityInput {
   readonly seq: number;
   readonly originalScheduleTime?: Timestamp;
   readonly attempt: number;
+}
+
+/**
+ * Input for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface StartNexusOperationInput {
+  readonly input: unknown;
+  readonly endpoint: string;
+  readonly service: string;
+  readonly options: StartNexusOperationOptions;
+  readonly operation: string;
+  readonly seq: number;
+  readonly headers: Record<string, string>;
+}
+
+/**
+ * Options for starting a Nexus Operation.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface StartNexusOperationOptions {
+  /**
+   * The end to end timeout for the Nexus Operation.
+   *
+   * Optional: defaults to the maximum allowed by the Temporal server.
+   */
+  readonly scheduleToCloseTimeout?: Duration;
+
+  /**
+   * A fixed, single-line summary for this Nexus Operation that may appear in the UI/CLI.
+   * This can be in single-line Temporal markdown format.
+   *
+   * @experimental User metadata is a new API and susceptible to change.
+   */
+  readonly summary?: string;
+}
+
+/**
+ * Output for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface StartNexusOperationOutput {
+  /**
+   * The token for the Nexus Operation.
+   *
+   * Undefined if the Nexus Operation completed synchronously, in which case the {@link result}
+   * will be immediately resolved.
+   */
+  readonly token?: string;
+
+  /**
+   * A promise that will resolve when the Nexus Operation completes, either with the result of the
+   * Operation if it completed successfully, or a failure if the Nexus Operation failed.
+   */
+  readonly result: Promise<unknown>;
 }
 
 /**
@@ -332,8 +405,8 @@ export interface WorkflowInternalsInterceptor {
  * Input for {@link WorkflowInternalsInterceptor.activate}
  */
 export interface ActivateInput {
-  activation: coresdk.workflow_activation.IWorkflowActivation;
-  batchIndex: number;
+  readonly activation: coresdk.workflow_activation.IWorkflowActivation;
+  readonly batchIndex: number;
 }
 
 /**
@@ -346,7 +419,7 @@ export interface DisposeInput {}
  * Input for {@link WorkflowInternalsInterceptor.concludeActivation}
  */
 export interface ConcludeActivationInput {
-  commands: coresdk.workflow_commands.IWorkflowCommand[];
+  readonly commands: coresdk.workflow_commands.IWorkflowCommand[];
 }
 
 /**

@@ -1,3 +1,4 @@
+import * as nexus from 'nexus-rpc';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { ClientInterceptors } from '@temporalio/client';
 import { Headers, MetricTags, Next } from '@temporalio/common';
@@ -8,12 +9,23 @@ export { Next, Headers };
 // Activity Interceptors
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Instantiate Activity Interceptors for a given Temporal Activity execution.
+ *
+ * This factory function is called for each Activity execution by this Worker, receiving the
+ * corresponding {@link ActivityContext | ActivityContext}.
+ *
+ * Note that there's no strict requirement to have different instances of Activity Interceptors for
+ * each activity execution. It is acceptable, and often sufficient, for this function to return the
+ * same instance of Activity Interceptors for all activity executions, ignoring the `ctx` parameter.
+ * Interceptor functions may then rely on the {@link ActivityContext.current | Context.current} to
+ * access the Activity Context where needed.
+ */
 export type ActivityInterceptorsFactory = (ctx: ActivityContext) => ActivityInterceptors;
 
 /**
- * A function that takes Activity Context and returns an interceptor
+ * Interceptors for Temporal Activity execution.
  */
-
 export interface ActivityInterceptors {
   inbound?: ActivityInboundCallsInterceptor;
   outbound?: ActivityOutboundCallsInterceptor;
@@ -86,6 +98,77 @@ export interface ActivityInboundCallsInterceptorFactory {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Nexus Interceptors
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Instantiate Nexus Interceptors for a given Nexus Operation execution.
+ *
+ * This factory function is called for each Nexus Operation executed by this Worker, receiving
+ * the corresponding {@link nexus.OperationContext | OperationContext}.
+ *
+ * Note that there's no strict requirement to have different instances of Nexus Interceptors for
+ * each Nexus Operation execution. It is acceptable and often sufficient for this function to return
+ * the same instance of Nexus Interceptors for all Nexus Operation executions, ignoring the `ctx`
+ * parameter. Interceptor functions may then rely on APIs provided by the `@temporalio/nexus` package
+ * to access the Nexus Operation Context where needed.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export type NexusInterceptorsFactory = (ctx: nexus.OperationContext) => NexusInterceptors;
+
+/**
+ * Interceptors for Nexus Operation execution.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export type NexusInterceptors = {
+  inbound?: NexusInboundCallsInterceptor;
+  outbound?: NexusOutboundCallsInterceptor;
+};
+
+/**
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export type NexusInboundCallsInterceptor = {
+  execute?: (
+    input: NexusExecuteInput,
+    next: Next<NexusInboundCallsInterceptor, 'execute'>
+  ) => Promise<NexusExecuteOutput>;
+};
+
+/**
+ * Input for {@link NexusInboundCallsInterceptor.execute}
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface NexusExecuteInput {
+  readonly args: unknown[];
+  readonly headers: Headers;
+}
+
+/**
+ * Output for {@link NexusInboundCallsInterceptor.execute}
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface NexusExecuteOutput {
+  readonly result: unknown;
+}
+
+/**
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export type NexusOutboundCallsInterceptor = {
+  getLogAttributes?: (
+    input: GetLogAttributesInput,
+    next: Next<NexusOutboundCallsInterceptor, 'getLogAttributes'>
+  ) => Record<string, unknown>;
+
+  getMetricTags?: (input: GetMetricTagsInput, next: Next<NexusOutboundCallsInterceptor, 'getMetricTags'>) => MetricTags;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Worker Interceptors Configuration
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +177,7 @@ export interface ActivityInboundCallsInterceptorFactory {
  */
 export interface WorkerInterceptors {
   /**
-   * Interceptors for the Client provided by the Worker to Activities.
+   * Interceptors for the Client provided by the Worker to Activities and Nexus Operation handlers.
    *
    * @experimental Client support over `NativeConnection` is experimental. Error handling may be
    *               incomplete or different from what would be observed using a {@link Connection}
@@ -118,6 +201,13 @@ export interface WorkerInterceptors {
   activityInbound?: ActivityInboundCallsInterceptorFactory[]; // eslint-disable-line deprecation/deprecation
 
   /**
+   * List of factory functions that instanciate {@link NexusInterceptors}s.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  nexus?: NexusInterceptorsFactory[];
+
+  /**
    * List of modules to search for Workflow interceptors in
    * - Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}
    * - Workflow interceptors run in the Workflow isolate
@@ -127,4 +217,6 @@ export interface WorkerInterceptors {
   workflowModules?: string[];
 }
 
-export type CompiledWorkerInterceptors = Required<Pick<WorkerInterceptors, 'client' | 'activity' | 'workflowModules'>>;
+export type CompiledWorkerInterceptors = Required<
+  Pick<WorkerInterceptors, 'client' | 'activity' | 'nexus' | 'workflowModules'>
+>;
