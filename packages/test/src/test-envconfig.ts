@@ -171,7 +171,7 @@ test('Load profiles with string content', (t) => {
   const profile = ClientConfigProfile.load({ configSource: dataSource(stringContent) });
   t.is(profile.address, 'default-address');
   t.is(profile.namespace, 'default-namespace');
-  
+
   // Test with custom profile from string
   const profileCustom = ClientConfigProfile.load({
     profile: 'custom',
@@ -272,7 +272,7 @@ test('Load profiles without profile-level env overrides', (t) => {
       overrideEnvVars: env,
     });
     t.is(conf.profiles['default'].address, 'default-address');
-    
+
     // Test that profile-level loading with disableEnv ignores environment
     const profile = ClientConfigProfile.load({
       configSource: pathSource(filepath),
@@ -710,7 +710,7 @@ test('Create client from custom profile with TLS options', async (t) => {
     t.true(!!profile.tls?.disabled);
 
     const { connectionOptions, namespace } = profile.toClientConnectConfig();
-    
+
     // Verify API key is present but TLS is disabled for local testing
     t.is(connectionOptions.apiKey, 'prod-api-key-12345');
     t.is(connectionOptions.tls, undefined); // disabled = true results in undefined
