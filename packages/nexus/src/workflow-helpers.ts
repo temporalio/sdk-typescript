@@ -88,10 +88,10 @@ export async function startWorkflow<T extends Workflow>(
     ];
   }
 
-  const { taskQueue: userSpeficiedTaskQueue, ...rest } = workflowOptions;
+  const { taskQueue: userSpecifiedTaskQueue, ...rest } = workflowOptions;
   const startOptions: ClientWorkflowStartOptions = {
     ...rest,
-    taskQueue: userSpeficiedTaskQueue || taskQueue,
+    taskQueue: userSpecifiedTaskQueue || taskQueue,
     [InternalWorkflowStartOptionsSymbol]: internalOptions,
   };
 
