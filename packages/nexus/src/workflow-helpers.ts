@@ -73,13 +73,11 @@ export async function startWorkflow<T extends Workflow>(
     requestId: ctx.requestId,
   };
 
-  if (workflowOptions.workflowIdConflictPolicy === 'USE_EXISTING') {
-    internalOptions.onConflictOptions = {
-      attachLinks: true,
-      attachCompletionCallbacks: true,
-      attachRequestId: true,
-    };
-  }
+  internalOptions.onConflictOptions = {
+    attachLinks: true,
+    attachCompletionCallbacks: true,
+    attachRequestId: true,
+  };
 
   if (ctx.callbackUrl) {
     internalOptions.completionCallbacks = [
