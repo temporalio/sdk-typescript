@@ -113,29 +113,32 @@ export function historyFromJSON(history: unknown): History {
  * string that adheres to the same norm as JSON history files produced by other Temporal tools.
  */
 export function historyToJSON(history: History): string {
-  // toProto3JSON doesn't correctly handle some of our "bytes" fields, passing them untouched to the
-  // output, after which JSON.stringify() would convert them to an array of numbers. As a workaround,
-  // recursively walk the object and convert all Buffer instances to base64 strings. Note this only
-  // works on proto3-json-serializer v2.0.0. v2.0.2 throws an error before we even get the chance
-  // to fix the buffers. See https://github.com/googleapis/proto3-json-serializer-nodejs/issues/103.
-  function fixBuffers<T>(e: T): T {
-    if (e && typeof e === 'object') {
-      if (e instanceof Buffer) return e.toString('base64') as any;
-      if (Array.isArray(e)) return e.map(fixBuffers) as T;
-      return Object.fromEntries(Object.entries(e as object).map(([k, v]) => [k, fixBuffers(v)])) as T;
-    }
-    return e;
-  }
-
   const protoJson = toProto3JSON(proto.temporal.api.history.v1.History.fromObject(history) as any);
   return JSON.stringify(fixBuffers(protoJson), null, 2);
+}
+
+/**
+ * toProto3JSON doesn't correctly handle some of our "bytes" fields, passing them untouched to the
+ * output, after which JSON.stringify() would convert them to an array of numbers. As a workaround,
+ * recursively walk the object and convert all Buffer instances to base64 strings. Note this only
+ * works on proto3-json-serializer v2.0.0. v2.0.2 throws an error before we even get the chance
+ * to fix the buffers. See https://github.com/googleapis/proto3-json-serializer-nodejs/issues/103.
+ */
+export function fixBuffers<T>(e: T): T {
+  if (e && typeof e === 'object') {
+    if (e instanceof Buffer) return e.toString('base64') as any;
+    if (e instanceof Uint8Array) return Buffer.from(e).toString('base64') as any;
+    if (Array.isArray(e)) return e.map(fixBuffers) as T;
+    return Object.fromEntries(Object.entries(e as object).map(([k, v]) => [k, fixBuffers(v)])) as T;
+  }
+  return e;
 }
 
 /**
  * Convert from protobuf payload to JSON
  */
 export function payloadToJSON(payload: Payload): JSONPayload {
-  return toProto3JSON(patched.temporal.api.common.v1.Payload.create(payload)) as any;
+  return fixBuffers(toProto3JSON(patched.temporal.api.common.v1.Payload.create(payload))) as any;
 }
 
 /**

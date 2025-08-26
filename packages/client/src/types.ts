@@ -74,7 +74,7 @@ export type WorkflowExecutionDescription = Replace<
    * General fixed details for this workflow execution that may appear in UI/CLI.
    * This can be in Temporal markdown format and can span multiple lines.
    *
-   * @experimental User metadata is a new API and suspectible to change.
+   * @experimental User metadata is a new API and susceptible to change.
    */
   staticDetails: () => Promise<string | undefined>;
 
@@ -82,7 +82,7 @@ export type WorkflowExecutionDescription = Replace<
    * A single-line fixed summary for this workflow execution that may appear in the UI/CLI.
    * This can be in single-line Temporal markdown format.
    *
-   * @experimental User metadata is a new API and suspectible to change.
+   * @experimental User metadata is a new API and susceptible to change.
    */
   staticSummary: () => Promise<string | undefined>;
 };

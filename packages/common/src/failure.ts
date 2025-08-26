@@ -380,6 +380,28 @@ export class ChildWorkflowFailure extends TemporalFailure {
 }
 
 /**
+ * Thrown when a Nexus Operation executed inside a Workflow fails.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+@SymbolBasedInstanceOfError('NexusOperationFailure')
+export class NexusOperationFailure extends TemporalFailure {
+  public constructor(
+    message: string | undefined,
+    public readonly scheduledEventId: number | undefined,
+    public readonly endpoint: string,
+    public readonly service: string,
+    public readonly operation: string,
+    public readonly operationToken: string | undefined,
+    cause?: Error
+  ) {
+    super(message, cause);
+  }
+}
+
+// TODO(nexus/error): Maybe add a NexusHandlerFailure class here, once we've decided on error handling.
+
+/**
  * This exception is thrown in the following cases:
  *  - Workflow with the same Workflow ID is currently running and the {@link WorkflowOptions.workflowIdConflictPolicy} is `WORKFLOW_ID_CONFLICT_POLICY_FAIL`
  *  - There is a closed Workflow with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}

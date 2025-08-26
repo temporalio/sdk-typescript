@@ -80,7 +80,7 @@ export function cleanStackTrace(ostack: string): string {
   const su = new StackUtils({ cwd: path.join(__dirname, '../..') });
   const firstLine = stack.split('\n')[0];
   const cleanedStack = su.clean(stack).trimEnd();
-  const normalizedStack =
+  let normalizedStack =
     cleanedStack &&
     cleanedStack
       .replace(/:\d+:\d+/g, '')
@@ -89,6 +89,11 @@ export function cleanStackTrace(ostack: string): string {
       // Avoid https://github.com/nodejs/node/issues/42417
       .replace(/at null\./g, 'at ')
       .replace(/\\/g, '/');
+
+  // FIXME: Find a better way to handle package vendoring; this will come back again.
+  normalizedStack = normalizedStack
+    .replaceAll(/\([^() ]*\/node_modules\//g, '(')
+    .replaceAll(/\([^() ]*\/nexus-sdk-typescript\/src/g, '(nexus-rpc/src');
 
   return normalizedStack ? `${firstLine}\n${normalizedStack}` : firstLine;
 }
@@ -121,6 +126,7 @@ export const bundlerOptions = {
     '@temporalio/activity',
     '@temporalio/client',
     '@temporalio/testing',
+    '@temporalio/nexus',
     '@temporalio/worker',
     'ava',
     'crypto',

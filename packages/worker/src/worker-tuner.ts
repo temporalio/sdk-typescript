@@ -20,6 +20,7 @@ export interface TunerHolder {
   workflowTaskSlotSupplier: SlotSupplier<WorkflowSlotInfo>;
   activityTaskSlotSupplier: SlotSupplier<ActivitySlotInfo>;
   localActivityTaskSlotSupplier: SlotSupplier<LocalActivitySlotInfo>;
+  nexusTaskSlotSupplier: SlotSupplier<NexusSlotInfo>;
 }
 
 /**
@@ -60,6 +61,11 @@ export interface ResourceBasedTuner {
    * slots with 50ms ramp throttle
    */
   localActivityTaskSlotOptions?: ResourceBasedSlotOptions;
+  /**
+   * Options for Nexus task slots. Defaults to a minimum of 1 slots and a maximum of 2000
+   * slots with 50ms ramp throttle
+   */
+  nexusTaskSlotOptions?: ResourceBasedSlotOptions;
 }
 
 /**
@@ -184,7 +190,7 @@ export interface CustomSlotSupplier<SI extends SlotInfo> {
   releaseSlot(ctx: SlotReleaseContext<SI>): void;
 }
 
-export type SlotInfo = WorkflowSlotInfo | ActivitySlotInfo | LocalActivitySlotInfo;
+export type SlotInfo = WorkflowSlotInfo | ActivitySlotInfo | LocalActivitySlotInfo | NexusSlotInfo;
 
 export interface WorkflowSlotInfo {
   type: 'workflow';
@@ -200,6 +206,12 @@ export interface ActivitySlotInfo {
 export interface LocalActivitySlotInfo {
   type: 'local-activity';
   activityType: string;
+}
+
+export interface NexusSlotInfo {
+  type: 'nexus';
+  service: string;
+  operation: string;
 }
 
 /**
@@ -294,6 +306,7 @@ export function asNativeTuner(tuner: WorkerTuner, logger: Logger): native.Worker
       workflowTaskSlotSupplier: nativeifySupplier(tuner.workflowTaskSlotSupplier, 'workflow', logger),
       activityTaskSlotSupplier: nativeifySupplier(tuner.activityTaskSlotSupplier, 'activity', logger),
       localActivityTaskSlotSupplier: nativeifySupplier(tuner.localActivityTaskSlotSupplier, 'activity', logger),
+      nexusTaskSlotSupplier: nativeifySupplier(tuner.nexusTaskSlotSupplier, 'nexus', logger),
     };
     for (const supplier of [
       retme.workflowTaskSlotSupplier,
@@ -318,6 +331,7 @@ export function asNativeTuner(tuner: WorkerTuner, logger: Logger): native.Worker
     const wftSO = addResourceBasedSlotDefaults(tuner.workflowTaskSlotOptions ?? {}, 'workflow');
     const atSO = addResourceBasedSlotDefaults(tuner.activityTaskSlotOptions ?? {}, 'activity');
     const latSO = addResourceBasedSlotDefaults(tuner.localActivityTaskSlotOptions ?? {}, 'activity');
+    const nexusSO = addResourceBasedSlotDefaults(tuner.nexusTaskSlotOptions ?? {}, 'nexus');
     return {
       workflowTaskSlotSupplier: {
         type: 'resource-based',
@@ -337,6 +351,12 @@ export function asNativeTuner(tuner: WorkerTuner, logger: Logger): native.Worker
         ...latSO,
         rampThrottle: msToNumber(latSO.rampThrottle),
       },
+      nexusTaskSlotSupplier: {
+        type: 'resource-based',
+        tunerOptions: tuner.tunerOptions,
+        ...nexusSO,
+        rampThrottle: msToNumber(nexusSO.rampThrottle),
+      },
     };
   } else {
     throw new TypeError('Invalid worker tuner configuration');
@@ -352,13 +372,13 @@ const isResourceBased = (sup: SlotSupplier<any> | native.SlotSupplierOptions): s
 const isCustom = (sup: SlotSupplier<any> | native.SlotSupplierOptions): sup is CustomSlotSupplier<any> =>
   sup.type === 'custom';
 
-type ActOrWorkflow = 'activity' | 'workflow';
+type ResourceKind = 'activity' | 'workflow' | 'nexus';
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 function nativeifySupplier<SI extends SlotInfo>(
   supplier: SlotSupplier<SI>,
-  kind: ActOrWorkflow,
+  kind: ResourceKind,
   logger: Logger
 ): native.SlotSupplierOptions {
   if (isResourceBased(supplier)) {
@@ -388,7 +408,7 @@ function nativeifySupplier<SI extends SlotInfo>(
 
 function addResourceBasedSlotDefaults(
   slotOptions: ResourceBasedSlotOptions,
-  kind: ActOrWorkflow
+  kind: ResourceKind
 ): Required<ResourceBasedSlotOptions> {
   if (kind === 'workflow') {
     return {

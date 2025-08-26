@@ -41,7 +41,14 @@ import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
-import { QueryInput, SignalInput, UpdateInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
+import {
+  QueryInput,
+  SignalInput,
+  StartNexusOperationOutput,
+  UpdateInput,
+  WorkflowExecuteInput,
+  WorkflowInterceptors,
+} from './interceptors';
 import {
   ContinueAsNew,
   DefaultSignalHandler,
@@ -158,6 +165,8 @@ export class Activator implements ActivationHandler {
   readonly completions = {
     timer: new Map<number, Completion<void>>(),
     activity: new Map<number, Completion<unknown>>(),
+    nexusOperationStart: new Map<number, Completion<StartNexusOperationOutput>>(),
+    nexusOperationComplete: new Map<number, Completion<unknown>>(),
     childWorkflowStart: new Map<number, Completion<string>>(),
     childWorkflowComplete: new Map<number, Completion<unknown>>(),
     signalWorkflow: new Map<number, Completion<void>>(),
@@ -383,6 +392,7 @@ export class Activator implements ActivationHandler {
     signalWorkflow: 1,
     cancelWorkflow: 1,
     condition: 1,
+    nexusOperation: 1,
     // Used internally to keep track of active stack traces
     stack: 1,
   };
@@ -657,12 +667,55 @@ export class Activator implements ActivationHandler {
     }
   }
 
-  public resolveNexusOperationStart(_: coresdk.workflow_activation.IResolveNexusOperationStart): void {
-    throw new Error('TODO');
+  public resolveNexusOperationStart(activation: coresdk.workflow_activation.IResolveNexusOperationStart): void {
+    const seq = getSeq(activation);
+    const { resolve, reject } = this.consumeCompletion('nexusOperationStart', seq);
+
+    if (!activation.failed) {
+      const completePromise = new Promise((resolve, reject) => {
+        this.completions.nexusOperationComplete.set(seq, {
+          resolve,
+          reject,
+        });
+      });
+      untrackPromise(completePromise);
+      untrackPromise(completePromise.catch(() => undefined));
+
+      resolve({ token: activation.operationToken!, result: completePromise });
+    } else {
+      reject(this.failureToError(activation.failed));
+    }
   }
 
-  public resolveNexusOperation(_: coresdk.workflow_activation.IResolveNexusOperation): void {
-    throw new Error('TODO');
+  public resolveNexusOperation(activation: coresdk.workflow_activation.IResolveNexusOperation): void {
+    const seq = getSeq(activation);
+
+    if (activation.result?.completed) {
+      const result = this.payloadConverter.fromPayload(activation.result.completed);
+
+      // It is possible for ResolveNexusOperation to be received without a prior ResolveNexusOperationStart,
+      // e.g. because the handler completed the Operation synchronously.
+      const startCompletion = this.maybeConsumeCompletion('nexusOperationStart', seq);
+      if (startCompletion) {
+        startCompletion.resolve({ result: Promise.resolve(result) });
+      } else {
+        this.consumeCompletion('nexusOperationComplete', seq).resolve(result);
+      }
+    } else {
+      let err: Error;
+      if (activation.result?.failed) {
+        err = this.failureToError(activation.result.failed);
+      } else if (activation.result?.cancelled) {
+        err = this.failureToError(activation.result.cancelled);
+      } else if (activation.result?.timedOut) {
+        err = this.failureToError(activation.result.timedOut);
+      }
+
+      const completion =
+        this.maybeConsumeCompletion('nexusOperationStart', seq) ??
+        this.consumeCompletion('nexusOperationComplete', seq);
+      completion.reject(err!);
+    }
   }
 
   // Intentionally non-async function so this handler doesn't show up in the stack trace
