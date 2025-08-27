@@ -141,6 +141,7 @@ export const bundlerOptions = {
     'timers',
     'timers/promises',
     require.resolve('./activities'),
+    require.resolve('./mock-native-worker'),
   ],
 };
 

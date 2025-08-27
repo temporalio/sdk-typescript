@@ -23,7 +23,7 @@
     "@temporalio/proto": "file:../proto",
     "@temporalio/workflow": "file:../workflow",
     "abort-controller": "^3.0.0",
-    "heap-js": "^2.3.0",
+    "heap-js": "^2.6.0",
     "memfs": "^4.6.0",
     "nexus-rpc": "^0.0.1",
     "proto3-json-serializer": "^2.0.0",
