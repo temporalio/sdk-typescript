@@ -76,9 +76,10 @@ export class NativeLogCollector {
     this.downstream = downstream;
     this.receive = this.receive.bind(this);
 
-    // Flush the buffer every so often.
-    // Unref'ed so that it doesn't prevent the process from exiting.
-    this.flushIntervalTimer = setInterval(this.flushExpired.bind(this), this.flushPassIntervalMs).unref();
+    // Flush matured messages from the buffer every so often.
+    // Unref'ed so that it doesn't prevent the process from exiting if ever the
+    // runtime doesn't close the logger properly for whatever reason.
+    this.flushIntervalTimer = setInterval(this.flushMatured.bind(this), this.flushPassIntervalMs).unref();
   }
 
   /**
@@ -94,8 +95,8 @@ export class NativeLogCollector {
           this.buffer.add(log);
         }
       }
-      this.flushUnconditionally();
-      this.flushExpired();
+      this.flushExcess();
+      this.flushMatured();
     } catch (_e) {
       // We're not allowed to throw from here, and conversion errors have already been handled in
       // convertFromNativeLogEntry(), so an error at this point almost certainly indicates a problem
@@ -105,7 +106,7 @@ export class NativeLogCollector {
 
   private appendOne(entry: LogEntry): void {
     this.buffer.add(entry);
-    this.flushUnconditionally();
+    this.flushExcess();
   }
 
   private convertFromNativeLogEntry(entry: native.JsonString<native.LogEntry>): LogEntry | undefined {
@@ -136,7 +137,7 @@ export class NativeLogCollector {
   /**
    * Flush messages that have exceeded their required minimal buffering time.
    */
-  private flushExpired(): void {
+  private flushMatured(): void {
     const threadholdTimeNanos = BigInt(Date.now() - this.minBufferTimeMs) * 1_000_000n;
     for (;;) {
       const entry = this.buffer.peek();
@@ -151,16 +152,19 @@ export class NativeLogCollector {
   }
 
   /**
-   * Flush messages without regard to the time threshold, up to a given number of messages.
+   * Flush messages in excess of the buffer size limit, starting with oldest ones, without regard
+   * to the `minBufferTimeMs` requirement. This is called every time messages are appended to the
+   * buffer, to prevent unbounded growth of the buffer when messages are being emitted at high rate.
    *
-   * If no limit is provided, flushes messages in excess to the maximum buffer size.
+   * The only downside of flushing messages before their time is that it increases the probability
+   * that messages from different sources might end up being passed down to the downstream logger
+   * in the wrong order; e.g. if an "older" message emitted by the Workflow Logger is received by
+   * the Collector after we've already flushed a "newer" message emitted by Core. This is totally
+   * acceptable, and definitely better than a memory leak caused by unbounded growth of the buffer.
    */
-  private flushUnconditionally(maxFlushCount?: number): void {
-    if (maxFlushCount === undefined) {
-      maxFlushCount = this.buffer.size() - this.maxBufferSize;
-    }
-
-    while (maxFlushCount-- > 0) {
+  private flushExcess(): void {
+    let excess = this.buffer.size() - this.maxBufferSize;
+    while (excess-- > 0) {
       const entry = this.buffer.pop();
       if (!entry) break;
 
@@ -171,8 +175,18 @@ export class NativeLogCollector {
     }
   }
 
+  /**
+   * Flush all messages contained in the buffer, without regard to the `minBufferTimeMs` requirement.
+   *
+   * This is called on Runtime and on Worker shutdown.
+   */
   public flush(): void {
-    this.flushUnconditionally(Number.MAX_SAFE_INTEGER);
+    for (const entry of this.buffer) {
+      this.downstream.log(entry.level, entry.message, {
+        [LogTimestamp]: entry.timestampNanos,
+        ...entry.meta,
+      });
+    }
   }
 
   public close(): void {
