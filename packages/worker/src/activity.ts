@@ -149,11 +149,14 @@ export class Activity {
         (error instanceof CancelledFailure || isAbortError(error)) &&
         this.context.cancellationSignal.aborted
       ) {
-        if (this.context.cancellationDetails?.reset) {
+        if (this.context.cancellationDetails?.cancelRequested) {
+          this.workerLogger.debug('Activity completed as cancelled', { durationMs });
+        } else if (this.context.cancellationDetails?.reset) {
           this.workerLogger.debug('Activity reset', { durationMs });
         } else if (this.context.cancellationDetails?.paused) {
           this.workerLogger.debug('Activity paused', { durationMs });
         } else {
+          // Fallback log - completed as cancelled.
           this.workerLogger.debug('Activity completed as cancelled', { durationMs });
         }
       } else if (error instanceof CompleteAsyncError) {
