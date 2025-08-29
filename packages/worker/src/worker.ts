@@ -1036,7 +1036,7 @@ export class Worker {
                           details,
                           onError() {
                             // activity must be defined
-                            // empty cancellation details, not corresponding detail for heartbeat detail conversion failure
+                            // empty cancellation details, no corresponding detail for heartbeat detail conversion failure
                             activity?.cancel(
                               'HEARTBEAT_DETAILS_CONVERSION_FAILED',
                               ActivityCancellationDetails.fromProto(undefined)

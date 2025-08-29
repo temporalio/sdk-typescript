@@ -156,7 +156,6 @@ test(
     await worker.runUntil(handle.result());
     let firstChild = true;
     const history = await handle.fetchHistory();
-    console.log('events');
     for (const event of history?.events ?? []) {
       switch (event.eventType) {
         case temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED:

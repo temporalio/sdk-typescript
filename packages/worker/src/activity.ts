@@ -149,9 +149,14 @@ export class Activity {
         (error instanceof CancelledFailure || isAbortError(error)) &&
         this.context.cancellationSignal.aborted
       ) {
-        if (this.context.cancellationDetails?.paused) {
+        if (this.context.cancellationDetails?.cancelRequested) {
+          this.workerLogger.debug('Activity completed as cancelled', { durationMs });
+        } else if (this.context.cancellationDetails?.reset) {
+          this.workerLogger.debug('Activity reset', { durationMs });
+        } else if (this.context.cancellationDetails?.paused) {
           this.workerLogger.debug('Activity paused', { durationMs });
         } else {
+          // Fallback log - completed as cancelled.
           this.workerLogger.debug('Activity completed as cancelled', { durationMs });
         }
       } else if (error instanceof CompleteAsyncError) {
@@ -204,8 +209,17 @@ export class Activity {
         } else if (this.cancelReason) {
           // Either a CancelledFailure that we threw or AbortError from AbortController
           if (err instanceof CancelledFailure) {
-            // If cancel due to activity pause, emit an application failure for the pause.
-            if (this.context.cancellationDetails?.paused) {
+            // If cancel due to activity pause or reset, emit an application failure.
+            if (this.context.cancellationDetails?.reset) {
+              return {
+                failed: {
+                  failure: await encodeErrorToFailure(
+                    this.dataConverter,
+                    new ApplicationFailure('Activity reset', 'ActivityReset')
+                  ),
+                },
+              };
+            } else if (this.context.cancellationDetails?.paused) {
               return {
                 failed: {
                   failure: await encodeErrorToFailure(
