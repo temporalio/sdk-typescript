@@ -148,6 +148,8 @@ if (RUN_INTEGRATION_TESTS) {
         isReplaying: false,
       } as UnsafeWorkflowInfo,
       priority: {
+        fairnessKey: undefined,
+        fairnessWeight: undefined,
         priorityKey: undefined,
       },
     };

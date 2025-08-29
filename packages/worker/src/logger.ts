@@ -118,6 +118,7 @@ export function hasColorSupport(logger: Logger): boolean {
 
 export interface FlushableLogger extends Logger {
   flush(): void;
+  close?(): void;
 }
 
 export function isFlushableLogger(logger: Logger): logger is FlushableLogger {

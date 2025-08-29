@@ -1,7 +1,5 @@
-import { temporal } from '@temporalio/proto';
+import type { temporal } from '@temporalio/proto';
 import { convertOptionalToPayload, PayloadConverter } from './converter/payload-converter';
-import { LoadedDataConverter } from './converter/data-converter';
-import { decodeOptionalSinglePayload, encodeOptionalSingle } from './internal-non-workflow';
 
 /**
  * User metadata that can be attached to workflow commands.
@@ -26,33 +24,4 @@ export function userMetadataToPayload(
   if (summary == null && details == null) return undefined;
 
   return { summary, details };
-}
-
-export async function encodeUserMetadata(
-  dataConverter: LoadedDataConverter,
-  staticSummary: string | undefined,
-  staticDetails: string | undefined
-): Promise<temporal.api.sdk.v1.IUserMetadata | undefined> {
-  if (staticSummary == null && staticDetails == null) return undefined;
-
-  const { payloadConverter, payloadCodecs } = dataConverter;
-  const summary = await encodeOptionalSingle(payloadCodecs, convertOptionalToPayload(payloadConverter, staticSummary));
-  const details = await encodeOptionalSingle(payloadCodecs, convertOptionalToPayload(payloadConverter, staticDetails));
-
-  if (summary == null && details == null) return undefined;
-
-  return { summary, details };
-}
-
-export async function decodeUserMetadata(
-  dataConverter: LoadedDataConverter,
-  metadata: temporal.api.sdk.v1.IUserMetadata | undefined | null
-): Promise<UserMetadata> {
-  const res = { staticSummary: undefined, staticDetails: undefined };
-  if (metadata == null) return res;
-
-  const staticSummary = (await decodeOptionalSinglePayload<string>(dataConverter, metadata.summary)) ?? undefined;
-  const staticDetails = (await decodeOptionalSinglePayload<string>(dataConverter, metadata.details)) ?? undefined;
-
-  return { staticSummary, staticDetails };
 }

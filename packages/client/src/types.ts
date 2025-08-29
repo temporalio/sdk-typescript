@@ -74,7 +74,7 @@ export type WorkflowExecutionDescription = Replace<
    * General fixed details for this workflow execution that may appear in UI/CLI.
    * This can be in Temporal markdown format and can span multiple lines.
    *
-   * @experimental User metadata is a new API and suspectible to change.
+   * @experimental User metadata is a new API and susceptible to change.
    */
   staticDetails: () => Promise<string | undefined>;
 
@@ -82,7 +82,7 @@ export type WorkflowExecutionDescription = Replace<
    * A single-line fixed summary for this workflow execution that may appear in the UI/CLI.
    * This can be in single-line Temporal markdown format.
    *
-   * @experimental User metadata is a new API and suspectible to change.
+   * @experimental User metadata is a new API and susceptible to change.
    */
   staticSummary: () => Promise<string | undefined>;
 };
@@ -91,6 +91,8 @@ export type WorkflowService = proto.temporal.api.workflowservice.v1.WorkflowServ
 export const { WorkflowService } = proto.temporal.api.workflowservice.v1;
 export type OperatorService = proto.temporal.api.operatorservice.v1.OperatorService;
 export const { OperatorService } = proto.temporal.api.operatorservice.v1;
+export type TestService = proto.temporal.api.testservice.v1.TestService;
+export const { TestService } = proto.temporal.api.testservice.v1;
 export type HealthService = proto.grpc.health.v1.Health;
 export const { Health: HealthService } = proto.grpc.health.v1;
 
@@ -117,9 +119,6 @@ export interface CallContext {
 
 /**
  * Connection interface used by high level SDK clients.
- *
- * NOTE: Currently the SDK only supports grpc-js based connection but in the future
- * we might support grpc-web and native Rust connections.
  */
 export interface ConnectionLike {
   workflowService: WorkflowService;

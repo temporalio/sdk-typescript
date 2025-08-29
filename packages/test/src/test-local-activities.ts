@@ -23,7 +23,6 @@ import {
 } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
 import { test as anyTest, bundlerOptions, Worker, TestWorkflowEnvironment } from './helpers';
-import { ConnectionInjectorInterceptor } from './activities/interceptors';
 
 // FIXME MOVE THIS SECTION SOMEWHERE IT CAN BE SHARED //
 
@@ -61,9 +60,7 @@ function helpers(t: ExecutionContext<Context>): Helpers {
         workflowBundle: t.context.workflowBundle,
         taskQueue,
         interceptors: {
-          activity: interceptors?.activity ?? [
-            () => ({ inbound: new ConnectionInjectorInterceptor(t.context.env.connection) }),
-          ],
+          activity: interceptors?.activity ?? [],
         },
         showStackTraceSources: true,
         ...rest,

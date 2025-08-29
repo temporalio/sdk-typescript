@@ -12,8 +12,9 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { Connection, WorkflowClient } from '@temporalio/client';
+import { WorkflowClient } from '@temporalio/client';
 import { OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
+import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry';
 import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
 import {
   makeWorkflowExporter,
@@ -23,7 +24,6 @@ import {
 import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
 import { DefaultLogger, InjectedSinks, Runtime } from '@temporalio/worker';
 import * as activities from './activities';
-import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import { RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
 import * as workflows from './workflows';
 
@@ -256,20 +256,20 @@ if (RUN_INTEGRATION_TESTS) {
         exporter: makeWorkflowExporter(traceExporter, staticResource),
       };
 
-      const connection = await Connection.connect();
-
       const worker = await Worker.create({
         workflowsPath: require.resolve('./workflows'),
         activities,
         taskQueue: 'test-otel',
         interceptors: {
+          client: {
+            workflow: [new OpenTelemetryWorkflowClientCallsInterceptor()],
+          },
           workflowModules: [require.resolve('./workflows/otel-interceptors')],
           activity: [
             (ctx) => ({
               inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
               outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
             }),
-            () => ({ inbound: new ConnectionInjectorInterceptor(connection) }),
           ],
         },
         sinks,

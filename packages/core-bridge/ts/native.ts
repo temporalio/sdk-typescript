@@ -104,7 +104,13 @@ export declare function clientUpdateHeaders(client: Client, headers: Record<stri
 
 export declare function clientUpdateApiKey(client: Client, apiKey: string): void;
 
-export declare function clientSendRequest(client: Client, call: RpcCall): Promise<Buffer>;
+export declare function clientSendWorkflowServiceRequest(client: Client, call: RpcCall): Promise<Buffer>;
+
+export declare function clientSendOperatorServiceRequest(client: Client, call: RpcCall): Promise<Buffer>;
+
+export declare function clientSendTestServiceRequest(client: Client, call: RpcCall): Promise<Buffer>;
+
+export declare function clientSendHealthServiceRequest(client: Client, call: RpcCall): Promise<Buffer>;
 
 export declare function clientClose(client: Client): void;
 
@@ -173,6 +179,10 @@ export declare function workerCompleteActivityTask(worker: Worker, result: Buffe
 
 export declare function workerRecordActivityHeartbeat(worker: Worker, heartbeat: Buffer): void;
 
+export declare function workerPollNexusTask(worker: Worker): Promise<Buffer>;
+
+export declare function workerCompleteNexusTask(worker: Worker, result: Buffer): Promise<void>;
+
 export declare function workerInitiateShutdown(worker: Worker): void;
 
 export declare function workerFinalizeShutdown(worker: Worker): Promise<void>;
@@ -192,6 +202,7 @@ export interface WorkerOptions {
   nonStickyToStickyPollRatio: number;
   workflowTaskPollerBehavior: PollerBehavior;
   activityTaskPollerBehavior: PollerBehavior;
+  nexusTaskPollerBehavior: PollerBehavior;
   enableNonLocalActivities: boolean;
   stickyQueueScheduleToStartTimeout: number;
   maxCachedWorkflows: number;
@@ -235,6 +246,7 @@ export interface WorkerTunerOptions {
   workflowTaskSlotSupplier: SlotSupplierOptions;
   activityTaskSlotSupplier: SlotSupplierOptions;
   localActivityTaskSlotSupplier: SlotSupplierOptions;
+  nexusTaskSlotSupplier: SlotSupplierOptions;
 }
 
 export type SlotSupplierOptions =

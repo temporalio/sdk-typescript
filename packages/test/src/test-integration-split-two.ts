@@ -18,6 +18,7 @@ import {
   decodeOptionalSinglePayload,
 } from '@temporalio/common/lib/internal-non-workflow';
 
+import { Context } from '@temporalio/activity';
 import {
   condition,
   defineQuery,
@@ -947,4 +948,48 @@ test.serial('User metadata on workflow, timer, activity, child', configMacro, as
     t.is(wfMetadata.definition?.queryDefinitions?.length, 3); // default queries
     t.is(wfMetadata.currentDetails, 'current wf details');
   });
+});
+
+export async function activityContextExposesClientConnectionParentWorkflow(): Promise<string> {
+  return await proxyActivities({
+    startToCloseTimeout: '10s',
+  })['foo']();
+}
+
+export async function activityContextExposesClientConnectionChildWorkflow(comment: string): Promise<string> {
+  return `child(${comment})`;
+}
+
+test('Activity Context exposes Client connection', configMacro, async (t, config) => {
+  const { env, createWorkerWithDefaults } = config;
+  const { startWorkflow, taskQueue } = configurableHelpers(t, t.context.workflowBundle, env);
+  const worker = await createWorkerWithDefaults(t, {
+    activities: {
+      foo: async () => {
+        const { client } = Context.current();
+        return await client.workflow.execute(activityContextExposesClientConnectionChildWorkflow, {
+          workflowId: uuid4(),
+          taskQueue,
+          args: ['not intercepted'],
+        });
+      },
+    },
+    interceptors: {
+      client: {
+        workflow: [
+          {
+            async start(input, next) {
+              input.options.args = ['native client intercepted'];
+              return await next(input);
+            },
+          },
+        ],
+      },
+    },
+  });
+  const res = await worker.runUntil(async () => {
+    const handle = await startWorkflow(activityContextExposesClientConnectionParentWorkflow);
+    return await handle.result();
+  });
+  t.is(res, 'child(native client intercepted)');
 });

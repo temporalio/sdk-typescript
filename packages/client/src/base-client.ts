@@ -53,7 +53,7 @@ export function defaultBaseClientOptions(): WithDefaults<BaseClientOptions> {
 
 export class BaseClient {
   /**
-   * The underlying {@link Connection | connection} used by this client.
+   * The underlying {@link Connection | connection} or {@link NativeConnection | native connection} used by this client.
    *
    * Clients are cheap to create, but connections are expensive. Where it makes sense,
    * a single connection may and should be reused by multiple `Client`s.

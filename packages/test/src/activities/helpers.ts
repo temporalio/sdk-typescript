@@ -1,19 +1,10 @@
-import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry';
-import { Client, WorkflowHandle } from '@temporalio/client';
+import { WorkflowHandle } from '@temporalio/client';
 import { QueryDefinition } from '@temporalio/common';
-import { getContext } from './interceptors';
+import { Context } from '@temporalio/activity';
 
 function getSchedulingWorkflowHandle(): WorkflowHandle {
-  const { info, connection, dataConverter } = getContext();
+  const { info, client } = Context.current();
   const { workflowExecution } = info;
-  const client = new Client({
-    connection,
-    namespace: info.workflowNamespace,
-    dataConverter,
-    interceptors: {
-      workflow: [new OpenTelemetryWorkflowClientCallsInterceptor()],
-    },
-  });
   return client.workflow.getHandle(workflowExecution.workflowId, workflowExecution.runId);
 }
 

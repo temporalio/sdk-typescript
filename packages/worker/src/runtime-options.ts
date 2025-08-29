@@ -69,7 +69,7 @@ export interface TelemetryOptions {
    * ### Log Forwarding
    *
    * By default, logs emitted by the native side of the SDK are printed directly to the console,
-   * _independently of `RuntimeOptions.logger`_. To enable forwarding of those logs messages to the
+   * _independently of `RuntimeOptions.logger`_. To enable forwarding of those log messages to the
    * TS side logger, add the `forward` property to the `logging` object.
    *
    * For example:
@@ -86,10 +86,14 @@ export interface TelemetryOptions {
    * });
    * ```
    *
-   * Note that forwarded log messages are internally throttled/buffered for a few milliseconds to
-   * reduce overhead incurred by Rust-to-JS calls. In rare cases, this may result in log messages
-   * appearing out of order by a few milliseconds. Users are discouraged from using log forwarding
-   * with verboseness sets to `DEBUG` or `TRACE`.
+   * Note that when log forwarding is enabled, all log messages sent to the runtime logger are
+   * internally buffered for 100 ms, to allow global sorting of messages from different sources
+   * based on their absolute timestamps. This helps reduce incoherencies in the order of messages,
+   * notably those emitted through the Workflow Logging API vs those emitted through Core.
+   *
+   * However, in some situations, log messages may still appear out of order, e.g. when a Workflow
+   * Activation takes longer than 100ms to complete or when log flow exceeds the buffer's capacity
+   * (2000 messages).
    */
   logging?: LogExporterConfig;
 
