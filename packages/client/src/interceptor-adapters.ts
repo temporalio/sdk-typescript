@@ -1,6 +1,5 @@
 import { WorkflowClientInterceptor, WorkflowStartInput, WorkflowStartOutput } from './interceptors';
 
-// Apply adapters to workflow client interceptor.
 export function adaptWorkflowClientInterceptor(i: WorkflowClientInterceptor): WorkflowClientInterceptor {
   return adaptLegacyStartInterceptor(i);
 }

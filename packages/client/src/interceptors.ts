@@ -132,8 +132,7 @@ export interface WorkflowClientInterceptor {
   /**
    * Intercept a service call to startWorkflowExecution
    *
-   * Successor to {@link start}. Unlike {@link start}, this method returns
-   * start details via {@link WorkflowStartOutput}.
+   * This method returns start details via {@link WorkflowStartOutput}.
    *
    * If you implement this method,
    * {@link signalWithStart} most likely needs to be implemented too

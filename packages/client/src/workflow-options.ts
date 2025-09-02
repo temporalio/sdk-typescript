@@ -56,7 +56,7 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
   versioningOverride?: VersioningOverride;
 
   /**
-   * Potentially reduce the latency to start this workflow by encouraging the server to
+   * Potentially reduce the latency to start this workflow by requesting that the server
    * start it on a local worker running with this same client.
    */
   requestEagerStart?: boolean;
