@@ -11,6 +11,7 @@ import {
   OperatorService,
   HealthService,
   TestService,
+  InternalConnectionLikeSymbol
 } from '@temporalio/client';
 import { InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
 import { TransportError } from './errors';
@@ -25,7 +26,6 @@ import { Runtime } from './runtime';
  * This class can be used to power `@temporalio/client`'s Client objects.
  */
 export class NativeConnection implements ConnectionLike {
-  public readonly supportsEagerStart = true;
   /**
    * referenceHolders is used internally by the framework, it can be accessed with `extractReferenceHolders` (below)
    */
@@ -94,6 +94,14 @@ export class NativeConnection implements ConnectionLike {
         false
       );
     }
+
+    // Set internal capability flag - not part of public API
+    Object.defineProperty(this, InternalConnectionLikeSymbol, {
+      value: { supportsEagerStart: true },
+      writable: false,
+      enumerable: false,
+      configurable: false,
+    });
   }
 
   /**

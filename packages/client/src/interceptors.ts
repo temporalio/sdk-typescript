@@ -124,6 +124,8 @@ export interface WorkflowClientInterceptor {
    *
    * If you implement this method,
    * {@link signalWithStart} most likely needs to be implemented too
+   *
+   * @deprecated in favour of {@link startWithDetails}
    */
   start?: (input: WorkflowStartInput, next: Next<this, 'start'>) => Promise<string /* runId */>;
 

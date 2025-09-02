@@ -68,6 +68,8 @@ import {
   DescribeWorkflowExecutionResponse,
   encodeQueryRejectCondition,
   GetWorkflowExecutionHistoryRequest,
+  InternalConnectionLike,
+  InternalConnectionLikeSymbol,
   QueryRejectCondition,
   RequestCancelWorkflowExecutionResponse,
   StartWorkflowExecutionRequest,
@@ -95,6 +97,7 @@ import {
 import { mapAsyncIterable } from './iterators-utils';
 import { WorkflowUpdateStage, encodeWorkflowUpdateStage } from './workflow-update-stage';
 import { InternalWorkflowStartOptionsSymbol, InternalWorkflowStartOptions } from './internal';
+import { adaptWorkflowClientInterceptor } from './interceptor-adapters';
 
 const UpdateWorkflowExecutionLifecycleStage = temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
 
@@ -529,43 +532,8 @@ export class WorkflowClient extends BaseClient {
     assertRequiredWorkflowOptions(options);
     const compiledOptions = compileWorkflowOptions(ensureArgs(options));
 
-    // Adapt legacy `start` interceptors to the new `startWithDetails` interface.
-    const adaptedInterceptors: WorkflowClientInterceptor[] = interceptors.map((i) => {
-      // If it already has the new method, or doesn't have the legacy one, no adaptation is needed.
-      if (i.startWithDetails || !i.start) {
-        return i;
-      }
-
-      // This interceptor has a legacy `start` but not `startWithDetails`. We'll adapt it.
-      return {
-        ...i,
-        startWithDetails: async (input, next): Promise<WorkflowStartOutput> => {
-          let downstreamOut: WorkflowStartOutput | undefined;
-
-          // Patched `next` for legacy `start` interceptors.
-          // Captures the full `WorkflowStartOutput` while returning `runId` as a string.
-          const patchedNext = async (patchedInput: WorkflowStartInput): Promise<string> => {
-            downstreamOut = await next(patchedInput);
-            return downstreamOut.runId;
-          };
-
-          const runIdFromLegacyInterceptor = await i.start!(input, patchedNext);
-
-          // If the interceptor short-circuited (didn't call `next`), `downstreamOut` will be undefined.
-          // In that case, we can't have an eager start.
-          if (downstreamOut === undefined) {
-            return { runId: runIdFromLegacyInterceptor, eagerlyStarted: false };
-          }
-
-          // If `next` was called, honor the `runId` from the legacy interceptor but preserve
-          // the `eagerlyStarted` status from the actual downstream call.
-          return { ...downstreamOut, runId: runIdFromLegacyInterceptor };
-        },
-      };
-    });
-
     const startWithDetails = composeInterceptors(
-      adaptedInterceptors,
+      interceptors,
       'startWithDetails',
       this._startWorkflowHandler.bind(this)
     );
@@ -1326,8 +1294,10 @@ export class WorkflowClient extends BaseClient {
     const { options: opts, workflowType, headers } = input;
     const { identity, namespace } = this.options;
     const internalOptions = (opts as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
+    const supportsEagerStart = (this.connection as InternalConnectionLike)?.[InternalConnectionLikeSymbol]
+      ?.supportsEagerStart;
 
-    if (opts.requestEagerStart && !('supportsEagerStart' in this.connection && this.connection.supportsEagerStart)) {
+    if (opts.requestEagerStart && !supportsEagerStart) {
       throw new Error(
         'Eager workflow start requires a NativeConnection shared between client and worker. ' +
           'Pass a NativeConnection via ClientOptions.connection, or disable requestEagerStart.'
@@ -1681,7 +1651,11 @@ export class WorkflowClient extends BaseClient {
       const factories = (this.options.interceptors as WorkflowClientInterceptors).calls ?? [];
       return factories.map((ctor) => ctor({ workflowId, runId }));
     }
-    return Array.isArray(this.options.interceptors) ? (this.options.interceptors as WorkflowClientInterceptor[]) : [];
+    const interceptors = Array.isArray(this.options.interceptors)
+      ? (this.options.interceptors as WorkflowClientInterceptor[])
+      : [];
+    // Apply adapters to workflow client interceptors.
+    return interceptors.map((i) => adaptWorkflowClientInterceptor(i));
   }
 }
 

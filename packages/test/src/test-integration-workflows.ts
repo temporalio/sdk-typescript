@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
 import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { Client, Connection, WorkflowClient, WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
+import { Client, WorkflowClient, WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
