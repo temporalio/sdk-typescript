@@ -317,8 +317,10 @@ export async function setActivityState(
   } else if (state === 'reset') {
     await handle.client.workflowService.resetActivity({ ...req, resetHeartbeat: true });
   } else {
-    await handle.client.workflowService.pauseActivity(req);
-    await handle.client.workflowService.resetActivity({ ...req, resetHeartbeat: true });
+    await Promise.all([
+      handle.client.workflowService.pauseActivity(req),
+      handle.client.workflowService.resetActivity({ ...req, resetHeartbeat: true }),
+    ]);
   }
   await waitUntil(async () => {
     const { raw } = await handle.describe();
