@@ -11,7 +11,7 @@ import {
   OperatorService,
   HealthService,
   TestService,
-  InternalConnectionLikeSymbol
+  InternalConnectionLikeSymbol,
 } from '@temporalio/client';
 import { InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
 import { TransportError } from './errors';

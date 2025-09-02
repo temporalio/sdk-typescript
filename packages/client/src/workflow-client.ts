@@ -1646,6 +1646,7 @@ export class WorkflowClient extends BaseClient {
     return decodeCountWorkflowExecutionsResponse(response);
   }
 
+  // eslint-disable-next-line deprecation/deprecation
   protected adaptInterceptors(): WorkflowClientInterceptors | WorkflowClientInterceptor[] {
     if (typeof this.options.interceptors === 'object' && 'calls' in this.options.interceptors) {
       // eslint-disable-next-line deprecation/deprecation
