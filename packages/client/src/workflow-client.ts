@@ -511,7 +511,6 @@ export class WorkflowClient extends BaseClient {
       ...filterNullAndUndefined(options ?? {}),
       loadedDataConverter: this.dataConverter,
     };
-    this.options.interceptors = this.adaptInterceptors();
   }
 
   /**
@@ -532,9 +531,10 @@ export class WorkflowClient extends BaseClient {
     const workflowType = extractWorkflowType(workflowTypeOrFunc);
     assertRequiredWorkflowOptions(options);
     const compiledOptions = compileWorkflowOptions(ensureArgs(options));
+    const adaptedInterceptors = interceptors.map((i) => adaptWorkflowClientInterceptor(i));
 
     const startWithDetails = composeInterceptors(
-      interceptors,
+      adaptedInterceptors,
       'startWithDetails',
       this._startWorkflowHandler.bind(this)
     );
@@ -1644,24 +1644,6 @@ export class WorkflowClient extends BaseClient {
     }
 
     return decodeCountWorkflowExecutionsResponse(response);
-  }
-
-  // eslint-disable-next-line deprecation/deprecation
-  protected adaptInterceptors(): WorkflowClientInterceptors | WorkflowClientInterceptor[] {
-    if (typeof this.options.interceptors === 'object' && 'calls' in this.options.interceptors) {
-      // eslint-disable-next-line deprecation/deprecation
-      const factories = (this.options.interceptors as WorkflowClientInterceptors).calls ?? [];
-      // Compose factory functions with adapters.
-      return {
-        calls: factories.map((ctor) => {
-          return (input) => adaptWorkflowClientInterceptor(ctor(input));
-        }),
-      };
-    }
-    const interceptors = Array.isArray(this.options.interceptors)
-      ? (this.options.interceptors as WorkflowClientInterceptor[])
-      : [];
-    return interceptors.map((i) => adaptWorkflowClientInterceptor(i));
   }
 
   protected getOrMakeInterceptors(workflowId: string, runId?: string): WorkflowClientInterceptor[] {
