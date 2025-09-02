@@ -252,13 +252,13 @@ export class AsyncCompletionClient extends BaseClient {
     } catch (err) {
       this.handleError(err);
     }
+    // Note that it is possible for a heartbeat response to have multiple fields
+    // set as true (i.e. cancelled and pause).
     if (cancelRequested) {
       throw new ActivityCancelledError('cancelled');
-    }
-    if (reset) {
+    } else if (reset) {
       throw new ActivityResetError('reset');
-    }
-    if (paused) {
+    } else if (paused) {
       throw new ActivityPausedError('paused');
     }
   }

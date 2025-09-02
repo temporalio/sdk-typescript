@@ -1116,24 +1116,7 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-<<<<<<< HEAD
-<<<<<<< HEAD
 version = "2.10.0"
-=======
-version = "1.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
-dependencies = [
- "autocfg",
- "hashbrown 0.12.3",
-]
-
-[[package]]
-name = "indexmap"
-=======
->>>>>>> e1261cf6 (use current core commit)
-version = "2.9.0"
->>>>>>> ab76e934 (activity reset)
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe4cd85333e22411419a0bcae1297d25e58c9443848b11dc6a86fefe8c78a661"
 dependencies = [
@@ -1536,8 +1519,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-<<<<<<< HEAD
 name = "opentelemetry"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1548,26 +1529,6 @@ dependencies = [
  "js-sys",
  "pin-project-lite",
  "thiserror 2.0.14",
- "tracing",
-]
-
-[[package]]
-=======
->>>>>>> ab76e934 (activity reset)
-name = "opentelemetry-http"
-version = "0.29.0"
-=======
-name = "opentelemetry"
-version = "0.30.0"
->>>>>>> e1261cf6 (use current core commit)
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aaf416e4cb72756655126f7dd7bb0af49c674f4c1b9903e80c009e0c37e552e6"
-dependencies = [
- "futures-core",
- "futures-sink",
- "js-sys",
- "pin-project-lite",
- "thiserror 2.0.12",
  "tracing",
 ]
 
@@ -2200,16 +2161,8 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tokio-util",
-<<<<<<< HEAD
-<<<<<<< HEAD
  "tower",
  "tower-http",
-=======
- "tower 0.5.2",
->>>>>>> ab76e934 (activity reset)
-=======
- "tower",
->>>>>>> e1261cf6 (use current core commit)
  "tower-service",
  "url",
  "wasm-bindgen",
@@ -2728,19 +2681,9 @@ dependencies = [
  "prost",
  "serde_json",
  "temporal-sdk-core-protos",
-<<<<<<< HEAD
  "thiserror 2.0.14",
  "tonic",
  "tracing",
-=======
- "thiserror 2.0.12",
-<<<<<<< HEAD
- "tonic 0.12.3",
->>>>>>> ab76e934 (activity reset)
-=======
- "tonic",
- "tracing",
->>>>>>> e1261cf6 (use current core commit)
  "tracing-core",
  "url",
 ]
@@ -2760,17 +2703,8 @@ dependencies = [
  "rand 0.9.2",
  "serde",
  "serde_json",
-<<<<<<< HEAD
  "thiserror 2.0.14",
  "tonic",
-=======
- "thiserror 2.0.12",
-<<<<<<< HEAD
- "tonic 0.12.3",
->>>>>>> ab76e934 (activity reset)
-=======
- "tonic",
->>>>>>> e1261cf6 (use current core commit)
  "tonic-build",
  "uuid",
 ]
@@ -2986,15 +2920,7 @@ dependencies = [
  "pin-project",
  "prost",
  "rustls-native-certs",
-<<<<<<< HEAD
-<<<<<<< HEAD
  "socket2 0.5.10",
-=======
- "rustls-pemfile",
-=======
->>>>>>> e1261cf6 (use current core commit)
- "socket2",
->>>>>>> ab76e934 (activity reset)
  "tokio",
  "tokio-rustls",
  "tokio-stream",

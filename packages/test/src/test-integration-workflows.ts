@@ -1535,6 +1535,38 @@ test('Activity reset returns expected cancellation details', async (t) => {
   });
 });
 
+test('Activity set as both paused and reset returns expected cancellation details', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      heartbeatCancellationDetailsActivity,
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const testActivityId = randomUUID();
+    const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, true, 1] });
+
+    // Wait for it to exist and heartbeat
+    await waitUntil(async () => {
+      const { raw } = await handle.describe();
+      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
+      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
+    }, 10000);
+
+    await setActivityState(handle, testActivityId, 'pause & reset');
+    const result = await handle.result();
+    t.deepEqual(result, {
+      cancelRequested: false,
+      notFound: false,
+      paused: true,
+      timedOut: false,
+      workerShutdown: false,
+      reset: true,
+    });
+  });
+});
+
 const reservedNames = [TEMPORAL_RESERVED_PREFIX, STACK_TRACE_QUERY_NAME, ENHANCED_STACK_TRACE_QUERY_NAME];
 
 test('Cannot register activities using reserved prefixes', async (t) => {

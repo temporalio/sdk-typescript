@@ -672,10 +672,8 @@ mod config {
                 self.local_activity_task_slot_supplier
                     .into_slot_supplier(&mut rbo),
             );
-            tuner_holder.nexus_slot_options(
-                self.nexus_task_slot_supplier
-                    .into_slot_supplier(&mut rbo)
-            );
+            tuner_holder
+                .nexus_slot_options(self.nexus_task_slot_supplier.into_slot_supplier(&mut rbo));
             if let Some(rbo) = rbo {
                 tuner_holder.resource_based_options(rbo);
             }
