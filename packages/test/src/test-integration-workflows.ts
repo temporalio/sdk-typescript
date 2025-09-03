@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
 import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
+import { Client, WorkflowClient, WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -1794,4 +1794,50 @@ test('Default handlers fail given reserved prefix', async (t) => {
     );
     await handle.terminate();
   });
+});
+
+export async function helloWorkflow(name: string): Promise<string> {
+  return `Hello, ${name}!`;
+}
+
+test('Workflow can be started eagerly with shared NativeConnection', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const client = new Client({
+    connection: t.context.env.nativeConnection,
+    namespace: t.context.env.client.options.namespace,
+  });
+
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(helloWorkflow, {
+      args: ['Temporal'],
+      workflowId: `eager-workflow-${randomUUID()}`,
+      taskQueue,
+      requestEagerStart: true,
+      workflowTaskTimeout: '1h', // hang if retry needed
+    });
+
+    t.true(handle.eagerlyStarted);
+
+    const result = await handle.result();
+    t.is(result, 'Hello, Temporal!');
+  });
+});
+
+test('Error thrown when requestEagerStart is used with regular Connection', async (t) => {
+  const { taskQueue } = helpers(t);
+
+  const client = new WorkflowClient({ connection: t.context.env.connection });
+
+  await t.throwsAsync(
+    client.start(helloWorkflow, {
+      args: ['Temporal'],
+      workflowId: `eager-workflow-error-${randomUUID()}`,
+      taskQueue,
+      requestEagerStart: true,
+    }),
+    {
+      message: /Eager workflow start requires a NativeConnection/,
+    }
+  );
 });
