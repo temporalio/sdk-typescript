@@ -1,3 +1,9 @@
+/**
+ * Invoke and implement Nexus operations.
+ *
+ * @module
+ */
+
 export {
   //
   log,
