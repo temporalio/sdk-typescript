@@ -321,7 +321,6 @@ jobs:
       - name: Test run a workflow (cloud)
         if: matrix.server == 'cloud'
         # The required environment variables must be present for releases (this must be run from the official repo)
-        # Note: Using single-line format to ensure proper ${{ runner.temp }} expansion (multi-line blocks can fail to expand GitHub Actions contexts)
         run: node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
         shell: bash
         env:
