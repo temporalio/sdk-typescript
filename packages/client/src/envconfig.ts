@@ -11,7 +11,7 @@ import type { ConnectionOptions } from './connection';
  */
 export type DataSource = { path: string } | { data: string | Buffer };
 
-interface ClientConfigTLSJSON {
+interface ClientConfigTLSObject {
   disabled?: boolean;
   serverName?: string;
   serverCaCert?: Record<string, string>;
@@ -19,11 +19,11 @@ interface ClientConfigTLSJSON {
   clientKey?: Record<string, string>;
 }
 
-interface ClientConfigProfileJSON {
+interface ClientConfigProfileObject {
   address?: string;
   namespace?: string;
   apiKey?: string;
-  tls?: ClientConfigTLSJSON;
+  tls?: ClientConfigTLSObject;
   grpcMeta?: Record<string, string>;
 }
 
@@ -81,7 +81,13 @@ function readSourceSync(source?: DataSource): Buffer | undefined {
   }
 
   if ('path' in source) {
-    return fs.readFileSync(source.path);
+    try {
+      return fs.readFileSync(source.path);
+    } catch (error) {
+      throw new Error(
+        `Failed to read file at path "${source.path}": ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
   if (Buffer.isBuffer(source.data)) {
@@ -90,6 +96,11 @@ function readSourceSync(source?: DataSource): Buffer | undefined {
 
   // If it's not a buffer, it must be a string.
   return Buffer.from(source.data, 'utf8');
+}
+
+// Utility to convert null to undefined for optional fields
+function nullToUndefined<T>(value: T | null | undefined): T | undefined {
+  return value ?? undefined;
 }
 
 function bridgeToDataSource(bridgeSource?: native.DataSource | null): DataSource | undefined {
@@ -107,8 +118,8 @@ function bridgeToDataSource(bridgeSource?: native.DataSource | null): DataSource
 
 function clientConfigTlsFromBridge(tls: native.ClientConfigProfile['tls']): ClientConfigTLS {
   return new ClientConfigTLS({
-    disabled: tls?.disabled,
-    serverName: tls?.serverName ?? undefined,
+    disabled: nullToUndefined(tls?.disabled),
+    serverName: nullToUndefined(tls?.serverName),
     serverRootCaCert: bridgeToDataSource(tls?.serverCaCert),
     clientCert: bridgeToDataSource(tls?.clientCert),
     clientPrivateKey: bridgeToDataSource(tls?.clientKey),
@@ -117,11 +128,11 @@ function clientConfigTlsFromBridge(tls: native.ClientConfigProfile['tls']): Clie
 
 function clientConfigProfileFromBridge(profile: native.ClientConfigProfile): ClientConfigProfile {
   return new ClientConfigProfile({
-    address: profile.address ?? undefined,
-    namespace: profile.namespace ?? undefined,
-    apiKey: profile.apiKey ?? undefined,
+    address: nullToUndefined(profile.address),
+    namespace: nullToUndefined(profile.namespace),
+    apiKey: nullToUndefined(profile.apiKey),
     tls: profile.tls ? clientConfigTlsFromBridge(profile.tls) : undefined,
-    grpcMeta: profile.grpcMeta,
+    grpcMeta: profile.grpcMeta ?? {},
   });
 }
 
@@ -151,47 +162,52 @@ export interface ClientConfigTLSOptions {
  * @experimental
  */
 export class ClientConfigTLS {
-  public readonly disabled: boolean;
+  public readonly disabled?: boolean;
   public readonly serverName?: string;
   public readonly serverRootCaCert?: DataSource;
   public readonly clientCert?: DataSource;
   public readonly clientPrivateKey?: DataSource;
 
   constructor(options: ClientConfigTLSOptions) {
-    this.disabled = options.disabled ?? false;
+    // Validate that if client cert is provided, private key is also provided
+    if ((options.clientCert && !options.clientPrivateKey) || (!options.clientCert && options.clientPrivateKey)) {
+      throw new Error('Client certificate and private key must both be provided or both be omitted');
+    }
+
+    this.disabled = options.disabled;
     this.serverName = options.serverName;
     this.serverRootCaCert = options.serverRootCaCert;
     this.clientCert = options.clientCert;
     this.clientPrivateKey = options.clientPrivateKey;
   }
 
-  public toJSON(): ClientConfigTLSJSON {
-    const json: ClientConfigTLSJSON = {};
-    if (this.disabled) {
-      json.disabled = this.disabled;
+  public toObject(): ClientConfigTLSObject {
+    const obj: ClientConfigTLSObject = {};
+    if (this.disabled !== undefined) {
+      obj.disabled = this.disabled;
     }
     if (this.serverName) {
-      json.serverName = this.serverName;
+      obj.serverName = this.serverName;
     }
     if (this.serverRootCaCert) {
-      json.serverCaCert = sourceToRecord(this.serverRootCaCert);
+      obj.serverCaCert = sourceToRecord(this.serverRootCaCert);
     }
     if (this.clientCert) {
-      json.clientCert = sourceToRecord(this.clientCert);
+      obj.clientCert = sourceToRecord(this.clientCert);
     }
     if (this.clientPrivateKey) {
-      json.clientKey = sourceToRecord(this.clientPrivateKey);
+      obj.clientKey = sourceToRecord(this.clientPrivateKey);
     }
-    return json;
+    return obj;
   }
 
-  public static fromJSON(json: ClientConfigTLSJSON): ClientConfigTLS {
+  public static fromObject(obj: ClientConfigTLSObject): ClientConfigTLS {
     return new ClientConfigTLS({
-      disabled: json.disabled,
-      serverName: json.serverName,
-      serverRootCaCert: recordToSource(json.serverCaCert),
-      clientCert: recordToSource(json.clientCert),
-      clientPrivateKey: recordToSource(json.clientKey),
+      disabled: obj.disabled,
+      serverName: obj.serverName,
+      serverRootCaCert: recordToSource(obj.serverCaCert),
+      clientCert: recordToSource(obj.clientCert),
+      clientPrivateKey: recordToSource(obj.clientKey),
     });
   }
 
@@ -202,7 +218,7 @@ export class ClientConfigTLS {
    *          or undefined if TLS is disabled.
    */
   public toTLSConfig(): TLSConfig | undefined {
-    if (this.disabled) {
+    if (this.disabled === true) {
       return undefined;
     }
 
@@ -329,23 +345,23 @@ export class ClientConfigProfile {
     return clientConfigProfileFromBridge(bridgeProfile);
   }
 
-  public toJSON(): ClientConfigProfileJSON {
+  public toObject(): ClientConfigProfileObject {
     return {
       address: this.address,
       namespace: this.namespace,
       apiKey: this.apiKey,
-      tls: this.tls?.toJSON(),
+      tls: this.tls?.toObject(),
       grpcMeta: this.grpcMeta,
     };
   }
 
-  public static fromJSON(json: ClientConfigProfileJSON): ClientConfigProfile {
+  public static fromObject(obj: ClientConfigProfileObject): ClientConfigProfile {
     return new ClientConfigProfile({
-      address: json.address,
-      namespace: json.namespace,
-      apiKey: json.apiKey,
-      tls: json.tls ? ClientConfigTLS.fromJSON(json.tls) : undefined,
-      grpcMeta: json.grpcMeta,
+      address: obj.address,
+      namespace: obj.namespace,
+      apiKey: obj.apiKey,
+      tls: obj.tls ? ClientConfigTLS.fromObject(obj.tls) : undefined,
+      grpcMeta: obj.grpcMeta,
     });
   }
 
@@ -368,6 +384,11 @@ export class ClientConfigProfile {
    * ```
    */
   public toClientConnectConfig(): ClientConnectConfig {
+    // Basic validation
+    if (!this.address) {
+      throw new Error('Address is required for client connection');
+    }
+
     const tlsConfig = this.tls?.toTLSConfig();
 
     return {
@@ -408,8 +429,8 @@ export interface LoadClientConfigOptions {
   overrideEnvVars?: Record<string, string>;
 }
 
-interface ClientConfigJSON {
-  profiles: Record<string, ClientConfigProfileJSON>;
+interface ClientConfigObject {
+  profiles: Record<string, ClientConfigProfileObject>;
 }
 
 /**
@@ -492,18 +513,18 @@ export class ClientConfig {
     this.profiles = profiles;
   }
 
-  public toJSON(): ClientConfigJSON {
-    const profiles: Record<string, ClientConfigProfileJSON> = {};
+  public toObject(): ClientConfigObject {
+    const profiles: Record<string, ClientConfigProfileObject> = {};
     for (const [name, profile] of Object.entries(this.profiles)) {
-      profiles[name] = profile.toJSON();
+      profiles[name] = profile.toObject();
     }
     return { profiles };
   }
 
-  public static fromJSON(json: ClientConfigJSON): ClientConfig {
+  public static fromObject(obj: ClientConfigObject): ClientConfig {
     const profiles: Record<string, ClientConfigProfile> = {};
-    for (const [name, profile] of Object.entries(json.profiles)) {
-      profiles[name] = ClientConfigProfile.fromJSON(profile);
+    for (const [name, profile] of Object.entries(obj.profiles)) {
+      profiles[name] = ClientConfigProfile.fromObject(profile);
     }
     return new ClientConfig(profiles);
   }

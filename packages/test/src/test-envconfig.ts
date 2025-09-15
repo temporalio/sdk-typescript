@@ -554,8 +554,8 @@ test('Client config profile to/from JSON round-trip', (t) => {
     }),
     grpcMeta: { 'some-header': 'some-value' },
   });
-  const json = profile.toJSON();
-  const back = ClientConfigProfile.fromJSON(json);
+  const json = profile.toObject();
+  const back = ClientConfigProfile.fromObject(json);
   t.is(back.address, 'some-address');
   t.is(back.namespace, 'some-namespace');
   t.is(back.apiKey, 'some-api-key');
@@ -572,8 +572,8 @@ test('Client config to/from JSON round-trip', (t) => {
     default: new ClientConfigProfile({ address: 'addr', namespace: 'ns' }),
     custom: new ClientConfigProfile({ address: 'addr2', apiKey: 'key2', grpcMeta: { h: 'v' } }),
   } as any);
-  const json = conf.toJSON();
-  const back = ClientConfig.fromJSON(json);
+  const json = conf.toObject();
+  const back = ClientConfig.fromObject(json);
   t.is(back.profiles['default'].address, 'addr');
   t.is(back.profiles['default'].namespace, 'ns');
   t.is(back.profiles['custom'].address, 'addr2');
@@ -841,4 +841,100 @@ test('Create clients from multi-profile config', async (t) => {
   } finally {
     await env.teardown();
   }
+});
+
+test('TLS disabled tri-state behavior', (t) => {
+  // Test 1: disabled=null (unset) with API key -> TLS enabled
+  const tomlNull = dedent`
+    [profile.default]
+    address = "my-address"
+    api_key = "my-api-key"
+    [profile.default.tls]
+    server_name = "my-server"
+  `;
+  const profileNull = ClientConfigProfile.load({ configSource: dataSource(Buffer.from(tomlNull)) });
+  t.truthy(profileNull.tls);
+  t.is(profileNull.tls?.disabled, undefined); // disabled is null (unset)
+  const configNull = profileNull.toClientConnectConfig();
+  t.truthy(configNull.connectionOptions.tls); // TLS enabled
+
+  // Test 2: disabled=false (explicitly enabled) -> TLS enabled
+  const tomlFalse = dedent`
+    [profile.default]
+    address = "my-address"
+    [profile.default.tls]
+    disabled = false
+    server_name = "my-server"
+  `;
+  const profileFalse = ClientConfigProfile.load({ configSource: dataSource(Buffer.from(tomlFalse)) });
+  t.truthy(profileFalse.tls);
+  t.is(profileFalse.tls?.disabled, false); // explicitly disabled=false
+  const configFalse = profileFalse.toClientConnectConfig();
+  t.truthy(configFalse.connectionOptions.tls); // TLS enabled
+
+  // Test 3: disabled=true (explicitly disabled) -> TLS disabled even with API key
+  const tomlTrue = dedent`
+    [profile.default]
+    address = "my-address"
+    api_key = "my-api-key"
+    [profile.default.tls]
+    disabled = true
+    server_name = "should-be-ignored"
+  `;
+  const profileTrue = ClientConfigProfile.load({ configSource: dataSource(Buffer.from(tomlTrue)) });
+  t.truthy(profileTrue.tls);
+  t.is(profileTrue.tls?.disabled, true); // explicitly disabled=true
+  const configTrue = profileTrue.toClientConnectConfig();
+  t.is(configTrue.connectionOptions.tls, undefined); // TLS disabled even with API key
+});
+
+test('Comprehensive E2E validation test', (t) => {
+  // Test comprehensive end-to-end configuration loading with all features
+  const tomlContent = dedent`
+    [profile.production]
+    address = "prod.temporal.com:443"
+    namespace = "production-ns"
+    api_key = "prod-api-key"
+
+    [profile.production.tls]
+    server_name = "prod.temporal.com"
+    server_ca_cert_data = "prod-ca-cert"
+
+    [profile.production.grpc_meta]
+    authorization = "Bearer prod-token"
+    "x-custom-header" = "prod-value"
+  `;
+
+  const envOverrides = {
+    TEMPORAL_GRPC_META_X_ENVIRONMENT: 'production',
+    TEMPORAL_TLS_SERVER_NAME: 'override.temporal.com',
+  };
+
+  const { connectionOptions, namespace } = ClientConfig.loadClientConnectConfig({
+    profile: 'production',
+    configSource: dataSource(Buffer.from(tomlContent)),
+    overrideEnvVars: envOverrides,
+  });
+
+  // Validate all configuration aspects
+  t.is(connectionOptions.address, 'prod.temporal.com:443');
+  t.is(namespace, 'production-ns');
+  t.is(connectionOptions.apiKey, 'prod-api-key');
+
+  // TLS configuration (API key should auto-enable TLS)
+  t.truthy(connectionOptions.tls);
+  const tls = connectionOptions.tls;
+  if (tls && typeof tls === 'object') {
+    t.is(tls.serverNameOverride, 'override.temporal.com'); // Env override
+    t.deepEqual(tls.serverRootCACertificate, Buffer.from('prod-ca-cert'));
+  } else {
+    t.fail('expected TLS config object');
+  }
+
+  // gRPC metadata with normalization and env overrides
+  t.truthy(connectionOptions.metadata);
+  const metadata = connectionOptions.metadata!;
+  t.is(metadata['authorization'], 'Bearer prod-token');
+  t.is(metadata['x-custom-header'], 'prod-value');
+  t.is(metadata['x-environment'], 'production'); // From env
 });

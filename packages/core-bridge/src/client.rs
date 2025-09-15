@@ -71,6 +71,10 @@ pub fn client_new(
                 message: e.to_string(),
                 field: None,
             })?,
+            Err(ClientInitError::InvalidHeaders(e)) => Err(BridgeError::TypeError {
+                message: e.to_string(),
+                field: None,
+            })?,
         };
 
         Ok(OpaqueOutboundHandle::new(Client {

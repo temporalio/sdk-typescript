@@ -67,7 +67,7 @@ impl From<CoreClientConfigProfile> for ClientConfigProfile {
 #[derive(TryIntoJs, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ClientConfigTls {
-    disabled: bool,
+    disabled: Option<bool>,
     client_cert: Option<DataSource>,
     client_key: Option<DataSource>,
     server_ca_cert: Option<DataSource>,

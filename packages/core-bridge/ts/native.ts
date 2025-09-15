@@ -560,7 +560,7 @@ export interface ClientConfigProfile {
 }
 
 export interface ClientConfigTLS {
-  disabled: boolean;
+  disabled: Option<boolean>;
   clientCert: Option<DataSource>;
   clientKey: Option<DataSource>;
   serverCaCert: Option<DataSource>;
