@@ -135,7 +135,6 @@ impl From<CoreDataSource> for DataSource {
 fn load_client_config(
     path: Option<String>,
     data: Option<Vec<u8>>,
-    disable_file: bool,
     config_file_strict: bool,
     env_vars: Option<HashMap<String, String>>,
 ) -> BridgeResult<ClientConfig> {
@@ -151,15 +150,11 @@ fn load_client_config(
         }
     };
 
-    let core_config = if disable_file {
-        CoreClientConfig::default()
-    } else {
-        let options = envconfig::LoadClientConfigOptions {
-            config_source,
-            config_file_strict,
-        };
-        envconfig::load_client_config(options, env_vars.as_ref())?
+    let options = envconfig::LoadClientConfigOptions {
+        config_source,
+        config_file_strict,
     };
+    let core_config = envconfig::load_client_config(options, env_vars.as_ref())?;
 
     Ok(core_config.into())
 }

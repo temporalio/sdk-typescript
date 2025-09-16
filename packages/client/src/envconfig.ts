@@ -414,11 +414,6 @@ export interface LoadClientConfigOptions {
    * contents of the file.
    */
   configSource?: DataSource;
-  /**
-   * If true, file loading is disabled. This is only used when `configSource`
-   * is not present.
-   */
-  disableFile?: boolean;
   /** If true, will error on unrecognized keys in the TOML file. */
   configFileStrict?: boolean;
   /**
@@ -492,7 +487,6 @@ export class ClientConfig {
     const bridgeConfig = native.loadClientConfig(
       path ?? null,
       data ?? null,
-      options.disableFile ?? false,
       options.configFileStrict ?? false,
       options.overrideEnvVars ?? null
     );

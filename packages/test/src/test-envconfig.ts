@@ -324,10 +324,9 @@ test('Load all profiles from data', (t) => {
   t.is(conf.profiles['beta'].apiKey, 'beta-key');
 });
 
-test('Load profiles from non-existent file, with disable file flag', (t) => {
+test('Load profiles from non-existent file', (t) => {
   const conf = ClientConfig.load({
     configSource: pathSource('/non_existent_file.toml'),
-    disableFile: true,
   });
   t.deepEqual(conf.profiles, {});
 });
@@ -337,13 +336,6 @@ test('Load all profiles with overridden file path', (t) => {
     const conf = ClientConfig.load({ overrideEnvVars: { TEMPORAL_CONFIG_FILE: filepath } });
     t.truthy(conf.profiles['default']);
     t.is(conf.profiles['default'].address, 'default-address');
-  });
-});
-
-test('Load profiles with overridden file path - disabled file flag enabled', (t) => {
-  withTempFile(TOML_CONFIG_BASE, (filepath) => {
-    const conf = ClientConfig.load({ disableFile: true, overrideEnvVars: { TEMPORAL_CONFIG_FILE: filepath } });
-    t.deepEqual(conf.profiles, {});
   });
 });
 

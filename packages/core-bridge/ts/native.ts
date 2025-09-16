@@ -508,7 +508,6 @@ export declare function setMetricGaugeF64Value(
 export declare function loadClientConfig(
   path: Option<string>,
   data: Option<Buffer>,
-  disableFile: boolean,
   configFileStrict: boolean,
   envVars: Option<Record<string, string>>
 ): ClientConfig;
@@ -522,24 +521,6 @@ export declare function loadClientConnectConfig(
   configFileStrict: boolean,
   envVars: Option<Record<string, string>>
 ): ClientConfigProfile;
-
-export interface LoadClientConfigOptions {
-  path: Option<string>;
-  data: Option<Buffer>;
-  disableFile: boolean;
-  configFileStrict: boolean;
-  envVars: Option<Record<string, string>>;
-}
-
-export interface LoadClientConnectConfigOptions {
-  profile: Option<string>;
-  path: Option<string>;
-  data: Option<Buffer>;
-  disableFile: boolean;
-  disableEnv: boolean;
-  configFileStrict: boolean;
-  envVars: Option<Record<string, string>>;
-}
 
 export interface DataSource {
   path: Option<string>;
