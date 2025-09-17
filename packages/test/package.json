@@ -46,8 +46,7 @@
     "@temporalio/testing": "file:../testing",
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow",
-    "@ungap/structured-clone": "^1.3.0",
-    "ai": "^5.0.40",
+    "ai": "^5.0.45",
     "arg": "^5.0.2",
     "async-retry": "^1.3.3",
     "ava": "^5.3.1",
@@ -63,7 +62,7 @@
     "rxjs": "7.8.1",
     "stack-utils": "^2.0.6",
     "uuid": "^9.0.1",
-    "web-streams-polyfill": "^4.2.0"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/async-retry": "^1.4.8",
