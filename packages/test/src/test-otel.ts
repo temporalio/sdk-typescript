@@ -483,26 +483,30 @@ if (RUN_INTEGRATION_TESTS) {
       activities,
       taskQueue: 'test-otel-benign-err',
       interceptors: {
-        activity: [(ctx) => { 
-          return { inbound: new OpenTelemetryActivityInboundInterceptor(ctx, { tracer }) }
-        }],
-      }
+        activity: [
+          (ctx) => {
+            return { inbound: new OpenTelemetryActivityInboundInterceptor(ctx, { tracer }) };
+          },
+        ],
+      },
     });
 
     const client = new WorkflowClient();
 
-    await worker.runUntil(client.execute(workflows.throwMaybeBenignErr, {
-      taskQueue: 'test-otel-benign-err', 
-      workflowId: uuid4(),
-      retry: { maximumAttempts : 3 }
-    }))
+    await worker.runUntil(
+      client.execute(workflows.throwMaybeBenignErr, {
+        taskQueue: 'test-otel-benign-err',
+        workflowId: uuid4(),
+        retry: { maximumAttempts: 3 },
+      })
+    );
 
     const spans = memoryExporter.getFinishedSpans();
     t.is(spans.length, 3);
     t.is(spans[0].status.code, SpanStatusCode.ERROR);
-    t.is(spans[0].status.message, "not benign");
+    t.is(spans[0].status.message, 'not benign');
     t.is(spans[1].status.code, SpanStatusCode.UNSET);
-    t.is(spans[1].status.message, "benign");
+    t.is(spans[1].status.message, 'benign');
     t.is(spans[2].status.code, SpanStatusCode.OK);
   });
 }

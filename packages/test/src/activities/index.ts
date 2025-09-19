@@ -96,9 +96,9 @@ export async function protoActivity(args: ProtoActivityInput): Promise<ProtoActi
 
 export async function throwMaybeBenign(): Promise<void> {
   if (activityInfo().attempt === 1) {
-    throw ApplicationFailure.create({ message: "not benign"});
+    throw ApplicationFailure.create({ message: 'not benign' });
   }
   if (activityInfo().attempt === 2) {
-      throw ApplicationFailure.create({ message: "benign", category: ApplicationFailureCategory.BENIGN });
+    throw ApplicationFailure.create({ message: 'benign', category: ApplicationFailureCategory.BENIGN });
   }
 }
