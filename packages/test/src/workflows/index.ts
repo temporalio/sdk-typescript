@@ -79,6 +79,7 @@ export * from './swc';
 export * from './tasks-and-microtasks';
 export * from './text-encoder-decoder';
 export * from './throw-async';
+export * from './throw-maybe-benign';
 export * from './trailing-timer';
 export * from './try-to-continue-after-completion';
 export * from './two-strings';
