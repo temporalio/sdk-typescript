@@ -46,7 +46,7 @@ async function wrapWithSpan<T>(
     const isBenignErr = err instanceof ApplicationFailure && err.category === ApplicationFailureCategory.BENIGN;
     if (acceptableErrors === undefined || !acceptableErrors(err)) {
       const statusCode = isBenignErr ? otel.SpanStatusCode.UNSET : otel.SpanStatusCode.ERROR;
-      span.setStatus({ code: statusCode, message: err instanceof Error ? err.message : String(err) });
+      span.setStatus({ code: statusCode, message: (err as Error).message ?? String(err) });
       span.recordException(err);
     } else {
       span.setStatus({ code: otel.SpanStatusCode.OK });
