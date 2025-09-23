@@ -625,7 +625,10 @@ export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
   };
 };
 
-export async function getRetryPolicyFromActivityInfo(retryPolicy: RetryPolicy, fromInsideLocal: boolean): Promise<object | undefined> {
+export async function getRetryPolicyFromActivityInfo(
+  retryPolicy: RetryPolicy,
+  fromInsideLocal: boolean
+): Promise<object | undefined> {
   return await (fromInsideLocal
     ? workflow.proxyLocalActivities({ startToCloseTimeout: '1m', retry: retryPolicy }).retryPolicy()
     : workflow.proxyActivities({ startToCloseTimeout: '1m', retry: retryPolicy }).retryPolicy());
@@ -646,7 +649,7 @@ test.serial('retryPolicy is set correctly', async (t) => {
     initialInterval: 2.0,
     maximumAttempts: 3,
     maximumInterval: 10.0,
-    nonRetryableErrorTypes: ["nonRetryableError"],
+    nonRetryableErrorTypes: ['nonRetryableError'],
   };
 
   await worker.runUntil(async () => {
