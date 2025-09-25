@@ -4,7 +4,6 @@ import vm from 'node:vm';
 import anyTest, { ExecutionContext, TestFn } from 'ava';
 import dedent from 'dedent';
 import Long from 'long'; // eslint-disable-line import/no-named-as-default
-import escapeStringRexep from 'escape-string-regexp';
 import {
   ApplicationFailure,
   defaultFailureConverter,
@@ -177,7 +176,10 @@ function compareCompletion(
 // As of Node 24.6.0 type names are now present on source mapped stack traces
 // See [f33e0fcc83954f728fcfd2ef6ae59435bc4af059](https://github.com/nodejs/node/commit/f33e0fcc83954f728fcfd2ef6ae59435bc4af059)
 function compareFailureStackTrace(t: ExecutionContext<Context>, actual: string, expected: string) {
-  const escapedTrace = escapeStringRexep(expected).replaceAll('\\$CLASS', '(?:[A-Za-z]+)');
+  const escapedTrace = expected
+    .replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
+    .replace(/-/g, '\\x2d')
+    .replaceAll('\\$CLASS', '(?:[A-Za-z]+)');
   t.regex(actual, RegExp(`^${escapedTrace}$`));
 }
 
