@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import anyTest, { ExecutionContext, TestFn } from 'ava';
 import dedent from 'dedent';
 import Long from 'long'; // eslint-disable-line import/no-named-as-default
+import escapeStringRexep from 'escape-string-regexp';
 import {
   ApplicationFailure,
   defaultFailureConverter,
@@ -172,6 +173,14 @@ function compareCompletion(
   );
 }
 
+// Compare stack traces while handling $CLASS keyword to match any identifier that isn't consistent across Node versions.
+// As of Node 24.6.0 type names are now present on source mapped stack traces
+// See [f33e0fcc83954f728fcfd2ef6ae59435bc4af059](https://github.com/nodejs/node/commit/f33e0fcc83954f728fcfd2ef6ae59435bc4af059)
+function compareFailureStackTrace(t: ExecutionContext<Context>, actual: string, expected: string) {
+  const escapedTrace = escapeStringRexep(expected).replaceAll('\\$CLASS', '(?:[A-Za-z]+)');
+  t.regex(actual, RegExp(`^${escapedTrace}$`));
+}
+
 function makeSuccess(
   commands: coresdk.workflow_commands.IWorkflowCommand[] = [makeCompleteWorkflowExecution()],
   usedInternalFlags: SdkFlag[] = []
@@ -307,13 +316,12 @@ function makeCompleteWorkflowExecution(result?: Payload): coresdk.workflow_comma
 
 function makeFailWorkflowExecution(
   message: string,
-  stackTrace: string,
   type = 'Error',
   nonRetryable = true
 ): coresdk.workflow_commands.IWorkflowCommand {
   return {
     failWorkflowExecution: {
-      failure: { message, stackTrace, applicationFailureInfo: { type, nonRetryable }, source: 'TypeScriptSDK' },
+      failure: { message, applicationFailureInfo: { type, nonRetryable }, source: 'TypeScriptSDK' },
     },
   };
 }
@@ -453,22 +461,28 @@ function cleanWorkflowQueryFailureStackTrace(
   return req;
 }
 
+function removeWorkflowFailureStackTrace(
+  req: coresdk.workflow_completion.IWorkflowActivationCompletion,
+  commandIndex = 0
+) {
+  const stackTrace = req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace!;
+  delete req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace;
+  return stackTrace;
+}
+
 test('throwAsync', async (t) => {
   const { workflowType } = t.context;
   const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(workflowType)));
-  compareCompletion(
+  const actualStackTrace = removeWorkflowFailureStackTrace(req);
+  compareCompletion(t, req, makeSuccess([makeFailWorkflowExecution('failure')]));
+  compareFailureStackTrace(
     t,
-    req,
-    makeSuccess([
-      makeFailWorkflowExecution(
-        'failure',
-        dedent`
+    actualStackTrace,
+    dedent`
         ApplicationFailure: failure
-            at Function.nonRetryable (common/src/failure.ts)
+            at $CLASS.nonRetryable (common/src/failure.ts)
             at throwAsync (test/src/workflows/throw-async.ts)
         `
-      ),
-    ])
   );
 });
 
@@ -768,26 +782,25 @@ test('interruptableWorkflow', async (t) => {
     const req = cleanWorkflowFailureStackTrace(
       await activate(t, await makeSignalWorkflow('interrupt', ['just because']))
     );
+    const stackTrace = removeWorkflowFailureStackTrace(req);
     compareCompletion(
       t,
       req,
       makeSuccess(
-        [
-          makeFailWorkflowExecution(
-            'just because',
-            // The stack trace is weird here and might confuse users, it might be a JS limitation
-            // since the Error stack trace is generated in the constructor.
-            dedent`
-          ApplicationFailure: just because
-              at Function.retryable (common/src/failure.ts)
-              at test/src/workflows/interrupt-signal.ts
-          `,
-            'Error',
-            false
-          ),
-        ],
+        [makeFailWorkflowExecution('just because', 'Error', false)],
         [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
       )
+    );
+    compareFailureStackTrace(
+      t,
+      stackTrace,
+      // The stack trace is weird here and might confuse users, it might be a JS limitation
+      // since the Error stack trace is generated in the constructor.
+      dedent`
+          ApplicationFailure: just because
+              at $CLASS.retryable (common/src/failure.ts)
+              at test/src/workflows/interrupt-signal.ts
+          `
     );
   }
 });
@@ -800,23 +813,23 @@ test('failSignalWorkflow', async (t) => {
   }
   {
     const req = cleanWorkflowFailureStackTrace(await activate(t, await makeSignalWorkflow('fail', [])));
+    const stackTrace = removeWorkflowFailureStackTrace(req);
     compareCompletion(
       t,
       req,
       makeSuccess(
-        [
-          makeFailWorkflowExecution(
-            'Signal failed',
-            dedent`
-          ApplicationFailure: Signal failed
-              at Function.nonRetryable (common/src/failure.ts)
-              at test/src/workflows/fail-signal.ts
-          `,
-            'Error'
-          ),
-        ],
+        [makeFailWorkflowExecution('Signal failed', 'Error')],
         [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
       )
+    );
+    compareFailureStackTrace(
+      t,
+      stackTrace,
+      dedent`
+          ApplicationFailure: Signal failed
+              at $CLASS.nonRetryable (common/src/failure.ts)
+              at test/src/workflows/fail-signal.ts
+          `
     );
   }
 });
@@ -840,22 +853,22 @@ test('asyncFailSignalWorkflow', async (t) => {
   }
   {
     const req = cleanWorkflowFailureStackTrace(await activate(t, makeFireTimer(2)));
+    const stackTrace = removeWorkflowFailureStackTrace(req);
     compareCompletion(
       t,
       req,
       makeSuccess(
-        [
-          makeFailWorkflowExecution(
-            'Signal failed',
-            dedent`
-          ApplicationFailure: Signal failed
-              at Function.nonRetryable (common/src/failure.ts)
-              at test/src/workflows/async-fail-signal.ts`,
-            'Error'
-          ),
-        ],
+        [makeFailWorkflowExecution('Signal failed', 'Error')],
         [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
       )
+    );
+    compareFailureStackTrace(
+      t,
+      stackTrace,
+      dedent`
+          ApplicationFailure: Signal failed
+              at $CLASS.nonRetryable (common/src/failure.ts)
+              at test/src/workflows/async-fail-signal.ts`
     );
   }
 });
@@ -1445,6 +1458,7 @@ test('nonCancellableInNonCancellable', async (t) => {
 test('cancellationErrorIsPropagated', async (t) => {
   const { workflowType, logs } = t.context;
   const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(workflowType)), 2);
+  const stackTrace = removeWorkflowFailureStackTrace(req, 2);
   compareCompletion(
     t,
     req,
@@ -1455,21 +1469,25 @@ test('cancellationErrorIsPropagated', async (t) => {
         failWorkflowExecution: {
           failure: {
             message: 'Cancellation scope cancelled',
-            stackTrace: dedent`
-        CancelledFailure: Cancellation scope cancelled
-            at CancellationScope.cancel (workflow/src/cancellation-scope.ts)
-            at test/src/workflows/cancellation-error-is-propagated.ts
-            at CancellationScope.runInContext (workflow/src/cancellation-scope.ts)
-            at CancellationScope.run (workflow/src/cancellation-scope.ts)
-            at Function.cancellable (workflow/src/cancellation-scope.ts)
-            at cancellationErrorIsPropagated (test/src/workflows/cancellation-error-is-propagated.ts)
-        `,
             canceledFailureInfo: {},
             source: 'TypeScriptSDK',
           },
         },
       },
     ])
+  );
+  compareFailureStackTrace(
+    t,
+    stackTrace,
+    dedent`
+        CancelledFailure: Cancellation scope cancelled
+            at CancellationScope.cancel (workflow/src/cancellation-scope.ts)
+            at test/src/workflows/cancellation-error-is-propagated.ts
+            at CancellationScope.runInContext (workflow/src/cancellation-scope.ts)
+            at CancellationScope.run (workflow/src/cancellation-scope.ts)
+            at $CLASS.cancellable (workflow/src/cancellation-scope.ts)
+            at cancellationErrorIsPropagated (test/src/workflows/cancellation-error-is-propagated.ts)
+        `
   );
   t.deepEqual(logs, []);
 });
@@ -1655,13 +1673,9 @@ test('resolve activity with failure - http', async (t) => {
         },
       })
     );
-    compareCompletion(
-      t,
-      completion,
-      makeSuccess([
-        makeFailWorkflowExecution('Connection timeout', 'ApplicationFailure: Connection timeout', 'MockError'),
-      ])
-    );
+    const stackTrace = removeWorkflowFailureStackTrace(completion);
+    compareCompletion(t, completion, makeSuccess([makeFailWorkflowExecution('Connection timeout', 'MockError')]));
+    compareFailureStackTrace(t, stackTrace, 'ApplicationFailure: Connection timeout');
   }
 });
 
@@ -1872,19 +1886,16 @@ test('tryToContinueAfterCompletion', async (t) => {
   const { workflowType } = t.context;
   {
     const completion = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(workflowType)));
-    compareCompletion(
+    const stackTrace = removeWorkflowFailureStackTrace(completion);
+    compareCompletion(t, completion, makeSuccess([makeFailWorkflowExecution('fail before continue')]));
+    compareFailureStackTrace(
       t,
-      completion,
-      makeSuccess([
-        makeFailWorkflowExecution(
-          'fail before continue',
-          dedent`
+      stackTrace,
+      dedent`
           ApplicationFailure: fail before continue
-              at Function.nonRetryable (common/src/failure.ts)
+              at $CLASS.nonRetryable (common/src/failure.ts)
               at tryToContinueAfterCompletion (test/src/workflows/try-to-continue-after-completion.ts)
         `
-        ),
-      ])
     );
   }
 });
