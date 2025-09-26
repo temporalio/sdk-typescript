@@ -2,7 +2,7 @@
 // eslint-disable-next-line import/no-unassigned-import
 import './runtime'; // Patch the Workflow isolate runtime for opentelemetry
 import * as otel from '@opentelemetry/api';
-import * as tracing from '@opentelemetry/sdk-trace-base';
+import * as tracing from '@opentelemetry/sdk-trace-node';
 import {
   ActivityInput,
   ContinueAsNew,
@@ -35,8 +35,9 @@ function getTracer(): otel.Tracer {
     contextManager = new ContextManager();
   }
   if (tracer === undefined) {
-    const provider = new tracing.BasicTracerProvider();
-    provider.addSpanProcessor(new tracing.SimpleSpanProcessor(new SpanExporter()));
+    const provider = new tracing.NodeTracerProvider({
+      spanProcessors: [new tracing.SimpleSpanProcessor(new SpanExporter())],
+    });
     provider.register({ contextManager });
     tracer = provider.getTracer('@temporalio/interceptor-workflow');
   }
