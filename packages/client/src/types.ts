@@ -164,6 +164,17 @@ export interface ConnectionLike {
   withAbortSignal<R>(abortSignal: AbortSignal, fn: () => Promise<R>): Promise<R>;
 }
 
+export const InternalConnectionLikeSymbol = Symbol('__temporal_internal_connection_like');
+export type InternalConnectionLike = ConnectionLike & {
+  [InternalConnectionLikeSymbol]?: {
+    /**
+     * Capability flag that determines whether the connection supports eager workflow start.
+     * This will only be true if the underlying connection is a {@link NativeConnection}.
+     */
+    readonly supportsEagerStart?: boolean;
+  };
+};
+
 export const QueryRejectCondition = {
   NONE: 'NONE',
   NOT_OPEN: 'NOT_OPEN',

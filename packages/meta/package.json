@@ -6,6 +6,7 @@
     "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",
     "@temporalio/interceptors-opentelemetry": "file:../interceptors-opentelemetry",
+    "@temporalio/nexus": "file:../nexus",
     "@temporalio/proto": "file:../proto",
     "@temporalio/testing": "file:../testing",
     "@temporalio/worker": "file:../worker",

@@ -296,7 +296,11 @@ export function configurableHelpers<T>(
   };
 }
 
-export async function setActivityPauseState(handle: WorkflowHandle, activityId: string, pause: boolean): Promise<void> {
+export async function setActivityState(
+  handle: WorkflowHandle,
+  activityId: string,
+  state: 'pause' | 'unpause' | 'reset' | 'pause & reset'
+): Promise<void> {
   const desc = await handle.describe();
   const req = {
     namespace: handle.client.options.namespace,
@@ -306,10 +310,17 @@ export async function setActivityPauseState(handle: WorkflowHandle, activityId: 
     },
     id: activityId,
   };
-  if (pause) {
+  if (state === 'pause') {
     await handle.client.workflowService.pauseActivity(req);
-  } else {
+  } else if (state === 'unpause') {
     await handle.client.workflowService.unpauseActivity(req);
+  } else if (state === 'reset') {
+    await handle.client.workflowService.resetActivity({ ...req, resetHeartbeat: true });
+  } else {
+    await Promise.all([
+      handle.client.workflowService.pauseActivity(req),
+      handle.client.workflowService.resetActivity({ ...req, resetHeartbeat: true }),
+    ]);
   }
   await waitUntil(async () => {
     const { raw } = await handle.describe();
@@ -317,11 +328,32 @@ export async function setActivityPauseState(handle: WorkflowHandle, activityId: 
     // If we are pausing: success when either
     //  • paused flag is true  OR
     //  • the activity vanished (it completed / retried)
-    if (pause) return activityInfo ? activityInfo.paused ?? false : true;
-    // If we are unpausing: success when either
-    //  • paused flag is false  OR
-    //  • the activity vanished (already completed)
-    return activityInfo ? !activityInfo.paused : true;
+    if (state === 'pause') {
+      if (!activityInfo) {
+        return true; // Activity vanished (completed/retried)
+      }
+      return activityInfo.paused ?? false;
+    } else if (state === 'unpause') {
+      // If we are unpausing: success when either
+      //  • paused flag is false  OR
+      //  • the activity vanished (already completed)
+      return activityInfo ? !activityInfo.paused : true;
+    } else if (state === 'reset') {
+      // If we are resetting, success when either
+      //  • heartbeat details have been reset OR
+      //  • the activity vanished (completed / retried)
+      return activityInfo ? activityInfo.heartbeatDetails === null : true;
+    } else {
+      // If we are pausing & resetting, success when either
+      //  • activity is paused AND heartbeat details have been reset OR
+      //  • the activity vanished (completed / retried)
+      if (!activityInfo) {
+        return true; // Activity vanished (completed/retried)
+      }
+      const isPaused = activityInfo.paused ?? false;
+      const isHeartbeatReset = activityInfo.heartbeatDetails === null;
+      return isPaused && isHeartbeatReset;
+    }
   }, 15000);
 }
 

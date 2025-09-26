@@ -320,10 +320,8 @@ jobs:
 
       - name: Test run a workflow (cloud)
         if: matrix.server == 'cloud'
-        run: |
-          # The required environment variables must be present for releases (this must be run from the official repo)
-          node scripts/create-certs-dir.js ${{ steps.tmp-dir.outputs.dir }}/certs
-          node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
+        # The required environment variables must be present for releases (this must be run from the official repo)
+        run: node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
         shell: bash
         env:
           # These env vars are used by the hello-world-mtls sample

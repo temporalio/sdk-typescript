@@ -11,6 +11,7 @@ import {
   OperatorService,
   HealthService,
   TestService,
+  InternalConnectionLikeSymbol,
 } from '@temporalio/client';
 import { InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
 import { TransportError } from './errors';
@@ -93,6 +94,14 @@ export class NativeConnection implements ConnectionLike {
         false
       );
     }
+
+    // Set internal capability flag - not part of public API
+    Object.defineProperty(this, InternalConnectionLikeSymbol, {
+      value: { supportsEagerStart: true },
+      writable: false,
+      enumerable: false,
+      configurable: false,
+    });
   }
 
   /**
