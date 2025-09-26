@@ -22,7 +22,7 @@ import { SdkFlag, SdkFlags } from '@temporalio/workflow/lib/flags';
 import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
-import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
+import { cleanStackTrace, compareFailureStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 import { ProcessedSignal } from './workflows';
 
 export interface Context {
@@ -172,16 +172,6 @@ function compareCompletion(
   );
 }
 
-// Compare stack traces while handling $CLASS keyword to match any identifier that isn't consistent across Node versions.
-// As of Node 24.6.0 type names are now present on source mapped stack traces
-// See [f33e0fcc83954f728fcfd2ef6ae59435bc4af059](https://github.com/nodejs/node/commit/f33e0fcc83954f728fcfd2ef6ae59435bc4af059)
-function compareFailureStackTrace(t: ExecutionContext<Context>, actual: string, expected: string) {
-  const escapedTrace = expected
-    .replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
-    .replace(/-/g, '\\x2d')
-    .replaceAll('\\$CLASS', '(?:[A-Za-z]+)');
-  t.regex(actual, RegExp(`^${escapedTrace}$`));
-}
 
 function makeSuccess(
   commands: coresdk.workflow_commands.IWorkflowCommand[] = [makeCompleteWorkflowExecution()],

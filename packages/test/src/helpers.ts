@@ -3,7 +3,7 @@ import * as net from 'net';
 import path from 'path';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
-import ava, { TestFn } from 'ava';
+import ava, { TestFn, ExecutionContext } from 'ava';
 import StackUtils from 'stack-utils';
 import { v4 as uuid4 } from 'uuid';
 import { Client, Connection } from '@temporalio/client';
@@ -54,7 +54,7 @@ export async function waitUntil(
   intervalMs: number = 100
 ): Promise<void> {
   const endTime = Date.now() + timeoutMs;
-  for (;;) {
+  for (; ;) {
     if (await condition()) {
       return;
     } else if (Date.now() >= endTime) {
@@ -96,6 +96,21 @@ export function cleanStackTrace(ostack: string): string {
     .replaceAll(/\([^() ]*\/nexus-sdk-typescript\/src/g, '(nexus-rpc/src');
 
   return normalizedStack ? `${firstLine}\n${normalizedStack}` : firstLine;
+}
+
+/**
+  * Compare stack traces using $CLASS keyword to match any inconsistent identifiers
+  *
+  * As of Node 24.6.0 type names are now present on source mapped stack traces which leads
+  * to different stack traces depending on Node version.
+  * See [f33e0fcc83954f728fcfd2ef6ae59435bc4af059](https://github.com/nodejs/node/commit/f33e0fcc83954f728fcfd2ef6ae59435bc4af059)
+  */
+export function compareFailureStackTrace<T>(t: ExecutionContext<T>, actual: string, expected: string) {
+  const escapedTrace = expected
+    .replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
+    .replace(/-/g, '\\x2d')
+    .replaceAll('\\$CLASS', '(?:[A-Za-z]+)');
+  t.regex(actual, RegExp(`^${escapedTrace}$`));
 }
 
 function noopTest(): void {
@@ -168,11 +183,11 @@ export class ByteSkewerPayloadCodec implements PayloadCodec {
 if (inWorkflowContext()) {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
-  worker.Worker = class {}; // eslint-disable-line import/namespace
+  worker.Worker = class { }; // eslint-disable-line import/namespace
 
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
-  RealTestWorkflowEnvironment = class {}; // eslint-disable-line import/namespace
+  RealTestWorkflowEnvironment = class { }; // eslint-disable-line import/namespace
 }
 
 export class Worker extends worker.Worker {
@@ -190,15 +205,15 @@ export class TestWorkflowEnvironment extends RealTestWorkflowEnvironment {
       ...opts,
       ...(TESTS_CLI_VERSION
         ? {
-            server: {
-              ...opts?.server,
-              executable: {
-                ...opts?.server?.executable,
-                type: 'cached-download',
-                version: TESTS_CLI_VERSION,
-              },
+          server: {
+            ...opts?.server,
+            executable: {
+              ...opts?.server?.executable,
+              type: 'cached-download',
+              version: TESTS_CLI_VERSION,
             },
-          }
+          },
+        }
         : undefined),
     });
   }
@@ -208,15 +223,15 @@ export class TestWorkflowEnvironment extends RealTestWorkflowEnvironment {
       ...opts,
       ...(TESTS_TIME_SKIPPING_SERVER_VERSION
         ? {
-            server: {
-              ...opts?.server,
-              executable: {
-                ...opts?.server?.executable,
-                type: 'cached-download',
-                version: TESTS_TIME_SKIPPING_SERVER_VERSION,
-              },
+          server: {
+            ...opts?.server,
+            executable: {
+              ...opts?.server?.executable,
+              type: 'cached-download',
+              version: TESTS_TIME_SKIPPING_SERVER_VERSION,
             },
-          }
+          },
+        }
         : undefined),
     });
   }
