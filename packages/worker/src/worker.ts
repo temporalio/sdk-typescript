@@ -2132,6 +2132,7 @@ async function extractActivityInfo(
       'currentAttemptScheduledTime'
     ),
     priority: decodePriority(start.priority),
+    retryPolicy: decompileRetryPolicy(start.retryPolicy),
   };
 }
 
