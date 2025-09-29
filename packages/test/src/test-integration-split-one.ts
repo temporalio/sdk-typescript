@@ -36,7 +36,7 @@ import {
 } from '@temporalio/workflow';
 import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';
 import * as activities from './activities';
-import { cleanOptionalStackTrace, compareFailureStackTrace, u8, Worker } from './helpers';
+import { cleanOptionalStackTrace, compareStackTraceIdentifiers, u8, Worker } from './helpers';
 import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import * as workflows from './workflows';
 
@@ -204,7 +204,7 @@ test.serial('activity-failure with ApplicationFailure', configMacro, async (t, c
   t.is(err.cause.cause.message, 'Fail me');
   t.is(err.cause.cause.type, 'Error');
   t.deepEqual(err.cause.cause.details, ['details', 123, false]);
-  compareFailureStackTrace(
+  compareStackTraceIdentifiers(
     t,
     cleanOptionalStackTrace(err.cause.cause.stack)!,
     dedent`
@@ -259,7 +259,7 @@ test.serial('child-workflow-failure', configMacro, async (t, config) => {
       return t.fail('Expected err.cause.cause to be an instance of ApplicationFailure');
     }
     t.is(err.cause.cause.message, 'failure');
-    compareFailureStackTrace(
+    compareStackTraceIdentifiers(
       t,
       cleanOptionalStackTrace(err.cause.cause.stack)!,
       dedent`
@@ -696,8 +696,8 @@ test.serial('Workflow can upsert Search Attributes', configMacro, async (t, conf
   }
   t.true(
     typeof checksum === 'string' &&
-    checksum.includes(`@temporalio/worker@${pkg.version}+`) &&
-    /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
+      checksum.includes(`@temporalio/worker@${pkg.version}+`) &&
+      /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
   );
 });
 

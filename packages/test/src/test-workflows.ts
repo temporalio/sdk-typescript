@@ -22,7 +22,7 @@ import { SdkFlag, SdkFlags } from '@temporalio/workflow/lib/flags';
 import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
-import { cleanStackTrace, compareFailureStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
+import { cleanStackTrace, compareStackTraceIdentifiers, REUSE_V8_CONTEXT, u8 } from './helpers';
 import { ProcessedSignal } from './workflows';
 
 export interface Context {
@@ -171,7 +171,6 @@ function compareCompletion(
     }).toJSON()
   );
 }
-
 
 function makeSuccess(
   commands: coresdk.workflow_commands.IWorkflowCommand[] = [makeCompleteWorkflowExecution()],
@@ -467,7 +466,7 @@ test('throwAsync', async (t) => {
   const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(workflowType)));
   const actualStackTrace = removeWorkflowFailureStackTrace(req);
   compareCompletion(t, req, makeSuccess([makeFailWorkflowExecution('failure')]));
-  compareFailureStackTrace(
+  compareStackTraceIdentifiers(
     t,
     actualStackTrace,
     dedent`
@@ -783,7 +782,7 @@ test('interruptableWorkflow', async (t) => {
         [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
       )
     );
-    compareFailureStackTrace(
+    compareStackTraceIdentifiers(
       t,
       stackTrace,
       // The stack trace is weird here and might confuse users, it might be a JS limitation
@@ -814,7 +813,7 @@ test('failSignalWorkflow', async (t) => {
         [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
       )
     );
-    compareFailureStackTrace(
+    compareStackTraceIdentifiers(
       t,
       stackTrace,
       dedent`
@@ -854,7 +853,7 @@ test('asyncFailSignalWorkflow', async (t) => {
         [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
       )
     );
-    compareFailureStackTrace(
+    compareStackTraceIdentifiers(
       t,
       stackTrace,
       dedent`
@@ -1468,7 +1467,7 @@ test('cancellationErrorIsPropagated', async (t) => {
       },
     ])
   );
-  compareFailureStackTrace(
+  compareStackTraceIdentifiers(
     t,
     stackTrace,
     dedent`
@@ -1667,7 +1666,7 @@ test('resolve activity with failure - http', async (t) => {
     );
     const stackTrace = removeWorkflowFailureStackTrace(completion);
     compareCompletion(t, completion, makeSuccess([makeFailWorkflowExecution('Connection timeout', 'MockError')]));
-    compareFailureStackTrace(t, stackTrace, 'ApplicationFailure: Connection timeout');
+    compareStackTraceIdentifiers(t, stackTrace, 'ApplicationFailure: Connection timeout');
   }
 });
 
@@ -1880,7 +1879,7 @@ test('tryToContinueAfterCompletion', async (t) => {
     const completion = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(workflowType)));
     const stackTrace = removeWorkflowFailureStackTrace(completion);
     compareCompletion(t, completion, makeSuccess([makeFailWorkflowExecution('fail before continue')]));
-    compareFailureStackTrace(
+    compareStackTraceIdentifiers(
       t,
       stackTrace,
       dedent`

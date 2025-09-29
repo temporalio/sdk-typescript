@@ -12,7 +12,7 @@ import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { ApplicationFailure, TerminatedFailure } from '@temporalio/common';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
 import { defaultPayloadConverter, WorkflowInfo } from '@temporalio/workflow';
-import { cleanOptionalStackTrace, compareFailureStackTrace, RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { cleanOptionalStackTrace, compareStackTraceIdentifiers, RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import {
   continueAsNewToDifferentWorkflow,
@@ -241,7 +241,7 @@ if (RUN_INTEGRATION_TESTS) {
       return;
     }
     t.deepEqual(err.cause.message, 'Expected anything other than 1');
-    compareFailureStackTrace(
+    compareStackTraceIdentifiers(
       t,
       cleanOptionalStackTrace(err.cause.stack)!,
       dedent`
