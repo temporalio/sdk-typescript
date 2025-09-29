@@ -105,7 +105,7 @@ export function cleanStackTrace(ostack: string): string {
  * to different stack traces depending on Node version.
  * See [f33e0fcc83954f728fcfd2ef6ae59435bc4af059](https://github.com/nodejs/node/commit/f33e0fcc83954f728fcfd2ef6ae59435bc4af059)
  */
-export function compareStackTraceIdentifiers<T>(t: ExecutionContext<T>, actual: string, expected: string): void {
+export function compareStackTrace(t: ExecutionContext, actual: string, expected: string): void {
   const escapedTrace = expected
     .replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
     .replace(/-/g, '\\x2d')

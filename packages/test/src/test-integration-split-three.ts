@@ -8,7 +8,7 @@ import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import { configurableHelpers } from './helpers-integration';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import * as activities from './activities';
-import { approximatelyEqual, cleanOptionalStackTrace, compareStackTraceIdentifiers } from './helpers';
+import { approximatelyEqual, cleanOptionalStackTrace, compareStackTrace } from './helpers';
 import * as workflows from './workflows';
 
 const test = makeTestFn(() => bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') }));
@@ -93,7 +93,7 @@ if ('promiseHooks' in v8) {
     {
       const functionName = stacks[0]!.locations[0]!.function_name!;
       delete stacks[0]!.locations[0]!.function_name;
-      compareStackTraceIdentifiers(t, functionName, '$CLASS.all');
+      compareStackTrace(t, functionName, '$CLASS.all');
     }
     t.deepEqual(stacks, [
       {

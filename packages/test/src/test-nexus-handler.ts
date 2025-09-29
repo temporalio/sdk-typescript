@@ -19,7 +19,7 @@ import {
   convertWorkflowEventLinkToNexusLink,
   convertNexusLinkToWorkflowEventLink,
 } from '@temporalio/nexus/lib/link-converter';
-import { cleanStackTrace, compareStackTraceIdentifiers, getRandomPort } from './helpers';
+import { cleanStackTrace, compareStackTrace, getRandomPort } from './helpers';
 
 export interface Context {
   httpPort: number;
@@ -314,7 +314,7 @@ test('start Operation Handler errors', async (t) => {
       });
       t.true(err instanceof ApplicationFailure);
       t.is(err.message, '');
-      compareStackTraceIdentifiers(
+      compareStackTrace(
         t,
         cleanStackTrace(err.stack!),
         `ApplicationFailure: deliberate failure
@@ -461,7 +461,7 @@ test('cancel Operation Handler errors', async (t) => {
       });
       t.true(err instanceof ApplicationFailure);
       t.is(err.message, '');
-      compareStackTraceIdentifiers(
+      compareStackTrace(
         t,
         cleanStackTrace(err.stack!),
         `ApplicationFailure: deliberate failure

@@ -36,7 +36,7 @@ import {
 } from '@temporalio/workflow';
 import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';
 import * as activities from './activities';
-import { cleanOptionalStackTrace, compareStackTraceIdentifiers, u8, Worker } from './helpers';
+import { cleanOptionalStackTrace, compareStackTrace, u8, Worker } from './helpers';
 import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import * as workflows from './workflows';
 
@@ -204,7 +204,7 @@ test.serial('activity-failure with ApplicationFailure', configMacro, async (t, c
   t.is(err.cause.cause.message, 'Fail me');
   t.is(err.cause.cause.type, 'Error');
   t.deepEqual(err.cause.cause.details, ['details', 123, false]);
-  compareStackTraceIdentifiers(
+  compareStackTrace(
     t,
     cleanOptionalStackTrace(err.cause.cause.stack)!,
     dedent`
@@ -259,7 +259,7 @@ test.serial('child-workflow-failure', configMacro, async (t, config) => {
       return t.fail('Expected err.cause.cause to be an instance of ApplicationFailure');
     }
     t.is(err.cause.cause.message, 'failure');
-    compareStackTraceIdentifiers(
+    compareStackTrace(
       t,
       cleanOptionalStackTrace(err.cause.cause.stack)!,
       dedent`
