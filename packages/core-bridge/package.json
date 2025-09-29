@@ -23,7 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "@grpc/grpc-js": "^1.12.4",
-    "@temporalio/common": "file:../common",
+    "@temporalio/common": "workspace:*",
     "arg": "^5.0.2",
     "cargo-cp-artifact": "^0.1.8",
     "which": "^4.0.0"

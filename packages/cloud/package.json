@@ -15,9 +15,9 @@
   "license": "MIT",
   "dependencies": {
     "@grpc/grpc-js": "^1.12.4",
-    "@temporalio/client": "file:../client",
-    "@temporalio/common": "file:../common",
-    "@temporalio/proto": "file:../proto",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/proto": "workspace:*",
     "abort-controller": "^3.0.0"
   },
   "devDependencies": {
