@@ -8,7 +8,7 @@ use tonic::metadata::MetadataKey;
 use temporal_sdk_core::{ClientOptions as CoreClientOptions, CoreRuntime, RetryClient};
 
 use bridge_macros::{TryFromJs, js_function};
-use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics};
+use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClient};
 
 use crate::runtime::Runtime;
 use crate::{helpers::*, runtime::RuntimeExt as _};
@@ -38,7 +38,7 @@ pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<
     Ok(())
 }
 
-type CoreClient = RetryClient<ConfiguredClient<TemporalServiceClientWithMetrics>>;
+type CoreClient = RetryClient<ConfiguredClient<TemporalServiceClient>>;
 
 pub struct Client {
     // These fields are pub because they are accessed from Worker::new
@@ -61,6 +61,10 @@ pub fn client_new(
 
         let core_client = match res {
             Ok(core_client) => core_client,
+            Err(ClientInitError::InvalidHeaders(e)) => Err(BridgeError::TypeError {
+                message: format!("Invalid metadata key: {e}"),
+                field: None,
+            })?,
             Err(ClientInitError::SystemInfoCallError(e)) => Err(BridgeError::TransportError(
                 format!("Failed to call GetSystemInfo: {e}"),
             ))?,
@@ -90,7 +94,11 @@ pub fn client_update_headers(
         .borrow()?
         .core_client
         .get_client()
-        .set_headers(headers);
+        .set_headers(headers)
+        .map_err(|err| BridgeError::TypeError {
+            message: format!("Invalid metadata key: {err}"),
+            field: None,
+        })?;
     Ok(())
 }
 
