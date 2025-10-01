@@ -1075,7 +1075,7 @@ export function setAndClearTimeoutInterceptors(): workflow.WorkflowInterceptors 
 }
 
 if (RUN_TIME_SKIPPING_TESTS) {
-  test('setTimeout and clearTimeout - works before and after 1.10.3', async (t) => {
+  test.serial('setTimeout and clearTimeout - works before and after 1.10.3', async (t) => {
     const env = await TestWorkflowEnvironment.createTimeSkipping();
     const { createWorker, startWorkflow } = helpers(t, env);
     try {
@@ -1292,7 +1292,7 @@ test('Count workflow executions', async (t) => {
   });
 });
 
-test('can register search attributes to dev server', async (t) => {
+test.serial('can register search attributes to dev server', async (t) => {
   const key = defineSearchAttributeKey('new-search-attr', SearchAttributeType.INT);
   const newSearchAttribute: SearchAttributePair = { key, value: 12 };
 
