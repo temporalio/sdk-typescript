@@ -203,13 +203,18 @@ test('withMetadata and withDeadline propagate metadata and deadline', async (t) 
   );
   const connection = await NativeConnection.connect({
     address: `127.0.0.1:${port}`,
+    metadata: { 'default-bin': Buffer.from([0x00]) },
   });
 
   await connection.withDeadline(Date.now() + 10_000, () =>
-    connection.withMetadata({ test: 'true' }, () => connection.workflowService.getSystemInfo({}))
+    connection.withMetadata({ test: 'true', 'other-bin': Buffer.from([0x01]) }, () =>
+      connection.workflowService.getSystemInfo({})
+    )
   );
   t.is(requests.length, 2);
   t.is(requests[1].metadata.get('test').toString(), 'true');
+  t.deepEqual(requests[1].metadata.get('default-bin'), [Buffer.from([0x00])]);
+  t.deepEqual(requests[1].metadata.get('other-bin'), [Buffer.from([0x01])]);
   t.true(typeof requests[1].deadline === 'number' && requests[1].deadline > 5_000);
   await connection.close();
   server.forceShutdown();

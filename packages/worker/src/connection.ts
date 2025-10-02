@@ -127,7 +127,14 @@ export class NativeConnection implements ConnectionLike {
 
     const ctx = this.callContextStorage.getStore() ?? {};
     const metadata =
-      ctx.metadata != null ? Object.fromEntries(Object.entries(ctx.metadata).map(([k, v]) => [k, v.toString()])) : {};
+      ctx.metadata != null
+        ? Object.fromEntries(
+            Object.entries(ctx.metadata).map(([k, value]) => [
+              k,
+              typeof value === 'string' ? { type: 'ascii' as const, value } : { type: 'binary' as const, value },
+            ])
+          )
+        : {};
 
     const req = {
       rpc: method.name,

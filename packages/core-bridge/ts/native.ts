@@ -124,7 +124,7 @@ export interface ClientOptions {
   clientVersion: string;
   tls: Option<TLSConfig>;
   httpConnectProxy: Option<HttpConnectProxy>;
-  headers: Option<Record<string, string>>;
+  headers: Option<Record<string, MetadataValue>>;
   apiKey: Option<string>;
   disableErrorCodeMetricTags: boolean;
 }
@@ -157,7 +157,7 @@ export interface RpcCall {
   rpc: string;
   req: Buffer;
   retry: boolean;
-  metadata: Record<string, string>;
+  metadata: Record<string, MetadataValue>;
   timeout: Option<number>;
 }
 
@@ -190,6 +190,16 @@ export declare function workerFinalizeShutdown(worker: Worker): Promise<void>;
 export interface Worker {
   type: 'worker';
 }
+
+export type MetadataValue =
+  | {
+      type: 'ascii';
+      value: string;
+    }
+  | {
+      type: 'binary';
+      value: Buffer;
+    };
 
 export interface WorkerOptions {
   identity: string;
