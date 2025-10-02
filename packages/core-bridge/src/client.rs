@@ -8,9 +8,7 @@ use tonic::metadata::MetadataKey;
 use temporal_sdk_core::{ClientOptions as CoreClientOptions, CoreRuntime, RetryClient};
 
 use bridge_macros::{TryFromJs, js_function};
-use temporal_client::{
-    ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics, WorkflowService,
-};
+use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics};
 
 use crate::runtime::Runtime;
 use crate::{helpers::*, runtime::RuntimeExt as _};
@@ -19,7 +17,22 @@ pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<
     cx.export_function("newClient", client_new)?;
     cx.export_function("clientUpdateHeaders", client_update_headers)?;
     cx.export_function("clientUpdateApiKey", client_update_api_key)?;
-    cx.export_function("clientSendRequest", client_send_request)?;
+    cx.export_function(
+        "clientSendWorkflowServiceRequest",
+        client_send_workflow_service_request,
+    )?;
+    cx.export_function(
+        "clientSendOperatorServiceRequest",
+        client_send_operator_service_request,
+    )?;
+    cx.export_function(
+        "clientSendTestServiceRequest",
+        client_send_test_service_request,
+    )?;
+    cx.export_function(
+        "clientSendHealthServiceRequest",
+        client_send_health_service_request,
+    )?;
     cx.export_function("clientClose", client_close)?;
 
     Ok(())
@@ -113,9 +126,9 @@ pub struct RpcCall {
     pub timeout: Option<Duration>,
 }
 
-/// Send a request using the provided Client
+/// Send a request to the Workflow Service using the provided Client
 #[js_function]
-pub fn client_send_request(
+pub fn client_send_workflow_service_request(
     client: OpaqueInboundHandle<Client>,
     call: RpcCall,
 ) -> BridgeResult<BridgeFuture<Vec<u8>>> {
@@ -124,7 +137,50 @@ pub fn client_send_request(
     let core_client = client.core_client.clone();
 
     // FIXME: "large future with a size of 18560 bytes"
-    core_runtime.future_to_promise(async move { client_invoke(core_client, call).await })
+    core_runtime
+        .future_to_promise(async move { client_invoke_workflow_service(core_client, call).await })
+}
+
+/// Send a request to the Operator Service using the provided Client
+#[js_function]
+pub fn client_send_operator_service_request(
+    client: OpaqueInboundHandle<Client>,
+    call: RpcCall,
+) -> BridgeResult<BridgeFuture<Vec<u8>>> {
+    let client = client.borrow()?;
+    let core_runtime = client.core_runtime.clone();
+    let core_client = client.core_client.clone();
+
+    core_runtime
+        .future_to_promise(async move { client_invoke_operator_service(core_client, call).await })
+}
+
+/// Send a request to the Test Service using the provided Client
+#[js_function]
+pub fn client_send_test_service_request(
+    client: OpaqueInboundHandle<Client>,
+    call: RpcCall,
+) -> BridgeResult<BridgeFuture<Vec<u8>>> {
+    let client = client.borrow()?;
+    let core_runtime = client.core_runtime.clone();
+    let core_client = client.core_client.clone();
+
+    core_runtime
+        .future_to_promise(async move { client_invoke_test_service(core_client, call).await })
+}
+
+/// Send a request to the Health Service using the provided Client
+#[js_function]
+pub fn client_send_health_service_request(
+    client: OpaqueInboundHandle<Client>,
+    call: RpcCall,
+) -> BridgeResult<BridgeFuture<Vec<u8>>> {
+    let client = client.borrow()?;
+    let core_runtime = client.core_runtime.clone();
+    let core_client = client.core_client.clone();
+
+    core_runtime
+        .future_to_promise(async move { client_invoke_health_service(core_client, call).await })
 }
 
 /// Indicates that a gRPC request failed
@@ -171,7 +227,12 @@ macro_rules! rpc_call {
 
 // FIXME: "this function may allocate 1400106 bytes on the stack"
 #[allow(clippy::too_many_lines)]
-async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeResult<Vec<u8>> {
+async fn client_invoke_workflow_service(
+    mut retry_client: CoreClient,
+    call: RpcCall,
+) -> BridgeResult<Vec<u8>> {
+    use temporal_client::WorkflowService;
+
     match call.rpc.as_str() {
         "CountWorkflowExecutions" => {
             rpc_call!(retry_client, call, count_workflow_executions)
@@ -220,6 +281,7 @@ async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeRes
             rpc_call!(retry_client, call, describe_workflow_rule)
         }
         "ExecuteMultiOperation" => rpc_call!(retry_client, call, execute_multi_operation),
+        "FetchWorkerConfig" => rpc_call!(retry_client, call, fetch_worker_config),
         "GetClusterInfo" => rpc_call!(retry_client, call, get_cluster_info),
         "GetCurrentDeployment" => rpc_call!(retry_client, call, get_current_deployment),
         "GetDeploymentReachability" => {
@@ -272,6 +334,9 @@ async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeRes
         "ListWorkerDeployments" => {
             rpc_call!(retry_client, call, list_worker_deployments)
         }
+        "ListWorkers" => {
+            rpc_call!(retry_client, call, list_workers)
+        }
         "ListWorkflowExecutions" => {
             rpc_call!(retry_client, call, list_workflow_executions)
         }
@@ -300,6 +365,9 @@ async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeRes
         }
         "RecordActivityTaskHeartbeatById" => {
             rpc_call!(retry_client, call, record_activity_task_heartbeat_by_id)
+        }
+        "RecordWorkerHeartbeat" => {
+            rpc_call!(retry_client, call, record_worker_heartbeat)
         }
         "RegisterNamespace" => rpc_call!(retry_client, call, register_namespace),
         "RequestCancelWorkflowExecution" => {
@@ -393,12 +461,16 @@ async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeRes
             rpc_call!(retry_client, call, update_namespace)
         }
         "UpdateSchedule" => rpc_call!(retry_client, call, update_schedule),
+        "UpdateWorkerConfig" => rpc_call!(retry_client, call, update_worker_config),
         "UpdateWorkerDeploymentVersionMetadata" => {
             rpc_call!(
                 retry_client,
                 call,
                 update_worker_deployment_version_metadata
             )
+        }
+        "UpdateTaskQueueConfig" => {
+            rpc_call!(retry_client, call, update_task_queue_config)
         }
         "UpdateWorkflowExecution" => {
             rpc_call!(retry_client, call, update_workflow_execution)
@@ -412,6 +484,83 @@ async fn client_invoke(mut retry_client: CoreClient, call: RpcCall) -> BridgeRes
         "UpdateWorkerVersioningRules" => {
             rpc_call!(retry_client, call, update_worker_versioning_rules)
         }
+        _ => Err(BridgeError::TypeError {
+            field: None,
+            message: format!("Unknown RPC call {}", call.rpc),
+        }),
+    }
+}
+
+async fn client_invoke_operator_service(
+    mut retry_client: CoreClient,
+    call: RpcCall,
+) -> BridgeResult<Vec<u8>> {
+    use temporal_client::OperatorService;
+
+    match call.rpc.as_str() {
+        "AddOrUpdateRemoteCluster" => {
+            rpc_call!(retry_client, call, add_or_update_remote_cluster)
+        }
+        "AddSearchAttributes" => {
+            rpc_call!(retry_client, call, add_search_attributes)
+        }
+        "CreateNexusEndpoint" => rpc_call!(retry_client, call, create_nexus_endpoint),
+        "DeleteNamespace" => {
+            rpc_call!(retry_client, call, delete_namespace)
+        }
+        "DeleteNexusEndpoint" => rpc_call!(retry_client, call, delete_nexus_endpoint),
+        "GetNexusEndpoint" => rpc_call!(retry_client, call, get_nexus_endpoint),
+        "ListClusters" => rpc_call!(retry_client, call, list_clusters),
+        "ListNexusEndpoints" => rpc_call!(retry_client, call, list_nexus_endpoints),
+        "ListSearchAttributes" => {
+            rpc_call!(retry_client, call, list_search_attributes)
+        }
+        "RemoveRemoteCluster" => {
+            rpc_call!(retry_client, call, remove_remote_cluster)
+        }
+        "RemoveSearchAttributes" => {
+            rpc_call!(retry_client, call, remove_search_attributes)
+        }
+        "UpdateNexusEndpoint" => rpc_call!(retry_client, call, update_nexus_endpoint),
+        _ => Err(BridgeError::TypeError {
+            field: None,
+            message: format!("Unknown RPC call {}", call.rpc),
+        }),
+    }
+}
+
+async fn client_invoke_test_service(
+    mut retry_client: CoreClient,
+    call: RpcCall,
+) -> BridgeResult<Vec<u8>> {
+    use temporal_client::TestService;
+
+    match call.rpc.as_str() {
+        "GetCurrentTime" => rpc_call!(retry_client, call, get_current_time),
+        "LockTimeSkipping" => rpc_call!(retry_client, call, lock_time_skipping),
+        "SleepUntil" => rpc_call!(retry_client, call, sleep_until),
+        "Sleep" => rpc_call!(retry_client, call, sleep),
+        "UnlockTimeSkippingWithSleep" => {
+            rpc_call!(retry_client, call, unlock_time_skipping_with_sleep)
+        }
+        "UnlockTimeSkipping" => rpc_call!(retry_client, call, unlock_time_skipping),
+        _ => Err(BridgeError::TypeError {
+            field: None,
+            message: format!("Unknown RPC call {}", call.rpc),
+        }),
+    }
+}
+
+async fn client_invoke_health_service(
+    mut retry_client: CoreClient,
+    call: RpcCall,
+) -> BridgeResult<Vec<u8>> {
+    use temporal_client::HealthService;
+
+    match call.rpc.as_str() {
+        "Check" => rpc_call!(retry_client, call, check),
+        // Intentionally ignore 'watch' because it's a streaming method, which is not currently
+        // supported by the macro and client-side code, and not needed anyway for any SDK use case.
         _ => Err(BridgeError::TypeError {
             field: None,
             message: format!("Unknown RPC call {}", call.rpc),

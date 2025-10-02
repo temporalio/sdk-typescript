@@ -69,12 +69,30 @@ export type WorkflowExecutionDescription = Replace<
   {
     raw: DescribeWorkflowExecutionResponse;
   }
->;
+> & {
+  /**
+   * General fixed details for this workflow execution that may appear in UI/CLI.
+   * This can be in Temporal markdown format and can span multiple lines.
+   *
+   * @experimental User metadata is a new API and susceptible to change.
+   */
+  staticDetails: () => Promise<string | undefined>;
+
+  /**
+   * A single-line fixed summary for this workflow execution that may appear in the UI/CLI.
+   * This can be in single-line Temporal markdown format.
+   *
+   * @experimental User metadata is a new API and susceptible to change.
+   */
+  staticSummary: () => Promise<string | undefined>;
+};
 
 export type WorkflowService = proto.temporal.api.workflowservice.v1.WorkflowService;
 export const { WorkflowService } = proto.temporal.api.workflowservice.v1;
 export type OperatorService = proto.temporal.api.operatorservice.v1.OperatorService;
 export const { OperatorService } = proto.temporal.api.operatorservice.v1;
+export type TestService = proto.temporal.api.testservice.v1.TestService;
+export const { TestService } = proto.temporal.api.testservice.v1;
 export type HealthService = proto.grpc.health.v1.Health;
 export const { Health: HealthService } = proto.grpc.health.v1;
 
@@ -101,9 +119,6 @@ export interface CallContext {
 
 /**
  * Connection interface used by high level SDK clients.
- *
- * NOTE: Currently the SDK only supports grpc-js based connection but in the future
- * we might support grpc-web and native Rust connections.
  */
 export interface ConnectionLike {
   workflowService: WorkflowService;
@@ -148,6 +163,17 @@ export interface ConnectionLike {
    */
   withAbortSignal<R>(abortSignal: AbortSignal, fn: () => Promise<R>): Promise<R>;
 }
+
+export const InternalConnectionLikeSymbol = Symbol('__temporal_internal_connection_like');
+export type InternalConnectionLike = ConnectionLike & {
+  [InternalConnectionLikeSymbol]?: {
+    /**
+     * Capability flag that determines whether the connection supports eager workflow start.
+     * This will only be true if the underlying connection is a {@link NativeConnection}.
+     */
+    readonly supportsEagerStart?: boolean;
+  };
+};
 
 export const QueryRejectCondition = {
   NONE: 'NONE',

@@ -2,14 +2,15 @@
  * Test the lifecycle of the Runtime singleton.
  * Tests run serially because Runtime is a singleton.
  */
-import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import asyncRetry from 'async-retry';
-import { Runtime, DefaultLogger, LogEntry, makeTelemetryFilterString } from '@temporalio/worker';
+import { Runtime, DefaultLogger, LogEntry, makeTelemetryFilterString, NativeConnection } from '@temporalio/worker';
 import { Client, WorkflowClient } from '@temporalio/client';
+import * as wf from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
-import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker, test } from './helpers';
+import { createTestWorkflowBundle } from './helpers-integration';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Runtime can be created and disposed', async (t) => {
@@ -113,4 +114,53 @@ if (RUN_INTEGRATION_TESTS) {
       await Runtime.instance().shutdown();
     }
   });
+
+  test.serial(`NativeLogCollector: Buffered logs are periodically flushed even if Core isn't flushing`, async (t) => {
+    const logEntries: LogEntry[] = [];
+
+    const runtime = Runtime.install({
+      logger: new DefaultLogger('DEBUG', (entry) => logEntries.push(entry)),
+      telemetryOptions: {
+        // Sets native logger to ERROR level, so that it never flushes
+        logging: { forward: {}, filter: { core: 'ERROR', other: 'ERROR' } },
+      },
+    });
+    const bufferedLogger = runtime.logger;
+
+    // Hold on to a connection to prevent implicit shutdown of the runtime before we print 'final log'
+    const connection = await NativeConnection.connect();
+
+    try {
+      const taskQueue = `runtime-native-log-collector-preriodically-flushed-${uuid4()}`;
+      const worker = await Worker.create({
+        ...defaultOptions,
+        connection,
+        taskQueue,
+        workflowBundle: await createTestWorkflowBundle({ workflowsPath: __filename }),
+      });
+
+      await worker.runUntil(async () => {
+        await new Client().workflow.execute(log5Times, { taskQueue, workflowId: uuid4() });
+      });
+      t.true(logEntries.some((x) => x.message.startsWith('workflow log ')));
+
+      // This one will get buffered
+      bufferedLogger.info('final log');
+      t.false(logEntries.some((x) => x.message.startsWith('final log')));
+    } finally {
+      await connection.close();
+      await runtime.shutdown();
+    }
+
+    // Assert all log messages have been flushed
+    t.is(logEntries.filter((x) => x.message.startsWith('workflow log ')).length, 5);
+    t.is(logEntries.filter((x) => x.message.startsWith('final log')).length, 1);
+  });
+}
+
+export async function log5Times(): Promise<void> {
+  for (let i = 0; i < 5; i++) {
+    wf.log.info(`workflow log ${i}`);
+    await wf.sleep(1);
+  }
 }

@@ -41,7 +41,14 @@ import { alea, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
-import { QueryInput, SignalInput, UpdateInput, WorkflowExecuteInput, WorkflowInterceptors } from './interceptors';
+import {
+  QueryInput,
+  SignalInput,
+  StartNexusOperationOutput,
+  UpdateInput,
+  WorkflowExecuteInput,
+  WorkflowInterceptors,
+} from './interceptors';
 import {
   ContinueAsNew,
   DefaultSignalHandler,
@@ -95,10 +102,9 @@ export interface PromiseStackStore {
   promiseToStack: Map<Promise<unknown>, Stack>;
 }
 
-export interface Completion {
-  resolve(val: unknown): unknown;
-
-  reject(reason: unknown): unknown;
+export interface Completion<Success> {
+  resolve(val: Success): void;
+  reject(reason: Error): void;
 }
 
 export interface Condition {
@@ -127,6 +133,8 @@ interface MessageHandlerExecution {
   id?: string;
 }
 
+type InferMapValue<T> = T extends Map<number, infer V> ? V : never;
+
 /**
  * Keeps all of the Workflow runtime state like pending completions for activities and timers.
  *
@@ -150,16 +158,19 @@ export class Activator implements ActivationHandler {
    * Cache for modules - referenced in reusable-vm.ts
    */
   readonly moduleCache = new Map<string, unknown>();
+
   /**
    * Map of task sequence to a Completion
    */
   readonly completions = {
-    timer: new Map<number, Completion>(),
-    activity: new Map<number, Completion>(),
-    childWorkflowStart: new Map<number, Completion>(),
-    childWorkflowComplete: new Map<number, Completion>(),
-    signalWorkflow: new Map<number, Completion>(),
-    cancelWorkflow: new Map<number, Completion>(),
+    timer: new Map<number, Completion<void>>(),
+    activity: new Map<number, Completion<unknown>>(),
+    nexusOperationStart: new Map<number, Completion<StartNexusOperationOutput>>(),
+    nexusOperationComplete: new Map<number, Completion<unknown>>(),
+    childWorkflowStart: new Map<number, Completion<string>>(),
+    childWorkflowComplete: new Map<number, Completion<unknown>>(),
+    signalWorkflow: new Map<number, Completion<void>>(),
+    cancelWorkflow: new Map<number, Completion<void>>(),
   };
 
   /**
@@ -330,6 +341,7 @@ export class Activator implements ActivationHandler {
               signalDefinitions,
               updateDefinitions,
             },
+            currentDetails: this.currentDetails,
           });
         },
         description: 'Returns metadata associated with this workflow.',
@@ -380,6 +392,7 @@ export class Activator implements ActivationHandler {
     signalWorkflow: 1,
     cancelWorkflow: 1,
     condition: 1,
+    nexusOperation: 1,
     // Used internally to keep track of active stack traces
     stack: 1,
   };
@@ -434,6 +447,8 @@ export class Activator implements ActivationHandler {
   public readonly getTimeOfDay: () => bigint;
 
   public readonly registeredActivityNames: Set<string>;
+
+  public currentDetails: string = '';
 
   public versioningBehavior?: VersioningBehavior;
   public workflowDefinitionOptionsGetter?: () => WorkflowDefinitionOptions;
@@ -516,7 +531,7 @@ export class Activator implements ActivationHandler {
 
   public async startWorkflowNextHandler({ args }: WorkflowExecuteInput): Promise<any> {
     const { workflow } = this;
-    if (workflow === undefined) {
+    if (workflow == null) {
       throw new IllegalStateError('Workflow uninitialized');
     }
     return await workflow(...args);
@@ -580,12 +595,16 @@ export class Activator implements ActivationHandler {
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
-      const err = failure ? this.failureToError(failure) : undefined;
-      reject(err);
+      if (failure == null) {
+        throw new TypeError('Got failed result with no failure attribute');
+      }
+      reject(this.failureToError(failure));
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
-      const err = failure ? this.failureToError(failure) : undefined;
-      reject(err);
+      if (failure == null) {
+        throw new TypeError('Got cancelled result with no failure attribute');
+      }
+      reject(this.failureToError(failure));
     } else if (activation.result.backoff) {
       reject(new LocalActivityDoBackoff(activation.result.backoff));
     }
@@ -596,6 +615,9 @@ export class Activator implements ActivationHandler {
   ): void {
     const { resolve, reject } = this.consumeCompletion('childWorkflowStart', getSeq(activation));
     if (activation.succeeded) {
+      if (!activation.succeeded.runId) {
+        throw new TypeError('Got ResolveChildWorkflowExecutionStart with no runId');
+      }
       resolve(activation.succeeded.runId);
     } else if (activation.failed) {
       if (decodeStartChildWorkflowExecutionFailedCause(activation.failed.cause) !== 'WORKFLOW_ALREADY_EXISTS') {
@@ -632,25 +654,68 @@ export class Activator implements ActivationHandler {
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
-      if (failure === undefined || failure === null) {
+      if (failure == null) {
         throw new TypeError('Got failed result with no failure attribute');
       }
       reject(this.failureToError(failure));
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
-      if (failure === undefined || failure === null) {
+      if (failure == null) {
         throw new TypeError('Got cancelled result with no failure attribute');
       }
       reject(this.failureToError(failure));
     }
   }
 
-  public resolveNexusOperationStart(_: coresdk.workflow_activation.IResolveNexusOperationStart): void {
-    throw new Error('TODO');
+  public resolveNexusOperationStart(activation: coresdk.workflow_activation.IResolveNexusOperationStart): void {
+    const seq = getSeq(activation);
+    const { resolve, reject } = this.consumeCompletion('nexusOperationStart', seq);
+
+    if (!activation.failed) {
+      const completePromise = new Promise((resolve, reject) => {
+        this.completions.nexusOperationComplete.set(seq, {
+          resolve,
+          reject,
+        });
+      });
+      untrackPromise(completePromise);
+      untrackPromise(completePromise.catch(() => undefined));
+
+      resolve({ token: activation.operationToken!, result: completePromise });
+    } else {
+      reject(this.failureToError(activation.failed));
+    }
   }
 
-  public resolveNexusOperation(_: coresdk.workflow_activation.IResolveNexusOperation): void {
-    throw new Error('TODO');
+  public resolveNexusOperation(activation: coresdk.workflow_activation.IResolveNexusOperation): void {
+    const seq = getSeq(activation);
+
+    if (activation.result?.completed) {
+      const result = this.payloadConverter.fromPayload(activation.result.completed);
+
+      // It is possible for ResolveNexusOperation to be received without a prior ResolveNexusOperationStart,
+      // e.g. because the handler completed the Operation synchronously.
+      const startCompletion = this.maybeConsumeCompletion('nexusOperationStart', seq);
+      if (startCompletion) {
+        startCompletion.resolve({ result: Promise.resolve(result) });
+      } else {
+        this.consumeCompletion('nexusOperationComplete', seq).resolve(result);
+      }
+    } else {
+      let err: Error;
+      if (activation.result?.failed) {
+        err = this.failureToError(activation.result.failed);
+      } else if (activation.result?.cancelled) {
+        err = this.failureToError(activation.result.cancelled);
+      } else if (activation.result?.timedOut) {
+        err = this.failureToError(activation.result.timedOut);
+      }
+
+      const completion =
+        this.maybeConsumeCompletion('nexusOperationStart', seq) ??
+        this.consumeCompletion('nexusOperationComplete', seq);
+      completion.reject(err!);
+    }
   }
 
   // Intentionally non-async function so this handler doesn't show up in the stack trace
@@ -746,7 +811,7 @@ export class Activator implements ActivationHandler {
         : null);
 
     // If we don't have an entry from either source, buffer and return
-    if (entry === null) {
+    if (entry == null) {
       this.bufferedUpdates.push(activation);
       return;
     }
@@ -1149,16 +1214,22 @@ export class Activator implements ActivationHandler {
   }
 
   /** Consume a completion if it exists in Workflow state */
-  private maybeConsumeCompletion(type: keyof Activator['completions'], taskSeq: number): Completion | undefined {
+  private maybeConsumeCompletion<K extends keyof Activator['completions']>(
+    type: K,
+    taskSeq: number
+  ): InferMapValue<Activator['completions'][K]> | undefined {
     const completion = this.completions[type].get(taskSeq);
     if (completion !== undefined) {
       this.completions[type].delete(taskSeq);
     }
-    return completion;
+    return completion as InferMapValue<Activator['completions'][K]> | undefined;
   }
 
   /** Consume a completion if it exists in Workflow state, throws if it doesn't */
-  private consumeCompletion(type: keyof Activator['completions'], taskSeq: number): Completion {
+  private consumeCompletion<K extends keyof Activator['completions']>(
+    type: K,
+    taskSeq: number
+  ): InferMapValue<Activator['completions'][K]> {
     const completion = this.maybeConsumeCompletion(type, taskSeq);
     if (completion === undefined) {
       throw new IllegalStateError(`No completion for taskSeq ${taskSeq}`);
@@ -1188,7 +1259,7 @@ export class Activator implements ActivationHandler {
 
 function getSeq<T extends { seq?: number | null }>(activation: T): number {
   const seq = activation.seq;
-  if (seq === undefined || seq === null) {
+  if (seq == null) {
     throw new TypeError(`Got activation with no seq attribute`);
   }
   return seq;

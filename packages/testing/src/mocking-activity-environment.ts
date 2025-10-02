@@ -9,15 +9,18 @@ import {
   defaultPayloadConverter,
   MetricMeter,
   noopMetricMeter,
+  ActivityCancellationDetails,
 } from '@temporalio/common';
 import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
+import { Client } from '@temporalio/client';
 import { ActivityInterceptorsFactory, DefaultLogger } from '@temporalio/worker';
-import { Activity } from '@temporalio/worker/lib/activity';
+import { Activity, CancelReason } from '@temporalio/worker/lib/activity';
 
 export interface MockActivityEnvironmentOptions {
   interceptors?: ActivityInterceptorsFactory[];
   logger?: Logger;
   metricMeter?: MetricMeter;
+  client?: Client;
 }
 
 /**
@@ -30,7 +33,7 @@ export interface MockActivityEnvironmentOptions {
  * will immediately be in a cancelled state.
  */
 export class MockActivityEnvironment extends events.EventEmitter {
-  public cancel: (reason?: any) => void = () => undefined;
+  public cancel: (reason?: CancelReason, details?: ActivityCancellationDetails) => void = () => undefined;
   public readonly context: activity.Context;
   private readonly activity: Activity;
 
@@ -47,12 +50,18 @@ export class MockActivityEnvironment extends events.EventEmitter {
       undefined,
       loadedDataConverter,
       heartbeatCallback,
+      opts?.client,
       LoggerWithComposedMetadata.compose(opts?.logger ?? new DefaultLogger(), { sdkComponent: SdkComponent.worker }),
       opts?.metricMeter ?? noopMetricMeter,
       opts?.interceptors ?? []
     );
     this.context = this.activity.context;
-    this.cancel = this.activity.cancel;
+    this.cancel = (reason?: CancelReason, details?: ActivityCancellationDetails) => {
+      // Default to CANCELLED if nothing provided.
+      const r = reason ?? 'CANCELLED';
+      const d = details ?? new ActivityCancellationDetails({ cancelRequested: true });
+      this.activity.cancel(r, d);
+    };
   }
 
   /**
@@ -81,10 +90,11 @@ export const defaultActivityInfo: activity.Info = {
   heartbeatDetails: undefined,
   activityNamespace: 'default',
   workflowNamespace: 'default',
-  workflowExecution: { workflowId: 'test', runId: 'dead-beef' },
+  workflowExecution: { workflowId: 'test', runId: '00000000-0000-0000-0000-000000000000' },
   scheduledTimestampMs: 1,
   startToCloseTimeoutMs: 1000,
   scheduleToCloseTimeoutMs: 1000,
   currentAttemptScheduledTimestampMs: 1,
   priority: undefined,
+  retryPolicy: undefined,
 };

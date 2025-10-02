@@ -176,6 +176,8 @@ export class WorkflowCoverage {
         path.dirname(require.resolve('@temporalio/common')),
         path.dirname(require.resolve('@temporalio/workflow')),
         path.dirname(require.resolve('@temporalio/nyc-test-coverage')),
+        path.dirname(require.resolve('@temporalio/nexus')),
+        path.dirname(require.resolve('nexus-rpc')),
       ],
     });
 

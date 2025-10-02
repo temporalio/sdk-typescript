@@ -783,6 +783,8 @@ export type ScheduleOptionsStartWorkflowAction<W extends Workflow> = {
   | 'workflowExecutionTimeout'
   | 'workflowRunTimeout'
   | 'workflowTaskTimeout'
+  | 'staticDetails'
+  | 'staticSummary'
 > & {
     /**
      * Workflow id to use when starting. Assign a meaningful business id.
@@ -815,6 +817,8 @@ export type ScheduleDescriptionStartWorkflowAction = ScheduleSummaryStartWorkflo
     | 'workflowExecutionTimeout'
     | 'workflowRunTimeout'
     | 'workflowTaskTimeout'
+    | 'staticSummary'
+    | 'staticDetails'
     | 'priority'
   >;
 

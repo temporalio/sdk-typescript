@@ -10,12 +10,12 @@ use temporal_sdk_core::{
     CoreRuntime,
     api::{
         Worker as CoreWorkerTrait,
-        errors::{CompleteActivityError, CompleteWfError, PollError},
+        errors::{CompleteActivityError, CompleteNexusError, CompleteWfError, PollError},
     },
     init_replay_worker, init_worker,
     protos::{
         coresdk::{
-            ActivityHeartbeat, ActivityTaskCompletion,
+            ActivityHeartbeat, ActivityTaskCompletion, nexus::NexusTaskCompletion,
             workflow_completion::WorkflowActivationCompletion,
         },
         temporal::api::history::v1::History,
@@ -51,6 +51,9 @@ pub fn init(cx: &mut ModuleContext) -> NeonResult<()> {
         "workerRecordActivityHeartbeat",
         worker_record_activity_heartbeat,
     )?;
+
+    cx.export_function("workerPollNexusTask", worker_poll_nexus_task)?;
+    cx.export_function("workerCompleteNexusTask", worker_complete_nexus_task)?;
 
     cx.export_function("workerInitiateShutdown", worker_initiate_shutdown)?;
     cx.export_function("workerFinalizeShutdown", worker_finalize_shutdown)?;
@@ -247,6 +250,63 @@ pub fn worker_record_activity_heartbeat(
     Ok(())
 }
 
+/// Initiate a single nexus task poll request.
+/// There should be only one concurrent poll request for this type.
+#[js_function]
+pub fn worker_poll_nexus_task(
+    worker: OpaqueInboundHandle<Worker>,
+) -> BridgeResult<BridgeFuture<Vec<u8>>> {
+    let worker_ref = worker.borrow()?;
+    let worker = worker_ref.core_worker.clone();
+    let runtime = worker_ref.core_runtime.clone();
+
+    runtime.future_to_promise(async move {
+        let result = worker.poll_nexus_task().await;
+
+        match result {
+            Ok(task) => Ok(task.encode_to_vec()),
+            Err(err) => match err {
+                PollError::ShutDown => Err(BridgeError::WorkerShutdown)?,
+                PollError::TonicError(status) => {
+                    Err(BridgeError::TransportError(status.message().to_string()))?
+                }
+            },
+        }
+    })
+}
+
+/// Submit an nexus task completion to core.
+#[js_function]
+pub fn worker_complete_nexus_task(
+    worker: OpaqueInboundHandle<Worker>,
+    completion: Vec<u8>,
+) -> BridgeResult<BridgeFuture<()>> {
+    let nexus_completion = NexusTaskCompletion::decode_length_delimited(completion.as_slice())
+        .map_err(|err| BridgeError::TypeError {
+            field: None,
+            message: format!("Cannot decode Completion from buffer: {err:?}"),
+        })?;
+
+    let worker_ref = worker.borrow()?;
+    let worker = worker_ref.core_worker.clone();
+    let runtime = worker_ref.core_runtime.clone();
+
+    runtime.future_to_promise(async move {
+        worker
+            .complete_nexus_task(nexus_completion)
+            .await
+            .map_err(|err| match err {
+                CompleteNexusError::NexusNotEnabled {} => {
+                    BridgeError::UnexpectedError(format!("{err}"))
+                }
+                CompleteNexusError::MalformedNexusCompletion { reason } => BridgeError::TypeError {
+                    field: None,
+                    message: format!("Malformed nexus Completion: {reason:?}"),
+                },
+            })
+    })
+}
+
 /// Request shutdown of the worker.
 /// Once complete Core will stop polling on new tasks and activations on worker's task queue.
 /// Caller should drain any pending tasks and activations and call worker_finalize_shutdown before breaking from
@@ -410,9 +470,9 @@ mod config {
         ResourceBasedSlotsOptions, ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions,
         SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptionsBuilder,
         api::worker::{
-            ActivitySlotKind, LocalActivitySlotKind, PollerBehavior as CorePollerBehavior,
-            SlotKind, WorkerConfig, WorkerConfigBuilder, WorkerConfigBuilderError,
-            WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
+            ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
+            PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder,
+            WorkerConfigBuilderError, WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
             WorkerDeploymentVersion as CoreWorkerDeploymentVersion, WorkflowSlotKind,
         },
         protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior,
@@ -439,6 +499,7 @@ mod config {
         non_sticky_to_sticky_poll_ratio: f32,
         workflow_task_poller_behavior: PollerBehavior,
         activity_task_poller_behavior: PollerBehavior,
+        nexus_task_poller_behavior: PollerBehavior,
         enable_non_local_activities: bool,
         sticky_queue_schedule_to_start_timeout: Duration,
         max_cached_workflows: usize,
@@ -505,6 +566,7 @@ mod config {
                 .nonsticky_to_sticky_poll_ratio(self.non_sticky_to_sticky_poll_ratio)
                 .workflow_task_poller_behavior(self.workflow_task_poller_behavior)
                 .activity_task_poller_behavior(self.activity_task_poller_behavior)
+                .nexus_task_poller_behavior(self.nexus_task_poller_behavior)
                 .no_remote_activities(!self.enable_non_local_activities)
                 .sticky_queue_schedule_to_start_timeout(self.sticky_queue_schedule_to_start_timeout)
                 .max_cached_workflows(self.max_cached_workflows)
@@ -590,6 +652,7 @@ mod config {
         workflow_task_slot_supplier: SlotSupplier<WorkflowSlotKind>,
         activity_task_slot_supplier: SlotSupplier<ActivitySlotKind>,
         local_activity_task_slot_supplier: SlotSupplier<LocalActivitySlotKind>,
+        nexus_task_slot_supplier: SlotSupplier<NexusSlotKind>,
     }
 
     impl WorkerTuner {
@@ -609,6 +672,8 @@ mod config {
                 self.local_activity_task_slot_supplier
                     .into_slot_supplier(&mut rbo),
             );
+            tuner_holder
+                .nexus_slot_options(self.nexus_task_slot_supplier.into_slot_supplier(&mut rbo));
             if let Some(rbo) = rbo {
                 tuner_holder.resource_based_options(rbo);
             }

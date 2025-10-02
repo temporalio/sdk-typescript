@@ -2,6 +2,7 @@ import {
   ActivityFunction,
   ActivityOptions,
   compileRetryPolicy,
+  compilePriority,
   encodeActivityCancellationType,
   encodeWorkflowIdReusePolicy,
   extractWorkflowType,
@@ -22,9 +23,9 @@ import {
   WorkflowReturnType,
   WorkflowUpdateValidatorType,
   SearchAttributeUpdatePair,
-  compilePriority,
   WorkflowDefinitionOptionsOrGetter,
 } from '@temporalio/common';
+import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import {
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
@@ -33,6 +34,7 @@ import { versioningIntentToProto } from '@temporalio/common/lib/versioning-inten
 import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
+import { deepMerge } from '@temporalio/common/lib/internal-workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
@@ -42,6 +44,7 @@ import {
   SignalWorkflowInput,
   StartChildWorkflowExecutionInput,
   TimerInput,
+  TimerOptions,
 } from './interceptors';
 import {
   ChildWorkflowCancellationType,
@@ -88,7 +91,7 @@ export function addDefaultWorkflowOptions<T extends Workflow>(
 /**
  * Push a startTimer command into state accumulator and register completion
  */
-function timerNextHandler(input: TimerInput) {
+function timerNextHandler({ seq, durationMs, options }: TimerInput) {
   const activator = getActivator();
   return new Promise<void>((resolve, reject) => {
     const scope = CancellationScope.current();
@@ -99,12 +102,12 @@ function timerNextHandler(input: TimerInput) {
     if (scope.cancellable) {
       untrackPromise(
         scope.cancelRequested.catch((err) => {
-          if (!activator.completions.timer.delete(input.seq)) {
+          if (!activator.completions.timer.delete(seq)) {
             return; // Already resolved or never scheduled
           }
           activator.pushCommand({
             cancelTimer: {
-              seq: input.seq,
+              seq,
             },
           });
           reject(err);
@@ -113,11 +116,12 @@ function timerNextHandler(input: TimerInput) {
     }
     activator.pushCommand({
       startTimer: {
-        seq: input.seq,
-        startToFireTimeout: msToTs(input.durationMs),
+        seq,
+        startToFireTimeout: msToTs(durationMs),
       },
+      userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined),
     });
-    activator.completions.timer.set(input.seq, {
+    activator.completions.timer.set(seq, {
       resolve,
       reject,
     });
@@ -131,8 +135,9 @@ function timerNextHandler(input: TimerInput) {
  *
  * @param ms sleep duration - number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}.
  * If given a negative number or 0, value will be set to 1.
+ * @param options optional timer options for additional configuration
  */
-export function sleep(ms: Duration): Promise<void> {
+export function sleep(ms: Duration, options?: TimerOptions): Promise<void> {
   const activator = assertInWorkflowContext('Workflow.sleep(...) may only be used from a Workflow Execution');
   const seq = activator.nextSeqs.timer++;
 
@@ -143,6 +148,7 @@ export function sleep(ms: Duration): Promise<void> {
   return execute({
     durationMs,
     seq,
+    options,
   });
 }
 
@@ -199,6 +205,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line deprecation/deprecation
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
+      userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined),
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -264,6 +271,7 @@ async function scheduleLocalActivityNextHandler({
         headers,
         cancellationType: encodeActivityCancellationType(options.cancellationType),
       },
+      userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined),
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -400,6 +408,7 @@ function startChildWorkflowExecutionNextHandler({
         versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line deprecation/deprecation
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
+      userMetadata: userMetadataToPayload(activator.payloadConverter, options?.staticSummary, options?.staticDetails),
     });
     activator.completions.childWorkflowStart.set(seq, {
       resolve,
@@ -502,7 +511,42 @@ export const NotAnActivityMethod = Symbol.for('__TEMPORAL_NOT_AN_ACTIVITY_METHOD
  * ```
  */
 export type ActivityInterfaceFor<T> = {
-  [K in keyof T]: T[K] extends ActivityFunction ? T[K] : typeof NotAnActivityMethod;
+  [K in keyof T]: T[K] extends ActivityFunction ? ActivityFunctionWithOptions<T[K]> : typeof NotAnActivityMethod;
+};
+
+export type ActivityFunctionWithOptions<T extends ActivityFunction> = T & {
+  /**
+   * Execute the activity, overriding its existing options with the
+   * provided options.
+   *
+   * @param options ActivityOptions
+   * @param args: list of arguments
+   * @returns return value of the activity
+   *
+   * @experimental executeWithOptions is a new method to provide call-site options and is subject to change
+   */
+  executeWithOptions(options: ActivityOptions, args: Parameters<T>): Promise<Awaited<ReturnType<T>>>;
+};
+
+/**
+ * The local activity counterpart to {@link ActivityInterfaceFor}
+ */
+export type LocalActivityInterfaceFor<T> = {
+  [K in keyof T]: T[K] extends ActivityFunction ? LocalActivityFunctionWithOptions<T[K]> : typeof NotAnActivityMethod;
+};
+
+export type LocalActivityFunctionWithOptions<T extends ActivityFunction> = T & {
+  /**
+   * Run the local activity, overriding its existing options with the
+   * provided options.
+   *
+   * @param options LocalActivityOptions
+   * @param args: list of arguments
+   * @returns return value of the activity
+   *
+   * @experimental executeWithOptions is a new method to provide call-site options and is subject to change
+   */
+  executeWithOptions(options: LocalActivityOptions, args: Parameters<T>): Promise<Awaited<ReturnType<T>>>;
 };
 
 /**
@@ -523,6 +567,20 @@ export type ActivityInterfaceFor<T> = {
  *   startToCloseTimeout: '30 minutes',
  * });
  *
+ * // Use activities with default options
+ * const result1 = await httpGet('http://example.com');
+ *
+ * // Override options for specific activity calls
+ * const result2 = await httpGet.executeWithOptions({
+ *   staticSummary: 'Fetches data from external API',
+ *   scheduleToCloseTimeout: '5m'
+ * }, ['http://api.example.com']);
+ *
+ * const result3 = await otherActivity.executeWithOptions({
+ *   staticSummary: 'Processes the fetched data',
+ *   taskQueue: 'special-task-queue'
+ * }, [data]);
+ *
  * // Setup Activities from an explicit interface (e.g. when defined by another SDK)
  * interface JavaActivities {
  *   httpGetFromJava(url: string): Promise<string>
@@ -539,6 +597,11 @@ export type ActivityInterfaceFor<T> = {
  *
  * export function execute(): Promise<void> {
  *   const response = await httpGet("http://example.com");
+ *   // Or with custom options:
+ *   const response2 = await httpGetFromJava.executeWithOptions({
+ *     staticSummary: 'Java HTTP call with timeout override',
+ *     startToCloseTimeout: '2m'
+ *   }, ["http://fast-api.example.com"]);
  *   // ...
  * }
  * ```
@@ -549,19 +612,27 @@ export function proxyActivities<A = UntypedActivities>(options: ActivityOptions)
   }
   // Validate as early as possible for immediate user feedback
   validateActivityOptions(options);
-  return new Proxy(
-    {},
-    {
-      get(_, activityType) {
-        if (typeof activityType !== 'string') {
-          throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
-        }
-        return function activityProxyFunction(...args: unknown[]): Promise<unknown> {
-          return scheduleActivity(activityType, args, options);
-        };
-      },
-    }
-  ) as any;
+
+  return new Proxy({} as ActivityInterfaceFor<A>, {
+    get(_, activityType) {
+      if (typeof activityType !== 'string') {
+        throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
+      }
+
+      function activityProxyFunction(...args: unknown[]): Promise<unknown> {
+        return scheduleActivity(activityType as string, args, options);
+      }
+
+      activityProxyFunction.executeWithOptions = function (
+        overrideOptions: ActivityOptions,
+        args: any[]
+      ): Promise<unknown> {
+        return scheduleActivity(activityType, args, deepMerge(options, overrideOptions));
+      };
+
+      return activityProxyFunction;
+    },
+  });
 }
 
 /**
@@ -574,25 +645,35 @@ export function proxyActivities<A = UntypedActivities>(options: ActivityOptions)
  *
  * @see {@link proxyActivities} for examples
  */
-export function proxyLocalActivities<A = UntypedActivities>(options: LocalActivityOptions): ActivityInterfaceFor<A> {
+export function proxyLocalActivities<A = UntypedActivities>(
+  options: LocalActivityOptions
+): LocalActivityInterfaceFor<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
   // Validate as early as possible for immediate user feedback
   validateLocalActivityOptions(options);
-  return new Proxy(
-    {},
-    {
-      get(_, activityType) {
-        if (typeof activityType !== 'string') {
-          throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
-        }
-        return function localActivityProxyFunction(...args: unknown[]) {
-          return scheduleLocalActivity(activityType, args, options);
-        };
-      },
-    }
-  ) as any;
+
+  return new Proxy({} as LocalActivityInterfaceFor<A>, {
+    get(_, activityType) {
+      if (typeof activityType !== 'string') {
+        throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
+      }
+
+      function localActivityProxyFunction(...args: unknown[]): Promise<unknown> {
+        return scheduleLocalActivity(activityType as string, args, options);
+      }
+
+      localActivityProxyFunction.executeWithOptions = function (
+        overrideOptions: LocalActivityOptions,
+        args: any[]
+      ): Promise<unknown> {
+        return scheduleLocalActivity(activityType, args, deepMerge(options, overrideOptions));
+      };
+
+      return localActivityProxyFunction;
+    },
+  });
 }
 
 // TODO: deprecate this patch after "enough" time has passed
@@ -962,13 +1043,13 @@ export function makeContinueAsNewFunc<F extends Workflow>(
  * @example
  *
  * ```ts
- *import { continueAsNew } from '@temporalio/workflow';
-import { SearchAttributeType } from '@temporalio/common';
+ * import { continueAsNew } from '@temporalio/workflow';
+ * import { SearchAttributeType } from '@temporalio/common';
  *
- *export async function myWorkflow(n: number): Promise<void> {
- *  // ... Workflow logic
- *  await continueAsNew<typeof myWorkflow>(n + 1);
- *}
+ * export async function myWorkflow(n: number): Promise<void> {
+ *   // ... Workflow logic
+ *   await continueAsNew<typeof myWorkflow>(n + 1);
+ * }
  * ```
  */
 export function continueAsNew<F extends Workflow>(...args: Parameters<F>): Promise<never> {
@@ -1051,6 +1132,18 @@ export function deprecatePatch(patchId: string): void {
 }
 
 /**
+ * Returns a Promise that resolves when `fn` evaluates to `true` or `timeout` expires, providing
+ * options to configure the timer (i.e. provide metadata)
+ *
+ * @param timeout number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
+ *
+ * @returns a boolean indicating whether the condition was true before the timeout expires
+ *
+ * @experimental TimerOptions is a new addition and subject to change
+ */
+export function condition(fn: () => boolean, timeout: Duration, options: TimerOptions): Promise<boolean>;
+
+/**
  * Returns a Promise that resolves when `fn` evaluates to `true` or `timeout` expires.
  *
  * @param timeout number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
@@ -1064,7 +1157,7 @@ export function condition(fn: () => boolean, timeout: Duration): Promise<boolean
  */
 export function condition(fn: () => boolean): Promise<void>;
 
-export async function condition(fn: () => boolean, timeout?: Duration): Promise<void | boolean> {
+export async function condition(fn: () => boolean, timeout?: Duration, opts?: TimerOptions): Promise<void | boolean> {
   assertInWorkflowContext('Workflow.condition(...) may only be used from a Workflow Execution.');
   // Prior to 1.5.0, `condition(fn, 0)` was treated as equivalent to `condition(fn, undefined)`
   if (timeout === 0 && !patched(CONDITION_0_PATCH)) {
@@ -1073,7 +1166,7 @@ export async function condition(fn: () => boolean, timeout?: Duration): Promise<
   if (typeof timeout === 'number' || typeof timeout === 'string') {
     return CancellationScope.cancellable(async () => {
       try {
-        return await Promise.race([sleep(timeout).then(() => false), conditionInner(fn).then(() => true)]);
+        return await Promise.race([sleep(timeout, opts).then(() => false), conditionInner(fn).then(() => true)]);
       } finally {
         CancellationScope.current().cancel();
       }
@@ -1658,3 +1751,13 @@ export function setWorkflowOptions<A extends any[], RT>(
 export const stackTraceQuery = defineQuery<string>('__stack_trace');
 export const enhancedStackTraceQuery = defineQuery<EnhancedStackTrace>('__enhanced_stack_trace');
 export const workflowMetadataQuery = defineQuery<temporal.api.sdk.v1.IWorkflowMetadata>('__temporal_workflow_metadata');
+
+export function getCurrentDetails(): string {
+  const activator = assertInWorkflowContext('getCurrentDetails() may only be used from a Workflow Execution.');
+  return activator.currentDetails;
+}
+
+export function setCurrentDetails(details: string): void {
+  const activator = assertInWorkflowContext('getCurrentDetails() may only be used from a Workflow Execution.');
+  activator.currentDetails = details;
+}

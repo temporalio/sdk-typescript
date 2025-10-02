@@ -36,6 +36,20 @@ export class ActivityCompletionError extends Error {}
 export class ActivityCancelledError extends Error {}
 
 /**
+ * Thrown by {@link AsyncCompletionClient.heartbeat} when the reporting Activity
+ * has been paused.
+ */
+@SymbolBasedInstanceOfError('ActivityPausedError')
+export class ActivityPausedError extends Error {}
+
+/**
+ * Thrown by {@link AsyncCompletionClient.heartbeat} when the reporting Activity
+ * has been reset.
+ */
+@SymbolBasedInstanceOfError('ActivityResetError')
+export class ActivityResetError extends Error {}
+
+/**
  * Options used to configure {@link AsyncCompletionClient}
  */
 export type AsyncCompletionClientOptions = BaseClientOptions;
@@ -211,6 +225,8 @@ export class AsyncCompletionClient extends BaseClient {
   async heartbeat(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
     const payloads = await encodeToPayloads(this.dataConverter, details);
     let cancelRequested = false;
+    let paused = false;
+    let reset = false;
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
         const response = await this.workflowService.recordActivityTaskHeartbeat({
@@ -220,6 +236,8 @@ export class AsyncCompletionClient extends BaseClient {
           details: { payloads },
         });
         cancelRequested = !!response.cancelRequested;
+        paused = !!response.activityPaused;
+        reset = !!response.activityReset;
       } else {
         const response = await this.workflowService.recordActivityTaskHeartbeatById({
           identity: this.options.identity,
@@ -228,12 +246,20 @@ export class AsyncCompletionClient extends BaseClient {
           details: { payloads },
         });
         cancelRequested = !!response.cancelRequested;
+        paused = !!response.activityPaused;
+        reset = !!response.activityReset;
       }
     } catch (err) {
       this.handleError(err);
     }
+    // Note that it is possible for a heartbeat response to have multiple fields
+    // set as true (i.e. cancelled and pause).
     if (cancelRequested) {
       throw new ActivityCancelledError('cancelled');
+    } else if (reset) {
+      throw new ActivityResetError('reset');
+    } else if (paused) {
+      throw new ActivityPausedError('paused');
     }
   }
 }

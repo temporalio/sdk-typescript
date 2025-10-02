@@ -9,7 +9,7 @@ import {
   WorkflowHandle,
   WorkflowStartOptions,
 } from '@temporalio/client';
-import { LocalActivityOptions } from '@temporalio/common';
+import { LocalActivityOptions, RetryPolicy } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
 import { workflowInterceptorModules } from '@temporalio/testing';
@@ -23,7 +23,6 @@ import {
 } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
 import { test as anyTest, bundlerOptions, Worker, TestWorkflowEnvironment } from './helpers';
-import { ConnectionInjectorInterceptor } from './activities/interceptors';
 
 // FIXME MOVE THIS SECTION SOMEWHERE IT CAN BE SHARED //
 
@@ -61,9 +60,7 @@ function helpers(t: ExecutionContext<Context>): Helpers {
         workflowBundle: t.context.workflowBundle,
         taskQueue,
         interceptors: {
-          activity: interceptors?.activity ?? [
-            () => ({ inbound: new ConnectionInjectorInterceptor(t.context.env.connection) }),
-          ],
+          activity: interceptors?.activity ?? [],
         },
         showStackTraceSources: true,
         ...rest,
@@ -627,3 +624,36 @@ export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
     ],
   };
 };
+
+export async function getRetryPolicyFromActivityInfo(
+  retryPolicy: RetryPolicy,
+  fromInsideLocal: boolean
+): Promise<object | undefined> {
+  return await (fromInsideLocal
+    ? workflow.proxyLocalActivities({ startToCloseTimeout: '1m', retry: retryPolicy }).retryPolicy()
+    : workflow.proxyActivities({ startToCloseTimeout: '1m', retry: retryPolicy }).retryPolicy());
+}
+
+test.serial('retryPolicy is set correctly', async (t) => {
+  const { executeWorkflow, createWorker } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      async retryPolicy(): Promise<object | undefined> {
+        return ActivityContext.current().info.retryPolicy;
+      },
+    },
+  });
+
+  const retryPolicy: RetryPolicy = {
+    backoffCoefficient: 1.5,
+    initialInterval: 2.0,
+    maximumAttempts: 3,
+    maximumInterval: 10.0,
+    nonRetryableErrorTypes: ['nonRetryableError'],
+  };
+
+  await worker.runUntil(async () => {
+    t.deepEqual(await executeWorkflow(getRetryPolicyFromActivityInfo, { args: [retryPolicy, true] }), retryPolicy);
+    t.deepEqual(await executeWorkflow(getRetryPolicyFromActivityInfo, { args: [retryPolicy, false] }), retryPolicy);
+  });
+});

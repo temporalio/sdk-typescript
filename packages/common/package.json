@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/common",
-  "version": "1.12.1",
+  "version": "1.13.0",
   "description": "Common library for code that's used across the Client, Worker, and/or Workflow",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -14,7 +14,8 @@
   "dependencies": {
     "@temporalio/proto": "file:../proto",
     "long": "^5.2.3",
-    "ms": "^3.0.0-canary.1",
+    "ms": "3.0.0-canary.1",
+    "nexus-rpc": "^0.0.1",
     "proto3-json-serializer": "^2.0.0"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/workflow",
-  "version": "1.12.1",
+  "version": "1.13.0",
   "description": "Temporal.io SDK Workflow sub-package",
   "keywords": [
     "temporal",
@@ -23,7 +23,8 @@
   "scripts": {},
   "dependencies": {
     "@temporalio/common": "file:../common",
-    "@temporalio/proto": "file:../proto"
+    "@temporalio/proto": "file:../proto",
+    "nexus-rpc": "^0.0.1"
   },
   "devDependencies": {
     "source-map": "^0.7.4"

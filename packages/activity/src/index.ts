@@ -48,7 +48,7 @@
  *
  * 1. `await` on {@link Context.cancelled | `Context.current().cancelled`} or
  *    {@link Context.sleep | `Context.current().sleep()`}, which each throw a {@link CancelledFailure}.
- * 1. Pass the context's {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} at
+ * 2. Pass the context's {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} at
  *    {@link Context.cancellationSignal | `Context.current().cancellationSignal`} to a library that supports it.
  *
  * ### Examples
@@ -70,9 +70,21 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Logger, Duration, LogLevel, LogMetadata, MetricMeter, Priority } from '@temporalio/common';
+import {
+  Logger,
+  Duration,
+  LogLevel,
+  LogMetadata,
+  MetricMeter,
+  Priority,
+  ActivityCancellationDetails,
+  IllegalStateError,
+  RetryPolicy,
+} from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
+import { Client } from '@temporalio/client';
 
 export {
   ActivityFunction,
@@ -202,6 +214,14 @@ export interface Info {
    * Priority of this activity
    */
   readonly priority?: Priority;
+  /**
+   * The retry policy of this activity.
+   *
+   * Note that the server may have set a different policy than the one provided when scheduling the activity.
+   * If the value is undefined, it means the server didn't send information about retry policy (e.g. due to old server
+   * version), but it may still be defined server-side.
+   */
+  readonly retryPolicy?: RetryPolicy;
 }
 
 /**
@@ -229,86 +249,82 @@ export class Context {
   }
 
   /**
-   * Holds information about the current executing Activity.
-   */
-  public readonly info: Info;
-
-  /**
-   * A Promise that fails with a {@link CancelledFailure} when cancellation of this activity is requested. The promise
-   * is guaranteed to never successfully resolve. Await this promise in an Activity to get notified of cancellation.
-   *
-   * Note that to get notified of cancellation, an activity must _also_ {@link Context.heartbeat}.
-   *
-   * @see [Cancellation](/api/namespaces/activity#cancellation)
-   */
-  public readonly cancelled: Promise<never>;
-
-  /**
-   * An {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that can be used to react to
-   * Activity cancellation.
-   *
-   * This can be passed in to libraries such as
-   * {@link https://www.npmjs.com/package/node-fetch#request-cancellation-with-abortsignal | fetch} to abort an
-   * in-progress request and
-   * {@link https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options child_process}
-   * to abort a child process, as well as other built-in node modules and modules found on npm.
-   *
-   * Note that to get notified of cancellation, an activity must _also_ {@link Context.heartbeat}.
-   *
-   * @see [Cancellation](/api/namespaces/activity#cancellation)
-   */
-  public readonly cancellationSignal: AbortSignal;
-
-  /**
-   * The heartbeat implementation, injected via the constructor.
-   */
-  protected readonly heartbeatFn: (details?: any) => void;
-
-  /**
-   * The logger for this Activity.
-   *
-   * This defaults to the `Runtime`'s Logger (see {@link Runtime.logger}). Attributes from the current Activity context
-   * are automatically included as metadata on every log entries. An extra `sdkComponent` metadata attribute is also
-   * added, with value `activity`; this can be used for fine-grained filtering of log entries further downstream.
-   *
-   * To customize log attributes, register a {@link ActivityOutboundCallsInterceptor} that intercepts the
-   * `getLogAttributes()` method.
-   *
-   * Modifying the context logger (eg. `context.log = myCustomLogger` or by an {@link ActivityInboundLogInterceptor}
-   * with a custom logger as argument) is deprecated. Doing so will prevent automatic inclusion of custom log attributes
-   * through the `getLogAttributes()` interceptor. To customize _where_ log messages are sent, set the
-   * {@link Runtime.logger} property instead.
-   */
-  public log: Logger;
-
-  /**
-   * Get the metric meter for this activity with activity-specific tags.
-   *
-   * To add custom tags, register a {@link ActivityOutboundCallsInterceptor} that
-   * intercepts the `getMetricTags()` method.
-   */
-  public readonly metricMeter: MetricMeter;
-
-  /**
    * **Not** meant to instantiated by Activity code, used by the worker.
    *
    * @ignore
    */
   constructor(
-    info: Info,
-    cancelled: Promise<never>,
-    cancellationSignal: AbortSignal,
-    heartbeat: (details?: any) => void,
-    log: Logger,
-    metricMeter: MetricMeter
-  ) {
-    this.info = info;
-    this.cancelled = cancelled;
-    this.cancellationSignal = cancellationSignal;
-    this.heartbeatFn = heartbeat;
-    this.log = log;
-    this.metricMeter = metricMeter;
-  }
+    /**
+     * Holds information about the current executing Activity.
+     */
+    public readonly info: Info,
+
+    /**
+     * A Promise that fails with a {@link CancelledFailure} when cancellation of this activity is requested. The promise
+     * is guaranteed to never successfully resolve. Await this promise in an Activity to get notified of cancellation.
+     *
+     * Note that to get notified of cancellation, an activity must _also_ {@link Context.heartbeat}.
+     *
+     * @see [Cancellation](/api/namespaces/activity#cancellation)
+     */
+    public readonly cancelled: Promise<never>,
+
+    /**
+     * An {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that can be used to react to
+     * Activity cancellation.
+     *
+     * This can be passed in to libraries such as
+     * {@link https://www.npmjs.com/package/node-fetch#request-cancellation-with-abortsignal | fetch} to abort an
+     * in-progress request and
+     * {@link https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options child_process}
+     * to abort a child process, as well as other built-in node modules and modules found on npm.
+     *
+     * Note that to get notified of cancellation, an activity must _also_ {@link Context.heartbeat}.
+     *
+     * @see [Cancellation](/api/namespaces/activity#cancellation)
+     */
+    public readonly cancellationSignal: AbortSignal,
+
+    /**
+     * The heartbeat implementation, injected via the constructor.
+     */
+    protected readonly heartbeatFn: (details?: any) => void,
+
+    /**
+     * The Worker's client, passed down through Activity context.
+     */
+    protected readonly _client: Client | undefined,
+
+    /**
+     * The logger for this Activity.
+     *
+     * This defaults to the `Runtime`'s Logger (see {@link Runtime.logger}). Attributes from the current Activity context
+     * are automatically included as metadata on every log entries. An extra `sdkComponent` metadata attribute is also
+     * added, with value `activity`; this can be used for fine-grained filtering of log entries further downstream.
+     *
+     * To customize log attributes, register a {@link ActivityOutboundCallsInterceptor} that intercepts the
+     * `getLogAttributes()` method.
+     *
+     * Modifying the context logger (eg. `context.log = myCustomLogger` or by an {@link ActivityInboundLogInterceptor}
+     * with a custom logger as argument) is deprecated. Doing so will prevent automatic inclusion of custom log attributes
+     * through the `getLogAttributes()` interceptor. To customize _where_ log messages are sent, set the
+     * {@link Runtime.logger} property instead.
+     */
+    public log: Logger,
+
+    /**
+     * Get the metric meter for this activity with activity-specific tags.
+     *
+     * To add custom tags, register a {@link ActivityOutboundCallsInterceptor} that
+     * intercepts the `getMetricTags()` method.
+     */
+    public readonly metricMeter: MetricMeter,
+
+    /**
+     * Holder object for activity cancellation details
+     */
+    protected readonly _cancellationDetails: ActivityCancellationDetailsHolder
+  ) {}
 
   /**
    * Send a {@link https://docs.temporal.io/concepts/what-is-an-activity-heartbeat | heartbeat} from an Activity.
@@ -336,6 +352,25 @@ export class Context {
   };
 
   /**
+   * A Temporal Client, bound to the same Temporal Namespace as the Worker executing this Activity.
+   *
+   * May throw an {@link IllegalStateError} if the Activity is running inside a `MockActivityEnvironment`
+   * that was created without a Client.
+   *
+   * @experimental Client support over `NativeConnection` is experimental. Error handling may be
+   *               incomplete or different from what would be observed using a {@link Connection}
+   *               instead. Client doesn't support cancellation through a Signal.
+   */
+  public get client(): Client {
+    if (this._client === undefined) {
+      throw new IllegalStateError(
+        'No Client available. This may be a MockActivityEnvironment that was created without a Client.'
+      );
+    }
+    return this._client;
+  }
+
+  /**
    * Helper function for sleeping in an Activity.
    * @param ms Sleep duration: number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @returns A Promise that either resolves when `ms` is reached or rejects when the Activity is cancelled
@@ -347,6 +382,16 @@ export class Context {
     });
     return Promise.race([this.cancelled.finally(() => clearTimeout(handle)), timer]);
   };
+
+  /**
+   * Return the cancellation details for this activity, if any.
+   * @returns an object with boolean properties that describes the reason for cancellation, or undefined if not cancelled.
+   *
+   * @experimental Activity cancellation details include usage of experimental features such as activity pause, and may be subject to change.
+   */
+  public get cancellationDetails(): ActivityCancellationDetails | undefined {
+    return this._cancellationDetails.details;
+  }
 }
 
 /**
@@ -428,6 +473,16 @@ export function cancelled(): Promise<never> {
 }
 
 /**
+ * Return the cancellation details for this activity, if any.
+ * @returns an object with boolean properties that describes the reason for cancellation, or undefined if not cancelled.
+ *
+ * @experimental Activity cancellation details include usage of experimental features such as activity pause, and may be subject to change.
+ */
+export function cancellationDetails(): ActivityCancellationDetails | undefined {
+  return Context.current().cancellationDetails;
+}
+
+/**
  * Return an {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that can be used to
  * react to Activity cancellation.
  *
@@ -443,6 +498,22 @@ export function cancelled(): Promise<never> {
  */
 export function cancellationSignal(): AbortSignal {
   return Context.current().cancellationSignal;
+}
+
+/**
+ * A Temporal Client, bound to the same Temporal Namespace as the Worker executing this Activity.
+ *
+ * May throw an {@link IllegalStateError} if the Activity is running inside a `MockActivityEnvironment`
+ * that was created without a Client.
+ *
+ * This is a shortcut for `Context.current().client` (see {@link Context.client}).
+ *
+ * @experimental Client support over `NativeConnection` is experimental. Error handling may be
+ *               incomplete or different from what would be observed using a {@link Connection}
+ *               instead. Client doesn't support cancellation through a Signal.
+ */
+export function getClient(): Client {
+  return Context.current().client;
 }
 
 /**

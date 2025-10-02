@@ -8,7 +8,7 @@ import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import { configurableHelpers } from './helpers-integration';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import * as activities from './activities';
-import { cleanOptionalStackTrace } from './helpers';
+import { approximatelyEqual, cleanOptionalStackTrace, compareStackTrace } from './helpers';
 import * as workflows from './workflows';
 
 const test = makeTestFn(() => bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') }));
@@ -48,7 +48,6 @@ if ('promiseHooks' in v8) {
     t.true(
       stack1.endsWith(
         `
-    at Function.all (<anonymous>)
     at stackTracer (test/src/workflows/stack-tracer.ts)
 
     at stackTracer (test/src/workflows/stack-tracer.ts)
@@ -91,11 +90,17 @@ if ('promiseHooks' in v8) {
     }));
     t.is(enhancedStack.sdk.name, 'typescript');
     t.is(enhancedStack.sdk.version, pkg.version); // Expect workflow and worker versions to match
+    {
+      const functionName = stacks[0]!.locations[0]!.function_name!;
+      delete stacks[0]!.locations[0]!.function_name;
+      compareStackTrace(t, functionName, '$CLASS.all');
+    }
     t.deepEqual(stacks, [
       {
         locations: [
           {
-            function_name: 'Function.all',
+            // Checked sperately above to handle Node 24 behavior change with respect to identifiers in stack traces
+            // function_name: 'Function.all',
             internal_code: false,
           },
           {
@@ -151,29 +156,37 @@ test(
     const worker = await createWorkerWithDefaults(t, { activities });
     const handle = await startWorkflow(workflows.priorityWorkflow, {
       args: [false, 1],
-      priority: { priorityKey: 1 },
+      priority: { priorityKey: 1, fairnessKey: 'main-workflow', fairnessWeight: 3.0 },
     });
     await worker.runUntil(handle.result());
     let firstChild = true;
     const history = await handle.fetchHistory();
-    console.log('events');
     for (const event of history?.events ?? []) {
       switch (event.eventType) {
         case temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED:
           t.deepEqual(event.workflowExecutionStartedEventAttributes?.priority?.priorityKey, 1);
+          t.deepEqual(event.workflowExecutionStartedEventAttributes?.priority?.fairnessKey, 'main-workflow');
+          t.deepEqual(event.workflowExecutionStartedEventAttributes?.priority?.fairnessWeight, 3.0);
           break;
         case temporal.api.enums.v1.EventType.EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED: {
-          const pri = event.startChildWorkflowExecutionInitiatedEventAttributes?.priority?.priorityKey;
+          const priority = event.startChildWorkflowExecutionInitiatedEventAttributes?.priority;
           if (firstChild) {
-            t.deepEqual(pri, 4);
+            t.deepEqual(priority?.priorityKey, 4);
+            t.deepEqual(priority?.fairnessKey, 'child-workflow-1');
+            t.deepEqual(priority?.fairnessWeight, 2.5);
             firstChild = false;
           } else {
-            t.deepEqual(pri, 2);
+            t.deepEqual(priority?.priorityKey, 2);
+            t.deepEqual(priority?.fairnessKey, 'child-workflow-2');
+            t.deepEqual(priority?.fairnessWeight, 1.0);
           }
           break;
         }
         case temporal.api.enums.v1.EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED:
           t.deepEqual(event.activityTaskScheduledEventAttributes?.priority?.priorityKey, 5);
+          t.deepEqual(event.activityTaskScheduledEventAttributes?.priority?.fairnessKey, 'fair-activity');
+          // For some insane reason when proto reads this event it mangles the number to 4.19999999 something. Thanks Javascript.
+          t.assert(approximatelyEqual(event.activityTaskScheduledEventAttributes?.priority?.fairnessWeight, 4.2));
           break;
       }
     }
@@ -184,7 +197,6 @@ test('workflow start without priorities sees undefined for the key', configMacro
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t, { activities });
-  console.log('STARTING WORKFLOW');
 
   const handle1 = await startWorkflow(workflows.priorityWorkflow, {
     args: [true, undefined],

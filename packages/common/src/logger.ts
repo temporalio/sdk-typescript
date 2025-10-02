@@ -39,6 +39,12 @@ export enum SdkComponent {
   activity = 'activity',
 
   /**
+   * Component name for messages emited from a Nexus Operation Handler, using the Nexus context logger.
+   * The SDK itself never publishes messages with this component name.
+   */
+  nexus = 'nexus',
+
+  /**
    * Component name for messages emited from a Temporal Worker instance.
    *
    * This notably includes:

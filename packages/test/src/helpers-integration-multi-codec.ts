@@ -4,10 +4,9 @@ import { defaultFailureConverter, defaultPayloadConverter, LoadedDataConverter }
 import { WorkerOptions, WorkflowBundle } from '@temporalio/worker';
 
 import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { ConnectionInjectorInterceptor } from './activities/interceptors';
 import {
   configurableHelpers,
-  createLocalTestEnvironment,
+  createTestWorkflowEnvironment,
   makeConfigurableEnvironmentTestFn,
 } from './helpers-integration';
 import { ByteSkewerPayloadCodec, Worker } from './helpers';
@@ -40,7 +39,7 @@ export function makeTestFn(makeBundle: () => Promise<WorkflowBundle>): TestFn<Te
             failureConverter: defaultFailureConverter,
           };
 
-          const env = await createLocalTestEnvironment({
+          const env = await createTestWorkflowEnvironment({
             client: { dataConverter },
           });
 
@@ -50,11 +49,6 @@ export function makeTestFn(makeBundle: () => Promise<WorkflowBundle>): TestFn<Te
             createWorkerWithDefaults(t: ExecutionContext<TestContext>, opts?: Partial<WorkerOptions>): Promise<Worker> {
               return configurableHelpers(t, t.context.workflowBundle, env).createWorker({
                 dataConverter,
-                interceptors: {
-                  activity: [
-                    () => ({ inbound: new ConnectionInjectorInterceptor(env.connection, loadedDataConverter) }),
-                  ],
-                },
                 ...opts,
               });
             },

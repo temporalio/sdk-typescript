@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
 import { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
+import { Client, WorkflowClient, WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -21,6 +21,7 @@ import {
 } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import {
+  ActivityCancellationDetails,
   ActivityCancellationType,
   ApplicationFailure,
   defineSearchAttributeKey,
@@ -38,8 +39,16 @@ import {
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
-import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
+import {
+  Context,
+  createLocalTestEnvironment,
+  hasActivityHeartbeat,
+  helpers,
+  makeTestFunction,
+  setActivityState,
+} from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
+import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
 import { loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
 
 const test = makeTestFunction({
@@ -1066,7 +1075,7 @@ export function setAndClearTimeoutInterceptors(): workflow.WorkflowInterceptors 
 }
 
 if (RUN_TIME_SKIPPING_TESTS) {
-  test('setTimeout and clearTimeout - works before and after 1.10.3', async (t) => {
+  test.serial('setTimeout and clearTimeout - works before and after 1.10.3', async (t) => {
     const env = await TestWorkflowEnvironment.createTimeSkipping();
     const { createWorker, startWorkflow } = helpers(t, env);
     try {
@@ -1283,7 +1292,7 @@ test('Count workflow executions', async (t) => {
   });
 });
 
-test('can register search attributes to dev server', async (t) => {
+test.serial('can register search attributes to dev server', async (t) => {
   const key = defineSearchAttributeKey('new-search-attr', SearchAttributeType.INT);
   const newSearchAttribute: SearchAttributePair = { key, value: 12 };
 
@@ -1406,6 +1415,155 @@ test('Workflow can return root workflow', async (t) => {
   await worker.runUntil(async () => {
     const result = await executeWorkflow(rootWorkflow, { workflowId: 'test-root-workflow-length' });
     t.deepEqual(result, 'empty test-root-workflow-length');
+  });
+});
+
+export async function heartbeatPauseWorkflow(
+  activityId: string,
+  catchErr: boolean,
+  maximumAttempts: number
+): Promise<ActivityCancellationDetails | undefined> {
+  const { heartbeatCancellationDetailsActivity } = workflow.proxyActivities({
+    startToCloseTimeout: '5s',
+    activityId,
+    retry: {
+      maximumAttempts,
+    },
+    heartbeatTimeout: '1s',
+  });
+
+  return await heartbeatCancellationDetailsActivity(catchErr);
+}
+
+test('Activity pause returns expected cancellation details', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    activities: {
+      heartbeatCancellationDetailsActivity,
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const testActivityId = randomUUID();
+    const handle = await startWorkflow(heartbeatPauseWorkflow, {
+      args: [testActivityId, true, 1],
+    });
+
+    // Wait for activity to appear in pending activities AND start heartbeating
+    await waitUntil(async () => {
+      const { raw } = await handle.describe();
+      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
+      // Check both: activity exists and has heartbeated
+      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
+    }, 10000);
+
+    // Now pause the activity
+    await setActivityState(handle, testActivityId, 'pause');
+    // Get the result - should contain pause cancellation details
+    const result = await handle.result();
+
+    t.deepEqual(result, {
+      cancelRequested: false,
+      notFound: false,
+      paused: true,
+      timedOut: false,
+      workerShutdown: false,
+      reset: false,
+    });
+  });
+});
+
+test('Activity can be cancelled via pause and retry after unpause', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    activities: {
+      heartbeatCancellationDetailsActivity,
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const testActivityId = randomUUID();
+    const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, false, 2] });
+
+    // Wait for it to exist and heartbeat
+    await waitUntil(async () => {
+      const { raw } = await handle.describe();
+      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
+      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
+    }, 10000);
+
+    await setActivityState(handle, testActivityId, 'pause');
+    await waitUntil(async () => hasActivityHeartbeat(handle, testActivityId, 'finally-complete'), 10000);
+    await setActivityState(handle, testActivityId, 'unpause');
+
+    const result = await handle.result();
+    t.true(result == null);
+  });
+});
+
+test('Activity reset returns expected cancellation details', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      heartbeatCancellationDetailsActivity,
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const testActivityId = randomUUID();
+    const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, true, 1] });
+
+    // Wait for it to exist and heartbeat
+    await waitUntil(async () => {
+      const { raw } = await handle.describe();
+      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
+      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
+    }, 10000);
+
+    await setActivityState(handle, testActivityId, 'reset');
+    const result = await handle.result();
+    t.deepEqual(result, {
+      cancelRequested: false,
+      notFound: false,
+      paused: false,
+      timedOut: false,
+      workerShutdown: false,
+      reset: true,
+    });
+  });
+});
+
+test('Activity set as both paused and reset returns expected cancellation details', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      heartbeatCancellationDetailsActivity,
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const testActivityId = randomUUID();
+    const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, true, 1] });
+
+    // Wait for it to exist and heartbeat
+    await waitUntil(async () => {
+      const { raw } = await handle.describe();
+      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
+      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
+    }, 10000);
+
+    await setActivityState(handle, testActivityId, 'pause & reset');
+    const result = await handle.result();
+    t.deepEqual(result, {
+      cancelRequested: false,
+      notFound: false,
+      paused: true,
+      timedOut: false,
+      workerShutdown: false,
+      reset: true,
+    });
   });
 });
 
@@ -1636,4 +1794,50 @@ test('Default handlers fail given reserved prefix', async (t) => {
     );
     await handle.terminate();
   });
+});
+
+export async function helloWorkflow(name: string): Promise<string> {
+  return `Hello, ${name}!`;
+}
+
+test('Workflow can be started eagerly with shared NativeConnection', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const client = new Client({
+    connection: t.context.env.nativeConnection,
+    namespace: t.context.env.client.options.namespace,
+  });
+
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(helloWorkflow, {
+      args: ['Temporal'],
+      workflowId: `eager-workflow-${randomUUID()}`,
+      taskQueue,
+      requestEagerStart: true,
+      workflowTaskTimeout: '1h', // hang if retry needed
+    });
+
+    t.true(handle.eagerlyStarted);
+
+    const result = await handle.result();
+    t.is(result, 'Hello, Temporal!');
+  });
+});
+
+test('Error thrown when requestEagerStart is used with regular Connection', async (t) => {
+  const { taskQueue } = helpers(t);
+
+  const client = new WorkflowClient({ connection: t.context.env.connection });
+
+  await t.throwsAsync(
+    client.start(helloWorkflow, {
+      args: ['Temporal'],
+      workflowId: `eager-workflow-error-${randomUUID()}`,
+      taskQueue,
+      requestEagerStart: true,
+    }),
+    {
+      message: /Eager workflow start requires a NativeConnection/,
+    }
+  );
 });

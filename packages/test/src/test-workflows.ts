@@ -22,7 +22,7 @@ import { SdkFlag, SdkFlags } from '@temporalio/workflow/lib/flags';
 import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
-import { cleanStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
+import { cleanStackTrace, compareStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 import { ProcessedSignal } from './workflows';
 
 export interface Context {
@@ -163,6 +163,7 @@ function compareCompletion(
   req: coresdk.workflow_completion.IWorkflowActivationCompletion,
   expected: coresdk.workflow_completion.IWorkflowActivationCompletion
 ) {
+  const stackTraces = extractFailureStackTraces(req, expected);
   t.deepEqual(
     coresdk.workflow_completion.WorkflowActivationCompletion.create(req).toJSON(),
     coresdk.workflow_completion.WorkflowActivationCompletion.create({
@@ -170,6 +171,43 @@ function compareCompletion(
       runId: t.context.runId,
     }).toJSON()
   );
+
+  if (stackTraces) {
+    for (const { actual, expected } of stackTraces) {
+      compareStackTrace(t, actual, expected);
+    }
+  }
+}
+
+// Extracts failure stack traces from completions if structure matches, leaving them unchanged if structure differs.
+// We leave them unchanged on structure differences as ava's `deepEqual` provides a better failure message.
+function extractFailureStackTraces(
+  req: coresdk.workflow_completion.IWorkflowActivationCompletion,
+  expected: coresdk.workflow_completion.IWorkflowActivationCompletion
+): { actual: string; expected: string }[] | undefined {
+  const reqCommands = req.successful?.commands;
+  const expectedCommands = expected.successful?.commands;
+  if (!reqCommands || !expectedCommands || reqCommands.length !== expectedCommands.length) {
+    return;
+  }
+  for (let commandIndex = 0; commandIndex < reqCommands.length; commandIndex++) {
+    const reqStack = reqCommands[commandIndex].failWorkflowExecution?.failure?.stackTrace;
+    const expectedStack = expectedCommands[commandIndex].failWorkflowExecution?.failure?.stackTrace;
+    if (typeof reqStack !== typeof expectedStack) {
+      return;
+    }
+  }
+  const stackTraces: { actual: string; expected: string }[] = [];
+  for (let commandIndex = 0; commandIndex < reqCommands.length; commandIndex++) {
+    const reqStack = reqCommands[commandIndex].failWorkflowExecution?.failure?.stackTrace;
+    const expectedStack = expectedCommands[commandIndex].failWorkflowExecution?.failure?.stackTrace;
+    if (reqStack && expectedStack) {
+      stackTraces.push({ actual: reqStack, expected: expectedStack });
+      delete reqCommands[commandIndex].failWorkflowExecution?.failure?.stackTrace;
+      delete expectedCommands[commandIndex].failWorkflowExecution?.failure?.stackTrace;
+    }
+  }
+  return stackTraces;
 }
 
 function makeSuccess(
@@ -464,7 +502,7 @@ test('throwAsync', async (t) => {
         'failure',
         dedent`
         ApplicationFailure: failure
-            at Function.nonRetryable (common/src/failure.ts)
+            at $CLASS.nonRetryable (common/src/failure.ts)
             at throwAsync (test/src/workflows/throw-async.ts)
         `
       ),
@@ -779,7 +817,7 @@ test('interruptableWorkflow', async (t) => {
             // since the Error stack trace is generated in the constructor.
             dedent`
           ApplicationFailure: just because
-              at Function.retryable (common/src/failure.ts)
+              at $CLASS.retryable (common/src/failure.ts)
               at test/src/workflows/interrupt-signal.ts
           `,
             'Error',
@@ -809,7 +847,7 @@ test('failSignalWorkflow', async (t) => {
             'Signal failed',
             dedent`
           ApplicationFailure: Signal failed
-              at Function.nonRetryable (common/src/failure.ts)
+              at $CLASS.nonRetryable (common/src/failure.ts)
               at test/src/workflows/fail-signal.ts
           `,
             'Error'
@@ -849,7 +887,7 @@ test('asyncFailSignalWorkflow', async (t) => {
             'Signal failed',
             dedent`
           ApplicationFailure: Signal failed
-              at Function.nonRetryable (common/src/failure.ts)
+              at $CLASS.nonRetryable (common/src/failure.ts)
               at test/src/workflows/async-fail-signal.ts`,
             'Error'
           ),
@@ -1461,7 +1499,7 @@ test('cancellationErrorIsPropagated', async (t) => {
             at test/src/workflows/cancellation-error-is-propagated.ts
             at CancellationScope.runInContext (workflow/src/cancellation-scope.ts)
             at CancellationScope.run (workflow/src/cancellation-scope.ts)
-            at Function.cancellable (workflow/src/cancellation-scope.ts)
+            at $CLASS.cancellable (workflow/src/cancellation-scope.ts)
             at cancellationErrorIsPropagated (test/src/workflows/cancellation-error-is-propagated.ts)
         `,
             canceledFailureInfo: {},
@@ -1880,7 +1918,7 @@ test('tryToContinueAfterCompletion', async (t) => {
           'fail before continue',
           dedent`
           ApplicationFailure: fail before continue
-              at Function.nonRetryable (common/src/failure.ts)
+              at $CLASS.nonRetryable (common/src/failure.ts)
               at tryToContinueAfterCompletion (test/src/workflows/try-to-continue-after-completion.ts)
         `
         ),
