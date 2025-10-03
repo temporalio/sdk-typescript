@@ -60,6 +60,8 @@ async function bindLocalhostTls(server: grpc.Server): Promise<number> {
 
 test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC call', async (t) => {
   let gotTestHeaders = false;
+  let gotStaticBinValue;
+  let gotOtherBinValue;
   let gotDeadline = false;
   const authTokens: string[] = [];
   const deadline = Date.now() + 10000;
@@ -89,6 +91,8 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
       ) {
         gotTestHeaders = true;
       }
+      gotStaticBinValue = call.metadata.get('staticKey-bin');
+      gotOtherBinValue = call.metadata.get('otherKey-bin');
       const receivedDeadline = call.getDeadline();
       // For some reason the deadline the server gets is slightly different from the one we send in the client
       if (typeof receivedDeadline === 'number' && receivedDeadline >= deadline && receivedDeadline - deadline < 1000) {
@@ -108,16 +112,18 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
   const port = await bindLocalhost(server);
   const conn = await Connection.connect({
     address: `127.0.0.1:${port}`,
-    metadata: { staticKey: 'set' },
+    metadata: { staticKey: 'set', 'staticKey-bin': Buffer.from([0x00]) },
     apiKey: 'test-token',
   });
   await conn.withMetadata({ test: 'true' }, () =>
-    conn.withMetadata({ otherKey: 'set' }, () =>
+    conn.withMetadata({ otherKey: 'set', 'otherKey-bin': Buffer.from([0x01]) }, () =>
       conn.withDeadline(deadline, () => conn.workflowService.registerNamespace({}))
     )
   );
   t.true(gotTestHeaders);
   t.true(gotDeadline);
+  t.deepEqual(gotStaticBinValue, [Buffer.from([0x00])]);
+  t.deepEqual(gotOtherBinValue, [Buffer.from([0x01])]);
   await conn.withApiKey('tt-2', () => conn.workflowService.startWorkflowExecution({}));
   conn.setApiKey('tt-3');
   await conn.workflowService.startWorkflowExecution({});
