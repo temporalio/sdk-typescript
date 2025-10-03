@@ -88,13 +88,23 @@ pub fn client_new(
 #[js_function]
 pub fn client_update_headers(
     client: OpaqueInboundHandle<Client>,
-    headers: HashMap<String, String>,
+    headers: HashMap<String, MetadataValue>,
 ) -> BridgeResult<()> {
+    let (ascii_headers, bin_headers) = config::partition_headers(Some(headers));
     client
         .borrow()?
         .core_client
         .get_client()
-        .set_headers(headers)
+        .set_headers(ascii_headers.unwrap_or_default())
+        .map_err(|err| BridgeError::TypeError {
+            message: format!("Invalid metadata key: {err}"),
+            field: None,
+        })?;
+    client
+        .borrow()?
+        .core_client
+        .get_client()
+        .set_binary_headers(bin_headers.unwrap_or_default())
         .map_err(|err| BridgeError::TypeError {
             message: format!("Invalid metadata key: {err}"),
             field: None,
@@ -742,7 +752,7 @@ mod config {
         }
     }
 
-    fn partition_headers(
+    pub(super) fn partition_headers(
         headers: Option<HashMap<String, MetadataValue>>,
     ) -> (
         Option<HashMap<String, String>>,

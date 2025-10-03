@@ -439,3 +439,39 @@ test('can power workflow client calls', async (t) => {
     await env.teardown();
   }
 });
+
+test('setMetadata accepts binary headers', async (t) => {
+  const requests = new Array<{ metadata: grpc.Metadata; deadline: grpc.Deadline }>();
+  const server = new grpc.Server();
+  server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
+    getSystemInfo(
+      call: grpc.ServerUnaryCall<
+        temporal.api.workflowservice.v1.IGetSystemInfoRequest,
+        temporal.api.workflowservice.v1.IGetSystemInfoResponse
+      >,
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+    ) {
+      requests.push({ metadata: call.metadata, deadline: call.getDeadline() });
+      callback(null, {});
+    },
+  });
+
+  const port = await util.promisify(server.bindAsync.bind(server))(
+    'localhost:0',
+    grpc.ServerCredentials.createInsecure()
+  );
+  const connection = await NativeConnection.connect({
+    address: `127.0.0.1:${port}`,
+    metadata: { 'start-ascii': 'a', 'start-bin': Buffer.from([0x00]) },
+  });
+
+  await connection.setMetadata({ 'end-bin': Buffer.from([0x01]) });
+
+  await connection.workflowService.getSystemInfo({});
+  t.is(requests.length, 2);
+  t.deepEqual(requests[1].metadata.get('start-bin'), []);
+  t.deepEqual(requests[1].metadata.get('start-ascii'), []);
+  t.deepEqual(requests[1].metadata.get('end-bin'), [Buffer.from([0x01])]);
+  await connection.close();
+  server.forceShutdown();
+});

@@ -100,7 +100,7 @@ export interface OtelMetricsExporterOptions {
 
 export declare function newClient(runtime: Runtime, clientOptions: ClientOptions): Promise<Client>;
 
-export declare function clientUpdateHeaders(client: Client, headers: Record<string, string>): void;
+export declare function clientUpdateHeaders(client: Client, headers: Record<string, MetadataValue>): void;
 
 export declare function clientUpdateApiKey(client: Client, apiKey: string): void;
 
