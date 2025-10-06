@@ -37,6 +37,7 @@
     "@temporalio/cloud": "file:../cloud",
     "@temporalio/common": "file:../common",
     "@temporalio/core-bridge": "file:../core-bridge",
+    "@temporalio/envconfig": "file:../envconfig",
     "@temporalio/interceptors-opentelemetry": "file:../interceptors-opentelemetry",
     "@temporalio/nexus": "file:../nexus",
     "@temporalio/nyc-test-coverage": "file:../nyc-test-coverage",
