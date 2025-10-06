@@ -21,6 +21,7 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@types/uuid": "^9.0.7",
     "protobufjs": "^7.2.5"
   },
   "bugs": {

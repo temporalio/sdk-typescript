@@ -163,6 +163,9 @@ importers:
         specifier: ^11.1.0
         version: 11.1.0
     devDependencies:
+      '@types/uuid':
+        specifier: ^9.0.7
+        version: 9.0.7
       protobufjs:
         specifier: ^7.2.5
         version: 7.5.1
