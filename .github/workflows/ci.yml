@@ -178,7 +178,7 @@ jobs:
         working-directory: ${{ runner.temp }}
 
       - name: Compile code
-        run: npm run build -- --ignore @temporalio/core-bridge
+        run: pnpm run build -- --ignore @temporalio/core-bridge
 
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
@@ -196,7 +196,7 @@ jobs:
             --headless &> ./devserver.log &
 
       - name: Run Tests
-        run: npm run test
+        run: pnpm run test
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
@@ -260,6 +260,7 @@ jobs:
 
       # End samples
 
+      # TODO: PNPM doesn't write logs to file by default
       - name: Upload NPM logs
         uses: actions/upload-artifact@v4
         if: failure() || cancelled()

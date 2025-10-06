@@ -175,9 +175,10 @@ jobs:
         with:
           node-version: '22'
           platform: ${{ matrix.platform }}
+          save-cache: ${{ env.IS_MAIN_OR_RELEASE }}
 
       - name: Compile code
-        run: npm run build -- --ignore @temporalio/core-bridge
+        run: pnpm run build -- --ignore @temporalio/core-bridge
 
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ./tmp/registry
@@ -188,13 +189,6 @@ jobs:
           name: verdaccio-repo
           path: ./tmp/registry/storage
 
-      - name: Save NPM cache
-        uses: actions/cache/save@v4
-        # Only saves NPM cache from the main branch, to reduce pressure on the cache (limited to 10GB).
-        if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
-        with:
-          path: ${{ steps.setup-node.outputs.cache-dir }}
-          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
 
   # Tests that npm init @temporalio results in a working worker and client
   test-npm-init:
