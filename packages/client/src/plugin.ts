@@ -1,5 +1,3 @@
-import type { ConnectionLike } from './types';
-import { Connection, type ConnectionOptions } from './connection';
 import type { ClientOptions } from './client';
 
 /**
@@ -17,21 +15,11 @@ import type { ClientOptions } from './client';
  * A single plugin class can implement both client and worker plugin interfaces to share common logic between both
  * contexts. When used with a client, it will automatically be propagated to any workers created with that client.
  */
-export abstract class Plugin {
+export interface Plugin {
   /**
-   * Reference to the next plugin in the chain
+   * Gets the name of this plugin.
    */
-  protected nextClientPlugin?: Plugin;
-
-  /**
-   * Gets the fully qualified name of this plugin.
-   * 
-   * Returns:
-   *   The fully qualified name of the plugin class (module.classname).
-   */
-  get name(): string {
-    return (this.constructor as any).name || this.constructor.toString();
-  }
+  get name(): string;
 
   /**
    * Initialize this plugin in the plugin chain.
@@ -42,14 +30,11 @@ export abstract class Plugin {
    * 
    * Args:
    *   next: The next plugin in the chain to delegate to.
-   * 
+   *
    * Returns:
    *   This plugin instance for method chaining.
    */
-  initClientPlugin(next: Plugin): Plugin {
-    this.nextClientPlugin = next;
-    return this;
-  }
+  initClientPlugin(next: Plugin): Plugin;
 
   /**
    * Hook called when creating a client to allow modification of configuration.
@@ -64,16 +49,20 @@ export abstract class Plugin {
    * Returns:
    *   The modified client configuration.
    */
-  configureClient(config: ClientOptions): ClientOptions {
-    return this.nextClientPlugin?.configureClient(config) ?? config;
-  }
+  configureClient(config: ClientOptions): ClientOptions;
 }
 
 /**
  * Root plugin that provides default implementations for all plugin methods.
  * This is the final plugin in the chain and provides the actual implementation.
  */
-class _RootPlugin extends Plugin {
+class RootPlugin implements Plugin {
+  name: string = 'RootPlugin';
+
+  initClientPlugin(_next: Plugin): Plugin {
+    throw new Error("Root plugin should not be initialized")
+  }
+
   configureClient(config: ClientOptions): ClientOptions {
     return config;
   }
@@ -85,13 +74,13 @@ class _RootPlugin extends Plugin {
  * @param plugins Array of plugins to chain together
  * @returns The first plugin in the chain
  */
-export function buildPluginChain(plugins: Plugin[]): Plugin {
-  if (plugins.length === 0) {
-    return new _RootPlugin();
+export function buildPluginChain(plugins: Plugin[] | undefined): Plugin {
+  if (plugins === undefined || plugins.length === 0) {
+    return new RootPlugin();
   }
 
   // Start with the root plugin at the end
-  let chain: Plugin = new _RootPlugin();
+  let chain: Plugin = new RootPlugin();
   
   // Build the chain in reverse order
   for (let i = plugins.length - 1; i >= 0; i--) {

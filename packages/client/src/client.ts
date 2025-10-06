@@ -76,7 +76,7 @@ export class Client extends BaseClient {
   public readonly taskQueue: TaskQueueClient;
 
   constructor(options?: ClientOptions) {
-    // Process plugins first to allow them to modify configuration
+    // Process plugins first to allow them to modify connect configuration
     const processedOptions = Client.applyPlugins(options);
     
     super(processedOptions);

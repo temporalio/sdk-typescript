@@ -94,7 +94,7 @@ import {
   WorkflowBundle,
 } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
-import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
+import { defaultWorkflowInterceptorModules, isBundlerPlugin, WorkflowCodeBundler } from './workflow/bundler';
 import { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
@@ -109,6 +109,7 @@ import {
 } from './errors';
 import { constructNexusOperationContext, NexusHandler } from './nexus';
 import { handlerErrorToProto } from './nexus/conversions';
+import { Plugin } from './plugin';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -500,6 +501,8 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
+    const plugin = Worker.buildPluginChain(options.plugins);
+    options = plugin.configureWorker(options);
     if (!options.taskQueue) {
       throw new TypeError('Task queue name is required');
     }
@@ -555,7 +558,8 @@ export class Worker {
       compiledOptionsWithBuildId,
       logger,
       metricMeter,
-      connection
+      plugin,
+      connection,
     );
   }
 
@@ -697,6 +701,8 @@ export class Worker {
   }
 
   private static async constructReplayWorker(options: ReplayWorkerOptions): Promise<[Worker, native.HistoryPusher]> {
+    const plugin = Worker.buildPluginChain(options.plugins)
+    options = plugin.configureReplayWorker(options);
     const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
     const fixedUpOptions: WorkerOptions = {
       taskQueue: (options.replayName ?? 'fake_replay_queue') + '-' + this.replayWorkerCount,
@@ -724,7 +730,7 @@ export class Worker {
       addBuildIdIfMissing(compiledOptions, bundle.code)
     );
     return [
-      new this(runtime, replayHandle.worker, workflowCreator, compiledOptions, logger, metricMeter, undefined, true),
+      new this(runtime, replayHandle.worker, workflowCreator, compiledOptions, logger, metricMeter, plugin,undefined, true),
       replayHandle.historyPusher,
     ];
   }
@@ -762,6 +768,7 @@ export class Worker {
         throw new TypeError('Invalid WorkflowOptions.workflowBundle');
       }
     } else if (compiledOptions.workflowsPath) {
+      const bundlerPlugins = compiledOptions.plugins?.filter(p => isBundlerPlugin(p))
       const bundler = new WorkflowCodeBundler({
         logger,
         workflowsPath: compiledOptions.workflowsPath,
@@ -770,6 +777,7 @@ export class Worker {
         payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
         ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
         webpackConfigHook: compiledOptions.bundlerOptions?.webpackConfigHook,
+        plugins: bundlerPlugins,
       });
       const bundle = await bundler.createBundle();
       return parseWorkflowCode(bundle.code);
@@ -792,6 +800,7 @@ export class Worker {
     /** Logger bound to 'sdkComponent: worker' */
     protected readonly logger: Logger,
     protected readonly metricMeter: MetricMeter,
+    protected readonly plugin: Plugin,
     protected readonly connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
@@ -1956,6 +1965,10 @@ export class Worker {
    * To stop polling, call {@link shutdown} or send one of {@link Runtime.options.shutdownSignals}.
    */
   async run(): Promise<void> {
+    return this.plugin.runWorker(this);
+  }
+
+  private async runInternal(): Promise<void> {
     if (this.state !== 'INITIALIZED') {
       throw new IllegalStateError('Poller was already started');
     }
@@ -2034,6 +2047,43 @@ export class Worker {
         this.nativeWorker.flushCoreLogs();
       }
     }
+  }
+
+  private static rootPlugin = class implements Plugin {
+    name: string = 'RootPlugin';
+    initWorkerPlugin(_next: Plugin): Plugin {
+      throw new Error('Root plugin should not be initialized');
+    }
+
+    configureWorker(config: WorkerOptions): WorkerOptions {
+      return config;
+    }
+
+    configureReplayWorker(config: ReplayWorkerOptions): ReplayWorkerOptions {
+      return config;
+    }
+
+    runWorker(worker: Worker): Promise<void> {
+      return worker.runInternal();
+    }
+  }
+
+  protected static buildPluginChain(plugins: Plugin[] | undefined): Plugin {
+    if (plugins === undefined || plugins.length === 0) {
+      return new Worker.rootPlugin();
+    }
+
+    // Start with the root plugin at the end
+    let chain: Plugin = new Worker.rootPlugin();
+
+    // Build the chain in reverse order
+    for (let i = plugins.length - 1; i >= 0; i--) {
+      const plugin = plugins[i];
+      plugin.initWorkerPlugin(chain);
+      chain = plugin;
+    }
+
+    return chain;
   }
 }
 

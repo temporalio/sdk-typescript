@@ -35,7 +35,7 @@ export {
 } from './runtime-options';
 export * from './sinks';
 export { DataConverter, defaultPayloadConverter, State, Worker, WorkerStatus } from './worker';
-export { Plugin, buildWorkerPluginChain } from './plugin';
+export { Plugin } from './plugin';
 export {
   CompiledWorkerOptions,
   ReplayWorkerOptions,
@@ -45,7 +45,7 @@ export {
   WorkflowBundlePath,
 } from './worker-options';
 export { ReplayError, ReplayHistoriesIterable, ReplayResult } from './replay';
-export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
+export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap, Plugin as BundlerPlugin } from './workflow/bundler';
 export {
   WorkerTuner,
   TunerHolder,
