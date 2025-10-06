@@ -21,3 +21,4 @@ minimumReleaseAgeExclude:
   - "@temporalio/*"
   - "nexus-rpc"
 
+ignoreScripts: true
