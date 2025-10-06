@@ -25,33 +25,39 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        run_install: false
+
     - name: Install Node
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
+        cache: "pnpm"
 
-    - name: Get NPM cache directory
+    - name: Get PNPM store directory
       id: npm-cache-dir
       shell: bash
-      run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+      run: echo "dir=$(pnpm store path)" >> ${GITHUB_OUTPUT}
 
-    - name: Restore NPM cache
+    - name: Restore PNPM store
       id: restore-cache
       uses: actions/cache/restore@v4
       with:
         path: ${{ steps.npm-cache-dir.outputs.dir }}
-        key: npm-main-${{ inputs.platform }}-${{ hashFiles('./package-lock.json') }}
+        key: pnpm-main-${{ inputs.platform }}-${{ hashFiles('./pnpm-lock.yaml') }}
         restore-keys: |
-          npm-main-${{ inputs.platform }}-
+          pnpm-main-${{ inputs.platform }}-
 
     - name: Download dependencies
       shell: bash
       run: |
-        npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
+        pnpm install --frozen-lockfile || pnpm install --frozen-lockfile || pnpm install --frozen-lockfile
 
-    - name: Save NPM cache
+    - name: Save PNPM store
       if: inputs.save-cache == 'true'
       uses: actions/cache/save@v4
       with:
         path: ${{ steps.npm-cache-dir.outputs.dir }}
-        key: npm-main-${{ inputs.platform }}-${{ hashFiles('./package-lock.json') }}
+        key: pnpm-main-${{ inputs.platform }}-${{ hashFiles('./pnpm-lock.yaml') }}

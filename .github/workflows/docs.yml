@@ -45,7 +45,7 @@ jobs:
           node-version: '22'
           platform: 'linux-x64'
 
-      - run: npm run build -- --ignore @temporalio/core-bridge
+      - run: pnpm run build --ignore @temporalio/core-bridge
 
       - name: Build docs
         run: npm run docs
@@ -58,7 +58,7 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          npx vercel deploy packages/docs/build \
+          pnpm dlx vercel deploy packages/docs/build \
             -t '${{ secrets.VERCEL_TOKEN }}' \
             --yes \
             ${{ inputs.publish_target == 'prod' && '--prod' || '' }}

@@ -89,7 +89,7 @@ jobs:
           save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
 
       - name: Compile code
-        run: npm run build
+        run: pnpm run build
         env:
           BUILD_CORE_RELEASE: true
 
