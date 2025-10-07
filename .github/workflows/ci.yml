@@ -178,7 +178,7 @@ jobs:
         working-directory: ${{ runner.temp }}
 
       - name: Compile code
-        run: pnpm run build -- --ignore @temporalio/core-bridge
+        run: pnpm run build --ignore @temporalio/core-bridge
 
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry

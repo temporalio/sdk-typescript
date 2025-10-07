@@ -178,7 +178,7 @@ jobs:
           save-cache: ${{ env.IS_MAIN_OR_RELEASE }}
 
       - name: Compile code
-        run: pnpm run build -- --ignore @temporalio/core-bridge
+        run: pnpm run build --ignore @temporalio/core-bridge
 
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ./tmp/registry
