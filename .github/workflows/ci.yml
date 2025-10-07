@@ -155,6 +155,12 @@ jobs:
           name: corebridge-native-debug-${{ matrix.platform }}
           path: ./packages/core-bridge/releases
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
       - name: Install Node
         uses: actions/setup-node@v4
         with:
@@ -191,7 +197,7 @@ jobs:
           pnpm install --frozen-lockfile || pnpm install --frozen-lockfile || pnpm install --frozen-lockfile
 
       - name: Compile code
-        run: pnpm run build -- --ignore @temporalio/core-bridge
+        run: pnpm run build --ignore @temporalio/core-bridge
 
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry

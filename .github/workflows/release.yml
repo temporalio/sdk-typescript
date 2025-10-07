@@ -165,6 +165,12 @@ jobs:
           mv tmp/corebridge-*/* ./
           rm -rf tmp
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
       - name: Install Node
         uses: actions/setup-node@v4
         with:
@@ -189,7 +195,7 @@ jobs:
           pnpm install --frozen-lockfile || pnpm install --frozen-lockfile || pnpm install --frozen-lockfile
 
       - name: Compile code
-        run: pnpm run build -- --ignore @temporalio/core-bridge
+        run: pnpm run build --ignore @temporalio/core-bridge
 
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ./tmp/registry
@@ -206,7 +212,7 @@ jobs:
         if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
         with:
           path: ${{ steps.pnpm-cache-dir.outputs.dir }}
-          key: pnpm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
+          key: pnpm-main-${{ matrix.platform }}-${{ hashFiles('./pnpm-lock.yaml') }}
 
   # Tests that npm init @temporalio results in a working worker and client
   test-npm-init:
@@ -254,6 +260,12 @@ jobs:
         with:
           # We don't need the core submodule here since won't build the project
           submodules: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
 
       - name: Install Node
         uses: actions/setup-node@v4

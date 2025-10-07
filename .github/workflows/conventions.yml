@@ -16,6 +16,12 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
       - name: Install Node
         uses: actions/setup-node@v4
         with:
@@ -61,7 +67,7 @@ jobs:
 
       # eslint-import-resolver-typescript requires packages to be built
       - name: Compile all non-rust code
-        run: pnpm run build -- --ignore @temporalio/core-bridge
+        run: pnpm run build --ignore @temporalio/core-bridge
 
       - run: pnpm run lint.check
       - run: pnpm run lint.prune
