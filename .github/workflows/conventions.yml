@@ -48,6 +48,7 @@ jobs:
 
       # eslint-import-resolver-typescript requires packages to be built
       - name: Compile all non-rust code
-        run: pnpm run build -- --ignore @temporalio/core-bridge
+        run: pnpm run build --ignore @temporalio/core-bridge
+
       - run: pnpm run lint.check
       - run: pnpm run lint.prune
