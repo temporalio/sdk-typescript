@@ -155,10 +155,17 @@ jobs:
           name: corebridge-native-debug-${{ matrix.platform }}
           path: ./packages/core-bridge/releases
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
       - name: Install Node
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-release-override || matrix.node }}
+          cache: "pnpm"
 
       # On Windows, the 'runner.temp' variable uses backslashes as path separators, but
       # that may pose problems in later steps when we try to join that with subpaths;
@@ -172,25 +179,25 @@ jobs:
         run: echo "dir=$(pwd)" >> ${GITHUB_OUTPUT}
         working-directory: ${{ runner.temp }}
 
-      - name: Get NPM cache directory
-        id: npm-cache-dir
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+      - name: Get PNPM store directory
+        id: pnpm-cache-dir
+        run: echo "dir=$(pnpm store path)" >> ${GITHUB_OUTPUT}
 
-      - name: Restore NPM cache
+      - name: Restore PNPM cache
         uses: actions/cache/restore@v4
         with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
+          path: ${{ steps.pnpm-cache-dir.outputs.dir }}
+          key: pnpm-main-${{ matrix.platform }}-${{ hashFiles('./pnpm-lock.yaml') }}
           restore-keys: |
-            npm-main-${{ matrix.platform }}-
+            pnpm-main-${{ matrix.platform }}-
 
       - name: Download dependencies
         # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors :(
         run: |
-          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
+          pnpm install --frozen-lockfile || pnpm install --frozen-lockfile || pnpm install --frozen-lockfile
 
       - name: Compile code
-        run: npm run build -- --ignore @temporalio/core-bridge
+        run: pnpm run build --ignore @temporalio/core-bridge
 
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
@@ -208,7 +215,7 @@ jobs:
             --headless &> ./devserver.log &
 
       - name: Run Tests
-        run: npm run test
+        run: pnpm run test
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
@@ -272,6 +279,7 @@ jobs:
 
       # End samples
 
+      # TODO: PNPM doesn't write logs to file by default
       - name: Upload NPM logs
         uses: actions/upload-artifact@v4
         if: failure() || cancelled()

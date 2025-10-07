@@ -59,22 +59,29 @@ jobs:
           submodules: recursive
           ref: ${{ inputs.ref }}
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
       - name: Install Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: "pnpm"
 
-      - name: Get NPM cache directory
-        id: npm-cache-dir
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+      - name: Get PNPM cache directory
+        id: pnpm-cache-dir
+        run: echo "dir=$(pnpm store path)" >> ${GITHUB_OUTPUT}
 
-      - name: Restore NPM cache
+      - name: Restore PNPM cache
         uses: actions/cache/restore@v4
         with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: npm-main-linux-x64-${{ hashFiles('./package-lock.json') }}
+          path: ${{ steps.pnpm-cache-dir.outputs.dir }}
+          key: pnpm-main-linux-x64-${{ hashFiles('./pnpm-lock.yaml') }}
           restore-keys: |
-            npm-main-linux-x64-
+            pnpm-main-linux-x64-
 
       - name: Install protoc
         uses: arduino/setup-protoc@v3
@@ -98,10 +105,10 @@ jobs:
       - name: Download dependencies
         # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors
         run: |
-          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
+          pnpm install --frozen-lockfile || pnpm install --frozen-lockfile || pnpm install --frozen-lockfile
 
       - name: Compile code
-        run: npm run build
+        run: pnpm run build
         env:
           BUILD_CORE_RELEASE: true
 

@@ -16,23 +16,30 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
       - name: Install Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: "pnpm"
 
       - name: Get NPM cache directory
-        id: npm-cache-dir
+        id: pnpm-cache-dir
         shell: bash
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+        run: echo "dir=$(pnpm store path)" >> ${GITHUB_OUTPUT}
 
       - name: Restore NPM cache
         uses: actions/cache/restore@v4
         with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: npm-main-linux-x64-${{ hashFiles('./package-lock.json') }}
+          path: ${{ steps.pnpm-cache-dir.outputs.dir }}
+          key: pnpm-main-linux-x64-${{ hashFiles('./pnpm-lock.yaml') }}
           restore-keys: |
-            npm-main-linux-x64-
+            pnpm-main-linux-x64-
 
       - name: Install protoc
         uses: arduino/setup-protoc@v3
@@ -56,11 +63,11 @@ jobs:
 
       - name: Download dependencies
         run: |
-          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
+          pnpm install --frozen-lockfile || pnpm install --frozen-lockfile || pnpm install --frozen-lockfile
 
       # eslint-import-resolver-typescript requires packages to be built
       - name: Compile all non-rust code
-        run: npm run build -- --ignore @temporalio/core-bridge
+        run: pnpm run build --ignore @temporalio/core-bridge
 
-      - run: npm run lint.check
-      - run: npm run lint.prune
+      - run: pnpm run lint.check
+      - run: pnpm run lint.prune
