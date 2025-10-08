@@ -122,6 +122,7 @@ export interface CallContext {
  */
 export interface ConnectionLike {
   workflowService: WorkflowService;
+  plugins: any[];
   close(): Promise<void>;
   ensureConnected(): Promise<void>;
 

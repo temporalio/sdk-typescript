@@ -109,7 +109,7 @@ import {
 } from './errors';
 import { constructNexusOperationContext, NexusHandler } from './nexus';
 import { handlerErrorToProto } from './nexus/conversions';
-import { Plugin } from './plugin';
+import { isWorkerPlugin, Plugin } from './plugin';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -501,8 +501,11 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
-    const plugin = Worker.buildPluginChain(options.plugins);
-    options = plugin.configureWorker(options);
+    options.plugins = (options.plugins || []).concat(
+      (options.connection?.plugins || []).filter(p => isWorkerPlugin(p)).map(p => p as Plugin));
+    for (const plugin of options.plugins) {
+      options = plugin.configureWorker(options);
+    }
     if (!options.taskQueue) {
       throw new TypeError('Task queue name is required');
     }
@@ -558,7 +561,7 @@ export class Worker {
       compiledOptionsWithBuildId,
       logger,
       metricMeter,
-      plugin,
+      options.plugins || [],
       connection,
     );
   }
@@ -701,8 +704,10 @@ export class Worker {
   }
 
   private static async constructReplayWorker(options: ReplayWorkerOptions): Promise<[Worker, native.HistoryPusher]> {
-    const plugin = Worker.buildPluginChain(options.plugins)
-    options = plugin.configureReplayWorker(options);
+    const plugins = options.plugins ?? [];
+    for (const plugin of plugins) {
+      options = plugin.configureReplayWorker(options);
+    }
     const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
     const fixedUpOptions: WorkerOptions = {
       taskQueue: (options.replayName ?? 'fake_replay_queue') + '-' + this.replayWorkerCount,
@@ -730,7 +735,7 @@ export class Worker {
       addBuildIdIfMissing(compiledOptions, bundle.code)
     );
     return [
-      new this(runtime, replayHandle.worker, workflowCreator, compiledOptions, logger, metricMeter, plugin,undefined, true),
+      new this(runtime, replayHandle.worker, workflowCreator, compiledOptions, logger, metricMeter, plugins, undefined, true),
       replayHandle.historyPusher,
     ];
   }
@@ -800,7 +805,7 @@ export class Worker {
     /** Logger bound to 'sdkComponent: worker' */
     protected readonly logger: Logger,
     protected readonly metricMeter: MetricMeter,
-    protected readonly plugin: Plugin,
+    protected readonly plugins: Plugin[],
     protected readonly connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
@@ -1965,7 +1970,13 @@ export class Worker {
    * To stop polling, call {@link shutdown} or send one of {@link Runtime.options.shutdownSignals}.
    */
   async run(): Promise<void> {
-    return this.plugin.runWorker(this);
+    let nextFunction = (w: Worker) => w.runInternal();
+    for (const plugin of this.plugins) {
+      // Early bind the nextFunction
+      const next = nextFunction;
+      nextFunction = (w: Worker) => plugin.runWorker(w, next);
+    }
+    return nextFunction(this);
   }
 
   private async runInternal(): Promise<void> {
@@ -2047,43 +2058,6 @@ export class Worker {
         this.nativeWorker.flushCoreLogs();
       }
     }
-  }
-
-  private static rootPlugin = class implements Plugin {
-    name: string = 'RootPlugin';
-    initWorkerPlugin(_next: Plugin): Plugin {
-      throw new Error('Root plugin should not be initialized');
-    }
-
-    configureWorker(config: WorkerOptions): WorkerOptions {
-      return config;
-    }
-
-    configureReplayWorker(config: ReplayWorkerOptions): ReplayWorkerOptions {
-      return config;
-    }
-
-    runWorker(worker: Worker): Promise<void> {
-      return worker.runInternal();
-    }
-  }
-
-  protected static buildPluginChain(plugins: Plugin[] | undefined): Plugin {
-    if (plugins === undefined || plugins.length === 0) {
-      return new Worker.rootPlugin();
-    }
-
-    // Start with the root plugin at the end
-    let chain: Plugin = new Worker.rootPlugin();
-
-    // Build the chain in reverse order
-    for (let i = plugins.length - 1; i >= 0; i--) {
-      const plugin = plugins[i];
-      plugin.initWorkerPlugin(chain);
-      chain = plugin;
-    }
-
-    return chain;
   }
 }
 

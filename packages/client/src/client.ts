@@ -6,7 +6,7 @@ import { ScheduleClient } from './schedule-client';
 import { QueryRejectCondition, WorkflowService } from './types';
 import { WorkflowClient } from './workflow-client';
 import { TaskQueueClient } from './task-queue-client';
-import { Plugin, buildPluginChain } from './plugin';
+import { isClientPlugin, Plugin } from './plugin';
 
 export interface ClientOptions extends BaseClientOptions {
   /**
@@ -43,20 +43,6 @@ export class Client extends BaseClient {
   public readonly options: LoadedClientOptions;
 
   /**
-   * Apply plugins to client options
-   */
-  private static applyPlugins(options?: ClientOptions): ClientOptions {
-    if (!options?.plugins?.length) {
-      return options ?? {};
-    }
-
-    const pluginChain = buildPluginChain(options.plugins);
-    const clientConfig: ClientOptions = { ...options };
-    const processedConfig = pluginChain.configureClient(clientConfig);
-    
-    return { ...processedConfig };
-  }
-  /**
    * Workflow sub-client - use to start and interact with Workflows
    */
   public readonly workflow: WorkflowClient;
@@ -76,12 +62,20 @@ export class Client extends BaseClient {
   public readonly taskQueue: TaskQueueClient;
 
   constructor(options?: ClientOptions) {
-    // Process plugins first to allow them to modify connect configuration
-    const processedOptions = Client.applyPlugins(options);
-    
-    super(processedOptions);
+    options = options ?? {};
 
-    const { interceptors, workflow, plugins, ...commonOptions } = processedOptions ?? {};
+    // Add client plugins from the connection
+    options.plugins = (options.plugins || []).concat(
+      (options.connection?.plugins || []).filter(p => isClientPlugin(p)).map(p => p as Plugin));
+
+    // Process plugins first to allow them to modify connect configuration
+    for (const plugin of options?.plugins ?? []) {
+      options = plugin.configureClient(options)
+    }
+
+    super(options);
+
+    const { interceptors, workflow, plugins, ...commonOptions } = options;
 
     this.workflow = new WorkflowClient({
       ...commonOptions,

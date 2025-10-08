@@ -166,3 +166,5 @@ export {
    */
   MetricsExporterConfig as MetricsExporter,
 } from './runtime-options';
+
+export { Plugin as NativeConnectionPlugin, isNativeConnectionPlugin } from './connection';

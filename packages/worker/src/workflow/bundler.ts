@@ -53,10 +53,13 @@ export class WorkflowCodeBundler {
   protected readonly failureConverterPath?: string;
   protected readonly ignoreModules: string[];
   protected readonly webpackConfigHook: (config: Configuration) => Configuration;
-  protected readonly plugin: Plugin;
+  protected readonly plugins: Plugin[];
 
   constructor(options: BundleOptions) {
-    this.plugin = buildPluginChain(options.plugins);
+    this.plugins = options.plugins ?? [];
+    for (const plugin of this.plugins) {
+      options = plugin.configureBundler(options);
+    }
     const {
       logger,
       workflowsPath,
@@ -65,7 +68,7 @@ export class WorkflowCodeBundler {
       workflowInterceptorModules,
       ignoreModules,
       webpackConfigHook,
-    } = this.plugin.configureBundler(options);
+    } = options;
     this.logger = logger ?? new DefaultLogger('INFO');
     this.workflowsPath = workflowsPath;
     this.payloadConverterPath = payloadConverterPath;
@@ -320,60 +323,15 @@ export interface Plugin {
   get name(): string;
 
   /**
-   * Initialize this plugin in the bundler plugin chain.
-   *
-   * This method sets up the chain of responsibility pattern by storing a reference
-   * to the next plugin in the chain. It is called during bundler creation to build
-   * the plugin chain.
-   *
-   * Args:
-   *   next: The next plugin in the chain to delegate to.
-   *
-   * Returns:
-   *   This plugin instance for method chaining.
-   */
-  initBundlerPlugin(next: Plugin): Plugin;
-
-  /**
    * Hook called when creating a bundler to allow modification of configuration.
    */
   configureBundler(config: BundleOptions): BundleOptions;
 }
 
-class RootPlugin implements Plugin {
-  name: string = 'RootPlugin';
-
-  initBundlerPlugin(_next: Plugin): Plugin {
-    throw new Error('Root plugin should not be initialized');
-  }
-
-  configureBundler(config: BundleOptions): BundleOptions {
-    return config;
-  }
-}
-
-function buildPluginChain(plugins: Plugin[] | undefined): Plugin {
-  if (plugins === undefined || plugins.length === 0) {
-    return new RootPlugin();
-  }
-
-  // Start with the root plugin at the end
-  let chain: Plugin = new RootPlugin();
-
-  // Build the chain in reverse order
-  for (let i = plugins.length - 1; i >= 0; i--) {
-    const plugin = plugins[i];
-    plugin.initBundlerPlugin(chain);
-    chain = plugin;
-  }
-
-  return chain;
-}
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function isBundlerPlugin(p: any): p is Plugin {
-  console.log(p, "initBundlerPlugin" in p && "configureBundler" in p);
-  return "initBundlerPlugin" in p && "configureBundler" in p;
+  return "configureBundler" in p;
 }
 
 
