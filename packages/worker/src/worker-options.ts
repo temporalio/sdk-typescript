@@ -27,7 +27,7 @@ import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 import { asNativeTuner, WorkerTuner } from './worker-tuner';
-import { Plugin } from './plugin';
+import { WorkerPlugin } from './plugin';
 
 /**
  * Options to configure the {@link Worker}
@@ -493,7 +493,7 @@ export interface WorkerOptions {
    * Worker plugins can be used to add custom activities, workflows, interceptors, or modify other
    * worker settings before the worker is fully initialized.
    */
-  plugins?: Plugin[];
+  plugins?: WorkerPlugin[];
 
   /**
    * Registration of a {@link SinkFunction}, including per-sink-function options.

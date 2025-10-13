@@ -131,7 +131,7 @@ export interface ConnectionOptions {
    */
   connectTimeout?: Duration;
 
-  plugins?: Plugin[];
+  plugins?: ConnectionPlugin[];
 }
 
 export type ConnectionOptionsWithDefaults = Required<
@@ -325,7 +325,7 @@ export class Connection {
    */
   public readonly healthService: HealthService;
 
-  public readonly plugins: Plugin[];
+  public readonly plugins: ConnectionPlugin[];
 
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
   private readonly apiKeyFnRef: { fn?: () => string };
@@ -446,8 +446,8 @@ export class Connection {
    * This method does not verify connectivity with the server. We recommend using {@link connect} instead.
    */
   static lazy(options?: ConnectionOptions): Connection {
-    options = options || {};
-    for (const plugin of options.plugins || []) {
+    options = options ?? {};
+    for (const plugin of options.plugins ?? []) {
       options = plugin.configureConnection(options);
     }
     return new this(this.createCtorOptions(options));
@@ -483,7 +483,7 @@ export class Connection {
     this.healthService = healthService;
     this.callContextStorage = callContextStorage;
     this.apiKeyFnRef = apiKeyFnRef;
-    this.plugins = options.plugins || [];
+    this.plugins = options.plugins ?? [];
   }
 
   protected static generateRPCImplementation({
@@ -696,11 +696,11 @@ export class Connection {
   }
 }
 
-export interface Plugin {
+export interface ConnectionPlugin {
   configureConnection(config: ConnectionOptions): ConnectionOptions;
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function isConnectionPlugin(p: any): p is Plugin {
+export function isConnectionPlugin(p: any): p is ConnectionPlugin {
   return "configureConnection" in p;
 }

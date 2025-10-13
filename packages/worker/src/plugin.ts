@@ -1,32 +1,13 @@
-import * as nexus from 'nexus-rpc';
-import type {
-  ClientInterceptors,
-  ClientOptions,
-  ConnectionOptions,
-  ConnectionPlugin,
-  Plugin as ClientPlugin,
-} from '@temporalio/client';
-import { native } from '@temporalio/core-bridge';
-import type { ReplayWorkerOptions, WorkerOptions, WorkflowBundleOption } from './worker-options';
-import type {
-  DataConverter,
-  Worker,
-} from './worker';
-import type {
-  BundleOptions,
-  BundlerPlugin,
-  NativeConnectionOptions,
-  NativeConnectionPlugin,
-  WorkerInterceptors,
-} from './index';
+import type { ReplayWorkerOptions, WorkerOptions } from './worker-options';
+import type { Worker } from './worker';
+
 /**
- * Base Plugin class for both client and worker functionality.
+ * Base Plugin class for worker functionality.
  * 
- * Plugins provide a way to extend and customize the behavior of Temporal clients and workers through a chain of
- * responsibility pattern. They allow you to intercept and modify client creation, service connections, worker
- * configuration, and worker execution.
+ * Plugins provide a way to extend and customize the behavior of Temporal workers.
+ * They allow you to intercept and modify worker configuration and worker execution.
  */
-export interface Plugin {
+export interface WorkerPlugin {
   /**
    * Gets the name of this plugin.
    * 
@@ -69,122 +50,6 @@ export interface Plugin {
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function isWorkerPlugin(p: any): p is Plugin {
+export function isWorkerPlugin(p: any): p is WorkerPlugin {
   return "configureWorker" in p && "configureReplayWorker" in p && "runWorker" in p;
-}
-
-type PluginParameter<T> = T | ((p: T | undefined) => T);
-
-export class SimplePlugin implements Plugin, ClientPlugin, BundlerPlugin, ConnectionPlugin, NativeConnectionPlugin {
-
-  constructor(
-    readonly name: string,
-    protected readonly dataConverter?: PluginParameter<DataConverter>,
-    protected readonly clientInterceptors?: PluginParameter<ClientInterceptors>,
-    protected readonly activities?: PluginParameter<object>,
-    protected readonly nexusServices?: PluginParameter<nexus.ServiceHandler<any>[]>,
-    protected readonly workflowsPath?: PluginParameter<string>,
-    protected readonly workflowBundle?: PluginParameter<WorkflowBundleOption>,
-    protected readonly workerInterceptors?: PluginParameter<WorkerInterceptors>,
-    protected readonly runContext?: {
-      before: () => Promise<void>,
-      after: () => Promise<void>,
-    }){}
-
-  private static resolveRequiredParameter<T>(existing: T, parameter: PluginParameter<T> | undefined): T {
-    if (parameter === undefined) {
-      return existing;
-    }
-    if (typeof parameter === 'function') {
-      // @ts-expect-error Can't infer that parameter is a function
-      return parameter(existing);
-    }
-    return parameter;
-  }
-
-  private static resolveParameter<T>(existing: T | undefined, parameter: PluginParameter<T> | undefined): T | undefined {
-    if (parameter === undefined) {
-      return existing;
-    }
-    if (typeof parameter === 'function') {
-      // @ts-expect-error Can't infer that parameter is a function
-      return parameter(existing);
-    }
-    return parameter;
-  }
-
-  private static resolveAppendParameter<T>(existing: T[] | undefined, parameter: PluginParameter<T[]> | undefined): T[] | undefined {
-    if (parameter === undefined) {
-      return existing;
-    }
-    if (typeof parameter === 'function') {
-      return parameter(existing);
-    }
-    return (existing || []).concat(parameter);
-  }
-
-
-  configureClient(config: ClientOptions): ClientOptions {
-    config.dataConverter = SimplePlugin.resolveParameter(config.dataConverter, this.dataConverter);
-
-    // TODO: Way to do interceptor append?
-    config.interceptors = SimplePlugin.resolveParameter(config.interceptors, this.clientInterceptors);
-    return config;
-  }
-
-  configureWorker(config: WorkerOptions): WorkerOptions {
-    config.dataConverter = SimplePlugin.resolveParameter(config.dataConverter, this.dataConverter);
-
-    // TODO: Way to do activities append?
-    config.activities = SimplePlugin.resolveParameter(config.activities, this.activities);
-    config.nexusServices = SimplePlugin.resolveAppendParameter(config.nexusServices, this.nexusServices);
-    config.workflowsPath = SimplePlugin.resolveParameter(config.workflowsPath, this.workflowsPath);
-    config.workflowBundle = SimplePlugin.resolveParameter(config.workflowBundle, this.workflowBundle);
-
-    // TODO: Way to do interceptor append?
-    config.interceptors = SimplePlugin.resolveParameter(config.interceptors, this.workerInterceptors);
-
-    return config;
-  }
-
-  configureReplayWorker(config: ReplayWorkerOptions): ReplayWorkerOptions {
-    config.dataConverter = SimplePlugin.resolveParameter(config.dataConverter, this.dataConverter);
-
-    // TODO: Way to do activities append?
-    config.workflowsPath = SimplePlugin.resolveParameter(config.workflowsPath, this.workflowsPath);
-    config.workflowBundle = SimplePlugin.resolveParameter(config.workflowBundle, this.workflowBundle);
-
-    // TODO: Way to do interceptor append?
-    config.interceptors = SimplePlugin.resolveParameter(config.interceptors, this.workerInterceptors);
-
-    return config;
-  }
-
-  async runWorker(worker: Worker, next: (w: Worker) => Promise<void>): Promise<void> {
-    if (this.runContext !== undefined) {
-      await this.runContext.before();
-    }
-    const result = await next(worker);
-    if (this.runContext !== undefined) {
-      await this.runContext.after();
-    }
-    return result;
-  }
-
-  configureBundler(config: BundleOptions): BundleOptions {
-    config.workflowsPath = SimplePlugin.resolveRequiredParameter(config.workflowsPath, this.workflowsPath);
-    return config;
-  }
-
-  configureConnection(config: ConnectionOptions): ConnectionOptions {
-    return config;
-  }
-
-  configureNativeConnection(options: NativeConnectionOptions): NativeConnectionOptions {
-    return options;
-  }
-
-  connectNative(next: () => Promise<native.Client>): Promise<native.Client> {
-    return next();
-  }
 }

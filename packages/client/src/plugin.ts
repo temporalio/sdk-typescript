@@ -1,6 +1,6 @@
 import type { ClientOptions } from './client';
 
-export interface Plugin {
+export interface ClientPlugin {
   /**
    * Gets the name of this plugin.
    */
@@ -23,6 +23,6 @@ export interface Plugin {
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function isClientPlugin(p: any): p is Plugin {
+export function isClientPlugin(p: any): p is ClientPlugin {
   return "configureClient" in p;
 }

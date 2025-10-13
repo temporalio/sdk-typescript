@@ -53,7 +53,7 @@ export class WorkflowCodeBundler {
   protected readonly failureConverterPath?: string;
   protected readonly ignoreModules: string[];
   protected readonly webpackConfigHook: (config: Configuration) => Configuration;
-  protected readonly plugins: Plugin[];
+  protected readonly plugins: BundlerPlugin[];
 
   constructor(options: BundleOptions) {
     this.plugins = options.plugins ?? [];
@@ -313,7 +313,7 @@ exports.importInterceptors = function importInterceptors() {
   }
 }
 
-export interface Plugin {
+export interface BundlerPlugin {
   /**
    * Gets the name of this plugin.
    *
@@ -330,7 +330,7 @@ export interface Plugin {
 
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function isBundlerPlugin(p: any): p is Plugin {
+export function isBundlerPlugin(p: any): p is BundlerPlugin {
   return "configureBundler" in p;
 }
 
@@ -382,7 +382,7 @@ export interface BundleOptions {
   /**
    * List of plugins to register with the bundler.
    */
-  plugins?: Plugin[];
+  plugins?: BundlerPlugin[];
 }
 
 /**

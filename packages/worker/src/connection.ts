@@ -18,6 +18,7 @@ import { TransportError } from './errors';
 import { NativeConnectionOptions } from './connection-options';
 import { Runtime } from './runtime';
 import { ClientOptions } from '@grpc/grpc-js';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 
 /**
  * A Native Connection object that delegates calls to the Rust Core binary extension.
@@ -233,8 +234,8 @@ export class NativeConnection implements ConnectionLike {
    * Eagerly connect to the Temporal server and return a NativeConnection instance
    */
   static async connect(options?: NativeConnectionOptions): Promise<NativeConnection> {
-    options = options || {};
-    for (const plugin of options.plugins || []) {
+    options = options ?? {};
+    for (const plugin of options.plugins ?? []) {
       options = plugin.configureNativeConnection(options);
     }
     const internalOptions = (options as InternalConnectionOptions)?.[InternalConnectionOptionsSymbol] ?? {};
@@ -243,14 +244,9 @@ export class NativeConnection implements ConnectionLike {
     try {
       const runtime = Runtime.instance();
 
-      let connectNative = async () => await runtime.createNativeClient(options)
-      for (const plugin of options.plugins || []) {
-        const cn = connectNative
-        connectNative = async () => await plugin.connectNative(cn);
-      }
-
+      const connectNative = composeInterceptors(options.plugins ?? [], 'connectNative', () => runtime.createNativeClient(options));
       const client = await connectNative();
-      return new this(runtime, client, enableTestService, options.plugins || []);
+      return new this(runtime, client, enableTestService, options.plugins ?? []);
     } catch (err) {
       if (err instanceof TransportError) {
         throw new TransportError(err.message);

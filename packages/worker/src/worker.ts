@@ -109,7 +109,8 @@ import {
 } from './errors';
 import { constructNexusOperationContext, NexusHandler } from './nexus';
 import { handlerErrorToProto } from './nexus/conversions';
-import { isWorkerPlugin, Plugin } from './plugin';
+import { isWorkerPlugin, WorkerPlugin } from './plugin';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -502,7 +503,7 @@ export class Worker {
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
     options.plugins = (options.plugins || []).concat(
-      (options.connection?.plugins || []).filter(p => isWorkerPlugin(p)).map(p => p as Plugin));
+      (options.connection?.plugins || []).filter(p => isWorkerPlugin(p)).map(p => p as WorkerPlugin));
     for (const plugin of options.plugins) {
       options = plugin.configureWorker(options);
     }
@@ -805,7 +806,7 @@ export class Worker {
     /** Logger bound to 'sdkComponent: worker' */
     protected readonly logger: Logger,
     protected readonly metricMeter: MetricMeter,
-    protected readonly plugins: Plugin[],
+    protected readonly plugins: WorkerPlugin[],
     protected readonly connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
@@ -1970,13 +1971,11 @@ export class Worker {
    * To stop polling, call {@link shutdown} or send one of {@link Runtime.options.shutdownSignals}.
    */
   async run(): Promise<void> {
-    let nextFunction = (w: Worker) => w.runInternal();
-    for (const plugin of this.plugins) {
-      // Early bind the nextFunction
-      const next = nextFunction;
-      nextFunction = (w: Worker) => plugin.runWorker(w, next);
+    if (this.isReplayWorker) {
+      return this.runInternal()
     }
-    return nextFunction(this);
+    const composition = composeInterceptors(this.plugins, 'runWorker', (w: Worker) => w.runInternal())
+    return composition(this);
   }
 
   private async runInternal(): Promise<void> {

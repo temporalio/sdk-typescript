@@ -1,9 +1,9 @@
 import { randomUUID } from 'crypto';
 import anyTest, { TestFn } from 'ava';
-import { Client, ClientOptions, ConnectionPlugin, Plugin as ClientPlugin, ConnectionOptions } from '@temporalio/client';
+import { Client, ClientOptions, ConnectionPlugin, ClientPlugin as ClientPlugin, ConnectionOptions } from '@temporalio/client';
 import {
   WorkerOptions,
-  Plugin as WorkerPlugin,
+  WorkerPlugin as WorkerPlugin,
   ReplayWorkerOptions,
   Worker,
   BundlerPlugin,
