@@ -62,6 +62,7 @@ import { Client } from '@temporalio/client';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
@@ -110,7 +111,6 @@ import {
 import { constructNexusOperationContext, NexusHandler } from './nexus';
 import { handlerErrorToProto } from './nexus/conversions';
 import { isWorkerPlugin, WorkerPlugin } from './plugin';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -503,7 +503,8 @@ export class Worker {
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
     options.plugins = (options.plugins || []).concat(
-      (options.connection?.plugins || []).filter(p => isWorkerPlugin(p)).map(p => p as WorkerPlugin));
+      (options.connection?.plugins || []).filter((p) => isWorkerPlugin(p)).map((p) => p as WorkerPlugin)
+    );
     for (const plugin of options.plugins) {
       options = plugin.configureWorker(options);
     }
@@ -563,7 +564,7 @@ export class Worker {
       logger,
       metricMeter,
       options.plugins || [],
-      connection,
+      connection
     );
   }
 
@@ -736,7 +737,17 @@ export class Worker {
       addBuildIdIfMissing(compiledOptions, bundle.code)
     );
     return [
-      new this(runtime, replayHandle.worker, workflowCreator, compiledOptions, logger, metricMeter, plugins, undefined, true),
+      new this(
+        runtime,
+        replayHandle.worker,
+        workflowCreator,
+        compiledOptions,
+        logger,
+        metricMeter,
+        plugins,
+        undefined,
+        true
+      ),
       replayHandle.historyPusher,
     ];
   }
@@ -774,7 +785,7 @@ export class Worker {
         throw new TypeError('Invalid WorkflowOptions.workflowBundle');
       }
     } else if (compiledOptions.workflowsPath) {
-      const bundlerPlugins = compiledOptions.plugins?.filter(p => isBundlerPlugin(p))
+      const bundlerPlugins = compiledOptions.plugins?.filter((p) => isBundlerPlugin(p));
       const bundler = new WorkflowCodeBundler({
         logger,
         workflowsPath: compiledOptions.workflowsPath,
@@ -1972,9 +1983,9 @@ export class Worker {
    */
   async run(): Promise<void> {
     if (this.isReplayWorker) {
-      return this.runInternal()
+      return this.runInternal();
     }
-    const composition = composeInterceptors(this.plugins, 'runWorker', (w: Worker) => w.runInternal())
+    const composition = composeInterceptors(this.plugins, 'runWorker', (w: Worker) => w.runInternal());
     return composition(this);
   }
 

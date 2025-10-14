@@ -18,7 +18,7 @@ export interface ClientOptions extends BaseClientOptions {
 
   /**
    * List of plugins to register with the client.
-   * 
+   *
    * Plugins allow you to extend and customize the behavior of Temporal clients through a chain of
    * responsibility pattern. They can intercept and modify client creation.
    */
@@ -66,11 +66,12 @@ export class Client extends BaseClient {
 
     // Add client plugins from the connection
     options.plugins = (options.plugins ?? []).concat(
-      (options.connection?.plugins ?? []).filter(p => isClientPlugin(p)).map(p => p as ClientPlugin));
+      (options.connection?.plugins ?? []).filter((p) => isClientPlugin(p)).map((p) => p as ClientPlugin)
+    );
 
     // Process plugins first to allow them to modify connect configuration
     for (const plugin of options?.plugins ?? []) {
-      options = plugin.configureClient(options)
+      options = plugin.configureClient(options);
     }
 
     super(options);

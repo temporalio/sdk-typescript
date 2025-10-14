@@ -1,6 +1,12 @@
 import { randomUUID } from 'crypto';
 import anyTest, { TestFn } from 'ava';
-import { Client, ClientOptions, ConnectionPlugin, ClientPlugin as ClientPlugin, ConnectionOptions } from '@temporalio/client';
+import {
+  Client,
+  ClientOptions,
+  ConnectionPlugin,
+  ClientPlugin as ClientPlugin,
+  ConnectionOptions,
+} from '@temporalio/client';
 import {
   WorkerOptions,
   WorkerPlugin as WorkerPlugin,
@@ -8,12 +14,16 @@ import {
   Worker,
   BundlerPlugin,
   BundleOptions,
-  bundleWorkflowCode, NativeConnectionPlugin,
+  bundleWorkflowCode,
+  NativeConnectionPlugin,
   NativeConnectionOptions,
 } from '@temporalio/worker';
+import { SimplePlugin } from '@temporalio/plugin';
 import { native } from '@temporalio/core-bridge';
-import { hello_workflow } from './workflows/plugins';
+import { activity_workflow, hello_workflow } from './workflows/plugins';
 import { TestWorkflowEnvironment } from './helpers';
+
+import * as activities from './activities';
 
 interface Context {
   testEnv: TestWorkflowEnvironment;
@@ -30,14 +40,16 @@ test.after.always(async (t) => {
   await t.context.testEnv?.teardown();
 });
 
-export class ExamplePlugin implements WorkerPlugin, ClientPlugin, BundlerPlugin, ConnectionPlugin, NativeConnectionPlugin {
+export class ExamplePlugin
+  implements WorkerPlugin, ClientPlugin, BundlerPlugin, ConnectionPlugin, NativeConnectionPlugin
+{
   readonly name: string = 'example-plugin';
 
   constructor() {}
 
   configureClient(config: ClientOptions): ClientOptions {
     console.log('ExamplePlugin: Configuring client');
-    config.identity = "Plugin Identity";
+    config.identity = 'Plugin Identity';
     return config;
   }
 
@@ -75,7 +87,6 @@ export class ExamplePlugin implements WorkerPlugin, ClientPlugin, BundlerPlugin,
   }
 }
 
-
 test('Basic plugin', async (t) => {
   const { connection } = t.context.testEnv;
   const client = new Client({ connection });
@@ -83,8 +94,8 @@ test('Basic plugin', async (t) => {
   const plugin = new ExamplePlugin();
   const bundle = await bundleWorkflowCode({
     workflowsPath: 'replaced',
-    plugins: [plugin]
-  })
+    plugins: [plugin],
+  });
 
   const worker = await Worker.create({
     workflowBundle: bundle,
@@ -94,14 +105,14 @@ test('Basic plugin', async (t) => {
   });
 
   await worker.runUntil(async () => {
-    t.is(worker.options.taskQueue, "plugin-task-queue");
+    t.is(worker.options.taskQueue, 'plugin-task-queue');
     const result = await client.workflow.execute(hello_workflow, {
-      taskQueue: "plugin-task-queue",
+      taskQueue: 'plugin-task-queue',
       workflowExecutionTimeout: '30 seconds',
-      workflowId: randomUUID()
+      workflowId: randomUUID(),
     });
 
-    t.is(result, "Hello");
+    t.is(result, 'Hello');
   });
 });
 
@@ -115,22 +126,21 @@ test('Bundler plugins are passed from worker', async (t) => {
     taskQueue: 'will be overridden',
     plugins: [new ExamplePlugin()],
   });
-  console.log("worker created");
+  console.log('worker created');
   await worker.runUntil(async () => {
-    t.is(worker.options.taskQueue, "plugin-task-queue");
+    t.is(worker.options.taskQueue, 'plugin-task-queue');
     const result = await client.workflow.execute(hello_workflow, {
-      taskQueue: "plugin-task-queue",
+      taskQueue: 'plugin-task-queue',
       workflowExecutionTimeout: '30 seconds',
-      workflowId: randomUUID()
+      workflowId: randomUUID(),
     });
 
-    t.is(result, "Hello");
+    t.is(result, 'Hello');
   });
 });
 
-
 test('Worker plugins are passed from native connection', async (t) => {
-  const env = await TestWorkflowEnvironment.createLocal({connectionPlugins: [new ExamplePlugin()]});
+  const env = await TestWorkflowEnvironment.createLocal({ connectionPlugins: [new ExamplePlugin()] });
   try {
     const client = new Client({ connection: env.connection });
 
@@ -140,33 +150,111 @@ test('Worker plugins are passed from native connection', async (t) => {
       taskQueue: 'will be overridden',
     });
 
-    t.is(worker.options.taskQueue, "plugin-task-queue");
+    t.is(worker.options.taskQueue, 'plugin-task-queue');
 
     await worker.runUntil(async () => {
-      t.is(worker.options.taskQueue, "plugin-task-queue");
+      t.is(worker.options.taskQueue, 'plugin-task-queue');
       const result = await client.workflow.execute(hello_workflow, {
-        taskQueue: "plugin-task-queue",
+        taskQueue: 'plugin-task-queue',
         workflowExecutionTimeout: '30 seconds',
-        workflowId: randomUUID()
+        workflowId: randomUUID(),
       });
 
-      t.is(result, "Hello");
+      t.is(result, 'Hello');
     });
   } finally {
-    await env.teardown()
+    await env.teardown();
   }
 });
 
-
 test('Client plugins are passed from connections', async (t) => {
-  const env = await TestWorkflowEnvironment.createLocal({connectionPlugins: [new ExamplePlugin()]});
+  const env = await TestWorkflowEnvironment.createLocal({ connectionPlugins: [new ExamplePlugin()] });
   try {
     const client = new Client({ connection: env.connection });
-    t.is(client.options.identity, "Plugin Identity");
+    t.is(client.options.identity, 'Plugin Identity');
 
     const clientNative = new Client({ connection: env.nativeConnection });
-    t.is(clientNative.options.identity, "Plugin Identity");
+    t.is(clientNative.options.identity, 'Plugin Identity');
   } finally {
-    await env.teardown()
+    await env.teardown();
   }
+});
+
+// SimplePlugin tests
+test('SimplePlugin connection configurations', async (t) => {
+  const plugin = new SimplePlugin({
+    name: 'test-simple-plugin',
+    tls: true,
+    apiKey: 'testApiKey',
+  });
+
+  const options = plugin.configureNativeConnection({});
+  t.is(options.tls, true);
+  t.is(options.apiKey, 'testApiKey');
+});
+
+test('SimplePlugin worker configurations', async (t) => {
+  const plugin = new SimplePlugin({
+    name: 'test-simple-plugin',
+    activities,
+    workflowsPath: require.resolve('./workflows/plugins'),
+  });
+
+  const { connection } = t.context.testEnv;
+  const client = new Client({ connection });
+
+  const worker = await Worker.create({
+    workflowsPath: 'replaced',
+    connection: t.context.testEnv.nativeConnection,
+    taskQueue: 'simple-plugin-queue',
+    plugins: [plugin],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(activity_workflow, {
+      taskQueue: 'simple-plugin-queue',
+      workflowExecutionTimeout: '30 seconds',
+      workflowId: randomUUID(),
+    });
+
+    t.is(result, 'Hello');
+  });
+});
+
+test('SimplePlugin with activities merges them correctly', async (t) => {
+  const activity1 = async () => 'activity1';
+  const activity2 = async () => 'activity2';
+
+  const plugin = new SimplePlugin({
+    name: 'simple-test-plugin',
+    activities: {
+      pluginActivity: activity2,
+    },
+  });
+
+  const worker = await Worker.create({
+    connection: t.context.testEnv.nativeConnection,
+    taskQueue: 'simple-plugin-queue',
+    activities: {
+      existingActivity: activity1,
+    },
+    plugins: [plugin],
+  });
+
+  t.truthy(worker.options.activities);
+  t.truthy(worker.options.activities.has('existingActivity'));
+  t.truthy(worker.options.activities.has('pluginActivity'));
+});
+
+test('SimplePlugin with apiKey function throws error for NativeConnection', async (t) => {
+  const plugin = new SimplePlugin({
+    name: 'simple-test-plugin',
+    apiKey: () => 'some-key',
+  });
+
+  const error = t.throws(() => {
+    plugin.configureNativeConnection({});
+  });
+
+  t.is(error?.message, 'NativeConnectionOptions does not support apiKey as a function');
 });

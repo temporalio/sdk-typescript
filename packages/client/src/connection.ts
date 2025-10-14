@@ -697,10 +697,10 @@ export class Connection {
 }
 
 export interface ConnectionPlugin {
-  configureConnection(config: ConnectionOptions): ConnectionOptions;
+  configureConnection(options: ConnectionOptions): ConnectionOptions;
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function isConnectionPlugin(p: any): p is ConnectionPlugin {
-  return "configureConnection" in p;
+  return 'configureConnection' in p;
 }

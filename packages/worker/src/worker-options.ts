@@ -486,10 +486,10 @@ export interface WorkerOptions {
 
   /**
    * List of plugins to register with the worker.
-   * 
+   *
    * Plugins allow you to extend and customize the behavior of Temporal workers through a chain of
    * responsibility pattern. They can intercept and modify worker creation, configuration, and execution.
-   * 
+   *
    * Worker plugins can be used to add custom activities, workflows, interceptors, or modify other
    * worker settings before the worker is fully initialized.
    */

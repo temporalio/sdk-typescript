@@ -1,5 +1,12 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
-import { AsyncCompletionClient, Client, Connection, ConnectionPlugin, WorkflowClient, isConnectionPlugin } from '@temporalio/client';
+import {
+  AsyncCompletionClient,
+  Client,
+  Connection,
+  ConnectionPlugin,
+  WorkflowClient,
+  isConnectionPlugin,
+} from '@temporalio/client';
 import {
   ConnectionOptions,
   InternalConnectionOptions,
@@ -7,7 +14,13 @@ import {
 } from '@temporalio/client/lib/connection';
 import { Duration, TypedSearchAttributes } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
-import { NativeConnection, NativeConnectionPlugin, NativeConnectionOptions, Runtime, isNativeConnectionPlugin } from '@temporalio/worker';
+import {
+  NativeConnection,
+  NativeConnectionPlugin,
+  NativeConnectionOptions,
+  Runtime,
+  isNativeConnectionPlugin,
+} from '@temporalio/worker';
 import { native } from '@temporalio/core-bridge';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { toNativeEphemeralServerConfig, DevServerConfig, TimeSkippingServerConfig } from './ephemeral-server';
@@ -237,12 +250,12 @@ export class TestWorkflowEnvironment {
 
     const nativeConnection = await NativeConnection.connect(<NativeConnectionOptions & InternalConnectionOptions>{
       address,
-      plugins:opts.connectionPlugins?.filter(p => isNativeConnectionPlugin(p)),
+      plugins: opts.connectionPlugins?.filter((p) => isNativeConnectionPlugin(p)),
       [InternalConnectionOptionsSymbol]: { supportsTestService: supportsTimeSkipping },
     });
     const connection = await Connection.connect(<ConnectionOptions & InternalConnectionOptions>{
       address,
-      plugins:opts.connectionPlugins?.filter(p => isConnectionPlugin(p)),
+      plugins: opts.connectionPlugins?.filter((p) => isConnectionPlugin(p)),
       [InternalConnectionOptionsSymbol]: { supportsTestService: supportsTimeSkipping },
     });
 
@@ -357,6 +370,6 @@ function addDefaults(opts: TestWorkflowEnvironmentOptions): TestWorkflowEnvironm
     server: {
       ...opts.server,
     },
-    connectionPlugins: []
+    connectionPlugins: [],
   };
 }

@@ -14,11 +14,10 @@ import {
   InternalConnectionLikeSymbol,
 } from '@temporalio/client';
 import { InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { TransportError } from './errors';
 import { NativeConnectionOptions } from './connection-options';
 import { Runtime } from './runtime';
-import { ClientOptions } from '@grpc/grpc-js';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 
 /**
  * A Native Connection object that delegates calls to the Rust Core binary extension.
@@ -73,7 +72,7 @@ export class NativeConnection implements ConnectionLike {
     private readonly runtime: Runtime,
     private readonly nativeClient: native.Client,
     private readonly enableTestService: boolean,
-    readonly plugins: Plugin[],
+    readonly plugins: Plugin[]
   ) {
     this.workflowService = WorkflowService.create(
       this.sendRequest.bind(this, native.clientSendWorkflowServiceRequest.bind(undefined, this.nativeClient)),
@@ -244,7 +243,9 @@ export class NativeConnection implements ConnectionLike {
     try {
       const runtime = Runtime.instance();
 
-      const connectNative = composeInterceptors(options.plugins ?? [], 'connectNative', () => runtime.createNativeClient(options));
+      const connectNative = composeInterceptors(options.plugins ?? [], 'connectNative', () =>
+        runtime.createNativeClient(options)
+      );
       const client = await connectNative();
       return new this(runtime, client, enableTestService, options.plugins ?? []);
     } catch (err) {
@@ -359,5 +360,5 @@ export interface Plugin {
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function isNativeConnectionPlugin(p: any): p is Plugin {
-  return "configureNativeConnection" in p && "connectNative" in p;
+  return 'configureNativeConnection' in p && 'connectNative' in p;
 }

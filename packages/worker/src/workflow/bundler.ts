@@ -325,15 +325,13 @@ export interface BundlerPlugin {
   /**
    * Hook called when creating a bundler to allow modification of configuration.
    */
-  configureBundler(config: BundleOptions): BundleOptions;
+  configureBundler(options: BundleOptions): BundleOptions;
 }
-
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function isBundlerPlugin(p: any): p is BundlerPlugin {
-  return "configureBundler" in p;
+  return 'configureBundler' in p;
 }
-
 
 /**
  * Options for bundling Workflow code using Webpack
