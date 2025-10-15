@@ -181,8 +181,6 @@ export interface WorkerOptions {
    *
    * Mutually exclusive with the {@link maxConcurrentWorkflowTaskExecutions}, {@link
    * maxConcurrentActivityTaskExecutions}, and {@link maxConcurrentLocalActivityExecutions} options.
-   *
-   * @experimental Worker Tuner is an experimental feature and may be subject to change.
    */
   tuner?: WorkerTuner;
 
