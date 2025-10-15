@@ -231,7 +231,7 @@ export interface WorkerOptions {
    * Activities.) The Worker will not poll for new Activities if by doing so it might receive and execute an Activity
    * which would cause it to exceed this limit. Must be a positive number.
    *
-   * If unset, no rate limiting will be applied to Worker's Activities. (`tctl task-queue describe` will display the
+   * If unset, no rate limiting will be applied to Worker's Activities. (`temporal task-queue describe` will display the
    * absence of a limit as 100,000.)
    */
   maxActivitiesPerSecond?: number;
