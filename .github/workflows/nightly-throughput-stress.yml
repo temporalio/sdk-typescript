@@ -1,0 +1,330 @@
+name: Nightly Throughput Stress
+
+on:
+  schedule:
+    # Run at 3 AM PST (11:00 UTC) - offset from existing nightly to spread load
+    - cron: '00 11 * * *'
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Test duration (e.g., 45m, 1h)'
+        required: false
+        default: '45m'
+        type: string
+      max-concurrent:
+        description: 'Maximum concurrent workflows'
+        required: false
+        default: 10
+        type: number
+      internal-iterations:
+        description: 'Internal iterations per workflow'
+        required: false
+        default: 10
+        type: number
+
+env:
+  # Workflow configuration
+  TEST_DURATION: ${{ inputs.duration || '45m' }}
+  MAX_CONCURRENT: ${{ inputs.max-concurrent || 10 }}
+  INTERNAL_ITERATIONS: ${{ inputs.internal-iterations || 10 }}
+
+  # Logging and artifacts
+  WORKER_LOG_DIR: /tmp/throughput-stress-logs
+  OMES_STATE_DIR: /tmp/omes-state
+
+  # Omes configuration
+  OMES_REPO: temporalio/omes
+  OMES_REF: main
+  RUN_ID: ${{ github.run_id }}-throughput-stress
+
+jobs:
+  throughput-stress:
+    runs-on: ubuntu-latest-4-cores
+    timeout-minutes: 75  # 45min test + 30min buffer for setup/teardown
+
+    steps:
+      - name: Print test configuration
+        run: |
+          echo "=== Throughput Stress Test Configuration ==="
+          echo "Duration: $TEST_DURATION"
+          echo "Max Concurrent: $MAX_CONCURRENT"
+          echo "Internal Iterations: $INTERNAL_ITERATIONS"
+          echo "Run ID: $RUN_ID"
+          echo "=========================================="
+
+      - name: Checkout SDK
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Checkout OMES
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.OMES_REPO }}
+          ref: ${{ env.OMES_REF }}
+          path: omes
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: omes/go.mod
+          cache-dependency-path: omes/go.sum
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Get NPM cache directory
+        id: npm-cache-dir
+        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+
+      - name: Restore NPM cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: npm-main-linux-x64-${{ hashFiles('./package-lock.json') }}
+          restore-keys: |
+            npm-main-linux-x64-
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '23.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upgrade Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/core-bridge -> target
+          prefix-key: corebridge-buildcache
+          shared-key: linux-intel
+          env-vars: ''
+
+      - name: Install SDK dependencies
+        run: |
+          npm ci --ignore-scripts --verbose || \
+          npm ci --ignore-scripts --verbose || \
+          npm ci --ignore-scripts --verbose
+
+      - name: Build SDK
+        run: npm run build
+        env:
+          BUILD_CORE_RELEASE: true
+
+      - name: Install Temporal CLI
+        uses: temporalio/setup-temporal@v0
+
+      - name: Start Temporal Server
+        run: |
+          mkdir -p $WORKER_LOG_DIR
+          temporal server start-dev \
+            --db-filename temporal-throughput-stress.sqlite \
+            --sqlite-pragma journal_mode=WAL \
+            --sqlite-pragma synchronous=OFF \
+            --headless \
+            > $WORKER_LOG_DIR/temporal-server.log 2>&1 &
+
+          # Wait for server to be ready
+          timeout 60 bash -c 'until temporal operator cluster health 2>/dev/null; do sleep 1; done' || \
+            (echo "Temporal server failed to start" && cat $WORKER_LOG_DIR/temporal-server.log && exit 1)
+
+          echo "Temporal server is ready"
+
+      - name: Create search attribute for throughput stress
+        run: |
+          temporal operator search-attribute create \
+            --namespace default \
+            --name ThroughputStressScenarioId \
+            --type Keyword || echo "Search attribute may already exist"
+
+      - name: Run throughput stress scenario with local SDK
+        working-directory: omes
+        run: |
+          mkdir -p $OMES_STATE_DIR
+          mkdir -p $WORKER_LOG_DIR
+
+          set +e  # Don't fail immediately on error
+
+          # Use run-scenario-with-worker to build and run in one step
+          # Pass the SDK directory as --version for local testing
+          go run ./cmd run-scenario-with-worker \
+            --scenario throughput_stress \
+            --language typescript \
+            --version $(pwd)/../sdk-typescript \
+            --run-id $RUN_ID \
+            --log-level info \
+            --duration $TEST_DURATION \
+            --max-concurrent $MAX_CONCURRENT \
+            --option internal-iterations=$INTERNAL_ITERATIONS \
+            --option continue-as-new-after-iterations=3 \
+            --option sleep-time=1s \
+            --option visibility-count-timeout=5m \
+            --state-file $OMES_STATE_DIR/throughput-stress-state.json \
+            2>&1 | tee $WORKER_LOG_DIR/scenario.log
+
+          SCENARIO_EXIT_CODE=$?
+          echo "SCENARIO_EXIT_CODE=$SCENARIO_EXIT_CODE" >> $GITHUB_ENV
+
+          # Capture final state
+          if [ -f $OMES_STATE_DIR/throughput-stress-state.json ]; then
+            echo "=== Final Scenario State ==="
+            cat $OMES_STATE_DIR/throughput-stress-state.json
+            echo "============================"
+          fi
+
+          exit $SCENARIO_EXIT_CODE
+
+      - name: Capture failed workflow histories
+        if: failure()
+        run: |
+          mkdir -p $WORKER_LOG_DIR/histories
+
+          echo "=== Capturing Failed Workflow Histories ==="
+
+          # Query for failed workflows
+          temporal workflow list \
+            --namespace default \
+            --query "ThroughputStressScenarioId='$RUN_ID' AND ExecutionStatus='Failed'" \
+            --fields WorkflowId \
+            --limit 10 \
+            --output json > $WORKER_LOG_DIR/failed-workflows.json || echo "Failed to query workflows"
+
+          # Export history for each failed workflow (limit to first 10)
+          if [ -f $WORKER_LOG_DIR/failed-workflows.json ]; then
+            cat $WORKER_LOG_DIR/failed-workflows.json | jq -r '.[].WorkflowId' 2>/dev/null | head -10 | while read -r workflow_id; do
+              if [ -n "$workflow_id" ]; then
+                echo "Exporting history for $workflow_id"
+                temporal workflow show \
+                  --workflow-id "$workflow_id" \
+                  --namespace default \
+                  --output json \
+                  > "$WORKER_LOG_DIR/histories/${workflow_id}.json" 2>&1 || \
+                  echo "Failed to export history for $workflow_id"
+              fi
+            done
+          fi
+
+          # Get summary statistics
+          echo "=== Failed Workflow Summary ===" > $WORKER_LOG_DIR/failure-summary.txt
+          if [ -f $WORKER_LOG_DIR/failed-workflows.json ]; then
+            echo "Total failed: $(cat $WORKER_LOG_DIR/failed-workflows.json | jq '. | length' 2>/dev/null || echo 0)" >> $WORKER_LOG_DIR/failure-summary.txt
+          else
+            echo "Total failed: unknown (query failed)" >> $WORKER_LOG_DIR/failure-summary.txt
+          fi
+          echo "Captured histories: $(ls $WORKER_LOG_DIR/histories/*.json 2>/dev/null | wc -l)" >> $WORKER_LOG_DIR/failure-summary.txt
+
+          cat $WORKER_LOG_DIR/failure-summary.txt
+
+          # Compress histories to reduce artifact size
+          if [ -d "$WORKER_LOG_DIR/histories" ] && [ "$(ls -A $WORKER_LOG_DIR/histories)" ]; then
+            cd $WORKER_LOG_DIR
+            tar -czf workflow-histories.tar.gz histories/
+            echo "Compressed histories to workflow-histories.tar.gz"
+            ls -lh workflow-histories.tar.gz
+          fi
+
+      - name: Collect worker metrics
+        if: always()
+        run: |
+          echo "=== Process Status ==="
+          ps aux | grep -E "(node|temporal)" || echo "No matching processes found"
+
+          echo ""
+          echo "=== Disk Usage ==="
+          df -h
+
+          echo ""
+          echo "=== Memory Usage ==="
+          free -h
+
+      - name: Capture final logs
+        if: always()
+        run: |
+          echo "=== Last 200 lines of scenario log ==="
+          tail -n 200 $WORKER_LOG_DIR/scenario.log || echo "No scenario log found"
+
+          echo ""
+          echo "=== Last 50 lines of server log ==="
+          tail -n 50 $WORKER_LOG_DIR/temporal-server.log || echo "No server log found"
+
+      - name: Query Temporal for workflow status
+        if: always()
+        run: |
+          echo "=== Workflow Execution Count ==="
+          temporal workflow count \
+            --namespace default \
+            --query "ThroughputStressScenarioId='$RUN_ID'" || \
+            echo "Failed to query workflow count"
+
+      - name: Upload worker logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: throughput-stress-logs
+          path: ${{ env.WORKER_LOG_DIR }}
+          retention-days: 30
+
+      - name: Upload state snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: throughput-stress-state
+          path: ${{ env.OMES_STATE_DIR }}
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Generate test report
+        if: always()
+        run: |
+          mkdir -p test-results
+
+          # Create JUnit-style XML report for GitHub UI
+          cat > test-results/throughput-stress.xml << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <testsuites name="Throughput Stress Tests" tests="1" failures="${SCENARIO_EXIT_CODE:-1}" time="$(( $(date +%s) - $(date -d '45 minutes ago' +%s || date -v-45M +%s 2>/dev/null || echo 0) ))">
+            <testsuite name="throughput_stress" tests="1" failures="${SCENARIO_EXIT_CODE:-1}">
+              <testcase name="45min_stress_test" classname="TypeScript.ThroughputStress">
+                $(if [ "${SCENARIO_EXIT_CODE:-1}" != "0" ]; then
+                  echo '<failure message="Throughput stress test failed">'
+                  echo "Exit code: ${SCENARIO_EXIT_CODE:-1}"
+                  echo "See artifacts for detailed logs"
+                  echo '</failure>'
+                fi)
+              </testcase>
+            </testsuite>
+          </testsuites>
+          EOF
+
+          cat test-results/throughput-stress.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: throughput-stress-test-results
+          path: test-results/
+          retention-days: 30
+
+      - name: Publish test results
+        uses: mikepenz/action-junit-report@v5
+        if: always()
+        with:
+          report_paths: 'test-results/throughput-stress.xml'
+          check_name: 'Throughput Stress Test Results'
+          detailed_summary: true
+          fail_on_failure: true
+
+      - name: Fail if scenario failed
+        if: always()
+        run: |
+          if [ "${SCENARIO_EXIT_CODE:-1}" != "0" ]; then
+            echo "❌ Throughput stress test failed with exit code ${SCENARIO_EXIT_CODE}"
+            echo "Check the artifacts for detailed logs and state"
+            exit 1
+          else
+            echo "✅ Throughput stress test completed successfully"
+          fi
