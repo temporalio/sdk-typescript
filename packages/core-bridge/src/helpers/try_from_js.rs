@@ -11,7 +11,7 @@ use neon::{
 };
 use temporal_sdk_core::Url;
 
-use super::{BridgeError, BridgeResult};
+use super::{AppendFieldContext, BridgeError, BridgeResult};
 
 /// Trait for Rust types that can be created from JavaScript values, possibly throwing an error.
 pub trait TryFromJs: Sized {
@@ -175,8 +175,9 @@ impl<T: TryFromJs> TryFromJs for HashMap<String, T> {
         let mut map = Self::new();
         for key_handle in props {
             let key = key_handle.to_string(cx)?.value(cx);
-            let value = obj.get_value(cx, key_handle)?;
-            map.insert(key, T::try_from_js(cx, value)?);
+            let js_value = obj.get_value(cx, key_handle)?;
+            let value = T::try_from_js(cx, js_value).field(&key)?;
+            map.insert(key, value);
         }
         Ok(map)
     }
