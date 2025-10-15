@@ -40,7 +40,7 @@ env:
 jobs:
   throughput-stress:
     runs-on: ubuntu-latest-4-cores
-    timeout-minutes: 75  # 45min test + 30min buffer for setup/teardown
+    timeout-minutes: 75 # 45min test + 30min buffer for setup/teardown
 
     steps:
       - name: Print test configuration
