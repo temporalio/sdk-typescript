@@ -128,8 +128,7 @@ export class NativeConnection implements ConnectionLike {
     // TODO: add support for abortSignal
 
     const ctx = this.callContextStorage.getStore() ?? {};
-    const metadata =
-      ctx.metadata != null ? Object.fromEntries(Object.entries(ctx.metadata).map(([k, v]) => [k, v.toString()])) : {};
+    const metadata = ctx.metadata != null ? tagMetadata(ctx.metadata) : {};
 
     const req = {
       rpc: method.name,
@@ -274,8 +273,8 @@ export class NativeConnection implements ConnectionLike {
    *
    * Use {@link NativeConnectionOptions.metadata} to set the initial metadata for client creation.
    */
-  async setMetadata(metadata: Record<string, string>): Promise<void> {
-    native.clientUpdateHeaders(this.nativeClient, metadata);
+  async setMetadata(metadata: Metadata): Promise<void> {
+    native.clientUpdateHeaders(this.nativeClient, tagMetadata(metadata));
   }
 
   /**
@@ -350,6 +349,15 @@ function getRelativeTimeout(deadline: grpc.Deadline) {
   } else {
     return timeout;
   }
+}
+
+function tagMetadata(metadata: Metadata): Record<string, native.MetadataValue> {
+  return Object.fromEntries(
+    Object.entries(metadata).map(([k, value]) => [
+      k,
+      typeof value === 'string' ? { type: 'ascii' as const, value } : { type: 'binary' as const, value },
+    ])
+  );
 }
 
 export interface Plugin {
