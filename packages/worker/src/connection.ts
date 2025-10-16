@@ -14,6 +14,7 @@ import {
   InternalConnectionLikeSymbol,
 } from '@temporalio/client';
 import { InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { TransportError } from './errors';
 import { NativeConnectionOptions } from './connection-options';
 import { Runtime } from './runtime';
@@ -70,7 +71,8 @@ export class NativeConnection implements ConnectionLike {
   protected constructor(
     private readonly runtime: Runtime,
     private readonly nativeClient: native.Client,
-    private readonly enableTestService: boolean
+    private readonly enableTestService: boolean,
+    readonly plugins: Plugin[]
   ) {
     this.workflowService = WorkflowService.create(
       this.sendRequest.bind(this, native.clientSendWorkflowServiceRequest.bind(undefined, this.nativeClient)),
@@ -230,13 +232,25 @@ export class NativeConnection implements ConnectionLike {
    * Eagerly connect to the Temporal server and return a NativeConnection instance
    */
   static async connect(options?: NativeConnectionOptions): Promise<NativeConnection> {
+    options = options ?? {};
+    for (const plugin of options.plugins ?? []) {
+      options = plugin.configureNativeConnection(options);
+    }
     const internalOptions = (options as InternalConnectionOptions)?.[InternalConnectionOptionsSymbol] ?? {};
     const enableTestService = internalOptions.supportsTestService ?? false;
 
     try {
       const runtime = Runtime.instance();
-      const client = await runtime.createNativeClient(options);
-      return new this(runtime, client, enableTestService);
+
+      const plugins = options.plugins ?? [];
+      let connectNative = () => runtime.createNativeClient(options);
+      for (let i = plugins.length - 1; i >= 0; --i) {
+        const next = connectNative;
+        connectNative = () => plugins[i].connectNative(next);
+      }
+
+      const client = await connectNative();
+      return new this(runtime, client, enableTestService, options.plugins ?? []);
     } catch (err) {
       if (err instanceof TransportError) {
         throw new TransportError(err.message);
@@ -348,4 +362,15 @@ function tagMetadata(metadata: Metadata): Record<string, native.MetadataValue> {
       typeof value === 'string' ? { type: 'ascii' as const, value } : { type: 'binary' as const, value },
     ])
   );
+}
+
+export interface Plugin {
+  configureNativeConnection(options: NativeConnectionOptions): NativeConnectionOptions;
+
+  connectNative(next: () => Promise<native.Client>): Promise<native.Client>;
+}
+
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+export function isNativeConnectionPlugin(p: any): p is Plugin {
+  return 'configureNativeConnection' in p && 'connectNative' in p;
 }

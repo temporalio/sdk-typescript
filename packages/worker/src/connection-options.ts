@@ -9,6 +9,7 @@ import {
 } from '@temporalio/common/lib/internal-non-workflow';
 import type { Metadata } from '@temporalio/client';
 import pkg from './pkg';
+import type { Plugin } from './connection';
 
 export { TLSConfig, ProxyConfig };
 
@@ -60,6 +61,8 @@ export interface NativeConnectionOptions {
    * @default false
    */
   disableErrorCodeMetricTags?: boolean;
+
+  plugins?: Plugin[];
 }
 
 // Compile to Native ///////////////////////////////////////////////////////////////////////////////

@@ -27,6 +27,7 @@ import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 import { asNativeTuner, WorkerTuner } from './worker-tuner';
+import { WorkerPlugin } from './plugin';
 
 /**
  * Options to configure the {@link Worker}
@@ -480,6 +481,17 @@ export interface WorkerOptions {
    * preserve SDK's logging interceptors. This is no longer the case.
    */
   interceptors?: WorkerInterceptors;
+
+  /**
+   * List of plugins to register with the worker.
+   *
+   * Plugins allow you to extend and customize the behavior of Temporal workers through a chain of
+   * responsibility pattern. They can intercept and modify worker creation, configuration, and execution.
+   *
+   * Worker plugins can be used to add custom activities, workflows, interceptors, or modify other
+   * worker settings before the worker is fully initialized.
+   */
+  plugins?: WorkerPlugin[];
 
   /**
    * Registration of a {@link SinkFunction}, including per-sink-function options.

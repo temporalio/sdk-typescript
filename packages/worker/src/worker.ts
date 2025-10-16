@@ -62,6 +62,7 @@ import { Client } from '@temporalio/client';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
+import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
@@ -94,7 +95,7 @@ import {
   WorkflowBundle,
 } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
-import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
+import { defaultWorkflowInterceptorModules, isBundlerPlugin, WorkflowCodeBundler } from './workflow/bundler';
 import { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
@@ -109,6 +110,7 @@ import {
 } from './errors';
 import { constructNexusOperationContext, NexusHandler } from './nexus';
 import { handlerErrorToProto } from './nexus/conversions';
+import { isWorkerPlugin, WorkerPlugin } from './plugin';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -500,6 +502,12 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
+    options.plugins = (options.plugins || []).concat(
+      (options.connection?.plugins || []).filter((p) => isWorkerPlugin(p)).map((p) => p as WorkerPlugin)
+    );
+    for (const plugin of options.plugins) {
+      options = plugin.configureWorker(options);
+    }
     if (!options.taskQueue) {
       throw new TypeError('Task queue name is required');
     }
@@ -555,6 +563,7 @@ export class Worker {
       compiledOptionsWithBuildId,
       logger,
       metricMeter,
+      options.plugins || [],
       connection
     );
   }
@@ -697,6 +706,10 @@ export class Worker {
   }
 
   private static async constructReplayWorker(options: ReplayWorkerOptions): Promise<[Worker, native.HistoryPusher]> {
+    const plugins = options.plugins ?? [];
+    for (const plugin of plugins) {
+      options = plugin.configureReplayWorker(options);
+    }
     const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
     const fixedUpOptions: WorkerOptions = {
       taskQueue: (options.replayName ?? 'fake_replay_queue') + '-' + this.replayWorkerCount,
@@ -724,7 +737,17 @@ export class Worker {
       addBuildIdIfMissing(compiledOptions, bundle.code)
     );
     return [
-      new this(runtime, replayHandle.worker, workflowCreator, compiledOptions, logger, metricMeter, undefined, true),
+      new this(
+        runtime,
+        replayHandle.worker,
+        workflowCreator,
+        compiledOptions,
+        logger,
+        metricMeter,
+        plugins,
+        undefined,
+        true
+      ),
       replayHandle.historyPusher,
     ];
   }
@@ -762,6 +785,7 @@ export class Worker {
         throw new TypeError('Invalid WorkflowOptions.workflowBundle');
       }
     } else if (compiledOptions.workflowsPath) {
+      const bundlerPlugins = compiledOptions.plugins?.filter((p) => isBundlerPlugin(p));
       const bundler = new WorkflowCodeBundler({
         logger,
         workflowsPath: compiledOptions.workflowsPath,
@@ -770,6 +794,7 @@ export class Worker {
         payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
         ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
         webpackConfigHook: compiledOptions.bundlerOptions?.webpackConfigHook,
+        plugins: bundlerPlugins,
       });
       const bundle = await bundler.createBundle();
       return parseWorkflowCode(bundle.code);
@@ -792,6 +817,7 @@ export class Worker {
     /** Logger bound to 'sdkComponent: worker' */
     protected readonly logger: Logger,
     protected readonly metricMeter: MetricMeter,
+    protected readonly plugins: WorkerPlugin[],
     protected readonly connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
@@ -1956,6 +1982,14 @@ export class Worker {
    * To stop polling, call {@link shutdown} or send one of {@link Runtime.options.shutdownSignals}.
    */
   async run(): Promise<void> {
+    if (this.isReplayWorker) {
+      return this.runInternal();
+    }
+    const composition = composeInterceptors(this.plugins, 'runWorker', (w: Worker) => w.runInternal());
+    return composition(this);
+  }
+
+  private async runInternal(): Promise<void> {
     if (this.state !== 'INITIALIZED') {
       throw new IllegalStateError('Poller was already started');
     }
