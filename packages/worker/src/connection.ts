@@ -242,9 +242,13 @@ export class NativeConnection implements ConnectionLike {
     try {
       const runtime = Runtime.instance();
 
-      const connectNative = composeInterceptors(options.plugins ?? [], 'connectNative', () =>
-        runtime.createNativeClient(options)
-      );
+      const plugins = options.plugins ?? [];
+      let connectNative = () => runtime.createNativeClient(options);
+      for (let i = plugins.length - 1; i >= 0; --i) {
+        const next = connectNative;
+        connectNative = () => plugins[i].connectNative(next);
+      }
+
       const client = await connectNative();
       return new this(runtime, client, enableTestService, options.plugins ?? []);
     } catch (err) {
