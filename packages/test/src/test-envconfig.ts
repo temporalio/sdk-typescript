@@ -442,14 +442,19 @@ test('Load profile with TLS options as file paths', (t) => {
   withTempFile('ca-pem-data', (caPath) => {
     withTempFile('client-crt-data', (certPath) => {
       withTempFile('client-key-data', (keyPath) => {
+        // Normalize paths to use forward slashes for TOML compatibility (Windows uses backslashes)
+        const normalizedCaPath = caPath.replace(/\\/g, '/');
+        const normalizedCertPath = certPath.replace(/\\/g, '/');
+        const normalizedKeyPath = keyPath.replace(/\\/g, '/');
+
         const tomlConfig = dedent`
           [profile.default]
           address = "localhost:5678"
           [profile.default.tls]
           server_name = "custom-server"
-          server_ca_cert_path = "${caPath}"
-          client_cert_path = "${certPath}"
-          client_key_path = "${keyPath}"
+          server_ca_cert_path = "${normalizedCaPath}"
+          client_cert_path = "${normalizedCertPath}"
+          client_key_path = "${normalizedKeyPath}"
         `;
         const profile = loadClientConfigProfile({ configSource: dataSource(Buffer.from(tomlConfig)) });
         t.truthy(profile.tls);

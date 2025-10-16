@@ -1,12 +1,12 @@
-import * as fs from 'fs';
+import { readFileSync } from 'fs';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import {
   ClientConfigProfile,
   ClientConfigTLS,
   ClientConfig,
-  tomlClientConfigProfile,
-  tomlClientConfigTLS,
-  tomlClientConfig,
+  TomlClientConfigProfile,
+  TomlClientConfigTLS,
+  TomlClientConfig,
   ConfigDataSource,
 } from './types';
 
@@ -14,25 +14,17 @@ export function loadConfigData(source?: ConfigDataSource): Buffer | undefined {
   if (!source) return undefined;
 
   if ('path' in source) {
-    return readPathSync(source.path);
+    return readFileSync(source.path);
   }
 
   return Buffer.isBuffer(source.data) ? source.data : Buffer.from(source.data);
-}
-
-export function readPathSync(path?: string): Buffer | undefined {
-  if (path === undefined) {
-    return undefined;
-  }
-
-  return fs.readFileSync(path);
 }
 
 export function normalizeGrpcMetaKey(key: string): string {
   return key.toLocaleLowerCase().replace('_', '-');
 }
 
-export function fromTomlProfile(tomlProfile: tomlClientConfigProfile): ClientConfigProfile {
+export function fromTomlProfile(tomlProfile: TomlClientConfigProfile): ClientConfigProfile {
   let grpcMeta: Record<string, string> | undefined = undefined;
   if (tomlProfile.grpc_meta !== undefined) {
     grpcMeta = {};
@@ -51,7 +43,7 @@ export function fromTomlProfile(tomlProfile: tomlClientConfigProfile): ClientCon
   return filterNullAndUndefined(profile);
 }
 
-export function toTomlProfile(profile: ClientConfigProfile): tomlClientConfigProfile {
+export function toTomlProfile(profile: ClientConfigProfile): TomlClientConfigProfile {
   let grpc_meta: Record<string, string> | undefined = undefined;
   if (profile.grpcMeta !== undefined) {
     grpc_meta = {};
@@ -70,7 +62,7 @@ export function toTomlProfile(profile: ClientConfigProfile): tomlClientConfigPro
   return filterNullAndUndefined(tomlProfile);
 }
 
-export function fromTomlTLS(tomlTLS?: tomlClientConfigTLS): ClientConfigTLS | undefined {
+export function fromTomlTLS(tomlTLS?: TomlClientConfigTLS): ClientConfigTLS | undefined {
   if (tomlTLS === undefined) {
     return undefined;
   }
@@ -84,7 +76,7 @@ export function fromTomlTLS(tomlTLS?: tomlClientConfigTLS): ClientConfigTLS | un
   return filterNullAndUndefined(clientConfigTLS);
 }
 
-export function toTomlTLS(tlsConfig?: ClientConfigTLS): tomlClientConfigTLS | undefined {
+export function toTomlTLS(tlsConfig?: ClientConfigTLS): TomlClientConfigTLS | undefined {
   if (tlsConfig === undefined) {
     return undefined;
   }
@@ -104,7 +96,7 @@ export function toTomlTLS(tlsConfig?: ClientConfigTLS): tomlClientConfigTLS | un
   return filterNullAndUndefined(tomlConfigTLS);
 }
 
-export function fromTomlConfig(tomlConfig: tomlClientConfig): ClientConfig {
+export function fromTomlConfig(tomlConfig: TomlClientConfig): ClientConfig {
   const profiles: Record<string, ClientConfigProfile> = {};
 
   for (const [profileName, profile] of Object.entries(tomlConfig.profile)) {
@@ -114,8 +106,8 @@ export function fromTomlConfig(tomlConfig: tomlClientConfig): ClientConfig {
   return { profiles };
 }
 
-export function toTomlConfig(config: ClientConfig): tomlClientConfig {
-  const profile: Record<string, tomlClientConfigProfile> = {};
+export function toTomlConfig(config: ClientConfig): TomlClientConfig {
+  const profile: Record<string, TomlClientConfigProfile> = {};
 
   for (const [profileName, configProfile] of Object.entries(config.profiles)) {
     profile[profileName] = toTomlProfile(configProfile);

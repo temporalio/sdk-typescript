@@ -24,14 +24,6 @@ export interface ClientConnectConfig {
   namespace?: string;
 }
 
-export interface ClientConfigProfileOptions {
-  address?: string;
-  namespace?: string;
-  apiKey?: string;
-  tls?: ClientConfigTLS;
-  grpcMeta?: Record<string, string>;
-}
-
 /**
  * Options for loading a client configuration profile.
  *
@@ -106,20 +98,20 @@ export interface ClientConfigFromTomlOptions {
   strict: boolean;
 }
 
-export interface tomlClientConfig {
-  profile: Record<string, tomlClientConfigProfile>;
+export interface TomlClientConfig {
+  profile: Record<string, TomlClientConfigProfile>;
 }
 
-export interface tomlClientConfigProfile {
+export interface TomlClientConfigProfile {
   address?: string;
   namespace?: string;
   api_key?: string;
-  tls?: tomlClientConfigTLS;
-  codec?: tomlClientConfigCodec;
+  tls?: TomlClientConfigTLS;
+  codec?: TomlClientConfigCodec;
   grpc_meta?: Record<string, string>;
 }
 
-export interface tomlClientConfigTLS {
+export interface TomlClientConfigTLS {
   disabled?: boolean;
   client_cert_path?: string;
   client_cert_data?: string;
@@ -131,7 +123,7 @@ export interface tomlClientConfigTLS {
   disable_host_verification?: boolean;
 }
 
-export interface tomlClientConfigCodec {
+export interface TomlClientConfigCodec {
   endpoint?: string;
   auth?: string;
 }
