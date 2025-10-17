@@ -206,6 +206,7 @@ git-cliff --tag 1.0.1 v1.0.0..HEAD | pbcopy
 - Paste into [CHANGELOG.md](CHANGELOG.md)
 - Clean up formatting
 - Add any important missing details
+- If core has been updated, include a note in the release about from which commit to which commit, and you should review the commits to see if there were any breaking changes that must be called out.
 - Replace PR numbers with links:
 
 ```
