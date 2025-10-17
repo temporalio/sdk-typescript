@@ -12,6 +12,7 @@
     "./packages/common/src/index.ts",
     "./packages/common/src/type-helpers.ts",
     "./packages/create-project/src/index.ts",
+    "./packages/envconfig/src/index.ts",
     "./packages/interceptors-opentelemetry/src/index.ts",
     "./packages/nyc-test-coverage/src/index.ts",
     "./packages/meta/src/index.ts",
