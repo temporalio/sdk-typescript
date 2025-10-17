@@ -664,8 +664,8 @@ test.serial('Handle from WorkflowClient.start terminates run after continue as n
   });
   await worker.runUntil(async () => {
     await t.throwsAsync(handleFromGet.result(), { instanceOf: WorkflowContinuedAsNewError });
-    await handleFromStart.terminate();
-    await t.throwsAsync(handleFromStart.result(), { message: 'Workflow execution terminated' });
+    await handleFromStart.terminate('Expect workflow to terminate due to CAN');
+    await t.throwsAsync(handleFromStart.result(), { message: 'Expect workflow to terminate due to CAN' });
   });
 });
 
