@@ -65,6 +65,7 @@ export * from './shared-cancellation-scopes';
 export * from './noncancellable-awaited-in-root-scope';
 export * from './noncancellable-in-noncancellable';
 export * from './signal-handlers-clear';
+export * from './signal-start-otel';
 export * from './signal-target';
 export * from './signals-are-always-processed';
 export * from './signals-ordering';
