@@ -630,7 +630,7 @@ test('Can replay otel history from 1.13.1', async (t) => {
           workflowInterceptorModules: [require.resolve('./workflows/signal-start-otel')],
         }),
         interceptors: {
-          workflowModules: [require.resolve('./workflows/otel-interceptors')],
+          workflowModules: [require.resolve('./workflows/signal-start-otel')],
           activity: [
             (ctx) => ({
               inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
