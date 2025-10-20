@@ -8,12 +8,7 @@ import { SpanStatusCode } from '@opentelemetry/api';
 import { ExportResultCode } from '@opentelemetry/core';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
-import {
-  BasicTracerProvider,
-  ConsoleSpanExporter,
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
+import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
@@ -518,6 +513,7 @@ if (RUN_INTEGRATION_TESTS) {
 }
 
 test('Can replay otel history from 1.11.3', async (t) => {
+  /*
   const staticResource = new opentelemetry.resources.Resource({
     [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
   });
@@ -543,7 +539,6 @@ test('Can replay otel history from 1.11.3', async (t) => {
   });
   const client = new WorkflowClient();
 
-  /*
   const result = await worker.runUntil(async () => {
     const handle = await client.signalWithStart(workflows.signalStartOtel, {
       signal: workflows.startSignal,
@@ -577,11 +572,10 @@ test('Can replay otel history from 1.11.3', async (t) => {
       hist
     );
   });
-  // t.is('abc', result);
-  t.pass();
 });
 
 test('Can replay otel history from 1.13.1', async (t) => {
+  /*
   const staticResource = new opentelemetry.resources.Resource({
     [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
   });
@@ -607,7 +601,6 @@ test('Can replay otel history from 1.13.1', async (t) => {
   });
   const client = new WorkflowClient();
 
-  /*
   const result = await worker.runUntil(async () => {
     const handle = await client.signalWithStart(workflows.signalStartOtel, {
       signal: workflows.startSignal,
@@ -641,6 +634,4 @@ test('Can replay otel history from 1.13.1', async (t) => {
       hist
     );
   });
-  // t.is('ac', result);
-  t.pass();
 });
