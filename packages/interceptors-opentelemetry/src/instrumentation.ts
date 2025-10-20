@@ -20,7 +20,7 @@ const payloadConverter = defaultPayloadConverter;
 /**
  * If found, return an otel Context deserialized from the provided headers
  */
-export async function extractContextFromHeaders(headers: Headers): Promise<otel.Context | undefined> {
+export function extractContextFromHeaders(headers: Headers): otel.Context | undefined {
   const encodedSpanContext = headers[TRACE_HEADER];
   if (encodedSpanContext === undefined) {
     return undefined;

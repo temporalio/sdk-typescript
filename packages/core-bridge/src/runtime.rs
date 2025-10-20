@@ -6,7 +6,7 @@ use neon::prelude::*;
 use tracing::{Instrument, warn};
 
 use temporal_sdk_core::{
-    CoreRuntime, RuntimeOptionsBuilder, TokioRuntimeBuilder,
+    CoreRuntime, TokioRuntimeBuilder,
     api::telemetry::{
         CoreLog, OtelCollectorOptions as CoreOtelCollectorOptions,
         PrometheusExporterOptions as CorePrometheusExporterOptions, metrics::CoreMeter,
@@ -63,10 +63,7 @@ pub fn runtime_new(
 
     // Create core runtime which starts tokio multi-thread runtime
     let mut core_runtime = CoreRuntime::new(
-        RuntimeOptionsBuilder::default()
-            .telemetry_options(telemetry_options)
-            .build()
-            .expect("RuntimeOptionsBuilder cannot fail"),
+        telemetry_options,
         TokioRuntimeBuilder::default(),
     )
     .context("Failed to initialize Core Runtime")?;
