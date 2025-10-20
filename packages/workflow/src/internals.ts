@@ -434,6 +434,8 @@ export class Activator implements ActivationHandler {
 
   private readonly knownFlags = new Set<number>();
 
+  sdkVersion?: string;
+
   /**
    * Buffered sink calls per activation
    */
@@ -978,7 +980,22 @@ export class Activator implements ActivationHandler {
 
     const signalExecutionNum = this.signalHandlerExecutionSeq++;
     this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
-    const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
+    const injectYield = shouldInjectYield(this.sdkVersion);
+    const addedInterceptor: WorkflowInterceptors['inbound'] = injectYield
+      ? [
+          {
+            handleSignal: async (input, next) => {
+              await Promise.resolve();
+              return next(input);
+            },
+          },
+        ]
+      : [];
+    const execute = composeInterceptors(
+      [...addedInterceptor, ...interceptors],
+      'handleSignal',
+      this.signalWorkflowNextHandler.bind(this)
+    );
     execute({
       args: arrayFromPayloads(this.payloadConverter, activation.input),
       signalName,
@@ -1304,4 +1321,24 @@ then you can disable this warning by passing an option when setting the handler:
   return `${message} The following signals were unfinished (and warnings were not disabled for their handler): ${JSON.stringify(
     Array.from(names.entries()).map(([name, count]) => ({ name, count }))
   )}`;
+}
+
+function shouldInjectYield(version?: string): boolean {
+  if (!version) {
+    return false;
+  }
+  const [major, minor, patch] = version.split('.');
+  // 1.11.5 - 1.13.1: need to inject
+  if (major !== '1') return false;
+
+  switch (minor) {
+    case '11':
+      return patch === '5';
+    case '12':
+      return true;
+    case '13':
+      return patch === '1';
+    default:
+      return false;
+  }
 }

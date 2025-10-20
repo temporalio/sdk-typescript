@@ -56,7 +56,7 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     input: WorkflowExecuteInput,
     next: Next<WorkflowInboundCallsInterceptor, 'execute'>
   ): Promise<unknown> {
-    const context = await extractContextFromHeaders(input.headers);
+    const context = await Promise.resolve(extractContextFromHeaders(input.headers));
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}${workflowInfo().workflowType}`,
@@ -70,7 +70,7 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     input: SignalInput,
     next: Next<WorkflowInboundCallsInterceptor, 'handleSignal'>
   ): Promise<void> {
-    const context = await extractContextFromHeaders(input.headers);
+    const context = extractContextFromHeaders(input.headers);
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
