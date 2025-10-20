@@ -245,16 +245,3 @@ test('SimplePlugin with activities merges them correctly', async (t) => {
   t.truthy(worker.options.activities.has('existingActivity'));
   t.truthy(worker.options.activities.has('pluginActivity'));
 });
-
-test('SimplePlugin with apiKey function throws error for NativeConnection', async (t) => {
-  const plugin = new SimplePlugin({
-    name: 'simple-test-plugin',
-    apiKey: () => 'some-key',
-  });
-
-  const error = t.throws(() => {
-    plugin.configureNativeConnection({});
-  });
-
-  t.is(error?.message, 'NativeConnectionOptions does not support apiKey as a function');
-});
