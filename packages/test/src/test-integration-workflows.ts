@@ -1,6 +1,3 @@
-import * as opentelemetry from '@opentelemetry/sdk-node';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace-node';
 import { setTimeout as setTimeoutPromise } from 'timers/promises';
 import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
@@ -48,7 +45,7 @@ import * as workflows from './workflows';
 import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
 import { ActivityState, heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
-import { loadHistory, RUN_TIME_SKIPPING_TESTS, saveHistory, waitUntil } from './helpers';
+import { loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -512,7 +509,6 @@ test("Worker doesn't request Eager Activity Dispatch if no activities are regist
 
 const unblockSignal = defineSignal('unblock');
 const getBuildIdQuery = defineQuery<string>('getBuildId');
-const startSignal = defineSignal('startSignal');
 
 export async function buildIdTester(): Promise<void> {
   let blocked = true;

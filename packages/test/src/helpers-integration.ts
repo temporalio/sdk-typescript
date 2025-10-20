@@ -6,10 +6,8 @@ import {
   WorkflowFailedError,
   WorkflowHandle,
   WorkflowHandleWithFirstExecutionRunId,
-  WorkflowHandleWithSignaledRunId,
   WorkflowStartOptions,
   WorkflowUpdateFailedError,
-  WorkflowSignalWithStartOptionsWithArgs,
 } from '@temporalio/client';
 import {
   LocalTestWorkflowEnvironmentOptions,
@@ -197,16 +195,6 @@ export interface Helpers {
     fn: T,
     opts: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
   ): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
-  signalWithStart<T extends workflow.Workflow, U extends any[]>(
-    fn: T,
-    signal: workflow.SignalDefinition<U>
-  ): Promise<WorkflowHandleWithSignaledRunId<T>>;
-  signalWithStart<T extends workflow.Workflow, U extends any[]>(
-    fn: T,
-    signal: workflow.SignalDefinition<U>,
-    opts: Omit<WorkflowSignalWithStartOptionsWithArgs<U>, 'taskQueue' | 'workflowId'> &
-      Partial<Pick<WorkflowStartOptions, 'workflowId'>>
-  ): Promise<WorkflowHandleWithSignaledRunId<T>>;
   assertWorkflowUpdateFailed(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
   assertWorkflowFailedError(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
   updateHasBeenAdmitted(handle: WorkflowHandle<workflow.Workflow>, updateId: string): Promise<boolean>;
@@ -262,21 +250,6 @@ export function configurableHelpers<T>(
         ...opts,
       });
     },
-
-    async signalWithStart(
-      fn: workflow.Workflow,
-      signal: workflow.SignalDefinition<any[]>,
-      opts?: Omit<WorkflowSignalWithStartOptionsWithArgs<any[]>, 'taskQueue' | 'workflowId'> &
-        Partial<Pick<WorkflowStartOptions, 'workflowId'>>
-    ): Promise<WorkflowHandleWithSignaledRunId<workflow.Workflow>> {
-      return await testEnv.client.workflow.signalWithStart(fn, {
-        signal,
-        taskQueue,
-        workflowId: randomUUID(),
-        ...opts,
-      });
-    },
-
     async assertWorkflowUpdateFailed(
       p: Promise<any>,
       causeConstructor: ErrorConstructor,

@@ -44,8 +44,6 @@ export const SdkFlags = {
    *        to implicitely have this flag on.
    */
   ProcessWorkflowActivationJobsAsSingleBatch: defineFlag(2, true, [buildIdSdkVersionMatches(/1\.11\.[01]/)]),
-
-  OpenTelemetryInterceptorInsertYieldPoint: defineFlag(3, false, [({ info }) => false]),
 } as const;
 
 function defineFlag(id: number, def: boolean, alternativeConditions?: AltConditionFn[]): SdkFlag {
