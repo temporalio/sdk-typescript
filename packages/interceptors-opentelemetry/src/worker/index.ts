@@ -34,7 +34,7 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
   }
 
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
-    const context = extractContextFromHeaders(input.headers);
+    const context = await Promise.resolve(extractContextFromHeaders(input.headers));
     const spanName = `${SpanName.ACTIVITY_EXECUTE}${SPAN_DELIMITER}${this.ctx.info.activityType}`;
     return await instrument({ tracer: this.tracer, spanName, fn: () => next(input), context });
   }
