@@ -17,4 +17,3 @@ export interface ClientPlugin {
    */
   configureClient?(options: ClientOptions): ClientOptions;
 }
-

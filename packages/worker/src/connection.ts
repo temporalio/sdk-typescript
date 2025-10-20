@@ -14,7 +14,6 @@ import {
   InternalConnectionLikeSymbol,
 } from '@temporalio/client';
 import { InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { TransportError } from './errors';
 import { NativeConnectionOptions } from './connection-options';
 import { Runtime } from './runtime';
@@ -367,7 +366,6 @@ export interface NativeConnectionPlugin {
    * Gets the name of this plugin.
    */
   get name(): string;
-
 
   /**
    * Hook called when creating a native connection to allow modification of configuration.

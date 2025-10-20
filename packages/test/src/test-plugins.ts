@@ -1,11 +1,6 @@
 import { randomUUID } from 'crypto';
 import anyTest, { TestFn } from 'ava';
-import {
-  Client,
-  ClientOptions,
-  ConnectionPlugin,
-  ClientPlugin as ClientPlugin,
-} from '@temporalio/client';
+import { Client, ClientOptions, ConnectionPlugin, ClientPlugin as ClientPlugin } from '@temporalio/client';
 import {
   WorkerOptions,
   WorkerPlugin as WorkerPlugin,
@@ -154,14 +149,13 @@ test('Client plugins are passed from connections', async (t) => {
   }
 });
 
-
 test('Bundler plugins are passed from connections', async (t) => {
-  const plugin = new class implements BundlerPlugin {
+  const plugin = new (class implements BundlerPlugin {
     name: string = 'plugin';
     configureBundler(options: BundleOptions): BundleOptions {
       return { ...options, workflowsPath: require.resolve('./workflows/plugins') };
     }
-  };
+  })();
   const env = await TestWorkflowEnvironment.createLocal({ plugins: [plugin] });
   try {
     const client = new Client({ connection: env.connection });

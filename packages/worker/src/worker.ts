@@ -1989,7 +1989,7 @@ export class Worker {
     for (let i = this.plugins.length - 1; i >= 0; --i) {
       const rw = runWorker;
       const plugin = this.plugins[i];
-        runWorker = (w: Worker) => plugin.runWorker?.(w, rw) ?? rw(w)
+      runWorker = (w: Worker) => plugin.runWorker?.(w, rw) ?? rw(w);
     }
     return runWorker(this);
   }
