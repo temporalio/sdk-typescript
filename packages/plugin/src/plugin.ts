@@ -1,6 +1,5 @@
 import type * as nexus from 'nexus-rpc';
 import type { DataConverter } from '@temporalio/common';
-import type { native } from '@temporalio/core-bridge';
 import {
   ClientInterceptors,
   ClientOptions,
@@ -29,7 +28,7 @@ type PluginParameter<T> = T | ((p: T | undefined) => T);
 export interface SimplePluginOptions {
   readonly name: string;
   readonly tls?: PluginParameter<TLSConfig | boolean | null>;
-  readonly apiKey?: PluginParameter<string | (() => string)>;
+  readonly apiKey?: PluginParameter<string>;
   readonly dataConverter?: PluginParameter<DataConverter>;
   readonly clientInterceptors?: PluginParameter<ClientInterceptors>;
   readonly activities?: PluginParameter<object>;
@@ -37,10 +36,7 @@ export interface SimplePluginOptions {
   readonly workflowsPath?: PluginParameter<string>;
   readonly workflowBundle?: PluginParameter<WorkflowBundleOption>;
   readonly workerInterceptors?: PluginParameter<WorkerInterceptors>;
-  readonly runContext?: {
-    before: () => Promise<void>;
-    after: () => Promise<void>;
-  };
+  readonly runContext?: (next: () => Promise<void>) => Promise<void>;
 }
 
 export class SimplePlugin
@@ -84,13 +80,9 @@ export class SimplePlugin
 
   async runWorker(worker: Worker, next: (w: Worker) => Promise<void>): Promise<void> {
     if (this.options.runContext !== undefined) {
-      await this.options.runContext.before();
+      return this.options.runContext(() => next(worker));
     }
-    const result = await next(worker);
-    if (this.options.runContext !== undefined) {
-      await this.options.runContext.after();
-    }
-    return result;
+    return next(worker);
   }
 
   configureBundler(options: BundleOptions): BundleOptions {
@@ -101,26 +93,20 @@ export class SimplePlugin
   }
 
   configureConnection(options: ConnectionOptions): ConnectionOptions {
+    const apiKey = typeof options.apiKey === 'function' ? options.apiKey : undefined;
     return {
       ...options,
       tls: resolveParameter(options.tls, this.options.tls),
-      apiKey: resolveParameter(options.apiKey, this.options.apiKey),
+      apiKey: apiKey ?? resolveParameter(options.apiKey as string | undefined, this.options.apiKey),
     };
   }
 
   configureNativeConnection(options: NativeConnectionOptions): NativeConnectionOptions {
-    if (typeof this.options.apiKey === 'function') {
-      throw new TypeError('NativeConnectionOptions does not support apiKey as a function');
-    }
     return {
       ...options,
       tls: resolveParameter(options.tls, this.options.tls),
       apiKey: resolveParameter(options.apiKey, this.options.apiKey),
     };
-  }
-
-  connectNative(next: () => Promise<native.Client>): Promise<native.Client> {
-    return next();
   }
 }
 

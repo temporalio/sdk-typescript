@@ -62,7 +62,6 @@ import { Client } from '@temporalio/client';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
@@ -95,7 +94,7 @@ import {
   WorkflowBundle,
 } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
-import { defaultWorkflowInterceptorModules, isBundlerPlugin, WorkflowCodeBundler } from './workflow/bundler';
+import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
 import { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
@@ -110,7 +109,7 @@ import {
 } from './errors';
 import { constructNexusOperationContext, NexusHandler } from './nexus';
 import { handlerErrorToProto } from './nexus/conversions';
-import { isWorkerPlugin, WorkerPlugin } from './plugin';
+import { WorkerPlugin } from './plugin';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -502,11 +501,11 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
-    options.plugins = (options.plugins || []).concat(
-      (options.connection?.plugins || []).filter((p) => isWorkerPlugin(p)).map((p) => p as WorkerPlugin)
-    );
+    options.plugins = (options.plugins ?? []).concat(options.connection?.plugins ?? []);
     for (const plugin of options.plugins) {
-      options = plugin.configureWorker(options);
+      if (plugin.configureWorker !== undefined) {
+        options = plugin.configureWorker(options);
+      }
     }
     if (!options.taskQueue) {
       throw new TypeError('Task queue name is required');
@@ -708,7 +707,9 @@ export class Worker {
   private static async constructReplayWorker(options: ReplayWorkerOptions): Promise<[Worker, native.HistoryPusher]> {
     const plugins = options.plugins ?? [];
     for (const plugin of plugins) {
-      options = plugin.configureReplayWorker(options);
+      if (plugin.configureReplayWorker !== undefined) {
+        options = plugin.configureReplayWorker(options);
+      }
     }
     const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
     const fixedUpOptions: WorkerOptions = {
@@ -785,7 +786,6 @@ export class Worker {
         throw new TypeError('Invalid WorkflowOptions.workflowBundle');
       }
     } else if (compiledOptions.workflowsPath) {
-      const bundlerPlugins = compiledOptions.plugins?.filter((p) => isBundlerPlugin(p));
       const bundler = new WorkflowCodeBundler({
         logger,
         workflowsPath: compiledOptions.workflowsPath,
@@ -794,7 +794,7 @@ export class Worker {
         payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
         ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
         webpackConfigHook: compiledOptions.bundlerOptions?.webpackConfigHook,
-        plugins: bundlerPlugins,
+        plugins: compiledOptions.plugins,
       });
       const bundle = await bundler.createBundle();
       return parseWorkflowCode(bundle.code);
@@ -1985,8 +1985,13 @@ export class Worker {
     if (this.isReplayWorker) {
       return this.runInternal();
     }
-    const composition = composeInterceptors(this.plugins, 'runWorker', (w: Worker) => w.runInternal());
-    return composition(this);
+    let runWorker = (w: Worker) => w.runInternal();
+    for (let i = this.plugins.length - 1; i >= 0; --i) {
+      const rw = runWorker;
+      const plugin = this.plugins[i];
+        runWorker = (w: Worker) => plugin.runWorker?.(w, rw) ?? rw(w)
+    }
+    return runWorker(this);
   }
 
   private async runInternal(): Promise<void> {

@@ -5,22 +5,18 @@ import {
   ClientOptions,
   ConnectionPlugin,
   ClientPlugin as ClientPlugin,
-  ConnectionOptions,
 } from '@temporalio/client';
 import {
   WorkerOptions,
   WorkerPlugin as WorkerPlugin,
-  ReplayWorkerOptions,
   Worker,
   BundlerPlugin,
   BundleOptions,
   bundleWorkflowCode,
   NativeConnectionPlugin,
-  NativeConnectionOptions,
 } from '@temporalio/worker';
 import { SimplePlugin } from '@temporalio/plugin';
-import { native } from '@temporalio/core-bridge';
-import { activity_workflow, hello_workflow } from './workflows/plugins';
+import { activityWorkflow, helloWorkflow } from './workflows/plugins';
 import { TestWorkflowEnvironment } from './helpers';
 
 import * as activities from './activities';
@@ -59,31 +55,10 @@ export class ExamplePlugin
     return config;
   }
 
-  configureReplayWorker(config: ReplayWorkerOptions): ReplayWorkerOptions {
-    return config;
-  }
-
-  runWorker(worker: Worker, next: (w: Worker) => Promise<void>): Promise<void> {
-    console.log('ExamplePlugin: Running worker');
-    return next(worker);
-  }
-
   configureBundler(config: BundleOptions): BundleOptions {
     console.log('Configure bundler');
     config.workflowsPath = require.resolve('./workflows/plugins');
     return config;
-  }
-
-  configureConnection(config: ConnectionOptions): ConnectionOptions {
-    return config;
-  }
-
-  configureNativeConnection(options: NativeConnectionOptions): NativeConnectionOptions {
-    return options;
-  }
-
-  connectNative(next: () => Promise<native.Client>): Promise<native.Client> {
-    return next();
   }
 }
 
@@ -106,7 +81,7 @@ test('Basic plugin', async (t) => {
 
   await worker.runUntil(async () => {
     t.is(worker.options.taskQueue, 'plugin-task-queue');
-    const result = await client.workflow.execute(hello_workflow, {
+    const result = await client.workflow.execute(helloWorkflow, {
       taskQueue: 'plugin-task-queue',
       workflowExecutionTimeout: '30 seconds',
       workflowId: randomUUID(),
@@ -126,10 +101,9 @@ test('Bundler plugins are passed from worker', async (t) => {
     taskQueue: 'will be overridden',
     plugins: [new ExamplePlugin()],
   });
-  console.log('worker created');
   await worker.runUntil(async () => {
     t.is(worker.options.taskQueue, 'plugin-task-queue');
-    const result = await client.workflow.execute(hello_workflow, {
+    const result = await client.workflow.execute(helloWorkflow, {
       taskQueue: 'plugin-task-queue',
       workflowExecutionTimeout: '30 seconds',
       workflowId: randomUUID(),
@@ -140,7 +114,7 @@ test('Bundler plugins are passed from worker', async (t) => {
 });
 
 test('Worker plugins are passed from native connection', async (t) => {
-  const env = await TestWorkflowEnvironment.createLocal({ connectionPlugins: [new ExamplePlugin()] });
+  const env = await TestWorkflowEnvironment.createLocal({ plugins: [new ExamplePlugin()] });
   try {
     const client = new Client({ connection: env.connection });
 
@@ -154,7 +128,7 @@ test('Worker plugins are passed from native connection', async (t) => {
 
     await worker.runUntil(async () => {
       t.is(worker.options.taskQueue, 'plugin-task-queue');
-      const result = await client.workflow.execute(hello_workflow, {
+      const result = await client.workflow.execute(helloWorkflow, {
         taskQueue: 'plugin-task-queue',
         workflowExecutionTimeout: '30 seconds',
         workflowId: randomUUID(),
@@ -168,13 +142,45 @@ test('Worker plugins are passed from native connection', async (t) => {
 });
 
 test('Client plugins are passed from connections', async (t) => {
-  const env = await TestWorkflowEnvironment.createLocal({ connectionPlugins: [new ExamplePlugin()] });
+  const env = await TestWorkflowEnvironment.createLocal({ plugins: [new ExamplePlugin()] });
   try {
     const client = new Client({ connection: env.connection });
     t.is(client.options.identity, 'Plugin Identity');
 
     const clientNative = new Client({ connection: env.nativeConnection });
     t.is(clientNative.options.identity, 'Plugin Identity');
+  } finally {
+    await env.teardown();
+  }
+});
+
+
+test('Bundler plugins are passed from connections', async (t) => {
+  const plugin = new class implements BundlerPlugin {
+    name: string = 'plugin';
+    configureBundler(options: BundleOptions): BundleOptions {
+      return { ...options, workflowsPath: require.resolve('./workflows/plugins') };
+    }
+  };
+  const env = await TestWorkflowEnvironment.createLocal({ plugins: [plugin] });
+  try {
+    const client = new Client({ connection: env.connection });
+    const worker = await Worker.create({
+      workflowsPath: 'replaced',
+      connection: env.nativeConnection,
+      taskQueue: 'plugin-task-queue',
+    });
+
+    await worker.runUntil(async () => {
+      t.is(worker.options.taskQueue, 'plugin-task-queue');
+      const result = await client.workflow.execute(helloWorkflow, {
+        taskQueue: 'plugin-task-queue',
+        workflowExecutionTimeout: '30 seconds',
+        workflowId: randomUUID(),
+      });
+
+      t.is(result, 'Hello');
+    });
   } finally {
     await env.teardown();
   }
@@ -211,7 +217,7 @@ test('SimplePlugin worker configurations', async (t) => {
   });
 
   await worker.runUntil(async () => {
-    const result = await client.workflow.execute(activity_workflow, {
+    const result = await client.workflow.execute(activityWorkflow, {
       taskQueue: 'simple-plugin-queue',
       workflowExecutionTimeout: '30 seconds',
       workflowId: randomUUID(),

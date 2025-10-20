@@ -72,7 +72,7 @@ export class NativeConnection implements ConnectionLike {
     private readonly runtime: Runtime,
     private readonly nativeClient: native.Client,
     private readonly enableTestService: boolean,
-    readonly plugins: Plugin[]
+    readonly plugins: NativeConnectionPlugin[]
   ) {
     this.workflowService = WorkflowService.create(
       this.sendRequest.bind(this, native.clientSendWorkflowServiceRequest.bind(undefined, this.nativeClient)),
@@ -234,7 +234,9 @@ export class NativeConnection implements ConnectionLike {
   static async connect(options?: NativeConnectionOptions): Promise<NativeConnection> {
     options = options ?? {};
     for (const plugin of options.plugins ?? []) {
-      options = plugin.configureNativeConnection(options);
+      if (plugin.configureNativeConnection !== undefined) {
+        options = plugin.configureNativeConnection(options);
+      }
     }
     const internalOptions = (options as InternalConnectionOptions)?.[InternalConnectionOptionsSymbol] ?? {};
     const enableTestService = internalOptions.supportsTestService ?? false;
@@ -242,14 +244,7 @@ export class NativeConnection implements ConnectionLike {
     try {
       const runtime = Runtime.instance();
 
-      const plugins = options.plugins ?? [];
-      let connectNative = () => runtime.createNativeClient(options);
-      for (let i = plugins.length - 1; i >= 0; --i) {
-        const next = connectNative;
-        connectNative = () => plugins[i].connectNative(next);
-      }
-
-      const client = await connectNative();
+      const client = await runtime.createNativeClient(options);
       return new this(runtime, client, enableTestService, options.plugins ?? []);
     } catch (err) {
       if (err instanceof TransportError) {
@@ -364,13 +359,18 @@ function tagMetadata(metadata: Metadata): Record<string, native.MetadataValue> {
   );
 }
 
-export interface Plugin {
-  configureNativeConnection(options: NativeConnectionOptions): NativeConnectionOptions;
+/**
+ * Plugin to control the configuration of a native connection.
+ */
+export interface NativeConnectionPlugin {
+  /**
+   * Gets the name of this plugin.
+   */
+  get name(): string;
 
-  connectNative(next: () => Promise<native.Client>): Promise<native.Client>;
-}
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function isNativeConnectionPlugin(p: any): p is Plugin {
-  return 'configureNativeConnection' in p && 'connectNative' in p;
+  /**
+   * Hook called when creating a native connection to allow modification of configuration.
+   */
+  configureNativeConnection?(options: NativeConnectionOptions): NativeConnectionOptions;
 }

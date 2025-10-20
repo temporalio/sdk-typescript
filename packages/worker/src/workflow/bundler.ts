@@ -58,7 +58,9 @@ export class WorkflowCodeBundler {
   constructor(options: BundleOptions) {
     this.plugins = options.plugins ?? [];
     for (const plugin of this.plugins) {
-      options = plugin.configureBundler(options);
+      if (plugin.configureBundler !== undefined) {
+        options = plugin.configureBundler(options);
+      }
     }
     const {
       logger,
@@ -318,19 +320,14 @@ export interface BundlerPlugin {
    * Gets the name of this plugin.
    *
    * Returns:
-   *   The name of the plugin class.
+   *   The name of the plugin.
    */
   get name(): string;
 
   /**
    * Hook called when creating a bundler to allow modification of configuration.
    */
-  configureBundler(options: BundleOptions): BundleOptions;
-}
-
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function isBundlerPlugin(p: any): p is BundlerPlugin {
-  return 'configureBundler' in p;
+  configureBundler?(options: BundleOptions): BundleOptions;
 }
 
 /**

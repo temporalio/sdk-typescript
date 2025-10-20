@@ -6,10 +6,10 @@ const { echo } = proxyActivities<typeof activities>({
   retry: { initialInterval: 5, maximumAttempts: 1, nonRetryableErrorTypes: ['NonRetryableError'] },
 });
 
-export async function hello_workflow(): Promise<string> {
+export async function helloWorkflow(): Promise<string> {
   return 'Hello';
 }
 
-export async function activity_workflow(): Promise<string> {
+export async function activityWorkflow(): Promise<string> {
   return echo('Hello');
 }

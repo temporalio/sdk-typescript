@@ -1,5 +1,8 @@
 import type { ClientOptions } from './client';
 
+/**
+ * Plugin to control the configuration of a native connection.
+ */
 export interface ClientPlugin {
   /**
    * Gets the name of this plugin.
@@ -10,19 +13,8 @@ export interface ClientPlugin {
    * Hook called when creating a client to allow modification of configuration.
    *
    * This method is called during client creation and allows plugins to modify
-   * the client configuration before the client is fully initialized. Plugins
-   * can add interceptors, modify connection parameters, or change other settings.
-   *
-   * Args:
-   *   options: The client configuration to potentially modify.
-   *
-   * Returns:
-   *   The modified client configuration.
+   * the client configuration before the client is fully initialized.
    */
-  configureClient(options: ClientOptions): ClientOptions;
+  configureClient?(options: ClientOptions): ClientOptions;
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function isClientPlugin(p: any): p is ClientPlugin {
-  return 'configureClient' in p;
-}

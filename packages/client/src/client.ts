@@ -6,7 +6,7 @@ import { ScheduleClient } from './schedule-client';
 import { QueryRejectCondition, WorkflowService } from './types';
 import { WorkflowClient } from './workflow-client';
 import { TaskQueueClient } from './task-queue-client';
-import { isClientPlugin, ClientPlugin } from './plugin';
+import { ClientPlugin } from './plugin';
 
 export interface ClientOptions extends BaseClientOptions {
   /**
@@ -65,13 +65,13 @@ export class Client extends BaseClient {
     options = options ?? {};
 
     // Add client plugins from the connection
-    options.plugins = (options.plugins ?? []).concat(
-      (options.connection?.plugins ?? []).filter((p) => isClientPlugin(p)).map((p) => p as ClientPlugin)
-    );
+    options.plugins = (options.plugins ?? []).concat(options.connection?.plugins ?? []);
 
     // Process plugins first to allow them to modify connect configuration
     for (const plugin of options?.plugins ?? []) {
-      options = plugin.configureClient(options);
+      if (plugin.configureClient !== undefined) {
+        options = plugin.configureClient(options);
+      }
     }
 
     super(options);

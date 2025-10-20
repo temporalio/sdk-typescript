@@ -131,6 +131,13 @@ export interface ConnectionOptions {
    */
   connectTimeout?: Duration;
 
+  /**
+   * List of plugins to register with the connection.
+   *
+   * Plugins allow you to configure the connection options.
+   *
+   * Any plugins provided will also be passed to any client built from this connection.
+   */
   plugins?: ConnectionPlugin[];
 }
 
@@ -448,7 +455,9 @@ export class Connection {
   static lazy(options?: ConnectionOptions): Connection {
     options = options ?? {};
     for (const plugin of options.plugins ?? []) {
-      options = plugin.configureConnection(options);
+      if (plugin.configureConnection !== undefined) {
+        options = plugin.configureConnection(options);
+      }
     }
     return new this(this.createCtorOptions(options));
   }
@@ -696,11 +705,17 @@ export class Connection {
   }
 }
 
+/**
+ * Plugin to control the configuration of a connection.
+ */
 export interface ConnectionPlugin {
-  configureConnection(options: ConnectionOptions): ConnectionOptions;
-}
+  /**
+   * Gets the name of this plugin.
+   */
+  get name(): string;
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function isConnectionPlugin(p: any): p is ConnectionPlugin {
-  return 'configureConnection' in p;
+  /**
+   * Hook called when creating a connection to allow modification of configuration.
+   */
+  configureConnection?(options: ConnectionOptions): ConnectionOptions;
 }
