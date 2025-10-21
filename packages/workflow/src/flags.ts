@@ -44,6 +44,19 @@ export const SdkFlags = {
    *        to implicitely have this flag on.
    */
   ProcessWorkflowActivationJobsAsSingleBatch: defineFlag(2, true, [buildIdSdkVersionMatches(/1\.11\.[01]/)]),
+  /**
+   * In 1.11.3 and previous versions, the interceptor for `handleSignal` provided
+   * by @temporalio/interceptors-opentelemetry did not have a yield point in it.
+   * A yield point was accidentally added in later versions. This added yield point
+   * can cause NDE if there was a signal handler and the workflow was started with a signal.
+   *
+   * This yield point was removed in 1.13.2, but in order to prevent workflows from the
+   * affected versions resulting in NDE, we have to inject the yield point on replay.
+   * This flag should be enabled for SDK versions newer than 1.11.3 or older than 1.13.2.
+   *
+   * @since Introduced in 1.13.2.
+   */
+  OpenTelemetryHandleSignalInterceptorInsertYield: defineFlag(3, false, [affectedOtelInterceptorVersion]),
 } as const;
 
 function defineFlag(id: number, def: boolean, alternativeConditions?: AltConditionFn[]): SdkFlag {
@@ -68,9 +81,43 @@ export function assertValidFlag(id: number): void {
  * condition no longer holds. This is so to avoid incorrect behaviors in case where a Workflow
  * Execution has gone through a newer SDK version then again through an older one.
  */
-type AltConditionFn = (ctx: { info: WorkflowInfo }) => boolean;
+type AltConditionFn = (ctx: { info: WorkflowInfo; sdkVersion?: string }) => boolean;
 
 function buildIdSdkVersionMatches(version: RegExp): AltConditionFn {
   const regex = new RegExp(`^@temporalio/worker@(${version.source})[+]`);
   return ({ info }) => info.currentBuildId != null && regex.test(info.currentBuildId); // eslint-disable-line deprecation/deprecation
+}
+
+function affectedOtelInterceptorVersion({ sdkVersion }: { sdkVersion?: string }): boolean {
+  if (!sdkVersion) {
+    return false;
+  }
+  const [major, minor, patchAndTags] = sdkVersion.split('.', 3);
+  if (major !== '1') return false;
+
+  // Semver allows for additional tags to be appended to the version
+  let patch;
+  try {
+    const patchDigits = /[0-9]+/.exec(patchAndTags)?.[0];
+    patch = patchDigits ? Number.parseInt(patchDigits) : null;
+  } catch {
+    // This shouldn't ever happen, but we are conservative here and avoid throwing when checking a flag.
+    patch = null;
+  }
+
+  switch (minor) {
+    case '11':
+      // 1.11.3 was the last release that didn't inject a yield point
+      // If for some reason we are unable to parse the patch version, assume it isn't affected
+      return Boolean(patch && patch > 3);
+    case '12':
+      // Every 1.12 release requires a yield
+      return true;
+    case '13':
+      // 1.13.2 will be the first release since 1.11.3 that doesn't have a yield point in `handleSignal`
+      // If for some reason we are unable to parse the patch version, assume it isn't affected
+      return Boolean(patch && patch < 2);
+    default:
+      return false;
+  }
 }
