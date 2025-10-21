@@ -2,23 +2,74 @@ import { readFileSync } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { parse, stringify, TomlTable } from 'smol-toml';
-import {
-  ConfigDataSource,
-  LoadClientConfigOptions,
-  LoadClientProfileOptions,
-  TomlClientConfig,
-  TomlClientConfigCodec,
-  TomlClientConfigProfile,
-  TomlClientConfigTLS,
-} from './types';
-import { normalizeGrpcMetaKey } from './utils';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow/objects-helpers';
+import { ConfigDataSource, LoadClientConfigOptions, LoadClientProfileOptions } from './types';
+
+export function normalizeGrpcMetaKey(key: string): string {
+  return key.toLocaleLowerCase().replace('_', '-');
+}
+
+/**
+ * Raw TOML structure representing the client configuration file.
+ *
+ * @internal
+ * @experimental Environment configuration is new feature and subject to change.
+ */
+export interface TomlClientConfig {
+  profile: Record<string, TomlClientConfigProfile>;
+}
+
+/**
+ * Raw TOML structure for a client configuration profile.
+ * Note: field names use snake_case to match TOML file fields for correct parser deserialization.
+ *
+ * @internal
+ * @experimental Environment configuration is new feature and subject to change.
+ */
+export interface TomlClientConfigProfile {
+  address?: string;
+  namespace?: string;
+  api_key?: string;
+  tls?: TomlClientConfigTLS;
+  codec?: TomlClientConfigCodec;
+  grpc_meta?: Record<string, string>;
+}
+
+/**
+ * Raw TOML structure for client configuration TLS.
+ *
+ * @internal
+ * @experimental Environment configuration is new feature and subject to change.
+ */
+export interface TomlClientConfigTLS {
+  disabled?: boolean;
+  client_cert_path?: string;
+  client_cert_data?: string;
+  client_key_path?: string;
+  client_key_data?: string;
+  server_ca_cert_path?: string;
+  server_ca_cert_data?: string;
+  server_name?: string;
+  disable_host_verification?: boolean;
+}
+
+/**
+ * Raw TOML structure for client configuration codec.
+ *
+ * @internal
+ * @experimental Environment configuration is new feature and subject to change.
+ */
+export interface TomlClientConfigCodec {
+  endpoint?: string;
+  auth?: string;
+}
 
 function sourceToStringData(source?: ConfigDataSource): string | undefined {
   if (source === undefined) {
     return undefined;
   }
   if ('path' in source) {
-    return readFileSync(source.path)?.toString();
+    return readFileSync(source.path, { encoding: 'utf-8' });
   }
 
   if (Buffer.isBuffer(source.data)) {
@@ -27,25 +78,14 @@ function sourceToStringData(source?: ConfigDataSource): string | undefined {
   return source.data;
 }
 
-type EnvProvider = { kind: 'Map'; map: Record<string, string> } | { kind: 'System' };
-
-function getEnvVar(provider: EnvProvider, key: string): string | undefined {
-  if (provider.kind === 'Map') {
-    return provider.map[key];
-  }
-  return process.env[key];
-}
-
 export function tomlLoadClientConfig(options: LoadClientConfigOptions): TomlClientConfig {
-  const envProvider: EnvProvider = options.overrideEnvVars
-    ? { kind: 'Map', map: options.overrideEnvVars }
-    : { kind: 'System' };
+  const envProvider: Record<string, string | undefined> = options.overrideEnvVars ?? process.env;
 
   let configData = undefined;
   try {
     configData = sourceToStringData(options.configSource) ?? getFallbackConfigData(envProvider);
   } catch (error) {
-    const isFileNotFound = error instanceof Error && 'code' in error && error.code === 'ENOENT';
+    const isFileNotFound = (error as NodeJS.ErrnoException)?.code === 'ENOENT';
     if (!isFileNotFound) {
       throw error;
     }
@@ -140,13 +180,13 @@ function strictValidateTomlStructure(parsed: TomlTable): void {
   }
 }
 
-function getFallbackConfigData(envProvider: EnvProvider): string | undefined {
+function getFallbackConfigData(envProvider: Record<string, string | undefined>): string | undefined {
   // configSource was not set - fallback to TEMPORAL_CONFIG_FILE, then the default file path
-  let filePath = getEnvVar(envProvider, 'TEMPORAL_CONFIG_FILE');
+  let filePath = envProvider['TEMPORAL_CONFIG_FILE'];
   if (filePath === undefined) {
     filePath = getDefaultConfigFilePath();
   }
-  return readFileSync(filePath).toString();
+  return readFileSync(filePath, { encoding: 'utf-8' });
 }
 
 export function tomlLoadClientConfigProfile(options: LoadClientProfileOptions): TomlClientConfigProfile {
@@ -154,9 +194,7 @@ export function tomlLoadClientConfigProfile(options: LoadClientProfileOptions): 
     throw new Error('Cannot disable both file and environment loading');
   }
 
-  const envProvider: EnvProvider = options.overrideEnvVars
-    ? { kind: 'Map', map: options.overrideEnvVars }
-    : { kind: 'System' };
+  const envProvider: Record<string, string | undefined> = options.overrideEnvVars ?? process.env;
 
   let profile: TomlClientConfigProfile = {};
 
@@ -167,7 +205,7 @@ export function tomlLoadClientConfigProfile(options: LoadClientProfileOptions): 
       overrideEnvVars: options.overrideEnvVars,
     });
     // If profile name not provided, fallback to env variable.
-    const profileName = options.profile ?? getEnvVar(envProvider, 'TEMPORAL_PROFILE');
+    const profileName = options.profile ?? envProvider['TEMPORAL_PROFILE'];
     // If env var also not provided, fallback to default profile name.
     const tomlProfile = tomlClientConfig.profile[profileName ?? DEFAULT_CONFIG_FILE_PROFILE];
     // If toml profile does not exist and an explicit profile was requested, error.
@@ -184,10 +222,10 @@ export function tomlLoadClientConfigProfile(options: LoadClientProfileOptions): 
   return profile;
 }
 
-function applyProfileEnvVars(profile: TomlClientConfigProfile, envProvider: EnvProvider) {
-  profile.address = getEnvVar(envProvider, 'TEMPORAL_ADDRESS') ?? profile.address;
-  profile.namespace = getEnvVar(envProvider, 'TEMPORAL_NAMESPACE') ?? profile.namespace;
-  profile.api_key = getEnvVar(envProvider, 'TEMPORAL_API_KEY') ?? profile.api_key;
+function applyProfileEnvVars(profile: TomlClientConfigProfile, envProvider: Record<string, string | undefined>) {
+  profile.address = envProvider['TEMPORAL_ADDRESS'] ?? profile.address;
+  profile.namespace = envProvider['TEMPORAL_NAMESPACE'] ?? profile.namespace;
+  profile.api_key = envProvider['TEMPORAL_API_KEY'] ?? profile.api_key;
   const tlsFromEnv = getTLSFromEnvVars(envProvider);
   profile.tls = profile.tls || tlsFromEnv ? { ...profile.tls, ...tlsFromEnv } : undefined;
   const codecFromEnv = getCodecFromEnvVars(envProvider);
@@ -195,55 +233,30 @@ function applyProfileEnvVars(profile: TomlClientConfigProfile, envProvider: EnvP
   applyGrpcMetaFromEnvVars(profile, envProvider);
 }
 
-function getTLSFromEnvVars(envProvider: EnvProvider): TomlClientConfigTLS | undefined {
-  const tlsConfig: TomlClientConfigTLS = {};
-  const tlsEnvVar = getEnvVar(envProvider, 'TEMPORAL_TLS');
-  if (tlsEnvVar !== undefined) {
-    tlsConfig.disabled = envVarToBool(tlsEnvVar);
-  }
-  const clientCertPath = getEnvVar(envProvider, 'TEMPORAL_TLS_CLIENT_CERT_PATH');
-  if (clientCertPath !== undefined) {
-    tlsConfig.client_cert_path = clientCertPath;
-  }
-  const clientCertData = getEnvVar(envProvider, 'TEMPORAL_TLS_CLIENT_CERT_DATA');
-  if (clientCertData !== undefined) {
-    tlsConfig.client_cert_data = clientCertData;
-  }
-  const clientKeyPath = getEnvVar(envProvider, 'TEMPORAL_TLS_CLIENT_KEY_PATH');
-  if (clientKeyPath !== undefined) {
-    tlsConfig.client_key_path = clientKeyPath;
-  }
-  const clientKeyData = getEnvVar(envProvider, 'TEMPORAL_TLS_CLIENT_KEY_DATA');
-  if (clientKeyData !== undefined) {
-    tlsConfig.client_key_data = clientKeyData;
-  }
-  const serverCertPath = getEnvVar(envProvider, 'TEMPORAL_TLS_SERVER_CA_CERT_PATH');
-  if (serverCertPath !== undefined) {
-    tlsConfig.server_ca_cert_path = serverCertPath;
-  }
-  const serverCertData = getEnvVar(envProvider, 'TEMPORAL_TLS_SERVER_CA_CERT_DATA');
-  if (serverCertData !== undefined) {
-    tlsConfig.server_ca_cert_data = serverCertData;
-  }
-  const serverName = getEnvVar(envProvider, 'TEMPORAL_TLS_SERVER_NAME');
-  if (serverName !== undefined) {
-    tlsConfig.server_name = serverName;
-  }
-  const disableHostVerification = getEnvVar(envProvider, 'TEMPORAL_TLS_DISABLE_HOST_VERIFICATION');
-  if (disableHostVerification !== undefined) {
-    tlsConfig.disable_host_verification = envVarToBool(disableHostVerification);
-  }
+function getTLSFromEnvVars(envProvider: Record<string, string | undefined>): TomlClientConfigTLS | undefined {
+  const tlsConfig: TomlClientConfigTLS = filterNullAndUndefined({
+    disabled: envVarToBool(envProvider['TEMPORAL_TLS']),
+    client_cert_path: envProvider['TEMPORAL_TLS_CLIENT_CERT_PATH'],
+    client_cert_data: envProvider['TEMPORAL_TLS_CLIENT_CERT_DATA'],
+    client_key_path: envProvider['TEMPORAL_TLS_CLIENT_KEY_PATH'],
+    client_key_data: envProvider['TEMPORAL_TLS_CLIENT_KEY_DATA'],
+    server_ca_cert_path: envProvider['TEMPORAL_TLS_SERVER_CA_CERT_PATH'],
+    server_ca_cert_data: envProvider['TEMPORAL_TLS_SERVER_CA_CERT_DATA'],
+    server_name: envProvider['TEMPORAL_TLS_SERVER_NAME'],
+    disable_host_verification: envVarToBool(envProvider['TEMPORAL_TLS_DISABLE_HOST_VERIFICATION']),
+  });
+
   // If no properties were added, return undefined
   return Object.keys(tlsConfig).length > 0 ? tlsConfig : undefined;
 }
 
-function getCodecFromEnvVars(envProvider: EnvProvider): TomlClientConfigCodec | undefined {
+function getCodecFromEnvVars(envProvider: Record<string, string | undefined>): TomlClientConfigCodec | undefined {
   const codec: TomlClientConfigCodec = {};
-  const endpoint = getEnvVar(envProvider, 'TEMPORAL_CODEC_ENDPOINT');
+  const endpoint = envProvider['TEMPORAL_CODEC_ENDPOINT'];
   if (endpoint !== undefined) {
     codec.endpoint = endpoint;
   }
-  const auth = getEnvVar(envProvider, 'TEMPORAL_CODEC_AUTH');
+  const auth = envProvider['TEMPORAL_CODEC_AUTH'];
   if (auth !== undefined) {
     codec.auth = auth;
   }
@@ -251,13 +264,10 @@ function getCodecFromEnvVars(envProvider: EnvProvider): TomlClientConfigCodec | 
   return Object.keys(codec).length > 0 ? codec : undefined;
 }
 
-function applyGrpcMetaFromEnvVars(profile: TomlClientConfigProfile, envProvider: EnvProvider) {
+function applyGrpcMetaFromEnvVars(profile: TomlClientConfigProfile, envProvider: Record<string, string | undefined>) {
   const PREFIX = 'TEMPORAL_GRPC_META_';
 
-  // Get key-value pairs based on provider type
-  const envVars = envProvider.kind === 'Map' ? Object.entries(envProvider.map) : Object.entries(process.env);
-
-  for (const [key, value] of envVars) {
+  for (const [key, value] of Object.entries(envProvider)) {
     if (key.startsWith(PREFIX)) {
       const headerName = key.slice(PREFIX.length);
       const normalizedKey = normalizeGrpcMetaKey(headerName);
@@ -275,7 +285,10 @@ function applyGrpcMetaFromEnvVars(profile: TomlClientConfigProfile, envProvider:
   }
 }
 
-function envVarToBool(envVar: string): boolean {
+function envVarToBool(envVar?: string): boolean | undefined {
+  if (envVar === undefined) {
+    return undefined;
+  }
   return envVar === '1' || envVar === 'true';
 }
 

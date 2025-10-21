@@ -1,4 +1,4 @@
-import { NativeConnectionOptions } from '@temporalio/worker';
+import type { NativeConnectionOptions } from '@temporalio/worker';
 
 /**
  * A data source for configuration, which can be a path to a file,
@@ -19,6 +19,11 @@ export interface ClientConfigTLS {
   serverCACert?: ConfigDataSource;
 }
 
+/**
+ * Configuration for connecting to a Temporal client, including connection options and namespace.
+ *
+ * @experimental Environment configuration is new feature and subject to change.
+ */
 export interface ClientConnectConfig {
   connectionOptions: NativeConnectionOptions;
   namespace?: string;
@@ -54,6 +59,11 @@ export interface LoadClientProfileOptions {
   overrideEnvVars?: Record<string, string>;
 }
 
+/**
+ * A client configuration profile with connection settings for a Temporal client.
+ *
+ * @experimental Environment configuration is new feature and subject to change.
+ */
 export interface ClientConfigProfile {
   address?: string;
   namespace?: string;
@@ -93,37 +103,12 @@ export interface ClientConfig {
   profiles: Record<string, ClientConfigProfile>;
 }
 
+/**
+ * Options for parsing client configuration from TOML format.
+ *
+ * @experimental Environment configuration is new feature and subject to change.
+ */
 export interface ClientConfigFromTomlOptions {
   // If true, will error if there are unrecognized keys.
   strict: boolean;
-}
-
-export interface TomlClientConfig {
-  profile: Record<string, TomlClientConfigProfile>;
-}
-
-export interface TomlClientConfigProfile {
-  address?: string;
-  namespace?: string;
-  api_key?: string;
-  tls?: TomlClientConfigTLS;
-  codec?: TomlClientConfigCodec;
-  grpc_meta?: Record<string, string>;
-}
-
-export interface TomlClientConfigTLS {
-  disabled?: boolean;
-  client_cert_path?: string;
-  client_cert_data?: string;
-  client_key_path?: string;
-  client_key_data?: string;
-  server_ca_cert_path?: string;
-  server_ca_cert_data?: string;
-  server_name?: string;
-  disable_host_verification?: boolean;
-}
-
-export interface TomlClientConfigCodec {
-  endpoint?: string;
-  auth?: string;
 }

@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/envconfig",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Temporal.io SDK Environment Configuration sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -15,8 +15,10 @@
   "license": "MIT",
   "dependencies": {
     "@temporalio/common": "file:../common",
-    "@temporalio/worker": "file:../worker",
     "smol-toml": "1.4.2"
+  },
+  "devDependencies": {
+    "@temporalio/worker": "file:../worker"
   },
   "engines": {
     "node": ">= 18.0.0"

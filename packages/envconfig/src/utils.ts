@@ -1,14 +1,7 @@
 import { readFileSync } from 'fs';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
-import {
-  ClientConfigProfile,
-  ClientConfigTLS,
-  ClientConfig,
-  TomlClientConfigProfile,
-  TomlClientConfigTLS,
-  TomlClientConfig,
-  ConfigDataSource,
-} from './types';
+import { ClientConfigProfile, ClientConfigTLS, ClientConfig, ConfigDataSource } from './types';
+import { normalizeGrpcMetaKey, TomlClientConfig, TomlClientConfigProfile, TomlClientConfigTLS } from './envconfig-toml';
 
 export function loadConfigData(source?: ConfigDataSource): Buffer | undefined {
   if (!source) return undefined;
@@ -20,17 +13,13 @@ export function loadConfigData(source?: ConfigDataSource): Buffer | undefined {
   return Buffer.isBuffer(source.data) ? source.data : Buffer.from(source.data);
 }
 
-export function normalizeGrpcMetaKey(key: string): string {
-  return key.toLocaleLowerCase().replace('_', '-');
-}
-
 export function fromTomlProfile(tomlProfile: TomlClientConfigProfile): ClientConfigProfile {
   let grpcMeta: Record<string, string> | undefined = undefined;
   if (tomlProfile.grpc_meta !== undefined) {
     grpcMeta = {};
     // Normalize GRPC meta keys.
-    for (const key in tomlProfile.grpc_meta) {
-      grpcMeta[normalizeGrpcMetaKey(key)] = tomlProfile.grpc_meta[key];
+    for (const [key, value] of Object.entries(tomlProfile.grpc_meta)) {
+      grpcMeta[normalizeGrpcMetaKey(key)] = value;
     }
   }
   const profile: ClientConfigProfile = {
@@ -48,8 +37,8 @@ export function toTomlProfile(profile: ClientConfigProfile): TomlClientConfigPro
   if (profile.grpcMeta !== undefined) {
     grpc_meta = {};
     // Normalize GRPC meta keys.
-    for (const key in profile.grpcMeta) {
-      grpc_meta[normalizeGrpcMetaKey(key)] = profile.grpcMeta[key];
+    for (const [key, value] of Object.entries(profile.grpcMeta)) {
+      grpc_meta[normalizeGrpcMetaKey(key)] = value;
     }
   }
   const tomlProfile = {

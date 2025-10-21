@@ -462,15 +462,15 @@ test('Load profile with TLS options as file paths', (t) => {
 
         const serverCACert = toPathAndData(profile.tls?.serverCACert);
         t.is(serverCACert?.data, undefined);
-        t.deepEqual(serverCACert?.path, caPath);
+        t.deepEqual(serverCACert?.path, normalizedCaPath);
 
         const clientCert = toPathAndData(profile.tls?.clientCert);
         t.is(clientCert?.data, undefined);
-        t.deepEqual(clientCert?.path, certPath);
+        t.deepEqual(clientCert?.path, normalizedCertPath);
 
         const clientKey = toPathAndData(profile.tls?.clientKey);
         t.is(clientKey?.data, undefined);
-        t.deepEqual(clientKey?.path, keyPath);
+        t.deepEqual(clientKey?.path, normalizedKeyPath);
 
         const { connectionOptions: connOpts } = toClientOptions(profile);
         const tls3 = connOpts.tls;
