@@ -22,7 +22,7 @@ import { instrument, extractContextFromHeaders, headersWithContext } from '../in
 import { ContextManager } from './context-manager';
 import { SpanName, SPAN_DELIMITER } from './definitions';
 import { SpanExporter } from './span-exporter';
-import { ensureWorkflowModuleLoaded, getWorkflowModule } from './workflow-module-loader';
+import { ensureWorkflowModuleLoaded, getSdkFlagsChecking, getWorkflowModule } from './workflow-module-loader';
 
 export * from './definitions';
 
@@ -77,12 +77,14 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     input: SignalInput,
     next: Next<WorkflowInboundCallsInterceptor, 'handleSignal'>
   ): Promise<void> {
+    const { getActivator, SdkFlags } = getSdkFlagsChecking();
+    const shouldInjectYield = getActivator().hasFlag(SdkFlags.OpenTelemetryHandleSignalInterceptorInsertYield);
     const context = extractContextFromHeaders(input.headers);
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
       fn: () => next(input),
-      context,
+      context: shouldInjectYield ? await Promise.resolve(context) : context,
     });
   }
 }
