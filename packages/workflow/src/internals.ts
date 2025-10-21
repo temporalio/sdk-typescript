@@ -65,7 +65,7 @@ import {
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
-import { SdkFlag, SdkFlags, assertValidFlag } from './flags';
+import { SdkFlag, assertValidFlag } from './flags';
 import { executeWithLifecycleLogging, log } from './logs';
 
 const StartChildWorkflowExecutionFailedCause = {
