@@ -65,7 +65,7 @@ import {
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
-import { SdkFlag, assertValidFlag } from './flags';
+import { SdkFlag, SdkFlags, assertValidFlag } from './flags';
 import { executeWithLifecycleLogging, log } from './logs';
 
 const StartChildWorkflowExecutionFailedCause = {
@@ -1129,7 +1129,7 @@ export class Activator implements ActivationHandler {
     // through an older one.
     if (this.info.unsafe.isReplaying && flag.alternativeConditions) {
       for (const cond of flag.alternativeConditions) {
-        if (cond({ info: this.info })) return true;
+        if (cond({ info: this.info, sdkVersion: this.sdkVersion })) return true;
       }
     }
 
@@ -1265,7 +1265,7 @@ export class Activator implements ActivationHandler {
   private maybeInjectYieldForOtelHandler(
     interceptors: NonNullable<WorkflowInterceptors['inbound']>
   ): NonNullable<WorkflowInterceptors['inbound']> {
-    if (!this.info.unsafe.isReplaying || !shouldInjectYield(this.sdkVersion)) {
+    if (!this.hasFlag(SdkFlags.OpenTelemetryHandleSignalInterceptorInsertYield)) {
       return [...interceptors];
     }
     const otelInboundInterceptorIndex = findOpenTelemetryInboundInterceptor(interceptors);
