@@ -24,7 +24,7 @@ import {
 import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
 import { DefaultLogger, InjectedSinks, Runtime } from '@temporalio/worker';
 import * as activities from './activities';
-import { loadHistory, RUN_INTEGRATION_TESTS, saveHistory, TestWorkflowEnvironment, Worker } from './helpers';
+import { loadHistory, RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
 import * as workflows from './workflows';
 import { createTestWorkflowBundle } from './helpers-integration';
 
@@ -513,45 +513,6 @@ if (RUN_INTEGRATION_TESTS) {
 }
 
 test('Can replay otel history from 1.11.3', async (t) => {
-  /*
-  const staticResource = new opentelemetry.resources.Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
-  });
-  const worker = await Worker.create({
-    workflowsPath: require.resolve('./workflows/signal-start-otel'),
-    activities: {
-      a: async () => 'a',
-      b: async () => 'b',
-      c: async () => 'c',
-    },
-    taskQueue: 'test-otel-inbound',
-    sinks: {
-      exporter: makeWorkflowExporter(new InMemorySpanExporter(), staticResource),
-    },
-    interceptors: {
-      workflowModules: [require.resolve('./workflows/signal-start-otel')],
-      activity: [
-        (ctx) => ({
-          inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
-        }),
-      ],
-    },
-  });
-  const client = new WorkflowClient();
-
-  const result = await worker.runUntil(async () => {
-    const handle = await client.signalWithStart(workflows.signalStartOtel, {
-      signal: workflows.startSignal,
-      taskQueue: 'test-otel-inbound',
-      workflowId: uuid4(),
-    });
-    const result = await handle.result();
-    const history = await handle.fetchHistory();
-    await saveHistory('otel_current.json', history);
-    return result;
-  });
-  */
-
   const hist = await loadHistory('otel_1_11_3.json');
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
@@ -575,45 +536,6 @@ test('Can replay otel history from 1.11.3', async (t) => {
 });
 
 test('Can replay otel history from 1.13.1', async (t) => {
-  /*
-  const staticResource = new opentelemetry.resources.Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
-  });
-  const worker = await Worker.create({
-    workflowsPath: require.resolve('./workflows/signal-start-otel'),
-    activities: {
-      a: async () => 'a',
-      b: async () => 'b',
-      c: async () => 'c',
-    },
-    taskQueue: 'test-otel-inbound-curr',
-    sinks: {
-      exporter: makeWorkflowExporter(new InMemorySpanExporter(), staticResource),
-    },
-    interceptors: {
-      workflowModules: [require.resolve('./workflows/signal-start-otel')],
-      activity: [
-        (ctx) => ({
-          inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
-        }),
-      ],
-    },
-  });
-  const client = new WorkflowClient();
-
-  const result = await worker.runUntil(async () => {
-    const handle = await client.signalWithStart(workflows.signalStartOtel, {
-      signal: workflows.startSignal,
-      taskQueue: 'test-otel-inbound-curr',
-      workflowId: uuid4(),
-    });
-    const result = await handle.result();
-    const history = await handle.fetchHistory();
-    await saveHistory('otel_1_13_1.json', history);
-    return result;
-  });
-  */
-
   const hist = await loadHistory('otel_1_13_1.json');
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
