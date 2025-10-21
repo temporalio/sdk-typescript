@@ -980,11 +980,7 @@ export class Activator implements ActivationHandler {
 
     const signalExecutionNum = this.signalHandlerExecutionSeq++;
     this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
-    const execute = composeInterceptors(
-      this.maybeInjectYieldForOtelHandler(interceptors),
-      'handleSignal',
-      this.signalWorkflowNextHandler.bind(this)
-    );
+    const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
     execute({
       args: arrayFromPayloads(this.payloadConverter, activation.input),
       signalName,
@@ -1261,31 +1257,6 @@ export class Activator implements ActivationHandler {
   failureToError(failure: ProtoFailure): Error {
     return this.failureConverter.failureToError(failure, this.payloadConverter);
   }
-
-  private maybeInjectYieldForOtelHandler(
-    interceptors: NonNullable<WorkflowInterceptors['inbound']>
-  ): NonNullable<WorkflowInterceptors['inbound']> {
-    if (!this.hasFlag(SdkFlags.OpenTelemetryHandleSignalInterceptorInsertYield)) {
-      return [...interceptors];
-    }
-    const otelInboundInterceptorIndex = findOpenTelemetryInboundInterceptor(interceptors);
-    if (otelInboundInterceptorIndex === null) {
-      return [...interceptors];
-    }
-    // A handler that only serves the insert a yield point in the interceptor handlers
-    const yieldHandleSignalInterceptor: NonNullable<WorkflowInterceptors['inbound']>[number] = {
-      handleSignal: async (input, next) => {
-        await Promise.resolve();
-        return next(input);
-      },
-    };
-    // Insert the yield handler before the OTEL one to synthesize the yield point added in the affected versions of the handler
-    return [
-      ...interceptors.slice(0, otelInboundInterceptorIndex),
-      yieldHandleSignalInterceptor,
-      ...interceptors.slice(otelInboundInterceptorIndex),
-    ];
-  }
 }
 
 function getSeq<T extends { seq?: number | null }>(activation: T): number {
@@ -1335,49 +1306,4 @@ then you can disable this warning by passing an option when setting the handler:
   return `${message} The following signals were unfinished (and warnings were not disabled for their handler): ${JSON.stringify(
     Array.from(names.entries()).map(([name, count]) => ({ name, count }))
   )}`;
-}
-
-// Should only get run on replay
-function shouldInjectYield(version?: string): boolean {
-  if (!version) {
-    return false;
-  }
-  const [major, minor, patchAndTags] = version.split('.', 3);
-  // 1.11.5 - 1.13.1: need to inject
-  if (major !== '1') return false;
-
-  // patch might have some extra stuff that needs cleaning
-  // basically "takeWhile digit"
-  let patch;
-  try {
-    const patchDigits = /[0-9]+/.exec(patchAndTags)?.[0];
-    patch = patchDigits ? Number.parseInt(patchDigits) : null;
-  } catch {
-    patch = null;
-  }
-
-  switch (minor) {
-    case '11':
-      // 1.11.3 was the last release that didn't inject a yield point
-      return Boolean(patch && patch > 3);
-    case '12':
-      // Every 1.12 release requires a yield
-      return true;
-    case '13':
-      // 1.13.2 will be the first release since 1.11.3 that doesn't have a yield point in `handleSignal`
-      return Boolean(patch && patch < 2);
-    default:
-      return false;
-  }
-}
-
-function findOpenTelemetryInboundInterceptor(
-  interceptors: NonNullable<WorkflowInterceptors['inbound']>
-): number | null {
-  const index = interceptors.findIndex(
-    (interceptor) =>
-      // We use a marker instead of `instanceof` to avoid taking a dependency on @temporalio/interceptors-opentelemetry
-      (interceptor as NonNullable<WorkflowInterceptors['inbound']> & { maybeInjectYield: boolean }).maybeInjectYield
-  );
-  return index !== -1 ? index : null;
 }
