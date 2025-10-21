@@ -3,7 +3,7 @@ import type { NativeConnectionOptions } from '@temporalio/worker';
 /**
  * A data source for configuration, which can be a path to a file,
  * the string contents of a file, or raw bytes.
- * 
+ *
  * @experimental Environment configuration is new feature and subject to change.
  */
 export type ConfigDataSource = { path: string } | { data: string | Buffer };
