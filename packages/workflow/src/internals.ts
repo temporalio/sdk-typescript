@@ -280,7 +280,7 @@ export class Activator implements ActivationHandler {
       STACK_TRACE_QUERY_NAME,
       {
         handler: () => {
-          return new RawValue<string>(
+          return RawValue.fromValue(
             this.getStackTraces()
               .map((s) => s.formatted)
               .join('\n\n')
@@ -312,7 +312,7 @@ export class Activator implements ActivationHandler {
               }
             }
           }
-          return new RawValue<EnhancedStackTrace>({ sdk, stacks, sources });
+          return RawValue.fromValue({ sdk, stacks, sources });
         },
         description: 'Returns a stack trace annotated with source information.',
       },
@@ -334,7 +334,7 @@ export class Activator implements ActivationHandler {
             name,
             description: value.description,
           }));
-          return new RawValue<temporal.api.sdk.v1.IWorkflowMetadata>({
+          return RawValue.fromValue({
             definition: {
               type: workflowType,
               queryDefinitions,

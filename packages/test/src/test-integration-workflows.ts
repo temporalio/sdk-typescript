@@ -1320,7 +1320,7 @@ test.serial('can register search attributes to dev server', async (t) => {
 
 export async function rawValueWorkflow(value: unknown): Promise<RawValue> {
   const { rawValueActivity } = workflow.proxyActivities({ startToCloseTimeout: '10s' });
-  return await rawValueActivity(new RawValue(value));
+  return await rawValueActivity(RawValue.fromValue(value));
 }
 
 test('workflow and activity can receive/return RawValue', async (t) => {
@@ -1328,14 +1328,14 @@ test('workflow and activity can receive/return RawValue', async (t) => {
   const worker = await createWorker({
     activities: {
       async rawValueActivity(value: unknown): Promise<RawValue> {
-        return new RawValue(value);
+        return RawValue.fromValue(value);
       },
     },
   });
 
   await worker.runUntil(async () => {
     const testValue = 'test';
-    const rawValue = new RawValue(testValue);
+    const rawValue = RawValue.fromValue(testValue);
     const res = await executeWorkflow(rawValueWorkflow, {
       args: [rawValue],
     });

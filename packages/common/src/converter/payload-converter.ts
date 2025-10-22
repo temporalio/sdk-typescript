@@ -122,8 +122,12 @@ export class RawValue<T = unknown> {
   private readonly _payload: Payload;
   private readonly [rawPayloadTypeBrand]: T = undefined as T;
 
-  constructor(value: T, payloadConverter: PayloadConverter = defaultPayloadConverter) {
-    this._payload = payloadConverter.toPayload(value);
+  private constructor(payload: Payload) {
+    this._payload = payload;
+  }
+
+  static fromValue<T>(value: T, converter: PayloadConverter = defaultPayloadConverter): RawValue<T> {
+    return new RawValue<T>(converter.toPayload(value));
   }
 
   get payload(): Payload {
