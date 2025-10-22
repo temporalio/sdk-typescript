@@ -63,12 +63,14 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     next: Next<WorkflowInboundCallsInterceptor, 'execute'>
   ): Promise<unknown> {
     const { workflowInfo, ContinueAsNew } = getWorkflowModule();
-    const context = await Promise.resolve(extractContextFromHeaders(input.headers));
+    const { getActivator, SdkFlags } = getSdkFlagsChecking();
+    const shouldInjectYield = getActivator().hasFlag(SdkFlags.OpenTelemetryInterceptorInsertYield);
+    const context = extractContextFromHeaders(input.headers);
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}${workflowInfo().workflowType}`,
       fn: () => next(input),
-      context,
+      context: shouldInjectYield ? await Promise.resolve(context) : context,
       acceptableErrors: (err) => err instanceof ContinueAsNew,
     });
   }

@@ -1,6 +1,18 @@
 import test from 'ava';
-import { SdkFlags } from '@temporalio/workflow/lib/flags';
+import { SdkFlags, type SdkFlag } from '@temporalio/workflow/lib/flags';
 import type { WorkflowInfo } from '@temporalio/workflow';
+
+type Conditions = SdkFlag['alternativeConditions'];
+function composeConditions(conditions: Conditions): NonNullable<Conditions>[number] {
+  return (ctx) => {
+    for (const cond of conditions ?? []) {
+      if (cond(ctx)) {
+        return true;
+      }
+    }
+    return false;
+  };
+}
 
 test('OpenTelemetryHandleSignalInterceptorInsertYield enabled by version', (t) => {
   const cases = [
@@ -14,15 +26,7 @@ test('OpenTelemetryHandleSignalInterceptorInsertYield enabled by version', (t) =
     { version: '1.14.0', expected: false },
   ];
   for (const { version, expected } of cases) {
-    const alternativeCondition = (ctx: { info: WorkflowInfo; sdkVersion: string | undefined }) => {
-      for (const cond of SdkFlags.OpenTelemetryHandleSignalInterceptorInsertYield.alternativeConditions!) {
-        if (cond(ctx)) {
-          return true;
-        }
-      }
-      return false;
-    };
-    const actual = alternativeCondition({
+    const actual = composeConditions(SdkFlags.OpenTelemetryHandleSignalInterceptorInsertYield.alternativeConditions)({
       info: {} as WorkflowInfo,
       sdkVersion: version,
     });
@@ -31,5 +35,25 @@ test('OpenTelemetryHandleSignalInterceptorInsertYield enabled by version', (t) =
       expected,
       `Expected OpenTelemetryHandleSignalInterceptorInsertYield on ${version} to evaluate as ${expected}`
     );
+  }
+});
+
+test('OpenTelemetryInterceptorInsertYield enabled by version', (t) => {
+  const cases = [
+    { version: '0.1.0', expected: true },
+    { version: '1.0.0', expected: true },
+    { version: '1.9.0-rc.0', expected: true },
+    { version: '1.11.3', expected: true },
+    { version: '1.13.1', expected: true },
+    { version: '1.13.2', expected: false },
+    { version: '1.14.0', expected: false },
+    { version: '2.0.0', expected: false },
+  ];
+  for (const { version, expected } of cases) {
+    const actual = composeConditions(SdkFlags.OpenTelemetryInterceptorInsertYield.alternativeConditions)({
+      info: {} as WorkflowInfo,
+      sdkVersion: version,
+    });
+    t.is(actual, expected, `Expected OpenTelemetryInterceptorInsertYield on ${version} to evaluate as ${expected}`);
   }
 });
