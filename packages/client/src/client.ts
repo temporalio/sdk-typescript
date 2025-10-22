@@ -68,7 +68,7 @@ export class Client extends BaseClient {
     options.plugins = (options.plugins ?? []).concat(options.connection?.plugins ?? []);
 
     // Process plugins first to allow them to modify connect configuration
-    for (const plugin of options?.plugins ?? []) {
+    for (const plugin of options.plugins) {
       if (plugin.configureClient !== undefined) {
         options = plugin.configureClient(options);
       }
