@@ -25,10 +25,13 @@ import {
   ActivityCancellationType,
   ApplicationFailure,
   defineSearchAttributeKey,
+  encodingKeys,
+  METADATA_ENCODING_KEY,
   RawValue,
   SearchAttributePair,
   SearchAttributeType,
   TypedSearchAttributes,
+  u8,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
 import {
@@ -1318,17 +1321,29 @@ test.serial('can register search attributes to dev server', async (t) => {
   await env.teardown();
 });
 
-export async function rawValueWorkflow(value: unknown): Promise<RawValue> {
+export async function rawValueWorkflow(value: unknown, isPayload: boolean = false): Promise<RawValue> {
   const { rawValueActivity } = workflow.proxyActivities({ startToCloseTimeout: '10s' });
-  return await rawValueActivity(new RawValue(value));
+  const rv = isPayload
+    ? RawValue.fromPayload({
+        metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
+        data: value as Uint8Array,
+      })
+    : new RawValue(value);
+  return await rawValueActivity(rv, isPayload);
 }
 
 test('workflow and activity can receive/return RawValue', async (t) => {
   const { executeWorkflow, createWorker } = helpers(t);
   const worker = await createWorker({
     activities: {
-      async rawValueActivity(value: unknown): Promise<RawValue> {
-        return new RawValue(value);
+      async rawValueActivity(value: unknown, isPayload: boolean = false): Promise<RawValue> {
+        const rv = isPayload
+          ? RawValue.fromPayload({
+              metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
+              data: value as Uint8Array,
+            })
+          : new RawValue(value);
+        return rv;
       },
     },
   });
@@ -1336,10 +1351,18 @@ test('workflow and activity can receive/return RawValue', async (t) => {
   await worker.runUntil(async () => {
     const testValue = 'test';
     const rawValue = new RawValue(testValue);
+    const rawValuePayload = RawValue.fromPayload({
+      metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
+      data: u8(testValue),
+    });
     const res = await executeWorkflow(rawValueWorkflow, {
       args: [rawValue],
     });
     t.deepEqual(res, testValue);
+    const res2 = await executeWorkflow(rawValueWorkflow, {
+      args: [rawValuePayload, true],
+    });
+    t.deepEqual(res2, u8(testValue));
   });
 });
 
