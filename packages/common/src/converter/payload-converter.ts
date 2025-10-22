@@ -126,7 +126,7 @@ export class RawValue<T = unknown> {
     this._payload = payloadConverter.toPayload(value);
   }
 
-  static fromPayload(p: Payload) {
+  static fromPayload(p: Payload): RawValue {
     return new RawValue(p, identityPayloadConverter);
   }
 

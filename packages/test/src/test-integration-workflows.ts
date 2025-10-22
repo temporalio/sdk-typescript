@@ -31,7 +31,6 @@ import {
   SearchAttributePair,
   SearchAttributeType,
   TypedSearchAttributes,
-  u8,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
 import {
@@ -39,6 +38,7 @@ import {
   STACK_TRACE_QUERY_NAME,
   ENHANCED_STACK_TRACE_QUERY_NAME,
 } from '@temporalio/common/lib/reserved';
+import { encode } from '@temporalio/common/lib/encoding';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
@@ -1353,7 +1353,7 @@ test('workflow and activity can receive/return RawValue', async (t) => {
     const rawValue = new RawValue(testValue);
     const rawValuePayload = RawValue.fromPayload({
       metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
-      data: u8(testValue),
+      data: encode(testValue),
     });
     const res = await executeWorkflow(rawValueWorkflow, {
       args: [rawValue],
@@ -1362,7 +1362,7 @@ test('workflow and activity can receive/return RawValue', async (t) => {
     const res2 = await executeWorkflow(rawValueWorkflow, {
       args: [rawValuePayload, true],
     });
-    t.deepEqual(res2, u8(testValue));
+    t.deepEqual(res2, encode(testValue));
   });
 });
 
