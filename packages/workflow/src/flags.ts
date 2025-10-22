@@ -59,6 +59,13 @@ export const SdkFlags = {
   OpenTelemetryHandleSignalInterceptorInsertYield: defineFlag(3, false, [
     isBetween({ major: 1, minor: 11, patch: 3 }, { major: 1, minor: 13, patch: 2 }),
   ]),
+  /**
+   * The interceptors provided by @temporalio/interceptors-opentelemetry initially had unnecessary yield points.
+   * If replaying a workflow created from these versions a yield point is injected to prevent any NDE.
+   *
+   * @since Introduced in 1.13.2
+   */
+  OpenTelemetryInterceptorInsertYield: defineFlag(3, false, [isBefore({ major: 1, minor: 13, patch: 2 })]),
 } as const;
 
 function defineFlag(id: number, def: boolean, alternativeConditions?: AltConditionFn[]): SdkFlag {
