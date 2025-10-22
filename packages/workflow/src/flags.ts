@@ -56,7 +56,9 @@ export const SdkFlags = {
    *
    * @since Introduced in 1.13.2.
    */
-  OpenTelemetryHandleSignalInterceptorInsertYield: defineFlag(3, false, [affectedOtelInterceptorVersion]),
+  OpenTelemetryHandleSignalInterceptorInsertYield: defineFlag(3, false, [
+    isBetween({ major: 1, minor: 11, patch: 3 }, { major: 1, minor: 13, patch: 2 }),
+  ]),
 } as const;
 
 function defineFlag(id: number, def: boolean, alternativeConditions?: AltConditionFn[]): SdkFlag {
@@ -88,36 +90,65 @@ function buildIdSdkVersionMatches(version: RegExp): AltConditionFn {
   return ({ info }) => info.currentBuildId != null && regex.test(info.currentBuildId); // eslint-disable-line deprecation/deprecation
 }
 
-function affectedOtelInterceptorVersion({ sdkVersion }: { sdkVersion?: string }): boolean {
-  if (!sdkVersion) {
-    return false;
-  }
-  const [major, minor, patchAndTags] = sdkVersion.split('.', 3);
-  if (major !== '1') return false;
+type SemVer = {
+  major: number;
+  minor: number;
+  patch: number;
+};
 
-  // Semver allows for additional tags to be appended to the version
-  let patch;
-  try {
-    const patchDigits = /[0-9]+/.exec(patchAndTags)?.[0];
-    patch = patchDigits ? Number.parseInt(patchDigits) : null;
-  } catch {
-    // This shouldn't ever happen, but we are conservative here and avoid throwing when checking a flag.
-    patch = null;
-  }
+function parseSemver(version: string): SemVer | undefined {
+  const matches = version.match(/(\d+)\.(\d+)\.(\d+)/);
+  if (!matches) return undefined;
+  const [full, major, minor, patch] = matches.map((digits) => {
+    try {
+      return Number.parseInt(digits);
+    } catch {
+      return undefined;
+    }
+  });
+  if (major === undefined || minor === undefined || patch === undefined)
+    throw new Error(`full: ${full}, parts: ${major}.${minor}.${patch}`);
+  if (major === undefined || minor === undefined || patch === undefined) return undefined;
+  return {
+    major,
+    minor,
+    patch,
+  };
+}
 
-  switch (minor) {
-    case '11':
-      // 1.11.3 was the last release that didn't inject a yield point
-      // If for some reason we are unable to parse the patch version, assume it isn't affected
-      return Boolean(patch && patch > 3);
-    case '12':
-      // Every 1.12 release requires a yield
-      return true;
-    case '13':
-      // 1.13.2 will be the first release since 1.11.3 that doesn't have a yield point in `handleSignal`
-      // If for some reason we are unable to parse the patch version, assume it isn't affected
-      return Boolean(patch && patch < 2);
-    default:
-      return false;
-  }
+function compareSemver(a: SemVer, b: SemVer): -1 | 0 | 1 {
+  if (a.major < b.major) return -1;
+  if (a.major > b.major) return 1;
+  if (a.minor < b.minor) return -1;
+  if (a.minor > b.minor) return 1;
+  if (a.patch < b.patch) return -1;
+  if (a.patch > b.patch) return 1;
+  return 0;
+}
+
+function isCompared(compare: SemVer, comparison: -1 | 0 | 1): AltConditionFn {
+  return ({ sdkVersion }) => {
+    if (!sdkVersion) throw new Error('no sdk version');
+    if (!sdkVersion) return false;
+    const version = parseSemver(sdkVersion);
+    if (!version) throw new Error(`no version for ${sdkVersion}`);
+    if (!version) return false;
+    return compareSemver(compare, version) === comparison;
+  };
+}
+
+function isBefore(compare: SemVer): AltConditionFn {
+  return isCompared(compare, 1);
+}
+
+function isEqual(compare: SemVer): AltConditionFn {
+  return isCompared(compare, 0);
+}
+
+function isAfter(compare: SemVer): AltConditionFn {
+  return isCompared(compare, -1);
+}
+
+function isBetween(lowEnd: SemVer, highEnd: SemVer): AltConditionFn {
+  return (ctx) => isAfter(lowEnd)(ctx) && isBefore(highEnd)(ctx);
 }
