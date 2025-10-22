@@ -14,7 +14,15 @@ test('OpenTelemetryHandleSignalInterceptorInsertYield enabled by version', (t) =
     { version: '1.14.0', expected: false },
   ];
   for (const { version, expected } of cases) {
-    const actual = SdkFlags.OpenTelemetryHandleSignalInterceptorInsertYield.alternativeConditions![0]!({
+    const alternativeCondition = (ctx: { info: WorkflowInfo; sdkVersion: string | undefined }) => {
+      for (const cond of SdkFlags.OpenTelemetryHandleSignalInterceptorInsertYield.alternativeConditions!) {
+        if (cond(ctx)) {
+          return true;
+        }
+      }
+      return false;
+    };
+    const actual = alternativeCondition({
       info: {} as WorkflowInfo,
       sdkVersion: version,
     });
