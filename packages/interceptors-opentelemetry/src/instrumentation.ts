@@ -32,7 +32,7 @@ export function extractContextFromHeaders(headers: Headers): otel.Context | unde
 /**
  * Given headers, return new headers with the current otel context inserted
  */
-export async function headersWithContext(headers: Headers): Promise<Headers> {
+export function headersWithContext(headers: Headers): Headers {
   const carrier = {};
   otel.propagation.inject(otel.context.active(), carrier, otel.defaultTextMapSetter);
   return { ...headers, [TRACE_HEADER]: payloadConverter.toPayload(carrier) };
