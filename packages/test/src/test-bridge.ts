@@ -306,6 +306,7 @@ const GenericConfigs = {
       maxTaskQueueActivitiesPerSecond: null,
       maxActivitiesPerSecond: null,
       shutdownGraceTime: 1000,
+      skipClientWorkerSetCheck: true,
     } satisfies native.WorkerOptions,
   },
   ephemeralServer: {
