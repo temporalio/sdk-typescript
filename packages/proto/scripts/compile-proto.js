@@ -10,7 +10,7 @@ const outputDir = resolve(__dirname, '../protos');
 const jsOutputFile = resolve(outputDir, 'json-module.js');
 const tempFile = resolve(outputDir, 'temp.js');
 
-const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos');
+const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos');
 
 function mtime(path) {
   try {
