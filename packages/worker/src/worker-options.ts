@@ -465,7 +465,10 @@ export interface WorkerOptions {
   defaultHeartbeatThrottleInterval?: Duration;
 
   /**
-   * TODO: write
+   * Skip the runtime validation that ensures the client is registered with the worker set.
+   * This should only be used in tests.
+   *
+   * @default false
    */
   skipClientWorkerSetCheck?: boolean;
 
