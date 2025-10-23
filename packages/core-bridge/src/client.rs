@@ -290,6 +290,9 @@ async fn client_invoke_workflow_service(
         "DescribeDeployment" => {
             rpc_call!(retry_client, call, describe_deployment)
         }
+        "DescribeWorker" => {
+            rpc_call!(retry_client, call, describe_worker)
+        }
         "DeprecateNamespace" => rpc_call!(retry_client, call, deprecate_namespace),
         "DescribeNamespace" => rpc_call!(retry_client, call, describe_namespace),
         "DescribeSchedule" => rpc_call!(retry_client, call, describe_schedule),
@@ -449,6 +452,9 @@ async fn client_invoke_workflow_service(
         }
         "SetWorkerDeploymentCurrentVersion" => {
             rpc_call!(retry_client, call, set_worker_deployment_current_version)
+        }
+        "SetWorkerDeploymentManager" => {
+            rpc_call!(retry_client, call, set_worker_deployment_manager)
         }
         "SetWorkerDeploymentRampingVersion" => {
             rpc_call!(retry_client, call, set_worker_deployment_ramping_version)
