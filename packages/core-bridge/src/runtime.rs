@@ -5,12 +5,12 @@ use futures::channel::mpsc::Receiver;
 use neon::prelude::*;
 use tracing::{Instrument, warn};
 
-use temporal_sdk_core::{
+use temporalio_common::telemetry::{
+    CoreLog, OtelCollectorOptions as CoreOtelCollectorOptions,
+    PrometheusExporterOptions as CorePrometheusExporterOptions, metrics::CoreMeter,
+};
+use temporalio_sdk_core::{
     CoreRuntime, RuntimeOptionsBuilder, TokioRuntimeBuilder,
-    api::telemetry::{
-        CoreLog, OtelCollectorOptions as CoreOtelCollectorOptions,
-        PrometheusExporterOptions as CorePrometheusExporterOptions, metrics::CoreMeter,
-    },
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
 };
 
@@ -241,17 +241,14 @@ mod config {
     use anyhow::Context as _;
 
     use neon::prelude::*;
-    use temporal_sdk_core::{
-        Url,
-        api::telemetry::{
-            HistogramBucketOverrides, Logger as CoreTelemetryLogger, MetricTemporality,
-            OtelCollectorOptions as CoreOtelCollectorOptions, OtelCollectorOptionsBuilder,
-            OtlpProtocol, PrometheusExporterOptions as CorePrometheusExporterOptions,
-            PrometheusExporterOptionsBuilder, TelemetryOptions as CoreTelemetryOptions,
-            TelemetryOptionsBuilder,
-        },
-        telemetry::CoreLogStreamConsumer,
+    use temporalio_common::telemetry::{
+        HistogramBucketOverrides, Logger as CoreTelemetryLogger, MetricTemporality,
+        OtelCollectorOptions as CoreOtelCollectorOptions, OtelCollectorOptionsBuilder,
+        OtlpProtocol, PrometheusExporterOptions as CorePrometheusExporterOptions,
+        PrometheusExporterOptionsBuilder, TelemetryOptions as CoreTelemetryOptions,
+        TelemetryOptionsBuilder,
     };
+    use temporalio_sdk_core::{Url, telemetry::CoreLogStreamConsumer};
 
     use bridge_macros::TryFromJs;
 

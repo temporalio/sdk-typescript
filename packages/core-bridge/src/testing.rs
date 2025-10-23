@@ -4,13 +4,13 @@ use std::{process::Stdio, sync::Arc};
 use anyhow::Context as _;
 use neon::prelude::*;
 
-use temporal_sdk_core::ephemeral_server::{
+use temporalio_sdk_core::ephemeral_server::{
     EphemeralServer as CoreEphemeralServer, TemporalDevServerConfig as CoreTemporalDevServerConfig,
     TestServerConfig as CoreTestServerConfig,
 };
 
 use bridge_macros::js_function;
-use temporal_sdk_core::CoreRuntime;
+use temporalio_sdk_core::CoreRuntime;
 
 use crate::helpers::*;
 use crate::runtime::{Runtime, RuntimeExt as _};
@@ -191,7 +191,7 @@ mod config {
 
     use anyhow::Context as _;
 
-    use temporal_sdk_core::ephemeral_server::{
+    use temporalio_sdk_core::ephemeral_server::{
         EphemeralExe, EphemeralExeVersion, TemporalDevServerConfig as CoreTemporalDevServerConfig,
         TemporalDevServerConfigBuilder, TestServerConfig as CoreTestServerConfig,
         TestServerConfigBuilder,
