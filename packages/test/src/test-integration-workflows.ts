@@ -459,6 +459,7 @@ test('Worker requests Eager Activity Dispatch if possible', async (t) => {
     activities: {
       testActivity: () => 'workflow-and-activity-worker',
     },
+    skipClientWorkerSetCheck: true,
   });
   const handle = await startWorkflow(executeEagerActivity);
   await activityWorker.runUntil(workflowWorker.runUntil(handle.result()));
@@ -495,6 +496,7 @@ test("Worker doesn't request Eager Activity Dispatch if no activities are regist
   });
   const workflowWorker = await createWorker({
     activities: {},
+    skipClientWorkerSetCheck: true,
   });
   const handle = await startWorkflow(dontExecuteEagerActivity);
   const result = await activityWorker.runUntil(workflowWorker.runUntil(handle.result()));

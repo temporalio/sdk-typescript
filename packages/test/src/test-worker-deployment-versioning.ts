@@ -43,6 +43,7 @@ test('Worker deployment based versioning', async (t) => {
       defaultVersioningBehavior: 'PINNED',
     },
     connection: nativeConnection,
+    skipClientWorkerSetCheck: true,
   });
   const worker1Promise = worker1.run();
   worker1Promise.catch((err) => {
@@ -58,6 +59,7 @@ test('Worker deployment based versioning', async (t) => {
       defaultVersioningBehavior: 'PINNED',
     },
     connection: nativeConnection,
+    skipClientWorkerSetCheck: true,
   });
   const worker2Promise = worker2.run();
   worker2Promise.catch((err) => {
@@ -73,6 +75,7 @@ test('Worker deployment based versioning', async (t) => {
       defaultVersioningBehavior: 'PINNED',
     },
     connection: nativeConnection,
+    skipClientWorkerSetCheck: true,
   });
   const worker3Promise = worker3.run();
   worker3Promise.catch((err) => {
@@ -160,6 +163,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
       defaultVersioningBehavior: 'PINNED',
     },
     connection: nativeConnection,
+    skipClientWorkerSetCheck: true,
   });
   const worker1Promise = worker1.run();
   worker1Promise.catch((err) => {
@@ -175,6 +179,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
       defaultVersioningBehavior: 'PINNED',
     },
     connection: nativeConnection,
+    skipClientWorkerSetCheck: true,
   });
   const worker2Promise = worker2.run();
   worker2Promise.catch((err) => {
