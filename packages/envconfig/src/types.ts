@@ -6,7 +6,7 @@ import type { NativeConnectionOptions } from '@temporalio/worker';
  *
  * @experimental Environment configuration is new feature and subject to change.
  */
-export type ConfigDataSource = { path: string } | { data: string | Buffer };
+export type ConfigDataSource = { path: string } | { data: string | Uint8Array };
 
 /**
  * TLS configuration as specified as part of client configuration.
@@ -37,7 +37,7 @@ export interface ClientConnectConfig {
  * @experimental Environment configuration is new feature and subject to change.
  */
 export interface LoadClientProfileOptions {
-  /** The profile to load from the config. Defaults to "default". */
+  /** The name of the profile to load from the config. Defaults to "default". */
   profile?: string;
   /**
    * If present, this is used as the configuration source instead of default

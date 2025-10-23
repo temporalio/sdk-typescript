@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { parse, stringify, TomlTable } from 'smol-toml';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow/objects-helpers';
+import { decode, encode } from '@temporalio/common/lib/encoding';
 import { ConfigDataSource, LoadClientConfigOptions, LoadClientProfileOptions } from './types';
 
 export function normalizeGrpcMetaKey(key: string): string {
@@ -64,7 +65,7 @@ export interface TomlClientConfigCodec {
   auth?: string;
 }
 
-function sourceToStringData(source?: ConfigDataSource): string | undefined {
+function sourceToStringData(source: ConfigDataSource | undefined): string | undefined {
   if (source === undefined) {
     return undefined;
   }
@@ -72,10 +73,11 @@ function sourceToStringData(source?: ConfigDataSource): string | undefined {
     return readFileSync(source.path, { encoding: 'utf-8' });
   }
 
-  if (Buffer.isBuffer(source.data)) {
-    return source.data.toString();
+  if (typeof source.data === 'string') {
+    return source.data;
   }
-  return source.data;
+
+  return decode(source.data);
 }
 
 export function tomlLoadClientConfig(options: LoadClientConfigOptions): TomlClientConfig {
@@ -106,8 +108,8 @@ export function loadFromTomlData(tomlData: string, isStrict: boolean): TomlClien
   return parsed as unknown as TomlClientConfig;
 }
 
-export function configToTomlData(config: TomlClientConfig): Buffer {
-  return Buffer.from(stringify(config), 'utf-8');
+export function configToTomlData(config: TomlClientConfig): Uint8Array {
+  return encode(stringify(config));
 }
 
 function strictValidateTomlStructure(parsed: TomlTable): void {

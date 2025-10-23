@@ -1,4 +1,5 @@
 import type { TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
+import { decode } from '@temporalio/common/lib/encoding';
 import {
   configToTomlData,
   loadFromTomlData,
@@ -20,11 +21,11 @@ export function loadClientConfig(options: LoadClientConfigOptions): ClientConfig
   return fromTomlConfig(tomlLoadClientConfig(options));
 }
 
-export function loadClientConfigFromToml(tomlData: Buffer, options: ClientConfigFromTomlOptions): ClientConfig {
-  return fromTomlConfig(loadFromTomlData(tomlData.toString(), options.strict));
+export function loadClientConfigFromToml(tomlData: Uint8Array, options: ClientConfigFromTomlOptions): ClientConfig {
+  return fromTomlConfig(loadFromTomlData(decode(tomlData), options.strict));
 }
 
-export function clientConfigToToml(config: ClientConfig): Buffer {
+export function clientConfigToToml(config: ClientConfig): Uint8Array {
   return configToTomlData(toTomlConfig(config));
 }
 

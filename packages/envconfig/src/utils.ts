@@ -1,18 +1,29 @@
 import { readFileSync } from 'fs';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
+import { encode, decode } from '@temporalio/common/lib/encoding';
 import { ClientConfigProfile, ClientConfigTLS, ClientConfig, ConfigDataSource } from './types';
 import { normalizeGrpcMetaKey, TomlClientConfig, TomlClientConfigProfile, TomlClientConfigTLS } from './envconfig-toml';
 
-export function loadConfigData(source?: ConfigDataSource): Buffer | undefined {
+/**
+ * Loads configuration data from a {@link ConfigDataSource} and returns it as a Uint8Array.
+ *
+ * @experimental Environment configuration is new feature and subject to change.
+ */
+export function loadConfigData(source?: ConfigDataSource): Uint8Array | undefined {
   if (!source) return undefined;
 
   if ('path' in source) {
-    return readFileSync(source.path);
+    return Uint8Array.from(readFileSync(source.path));
   }
 
-  return Buffer.isBuffer(source.data) ? source.data : Buffer.from(source.data);
+  return typeof source.data === 'string' ? encode(source.data) : source.data;
 }
 
+/**
+ * Converts a TOML profile structure to a {@link ClientConfigProfile}.
+ *
+ * @experimental Environment configuration is new feature and subject to change.
+ */
 export function fromTomlProfile(tomlProfile: TomlClientConfigProfile): ClientConfigProfile {
   let grpcMeta: Record<string, string> | undefined = undefined;
   if (tomlProfile.grpc_meta !== undefined) {
@@ -32,6 +43,11 @@ export function fromTomlProfile(tomlProfile: TomlClientConfigProfile): ClientCon
   return filterNullAndUndefined(profile);
 }
 
+/**
+ * Converts a {@link ClientConfigProfile} to a TOML profile structure.
+ *
+ * @experimental Environment configuration is new feature and subject to change.
+ */
 export function toTomlProfile(profile: ClientConfigProfile): TomlClientConfigProfile {
   let grpc_meta: Record<string, string> | undefined = undefined;
   if (profile.grpcMeta !== undefined) {
@@ -51,6 +67,11 @@ export function toTomlProfile(profile: ClientConfigProfile): TomlClientConfigPro
   return filterNullAndUndefined(tomlProfile);
 }
 
+/**
+ * Converts a TOML TLS configuration structure to a {@link ClientConfigTLS}.
+ *
+ * @experimental Environment configuration is new feature and subject to change.
+ */
 export function fromTomlTLS(tomlTLS?: TomlClientConfigTLS): ClientConfigTLS | undefined {
   if (tomlTLS === undefined) {
     return undefined;
@@ -65,6 +86,11 @@ export function fromTomlTLS(tomlTLS?: TomlClientConfigTLS): ClientConfigTLS | un
   return filterNullAndUndefined(clientConfigTLS);
 }
 
+/**
+ * Converts a {@link ClientConfigTLS} to a TOML TLS configuration structure.
+ *
+ * @experimental Environment configuration is new feature and subject to change.
+ */
 export function toTomlTLS(tlsConfig?: ClientConfigTLS): TomlClientConfigTLS | undefined {
   if (tlsConfig === undefined) {
     return undefined;
@@ -76,15 +102,20 @@ export function toTomlTLS(tlsConfig?: ClientConfigTLS): TomlClientConfigTLS | un
     disabled: tlsConfig.disabled,
     server_name: tlsConfig.serverName,
     client_cert_path: clientCert?.path,
-    client_cert_data: clientCert?.data?.toString() ?? undefined,
+    client_cert_data: clientCert?.data && decode(clientCert?.data),
     client_key_path: clientKey?.path,
-    client_key_data: clientKey?.data?.toString(),
+    client_key_data: clientKey?.data && decode(clientKey?.data),
     server_ca_cert_path: serverCACert?.path,
-    server_ca_cert_data: serverCACert?.data?.toString(),
+    server_ca_cert_data: serverCACert?.data && decode(serverCACert?.data),
   };
   return filterNullAndUndefined(tomlConfigTLS);
 }
 
+/**
+ * Converts a TOML client configuration structure to a {@link ClientConfig}.
+ *
+ * @experimental Environment configuration is new feature and subject to change.
+ */
 export function fromTomlConfig(tomlConfig: TomlClientConfig): ClientConfig {
   const profiles: Record<string, ClientConfigProfile> = {};
 
@@ -95,6 +126,11 @@ export function fromTomlConfig(tomlConfig: TomlClientConfig): ClientConfig {
   return { profiles };
 }
 
+/**
+ * Converts a {@link ClientConfig} to a TOML client configuration structure.
+ *
+ * @experimental Environment configuration is new feature and subject to change.
+ */
 export function toTomlConfig(config: ClientConfig): TomlClientConfig {
   const profile: Record<string, TomlClientConfigProfile> = {};
 
@@ -105,20 +141,20 @@ export function toTomlConfig(config: ClientConfig): TomlClientConfig {
   return { profile };
 }
 
-export function toPathAndData(source?: ConfigDataSource): { path?: string; data?: Buffer } | undefined {
+export function toPathAndData(source?: ConfigDataSource): { path?: string; data?: Uint8Array } | undefined {
   if (source === undefined) {
     return undefined;
   }
   if ('path' in source) {
     return { path: source.path };
   }
-  if (Buffer.isBuffer(source.data)) {
-    return { data: source.data };
+  if (typeof source.data === 'string') {
+    return { data: encode(source.data) };
   }
-  return { data: Buffer.from(source.data, 'utf8') };
+  return { data: source.data };
 }
 
-export function toConfigDataSource(
+function toConfigDataSource(
   path: string | undefined,
   data: string | undefined,
   fieldName: string
@@ -127,7 +163,7 @@ export function toConfigDataSource(
     throw new Error(`Cannot specify both ${fieldName}_path and ${fieldName}_data`);
   }
   if (data !== undefined) {
-    return { data: Buffer.from(data) };
+    return { data: encode(data) };
   }
   if (path !== undefined) {
     return { path };

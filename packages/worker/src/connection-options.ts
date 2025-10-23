@@ -71,11 +71,11 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
   const tls: native.TLSConfig | null = tlsInput
     ? {
         domain: tlsInput.serverNameOverride ?? null,
-        serverRootCaCert: tlsInput.serverRootCACertificate ?? null,
+        serverRootCaCert: tlsInput.serverRootCACertificate ? Buffer.from(tlsInput.serverRootCACertificate) : null,
         clientTlsConfig: tlsInput.clientCertPair
           ? {
-              clientCert: tlsInput.clientCertPair.crt,
-              clientPrivateKey: tlsInput.clientCertPair.key,
+              clientCert: Buffer.from(tlsInput.clientCertPair.crt),
+              clientPrivateKey: Buffer.from(tlsInput.clientCertPair.key),
             }
           : null,
       }

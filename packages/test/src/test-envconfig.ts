@@ -20,6 +20,7 @@ import {
 } from '@temporalio/envconfig';
 import { toPathAndData } from '@temporalio/envconfig/lib/utils';
 import { NativeConnection } from '@temporalio/worker';
+import { encode } from '@temporalio/common/lib/encoding';
 
 // Focused TOML fixtures
 const TOML_CONFIG_BASE = dedent`
@@ -73,8 +74,8 @@ function withTempFile(content: string, fn: (filepath: string) => void): void {
 function pathSource(p: string): ConfigDataSource {
   return { path: p };
 }
-function dataSource(d: Buffer | string): ConfigDataSource {
-  return { data: typeof d === 'string' ? Buffer.from(d) : d };
+function dataSource(d: Uint8Array | string): ConfigDataSource {
+  return { data: typeof d === 'string' ? encode(d) : d };
 }
 
 // =============================================================================
@@ -124,7 +125,7 @@ test('Load custom profile from file', (t) => {
 });
 
 test('Load default profile from data', (t) => {
-  const profile = loadClientConfigProfile({ configSource: dataSource(Buffer.from(TOML_CONFIG_BASE)) });
+  const profile = loadClientConfigProfile({ configSource: dataSource(TOML_CONFIG_BASE) });
   t.is(profile.address, 'default-address');
   t.is(profile.namespace, 'default-namespace');
   t.is(profile.tls, undefined);
@@ -133,7 +134,7 @@ test('Load default profile from data', (t) => {
 test('Load custom profile from data', (t) => {
   const profile = loadClientConfigProfile({
     profile: 'custom',
-    configSource: dataSource(Buffer.from(TOML_CONFIG_BASE)),
+    configSource: dataSource(TOML_CONFIG_BASE),
   });
   t.is(profile.address, 'custom-address');
   t.is(profile.namespace, 'custom-namespace');
@@ -147,7 +148,7 @@ test('Load profile from data with env overrides', (t) => {
     TEMPORAL_NAMESPACE: 'env-namespace',
   };
   const profile = loadClientConfigProfile({
-    configSource: dataSource(Buffer.from(TOML_CONFIG_BASE)),
+    configSource: dataSource(TOML_CONFIG_BASE),
     overrideEnvVars: env,
   });
   t.is(profile.address, 'env-address');
@@ -227,7 +228,7 @@ test('Load profile with grpc metadata env overrides', (t) => {
     TEMPORAL_GRPC_META_OVERRIDE_HEADER: 'overridden-value',
   };
   const profile = loadClientConfigProfile({
-    configSource: dataSource(Buffer.from(toml)),
+    configSource: dataSource(toml),
     overrideEnvVars: env,
   });
   t.is(profile.grpcMeta?.['original-header'], 'original-value');
@@ -242,7 +243,7 @@ test('gRPC metadata normalization from TOML', (t) => {
     [profile.foo.grpc_meta]
     sOme-hEader_key = "some-value"
   `;
-  const conf = loadClientConfig({ configSource: dataSource(Buffer.from(toml)) });
+  const conf = loadClientConfig({ configSource: dataSource(toml) });
   const prof = conf.profiles['foo'];
   t.truthy(prof);
   t.is(prof.grpcMeta?.['some-header-key'], 'some-value');
@@ -260,7 +261,7 @@ test('gRPC metadata deletion via empty env value', (t) => {
     TEMPORAL_GRPC_META_REMOVE_ME: '',
     TEMPORAL_GRPC_META_NEW_HEADER: 'added',
   };
-  const prof = loadClientConfigProfile({ configSource: dataSource(Buffer.from(toml)), overrideEnvVars: env });
+  const prof = loadClientConfigProfile({ configSource: dataSource(toml), overrideEnvVars: env });
   t.is(prof.grpcMeta?.['some-header'], 'keep');
   t.is(prof.grpcMeta?.['new-header'], 'added');
   t.false(Object.prototype.hasOwnProperty.call(prof.grpcMeta, 'remove-me'));
@@ -330,7 +331,7 @@ test('Cannot disable both file and env override flags', (t) => {
 // =============================================================================
 
 test('Load all profiles from file', (t) => {
-  const conf = loadClientConfig({ configSource: dataSource(Buffer.from(TOML_CONFIG_BASE)) });
+  const conf = loadClientConfig({ configSource: dataSource(TOML_CONFIG_BASE) });
   t.truthy(conf.profiles['default']);
   t.truthy(conf.profiles['custom']);
   t.is(conf.profiles['default'].address, 'default-address');
@@ -347,7 +348,7 @@ test('Load all profiles from data', (t) => {
     address = "beta-address"
     api_key = "beta-key"
   `;
-  const conf = loadClientConfig({ configSource: dataSource(Buffer.from(configData)) });
+  const conf = loadClientConfig({ configSource: dataSource(configData) });
   t.truthy(conf.profiles['alpha']);
   t.truthy(conf.profiles['beta']);
   t.is(conf.profiles['alpha'].address, 'alpha-address');
@@ -374,7 +375,7 @@ test('Default profile not found returns empty profile', (t) => {
     [profile.existing]
     address = "my-address"
   `;
-  const prof = loadClientConfigProfile({ configSource: dataSource(Buffer.from(toml)) });
+  const prof = loadClientConfigProfile({ configSource: dataSource(toml) });
   t.is(prof.address, undefined);
   t.is(prof.namespace, undefined);
   t.is(prof.apiKey, undefined);
@@ -393,7 +394,7 @@ test('Load profile with api key (enables TLS)', (t) => {
     address = "my-address"
     api_key = "my-api-key"
   `;
-  const profile = loadClientConfigProfile({ configSource: dataSource(Buffer.from(toml)) });
+  const profile = loadClientConfigProfile({ configSource: dataSource(toml) });
   t.is(profile.tls, undefined);
   t.is(profile.tls?.disabled, undefined);
   const { connectionOptions } = toClientOptions(profile);
@@ -401,7 +402,7 @@ test('Load profile with api key (enables TLS)', (t) => {
 });
 
 test('Load profile with TLS options', (t) => {
-  const configSource = dataSource(Buffer.from(TOML_CONFIG_TLS_DETAILED));
+  const configSource = dataSource(TOML_CONFIG_TLS_DETAILED);
 
   const profileDisabled = loadClientConfigProfile({ configSource, profile: 'tls_disabled' });
   t.truthy(profileDisabled.tls);
@@ -415,24 +416,24 @@ test('Load profile with TLS options', (t) => {
   t.is(profileCerts.tls?.serverName, 'custom-server');
 
   const serverCACert = toPathAndData(profileCerts.tls?.serverCACert);
-  t.deepEqual(serverCACert?.data, Buffer.from('ca-pem-data'));
+  t.deepEqual(serverCACert?.data, encode('ca-pem-data'));
   t.is(serverCACert?.path, undefined);
 
   const clientCert = toPathAndData(profileCerts.tls?.clientCert);
-  t.deepEqual(clientCert?.data, Buffer.from('client-crt-data'));
+  t.deepEqual(clientCert?.data, encode('client-crt-data'));
   t.is(clientCert?.path, undefined);
 
   const clientKey = toPathAndData(profileCerts.tls?.clientKey);
-  t.deepEqual(clientKey?.data, Buffer.from('client-key-data'));
+  t.deepEqual(clientKey?.data, encode('client-key-data'));
   t.is(clientKey?.path, undefined);
 
   const { connectionOptions: connOptsCerts } = toClientOptions(profileCerts);
   const tls2 = connOptsCerts.tls;
   if (tls2 && typeof tls2 === 'object') {
     t.is(tls2.serverNameOverride, 'custom-server');
-    t.deepEqual(tls2.serverRootCACertificate, Buffer.from('ca-pem-data'));
-    t.deepEqual(tls2.clientCertPair?.crt, Buffer.from('client-crt-data'));
-    t.deepEqual(tls2.clientCertPair?.key, Buffer.from('client-key-data'));
+    t.deepEqual(tls2.serverRootCACertificate, encode('ca-pem-data'));
+    t.deepEqual(tls2.clientCertPair?.crt, encode('client-crt-data'));
+    t.deepEqual(tls2.clientCertPair?.key, encode('client-key-data'));
   } else {
     t.fail('expected TLS config object');
   }
@@ -456,7 +457,7 @@ test('Load profile with TLS options as file paths', (t) => {
           client_cert_path = "${normalizedCertPath}"
           client_key_path = "${normalizedKeyPath}"
         `;
-        const profile = loadClientConfigProfile({ configSource: dataSource(Buffer.from(tomlConfig)) });
+        const profile = loadClientConfigProfile({ configSource: dataSource(tomlConfig) });
         t.truthy(profile.tls);
         t.is(profile.tls?.serverName, 'custom-server');
 
@@ -476,9 +477,9 @@ test('Load profile with TLS options as file paths', (t) => {
         const tls3 = connOpts.tls;
         if (tls3 && typeof tls3 === 'object') {
           t.is(tls3.serverNameOverride, 'custom-server');
-          t.deepEqual(tls3.serverRootCACertificate, Buffer.from('ca-pem-data'));
-          t.deepEqual(tls3.clientCertPair?.crt, Buffer.from('client-crt-data'));
-          t.deepEqual(tls3.clientCertPair?.key, Buffer.from('client-key-data'));
+          t.deepEqual(tls3.serverRootCACertificate, encode('ca-pem-data'));
+          t.deepEqual(tls3.clientCertPair?.crt, encode('client-crt-data'));
+          t.deepEqual(tls3.clientCertPair?.key, encode('client-key-data'));
         } else {
           t.fail('expected TLS config object');
         }
@@ -495,7 +496,7 @@ test('Load profile with conflicting cert source fails', (t) => {
     client_cert_path = "some-path"
     client_cert_data = "some-data"
   `;
-  const err = t.throws(() => loadClientConfigProfile({ configSource: dataSource(Buffer.from(toml)) }));
+  const err = t.throws(() => loadClientConfigProfile({ configSource: dataSource(toml) }));
   t.truthy(err);
   t.true(String(err?.message).includes('Cannot specify both'));
 });
@@ -508,9 +509,7 @@ test('TLS conflict across sources: path in TOML, data in env should error', (t) 
     client_cert_path = "some-path"
   `;
   const env = { TEMPORAL_TLS_CLIENT_CERT_DATA: 'some-data' };
-  const err = t.throws(() =>
-    loadClientConfigProfile({ configSource: dataSource(Buffer.from(toml)), overrideEnvVars: env })
-  );
+  const err = t.throws(() => loadClientConfigProfile({ configSource: dataSource(toml), overrideEnvVars: env }));
   t.truthy(err);
   t.true(
     String(err?.message)
@@ -527,9 +526,7 @@ test('TLS conflict across sources: data in TOML, path in env should error', (t) 
     client_cert_data = "some-data"
   `;
   const env = { TEMPORAL_TLS_CLIENT_CERT_PATH: 'some-path' };
-  const err = t.throws(() =>
-    loadClientConfigProfile({ configSource: dataSource(Buffer.from(toml)), overrideEnvVars: env })
-  );
+  const err = t.throws(() => loadClientConfigProfile({ configSource: dataSource(toml), overrideEnvVars: env }));
   t.truthy(err);
   t.true(
     String(err?.message)
@@ -547,7 +544,7 @@ test('TLS disabled tri-state behavior', (t) => {
       [profile.default.tls]
       server_name = "my-server"
     `;
-  const profileNull = loadClientConfigProfile({ configSource: dataSource(Buffer.from(tomlNull)) });
+  const profileNull = loadClientConfigProfile({ configSource: dataSource(tomlNull) });
   t.truthy(profileNull.tls);
   t.is(profileNull.tls?.disabled, undefined); // disabled is null (unset)
   const configNull = toClientOptions(profileNull);
@@ -561,7 +558,7 @@ test('TLS disabled tri-state behavior', (t) => {
       disabled = false
       server_name = "my-server"
     `;
-  const profileFalse = loadClientConfigProfile({ configSource: dataSource(Buffer.from(tomlFalse)) });
+  const profileFalse = loadClientConfigProfile({ configSource: dataSource(tomlFalse) });
   t.truthy(profileFalse.tls);
   t.is(profileFalse.tls?.disabled, false); // explicitly disabled=false
   const configFalse = toClientOptions(profileFalse);
@@ -576,7 +573,7 @@ test('TLS disabled tri-state behavior', (t) => {
       disabled = true
       server_name = "should-be-ignored"
     `;
-  const profileTrue = loadClientConfigProfile({ configSource: dataSource(Buffer.from(tomlTrue)) });
+  const profileTrue = loadClientConfigProfile({ configSource: dataSource(tomlTrue) });
   t.truthy(profileTrue.tls);
   t.is(profileTrue.tls?.disabled, true); // explicitly disabled=true
   const configTrue = toClientOptions(profileTrue);
@@ -600,7 +597,7 @@ test('Load invalid config with strict mode enabled', (t) => {
     [unrecognized_table]
     foo = "bar"
   `;
-  const err = t.throws(() => loadClientConfig({ configSource: dataSource(Buffer.from(toml)), configFileStrict: true }));
+  const err = t.throws(() => loadClientConfig({ configSource: dataSource(toml), configFileStrict: true }));
   t.truthy(err);
   t.true(String(err?.message).includes('unrecognized_table'));
 });
@@ -614,7 +611,7 @@ test('Load invalid profile with strict mode enabled', (t) => {
 });
 
 test('Load profiles with malformed TOML', (t) => {
-  const err = t.throws(() => loadClientConfig({ configSource: dataSource(Buffer.from('this is not valid toml')) }));
+  const err = t.throws(() => loadClientConfig({ configSource: dataSource('this is not valid toml') }));
   t.truthy(err);
   t.true(
     String(err?.message)
@@ -634,9 +631,9 @@ test('Client config profile to/from TOML round-trip', (t) => {
     apiKey: 'some-api-key',
     tls: {
       serverName: 'some-server',
-      serverCACert: { data: Buffer.from('ca') },
+      serverCACert: { data: encode('ca') },
       clientCert: { path: '/path/to/client.crt' },
-      clientKey: { data: Buffer.from('key') },
+      clientKey: { data: encode('key') },
     },
     grpcMeta: { 'some-header': 'some-value' },
   };
@@ -649,7 +646,7 @@ test('Client config profile to/from TOML round-trip', (t) => {
   t.is(back.tls?.serverName, 'some-server');
 
   const serverCACert = toPathAndData(back.tls?.serverCACert);
-  t.deepEqual(serverCACert?.data, Buffer.from('ca'));
+  t.deepEqual(serverCACert?.data, encode('ca'));
   t.is(serverCACert?.path, undefined);
 
   const clientCert = toPathAndData(back.tls?.clientCert);
@@ -657,7 +654,7 @@ test('Client config profile to/from TOML round-trip', (t) => {
   t.deepEqual(clientCert?.path, '/path/to/client.crt');
 
   const clientKey = toPathAndData(back.tls?.clientKey);
-  t.deepEqual(clientKey?.data, Buffer.from('key'));
+  t.deepEqual(clientKey?.data, encode('key'));
   t.is(clientKey?.path, undefined);
 
   t.is(back.grpcMeta?.['some-header'], 'some-value');
@@ -728,7 +725,7 @@ test('Create client from default profile', async (t) => {
 
     // Load config via envconfig
     const { connectionOptions, namespace } = loadClientConnectConfig({
-      configSource: dataSource(Buffer.from(toml)),
+      configSource: dataSource(toml),
     });
 
     // Verify loaded values
@@ -769,7 +766,7 @@ test('Create client with NativeConnection from default profile', async (t) => {
 
     // Load config via envconfig
     const { connectionOptions, namespace } = loadClientConnectConfig({
-      configSource: dataSource(Buffer.from(toml)),
+      configSource: dataSource(toml),
     });
 
     // Verify loaded values
@@ -810,7 +807,7 @@ test('Create client from custom profile', async (t) => {
     // Load profile and create connection
     const profile = loadClientConfigProfile({
       profile: 'development',
-      configSource: dataSource(Buffer.from(toml)),
+      configSource: dataSource(toml),
     });
 
     t.is(profile.address, address);
@@ -852,7 +849,7 @@ test('Create client from custom profile with TLS options', async (t) => {
     // Load profile and verify TLS/API key handling
     const profile = loadClientConfigProfile({
       profile: 'production',
-      configSource: dataSource(Buffer.from(toml)),
+      configSource: dataSource(toml),
     });
 
     t.is(profile.address, address);
@@ -901,7 +898,7 @@ test('Create client from default profile with env overrides', async (t) => {
 
     // Load profile with environment overrides
     const profile = loadClientConfigProfile({
-      configSource: dataSource(Buffer.from(toml)),
+      configSource: dataSource(toml),
       overrideEnvVars: envOverrides,
     });
 
@@ -950,12 +947,12 @@ test('Create clients from multi-profile config', async (t) => {
     // Load different profiles and create separate clients
     const profileA = loadClientConfigProfile({
       profile: 'service-a',
-      configSource: dataSource(Buffer.from(toml)),
+      configSource: dataSource(toml),
     });
 
     const profileB = loadClientConfigProfile({
       profile: 'service-b',
-      configSource: dataSource(Buffer.from(toml)),
+      configSource: dataSource(toml),
     });
 
     // Verify profiles are distinct
@@ -1019,7 +1016,7 @@ test('Comprehensive E2E validation test', (t) => {
 
   const { connectionOptions, namespace } = loadClientConnectConfig({
     profile: 'production',
-    configSource: dataSource(Buffer.from(tomlContent)),
+    configSource: dataSource(tomlContent),
     overrideEnvVars: envOverrides,
   });
 
@@ -1033,7 +1030,7 @@ test('Comprehensive E2E validation test', (t) => {
   const tls = connectionOptions.tls;
   if (tls && typeof tls === 'object') {
     t.is(tls.serverNameOverride, 'override.temporal.com'); // Env override
-    t.deepEqual(tls.serverRootCACertificate, Buffer.from('prod-ca-cert'));
+    t.deepEqual(tls.serverRootCACertificate, encode('prod-ca-cert'));
   } else {
     t.fail('expected TLS config object');
   }
