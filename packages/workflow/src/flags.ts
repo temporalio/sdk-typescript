@@ -63,9 +63,25 @@ export const SdkFlags = {
    * The interceptors provided by @temporalio/interceptors-opentelemetry initially had unnecessary yield points.
    * If replaying a workflow created from these versions a yield point is injected to prevent any NDE.
    *
+   * If the history does not include the SDK version, default to enabled since the yields were present since the OTEL
+   * package was created.
+   *
    * @since Introduced in 1.13.2
    */
-  OpenTelemetryInterceptorInsertYield: defineFlag(3, false, [isBefore({ major: 1, minor: 13, patch: 2 })]),
+  OpenTelemetryInterceptorInsertYield: defineFlag(3, false, [isBefore({ major: 1, minor: 13, patch: 2 }, true)]),
+  /**
+   * In 1.11.6, the `scheduleLocalActivity` interceptor was added to
+   * `@temporalio/interceptors-opentelemetry` which added a yield point to the
+   * outbound interceptor. This yield point was removed in 1.13.2.
+   *
+   * If replaying a workflow from 1.11.6 up to 1.13.1, we insert a yield point
+   * in the interceptor to match the behavior.
+   *
+   * @since Introduced in 1.13.2
+   */
+  OpenTelemetryScheduleLocalActivityInterceptorInsertYield: defineFlag(4, false, [
+    isBetween({ major: 1, minor: 11, patch: 5 }, { major: 1, minor: 13, patch: 2 }),
+  ]),
 } as const;
 
 function defineFlag(id: number, def: boolean, alternativeConditions?: AltConditionFn[]): SdkFlag {
@@ -103,6 +119,40 @@ type SemVer = {
   patch: number;
 };
 
+/**
+ * Creates an `AltConditionFn` that checks if the SDK version is before the provided version.
+ * An optional default can be provided in case the SDK version is not available.
+ */
+function isBefore(compare: SemVer, missingDefault?: boolean): AltConditionFn {
+  return isCompared(compare, 1, missingDefault);
+}
+
+/**
+ * Creates an `AltConditionFn` that checks if the SDK version is after the provided version.
+ * An optional default can be provided in case the SDK version is not available.
+ */
+function isAfter(compare: SemVer, missingDefault?: boolean): AltConditionFn {
+  return isCompared(compare, -1, missingDefault);
+}
+
+/**
+ * Creates an `AltConditionFn` that checks if the SDK version is between the provided versions.
+ * The range check is exclusive.
+ * An optional default can be provided in case the SDK version is not available.
+ */
+function isBetween(lowEnd: SemVer, highEnd: SemVer, missingDefault?: boolean): AltConditionFn {
+  return (ctx) => isAfter(lowEnd, missingDefault)(ctx) && isBefore(highEnd, missingDefault)(ctx);
+}
+
+function isCompared(compare: SemVer, comparison: -1 | 0 | 1, missingDefault: boolean = false): AltConditionFn {
+  return ({ sdkVersion }) => {
+    if (!sdkVersion) return missingDefault;
+    const version = parseSemver(sdkVersion);
+    if (!version) return missingDefault;
+    return compareSemver(compare, version) === comparison;
+  };
+}
+
 function parseSemver(version: string): SemVer | undefined {
   const matches = version.match(/(\d+)\.(\d+)\.(\d+)/);
   if (!matches) return undefined;
@@ -131,31 +181,4 @@ function compareSemver(a: SemVer, b: SemVer): -1 | 0 | 1 {
   if (a.patch < b.patch) return -1;
   if (a.patch > b.patch) return 1;
   return 0;
-}
-
-function isCompared(compare: SemVer, comparison: -1 | 0 | 1): AltConditionFn {
-  return ({ sdkVersion }) => {
-    if (!sdkVersion) throw new Error('no sdk version');
-    if (!sdkVersion) return false;
-    const version = parseSemver(sdkVersion);
-    if (!version) throw new Error(`no version for ${sdkVersion}`);
-    if (!version) return false;
-    return compareSemver(compare, version) === comparison;
-  };
-}
-
-function isBefore(compare: SemVer): AltConditionFn {
-  return isCompared(compare, 1);
-}
-
-function isEqual(compare: SemVer): AltConditionFn {
-  return isCompared(compare, 0);
-}
-
-function isAfter(compare: SemVer): AltConditionFn {
-  return isCompared(compare, -1);
-}
-
-function isBetween(lowEnd: SemVer, highEnd: SemVer): AltConditionFn {
-  return (ctx) => isAfter(lowEnd)(ctx) && isBefore(highEnd)(ctx);
 }
