@@ -63,6 +63,7 @@ jobs:
           repository: ${{ env.OMES_REPO }}
           ref: ${{ env.OMES_REF }}
           path: omes
+          submodules: recursive
 
       - name: Setup Go
         uses: actions/setup-go@v5
