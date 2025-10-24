@@ -4,14 +4,14 @@ use anyhow::Context as _;
 use neon::prelude::*;
 use serde::Deserialize;
 
-use temporal_sdk_core::api::telemetry::metrics::{
+use temporalio_common::telemetry::metrics::{
     CoreMeter, Counter as CoreCounter, Gauge as CoreGauge, Histogram as CoreHistogram,
     MetricParametersBuilder, NewAttributes, TemporalMeter,
 };
-use temporal_sdk_core::api::telemetry::metrics::{
+use temporalio_common::telemetry::metrics::{
     GaugeF64 as CoreGaugeF64, HistogramF64 as CoreHistogramF64,
 };
-use temporal_sdk_core::api::telemetry::metrics::{
+use temporalio_common::telemetry::metrics::{
     MetricKeyValue as CoreMetricKeyValue, MetricValue as CoreMetricValue,
 };
 
