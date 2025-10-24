@@ -10,3 +10,4 @@ export * as client from '@temporalio/client';
 export * as nexus from '@temporalio/nexus';
 export * as testing from '@temporalio/testing';
 export * as opentelemetry from '@temporalio/interceptors-opentelemetry';
+export * as envconfig from '@temporalio/envconfig';
