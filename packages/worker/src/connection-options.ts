@@ -74,8 +74,8 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
         serverRootCaCert: tlsInput.serverRootCACertificate ? Buffer.from(tlsInput.serverRootCACertificate) : null,
         clientTlsConfig: tlsInput.clientCertPair
           ? {
-              clientCert: Buffer.from(tlsInput.clientCertPair.crt),
-              clientPrivateKey: Buffer.from(tlsInput.clientCertPair.key),
+              clientCert: tlsInput.clientCertPair.crt && Buffer.from(tlsInput.clientCertPair.crt),
+              clientPrivateKey: tlsInput.clientCertPair.key && Buffer.from(tlsInput.clientCertPair.key),
             }
           : null,
       }
