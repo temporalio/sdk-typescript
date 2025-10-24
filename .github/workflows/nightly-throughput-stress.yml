@@ -153,6 +153,7 @@ jobs:
             --run-id $RUN_ID \
             --duration $TEST_DURATION \
             --timeout $TEST_TIMEOUT \
+            --log-level debug \
             --max-concurrent 10 \
             --option internal-iterations=10 \
             --option continue-as-new-after-iterations=3 \
