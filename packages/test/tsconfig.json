@@ -15,6 +15,7 @@
     { "path": "../envconfig" },
     { "path": "../interceptors-opentelemetry" },
     { "path": "../nexus" },
+    { "path": "../plugin" },
     { "path": "../testing" },
     { "path": "../worker" },
     { "path": "../workflow" },
