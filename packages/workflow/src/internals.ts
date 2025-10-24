@@ -434,6 +434,8 @@ export class Activator implements ActivationHandler {
 
   private readonly knownFlags = new Set<number>();
 
+  sdkVersion?: string;
+
   /**
    * Buffered sink calls per activation
    */
@@ -1123,7 +1125,7 @@ export class Activator implements ActivationHandler {
     // through an older one.
     if (this.info.unsafe.isReplaying && flag.alternativeConditions) {
       for (const cond of flag.alternativeConditions) {
-        if (cond({ info: this.info })) return true;
+        if (cond({ info: this.info, sdkVersion: this.sdkVersion })) return true;
       }
     }
 
