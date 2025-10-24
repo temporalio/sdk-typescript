@@ -261,7 +261,6 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
       maxCachedWorkflows: 0,
       maxConcurrentWorkflowTaskExecutions: 2,
-      skipClientWorkerSetCheck: true,
     });
     const client = new WorkflowClient();
     await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId: uuid4() }));
@@ -308,7 +307,6 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       taskQueue,
       sinks,
-      skipClientWorkerSetCheck: true,
     });
     const workflowId = uuid4();
     await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId }));
@@ -322,7 +320,6 @@ if (RUN_INTEGRATION_TESTS) {
       {
         ...defaultOptions,
         sinks,
-        skipClientWorkerSetCheck: true,
       },
       history,
       workflowId
@@ -354,7 +351,6 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       taskQueue,
       sinks,
-      skipClientWorkerSetCheck: true,
     });
     const client = new WorkflowClient();
     const workflowId = uuid4();
@@ -371,7 +367,6 @@ if (RUN_INTEGRATION_TESTS) {
       {
         ...defaultOptions,
         sinks,
-        skipClientWorkerSetCheck: true,
       },
       history,
       workflowId
@@ -416,7 +411,6 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       taskQueue,
       sinks,
-      skipClientWorkerSetCheck: true,
     });
     await worker.runUntil(
       client.execute(workflows.upsertAndReadSearchAttributes, {

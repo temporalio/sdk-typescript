@@ -441,7 +441,7 @@ export async function executeEagerActivity(): Promise<void> {
 }
 
 test('Worker requests Eager Activity Dispatch if possible', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
+  const { createWorker, startWorkflow, createNativeConnection } = helpers(t);
 
   // If eager activity dispatch is working, then the task will always be dispatched to the workflow
   // worker. Otherwise, chances are 50%-50% for either workers. The test workflow schedule the
@@ -455,11 +455,15 @@ test('Worker requests Eager Activity Dispatch if possible', async (t) => {
     // Override the default workflow bundle, to make this an activity-only worker
     workflowBundle: undefined,
   });
+  const workflowWorkerConnection = await createNativeConnection();
+  t.teardown(() => {
+    workflowWorkerConnection.close();
+  });
   const workflowWorker = await createWorker({
+    connection: workflowWorkerConnection,
     activities: {
       testActivity: () => 'workflow-and-activity-worker',
     },
-    skipClientWorkerSetCheck: true,
   });
   const handle = await startWorkflow(executeEagerActivity);
   await activityWorker.runUntil(workflowWorker.runUntil(handle.result()));
@@ -479,7 +483,7 @@ export async function dontExecuteEagerActivity(): Promise<string> {
 }
 
 test("Worker doesn't request Eager Activity Dispatch if no activities are registered", async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
+  const { createNativeConnection, createWorker, startWorkflow } = helpers(t);
 
   // If the activity was eagerly dispatched to the Workflow worker even though it is a Workflow-only
   // worker, then the activity execution will timeout (because tasks are not being polled) or
@@ -494,9 +498,11 @@ test("Worker doesn't request Eager Activity Dispatch if no activities are regist
     // Override the default workflow bundle, to make this an activity-only worker
     workflowBundle: undefined,
   });
+  const workflowWorkerConnection = await createNativeConnection();
+  t.teardown(() => workflowWorkerConnection.close());
   const workflowWorker = await createWorker({
+    connection: workflowWorkerConnection,
     activities: {},
-    skipClientWorkerSetCheck: true,
   });
   const handle = await startWorkflow(dontExecuteEagerActivity);
   const result = await activityWorker.runUntil(workflowWorker.runUntil(handle.result()));

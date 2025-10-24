@@ -11,7 +11,7 @@ import { Client } from '@temporalio/client';
 import { toCanonicalString, WorkerDeploymentVersion } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { Worker } from './helpers';
-import { Context, makeTestFunction } from './helpers-integration';
+import { Context, helpers, makeTestFunction } from './helpers-integration';
 import { unblockSignal, versionQuery } from './workflows';
 
 const test = makeTestFunction({ workflowsPath: __filename });
@@ -20,6 +20,7 @@ test('Worker deployment based versioning', async (t) => {
   const taskQueue = 'worker-deployment-based-versioning-' + randomUUID();
   const deploymentName = 'deployment-' + randomUUID();
   const { client, nativeConnection } = t.context.env;
+  const { createNativeConnection } = helpers(t);
 
   const w1DeploymentVersion = {
     buildId: '1.0',
@@ -43,13 +44,14 @@ test('Worker deployment based versioning', async (t) => {
       defaultVersioningBehavior: 'PINNED',
     },
     connection: nativeConnection,
-    skipClientWorkerSetCheck: true,
   });
   const worker1Promise = worker1.run();
   worker1Promise.catch((err) => {
     t.fail('Worker 1.0 run error: ' + err);
   });
 
+  const worker2Connection = await createNativeConnection();
+  t.teardown(() => worker2Connection.close());
   const worker2 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v2'),
     taskQueue,
@@ -58,14 +60,15 @@ test('Worker deployment based versioning', async (t) => {
       version: w2DeploymentVersion,
       defaultVersioningBehavior: 'PINNED',
     },
-    connection: nativeConnection,
-    skipClientWorkerSetCheck: true,
+    connection: worker2Connection,
   });
   const worker2Promise = worker2.run();
   worker2Promise.catch((err) => {
     t.fail('Worker 2.0 run error: ' + err);
   });
 
+  const worker3Connection = await createNativeConnection();
+  t.teardown(() => worker3Connection.close());
   const worker3 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v3'),
     taskQueue,
@@ -74,8 +77,7 @@ test('Worker deployment based versioning', async (t) => {
       version: w3DeploymentVersion,
       defaultVersioningBehavior: 'PINNED',
     },
-    connection: nativeConnection,
-    skipClientWorkerSetCheck: true,
+    connection: worker3Connection,
   });
   const worker3Promise = worker3.run();
   worker3Promise.catch((err) => {
@@ -144,6 +146,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
   const taskQueue = 'worker-deployment-based-ramping-' + randomUUID();
   const deploymentName = 'deployment-ramping-' + randomUUID();
   const { client, nativeConnection } = t.context.env;
+  const { createNativeConnection } = helpers(t);
 
   const v1 = {
     buildId: '1.0',
@@ -163,13 +166,14 @@ test('Worker deployment based versioning with ramping', async (t) => {
       defaultVersioningBehavior: 'PINNED',
     },
     connection: nativeConnection,
-    skipClientWorkerSetCheck: true,
   });
   const worker1Promise = worker1.run();
   worker1Promise.catch((err) => {
     t.fail('Worker 1.0 run error: ' + err);
   });
 
+  const worker2Connection = await createNativeConnection();
+  t.teardown(() => worker2Connection.close());
   const worker2 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v2'),
     taskQueue,
@@ -178,8 +182,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
       version: v2,
       defaultVersioningBehavior: 'PINNED',
     },
-    connection: nativeConnection,
-    skipClientWorkerSetCheck: true,
+    connection: worker2Connection,
   });
   const worker2Promise = worker2.run();
   worker2Promise.catch((err) => {
