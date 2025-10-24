@@ -198,4 +198,5 @@ jobs:
           else
             echo "❌ Throughput stress test failed"
             echo "📦 Check the uploaded artifacts for detailed logs and state"
+            exit 1
           fi
