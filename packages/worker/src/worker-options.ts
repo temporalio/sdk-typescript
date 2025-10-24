@@ -465,14 +465,6 @@ export interface WorkerOptions {
   defaultHeartbeatThrottleInterval?: Duration;
 
   /**
-   * Skip the runtime validation that ensures the client is registered with the worker set.
-   * This should only be used in tests.
-   *
-   * @default false
-   */
-  skipClientWorkerSetCheck?: boolean;
-
-  /**
    * A mapping of interceptor type to a list of factories or module paths.
    *
    * Interceptors are called in order, from the first to the last, each one making the call to the next one, and the
@@ -825,7 +817,6 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'debugMode'
       | 'reuseV8Context'
       | 'tuner'
-      | 'skipClientWorkerSetCheck'
     >
   > & {
     interceptors: Required<WorkerInterceptors>;
@@ -977,7 +968,6 @@ function addDefaultWorkerOptions(
     stickyQueueScheduleToStartTimeout: '10s',
     maxHeartbeatThrottleInterval: '60s',
     defaultHeartbeatThrottleInterval: '30s',
-    skipClientWorkerSetCheck: false,
     // 4294967295ms is the maximum allowed time
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: reuseV8Context ? 1 : 2,
@@ -1094,7 +1084,6 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     maxTaskQueueActivitiesPerSecond: opts.maxTaskQueueActivitiesPerSecond ?? null,
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
-    skipClientWorkerSetCheck: opts.skipClientWorkerSetCheck,
   };
 }
 

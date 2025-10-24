@@ -221,7 +221,6 @@ export interface WorkerOptions {
   maxTaskQueueActivitiesPerSecond: Option<number>;
   maxActivitiesPerSecond: Option<number>;
   shutdownGraceTime: number;
-  skipClientWorkerSetCheck: boolean;
 }
 
 export type PollerBehavior =
