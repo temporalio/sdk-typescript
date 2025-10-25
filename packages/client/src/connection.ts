@@ -204,10 +204,13 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
     if (credentials) {
       throw new TypeError('Both `tls` and `credentials` ConnectionOptions were provided');
     }
+    const serverRootCert = tls.serverRootCACertificate && Buffer.from(tls.serverRootCACertificate);
+    const clientCertKey = tls.clientCertPair?.key && Buffer.from(tls.clientCertPair?.key);
+    const clientCertCrt = tls.clientCertPair?.crt && Buffer.from(tls.clientCertPair?.crt);
     return {
       ...rest,
       credentials: grpc.credentials.combineChannelCredentials(
-        grpc.credentials.createSsl(tls.serverRootCACertificate, tls.clientCertPair?.key, tls.clientCertPair?.crt),
+        grpc.credentials.createSsl(serverRootCert, clientCertKey, clientCertCrt),
         ...(callCredentials ?? [])
       ),
       channelArgs: {

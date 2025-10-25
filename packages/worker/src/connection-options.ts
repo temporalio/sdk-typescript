@@ -7,6 +7,7 @@ import {
   ProxyConfig,
   TLSConfig,
 } from '@temporalio/common/lib/internal-non-workflow';
+import type { Metadata } from '@temporalio/client';
 import pkg from './pkg';
 
 export { TLSConfig, ProxyConfig };
@@ -44,7 +45,7 @@ export interface NativeConnectionOptions {
    *
    * Set statically at connection time, can be replaced later using {@link NativeConnection.setMetadata}.
    */
-  metadata?: Record<string, string>;
+  metadata?: Metadata;
 
   /**
    * API key for Temporal. This becomes the "Authorization" HTTP header with "Bearer " prepended.
@@ -70,11 +71,11 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
   const tls: native.TLSConfig | null = tlsInput
     ? {
         domain: tlsInput.serverNameOverride ?? null,
-        serverRootCaCert: tlsInput.serverRootCACertificate ?? null,
+        serverRootCaCert: tlsInput.serverRootCACertificate ? Buffer.from(tlsInput.serverRootCACertificate) : null,
         clientTlsConfig: tlsInput.clientCertPair
           ? {
-              clientCert: tlsInput.clientCertPair.crt,
-              clientPrivateKey: tlsInput.clientCertPair.key,
+              clientCert: tlsInput.clientCertPair.crt && Buffer.from(tlsInput.clientCertPair.crt),
+              clientPrivateKey: tlsInput.clientCertPair.key && Buffer.from(tlsInput.clientCertPair.key),
             }
           : null,
       }
@@ -102,13 +103,25 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
     );
   }
 
+  let headers: Record<string, native.MetadataValue> | null = null;
+  if (options.metadata) {
+    headers = {};
+    for (const [key, value] of Object.entries(options.metadata)) {
+      if (typeof value === 'string') {
+        headers[key] = { type: 'ascii', value };
+      } else {
+        headers[key] = { type: 'binary', value };
+      }
+    }
+  }
+
   return {
     targetUrl: tls ? `https://${address}` : `http://${address}`,
     clientName: 'temporal-typescript',
     clientVersion: pkg.version,
     tls,
     httpConnectProxy,
-    headers: options.metadata ?? null,
+    headers,
     apiKey: options.apiKey ?? null,
     disableErrorCodeMetricTags: options.disableErrorCodeMetricTags ?? false,
   };
