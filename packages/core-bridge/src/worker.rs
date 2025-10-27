@@ -399,10 +399,9 @@ pub fn replay_worker_new(
     OpaqueOutboundHandle<Worker>,
     OpaqueOutboundHandle<HistoryForReplayTunnelHandle>,
 )> {
-    let mut config = config
+    let config = config
         .into_core_config()
         .context("Failed to convert WorkerOptions to CoreWorkerConfig")?;
-    config.skip_client_worker_set_check = true;
 
     let runtime = runtime.borrow()?.core_runtime.clone();
     enter_sync!(runtime);
