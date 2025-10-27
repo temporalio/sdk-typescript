@@ -147,3 +147,14 @@ test("TestEnvironment doesn't hang on fail to download", async (t) => {
     t.pass();
   }
 });
+
+test('TestEnvironment.createLocal correctly populates address', async (t) => {
+  const testEnv = await RealTestWorkflowEnvironment.createLocal();
+  t.teardown(() => testEnv.teardown());
+  await t.notThrowsAsync(async () => {
+    await Connection.connect({
+      address: testEnv.address,
+      connectTimeout: 500,
+    });
+  }, 'should be able to connect to test server');
+});
