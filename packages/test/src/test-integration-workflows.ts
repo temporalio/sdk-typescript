@@ -456,9 +456,7 @@ test('Worker requests Eager Activity Dispatch if possible', async (t) => {
     workflowBundle: undefined,
   });
   const workflowWorkerConnection = await createNativeConnection();
-  t.teardown(() => {
-    workflowWorkerConnection.close();
-  });
+  t.teardown(() => workflowWorkerConnection.close());
   const workflowWorker = await createWorker({
     connection: workflowWorkerConnection,
     activities: {
