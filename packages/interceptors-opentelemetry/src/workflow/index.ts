@@ -47,6 +47,8 @@ function getTracer(): otel.Tracer {
  *
  * Wraps the operation in an opentelemetry Span and links it to a parent Span context if one is
  * provided in the Workflow input headers.
+ *
+ * `@temporalio/workflow` must be provided by host package in order to function.
  */
 export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInterceptor {
   protected readonly tracer = getTracer();
@@ -88,6 +90,8 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
  * Intercepts outbound calls to schedule an Activity
  *
  * Wraps the operation in an opentelemetry Span and passes it to the Activity via headers.
+ *
+ * `@temporalio/workflow` must be provided by host package in order to function.
  */
 export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsInterceptor {
   protected readonly tracer = getTracer();
