@@ -295,7 +295,7 @@ pub fn worker_complete_nexus_task(
             .complete_nexus_task(nexus_completion)
             .await
             .map_err(|err| match err {
-                CompleteNexusError::NexusNotEnabled {} => {
+                CompleteNexusError::NexusNotEnabled => {
                     BridgeError::UnexpectedError(format!("{err}"))
                 }
                 CompleteNexusError::MalformedNexusCompletion { reason } => BridgeError::TypeError {
