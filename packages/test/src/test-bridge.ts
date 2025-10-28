@@ -227,20 +227,6 @@ test("Stopping Worker after creating another runtime doesn't fail", async (t) =>
   t.pass();
 });
 
-test('Creating runtime with heartbeat enabled plumbs heartbeat duration', (t) => {
-  const runtime = native.newRuntime({
-    ...GenericConfigs.runtime.basic,
-    workerHeartbeatIntervalMillis: 100,
-  });
-  t.is(native.runtimeGetWorkerHeartbeatIntervalMillis(runtime), 100);
-
-  const runtime1 = native.newRuntime({
-    ...GenericConfigs.runtime.basic,
-    workerHeartbeatIntervalMillis: null,
-  });
-  t.is(native.runtimeGetWorkerHeartbeatIntervalMillis(runtime1), null);
-});
-
 // Sample configs ///////////////////////////////////////////////////////////////////////////////////
 
 const GenericConfigs = {
@@ -255,7 +241,6 @@ const GenericConfigs = {
         attachServiceName: false,
       },
       metricsExporter: null,
-      workerHeartbeatIntervalMillis: null,
     } satisfies native.RuntimeOptions,
   },
   client: {
