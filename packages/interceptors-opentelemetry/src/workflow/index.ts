@@ -22,20 +22,7 @@ import { instrument, extractContextFromHeaders, headersWithContext } from '../in
 import { ContextManager } from './context-manager';
 import { SpanName, SPAN_DELIMITER } from './definitions';
 import { SpanExporter } from './span-exporter';
-import type * as WorkflowModule from '@temporalio/workflow';
-
-// @temporalio/workflow is an optional peer dependency.
-// It can be missing as long as the user isn't attempting to construct a workflow interceptor.
-// If we start shipping ES modules alongside CJS, we will have to reconsider
-// this dynamic import as `import` is async for ES modules.
-let workflowModule: typeof WorkflowModule | undefined;
-let workflowModuleLoadError: any | undefined;
-try {
-  workflowModule = require('@temporalio/workflow');
-} catch (err) {
-  // Capture the module not found error to rethrow if an interceptor is constructed
-  workflowModuleLoadError = err;
-}
+import { ensureWorkflowModuleLoaded, getWorkflowModule } from './workflow-module-loader';
 
 export * from './definitions';
 
@@ -65,17 +52,14 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
   protected readonly tracer = getTracer();
 
   public constructor() {
-    if (workflowModuleLoadError) {
-      throw workflowModuleLoadError;
-    }
+    ensureWorkflowModuleLoaded();
   }
 
   public async execute(
     input: WorkflowExecuteInput,
     next: Next<WorkflowInboundCallsInterceptor, 'execute'>
   ): Promise<unknown> {
-    // workflowModule will be defined as module load error is checked in the constructor
-    const { workflowInfo, ContinueAsNew } = workflowModule!;
+    const { workflowInfo, ContinueAsNew } = getWorkflowModule();
     const context = await extractContextFromHeaders(input.headers);
     return await instrument({
       tracer: this.tracer,
@@ -109,9 +93,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
   protected readonly tracer = getTracer();
 
   public constructor() {
-    if (workflowModuleLoadError) {
-      throw workflowModuleLoadError;
-    }
+    ensureWorkflowModuleLoaded();
   }
 
   public async scheduleActivity(
@@ -169,8 +151,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     input: ContinueAsNewInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'continueAsNew'>
   ): Promise<never> {
-    // workflowModule will be defined as module load error is checked in the constructor
-    const { ContinueAsNew } = workflowModule!;
+    const { ContinueAsNew } = getWorkflowModule();
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}${input.options.workflowType}`,

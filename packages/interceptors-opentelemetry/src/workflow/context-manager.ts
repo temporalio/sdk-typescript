@@ -1,24 +1,15 @@
 import * as otel from '@opentelemetry/api';
-import type { AsyncLocalStorage as AsyncLocalStorageType } from '@temporalio/workflow';
+import { ensureWorkflowModuleLoaded, getWorkflowModuleIfAvailable } from './workflow-module-loader';
 
-// @temporalio/workflow is an optional peer dependency.
-// It can be missing as long as the user isn't attempting to construct a workflow interceptor.
-let AsyncLocalStorage: typeof AsyncLocalStorageType | undefined;
-let workflowModuleLoadError: any | undefined;
-try {
-  AsyncLocalStorage = require('@temporalio/workflow').AsyncLocalStorage;
-} catch (err) {
-  // Capture the module not found error to rethrow if an interceptor is constructed
-  workflowModuleLoadError = err;
-}
+const AsyncLocalStorage = getWorkflowModuleIfAvailable()?.AsyncLocalStorage;
 
 export class ContextManager implements otel.ContextManager {
+  // If `@temporalio/workflow` is not available, ignore for now.
+  // When ContextManager is constructed module resolution error will be thrown.
   protected storage = AsyncLocalStorage ? new AsyncLocalStorage<otel.Context>() : undefined;
 
   public constructor() {
-    if (workflowModuleLoadError) {
-      throw workflowModuleLoadError;
-    }
+    ensureWorkflowModuleLoaded();
   }
 
   active(): otel.Context {

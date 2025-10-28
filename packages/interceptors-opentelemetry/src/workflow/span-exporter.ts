@@ -1,29 +1,13 @@
 import * as tracing from '@opentelemetry/sdk-trace-base';
 import { ExportResult, ExportResultCode } from '@opentelemetry/core';
 import { OpenTelemetrySinks, SerializableSpan } from './definitions';
+import { ensureWorkflowModuleLoaded, getWorkflowModuleIfAvailable } from './workflow-module-loader';
 
-import type * as WorkflowModule from '@temporalio/workflow';
-
-// @temporalio/workflow is an optional peer dependency.
-// It can be missing as long as the user isn't attempting to construct a workflow interceptor.
-// If we start shipping ES modules alongside CJS, we will have to reconsider
-// this dynamic import as `import` is async for ES modules.
-let wf: typeof WorkflowModule | undefined;
-let workflowModuleLoadError: any | undefined;
-try {
-  wf = require('@temporalio/workflow');
-} catch (err) {
-  // Capture the module not found error to rethrow if an interceptor is constructed
-  workflowModuleLoadError = err;
-}
-
-const exporter = wf?.proxySinks<OpenTelemetrySinks>()?.exporter;
+const exporter = getWorkflowModuleIfAvailable()?.proxySinks<OpenTelemetrySinks>()?.exporter;
 
 export class SpanExporter implements tracing.SpanExporter {
   public constructor() {
-    if (workflowModuleLoadError) {
-      throw workflowModuleLoadError;
-    }
+    ensureWorkflowModuleLoaded();
   }
 
   public export(spans: tracing.ReadableSpan[], resultCallback: (result: ExportResult) => void): void {
