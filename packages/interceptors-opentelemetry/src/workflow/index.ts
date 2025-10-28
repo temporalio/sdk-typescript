@@ -3,9 +3,8 @@
 import './runtime'; // Patch the Workflow isolate runtime for opentelemetry
 import * as otel from '@opentelemetry/api';
 import * as tracing from '@opentelemetry/sdk-trace-base';
-import {
+import type {
   ActivityInput,
-  ContinueAsNew,
   ContinueAsNewInput,
   DisposeInput,
   GetLogAttributesInput,
@@ -16,10 +15,10 @@ import {
   StartChildWorkflowExecutionInput,
   WorkflowExecuteInput,
   WorkflowInboundCallsInterceptor,
-  workflowInfo,
   WorkflowInternalsInterceptor,
   WorkflowOutboundCallsInterceptor,
 } from '@temporalio/workflow';
+import { ContinueAsNew, workflowInfo } from '@temporalio/workflow';
 import { instrument, extractContextFromHeaders, headersWithContext } from '../instrumentation';
 import { ContextManager } from './context-manager';
 import { SpanName, SPAN_DELIMITER } from './definitions';
