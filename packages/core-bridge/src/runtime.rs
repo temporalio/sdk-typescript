@@ -36,10 +36,6 @@ macro_rules! enter_sync {
 pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<()> {
     cx.export_function("newRuntime", runtime_new)?;
     cx.export_function("runtimeShutdown", runtime_shutdown)?;
-    // cx.export_function(
-    //     "runtimeGetWorkerHeartbeatIntervalMillis",
-    //     runtime_get_worker_heartbeat_interval_millis,
-    // )?;
 
     Ok(())
 }
@@ -55,7 +51,6 @@ pub struct Runtime {
     // For some unknown reason, the otel metrics exporter will go crazy on shutdown in some
     // scenarios if we don't hold on to the `CoreOtelMeter` till the `Runtime` finally gets dropped.
     _otel_metrics_exporter: Option<Arc<dyn CoreMeter + 'static>>,
-    // worker_heartbeat_interval_millis: Option<u64>,
 }
 
 /// Initialize Core global telemetry and create the tokio runtime required to run Core.
@@ -64,13 +59,11 @@ pub struct Runtime {
 pub fn runtime_new(
     bridge_options: config::RuntimeOptions,
 ) -> BridgeResult<OpaqueOutboundHandle<Runtime>> {
-    let (telemetry_options, metrics_options, logging_options, worker_heartbeat_interval_millis) =
-        bridge_options.try_into()?;
+    let (telemetry_options, metrics_options, logging_options) = bridge_options.try_into()?;
 
     // Create core runtime which starts tokio multi-thread runtime
     let runtime_options = RuntimeOptionsBuilder::default()
         .telemetry_options(telemetry_options)
-        .heartbeat_interval(worker_heartbeat_interval_millis.map(Duration::from_millis))
         .build()
         .context("Failed to build runtime options")?;
     let mut core_runtime = CoreRuntime::new(runtime_options, TokioRuntimeBuilder::default())
@@ -132,7 +125,6 @@ pub fn runtime_new(
         log_exporter_task,
         metrics_exporter_task: prom_metrics_exporter_task.map(Arc::new),
         _otel_metrics_exporter: otel_metrics_exporter,
-        // worker_heartbeat_interval_millis: runtime_options.worker_heartbeat_interval.map(|d| d.as_millis() as u64),
     }))
 }
 
@@ -145,21 +137,6 @@ pub fn runtime_shutdown(runtime: OpaqueInboundHandle<Runtime>) -> BridgeResult<(
     std::mem::drop(runtime.take()?);
     Ok(())
 }
-
-// #[js_function]
-// pub fn runtime_get_worker_heartbeat_interval_millis(
-//     runtime: OpaqueInboundHandle<Runtime>,
-// ) -> BridgeResult<Option<u32>> {
-//     runtime
-//         .borrow()?
-//         .worker_heartbeat_interval_millis
-//         .map(u32::try_from)
-//         .transpose()
-//         .map_err(|_| BridgeError::TypeError {
-//             field: None,
-//             message: "workerHeartbeatIntervalMillis is too large to represent in JavaScript".into(),
-//         })
-// }
 
 /// Drop will handle the cleanup
 impl MutableFinalize for Runtime {}
@@ -288,7 +265,6 @@ mod config {
         log_exporter: LogExporterOptions,
         telemetry: TelemetryOptions,
         metrics_exporter: Option<MetricsExporterOptions>,
-        worker_heartbeat_interval_millis: Option<u64>,
     }
 
     #[derive(Debug, Clone, TryFromJs)]
@@ -345,7 +321,6 @@ mod config {
             CoreTelemetryOptions,
             Option<super::BridgeMetricsExporter>,
             super::BridgeLogExporter,
-            Option<u64>,
         )> for RuntimeOptions
     {
         type Error = BridgeError;
@@ -355,16 +330,8 @@ mod config {
             CoreTelemetryOptions,
             Option<super::BridgeMetricsExporter>,
             super::BridgeLogExporter,
-            Option<u64>,
         )> {
-            let Self {
-                log_exporter,
-                telemetry,
-                metrics_exporter,
-                worker_heartbeat_interval_millis,
-            } = self;
-
-            let (telemetry_logger, log_exporter) = match log_exporter {
+            let (telemetry_logger, log_exporter) = match self.log_exporter {
                 LogExporterOptions::Console { filter } => (
                     CoreTelemetryLogger::Console { filter },
                     BridgeLogExporter::Console,
@@ -384,21 +351,17 @@ mod config {
             let mut telemetry_options = TelemetryOptionsBuilder::default();
             let telemetry_options = telemetry_options
                 .logging(telemetry_logger)
-                .metric_prefix(telemetry.metric_prefix)
-                .attach_service_name(telemetry.attach_service_name)
+                .metric_prefix(self.telemetry.metric_prefix)
+                .attach_service_name(self.telemetry.attach_service_name)
                 .build()
                 .context("Failed to build telemetry options")?;
 
-            let metrics_exporter = metrics_exporter
+            let metrics_exporter = self
+                .metrics_exporter
                 .map(std::convert::TryInto::try_into)
                 .transpose()?;
 
-            Ok((
-                telemetry_options,
-                metrics_exporter,
-                log_exporter,
-                worker_heartbeat_interval_millis,
-            ))
+            Ok((telemetry_options, metrics_exporter, log_exporter))
         }
     }
 
