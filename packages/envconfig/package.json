@@ -1,27 +1,27 @@
 {
-  "name": "@temporalio/client",
-  "version": "1.13.1",
-  "description": "Temporal.io SDK Client sub-package",
+  "name": "@temporalio/envconfig",
+  "version": "0.0.1",
+  "description": "Temporal.io SDK Environment Configuration sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {},
   "keywords": [
     "temporal",
-    "workflow",
+    "environment",
+    "configuration",
     "client"
   ],
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@grpc/grpc-js": "^1.12.4",
     "@temporalio/common": "file:../common",
-    "@temporalio/proto": "file:../proto",
-    "abort-controller": "^3.0.0",
-    "long": "^5.2.3",
-    "uuid": "^11.1.0"
+    "smol-toml": "1.4.2"
   },
   "devDependencies": {
-    "protobufjs": "^7.2.5"
+    "@temporalio/worker": "file:../worker"
+  },
+  "engines": {
+    "node": ">= 18.0.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -29,17 +29,14 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/temporalio/sdk-typescript.git",
-    "directory": "packages/client"
+    "directory": "packages/envconfig"
   },
-  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/client",
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/envconfig",
   "publishConfig": {
     "access": "public"
   },
   "files": [
     "src",
     "lib"
-  ],
-  "engines": {
-    "node": ">= 18.0.0"
-  }
+  ]
 }
