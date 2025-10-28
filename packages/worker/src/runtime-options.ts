@@ -33,6 +33,14 @@ export interface RuntimeOptions {
   telemetryOptions?: TelemetryOptions;
 
   /**
+   * Interval for worker heartbeats. `null` disables heartbeating.
+   *
+   * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
+   * @default 60000 (60 seconds)
+   */
+  workerHeartbeatInterval?: Duration | null;
+
+  /**
    * Automatically shutdown workers on any of these signals.
    *
    * @default
@@ -367,6 +375,14 @@ export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions 
   const { metrics, noTemporalPrefixForMetrics } = options.telemetryOptions ?? {}; // eslint-disable-line deprecation/deprecation
   const [logger, logExporter] = compileLoggerOptions(options);
 
+  // Handle worker heartbeat interval - default to 60s, allow null to disable
+  let workerHeartbeatIntervalMillis: number | null;
+  if (options.workerHeartbeatInterval === null) {
+    workerHeartbeatIntervalMillis = null;
+  } else {
+    workerHeartbeatIntervalMillis = msToNumber(options.workerHeartbeatInterval ?? '60s');
+  }
+
   return {
     logger,
     shutdownSignals: options.shutdownSignals ?? ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
@@ -376,6 +392,7 @@ export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions 
         metricPrefix: metrics?.metricPrefix ?? (noTemporalPrefixForMetrics ? '' : 'temporal_'),
         attachServiceName: metrics?.attachServiceName ?? true,
       },
+      workerHeartbeatIntervalMillis,
       metricsExporter:
         metrics && isPrometheusMetricsExporter(metrics)
           ? ({
