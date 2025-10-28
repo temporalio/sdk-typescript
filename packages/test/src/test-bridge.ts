@@ -241,6 +241,7 @@ const GenericConfigs = {
         attachServiceName: false,
       },
       metricsExporter: null,
+      workerHeartbeatIntervalMillis: null,
     } satisfies native.RuntimeOptions,
   },
   client: {
