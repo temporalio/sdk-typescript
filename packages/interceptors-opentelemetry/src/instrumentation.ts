@@ -3,8 +3,12 @@
  * @module
  */
 import * as otel from '@opentelemetry/api';
-import type { Headers } from '@temporalio/common';
-import { ApplicationFailure, ApplicationFailureCategory, defaultPayloadConverter } from '@temporalio/common';
+import {
+  type Headers,
+  ApplicationFailure,
+  ApplicationFailureCategory,
+  defaultPayloadConverter,
+} from '@temporalio/common';
 
 /** Default trace header for opentelemetry interceptors */
 export const TRACE_HEADER = '_tracer-data';

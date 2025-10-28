@@ -11,8 +11,7 @@ import type {
   ActivityExecuteInput,
 } from '@temporalio/worker';
 import { instrument, extractContextFromHeaders } from '../instrumentation';
-import type { OpenTelemetryWorkflowExporter, SerializableSpan } from '../workflow';
-import { SpanName, SPAN_DELIMITER } from '../workflow';
+import { type OpenTelemetryWorkflowExporter, type SerializableSpan, SpanName, SPAN_DELIMITER } from '../workflow';
 
 export interface InterceptorOptions {
   readonly tracer?: otel.Tracer;

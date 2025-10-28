@@ -12,6 +12,7 @@ let workflowModule: typeof WorkflowModule | undefined;
 let workflowModuleLoadError: any | undefined;
 
 try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   workflowModule = require('@temporalio/workflow');
 } catch (err) {
   // Capture the module not found error to rethrow if the module is required
