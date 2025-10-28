@@ -33,6 +33,20 @@
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow"
   },
+  "peerDependenciesMeta": {
+    "@temporalio/activity": {
+      "optional": true
+    },
+    "@temporalio/client": {
+      "optional": true
+    },
+    "@temporalio/worker": {
+      "optional": true
+    },
+    "@temporalio/workflow": {
+      "optional": true
+    }
+  },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },

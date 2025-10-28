@@ -1,11 +1,28 @@
 import * as otel from '@opentelemetry/api';
-import { AsyncLocalStorage } from '@temporalio/workflow';
+import type { AsyncLocalStorage as AsyncLocalStorageType } from '@temporalio/workflow';
+
+// @temporalio/workflow is an optional peer dependency.
+// It can be missing as long as the user isn't attempting to construct a workflow interceptor.
+let AsyncLocalStorage: typeof AsyncLocalStorageType | undefined;
+let workflowModuleLoadError: any | undefined;
+try {
+  AsyncLocalStorage = require('@temporalio/workflow').AsyncLocalStorage;
+} catch (err) {
+  // Capture the module not found error to rethrow if an interceptor is constructed
+  workflowModuleLoadError = err;
+}
 
 export class ContextManager implements otel.ContextManager {
-  protected storage = new AsyncLocalStorage<otel.Context>();
+  protected storage = AsyncLocalStorage ? new AsyncLocalStorage<otel.Context>() : undefined;
+
+  public constructor() {
+    if (workflowModuleLoadError) {
+      throw workflowModuleLoadError;
+    }
+  }
 
   active(): otel.Context {
-    return this.storage.getStore() || otel.ROOT_CONTEXT;
+    return this.storage!.getStore() || otel.ROOT_CONTEXT;
   }
 
   bind<T>(context: otel.Context, target: T): T {
@@ -36,7 +53,7 @@ export class ContextManager implements otel.ContextManager {
   }
 
   disable(): this {
-    this.storage.disable();
+    this.storage!.disable();
     return this;
   }
 
@@ -47,6 +64,6 @@ export class ContextManager implements otel.ContextManager {
     ...args: A
   ): ReturnType<F> {
     const cb = thisArg == null ? fn : fn.bind(thisArg);
-    return this.storage.run(context, cb, ...args);
+    return this.storage!.run(context, cb, ...args);
   }
 }
