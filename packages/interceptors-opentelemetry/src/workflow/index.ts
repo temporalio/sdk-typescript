@@ -3,9 +3,8 @@
 import './runtime'; // Patch the Workflow isolate runtime for opentelemetry
 import * as otel from '@opentelemetry/api';
 import * as tracing from '@opentelemetry/sdk-trace-base';
-import {
+import type {
   ActivityInput,
-  ContinueAsNew,
   ContinueAsNewInput,
   DisposeInput,
   GetLogAttributesInput,
@@ -16,7 +15,6 @@ import {
   StartChildWorkflowExecutionInput,
   WorkflowExecuteInput,
   WorkflowInboundCallsInterceptor,
-  workflowInfo,
   WorkflowInternalsInterceptor,
   WorkflowOutboundCallsInterceptor,
 } from '@temporalio/workflow';
@@ -24,6 +22,7 @@ import { instrument, extractContextFromHeaders, headersWithContext } from '../in
 import { ContextManager } from './context-manager';
 import { SpanName, SPAN_DELIMITER } from './definitions';
 import { SpanExporter } from './span-exporter';
+import { ensureWorkflowModuleLoaded, getWorkflowModule } from './workflow-module-loader';
 
 export * from './definitions';
 
@@ -48,14 +47,21 @@ function getTracer(): otel.Tracer {
  *
  * Wraps the operation in an opentelemetry Span and links it to a parent Span context if one is
  * provided in the Workflow input headers.
+ *
+ * `@temporalio/workflow` must be provided by host package in order to function.
  */
 export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInterceptor {
   protected readonly tracer = getTracer();
+
+  public constructor() {
+    ensureWorkflowModuleLoaded();
+  }
 
   public async execute(
     input: WorkflowExecuteInput,
     next: Next<WorkflowInboundCallsInterceptor, 'execute'>
   ): Promise<unknown> {
+    const { workflowInfo, ContinueAsNew } = getWorkflowModule();
     const context = await extractContextFromHeaders(input.headers);
     return await instrument({
       tracer: this.tracer,
@@ -84,9 +90,15 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
  * Intercepts outbound calls to schedule an Activity
  *
  * Wraps the operation in an opentelemetry Span and passes it to the Activity via headers.
+ *
+ * `@temporalio/workflow` must be provided by host package in order to function.
  */
 export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsInterceptor {
   protected readonly tracer = getTracer();
+
+  public constructor() {
+    ensureWorkflowModuleLoaded();
+  }
 
   public async scheduleActivity(
     input: ActivityInput,
@@ -143,6 +155,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     input: ContinueAsNewInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'continueAsNew'>
   ): Promise<never> {
+    const { ContinueAsNew } = getWorkflowModule();
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}${input.options.workflowType}`,
