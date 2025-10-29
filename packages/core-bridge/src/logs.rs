@@ -5,7 +5,7 @@ use std::{
 
 use neon::prelude::*;
 
-use rand::{distributions::Alphanumeric, rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, distributions::Alphanumeric, rngs::StdRng, seq::SliceRandom};
 
 use serde::{Serialize, ser::SerializeMap as _};
 use serde_json::{Map as JsonMap, Value as JsonValue};
@@ -14,8 +14,8 @@ use temporal_sdk_core::api::telemetry::CoreLog;
 use bridge_macros::js_function;
 
 use crate::{
-    helpers::{BridgeError, BridgeResult, IntoThrow, JsonString, TryIntoJs},
     helpers::properties::ObjectExt as _,
+    helpers::{BridgeError, BridgeResult, IntoThrow, JsonString, TryIntoJs},
 };
 
 pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<()> {
@@ -77,13 +77,11 @@ impl BenchmarkMode {
     }
 }
 
-#[js_function(1)]
-pub fn generate_benchmark_log_entries(
-    mode: String,
-) -> BridgeResult<BenchmarkResult> {
+#[js_function]
+pub fn generate_benchmark_log_entries(mode: String, seed: u64) -> BridgeResult<BenchmarkResult> {
     let mode = BenchmarkMode::try_from_str(mode.as_str())?;
 
-    let mut rng = StdRng::from_entropy();
+    let mut rng = StdRng::seed_from_u64(seed);
     let entries = generate_random_log_entries(&mut rng, BENCH_ENTRIES_PER_BATCH);
 
     match mode {
@@ -92,8 +90,8 @@ pub fn generate_benchmark_log_entries(
             json: None,
         }),
         BenchmarkMode::Json => {
-            let json = serde_json::to_string(&entries)
-                .map_err(|err| BridgeError::Other(err.into()))?;
+            let json =
+                serde_json::to_string(&entries).map_err(|err| BridgeError::Other(err.into()))?;
             Ok(BenchmarkResult {
                 direct: None,
                 json: Some(json),
@@ -159,10 +157,7 @@ impl TryIntoJs for LogEntry {
     }
 }
 
-fn json_value_to_js<'cx>(
-    cx: &mut impl Context<'cx>,
-    value: JsonValue,
-) -> JsResult<'cx, JsValue> {
+fn json_value_to_js<'cx>(cx: &mut impl Context<'cx>, value: JsonValue) -> JsResult<'cx, JsValue> {
     match value {
         JsonValue::Null => Ok(cx.null().upcast()),
         JsonValue::Bool(b) => Ok(cx.boolean(b).upcast()),
@@ -199,10 +194,7 @@ fn json_value_to_js<'cx>(
     }
 }
 
-fn generate_random_log_entries<R: Rng + ?Sized>(
-    rng: &mut R,
-    count: usize,
-) -> Vec<LogEntry> {
+fn generate_random_log_entries<R: Rng + ?Sized>(rng: &mut R, count: usize) -> Vec<LogEntry> {
     (0..count).map(|_| random_log_entry(rng)).collect()
 }
 
@@ -212,11 +204,7 @@ fn random_log_entry<R: Rng + ?Sized>(rng: &mut R) -> LogEntry {
     let target = format!("bench.target.{}", random_string(rng, 6));
     let message = format!("Benchmark message {}", random_string(rng, 12));
     let level = (*LOG_LEVELS.choose(rng).unwrap_or(&"INFO")).to_string();
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or(Duration::ZERO)
-        .as_nanos()
-        .to_string();
+    let timestamp = rng.r#gen::<u128>().to_string();
 
     let mut fields = HashMap::with_capacity(BENCH_RANDOM_FIELDS);
     for idx in 0..BENCH_RANDOM_FIELDS {

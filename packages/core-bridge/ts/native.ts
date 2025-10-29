@@ -413,7 +413,8 @@ export interface ExistingPathConfig {
 export declare function getTimeOfDay(): bigint;
 
 export declare function generateBenchmarkLogEntries(
-  mode: 'direct' | 'json'
+  mode: 'direct' | 'json',
+  seed: number
 ): {
   direct: LogEntry[] | null;
   json: string | null;

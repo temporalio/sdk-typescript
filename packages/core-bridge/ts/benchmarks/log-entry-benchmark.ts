@@ -12,8 +12,10 @@ import type * as NativeTypes from '..';
 
 const { native } = require('../../index') as { native: typeof NativeTypes.native };
 
-const ITERATIONS = 1_000;
+const ITERATIONS = 2_000;
+const BASE_SEED = 0x5a_17_2c_3d;
 const EXPECTED_BATCH_SIZE = 10;
+const SEEDS = Array.from({ length: ITERATIONS }, (_, idx) => BASE_SEED + idx);
 
 type BenchmarkStats = {
   durationMs: number;
@@ -21,15 +23,15 @@ type BenchmarkStats = {
 };
 
 function warmUp(): void {
-  native.generateBenchmarkLogEntries('direct');
-  native.generateBenchmarkLogEntries('json');
+  native.generateBenchmarkLogEntries('direct', BASE_SEED);
+  native.generateBenchmarkLogEntries('json', BASE_SEED);
 }
 
 function measureDirect(iterations: number): BenchmarkStats {
   let checksum = 0;
   const start = performance.now();
   for (let i = 0; i < iterations; i++) {
-    const result = native.generateBenchmarkLogEntries('direct');
+    const result = native.generateBenchmarkLogEntries('direct', SEEDS[i]);
     const entries = result.direct;
     if (!entries || entries.length !== EXPECTED_BATCH_SIZE) {
       throw new Error(`unexpected direct batch size: ${entries?.length ?? 0}`);
@@ -46,7 +48,7 @@ function measureJson(iterations: number): BenchmarkStats {
   let checksum = 0;
   const start = performance.now();
   for (let i = 0; i < iterations; i++) {
-    const result = native.generateBenchmarkLogEntries('json');
+    const result = native.generateBenchmarkLogEntries('json', SEEDS[i]);
     if (!result.json) {
       throw new Error('expected JSON payload but received null');
     }
