@@ -575,6 +575,7 @@ mod config {
                 .max_task_queue_activities_per_second(self.max_task_queue_activities_per_second)
                 .max_worker_activities_per_second(self.max_activities_per_second)
                 .graceful_shutdown_period(self.shutdown_grace_time)
+                .skip_client_worker_set_check(true)
                 .build()
         }
     }
