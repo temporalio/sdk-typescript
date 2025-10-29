@@ -38,6 +38,10 @@ on:
         required: true
         type: boolean
 
+permissions:
+  contents: read
+  actions: write
+
 env:
   TEMPORAL_TESTING_LOG_DIR: /tmp/worker-logs
   TEMPORAL_TESTING_MEM_LOG_DIR: /tmp/worker-mem-logs

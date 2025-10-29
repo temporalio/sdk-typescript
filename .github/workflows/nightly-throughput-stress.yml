@@ -27,6 +27,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 env:
   # Workflow configuration
