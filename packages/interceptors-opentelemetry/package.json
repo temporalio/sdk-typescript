@@ -27,22 +27,10 @@
     "@temporalio/workflow": "file:../workflow"
   },
   "peerDependencies": {
-    "@temporalio/activity": "file:../activity",
-    "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",
-    "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow"
   },
   "peerDependenciesMeta": {
-    "@temporalio/activity": {
-      "optional": true
-    },
-    "@temporalio/client": {
-      "optional": true
-    },
-    "@temporalio/worker": {
-      "optional": true
-    },
     "@temporalio/workflow": {
       "optional": true
     }
