@@ -50,3 +50,4 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
     "registry",
     "ansi",
 ] }
+rand = "0.8"
