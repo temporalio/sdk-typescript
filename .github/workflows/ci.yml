@@ -7,6 +7,10 @@ on:
       - main
       - releases/*
 
+permissions:
+  contents: read
+  actions: write
+
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   # Is it the official main branch, or an official release branches?
