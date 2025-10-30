@@ -8,7 +8,7 @@
  * @module
  */
 
-export { NativeConnection } from './connection';
+export { NativeConnection, NativeConnectionPlugin } from './connection';
 export { NativeConnectionOptions, TLSConfig } from './connection-options';
 export { startDebugReplayer } from './debug-replayer';
 export { IllegalStateError } from '@temporalio/common';
@@ -35,6 +35,7 @@ export {
 } from './runtime-options';
 export * from './sinks';
 export { DataConverter, defaultPayloadConverter, State, Worker, WorkerStatus } from './worker';
+export { WorkerPlugin } from './plugin';
 export {
   CompiledWorkerOptions,
   ReplayWorkerOptions,
@@ -44,7 +45,7 @@ export {
   WorkflowBundlePath,
 } from './worker-options';
 export { ReplayError, ReplayHistoriesIterable, ReplayResult } from './replay';
-export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap } from './workflow/bundler';
+export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap, BundlerPlugin } from './workflow/bundler';
 export {
   WorkerTuner,
   TunerHolder,

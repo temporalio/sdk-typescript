@@ -30,12 +30,19 @@ export * from '@temporalio/common/lib/interfaces';
 export * from '@temporalio/common/lib/workflow-handle';
 export * from './async-completion-client';
 export * from './client';
-export { Connection, ConnectionOptions, ConnectionOptionsWithDefaults, LOCAL_TARGET } from './connection';
+export {
+  Connection,
+  ConnectionOptions,
+  ConnectionOptionsWithDefaults,
+  ConnectionPlugin,
+  LOCAL_TARGET,
+} from './connection';
 export * from './errors';
 export * from './grpc-retry';
 export * from './interceptors';
 export * from './types';
 export * from './workflow-client';
+export { ClientPlugin } from './plugin';
 export * from './workflow-options';
 export * from './schedule-types';
 export * from './schedule-client';
