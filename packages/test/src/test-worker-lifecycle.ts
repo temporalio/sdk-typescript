@@ -35,10 +35,10 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.serial("Worker.runUntil doesn't hang if provided promise survives to Worker's shutdown", async (t) => {
-    const logger = new DefaultLogger('TRACE');
+    const logger = new DefaultLogger('DEBUG');
     t.is(Runtime._instance, undefined);
     Runtime.install({
-      telemetryOptions: { tracingFilter: makeTelemetryFilterString({ core: 'TRACE' }) },
+      telemetryOptions: { tracingFilter: makeTelemetryFilterString({ core: 'DEBUG' }) },
       logger,
     });
     const worker = await Worker.create({
