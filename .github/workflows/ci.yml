@@ -210,6 +210,7 @@ jobs:
       - name: Run Tests
         run: npm run test
         env:
+          TEMPORAL_TRACE_NATIVE_CALLS: true
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
