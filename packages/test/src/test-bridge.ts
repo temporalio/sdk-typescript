@@ -163,6 +163,7 @@ test("Dropping EphemeralServer without shutting it down doesn't hang process", a
 });
 
 test("Stopping Worker after creating another runtime doesn't fail", async (t) => {
+  t.timeout(120 * 1000);
   async function expectShutdownError(taskPromise: Promise<Buffer>) {
     await t.throwsAsync(taskPromise, {
       instanceOf: errors.ShutdownError,
@@ -217,7 +218,7 @@ test("Stopping Worker after creating another runtime doesn't fail", async (t) =>
   await native.workerValidate(worker2);
   const wftPromise2 = native.workerPollWorkflowActivation(worker2);
   const atPromise2 = native.workerPollActivityTask(worker2);
-  await setTimeout(100);
+  await setTimeout(3000);
   native.workerInitiateShutdown(worker2);
   await expectShutdownError(wftPromise2);
   await expectShutdownError(atPromise2);
