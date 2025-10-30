@@ -56,7 +56,7 @@ if (RUN_INTEGRATION_TESTS) {
   // to the default configuration (127.0.0.1) which is surprising behavior.
   test.serial('Runtime.install() remembers installed options after it has been shut down', async (t) => {
     const logger = new DefaultLogger('DEBUG');
-    Runtime.install({ logger });
+    Runtime.install({ logger, telemetryOptions: { logging: { filter: { core: 'DEBUG' } } } });
     {
       const runtime = Runtime.instance();
       t.is(runtime.options.logger, logger);
