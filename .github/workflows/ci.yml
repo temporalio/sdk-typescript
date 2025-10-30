@@ -56,12 +56,12 @@ jobs:
       run:
         shell: bash
     steps:
-      - name: 'Checkout code'
+      - name: "Checkout code"
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: 'Cache index.node'
+      - name: "Cache index.node"
         id: cached-artifact
         uses: actions/cache@v4
         with:
@@ -73,7 +73,7 @@ jobs:
         uses: arduino/setup-protoc@v3
         with:
           # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
-          version: '23.x'
+          version: "23.x"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upgrade Rust to latest stable
@@ -86,7 +86,7 @@ jobs:
           workspaces: packages/core-bridge -> target
           prefix-key: corebridge-buildcache-debug
           shared-key: ${{ matrix.platform }}
-          env-vars: ''
+          env-vars: ""
           save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
 
       - name: Compile rust code
@@ -144,7 +144,7 @@ jobs:
       - name: Set git config
         run: git config --global core.autocrlf false
 
-      - name: 'Checkout code'
+      - name: "Checkout code"
         uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -218,7 +218,7 @@ jobs:
       - name: Run Tests
         run: npm run test
         env:
-          TEMPORAL_TRACE_NATIVE_CALLS: true
+          TEMPORAL_TRACE_NATIVE_CALLS_XXXXX: true
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
