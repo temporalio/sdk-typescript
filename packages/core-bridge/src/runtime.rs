@@ -65,6 +65,7 @@ pub fn runtime_new(
     let mut core_runtime = CoreRuntime::new(
         RuntimeOptionsBuilder::default()
             .telemetry_options(telemetry_options)
+            .heartbeat_interval(None)
             .build()
             .unwrap(),
         TokioRuntimeBuilder::default(),
