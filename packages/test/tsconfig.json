@@ -12,6 +12,7 @@
     { "path": "../client" },
     { "path": "../cloud" },
     { "path": "../common" },
+    { "path": "../envconfig" },
     { "path": "../interceptors-opentelemetry" },
     { "path": "../nexus" },
     { "path": "../plugin" },

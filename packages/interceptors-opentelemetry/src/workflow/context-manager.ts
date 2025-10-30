@@ -1,11 +1,19 @@
 import * as otel from '@opentelemetry/api';
-import { AsyncLocalStorage } from '@temporalio/workflow';
+import { ensureWorkflowModuleLoaded, getWorkflowModuleIfAvailable } from './workflow-module-loader';
+
+const AsyncLocalStorage = getWorkflowModuleIfAvailable()?.AsyncLocalStorage;
 
 export class ContextManager implements otel.ContextManager {
-  protected storage = new AsyncLocalStorage<otel.Context>();
+  // If `@temporalio/workflow` is not available, ignore for now.
+  // When ContextManager is constructed module resolution error will be thrown.
+  protected storage = AsyncLocalStorage ? new AsyncLocalStorage<otel.Context>() : undefined;
+
+  public constructor() {
+    ensureWorkflowModuleLoaded();
+  }
 
   active(): otel.Context {
-    return this.storage.getStore() || otel.ROOT_CONTEXT;
+    return this.storage!.getStore() || otel.ROOT_CONTEXT;
   }
 
   bind<T>(context: otel.Context, target: T): T {
@@ -36,7 +44,7 @@ export class ContextManager implements otel.ContextManager {
   }
 
   disable(): this {
-    this.storage.disable();
+    this.storage!.disable();
     return this;
   }
 
@@ -47,6 +55,6 @@ export class ContextManager implements otel.ContextManager {
     ...args: A
   ): ReturnType<F> {
     const cb = thisArg == null ? fn : fn.bind(thisArg);
-    return this.storage.run(context, cb, ...args);
+    return this.storage!.run(context, cb, ...args);
   }
 }

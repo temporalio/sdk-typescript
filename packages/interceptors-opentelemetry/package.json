@@ -27,11 +27,13 @@
     "@temporalio/workflow": "file:../workflow"
   },
   "peerDependencies": {
-    "@temporalio/activity": "file:../activity",
-    "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",
-    "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow"
+  },
+  "peerDependenciesMeta": {
+    "@temporalio/workflow": {
+      "optional": true
+    }
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
