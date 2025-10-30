@@ -167,6 +167,15 @@ pub trait RuntimeExt {
         F: Future<Output = Result<R, BridgeError>> + Send + 'static,
         R: TryIntoJs + Send + 'static;
 
+    fn future_to_promise_named<F, R>(
+        &self,
+        future: F,
+        caller: &'static str,
+    ) -> BridgeResult<BridgeFuture<R>>
+    where
+        F: Future<Output = Result<R, BridgeError>> + Send + 'static,
+        R: TryIntoJs + Send + 'static;
+
     /// Spawn a future on the Tokio runtime, and let it run to completion without waiting for it to
     /// complete. Should any error occur, we'll try to send them to this Runtime's logger, but may
     /// end up or silently dropping entries in some extreme cases.
@@ -185,6 +194,21 @@ impl RuntimeExt for CoreRuntime {
         Ok(BridgeFuture::new(Box::pin(
             future.instrument(tracing::info_span!("future_to_promise")),
         )))
+    }
+
+    fn future_to_promise_named<F, R>(
+        &self,
+        future: F,
+        caller: &'static str,
+    ) -> BridgeResult<BridgeFuture<R>>
+    where
+        F: Future<Output = Result<R, BridgeError>> + Send + 'static,
+        R: TryIntoJs + Send + 'static,
+    {
+        enter_sync!(self);
+        Ok(BridgeFuture::new(Box::pin(future.instrument(
+            tracing::info_span!("future_to_promise_named", caller),
+        ))))
     }
 
     fn spawn_and_forget<F>(&self, future: F)
@@ -215,6 +239,18 @@ impl RuntimeExt for Arc<CoreRuntime> {
         F: Future<Output = Result<(), BridgeError>> + Send + 'static,
     {
         self.as_ref().spawn_and_forget(future);
+    }
+
+    fn future_to_promise_named<F, R>(
+        &self,
+        future: F,
+        caller: &'static str,
+    ) -> BridgeResult<BridgeFuture<R>>
+    where
+        F: Future<Output = Result<R, BridgeError>> + Send + 'static,
+        R: TryIntoJs + Send + 'static,
+    {
+        self.as_ref().future_to_promise_named(future, caller)
     }
 }
 

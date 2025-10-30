@@ -55,33 +55,36 @@ pub fn client_new(
     let runtime = runtime.borrow()?.core_runtime.clone();
     let config: CoreClientOptions = config.try_into()?;
 
-    runtime.clone().future_to_promise(async move {
-        let metric_meter = runtime.clone().telemetry().get_temporal_metric_meter();
-        let res = config.connect_no_namespace(metric_meter).await;
+    runtime.clone().future_to_promise_named(
+        async move {
+            let metric_meter = runtime.clone().telemetry().get_temporal_metric_meter();
+            let res = config.connect_no_namespace(metric_meter).await;
 
-        let core_client = match res {
-            Ok(core_client) => core_client,
-            Err(ClientInitError::InvalidHeaders(e)) => Err(BridgeError::TypeError {
-                message: format!("Invalid metadata key: {e}"),
-                field: None,
-            })?,
-            Err(ClientInitError::SystemInfoCallError(e)) => Err(BridgeError::TransportError(
-                format!("Failed to call GetSystemInfo: {e}"),
-            ))?,
-            Err(ClientInitError::TonicTransportError(e)) => {
-                Err(BridgeError::TransportError(format!("{e:?}")))?
-            }
-            Err(ClientInitError::InvalidUri(e)) => Err(BridgeError::TypeError {
-                message: e.to_string(),
-                field: None,
-            })?,
-        };
+            let core_client = match res {
+                Ok(core_client) => core_client,
+                Err(ClientInitError::InvalidHeaders(e)) => Err(BridgeError::TypeError {
+                    message: format!("Invalid metadata key: {e}"),
+                    field: None,
+                })?,
+                Err(ClientInitError::SystemInfoCallError(e)) => Err(BridgeError::TransportError(
+                    format!("Failed to call GetSystemInfo: {e}"),
+                ))?,
+                Err(ClientInitError::TonicTransportError(e)) => {
+                    Err(BridgeError::TransportError(format!("{e:?}")))?
+                }
+                Err(ClientInitError::InvalidUri(e)) => Err(BridgeError::TypeError {
+                    message: e.to_string(),
+                    field: None,
+                })?,
+            };
 
-        Ok(OpaqueOutboundHandle::new(Client {
-            core_runtime: runtime,
-            core_client,
-        }))
-    })
+            Ok(OpaqueOutboundHandle::new(Client {
+                core_runtime: runtime,
+                core_client,
+            }))
+        },
+        "client_new",
+    )
 }
 
 /// Update a Client's HTTP request headers
