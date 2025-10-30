@@ -9,6 +9,7 @@
     { "path": "../activity" },
     { "path": "../client" },
     { "path": "../common" },
+    { "path": "../plugin" },
     { "path": "../worker" },
     { "path": "../workflow" }
   ],
