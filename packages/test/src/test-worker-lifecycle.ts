@@ -7,7 +7,7 @@
 import { setTimeout } from 'timers/promises';
 import { randomUUID } from 'crypto';
 import test from 'ava';
-import { Runtime, PromiseCompletionTimeoutError } from '@temporalio/worker';
+import { Runtime, PromiseCompletionTimeoutError, makeTelemetryFilterString, DefaultLogger } from '@temporalio/worker';
 import { TransportError, UnexpectedError } from '@temporalio/worker/lib/errors';
 import { Client } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -35,6 +35,12 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.serial("Worker.runUntil doesn't hang if provided promise survives to Worker's shutdown", async (t) => {
+    const logger = new DefaultLogger('TRACE');
+    t.is(Runtime._instance, undefined);
+    Runtime.install({
+      telemetryOptions: { tracingFilter: makeTelemetryFilterString({ core: 'TRACE' }) },
+      logger,
+    });
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue: t.title.replace(/ /g, '_'),
