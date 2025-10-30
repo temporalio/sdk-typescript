@@ -156,6 +156,29 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(logEntries.filter((x) => x.message.startsWith('workflow log ')).length, 5);
     t.is(logEntries.filter((x) => x.message.startsWith('final log')).length, 1);
   });
+
+  test.serial('Runtime handle heartbeat duration default', async (t) => {
+    const runtime = Runtime.install({});
+    const SIXTY_SECONDS = 60 * 1000;
+    t.true(runtime.options.runtimeOptions.workerHeartbeatIntervalMillis === SIXTY_SECONDS);
+    await runtime.shutdown();
+  });
+
+  test.serial('Runtime handle heartbeat duration null', async (t) => {
+    const runtime = Runtime.install({
+      workerHeartbeatInterval: null,
+    });
+    t.true(runtime.options.runtimeOptions.workerHeartbeatIntervalMillis === null);
+    await runtime.shutdown();
+  });
+
+  test.serial('Runtime handle heartbeat duration undefined', async (t) => {
+    const runtime = Runtime.install({
+      workerHeartbeatInterval: 13 * 1000,
+    });
+    t.true(runtime.options.runtimeOptions.workerHeartbeatIntervalMillis === 13 * 1000);
+    await runtime.shutdown();
+  });
 }
 
 export async function log5Times(): Promise<void> {

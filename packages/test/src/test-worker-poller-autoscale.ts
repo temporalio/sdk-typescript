@@ -48,7 +48,7 @@ test.serial('Can run autoscaling polling worker', async (t) => {
     const activity_pollers = matches.filter((l) => l.includes('activity_task'));
     t.is(activity_pollers.length, 1, 'Should have exactly one activity poller metric');
     t.true(activity_pollers[0].endsWith('2'), 'Activity poller count should be 2');
-    const workflow_pollers = matches.filter((l) => l.includes('workflow_task'));
+    const workflow_pollers = matches.filter((l) => l.includes('workflow_task') && l.includes(taskQueue));
     t.is(workflow_pollers.length, 2, 'Should have exactly two workflow poller metrics (sticky and non-sticky)');
 
     // There's sticky & non-sticky pollers, and they may have a count of 1 or 2 depending on

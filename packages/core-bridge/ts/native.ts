@@ -40,7 +40,7 @@ export type JsonString<_T> = string;
 // Runtime
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export declare function newRuntime(telemOptions: RuntimeOptions): Runtime;
+export declare function newRuntime(runtimeOptions: RuntimeOptions): Runtime;
 
 export declare function runtimeShutdown(runtime: Runtime): void;
 
@@ -52,6 +52,7 @@ export type RuntimeOptions = {
   logExporter: LogExporterOptions;
   telemetry: TelemetryOptions;
   metricsExporter: MetricExporterOptions;
+  workerHeartbeatIntervalMillis: Option<number>;
 };
 
 export type TelemetryOptions = {
