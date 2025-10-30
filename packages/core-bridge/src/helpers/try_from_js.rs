@@ -9,7 +9,7 @@ use neon::{
         Value, buffer::TypedArray,
     },
 };
-use temporal_sdk_core::Url;
+use temporalio_sdk_core::Url;
 
 use super::{AppendFieldContext, BridgeError, BridgeResult};
 

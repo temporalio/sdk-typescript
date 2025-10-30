@@ -7,7 +7,7 @@
 import { setTimeout } from 'timers/promises';
 import { randomUUID } from 'crypto';
 import test from 'ava';
-import { Runtime, PromiseCompletionTimeoutError } from '@temporalio/worker';
+import { Runtime, PromiseCompletionTimeoutError, DefaultLogger } from '@temporalio/worker';
 import { TransportError, UnexpectedError } from '@temporalio/worker/lib/errors';
 import { Client } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -32,6 +32,10 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(worker.getState(), 'STOPPED');
     await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
     t.is(Runtime._instance, undefined);
+  });
+
+  test.before(() => {
+    Runtime.install({ logger: new DefaultLogger('TRACE') });
   });
 
   test.serial("Worker.runUntil doesn't hang if provided promise survives to Worker's shutdown", async (t) => {
