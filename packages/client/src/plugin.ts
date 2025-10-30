@@ -15,5 +15,5 @@ export interface ClientPlugin {
    * This method is called during client creation and allows plugins to modify
    * the client configuration before the client is fully initialized.
    */
-  configureClient?(options: Omit<ClientOptions, "plugins">): Omit<ClientOptions, "plugins">;
+  configureClient?(options: Omit<ClientOptions, 'plugins'>): Omit<ClientOptions, 'plugins'>;
 }
