@@ -205,6 +205,14 @@ jobs:
             --db-filename temporal.sqlite \
             --sqlite-pragma journal_mode=WAL \
             --sqlite-pragma synchronous=OFF \
+            --dynamic-config-value system.enableEagerWorkflowStart=true \
+            --dynamic-config-value system.enableNexus=true \
+            --dynamic-config-value frontend.workerVersioningWorkflowAPIs=true \
+            --dynamic-config-value frontend.workerVersioningDataAPIs=true \
+            --dynamic-config-value system.enableDeploymentVersions=true \
+            --dynamic-config-value component.nexusoperations.recordCancelRequestCompletionEvents=true \
+            --dynamic-config-value frontend.WorkerHeartbeatsEnabled=true \
+            --dynamic-config-value frontend.ListWorkersEnabled=true \
             --headless &> ./devserver.log &
 
       - name: Run Tests
