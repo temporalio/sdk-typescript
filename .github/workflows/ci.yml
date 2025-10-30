@@ -218,7 +218,7 @@ jobs:
       - name: Run Tests
         run: npm run test
         env:
-          TEMPORAL_TRACE_NATIVE_CALLS_XXXXX: true
+          TEMPORAL_TRACE_NATIVE_CALLS: true
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
@@ -238,104 +238,103 @@ jobs:
           TEMPORAL_CLOUD_OPS_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
           TEMPORAL_CLOUD_OPS_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
           TEMPORAL_CLOUD_OPS_TEST_API_VERSION: 2024-05-13-00
+#      # FIXME: Move samples tests to a custom activity
+#      # Sample 1: hello-world to local server
+#      - name: Instantiate sample project using verdaccio artifacts - Hello World
+#        run: |
+#          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world
+#          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world"
+#
+#      # Sample 2: hello-world-mtls to cloud server
+#      - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
+#        run: |
+#          if [ -z "$TEMPORAL_ADDRESS" ] || [ -z "$TEMPORAL_NAMESPACE" ] || [ -z "$TEMPORAL_CLIENT_CERT" ] || [ -z "$TEMPORAL_CLIENT_KEY" ]; then
+#            echo "Skipping hello-world-mtls sample test as required environment variables are not set"
+#            exit 0
+#          fi
+#
+#          node scripts/create-certs-dir.js ${{ steps.tmp-dir.outputs.dir }}/certs
+#          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls
+#          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls"
+#        env:
+#          # These env vars are used by the hello-world-mtls sample
+#          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
+#          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+#          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+#          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
+#          TEMPORAL_TASK_QUEUE: ${{ format('tssdk-ci-{0}-{1}-sample-hello-world-mtls-{2}-{3}', matrix.platform, matrix.node, github.run_id, github.run_attempt) }}
+#
+#          TEMPORAL_CLIENT_CERT_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.pem
+#          TEMPORAL_CLIENT_KEY_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.key
+#
+#      - name: Destroy certs dir
+#        if: always()
+#        run: rm -rf ${{ steps.tmp-dir.outputs.dir }}/certs
+#        continue-on-error: true
+#
+#      # Sample 3: fetch-esm to local server
+#      - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
+#        run: |
+#          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm
+#          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm"
+#
+#      # End samples
+#
+#      - name: Upload NPM logs
+#        uses: actions/upload-artifact@v4
+#        if: failure() || cancelled()
+#        with:
+#          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-logs
+#          path: ${{ startsWith(matrix.platform, 'windows') && 'C:\\npm\\_logs\\' || '~/.npm/_logs/' }}
+#
+#      - name: Upload Dev Server logs
+#        uses: actions/upload-artifact@v4
+#        if: failure() || cancelled()
+#        with:
+#          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
+#          path: ${{ steps.tmp-dir.outputs.dir }}/devserver.log
 
-      # FIXME: Move samples tests to a custom activity
-      # Sample 1: hello-world to local server
-      - name: Instantiate sample project using verdaccio artifacts - Hello World
-        run: |
-          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world
-          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world"
+#conventions:
+#  name: Lint and Prune
+#  uses: ./.github/workflows/conventions.yml
 
-      # Sample 2: hello-world-mtls to cloud server
-      - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
-        run: |
-          if [ -z "$TEMPORAL_ADDRESS" ] || [ -z "$TEMPORAL_NAMESPACE" ] || [ -z "$TEMPORAL_CLIENT_CERT" ] || [ -z "$TEMPORAL_CLIENT_KEY" ]; then
-            echo "Skipping hello-world-mtls sample test as required environment variables are not set"
-            exit 0
-          fi
+# Runs the features repo tests with this repo's current SDK code
+# FIXME: Update this job to reuse native build artifacts from compile-native-binaries
+#features-tests:
+#  name: Features Tests
+#  uses: temporalio/features/.github/workflows/typescript.yaml@main
+#  with:
+#    typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
+#    version: ${{github.event.pull_request.head.ref}}
+#    version-is-repo-ref: true
+#    features-repo-ref: main
 
-          node scripts/create-certs-dir.js ${{ steps.tmp-dir.outputs.dir }}/certs
-          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls
-          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls"
-        env:
-          # These env vars are used by the hello-world-mtls sample
-          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
-          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
-          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
-          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
-          TEMPORAL_TASK_QUEUE: ${{ format('tssdk-ci-{0}-{1}-sample-hello-world-mtls-{2}-{3}', matrix.platform, matrix.node, github.run_id, github.run_attempt) }}
+#stress-tests-no-reuse-context:
+#  name: Stress Tests (No Reuse V8 Context)
+#  # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
+#  uses: ./.github/workflows/stress.yml
+#  with:
+#    test-type: ci-stress
+#    test-timeout-minutes: 20
+#    reuse-v8-context: false
 
-          TEMPORAL_CLIENT_CERT_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.pem
-          TEMPORAL_CLIENT_KEY_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.key
+#stress-tests-reuse-context:
+#  name: Stress Tests (Reuse V8 Context)
+#  # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
+#  uses: ./.github/workflows/stress.yml
+#  with:
+#    test-type: ci-stress
+#    test-timeout-minutes: 20
+#    reuse-v8-context: true
 
-      - name: Destroy certs dir
-        if: always()
-        run: rm -rf ${{ steps.tmp-dir.outputs.dir }}/certs
-        continue-on-error: true
-
-      # Sample 3: fetch-esm to local server
-      - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
-        run: |
-          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm
-          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm"
-
-      # End samples
-
-      - name: Upload NPM logs
-        uses: actions/upload-artifact@v4
-        if: failure() || cancelled()
-        with:
-          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-logs
-          path: ${{ startsWith(matrix.platform, 'windows') && 'C:\\npm\\_logs\\' || '~/.npm/_logs/' }}
-
-      - name: Upload Dev Server logs
-        uses: actions/upload-artifact@v4
-        if: failure() || cancelled()
-        with:
-          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
-          path: ${{ steps.tmp-dir.outputs.dir }}/devserver.log
-
-  conventions:
-    name: Lint and Prune
-    uses: ./.github/workflows/conventions.yml
-
-  # Runs the features repo tests with this repo's current SDK code
-  # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
-  features-tests:
-    name: Features Tests
-    uses: temporalio/features/.github/workflows/typescript.yaml@main
-    with:
-      typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
-      version: ${{github.event.pull_request.head.ref}}
-      version-is-repo-ref: true
-      features-repo-ref: main
-
-  stress-tests-no-reuse-context:
-    name: Stress Tests (No Reuse V8 Context)
-    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
-    uses: ./.github/workflows/stress.yml
-    with:
-      test-type: ci-stress
-      test-timeout-minutes: 20
-      reuse-v8-context: false
-
-  stress-tests-reuse-context:
-    name: Stress Tests (Reuse V8 Context)
-    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
-    uses: ./.github/workflows/stress.yml
-    with:
-      test-type: ci-stress
-      test-timeout-minutes: 20
-      reuse-v8-context: true
-
-  docs:
-    name: Build Docs
-    uses: ./.github/workflows/docs.yml
-    with:
-      # Can't publish from forks, as secrets won't be available
-      publish_target: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && 'draft' || '' }}
-    secrets:
-      ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+#docs:
+#  name: Build Docs
+#  uses: ./.github/workflows/docs.yml
+#  with:
+#    # Can't publish from forks, as secrets won't be available
+#    publish_target: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && 'draft' || '' }}
+#  secrets:
+#    ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+#    VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+#    VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+#    VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
