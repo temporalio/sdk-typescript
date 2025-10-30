@@ -90,7 +90,8 @@ export class TestWorkflowEnvironment {
     protected readonly server: native.EphemeralServer | 'existing',
     connection: Connection,
     nativeConnection: NativeConnection,
-    namespace: string | undefined
+    namespace: string | undefined,
+    public readonly address: string
   ) {
     this.connection = connection;
     this.nativeConnection = nativeConnection;
@@ -238,7 +239,16 @@ export class TestWorkflowEnvironment {
       [InternalConnectionOptionsSymbol]: { supportsTestService: supportsTimeSkipping },
     });
 
-    return new this(runtime, optsWithDefaults, supportsTimeSkipping, server, connection, nativeConnection, namespace);
+    return new this(
+      runtime,
+      optsWithDefaults,
+      supportsTimeSkipping,
+      server,
+      connection,
+      nativeConnection,
+      namespace,
+      address
+    );
   }
 
   /**
