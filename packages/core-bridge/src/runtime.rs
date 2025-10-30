@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use anyhow::Context as _;
 use futures::channel::mpsc::Receiver;
 use neon::prelude::*;
-use tracing::{Instrument, warn};
+use tracing::{Instrument, trace, warn};
 
 use temporal_sdk_core::{
     CoreRuntime, RuntimeOptionsBuilder, TokioRuntimeBuilder,
@@ -136,6 +136,7 @@ pub fn runtime_new(
 /// runtimes at a high pace, e.g. during tests execution.
 #[js_function]
 pub fn runtime_shutdown(runtime: OpaqueInboundHandle<Runtime>) -> BridgeResult<()> {
+    trace!("dropping runtime");
     std::mem::drop(runtime.take()?);
     Ok(())
 }
