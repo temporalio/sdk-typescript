@@ -44,6 +44,44 @@ export const SdkFlags = {
    *        to implicitely have this flag on.
    */
   ProcessWorkflowActivationJobsAsSingleBatch: defineFlag(2, true, [buildIdSdkVersionMatches(/1\.11\.[01]/)]),
+  /**
+   * In 1.11.3 and previous versions, the interceptor for `handleSignal` provided
+   * by @temporalio/interceptors-opentelemetry did not have a yield point in it.
+   * A yield point was accidentally added in later versions. This added yield point
+   * can cause NDE if there was a signal handler and the workflow was started with a signal.
+   *
+   * This yield point was removed in 1.13.2, but in order to prevent workflows from the
+   * affected versions resulting in NDE, we have to inject the yield point on replay.
+   * This flag should be enabled for SDK versions newer than 1.11.3 or older than 1.13.2.
+   *
+   * @since Introduced in 1.13.2.
+   */
+  OpenTelemetryHandleSignalInterceptorInsertYield: defineFlag(3, false, [
+    isBetween({ major: 1, minor: 11, patch: 3 }, { major: 1, minor: 13, patch: 2 }),
+  ]),
+  /**
+   * The interceptors provided by @temporalio/interceptors-opentelemetry initially had unnecessary yield points.
+   * If replaying a workflow created from these versions a yield point is injected to prevent any NDE.
+   *
+   * If the history does not include the SDK version, default to enabled since the yields were present since the OTEL
+   * package was created.
+   *
+   * @since Introduced in 1.13.2
+   */
+  OpenTelemetryInterceptorInsertYield: defineFlag(3, false, [isBefore({ major: 1, minor: 13, patch: 2 }, true)]),
+  /**
+   * In 1.11.6, the `scheduleLocalActivity` interceptor was added to
+   * `@temporalio/interceptors-opentelemetry` which added a yield point to the
+   * outbound interceptor. This yield point was removed in 1.13.2.
+   *
+   * If replaying a workflow from 1.11.6 up to 1.13.1, we insert a yield point
+   * in the interceptor to match the behavior.
+   *
+   * @since Introduced in 1.13.2
+   */
+  OpenTelemetryScheduleLocalActivityInterceptorInsertYield: defineFlag(4, false, [
+    isBetween({ major: 1, minor: 11, patch: 5 }, { major: 1, minor: 13, patch: 2 }),
+  ]),
 } as const;
 
 function defineFlag(id: number, def: boolean, alternativeConditions?: AltConditionFn[]): SdkFlag {
@@ -68,9 +106,77 @@ export function assertValidFlag(id: number): void {
  * condition no longer holds. This is so to avoid incorrect behaviors in case where a Workflow
  * Execution has gone through a newer SDK version then again through an older one.
  */
-type AltConditionFn = (ctx: { info: WorkflowInfo }) => boolean;
+type AltConditionFn = (ctx: { info: WorkflowInfo; sdkVersion?: string }) => boolean;
 
 function buildIdSdkVersionMatches(version: RegExp): AltConditionFn {
   const regex = new RegExp(`^@temporalio/worker@(${version.source})[+]`);
   return ({ info }) => info.currentBuildId != null && regex.test(info.currentBuildId); // eslint-disable-line deprecation/deprecation
+}
+
+type SemVer = {
+  major: number;
+  minor: number;
+  patch: number;
+};
+
+/**
+ * Creates an `AltConditionFn` that checks if the SDK version is before the provided version.
+ * An optional default can be provided in case the SDK version is not available.
+ */
+function isBefore(compare: SemVer, missingDefault?: boolean): AltConditionFn {
+  return isCompared(compare, 1, missingDefault);
+}
+
+/**
+ * Creates an `AltConditionFn` that checks if the SDK version is after the provided version.
+ * An optional default can be provided in case the SDK version is not available.
+ */
+function isAfter(compare: SemVer, missingDefault?: boolean): AltConditionFn {
+  return isCompared(compare, -1, missingDefault);
+}
+
+/**
+ * Creates an `AltConditionFn` that checks if the SDK version is between the provided versions.
+ * The range check is exclusive.
+ * An optional default can be provided in case the SDK version is not available.
+ */
+function isBetween(lowEnd: SemVer, highEnd: SemVer, missingDefault?: boolean): AltConditionFn {
+  return (ctx) => isAfter(lowEnd, missingDefault)(ctx) && isBefore(highEnd, missingDefault)(ctx);
+}
+
+function isCompared(compare: SemVer, comparison: -1 | 0 | 1, missingDefault: boolean = false): AltConditionFn {
+  return ({ sdkVersion }) => {
+    if (!sdkVersion) return missingDefault;
+    const version = parseSemver(sdkVersion);
+    if (!version) return missingDefault;
+    return compareSemver(compare, version) === comparison;
+  };
+}
+
+function parseSemver(version: string): SemVer | undefined {
+  const matches = version.match(/(\d+)\.(\d+)\.(\d+)/);
+  if (!matches) return undefined;
+  const [_full, major, minor, patch] = matches.map((digits) => {
+    try {
+      return Number.parseInt(digits);
+    } catch {
+      return undefined;
+    }
+  });
+  if (major === undefined || minor === undefined || patch === undefined) return undefined;
+  return {
+    major,
+    minor,
+    patch,
+  };
+}
+
+function compareSemver(a: SemVer, b: SemVer): -1 | 0 | 1 {
+  if (a.major < b.major) return -1;
+  if (a.major > b.major) return 1;
+  if (a.minor < b.minor) return -1;
+  if (a.minor > b.minor) return 1;
+  if (a.patch < b.patch) return -1;
+  if (a.patch > b.patch) return 1;
+  return 0;
 }
