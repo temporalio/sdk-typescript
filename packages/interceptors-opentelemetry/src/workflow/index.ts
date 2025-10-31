@@ -22,7 +22,7 @@ import { instrument, extractContextFromHeaders, headersWithContext } from '../in
 import { ContextManager } from './context-manager';
 import { SpanName, SPAN_DELIMITER } from './definitions';
 import { SpanExporter } from './span-exporter';
-import { ensureWorkflowModuleLoaded, getSdkFlagsChecking, getWorkflowModule } from './workflow-module-loader';
+import { ensureWorkflowModuleLoaded, getWorkflowModule, hasSdkFlag } from './workflow-module-loader';
 
 export * from './definitions';
 
@@ -63,8 +63,7 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     next: Next<WorkflowInboundCallsInterceptor, 'execute'>
   ): Promise<unknown> {
     const { workflowInfo, ContinueAsNew } = getWorkflowModule();
-    const { getActivator, SdkFlags } = getSdkFlagsChecking();
-    const shouldInjectYield = getActivator().hasFlag(SdkFlags.OpenTelemetryInterceptorInsertYield);
+    const shouldInjectYield = hasSdkFlag('OpenTelemetryInterceptorInsertYield');
     const context = extractContextFromHeaders(input.headers);
     if (shouldInjectYield) await Promise.resolve();
     return await instrument({
@@ -80,8 +79,7 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     input: SignalInput,
     next: Next<WorkflowInboundCallsInterceptor, 'handleSignal'>
   ): Promise<void> {
-    const { getActivator, SdkFlags } = getSdkFlagsChecking();
-    const shouldInjectYield = getActivator().hasFlag(SdkFlags.OpenTelemetryHandleSignalInterceptorInsertYield);
+    const shouldInjectYield = hasSdkFlag('OpenTelemetryHandleSignalInterceptorInsertYield');
     const context = extractContextFromHeaders(input.headers);
     if (shouldInjectYield) await Promise.resolve();
     return await instrument({
@@ -111,8 +109,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     input: ActivityInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'scheduleActivity'>
   ): Promise<unknown> {
-    const { getActivator, SdkFlags } = getSdkFlagsChecking();
-    const shouldInjectYield = getActivator().hasFlag(SdkFlags.OpenTelemetryInterceptorInsertYield);
+    const shouldInjectYield = hasSdkFlag('OpenTelemetryInterceptorInsertYield');
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}${input.activityType}`,
@@ -131,8 +128,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     input: LocalActivityInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'scheduleLocalActivity'>
   ): Promise<unknown> {
-    const { getActivator, SdkFlags } = getSdkFlagsChecking();
-    const shouldInjectYield = getActivator().hasFlag(SdkFlags.OpenTelemetryScheduleLocalActivityInterceptorInsertYield);
+    const shouldInjectYield = hasSdkFlag('OpenTelemetryScheduleLocalActivityInterceptorInsertYield');
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}${input.activityType}`,
@@ -151,8 +147,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     input: StartChildWorkflowExecutionInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'startChildWorkflowExecution'>
   ): Promise<[Promise<string>, Promise<unknown>]> {
-    const { getActivator, SdkFlags } = getSdkFlagsChecking();
-    const shouldInjectYield = getActivator().hasFlag(SdkFlags.OpenTelemetryInterceptorInsertYield);
+    const shouldInjectYield = hasSdkFlag('OpenTelemetryInterceptorInsertYield');
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.CHILD_WORKFLOW_START}${SPAN_DELIMITER}${input.workflowType}`,
@@ -172,8 +167,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     next: Next<WorkflowOutboundCallsInterceptor, 'continueAsNew'>
   ): Promise<never> {
     const { ContinueAsNew } = getWorkflowModule();
-    const { getActivator, SdkFlags } = getSdkFlagsChecking();
-    const shouldInjectYield = getActivator().hasFlag(SdkFlags.OpenTelemetryInterceptorInsertYield);
+    const shouldInjectYield = hasSdkFlag('OpenTelemetryInterceptorInsertYield');
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}${input.options.workflowType}`,
@@ -193,8 +187,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     input: SignalWorkflowInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'signalWorkflow'>
   ): Promise<void> {
-    const { getActivator, SdkFlags } = getSdkFlagsChecking();
-    const shouldInjectYield = getActivator().hasFlag(SdkFlags.OpenTelemetryInterceptorInsertYield);
+    const shouldInjectYield = hasSdkFlag('OpenTelemetryInterceptorInsertYield');
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
