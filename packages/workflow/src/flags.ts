@@ -156,15 +156,13 @@ function isCompared(compare: SemVer, comparison: -1 | 0 | 1, missingDefault: boo
 function parseSemver(version: string): SemVer | undefined {
   const matches = version.match(/(\d+)\.(\d+)\.(\d+)/);
   if (!matches) return undefined;
-  const [full, major, minor, patch] = matches.map((digits) => {
+  const [_full, major, minor, patch] = matches.map((digits) => {
     try {
       return Number.parseInt(digits);
     } catch {
       return undefined;
     }
   });
-  if (major === undefined || minor === undefined || patch === undefined)
-    throw new Error(`full: ${full}, parts: ${major}.${minor}.${patch}`);
   if (major === undefined || minor === undefined || patch === undefined) return undefined;
   return {
     major,
