@@ -4,7 +4,8 @@
  */
 import type * as WorkflowModule from '@temporalio/workflow';
 import type { SdkFlags as SdkFlagsT } from '@temporalio/workflow/lib/flags';
-import type { getActivator as getActivatorT } from '@temporalio/workflow/lib/global-attributes';
+
+type SdkFlags = typeof SdkFlagsT;
 
 // @temporalio/workflow is an optional peer dependency.
 // It can be missing as long as the user isn't attempting to construct a workflow interceptor.
@@ -32,10 +33,17 @@ export function getWorkflowModule(): typeof WorkflowModule {
   return workflowModule!;
 }
 
-export function getSdkFlagsChecking(): { getActivator: typeof getActivatorT; SdkFlags: typeof SdkFlagsT } {
+/**
+ * Returns if an SDK flag was set
+ *
+ * Expects to be called only after `ensureWorkflowModuleLoaded`.
+ * Will throw if `@temporalio/workflow` is not available
+ */
+export function hasSdkFlag(flag: keyof SdkFlags): boolean {
   const { SdkFlags } = require('@temporalio/workflow/lib/flags');
   const { getActivator } = require('@temporalio/workflow/lib/global-attributes');
-  return { getActivator, SdkFlags };
+
+  return getActivator().hasFlag(SdkFlags[flag]);
 }
 
 /**
