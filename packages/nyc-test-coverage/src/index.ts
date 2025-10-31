@@ -12,7 +12,7 @@ export class WorkflowCoverage {
   // Check if running through nyc or some other Istanbul-based tool.
   // If not, any `workflowCoverage()` tools are a no-op.
   private hasCoverageGlobal() {
-    return '__coverage__' in global;
+    return coverage() !== undefined;
   }
 
   /**
@@ -206,4 +206,8 @@ export class WorkflowCoverage {
 
     global.__coverage__ = coverageMap.data;
   }
+}
+
+function coverage() {
+  return global.__coverage__ ?? global.__VITEST_COVERAGE__;
 }
