@@ -940,18 +940,18 @@ mod custom_slot_supplier {
         fn from(info: &'a CoreSlotInfo<'a>) -> Self {
             match info {
                 CoreSlotInfo::Workflow(info) => Self::Workflow {
-                    workflow_type: info.workflow_type.to_string(),
+                    workflow_type: info.workflow_type.clone(),
                     is_sticky: info.is_sticky,
                 },
                 CoreSlotInfo::Activity(info) => Self::Activity {
-                    activity_type: info.activity_type.to_string(),
+                    activity_type: info.activity_type.clone(),
                 },
                 CoreSlotInfo::LocalActivity(info) => Self::LocalActivity {
-                    activity_type: info.activity_type.to_string(),
+                    activity_type: info.activity_type.clone(),
                 },
                 CoreSlotInfo::Nexus(info) => Self::Nexus {
-                    service: info.service.to_string(),
-                    operation: info.operation.to_string(),
+                    service: info.service.clone(),
+                    operation: info.operation.clone(),
                 },
             }
         }
