@@ -9,6 +9,7 @@ use parking_lot::Mutex;
 
 use super::{BridgeError, BridgeResult, IntoThrow, TryFromJs, TryIntoJs};
 
+#[allow(clippy::doc_overindented_list_items)]
 /// Opaque Handles are native structures that are sent into the JS side but without exposing
 /// their internal structure; i.e. they are only meant to be passed back to the Rust side
 /// on appropriate API calls.
