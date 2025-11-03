@@ -2,9 +2,8 @@
 // eslint-disable-next-line import/no-unassigned-import
 import '@temporalio/ai-sdk/lib/load-polyfills';
 import { generateText, stepCountIs, tool } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
 import { z } from 'zod';
-import { TemporalProvider } from '@temporalio/ai-sdk';
+import { temporalProvider } from '@temporalio/ai-sdk';
 import { proxyActivities } from '@temporalio/workflow';
 import type * as activities from "../activities/ai-sdk";
 
@@ -12,20 +11,19 @@ const { getWeather } = proxyActivities<typeof activities>({
   startToCloseTimeout: "1 minute"
 })
 
-globalThis.AI_SDK_DEFAULT_PROVIDER = new TemporalProvider(createOpenAI({apiKey: "fake"}));
-
 export async function helloWorldAgent(prompt: string): Promise<string> {
   const result = await generateText({ 
-    model: "gpt-4o-mini", 
+    model: temporalProvider.languageModel("gpt-4o-mini"),
     prompt,
-    system: "You only respond in haikus."
+    system: "You only respond in haikus.",
+    providerOptions: {test: {name: "HelloWorkflow"}}
   });
   return result.text;
 }
 
 export async function toolsWorkflow(question: string): Promise<string> {
   const result = await generateText({
-    model: 'gpt-4o-mini',
+    model: temporalProvider.languageModel("gpt-4o-mini"),
     prompt: question,
     system: 'You are a helpful agent.',
     tools: {
@@ -37,8 +35,8 @@ export async function toolsWorkflow(question: string): Promise<string> {
         execute: getWeather,
       }),
     },
-    stopWhen: stepCountIs(5)
+    stopWhen: stepCountIs(5),
+    providerOptions: {test: {name: "ToolsWorkflow"}},
   });
-  console.log(result.finishReason)
   return result.text;
 }

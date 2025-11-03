@@ -255,7 +255,7 @@ exports.importInterceptors = function importInterceptors() {
       ignoreWarnings: [/Failed to parse source map/],
     };
 
-    const compiler = webpack(this.webpackConfigHook(options));
+    const compiler = webpack(this.webpackConfigHook(options))!;
 
     // Cast to any because the type declarations are inaccurate
     compiler.inputFileSystem = inputFilesystem as any;

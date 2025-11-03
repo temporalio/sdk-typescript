@@ -1,8 +1,9 @@
 /**
  * Test AI SDK integration with Temporal workflows
  */
+import { LanguageModelV2Content, LanguageModelV2FinishReason } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai'
-import { invokeModel, TemporalProvider, TestProvider } from '@temporalio/ai-sdk';
+import { AiSDKPlugin, ModelGenerator, ModelResponse, TestProvider } from '@temporalio/ai-sdk';
 import { temporal } from '@temporalio/proto';
 import { helloWorldAgent, toolsWorkflow } from './workflows/ai-sdk';
 import { helpers, makeTestFunction } from './helpers-integration';
@@ -11,26 +12,10 @@ import EventType = temporal.api.enums.v1.EventType;
 
 const remoteTests = !!process.env.AI_SDK_REMOTE_TESTS;
 
-function testContent(prompt: string): string {
-  switch (prompt) {
-    case "Tell me about recursion in programming.":
-      return "Test Haiku"
-    case "What is the weather in Tokyo?":
-      return "Test weather result"
-  }
-  throw new Error("Unrecognized model prompt")
-}
-
-const testProvider = new TestProvider(async prompt => {
-  const content = testContent(prompt)
+function contentResponse(content: LanguageModelV2Content[], finishReason: LanguageModelV2FinishReason = "stop"): ModelResponse {
   return {
-    content:[
-      {
-        type: "text",
-        text: content
-      }
-    ],
-    finishReason:"stop",
+    content,
+    finishReason,
     usage:{
       inputTokens:undefined,
       outputTokens:undefined,
@@ -38,9 +23,43 @@ const testProvider = new TestProvider(async prompt => {
     },
     warnings:[]
   }
-})
+}
 
-globalThis.AI_SDK_DEFAULT_PROVIDER = new TemporalProvider(remoteTests ? openai : testProvider)
+function textResponse(content: string): ModelResponse {
+  return contentResponse([
+      {
+        type: "text",
+        text: content
+      }
+    ])
+}
+
+function* helloWorkflowGenerator(): Generator<ModelResponse> {
+  yield textResponse("Test Haiku")
+}
+
+function* toolsWorkflowGenerator(): Generator<ModelResponse> {
+  yield contentResponse([
+      {
+        type: "tool-call",
+        toolCallId: "call_yY3nlDwH5BQSJo63qC61L4ZB",
+        toolName: "getWeather",
+        input: '{"location":"Tokyo"}',
+      },
+    ], "tool-calls");
+  yield textResponse("Test weather result");
+}
+
+function testGeneratorFactory(testName: string): Generator<ModelResponse> {
+  switch (testName) {
+    case "HelloWorkflow":
+      return helloWorkflowGenerator()
+    case "ToolsWorkflow":
+      return toolsWorkflowGenerator()
+  }
+  throw new Error("Unrecognized model prompt")
+}
+const testProvider = new TestProvider(new ModelGenerator(testGeneratorFactory));
 
 const test = makeTestFunction({
   workflowsPath: require.resolve("./workflows/ai-sdk"),
@@ -51,9 +70,7 @@ test('Hello world agent responds in haikus', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
-    activities: {
-      invokeModel,
-    },
+    plugins: [new AiSDKPlugin(remoteTests ? openai : testProvider)]
   });
 
   await worker.runUntil(async () => {
@@ -74,11 +91,10 @@ test('Tools workflow can use AI tools', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
 
   const worker = await createWorker({
+    plugins: [new AiSDKPlugin(remoteTests ? openai : testProvider)],
     activities: {
-      invokeModel,
       getWeather
     },
-    reuseV8Context: false
   });
   console.log("Reuse context: ", worker.options.reuseV8Context)
   await worker.runUntil(async () => {
@@ -88,13 +104,14 @@ test('Tools workflow can use AI tools', async (t) => {
     });
 
     const result = await handle.result();
-    
+
     t.assert(result);
     if (!remoteTests) {
       t.is("Test weather result", result);
       
       // Check that activities were scheduled
       const { events } = await handle.fetchHistory();
+      console.log("Events:", events);
       const activityCompletedEvents = events?.filter(e => 
         e.eventType === EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED
       ) ?? [];
