@@ -250,6 +250,8 @@ macro_rules! rpc_call {
 }
 
 // FIXME: "this function may allocate 1400106 bytes on the stack"
+#[allow(clippy::cognitive_complexity)]
+#[allow(clippy::large_stack_frames)]
 #[allow(clippy::too_many_lines)]
 async fn client_invoke_workflow_service(
     mut retry_client: CoreClient,
@@ -515,6 +517,7 @@ async fn client_invoke_workflow_service(
     }
 }
 
+#[allow(clippy::cognitive_complexity)]
 async fn client_invoke_operator_service(
     mut retry_client: CoreClient,
     call: RpcCall,
@@ -638,7 +641,7 @@ where
 {
     match res {
         Ok(resp) => Ok(resp.get_ref().encode_to_vec()),
-        Err(err) => Err(BridgeError::ServiceError(err)),
+        Err(err) => Err(BridgeError::from(err)),
     }
 }
 
@@ -752,6 +755,7 @@ mod config {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub(super) fn partition_headers(
         headers: Option<HashMap<String, MetadataValue>>,
     ) -> (

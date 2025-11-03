@@ -296,7 +296,7 @@ pub fn worker_complete_nexus_task(
             .complete_nexus_task(nexus_completion)
             .await
             .map_err(|err| match err {
-                CompleteNexusError::NexusNotEnabled {} => {
+                CompleteNexusError::NexusNotEnabled => {
                     BridgeError::UnexpectedError(format!("{err}"))
                 }
                 CompleteNexusError::MalformedNexusCompletion { reason } => BridgeError::TypeError {
@@ -309,7 +309,7 @@ pub fn worker_complete_nexus_task(
 
 /// Request shutdown of the worker.
 /// Once complete Core will stop polling on new tasks and activations on worker's task queue.
-/// Caller should drain any pending tasks and activations and call worker_finalize_shutdown before breaking from
+/// Caller should drain any pending tasks and activations and call `worker_finalize_shutdown` before breaking from
 /// the loop to ensure graceful shutdown.
 #[js_function]
 pub fn worker_initiate_shutdown(worker: OpaqueInboundHandle<Worker>) -> BridgeResult<()> {
@@ -817,7 +817,6 @@ mod custom_slot_supplier {
                     Err(err) => {
                         warn!("Error reserving slot: {err:?}");
                         tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-                        continue;
                     }
                 }
             }

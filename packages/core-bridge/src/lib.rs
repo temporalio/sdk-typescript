@@ -10,7 +10,8 @@
     clippy::too_long_first_doc_paragraph,
     clippy::option_if_let_else,
     clippy::multiple_crate_versions,
-    clippy::significant_drop_tightening
+    clippy::significant_drop_tightening,
+    clippy::upper_case_acronyms
 )]
 
 pub mod helpers;
