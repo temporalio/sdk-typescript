@@ -135,8 +135,9 @@ export interface ConnectionOptions {
    * List of plugins to register with the connection.
    *
    * Plugins allow you to configure the connection options.
-   *
    * Any plugins provided will also be passed to any client built from this connection.
+   *
+   * @experimental Plugins is an experimental feature; APIs may change without notice.
    */
   plugins?: ConnectionPlugin[];
 }

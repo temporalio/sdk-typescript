@@ -42,7 +42,6 @@ export * from './grpc-retry';
 export * from './interceptors';
 export * from './types';
 export * from './workflow-client';
-export { ClientPlugin } from './plugin';
 export * from './workflow-options';
 export * from './schedule-types';
 export * from './schedule-client';

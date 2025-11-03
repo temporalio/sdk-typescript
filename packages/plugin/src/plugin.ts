@@ -1,6 +1,6 @@
 import type * as nexus from 'nexus-rpc';
 import type { DataConverter } from '@temporalio/common';
-import {
+import type {
   ClientInterceptors,
   ClientOptions,
   ClientPlugin,
@@ -78,7 +78,7 @@ export class SimplePlugin
     };
   }
 
-  async runWorker(worker: Worker, next: (w: Worker) => Promise<void>): Promise<void> {
+  runWorker(worker: Worker, next: (w: Worker) => Promise<void>): Promise<void> {
     if (this.options.runContext !== undefined) {
       return this.options.runContext(() => next(worker));
     }
@@ -177,8 +177,8 @@ function resolveWorkerInterceptors(
   }));
 }
 
-// eslint-disable-next-line deprecation/deprecation
 function modernWorkflowInterceptors(
+// eslint-disable-next-line deprecation/deprecation
   interceptors: WorkflowClientInterceptors | WorkflowClientInterceptor[] | undefined
 ): WorkflowClientInterceptor[] | undefined {
   if (interceptors === undefined || Array.isArray(interceptors)) {

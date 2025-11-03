@@ -13,6 +13,12 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {},
+  "devDependencies": {
+    "@temporalio/common": "file:../common",
+    "@temporalio/client": "file:../client",
+    "@temporalio/worker": "file:../worker",
+    "nexus-rpc": "^0.0.1"
+  },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },

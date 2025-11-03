@@ -35,11 +35,11 @@ export {
 } from './runtime-options';
 export * from './sinks';
 export { DataConverter, defaultPayloadConverter, State, Worker, WorkerStatus } from './worker';
-export { WorkerPlugin } from './plugin';
 export {
   CompiledWorkerOptions,
   ReplayWorkerOptions,
   WorkerOptions,
+  WorkerPlugin,
   WorkflowBundle,
   WorkflowBundleOption,
   WorkflowBundlePath,

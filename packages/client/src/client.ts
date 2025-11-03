@@ -6,7 +6,6 @@ import { ScheduleClient } from './schedule-client';
 import { QueryRejectCondition, WorkflowService } from './types';
 import { WorkflowClient } from './workflow-client';
 import { TaskQueueClient } from './task-queue-client';
-import { ClientPlugin } from './plugin';
 
 export interface ClientOptions extends BaseClientOptions {
   /**
@@ -19,8 +18,10 @@ export interface ClientOptions extends BaseClientOptions {
   /**
    * List of plugins to register with the client.
    *
-   * Plugins allow you to extend and customize the behavior of Temporal clients through a chain of
-   * responsibility pattern. They can intercept and modify client creation.
+   * Plugins allow you to extend and customize the behavior of Temporal clients.
+   * They can intercept and modify client creation.
+   *
+   * @experimental Plugins is an experimental feature; APIs may change without notice.
    */
   plugins?: ClientPlugin[];
 
@@ -130,4 +131,24 @@ export class Client extends BaseClient {
   get workflowService(): WorkflowService {
     return this.connection.workflowService;
   }
+}
+
+/**
+ * Plugin to control the configuration of a native connection.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
+ */
+export interface ClientPlugin {
+  /**
+   * Gets the name of this plugin.
+   */
+  get name(): string;
+
+  /**
+   * Hook called when creating a client to allow modification of configuration.
+   *
+   * This method is called during client creation and allows plugins to modify
+   * the client configuration before the client is fully initialized.
+   */
+  configureClient?(options: Omit<ClientOptions, 'plugins'>): Omit<ClientOptions, 'plugins'>;
 }

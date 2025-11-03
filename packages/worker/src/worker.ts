@@ -91,6 +91,7 @@ import {
   ReplayWorkerOptions,
   toNativeWorkerOptions,
   WorkerOptions,
+  WorkerPlugin,
   WorkflowBundle,
 } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
@@ -109,7 +110,6 @@ import {
 } from './errors';
 import { constructNexusOperationContext, NexusHandler } from './nexus';
 import { handlerErrorToProto } from './nexus/conversions';
-import { WorkerPlugin } from './plugin';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -562,7 +562,7 @@ export class Worker {
       compiledOptionsWithBuildId,
       logger,
       metricMeter,
-      options.plugins || [],
+      options.plugins ?? [],
       connection
     );
   }
