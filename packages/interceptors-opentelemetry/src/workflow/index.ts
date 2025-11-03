@@ -52,7 +52,6 @@ function getTracer(): otel.Tracer {
  */
 export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInterceptor {
   protected readonly tracer = getTracer();
-  protected readonly maybeInjectYield = true;
 
   public constructor() {
     ensureWorkflowModuleLoaded();

@@ -52,7 +52,7 @@ export const SdkFlags = {
    *
    * This yield point was removed in 1.13.2, but in order to prevent workflows from the
    * affected versions resulting in NDE, we have to inject the yield point on replay.
-   * This flag should be enabled for SDK versions newer than 1.11.3 or older than 1.13.2.
+   * This flag should be enabled for SDK versions newer than 1.11.3 and older than 1.13.2.
    *
    * @since Introduced in 1.13.2.
    */
@@ -68,7 +68,7 @@ export const SdkFlags = {
    *
    * @since Introduced in 1.13.2
    */
-  OpenTelemetryInterceptorInsertYield: defineFlag(3, false, [isBefore({ major: 1, minor: 13, patch: 2 }, true)]),
+  OpenTelemetryInterceptorInsertYield: defineFlag(4, false, [isBefore({ major: 1, minor: 13, patch: 2 }, true)]),
   /**
    * In 1.11.6, the `scheduleLocalActivity` interceptor was added to
    * `@temporalio/interceptors-opentelemetry` which added a yield point to the
@@ -79,7 +79,7 @@ export const SdkFlags = {
    *
    * @since Introduced in 1.13.2
    */
-  OpenTelemetryScheduleLocalActivityInterceptorInsertYield: defineFlag(4, false, [
+  OpenTelemetryScheduleLocalActivityInterceptorInsertYield: defineFlag(5, false, [
     isBetween({ major: 1, minor: 11, patch: 5 }, { major: 1, minor: 13, patch: 2 }),
   ]),
 } as const;
