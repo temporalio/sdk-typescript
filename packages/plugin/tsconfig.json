@@ -4,10 +4,6 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [
-    { "path": "../client" },
-    { "path": "../common" },
-    { "path": "../worker" }
-  ],
+  "references": [{ "path": "../client" }, { "path": "../common" }, { "path": "../worker" }],
   "include": ["./src/**/*.ts"]
 }
