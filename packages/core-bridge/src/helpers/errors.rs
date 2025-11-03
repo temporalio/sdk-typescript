@@ -75,7 +75,7 @@ pub enum BridgeError {
     ///
     /// Becomes a JS `ServiceError` (adhering to the same interface as `grpc.ServiceError`).
     #[error(transparent)]
-    ServiceError(#[from] tonic::Status),
+    ServiceError(Box<tonic::Status>),
 
     /// Generic wrapper for other errors.
     ///
@@ -97,6 +97,12 @@ pub enum BridgeError {
     /// this error will always have a message of "Error thrown from JS".
     #[error("Error thrown from JS")]
     JsThrow { thrown: RefCell<Option<ThrowBox>> },
+}
+
+impl From<tonic::Status> for BridgeError {
+    fn from(value: tonic::Status) -> Self {
+        Self::ServiceError(Box::new(value))
+    }
 }
 
 // Append Field Context ////////////////////////////////////////////////////////////////////////////

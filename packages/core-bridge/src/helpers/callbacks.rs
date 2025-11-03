@@ -223,10 +223,10 @@ where
 
 impl<Args: TryIntoJsArgs + Send + Sync, Ret: TryFromJs + Send + Sync> CallbackInner<Args, Ret> {
     fn call<'a, C: Context<'a>>(&self, cx: &mut C, args: Args) -> BridgeResult<Ret> {
-        let this: Handle<'a, JsValue> = self
-            .this
-            .as_ref()
-            .map_or(cx.undefined().upcast(), |t| t.to_inner(cx).upcast());
+        let this: Handle<'a, JsValue> = match self.this.as_ref() {
+            Some(t) => t.to_inner(cx).upcast(),
+            None => cx.undefined().upcast(),
+        };
 
         // Convert the arguments to a JS array using the new trait
         let js_args = args.try_into_js_args(cx)?;

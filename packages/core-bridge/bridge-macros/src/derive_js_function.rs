@@ -18,6 +18,7 @@ pub fn js_function_impl(
     let args = &input.sig.inputs;
     let return_type = &input.sig.output; // Can we avoid in some cases?
     let fn_block = &input.block;
+    let attrs = &input.attrs;
 
     let fn_impl_name = format_ident!("{}_impl", fn_name);
 
@@ -75,6 +76,7 @@ pub fn js_function_impl(
             }
 
             // Implementation function
+            #(#attrs)*
             #[allow(clippy::unnecessary_wraps)]
             #vis fn #fn_impl_name #generics() -> #result_return_type {
                 #fn_block
@@ -95,6 +97,7 @@ pub fn js_function_impl(
             }
 
             // Implementation function
+            #(#attrs)*
             #[allow(clippy::unnecessary_wraps)]
             #vis fn #fn_impl_name #generics(#(#impl_args),*) -> #result_return_type {
                 #fn_block
