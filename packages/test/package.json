@@ -24,6 +24,7 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
+    "@ai-sdk/openai": "^2.0.28",
     "@grpc/grpc-js": "^1.12.4",
     "@grpc/proto-loader": "^0.7.10",
     "@opentelemetry/api": "^1.7.0",
@@ -33,6 +34,7 @@
     "@opentelemetry/sdk-trace-base": "^1.19.0",
     "@opentelemetry/semantic-conventions": "^1.19.0",
     "@temporalio/activity": "file:../activity",
+    "@temporalio/ai-sdk": "file:../ai-sdk",
     "@temporalio/client": "file:../client",
     "@temporalio/cloud": "file:../cloud",
     "@temporalio/common": "file:../common",
@@ -46,6 +48,7 @@
     "@temporalio/testing": "file:../testing",
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow",
+    "ai": "^5.0.45",
     "arg": "^5.0.2",
     "async-retry": "^1.3.3",
     "ava": "^5.3.1",
@@ -60,7 +63,8 @@
     "protobufjs-cli": "^1.1.2",
     "rxjs": "7.8.1",
     "stack-utils": "^2.0.6",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/async-retry": "^1.4.8",
