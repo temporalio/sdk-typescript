@@ -68,6 +68,8 @@ export interface NativeConnectionOptions {
    * Plugins allow you to configure the native connection options.
    *
    * Any plugins provided will also be passed to any Worker, Client, or Bundler built from this connection.
+   *
+   * @experimental Plugins is an experimental feature; APIs may change without notice.
    */
   plugins?: NativeConnectionPlugin[];
 }

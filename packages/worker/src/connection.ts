@@ -360,6 +360,8 @@ function tagMetadata(metadata: Metadata): Record<string, native.MetadataValue> {
 
 /**
  * Plugin to control the configuration of a native connection.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
 export interface NativeConnectionPlugin {
   /**

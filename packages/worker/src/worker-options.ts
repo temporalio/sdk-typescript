@@ -492,6 +492,8 @@ export interface WorkerOptions {
    * worker settings before the worker is fully initialized.
    *
    * Any plugins provided will also be passed to the bundler if used.
+   *
+   * @experimental Plugins is an experimental feature; APIs may change without notice.
    */
   plugins?: WorkerPlugin[];
 

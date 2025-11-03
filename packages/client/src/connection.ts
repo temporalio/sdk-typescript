@@ -711,6 +711,8 @@ export class Connection {
 
 /**
  * Plugin to control the configuration of a connection.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
 export interface ConnectionPlugin {
   /**

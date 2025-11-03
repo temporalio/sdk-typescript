@@ -26,12 +26,16 @@ import type {
 /**
  * A parameter that can be either a direct value or a function that transforms an existing value.
  * @template T The type of the parameter
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
 type PluginParameter<T> = T | ((p: T | undefined) => T);
 
 /**
  * Configuration options for SimplePlugin.
  * Each option can be either a direct value or a function that transforms existing configuration.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
 export interface SimplePluginOptions {
   /** The name of the plugin */
@@ -62,6 +66,8 @@ export interface SimplePluginOptions {
  * A unified plugin that implements multiple Temporal plugin interfaces.
  * Provides a simple way to configure clients, workers, bundlers, and connections
  * with consistent parameter resolution and merging strategies.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
 export class SimplePlugin
   implements WorkerPlugin, ClientPlugin, BundlerPlugin, ConnectionPlugin, NativeConnectionPlugin
