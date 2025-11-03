@@ -23,31 +23,65 @@ import type {
   TLSConfig,
 } from '@temporalio/worker';
 
+/**
+ * A parameter that can be either a direct value or a function that transforms an existing value.
+ * @template T The type of the parameter
+ */
 type PluginParameter<T> = T | ((p: T | undefined) => T);
 
+/**
+ * Configuration options for SimplePlugin.
+ * Each option can be either a direct value or a function that transforms existing configuration.
+ */
 export interface SimplePluginOptions {
+  /** The name of the plugin */
   readonly name: string;
+  /** TLS configuration for connections */
   readonly tls?: PluginParameter<TLSConfig | boolean | null>;
+  /** API key for authentication */
   readonly apiKey?: PluginParameter<string>;
+  /** Data converter for serialization/deserialization */
   readonly dataConverter?: PluginParameter<DataConverter>;
+  /** Client-side interceptors */
   readonly clientInterceptors?: PluginParameter<ClientInterceptors>;
+  /** Activities to register with the worker */
   readonly activities?: PluginParameter<object>;
+  /** Nexus service handlers */
   readonly nexusServices?: PluginParameter<nexus.ServiceHandler<any>[]>;
+  /** Path to workflow files */
   readonly workflowsPath?: PluginParameter<string>;
+  /** Workflow bundle configuration */
   readonly workflowBundle?: PluginParameter<WorkflowBundleOption>;
+  /** Worker-side interceptors */
   readonly workerInterceptors?: PluginParameter<WorkerInterceptors>;
+  /** Context function to wrap worker execution */
   readonly runContext?: (next: () => Promise<void>) => Promise<void>;
 }
 
+/**
+ * A unified plugin that implements multiple Temporal plugin interfaces.
+ * Provides a simple way to configure clients, workers, bundlers, and connections
+ * with consistent parameter resolution and merging strategies.
+ */
 export class SimplePlugin
   implements WorkerPlugin, ClientPlugin, BundlerPlugin, ConnectionPlugin, NativeConnectionPlugin
 {
+  /** The name of the plugin */
   readonly name: string;
 
+  /**
+   * Creates a new SimplePlugin instance.
+   * @param options Configuration options for the plugin
+   */
   constructor(protected readonly options: SimplePluginOptions) {
     this.name = options.name;
   }
 
+  /**
+   * Configures client options by merging plugin parameters with existing options.
+   * @param options The existing client options
+   * @returns Modified client options with plugin configuration applied
+   */
   configureClient(options: ClientOptions): ClientOptions {
     return {
       ...options,
@@ -56,6 +90,12 @@ export class SimplePlugin
     };
   }
 
+  /**
+   * Configures worker options by merging plugin parameters with existing options.
+   * Activities and nexus services are appended, while other options are replaced.
+   * @param options The existing worker options
+   * @returns Modified worker options with plugin configuration applied
+   */
   configureWorker(options: WorkerOptions): WorkerOptions {
     return {
       ...options,
@@ -68,6 +108,11 @@ export class SimplePlugin
     };
   }
 
+  /**
+   * Configures replay worker options by merging plugin parameters with existing options.
+   * @param options The existing replay worker options
+   * @returns Modified replay worker options with plugin configuration applied
+   */
   configureReplayWorker(options: ReplayWorkerOptions): ReplayWorkerOptions {
     return {
       ...options,
@@ -78,6 +123,12 @@ export class SimplePlugin
     };
   }
 
+  /**
+   * Runs the worker, optionally wrapping execution in a custom context.
+   * @param worker The worker instance to run
+   * @param next Function to continue worker execution
+   * @returns Promise that resolves when worker execution completes
+   */
   runWorker(worker: Worker, next: (w: Worker) => Promise<void>): Promise<void> {
     if (this.options.runContext !== undefined) {
       return this.options.runContext(() => next(worker));
@@ -85,6 +136,11 @@ export class SimplePlugin
     return next(worker);
   }
 
+  /**
+   * Configures bundler options by merging plugin parameters with existing options.
+   * @param options The existing bundle options
+   * @returns Modified bundle options with plugin configuration applied
+   */
   configureBundler(options: BundleOptions): BundleOptions {
     return {
       ...options,
@@ -92,6 +148,12 @@ export class SimplePlugin
     };
   }
 
+  /**
+   * Configures connection options by merging plugin parameters with existing options.
+   * Special handling for function-based API keys.
+   * @param options The existing connection options
+   * @returns Modified connection options with plugin configuration applied
+   */
   configureConnection(options: ConnectionOptions): ConnectionOptions {
     const apiKey = typeof options.apiKey === 'function' ? options.apiKey : undefined;
     return {
@@ -101,6 +163,11 @@ export class SimplePlugin
     };
   }
 
+  /**
+   * Configures native connection options by merging plugin parameters with existing options.
+   * @param options The existing native connection options
+   * @returns Modified native connection options with plugin configuration applied
+   */
   configureNativeConnection(options: NativeConnectionOptions): NativeConnectionOptions {
     return {
       ...options,
