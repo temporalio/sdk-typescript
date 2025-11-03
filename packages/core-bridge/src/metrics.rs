@@ -235,7 +235,10 @@ pub fn new_metric_gauge_f64(
     Ok(OpaqueOutboundHandle::new(GaugeF64 { meter, gauge }))
 }
 
+// We do not need to worry about losing the sign of `value` as JS verifies this is positive
+// It is understood that if passing in a float to a counter the value will be truncated
 #[js_function]
+#[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 pub fn add_metric_counter_value(
     counter_handle: OpaqueInboundHandle<Counter>,
     value: f64,
