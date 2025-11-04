@@ -91,6 +91,9 @@ export class TestWorkflowEnvironment {
     connection: Connection,
     nativeConnection: NativeConnection,
     namespace: string | undefined,
+    /**
+     * Address used when constructing `connection` and `nativeConnection`
+     */
     public readonly address: string
   ) {
     this.connection = connection;

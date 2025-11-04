@@ -295,7 +295,7 @@ pub fn worker_complete_nexus_task(
             .complete_nexus_task(nexus_completion)
             .await
             .map_err(|err| match err {
-                CompleteNexusError::NexusNotEnabled {} => {
+                CompleteNexusError::NexusNotEnabled => {
                     BridgeError::UnexpectedError(format!("{err}"))
                 }
                 CompleteNexusError::MalformedNexusCompletion { reason } => BridgeError::TypeError {
@@ -308,7 +308,7 @@ pub fn worker_complete_nexus_task(
 
 /// Request shutdown of the worker.
 /// Once complete Core will stop polling on new tasks and activations on worker's task queue.
-/// Caller should drain any pending tasks and activations and call worker_finalize_shutdown before breaking from
+/// Caller should drain any pending tasks and activations and call `worker_finalize_shutdown` before breaking from
 /// the loop to ensure graceful shutdown.
 #[js_function]
 pub fn worker_initiate_shutdown(worker: OpaqueInboundHandle<Worker>) -> BridgeResult<()> {
@@ -814,7 +814,6 @@ mod custom_slot_supplier {
                     Err(err) => {
                         warn!("Error reserving slot: {err:?}");
                         tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-                        continue;
                     }
                 }
             }
@@ -938,18 +937,18 @@ mod custom_slot_supplier {
         fn from(info: &'a CoreSlotInfo<'a>) -> Self {
             match info {
                 CoreSlotInfo::Workflow(info) => Self::Workflow {
-                    workflow_type: info.workflow_type.to_string(),
+                    workflow_type: info.workflow_type.clone(),
                     is_sticky: info.is_sticky,
                 },
                 CoreSlotInfo::Activity(info) => Self::Activity {
-                    activity_type: info.activity_type.to_string(),
+                    activity_type: info.activity_type.clone(),
                 },
                 CoreSlotInfo::LocalActivity(info) => Self::LocalActivity {
-                    activity_type: info.activity_type.to_string(),
+                    activity_type: info.activity_type.clone(),
                 },
                 CoreSlotInfo::Nexus(info) => Self::Nexus {
-                    service: info.service.to_string(),
-                    operation: info.operation.to_string(),
+                    service: info.service.clone(),
+                    operation: info.operation.clone(),
                 },
             }
         }

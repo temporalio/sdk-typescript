@@ -577,8 +577,6 @@ export type PollerBehavior = PollerBehaviorSimpleMaximum | PollerBehaviorAutosca
 /**
  * A poller behavior that will automatically scale the number of pollers based on feedback
  * from the server. A slot must be available before beginning polling.
- *
- * @experimental Poller autoscaling is currently experimental and may change in future versions.
  */
 export interface PollerBehaviorAutoscaling {
   type: 'autoscaling';
