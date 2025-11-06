@@ -315,6 +315,13 @@ exports.importInterceptors = function importInterceptors() {
   }
 }
 
+/**
+ * Plugin interface for bundler functionality.
+ *
+ * Plugins provide a way to extend and customize the behavior of Temporal bundlers.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
+ */
 export interface BundlerPlugin {
   /**
    * Gets the name of this plugin.

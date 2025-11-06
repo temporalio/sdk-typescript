@@ -1173,7 +1173,7 @@ export interface WorkerPlugin {
    *
    * This method is called during worker creation and allows plugins to modify
    * the worker configuration before the worker is fully initialized. Plugins
-   * can add activities, workflows, interceptors, or change other settings.
+   * can add workflows, interceptors, or change other settings.
    */
   configureReplayWorker?(options: ReplayWorkerOptions): ReplayWorkerOptions;
 

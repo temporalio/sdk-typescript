@@ -1988,8 +1988,10 @@ export class Worker {
     let runWorker = (w: Worker) => w.runInternal();
     for (let i = this.plugins.length - 1; i >= 0; --i) {
       const rw = runWorker;
-      const plugin = this.plugins[i];
-      runWorker = (w: Worker) => plugin.runWorker?.(w, rw) ?? rw(w);
+      const pluginRun = this.plugins[i].runWorker;
+      if (pluginRun !== undefined) {
+        runWorker = (w: Worker) => pluginRun(w, rw);
+      }
     }
     return runWorker(this);
   }

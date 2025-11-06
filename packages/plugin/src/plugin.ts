@@ -44,19 +44,20 @@ export interface SimplePluginOptions {
   readonly tls?: PluginParameter<TLSConfig | boolean | null>;
   /** API key for authentication */
   readonly apiKey?: PluginParameter<string>;
-  /** Data converter for serialization/deserialization */
+  /** Data converter for serialization/deserialization. When a value is provided, existing fields will override
+   * those in the existing data converter. */
   readonly dataConverter?: PluginParameter<DataConverter>;
-  /** Client-side interceptors */
+  /** Client-side interceptors. When a value is provided, interceptors will be appended */
   readonly clientInterceptors?: PluginParameter<ClientInterceptors>;
-  /** Activities to register with the worker */
+  /** Activities to register with the worker. When a value is provided, activities will be appended */
   readonly activities?: PluginParameter<object>;
-  /** Nexus service handlers */
+  /** Nexus service handlers. When a value is provided, services will be appended */
   readonly nexusServices?: PluginParameter<nexus.ServiceHandler<any>[]>;
   /** Path to workflow files */
   readonly workflowsPath?: PluginParameter<string>;
   /** Workflow bundle configuration */
   readonly workflowBundle?: PluginParameter<WorkflowBundleOption>;
-  /** Worker-side interceptors */
+  /** Worker-side interceptors. When a value is provided, interceptors will be appended  */
   readonly workerInterceptors?: PluginParameter<WorkerInterceptors>;
   /** Context function to wrap worker execution */
   readonly runContext?: (next: () => Promise<void>) => Promise<void>;
@@ -91,7 +92,7 @@ export class SimplePlugin
   configureClient(options: ClientOptions): ClientOptions {
     return {
       ...options,
-      dataConverter: resolveParameter(options.dataConverter, this.options.dataConverter),
+      dataConverter: resolveDataConverter(options.dataConverter, this.options.dataConverter),
       interceptors: resolveClientInterceptors(options.interceptors, this.options.clientInterceptors),
     };
   }
@@ -105,7 +106,7 @@ export class SimplePlugin
   configureWorker(options: WorkerOptions): WorkerOptions {
     return {
       ...options,
-      dataConverter: resolveParameter(options.dataConverter, this.options.dataConverter),
+      dataConverter: resolveDataConverter(options.dataConverter, this.options.dataConverter),
       activities: resolveAppendObjectParameter(options.activities, this.options.activities),
       nexusServices: resolveAppendParameter(options.nexusServices, this.options.nexusServices),
       workflowsPath: resolveParameter(options.workflowsPath, this.options.workflowsPath),
@@ -122,7 +123,7 @@ export class SimplePlugin
   configureReplayWorker(options: ReplayWorkerOptions): ReplayWorkerOptions {
     return {
       ...options,
-      dataConverter: resolveParameter(options.dataConverter, this.options.dataConverter),
+      dataConverter: resolveDataConverter(options.dataConverter, this.options.dataConverter),
       workflowsPath: resolveParameter(options.workflowsPath, this.options.workflowsPath),
       workflowBundle: resolveParameter(options.workflowBundle, this.options.workflowBundle),
       interceptors: resolveWorkerInterceptors(options.interceptors, this.options.workerInterceptors),
@@ -223,6 +224,16 @@ function resolveAppendObjectParameter(existing?: object, parameter?: PluginParam
     return existing;
   }
   return resolveParameterWithResolution(existing ?? {}, parameter, (existing, param) => ({ ...existing, ...param }));
+}
+
+function resolveDataConverter(
+  existing?: DataConverter,
+  parameter?: PluginParameter<DataConverter>,
+): DataConverter | undefined {
+  return resolveParameterWithResolution(existing, parameter, (existing, parameter) => ({
+    ...existing,
+    ...parameter
+  }));
 }
 
 function resolveClientInterceptors(
