@@ -117,7 +117,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
       spanName: `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}${input.activityType}`,
       fn: async () => {
         const headers = headersWithContext(input.headers);
-        if (!hasSdkFlag('OpenTelemetryInterceptorsAvoidsExtraYields')) await Promise.resolve();
+        if (!hasSdkFlag('OpenTelemetryInterceporsAvoidsExtraYields')) await Promise.resolve();
 
         return next({
           ...input,
@@ -139,7 +139,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
       spanName: `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}${input.activityType}`,
       fn: async () => {
         const headers = headersWithContext(input.headers);
-        if (!hasSdkFlag('OpenTelemetryInterceptorsAvoidsExtraYields')) await Promise.resolve();
+        if (!hasSdkFlag('OpenTelemetryInterceporsAvoidsExtraYields')) await Promise.resolve();
 
         return next({
           ...input,
@@ -158,7 +158,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
       spanName: `${SpanName.CHILD_WORKFLOW_START}${SPAN_DELIMITER}${input.workflowType}`,
       fn: async () => {
         const headers = headersWithContext(input.headers);
-        if (!hasSdkFlag('OpenTelemetryInterceptorsAvoidsExtraYields')) await Promise.resolve();
+        if (!hasSdkFlag('OpenTelemetryInterceporsAvoidsExtraYields')) await Promise.resolve();
 
         return next({
           ...input,
@@ -178,7 +178,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
       spanName: `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}${input.options.workflowType}`,
       fn: async () => {
         const headers = headersWithContext(input.headers);
-        if (!hasSdkFlag('OpenTelemetryInterceptorsAvoidsExtraYields')) await Promise.resolve();
+        if (!hasSdkFlag('OpenTelemetryInterceporsAvoidsExtraYields')) await Promise.resolve();
 
         return next({
           ...input,
@@ -198,7 +198,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
       spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
       fn: async () => {
         const headers = headersWithContext(input.headers);
-        if (!hasSdkFlag('OpenTelemetryInterceptorsAvoidsExtraYields')) await Promise.resolve();
+        if (!hasSdkFlag('OpenTelemetryInterceporsAvoidsExtraYields')) await Promise.resolve();
 
         return next({
           ...input,
