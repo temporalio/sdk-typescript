@@ -7,10 +7,9 @@ import { native, errors } from '@temporalio/core-bridge';
 //
 // - Tests in this file requires an external Temporal server to be running, because using the ephemeral
 //   server support provided by Core SDK would affect the behavior that we're testing here.
-// - Tests in this file can't be run in parallel, since the bridge is mostly a singleton.
 // - Some of these tests explicitly use the native bridge, without going through the lang side Runtime/Worker.
 
-test('Can instantiate and shutdown the native runtime', async (t) => {
+test.serial('Can instantiate and shutdown the native runtime', async (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
   t.is(typeof runtime, 'object');
   native.runtimeShutdown(runtime);
@@ -29,7 +28,7 @@ test('Can instantiate and shutdown the native runtime', async (t) => {
   });
 });
 
-test('Can run multiple runtime concurrently', async (t) => {
+test.serial('Can run multiple runtime concurrently', async (t) => {
   const runtime1 = native.newRuntime(GenericConfigs.runtime.basic);
   const runtime2 = native.newRuntime(GenericConfigs.runtime.basic);
   const runtime3 = native.newRuntime(GenericConfigs.runtime.basic);
@@ -54,7 +53,7 @@ test('Can run multiple runtime concurrently', async (t) => {
   t.pass();
 });
 
-test('Missing/invalid properties in config throws appropriately', async (t) => {
+test.serial('Missing/invalid properties in config throws appropriately', async (t) => {
   // required string = undefined ==> missing property
   t.throws(
     () =>
@@ -123,7 +122,7 @@ test('Missing/invalid properties in config throws appropriately', async (t) => {
   );
 });
 
-test(`get_time_of_day() returns a bigint`, async (t) => {
+test.serial(`get_time_of_day() returns a bigint`, async (t) => {
   const time_1 = native.getTimeOfDay();
   const time_2 = native.getTimeOfDay();
   await setTimeout(100);
@@ -136,18 +135,18 @@ test(`get_time_of_day() returns a bigint`, async (t) => {
   t.true(time_2 + 40_000_000n < time_3);
 });
 
-test("Creating Runtime without shutting it down doesn't hang process", (t) => {
+test.serial("Creating Runtime without shutting it down doesn't hang process", (t) => {
   const _runtime = native.newRuntime(GenericConfigs.runtime.basic);
   t.pass();
 });
 
-test("Dropping Client without closing doesn't hang process", (t) => {
+test.serial("Dropping Client without closing doesn't hang process", (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
   const _client = native.newClient(runtime, GenericConfigs.client.basic);
   t.pass();
 });
 
-test("Dropping Worker without shutting it down doesn't hang process", async (t) => {
+test.serial("Dropping Worker without shutting it down doesn't hang process", async (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
   const client = await native.newClient(runtime, GenericConfigs.client.basic);
   const worker = native.newWorker(client, GenericConfigs.worker.basic);
@@ -156,13 +155,13 @@ test("Dropping Worker without shutting it down doesn't hang process", async (t) 
 });
 
 // FIXME(JWH): This is causing hangs on shutdown on Windows.
-test("Dropping EphemeralServer without shutting it down doesn't hang process", async (t) => {
+test.serial("Dropping EphemeralServer without shutting it down doesn't hang process", async (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
   const _ephemeralServer = await native.newEphemeralServer(runtime, GenericConfigs.ephemeralServer.basic);
   t.pass();
 });
 
-test("Stopping Worker after creating another runtime doesn't fail", async (t) => {
+test.serial("Stopping Worker after creating another runtime doesn't fail", async (t) => {
   async function expectShutdownError(taskPromise: Promise<Buffer>) {
     await t.throwsAsync(taskPromise, {
       instanceOf: errors.ShutdownError,
