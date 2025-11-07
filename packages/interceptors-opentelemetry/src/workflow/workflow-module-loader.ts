@@ -40,10 +40,9 @@ export function getWorkflowModule(): typeof WorkflowModule {
  * Will throw if `@temporalio/workflow` is not available
  */
 export function hasSdkFlag(flag: keyof SdkFlags): boolean {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { SdkFlags } = require('@temporalio/workflow/lib/flags');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getActivator } = require('@temporalio/workflow/lib/global-attributes');
+  const { SdkFlags } = require('@temporalio/workflow/lib/flags') as typeof import('@temporalio/workflow/lib/flags'); // eslint-disable-line @typescript-eslint/no-require-imports
+  const { getActivator } =
+    require('@temporalio/workflow/lib/global-attributes') as typeof import('@temporalio/workflow/lib/global-attributes'); // eslint-disable-line @typescript-eslint/no-require-imports
 
   return getActivator().hasFlag(SdkFlags[flag]);
 }

@@ -78,9 +78,13 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     input: SignalInput,
     next: Next<WorkflowInboundCallsInterceptor, 'handleSignal'>
   ): Promise<void> {
-    const shouldInjectYield = hasSdkFlag('OpenTelemetryHandleSignalInterceptorInsertYield');
+    // Tracing of inbound signals was added in v1.11.5.
+    if (!hasSdkFlag('OpenTelemetryInterceptorsTracesInboundSignals')) return next(input);
+
+    const shouldInjectYield = hasSdkFlag('OpenTelemetryInterceporsAvoidsExtraYields');
     const context = extractContextFromHeaders(input.headers);
     if (shouldInjectYield) await Promise.resolve();
+
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
