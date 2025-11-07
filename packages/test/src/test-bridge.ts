@@ -173,36 +173,44 @@ test("Stopping Worker after creating another runtime doesn't fail", async (t) =>
   const runtime1 = native.newRuntime(GenericConfigs.runtime.basic);
 
   // Starts Worker 0
+  console.log('Starting Worker 0');
   const client0 = await native.newClient(runtime0, GenericConfigs.client.basic);
   const worker0 = native.newWorker(client0, GenericConfigs.worker.basic);
   await native.workerValidate(worker0);
 
   // Start Worker 1
+  console.log('Starting Worker 1');
   const client1 = await native.newClient(runtime1, GenericConfigs.client.basic);
   const worker1 = native.newWorker(client1, GenericConfigs.worker.basic);
   await native.workerValidate(worker1);
 
   // Start polling on Worker 1 (note reverse order of Worker 0)
+  console.log('Starting polling on Worker 1');
   const wftPromise1 = native.workerPollWorkflowActivation(worker1);
   const atPromise1 = native.workerPollActivityTask(worker1);
 
   // Start polling on Worker 0
+  console.log('Starting polling on Worker 0');
   const wftPromise0 = native.workerPollWorkflowActivation(worker0);
   const atPromise0 = native.workerPollActivityTask(worker0);
 
   // Cleanly shutdown Worker 1
+  console.log('Shutting down Worker 1');
   native.workerInitiateShutdown(worker1);
   await expectShutdownError(wftPromise1);
   await expectShutdownError(atPromise1);
   await native.workerFinalizeShutdown(worker1);
   // Leave Client 1 and Runtime 1 alive
+  console.log('Leave Client 1 and Runtime 1 alive');
 
   // Create Runtime 2 and Worker 2, but don't immediately use them
+  console.log('Creating Worker 2');
   const runtime2 = native.newRuntime(GenericConfigs.runtime.basic);
   const client2 = await native.newClient(runtime2, GenericConfigs.client.basic);
   const worker2 = native.newWorker(client2, GenericConfigs.worker.basic);
 
   // Cleanly shutdown Worker 0
+  console.log('Shutting down Worker 0');
   native.workerInitiateShutdown(worker0);
   await expectShutdownError(wftPromise0);
   await expectShutdownError(atPromise0);
@@ -211,9 +219,11 @@ test("Stopping Worker after creating another runtime doesn't fail", async (t) =>
   native.runtimeShutdown(runtime0);
 
   // Start yet another runtime, we really won't use it
+  console.log("Start yet another runtime, we really won't use it");
   const _runtime3 = native.newRuntime(GenericConfigs.runtime.basic);
 
   // Start polling on Worker 2, then shut it down cleanly
+  console.log('Starting polling on Worker 2');
   await native.workerValidate(worker2);
   const wftPromise2 = native.workerPollWorkflowActivation(worker2); // TODO: failing here
   const atPromise2 = native.workerPollActivityTask(worker2);
@@ -223,6 +233,7 @@ test("Stopping Worker after creating another runtime doesn't fail", async (t) =>
   await native.workerFinalizeShutdown(worker2);
   native.clientClose(client2);
   native.runtimeShutdown(runtime2);
+  console.log('t.pass()');
 
   t.pass();
 });

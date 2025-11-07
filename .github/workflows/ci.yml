@@ -111,7 +111,7 @@ jobs:
   # Run integration tests.
   # Uses the native binaries built in compile-native-binaries, but build `@temporalio/*` packages locally.
   integration-tests:
-    timeout-minutes: 20
+    timeout-minutes: 5
     needs:
       - compile-native-binaries-debug
     strategy:

@@ -58,20 +58,29 @@ if (RUN_INTEGRATION_TESTS) {
     const logger = new DefaultLogger('TRACE');
     Runtime.install({ logger });
     {
+      console.log('Runtime.instance().options.logger', Runtime.instance().options.logger);
       const runtime = Runtime.instance();
       t.is(runtime.options.logger, logger);
+      console.log("1.0");
     }
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue: 'q1', // Same as the first Worker created
     });
+    console.log("1.1");
     const workerDrained = worker.run();
+    console.log("1.2");
     worker.shutdown();
+    console.log("1.3");
     await workerDrained;
     {
+      console.log("1.4");
       const runtime = Runtime.instance();
+      console.log("1.5");
       t.is(runtime.options.logger, logger);
+      console.log("1.6");
       await runtime.shutdown();
+      console.log("1.7");
     }
   });
 
