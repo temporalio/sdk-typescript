@@ -57,9 +57,7 @@ export const SdkFlags = {
    *
    * @since Introduced in 1.13.2.
    */
-  OpenTelemetryInterceptorsTracesInboundSignals: defineFlag(3, false, [
-    isBetween({ major: 1, minor: 11, patch: 5 }, { major: 1, minor: 13, patch: 2 }),
-  ]),
+  OpenTelemetryInterceptorsTracesInboundSignals: defineFlag(3, false, [isAtLeast({ major: 1, minor: 11, patch: 5 })]),
 
   /**
    * In 1.11.6, the `scheduleLocalActivity` interceptor was added to
@@ -71,9 +69,7 @@ export const SdkFlags = {
    *
    * @since Introduced in 1.13.2
    */
-  OpenTelemetryScheduleLocalActivityInterceptorInsertYield: defineFlag(4, false, [
-    isBetween({ major: 1, minor: 11, patch: 5 }, { major: 1, minor: 13, patch: 2 }),
-  ]),
+  OpenTelemetryInterceptorsTracesLocalActivities: defineFlag(4, false, [isAtLeast({ major: 1, minor: 11, patch: 6 })]),
 
   /**
    * The interceptors provided by @temporalio/interceptors-opentelemetry initially had unnecessary
@@ -85,7 +81,7 @@ export const SdkFlags = {
    *
    * @since Introduced in 1.13.2
    */
-  OpenTelemetryInterceptorInsertYield: defineFlag(5, false, [isBefore({ major: 1, minor: 13, patch: 2 }, true)]),
+  OpenTelemetryInterceporsAvoidsExtraYields: defineFlag(5, true, [isAtLeast({ major: 1, minor: 13, patch: 2 })]),
 } as const;
 
 function defineFlag(id: number, def: boolean, alternativeConditions?: AltConditionFn[]): SdkFlag {
