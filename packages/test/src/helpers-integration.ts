@@ -49,6 +49,8 @@ const defaultDynamicConfigOptions = [
   'system.forceSearchAttributesCacheRefreshOnRead=true',
   'worker.buildIdScavengerEnabled=true',
   'worker.removableBuildIdDurationSinceDefault=1',
+  'frontend.WorkerHeartbeatsEnabled=true',
+  'frontend.ListWorkersEnabled=true',
 ];
 
 function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }, runtimeOpts?: Partial<RuntimeOptions>) {

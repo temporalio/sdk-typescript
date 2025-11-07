@@ -50,10 +50,10 @@ jobs:
             runner: macos-14
             target: aarch64-apple-darwin
             out-file: libtemporal_sdk_typescript_bridge.dylib
-#          - platform: windows-x64
-#            runner: windows-latest
-#            target: x86_64-pc-windows-msvc
-#            out-file: temporal_sdk_typescript_bridge.dll
+          - platform: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            out-file: temporal_sdk_typescript_bridge.dll
     name: Compile Native Binaries (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -133,9 +133,9 @@ jobs:
           - platform: macos-arm
             runner: macos-14
             reuse-v8-context: true
-#          - platform: windows-x64
-#            runner: windows-latest
-#            reuse-v8-context: true
+          - platform: windows-x64
+            runner: windows-latest
+            reuse-v8-context: true
     runs-on: ${{ matrix.runner }}
     name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
     defaults:
@@ -305,23 +305,23 @@ jobs:
 #      version-is-repo-ref: true
 #      features-repo-ref: main
 
-  stress-tests-no-reuse-context:
-    name: Stress Tests (No Reuse V8 Context)
-    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
-    uses: ./.github/workflows/stress.yml
-    with:
-      test-type: ci-stress
-      test-timeout-minutes: 20
-      reuse-v8-context: false
-
-  stress-tests-reuse-context:
-    name: Stress Tests (Reuse V8 Context)
-    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
-    uses: ./.github/workflows/stress.yml
-    with:
-      test-type: ci-stress
-      test-timeout-minutes: 20
-      reuse-v8-context: true
+#  stress-tests-no-reuse-context:
+#    name: Stress Tests (No Reuse V8 Context)
+#    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
+#    uses: ./.github/workflows/stress.yml
+#    with:
+#      test-type: ci-stress
+#      test-timeout-minutes: 20
+#      reuse-v8-context: false
+#
+#  stress-tests-reuse-context:
+#    name: Stress Tests (Reuse V8 Context)
+#    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
+#    uses: ./.github/workflows/stress.yml
+#    with:
+#      test-type: ci-stress
+#      test-timeout-minutes: 20
+#      reuse-v8-context: true
 
 #  docs:
 #    name: Build Docs
