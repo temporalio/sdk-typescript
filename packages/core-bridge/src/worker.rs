@@ -21,6 +21,7 @@ use temporalio_sdk_core::{
     CoreRuntime, init_replay_worker, init_worker,
     replay::{HistoryForReplay, ReplayWorkerInput},
 };
+use tracing::warn;
 
 use bridge_macros::js_function;
 
@@ -119,13 +120,19 @@ pub fn worker_validate(worker: OpaqueInboundHandle<Worker>) -> BridgeResult<Brid
 pub fn worker_poll_workflow_activation(
     worker: OpaqueInboundHandle<Worker>,
 ) -> BridgeResult<BridgeFuture<Vec<u8>>> {
+    warn!("borrowing worker");
     let worker_ref = worker.borrow()?;
+    warn!("worker borrowed");
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
+    warn!("poll_workflow_activation started");
+
     runtime.future_to_promise_named(
         async move {
+            warn!("calling poll_workflow_activation");
             let result = worker.poll_workflow_activation().await;
+            warn!("poll_workflow_activation result: {:?}", result);
 
             match result {
                 Ok(task) => Ok(task.encode_to_vec()),
