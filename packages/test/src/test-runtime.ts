@@ -55,8 +55,8 @@ if (RUN_INTEGRATION_TESTS) {
   // Runtime configuration was installed, creating a new Worker after Runtime shutdown we would fallback
   // to the default configuration (127.0.0.1) which is surprising behavior.
   test.serial('Runtime.install() remembers installed options after it has been shut down', async (t) => {
-    const logger = new DefaultLogger('TRACE');
-    Runtime.install({ logger });
+    const logger = new DefaultLogger('DEBUG');
+    Runtime.install({ logger, telemetryOptions: { logging: { filter: { core: 'DEBUG' } } } });
     {
       console.log('Runtime.instance().options.logger', Runtime.instance().options.logger);
       const runtime = Runtime.instance();

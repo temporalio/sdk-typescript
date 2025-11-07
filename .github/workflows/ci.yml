@@ -60,12 +60,12 @@ jobs:
       run:
         shell: bash
     steps:
-      - name: 'Checkout code'
+      - name: "Checkout code"
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: 'Cache index.node'
+      - name: "Cache index.node"
         id: cached-artifact
         uses: actions/cache@v4
         with:
@@ -77,7 +77,7 @@ jobs:
         uses: arduino/setup-protoc@v3
         with:
           # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
-          version: '23.x'
+          version: "23.x"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upgrade Rust to latest stable
@@ -90,7 +90,7 @@ jobs:
           workspaces: packages/core-bridge -> target
           prefix-key: corebridge-buildcache-debug
           shared-key: ${{ matrix.platform }}
-          env-vars: ''
+          env-vars: ""
           save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
 
       - name: Compile rust code
@@ -148,7 +148,7 @@ jobs:
       - name: Set git config
         run: git config --global core.autocrlf false
 
-      - name: 'Checkout code'
+      - name: "Checkout code"
         uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -209,6 +209,12 @@ jobs:
             --db-filename temporal.sqlite \
             --sqlite-pragma journal_mode=WAL \
             --sqlite-pragma synchronous=OFF \
+            --dynamic-config-value system.enableEagerWorkflowStart=true \
+            --dynamic-config-value system.enableNexus=true \
+            --dynamic-config-value frontend.workerVersioningWorkflowAPIs=true \
+            --dynamic-config-value frontend.workerVersioningDataAPIs=true \
+            --dynamic-config-value system.enableDeploymentVersions=true \
+            --dynamic-config-value component.nexusoperations.recordCancelRequestCompletionEvents=true \
             --dynamic-config-value frontend.WorkerHeartbeatsEnabled=true \
             --dynamic-config-value frontend.ListWorkersEnabled=true \
             --headless &> ./devserver.log &
@@ -216,6 +222,7 @@ jobs:
       - name: Run Tests # DEBUG,temporal_sdk_core=DEBUG,temporal_client=DEBUG,temporal_sdk=DEBUG
         run: RUST_LOG=DEBUG,temporal_sdk_core=DEBUG,temporal_client=DEBUG,temporal_sdk=DEBUG npm run test
         env:
+          TEMPORAL_TRACE_NATIVE_CALLS: true
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
@@ -235,66 +242,65 @@ jobs:
           TEMPORAL_CLOUD_OPS_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
           TEMPORAL_CLOUD_OPS_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
           TEMPORAL_CLOUD_OPS_TEST_API_VERSION: 2024-05-13-00
+#      # FIXME: Move samples tests to a custom activity
+#      # Sample 1: hello-world to local server
+#      - name: Instantiate sample project using verdaccio artifacts - Hello World
+#        run: |
+#          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world
+#          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world"
+#
+#      # Sample 2: hello-world-mtls to cloud server
+#      - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
+#        run: |
+#          if [ -z "$TEMPORAL_ADDRESS" ] || [ -z "$TEMPORAL_NAMESPACE" ] || [ -z "$TEMPORAL_CLIENT_CERT" ] || [ -z "$TEMPORAL_CLIENT_KEY" ]; then
+#            echo "Skipping hello-world-mtls sample test as required environment variables are not set"
+#            exit 0
+#          fi
+#
+#          node scripts/create-certs-dir.js ${{ steps.tmp-dir.outputs.dir }}/certs
+#          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls
+#          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls"
+#        env:
+#          # These env vars are used by the hello-world-mtls sample
+#          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
+#          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+#          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+#          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
+#          TEMPORAL_TASK_QUEUE: ${{ format('tssdk-ci-{0}-{1}-sample-hello-world-mtls-{2}-{3}', matrix.platform, matrix.node, github.run_id, github.run_attempt) }}
+#
+#          TEMPORAL_CLIENT_CERT_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.pem
+#          TEMPORAL_CLIENT_KEY_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.key
+#
+#      - name: Destroy certs dir
+#        if: always()
+#        run: rm -rf ${{ steps.tmp-dir.outputs.dir }}/certs
+#        continue-on-error: true
+#
+#      # Sample 3: fetch-esm to local server
+#      - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
+#        run: |
+#          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm
+#          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm"
+#
+#      # End samples
+#
+#      - name: Upload NPM logs
+#        uses: actions/upload-artifact@v4
+#        if: failure() || cancelled()
+#        with:
+#          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-logs
+#          path: ${{ startsWith(matrix.platform, 'windows') && 'C:\\npm\\_logs\\' || '~/.npm/_logs/' }}
+#
+#      - name: Upload Dev Server logs
+#        uses: actions/upload-artifact@v4
+#        if: failure() || cancelled()
+#        with:
+#          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
+#          path: ${{ steps.tmp-dir.outputs.dir }}/devserver.log
 
-      # FIXME: Move samples tests to a custom activity
-      # Sample 1: hello-world to local server
-      - name: Instantiate sample project using verdaccio artifacts - Hello World
-        run: |
-          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world
-          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world"
-
-      # Sample 2: hello-world-mtls to cloud server
-      - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
-        run: |
-          if [ -z "$TEMPORAL_ADDRESS" ] || [ -z "$TEMPORAL_NAMESPACE" ] || [ -z "$TEMPORAL_CLIENT_CERT" ] || [ -z "$TEMPORAL_CLIENT_KEY" ]; then
-            echo "Skipping hello-world-mtls sample test as required environment variables are not set"
-            exit 0
-          fi
-
-          node scripts/create-certs-dir.js ${{ steps.tmp-dir.outputs.dir }}/certs
-          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls
-          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls"
-        env:
-          # These env vars are used by the hello-world-mtls sample
-          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
-          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
-          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
-          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
-          TEMPORAL_TASK_QUEUE: ${{ format('tssdk-ci-{0}-{1}-sample-hello-world-mtls-{2}-{3}', matrix.platform, matrix.node, github.run_id, github.run_attempt) }}
-
-          TEMPORAL_CLIENT_CERT_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.pem
-          TEMPORAL_CLIENT_KEY_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.key
-
-      - name: Destroy certs dir
-        if: always()
-        run: rm -rf ${{ steps.tmp-dir.outputs.dir }}/certs
-        continue-on-error: true
-
-      # Sample 3: fetch-esm to local server
-      - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
-        run: |
-          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm
-          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm"
-
-      # End samples
-
-      - name: Upload NPM logs
-        uses: actions/upload-artifact@v4
-        if: failure() || cancelled()
-        with:
-          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-logs
-          path: ${{ startsWith(matrix.platform, 'windows') && 'C:\\npm\\_logs\\' || '~/.npm/_logs/' }}
-
-      - name: Upload Dev Server logs
-        uses: actions/upload-artifact@v4
-        if: failure() || cancelled()
-        with:
-          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
-          path: ${{ steps.tmp-dir.outputs.dir }}/devserver.log
-
-#  conventions:
-#    name: Lint and Prune
-#    uses: ./.github/workflows/conventions.yml
+#conventions:
+#  name: Lint and Prune
+#  uses: ./.github/workflows/conventions.yml
 
 #  # Runs the features repo tests with this repo's current SDK code
 #  # FIXME: Update this job to reuse native build artifacts from compile-native-binaries

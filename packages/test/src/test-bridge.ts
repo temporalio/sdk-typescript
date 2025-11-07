@@ -245,7 +245,7 @@ const GenericConfigs = {
     basic: {
       logExporter: {
         type: 'console',
-        filter: 'ERROR',
+        filter: 'INFO',
       },
       telemetry: {
         metricPrefix: 'test',

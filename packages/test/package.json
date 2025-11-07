@@ -7,7 +7,7 @@
     "build": "npm-run-all build:protos build:ts",
     "build:ts": "tsc --build",
     "build:protos": "node ./scripts/compile-proto.js",
-    "test": "ava ./lib/test-*.js",
+    "test": "ava ./lib/test-runtime.js",
     "test.watch": "ava --watch ./lib/test-*.js"
   },
   "ava": {

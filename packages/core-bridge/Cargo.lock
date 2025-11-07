@@ -2541,6 +2541,71 @@ dependencies = [
 ]
 
 [[package]]
+name = "temporal-sdk-core-api"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "derive_builder",
+ "derive_more",
+ "opentelemetry",
+ "prost",
+ "serde_json",
+ "temporal-sdk-core-protos",
+ "thiserror 2.0.14",
+ "tonic",
+ "tracing",
+ "tracing-core",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "temporal-sdk-core-protos"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "derive_more",
+ "prost",
+ "prost-wkt",
+ "prost-wkt-types",
+ "rand 0.9.2",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.14",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
+ "uuid",
+]
+
+[[package]]
+name = "temporal-sdk-typescript-bridge"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bridge-macros",
+ "futures",
+ "neon",
+ "opentelemetry",
+ "os_pipe",
+ "parking_lot",
+ "prost",
+ "prost-types",
+ "serde",
+ "serde_json",
+ "temporal-client",
+ "temporal-sdk-core",
+ "thiserror 2.0.14",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "termtree"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

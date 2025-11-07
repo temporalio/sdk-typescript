@@ -3,14 +3,14 @@ use std::{sync::Arc, time::Duration};
 use anyhow::Context as _;
 use futures::channel::mpsc::Receiver;
 use neon::prelude::*;
-use tracing::{Instrument, warn};
+use tracing::{Instrument, debug, warn};
 
-use temporalio_common::telemetry::{
-    CoreLog, OtelCollectorOptions as CoreOtelCollectorOptions,
-    PrometheusExporterOptions as CorePrometheusExporterOptions, metrics::CoreMeter,
-};
-use temporalio_sdk_core::{
+use temporal_sdk_core::{
     CoreRuntime, RuntimeOptionsBuilder, TokioRuntimeBuilder,
+    api::telemetry::{
+        CoreLog, OtelCollectorOptions as CoreOtelCollectorOptions,
+        PrometheusExporterOptions as CorePrometheusExporterOptions, metrics::CoreMeter,
+    },
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
 };
 
@@ -62,12 +62,15 @@ pub fn runtime_new(
     let (telemetry_options, metrics_options, logging_options) = bridge_options.try_into()?;
 
     // Create core runtime which starts tokio multi-thread runtime
-    let runtime_options = RuntimeOptionsBuilder::default()
-        .telemetry_options(telemetry_options)
-        .build()
-        .context("Failed to build runtime options")?;
-    let mut core_runtime = CoreRuntime::new(runtime_options, TokioRuntimeBuilder::default())
-        .context("Failed to initialize Core Runtime")?;
+    let mut core_runtime = CoreRuntime::new(
+        RuntimeOptionsBuilder::default()
+            .telemetry_options(telemetry_options)
+            .heartbeat_interval(None)
+            .build()
+            .unwrap(),
+        TokioRuntimeBuilder::default(),
+    )
+    .context("Failed to initialize Core Runtime")?;
 
     enter_sync!(core_runtime);
 
@@ -134,6 +137,7 @@ pub fn runtime_new(
 /// runtimes at a high pace, e.g. during tests execution.
 #[js_function]
 pub fn runtime_shutdown(runtime: OpaqueInboundHandle<Runtime>) -> BridgeResult<()> {
+    debug!("dropping runtime");
     std::mem::drop(runtime.take()?);
     Ok(())
 }
@@ -164,6 +168,15 @@ pub trait RuntimeExt {
         F: Future<Output = Result<R, BridgeError>> + Send + 'static,
         R: TryIntoJs + Send + 'static;
 
+    fn future_to_promise_named<F, R>(
+        &self,
+        future: F,
+        caller: &'static str,
+    ) -> BridgeResult<BridgeFuture<R>>
+    where
+        F: Future<Output = Result<R, BridgeError>> + Send + 'static,
+        R: TryIntoJs + Send + 'static;
+
     /// Spawn a future on the Tokio runtime, and let it run to completion without waiting for it to
     /// complete. Should any error occur, we'll try to send them to this Runtime's logger, but may
     /// end up or silently dropping entries in some extreme cases.
@@ -182,6 +195,21 @@ impl RuntimeExt for CoreRuntime {
         Ok(BridgeFuture::new(Box::pin(
             future.instrument(tracing::info_span!("future_to_promise")),
         )))
+    }
+
+    fn future_to_promise_named<F, R>(
+        &self,
+        future: F,
+        caller: &'static str,
+    ) -> BridgeResult<BridgeFuture<R>>
+    where
+        F: Future<Output = Result<R, BridgeError>> + Send + 'static,
+        R: TryIntoJs + Send + 'static,
+    {
+        enter_sync!(self);
+        Ok(BridgeFuture::new(Box::pin(future.instrument(
+            tracing::info_span!("future_to_promise_named", caller),
+        ))))
     }
 
     fn spawn_and_forget<F>(&self, future: F)
@@ -212,6 +240,18 @@ impl RuntimeExt for Arc<CoreRuntime> {
         F: Future<Output = Result<(), BridgeError>> + Send + 'static,
     {
         self.as_ref().spawn_and_forget(future);
+    }
+
+    fn future_to_promise_named<F, R>(
+        &self,
+        future: F,
+        caller: &'static str,
+    ) -> BridgeResult<BridgeFuture<R>>
+    where
+        F: Future<Output = Result<R, BridgeError>> + Send + 'static,
+        R: TryIntoJs + Send + 'static,
+    {
+        self.as_ref().future_to_promise_named(future, caller)
     }
 }
 

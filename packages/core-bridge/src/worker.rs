@@ -102,12 +102,15 @@ pub fn worker_validate(worker: OpaqueInboundHandle<Worker>) -> BridgeResult<Brid
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        worker
-            .validate()
-            .await
-            .map_err(|err| BridgeError::TransportError(err.to_string()))
-    })
+    runtime.future_to_promise_named(
+        async move {
+            worker
+                .validate()
+                .await
+                .map_err(|err| BridgeError::TransportError(err.to_string()))
+        },
+        "worker_validate",
+    )
 }
 
 /// Initiate a single workflow activation poll request.
@@ -120,19 +123,22 @@ pub fn worker_poll_workflow_activation(
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        let result = worker.poll_workflow_activation().await;
+    runtime.future_to_promise_named(
+        async move {
+            let result = worker.poll_workflow_activation().await;
 
-        match result {
-            Ok(task) => Ok(task.encode_to_vec()),
-            Err(err) => match err {
-                PollError::ShutDown => Err(BridgeError::WorkerShutdown)?,
-                PollError::TonicError(status) => {
-                    Err(BridgeError::TransportError(status.message().to_string()))?
-                }
-            },
-        }
-    })
+            match result {
+                Ok(task) => Ok(task.encode_to_vec()),
+                Err(err) => match err {
+                    PollError::ShutDown => Err(BridgeError::WorkerShutdown)?,
+                    PollError::TonicError(status) => {
+                        Err(BridgeError::TransportError(status.message().to_string()))?
+                    }
+                },
+            }
+        },
+        "worker_poll_workflow_activation",
+    )
 }
 
 /// Submit a workflow activation completion to core.
@@ -153,21 +159,24 @@ pub fn worker_complete_workflow_activation(
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        worker
-            .complete_workflow_activation(workflow_completion)
-            .await
-            .map_err(|err| match err {
-                CompleteWfError::MalformedWorkflowCompletion { reason, run_id } => {
-                    BridgeError::TypeError {
-                        field: None,
-                        message: format!(
-                            "Malformed Workflow Completion: {reason:?} for RunID={run_id}"
-                        ),
+    runtime.future_to_promise_named(
+        async move {
+            worker
+                .complete_workflow_activation(workflow_completion)
+                .await
+                .map_err(|err| match err {
+                    CompleteWfError::MalformedWorkflowCompletion { reason, run_id } => {
+                        BridgeError::TypeError {
+                            field: None,
+                            message: format!(
+                                "Malformed Workflow Completion: {reason:?} for RunID={run_id}"
+                            ),
+                        }
                     }
-                }
-            })
-    })
+                })
+        },
+        "worker_complete_workflow_activation",
+    )
 }
 
 /// Initiate a single activity task poll request.
@@ -180,19 +189,22 @@ pub fn worker_poll_activity_task(
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        let result = worker.poll_activity_task().await;
+    runtime.future_to_promise_named(
+        async move {
+            let result = worker.poll_activity_task().await;
 
-        match result {
-            Ok(task) => Ok(task.encode_to_vec()),
-            Err(err) => match err {
-                PollError::ShutDown => Err(BridgeError::WorkerShutdown)?,
-                PollError::TonicError(status) => {
-                    Err(BridgeError::TransportError(status.message().to_string()))?
-                }
-            },
-        }
-    })
+            match result {
+                Ok(task) => Ok(task.encode_to_vec()),
+                Err(err) => match err {
+                    PollError::ShutDown => Err(BridgeError::WorkerShutdown)?,
+                    PollError::TonicError(status) => {
+                        Err(BridgeError::TransportError(status.message().to_string()))?
+                    }
+                },
+            }
+        },
+        "worker_poll_activity_task",
+    )
 }
 
 /// Submit an activity task completion to core.
@@ -213,20 +225,23 @@ pub fn worker_complete_activity_task(
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        worker
-            .complete_activity_task(activity_completion)
-            .await
-            .map_err(|err| match err {
-                CompleteActivityError::MalformedActivityCompletion {
-                    reason,
-                    completion: _,
-                } => BridgeError::TypeError {
-                    field: None,
-                    message: format!("Malformed Activity Completion: {reason:?}"),
-                },
-            })
-    })
+    runtime.future_to_promise_named(
+        async move {
+            worker
+                .complete_activity_task(activity_completion)
+                .await
+                .map_err(|err| match err {
+                    CompleteActivityError::MalformedActivityCompletion {
+                        reason,
+                        completion: _,
+                    } => BridgeError::TypeError {
+                        field: None,
+                        message: format!("Malformed Activity Completion: {reason:?}"),
+                    },
+                })
+        },
+        "worker_complete_activity_task",
+    )
 }
 
 /// Submit an activity heartbeat to core.
@@ -259,19 +274,22 @@ pub fn worker_poll_nexus_task(
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        let result = worker.poll_nexus_task().await;
+    runtime.future_to_promise_named(
+        async move {
+            let result = worker.poll_nexus_task().await;
 
-        match result {
-            Ok(task) => Ok(task.encode_to_vec()),
-            Err(err) => match err {
-                PollError::ShutDown => Err(BridgeError::WorkerShutdown)?,
-                PollError::TonicError(status) => {
-                    Err(BridgeError::TransportError(status.message().to_string()))?
-                }
-            },
-        }
-    })
+            match result {
+                Ok(task) => Ok(task.encode_to_vec()),
+                Err(err) => match err {
+                    PollError::ShutDown => Err(BridgeError::WorkerShutdown)?,
+                    PollError::TonicError(status) => {
+                        Err(BridgeError::TransportError(status.message().to_string()))?
+                    }
+                },
+            }
+        },
+        "worker_poll_nexus_task",
+    )
 }
 
 /// Submit an nexus task completion to core.
@@ -290,20 +308,25 @@ pub fn worker_complete_nexus_task(
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        worker
-            .complete_nexus_task(nexus_completion)
-            .await
-            .map_err(|err| match err {
-                CompleteNexusError::NexusNotEnabled => {
-                    BridgeError::UnexpectedError(format!("{err}"))
-                }
-                CompleteNexusError::MalformedNexusCompletion { reason } => BridgeError::TypeError {
-                    field: None,
-                    message: format!("Malformed nexus Completion: {reason:?}"),
-                },
-            })
-    })
+    runtime.future_to_promise_named(
+        async move {
+            worker
+                .complete_nexus_task(nexus_completion)
+                .await
+                .map_err(|err| match err {
+                    CompleteNexusError::NexusNotEnabled {} => {
+                        BridgeError::UnexpectedError(format!("{err}"))
+                    }
+                    CompleteNexusError::MalformedNexusCompletion { reason } => {
+                        BridgeError::TypeError {
+                            field: None,
+                            message: format!("Malformed nexus Completion: {reason:?}"),
+                        }
+                    }
+                })
+        },
+        "worker_complete_nexus_task",
+    )
 }
 
 /// Request shutdown of the worker.
@@ -312,6 +335,7 @@ pub fn worker_complete_nexus_task(
 /// the loop to ensure graceful shutdown.
 #[js_function]
 pub fn worker_initiate_shutdown(worker: OpaqueInboundHandle<Worker>) -> BridgeResult<()> {
+    tracing::info!("Typescript initiate worker shutdown");
     let worker_ref = worker.borrow()?;
     worker_ref.core_worker.initiate_shutdown();
     Ok(())
@@ -336,10 +360,13 @@ pub fn worker_finalize_shutdown(
         }
     })?;
 
-    worker_ref.core_runtime.future_to_promise(async move {
-        worker.finalize_shutdown().await;
-        Ok(())
-    })
+    worker_ref.core_runtime.future_to_promise_named(
+        async move {
+            worker.finalize_shutdown().await;
+            Ok(())
+        },
+        "worker_finalize_shutdown",
+    )
 }
 
 impl MutableFinalize for Worker {
@@ -574,6 +601,7 @@ mod config {
                 .max_task_queue_activities_per_second(self.max_task_queue_activities_per_second)
                 .max_worker_activities_per_second(self.max_activities_per_second)
                 .graceful_shutdown_period(self.shutdown_grace_time)
+                .skip_client_worker_set_check(true)
                 .build()
         }
     }
