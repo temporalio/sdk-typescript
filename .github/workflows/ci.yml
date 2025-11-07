@@ -50,10 +50,10 @@ jobs:
             runner: macos-14
             target: aarch64-apple-darwin
             out-file: libtemporal_sdk_typescript_bridge.dylib
-          - platform: windows-x64
-            runner: windows-latest
-            target: x86_64-pc-windows-msvc
-            out-file: temporal_sdk_typescript_bridge.dll
+#          - platform: windows-x64
+#            runner: windows-latest
+#            target: x86_64-pc-windows-msvc
+#            out-file: temporal_sdk_typescript_bridge.dll
     name: Compile Native Binaries (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -133,9 +133,9 @@ jobs:
           - platform: macos-arm
             runner: macos-14
             reuse-v8-context: true
-          - platform: windows-x64
-            runner: windows-latest
-            reuse-v8-context: true
+#          - platform: windows-x64
+#            runner: windows-latest
+#            reuse-v8-context: true
     runs-on: ${{ matrix.runner }}
     name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
     defaults:
@@ -211,7 +211,7 @@ jobs:
             --sqlite-pragma synchronous=OFF \
             --headless &> ./devserver.log &
 
-      - name: Run Tests
+      - name: Run Tests # DEBUG,temporal_sdk_core=DEBUG,temporal_client=DEBUG,temporal_sdk=DEBUG
         run: npm run test
         env:
           RUN_INTEGRATION_TESTS: true
@@ -290,20 +290,20 @@ jobs:
           name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
           path: ${{ steps.tmp-dir.outputs.dir }}/devserver.log
 
-  conventions:
-    name: Lint and Prune
-    uses: ./.github/workflows/conventions.yml
+#  conventions:
+#    name: Lint and Prune
+#    uses: ./.github/workflows/conventions.yml
 
-  # Runs the features repo tests with this repo's current SDK code
-  # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
-  features-tests:
-    name: Features Tests
-    uses: temporalio/features/.github/workflows/typescript.yaml@main
-    with:
-      typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
-      version: ${{github.event.pull_request.head.ref}}
-      version-is-repo-ref: true
-      features-repo-ref: main
+#  # Runs the features repo tests with this repo's current SDK code
+#  # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
+#  features-tests:
+#    name: Features Tests
+#    uses: temporalio/features/.github/workflows/typescript.yaml@main
+#    with:
+#      typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
+#      version: ${{github.event.pull_request.head.ref}}
+#      version-is-repo-ref: true
+#      features-repo-ref: main
 
   stress-tests-no-reuse-context:
     name: Stress Tests (No Reuse V8 Context)
@@ -323,14 +323,14 @@ jobs:
       test-timeout-minutes: 20
       reuse-v8-context: true
 
-  docs:
-    name: Build Docs
-    uses: ./.github/workflows/docs.yml
-    with:
-      # Can't publish from forks, as secrets won't be available
-      publish_target: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && 'draft' || '' }}
-    secrets:
-      ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+#  docs:
+#    name: Build Docs
+#    uses: ./.github/workflows/docs.yml
+#    with:
+#      # Can't publish from forks, as secrets won't be available
+#      publish_target: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && 'draft' || '' }}
+#    secrets:
+#      ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+#      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+#      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+#      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

@@ -215,7 +215,7 @@ test("Stopping Worker after creating another runtime doesn't fail", async (t) =>
 
   // Start polling on Worker 2, then shut it down cleanly
   await native.workerValidate(worker2);
-  const wftPromise2 = native.workerPollWorkflowActivation(worker2);
+  const wftPromise2 = native.workerPollWorkflowActivation(worker2); // TODO: failing here
   const atPromise2 = native.workerPollActivityTask(worker2);
   native.workerInitiateShutdown(worker2);
   await expectShutdownError(wftPromise2);
