@@ -214,7 +214,7 @@ jobs:
             --headless &> ./devserver.log &
 
       - name: Run Tests # DEBUG,temporal_sdk_core=DEBUG,temporal_client=DEBUG,temporal_sdk=DEBUG
-        run: npm run test
+        run: RUST_LOG=DEBUG,temporal_sdk_core=DEBUG,temporal_client=DEBUG,temporal_sdk=DEBUG npm run test
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
