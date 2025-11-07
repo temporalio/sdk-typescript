@@ -209,9 +209,9 @@ jobs:
             --db-filename temporal.sqlite \
             --sqlite-pragma journal_mode=WAL \
             --sqlite-pragma synchronous=OFF \
-            --headless &> ./devserver.log & \
             --dynamic-config-value frontend.WorkerHeartbeatsEnabled=true \
-            --dynamic-config-value frontend.ListWorkersEnabled=true
+            --dynamic-config-value frontend.ListWorkersEnabled=true \
+            --headless &> ./devserver.log &
 
       - name: Run Tests # DEBUG,temporal_sdk_core=DEBUG,temporal_client=DEBUG,temporal_sdk=DEBUG
         run: npm run test
