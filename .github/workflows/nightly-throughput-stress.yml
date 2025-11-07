@@ -25,6 +25,10 @@ on:
         default: 360
         type: number
 
+permissions:
+  contents: read
+  actions: write
+
 env:
   # Workflow configuration
   TEST_DURATION: ${{ inputs.duration || vars.NIGHTLY_TEST_DURATION || '5h' }}
@@ -71,22 +75,12 @@ jobs:
           go-version-file: omes/go.mod
           cache-dependency-path: omes/go.sum
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Node and Install Dependencies
+        id: setup-node
+        uses: ./.github/actions/setup-node-deps
         with:
-          node-version: 22
-
-      - name: Get NPM cache directory
-        id: npm-cache-dir
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
-
-      - name: Restore NPM cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: npm-main-linux-x64-${{ hashFiles('./package-lock.json') }}
-          restore-keys: |
-            npm-main-linux-x64-
+          node-version: '22'
+          platform: 'linux-x64'
 
       - name: Install protoc
         uses: arduino/setup-protoc@v3
@@ -102,12 +96,6 @@ jobs:
         with:
           workspaces: packages/core-bridge -> target
 
-      - name: Install SDK dependencies
-        run: |
-          npm ci --ignore-scripts --verbose || \
-          npm ci --ignore-scripts --verbose || \
-          npm ci --ignore-scripts --verbose
-
       - name: Build SDK
         run: npm run build
         env:
@@ -117,7 +105,7 @@ jobs:
         uses: actions/cache/save@v4
         if: always()
         with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          path: ${{ steps.setup-node.outputs.cache-dir }}
           key: npm-main-linux-x64-${{ hashFiles('./package-lock.json') }}
 
       - name: Install Temporal CLI
@@ -183,7 +171,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Nightly Throughput Stress Failed* :x:\n\n*Duration:* ${{ env.TEST_DURATION }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>\n*Triggered by:* ${{ github.event_name == 'schedule' && 'Scheduled' || github.actor }}"
+                    "text": "*Nightly Throughput Stress Failed* :x:\n\n*Repository:* ${{ github.repository }}\n*Duration:* ${{ env.TEST_DURATION }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>\n*Triggered by:* ${{ github.event_name == 'schedule' && 'Scheduled' || github.actor }}"
                   }
                 }
               ]

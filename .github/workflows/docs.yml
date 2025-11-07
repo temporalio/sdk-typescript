@@ -22,6 +22,10 @@ on:
         required: false
         description: The Vercel token. Required if 'publish_target' is set.
 
+permissions:
+  contents: read
+  actions: read
+
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -35,29 +39,11 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install Node
-        uses: actions/setup-node@v4
+      - name: Setup Node and Install Dependencies
+        uses: ./.github/actions/setup-node-deps
         with:
-          node-version: 22
-
-      - name: Get NPM cache directory
-        id: npm-cache-dir
-        shell: bash
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
-
-      - name: Restore NPM cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: npm-main-linux-x64-${{ hashFiles('./package-lock.json') }}
-          restore-keys: |
-            npm-main-linux-x64-
-
-      - name: Download dependencies
-        # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors
-        # Don't build during install phase since we're going to explicitly build anyway
-        run: |
-          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
+          node-version: '22'
+          platform: 'linux-x64'
 
       - run: npm run build -- --ignore @temporalio/core-bridge
 
