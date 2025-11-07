@@ -69,8 +69,9 @@ if (RUN_INTEGRATION_TESTS) {
     });
     console.log("1.1");
     const workerDrained = worker.run();
+    await Promise.resolve();
     console.log("1.2");
-    worker.shutdown();
+    worker.shutdown(); // TODO: Because we don't await before this, we won't have polled yet.
     console.log("1.3");
     await workerDrained;
     {
