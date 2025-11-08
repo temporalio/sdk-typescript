@@ -196,8 +196,11 @@ test.serial("Stopping Worker after creating another runtime doesn't fail", async
   // Cleanly shutdown Worker 1
   console.log('Shutting down Worker 1');
   native.workerInitiateShutdown(worker1);
+  console.log('Shutting down Worker 1.1');
   await expectShutdownError(wftPromise1);
+  console.log('Shutting down Worker 1.2');
   await expectShutdownError(atPromise1);
+  console.log('Shutting down Worker 1.3');
   await native.workerFinalizeShutdown(worker1);
   // Leave Client 1 and Runtime 1 alive
   console.log('Leave Client 1 and Runtime 1 alive');
