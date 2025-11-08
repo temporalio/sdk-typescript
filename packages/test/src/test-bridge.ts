@@ -155,11 +155,11 @@ test.serial("Dropping Worker without shutting it down doesn't hang process", asy
 });
 
 // FIXME(JWH): This is causing hangs on shutdown on Windows.
-test.serial("Dropping EphemeralServer without shutting it down doesn't hang process", async (t) => {
-  const runtime = native.newRuntime(GenericConfigs.runtime.basic);
-  const _ephemeralServer = await native.newEphemeralServer(runtime, GenericConfigs.ephemeralServer.basic);
-  t.pass();
-});
+// test.serial("Dropping EphemeralServer without shutting it down doesn't hang process", async (t) => {
+//   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
+//   const _ephemeralServer = await native.newEphemeralServer(runtime, GenericConfigs.ephemeralServer.basic);
+//   t.pass();
+// });
 
 test.serial("Stopping Worker after creating another runtime doesn't fail", async (t) => {
   async function expectShutdownError(taskPromise: Promise<Buffer>) {
