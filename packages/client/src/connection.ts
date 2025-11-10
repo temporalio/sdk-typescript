@@ -130,6 +130,16 @@ export interface ConnectionOptions {
    * @default 10 seconds
    */
   connectTimeout?: Duration;
+
+  /**
+   * List of plugins to register with the connection.
+   *
+   * Plugins allow you to configure the connection options.
+   * Any plugins provided will also be passed to any client built from this connection.
+   *
+   * @experimental Plugins is an experimental feature; APIs may change without notice.
+   */
+  plugins?: ConnectionPlugin[];
 }
 
 export type ConnectionOptionsWithDefaults = Required<
@@ -172,6 +182,7 @@ function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults 
     interceptors: interceptors ?? [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
     metadata: {},
     connectTimeoutMs: msOptionalToNumber(connectTimeout) ?? 10_000,
+    plugins: [],
     ...filterNullAndUndefined(rest),
   };
 }
@@ -182,8 +193,8 @@ function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults 
  * - Add default port to address if port not specified
  * - Set `Authorization` header based on {@link ConnectionOptions.apiKey}
  */
-function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
-  const { tls: tlsFromConfig, credentials, callCredentials, ...rest } = options || {};
+function normalizeGRPCConfig(options: ConnectionOptions): ConnectionOptions {
+  const { tls: tlsFromConfig, credentials, callCredentials, ...rest } = options;
   if (rest.apiKey) {
     if (rest.metadata?.['Authorization']) {
       throw new TypeError(
@@ -325,10 +336,12 @@ export class Connection {
    */
   public readonly healthService: HealthService;
 
+  public readonly plugins: ConnectionPlugin[];
+
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
   private readonly apiKeyFnRef: { fn?: () => string };
 
-  protected static createCtorOptions(options?: ConnectionOptions): ConnectionCtorOptions {
+  protected static createCtorOptions(options: ConnectionOptions): ConnectionCtorOptions {
     const normalizedOptions = normalizeGRPCConfig(options);
     const apiKeyFnRef: { fn?: () => string } = {};
     if (normalizedOptions.apiKey) {
@@ -444,6 +457,12 @@ export class Connection {
    * This method does not verify connectivity with the server. We recommend using {@link connect} instead.
    */
   static lazy(options?: ConnectionOptions): Connection {
+    options = options ?? {};
+    for (const plugin of options.plugins ?? []) {
+      if (plugin.configureConnection !== undefined) {
+        options = plugin.configureConnection(options);
+      }
+    }
     return new this(this.createCtorOptions(options));
   }
 
@@ -477,6 +496,7 @@ export class Connection {
     this.healthService = healthService;
     this.callContextStorage = callContextStorage;
     this.apiKeyFnRef = apiKeyFnRef;
+    this.plugins = options.plugins ?? [];
   }
 
   protected static generateRPCImplementation({
@@ -532,7 +552,7 @@ export class Connection {
    * this will locally result in the request call throwing a {@link grpc.ServiceError|ServiceError}
    * with code {@link grpc.status.DEADLINE_EXCEEDED|DEADLINE_EXCEEDED}; see {@link isGrpcDeadlineError}.
    *
-   * It is stronly recommended to explicitly set deadlines. If no deadline is set, then it is
+   * It is strongly recommended to explicitly set deadlines. If no deadline is set, then it is
    * possible for the client to end up waiting forever for a response.
    *
    * @param deadline a point in time after which the request will be considered as failed; either a
@@ -687,4 +707,21 @@ export class Connection {
     }
     return wrapper as WorkflowService;
   }
+}
+
+/**
+ * Plugin to control the configuration of a connection.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
+ */
+export interface ConnectionPlugin {
+  /**
+   * Gets the name of this plugin.
+   */
+  get name(): string;
+
+  /**
+   * Hook called when creating a connection to allow modification of configuration.
+   */
+  configureConnection?(options: ConnectionOptions): ConnectionOptions;
 }

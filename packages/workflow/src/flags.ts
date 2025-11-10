@@ -44,6 +44,38 @@ export const SdkFlags = {
    *        to implicitely have this flag on.
    */
   ProcessWorkflowActivationJobsAsSingleBatch: defineFlag(2, true, [buildIdSdkVersionMatches(/1\.11\.[01]/)]),
+
+  /**
+   * In 1.11.5 the `handleSignal` interceptor was added to @temporalio/interceptors-opentelemetry
+   * which added a yield point. The added yield point can cause NDE if there was a signal handler and
+   * the workflow was started with a signal.
+   *
+   * This yield point was removed in 1.13.2, but in order to prevent workflows from the
+   * affected versions resulting in NDE, we have to inject the yield point on replay.
+   * @since Introduced in 1.13.2.
+   */
+  OpenTelemetryInterceptorsTracesInboundSignals: defineFlag(3, true, [isAtLeast({ major: 1, minor: 11, patch: 5 })]),
+
+  /**
+   * In 1.11.6, the `scheduleLocalActivity` interceptor was added to
+   * `@temporalio/interceptors-opentelemetry` which added a yield point to the
+   * outbound interceptor. This yield point was removed in 1.13.2.
+   *
+   * @since Introduced in 1.13.2
+   */
+  OpenTelemetryInterceptorsTracesLocalActivities: defineFlag(4, true, [isAtLeast({ major: 1, minor: 11, patch: 6 })]),
+
+  /**
+   * The interceptors provided by @temporalio/interceptors-opentelemetry initially had unnecessary
+   * yield points on calling to `extractContextFromHeaders`.
+   * If replaying a workflow created from these versions a yield point is injected to prevent any NDE.
+   *
+   * If the history does not include the SDK version, default to extra yields since the yields were present since the OTEL
+   * package was created.
+   *
+   * @since Introduced in 1.13.2
+   */
+  OpenTelemetryInterceporsAvoidsExtraYields: defineFlag(5, true, [isAtLeast({ major: 1, minor: 13, patch: 2 })]),
 } as const;
 
 function defineFlag(id: number, def: boolean, alternativeConditions?: AltConditionFn[]): SdkFlag {
@@ -68,9 +100,57 @@ export function assertValidFlag(id: number): void {
  * condition no longer holds. This is so to avoid incorrect behaviors in case where a Workflow
  * Execution has gone through a newer SDK version then again through an older one.
  */
-type AltConditionFn = (ctx: { info: WorkflowInfo }) => boolean;
+type AltConditionFn = (ctx: { info: WorkflowInfo; sdkVersion?: string }) => boolean;
 
 function buildIdSdkVersionMatches(version: RegExp): AltConditionFn {
   const regex = new RegExp(`^@temporalio/worker@(${version.source})[+]`);
   return ({ info }) => info.currentBuildId != null && regex.test(info.currentBuildId); // eslint-disable-line deprecation/deprecation
+}
+
+type SemVer = {
+  major: number;
+  minor: number;
+  patch: number;
+};
+
+/**
+ * Creates an `AltConditionFn` that checks if the SDK version is equal to or after the provided version.
+ * An optional default can be provided in case the SDK version is not available.
+ */
+function isAtLeast(compare: SemVer, missingDefault?: boolean): AltConditionFn {
+  return (ctx) => {
+    return isCompared(compare, -1, missingDefault)(ctx) || isCompared(compare, 0, missingDefault)(ctx);
+  };
+}
+
+function isCompared(compare: SemVer, comparison: -1 | 0 | 1, missingDefault: boolean = false): AltConditionFn {
+  return ({ sdkVersion }) => {
+    if (!sdkVersion) return missingDefault;
+    const version = parseSemver(sdkVersion);
+    if (!version) return missingDefault;
+    return compareSemver(compare, version) === comparison;
+  };
+}
+
+function parseSemver(version: string): SemVer | undefined {
+  try {
+    const [_, major, minor, patch] = version.match(/(\d+)\.(\d+)\.(\d+)/)!;
+    return {
+      major: Number.parseInt(major),
+      minor: Number.parseInt(minor),
+      patch: Number.parseInt(patch),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function compareSemver(a: SemVer, b: SemVer): -1 | 0 | 1 {
+  if (a.major < b.major) return -1;
+  if (a.major > b.major) return +1;
+  if (a.minor < b.minor) return -1;
+  if (a.minor > b.minor) return +1;
+  if (a.patch < b.patch) return -1;
+  if (a.patch > b.patch) return +1;
+  return 0;
 }

@@ -8,6 +8,7 @@
     "@temporalio/envconfig": "file:../envconfig",
     "@temporalio/interceptors-opentelemetry": "file:../interceptors-opentelemetry",
     "@temporalio/nexus": "file:../nexus",
+    "@temporalio/plugin": "file:../plugin",
     "@temporalio/proto": "file:../proto",
     "@temporalio/testing": "file:../testing",
     "@temporalio/worker": "file:../worker",

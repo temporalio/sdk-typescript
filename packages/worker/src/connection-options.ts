@@ -9,6 +9,7 @@ import {
 } from '@temporalio/common/lib/internal-non-workflow';
 import type { Metadata } from '@temporalio/client';
 import pkg from './pkg';
+import type { NativeConnectionPlugin } from './connection';
 
 export { TLSConfig, ProxyConfig };
 
@@ -60,6 +61,17 @@ export interface NativeConnectionOptions {
    * @default false
    */
   disableErrorCodeMetricTags?: boolean;
+
+  /**
+   * List of plugins to register with the native connection.
+   *
+   * Plugins allow you to configure the native connection options.
+   *
+   * Any plugins provided will also be passed to any Worker, Client, or Bundler built from this connection.
+   *
+   * @experimental Plugins is an experimental feature; APIs may change without notice.
+   */
+  plugins?: NativeConnectionPlugin[];
 }
 
 // Compile to Native ///////////////////////////////////////////////////////////////////////////////

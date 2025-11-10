@@ -24,8 +24,9 @@ import {
 import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
 import { DefaultLogger, InjectedSinks, Runtime } from '@temporalio/worker';
 import * as activities from './activities';
-import { RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
+import { loadHistory, RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
 import * as workflows from './workflows';
+import { createTestWorkflowBundle } from './helpers-integration';
 
 async function withFakeGrpcServer(
   fn: (port: number) => Promise<void>,
@@ -510,3 +511,96 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(spans[2].status.code, SpanStatusCode.OK);
   });
 }
+
+test('Can replay otel history from 1.11.3', async (t) => {
+  const hist = await loadHistory('otel_1_11_3.json');
+  await t.notThrowsAsync(async () => {
+    await Worker.runReplayHistory(
+      {
+        workflowBundle: await createTestWorkflowBundle({
+          workflowsPath: require.resolve('./workflows/signal-start-otel'),
+          workflowInterceptorModules: [require.resolve('./workflows/signal-start-otel')],
+        }),
+        interceptors: {
+          workflowModules: [require.resolve('./workflows/otel-interceptors')],
+          activity: [
+            (ctx) => ({
+              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
+            }),
+          ],
+        },
+      },
+      hist
+    );
+  });
+});
+
+test('Can replay otel history from 1.13.1', async (t) => {
+  const hist = await loadHistory('otel_1_13_1.json');
+  await t.notThrowsAsync(async () => {
+    await Worker.runReplayHistory(
+      {
+        workflowBundle: await createTestWorkflowBundle({
+          workflowsPath: require.resolve('./workflows/signal-start-otel'),
+          workflowInterceptorModules: [require.resolve('./workflows/signal-start-otel')],
+        }),
+        interceptors: {
+          workflowModules: [require.resolve('./workflows/signal-start-otel')],
+          activity: [
+            (ctx) => ({
+              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
+            }),
+          ],
+        },
+      },
+      hist
+    );
+  });
+});
+
+test('Can replay smorgasbord from 1.13.1', async (t) => {
+  // This test will trigger NDE if yield points for `scheduleActivity` and `startChildWorkflowExecution` are not inserted
+  const hist = await loadHistory('otel_smorgasbord_1_13_1.json');
+  await t.notThrowsAsync(async () => {
+    await Worker.runReplayHistory(
+      {
+        workflowBundle: await createTestWorkflowBundle({
+          workflowsPath: require.resolve('./workflows'),
+          workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
+        }),
+        interceptors: {
+          workflowModules: [require.resolve('./workflows/otel-interceptors')],
+          activity: [
+            (ctx) => ({
+              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
+            }),
+          ],
+        },
+      },
+      hist
+    );
+  });
+});
+
+test('Can replay signal workflow from 1.13.1', async (t) => {
+  const hist = await loadHistory('signal_workflow_1_13_1.json');
+  await t.notThrowsAsync(async () => {
+    await Worker.runReplayHistory(
+      {
+        workflowBundle: await createTestWorkflowBundle({
+          workflowsPath: require.resolve('./workflows/signal-workflow'),
+          workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
+        }),
+        interceptors: {
+          workflowModules: [require.resolve('./workflows/otel-interceptors')],
+          activity: [
+            (ctx) => ({
+              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
+            }),
+          ],
+        },
+      },
+      hist
+    );
+  });
+});

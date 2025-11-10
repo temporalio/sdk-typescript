@@ -3,6 +3,7 @@ import type { TypedSearchAttributes, SearchAttributes, SearchAttributeValue, Pri
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import * as proto from '@temporalio/proto';
 import { Replace } from '@temporalio/common/lib/type-helpers';
+import type { ConnectionPlugin } from './connection';
 
 export interface WorkflowExecution {
   workflowId: string;
@@ -122,6 +123,7 @@ export interface CallContext {
  */
 export interface ConnectionLike {
   workflowService: WorkflowService;
+  plugins: ConnectionPlugin[];
   close(): Promise<void>;
   ensureConnected(): Promise<void>;
 
