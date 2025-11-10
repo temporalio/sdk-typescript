@@ -27,6 +27,7 @@ import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
 import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 import { asNativeTuner, WorkerTuner } from './worker-tuner';
+import type { Worker } from './worker';
 
 /**
  * Options to configure the {@link Worker}
@@ -480,6 +481,21 @@ export interface WorkerOptions {
    * preserve SDK's logging interceptors. This is no longer the case.
    */
   interceptors?: WorkerInterceptors;
+
+  /**
+   * List of plugins to register with the worker.
+   *
+   * Plugins allow you to extend and customize the behavior of Temporal workers.
+   * They can intercept and modify worker creation, configuration, and execution.
+   *
+   * Worker plugins can be used to add custom activities, workflows, interceptors, or modify other
+   * worker settings before the worker is fully initialized.
+   *
+   * Any plugins provided will also be passed to the bundler if used.
+   *
+   * @experimental Plugins is an experimental feature; APIs may change without notice.
+   */
+  plugins?: WorkerPlugin[];
 
   /**
    * Registration of a {@link SinkFunction}, including per-sink-function options.
@@ -1125,6 +1141,47 @@ function toNativeDeploymentOptions(options?: WorkerDeploymentOptions): native.Wo
     useWorkerVersioning: options.useWorkerVersioning,
     defaultVersioningBehavior: vb,
   };
+}
+
+/**
+ * Plugin interface for worker functionality.
+ *
+ * Plugins provide a way to extend and customize the behavior of Temporal workers.
+ * They allow you to intercept and modify worker configuration and worker execution.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
+ */
+export interface WorkerPlugin {
+  /**
+   * Gets the name of this plugin.
+   */
+  get name(): string;
+
+  /**
+   * Hook called when creating a worker to allow modification of configuration.
+   *
+   * This method is called during worker creation and allows plugins to modify
+   * the worker configuration before the worker is fully initialized. Plugins
+   * can add activities, workflows, interceptors, or change other settings.
+   */
+  configureWorker?(options: WorkerOptions): WorkerOptions;
+
+  /**
+   * Hook called when creating a replay worker to allow modification of configuration.
+   *
+   * This method is called during worker creation and allows plugins to modify
+   * the worker configuration before the worker is fully initialized. Plugins
+   * can add workflows, interceptors, or change other settings.
+   */
+  configureReplayWorker?(options: ReplayWorkerOptions): ReplayWorkerOptions;
+
+  /**
+   * Hook called when running a worker.
+   *
+   * This method is not called when running a replay worker, as activities will not be
+   * executed, and global state can't affect the workflow.
+   */
+  runWorker?(worker: Worker, next: (w: Worker) => Promise<void>): Promise<void>;
 }
 
 // Utils ///////////////////////////////////////////////////////////////////////////////////////////

@@ -15,6 +15,16 @@ export interface ClientOptions extends BaseClientOptions {
    */
   interceptors?: ClientInterceptors;
 
+  /**
+   * List of plugins to register with the client.
+   *
+   * Plugins allow you to extend and customize the behavior of Temporal clients.
+   * They can intercept and modify client creation.
+   *
+   * @experimental Plugins is an experimental feature; APIs may change without notice.
+   */
+  plugins?: ClientPlugin[];
+
   workflow?: {
     /**
      * Should a query be rejected by closed and failed workflows
@@ -32,6 +42,7 @@ export type LoadedClientOptions = LoadedWithDefaults<ClientOptions>;
  */
 export class Client extends BaseClient {
   public readonly options: LoadedClientOptions;
+
   /**
    * Workflow sub-client - use to start and interact with Workflows
    */
@@ -52,9 +63,21 @@ export class Client extends BaseClient {
   public readonly taskQueue: TaskQueueClient;
 
   constructor(options?: ClientOptions) {
+    options = options ?? {};
+
+    // Add client plugins from the connection
+    options.plugins = (options.plugins ?? []).concat(options.connection?.plugins ?? []);
+
+    // Process plugins first to allow them to modify connect configuration
+    for (const plugin of options.plugins) {
+      if (plugin.configureClient !== undefined) {
+        options = plugin.configureClient(options);
+      }
+    }
+
     super(options);
 
-    const { interceptors, workflow, ...commonOptions } = options ?? {};
+    const { interceptors, workflow, plugins, ...commonOptions } = options;
 
     this.workflow = new WorkflowClient({
       ...commonOptions,
@@ -95,6 +118,7 @@ export class Client extends BaseClient {
       workflow: {
         queryRejectCondition: this.workflow.options.queryRejectCondition,
       },
+      plugins: plugins ?? [],
     };
   }
 
@@ -107,4 +131,24 @@ export class Client extends BaseClient {
   get workflowService(): WorkflowService {
     return this.connection.workflowService;
   }
+}
+
+/**
+ * Plugin to control the configuration of a native connection.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
+ */
+export interface ClientPlugin {
+  /**
+   * Gets the name of this plugin.
+   */
+  get name(): string;
+
+  /**
+   * Hook called when creating a client to allow modification of configuration.
+   *
+   * This method is called during client creation and allows plugins to modify
+   * the client configuration before the client is fully initialized.
+   */
+  configureClient?(options: Omit<ClientOptions, 'plugins'>): Omit<ClientOptions, 'plugins'>;
 }
