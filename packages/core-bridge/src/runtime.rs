@@ -64,6 +64,7 @@ pub fn runtime_new(
     // Create core runtime which starts tokio multi-thread runtime
     let runtime_options = RuntimeOptionsBuilder::default()
         .telemetry_options(telemetry_options)
+        .heartbeat_interval(None)
         .build()
         .context("Failed to build runtime options")?;
     let mut core_runtime = CoreRuntime::new(runtime_options, TokioRuntimeBuilder::default())
