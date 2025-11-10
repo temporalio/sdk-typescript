@@ -13,43 +13,43 @@ import { RUN_INTEGRATION_TESTS, Worker, test } from './helpers';
 import { createTestWorkflowBundle } from './helpers-integration';
 
 if (RUN_INTEGRATION_TESTS) {
-  // test.serial('Runtime can be created and disposed', async (t) => {
-  //   await Runtime.instance().shutdown();
-  //   t.pass();
-  // });
-  //
-  // test.serial('Runtime tracks registered workers, shuts down and restarts as expected', async (t) => {
-  //   // Create 2 Workers and verify Runtime keeps running after first Worker deregisteration
-  //   const worker1 = await Worker.create({
-  //     ...defaultOptions,
-  //     taskQueue: 'q1',
-  //   });
-  //   const worker2 = await Worker.create({
-  //     ...defaultOptions,
-  //     taskQueue: 'q2',
-  //   });
-  //   const worker1Drained = worker1.run();
-  //   const worker2Drained = worker2.run();
-  //   worker1.shutdown();
-  //   await worker1Drained;
-  //   const client = new WorkflowClient();
-  //   // Run a simple workflow
-  //   await client.execute(workflows.sleeper, { taskQueue: 'q2', workflowId: uuid4(), args: [1] });
-  //   worker2.shutdown();
-  //   await worker2Drained;
-  //
-  //   const worker3 = await Worker.create({
-  //     ...defaultOptions,
-  //     taskQueue: 'q1', // Same as the first Worker created
-  //   });
-  //   const worker3Drained = worker3.run();
-  //   // Run a simple workflow
-  //   await client.execute('sleeper', { taskQueue: 'q1', workflowId: uuid4(), args: [1] });
-  //   worker3.shutdown();
-  //   await worker3Drained;
-  //   // No exceptions, test passes, Runtime is implicitly shut down
-  //   t.pass();
-  // });
+  test.serial('Runtime can be created and disposed', async (t) => {
+    await Runtime.instance().shutdown();
+    t.pass();
+  });
+
+  test.serial('Runtime tracks registered workers, shuts down and restarts as expected', async (t) => {
+    // Create 2 Workers and verify Runtime keeps running after first Worker deregisteration
+    const worker1 = await Worker.create({
+      ...defaultOptions,
+      taskQueue: 'q1',
+    });
+    const worker2 = await Worker.create({
+      ...defaultOptions,
+      taskQueue: 'q2',
+    });
+    const worker1Drained = worker1.run();
+    const worker2Drained = worker2.run();
+    worker1.shutdown();
+    await worker1Drained;
+    const client = new WorkflowClient();
+    // Run a simple workflow
+    await client.execute(workflows.sleeper, { taskQueue: 'q2', workflowId: uuid4(), args: [1] });
+    worker2.shutdown();
+    await worker2Drained;
+
+    const worker3 = await Worker.create({
+      ...defaultOptions,
+      taskQueue: 'q1', // Same as the first Worker created
+    });
+    const worker3Drained = worker3.run();
+    // Run a simple workflow
+    await client.execute('sleeper', { taskQueue: 'q1', workflowId: uuid4(), args: [1] });
+    worker3.shutdown();
+    await worker3Drained;
+    // No exceptions, test passes, Runtime is implicitly shut down
+    t.pass();
+  });
 
   // Stopping and starting Workers is probably not a common pattern but if we don't remember what
   // Runtime configuration was installed, creating a new Worker after Runtime shutdown we would fallback
@@ -70,7 +70,7 @@ if (RUN_INTEGRATION_TESTS) {
     console.log("1.1");
     const workerDrained = worker.run();
     console.log("1.2");
-    worker.shutdown(); // TODO: Because we don't await before this, we won't have polled yet.
+    worker.shutdown();
     console.log("1.3");
     await workerDrained;
     {
