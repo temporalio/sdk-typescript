@@ -20,7 +20,7 @@ const payloadConverter = defaultPayloadConverter;
 /**
  * If found, return an otel Context deserialized from the provided headers
  */
-export async function extractContextFromHeaders(headers: Headers): Promise<otel.Context | undefined> {
+export function extractContextFromHeaders(headers: Headers): otel.Context | undefined {
   const encodedSpanContext = headers[TRACE_HEADER];
   if (encodedSpanContext === undefined) {
     return undefined;
@@ -32,7 +32,7 @@ export async function extractContextFromHeaders(headers: Headers): Promise<otel.
 /**
  * Given headers, return new headers with the current otel context inserted
  */
-export async function headersWithContext(headers: Headers): Promise<Headers> {
+export function headersWithContext(headers: Headers): Headers {
   const carrier = {};
   otel.propagation.inject(otel.context.active(), carrier, otel.defaultTextMapSetter);
   return { ...headers, [TRACE_HEADER]: payloadConverter.toPayload(carrier) };

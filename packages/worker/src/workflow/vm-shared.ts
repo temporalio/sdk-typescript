@@ -357,6 +357,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         },
       }));
       this.activator.addKnownFlags(activation.availableInternalFlags ?? []);
+      if (activation.lastSdkVersion) this.activator.sdkVersion = activation.lastSdkVersion;
 
       // Initialization of the workflow must happen before anything else. Yet, keep the init job in
       // place in the list as we'll use it as a marker to know when to start the workflow function.

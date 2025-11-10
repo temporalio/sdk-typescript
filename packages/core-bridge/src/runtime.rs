@@ -62,8 +62,11 @@ pub fn runtime_new(
     let (telemetry_options, metrics_options, logging_options) = bridge_options.try_into()?;
 
     // Create core runtime which starts tokio multi-thread runtime
-    let mut core_runtime = CoreRuntime::new(telemetry_options, TokioRuntimeBuilder::default())
-        .context("Failed to initialize Core Runtime")?;
+    let mut core_runtime = CoreRuntime::new(
+        telemetry_options,
+        TokioRuntimeBuilder::default(),
+    )
+    .context("Failed to initialize Core Runtime")?;
 
     enter_sync!(core_runtime);
 
