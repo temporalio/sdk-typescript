@@ -137,6 +137,9 @@ export class SimplePlugin
    * @returns Promise that resolves when worker execution completes
    */
   runWorker(worker: Worker, next: (w: Worker) => Promise<void>): Promise<void> {
+    console.log('Hello');
+    console.log('This:', this);
+    console.log('Options:', this.options);
     if (this.options.runContext !== undefined) {
       return this.options.runContext(() => next(worker));
     }
@@ -228,11 +231,11 @@ function resolveAppendObjectParameter(existing?: object, parameter?: PluginParam
 
 function resolveDataConverter(
   existing?: DataConverter,
-  parameter?: PluginParameter<DataConverter>,
+  parameter?: PluginParameter<DataConverter>
 ): DataConverter | undefined {
   return resolveParameterWithResolution(existing, parameter, (existing, parameter) => ({
     ...existing,
-    ...parameter
+    ...parameter,
   }));
 }
 
