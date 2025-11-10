@@ -38,6 +38,10 @@ on:
         required: true
         type: boolean
 
+permissions:
+  contents: read
+  actions: write
+
 env:
   TEMPORAL_TESTING_LOG_DIR: /tmp/worker-logs
   TEMPORAL_TESTING_MEM_LOG_DIR: /tmp/worker-mem-logs
@@ -59,22 +63,11 @@ jobs:
           submodules: recursive
           ref: ${{ inputs.ref }}
 
-      - name: Install Node
-        uses: actions/setup-node@v4
+      - name: Setup Node and Install Dependencies
+        uses: ./.github/actions/setup-node-deps
         with:
-          node-version: 20
-
-      - name: Get NPM cache directory
-        id: npm-cache-dir
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
-
-      - name: Restore NPM cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: npm-main-linux-x64-${{ hashFiles('./package-lock.json') }}
-          restore-keys: |
-            npm-main-linux-x64-
+          node-version: '22'
+          platform: 'linux-x64'
 
       - name: Install protoc
         uses: arduino/setup-protoc@v3
@@ -94,11 +87,6 @@ jobs:
           shared-key: linux-intel
           env-vars: ''
           save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
-
-      - name: Download dependencies
-        # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors
-        run: |
-          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
 
       - name: Compile code
         run: npm run build

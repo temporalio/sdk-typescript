@@ -53,16 +53,24 @@ export class WorkflowCodeBundler {
   protected readonly failureConverterPath?: string;
   protected readonly ignoreModules: string[];
   protected readonly webpackConfigHook: (config: Configuration) => Configuration;
+  protected readonly plugins: BundlerPlugin[];
 
-  constructor({
-    logger,
-    workflowsPath,
-    payloadConverterPath,
-    failureConverterPath,
-    workflowInterceptorModules,
-    ignoreModules,
-    webpackConfigHook,
-  }: BundleOptions) {
+  constructor(options: BundleOptions) {
+    this.plugins = options.plugins ?? [];
+    for (const plugin of this.plugins) {
+      if (plugin.configureBundler !== undefined) {
+        options = plugin.configureBundler(options);
+      }
+    }
+    const {
+      logger,
+      workflowsPath,
+      payloadConverterPath,
+      failureConverterPath,
+      workflowInterceptorModules,
+      ignoreModules,
+      webpackConfigHook,
+    } = options;
     this.logger = logger ?? new DefaultLogger('INFO');
     this.workflowsPath = workflowsPath;
     this.payloadConverterPath = payloadConverterPath;
@@ -308,6 +316,28 @@ exports.importInterceptors = function importInterceptors() {
 }
 
 /**
+ * Plugin interface for bundler functionality.
+ *
+ * Plugins provide a way to extend and customize the behavior of Temporal bundlers.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
+ */
+export interface BundlerPlugin {
+  /**
+   * Gets the name of this plugin.
+   *
+   * Returns:
+   *   The name of the plugin.
+   */
+  get name(): string;
+
+  /**
+   * Hook called when creating a bundler to allow modification of configuration.
+   */
+  configureBundler?(options: BundleOptions): BundleOptions;
+}
+
+/**
  * Options for bundling Workflow code using Webpack
  */
 export interface BundleOptions {
@@ -350,6 +380,11 @@ export interface BundleOptions {
    * {@link https://webpack.js.org/configuration/ | configuration} object so you can modify it.
    */
   webpackConfigHook?: (config: Configuration) => Configuration;
+
+  /**
+   * List of plugins to register with the bundler.
+   */
+  plugins?: BundlerPlugin[];
 }
 
 /**

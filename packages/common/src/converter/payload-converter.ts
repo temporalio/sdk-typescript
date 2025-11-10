@@ -126,6 +126,10 @@ export class RawValue<T = unknown> {
     this._payload = payloadConverter.toPayload(value);
   }
 
+  static fromPayload(p: Payload): RawValue {
+    return new RawValue(p, identityPayloadConverter);
+  }
+
   get payload(): Payload {
     return this._payload;
   }
@@ -312,3 +316,18 @@ export class DefaultPayloadConverter extends CompositePayloadConverter {
  * `const myConverter = new DefaultPayloadConverter({ protobufRoot })`
  */
 export const defaultPayloadConverter = new DefaultPayloadConverter();
+
+/**
+ * The identity payload converter returns the inputs it was given.
+ */
+class IdentityPayloadConverter implements PayloadConverter {
+  toPayload<T>(value: T): Payload {
+    return value as Payload;
+  }
+
+  fromPayload<T>(payload: Payload): T {
+    return payload as T;
+  }
+}
+
+const identityPayloadConverter = new IdentityPayloadConverter();

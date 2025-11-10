@@ -250,7 +250,7 @@ export class GlobalHandlers {
 
           if (
             currentAggregation &&
-            /^\s+at\sPromise\.then \(<anonymous>\)\n\s+at Function\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(
+            /^\s+at\sPromise\.then \(<anonymous>\)\n\s+at (Function|Promise)\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(
               formatted
             )
           ) {
@@ -258,7 +258,7 @@ export class GlobalHandlers {
             promise = currentAggregation;
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             stackTrace = store.promiseToStack.get(currentAggregation)!; // Must exist
-          } else if (/^\s+at Function\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(formatted)) {
+          } else if (/^\s+at (Function|Promise)\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(formatted)) {
             currentAggregation = promise;
           } else {
             currentAggregation = undefined;

@@ -25,6 +25,8 @@ import {
   ActivityCancellationType,
   ApplicationFailure,
   defineSearchAttributeKey,
+  encodingKeys,
+  METADATA_ENCODING_KEY,
   RawValue,
   SearchAttributePair,
   SearchAttributeType,
@@ -36,19 +38,13 @@ import {
   STACK_TRACE_QUERY_NAME,
   ENHANCED_STACK_TRACE_QUERY_NAME,
 } from '@temporalio/common/lib/reserved';
+import { encode } from '@temporalio/common/lib/encoding';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
-import {
-  Context,
-  createLocalTestEnvironment,
-  hasActivityHeartbeat,
-  helpers,
-  makeTestFunction,
-  setActivityState,
-} from './helpers-integration';
+import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
-import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
+import { ActivityState, heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
 import { loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
 
 const test = makeTestFunction({
@@ -1075,7 +1071,7 @@ export function setAndClearTimeoutInterceptors(): workflow.WorkflowInterceptors 
 }
 
 if (RUN_TIME_SKIPPING_TESTS) {
-  test('setTimeout and clearTimeout - works before and after 1.10.3', async (t) => {
+  test.serial('setTimeout and clearTimeout - works before and after 1.10.3', async (t) => {
     const env = await TestWorkflowEnvironment.createTimeSkipping();
     const { createWorker, startWorkflow } = helpers(t, env);
     try {
@@ -1292,7 +1288,7 @@ test('Count workflow executions', async (t) => {
   });
 });
 
-test('can register search attributes to dev server', async (t) => {
+test.serial('can register search attributes to dev server', async (t) => {
   const key = defineSearchAttributeKey('new-search-attr', SearchAttributeType.INT);
   const newSearchAttribute: SearchAttributePair = { key, value: 12 };
 
@@ -1318,17 +1314,29 @@ test('can register search attributes to dev server', async (t) => {
   await env.teardown();
 });
 
-export async function rawValueWorkflow(value: unknown): Promise<RawValue> {
+export async function rawValueWorkflow(value: unknown, isPayload: boolean = false): Promise<RawValue> {
   const { rawValueActivity } = workflow.proxyActivities({ startToCloseTimeout: '10s' });
-  return await rawValueActivity(new RawValue(value));
+  const rv = isPayload
+    ? RawValue.fromPayload({
+        metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
+        data: value as Uint8Array,
+      })
+    : new RawValue(value);
+  return await rawValueActivity(rv, isPayload);
 }
 
 test('workflow and activity can receive/return RawValue', async (t) => {
   const { executeWorkflow, createWorker } = helpers(t);
   const worker = await createWorker({
     activities: {
-      async rawValueActivity(value: unknown): Promise<RawValue> {
-        return new RawValue(value);
+      async rawValueActivity(value: unknown, isPayload: boolean = false): Promise<RawValue> {
+        const rv = isPayload
+          ? RawValue.fromPayload({
+              metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
+              data: value as Uint8Array,
+            })
+          : new RawValue(value);
+        return rv;
       },
     },
   });
@@ -1336,10 +1344,18 @@ test('workflow and activity can receive/return RawValue', async (t) => {
   await worker.runUntil(async () => {
     const testValue = 'test';
     const rawValue = new RawValue(testValue);
+    const rawValuePayload = RawValue.fromPayload({
+      metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
+      data: encode(testValue),
+    });
     const res = await executeWorkflow(rawValueWorkflow, {
       args: [rawValue],
     });
     t.deepEqual(res, testValue);
+    const res2 = await executeWorkflow(rawValueWorkflow, {
+      args: [rawValuePayload, true],
+    });
+    t.deepEqual(res2, encode(testValue));
   });
 });
 
@@ -1418,26 +1434,22 @@ test('Workflow can return root workflow', async (t) => {
   });
 });
 
-export async function heartbeatPauseWorkflow(
-  activityId: string,
-  catchErr: boolean,
-  maximumAttempts: number
+export async function heartbeatCancellationWorkflow(
+  state: ActivityState
 ): Promise<ActivityCancellationDetails | undefined> {
   const { heartbeatCancellationDetailsActivity } = workflow.proxyActivities({
     startToCloseTimeout: '5s',
-    activityId,
     retry: {
-      maximumAttempts,
+      maximumAttempts: 2,
     },
     heartbeatTimeout: '1s',
   });
 
-  return await heartbeatCancellationDetailsActivity(catchErr);
+  return await heartbeatCancellationDetailsActivity(state);
 }
 
 test('Activity pause returns expected cancellation details', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
-
+  const { createWorker, executeWorkflow } = helpers(t);
   const worker = await createWorker({
     activities: {
       heartbeatCancellationDetailsActivity,
@@ -1445,23 +1457,9 @@ test('Activity pause returns expected cancellation details', async (t) => {
   });
 
   await worker.runUntil(async () => {
-    const testActivityId = randomUUID();
-    const handle = await startWorkflow(heartbeatPauseWorkflow, {
-      args: [testActivityId, true, 1],
+    const result = await executeWorkflow(heartbeatCancellationWorkflow, {
+      args: [{ pause: true }],
     });
-
-    // Wait for activity to appear in pending activities AND start heartbeating
-    await waitUntil(async () => {
-      const { raw } = await handle.describe();
-      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
-      // Check both: activity exists and has heartbeated
-      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
-    }, 10000);
-
-    // Now pause the activity
-    await setActivityState(handle, testActivityId, 'pause');
-    // Get the result - should contain pause cancellation details
-    const result = await handle.result();
 
     t.deepEqual(result, {
       cancelRequested: false,
@@ -1475,7 +1473,7 @@ test('Activity pause returns expected cancellation details', async (t) => {
 });
 
 test('Activity can be cancelled via pause and retry after unpause', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
+  const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
     activities: {
@@ -1484,27 +1482,17 @@ test('Activity can be cancelled via pause and retry after unpause', async (t) =>
   });
 
   await worker.runUntil(async () => {
-    const testActivityId = randomUUID();
-    const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, false, 2] });
-
-    // Wait for it to exist and heartbeat
-    await waitUntil(async () => {
-      const { raw } = await handle.describe();
-      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
-      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
-    }, 10000);
-
-    await setActivityState(handle, testActivityId, 'pause');
-    await waitUntil(async () => hasActivityHeartbeat(handle, testActivityId, 'finally-complete'), 10000);
-    await setActivityState(handle, testActivityId, 'unpause');
-
-    const result = await handle.result();
+    const result = await executeWorkflow(heartbeatCancellationWorkflow, {
+      args: [{ pause: true, unpause: true, shouldRetry: true }],
+    });
+    // Note that we expect the result to be null because unpausing an activity
+    // resets the activity context (akin to starting the activity anew)
     t.true(result == null);
   });
 });
 
-test('Activity reset returns expected cancellation details', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
+test('Activity reset without retry returns expected cancellation details', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
   const worker = await createWorker({
     activities: {
       heartbeatCancellationDetailsActivity,
@@ -1512,18 +1500,7 @@ test('Activity reset returns expected cancellation details', async (t) => {
   });
 
   await worker.runUntil(async () => {
-    const testActivityId = randomUUID();
-    const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, true, 1] });
-
-    // Wait for it to exist and heartbeat
-    await waitUntil(async () => {
-      const { raw } = await handle.describe();
-      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
-      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
-    }, 10000);
-
-    await setActivityState(handle, testActivityId, 'reset');
-    const result = await handle.result();
+    const result = await executeWorkflow(heartbeatCancellationWorkflow, { args: [{ reset: true }] });
     t.deepEqual(result, {
       cancelRequested: false,
       notFound: false,
@@ -1535,8 +1512,8 @@ test('Activity reset returns expected cancellation details', async (t) => {
   });
 });
 
-test('Activity set as both paused and reset returns expected cancellation details', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
+test('Activity reset with retry returns expected cancellation details', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
   const worker = await createWorker({
     activities: {
       heartbeatCancellationDetailsActivity,
@@ -1544,18 +1521,21 @@ test('Activity set as both paused and reset returns expected cancellation detail
   });
 
   await worker.runUntil(async () => {
-    const testActivityId = randomUUID();
-    const handle = await startWorkflow(heartbeatPauseWorkflow, { args: [testActivityId, true, 1] });
+    const result = await executeWorkflow(heartbeatCancellationWorkflow, { args: [{ reset: true, shouldRetry: true }] });
+    t.true(result == null);
+  });
+});
 
-    // Wait for it to exist and heartbeat
-    await waitUntil(async () => {
-      const { raw } = await handle.describe();
-      const activityInfo = raw.pendingActivities?.find((act) => act.activityId === testActivityId);
-      return !!(activityInfo && (await hasActivityHeartbeat(handle, testActivityId, 'heartbeated')));
-    }, 10000);
+test('Activity paused and reset returns expected cancellation details', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      heartbeatCancellationDetailsActivity,
+    },
+  });
 
-    await setActivityState(handle, testActivityId, 'pause & reset');
-    const result = await handle.result();
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(heartbeatCancellationWorkflow, { args: [{ pause: true, reset: true }] });
     t.deepEqual(result, {
       cancelRequested: false,
       notFound: false,

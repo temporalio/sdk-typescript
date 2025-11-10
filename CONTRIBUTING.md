@@ -50,7 +50,8 @@ See [sdk-structure.md](./docs/sdk-structure.md)
 
 ### Environment setup
 
-The TS SDK can be executed on 18, 20 or 22. However, we recommend using Node 22 for SDK development.
+TS SDK is officially supported on Node 18, 20, 22, or 24. However, we recommend using the
+[Active LTS](https://nodejs.org/en/about/previous-releases#nodejs-releases) for SDK development.
 For easier testing during development you may want to use a version manager, such as
 [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
 
@@ -206,6 +207,7 @@ git-cliff --tag 1.0.1 v1.0.0..HEAD | pbcopy
 - Paste into [CHANGELOG.md](CHANGELOG.md)
 - Clean up formatting
 - Add any important missing details
+- If core has been updated, include a note in the release about from which commit to which commit, and you should review the commits to see if there were any breaking changes that must be called out.
 - Replace PR numbers with links:
 
 ```

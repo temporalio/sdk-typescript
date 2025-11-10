@@ -8,7 +8,7 @@ import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import { configurableHelpers } from './helpers-integration';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import * as activities from './activities';
-import { approximatelyEqual, cleanOptionalStackTrace } from './helpers';
+import { approximatelyEqual, cleanOptionalStackTrace, compareStackTrace } from './helpers';
 import * as workflows from './workflows';
 
 const test = makeTestFn(() => bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') }));
@@ -48,7 +48,6 @@ if ('promiseHooks' in v8) {
     t.true(
       stack1.endsWith(
         `
-    at Function.all (<anonymous>)
     at stackTracer (test/src/workflows/stack-tracer.ts)
 
     at stackTracer (test/src/workflows/stack-tracer.ts)
@@ -91,11 +90,17 @@ if ('promiseHooks' in v8) {
     }));
     t.is(enhancedStack.sdk.name, 'typescript');
     t.is(enhancedStack.sdk.version, pkg.version); // Expect workflow and worker versions to match
+    {
+      const functionName = stacks[0]!.locations[0]!.function_name!;
+      delete stacks[0]!.locations[0]!.function_name;
+      compareStackTrace(t, functionName, '$CLASS.all');
+    }
     t.deepEqual(stacks, [
       {
         locations: [
           {
-            function_name: 'Function.all',
+            // Checked sperately above to handle Node 24 behavior change with respect to identifiers in stack traces
+            // function_name: 'Function.all',
             internal_code: false,
           },
           {

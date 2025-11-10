@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/client",
-  "version": "1.13.0",
+  "version": "1.13.1",
   "description": "Temporal.io SDK Client sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -18,7 +18,7 @@
     "@temporalio/proto": "file:../proto",
     "abort-controller": "^3.0.0",
     "long": "^5.2.3",
-    "uuid": "^9.0.1"
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "protobufjs": "^7.2.5"

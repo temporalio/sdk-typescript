@@ -7,6 +7,10 @@ on:
       - main
       - releases/*
 
+permissions:
+  contents: read
+  actions: write
+
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   # Is it the official main branch, or an official release branches?
@@ -113,7 +117,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [18, 22] # Min and max supported Node versions
+        node: [18, 22, 24] # Min and max officially supported Node versions + next max
         platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
         include:
           - platform: linux-x64
@@ -155,10 +159,11 @@ jobs:
           name: corebridge-native-debug-${{ matrix.platform }}
           path: ./packages/core-bridge/releases
 
-      - name: Install Node
-        uses: actions/setup-node@v4
+      - name: Setup Node and Install Dependencies
+        uses: ./.github/actions/setup-node-deps
         with:
           node-version: ${{ matrix.node-release-override || matrix.node }}
+          platform: ${{ matrix.platform }}
 
       # On Windows, the 'runner.temp' variable uses backslashes as path separators, but
       # that may pose problems in later steps when we try to join that with subpaths;
@@ -171,23 +176,6 @@ jobs:
         id: tmp-dir
         run: echo "dir=$(pwd)" >> ${GITHUB_OUTPUT}
         working-directory: ${{ runner.temp }}
-
-      - name: Get NPM cache directory
-        id: npm-cache-dir
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
-
-      - name: Restore NPM cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: npm-main-${{ matrix.platform }}-${{ hashFiles('./package-lock.json') }}
-          restore-keys: |
-            npm-main-${{ matrix.platform }}-
-
-      - name: Download dependencies
-        # Make up to 3 attempts to install NPM dependencies, to work around transient NPM errors :(
-        run: |
-          npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose || npm ci --ignore-scripts --verbose
 
       - name: Compile code
         run: npm run build -- --ignore @temporalio/core-bridge

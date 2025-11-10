@@ -9,7 +9,7 @@ import {
   WorkflowHandle,
   WorkflowStartOptions,
 } from '@temporalio/client';
-import { LocalActivityOptions } from '@temporalio/common';
+import { LocalActivityOptions, RetryPolicy } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
 import { workflowInterceptorModules } from '@temporalio/testing';
@@ -624,3 +624,36 @@ export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
     ],
   };
 };
+
+export async function getRetryPolicyFromActivityInfo(
+  retryPolicy: RetryPolicy,
+  fromInsideLocal: boolean
+): Promise<object | undefined> {
+  return await (fromInsideLocal
+    ? workflow.proxyLocalActivities({ startToCloseTimeout: '1m', retry: retryPolicy }).retryPolicy()
+    : workflow.proxyActivities({ startToCloseTimeout: '1m', retry: retryPolicy }).retryPolicy());
+}
+
+test.serial('retryPolicy is set correctly', async (t) => {
+  const { executeWorkflow, createWorker } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      async retryPolicy(): Promise<object | undefined> {
+        return ActivityContext.current().info.retryPolicy;
+      },
+    },
+  });
+
+  const retryPolicy: RetryPolicy = {
+    backoffCoefficient: 1.5,
+    initialInterval: 2.0,
+    maximumAttempts: 3,
+    maximumInterval: 10.0,
+    nonRetryableErrorTypes: ['nonRetryableError'],
+  };
+
+  await worker.runUntil(async () => {
+    t.deepEqual(await executeWorkflow(getRetryPolicyFromActivityInfo, { args: [retryPolicy, true] }), retryPolicy);
+    t.deepEqual(await executeWorkflow(getRetryPolicyFromActivityInfo, { args: [retryPolicy, false] }), retryPolicy);
+  });
+});

@@ -91,6 +91,7 @@ import {
   ReplayWorkerOptions,
   toNativeWorkerOptions,
   WorkerOptions,
+  WorkerPlugin,
   WorkflowBundle,
 } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
@@ -500,6 +501,12 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
+    options.plugins = (options.plugins ?? []).concat(options.connection?.plugins ?? []);
+    for (const plugin of options.plugins) {
+      if (plugin.configureWorker !== undefined) {
+        options = plugin.configureWorker(options);
+      }
+    }
     if (!options.taskQueue) {
       throw new TypeError('Task queue name is required');
     }
@@ -555,6 +562,7 @@ export class Worker {
       compiledOptionsWithBuildId,
       logger,
       metricMeter,
+      options.plugins ?? [],
       connection
     );
   }
@@ -697,6 +705,12 @@ export class Worker {
   }
 
   private static async constructReplayWorker(options: ReplayWorkerOptions): Promise<[Worker, native.HistoryPusher]> {
+    const plugins = options.plugins ?? [];
+    for (const plugin of plugins) {
+      if (plugin.configureReplayWorker !== undefined) {
+        options = plugin.configureReplayWorker(options);
+      }
+    }
     const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
     const fixedUpOptions: WorkerOptions = {
       taskQueue: (options.replayName ?? 'fake_replay_queue') + '-' + this.replayWorkerCount,
@@ -724,7 +738,17 @@ export class Worker {
       addBuildIdIfMissing(compiledOptions, bundle.code)
     );
     return [
-      new this(runtime, replayHandle.worker, workflowCreator, compiledOptions, logger, metricMeter, undefined, true),
+      new this(
+        runtime,
+        replayHandle.worker,
+        workflowCreator,
+        compiledOptions,
+        logger,
+        metricMeter,
+        plugins,
+        undefined,
+        true
+      ),
       replayHandle.historyPusher,
     ];
   }
@@ -770,6 +794,7 @@ export class Worker {
         payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
         ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
         webpackConfigHook: compiledOptions.bundlerOptions?.webpackConfigHook,
+        plugins: compiledOptions.plugins,
       });
       const bundle = await bundler.createBundle();
       return parseWorkflowCode(bundle.code);
@@ -792,6 +817,7 @@ export class Worker {
     /** Logger bound to 'sdkComponent: worker' */
     protected readonly logger: Logger,
     protected readonly metricMeter: MetricMeter,
+    protected readonly plugins: WorkerPlugin[],
     protected readonly connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
@@ -1956,6 +1982,21 @@ export class Worker {
    * To stop polling, call {@link shutdown} or send one of {@link Runtime.options.shutdownSignals}.
    */
   async run(): Promise<void> {
+    if (this.isReplayWorker) {
+      return this.runInternal();
+    }
+    let runWorker = (w: Worker) => w.runInternal();
+    for (let i = this.plugins.length - 1; i >= 0; --i) {
+      const rw = runWorker;
+      const plugin = this.plugins[i];
+      if (plugin.runWorker !== undefined) {
+        runWorker = (w: Worker) => plugin.runWorker!(w, rw);
+      }
+    }
+    return runWorker(this);
+  }
+
+  private async runInternal(): Promise<void> {
     if (this.state !== 'INITIALIZED') {
       throw new IllegalStateError('Poller was already started');
     }
@@ -2132,6 +2173,7 @@ async function extractActivityInfo(
       'currentAttemptScheduledTime'
     ),
     priority: decodePriority(start.priority),
+    retryPolicy: decompileRetryPolicy(start.retryPolicy),
   };
 }
 

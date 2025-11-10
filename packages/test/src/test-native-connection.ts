@@ -203,13 +203,18 @@ test('withMetadata and withDeadline propagate metadata and deadline', async (t) 
   );
   const connection = await NativeConnection.connect({
     address: `127.0.0.1:${port}`,
+    metadata: { 'default-bin': Buffer.from([0x00]) },
   });
 
   await connection.withDeadline(Date.now() + 10_000, () =>
-    connection.withMetadata({ test: 'true' }, () => connection.workflowService.getSystemInfo({}))
+    connection.withMetadata({ test: 'true', 'other-bin': Buffer.from([0x01]) }, () =>
+      connection.workflowService.getSystemInfo({})
+    )
   );
   t.is(requests.length, 2);
   t.is(requests[1].metadata.get('test').toString(), 'true');
+  t.deepEqual(requests[1].metadata.get('default-bin'), [Buffer.from([0x00])]);
+  t.deepEqual(requests[1].metadata.get('other-bin'), [Buffer.from([0x01])]);
   t.true(typeof requests[1].deadline === 'number' && requests[1].deadline > 5_000);
   await connection.close();
   server.forceShutdown();
@@ -433,4 +438,40 @@ test('can power workflow client calls', async (t) => {
   } finally {
     await env.teardown();
   }
+});
+
+test('setMetadata accepts binary headers', async (t) => {
+  const requests = new Array<{ metadata: grpc.Metadata; deadline: grpc.Deadline }>();
+  const server = new grpc.Server();
+  server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
+    getSystemInfo(
+      call: grpc.ServerUnaryCall<
+        temporal.api.workflowservice.v1.IGetSystemInfoRequest,
+        temporal.api.workflowservice.v1.IGetSystemInfoResponse
+      >,
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+    ) {
+      requests.push({ metadata: call.metadata, deadline: call.getDeadline() });
+      callback(null, {});
+    },
+  });
+
+  const port = await util.promisify(server.bindAsync.bind(server))(
+    'localhost:0',
+    grpc.ServerCredentials.createInsecure()
+  );
+  const connection = await NativeConnection.connect({
+    address: `127.0.0.1:${port}`,
+    metadata: { 'start-ascii': 'a', 'start-bin': Buffer.from([0x00]) },
+  });
+
+  await connection.setMetadata({ 'end-bin': Buffer.from([0x01]) });
+
+  await connection.workflowService.getSystemInfo({});
+  t.is(requests.length, 2);
+  t.deepEqual(requests[1].metadata.get('start-bin'), []);
+  t.deepEqual(requests[1].metadata.get('start-ascii'), []);
+  t.deepEqual(requests[1].metadata.get('end-bin'), [Buffer.from([0x01])]);
+  await connection.close();
+  server.forceShutdown();
 });

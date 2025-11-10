@@ -96,4 +96,5 @@ export const defaultActivityInfo: activity.Info = {
   scheduleToCloseTimeoutMs: 1000,
   currentAttemptScheduledTimestampMs: 1,
   priority: undefined,
+  retryPolicy: undefined,
 };

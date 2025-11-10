@@ -19,7 +19,7 @@ import {
   convertWorkflowEventLinkToNexusLink,
   convertNexusLinkToWorkflowEventLink,
 } from '@temporalio/nexus/lib/link-converter';
-import { cleanStackTrace, getRandomPort } from './helpers';
+import { cleanStackTrace, compareStackTrace, getRandomPort } from './helpers';
 
 export interface Context {
   httpPort: number;
@@ -314,10 +314,11 @@ test('start Operation Handler errors', async (t) => {
       });
       t.true(err instanceof ApplicationFailure);
       t.is(err.message, '');
-      t.is(
+      compareStackTrace(
+        t,
         cleanStackTrace(err.stack!),
         `ApplicationFailure: deliberate failure
-    at Function.create (common/src/failure.ts)
+    at $CLASS.create (common/src/failure.ts)
     at op (test/src/test-nexus-handler.ts)
     at Object.start (nexus-rpc/src/handler/operation-handler.ts)
     at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
@@ -460,10 +461,11 @@ test('cancel Operation Handler errors', async (t) => {
       });
       t.true(err instanceof ApplicationFailure);
       t.is(err.message, '');
-      t.is(
+      compareStackTrace(
+        t,
         cleanStackTrace(err.stack!),
         `ApplicationFailure: deliberate failure
-    at Function.create (common/src/failure.ts)
+    at $CLASS.create (common/src/failure.ts)
     at Object.cancel (test/src/test-nexus-handler.ts)
     at ServiceRegistry.cancel (nexus-rpc/src/handler/service-registry.ts)`
       );

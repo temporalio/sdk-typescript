@@ -1,6 +1,7 @@
 node_modules
 build
 packages/core-bridge/target
+packages/core-bridge/bridge-macros/target
 sdk-core
 lib
 es2020

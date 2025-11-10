@@ -1,5 +1,12 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
-import { AsyncCompletionClient, Client, Connection, WorkflowClient } from '@temporalio/client';
+import {
+  AsyncCompletionClient,
+  Client,
+  ClientPlugin,
+  Connection,
+  ConnectionPlugin,
+  WorkflowClient,
+} from '@temporalio/client';
 import {
   ConnectionOptions,
   InternalConnectionOptions,
@@ -7,7 +14,7 @@ import {
 } from '@temporalio/client/lib/connection';
 import { Duration, TypedSearchAttributes } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
-import { NativeConnection, NativeConnectionOptions, Runtime } from '@temporalio/worker';
+import { NativeConnection, NativeConnectionPlugin, NativeConnectionOptions, Runtime } from '@temporalio/worker';
 import { native } from '@temporalio/core-bridge';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { toNativeEphemeralServerConfig, DevServerConfig, TimeSkippingServerConfig } from './ephemeral-server';
@@ -19,6 +26,7 @@ import { ClientOptionsForTestEnv, TimeSkippingClient } from './client';
 export type LocalTestWorkflowEnvironmentOptions = {
   server?: Omit<DevServerConfig, 'type'>;
   client?: ClientOptionsForTestEnv;
+  plugins?: (ClientPlugin | ConnectionPlugin | NativeConnectionPlugin)[];
 };
 
 /**
@@ -27,6 +35,7 @@ export type LocalTestWorkflowEnvironmentOptions = {
 export type TimeSkippingTestWorkflowEnvironmentOptions = {
   server?: Omit<TimeSkippingServerConfig, 'type'>;
   client?: ClientOptionsForTestEnv;
+  plugins?: (ClientPlugin | ConnectionPlugin | NativeConnectionPlugin)[];
 };
 
 /**
@@ -38,6 +47,7 @@ export type ExistingServerTestWorkflowEnvironmentOptions = {
   /** If not set, defaults to default */
   namespace?: string;
   client?: ClientOptionsForTestEnv;
+  plugins?: (ClientPlugin | ConnectionPlugin | NativeConnectionPlugin)[];
 };
 
 /**
@@ -90,7 +100,11 @@ export class TestWorkflowEnvironment {
     protected readonly server: native.EphemeralServer | 'existing',
     connection: Connection,
     nativeConnection: NativeConnection,
-    namespace: string | undefined
+    namespace: string | undefined,
+    /**
+     * Address used when constructing `connection` and `nativeConnection`
+     */
+    public readonly address: string
   ) {
     this.connection = connection;
     this.nativeConnection = nativeConnection;
@@ -99,11 +113,13 @@ export class TestWorkflowEnvironment {
       ? new TimeSkippingClient({
           connection,
           namespace: this.namespace,
+          plugins: options.plugins,
           ...options.client,
         })
       : new Client({
           connection,
           namespace: this.namespace,
+          plugins: options.plugins,
           ...options.client,
         });
     this.asyncCompletionClient = this.client.activity; // eslint-disable-line deprecation/deprecation
@@ -144,6 +160,7 @@ export class TestWorkflowEnvironment {
     return await this.create({
       server: { type: 'time-skipping', ...opts?.server },
       client: opts?.client,
+      plugins: opts?.plugins,
       supportsTimeSkipping: true,
     });
   }
@@ -173,6 +190,7 @@ export class TestWorkflowEnvironment {
     return await this.create({
       server: { type: 'dev-server', ...opts?.server },
       client: opts?.client,
+      plugins: opts?.plugins,
       namespace: opts?.server?.namespace,
       supportsTimeSkipping: false,
     });
@@ -188,6 +206,7 @@ export class TestWorkflowEnvironment {
     return await this.create({
       server: { type: 'existing' },
       client: opts?.client,
+      plugins: opts?.plugins,
       namespace: opts?.namespace ?? 'default',
       supportsTimeSkipping: false,
       address: opts?.address,
@@ -231,14 +250,25 @@ export class TestWorkflowEnvironment {
 
     const nativeConnection = await NativeConnection.connect(<NativeConnectionOptions & InternalConnectionOptions>{
       address,
+      plugins: opts.plugins,
       [InternalConnectionOptionsSymbol]: { supportsTestService: supportsTimeSkipping },
     });
     const connection = await Connection.connect(<ConnectionOptions & InternalConnectionOptions>{
       address,
+      plugins: opts.plugins,
       [InternalConnectionOptionsSymbol]: { supportsTestService: supportsTimeSkipping },
     });
 
-    return new this(runtime, optsWithDefaults, supportsTimeSkipping, server, connection, nativeConnection, namespace);
+    return new this(
+      runtime,
+      optsWithDefaults,
+      supportsTimeSkipping,
+      server,
+      connection,
+      nativeConnection,
+      namespace,
+      address
+    );
   }
 
   /**
@@ -335,6 +365,7 @@ export class TestWorkflowEnvironment {
 type TestWorkflowEnvironmentOptions = {
   server: DevServerConfig | TimeSkippingServerConfig | ExistingServerConfig;
   client?: ClientOptionsForTestEnv;
+  plugins?: (ClientPlugin | ConnectionPlugin | NativeConnectionPlugin)[];
 };
 
 type ExistingServerConfig = { type: 'existing' };
@@ -348,5 +379,6 @@ function addDefaults(opts: TestWorkflowEnvironmentOptions): TestWorkflowEnvironm
     server: {
       ...opts.server,
     },
+    plugins: [],
   };
 }

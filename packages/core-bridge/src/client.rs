@@ -3,12 +3,12 @@ use std::time::Duration;
 use std::{collections::HashMap, sync::Arc};
 
 use neon::prelude::*;
-use tonic::metadata::MetadataKey;
+use tonic::metadata::{BinaryMetadataValue, MetadataKey};
 
 use temporal_sdk_core::{ClientOptions as CoreClientOptions, CoreRuntime, RetryClient};
 
 use bridge_macros::{TryFromJs, js_function};
-use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClientWithMetrics};
+use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClient};
 
 use crate::runtime::Runtime;
 use crate::{helpers::*, runtime::RuntimeExt as _};
@@ -38,7 +38,7 @@ pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<
     Ok(())
 }
 
-type CoreClient = RetryClient<ConfiguredClient<TemporalServiceClientWithMetrics>>;
+type CoreClient = RetryClient<ConfiguredClient<TemporalServiceClient>>;
 
 pub struct Client {
     // These fields are pub because they are accessed from Worker::new
@@ -61,6 +61,10 @@ pub fn client_new(
 
         let core_client = match res {
             Ok(core_client) => core_client,
+            Err(ClientInitError::InvalidHeaders(e)) => Err(BridgeError::TypeError {
+                message: format!("Invalid metadata key: {e}"),
+                field: None,
+            })?,
             Err(ClientInitError::SystemInfoCallError(e)) => Err(BridgeError::TransportError(
                 format!("Failed to call GetSystemInfo: {e}"),
             ))?,
@@ -84,13 +88,27 @@ pub fn client_new(
 #[js_function]
 pub fn client_update_headers(
     client: OpaqueInboundHandle<Client>,
-    headers: HashMap<String, String>,
+    headers: HashMap<String, MetadataValue>,
 ) -> BridgeResult<()> {
+    let (ascii_headers, bin_headers) = config::partition_headers(Some(headers));
     client
         .borrow()?
         .core_client
         .get_client()
-        .set_headers(headers);
+        .set_headers(ascii_headers.unwrap_or_default())
+        .map_err(|err| BridgeError::TypeError {
+            message: format!("Invalid metadata key: {err}"),
+            field: None,
+        })?;
+    client
+        .borrow()?
+        .core_client
+        .get_client()
+        .set_binary_headers(bin_headers.unwrap_or_default())
+        .map_err(|err| BridgeError::TypeError {
+            message: format!("Invalid metadata key: {err}"),
+            field: None,
+        })?;
     Ok(())
 }
 
@@ -122,8 +140,14 @@ pub struct RpcCall {
     pub rpc: String,
     pub req: Vec<u8>,
     pub retry: bool,
-    pub metadata: HashMap<String, String>,
+    pub metadata: HashMap<String, MetadataValue>,
     pub timeout: Option<Duration>,
+}
+
+#[derive(Debug, Clone, TryFromJs)]
+pub enum MetadataValue {
+    Ascii { value: String },
+    Binary { value: Vec<u8> },
 }
 
 /// Send a request to the Workflow Service using the provided Client
@@ -226,6 +250,8 @@ macro_rules! rpc_call {
 }
 
 // FIXME: "this function may allocate 1400106 bytes on the stack"
+#[allow(clippy::cognitive_complexity)]
+#[allow(clippy::large_stack_frames)]
 #[allow(clippy::too_many_lines)]
 async fn client_invoke_workflow_service(
     mut retry_client: CoreClient,
@@ -491,6 +517,7 @@ async fn client_invoke_workflow_service(
     }
 }
 
+#[allow(clippy::cognitive_complexity)]
 async fn client_invoke_operator_service(
     mut retry_client: CoreClient,
     call: RpcCall,
@@ -576,16 +603,29 @@ fn rpc_req<P: prost::Message + Default>(call: RpcCall) -> BridgeResult<tonic::Re
 
     let mut req = tonic::Request::new(proto);
     for (k, v) in call.metadata {
-        req.metadata_mut().insert(
-            MetadataKey::from_str(k.as_str()).map_err(|err| BridgeError::TypeError {
-                field: None,
-                message: format!("Invalid metadata key: {err}"),
-            })?,
-            v.parse().map_err(|err| BridgeError::TypeError {
-                field: None,
-                message: format!("Invalid metadata value: {err}"),
-            })?,
-        );
+        match v {
+            MetadataValue::Ascii { value: v } => {
+                req.metadata_mut().insert(
+                    MetadataKey::from_str(k.as_str()).map_err(|err| BridgeError::TypeError {
+                        field: None,
+                        message: format!("Invalid metadata key: {err}"),
+                    })?,
+                    v.parse().map_err(|err| BridgeError::TypeError {
+                        field: None,
+                        message: format!("Invalid metadata value: {err}"),
+                    })?,
+                );
+            }
+            MetadataValue::Binary { value: v } => {
+                req.metadata_mut().insert_bin(
+                    MetadataKey::from_str(k.as_str()).map_err(|err| BridgeError::TypeError {
+                        field: None,
+                        message: format!("Invalid metadata key: {err}"),
+                    })?,
+                    BinaryMetadataValue::from_bytes(&v),
+                );
+            }
+        }
     }
 
     if let Some(timeout) = call.timeout {
@@ -601,7 +641,7 @@ where
 {
     match res {
         Ok(resp) => Ok(resp.get_ref().encode_to_vec()),
-        Err(err) => Err(BridgeError::ServiceError(err)),
+        Err(err) => Err(BridgeError::from(err)),
     }
 }
 
@@ -620,7 +660,7 @@ mod config {
 
     use bridge_macros::TryFromJs;
 
-    use crate::helpers::*;
+    use crate::{client::MetadataValue, helpers::*};
 
     #[derive(Debug, Clone, TryFromJs)]
     pub(super) struct ClientOptions {
@@ -629,7 +669,7 @@ mod config {
         client_version: String,
         tls: Option<TlsConfig>,
         http_connect_proxy: Option<HttpConnectProxy>,
-        headers: Option<HashMap<String, String>>,
+        headers: Option<HashMap<String, MetadataValue>>,
         api_key: Option<String>,
         disable_error_code_metric_tags: bool,
     }
@@ -669,13 +709,16 @@ mod config {
                 builder.tls_cfg(tls.into());
             }
 
+            let (ascii_headers, bin_headers) = partition_headers(self.headers);
+
             let client_options = builder
                 .target_url(self.target_url)
                 .client_name(self.client_name)
                 .client_version(self.client_version)
                 // tls_cfg -- above
                 .http_connect_proxy(self.http_connect_proxy.map(Into::into))
-                .headers(self.headers)
+                .headers(ascii_headers)
+                .binary_headers(bin_headers)
                 .api_key(self.api_key)
                 .disable_error_code_metric_tags(self.disable_error_code_metric_tags)
                 // identity -- skipped: will be set on worker
@@ -710,5 +753,33 @@ mod config {
                 basic_auth: val.basic_auth.map(|auth| (auth.username, auth.password)),
             }
         }
+    }
+
+    #[allow(clippy::type_complexity)]
+    pub(super) fn partition_headers(
+        headers: Option<HashMap<String, MetadataValue>>,
+    ) -> (
+        Option<HashMap<String, String>>,
+        Option<HashMap<String, Vec<u8>>>,
+    ) {
+        let Some(headers) = headers else {
+            return (None, None);
+        };
+        let mut ascii_headers = HashMap::default();
+        let mut bin_headers = HashMap::default();
+        for (k, v) in headers {
+            match v {
+                MetadataValue::Ascii { value: v } => {
+                    ascii_headers.insert(k, v);
+                }
+                MetadataValue::Binary { value: v } => {
+                    bin_headers.insert(k, v);
+                }
+            }
+        }
+        (
+            (!ascii_headers.is_empty()).then_some(ascii_headers),
+            (!bin_headers.is_empty()).then_some(bin_headers),
+        )
     }
 }

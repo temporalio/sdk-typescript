@@ -12,13 +12,13 @@ export interface TLSConfig {
    * Root CA certificate used by the server. If not set, and the server's
    * cert is issued by someone the operating system trusts, verification will still work (ex: Cloud offering).
    */
-  serverRootCACertificate?: Buffer;
+  serverRootCACertificate?: Uint8Array;
   /** Sets the client certificate and key for connecting with mTLS */
   clientCertPair?: {
     /** The certificate for this client */
-    crt: Buffer;
+    crt: Uint8Array;
     /** The private key for this client */
-    key: Buffer;
+    key: Uint8Array;
   };
 }
 

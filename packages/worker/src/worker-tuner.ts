@@ -6,15 +6,11 @@ import { Logger, WorkerDeploymentVersion } from '@temporalio/common';
  * A worker tuner allows the customization of the performance characteristics of workers by
  * controlling how "slots" are handed out for different task types. In order to poll for and then
  * run tasks, a slot must first be reserved by the {@link SlotSupplier} returned by the tuner.
- *
- * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export type WorkerTuner = ResourceBasedTuner | TunerHolder;
 
 /**
  * This tuner allows for different slot suppliers for different slot types.
- *
- * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface TunerHolder {
   workflowTaskSlotSupplier: SlotSupplier<WorkflowSlotInfo>;
@@ -25,8 +21,6 @@ export interface TunerHolder {
 
 /**
  * Controls how slots are handed out for a specific task type.
- *
- * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export type SlotSupplier<SI extends SlotInfo> =
   | ResourceBasedSlotsForType
@@ -38,8 +32,6 @@ export type SlotSupplier<SI extends SlotInfo> =
 /**
  * This tuner attempts to maintain certain levels of resource usage when under load. You do not
  * need more than one instance of this when using it for multiple slot types.
- *
- * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface ResourceBasedTuner {
   /**
@@ -70,8 +62,6 @@ export interface ResourceBasedTuner {
 
 /**
  * Options for a {@link ResourceBasedTuner} to control target resource usage
- *
- * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface ResourceBasedTunerOptions {
   // A value between 0 and 1 that represents the target (system) memory usage. It's not recommended
@@ -85,8 +75,6 @@ export interface ResourceBasedTunerOptions {
 
 /**
  * Options for a specific slot type within a {@link ResourceBasedSlotsForType}
- *
- * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface ResourceBasedSlotOptions {
   /**
@@ -108,8 +96,6 @@ export interface ResourceBasedSlotOptions {
 
 /**
  * Resource based slot supplier options for a specific kind of slot.
- *
- * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
   type: 'resource-based';
@@ -120,8 +106,6 @@ export type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
 
 /**
  * A fixed-size slot supplier that will never issue more than a fixed number of slots.
- *
- * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface FixedSizeSlotSupplier {
   type: 'fixed-size';
@@ -131,8 +115,6 @@ export interface FixedSizeSlotSupplier {
 
 /**
  * The interface can be implemented to provide custom slot supplier behavior.
- *
- * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface CustomSlotSupplier<SI extends SlotInfo> {
   type: 'custom';
@@ -216,16 +198,12 @@ export interface NexusSlotInfo {
 
 /**
  * A permit to use a slot.
- *
- * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface SlotPermit {}
 
 /**
  * Context for reserving a slot.
- *
- * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface SlotReserveContext {
   /**
@@ -265,8 +243,6 @@ export interface SlotReserveContext {
 
 /**
  * Context for marking a slot as used.
- *
- * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface SlotMarkUsedContext<SI extends SlotInfo> {
   /**
@@ -282,8 +258,6 @@ export interface SlotMarkUsedContext<SI extends SlotInfo> {
 
 /**
  * Context for releasing a slot.
- *
- * @experimental Worker Tuner is an experimental feature and may be subject to change.
  */
 export interface SlotReleaseContext<SI extends SlotInfo> {
   /**

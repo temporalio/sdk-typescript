@@ -16,3 +16,4 @@ packages/*/package-lock.json
 # One test creates persisted SQLite DBs; they should normally be deleted automatically,
 # but may be left behind in some error scenarios.
 packages/test/temporal-db-*.sqlite
+.DS_Store

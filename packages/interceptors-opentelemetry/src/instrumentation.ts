@@ -3,7 +3,12 @@
  * @module
  */
 import * as otel from '@opentelemetry/api';
-import { Headers, defaultPayloadConverter } from '@temporalio/common';
+import {
+  type Headers,
+  ApplicationFailure,
+  ApplicationFailureCategory,
+  defaultPayloadConverter,
+} from '@temporalio/common';
 
 /** Default trace header for opentelemetry interceptors */
 export const TRACE_HEADER = '_tracer-data';
@@ -43,8 +48,10 @@ async function wrapWithSpan<T>(
     span.setStatus({ code: otel.SpanStatusCode.OK });
     return ret;
   } catch (err: any) {
+    const isBenignErr = err instanceof ApplicationFailure && err.category === ApplicationFailureCategory.BENIGN;
     if (acceptableErrors === undefined || !acceptableErrors(err)) {
-      span.setStatus({ code: otel.SpanStatusCode.ERROR, message: err instanceof Error ? err.message : String(err) });
+      const statusCode = isBenignErr ? otel.SpanStatusCode.UNSET : otel.SpanStatusCode.ERROR;
+      span.setStatus({ code: statusCode, message: (err as Error).message ?? String(err) });
       span.recordException(err);
     } else {
       span.setStatus({ code: otel.SpanStatusCode.OK });

@@ -470,4 +470,43 @@ if (RUN_INTEGRATION_TESTS) {
     const exceptionEvents = span.events.filter((event) => event.name === 'exception');
     t.is(exceptionEvents.length, 1);
   });
+
+  test('Otel workflow omits ApplicationError with BENIGN category', async (t) => {
+    const memoryExporter = new InMemorySpanExporter();
+    const provider = new BasicTracerProvider();
+    provider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
+    provider.register();
+    const tracer = provider.getTracer('test-error-tracer');
+
+    const worker = await Worker.create({
+      workflowsPath: require.resolve('./workflows'),
+      activities,
+      taskQueue: 'test-otel-benign-err',
+      interceptors: {
+        activity: [
+          (ctx) => {
+            return { inbound: new OpenTelemetryActivityInboundInterceptor(ctx, { tracer }) };
+          },
+        ],
+      },
+    });
+
+    const client = new WorkflowClient();
+
+    await worker.runUntil(
+      client.execute(workflows.throwMaybeBenignErr, {
+        taskQueue: 'test-otel-benign-err',
+        workflowId: uuid4(),
+        retry: { maximumAttempts: 3 },
+      })
+    );
+
+    const spans = memoryExporter.getFinishedSpans();
+    t.is(spans.length, 3);
+    t.is(spans[0].status.code, SpanStatusCode.ERROR);
+    t.is(spans[0].status.message, 'not benign');
+    t.is(spans[1].status.code, SpanStatusCode.UNSET);
+    t.is(spans[1].status.message, 'benign');
+    t.is(spans[2].status.code, SpanStatusCode.OK);
+  });
 }

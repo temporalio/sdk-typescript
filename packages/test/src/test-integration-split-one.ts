@@ -36,7 +36,7 @@ import {
 } from '@temporalio/workflow';
 import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';
 import * as activities from './activities';
-import { cleanOptionalStackTrace, u8, Worker } from './helpers';
+import { cleanOptionalStackTrace, compareStackTrace, u8, Worker } from './helpers';
 import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import * as workflows from './workflows';
 
@@ -204,11 +204,12 @@ test.serial('activity-failure with ApplicationFailure', configMacro, async (t, c
   t.is(err.cause.cause.message, 'Fail me');
   t.is(err.cause.cause.type, 'Error');
   t.deepEqual(err.cause.cause.details, ['details', 123, false]);
-  t.is(
-    cleanOptionalStackTrace(err.cause.cause.stack),
+  compareStackTrace(
+    t,
+    cleanOptionalStackTrace(err.cause.cause.stack)!,
     dedent`
   ApplicationFailure: Fail me
-      at Function.nonRetryable (common/src/failure.ts)
+      at $CLASS.nonRetryable (common/src/failure.ts)
       at throwAnError (test/src/activities/index.ts)
     `
   );
@@ -258,11 +259,12 @@ test.serial('child-workflow-failure', configMacro, async (t, config) => {
       return t.fail('Expected err.cause.cause to be an instance of ApplicationFailure');
     }
     t.is(err.cause.cause.message, 'failure');
-    t.is(
-      cleanOptionalStackTrace(err.cause.cause.stack),
+    compareStackTrace(
+      t,
+      cleanOptionalStackTrace(err.cause.cause.stack)!,
       dedent`
       ApplicationFailure: failure
-          at Function.nonRetryable (common/src/failure.ts)
+          at $CLASS.nonRetryable (common/src/failure.ts)
           at throwAsync (test/src/workflows/throw-async.ts)
     `
     );

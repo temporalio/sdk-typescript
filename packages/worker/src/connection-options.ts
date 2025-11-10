@@ -7,7 +7,9 @@ import {
   ProxyConfig,
   TLSConfig,
 } from '@temporalio/common/lib/internal-non-workflow';
+import type { Metadata } from '@temporalio/client';
 import pkg from './pkg';
+import type { NativeConnectionPlugin } from './connection';
 
 export { TLSConfig, ProxyConfig };
 
@@ -44,7 +46,7 @@ export interface NativeConnectionOptions {
    *
    * Set statically at connection time, can be replaced later using {@link NativeConnection.setMetadata}.
    */
-  metadata?: Record<string, string>;
+  metadata?: Metadata;
 
   /**
    * API key for Temporal. This becomes the "Authorization" HTTP header with "Bearer " prepended.
@@ -59,6 +61,17 @@ export interface NativeConnectionOptions {
    * @default false
    */
   disableErrorCodeMetricTags?: boolean;
+
+  /**
+   * List of plugins to register with the native connection.
+   *
+   * Plugins allow you to configure the native connection options.
+   *
+   * Any plugins provided will also be passed to any Worker, Client, or Bundler built from this connection.
+   *
+   * @experimental Plugins is an experimental feature; APIs may change without notice.
+   */
+  plugins?: NativeConnectionPlugin[];
 }
 
 // Compile to Native ///////////////////////////////////////////////////////////////////////////////
@@ -70,11 +83,11 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
   const tls: native.TLSConfig | null = tlsInput
     ? {
         domain: tlsInput.serverNameOverride ?? null,
-        serverRootCaCert: tlsInput.serverRootCACertificate ?? null,
+        serverRootCaCert: tlsInput.serverRootCACertificate ? Buffer.from(tlsInput.serverRootCACertificate) : null,
         clientTlsConfig: tlsInput.clientCertPair
           ? {
-              clientCert: tlsInput.clientCertPair.crt,
-              clientPrivateKey: tlsInput.clientCertPair.key,
+              clientCert: tlsInput.clientCertPair.crt && Buffer.from(tlsInput.clientCertPair.crt),
+              clientPrivateKey: tlsInput.clientCertPair.key && Buffer.from(tlsInput.clientCertPair.key),
             }
           : null,
       }
@@ -102,13 +115,25 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
     );
   }
 
+  let headers: Record<string, native.MetadataValue> | null = null;
+  if (options.metadata) {
+    headers = {};
+    for (const [key, value] of Object.entries(options.metadata)) {
+      if (typeof value === 'string') {
+        headers[key] = { type: 'ascii', value };
+      } else {
+        headers[key] = { type: 'binary', value };
+      }
+    }
+  }
+
   return {
     targetUrl: tls ? `https://${address}` : `http://${address}`,
     clientName: 'temporal-typescript',
     clientVersion: pkg.version,
     tls,
     httpConnectProxy,
-    headers: options.metadata ?? null,
+    headers,
     apiKey: options.apiKey ?? null,
     disableErrorCodeMetricTags: options.disableErrorCodeMetricTags ?? false,
   };

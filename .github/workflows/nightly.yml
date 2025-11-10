@@ -6,6 +6,10 @@ on:
     - cron: '00 08 * * *'
     # (1 AM PST)
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   nightly:
     uses: ./.github/workflows/stress.yml

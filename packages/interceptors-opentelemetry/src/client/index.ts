@@ -1,5 +1,5 @@
 import * as otel from '@opentelemetry/api';
-import { Next, WorkflowClientInterceptor, WorkflowSignalInput, WorkflowStartInput } from '@temporalio/client';
+import type { Next, WorkflowSignalInput, WorkflowStartInput, WorkflowClientInterceptor } from '@temporalio/client';
 import { instrument, headersWithContext, RUN_ID_ATTR_KEY } from '../instrumentation';
 import { SpanName, SPAN_DELIMITER } from '../workflow';
 

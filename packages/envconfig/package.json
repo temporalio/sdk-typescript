@@ -1,0 +1,42 @@
+{
+  "name": "@temporalio/envconfig",
+  "version": "0.0.1",
+  "description": "Temporal.io SDK Environment Configuration sub-package",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "scripts": {},
+  "keywords": [
+    "temporal",
+    "environment",
+    "configuration",
+    "client"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@temporalio/common": "file:../common",
+    "smol-toml": "1.4.2"
+  },
+  "devDependencies": {
+    "@temporalio/worker": "file:../worker"
+  },
+  "engines": {
+    "node": ">= 18.0.0"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "packages/envconfig"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/envconfig",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
+}
