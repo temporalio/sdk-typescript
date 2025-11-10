@@ -16,6 +16,7 @@
     "./packages/interceptors-opentelemetry/src/index.ts",
     "./packages/nyc-test-coverage/src/index.ts",
     "./packages/meta/src/index.ts",
+    "./packages/plugin/src/index.ts",
     "./packages/testing/src/index.ts",
     "./packages/worker/src/index.ts",
     "./packages/worker/src/workflow/workflow-worker-thread.ts",

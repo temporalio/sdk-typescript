@@ -176,7 +176,7 @@ export class Worker extends RealWorker {
       taskQueue: opts.taskQueue,
     });
     const nativeWorker = new MockNativeWorker();
-    super(runtime, nativeWorker, workflowCreator, opts, logger, runtime.metricMeter);
+    super(runtime, nativeWorker, workflowCreator, opts, logger, runtime.metricMeter, opts.plugins ?? []);
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {

@@ -70,7 +70,8 @@ export class NativeConnection implements ConnectionLike {
   protected constructor(
     private readonly runtime: Runtime,
     private readonly nativeClient: native.Client,
-    private readonly enableTestService: boolean
+    private readonly enableTestService: boolean,
+    readonly plugins: NativeConnectionPlugin[]
   ) {
     this.workflowService = WorkflowService.create(
       this.sendRequest.bind(this, native.clientSendWorkflowServiceRequest.bind(undefined, this.nativeClient)),
@@ -230,13 +231,20 @@ export class NativeConnection implements ConnectionLike {
    * Eagerly connect to the Temporal server and return a NativeConnection instance
    */
   static async connect(options?: NativeConnectionOptions): Promise<NativeConnection> {
+    options = options ?? {};
+    for (const plugin of options.plugins ?? []) {
+      if (plugin.configureNativeConnection !== undefined) {
+        options = plugin.configureNativeConnection(options);
+      }
+    }
     const internalOptions = (options as InternalConnectionOptions)?.[InternalConnectionOptionsSymbol] ?? {};
     const enableTestService = internalOptions.supportsTestService ?? false;
 
     try {
       const runtime = Runtime.instance();
+
       const client = await runtime.createNativeClient(options);
-      return new this(runtime, client, enableTestService);
+      return new this(runtime, client, enableTestService, options.plugins ?? []);
     } catch (err) {
       if (err instanceof TransportError) {
         throw new TransportError(err.message);
@@ -348,4 +356,21 @@ function tagMetadata(metadata: Metadata): Record<string, native.MetadataValue> {
       typeof value === 'string' ? { type: 'ascii' as const, value } : { type: 'binary' as const, value },
     ])
   );
+}
+
+/**
+ * Plugin to control the configuration of a native connection.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
+ */
+export interface NativeConnectionPlugin {
+  /**
+   * Gets the name of this plugin.
+   */
+  get name(): string;
+
+  /**
+   * Hook called when creating a native connection to allow modification of configuration.
+   */
+  configureNativeConnection?(options: NativeConnectionOptions): NativeConnectionOptions;
 }
