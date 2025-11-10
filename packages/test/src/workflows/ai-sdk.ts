@@ -1,7 +1,8 @@
 // Test workflow using AI model
 // eslint-disable-next-line import/no-unassigned-import
 import '@temporalio/ai-sdk/lib/load-polyfills';
-import { generateText, stepCountIs, tool } from 'ai';
+import { generateObject, generateText, stepCountIs, tool } from 'ai';
+import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
 import { z } from 'zod';
 import { temporalProvider } from '@temporalio/ai-sdk';
 import { proxyActivities } from '@temporalio/workflow';
@@ -16,7 +17,6 @@ export async function helloWorldAgent(prompt: string): Promise<string> {
     model: temporalProvider.languageModel("gpt-4o-mini"),
     prompt,
     system: "You only respond in haikus.",
-    providerOptions: {test: {name: "HelloWorkflow"}}
   });
   return result.text;
 }
@@ -36,7 +36,44 @@ export async function toolsWorkflow(question: string): Promise<string> {
       }),
     },
     stopWhen: stepCountIs(5),
-    providerOptions: {test: {name: "ToolsWorkflow"}},
   });
   return result.text;
+}
+
+export async function generateObjectWorkflow(): Promise<string> {
+  const { object } = await generateObject({
+    model: temporalProvider.languageModel("gpt-4o-mini"),
+    schema: z.object({
+      recipe: z.object({
+        name: z.string(),
+        ingredients: z.array(z.object({ name: z.string(), amount: z.string() })),
+        steps: z.array(z.string()),
+      }),
+    }),
+    prompt: 'Generate a lasagna recipe.',
+  });
+  return object.recipe.name;
+}
+
+export async function mcpToolsWorkflow(): Promise<string> {
+
+  const mcpClient = await createMCPClient({
+    transport: {
+      type: 'http',
+      url: 'https://your-server.com/mcp',
+    },
+  });
+
+  const { object } = await generateObject({
+    model: temporalProvider.languageModel("gpt-4o-mini"),
+    schema: z.object({
+      recipe: z.object({
+        name: z.string(),
+        ingredients: z.array(z.object({ name: z.string(), amount: z.string() })),
+        steps: z.array(z.string()),
+      }),
+    }),
+    prompt: 'Generate a lasagna recipe.',
+  });
+  return object.recipe.name;
 }

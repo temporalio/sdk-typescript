@@ -23,40 +23,20 @@ export type ModelResponse = {
   warnings: Array<LanguageModelV2CallWarning>;
 };
 
-export class ModelGenerator {
-  private readonly generatorFactory: (name: string) => Generator<ModelResponse>;
-  private generator?: Generator<ModelResponse>;
-  private done: boolean = false;
-  constructor(generatorFactory: (name: string) => Generator<ModelResponse>) {
-    this.generatorFactory = generatorFactory;
-  }
-
-  generate(name: string): PromiseLike<ModelResponse> {
-    if (this.generator === undefined) {
-      this.generator = this.generatorFactory(name);
-    }
-    if (this.done) {
-      throw new Error("Called generate more times than responses given to the test generator");
-    }
-    const next = this.generator.next();
-    this.done = next.done ?? false;
-    return next.value
-  }
-}
-
 export class TestModel implements LanguageModelV2 {
   readonly specificationVersion = 'v2';
   readonly provider = "temporal";
   readonly supportedUrls = {}
   readonly modelId = "TestModel"
-  private generator: ModelGenerator;
+  private generator: Generator<ModelResponse>;
+  private done: boolean = false;
 
-  constructor(generator: ModelGenerator) {
+  constructor(generator: Generator<ModelResponse>) {
     this.generator = generator;
   }
 
   async doGenerate(
-    options: LanguageModelV2CallOptions
+    _: LanguageModelV2CallOptions
   ): Promise<{
     content: Array<LanguageModelV2Content>;
     finishReason: LanguageModelV2FinishReason;
@@ -66,9 +46,13 @@ export class TestModel implements LanguageModelV2 {
     response?: LanguageModelV2ResponseMetadata & { headers?: SharedV2Headers; body?: unknown };
     warnings: Array<LanguageModelV2CallWarning>;
   }> {
-    const name = options.providerOptions?.test?.name?.toString() ?? "";
-    console.log("Generating ", name);
-    return await this.generator.generate(name)
+    if (this.done) {
+      throw new Error("Called generate more times than responses given to the test generator");
+    }
+
+    const result = this.generator.next();
+    this.done = result.done ?? false;
+    return result.value;
   }
 
   doStream(
@@ -83,8 +67,8 @@ export class TestModel implements LanguageModelV2 {
 }
 
 export class TestProvider implements ProviderV2 {
-  private generator: ModelGenerator;
-  constructor(generator: ModelGenerator) {
+  private generator: Generator<ModelResponse>;
+  constructor(generator: Generator<ModelResponse>) {
     this.generator = generator;
   }
   imageModel(modelId: string): ImageModelV2 {

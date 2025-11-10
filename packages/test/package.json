@@ -49,7 +49,7 @@
     "@temporalio/testing": "file:../testing",
     "@temporalio/worker": "file:../worker",
     "@temporalio/workflow": "file:../workflow",
-    "ai": "^5.0.45",
+    "ai": "^5.0.91",
     "arg": "^5.0.2",
     "async-retry": "^1.3.3",
     "ava": "^5.3.1",

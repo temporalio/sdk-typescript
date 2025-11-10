@@ -12,7 +12,7 @@ export class AiSDKPlugin extends SimplePlugin {
   }
 
   configureWorker(options: WorkerOptions): WorkerOptions {
-    options.reuseV8Context = false;
+    // options.reuseV8Context = false;
     return super.configureWorker(options);
   }
 }

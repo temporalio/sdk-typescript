@@ -20,7 +20,7 @@
     "web-streams-polyfill": "^4.2.0"
   },
   "peerDependencies": {
-    "ai": "^5.0.45"
+    "ai": "^5.0.91"
   },
   "engines": {
     "node": ">= 18.0.0"

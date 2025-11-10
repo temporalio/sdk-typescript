@@ -3,9 +3,9 @@
  */
 import { LanguageModelV2Content, LanguageModelV2FinishReason } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai'
-import { AiSDKPlugin, ModelGenerator, ModelResponse, TestProvider } from '@temporalio/ai-sdk';
+import { AiSDKPlugin, ModelResponse, TestProvider } from '@temporalio/ai-sdk';
 import { temporal } from '@temporalio/proto';
-import { helloWorldAgent, toolsWorkflow } from './workflows/ai-sdk';
+import { generateObjectWorkflow, helloWorldAgent, toolsWorkflow } from './workflows/ai-sdk';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { getWeather} from './activities/ai-sdk';
 import EventType = temporal.api.enums.v1.EventType;
@@ -38,29 +38,6 @@ function* helloWorkflowGenerator(): Generator<ModelResponse> {
   yield textResponse("Test Haiku")
 }
 
-function* toolsWorkflowGenerator(): Generator<ModelResponse> {
-  yield contentResponse([
-      {
-        type: "tool-call",
-        toolCallId: "call_yY3nlDwH5BQSJo63qC61L4ZB",
-        toolName: "getWeather",
-        input: '{"location":"Tokyo"}',
-      },
-    ], "tool-calls");
-  yield textResponse("Test weather result");
-}
-
-function testGeneratorFactory(testName: string): Generator<ModelResponse> {
-  switch (testName) {
-    case "HelloWorkflow":
-      return helloWorkflowGenerator()
-    case "ToolsWorkflow":
-      return toolsWorkflowGenerator()
-  }
-  throw new Error("Unrecognized model prompt")
-}
-const testProvider = new TestProvider(new ModelGenerator(testGeneratorFactory));
-
 const test = makeTestFunction({
   workflowsPath: require.resolve("./workflows/ai-sdk"),
 });
@@ -70,7 +47,7 @@ test('Hello world agent responds in haikus', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
-    plugins: [new AiSDKPlugin(remoteTests ? openai : testProvider)]
+    plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(helloWorkflowGenerator()))]
   });
 
   await worker.runUntil(async () => {
@@ -86,17 +63,28 @@ test('Hello world agent responds in haikus', async (t) => {
   });
 });
 
+function* toolsWorkflowGenerator(): Generator<ModelResponse> {
+  yield contentResponse([
+    {
+      type: "tool-call",
+      toolCallId: "call_yY3nlDwH5BQSJo63qC61L4ZB",
+      toolName: "getWeather",
+      input: '{"location":"Tokyo"}',
+    },
+  ], "tool-calls");
+  yield textResponse("Test weather result");
+}
+
 test('Tools workflow can use AI tools', async (t) => {
   t.timeout(120 * 1000);
   const { createWorker, startWorkflow } = helpers(t);
 
   const worker = await createWorker({
-    plugins: [new AiSDKPlugin(remoteTests ? openai : testProvider)],
+    plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(toolsWorkflowGenerator()))],
     activities: {
       getWeather
     },
   });
-  console.log("Reuse context: ", worker.options.reuseV8Context)
   await worker.runUntil(async () => {
     const handle = await startWorkflow(toolsWorkflow, {
       args: ['What is the weather in Tokyo?'],
@@ -111,8 +99,7 @@ test('Tools workflow can use AI tools', async (t) => {
       
       // Check that activities were scheduled
       const { events } = await handle.fetchHistory();
-      console.log("Events:", events);
-      const activityCompletedEvents = events?.filter(e => 
+      const activityCompletedEvents = events?.filter(e =>
         e.eventType === EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED
       ) ?? [];
       
@@ -126,6 +113,55 @@ test('Tools workflow can use AI tools', async (t) => {
       );
       t.assert(activityTypes.includes('getWeather'),
         'getWeather activity should have been called');
+    }
+  });
+});
+
+
+function* generateObjectWorkflowGenerator(): Generator<ModelResponse> {
+  yield textResponse(
+    '{"recipe":{"name":"Classic Lasagna","ingredients":[],"steps":["Preheat the oven to 375°F (190°C)."]}}'
+  );
+}
+
+test('Generate object', async (t) => {
+  t.timeout(120 * 1000);
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(generateObjectWorkflowGenerator()))],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(generateObjectWorkflow, {
+      args: ['Tell me about recursion in programming.'],
+      workflowExecutionTimeout: '30 seconds'
+    });
+
+    t.assert(result);
+    if (!remoteTests) {
+      t.is("Classic Lasagna", result);
+    }
+  });
+});
+
+test('MCP Tools', async (t) => {
+  t.timeout(120 * 1000);
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(generateObjectWorkflowGenerator()))],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(mcpToolsWorkflow, {
+      args: ['Tell me about recursion in programming.'],
+      workflowExecutionTimeout: '30 seconds'
+    });
+
+    t.assert(result);
+    if (!remoteTests) {
+      t.is("Classic Lasagna", result);
     }
   });
 });
