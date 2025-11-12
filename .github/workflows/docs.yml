@@ -52,15 +52,25 @@ jobs:
         env:
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
 
-      - name: Publish docs
-        if: ${{ inputs.publish_target }}
+      - name: Publish production docs
+        if: ${{ inputs.publish_target == 'prod' }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          PROD_FLAG: ${{ inputs.publish_target == 'prod' && '--prod' || '' }}
         run: |
           pnpm dlx vercel deploy packages/docs/build \
             -t "$VERCEL_TOKEN" \
             --yes \
-            "$PROD_FLAG"
+            --prod
+
+      - name: Publish preview docs
+        if: ${{ inputs.publish_target && inputs.publish_target != 'prod' }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          pnpm dlx vercel deploy packages/docs/build \
+            -t "$VERCEL_TOKEN" \
+            --yes
