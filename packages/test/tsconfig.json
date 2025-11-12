@@ -9,7 +9,6 @@
   "references": [
     { "path": "../proto" },
     { "path": "../activity" },
-    { "path": "../ai-sdk" },
     { "path": "../client" },
     { "path": "../cloud" },
     { "path": "../common" },
@@ -20,7 +19,8 @@
     { "path": "../testing" },
     { "path": "../worker" },
     { "path": "../workflow" },
-    { "path": "../nyc-test-coverage" }
+    { "path": "../nyc-test-coverage" },
+    { "path": "../ai-sdk" }
   ],
   "include": ["./src/**/*.ts"]
 }
