@@ -58,8 +58,9 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PROD_FLAG: ${{ inputs.publish_target == 'prod' && '--prod' || '' }}
         run: |
           pnpm dlx vercel deploy packages/docs/build \
             -t "$VERCEL_TOKEN" \
             --yes \
-            ${{ inputs.publish_target == 'prod' && '--prod' || '' }}
+            "$PROD_FLAG"
