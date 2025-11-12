@@ -4,9 +4,6 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [
-    { "path": "../plugin" },
-    { "path": "../workflow" }
-  ],
+  "references": [{ "path": "../plugin" }, { "path": "../workflow" }],
   "include": ["./src/**/*.ts"]
 }
