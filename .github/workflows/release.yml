@@ -189,7 +189,6 @@ jobs:
           name: verdaccio-repo
           path: ./tmp/registry/storage
 
-
   # Tests that npm init @temporalio results in a working worker and client
   test-npm-init:
     needs: build-packages
