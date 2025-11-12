@@ -1,8 +1,8 @@
 // eslint-disable-next-line import/no-unassigned-import
-import 'ai'
+import 'ai';
 // eslint-disable-next-line import/no-unassigned-import
-import "./load-polyfills"
+import './load-polyfills';
 
-export * from "./plugin"
-export * from "./provider"
-export * from "./testing"
+export * from './plugin';
+export * from './provider';
+export * from './testing';

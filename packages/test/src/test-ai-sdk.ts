@@ -2,7 +2,7 @@
  * Test AI SDK integration with Temporal workflows
  */
 import { LanguageModelV2Content, LanguageModelV2FinishReason } from '@ai-sdk/provider';
-import { openai } from '@ai-sdk/openai'
+import { openai } from '@ai-sdk/openai';
 import { v4 as uuid4 } from 'uuid';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
@@ -17,8 +17,6 @@ import {
   OpenTelemetrySinks,
   OpenTelemetryWorkflowClientCallsInterceptor,
   OpenTelemetryWorkflowClientInterceptor,
-  SPAN_DELIMITER,
-  SpanName,
 } from '@temporalio/interceptors-opentelemetry';
 import { InjectedSinks, Runtime } from '@temporalio/worker';
 import {
@@ -29,40 +27,43 @@ import {
   toolsWorkflow,
 } from './workflows/ai-sdk';
 import { helpers, makeTestFunction } from './helpers-integration';
-import { getWeather} from './activities/ai-sdk';
+import { getWeather } from './activities/ai-sdk';
 import { Worker } from './helpers';
 import EventType = temporal.api.enums.v1.EventType;
 
 const remoteTests = !!process.env.AI_SDK_REMOTE_TESTS;
 
-function contentResponse(content: LanguageModelV2Content[], finishReason: LanguageModelV2FinishReason = "stop"): ModelResponse {
+function contentResponse(
+  content: LanguageModelV2Content[],
+  finishReason: LanguageModelV2FinishReason = 'stop'
+): ModelResponse {
   return {
     content,
     finishReason,
-    usage:{
-      inputTokens:undefined,
-      outputTokens:undefined,
-      totalTokens:undefined
+    usage: {
+      inputTokens: undefined,
+      outputTokens: undefined,
+      totalTokens: undefined,
     },
-    warnings:[]
-  }
+    warnings: [],
+  };
 }
 
 function textResponse(content: string): ModelResponse {
   return contentResponse([
-      {
-        type: "text",
-        text: content
-      }
-    ])
+    {
+      type: 'text',
+      text: content,
+    },
+  ]);
 }
 
 function* helloWorkflowGenerator(): Generator<ModelResponse> {
-  yield textResponse("Test Haiku")
+  yield textResponse('Test Haiku');
 }
 
 const test = makeTestFunction({
-  workflowsPath: require.resolve("./workflows/ai-sdk"),
+  workflowsPath: require.resolve('./workflows/ai-sdk'),
 });
 
 test('Hello world agent responds in haikus', async (t) => {
@@ -70,7 +71,7 @@ test('Hello world agent responds in haikus', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
-    plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(helloWorkflowGenerator()))]
+    plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(helloWorkflowGenerator()))],
   });
 
   await worker.runUntil(async () => {
@@ -80,21 +81,24 @@ test('Hello world agent responds in haikus', async (t) => {
 
     t.assert(result);
     if (!remoteTests) {
-      t.is("Test Haiku", result);
+      t.is('Test Haiku', result);
     }
   });
 });
 
 function* toolsWorkflowGenerator(): Generator<ModelResponse> {
-  yield contentResponse([
-    {
-      type: "tool-call",
-      toolCallId: "call_yY3nlDwH5BQSJo63qC61L4ZB",
-      toolName: "getWeather",
-      input: '{"location":"Tokyo"}',
-    },
-  ], "tool-calls");
-  yield textResponse("Test weather result");
+  yield contentResponse(
+    [
+      {
+        type: 'tool-call',
+        toolCallId: 'call_yY3nlDwH5BQSJo63qC61L4ZB',
+        toolName: 'getWeather',
+        input: '{"location":"Tokyo"}',
+      },
+    ],
+    'tool-calls'
+  );
+  yield textResponse('Test weather result');
 }
 
 test('Tools workflow can use AI tools', async (t) => {
@@ -104,41 +108,40 @@ test('Tools workflow can use AI tools', async (t) => {
   const worker = await createWorker({
     plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(toolsWorkflowGenerator()))],
     activities: {
-      getWeather
+      getWeather,
     },
   });
   await worker.runUntil(async () => {
     const handle = await startWorkflow(toolsWorkflow, {
       args: ['What is the weather in Tokyo?'],
-      workflowExecutionTimeout: '10 seconds'
+      workflowExecutionTimeout: '10 seconds',
     });
 
     const result = await handle.result();
 
     t.assert(result);
     if (!remoteTests) {
-      t.is("Test weather result", result);
-      
+      t.is('Test weather result', result);
+
       // Check that activities were scheduled
       const { events } = await handle.fetchHistory();
-      const activityCompletedEvents = events?.filter(e =>
-        e.eventType === EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED
-      ) ?? [];
-      
+      const activityCompletedEvents =
+        events?.filter((e) => e.eventType === EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED) ?? [];
+
       // Should have at least 2 events: invokeModel and getWeather
-      t.assert(activityCompletedEvents.length >= 2, 
-        `Expected at least 2 activity completions, got ${activityCompletedEvents.length}`);
+      t.assert(
+        activityCompletedEvents.length >= 2,
+        `Expected at least 2 activity completions, got ${activityCompletedEvents.length}`
+      );
 
       // Check that getWeather activity was called
-      const activityTypes = activityCompletedEvents.map(e =>
-        e?.activityTaskScheduledEventAttributes?.activityType?.name
+      const activityTypes = activityCompletedEvents.map(
+        (e) => e?.activityTaskScheduledEventAttributes?.activityType?.name
       );
-      t.assert(activityTypes.includes('getWeather'),
-        'getWeather activity should have been called');
+      t.assert(activityTypes.includes('getWeather'), 'getWeather activity should have been called');
     }
   });
 });
-
 
 function* generateObjectWorkflowGenerator(): Generator<ModelResponse> {
   yield textResponse(
@@ -157,12 +160,12 @@ test('Generate object', async (t) => {
   await worker.runUntil(async () => {
     const result = await executeWorkflow(generateObjectWorkflow, {
       args: ['Tell me about recursion in programming.'],
-      workflowExecutionTimeout: '30 seconds'
+      workflowExecutionTimeout: '30 seconds',
     });
 
     t.assert(result);
     if (!remoteTests) {
-      t.is("Classic Lasagna", result);
+      t.is('Classic Lasagna', result);
     }
   });
 });
@@ -178,12 +181,12 @@ test('Middleware', async (t) => {
   await worker.runUntil(async () => {
     const result = await executeWorkflow(middlewareWorkflow, {
       args: ['Tell me about recursion in programming.'],
-      workflowExecutionTimeout: '30 seconds'
+      workflowExecutionTimeout: '30 seconds',
     });
 
     t.assert(result);
     if (!remoteTests) {
-      t.is("Test Haiku", result);
+      t.is('Test Haiku', result);
     }
   });
 });
@@ -217,7 +220,7 @@ test('Telemetry', async (t) => {
     const worker = await Worker.create({
       plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(helloWorkflowGenerator()))],
       taskQueue: 'test-ai-telemetry',
-      workflowsPath: require.resolve("./workflows/ai-sdk"),
+      workflowsPath: require.resolve('./workflows/ai-sdk'),
 
       interceptors: {
         client: {
@@ -238,12 +241,15 @@ test('Telemetry', async (t) => {
       interceptors: [new OpenTelemetryWorkflowClientInterceptor()],
     });
     await worker.runUntil(async () => {
-      await client.execute(telemetryWorkflow, { taskQueue: 'test-ai-telemetry', workflowId: uuid4(), args: ["Tell me about recursion"] });
+      await client.execute(telemetryWorkflow, {
+        taskQueue: 'test-ai-telemetry',
+        workflowId: uuid4(),
+        args: ['Tell me about recursion'],
+      });
     });
     await otel.shutdown();
     const generateSpan = spans.find(({ name }) => name === `ai.generateText`);
     t.true(generateSpan !== undefined);
-
   } finally {
     // Cleanup the runtime so that it doesn't interfere with other tests
     await Runtime._instance?.shutdown();

@@ -3,32 +3,27 @@
 import '@temporalio/ai-sdk/lib/load-polyfills';
 import { generateObject, generateText, stepCountIs, tool, wrapLanguageModel } from 'ai';
 import { z } from 'zod';
-import { temporalProvider } from '@temporalio/ai-sdk';
-import { inWorkflowContext, proxyActivities, sleep } from '@temporalio/workflow';
-import type * as activities from "../activities/ai-sdk";
 import { LanguageModelV2Middleware } from '@ai-sdk/provider';
-import { ProxyTracerProvider, trace } from '@opentelemetry/api';
-import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
-import { MultiSpanProcessor } from '@opentelemetry/sdk-trace-base/build/esnext/MultiSpanProcessor';
-import * as tracing from '@opentelemetry/sdk-trace-base';
-import { SpanExporter } from '@temporalio/interceptors-opentelemetry/lib/workflow/span-exporter';
+import { proxyActivities } from '@temporalio/workflow';
+import { temporalProvider } from '@temporalio/ai-sdk';
+import type * as activities from '../activities/ai-sdk';
 
 const { getWeather } = proxyActivities<typeof activities>({
-  startToCloseTimeout: "1 minute"
-})
+  startToCloseTimeout: '1 minute',
+});
 
 export async function helloWorldAgent(prompt: string): Promise<string> {
-  const result = await generateText({ 
-    model: temporalProvider.languageModel("gpt-4o-mini"),
+  const result = await generateText({
+    model: temporalProvider.languageModel('gpt-4o-mini'),
     prompt,
-    system: "You only respond in haikus.",
+    system: 'You only respond in haikus.',
   });
   return result.text;
 }
 
 export async function toolsWorkflow(question: string): Promise<string> {
   const result = await generateText({
-    model: temporalProvider.languageModel("gpt-4o-mini"),
+    model: temporalProvider.languageModel('gpt-4o-mini'),
     prompt: question,
     system: 'You are a helpful agent.',
     tools: {
@@ -47,7 +42,7 @@ export async function toolsWorkflow(question: string): Promise<string> {
 
 export async function generateObjectWorkflow(): Promise<string> {
   const { object } = await generateObject({
-    model: temporalProvider.languageModel("gpt-4o-mini"),
+    model: temporalProvider.languageModel('gpt-4o-mini'),
     schema: z.object({
       recipe: z.object({
         name: z.string(),
@@ -75,29 +70,29 @@ export async function middlewareWorkflow(prompt: string): Promise<string> {
 
       return result;
     },
-  }
+  };
 
   const model = wrapLanguageModel({
-    model: temporalProvider.languageModel("gpt-4o-mini"),
-    middleware
+    model: temporalProvider.languageModel('gpt-4o-mini'),
+    middleware,
   });
 
   const result = await generateText({
     model,
     prompt,
-    system: "You only respond in haikus.",
+    system: 'You only respond in haikus.',
   });
   return result.text;
 }
 
 export async function telemetryWorkflow(prompt: string): Promise<string> {
   const result = await generateText({
-    model: temporalProvider.languageModel("gpt-4o-mini"),
+    model: temporalProvider.languageModel('gpt-4o-mini'),
     prompt,
-    system: "You only respond in haikus.",
+    system: 'You only respond in haikus.',
     experimental_telemetry: {
-      isEnabled: true
-    }
+      isEnabled: true,
+    },
   });
   return result.text;
 }

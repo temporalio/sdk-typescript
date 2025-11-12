@@ -9,6 +9,7 @@
   "references": [
     { "path": "../proto" },
     { "path": "../activity" },
+    { "path": "../ai-sdk" },
     { "path": "../client" },
     { "path": "../cloud" },
     { "path": "../common" },

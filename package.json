@@ -38,6 +38,7 @@
     "docs": "cd packages/docs && npm run maybe-install-deps-and-build-docs"
   },
   "dependencies": {
+    "@temporalio/ai-sdk": "file:packages/ai-sdk",
     "@temporalio/client": "file:packages/client",
     "@temporalio/cloud": "file:packages/cloud",
     "@temporalio/common": "file:packages/common",
@@ -84,6 +85,7 @@
   },
   "workspaces": [
     "packages/activity",
+    "packages/ai-sdk",
     "packages/client",
     "packages/cloud",
     "packages/common",
