@@ -5,9 +5,7 @@
     "rootDir": "./src"
   },
   "references": [
-    { "path": "../common" },
-    { "path": "../client" },
-    { "path": "../activity" },
+    { "path": "../plugin" },
     { "path": "../workflow" }
   ],
   "include": ["./src/**/*.ts"]
