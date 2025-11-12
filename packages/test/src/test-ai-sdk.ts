@@ -3,11 +3,34 @@
  */
 import { LanguageModelV2Content, LanguageModelV2FinishReason } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai'
+import { v4 as uuid4 } from 'uuid';
+import * as opentelemetry from '@opentelemetry/sdk-node';
+import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
+import { ExportResultCode } from '@opentelemetry/core';
 import { AiSDKPlugin, ModelResponse, TestProvider } from '@temporalio/ai-sdk';
 import { temporal } from '@temporalio/proto';
-import { generateObjectWorkflow, helloWorldAgent, toolsWorkflow } from './workflows/ai-sdk';
+import { WorkflowClient } from '@temporalio/client';
+import {
+  makeWorkflowExporter,
+  OpenTelemetryActivityInboundInterceptor,
+  OpenTelemetryActivityOutboundInterceptor,
+  OpenTelemetrySinks,
+  OpenTelemetryWorkflowClientCallsInterceptor,
+  OpenTelemetryWorkflowClientInterceptor,
+  SPAN_DELIMITER,
+  SpanName,
+} from '@temporalio/interceptors-opentelemetry';
+import { InjectedSinks, Runtime } from '@temporalio/worker';
+import {
+  generateObjectWorkflow,
+  helloWorldAgent,
+  middlewareWorkflow,
+  telemetryWorkflow,
+  toolsWorkflow,
+} from './workflows/ai-sdk';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { getWeather} from './activities/ai-sdk';
+import { Worker } from './helpers';
 import EventType = temporal.api.enums.v1.EventType;
 
 const remoteTests = !!process.env.AI_SDK_REMOTE_TESTS;
@@ -53,7 +76,6 @@ test('Hello world agent responds in haikus', async (t) => {
   await worker.runUntil(async () => {
     const result = await executeWorkflow(helloWorldAgent, {
       args: ['Tell me about recursion in programming.'],
-      workflowExecutionTimeout: '30 seconds'
     });
 
     t.assert(result);
@@ -145,23 +167,85 @@ test('Generate object', async (t) => {
   });
 });
 
-test('MCP Tools', async (t) => {
+test('Middleware', async (t) => {
   t.timeout(120 * 1000);
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
-    plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(generateObjectWorkflowGenerator()))],
+    plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(helloWorkflowGenerator()))],
   });
 
   await worker.runUntil(async () => {
-    const result = await executeWorkflow(mcpToolsWorkflow, {
+    const result = await executeWorkflow(middlewareWorkflow, {
       args: ['Tell me about recursion in programming.'],
       workflowExecutionTimeout: '30 seconds'
     });
 
     t.assert(result);
     if (!remoteTests) {
-      t.is("Classic Lasagna", result);
+      t.is("Test Haiku", result);
     }
   });
+});
+
+test('Telemetry', async (t) => {
+  t.timeout(120 * 1000);
+  try {
+    const spans = Array<opentelemetry.tracing.ReadableSpan>();
+
+    const staticResource = new opentelemetry.resources.Resource({
+      [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-worker',
+    });
+    const traceExporter: opentelemetry.tracing.SpanExporter = {
+      export(spans_, resultCallback) {
+        spans.push(...spans_);
+        resultCallback({ code: ExportResultCode.SUCCESS });
+      },
+      async shutdown() {
+        // Nothing to shutdown
+      },
+    };
+    const otel = new opentelemetry.NodeSDK({
+      resource: staticResource,
+      traceExporter,
+    });
+    await otel.start();
+    const sinks: InjectedSinks<OpenTelemetrySinks> = {
+      exporter: makeWorkflowExporter(traceExporter, staticResource),
+    };
+
+    const worker = await Worker.create({
+      plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(helloWorkflowGenerator()))],
+      taskQueue: 'test-ai-telemetry',
+      workflowsPath: require.resolve("./workflows/ai-sdk"),
+
+      interceptors: {
+        client: {
+          workflow: [new OpenTelemetryWorkflowClientCallsInterceptor()],
+        },
+        workflowModules: [require.resolve('./workflows/otel-interceptors')],
+        activity: [
+          (ctx) => ({
+            inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
+            outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
+          }),
+        ],
+      },
+      sinks,
+    });
+
+    const client = new WorkflowClient({
+      interceptors: [new OpenTelemetryWorkflowClientInterceptor()],
+    });
+    await worker.runUntil(async () => {
+      await client.execute(telemetryWorkflow, { taskQueue: 'test-ai-telemetry', workflowId: uuid4(), args: ["Tell me about recursion"] });
+    });
+    await otel.shutdown();
+    const generateSpan = spans.find(({ name }) => name === `ai.generateText`);
+    t.true(generateSpan !== undefined);
+
+  } finally {
+    // Cleanup the runtime so that it doesn't interfere with other tests
+    await Runtime._instance?.shutdown();
+  }
 });

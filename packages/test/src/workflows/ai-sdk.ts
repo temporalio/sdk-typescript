@@ -1,12 +1,17 @@
 // Test workflow using AI model
 // eslint-disable-next-line import/no-unassigned-import
 import '@temporalio/ai-sdk/lib/load-polyfills';
-import { generateObject, generateText, stepCountIs, tool } from 'ai';
-import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
+import { generateObject, generateText, stepCountIs, tool, wrapLanguageModel } from 'ai';
 import { z } from 'zod';
 import { temporalProvider } from '@temporalio/ai-sdk';
-import { proxyActivities } from '@temporalio/workflow';
+import { inWorkflowContext, proxyActivities, sleep } from '@temporalio/workflow';
 import type * as activities from "../activities/ai-sdk";
+import { LanguageModelV2Middleware } from '@ai-sdk/provider';
+import { ProxyTracerProvider, trace } from '@opentelemetry/api';
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
+import { MultiSpanProcessor } from '@opentelemetry/sdk-trace-base/build/esnext/MultiSpanProcessor';
+import * as tracing from '@opentelemetry/sdk-trace-base';
+import { SpanExporter } from '@temporalio/interceptors-opentelemetry/lib/workflow/span-exporter';
 
 const { getWeather } = proxyActivities<typeof activities>({
   startToCloseTimeout: "1 minute"
@@ -55,25 +60,44 @@ export async function generateObjectWorkflow(): Promise<string> {
   return object.recipe.name;
 }
 
-export async function mcpToolsWorkflow(): Promise<string> {
+export async function middlewareWorkflow(prompt: string): Promise<string> {
+  const cache = new Map<string, any>();
+  const middleware: LanguageModelV2Middleware = {
+    wrapGenerate: async ({ doGenerate, params }) => {
+      const cacheKey = JSON.stringify(params);
+      if (cache.has(cacheKey)) {
+        return cache.get(cacheKey);
+      }
 
-  const mcpClient = await createMCPClient({
-    transport: {
-      type: 'http',
-      url: 'https://your-server.com/mcp',
+      const result = await doGenerate();
+
+      cache.set(cacheKey, result);
+
+      return result;
     },
+  }
+
+  const model = wrapLanguageModel({
+    model: temporalProvider.languageModel("gpt-4o-mini"),
+    middleware
   });
 
-  const { object } = await generateObject({
-    model: temporalProvider.languageModel("gpt-4o-mini"),
-    schema: z.object({
-      recipe: z.object({
-        name: z.string(),
-        ingredients: z.array(z.object({ name: z.string(), amount: z.string() })),
-        steps: z.array(z.string()),
-      }),
-    }),
-    prompt: 'Generate a lasagna recipe.',
+  const result = await generateText({
+    model,
+    prompt,
+    system: "You only respond in haikus.",
   });
-  return object.recipe.name;
+  return result.text;
+}
+
+export async function telemetryWorkflow(prompt: string): Promise<string> {
+  const result = await generateText({
+    model: temporalProvider.languageModel("gpt-4o-mini"),
+    prompt,
+    system: "You only respond in haikus.",
+    experimental_telemetry: {
+      isEnabled: true
+    }
+  });
+  return result.text;
 }

@@ -36,12 +36,10 @@ class TemporalModel implements LanguageModelV2 {
     response?: LanguageModelV2ResponseMetadata & { headers?: SharedV2Headers; body?: unknown };
     warnings: Array<LanguageModelV2CallWarning>;
   }> {
-    console.log("Temporal Model do generate: ", options.prompt);
     const result = await workflow.proxyActivities({startToCloseTimeout: '10 minutes'}).invokeModel(this.modelId, options);
     if (result.response !== undefined) {
       result.response.timestamp = new Date(result.response.timestamp)
     }
-    console.log("Temporal Model do generate result: ", result);
     return result;
   }
 

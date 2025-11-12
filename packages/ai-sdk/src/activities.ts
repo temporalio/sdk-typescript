@@ -21,8 +21,6 @@ export const createActivities = (provider: ProviderV2) => ({
     warnings: Array<LanguageModelV2CallWarning>;
   }> {
     const model = provider.languageModel(modelId)
-    console.log('Invoking model: ', model);
-
     return await model.doGenerate(options)
   }
 })

@@ -1,7 +1,6 @@
 import { Headers } from "headers-polyfill";
 import { inWorkflowContext } from '@temporalio/workflow';
 
-console.log("Load polyfills, in workflow:", inWorkflowContext());
 if (inWorkflowContext()) {
   // Apply Headers polyfill
   if (typeof globalThis.Headers === 'undefined') {
