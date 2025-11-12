@@ -6,20 +6,19 @@ use prost::Message;
 use tokio::sync::mpsc::{Sender, channel};
 use tokio_stream::wrappers::ReceiverStream;
 
-use temporal_sdk_core::{
-    CoreRuntime,
-    api::{
-        Worker as CoreWorkerTrait,
-        errors::{CompleteActivityError, CompleteNexusError, CompleteWfError, PollError},
+use temporalio_common::Worker as CoreWorkerTrait;
+use temporalio_common::errors::{
+    CompleteActivityError, CompleteNexusError, CompleteWfError, PollError,
+};
+use temporalio_common::protos::{
+    coresdk::{
+        ActivityHeartbeat, ActivityTaskCompletion, nexus::NexusTaskCompletion,
+        workflow_completion::WorkflowActivationCompletion,
     },
-    init_replay_worker, init_worker,
-    protos::{
-        coresdk::{
-            ActivityHeartbeat, ActivityTaskCompletion, nexus::NexusTaskCompletion,
-            workflow_completion::WorkflowActivationCompletion,
-        },
-        temporal::api::history::v1::History,
-    },
+    temporal::api::history::v1::History,
+};
+use temporalio_sdk_core::{
+    CoreRuntime, init_replay_worker, init_worker,
     replay::{HistoryForReplay, ReplayWorkerInput},
 };
 
@@ -70,7 +69,7 @@ pub struct Worker {
     core_runtime: Arc<CoreRuntime>,
 
     // Arc so that we can send reference into async closures
-    core_worker: Arc<temporal_sdk_core::Worker>,
+    core_worker: Arc<temporalio_sdk_core::Worker>,
 }
 
 /// Create a new worker.
@@ -103,12 +102,15 @@ pub fn worker_validate(worker: OpaqueInboundHandle<Worker>) -> BridgeResult<Brid
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        worker
-            .validate()
-            .await
-            .map_err(|err| BridgeError::TransportError(err.to_string()))
-    })
+    runtime.future_to_promise_named(
+        async move {
+            worker
+                .validate()
+                .await
+                .map_err(|err| BridgeError::TransportError(err.to_string()))
+        },
+        "worker_validate",
+    )
 }
 
 /// Initiate a single workflow activation poll request.
@@ -121,19 +123,22 @@ pub fn worker_poll_workflow_activation(
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        let result = worker.poll_workflow_activation().await;
+    runtime.future_to_promise_named(
+        async move {
+            let result = worker.poll_workflow_activation().await;
 
-        match result {
-            Ok(task) => Ok(task.encode_to_vec()),
-            Err(err) => match err {
-                PollError::ShutDown => Err(BridgeError::WorkerShutdown)?,
-                PollError::TonicError(status) => {
-                    Err(BridgeError::TransportError(status.message().to_string()))?
-                }
-            },
-        }
-    })
+            match result {
+                Ok(task) => Ok(task.encode_to_vec()),
+                Err(err) => match err {
+                    PollError::ShutDown => Err(BridgeError::WorkerShutdown)?,
+                    PollError::TonicError(status) => {
+                        Err(BridgeError::TransportError(status.message().to_string()))?
+                    }
+                },
+            }
+        },
+        "worker_poll_workflow_activation",
+    )
 }
 
 /// Submit a workflow activation completion to core.
@@ -154,21 +159,24 @@ pub fn worker_complete_workflow_activation(
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        worker
-            .complete_workflow_activation(workflow_completion)
-            .await
-            .map_err(|err| match err {
-                CompleteWfError::MalformedWorkflowCompletion { reason, run_id } => {
-                    BridgeError::TypeError {
-                        field: None,
-                        message: format!(
-                            "Malformed Workflow Completion: {reason:?} for RunID={run_id}"
-                        ),
+    runtime.future_to_promise_named(
+        async move {
+            worker
+                .complete_workflow_activation(workflow_completion)
+                .await
+                .map_err(|err| match err {
+                    CompleteWfError::MalformedWorkflowCompletion { reason, run_id } => {
+                        BridgeError::TypeError {
+                            field: None,
+                            message: format!(
+                                "Malformed Workflow Completion: {reason:?} for RunID={run_id}"
+                            ),
+                        }
                     }
-                }
-            })
-    })
+                })
+        },
+        "worker_complete_workflow_activation",
+    )
 }
 
 /// Initiate a single activity task poll request.
@@ -181,19 +189,22 @@ pub fn worker_poll_activity_task(
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        let result = worker.poll_activity_task().await;
+    runtime.future_to_promise_named(
+        async move {
+            let result = worker.poll_activity_task().await;
 
-        match result {
-            Ok(task) => Ok(task.encode_to_vec()),
-            Err(err) => match err {
-                PollError::ShutDown => Err(BridgeError::WorkerShutdown)?,
-                PollError::TonicError(status) => {
-                    Err(BridgeError::TransportError(status.message().to_string()))?
-                }
-            },
-        }
-    })
+            match result {
+                Ok(task) => Ok(task.encode_to_vec()),
+                Err(err) => match err {
+                    PollError::ShutDown => Err(BridgeError::WorkerShutdown)?,
+                    PollError::TonicError(status) => {
+                        Err(BridgeError::TransportError(status.message().to_string()))?
+                    }
+                },
+            }
+        },
+        "worker_poll_activity_task",
+    )
 }
 
 /// Submit an activity task completion to core.
@@ -214,20 +225,23 @@ pub fn worker_complete_activity_task(
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        worker
-            .complete_activity_task(activity_completion)
-            .await
-            .map_err(|err| match err {
-                CompleteActivityError::MalformedActivityCompletion {
-                    reason,
-                    completion: _,
-                } => BridgeError::TypeError {
-                    field: None,
-                    message: format!("Malformed Activity Completion: {reason:?}"),
-                },
-            })
-    })
+    runtime.future_to_promise_named(
+        async move {
+            worker
+                .complete_activity_task(activity_completion)
+                .await
+                .map_err(|err| match err {
+                    CompleteActivityError::MalformedActivityCompletion {
+                        reason,
+                        completion: _,
+                    } => BridgeError::TypeError {
+                        field: None,
+                        message: format!("Malformed Activity Completion: {reason:?}"),
+                    },
+                })
+        },
+        "worker_complete_activity_task",
+    )
 }
 
 /// Submit an activity heartbeat to core.
@@ -260,19 +274,22 @@ pub fn worker_poll_nexus_task(
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        let result = worker.poll_nexus_task().await;
+    runtime.future_to_promise_named(
+        async move {
+            let result = worker.poll_nexus_task().await;
 
-        match result {
-            Ok(task) => Ok(task.encode_to_vec()),
-            Err(err) => match err {
-                PollError::ShutDown => Err(BridgeError::WorkerShutdown)?,
-                PollError::TonicError(status) => {
-                    Err(BridgeError::TransportError(status.message().to_string()))?
-                }
-            },
-        }
-    })
+            match result {
+                Ok(task) => Ok(task.encode_to_vec()),
+                Err(err) => match err {
+                    PollError::ShutDown => Err(BridgeError::WorkerShutdown)?,
+                    PollError::TonicError(status) => {
+                        Err(BridgeError::TransportError(status.message().to_string()))?
+                    }
+                },
+            }
+        },
+        "worker_poll_nexus_task",
+    )
 }
 
 /// Submit an nexus task completion to core.
@@ -291,20 +308,25 @@ pub fn worker_complete_nexus_task(
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
-    runtime.future_to_promise(async move {
-        worker
-            .complete_nexus_task(nexus_completion)
-            .await
-            .map_err(|err| match err {
-                CompleteNexusError::NexusNotEnabled => {
-                    BridgeError::UnexpectedError(format!("{err}"))
-                }
-                CompleteNexusError::MalformedNexusCompletion { reason } => BridgeError::TypeError {
-                    field: None,
-                    message: format!("Malformed nexus Completion: {reason:?}"),
-                },
-            })
-    })
+    runtime.future_to_promise_named(
+        async move {
+            worker
+                .complete_nexus_task(nexus_completion)
+                .await
+                .map_err(|err| match err {
+                    CompleteNexusError::NexusNotEnabled {} => {
+                        BridgeError::UnexpectedError(format!("{err}"))
+                    }
+                    CompleteNexusError::MalformedNexusCompletion { reason } => {
+                        BridgeError::TypeError {
+                            field: None,
+                            message: format!("Malformed nexus Completion: {reason:?}"),
+                        }
+                    }
+                })
+        },
+        "worker_complete_nexus_task",
+    )
 }
 
 /// Request shutdown of the worker.
@@ -313,6 +335,7 @@ pub fn worker_complete_nexus_task(
 /// the loop to ensure graceful shutdown.
 #[js_function]
 pub fn worker_initiate_shutdown(worker: OpaqueInboundHandle<Worker>) -> BridgeResult<()> {
+    tracing::info!("Typescript initiate worker shutdown");
     let worker_ref = worker.borrow()?;
     worker_ref.core_worker.initiate_shutdown();
     Ok(())
@@ -337,10 +360,13 @@ pub fn worker_finalize_shutdown(
         }
     })?;
 
-    worker_ref.core_runtime.future_to_promise(async move {
-        worker.finalize_shutdown().await;
-        Ok(())
-    })
+    worker_ref.core_runtime.future_to_promise_named(
+        async move {
+            worker.finalize_shutdown().await;
+            Ok(())
+        },
+        "worker_finalize_shutdown",
+    )
 }
 
 impl MutableFinalize for Worker {
@@ -466,16 +492,16 @@ impl MutableFinalize for HistoryForReplayTunnelHandle {}
 mod config {
     use std::{sync::Arc, time::Duration};
 
-    use temporal_sdk_core::{
+    use temporalio_common::protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior;
+    use temporalio_common::worker::{
+        ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
+        PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder,
+        WorkerConfigBuilderError, WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
+        WorkerDeploymentVersion as CoreWorkerDeploymentVersion, WorkflowSlotKind,
+    };
+    use temporalio_sdk_core::{
         ResourceBasedSlotsOptions, ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions,
         SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptionsBuilder,
-        api::worker::{
-            ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
-            PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder,
-            WorkerConfigBuilderError, WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
-            WorkerDeploymentVersion as CoreWorkerDeploymentVersion, WorkflowSlotKind,
-        },
-        protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior,
     };
 
     use super::custom_slot_supplier::CustomSlotSupplierOptions;
@@ -485,7 +511,7 @@ mod config {
     use neon::object::Object;
     use neon::prelude::JsResult;
     use neon::types::JsObject;
-    use temporal_sdk_core::api::worker::WorkerVersioningStrategy;
+    use temporalio_common::worker::WorkerVersioningStrategy;
 
     #[derive(TryFromJs)]
     pub struct BridgeWorkerOptions {
@@ -575,6 +601,7 @@ mod config {
                 .max_task_queue_activities_per_second(self.max_task_queue_activities_per_second)
                 .max_worker_activities_per_second(self.max_activities_per_second)
                 .graceful_shutdown_period(self.shutdown_grace_time)
+                .skip_client_worker_set_check(true)
                 .build()
         }
     }
@@ -749,16 +776,14 @@ mod custom_slot_supplier {
 
     use neon::{context::Context, handle::Handle, prelude::*};
 
-    use temporal_sdk_core::{
-        SlotSupplierOptions as CoreSlotSupplierOptions,
-        api::worker::{
-            SlotInfo as CoreSlotInfo, SlotInfoTrait as _, SlotKind,
-            SlotKindType as CoreSlotKindType, SlotMarkUsedContext as CoreSlotMarkUsedContext,
-            SlotReleaseContext as CoreSlotReleaseContext,
-            SlotReservationContext as CoreSlotReservationContext, SlotSupplier as CoreSlotSupplier,
-            SlotSupplierPermit as CoreSlotSupplierPermit,
-        },
+    use temporalio_common::worker::{
+        SlotInfo as CoreSlotInfo, SlotInfoTrait as _, SlotKind, SlotKindType as CoreSlotKindType,
+        SlotMarkUsedContext as CoreSlotMarkUsedContext,
+        SlotReleaseContext as CoreSlotReleaseContext,
+        SlotReservationContext as CoreSlotReservationContext, SlotSupplier as CoreSlotSupplier,
+        SlotSupplierPermit as CoreSlotSupplierPermit,
     };
+    use temporalio_sdk_core::SlotSupplierOptions as CoreSlotSupplierOptions;
 
     use bridge_macros::{TryFromJs, TryIntoJs};
     use tracing::warn;

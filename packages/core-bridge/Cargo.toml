@@ -35,10 +35,11 @@ prost = "0.14"
 prost-types = "0.14"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-temporal-sdk-core = { version = "*", path = "./sdk-core/core", features = [
+temporalio-sdk-core = { version = "*", path = "./sdk-core/crates/sdk-core", features = [
   "ephemeral-server",
 ] }
-temporal-client = { version = "*", path = "./sdk-core/client" }
+temporalio-client = { version = "*", path = "./sdk-core/crates/client" }
+temporalio-common = { version = "*", path = "./sdk-core/crates/common" }
 thiserror = "2"
 tokio = "1.13"
 tokio-stream = "0.1"

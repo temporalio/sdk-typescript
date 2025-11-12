@@ -56,22 +56,31 @@ if (RUN_INTEGRATION_TESTS) {
   // to the default configuration (127.0.0.1) which is surprising behavior.
   test.serial('Runtime.install() remembers installed options after it has been shut down', async (t) => {
     const logger = new DefaultLogger('DEBUG');
-    Runtime.install({ logger });
+    Runtime.install({ logger, telemetryOptions: { logging: { filter: { core: 'DEBUG' } } } });
     {
+      console.log('Runtime.instance().options.logger', Runtime.instance().options.logger);
       const runtime = Runtime.instance();
       t.is(runtime.options.logger, logger);
+      console.log("1.0");
     }
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue: 'q1', // Same as the first Worker created
     });
+    console.log("1.1");
     const workerDrained = worker.run();
+    console.log("1.2");
     worker.shutdown();
+    console.log("1.3");
     await workerDrained;
     {
+      console.log("1.4");
       const runtime = Runtime.instance();
+      console.log("1.5");
       t.is(runtime.options.logger, logger);
+      console.log("1.6");
       await runtime.shutdown();
+      console.log("1.7");
     }
   });
 

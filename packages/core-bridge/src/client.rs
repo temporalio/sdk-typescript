@@ -5,10 +5,10 @@ use std::{collections::HashMap, sync::Arc};
 use neon::prelude::*;
 use tonic::metadata::{BinaryMetadataValue, MetadataKey};
 
-use temporal_sdk_core::{ClientOptions as CoreClientOptions, CoreRuntime, RetryClient};
+use temporalio_sdk_core::{ClientOptions as CoreClientOptions, CoreRuntime, RetryClient};
 
 use bridge_macros::{TryFromJs, js_function};
-use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClient};
+use temporalio_client::{ClientInitError, ConfiguredClient, TemporalServiceClient};
 
 use crate::runtime::Runtime;
 use crate::{helpers::*, runtime::RuntimeExt as _};
@@ -55,33 +55,36 @@ pub fn client_new(
     let runtime = runtime.borrow()?.core_runtime.clone();
     let config: CoreClientOptions = config.try_into()?;
 
-    runtime.clone().future_to_promise(async move {
-        let metric_meter = runtime.clone().telemetry().get_temporal_metric_meter();
-        let res = config.connect_no_namespace(metric_meter).await;
+    runtime.clone().future_to_promise_named(
+        async move {
+            let metric_meter = runtime.clone().telemetry().get_temporal_metric_meter();
+            let res = config.connect_no_namespace(metric_meter).await;
 
-        let core_client = match res {
-            Ok(core_client) => core_client,
-            Err(ClientInitError::InvalidHeaders(e)) => Err(BridgeError::TypeError {
-                message: format!("Invalid metadata key: {e}"),
-                field: None,
-            })?,
-            Err(ClientInitError::SystemInfoCallError(e)) => Err(BridgeError::TransportError(
-                format!("Failed to call GetSystemInfo: {e}"),
-            ))?,
-            Err(ClientInitError::TonicTransportError(e)) => {
-                Err(BridgeError::TransportError(format!("{e:?}")))?
-            }
-            Err(ClientInitError::InvalidUri(e)) => Err(BridgeError::TypeError {
-                message: e.to_string(),
-                field: None,
-            })?,
-        };
+            let core_client = match res {
+                Ok(core_client) => core_client,
+                Err(ClientInitError::InvalidHeaders(e)) => Err(BridgeError::TypeError {
+                    message: format!("Invalid metadata key: {e}"),
+                    field: None,
+                })?,
+                Err(ClientInitError::SystemInfoCallError(e)) => Err(BridgeError::TransportError(
+                    format!("Failed to call GetSystemInfo: {e}"),
+                ))?,
+                Err(ClientInitError::TonicTransportError(e)) => {
+                    Err(BridgeError::TransportError(format!("{e:?}")))?
+                }
+                Err(ClientInitError::InvalidUri(e)) => Err(BridgeError::TypeError {
+                    message: e.to_string(),
+                    field: None,
+                })?,
+            };
 
-        Ok(OpaqueOutboundHandle::new(Client {
-            core_runtime: runtime,
-            core_client,
-        }))
-    })
+            Ok(OpaqueOutboundHandle::new(Client {
+                core_runtime: runtime,
+                core_client,
+            }))
+        },
+        "client_new",
+    )
 }
 
 /// Update a Client's HTTP request headers
@@ -257,7 +260,7 @@ async fn client_invoke_workflow_service(
     mut retry_client: CoreClient,
     call: RpcCall,
 ) -> BridgeResult<Vec<u8>> {
-    use temporal_client::WorkflowService;
+    use temporalio_client::WorkflowService;
 
     match call.rpc.as_str() {
         "CountWorkflowExecutions" => {
@@ -528,7 +531,7 @@ async fn client_invoke_operator_service(
     mut retry_client: CoreClient,
     call: RpcCall,
 ) -> BridgeResult<Vec<u8>> {
-    use temporal_client::OperatorService;
+    use temporalio_client::OperatorService;
 
     match call.rpc.as_str() {
         "AddOrUpdateRemoteCluster" => {
@@ -566,7 +569,7 @@ async fn client_invoke_test_service(
     mut retry_client: CoreClient,
     call: RpcCall,
 ) -> BridgeResult<Vec<u8>> {
-    use temporal_client::TestService;
+    use temporalio_client::TestService;
 
     match call.rpc.as_str() {
         "GetCurrentTime" => rpc_call!(retry_client, call, get_current_time),
@@ -588,7 +591,7 @@ async fn client_invoke_health_service(
     mut retry_client: CoreClient,
     call: RpcCall,
 ) -> BridgeResult<Vec<u8>> {
-    use temporal_client::HealthService;
+    use temporalio_client::HealthService;
 
     match call.rpc.as_str() {
         "Check" => rpc_call!(retry_client, call, check),
@@ -658,8 +661,8 @@ mod config {
 
     use anyhow::Context as _;
 
-    use temporal_client::HttpConnectProxyOptions;
-    use temporal_sdk_core::{
+    use temporalio_client::HttpConnectProxyOptions;
+    use temporalio_sdk_core::{
         ClientOptions as CoreClientOptions, ClientOptionsBuilder,
         ClientTlsConfig as CoreClientTlsConfig, TlsConfig as CoreTlsConfig, Url,
     };
