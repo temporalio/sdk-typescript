@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/cloud",
-  "version": "1.13.1",
+  "version": "1.13.2",
   "description": "Temporal.io SDK — Temporal Cloud Client",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
