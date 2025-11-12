@@ -32,6 +32,9 @@ importers:
       '@temporalio/nyc-test-coverage':
         specifier: workspace:*
         version: link:packages/nyc-test-coverage
+      '@temporalio/plugin':
+        specifier: workspace:*
+        version: link:packages/plugin
       '@temporalio/proto':
         specifier: workspace:*
         version: link:packages/proto
@@ -399,6 +402,9 @@ importers:
       '@temporalio/nexus':
         specifier: workspace:*
         version: link:../nexus
+      '@temporalio/plugin':
+        specifier: workspace:*
+        version: link:../plugin
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
@@ -470,6 +476,21 @@ importers:
         specifier: ^5.94.0
         version: 5.94.0(@swc/core@1.3.102)
 
+  packages/plugin:
+    devDependencies:
+      '@temporalio/client':
+        specifier: file:../client
+        version: file:packages/client
+      '@temporalio/common':
+        specifier: file:../common
+        version: file:packages/common
+      '@temporalio/worker':
+        specifier: file:../worker
+        version: file:packages/worker(tslib@2.6.2)
+      nexus-rpc:
+        specifier: ^0.0.1
+        version: 0.0.1
+
   packages/proto:
     dependencies:
       long:
@@ -539,6 +560,9 @@ importers:
       '@temporalio/nyc-test-coverage':
         specifier: workspace:*
         version: link:../nyc-test-coverage
+      '@temporalio/plugin':
+        specifier: workspace:*
+        version: link:../plugin
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
@@ -2798,6 +2822,10 @@ packages:
   '@szmarczak/http-timer@5.0.1':
     resolution: {integrity: sha512-+PmQX0PiAYPMeVYe237LJAYvOMYW1j2rH5YROyS3b4CTVJum34HfRvKvAzozHAQG0TnHNdUfY9nCeUyRAs//cw==}
     engines: {node: '>=14.16'}
+
+  '@temporalio/client@file:packages/client':
+    resolution: {directory: packages/client, type: directory}
+    engines: {node: '>= 18.0.0'}
 
   '@temporalio/common@file:packages/common':
     resolution: {directory: packages/common, type: directory}
@@ -13153,6 +13181,15 @@ snapshots:
     dependencies:
       defer-to-connect: 2.0.1
 
+  '@temporalio/client@file:packages/client':
+    dependencies:
+      '@grpc/grpc-js': 1.12.4
+      '@temporalio/common': link:packages/common
+      '@temporalio/proto': link:packages/proto
+      abort-controller: 3.0.0
+      long: 5.2.3
+      uuid: 11.1.0
+
   '@temporalio/common@file:packages/common':
     dependencies:
       '@temporalio/proto': link:packages/proto
@@ -20246,6 +20283,7 @@ snapshots:
       '@temporalio/envconfig': link:packages/envconfig
       '@temporalio/interceptors-opentelemetry': link:packages/interceptors-opentelemetry
       '@temporalio/nexus': link:packages/nexus
+      '@temporalio/plugin': link:packages/plugin
       '@temporalio/proto': link:packages/proto
       '@temporalio/testing': link:packages/testing
       '@temporalio/worker': link:packages/worker
