@@ -42,12 +42,5 @@
   "files": [
     "src",
     "lib"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "test": "vitest run",
-    "test.watch": "vitest",
-    "lint": "echo 'No lint configured'",
-    "lint.check": "echo 'No lint check configured'"
-  }
+  ]
 }
