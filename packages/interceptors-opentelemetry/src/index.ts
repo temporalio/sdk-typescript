@@ -8,6 +8,7 @@
  * @module
  */
 
+export * from './plugin';
 export * from './workflow';
 export * from './worker';
 export {
