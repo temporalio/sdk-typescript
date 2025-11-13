@@ -13,6 +13,12 @@ import {
   SharedV2ProviderMetadata,
 } from '@ai-sdk/provider';
 
+/**
+ * Response structure for AI model invocations, containing content, metadata, and usage information.
+ * Used primarily for testing scenarios to mock AI model responses.
+ * 
+ * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
+ */
 export type ModelResponse = {
   content: Array<LanguageModelV2Content>;
   finishReason: LanguageModelV2FinishReason;
@@ -23,6 +29,12 @@ export type ModelResponse = {
   warnings: Array<LanguageModelV2CallWarning>;
 };
 
+/**
+ * A test implementation of LanguageModelV2 that returns predefined responses from a generator.
+ * This class is useful for testing workflows that use AI models without making actual API calls.
+ * 
+ * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
+ */
 export class TestModel implements LanguageModelV2 {
   readonly specificationVersion = 'v2';
   readonly provider = 'temporal';
@@ -62,6 +74,12 @@ export class TestModel implements LanguageModelV2 {
   }
 }
 
+/**
+ * A test provider implementation that creates TestModel instances for testing purposes.
+ * This provider allows testing AI-enabled workflows without external API dependencies.
+ * 
+ * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
+ */
 export class TestProvider implements ProviderV2 {
   private generator: Generator<ModelResponse>;
   constructor(generator: Generator<ModelResponse>) {
