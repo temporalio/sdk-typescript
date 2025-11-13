@@ -16,8 +16,10 @@ import { v4 as uuid4 } from 'uuid';
 import type * as workflowImportStub from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports';
 import type * as workflowImportImpl from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports-impl';
 import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor } from '@temporalio/client';
-import { OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
-import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry';
+import {
+  OpenTelemetryPlugin,
+  OpenTelemetryWorkflowClientCallsInterceptor,
+} from '@temporalio/interceptors-opentelemetry';
 import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
 import {
   makeWorkflowExporter,
@@ -273,29 +275,20 @@ if (RUN_INTEGRATION_TESTS) {
         exporter: makeWorkflowExporter(new SimpleSpanProcessor(traceExporter), staticResource),
       };
 
+      const plugin = new OpenTelemetryPlugin({ resource: staticResource, traceExporter });
       const worker = await Worker.create({
         workflowsPath: require.resolve('./workflows'),
         activities,
         taskQueue: 'test-otel',
-        interceptors: {
-          client: {
-            workflow: [new OpenTelemetryWorkflowClientCallsInterceptor()],
-          },
-          workflowModules: [require.resolve('./workflows/otel-interceptors')],
-          activity: [
-            (ctx) => ({
-              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
-              outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
-            }),
-          ],
-        },
-        sinks,
+        plugins: [plugin],
       });
 
-      const client = new WorkflowClient({
-        interceptors: [new OpenTelemetryWorkflowClientInterceptor()],
+      const client = new Client({
+        plugins: [plugin],
       });
-      await worker.runUntil(client.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: uuid4() }));
+      await worker.runUntil(
+        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: uuid4() })
+      );
       await otel.shutdown();
       const originalSpan = spans.find(({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}smorgasbord`);
       t.true(originalSpan !== undefined);
