@@ -6,20 +6,19 @@ use prost::Message;
 use tokio::sync::mpsc::{Sender, channel};
 use tokio_stream::wrappers::ReceiverStream;
 
-use temporal_sdk_core::{
-    CoreRuntime,
-    api::{
-        Worker as CoreWorkerTrait,
-        errors::{CompleteActivityError, CompleteNexusError, CompleteWfError, PollError},
+use temporalio_common::Worker as CoreWorkerTrait;
+use temporalio_common::errors::{
+    CompleteActivityError, CompleteNexusError, CompleteWfError, PollError,
+};
+use temporalio_common::protos::{
+    coresdk::{
+        ActivityHeartbeat, ActivityTaskCompletion, nexus::NexusTaskCompletion,
+        workflow_completion::WorkflowActivationCompletion,
     },
-    init_replay_worker, init_worker,
-    protos::{
-        coresdk::{
-            ActivityHeartbeat, ActivityTaskCompletion, nexus::NexusTaskCompletion,
-            workflow_completion::WorkflowActivationCompletion,
-        },
-        temporal::api::history::v1::History,
-    },
+    temporal::api::history::v1::History,
+};
+use temporalio_sdk_core::{
+    CoreRuntime, init_replay_worker, init_worker,
     replay::{HistoryForReplay, ReplayWorkerInput},
 };
 
@@ -70,7 +69,7 @@ pub struct Worker {
     core_runtime: Arc<CoreRuntime>,
 
     // Arc so that we can send reference into async closures
-    core_worker: Arc<temporal_sdk_core::Worker>,
+    core_worker: Arc<temporalio_sdk_core::Worker>,
 }
 
 /// Create a new worker.
@@ -466,16 +465,16 @@ impl MutableFinalize for HistoryForReplayTunnelHandle {}
 mod config {
     use std::{sync::Arc, time::Duration};
 
-    use temporal_sdk_core::{
+    use temporalio_common::protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior;
+    use temporalio_common::worker::{
+        ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
+        PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder,
+        WorkerConfigBuilderError, WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
+        WorkerDeploymentVersion as CoreWorkerDeploymentVersion, WorkflowSlotKind,
+    };
+    use temporalio_sdk_core::{
         ResourceBasedSlotsOptions, ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions,
         SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptionsBuilder,
-        api::worker::{
-            ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
-            PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder,
-            WorkerConfigBuilderError, WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
-            WorkerDeploymentVersion as CoreWorkerDeploymentVersion, WorkflowSlotKind,
-        },
-        protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior,
     };
 
     use super::custom_slot_supplier::CustomSlotSupplierOptions;
@@ -485,7 +484,7 @@ mod config {
     use neon::object::Object;
     use neon::prelude::JsResult;
     use neon::types::JsObject;
-    use temporal_sdk_core::api::worker::WorkerVersioningStrategy;
+    use temporalio_common::worker::WorkerVersioningStrategy;
 
     #[derive(TryFromJs)]
     pub struct BridgeWorkerOptions {
@@ -749,16 +748,14 @@ mod custom_slot_supplier {
 
     use neon::{context::Context, handle::Handle, prelude::*};
 
-    use temporal_sdk_core::{
-        SlotSupplierOptions as CoreSlotSupplierOptions,
-        api::worker::{
-            SlotInfo as CoreSlotInfo, SlotInfoTrait as _, SlotKind,
-            SlotKindType as CoreSlotKindType, SlotMarkUsedContext as CoreSlotMarkUsedContext,
-            SlotReleaseContext as CoreSlotReleaseContext,
-            SlotReservationContext as CoreSlotReservationContext, SlotSupplier as CoreSlotSupplier,
-            SlotSupplierPermit as CoreSlotSupplierPermit,
-        },
+    use temporalio_common::worker::{
+        SlotInfo as CoreSlotInfo, SlotInfoTrait as _, SlotKind, SlotKindType as CoreSlotKindType,
+        SlotMarkUsedContext as CoreSlotMarkUsedContext,
+        SlotReleaseContext as CoreSlotReleaseContext,
+        SlotReservationContext as CoreSlotReservationContext, SlotSupplier as CoreSlotSupplier,
+        SlotSupplierPermit as CoreSlotSupplierPermit,
     };
+    use temporalio_sdk_core::SlotSupplierOptions as CoreSlotSupplierOptions;
 
     use bridge_macros::{TryFromJs, TryIntoJs};
     use tracing::warn;

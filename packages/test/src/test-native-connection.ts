@@ -15,23 +15,23 @@ import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 const workflowServicePackageDefinition = protoLoader.loadSync(
   path.resolve(
     __dirname,
-    '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream/temporal/api/workflowservice/v1/service.proto'
+    '../../core-bridge/sdk-core/crates/common/protos/api_upstream/temporal/api/workflowservice/v1/service.proto'
   ),
-  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream')] }
+  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos/api_upstream')] }
 );
 const workflowServiceProtoDescriptor = grpc.loadPackageDefinition(workflowServicePackageDefinition) as any;
 
 const operatorServicePackageDefinition = protoLoader.loadSync(
   path.resolve(
     __dirname,
-    '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream/temporal/api/operatorservice/v1/service.proto'
+    '../../core-bridge/sdk-core/crates/common/protos/api_upstream/temporal/api/operatorservice/v1/service.proto'
   ),
-  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/api_upstream')] }
+  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos/api_upstream')] }
 );
 const operatorServiceProtoDescriptor = grpc.loadPackageDefinition(operatorServicePackageDefinition) as any;
 
 const healthServicePackageDefinition = protoLoader.loadSync(
-  path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/grpc/health/v1/health.proto'),
+  path.resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos/grpc/health/v1/health.proto'),
   { includeDirs: [] }
 );
 const healthServiceProtoDescriptor = grpc.loadPackageDefinition(healthServicePackageDefinition) as any;
@@ -39,9 +39,9 @@ const healthServiceProtoDescriptor = grpc.loadPackageDefinition(healthServicePac
 const testServicePackageDefinition = protoLoader.loadSync(
   path.resolve(
     __dirname,
-    '../../core-bridge/sdk-core/sdk-core-protos/protos/testsrv_upstream/temporal/api/testservice/v1/service.proto'
+    '../../core-bridge/sdk-core/crates/common/protos/testsrv_upstream/temporal/api/testservice/v1/service.proto'
   ),
-  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/sdk-core-protos/protos/testsrv_upstream')] }
+  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos/testsrv_upstream')] }
 );
 const testServiceProtoDescriptor = grpc.loadPackageDefinition(testServicePackageDefinition) as any;
 

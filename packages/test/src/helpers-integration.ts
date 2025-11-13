@@ -17,6 +17,8 @@ import {
   DefaultLogger,
   LogEntry,
   LogLevel,
+  NativeConnection,
+  NativeConnectionOptions,
   ReplayWorkerOptions,
   Runtime,
   RuntimeOptions,
@@ -184,6 +186,7 @@ export async function createTestWorkflowEnvironment(
 export interface Helpers {
   taskQueue: string;
   createWorker(opts?: Partial<WorkerOptions>): Promise<Worker>;
+  createNativeConnection(opts?: Partial<NativeConnectionOptions>): Promise<NativeConnection>;
   runReplayHistory(opts: Partial<ReplayWorkerOptions>, history: temporal.api.history.v1.IHistory): Promise<void>;
   executeWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<workflow.WorkflowResultType<T>>;
   executeWorkflow<T extends workflow.Workflow>(
@@ -217,6 +220,9 @@ export function configurableHelpers<T>(
         showStackTraceSources: true,
         ...opts,
       });
+    },
+    async createNativeConnection(opts?: Partial<NativeConnectionOptions>): Promise<NativeConnection> {
+      return await NativeConnection.connect({ address: testEnv.address, ...opts });
     },
     async runReplayHistory(
       opts: Partial<ReplayWorkerOptions>,
