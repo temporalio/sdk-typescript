@@ -17,7 +17,7 @@ import * as workflow from '@temporalio/workflow';
 /**
  * A language model implementation that delegates AI model calls to Temporal activities.
  * This allows workflows to invoke AI models through the Temporal execution model.
- * 
+ *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
 class TemporalModel implements LanguageModelV2 {
@@ -61,7 +61,7 @@ class TemporalModel implements LanguageModelV2 {
  * A Temporal-specific provider implementation that creates AI models which execute
  * through Temporal activities. This provider integrates AI SDK models with Temporal's
  * execution model to ensure reliable, durable AI model invocations.
- * 
+ *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
 export class TemporalProvider implements ProviderV2 {
@@ -80,7 +80,7 @@ export class TemporalProvider implements ProviderV2 {
 
 /**
  * A singleton instance of TemporalProvider for convenient use in applications.
- * 
+ *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
 export const temporalProvider: TemporalProvider = new TemporalProvider();
