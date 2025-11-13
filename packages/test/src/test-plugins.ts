@@ -46,7 +46,7 @@ export class ExamplePlugin
 
   configureWorker(config: WorkerOptions): WorkerOptions {
     console.log('ExamplePlugin: Configuring worker');
-    config.taskQueue = 'plugin-task-queue';
+    config.taskQueue = 'plugin-task-queue' + randomUUID();
     return config;
   }
 
@@ -75,9 +75,9 @@ test('Basic plugin', async (t) => {
   });
 
   await worker.runUntil(async () => {
-    t.is(worker.options.taskQueue, 'plugin-task-queue');
+    t.true(worker.options.taskQueue.startsWith('plugin-task-queue'));
     const result = await client.workflow.execute(helloWorkflow, {
-      taskQueue: 'plugin-task-queue',
+      taskQueue: worker.options.taskQueue,
       workflowExecutionTimeout: '30 seconds',
       workflowId: randomUUID(),
     });
@@ -97,9 +97,9 @@ test('Bundler plugins are passed from worker', async (t) => {
     plugins: [new ExamplePlugin()],
   });
   await worker.runUntil(async () => {
-    t.is(worker.options.taskQueue, 'plugin-task-queue');
+    t.true(worker.options.taskQueue.startsWith('plugin-task-queue'));
     const result = await client.workflow.execute(helloWorkflow, {
-      taskQueue: 'plugin-task-queue',
+      taskQueue: worker.options.taskQueue,
       workflowExecutionTimeout: '30 seconds',
       workflowId: randomUUID(),
     });
@@ -119,12 +119,12 @@ test('Worker plugins are passed from native connection', async (t) => {
       taskQueue: 'will be overridden',
     });
 
-    t.is(worker.options.taskQueue, 'plugin-task-queue');
+    t.true(worker.options.taskQueue.startsWith('plugin-task-queue'));
 
     await worker.runUntil(async () => {
-      t.is(worker.options.taskQueue, 'plugin-task-queue');
+      t.true(worker.options.taskQueue.startsWith('plugin-task-queue'));
       const result = await client.workflow.execute(helloWorkflow, {
-        taskQueue: 'plugin-task-queue',
+        taskQueue: worker.options.taskQueue,
         workflowExecutionTimeout: '30 seconds',
         workflowId: randomUUID(),
       });
@@ -162,13 +162,13 @@ test('Bundler plugins are passed from connections', async (t) => {
     const worker = await Worker.create({
       workflowsPath: 'replaced',
       connection: env.nativeConnection,
-      taskQueue: 'plugin-task-queue',
+      taskQueue: 'plugin-task-queue' + randomUUID(),
     });
 
     await worker.runUntil(async () => {
-      t.is(worker.options.taskQueue, 'plugin-task-queue');
+      t.true(worker.options.taskQueue.startsWith('plugin-task-queue'));
       const result = await client.workflow.execute(helloWorkflow, {
-        taskQueue: 'plugin-task-queue',
+        taskQueue: worker.options.taskQueue,
         workflowExecutionTimeout: '30 seconds',
         workflowId: randomUUID(),
       });
@@ -206,13 +206,13 @@ test('SimplePlugin worker configurations', async (t) => {
   const worker = await Worker.create({
     workflowsPath: 'replaced',
     connection: t.context.testEnv.nativeConnection,
-    taskQueue: 'simple-plugin-queue',
+    taskQueue: 'simple-plugin-queue' + randomUUID(),
     plugins: [plugin],
   });
 
   await worker.runUntil(async () => {
     const result = await client.workflow.execute(activityWorkflow, {
-      taskQueue: 'simple-plugin-queue',
+      taskQueue: worker.options.taskQueue,
       workflowExecutionTimeout: '30 seconds',
       workflowId: randomUUID(),
     });
@@ -234,7 +234,7 @@ test('SimplePlugin with activities merges them correctly', async (t) => {
 
   const worker = await Worker.create({
     connection: t.context.testEnv.nativeConnection,
-    taskQueue: 'simple-plugin-queue',
+    taskQueue: 'simple-plugin-queue' + randomUUID(),
     activities: {
       existingActivity: activity1,
     },

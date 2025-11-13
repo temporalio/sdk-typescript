@@ -5,10 +5,10 @@ use std::{collections::HashMap, sync::Arc};
 use neon::prelude::*;
 use tonic::metadata::{BinaryMetadataValue, MetadataKey};
 
-use temporal_sdk_core::{ClientOptions as CoreClientOptions, CoreRuntime, RetryClient};
+use temporalio_sdk_core::{ClientOptions as CoreClientOptions, CoreRuntime, RetryClient};
 
 use bridge_macros::{TryFromJs, js_function};
-use temporal_client::{ClientInitError, ConfiguredClient, TemporalServiceClient};
+use temporalio_client::{ClientInitError, ConfiguredClient, TemporalServiceClient};
 
 use crate::runtime::Runtime;
 use crate::{helpers::*, runtime::RuntimeExt as _};
@@ -257,7 +257,7 @@ async fn client_invoke_workflow_service(
     mut retry_client: CoreClient,
     call: RpcCall,
 ) -> BridgeResult<Vec<u8>> {
-    use temporal_client::WorkflowService;
+    use temporalio_client::WorkflowService;
 
     match call.rpc.as_str() {
         "CountWorkflowExecutions" => {
@@ -528,7 +528,7 @@ async fn client_invoke_operator_service(
     mut retry_client: CoreClient,
     call: RpcCall,
 ) -> BridgeResult<Vec<u8>> {
-    use temporal_client::OperatorService;
+    use temporalio_client::OperatorService;
 
     match call.rpc.as_str() {
         "AddOrUpdateRemoteCluster" => {
@@ -566,7 +566,7 @@ async fn client_invoke_test_service(
     mut retry_client: CoreClient,
     call: RpcCall,
 ) -> BridgeResult<Vec<u8>> {
-    use temporal_client::TestService;
+    use temporalio_client::TestService;
 
     match call.rpc.as_str() {
         "GetCurrentTime" => rpc_call!(retry_client, call, get_current_time),
@@ -588,7 +588,7 @@ async fn client_invoke_health_service(
     mut retry_client: CoreClient,
     call: RpcCall,
 ) -> BridgeResult<Vec<u8>> {
-    use temporal_client::HealthService;
+    use temporalio_client::HealthService;
 
     match call.rpc.as_str() {
         "Check" => rpc_call!(retry_client, call, check),
@@ -658,8 +658,8 @@ mod config {
 
     use anyhow::Context as _;
 
-    use temporal_client::HttpConnectProxyOptions;
-    use temporal_sdk_core::{
+    use temporalio_client::HttpConnectProxyOptions;
+    use temporalio_sdk_core::{
         ClientOptions as CoreClientOptions, ClientOptionsBuilder,
         ClientTlsConfig as CoreClientTlsConfig, TlsConfig as CoreTlsConfig, Url,
     };

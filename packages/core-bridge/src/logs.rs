@@ -6,7 +6,7 @@ use std::{
 use neon::prelude::*;
 
 use serde::{Serialize, ser::SerializeMap as _};
-use temporal_sdk_core::api::telemetry::CoreLog;
+use temporalio_common::telemetry::CoreLog;
 
 use bridge_macros::js_function;
 

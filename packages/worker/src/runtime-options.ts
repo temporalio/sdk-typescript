@@ -468,7 +468,7 @@ export type MakeTelemetryFilterStringOptions = CoreLogFilterOptions;
  */
 export function makeTelemetryFilterString(options: CoreLogFilterOptions): string {
   const { core, other } = options;
-  return `${other ?? 'ERROR'},temporal_sdk_core=${core},temporal_client=${core},temporal_sdk=${core}`;
+  return `${other ?? 'ERROR'},temporalio_sdk_core=${core},temporalio_client=${core},temporalio_common=${core}`;
 }
 
 function isOtelCollectorExporter(metrics: MetricsExporterConfig): metrics is OtelCollectorExporter {

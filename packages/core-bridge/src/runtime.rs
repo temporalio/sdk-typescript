@@ -5,12 +5,12 @@ use futures::channel::mpsc::Receiver;
 use neon::prelude::*;
 use tracing::{Instrument, warn};
 
-use temporal_sdk_core::{
-    CoreRuntime, TokioRuntimeBuilder,
-    api::telemetry::{
-        CoreLog, OtelCollectorOptions as CoreOtelCollectorOptions,
-        PrometheusExporterOptions as CorePrometheusExporterOptions, metrics::CoreMeter,
-    },
+use temporalio_common::telemetry::{
+    CoreLog, OtelCollectorOptions as CoreOtelCollectorOptions,
+    PrometheusExporterOptions as CorePrometheusExporterOptions, metrics::CoreMeter,
+};
+use temporalio_sdk_core::{
+    CoreRuntime, RuntimeOptionsBuilder, TokioRuntimeBuilder,
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
 };
 
@@ -62,11 +62,13 @@ pub fn runtime_new(
     let (telemetry_options, metrics_options, logging_options) = bridge_options.try_into()?;
 
     // Create core runtime which starts tokio multi-thread runtime
-    let mut core_runtime = CoreRuntime::new(
-        telemetry_options,
-        TokioRuntimeBuilder::default(),
-    )
-    .context("Failed to initialize Core Runtime")?;
+    let runtime_options = RuntimeOptionsBuilder::default()
+        .telemetry_options(telemetry_options)
+        .heartbeat_interval(None)
+        .build()
+        .context("Failed to build runtime options")?;
+    let mut core_runtime = CoreRuntime::new(runtime_options, TokioRuntimeBuilder::default())
+        .context("Failed to initialize Core Runtime")?;
 
     enter_sync!(core_runtime);
 
@@ -238,17 +240,14 @@ mod config {
     use anyhow::Context as _;
 
     use neon::prelude::*;
-    use temporal_sdk_core::{
-        Url,
-        api::telemetry::{
-            HistogramBucketOverrides, Logger as CoreTelemetryLogger, MetricTemporality,
-            OtelCollectorOptions as CoreOtelCollectorOptions, OtelCollectorOptionsBuilder,
-            OtlpProtocol, PrometheusExporterOptions as CorePrometheusExporterOptions,
-            PrometheusExporterOptionsBuilder, TelemetryOptions as CoreTelemetryOptions,
-            TelemetryOptionsBuilder,
-        },
-        telemetry::CoreLogStreamConsumer,
+    use temporalio_common::telemetry::{
+        HistogramBucketOverrides, Logger as CoreTelemetryLogger, MetricTemporality,
+        OtelCollectorOptions as CoreOtelCollectorOptions, OtelCollectorOptionsBuilder,
+        OtlpProtocol, PrometheusExporterOptions as CorePrometheusExporterOptions,
+        PrometheusExporterOptionsBuilder, TelemetryOptions as CoreTelemetryOptions,
+        TelemetryOptionsBuilder,
     };
+    use temporalio_sdk_core::{Url, telemetry::CoreLogStreamConsumer};
 
     use bridge_macros::TryFromJs;
 
