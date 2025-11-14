@@ -192,7 +192,7 @@ if (inWorkflowContext()) {
 
 export class Worker extends worker.Worker {
   static async create(options: WorkerOptions): Promise<worker.Worker> {
-    return RealWorker.create({ ...options, reuseV8Context: REUSE_V8_CONTEXT });
+    return RealWorker.create({ ...options, reuseV8Context: options.reuseV8Context ?? REUSE_V8_CONTEXT });
   }
 }
 
