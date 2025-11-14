@@ -20,15 +20,15 @@
     "@opentelemetry/sdk-trace-base": "^1.19.0"
   },
   "devDependencies": {
-    "@temporalio/activity": "file:../activity",
-    "@temporalio/client": "file:../client",
-    "@temporalio/common": "file:../common",
-    "@temporalio/worker": "file:../worker",
-    "@temporalio/workflow": "file:../workflow"
+    "@temporalio/activity": "workspace:*",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "@temporalio/workflow": "workspace:*"
   },
   "peerDependencies": {
-    "@temporalio/common": "file:../common",
-    "@temporalio/workflow": "file:../workflow"
+    "@temporalio/common": "workspace:*",
+    "@temporalio/workflow": "workspace:*"
   },
   "peerDependenciesMeta": {
     "@temporalio/workflow": {

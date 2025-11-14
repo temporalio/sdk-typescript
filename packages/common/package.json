@@ -12,7 +12,7 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@temporalio/proto": "file:../proto",
+    "@temporalio/proto": "workspace:*",
     "long": "^5.2.3",
     "ms": "3.0.0-canary.1",
     "nexus-rpc": "^0.0.1",

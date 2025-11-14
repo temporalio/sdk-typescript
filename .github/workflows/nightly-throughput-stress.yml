@@ -81,6 +81,7 @@ jobs:
         with:
           node-version: '22'
           platform: 'linux-x64'
+          save-cache: 'true'
 
       - name: Install protoc
         uses: arduino/setup-protoc@v3
@@ -100,13 +101,6 @@ jobs:
         run: npm run build
         env:
           BUILD_CORE_RELEASE: true
-
-      - name: Save NPM cache
-        uses: actions/cache/save@v4
-        if: always()
-        with:
-          path: ${{ steps.setup-node.outputs.cache-dir }}
-          key: npm-main-linux-x64-${{ hashFiles('./package-lock.json') }}
 
       - name: Install Temporal CLI
         uses: temporalio/setup-temporal@v0
