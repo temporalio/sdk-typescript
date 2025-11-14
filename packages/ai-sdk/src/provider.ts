@@ -13,6 +13,7 @@ import {
   SharedV2ProviderMetadata,
 } from '@ai-sdk/provider';
 import * as workflow from '@temporalio/workflow';
+import { ActivityOptions } from '@temporalio/workflow';
 
 /**
  * A language model implementation that delegates AI model calls to Temporal activities.
@@ -20,14 +21,12 @@ import * as workflow from '@temporalio/workflow';
  *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
-class TemporalModel implements LanguageModelV2 {
+export class TemporalLanguageModel implements LanguageModelV2 {
   readonly specificationVersion = 'v2';
   readonly provider = 'temporal';
   readonly supportedUrls = {};
-  modelId: string;
 
-  constructor(modelId: string) {
-    this.modelId = modelId;
+  constructor(readonly modelId: string, readonly options?: ActivityOptions) {
   }
 
   async doGenerate(options: LanguageModelV2CallOptions): Promise<{
@@ -40,8 +39,11 @@ class TemporalModel implements LanguageModelV2 {
     warnings: Array<LanguageModelV2CallWarning>;
   }> {
     const result = await workflow
-      .proxyActivities({ startToCloseTimeout: '10 minutes' })
+      .proxyActivities(this.options ?? { startToCloseTimeout: '10 minutes' })
       .invokeModel(this.modelId, options);
+    if (result === undefined) {
+      throw new Error("Received undefined response from model activity.")
+    }
     if (result.response !== undefined) {
       result.response.timestamp = new Date(result.response.timestamp);
     }
@@ -65,12 +67,15 @@ class TemporalModel implements LanguageModelV2 {
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
 export class TemporalProvider implements ProviderV2 {
+  constructor(readonly options? : ActivityOptions) {
+  }
+
   imageModel(_modelId: string): ImageModelV2 {
     throw new Error('Not implemented');
   }
 
   languageModel(modelId: string): LanguageModelV2 {
-    return new TemporalModel(modelId);
+    return new TemporalLanguageModel(modelId, this.options);
   }
 
   textEmbeddingModel(_modelId: string): EmbeddingModelV2<string> {

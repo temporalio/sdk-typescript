@@ -26,8 +26,10 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.28",
     "@ai-sdk/provider": "^2.0.0",
+    "@ai-sdk/mcp": "^0.0.8",
     "@grpc/grpc-js": "^1.12.4",
     "@grpc/proto-loader": "^0.7.10",
+    "@modelcontextprotocol/sdk": "^1.10.2",
     "@opentelemetry/api": "1.9.0",
     "@opentelemetry/core": "1.25.1",
     "@opentelemetry/exporter-trace-otlp-grpc": "0.52.1",

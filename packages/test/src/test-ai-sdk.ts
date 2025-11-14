@@ -7,6 +7,8 @@ import { v4 as uuid4 } from 'uuid';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { ExportResultCode } from '@opentelemetry/core';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
 import { AiSDKPlugin, ModelResponse, TestProvider } from '@temporalio/ai-sdk';
 import { temporal } from '@temporalio/proto';
 import { WorkflowClient } from '@temporalio/client';
@@ -22,6 +24,7 @@ import { InjectedSinks, Runtime } from '@temporalio/worker';
 import {
   generateObjectWorkflow,
   helloWorldAgent,
+  mcpWorkflow,
   middlewareWorkflow,
   telemetryWorkflow,
   toolsWorkflow,
@@ -58,6 +61,20 @@ function textResponse(content: string): ModelResponse {
   ]);
 }
 
+function toolCallResponse(toolName: string, input: string): ModelResponse {
+  return contentResponse(
+    [
+      {
+        type: 'tool-call',
+        toolCallId: 'call_yY3nlDwH5BQSJo63qC61L4ZB',
+        toolName,
+        input,
+      },
+    ],
+    'tool-calls'
+  );
+}
+
 function* helloWorkflowGenerator(): Generator<ModelResponse> {
   yield textResponse('Test Haiku');
 }
@@ -71,7 +88,9 @@ test('Hello world agent responds in haikus', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
-    plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(helloWorkflowGenerator()))],
+    plugins: [new AiSDKPlugin({
+      modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator())
+    })],
   });
 
   await worker.runUntil(async () => {
@@ -87,17 +106,7 @@ test('Hello world agent responds in haikus', async (t) => {
 });
 
 function* toolsWorkflowGenerator(): Generator<ModelResponse> {
-  yield contentResponse(
-    [
-      {
-        type: 'tool-call',
-        toolCallId: 'call_yY3nlDwH5BQSJo63qC61L4ZB',
-        toolName: 'getWeather',
-        input: '{"location":"Tokyo"}',
-      },
-    ],
-    'tool-calls'
-  );
+  yield toolCallResponse('getWeather', '{"location":"Tokyo"}');
   yield textResponse('Test weather result');
 }
 
@@ -106,7 +115,9 @@ test('Tools workflow can use AI tools', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
 
   const worker = await createWorker({
-    plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(toolsWorkflowGenerator()))],
+    plugins: [new AiSDKPlugin({
+      modelProvider: remoteTests ? openai : new TestProvider(toolsWorkflowGenerator())
+    })],
     activities: {
       getWeather,
     },
@@ -154,7 +165,9 @@ test('Generate object', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
-    plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(generateObjectWorkflowGenerator()))],
+    plugins: [new AiSDKPlugin({
+      modelProvider: remoteTests ? openai : new TestProvider(generateObjectWorkflowGenerator())
+    })],
   });
 
   await worker.runUntil(async () => {
@@ -175,8 +188,9 @@ test('Middleware', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
-    plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(helloWorkflowGenerator()))],
-  });
+    plugins: [new AiSDKPlugin({
+      modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator())
+    })],  });
 
   await worker.runUntil(async () => {
     const result = await executeWorkflow(middlewareWorkflow, {
@@ -218,7 +232,9 @@ test('Telemetry', async (t) => {
     };
 
     const worker = await Worker.create({
-      plugins: [new AiSDKPlugin(remoteTests ? openai : new TestProvider(helloWorkflowGenerator()))],
+      plugins: [new AiSDKPlugin({
+        modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator())
+      })],
       taskQueue: 'test-ai-telemetry',
       workflowsPath: require.resolve('./workflows/ai-sdk'),
 
@@ -254,4 +270,40 @@ test('Telemetry', async (t) => {
     // Cleanup the runtime so that it doesn't interfere with other tests
     await Runtime._instance?.shutdown();
   }
+});
+
+function* mcpGenerator(): Generator<ModelResponse> {
+  yield toolCallResponse("list_directory", "/");
+  yield textResponse(
+    'Some files'
+  );
+}
+
+test('MCP Use', async (t) => {
+  t.timeout(120 * 1000);
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const mcpClientFactory = () => createMCPClient({
+    transport: new StdioClientTransport({
+      command: "npx",
+      args: ["-y", "@modelcontextprotocol/server-filesystem", __dirname]
+    })
+  })
+  const worker = await createWorker({
+    plugins: [new AiSDKPlugin({
+      modelProvider: remoteTests ? openai : new TestProvider(mcpGenerator()),
+      mcpClientFactory
+    })],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(mcpWorkflow, {
+      args: ['Tell me what files you know about. Use your tools.'],
+    });
+
+    t.assert(result);
+    if (!remoteTests) {
+      t.is('Some files', result);
+    }
+  });
 });

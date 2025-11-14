@@ -5,7 +5,7 @@ import { generateObject, generateText, stepCountIs, tool, wrapLanguageModel } fr
 import { z } from 'zod';
 import { LanguageModelV2Middleware } from '@ai-sdk/provider';
 import { proxyActivities } from '@temporalio/workflow';
-import { temporalProvider } from '@temporalio/ai-sdk';
+import { TemporalMCPClient, temporalProvider } from '@temporalio/ai-sdk';
 import type * as activities from '../activities/ai-sdk';
 
 const { getWeather } = proxyActivities<typeof activities>({
@@ -93,6 +93,19 @@ export async function telemetryWorkflow(prompt: string): Promise<string> {
     experimental_telemetry: {
       isEnabled: true,
     },
+  });
+  return result.text;
+}
+
+export async function mcpWorkflow(prompt: string): Promise<string> {
+  const mcpClient = new TemporalMCPClient();
+  const tools = await mcpClient.tools()
+  const result = await generateText({
+    model: temporalProvider.languageModel('gpt-4o-mini'),
+    prompt,
+    tools,
+    system: 'What files do you have?',
+    stopWhen: stepCountIs(5),
   });
   return result.text;
 }
