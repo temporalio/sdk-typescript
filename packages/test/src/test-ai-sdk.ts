@@ -88,9 +88,11 @@ test('Hello world agent responds in haikus', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
-    plugins: [new AiSDKPlugin({
-      modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator())
-    })],
+    plugins: [
+      new AiSDKPlugin({
+        modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator()),
+      }),
+    ],
   });
 
   await worker.runUntil(async () => {
@@ -115,9 +117,11 @@ test('Tools workflow can use AI tools', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
 
   const worker = await createWorker({
-    plugins: [new AiSDKPlugin({
-      modelProvider: remoteTests ? openai : new TestProvider(toolsWorkflowGenerator())
-    })],
+    plugins: [
+      new AiSDKPlugin({
+        modelProvider: remoteTests ? openai : new TestProvider(toolsWorkflowGenerator()),
+      }),
+    ],
     activities: {
       getWeather,
     },
@@ -165,9 +169,11 @@ test('Generate object', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
-    plugins: [new AiSDKPlugin({
-      modelProvider: remoteTests ? openai : new TestProvider(generateObjectWorkflowGenerator())
-    })],
+    plugins: [
+      new AiSDKPlugin({
+        modelProvider: remoteTests ? openai : new TestProvider(generateObjectWorkflowGenerator()),
+      }),
+    ],
   });
 
   await worker.runUntil(async () => {
@@ -188,9 +194,12 @@ test('Middleware', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
-    plugins: [new AiSDKPlugin({
-      modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator())
-    })],  });
+    plugins: [
+      new AiSDKPlugin({
+        modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator()),
+      }),
+    ],
+  });
 
   await worker.runUntil(async () => {
     const result = await executeWorkflow(middlewareWorkflow, {
@@ -232,9 +241,11 @@ test('Telemetry', async (t) => {
     };
 
     const worker = await Worker.create({
-      plugins: [new AiSDKPlugin({
-        modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator())
-      })],
+      plugins: [
+        new AiSDKPlugin({
+          modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator()),
+        }),
+      ],
       taskQueue: 'test-ai-telemetry',
       workflowsPath: require.resolve('./workflows/ai-sdk'),
 
@@ -273,27 +284,28 @@ test('Telemetry', async (t) => {
 });
 
 function* mcpGenerator(): Generator<ModelResponse> {
-  yield toolCallResponse("list_directory", "/");
-  yield textResponse(
-    'Some files'
-  );
+  yield toolCallResponse('list_directory', '/');
+  yield textResponse('Some files');
 }
 
 test('MCP Use', async (t) => {
   t.timeout(120 * 1000);
   const { createWorker, executeWorkflow } = helpers(t);
 
-  const mcpClientFactory = () => createMCPClient({
-    transport: new StdioClientTransport({
-      command: "npx",
-      args: ["-y", "@modelcontextprotocol/server-filesystem", __dirname]
-    })
-  })
+  const mcpClientFactory = () =>
+    createMCPClient({
+      transport: new StdioClientTransport({
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-filesystem', __dirname],
+      }),
+    });
   const worker = await createWorker({
-    plugins: [new AiSDKPlugin({
-      modelProvider: remoteTests ? openai : new TestProvider(mcpGenerator()),
-      mcpClientFactory
-    })],
+    plugins: [
+      new AiSDKPlugin({
+        modelProvider: remoteTests ? openai : new TestProvider(mcpGenerator()),
+        mcpClientFactory,
+      }),
+    ],
   });
 
   await worker.runUntil(async () => {

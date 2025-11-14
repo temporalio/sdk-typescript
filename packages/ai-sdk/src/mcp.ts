@@ -3,15 +3,17 @@ import * as workflow from '@temporalio/workflow';
 import { ActivityOptions } from '@temporalio/workflow';
 import { ListToolResult } from './activities';
 
-
 export class TemporalMCPClient {
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-  constructor(readonly clientArgs? : any, readonly options?: ActivityOptions) {
-  }
+  constructor(
+    readonly clientArgs?: any,
+    readonly options?: ActivityOptions
+  ) {}
 
   async tools(): Promise<ToolSet> {
-
-    const tools: Record<string, ListToolResult> =  await workflow.proxyActivities(this.options ?? { startToCloseTimeout: '10 minutes' }).listTools({clientArgs: this.clientArgs});
+    const tools: Record<string, ListToolResult> = await workflow
+      .proxyActivities(this.options ?? { startToCloseTimeout: '10 minutes' })
+      .listTools({ clientArgs: this.clientArgs });
     return Object.fromEntries(
       Object.entries(tools).map(([toolName, toolResult]) => [
         toolName,
@@ -20,7 +22,7 @@ export class TemporalMCPClient {
             await workflow
               .proxyActivities({
                 summary: toolName,
-                ...this.options ?? { startToCloseTimeout: '10 minutes' },
+                ...(this.options ?? { startToCloseTimeout: '10 minutes' }),
               })
               .callTool({ name: toolName, args, options, clientArgs: this.clientArgs }),
           inputSchema: {
@@ -36,4 +38,3 @@ export class TemporalMCPClient {
     );
   }
 }
-

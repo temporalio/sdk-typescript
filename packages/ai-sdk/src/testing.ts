@@ -62,7 +62,7 @@ export class TestModel implements LanguageModelV2 {
 
     const result = this.generator.next();
     this.done = result.done ?? false;
-    console.log("Returning result", result);
+    console.log('Returning result', result);
     return result.value;
   }
 

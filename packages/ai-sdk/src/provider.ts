@@ -26,8 +26,10 @@ export class TemporalLanguageModel implements LanguageModelV2 {
   readonly provider = 'temporal';
   readonly supportedUrls = {};
 
-  constructor(readonly modelId: string, readonly options?: ActivityOptions) {
-  }
+  constructor(
+    readonly modelId: string,
+    readonly options?: ActivityOptions
+  ) {}
 
   async doGenerate(options: LanguageModelV2CallOptions): Promise<{
     content: Array<LanguageModelV2Content>;
@@ -42,7 +44,7 @@ export class TemporalLanguageModel implements LanguageModelV2 {
       .proxyActivities(this.options ?? { startToCloseTimeout: '10 minutes' })
       .invokeModel(this.modelId, options);
     if (result === undefined) {
-      throw new Error("Received undefined response from model activity.")
+      throw new Error('Received undefined response from model activity.');
     }
     if (result.response !== undefined) {
       result.response.timestamp = new Date(result.response.timestamp);
@@ -67,8 +69,7 @@ export class TemporalLanguageModel implements LanguageModelV2 {
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
 export class TemporalProvider implements ProviderV2 {
-  constructor(readonly options? : ActivityOptions) {
-  }
+  constructor(readonly options?: ActivityOptions) {}
 
   imageModel(_modelId: string): ImageModelV2 {
     throw new Error('Not implemented');

@@ -12,7 +12,6 @@ import {
 import type { experimental_MCPClient as MCPClient } from '@ai-sdk/mcp';
 import { ToolCallOptions } from 'ai';
 
-
 export interface ListToolResult {
   description?: string;
   inputSchema: any;
@@ -41,30 +40,31 @@ export interface CallToolArgs {
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
 export const createActivities = (provider: ProviderV2, mcpClientFactory?: (_: any) => Promise<MCPClient>): object => {
-  const activities = ({async invokeModel(
-    modelId: string,
-    options: LanguageModelV2CallOptions
-  ): Promise<{
-    content: Array<LanguageModelV2Content>;
-    finishReason: LanguageModelV2FinishReason;
-    usage: LanguageModelV2Usage;
-    providerMetadata?: SharedV2ProviderMetadata;
-    request?: { body?: unknown };
-    response?: LanguageModelV2ResponseMetadata & { headers?: SharedV2Headers; body?: unknown };
-    warnings: Array<LanguageModelV2CallWarning>;
-  }> {
-    const model = provider.languageModel(modelId);
-    return await model.doGenerate(options);
-  }
-  });
+  const activities = {
+    async invokeModel(
+      modelId: string,
+      options: LanguageModelV2CallOptions
+    ): Promise<{
+      content: Array<LanguageModelV2Content>;
+      finishReason: LanguageModelV2FinishReason;
+      usage: LanguageModelV2Usage;
+      providerMetadata?: SharedV2ProviderMetadata;
+      request?: { body?: unknown };
+      response?: LanguageModelV2ResponseMetadata & { headers?: SharedV2Headers; body?: unknown };
+      warnings: Array<LanguageModelV2CallWarning>;
+    }> {
+      const model = provider.languageModel(modelId);
+      return await model.doGenerate(options);
+    },
+  };
   if (mcpClientFactory === undefined) {
     return activities;
   }
   return {
     ...activities,
     async listTools(args: ListToolArgs): Promise<Record<string, ListToolResult>> {
-      const mcpClient = await mcpClientFactory(args.clientArgs)
-      const tools = await mcpClient.tools()
+      const mcpClient = await mcpClientFactory(args.clientArgs);
+      const tools = await mcpClient.tools();
 
       return Object.fromEntries(
         Object.entries(tools).map(([k, v]) => [
@@ -77,9 +77,9 @@ export const createActivities = (provider: ProviderV2, mcpClientFactory?: (_: an
       );
     },
     async callTool(args: CallToolArgs): Promise<any> {
-      const mcpClient = await mcpClientFactory(args.clientArgs)
-      const tools = await mcpClient.tools()
+      const mcpClient = await mcpClientFactory(args.clientArgs);
+      const tools = await mcpClient.tools();
       return tools[args.name].execute(args.args, args.options);
-    }
-  }
-}
+    },
+  };
+};
