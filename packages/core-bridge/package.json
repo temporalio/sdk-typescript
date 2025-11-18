@@ -6,8 +6,8 @@
   "types": "lib/index.d.ts",
   "scripts": {
     "build-rust": "node ./scripts/build.js --force",
-    "build": "npm run build-rust",
-    "build-rust-release": "npm run build-rust -- --release",
+    "build": "pnpm run build-rust",
+    "build-rust-release": "pnpm run build-rust --release",
     "install": "node ./scripts/build.js",
     "format": "cargo fmt",
     "lint": "cargo clippy --fix --allow-staged",

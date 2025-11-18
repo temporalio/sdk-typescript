@@ -54,7 +54,7 @@ runs:
     - name: Download dependencies
       shell: bash
       run: |
-        pnpm install --frozen-lockfile || pnpm install --frozen-lockfile || pnpm install --frozen-lockfile
+        pnpm install --frozen-lockfile
 
     - name: Save PNPM store
       if: inputs.save-cache == 'true'

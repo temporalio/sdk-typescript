@@ -21,9 +21,9 @@
   },
   "files": [],
   "scripts": {
-    "rebuild": "npm run clean && npm run build",
+    "rebuild": "pnpm run clean && pnpm run build",
     "build": "lerna run --stream build",
-    "build.watch": "npm run build:protos && tsc --build --watch packages/*/tsconfig.json",
+    "build.watch": "pnpm run build:protos && tsc --build --watch packages/*/tsconfig.json",
     "build:protos": "node ./packages/proto/scripts/compile-proto.js",
     "test": "lerna run --stream test",
     "test.watch": "lerna run --stream test.watch",
