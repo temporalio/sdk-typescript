@@ -23,8 +23,8 @@ async function withWorker(workdir, fn) {
   }
 }
 
-async function test(workdir) {
-  const { status, output } = spawnSync(npm, ['run', 'workflow'], {
+async function test(workdir, scriptName, expectedOutput) {
+  const { status, output } = spawnSync(npm, ['run', scriptName], {
     cwd: workdir,
     shell,
     encoding: 'utf8',
@@ -33,7 +33,7 @@ async function test(workdir) {
   if (status !== 0) {
     throw new Error('Failed to run workflow');
   }
-  if (!output[1].includes('Hello, Temporal!\n')) {
+  if (!output[1].includes(`${expectedOutput}\n`)) {
     throw new Error(`Invalid output: "${output[1]}"`);
   }
 }
@@ -41,13 +41,17 @@ async function test(workdir) {
 async function main() {
   const opts = arg({
     '--work-dir': String,
+    '--script-name': String,
+    '--expected-output': String,
   });
   const workdir = opts['--work-dir'];
   if (!workdir) {
     throw new Error('Missing required option --work-dir');
   }
+  const scriptName = opts['--script-name'] ?? 'workflow';
+  const expectedOutput = opts['--expected-output'] ?? 'Hello, Temporal!';
 
-  await withWorker(workdir, () => test(workdir));
+  await withWorker(workdir, () => test(workdir, scriptName, expectedOutput));
 }
 
 main()
