@@ -41,7 +41,7 @@ jobs:
             out-file: libtemporal_sdk_typescript_bridge.so
             protobuf-url: https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-aarch_64.zip
           - platform: macos-x64
-            runner: macos-13
+            runner: macos-15-intel
             target: x86_64-apple-darwin
             out-file: libtemporal_sdk_typescript_bridge.dylib
           - platform: macos-arm
