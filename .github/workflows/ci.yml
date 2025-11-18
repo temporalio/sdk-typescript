@@ -43,7 +43,7 @@ jobs:
             target: aarch64-unknown-linux-gnu
             out-file: libtemporal_sdk_typescript_bridge.so
           - platform: macos-x64
-            runner: macos-13
+            runner: macos-15-intel
             target: x86_64-apple-darwin
             out-file: libtemporal_sdk_typescript_bridge.dylib
           - platform: macos-arm
@@ -128,7 +128,7 @@ jobs:
             runner: ubuntu-24.04-arm64-2-core
             reuse-v8-context: true
           - platform: macos-x64
-            runner: macos-13
+            runner: macos-15-intel
             reuse-v8-context: true
           - platform: macos-arm
             runner: macos-14
