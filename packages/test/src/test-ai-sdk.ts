@@ -296,7 +296,7 @@ test('MCP Use', async (t) => {
     createMCPClient({
       transport: new StdioClientTransport({
         command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-filesystem', __dirname],
+        args: ['-y', '@modelcontextprotocol/server-filesystem@latest', __dirname],
       }),
     });
   const worker = await createWorker({
