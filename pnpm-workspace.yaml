@@ -5,7 +5,6 @@ packages:
   - 'packages/common'
   - 'packages/core-bridge'
   - 'packages/create-project'
-  - 'packages/docs'
   - 'packages/envconfig'
   - 'packages/interceptors-opentelemetry'
   - 'packages/meta'
