@@ -260,14 +260,6 @@ jobs:
 
       # End samples
 
-      # TODO: PNPM doesn't write logs to file by default
-      - name: Upload NPM logs
-        uses: actions/upload-artifact@v4
-        if: failure() || cancelled()
-        with:
-          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-logs
-          path: ${{ startsWith(matrix.platform, 'windows') && 'C:\\npm\\_logs\\' || '~/.npm/_logs/' }}
-
       - name: Upload Dev Server logs
         uses: actions/upload-artifact@v4
         if: failure() || cancelled()
