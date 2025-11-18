@@ -275,7 +275,7 @@ jobs:
   # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
   features-tests:
     name: Features Tests
-    uses: temporalio/features/.github/workflows/typescript.yaml@olszewski/pnpm
+    uses: temporalio/features/.github/workflows/typescript.yaml@main
     with:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
       version: ${{github.event.pull_request.head.ref}}
