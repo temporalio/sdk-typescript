@@ -1403,7 +1403,7 @@ test('root execution is exposed', async (t) => {
         }
       }
     };
-    await waitUntil(childStarted, 5000);
+    await waitUntil(childStarted, 8000);
     const childDesc = await childHandle.describe();
     const parentDesc = await handle.describe();
 

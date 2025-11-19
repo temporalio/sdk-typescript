@@ -109,15 +109,22 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
           'temporal_workflow_task_replay_latency_seconds_bucket{namespace="default",' +
             'service_name="temporal-core-sdk",task_queue="test-prometheus",' +
             'workflow_type="successString",my_tag="my_value",le="0.001"}'
-        )
+        ),
+        `Actual: \n-------\n${text}\n-------`
       );
 
       // Verify histogram overrides
-      t.assert(text.match(/temporal_request_latency_seconds_bucket\{.*,le="31415"/));
-      t.assert(text.match(/workflow_task_execution_latency_seconds_bucket\{.*,le="31415"/));
+      t.assert(
+        text.match(/temporal_request_latency_seconds_bucket\{.*,le="31415"/),
+        `Actual: \n-------\n${text}\n-------`
+      );
+      t.assert(
+        text.match(/workflow_task_execution_latency_seconds_bucket\{.*,le="31415"/),
+        `Actual: \n-------\n${text}\n-------`
+      );
 
       // Verify prefix exists on client request metrics
-      t.assert(text.includes('temporal_long_request{'));
+      t.assert(text.includes('temporal_long_request{'), `Actual: \n-------\n${text}\n-------`);
     });
   } finally {
     await localEnv.teardown();
