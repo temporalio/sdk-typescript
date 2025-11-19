@@ -1,6 +1,6 @@
 const { spawn: spawnChild, spawnSync } = require('child_process');
 const arg = require('arg');
-const { shell, kill } = require('./utils');
+const { shell, kill, sleep } = require('./utils');
 
 const npm = /^win/.test(process.platform) ? 'npm.cmd' : 'npm';
 
@@ -19,7 +19,11 @@ async function withWorker(workdir, fn) {
   try {
     return await fn();
   } finally {
-    await kill(worker);
+    await Promise.race([
+      // Give 1s for the worker to terminate by itself, then send a SIGINT
+      waitOnChild(worker),
+      sleep(1000).then(() => kill(worker)),
+    ]);
   }
 }
 
