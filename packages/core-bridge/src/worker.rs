@@ -166,6 +166,9 @@ pub fn worker_complete_workflow_activation(
                         ),
                     }
                 }
+                CompleteWfError::WorkflowNotEnabled => {
+                    BridgeError::UnexpectedError(format!("{err}"))
+                }
             })
     })
 }
@@ -225,6 +228,9 @@ pub fn worker_complete_activity_task(
                     field: None,
                     message: format!("Malformed Activity Completion: {reason:?}"),
                 },
+                CompleteActivityError::ActivityNotEnabled => {
+                    BridgeError::UnexpectedError(format!("{err}"))
+                }
             })
     })
 }
@@ -470,7 +476,7 @@ mod config {
         ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
         PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder,
         WorkerConfigBuilderError, WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
-        WorkerDeploymentVersion as CoreWorkerDeploymentVersion, WorkflowSlotKind,
+        WorkerDeploymentVersion as CoreWorkerDeploymentVersion, WorkerTaskTypes, WorkflowSlotKind,
     };
     use temporalio_sdk_core::{
         ResourceBasedSlotsOptions, ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions,
@@ -499,7 +505,9 @@ mod config {
         workflow_task_poller_behavior: PollerBehavior,
         activity_task_poller_behavior: PollerBehavior,
         nexus_task_poller_behavior: PollerBehavior,
-        enable_non_local_activities: bool,
+        enable_workflow_tasks: bool,
+        enable_activity_tasks: bool,
+        enable_nexus_tasks: bool,
         sticky_queue_schedule_to_start_timeout: Duration,
         max_cached_workflows: usize,
         max_heartbeat_throttle_interval: Duration,
@@ -566,7 +574,6 @@ mod config {
                 .workflow_task_poller_behavior(self.workflow_task_poller_behavior)
                 .activity_task_poller_behavior(self.activity_task_poller_behavior)
                 .nexus_task_poller_behavior(self.nexus_task_poller_behavior)
-                .no_remote_activities(!self.enable_non_local_activities)
                 .sticky_queue_schedule_to_start_timeout(self.sticky_queue_schedule_to_start_timeout)
                 .max_cached_workflows(self.max_cached_workflows)
                 .max_heartbeat_throttle_interval(self.max_heartbeat_throttle_interval)
@@ -574,6 +581,11 @@ mod config {
                 .max_task_queue_activities_per_second(self.max_task_queue_activities_per_second)
                 .max_worker_activities_per_second(self.max_activities_per_second)
                 .graceful_shutdown_period(self.shutdown_grace_time)
+                .task_types(WorkerTaskTypes {
+                    enable_workflows: self.enable_workflow_tasks,
+                    enable_activities: self.enable_activity_tasks,
+                    enable_nexus: self.enable_nexus_tasks,
+                })
                 .build()
         }
     }
