@@ -12,7 +12,7 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { WorkflowClient } from '@temporalio/client';
+import { WorkflowClient, WithStartWorkflowOperation } from '@temporalio/client';
 import { OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
 import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry';
 import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
@@ -509,6 +509,61 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(spans[1].status.code, SpanStatusCode.UNSET);
     t.is(spans[1].status.message, 'benign');
     t.is(spans[2].status.code, SpanStatusCode.OK);
+  });
+
+  test('executeUpdateWithStart works correctly with OTEL interceptors', async (t) => {
+    const staticResource = new opentelemetry.resources.Resource({
+      [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
+    });
+    const traceExporter: opentelemetry.tracing.SpanExporter = {
+      export(_spans, resultCallback) {
+        resultCallback({ code: ExportResultCode.SUCCESS });
+      },
+      async shutdown() {},
+    };
+
+    const sinks: InjectedSinks<OpenTelemetrySinks> = {
+      exporter: makeWorkflowExporter(traceExporter, staticResource),
+    };
+
+    const worker = await Worker.create({
+      workflowBundle: await createTestWorkflowBundle({
+        workflowsPath: require.resolve('./workflows'),
+        workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
+      }),
+      activities,
+      taskQueue: 'test-otel-update-start',
+      interceptors: {
+        client: {
+          workflow: [new OpenTelemetryWorkflowClientCallsInterceptor()],
+        },
+        workflowModules: [require.resolve('./workflows/otel-interceptors')],
+      },
+      sinks,
+    });
+
+    const client = new WorkflowClient();
+
+    const startWorkflowOperation = new WithStartWorkflowOperation(workflows.updateStartOtel, {
+      workflowId: uuid4(),
+      taskQueue: 'test-otel-update-start',
+      workflowIdConflictPolicy: 'FAIL',
+    });
+
+    const { updateResult, workflowResult } = await worker.runUntil(async () => {
+      const updateResult = await client.executeUpdateWithStart(workflows.otelUpdate, {
+        args: [true],
+        startWorkflowOperation,
+      });
+
+      const handle = await startWorkflowOperation.workflowHandle();
+      const workflowResult = await handle.result();
+
+      return { updateResult, workflowResult };
+    });
+
+    t.is(updateResult, true);
+    t.is(workflowResult, true);
   });
 }
 
