@@ -8,6 +8,7 @@ import type {
   ActivityOutboundCallsInterceptor,
   InjectedSink,
   GetLogAttributesInput,
+  GetMetricTagsInput,
   ActivityExecuteInput,
 } from '@temporalio/worker';
 import { instrument, extractContextFromHeaders } from '../instrumentation';
@@ -23,7 +24,7 @@ export interface InterceptorOptions {
  * Wraps the operation in an opentelemetry Span and links it to a parent Span context if one is
  * provided in the Activity input headers.
  */
-export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundCallsInterceptor {
+export class OpenTelemetryActivityInboundInterceptor implements Required<ActivityInboundCallsInterceptor> {
   protected readonly tracer: otel.Tracer;
 
   constructor(
@@ -41,17 +42,35 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
 }
 
 /**
- * Intercepts calls to emit logs from an Activity.
+ * Intercepts calls to emit logs and metrics from an Activity.
  *
- * Attach OpenTelemetry context tracing attributes to emitted log messages, if appropriate.
+ * Attach OpenTelemetry context tracing attributes to emitted log messages and metrics, if appropriate.
  */
-export class OpenTelemetryActivityOutboundInterceptor implements ActivityOutboundCallsInterceptor {
+export class OpenTelemetryActivityOutboundInterceptor implements Required<ActivityOutboundCallsInterceptor> {
   constructor(protected readonly ctx: ActivityContext) {}
 
   public getLogAttributes(
     input: GetLogAttributesInput,
     next: Next<ActivityOutboundCallsInterceptor, 'getLogAttributes'>
   ): Record<string, unknown> {
+    const span = otel.trace.getSpan(otel.context.active());
+    const spanContext = span?.spanContext();
+    if (spanContext && otel.isSpanContextValid(spanContext)) {
+      return next({
+        trace_id: spanContext.traceId,
+        span_id: spanContext.spanId,
+        trace_flags: `0${spanContext.traceFlags.toString(16)}`,
+        ...input,
+      });
+    } else {
+      return next(input);
+    }
+  }
+
+  public getMetricTags(
+    input: GetMetricTagsInput,
+    next: Next<ActivityOutboundCallsInterceptor, 'getMetricTags'>
+  ): GetMetricTagsInput {
     const span = otel.trace.getSpan(otel.context.active());
     const spanContext = span?.spanContext();
     if (spanContext && otel.isSpanContextValid(spanContext)) {

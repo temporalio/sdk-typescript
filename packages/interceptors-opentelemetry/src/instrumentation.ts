@@ -14,6 +14,18 @@ import {
 export const TRACE_HEADER = '_tracer-data';
 /** As in workflow run id */
 export const RUN_ID_ATTR_KEY = 'run_id';
+/** As in workflow id */
+export const WORKFLOW_ID_ATTR_KEY = 'workflow_id';
+/** As in termination reason */
+export const TERMINATE_REASON_ATTR_KEY = 'terminate_reason';
+/** As in timer duration */
+export const TIMER_DURATION_MS_ATTR_KEY = 'timer_duration_ms';
+/** As in Nexus service */
+export const NEXUS_SERVICE_ATTR_KEY = 'nexus_service';
+/** As in Nexus operation */
+export const NEXUS_OPERATION_ATTR_KEY = 'nexus_operation';
+/** As in Nexus endpoint */
+export const NEXUS_ENDPOINT_ATTR_KEY = 'nexus_endpoint';
 
 const payloadConverter = defaultPayloadConverter;
 
@@ -48,17 +60,38 @@ async function wrapWithSpan<T>(
     span.setStatus({ code: otel.SpanStatusCode.OK });
     return ret;
   } catch (err: any) {
-    const isBenignErr = err instanceof ApplicationFailure && err.category === ApplicationFailureCategory.BENIGN;
-    if (acceptableErrors === undefined || !acceptableErrors(err)) {
-      const statusCode = isBenignErr ? otel.SpanStatusCode.UNSET : otel.SpanStatusCode.ERROR;
-      span.setStatus({ code: statusCode, message: (err as Error).message ?? String(err) });
-      span.recordException(err);
-    } else {
-      span.setStatus({ code: otel.SpanStatusCode.OK });
-    }
+    handleError(err, span, acceptableErrors);
     throw err;
   } finally {
     span.end();
+  }
+}
+
+function wrapWithSpanSync<T>(
+  span: otel.Span,
+  fn: (span: otel.Span) => T,
+  acceptableErrors?: (err: unknown) => boolean
+): T {
+  try {
+    const ret = fn(span);
+    span.setStatus({ code: otel.SpanStatusCode.OK });
+    return ret;
+  } catch (err: any) {
+    handleError(err, span, acceptableErrors);
+    throw err;
+  } finally {
+    span.end();
+  }
+}
+
+function handleError(err: any, span: otel.Span, acceptableErrors?: (err: unknown) => boolean): void {
+  const isBenignErr = err instanceof ApplicationFailure && err.category === ApplicationFailureCategory.BENIGN;
+  if (acceptableErrors === undefined || !acceptableErrors(err)) {
+    const statusCode = isBenignErr ? otel.SpanStatusCode.UNSET : otel.SpanStatusCode.ERROR;
+    span.setStatus({ code: statusCode, message: (err as Error).message ?? String(err) });
+    span.recordException(err);
+  } else {
+    span.setStatus({ code: otel.SpanStatusCode.OK });
   }
 }
 
@@ -69,6 +102,8 @@ export interface InstrumentOptions<T> {
   context?: otel.Context;
   acceptableErrors?: (err: unknown) => boolean;
 }
+
+export type InstrumentOptionsSync<T> = Omit<InstrumentOptions<T>, 'fn'> & { fn: (span: otel.Span) => T };
 
 /**
  * Wraps `fn` in a span which ends when function returns or throws
@@ -86,4 +121,13 @@ export async function instrument<T>({
     });
   }
   return await tracer.startActiveSpan(spanName, async (span) => await wrapWithSpan(span, fn, acceptableErrors));
+}
+
+export function instrumentSync<T>({ tracer, spanName, fn, context, acceptableErrors }: InstrumentOptionsSync<T>): T {
+  if (context) {
+    return otel.context.with(context, () => {
+      return tracer.startActiveSpan(spanName, (span) => wrapWithSpanSync(span, fn, acceptableErrors));
+    });
+  }
+  return tracer.startActiveSpan(spanName, (span) => wrapWithSpanSync(span, fn, acceptableErrors));
 }
