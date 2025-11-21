@@ -1,12 +1,10 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
-import * as fs from 'node:fs';
-import path from 'node:path';
 import anyTest, { TestFn } from 'ava';
 import { temporal } from '@temporalio/proto';
 import { bundleWorkflowCode, ReplayError, WorkflowBundle } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
-import { Worker } from './helpers';
+import { loadHistory, Worker } from './helpers';
 
 async function gen2array<T>(gen: AsyncIterable<T>): Promise<T[]> {
   const out: T[] = [];
@@ -18,18 +16,6 @@ async function gen2array<T>(gen: AsyncIterable<T>): Promise<T[]> {
 
 export interface Context {
   bundle: WorkflowBundle;
-}
-
-async function getHistories(fname: string): Promise<temporal.api.history.v1.History> {
-  const isJson = fname.endsWith('json');
-  const fpath = path.resolve(__dirname, `../history_files/${fname}`);
-  if (isJson) {
-    const hist = await fs.promises.readFile(fpath, 'utf8');
-    return JSON.parse(hist);
-  } else {
-    const hist = await fs.promises.readFile(fpath);
-    return temporal.api.history.v1.History.decode(hist);
-  }
 }
 
 function historator(histories: Array<temporal.api.history.v1.History>) {
@@ -53,7 +39,7 @@ test.before(async (t) => {
 });
 
 test('cancel-fake-progress-replay', async (t) => {
-  const hist = await getHistories('cancel_fake_progress_history.bin');
+  const hist = await loadHistory('cancel_fake_progress_history.bin');
   await Worker.runReplayHistory(
     {
       workflowBundle: t.context.bundle,
@@ -64,7 +50,7 @@ test('cancel-fake-progress-replay', async (t) => {
 });
 
 test('cancel-fake-progress-replay from JSON', async (t) => {
-  const hist = await getHistories('cancel_fake_progress_history.json');
+  const hist = await loadHistory('cancel_fake_progress_history.json');
   await Worker.runReplayHistory(
     {
       workflowBundle: t.context.bundle,
@@ -75,7 +61,7 @@ test('cancel-fake-progress-replay from JSON', async (t) => {
 });
 
 test('cancel-fake-progress-replay-nondeterministic', async (t) => {
-  const hist = await getHistories('cancel_fake_progress_history.bin');
+  const hist = await loadHistory('cancel_fake_progress_history.bin');
   // Manually alter the workflow type to point to different workflow code
   hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
 
@@ -93,7 +79,7 @@ test('cancel-fake-progress-replay-nondeterministic', async (t) => {
 });
 
 test('workflow-task-failure-fails-replay', async (t) => {
-  const hist = await getHistories('cancel_fake_progress_history.bin');
+  const hist = await loadHistory('cancel_fake_progress_history.bin');
   // Manually alter the workflow type to point to our workflow which will fail workflow tasks
   hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'failsWorkflowTask';
 
@@ -110,8 +96,8 @@ test('workflow-task-failure-fails-replay', async (t) => {
 });
 
 test('multiple-histories-replay', async (t) => {
-  const hist1 = await getHistories('cancel_fake_progress_history.bin');
-  const hist2 = await getHistories('cancel_fake_progress_history.json');
+  const hist1 = await loadHistory('cancel_fake_progress_history.bin');
+  const hist2 = await loadHistory('cancel_fake_progress_history.json');
   const histories = historator([hist1, hist2]);
 
   const res = await gen2array(
@@ -130,8 +116,8 @@ test('multiple-histories-replay', async (t) => {
 });
 
 test('multiple-histories-replay-returns-errors', async (t) => {
-  const hist1 = await getHistories('cancel_fake_progress_history.bin');
-  const hist2 = await getHistories('cancel_fake_progress_history.json');
+  const hist1 = await loadHistory('cancel_fake_progress_history.bin');
+  const hist2 = await loadHistory('cancel_fake_progress_history.json');
   // change workflow type to break determinism
   hist1.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
   hist2.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';

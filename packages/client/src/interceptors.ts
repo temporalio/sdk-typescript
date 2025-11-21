@@ -13,9 +13,9 @@ import {
   TerminateWorkflowExecutionResponse,
   WorkflowExecution,
 } from './types';
-import { CompiledWorkflowOptions } from './workflow-options';
+import { CompiledWorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
 
-export { Next, Headers };
+export { Headers, Next };
 
 /** Input for WorkflowClientInterceptor.start */
 export interface WorkflowStartInput {
@@ -23,6 +23,51 @@ export interface WorkflowStartInput {
   readonly workflowType: string;
   readonly headers: Headers;
   readonly options: CompiledWorkflowOptions;
+}
+
+/** Input for WorkflowClientInterceptor.update */
+export interface WorkflowStartUpdateInput {
+  readonly updateName: string;
+  readonly args: unknown[];
+  readonly workflowExecution: WorkflowExecution;
+  readonly firstExecutionRunId?: string;
+  readonly headers: Headers;
+  readonly options: WorkflowUpdateOptions;
+}
+
+/** Output for WorkflowClientInterceptor.startWithDetails */
+export interface WorkflowStartOutput {
+  readonly runId: string;
+  readonly eagerlyStarted: boolean;
+}
+
+/** Output for WorkflowClientInterceptor.startUpdate */
+export interface WorkflowStartUpdateOutput {
+  readonly updateId: string;
+  readonly workflowRunId: string;
+  readonly outcome?: temporal.api.update.v1.IOutcome;
+}
+
+/**
+ * Input for WorkflowClientInterceptor.startUpdateWithStart
+ */
+export interface WorkflowStartUpdateWithStartInput {
+  readonly workflowType: string;
+  readonly workflowStartOptions: CompiledWorkflowOptions;
+  readonly workflowStartHeaders: Headers;
+  readonly updateName: string;
+  readonly updateArgs: unknown[];
+  readonly updateOptions: WorkflowUpdateOptions;
+  readonly updateHeaders: Headers;
+}
+
+/**
+ * Output for WorkflowClientInterceptor.startUpdateWithStart
+ */
+export interface WorkflowStartUpdateWithStartOutput {
+  readonly workflowExecution: WorkflowExecution;
+  readonly updateId: string;
+  readonly updateOutcome?: temporal.api.update.v1.IOutcome;
 }
 
 /** Input for WorkflowClientInterceptor.signal */
@@ -79,8 +124,35 @@ export interface WorkflowClientInterceptor {
    *
    * If you implement this method,
    * {@link signalWithStart} most likely needs to be implemented too
+   *
+   * @deprecated in favour of {@link startWithDetails}
    */
   start?: (input: WorkflowStartInput, next: Next<this, 'start'>) => Promise<string /* runId */>;
+
+  /**
+   * Intercept a service call to startWorkflowExecution
+   *
+   * This method returns start details via {@link WorkflowStartOutput}.
+   *
+   * If you implement this method,
+   * {@link signalWithStart} most likely needs to be implemented too
+   */
+  startWithDetails?: (input: WorkflowStartInput, next: Next<this, 'startWithDetails'>) => Promise<WorkflowStartOutput>;
+
+  /**
+   * Intercept a service call to updateWorkflowExecution
+   */
+  startUpdate?: (
+    input: WorkflowStartUpdateInput,
+    next: Next<this, 'startUpdate'>
+  ) => Promise<WorkflowStartUpdateOutput>;
+  /**
+   * Intercept a service call to startUpdateWithStart
+   */
+  startUpdateWithStart?: (
+    input: WorkflowStartUpdateWithStartInput,
+    next: Next<this, 'startUpdateWithStart'>
+  ) => Promise<WorkflowStartUpdateWithStartOutput>;
   /**
    * Intercept a service call to signalWorkflowExecution
    *

@@ -1,0 +1,45 @@
+{
+  "name": "@temporalio/cloud",
+  "version": "1.13.2",
+  "description": "Temporal.io SDK — Temporal Cloud Client",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "scripts": {},
+  "keywords": [
+    "temporal",
+    "workflow",
+    "client",
+    "temporal cloud"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@grpc/grpc-js": "^1.12.4",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/proto": "workspace:*",
+    "abort-controller": "^3.0.0"
+  },
+  "devDependencies": {
+    "protobufjs": "^7.2.5"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "packages/cloud"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/cloud",
+  "engines": {
+    "node": ">= 18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
+}

@@ -1,0 +1,316 @@
+name: Build Package
+
+on:
+  push:
+    branches:
+      - main
+      - 'releases/*'
+
+permissions:
+  contents: read
+  actions: write
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # Is it the official main branch, or an official release branches?
+  # AFAIK there's no way to break that line w/o introducing a trailing LF that breaks usage. Sorry.
+  IS_MAIN_OR_RELEASE: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.event_name != 'pull_request' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) }}
+
+  # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
+  # TESTS_CLI_VERSION: 'v0.13.2'
+  # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
+
+jobs:
+  # Compile native bridge code for each target platform.
+  # Uploads the native library for each target as a build artifact.
+  compile-native-binaries-release:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_24_x86_64
+            out-file: libtemporal_sdk_typescript_bridge.so
+            protobuf-url: https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-x86_64.zip
+          - platform: linux-arm
+            runner: ubuntu-24.04-arm64-2-core
+            target: aarch64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_24_aarch64
+            out-file: libtemporal_sdk_typescript_bridge.so
+            protobuf-url: https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-aarch_64.zip
+          - platform: macos-x64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
+          - platform: macos-arm
+            runner: macos-14
+            target: aarch64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
+          - platform: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            out-file: temporal_sdk_typescript_bridge.dll
+    name: Compile Native Binaries (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 'Cache native index.node artifacts'
+        id: cached-artifact
+        uses: actions/cache@v4
+        with:
+          path: ./packages/core-bridge/releases
+          key: corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
+
+      - name: Install protoc
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && !matrix.container
+        uses: arduino/setup-protoc@v3
+        with:
+          # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
+          version: '23.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upgrade Rust to latest stable
+        uses: dtolnay/rust-toolchain@stable
+
+      # FIXME: Setup volumes so that we can benefit from the cache in the Docker-build scenario.
+      #        Or maybe just get rid of the cache entirely if it doesn't have sufficient benefits.
+      - name: Rust Cargo and Build cache
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && !matrix.container
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/core-bridge -> target
+          prefix-key: corebridge-buildcache
+          shared-key: ${{ matrix.platform }}
+          env-vars: ''
+          save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
+
+      - name: Compile rust code (non-Docker)
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && !matrix.container
+        working-directory: ./packages/core-bridge
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Compile rust code (Docker)
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && matrix.container
+        working-directory: ./packages/core-bridge
+        run: |
+          docker run --rm -v "$(pwd):/workspace" -w /workspace \
+            ${{ matrix.container }} \
+            sh -c '
+                curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+                curl -L -o /tmp/protoc.zip ${{ matrix.protobuf-url }}
+                unzip /tmp/protoc.zip -d $HOME/.protobuf
+                export PATH="$PATH:$HOME/.cargo/bin:$HOME/.protobuf/bin"
+
+                cargo build --release --target ${{ matrix.target }}
+            '
+
+      - name: Move built artifacts in place
+        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        working-directory: ./packages/core-bridge
+        run: |
+          mkdir -p ./releases/${{ matrix.target }}
+          cp target/${{ matrix.target }}/release/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
+
+      - name: Print required GLIBC version
+        if: startsWith(matrix.platform, 'linux')
+        working-directory: ./packages/core-bridge
+        run: |
+          objdump -T ./releases/${{ matrix.target }}/index.node |
+              grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -V | tail -1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corebridge-native-${{ matrix.platform }}
+          # Actual file will be named ${{ matrix.target }}/index.node
+          path: ./packages/core-bridge/releases/*/index.node
+
+  # Gather native binaries for all platforms and build TypeScript @temporalio/* packages.
+  # Upload the built packages as a Verdaccio repository.
+  build-packages:
+    needs:
+      - compile-native-binaries-release
+    name: Build Packages
+    strategy:
+      # Using a matrix here ensure that Rust-related actions below can be easily be copied from the
+      # compile-binaries job and that the Rust build cache will be usable
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download core-bridge native libraries
+        uses: actions/download-artifact@v4
+        with:
+          path: ./packages/core-bridge/releases/tmp
+
+      - name: Put native files into place
+        working-directory: ./packages/core-bridge/releases
+        run: |
+          mv tmp/corebridge-*/* ./
+          rm -rf tmp
+
+      - name: Setup Node and Install Dependencies
+        id: setup-node
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: '22'
+          platform: ${{ matrix.platform }}
+          save-cache: ${{ env.IS_MAIN_OR_RELEASE }}
+
+      - name: Compile code
+        run: pnpm run build --ignore @temporalio/core-bridge
+
+      - name: Publish to Verdaccio
+        run: node scripts/publish-to-verdaccio.js --registry-dir ./tmp/registry
+
+      - name: Save Verdaccio repo artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: verdaccio-repo
+          path: ./tmp/registry/storage
+
+  # Tests that npm init @temporalio results in a working worker and client
+  test-npm-init:
+    needs: build-packages
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 22, 24] # Min and max officially supported Node versions + next max
+        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
+        sample: [hello-world, fetch-esm, hello-world-mtls]
+        server: [cli, cloud]
+        exclude:
+          # Exclude non-mtls tests on cloud
+          - sample: hello-world
+            server: cloud
+          # Exclude mtls tests on cli
+          - sample: hello-world-mtls
+            server: cli
+          - sample: fetch-esm
+            server: cloud
+          # FIXME: investigate why 'fetch-esm' always hangs on Windows
+          - sample: fetch-esm
+            platform: windows-x64
+          # Exclude cloud tests if we don't have cloud namespace and certs
+          - server: ${{ vars.TEMPORAL_CLIENT_NAMESPACE == '' && 'cloud' || '' }}
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+          - platform: linux-arm
+            runner: ubuntu-24.04-arm64-2-core
+          - platform: macos-x64
+            runner: macos-13
+          - platform: macos-arm
+            runner: macos-14
+          - platform: windows-x64
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    name: Run Samples Tests - ${{ matrix.sample }} (${{ matrix.platform }}, Node ${{ matrix.node }}, ${{ matrix.server }})
+    env:
+      TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+      TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@v4
+        with:
+          # We don't need the core submodule here since won't build the project
+          submodules: false
+
+      - name: Setup Node and Install Dependencies
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: ${{ matrix.node }}
+          platform: ${{ matrix.platform }}
+
+      - name: Restore Verdaccio repo artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: verdaccio-repo
+          path: ./tmp/registry/storage
+
+      # Note: here, `npx create` fails on windows if shell is bash.
+      - name: Instantiate sample project using verdaccio artifacts
+        run: node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample ${{ matrix.sample }} --target-dir ${{ runner.temp }}/example
+
+      - name: Install Temporal CLI
+        if: matrix.server == 'cli'
+        uses: temporalio/setup-temporal@v0
+
+      - name: Run Temporal CLI
+        if: matrix.server == 'cli'
+        shell: bash
+        run: |
+          temporal server start-dev \
+            --db-filename temporal.sqlite \
+            --sqlite-pragma journal_mode=WAL \
+            --sqlite-pragma synchronous=OFF \
+            --headless &
+
+        # We write the certs to disk because it serves the sample. Written into /tmp/temporal-certs
+      - name: Create certs dir
+        shell: bash
+        run: node scripts/create-certs-dir.js "${{ runner.temp }}/certs"
+        if: matrix.server == 'cloud'
+        env:
+          # These env vars are used by the hello-world-mtls sample
+          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
+          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
+
+      - name: Test run a workflow (non-cloud)
+        run: node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
+        shell: bash
+        if: matrix.server == 'cli'
+
+      - name: Test run a workflow (cloud)
+        if: matrix.server == 'cloud'
+        # The required environment variables must be present for releases (this must be run from the official repo)
+        run: node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
+        shell: bash
+        env:
+          # These env vars are used by the hello-world-mtls sample
+          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
+          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLIENT_CERT_PATH: ${{ runner.temp }}/certs/client.pem
+          TEMPORAL_CLIENT_KEY_PATH: ${{ runner.temp }}/certs/client.key
+          TEMPORAL_TASK_QUEUE: ${{ format('tssdk-ci-{0}-{1}-sample-hello-world-mtls-{2}-{3}', matrix.platform, matrix.node, github.run_id, github.run_attempt) }}
+
+      - name: Destroy certs dir
+        if: always()
+        shell: bash
+        run: rm -rf ${{ runner.temp }}/certs
+        continue-on-error: true
+
+  conventions:
+    name: Lint and Prune
+    uses: ./.github/workflows/conventions.yml
+
+  docs:
+    name: Build Docs
+    uses: ./.github/workflows/docs.yml
+    with:
+      publish_target: prod
+    secrets:
+      ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

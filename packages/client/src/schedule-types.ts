@@ -1,5 +1,6 @@
 import { checkExtends, Replace } from '@temporalio/common/lib/type-helpers';
-import { Duration, SearchAttributes, Workflow } from '@temporalio/common';
+import { Duration, SearchAttributes, Workflow, TypedSearchAttributes, SearchAttributePair } from '@temporalio/common';
+import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { temporal } from '@temporalio/proto';
 import { WorkflowStartOptions } from './workflow-options';
 
@@ -41,7 +42,7 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
      * takes those Actions according to the {@link ScheduleOverlapPolicy}. An outage that lasts longer than the Catchup
      * Window could lead to missed Actions. (But you can always {@link ScheduleHandle.backfill}.)
      *
-     * @default 1 minute
+     * @default 1 year
      * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
      */
     catchupWindow?: Duration;
@@ -69,8 +70,21 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
    * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   *
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes?: SearchAttributes;
+  searchAttributes?: SearchAttributes; // eslint-disable-line deprecation/deprecation
+
+  /**
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   *
+   * If both {@link searchAttributes} and {@link typedSearchAttributes} are provided, conflicting keys will be overwritten
+   * by {@link typedSearchAttributes}.
+   */
+  typedSearchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
 
   /**
    * The initial state of the schedule, right after creation or update.
@@ -128,7 +142,7 @@ export type CompiledScheduleOptions = Replace<
  * The specification of an updated Schedule, as expected by {@link ScheduleHandle.update}.
  */
 export type ScheduleUpdateOptions<A extends ScheduleOptionsAction = ScheduleOptionsAction> = Replace<
-  Omit<ScheduleOptions, 'scheduleId' | 'memo' | 'searchAttributes'>,
+  Omit<ScheduleOptions, 'scheduleId' | 'memo'>,
   {
     action: A;
     state: Omit<ScheduleOptions['state'], 'triggerImmediately' | 'backfill'>;
@@ -171,12 +185,22 @@ export interface ScheduleSummary {
   memo?: Record<string, unknown>;
 
   /**
-   * Additional indexed information attached to the Schedule.
-   * More info: https://docs.temporal.io/docs/typescript/search-attributes
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   *
+   * @deprecated Use {@link typedSearchAttributes} instead.
+   */
+  searchAttributes?: SearchAttributes; // eslint-disable-line deprecation/deprecation
+
+  /**
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
    */
-  searchAttributes?: SearchAttributes;
+  typedSearchAttributes?: TypedSearchAttributes;
 
   state: {
     /**
@@ -283,12 +307,22 @@ export type ScheduleDescription = {
   memo?: Record<string, unknown>;
 
   /**
-   * Additional indexed information attached to the Schedule.
-   * More info: https://docs.temporal.io/docs/typescript/search-attributes
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
+   *
+   * @deprecated Use {@link typedSearchAttributes} instead.
+   */
+  searchAttributes: SearchAttributes; // eslint-disable-line deprecation/deprecation
+
+  /**
+   * Additional indexed information attached to the Schedule. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom Data Converter is provided.
    */
-  searchAttributes: SearchAttributes;
+  typedSearchAttributes: TypedSearchAttributes;
 
   state: {
     /**
@@ -744,10 +778,13 @@ export type ScheduleOptionsStartWorkflowAction<W extends Workflow> = {
   | 'args'
   | 'memo'
   | 'searchAttributes'
+  | 'typedSearchAttributes'
   | 'retry'
   | 'workflowExecutionTimeout'
   | 'workflowRunTimeout'
   | 'workflowTaskTimeout'
+  | 'staticDetails'
+  | 'staticSummary'
 > & {
     /**
      * Workflow id to use when starting. Assign a meaningful business id.
@@ -775,10 +812,14 @@ export type ScheduleDescriptionStartWorkflowAction = ScheduleSummaryStartWorkflo
     | 'args'
     | 'memo'
     | 'searchAttributes'
+    | 'typedSearchAttributes'
     | 'retry'
     | 'workflowExecutionTimeout'
     | 'workflowRunTimeout'
     | 'workflowTaskTimeout'
+    | 'staticSummary'
+    | 'staticDetails'
+    | 'priority'
   >;
 
 // Invariant: an existing ScheduleDescriptionAction can be used as is to create or update a schedule
@@ -795,57 +836,69 @@ export type CompiledScheduleAction = Replace<
 /**
  * Policy for overlapping Actions.
  */
-export enum ScheduleOverlapPolicy {
-  /**
-   * Use server default (currently SKIP).
-   *
-   * FIXME: remove this field if this issue is implemented: https://github.com/temporalio/temporal/issues/3240
-   */
-  UNSPECIFIED = 0,
-
+export const ScheduleOverlapPolicy = {
   /**
    * Don't start a new Action.
+   * @default
    */
-  SKIP,
+  SKIP: 'SKIP',
 
   /**
    * Start another Action as soon as the current Action completes, but only buffer one Action in this way. If another
    * Action is supposed to start, but one Action is running and one is already buffered, then only the buffered one will
    * be started after the running Action finishes.
    */
-  BUFFER_ONE,
+  BUFFER_ONE: 'BUFFER_ONE',
 
   /**
    * Allows an unlimited number of Actions to buffer. They are started sequentially.
    */
-  BUFFER_ALL,
+  BUFFER_ALL: 'BUFFER_ALL',
 
   /**
    * Cancels the running Action, and then starts the new Action once the cancelled one completes.
    */
-  CANCEL_OTHER,
+  CANCEL_OTHER: 'CANCEL_OTHER',
 
   /**
    * Terminate the running Action and start the new Action immediately.
    */
-  TERMINATE_OTHER,
+  TERMINATE_OTHER: 'TERMINATE_OTHER',
 
   /**
    * Allow any number of Actions to start immediately.
    *
    * This is the only policy under which multiple Actions can run concurrently.
    */
-  ALLOW_ALL,
-}
+  ALLOW_ALL: 'ALLOW_ALL',
 
-checkExtends<
+  /**
+   * Use server default (currently SKIP).
+   *
+   * @deprecated Either leave property `undefined`, or use {@link SKIP} instead.
+   */
+  UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+} as const;
+export type ScheduleOverlapPolicy = (typeof ScheduleOverlapPolicy)[keyof typeof ScheduleOverlapPolicy];
+
+export const [encodeScheduleOverlapPolicy, decodeScheduleOverlapPolicy] = makeProtoEnumConverters<
+  temporal.api.enums.v1.ScheduleOverlapPolicy,
+  typeof temporal.api.enums.v1.ScheduleOverlapPolicy,
   keyof typeof temporal.api.enums.v1.ScheduleOverlapPolicy,
-  `SCHEDULE_OVERLAP_POLICY_${keyof typeof ScheduleOverlapPolicy}`
->();
-checkExtends<
-  `SCHEDULE_OVERLAP_POLICY_${keyof typeof ScheduleOverlapPolicy}`,
-  keyof typeof temporal.api.enums.v1.ScheduleOverlapPolicy
->();
+  typeof ScheduleOverlapPolicy,
+  'SCHEDULE_OVERLAP_POLICY_'
+>(
+  {
+    [ScheduleOverlapPolicy.SKIP]: 1,
+    [ScheduleOverlapPolicy.BUFFER_ONE]: 2,
+    [ScheduleOverlapPolicy.BUFFER_ALL]: 3,
+    [ScheduleOverlapPolicy.CANCEL_OTHER]: 4,
+    [ScheduleOverlapPolicy.TERMINATE_OTHER]: 5,
+    [ScheduleOverlapPolicy.ALLOW_ALL]: 6,
+    UNSPECIFIED: 0,
+  } as const,
+  'SCHEDULE_OVERLAP_POLICY_'
+);
 
 export interface Backfill {
   /**

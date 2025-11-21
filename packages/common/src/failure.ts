@@ -1,37 +1,133 @@
 import type { temporal } from '@temporalio/proto';
-import { checkExtends, errorMessage, isRecord, SymbolBasedInstanceOfError } from './type-helpers';
+import { errorMessage, isRecord, SymbolBasedInstanceOfError } from './type-helpers';
+import { Duration } from './time';
+import { makeProtoEnumConverters } from './internal-workflow';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';
 export type ProtoFailure = temporal.api.failure.v1.IFailure;
 
-// Avoid importing the proto implementation to reduce workflow bundle size
-// Copied from temporal.api.enums.v1.TimeoutType
-export enum TimeoutType {
-  TIMEOUT_TYPE_UNSPECIFIED = 0,
-  TIMEOUT_TYPE_START_TO_CLOSE = 1,
-  TIMEOUT_TYPE_SCHEDULE_TO_START = 2,
-  TIMEOUT_TYPE_SCHEDULE_TO_CLOSE = 3,
-  TIMEOUT_TYPE_HEARTBEAT = 4,
-}
+export const TimeoutType = {
+  START_TO_CLOSE: 'START_TO_CLOSE',
+  SCHEDULE_TO_START: 'SCHEDULE_TO_START',
+  SCHEDULE_TO_CLOSE: 'SCHEDULE_TO_CLOSE',
+  HEARTBEAT: 'HEARTBEAT',
 
-checkExtends<temporal.api.enums.v1.TimeoutType, TimeoutType>();
-checkExtends<TimeoutType, temporal.api.enums.v1.TimeoutType>();
+  /** @deprecated Use {@link START_TO_CLOSE} instead. */
+  TIMEOUT_TYPE_START_TO_CLOSE: 'START_TO_CLOSE', // eslint-disable-line deprecation/deprecation
 
-// Avoid importing the proto implementation to reduce workflow bundle size
-// Copied from temporal.api.enums.v1.RetryState
-export enum RetryState {
-  RETRY_STATE_UNSPECIFIED = 0,
-  RETRY_STATE_IN_PROGRESS = 1,
-  RETRY_STATE_NON_RETRYABLE_FAILURE = 2,
-  RETRY_STATE_TIMEOUT = 3,
-  RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED = 4,
-  RETRY_STATE_RETRY_POLICY_NOT_SET = 5,
-  RETRY_STATE_INTERNAL_SERVER_ERROR = 6,
-  RETRY_STATE_CANCEL_REQUESTED = 7,
-}
+  /** @deprecated Use {@link SCHEDULE_TO_START} instead. */
+  TIMEOUT_TYPE_SCHEDULE_TO_START: 'SCHEDULE_TO_START', // eslint-disable-line deprecation/deprecation
 
-checkExtends<temporal.api.enums.v1.RetryState, RetryState>();
-checkExtends<RetryState, temporal.api.enums.v1.RetryState>();
+  /** @deprecated Use {@link SCHEDULE_TO_CLOSE} instead. */
+  TIMEOUT_TYPE_SCHEDULE_TO_CLOSE: 'SCHEDULE_TO_CLOSE', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link HEARTBEAT} instead. */
+  TIMEOUT_TYPE_HEARTBEAT: 'HEARTBEAT', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use `undefined` instead. */
+  TIMEOUT_TYPE_UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+} as const;
+export type TimeoutType = (typeof TimeoutType)[keyof typeof TimeoutType];
+
+export const [encodeTimeoutType, decodeTimeoutType] = makeProtoEnumConverters<
+  temporal.api.enums.v1.TimeoutType,
+  typeof temporal.api.enums.v1.TimeoutType,
+  keyof typeof temporal.api.enums.v1.TimeoutType,
+  typeof TimeoutType,
+  'TIMEOUT_TYPE_'
+>(
+  {
+    [TimeoutType.START_TO_CLOSE]: 1,
+    [TimeoutType.SCHEDULE_TO_START]: 2,
+    [TimeoutType.SCHEDULE_TO_CLOSE]: 3,
+    [TimeoutType.HEARTBEAT]: 4,
+    UNSPECIFIED: 0,
+  } as const,
+  'TIMEOUT_TYPE_'
+);
+
+export const RetryState = {
+  IN_PROGRESS: 'IN_PROGRESS',
+  NON_RETRYABLE_FAILURE: 'NON_RETRYABLE_FAILURE',
+  TIMEOUT: 'TIMEOUT',
+  MAXIMUM_ATTEMPTS_REACHED: 'MAXIMUM_ATTEMPTS_REACHED',
+  RETRY_POLICY_NOT_SET: 'RETRY_POLICY_NOT_SET',
+  INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
+  CANCEL_REQUESTED: 'CANCEL_REQUESTED',
+
+  /** @deprecated Use {@link IN_PROGRESS} instead. */
+  RETRY_STATE_IN_PROGRESS: 'IN_PROGRESS', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link NON_RETRYABLE_FAILURE} instead. */
+  RETRY_STATE_NON_RETRYABLE_FAILURE: 'NON_RETRYABLE_FAILURE', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link TIMEOUT} instead. */
+  RETRY_STATE_TIMEOUT: 'TIMEOUT', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link MAXIMUM_ATTEMPTS_REACHED} instead. */
+  RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED: 'MAXIMUM_ATTEMPTS_REACHED', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link RETRY_POLICY_NOT_SET} instead. */
+  RETRY_STATE_RETRY_POLICY_NOT_SET: 'RETRY_POLICY_NOT_SET', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link INTERNAL_SERVER_ERROR} instead. */
+  RETRY_STATE_INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link CANCEL_REQUESTED} instead. */
+  RETRY_STATE_CANCEL_REQUESTED: 'CANCEL_REQUESTED', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use `undefined` instead. */
+  RETRY_STATE_UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+} as const;
+export type RetryState = (typeof RetryState)[keyof typeof RetryState];
+
+export const [encodeRetryState, decodeRetryState] = makeProtoEnumConverters<
+  temporal.api.enums.v1.RetryState,
+  typeof temporal.api.enums.v1.RetryState,
+  keyof typeof temporal.api.enums.v1.RetryState,
+  typeof RetryState,
+  'RETRY_STATE_'
+>(
+  {
+    [RetryState.IN_PROGRESS]: 1,
+    [RetryState.NON_RETRYABLE_FAILURE]: 2,
+    [RetryState.TIMEOUT]: 3,
+    [RetryState.MAXIMUM_ATTEMPTS_REACHED]: 4,
+    [RetryState.RETRY_POLICY_NOT_SET]: 5,
+    [RetryState.INTERNAL_SERVER_ERROR]: 6,
+    [RetryState.CANCEL_REQUESTED]: 7,
+    UNSPECIFIED: 0,
+  } as const,
+  'RETRY_STATE_'
+);
+
+/**
+ * A category to describe the severity and change the observability behavior of an application failure.
+ *
+ * Currently, observability behaviour changes are limited to:
+ * - activities that fail due to a BENIGN application failure emit DEBUG level logs and do not record metrics
+ *
+ * @experimental Category is a new feature and may be subject to change.
+ */
+export const ApplicationFailureCategory = {
+  BENIGN: 'BENIGN',
+} as const;
+
+export type ApplicationFailureCategory = (typeof ApplicationFailureCategory)[keyof typeof ApplicationFailureCategory];
+
+export const [encodeApplicationFailureCategory, decodeApplicationFailureCategory] = makeProtoEnumConverters<
+  temporal.api.enums.v1.ApplicationErrorCategory,
+  typeof temporal.api.enums.v1.ApplicationErrorCategory,
+  keyof typeof temporal.api.enums.v1.ApplicationErrorCategory,
+  typeof ApplicationFailureCategory,
+  'APPLICATION_ERROR_CATEGORY_'
+>(
+  {
+    [ApplicationFailureCategory.BENIGN]: 1,
+    UNSPECIFIED: 0,
+  } as const,
+  'APPLICATION_ERROR_CATEGORY_'
+);
 
 export type WorkflowExecution = temporal.api.common.v1.IWorkflowExecution;
 
@@ -51,7 +147,10 @@ export class TemporalFailure extends Error {
    */
   public failure?: ProtoFailure;
 
-  constructor(message?: string | undefined | null, public readonly cause?: Error) {
+  constructor(
+    message?: string | undefined | null,
+    public readonly cause?: Error
+  ) {
     super(message ?? undefined);
   }
 }
@@ -59,7 +158,11 @@ export class TemporalFailure extends Error {
 /** Exceptions originated at the Temporal service. */
 @SymbolBasedInstanceOfError('ServerFailure')
 export class ServerFailure extends TemporalFailure {
-  constructor(message: string | undefined, public readonly nonRetryable: boolean, cause?: Error) {
+  constructor(
+    message: string | undefined,
+    public readonly nonRetryable: boolean,
+    cause?: Error
+  ) {
     super(message, cause);
   }
 }
@@ -96,7 +199,9 @@ export class ApplicationFailure extends TemporalFailure {
     public readonly type?: string | undefined | null,
     public readonly nonRetryable?: boolean | undefined | null,
     public readonly details?: unknown[] | undefined | null,
-    cause?: Error
+    cause?: Error,
+    public readonly nextRetryDelay?: Duration | undefined | null,
+    public readonly category?: ApplicationFailureCategory | undefined | null
   ) {
     super(message, cause);
   }
@@ -119,8 +224,8 @@ export class ApplicationFailure extends TemporalFailure {
    * By default, will be retryable (unless its `type` is included in {@link RetryPolicy.nonRetryableErrorTypes}).
    */
   public static create(options: ApplicationFailureOptions): ApplicationFailure {
-    const { message, type, nonRetryable = false, details, cause } = options;
-    return new this(message, type, nonRetryable, details, cause);
+    const { message, type, nonRetryable = false, details, nextRetryDelay, cause, category } = options;
+    return new this(message, type, nonRetryable, details, cause, nextRetryDelay, category);
   }
 
   /**
@@ -174,9 +279,23 @@ export interface ApplicationFailureOptions {
   details?: unknown[];
 
   /**
+   * If set, overrides the delay until the next retry of this Activity / Workflow Task.
+   *
+   * Retry attempts will still be subject to the maximum retries limit and total time limit defined
+   * by the policy.
+   */
+  nextRetryDelay?: Duration;
+
+  /**
    * Cause of the failure
    */
   cause?: Error;
+
+  /**
+   * Severity category of the application error.
+   * Affects worker-side logging and metrics behavior of this failure.
+   */
+  category?: ApplicationFailureCategory;
 }
 
 /**
@@ -188,7 +307,11 @@ export interface ApplicationFailureOptions {
  */
 @SymbolBasedInstanceOfError('CancelledFailure')
 export class CancelledFailure extends TemporalFailure {
-  constructor(message: string | undefined, public readonly details: unknown[] = [], cause?: Error) {
+  constructor(
+    message: string | undefined,
+    public readonly details: unknown[] = [],
+    cause?: Error
+  ) {
     super(message, cause);
   }
 }
@@ -253,6 +376,47 @@ export class ChildWorkflowFailure extends TemporalFailure {
     cause?: Error
   ) {
     super('Child Workflow execution failed', cause);
+  }
+}
+
+/**
+ * Thrown when a Nexus Operation executed inside a Workflow fails.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+@SymbolBasedInstanceOfError('NexusOperationFailure')
+export class NexusOperationFailure extends TemporalFailure {
+  public constructor(
+    message: string | undefined,
+    public readonly scheduledEventId: number | undefined,
+    public readonly endpoint: string,
+    public readonly service: string,
+    public readonly operation: string,
+    public readonly operationToken: string | undefined,
+    cause?: Error
+  ) {
+    super(message, cause);
+  }
+}
+
+// TODO(nexus/error): Maybe add a NexusHandlerFailure class here, once we've decided on error handling.
+
+/**
+ * This exception is thrown in the following cases:
+ *  - Workflow with the same Workflow ID is currently running and the {@link WorkflowOptions.workflowIdConflictPolicy} is `WORKFLOW_ID_CONFLICT_POLICY_FAIL`
+ *  - There is a closed Workflow with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
+ *    is `WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE`
+ *  - There is closed Workflow in the `Completed` state with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
+ *    is `WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY`
+ */
+@SymbolBasedInstanceOfError('WorkflowExecutionAlreadyStartedError')
+export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
+  constructor(
+    message: string,
+    public readonly workflowId: string,
+    public readonly workflowType: string
+  ) {
+    super(message);
   }
 }
 

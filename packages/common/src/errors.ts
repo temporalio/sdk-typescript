@@ -1,4 +1,3 @@
-import { TemporalFailure } from './failure';
 import { SymbolBasedInstanceOfError } from './type-helpers';
 
 /**
@@ -6,7 +5,10 @@ import { SymbolBasedInstanceOfError } from './type-helpers';
  */
 @SymbolBasedInstanceOfError('ValueError')
 export class ValueError extends Error {
-  constructor(message: string | undefined, public readonly cause?: unknown) {
+  constructor(
+    message: string | undefined,
+    public readonly cause?: unknown
+  ) {
     super(message ?? undefined);
   }
 }
@@ -18,25 +20,11 @@ export class ValueError extends Error {
 export class PayloadConverterError extends ValueError {}
 
 /**
- * Used in different parts of the SDK to note that something unexpected has happened.
+ * Signals that a requested operation can't be completed because it is illegal given the
+ * current state of the object; e.g. trying to use a resource after it has been closed.
  */
 @SymbolBasedInstanceOfError('IllegalStateError')
 export class IllegalStateError extends Error {}
-
-/**
- * This exception is thrown in the following cases:
- *  - Workflow with the same Workflow Id is currently running
- *  - There is a closed Workflow with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
- *    is `WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE`
- *  - There is closed Workflow in the `Completed` state with the same Workflow Id and the {@link WorkflowOptions.workflowIdReusePolicy}
- *    is `WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY`
- */
-@SymbolBasedInstanceOfError('WorkflowExecutionAlreadyStartedError')
-export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
-  constructor(message: string, public readonly workflowId: string, public readonly workflowType: string) {
-    super(message);
-  }
-}
 
 /**
  * Thrown when a Workflow with the given Id is not known to Temporal Server.
@@ -47,7 +35,11 @@ export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
  */
 @SymbolBasedInstanceOfError('WorkflowNotFoundError')
 export class WorkflowNotFoundError extends Error {
-  constructor(message: string, public readonly workflowId: string, public readonly runId: string | undefined) {
+  constructor(
+    message: string,
+    public readonly workflowId: string,
+    public readonly runId: string | undefined
+  ) {
     super(message);
   }
 }

@@ -12,3 +12,8 @@ packages/core-bridge/releases
 packages/*/package-lock.json
 /sdk-node.iml
 *~
+
+# One test creates persisted SQLite DBs; they should normally be deleted automatically,
+# but may be left behind in some error scenarios.
+packages/test/temporal-db-*.sqlite
+.DS_Store

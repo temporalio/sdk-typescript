@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/testing",
-  "version": "1.8.6",
+  "version": "1.13.2",
   "description": "Temporal.io SDK Testing sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -12,14 +12,13 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@grpc/grpc-js": "~1.7.3",
-    "@temporalio/activity": "file:../activity",
-    "@temporalio/client": "file:../client",
-    "@temporalio/common": "file:../common",
-    "@temporalio/core-bridge": "file:../core-bridge",
-    "@temporalio/proto": "file:../proto",
-    "@temporalio/worker": "file:../worker",
-    "@temporalio/workflow": "file:../workflow",
+    "@temporalio/activity": "workspace:*",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/core-bridge": "workspace:*",
+    "@temporalio/proto": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "@temporalio/workflow": "workspace:*",
     "abort-controller": "^3.0.0"
   },
   "bugs": {
@@ -31,6 +30,9 @@
     "directory": "packages/testing"
   },
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/testing",
+  "engines": {
+    "node": ">= 18.0.0"
+  },
   "files": [
     "lib",
     "src"

@@ -1,6 +1,7 @@
 node_modules
 build
 packages/core-bridge/target
+packages/core-bridge/bridge-macros/target
 sdk-core
 lib
 es2020
@@ -10,6 +11,7 @@ packages/*/CHANGELOG.md
 packages/docs/docs/api
 typedoc-sidebar.js
 lerna.json
+pnpm-lock.yaml
 README.md
 packages/proto/protos/root.d.ts
 packages/proto/protos/json-module.js

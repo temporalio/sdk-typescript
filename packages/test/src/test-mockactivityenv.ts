@@ -1,6 +1,16 @@
 import test from 'ava';
 import { MockActivityEnvironment } from '@temporalio/testing';
-import { CancelledFailure, Context } from '@temporalio/activity';
+import * as activity from '@temporalio/activity';
+import { Runtime } from '@temporalio/worker';
+
+test("MockActivityEnvironment doesn't implicitly instantiate Runtime", async (t) => {
+  t.is(Runtime._instance, undefined);
+  const env = new MockActivityEnvironment();
+  await env.run(async (): Promise<void> => {
+    activity.log.info('log message from activity');
+  });
+  t.is(Runtime._instance, undefined);
+});
 
 test('MockActivityEnvironment can run a single activity', async (t) => {
   const env = new MockActivityEnvironment();
@@ -14,18 +24,18 @@ test('MockActivityEnvironment emits heartbeat events and can be cancelled', asyn
   const env = new MockActivityEnvironment();
   env.on('heartbeat', (d: unknown) => {
     if (d === 6) {
-      env.cancel('test');
+      env.cancel('CANCELLED');
     }
   });
   await t.throwsAsync(
     env.run(async (x: number): Promise<number> => {
-      Context.current().heartbeat(6);
-      await Context.current().sleep(100);
+      activity.heartbeat(6);
+      await activity.sleep(100);
       return x + 1;
     }, 3),
     {
-      instanceOf: CancelledFailure,
-      message: 'test',
+      instanceOf: activity.CancelledFailure,
+      message: 'CANCELLED',
     }
   );
 });
@@ -33,7 +43,7 @@ test('MockActivityEnvironment emits heartbeat events and can be cancelled', asyn
 test('MockActivityEnvironment injects provided info', async (t) => {
   const env = new MockActivityEnvironment({ attempt: 3 });
   const res = await env.run(async (x: number): Promise<number> => {
-    return x + Context.current().info.attempt;
+    return x + activity.activityInfo().attempt;
   }, 1);
   t.is(res, 4);
 });

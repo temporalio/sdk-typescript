@@ -1,11 +1,7 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import { ensureTemporalFailure } from '@temporalio/common';
-import type { temporal } from '@temporalio/proto';
-import {
-  encodeErrorToFailure,
-  encodeToPayloads,
-  filterNullAndUndefined,
-} from '@temporalio/common/lib/internal-non-workflow';
+import { encodeErrorToFailure, encodeToPayloads } from '@temporalio/common/lib/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import {
   BaseClient,
@@ -38,6 +34,20 @@ export class ActivityCompletionError extends Error {}
  */
 @SymbolBasedInstanceOfError('ActivityCancelledError')
 export class ActivityCancelledError extends Error {}
+
+/**
+ * Thrown by {@link AsyncCompletionClient.heartbeat} when the reporting Activity
+ * has been paused.
+ */
+@SymbolBasedInstanceOfError('ActivityPausedError')
+export class ActivityPausedError extends Error {}
+
+/**
+ * Thrown by {@link AsyncCompletionClient.heartbeat} when the reporting Activity
+ * has been reset.
+ */
+@SymbolBasedInstanceOfError('ActivityResetError')
+export class ActivityResetError extends Error {}
 
 /**
  * Options used to configure {@link AsyncCompletionClient}
@@ -215,29 +225,41 @@ export class AsyncCompletionClient extends BaseClient {
   async heartbeat(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
     const payloads = await encodeToPayloads(this.dataConverter, details);
     let cancelRequested = false;
+    let paused = false;
+    let reset = false;
     try {
-      let response: temporal.api.workflowservice.v1.RecordActivityTaskHeartbeatResponse;
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
-        response = await this.workflowService.recordActivityTaskHeartbeat({
+        const response = await this.workflowService.recordActivityTaskHeartbeat({
           identity: this.options.identity,
           namespace: this.options.namespace,
           taskToken: taskTokenOrFullActivityId,
           details: { payloads },
         });
+        cancelRequested = !!response.cancelRequested;
+        paused = !!response.activityPaused;
+        reset = !!response.activityReset;
       } else {
-        response = await this.workflowService.recordActivityTaskHeartbeatById({
+        const response = await this.workflowService.recordActivityTaskHeartbeatById({
           identity: this.options.identity,
           namespace: this.options.namespace,
           ...taskTokenOrFullActivityId,
           details: { payloads },
         });
+        cancelRequested = !!response.cancelRequested;
+        paused = !!response.activityPaused;
+        reset = !!response.activityReset;
       }
-      cancelRequested = !!response.cancelRequested;
     } catch (err) {
       this.handleError(err);
     }
+    // Note that it is possible for a heartbeat response to have multiple fields
+    // set as true (i.e. cancelled and pause).
     if (cancelRequested) {
       throw new ActivityCancelledError('cancelled');
+    } else if (reset) {
+      throw new ActivityResetError('reset');
+    } else if (paused) {
+      throw new ActivityPausedError('paused');
     }
   }
 }

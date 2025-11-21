@@ -3,7 +3,7 @@
  * @module
  */
 import * as wf from '@temporalio/workflow';
-import type { EnhancedStackTrace } from '@temporalio/workflow/src/interfaces';
+import type { EnhancedStackTrace } from '@temporalio/workflow/lib/interfaces';
 import type * as activities from '../activities';
 import { unblockOrCancel } from './unblock-or-cancel';
 
@@ -12,14 +12,14 @@ const { queryOwnWf } = wf.proxyActivities<typeof activities>({
 });
 
 export async function stackTracer(): Promise<[string, string]> {
+  const { executeChild, sleep } = wf;
   const trigger = new wf.Trigger<string>();
-
   const [first] = await Promise.all([
     trigger,
     Promise.race([
       queryOwnWf(wf.stackTraceQuery).then((stack) => trigger.resolve(stack)),
-      wf.executeChild(unblockOrCancel),
-      wf.sleep(100_000),
+      executeChild(unblockOrCancel),
+      sleep(100_000),
     ]),
   ]);
   const second = await queryOwnWf(wf.stackTraceQuery);
@@ -27,14 +27,14 @@ export async function stackTracer(): Promise<[string, string]> {
 }
 
 export async function enhancedStackTracer(): Promise<EnhancedStackTrace> {
+  const { executeChild, sleep } = wf;
   const trigger = new wf.Trigger<EnhancedStackTrace>();
-
   const [enhStack] = await Promise.all([
     trigger,
     Promise.race([
       queryOwnWf(wf.enhancedStackTraceQuery).then((stack) => trigger.resolve(stack)),
-      wf.executeChild(unblockOrCancel),
-      wf.sleep(100_000),
+      executeChild(unblockOrCancel),
+      sleep(100_000),
     ]),
   ]);
   return enhStack;

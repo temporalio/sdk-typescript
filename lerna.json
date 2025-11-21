@@ -1,6 +1,6 @@
 {
-  "version": "1.8.6",
-  "npmClient": "npm",
+  "version": "1.13.2",
+  "npmClient": "pnpm",
   "command": {
     "publish": {
       "message": "chore(release): Publish",
@@ -8,14 +8,7 @@
     },
     "version": {
       "message": "chore(release): Publish"
-    },
-    "bootstrap": {
-      "npmClientArgs": [
-        "--no-package-lock"
-      ]
     }
   },
-  "packages": [
-    "packages/*"
-  ]
+  "$schema": "node_modules/lerna/schemas/lerna-schema.json"
 }

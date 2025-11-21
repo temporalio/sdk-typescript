@@ -1,4 +1,5 @@
 import arg from 'arg';
+import * as nexus from 'nexus-rpc';
 import { Worker, Runtime, DefaultLogger, LogLevel, makeTelemetryFilterString } from '@temporalio/worker';
 import * as activities from './activities';
 
@@ -21,7 +22,20 @@ async function main() {
   const worker = await Worker.create({
     activities,
     workflowsPath: require.resolve('./workflows'),
+    nexusServices: [
+      nexus.serviceHandler(
+        nexus.service('foo', {
+          bar: nexus.operation<string, string>(),
+        }),
+        {
+          async bar(_ctx, input) {
+            return input;
+          },
+        }
+      ),
+    ],
     taskQueue: 'test',
+    nonStickyToStickyPollRatio: 0.5,
   });
   await worker.run();
   console.log('Worker gracefully shutdown');

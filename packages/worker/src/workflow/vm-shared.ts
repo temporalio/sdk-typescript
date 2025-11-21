@@ -1,18 +1,22 @@
 import v8 from 'node:v8';
 import vm from 'node:vm';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import assert from 'node:assert';
+import { URL, URLSearchParams } from 'node:url';
+import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError } from '@temporalio/common';
+import { tsToMs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
-import type { WorkflowInfo, FileLocation } from '@temporalio/workflow';
-import { SinkCall } from '@temporalio/workflow/lib/sinks';
+import type { StackTraceFileLocation } from '@temporalio/workflow';
+import { type SinkCall } from '@temporalio/workflow/lib/sinks';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { Activator } from '@temporalio/workflow/lib/internals';
-import { partition } from '../utils';
+import { SdkFlags } from '@temporalio/workflow/lib/flags';
+import { UnhandledRejectionError } from '../errors';
+import { convertDeploymentVersion } from '../utils';
 import { Workflow } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
-
-// Not present in @types/node for some reason
-const { promiseHooks } = v8 as any;
 
 // Best effort to catch unhandled rejections from workflow code.
 // We crash the thread if we cannot find the culprit.
@@ -23,31 +27,34 @@ export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string)
     if (runId !== undefined) {
       const workflow = getWorkflowByRunId(runId);
       if (workflow !== undefined) {
-        workflow.setUnhandledRejection(err);
+        workflow.setUnhandledRejection(new UnhandledRejectionError(`Unhandled Promise rejection: ${err}`, err));
         return;
       }
     }
-    // The user's logger is not accessible in this thread,
-    // dump the error information to stderr and abort.
-    console.error('Unhandled rejection', { runId }, err);
-    process.exit(1);
+
+    console.error('An Unhandled Promise rejection could not be associated to a Workflow Run', { runId, error: err });
+    throw new UnhandledRejectionError(
+      `Unhandled Promise rejection for unknown Workflow Run id='${runId}': ${err}`,
+      err
+    );
   });
 }
+
 /**
  * Variant of {@link cutoffStackTrace} that works with FileLocation, keep this in sync with the original implementation
  */
-function cutoffStructuredStackTrace(stackTrace: FileLocation[]): void {
+function cutoffStructuredStackTrace(stackTrace: StackTraceFileLocation[]): void {
   stackTrace.shift();
-  if (stackTrace[0].functionName === 'initAll' && stackTrace[0].filePath === 'node:internal/promise_hooks') {
+  if (stackTrace[0].function_name === 'initAll' && stackTrace[0].file_path === 'node:internal/promise_hooks') {
     stackTrace.shift();
   }
-  const idx = stackTrace.findIndex(({ functionName, filePath }) => {
+  const idx = stackTrace.findIndex(({ function_name, file_path }) => {
     return (
-      functionName &&
-      filePath &&
-      ((/^Activator\.\S+NextHandler$/.test(functionName) &&
-        /.*[\\/]workflow[\\/](?:src|lib)[\\/]internals\.[jt]s$/.test(filePath)) ||
-        (/Script\.runInContext/.test(functionName) && /^node:vm|vm\.js$/.test(filePath)))
+      function_name &&
+      file_path &&
+      ((/^Activator\.\S+NextHandler$/.test(function_name) &&
+        /.*[\\/]workflow[\\/](?:src|lib)[\\/]internals\.[jt]s$/.test(file_path)) ||
+        (/Script\.runInContext/.test(function_name) && /^node:vm|vm\.js$/.test(file_path)))
     );
   });
   if (idx > -1) {
@@ -74,14 +81,27 @@ function formatCallsiteName(callsite: NodeJS.CallSite): string | null {
   return typeName && methodName
     ? `${typeName}.${methodName}`
     : isConstructor && functionName
-    ? `new ${functionName}`
-    : functionName;
+      ? `new ${functionName}`
+      : functionName;
 }
 
 /**
- * Inject console.log and friends into a vm context.
+ * Inject global objects as well as console.[log|...] into a vm context.
  */
-export function injectConsole(context: vm.Context): void {
+export function injectGlobals(context: vm.Context): void {
+  const globals = {
+    AsyncLocalStorage,
+    URL,
+    URLSearchParams,
+    assert,
+    TextEncoder,
+    TextDecoder,
+    AbortController,
+  };
+  for (const [k, v] of Object.entries(globals)) {
+    Object.defineProperty(context, k, { value: v, writable: false, enumerable: true, configurable: false });
+  }
+
   const consoleMethods = ['log', 'warn', 'error', 'info', 'debug'] as const;
   type ConsoleMethod = (typeof consoleMethods)[number];
   function makeConsoleFn(level: ConsoleMethod) {
@@ -91,19 +111,23 @@ export function injectConsole(context: vm.Context): void {
       console[level](`[${info.workflowType}(${info.workflowId})]`, ...args);
     };
   }
-  context.console = Object.fromEntries(consoleMethods.map((level) => [level, makeConsoleFn(level)]));
+  const consoleObject = Object.fromEntries(consoleMethods.map((level) => [level, makeConsoleFn(level)]));
+  Object.defineProperty(context, 'console', {
+    value: consoleObject,
+    writable: true,
+    enumerable: false,
+    configurable: true,
+  });
 }
 
 /**
  * Global handlers for overriding stack trace preparation and promise hooks
  */
 export class GlobalHandlers {
-  currentStackTrace: FileLocation[] | undefined = undefined;
+  currentStackTrace: StackTraceFileLocation[] | undefined = undefined;
   bundleFilenameToSourceMapConsumer = new Map<string, SourceMapConsumer>();
   origPrepareStackTrace = Error.prepareStackTrace;
-  private stopPromiseHook = () => {
-    // noop
-  };
+  private stopPromiseHook = () => {};
   installed = false;
 
   async addWorkflowBundle(workflowBundle: WorkflowBundleWithSourceMapAndFilename): Promise<void> {
@@ -163,10 +187,11 @@ export class GlobalHandlers {
 
           const name = pos.name || formatCallsiteName(callsite);
           this.currentStackTrace?.push({
-            filePath: pos.source ?? undefined,
-            functionName: name ?? undefined,
+            file_path: pos.source ?? undefined,
+            function_name: name ?? undefined,
             line: pos.line ?? undefined,
             column: pos.column ?? undefined,
+            internal_code: false,
           });
 
           return name
@@ -176,10 +201,11 @@ export class GlobalHandlers {
           const name = formatCallsiteName(callsite);
 
           this.currentStackTrace?.push({
-            filePath: filename ?? undefined,
-            functionName: name ?? undefined,
+            file_path: filename ?? undefined,
+            function_name: name ?? undefined,
             line: line ?? undefined,
             column: column ?? undefined,
+            internal_code: false,
           });
           return `    at ${callsite}`;
         }
@@ -193,9 +219,8 @@ export class GlobalHandlers {
     let currentAggregation: Promise<unknown> | undefined = undefined;
 
     // This also is set globally for the isolate (worker thread), which is insignificant unless the worker is run in debug mode
-    if (promiseHooks) {
-      // Node >=16.14 only
-      this.stopPromiseHook = promiseHooks.createHook({
+    try {
+      this.stopPromiseHook = v8.promiseHooks.createHook({
         init: (promise: Promise<unknown>, parent: Promise<unknown>) => {
           // Only run in workflow context
           const activator = getActivator(promise);
@@ -219,13 +244,13 @@ export class GlobalHandlers {
           if (this.currentStackTrace === undefined) {
             return;
           }
-          const structured = this.currentStackTrace as FileLocation[];
+          const structured = this.currentStackTrace as StackTraceFileLocation[];
           cutoffStructuredStackTrace(structured);
           let stackTrace = { formatted, structured };
 
           if (
             currentAggregation &&
-            /^\s+at\sPromise\.then \(<anonymous>\)\n\s+at Function\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(
+            /^\s+at\sPromise\.then \(<anonymous>\)\n\s+at (Function|Promise)\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(
               formatted
             )
           ) {
@@ -233,7 +258,7 @@ export class GlobalHandlers {
             promise = currentAggregation;
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             stackTrace = store.promiseToStack.get(currentAggregation)!; // Must exist
-          } else if (/^\s+at Function\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(formatted)) {
+          } else if (/^\s+at (Function|Promise)\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(formatted)) {
             currentAggregation = promise;
           } else {
             currentAggregation = undefined;
@@ -258,7 +283,13 @@ export class GlobalHandlers {
           store.childToParent.delete(promise);
           store.promiseToStack.delete(promise);
         },
-      });
+      }) as () => void;
+    } catch (_) {
+      // v8.promiseHooks.createHook is not available in bun and Node.js < 16.14.0.
+      // That's ok, collecting stack trace is an optional feature anyway.
+      //
+      // FIXME: This should be sent to logs, not the console… but we don't have access to it here.
+      console.warn('v8.promiseHooks.createHook is not available; stack trace collection will be disabled.');
     }
   }
 }
@@ -268,92 +299,165 @@ export const globalHandlers = new GlobalHandlers();
 export type WorkflowModule = typeof internals;
 
 /**
- * A Workflow implementation using Node.js' built-in `vm` module
+ * A Workflow implementation using Node.js' built-in `vm` module.
  */
 export abstract class BaseVMWorkflow implements Workflow {
   unhandledRejection: unknown;
 
   constructor(
-    public readonly info: WorkflowInfo,
+    readonly runId: string,
     protected context: vm.Context | undefined,
     protected activator: Activator,
-    readonly workflowModule: WorkflowModule,
-    public readonly isolateExecutionTimeoutMs: number
+    readonly workflowModule: WorkflowModule
   ) {}
 
   /**
    * Send request to the Workflow runtime's worker-interface
    */
   async getAndResetSinkCalls(): Promise<SinkCall[]> {
-    return this.workflowModule.getAndResetSinkCalls();
+    return this.activator.getAndResetSinkCalls();
   }
 
   /**
    * Send request to the Workflow runtime's worker-interface
-   *
-   * The Workflow is activated in batches to ensure correct order of activation
-   * job application.
    */
   public async activate(
     activation: coresdk.workflow_activation.IWorkflowActivation
   ): Promise<coresdk.workflow_completion.IWorkflowActivationCompletion> {
-    if (this.context === undefined) {
-      throw new IllegalStateError('Workflow isolate context uninitialized');
-    }
-    if (!activation.jobs) {
-      throw new Error('Expected workflow activation jobs to be defined');
-    }
+    try {
+      if (this.context === undefined) throw new IllegalStateError('Workflow isolate context uninitialized');
+      activation = coresdk.workflow_activation.WorkflowActivation.fromObject(activation);
+      if (!activation.jobs) throw new TypeError('Expected workflow activation jobs to be defined');
 
-    // Job processing order
-    // 1. patch notifications
-    // 2. signals
-    // 3. anything left except for queries
-    // 4. queries
-    const [patches, nonPatches] = partition(activation.jobs, ({ notifyHasPatch }) => notifyHasPatch != null);
-    const [signals, nonSignals] = partition(nonPatches, ({ signalWorkflow }) => signalWorkflow != null);
-    const [queries, rest] = partition(nonSignals, ({ queryWorkflow }) => queryWorkflow != null);
-    let batchIndex = 0;
+      // Queries are particular in many ways, and Core guarantees that a single activation will not
+      // contain both queries and other jobs. So let's handle them separately.
+      const [queries, nonQueries] = partition(activation.jobs, ({ queryWorkflow }) => queryWorkflow != null);
+      if (queries.length > 0) {
+        if (nonQueries.length > 0) throw new TypeError('Got both queries and other jobs in a single activation');
+        return this.activateQueries(activation);
+      }
 
-    // Loop and invoke each batch and wait for microtasks to complete.
-    // This is done outside of the isolate because when we used isolated-vm we couldn't wait for microtasks from inside the isolate, not relevant anymore.
-    for (const jobs of [patches, signals, rest, queries]) {
-      if (jobs.length === 0) {
-        continue;
+      // Update the activator's state in preparation for a non-query activation.
+      // This is done early, so that we can then rely on the activator while processing the activation.
+      if (activation.timestamp == null)
+        throw new TypeError('Expected activation.timestamp to be set for non-query activation');
+      this.activator.now = tsToMs(activation.timestamp);
+      this.activator.mutateWorkflowInfo((info) => ({
+        ...info,
+        historyLength: activation.historyLength as number,
+        // Exact truncation for multi-petabyte histories
+        // historySize === 0 means WFT was generated by pre-1.20.0 server, and the history size is unknown
+        historySize: activation.historySizeBytes?.toNumber() ?? 0,
+        continueAsNewSuggested: activation.continueAsNewSuggested ?? false,
+        currentBuildId: activation.deploymentVersionForCurrentTask?.buildId ?? '',
+        currentDeploymentVersion: convertDeploymentVersion(activation.deploymentVersionForCurrentTask),
+        unsafe: {
+          ...info.unsafe,
+          isReplaying: activation.isReplaying ?? false,
+        },
+      }));
+      this.activator.addKnownFlags(activation.availableInternalFlags ?? []);
+      if (activation.lastSdkVersion) this.activator.sdkVersion = activation.lastSdkVersion;
+
+      // Initialization of the workflow must happen before anything else. Yet, keep the init job in
+      // place in the list as we'll use it as a marker to know when to start the workflow function.
+      const initWorkflowJob = activation.jobs.find((job) => job.initializeWorkflow != null)?.initializeWorkflow;
+      if (initWorkflowJob) this.workflowModule.initialize(initWorkflowJob);
+
+      const hasSignals = activation.jobs.some(({ signalWorkflow }) => signalWorkflow != null);
+      const doSingleBatch = !hasSignals || this.activator.hasFlag(SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch);
+
+      const [patches, nonPatches] = partition(activation.jobs, ({ notifyHasPatch }) => notifyHasPatch != null);
+      for (const { notifyHasPatch } of patches) {
+        if (notifyHasPatch == null) throw new TypeError('Expected notifyHasPatch to be set');
+        this.activator.notifyHasPatch(notifyHasPatch);
       }
-      this.workflowModule.activate(
-        coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
-        batchIndex++
-      );
-      if (internals.shouldUnblockConditions(jobs[0])) {
-        this.tryUnblockConditions();
+
+      if (doSingleBatch) {
+        // updateRandomSeed requires the same special handling as patches (before anything else, and don't
+        // unblock conditions after each job). Unfortunately, prior to ProcessWorkflowActivationJobsAsSingleBatch,
+        // they were handled as regular jobs, making it unsafe to properly handle that job above, with patches.
+        const [updateRandomSeed, rest] = partition(nonPatches, ({ updateRandomSeed }) => updateRandomSeed != null);
+        if (updateRandomSeed.length > 0)
+          this.activator.updateRandomSeed(updateRandomSeed[updateRandomSeed.length - 1].updateRandomSeed!);
+        this.workflowModule.activate(
+          coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs: rest })
+        );
+        this.tryUnblockConditionsAndMicrotasks();
+      } else {
+        const [signals, nonSignals] = partition(
+          nonPatches,
+          // Move signals to a first batch; all the rest goes in a second batch.
+          ({ signalWorkflow }) => signalWorkflow != null
+        );
+
+        // Loop and invoke each batch, waiting for microtasks to complete after each batch.
+        let batchIndex = 0;
+        for (const jobs of [signals, nonSignals]) {
+          if (jobs.length === 0) continue;
+          this.workflowModule.activate(
+            coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
+            batchIndex++
+          );
+          this.tryUnblockConditionsAndMicrotasks();
+        }
       }
-    }
-    const completion = this.workflowModule.concludeActivation();
-    // Give unhandledRejection handler a chance to be triggered.
-    await new Promise(setImmediate);
-    if (this.unhandledRejection) {
+
+      const completion = this.workflowModule.concludeActivation();
+
+      // Give unhandledRejection handler a chance to be triggered.
+      await new Promise(setImmediate);
+      if (this.unhandledRejection) throw this.unhandledRejection;
+
+      return completion;
+    } catch (err) {
       return {
         runId: this.activator.info.runId,
-        failed: { failure: this.activator.errorToFailure(this.unhandledRejection) },
+        // FIXME: Calling `activator.errorToFailure()` directly from outside the VM is unsafe, as it
+        // depends on the `failureConverter` and `payloadConverter`, which may be customized and
+        // therefore aren't guaranteed not to access `global` or to cause scheduling microtasks.
+        // Admitingly, the risk is very low, so we're leaving it as is for now.
+        failed: { failure: this.activator.errorToFailure(err) },
       };
     }
-    return completion;
+  }
+
+  private activateQueries(
+    activation: coresdk.workflow_activation.IWorkflowActivation
+  ): coresdk.workflow_completion.IWorkflowActivationCompletion {
+    this.activator.mutateWorkflowInfo((info) => ({
+      ...info,
+      unsafe: {
+        ...info.unsafe,
+        isReplaying: true,
+      },
+    }));
+    this.workflowModule.activate(activation);
+    return this.workflowModule.concludeActivation();
   }
 
   /**
    * If called (by an external unhandledRejection handler), activations will fail with provided error.
    */
   public setUnhandledRejection(err: unknown): void {
+    if (this.activator) {
+      // This is very unlikely to make a difference, as unhandled rejections should be reported
+      // on the next macro task of the outer execution context (i.e. not inside the VM), at which
+      // point we are done handling the workflow activation anyway. But just in case, copying the
+      // error to the activator will ensure that any attempt to make progress in the workflow
+      // VM will immediately fail.
+      this.activator.workflowTaskError = err;
+    }
     this.unhandledRejection = err;
   }
 
   /**
-   * Call into the Workflow context to attempt to unblock any blocked conditions.
+   * Call into the Workflow context to attempt to unblock any blocked conditions and microtasks.
    *
-   * This is performed in a loop allowing microtasks to be processed between
-   * each iteration until there are no more conditions to unblock.
+   * This is performed in a loop, going in and out of the VM, allowing microtasks to be processed
+   * between each iteration of the outer loop, until there are no more conditions to unblock.
    */
-  protected tryUnblockConditions(): void {
+  protected tryUnblockConditionsAndMicrotasks(): void {
     for (;;) {
       const numUnblocked = this.workflowModule.tryUnblockConditions();
       if (numUnblocked === 0) break;
@@ -364,4 +468,11 @@ export abstract class BaseVMWorkflow implements Workflow {
    * Do not use this Workflow instance after this method has been called.
    */
   public abstract dispose(): Promise<void>;
+}
+
+function partition<T>(arr: T[], predicate: (x: T) => boolean): [T[], T[]] {
+  const truthy = Array<T>();
+  const falsy = Array<T>();
+  arr.forEach((v) => (predicate(v) ? truthy : falsy).push(v));
+  return [truthy, falsy];
 }

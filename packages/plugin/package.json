@@ -1,0 +1,40 @@
+{
+  "name": "@temporalio/plugin",
+  "version": "1.13.2",
+  "description": "Library for plugin creation",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "keywords": [
+    "temporal",
+    "workflow",
+    "worker",
+    "plugin"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "devDependencies": {
+    "@temporalio/client": "file:../client",
+    "@temporalio/common": "file:../common",
+    "@temporalio/worker": "file:../worker",
+    "nexus-rpc": "^0.0.1"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "packages/plugin"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/plugin",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">= 18.0.0"
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
+}

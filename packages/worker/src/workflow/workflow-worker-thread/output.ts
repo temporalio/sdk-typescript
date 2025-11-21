@@ -1,5 +1,5 @@
-import { coresdk } from '@temporalio/proto';
-import { SinkCall } from '@temporalio/workflow/lib/sinks';
+import { type coresdk } from '@temporalio/proto';
+import { type SinkCall } from '@temporalio/workflow/lib/sinks';
 
 /**
  * An activation completion.

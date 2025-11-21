@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/nyc-test-coverage",
-  "version": "1.8.6",
+  "version": "1.13.2",
   "description": "Temporal.io SDK code coverage integration",
   "keywords": [
     "temporal",
@@ -26,20 +26,31 @@
     "src"
   ],
   "dependencies": {
-    "@temporalio/worker": "file:../worker",
-    "@temporalio/workflow": "file:../workflow",
     "convert-source-map": "^2.0.0",
-    "istanbul-lib-coverage": "^3.2.0",
-    "istanbul-lib-instrument": "^5.2.1",
-    "ts-loader": "^9.4.2"
+    "istanbul-lib-coverage": "^3.2.2",
+    "istanbul-lib-instrument": "^6.0.1",
+    "ts-loader": "^9.5.1"
   },
   "devDependencies": {
-    "@types/convert-source-map": "^2.0.0",
-    "@types/istanbul-lib-coverage": "^2.0.4",
-    "@types/istanbul-lib-instrument": "^1.7.4",
-    "@types/webpack": "^5.28.0"
+    "@temporalio/common": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "@temporalio/workflow": "workspace:*",
+    "@types/convert-source-map": "^2.0.3",
+    "@types/istanbul-lib-coverage": "^2.0.6",
+    "@types/istanbul-lib-instrument": "^1.7.7",
+    "@types/webpack": "^5.28.5",
+    "webpack": "^5.94.0"
+  },
+  "peerDependencies": {
+    "@temporalio/common": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "@temporalio/workflow": "workspace:*",
+    "webpack": "^5.94.0"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "engines": {
+    "node": ">= 18.0.0"
   }
 }

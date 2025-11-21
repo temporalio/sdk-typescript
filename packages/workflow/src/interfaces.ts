@@ -1,15 +1,22 @@
 import type { RawSourceMap } from 'source-map';
 import {
   RetryPolicy,
-  TemporalFailure,
   CommonWorkflowOptions,
+  HandlerUnfinishedPolicy,
   SearchAttributes,
   SignalDefinition,
+  UpdateDefinition,
   QueryDefinition,
   Duration,
   VersioningIntent,
+  TypedSearchAttributes,
+  SearchAttributePair,
+  Priority,
+  WorkerDeploymentVersion,
+  VersioningBehavior,
 } from '@temporalio/common';
-import { checkExtends, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
 import type { coresdk } from '@temporalio/proto';
 
 /**
@@ -20,46 +27,70 @@ export interface WorkflowInfo {
    * ID of the Workflow, this can be set by the client during Workflow creation.
    * A single Workflow may run multiple times e.g. when scheduled with cron.
    */
-  workflowId: string;
+  readonly workflowId: string;
 
   /**
    * ID of a single Workflow run
    */
-  runId: string;
+  readonly runId: string;
 
   /**
    * Workflow function's name
    */
-  workflowType: string;
+  readonly workflowType: string;
 
   /**
    * Indexed information attached to the Workflow Execution
    *
    * This value may change during the lifetime of an Execution.
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes: SearchAttributes;
+  readonly searchAttributes: SearchAttributes; // eslint-disable-line deprecation/deprecation
+
+  /**
+   * Indexed information attached to the Workflow Execution, exposed through an interface.
+   *
+   * This value may change during the lifetime of an Execution.
+   */
+  readonly typedSearchAttributes: TypedSearchAttributes;
 
   /**
    * Non-indexed information attached to the Workflow Execution
    */
-  memo?: Record<string, unknown>;
+  readonly memo?: Record<string, unknown>;
 
   /**
    * Parent Workflow info (present if this is a Child Workflow)
    */
-  parent?: ParentWorkflowInfo;
+  readonly parent?: ParentWorkflowInfo;
+
+  /**
+   * The root workflow execution, defined as follows:
+   * 1. A workflow without a parent workflow is its own root workflow.
+   * 2. A workflow with a parent workflow has the same root workflow as
+   * its parent.
+   *
+   * When there is no parent workflow, i.e., the workflow is its own root workflow,
+   * this field is `undefined`.
+   *
+   * Note that Continue-as-New (or reset) propagates the workflow parentage relationship,
+   * and therefore, whether the new workflow has the same root workflow as the original one
+   * depends on whether it had a parent.
+   *
+   */
+  readonly root?: RootWorkflowInfo;
 
   /**
    * Result from the previous Run (present if this is a Cron Workflow or was Continued As New).
    *
    * An array of values, since other SDKs may return multiple values from a Workflow.
    */
-  lastResult?: unknown;
+  readonly lastResult?: unknown;
 
   /**
    * Failure from the previous Run (present when this Run is a retry, or the last Run of a Cron Workflow failed)
    */
-  lastFailure?: TemporalFailure;
+  readonly lastFailure?: Error;
 
   /**
    * Length of Workflow history up until the current Workflow Task.
@@ -68,7 +99,7 @@ export interface WorkflowInfo {
    *
    * You may safely use this information to decide when to {@link continueAsNew}.
    */
-  historyLength: number;
+  readonly historyLength: number;
 
   /**
    * Size of Workflow history in bytes until the current Workflow Task.
@@ -79,7 +110,7 @@ export interface WorkflowInfo {
    *
    * You may safely use this information to decide when to {@link continueAsNew}.
    */
-  historySize: number;
+  readonly historySize: number;
 
   /**
    * A hint provided by the current WorkflowTaskStarted event recommending whether to
@@ -89,79 +120,105 @@ export interface WorkflowInfo {
    *
    * Supported only on Temporal Server 1.20+, always `false` on older servers.
    */
-  continueAsNewSuggested: boolean;
+  readonly continueAsNewSuggested: boolean;
 
   /**
    * Task queue this Workflow is executing on
    */
-  taskQueue: string;
+  readonly taskQueue: string;
 
   /**
    * Namespace this Workflow is executing in
    */
-  namespace: string;
+  readonly namespace: string;
 
   /**
    * Run Id of the first Run in this Execution Chain
    */
-  firstExecutionRunId: string;
+  readonly firstExecutionRunId: string;
 
   /**
    * The last Run Id in this Execution Chain
    */
-  continuedFromExecutionRunId?: string;
+  readonly continuedFromExecutionRunId?: string;
 
   /**
    * Time at which this [Workflow Execution Chain](https://docs.temporal.io/workflows#workflow-execution-chain) was started
    */
-  startTime: Date;
+  readonly startTime: Date;
 
   /**
    * Time at which the current Workflow Run started
    */
-  runStartTime: Date;
+  readonly runStartTime: Date;
 
   /**
    * Milliseconds after which the Workflow Execution is automatically terminated by Temporal Server. Set via {@link WorkflowOptions.workflowExecutionTimeout}.
    */
-  executionTimeoutMs?: number;
+  readonly executionTimeoutMs?: number;
 
   /**
    * Time at which the Workflow Execution expires
    */
-  executionExpirationTime?: Date;
+  readonly executionExpirationTime?: Date;
 
   /**
    * Milliseconds after which the Workflow Run is automatically terminated by Temporal Server. Set via {@link WorkflowOptions.workflowRunTimeout}.
    */
-  runTimeoutMs?: number;
+  readonly runTimeoutMs?: number;
 
   /**
    * Maximum execution time of a Workflow Task in milliseconds. Set via {@link WorkflowOptions.workflowTaskTimeout}.
    */
-  taskTimeoutMs: number;
+  readonly taskTimeoutMs: number;
 
   /**
    * Retry Policy for this Execution. Set via {@link WorkflowOptions.retry}.
    */
-  retryPolicy?: RetryPolicy;
+  readonly retryPolicy?: RetryPolicy;
 
   /**
    * Starts at 1 and increments for every retry if there is a `retryPolicy`
    */
-  attempt: number;
+  readonly attempt: number;
 
   /**
    * Cron Schedule for this Execution. Set via {@link WorkflowOptions.cronSchedule}.
    */
-  cronSchedule?: string;
+  readonly cronSchedule?: string;
 
   /**
    * Milliseconds between Cron Runs
    */
-  cronScheduleToScheduleInterval?: number;
+  readonly cronScheduleToScheduleInterval?: number;
 
-  unsafe: UnsafeWorkflowInfo;
+  /**
+   * The Build ID of the worker which executed the current Workflow Task. May be undefined if the
+   * task was completed by a worker without a Build ID. If this worker is the one executing this
+   * task for the first time and has a Build ID set, then its ID will be used. This value may change
+   * over the lifetime of the workflow run, but is deterministic and safe to use for branching.
+   *
+   * @deprecated Use `currentDeploymentVersion` instead
+   */
+  readonly currentBuildId?: string;
+
+  /**
+   * The Deployment Version of the worker which executed the current Workflow Task. May be undefined
+   * if the task was completed by a worker without a Deployment Version. If this worker is the one
+   * executing this task for the first time and has a Deployment Version set, then its ID will be
+   * used. This value may change over the lifetime of the workflow run, but is deterministic and
+   * safe to use for branching.
+   *
+   * @experimental Deployment based versioning is experimental and may change in the future.
+   */
+  readonly currentDeploymentVersion?: WorkerDeploymentVersion;
+
+  readonly unsafe: UnsafeWorkflowInfo;
+
+  /**
+   * Priority of this workflow
+   */
+  readonly priority?: Priority;
 }
 
 /**
@@ -176,15 +233,35 @@ export interface UnsafeWorkflowInfo {
    * The safe version of time is `new Date()` and `Date.now()`, which are set on the first invocation of a Workflow
    * Task and stay constant for the duration of the Task and during replay.
    */
-  now(): number;
+  readonly now: () => number;
 
-  isReplaying: boolean;
+  readonly isReplaying: boolean;
+}
+
+/**
+ * Information about a workflow update.
+ */
+export interface UpdateInfo {
+  /**
+   *  A workflow-unique identifier for this update.
+   */
+  readonly id: string;
+
+  /**
+   *  The update type name.
+   */
+  readonly name: string;
 }
 
 export interface ParentWorkflowInfo {
   workflowId: string;
   runId: string;
   namespace: string;
+}
+
+export interface RootWorkflowInfo {
+  workflowId: string;
+  runId: string;
 }
 
 /**
@@ -225,15 +302,30 @@ export interface ContinueAsNewOptions {
   memo?: Record<string, unknown>;
   /**
    * Searchable attributes to attach to next Workflow run
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes?: SearchAttributes;
+  searchAttributes?: SearchAttributes; // eslint-disable-line deprecation/deprecation
+  /**
+   * Specifies additional indexed information to attach to the Workflow Execution. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
+   * Note that search attributes are not encoded, as such, do not include any sensitive information.
+   *
+   * If both {@link searchAttributes} and {@link typedSearchAttributes} are provided, conflicting keys will be overwritten
+   * by {@link typedSearchAttributes}.
+   */
+  typedSearchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
   /**
    * When using the Worker Versioning feature, specifies whether this Workflow should
    * Continue-as-New onto a worker with a compatible Build Id or not. See {@link VersioningIntent}.
    *
-   * @experimental
+   * @default 'COMPATIBLE'
+   *
+   * @deprecated In favor of the new Worker Deployment API.
+   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
-  versioningIntent?: VersioningIntent;
+  versioningIntent?: VersioningIntent; // eslint-disable-line deprecation/deprecation
 }
 
 /**
@@ -244,16 +336,18 @@ export interface ContinueAsNewOptions {
  *
  * @default {@link ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED}
  */
-export enum ChildWorkflowCancellationType {
+export type ChildWorkflowCancellationType =
+  (typeof ChildWorkflowCancellationType)[keyof typeof ChildWorkflowCancellationType];
+export const ChildWorkflowCancellationType = {
   /**
    * Don't send a cancellation request to the Child.
    */
-  ABANDON = 0,
+  ABANDON: 'ABANDON',
 
   /**
    * Send a cancellation request to the Child. Immediately throw the error.
    */
-  TRY_CANCEL = 1,
+  TRY_CANCEL: 'TRY_CANCEL',
 
   /**
    * Send a cancellation request to the Child. The Child may respect cancellation, in which case an error will be thrown
@@ -263,50 +357,104 @@ export enum ChildWorkflowCancellationType {
    *
    * @default
    */
-  WAIT_CANCELLATION_COMPLETED = 2,
+  WAIT_CANCELLATION_COMPLETED: 'WAIT_CANCELLATION_COMPLETED',
 
   /**
    * Send a cancellation request to the Child. Throw the error once the Server receives the Child cancellation request.
    */
-  WAIT_CANCELLATION_REQUESTED = 3,
-}
+  WAIT_CANCELLATION_REQUESTED: 'WAIT_CANCELLATION_REQUESTED',
+} as const;
 
-checkExtends<coresdk.child_workflow.ChildWorkflowCancellationType, ChildWorkflowCancellationType>();
-checkExtends<ChildWorkflowCancellationType, coresdk.child_workflow.ChildWorkflowCancellationType>();
+// ts-prune-ignore-next
+export const [encodeChildWorkflowCancellationType, decodeChildWorkflowCancellationType] = makeProtoEnumConverters<
+  coresdk.child_workflow.ChildWorkflowCancellationType,
+  typeof coresdk.child_workflow.ChildWorkflowCancellationType,
+  keyof typeof coresdk.child_workflow.ChildWorkflowCancellationType,
+  typeof ChildWorkflowCancellationType,
+  ''
+>(
+  {
+    [ChildWorkflowCancellationType.ABANDON]: 0,
+    [ChildWorkflowCancellationType.TRY_CANCEL]: 1,
+    [ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED]: 2,
+    [ChildWorkflowCancellationType.WAIT_CANCELLATION_REQUESTED]: 3,
+  } as const,
+  ''
+);
 
 /**
  * How a Child Workflow reacts to the Parent Workflow reaching a Closed state.
  *
  * @see {@link https://docs.temporal.io/concepts/what-is-a-parent-close-policy/ | Parent Close Policy}
  */
-export enum ParentClosePolicy {
-  /**
-   * If a `ParentClosePolicy` is set to this, or is not set at all, the server default value will be used.
-   */
-  PARENT_CLOSE_POLICY_UNSPECIFIED = 0,
-
+export type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
+export const ParentClosePolicy = {
   /**
    * When the Parent is Closed, the Child is Terminated.
    *
    * @default
    */
-  PARENT_CLOSE_POLICY_TERMINATE = 1,
+  TERMINATE: 'TERMINATE',
 
   /**
    * When the Parent is Closed, nothing is done to the Child.
    */
-  PARENT_CLOSE_POLICY_ABANDON = 2,
+  ABANDON: 'ABANDON',
 
   /**
    * When the Parent is Closed, the Child is Cancelled.
    */
-  PARENT_CLOSE_POLICY_REQUEST_CANCEL = 3,
-}
+  REQUEST_CANCEL: 'REQUEST_CANCEL',
 
-checkExtends<coresdk.child_workflow.ParentClosePolicy, ParentClosePolicy>();
-checkExtends<ParentClosePolicy, coresdk.child_workflow.ParentClosePolicy>();
+  /// Anything below this line has been deprecated
 
-export interface ChildWorkflowOptions extends CommonWorkflowOptions {
+  /**
+   * If a `ParentClosePolicy` is set to this, or is not set at all, the server default value will be used.
+   *
+   * @deprecated Either leave property `undefined`, or set an explicit policy instead.
+   */
+  PARENT_CLOSE_POLICY_UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+
+  /**
+   * When the Parent is Closed, the Child is Terminated.
+   *
+   * @deprecated Use {@link ParentClosePolicy.TERMINATE} instead.
+   */
+  PARENT_CLOSE_POLICY_TERMINATE: 'TERMINATE', // eslint-disable-line deprecation/deprecation
+
+  /**
+   * When the Parent is Closed, nothing is done to the Child.
+   *
+   * @deprecated Use {@link ParentClosePolicy.ABANDON} instead.
+   */
+  PARENT_CLOSE_POLICY_ABANDON: 'ABANDON', // eslint-disable-line deprecation/deprecation
+
+  /**
+   * When the Parent is Closed, the Child is Cancelled.
+   *
+   * @deprecated Use {@link ParentClosePolicy.REQUEST_CANCEL} instead.
+   */
+  PARENT_CLOSE_POLICY_REQUEST_CANCEL: 'REQUEST_CANCEL', // eslint-disable-line deprecation/deprecation
+} as const;
+
+// ts-prune-ignore-next
+export const [encodeParentClosePolicy, decodeParentClosePolicy] = makeProtoEnumConverters<
+  coresdk.child_workflow.ParentClosePolicy,
+  typeof coresdk.child_workflow.ParentClosePolicy,
+  keyof typeof coresdk.child_workflow.ParentClosePolicy,
+  typeof ParentClosePolicy,
+  'PARENT_CLOSE_POLICY_'
+>(
+  {
+    [ParentClosePolicy.TERMINATE]: 1,
+    [ParentClosePolicy.ABANDON]: 2,
+    [ParentClosePolicy.REQUEST_CANCEL]: 3,
+    UNSPECIFIED: 0,
+  } as const,
+  'PARENT_CLOSE_POLICY_'
+);
+
+export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workflowIdConflictPolicy'> {
   /**
    * Workflow id to use when starting. If not specified a UUID is generated. Note that it is
    * dangerous as in case of client side retries no deduplication will happen based on the
@@ -317,6 +465,8 @@ export interface ChildWorkflowOptions extends CommonWorkflowOptions {
   /**
    * Task queue to use for Workflow tasks. It should match a task queue specified when creating a
    * `Worker` that hosts the Workflow code.
+   *
+   * By default, a child is scheduled on the same Task Queue as the parent.
    */
   taskQueue?: string;
 
@@ -341,9 +491,12 @@ export interface ChildWorkflowOptions extends CommonWorkflowOptions {
    * When using the Worker Versioning feature, specifies whether this Child Workflow should run on
    * a worker with a compatible Build Id or not. See {@link VersioningIntent}.
    *
-   * @experimental
+   * @default 'COMPATIBLE'
+   *
+   * @deprecated In favor of the new Worker Deployment API.
+   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
-  versioningIntent?: VersioningIntent;
+  versioningIntent?: VersioningIntent; // eslint-disable-line deprecation/deprecation
 }
 
 export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, 'workflowId' | 'cancellationType'>> & {
@@ -352,7 +505,7 @@ export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, '
 
 export type ChildWorkflowOptionsWithDefaults = ChildWorkflowOptions & RequiredChildWorkflowOptions;
 
-export interface SDKInfo {
+export interface StackTraceSDKInfo {
   name: string;
   version: string;
 }
@@ -360,26 +513,26 @@ export interface SDKInfo {
 /**
  * Represents a slice of a file starting at lineOffset
  */
-export interface FileSlice {
+export interface StackTraceFileSlice {
+  /**
+   * Only used possible to trim the file without breaking syntax highlighting.
+   */
+  line_offset: number;
   /**
    * slice of a file with `\n` (newline) line terminator.
    */
   content: string;
-  /**
-   * Only used possible to trim the file without breaking syntax highlighting.
-   */
-  lineOffset: number;
 }
 
 /**
  * A pointer to a location in a file
  */
-export interface FileLocation {
+export interface StackTraceFileLocation {
   /**
    * Path to source file (absolute or relative).
    * When using a relative path, make sure all paths are relative to the same root.
    */
-  filePath?: string;
+  file_path?: string;
   /**
    * If possible, SDK should send this, required for displaying the code location.
    */
@@ -392,24 +545,28 @@ export interface FileLocation {
    * Function name this line belongs to (if applicable).
    * Used for falling back to stack trace view.
    */
-  functionName?: string;
+  function_name?: string;
+  /**
+   * Flag to mark this as internal SDK code and hide by default in the UI.
+   */
+  internal_code: boolean;
 }
 
 export interface StackTrace {
-  locations: FileLocation[];
+  locations: StackTraceFileLocation[];
 }
 
 /**
  * Used as the result for the enhanced stack trace query
  */
 export interface EnhancedStackTrace {
-  sdk: SDKInfo;
+  sdk: StackTraceSDKInfo;
   /**
    * Mapping of file path to file contents.
    * SDK may choose to send no, some or all sources.
    * Sources might be trimmed, and some time only the file(s) of the top element of the trace will be sent.
    */
-  sources: Record<string, FileSlice[]>;
+  sources: Record<string, StackTraceFileSlice[]>;
   stacks: StackTrace[];
 }
 
@@ -417,7 +574,6 @@ export interface WorkflowCreateOptions {
   info: WorkflowInfo;
   randomnessSeed: number[];
   now: number;
-  patches: string[];
   showStackTraceSources: boolean;
 }
 
@@ -428,19 +584,61 @@ export interface WorkflowCreateOptionsInternal extends WorkflowCreateOptions {
 }
 
 /**
- * A handler function capable of accepting the arguments for a given SignalDefinition or QueryDefinition.
+ * A handler function capable of accepting the arguments for a given UpdateDefinition, SignalDefinition or QueryDefinition.
  */
 export type Handler<
   Ret,
   Args extends any[],
-  T extends SignalDefinition<Args> | QueryDefinition<Ret, Args>
-> = T extends SignalDefinition<infer A>
-  ? (...args: A) => void | Promise<void>
-  : T extends QueryDefinition<infer R, infer A>
-  ? (...args: A) => R
-  : never;
+  T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>,
+> = T extends UpdateDefinition<infer R, infer A>
+  ? (...args: A) => R | Promise<R>
+  : T extends SignalDefinition<infer A>
+    ? (...args: A) => void | Promise<void>
+    : T extends QueryDefinition<infer R, infer A>
+      ? (...args: A) => R
+      : never;
 
 /**
- * A handler function accepting signals calls for non-registered signal names.
+ * A handler function accepting signal calls for non-registered signal names.
  */
 export type DefaultSignalHandler = (signalName: string, ...args: unknown[]) => void | Promise<void>;
+
+/**
+ * A handler function accepting update calls for non-registered update names.
+ */
+export type DefaultUpdateHandler = (updateName: string, ...args: unknown[]) => Promise<unknown> | unknown;
+
+/**
+ * A handler function accepting query calls for non-registered query names.
+ */
+export type DefaultQueryHandler = (queryName: string, ...args: unknown[]) => unknown;
+
+/**
+ * A validation function capable of accepting the arguments for a given UpdateDefinition.
+ */
+export type UpdateValidator<Args extends any[]> = (...args: Args) => void;
+
+/**
+ * A description of a query handler.
+ */
+export type QueryHandlerOptions = { description?: string };
+
+/**
+ * A description of a signal handler.
+ */
+export type SignalHandlerOptions = { description?: string; unfinishedPolicy?: HandlerUnfinishedPolicy };
+
+/**
+ * A validator and description of an update handler.
+ */
+export type UpdateHandlerOptions<Args extends any[]> = {
+  validator?: UpdateValidator<Args>;
+  description?: string;
+  unfinishedPolicy?: HandlerUnfinishedPolicy;
+};
+
+export interface ActivationCompletion {
+  commands: coresdk.workflow_commands.IWorkflowCommand[];
+  usedInternalFlags: number[];
+  versioningBehavior?: VersioningBehavior;
+}

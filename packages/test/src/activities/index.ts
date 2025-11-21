@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import { Context } from '@temporalio/activity';
-import { ApplicationFailure } from '@temporalio/common';
+import { activityInfo, Context } from '@temporalio/activity';
+import { ApplicationFailure, ApplicationFailureCategory } from '@temporalio/common';
 import { ProtoActivityInput, ProtoActivityResult } from '../../protos/root';
 import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
 import { fakeProgress as fakeProgressInner } from './fake-progress';
@@ -55,8 +55,16 @@ export async function throwAnError(useApplicationFailure: boolean, message: stri
   }
 }
 
-export async function waitForCancellation(): Promise<void> {
-  await Context.current().cancelled;
+export async function waitForCancellation(throwIfAborted?: boolean): Promise<void> {
+  try {
+    await Context.current().cancelled;
+  } catch (e) {
+    if (throwIfAborted) {
+      Context.current().cancellationSignal.throwIfAborted();
+    } else {
+      throw e;
+    }
+  }
 }
 
 export async function fakeProgress(sleepIntervalMs = 1000, numIters = 1000): Promise<void> {
@@ -84,4 +92,13 @@ export async function progressiveSleep(): Promise<void> {
 
 export async function protoActivity(args: ProtoActivityInput): Promise<ProtoActivityResult> {
   return ProtoActivityResult.create({ sentence: `${args.name} is ${args.age} years old.` });
+}
+
+export async function throwMaybeBenign(): Promise<void> {
+  if (activityInfo().attempt === 1) {
+    throw ApplicationFailure.create({ message: 'not benign' });
+  }
+  if (activityInfo().attempt === 2) {
+    throw ApplicationFailure.create({ message: 'benign', category: ApplicationFailureCategory.BENIGN });
+  }
 }

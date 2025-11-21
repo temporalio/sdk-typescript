@@ -106,6 +106,28 @@ test('Worker throws on invalid payloadConverterPath', async (t) => {
       message: /payloadConverter export at .* must be an object with toPayload and fromPayload methods/,
     }
   );
+
+  t.throws(
+    () =>
+      isolateFreeWorker({
+        ...defaultOptions,
+        dataConverter: { failureConverterPath: require.resolve('./payload-converters/payload-converter-bad-export') },
+      }),
+    {
+      message: /Module .* does not have a `failureConverter` named export/,
+    }
+  );
+
+  t.throws(
+    () =>
+      isolateFreeWorker({
+        ...defaultOptions,
+        dataConverter: { failureConverterPath: require.resolve('./payload-converters/failure-converter-bad-export') },
+      }),
+    {
+      message: /failureConverter export at .* must be an object with errorToFailure and failureToError methods/,
+    }
+  );
 });
 
 test('Worker with proto data converter runs an activity and reports completion', async (t) => {

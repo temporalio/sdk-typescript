@@ -1,3 +1,4 @@
 {
-  "temporal.replayerEntrypoint": "packages/test/src/debug-replayer.ts"
+  "temporal.replayerEntrypoint": "packages/test/src/debug-replayer.ts",
+  "rust-analyzer.linkedProjects": ["./packages/core-bridge/Cargo.toml"]
 }

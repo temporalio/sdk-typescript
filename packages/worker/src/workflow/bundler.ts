@@ -5,12 +5,12 @@ import util from 'node:util';
 import * as unionfs from 'unionfs';
 import * as memfs from 'memfs';
 import { Configuration, webpack } from 'webpack';
-import { DefaultLogger, Logger } from '../logger';
+import { DefaultLogger, Logger, hasColorSupport } from '../logger';
 import { toMB } from '../utils';
 
 export const defaultWorkflowInterceptorModules = [require.resolve('../workflow-log-interceptor')];
 
-export const allowedBuiltinModules = ['assert', 'url'];
+export const allowedBuiltinModules = ['assert', 'url', 'util'];
 export const disallowedBuiltinModules = builtinModules.filter((module) => !allowedBuiltinModules.includes(module));
 export const disallowedModules = [
   ...disallowedBuiltinModules,
@@ -53,21 +53,29 @@ export class WorkflowCodeBundler {
   protected readonly failureConverterPath?: string;
   protected readonly ignoreModules: string[];
   protected readonly webpackConfigHook: (config: Configuration) => Configuration;
+  protected readonly plugins: BundlerPlugin[];
 
-  constructor({
-    logger,
-    workflowsPath,
-    payloadConverterPath,
-    failureConverterPath,
-    workflowInterceptorModules,
-    ignoreModules,
-    webpackConfigHook,
-  }: BundleOptions) {
+  constructor(options: BundleOptions) {
+    this.plugins = options.plugins ?? [];
+    for (const plugin of this.plugins) {
+      if (plugin.configureBundler !== undefined) {
+        options = plugin.configureBundler(options);
+      }
+    }
+    const {
+      logger,
+      workflowsPath,
+      payloadConverterPath,
+      failureConverterPath,
+      workflowInterceptorModules,
+      ignoreModules,
+      webpackConfigHook,
+    } = options;
     this.logger = logger ?? new DefaultLogger('INFO');
     this.workflowsPath = workflowsPath;
     this.payloadConverterPath = payloadConverterPath;
     this.failureConverterPath = failureConverterPath;
-    this.workflowInterceptorModules = workflowInterceptorModules ?? defaultWorkflowInterceptorModules;
+    this.workflowInterceptorModules = workflowInterceptorModules ?? [];
     this.ignoreModules = ignoreModules ?? [];
     this.webpackConfigHook = webpackConfigHook ?? ((config) => config);
   }
@@ -151,10 +159,10 @@ export class WorkflowCodeBundler {
 
     const code = `
 const api = require('@temporalio/workflow/lib/worker-interface.js');
-
-api.overrideGlobals();
-
 exports.api = api;
+
+const { overrideGlobals } = require('@temporalio/workflow/lib/global-overrides.js');
+overrideGlobals();
 
 exports.importWorkflows = function importWorkflows() {
   return require(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
@@ -262,14 +270,16 @@ exports.importInterceptors = function importInterceptors() {
             const hasError = stats.hasErrors();
             // To debug webpack build:
             // const lines = stats.toString({ preset: 'verbose' }).split('\n');
-            const lines = stats.toString({ chunks: false, colors: true, errorDetails: true }).split('\n');
-            for (const line of lines) {
-              this.logger[hasError ? 'error' : 'info'](line);
-            }
+            const webpackOutput = stats.toString({
+              chunks: false,
+              colors: hasColorSupport(this.logger),
+              errorDetails: true,
+            });
+            this.logger[hasError ? 'error' : 'info'](webpackOutput);
             if (hasError) {
               reject(
                 new Error(
-                  "Webpack finished with errors, if you're unsure what went wrong, visit our troubleshooting page at https://docs.temporal.io/typescript/troubleshooting#webpack-errors"
+                  "Webpack finished with errors, if you're unsure what went wrong, visit our troubleshooting page at https://docs.temporal.io/develop/typescript/debugging#webpack-errors"
                 )
               );
             }
@@ -285,7 +295,7 @@ exports.importInterceptors = function importInterceptors() {
                   ` • Make sure that activity code is not imported from workflow code. Use \`import type\` to import activity function signatures.\n` +
                   ` • Move code that has non-deterministic behaviour to activities.\n` +
                   ` • If you know for sure that a disallowed module will not be used at runtime, add its name to 'WorkerOptions.bundlerOptions.ignoreModules' in order to dismiss this warning.\n` +
-                  `See also: https://typescript.temporal.io/api/interfaces/worker.workeroptions/#bundleroptions and https://docs.temporal.io/typescript/determinism.`
+                  `See also: https://typescript.temporal.io/api/namespaces/worker#workflowbundleoption and https://docs.temporal.io/typescript/determinism.`
               );
 
               reject(err);
@@ -306,6 +316,28 @@ exports.importInterceptors = function importInterceptors() {
 }
 
 /**
+ * Plugin interface for bundler functionality.
+ *
+ * Plugins provide a way to extend and customize the behavior of Temporal bundlers.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
+ */
+export interface BundlerPlugin {
+  /**
+   * Gets the name of this plugin.
+   *
+   * Returns:
+   *   The name of the plugin.
+   */
+  get name(): string;
+
+  /**
+   * Hook called when creating a bundler to allow modification of configuration.
+   */
+  configureBundler?(options: BundleOptions): BundleOptions;
+}
+
+/**
  * Options for bundling Workflow code using Webpack
  */
 export interface BundleOptions {
@@ -317,9 +349,6 @@ export interface BundleOptions {
    * List of modules to import Workflow interceptors from.
    *
    * Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}.
-   *
-   * By default, {@link WorkflowInboundLogInterceptor} is installed. If you wish to customize the interceptors while
-   * keeping the defaults, add {@link defaultWorkflowInterceptorModules} to the provided array.
    */
   workflowInterceptorModules?: string[];
   /**
@@ -351,6 +380,11 @@ export interface BundleOptions {
    * {@link https://webpack.js.org/configuration/ | configuration} object so you can modify it.
    */
   webpackConfigHook?: (config: Configuration) => Configuration;
+
+  /**
+   * List of plugins to register with the bundler.
+   */
+  plugins?: BundlerPlugin[];
 }
 
 /**

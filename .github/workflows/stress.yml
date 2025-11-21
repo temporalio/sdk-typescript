@@ -38,71 +38,94 @@ on:
         required: true
         type: boolean
 
+permissions:
+  contents: read
+  actions: write
+
 env:
   TEMPORAL_TESTING_LOG_DIR: /tmp/worker-logs
   TEMPORAL_TESTING_MEM_LOG_DIR: /tmp/worker-mem-logs
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   REUSE_V8_CONTEXT: ${{ inputs.reuse-v8-context }}
+  # Is it the official main branch, or an official release branches?
+  # AFAIK there's no way to break that line w/o introducing a trailing LF that breaks usage. Sorry.
+  IS_MAIN_OR_RELEASE: ${{ github.repository == 'temporalio/sdk-typescript' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) && github.event_name != 'pull_request' }}
 
 jobs:
   stress-test:
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: ubuntu-latest-4-cores
     steps:
       - name: Print build info
         run: 'echo test-type: ${{ inputs.test-type }}, test-timeout-minutes: ${{ inputs.test-timeout-minutes }}, reuse-v8-context: $REUSE_V8_CONTEXT'
-      - uses: actions/checkout@v2
+
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions-rs/toolchain@v1
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Node and Install Dependencies
+        uses: ./.github/actions/setup-node-deps
         with:
-          toolchain: stable
-      - uses: actions/setup-node@v1
-        with:
-          node-version: ${{ matrix.node }}
+          node-version: '22'
+          platform: 'linux-x64'
+
       - name: Install protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@v3
         with:
-          version: '3.x'
+          # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
+          version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: Swatinem/rust-cache@v1
+
+      - name: Upgrade Rust to latest stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cargo and Build cache
+        uses: Swatinem/rust-cache@v2
         with:
-          working-directory: packages/core-bridge
-      # Don't build during install phase since we're going to explicitly build
-      - run: npm ci --ignore-scripts
-      - run: npm run build
+          workspaces: packages/core-bridge -> target
+          prefix-key: corebridge-buildcache
+          shared-key: linux-intel
+          env-vars: ''
+          save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
+
+      - name: Compile code
+        run: pnpm run build
         env:
           BUILD_CORE_RELEASE: true
 
-      # docker-compose
-      - name: Checkout docker-compose repo
-        uses: actions/checkout@v2
-        with:
-          repository: temporalio/docker-compose
-          path: docker-compose
+      - name: Install Temporal CLI
+        uses: temporalio/setup-temporal@v0
 
-      - name: Start Temporal Server
-        run: docker-compose up -d
-        working-directory: docker-compose
+      - name: Run Temporal CLI
+        shell: bash
+        run: |
+          temporal server start-dev \
+            --db-filename temporal.sqlite \
+            --sqlite-pragma journal_mode=WAL \
+            --sqlite-pragma synchronous=OFF \
+            --headless &
 
-      - name: Wait for Temporal Server
-        run: npm run wait-namespace
-      # end:docker-compose
+      - name: Run tests
+        run: |
+          mkdir -p $TEMPORAL_TESTING_LOG_DIR/tails
+          mkdir -p $TEMPORAL_TESTING_MEM_LOG_DIR
+          timeout ${{ inputs.test-timeout-minutes }}m npm run ${{ inputs.test-type }}
 
-      - run: mkdir -p $TEMPORAL_TESTING_LOG_DIR/tails
-      - run: mkdir -p $TEMPORAL_TESTING_MEM_LOG_DIR
-      - run: 'timeout ${{ inputs.test-timeout-minutes }}m npm run ${{ inputs.test-type }}'
       - run: for f in $TEMPORAL_TESTING_LOG_DIR/*.log; do tail -20000 $f > $TEMPORAL_TESTING_LOG_DIR/tails/$(basename $f); done
-        if: ${{ always() }}
-      - uses: actions/upload-artifact@v3
-        if: ${{ always() }}
+        if: always()
+
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: worker-logs
+          name: worker-logs-${{ inputs.reuse-v8-context && 'reuse-v8' || 'no-reuse-v8' }}
           path: ${{ env.TEMPORAL_TESTING_LOG_DIR }}/tails
-      - uses: actions/upload-artifact@v3
-        if: ${{ always() }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: worker-mem-logs
+          name: worker-mem-logs-${{ inputs.reuse-v8-context && 'reuse-v8' || 'no-reuse-v8' }}
           path: ${{ env.TEMPORAL_TESTING_MEM_LOG_DIR }}
 
       # TODO: set up alerting
       # TODO: record test durations and other metrics like memory usage / cache utilization / CPU
+      # TODO: uses prebuilt binaries from ci.yml

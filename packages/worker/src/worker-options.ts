@@ -1,55 +1,33 @@
 import * as os from 'node:os';
 import * as v8 from 'node:v8';
 import type { Configuration as WebpackConfiguration } from 'webpack';
-import { DataConverter, LoadedDataConverter } from '@temporalio/common';
+import * as nexus from 'nexus-rpc';
+import {
+  ActivityFunction,
+  DataConverter,
+  LoadedDataConverter,
+  MetricMeter,
+  VersioningBehavior,
+  WorkerDeploymentVersion,
+} from '@temporalio/common';
 import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
+import { Context } from '@temporalio/activity';
+import { native } from '@temporalio/core-bridge';
+import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import { NativeConnection } from './connection';
-import { WorkerInterceptors } from './interceptors';
+import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
 import { Logger } from './logger';
+import { initLoggerSink } from './workflow/logger';
+import { initMetricSink } from './workflow/metrics';
 import { Runtime } from './runtime';
 import { InjectedSinks } from './sinks';
 import { MiB } from './utils';
-import { defaultWorkflowInterceptorModules, WorkflowBundleWithSourceMap } from './workflow/bundler';
-
-export type { WebpackConfiguration };
-
-export interface WorkflowBundlePath {
-  codePath: string;
-}
-
-/**
- * Note this no longer contains a source map.
- * The name was preserved to avoid breaking backwards compatibility.
- *
- * @deprecated
- */
-export interface WorkflowBundlePathWithSourceMap {
-  codePath: string;
-  sourceMapPath: string;
-}
-
-export interface WorkflowBundle {
-  code: string;
-}
-
-export type WorkflowBundleOption =
-  | WorkflowBundle
-  | WorkflowBundleWithSourceMap
-  | WorkflowBundlePath
-  | WorkflowBundlePathWithSourceMap; // eslint-disable-line deprecation/deprecation
-
-export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundle {
-  const opt = bundleOpt as any; // Cast to access properties without TS complaining
-  return typeof opt.code === 'string';
-}
-
-export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundlePath {
-  const opt = bundleOpt as any; // Cast to access properties without TS complaining
-  return typeof opt.codePath === 'string';
-}
+import { WorkflowBundleWithSourceMap } from './workflow/bundler';
+import { asNativeTuner, WorkerTuner } from './worker-tuner';
+import type { Worker } from './worker';
 
 /**
  * Options to configure the {@link Worker}
@@ -93,7 +71,8 @@ export interface WorkerOptions {
    *
    * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
    *
-   * @experimental
+   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+   * @deprecated Use {@link workerDeploymentOptions} instead.
    */
   buildId?: string;
 
@@ -104,9 +83,17 @@ export interface WorkerOptions {
    *
    * For more information, see https://docs.temporal.io/workers#worker-versioning
    *
-   * @experimental
+   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+   * @deprecated Use {@link workerDeploymentOptions} instead.
    */
   useVersioning?: boolean;
+
+  /**
+   * Deployment options for the worker. Exclusive with `build_id` and `use_worker_versioning`.
+   *
+   * @experimental Deployment based versioning is still experimental.
+   */
+  workerDeploymentOptions?: WorkerDeploymentOptions;
 
   /**
    * The namespace this worker will connect to
@@ -124,6 +111,13 @@ export interface WorkerOptions {
    * Mapping of activity name to implementation
    */
   activities?: object;
+
+  /**
+   * An array of Nexus services
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  nexusServices?: nexus.ServiceHandler<any>[];
 
   /**
    * Path to look up workflows in, any function exported in this path will be registered as a Workflows in this Worker.
@@ -177,27 +171,57 @@ export interface WorkerOptions {
 
   /**
    * Provide a custom {@link DataConverter}.
+   *
+   * When bundling workflows ahead of time, make sure to provide custom payload and failure
+   * converter paths as options to `bundleWorkflowCode`.
    */
   dataConverter?: DataConverter;
 
   /**
+   * Provide a custom {@link WorkerTuner}.
+   *
+   * Mutually exclusive with the {@link maxConcurrentWorkflowTaskExecutions}, {@link
+   * maxConcurrentActivityTaskExecutions}, and {@link maxConcurrentLocalActivityExecutions} options.
+   */
+  tuner?: WorkerTuner;
+
+  /**
    * Maximum number of Activity tasks to execute concurrently.
    * Adjust this to improve Worker resource consumption.
-   * @default 100
+   *
+   * Mutually exclusive with the {@link tuner} option.
+   *
+   * @default 100 if no {@link tuner} is set
    */
   maxConcurrentActivityTaskExecutions?: number;
 
   /**
    * Maximum number of Activity tasks to execute concurrently.
    * Adjust this to improve Worker resource consumption.
-   * @default 100
+   *
+   * Mutually exclusive with the {@link tuner} option.
+   *
+   * @default 100 if no {@link tuner} is set
    */
   maxConcurrentLocalActivityExecutions?: number;
+
+  /**
+   * Maximum number of Nexus tasks to execute concurrently.
+   * Adjust this to improve Worker resource consumption.
+   *
+   * Mutually exclusive with the {@link tuner} option.
+   *
+   * @default 100 if no {@link tuner} is set
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  maxConcurrentNexusTaskExecutions?: number;
 
   /**
    * Whether or not to poll on the Activity task queue.
    *
    * If disabled and activities are registered on the Worker, it will run only local Activities.
+   * This setting is ignored if no activity is registed on the Worker.
    *
    * @default true
    */
@@ -208,7 +232,7 @@ export interface WorkerOptions {
    * Activities.) The Worker will not poll for new Activities if by doing so it might receive and execute an Activity
    * which would cause it to exceed this limit. Must be a positive number.
    *
-   * If unset, no rate limiting will be applied to Worker's Activities. (`tctl task-queue describe` will display the
+   * If unset, no rate limiting will be applied to Worker's Activities. (`temporal task-queue describe` will display the
    * absence of a limit as 100,000.)
    */
   maxActivitiesPerSecond?: number;
@@ -252,9 +276,23 @@ export interface WorkerOptions {
    * Your millage may vary.
    *
    * Can't be lower than 2 if `maxCachedWorkflows` is non-zero.
-   * @default 40
+   *
+   * Mutually exclusive with the {@link tuner} option.
+   *
+   * @default 40 if no {@link tuner} is set
    */
   maxConcurrentWorkflowTaskExecutions?: number;
+
+  /**
+   * `maxConcurrentWorkflowTaskPolls` * this number = the number of max pollers that will
+   * be allowed for the nonsticky queue when sticky tasks are enabled. If both defaults are used,
+   * the sticky queue will allow 8 max pollers while the nonsticky queue will allow 2. The
+   * minimum for either poller is 1, so if `maxConcurrentWorkflowTaskPolls` is 1 and sticky queues are
+   * enabled, there will be 2 concurrent polls.
+   *
+   * @default 0.2
+   */
+  nonStickyToStickyPollRatio?: number;
 
   /**
    * Maximum number of Workflow Tasks to poll concurrently.
@@ -282,15 +320,52 @@ export interface WorkerOptions {
   maxConcurrentWorkflowTaskPolls?: number;
 
   /**
+   * Specify the behavior of workflow task polling.
+   *
+   * @default A fixed maximum whose value is min(10, maxConcurrentWorkflowTaskExecutions).
+   */
+  workflowTaskPollerBehavior?: PollerBehavior;
+
+  /**
+   * Specify the behavior of activity task polling.
+   *
+   * @default A fixed maximum whose value is min(10, maxConcurrentActivityTaskExecutions).
+   */
+  activityTaskPollerBehavior?: PollerBehavior;
+
+  /**
+   * Specify the behavior of Nexus task polling.
+   *
+   * @default A fixed maximum whose value is min(10, maxConcurrentNexusTaskExecutions).
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  nexusTaskPollerBehavior?: PollerBehavior;
+
+  /**
    * Maximum number of Activity tasks to poll concurrently.
    *
    * Increase this setting if your Worker is failing to fill in all of its
    * `maxConcurrentActivityTaskExecutions` slots despite a backlog of Activity
    * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
    * `maxConcurrentActivityTaskExecutions`.
-   * @default min(2, maxConcurrentActivityTaskExecutions)
+   * @default min(10, maxConcurrentActivityTaskExecutions)
    */
   maxConcurrentActivityTaskPolls?: number;
+
+  /**
+   * Maximum number of Nexus tasks to poll concurrently.
+   *
+   * Increase this setting if your Worker is failing to fill in all of its
+   * `maxConcurrentNexusTaskExecutions` slots despite a low match rate of Nexus
+   * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
+   * `maxConcurrentNexusTaskExecutions`.
+   *
+   * @default min(10, maxConcurrentNexusTaskExecutions)
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  maxConcurrentNexusTaskPolls?: number;
 
   /**
    * How long a workflow task is allowed to sit on the sticky queue before it is timed out
@@ -393,13 +468,34 @@ export interface WorkerOptions {
   /**
    * A mapping of interceptor type to a list of factories or module paths.
    *
-   * By default, {@link ActivityInboundLogInterceptor} and {@link WorkflowInboundLogInterceptor} are installed. If you
-   * wish to customize the interceptors while keeping the defaults, use {@link appendDefaultInterceptors}.
+   * Interceptors are called in order, from the first to the last, each one making the call to the next one, and the
+   * last one calling the original (SDK provided) function.
    *
+   * By default, {@link WorkflowInboundLogInterceptor} is installed. If you wish to customize the interceptors while
+   * keeping the defaults, use {@link appendDefaultInterceptors}.
+
    * When using {@link workflowBundle}, these Workflow interceptors (`WorkerInterceptors.workflowModules`) are not used.
    * Instead, provide them via {@link BundleOptions.workflowInterceptorModules} when calling {@link bundleWorkflowCode}.
+   *
+   * Before v1.9.0, calling `appendDefaultInterceptors()` was required when registering custom interceptors in order to
+   * preserve SDK's logging interceptors. This is no longer the case.
    */
   interceptors?: WorkerInterceptors;
+
+  /**
+   * List of plugins to register with the worker.
+   *
+   * Plugins allow you to extend and customize the behavior of Temporal workers.
+   * They can intercept and modify worker creation, configuration, and execution.
+   *
+   * Worker plugins can be used to add custom activities, workflows, interceptors, or modify other
+   * worker settings before the worker is fully initialized.
+   *
+   * Any plugins provided will also be passed to the bundler if used.
+   *
+   * @experimental Plugins is an experimental feature; APIs may change without notice.
+   */
+  plugins?: WorkerPlugin[];
 
   /**
    * Registration of a {@link SinkFunction}, including per-sink-function options.
@@ -430,22 +526,14 @@ export interface WorkerOptions {
    * guarantees, please consider using local activities instead. For use cases that require
    * _exactly-once_ or _at-most-once_ execution guarantees, please consider using regular activities.
    *
-   * The SDK itself may register sinks functions required to support workflow features. At the moment, the only such
-   * sink is 'defaultWorkerLogger', which is used by the workflow context logger (ie. `workflow.log.info()` and
-   * friends); other sinks may be added in the future. You may override these default sinks by explicitely registering
-   * sinks with the same name.
+   * Sink names starting with `__temporal_` are reserved for use by the SDK itself. Do not register
+   * or use such sink. Registering a sink named `defaultWorkerLogger` to redirect workflow logs to a
+   * custom logger is deprecated. Register a custom logger through {@link Runtime.logger} instead.
    */
   sinks?: InjectedSinks<any>;
 
   /**
-   * Enable opentelemetry tracing of SDK internals like polling, processing and completing tasks.
-   *
-   * Useful for debugging issues with the SDK itself.
-   *
-   * For completeness the Rust Core also generates opentelemetry spans which connect to the Worker's spans.
-   * Configure {@link CoreOptions.telemetryOptions} to enable tracing in Core.
-   *
-   * @default false
+   * @deprecated SDK tracing is no longer supported. This option is ignored.
    */
   enableSDKTracing?: boolean;
 
@@ -462,7 +550,7 @@ export interface WorkerOptions {
    *
    * Workflow execution time will not be limited by the Worker in `debugMode`.
    *
-   * @default false
+   * @default false unless the `TEMPORAL_DEBUG` environment variable is set.
    */
   debugMode?: boolean;
 
@@ -473,9 +561,11 @@ export interface WorkerOptions {
    * From running basic stress tests we've observed 2/3 reduction in memory usage and 1/3 to 1/2 in CPU usage with this
    * feature turned on.
    *
-   * Note that we plan to turn this option on by default starting with 1.9.0.
+   * NOTE: We strongly recommend enabling the Reuse V8 Context execution model, and there is currently no known reason
+   * not to use it. Support for the legacy execution model may get removed at some point in the future. Please report
+   * any issue that requires you to disable `reuseV8Context`.
    *
-   * @default false (will change in the future)
+   * @default true
    */
   reuseV8Context?: boolean;
 
@@ -498,58 +588,72 @@ export interface WorkerOptions {
   };
 }
 
-/**
- * WorkerOptions with all of the Worker required attributes
- */
-export type WorkerOptionsWithDefaults = WorkerOptions &
-  Required<
-    Pick<
-      WorkerOptions,
-      | 'namespace'
-      | 'identity'
-      | 'useVersioning'
-      | 'shutdownGraceTime'
-      | 'maxConcurrentActivityTaskExecutions'
-      | 'maxConcurrentLocalActivityExecutions'
-      | 'maxConcurrentWorkflowTaskExecutions'
-      | 'maxConcurrentWorkflowTaskPolls'
-      | 'maxConcurrentActivityTaskPolls'
-      | 'enableNonLocalActivities'
-      | 'stickyQueueScheduleToStartTimeout'
-      | 'maxCachedWorkflows'
-      | 'workflowThreadPoolSize'
-      | 'maxHeartbeatThrottleInterval'
-      | 'defaultHeartbeatThrottleInterval'
-      | 'enableSDKTracing'
-      | 'showStackTraceSources'
-      | 'debugMode'
-      | 'reuseV8Context'
-    >
-  > & {
-    /**
-     * Time to wait for result when calling a Workflow isolate function.
-     * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
-     *
-     * This value is not exposed at the moment.
-     *
-     * @default 5s
-     */
-    isolateExecutionTimeout: Duration;
-  };
+export type PollerBehavior = PollerBehaviorSimpleMaximum | PollerBehaviorAutoscaling;
 
 /**
- * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms
- * formatted strings to numbers.
+ * A poller behavior that will automatically scale the number of pollers based on feedback
+ * from the server. A slot must be available before beginning polling.
  */
-export interface CompiledWorkerOptions extends Omit<WorkerOptionsWithDefaults, 'serverOptions'> {
-  shutdownGraceTimeMs: number;
-  shutdownForceTimeMs?: number;
-  isolateExecutionTimeoutMs: number;
-  stickyQueueScheduleToStartTimeoutMs: number;
-  maxHeartbeatThrottleIntervalMs: number;
-  defaultHeartbeatThrottleIntervalMs: number;
-  loadedDataConverter: LoadedDataConverter;
+export interface PollerBehaviorAutoscaling {
+  type: 'autoscaling';
+  /**
+   * At least this many poll calls will always be attempted (assuming slots are available).
+   * Cannot be lower than 1. Defaults to 1.
+   */
+  minimum?: number;
+  /**
+   * At most this many poll calls will ever be open at once. Must be >= `minimum`.
+   * Defaults to 100.
+   */
+  maximum?: number;
+  /**
+   * This many polls will be attempted initially before scaling kicks in. Must be between
+   * `minimum` and `maximum`.
+   * Defaults to 5.
+   */
+  initial?: number;
 }
+
+/**
+ * A poller behavior that will attempt to poll as long as a slot is available, up to the
+ * provided maximum.
+ */
+export interface PollerBehaviorSimpleMaximum {
+  type: 'simple-maximum';
+  /**
+   * The maximum poller number, assumes the same default as described in
+   * {@link WorkerOptions.maxConcurrentWorkflowTaskPolls},
+   * {@link WorkerOptions.maxConcurrentActivityTaskPolls}, or
+   * {@link WorkerOptions.maxConcurrentNexusTaskPolls} .
+   */
+  maximum?: number;
+}
+
+/**
+ * Allows specifying the deployment version of the worker and whether to use deployment-based
+ * worker versioning.
+ *
+ * @experimental Deployment based versioning is still experimental.
+ */
+export type WorkerDeploymentOptions = {
+  /**
+   * The deployment version of the worker.
+   */
+  version: WorkerDeploymentVersion;
+
+  /**
+   * Whether to use deployment-based worker versioning.
+   */
+  useWorkerVersioning: boolean;
+
+  /**
+   * The default versioning behavior to use for all workflows on this worker. Specifying a default
+   * behavior is required.
+   */
+  defaultVersioningBehavior: VersioningBehavior;
+};
+
+// Replay Worker ///////////////////////////////////////////////////////////////////////////////////
 
 /**
  * {@link WorkerOptions} with inapplicable-to-replay fields removed.
@@ -561,9 +665,19 @@ export interface ReplayWorkerOptions
     | 'namespace'
     | 'taskQueue'
     | 'activities'
+    | 'nexusServices'
+    | 'tuner'
     | 'maxConcurrentActivityTaskExecutions'
     | 'maxConcurrentLocalActivityExecutions'
     | 'maxConcurrentWorkflowTaskExecutions'
+    | 'maxConcurrentNexusTaskExecutions'
+    | 'maxConcurrentActivityTaskPolls'
+    | 'maxConcurrentWorkflowTaskPolls'
+    | 'maxConcurrentNexusTaskPolls'
+    | 'workflowTaskPollerBehavior'
+    | 'activityTaskPollerBehavior'
+    | 'nexusTaskPollerBehavior'
+    | 'nonStickyToStickyPollRatio'
     | 'maxHeartbeatThrottleInterval'
     | 'defaultHeartbeatThrottleInterval'
     | 'debugMode'
@@ -583,77 +697,208 @@ export interface ReplayWorkerOptions
   replayName?: string;
 }
 
+// Workflow Bundle /////////////////////////////////////////////////////////////////////////////////
+
+export type { WebpackConfiguration };
+
+export interface WorkflowBundlePath {
+  codePath: string;
+}
+
 /**
- * Returns the `defaultWorkerLogger` sink which forwards logs from the Workflow sandbox to a given logger.
+ * Note this no longer contains a source map.
+ * The name was preserved to avoid breaking backwards compatibility.
+ *
+ * @deprecated
+ */
+export interface WorkflowBundlePathWithSourceMap {
+  codePath: string;
+  sourceMapPath: string;
+}
+
+export interface WorkflowBundle {
+  code: string;
+}
+
+export type WorkflowBundleOption =
+  | WorkflowBundle
+  | WorkflowBundleWithSourceMap
+  | WorkflowBundlePath
+  | WorkflowBundlePathWithSourceMap; // eslint-disable-line deprecation/deprecation
+
+export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundle {
+  const opt = bundleOpt as any; // Cast to access properties without TS complaining
+  return typeof opt.code === 'string';
+}
+
+export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundlePath {
+  const opt = bundleOpt as any; // Cast to access properties without TS complaining
+  return typeof opt.codePath === 'string';
+}
+
+// Sinks and Interceptors //////////////////////////////////////////////////////////////////////////
+
+/**
+ * Build the sink used internally by the SDK to forwards log messages from the Workflow sandbox to an actual logger.
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
+ * @deprecated Calling `defaultSink()` is no longer required. To configure a custom logger, set the
+ *             {@link Runtime.logger} property instead.
  */
+// eslint-disable-next-line deprecation/deprecation
 export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
-  return {
-    defaultWorkerLogger: {
-      trace: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.trace(message, attrs);
-        },
-      },
-      debug: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.debug(message, attrs);
-        },
-      },
-      info: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.info(message, attrs);
-        },
-      },
-      warn: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.warn(message, attrs);
-        },
-      },
-      error: {
-        fn(_, message, attrs) {
-          logger ??= Runtime.instance().logger;
-          logger.error(message, attrs);
-        },
-      },
-    },
-  };
+  // initLoggerSink() returns a sink that complies to the new LoggerSinksInternal API (ie. named __temporal_logger), but
+  // code that is still calling defaultSinks() expects return type to match the deprecated LoggerSinks API. Silently
+  // cast just to mask type checking issues, even though we know this is wrong. Users shouldn't call functions directly
+  // on the returned object anyway.
+
+  // If no logger was provided, the legacy behavior was to _lazily_ set the sink's logger to the Runtime's logger.
+  // This was required because we may call defaultSinks() before the Runtime is initialized. We preserve that behavior
+  // here by silently not initializing the sink if no logger is provided.
+  // eslint-disable-next-line deprecation/deprecation
+  if (!logger) return {} as InjectedSinks<LoggerSinks>;
+
+  // Register the logger sink with its historical name
+  const { __temporal_logger: defaultWorkerLogger } = initLoggerSink(logger);
+  return { defaultWorkerLogger } satisfies InjectedSinks<LoggerSinks>; // eslint-disable-line deprecation/deprecation
 }
 
 /**
  * Appends the default Worker logging interceptors to given interceptor arrays.
  *
  * @param logger a {@link Logger} - defaults to the {@link Runtime} singleton logger.
+ *
+ * @deprecated Calling `appendDefaultInterceptors()` is no longer required. To configure a custom logger, set the
+ *             {@link Runtime.logger} property instead.
  */
 export function appendDefaultInterceptors(
   interceptors: WorkerInterceptors,
   logger?: Logger | undefined
 ): WorkerInterceptors {
+  if (!logger || logger === Runtime.instance().logger) return interceptors;
+
   return {
-    activityInbound: [...(interceptors.activityInbound ?? []), (ctx) => new ActivityInboundLogInterceptor(ctx, logger)],
-    workflowModules: [...(interceptors.workflowModules ?? []), ...defaultWorkflowInterceptorModules],
+    activityInbound: [
+      // eslint-disable-next-line deprecation/deprecation
+      (ctx) => new ActivityInboundLogInterceptor(ctx, logger),
+      // eslint-disable-next-line deprecation/deprecation
+      ...(interceptors.activityInbound ?? []),
+    ],
+    activity: interceptors.activity,
+    workflowModules: interceptors.workflowModules,
   };
 }
 
-export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWithDefaults {
+function compileWorkerInterceptors({
+  client,
+  activity,
+  activityInbound, // eslint-disable-line deprecation/deprecation
+  nexus,
+  workflowModules,
+}: Required<WorkerInterceptors>): CompiledWorkerInterceptors {
+  return {
+    client: {
+      workflow: client?.workflow ?? [],
+      schedule: client?.schedule ?? [],
+    },
+    activity: [...activityInbound.map((factory) => (ctx: Context) => ({ inbound: factory(ctx) })), ...activity],
+    nexus: nexus ?? [],
+    workflowModules,
+  };
+}
+
+// Compile Options /////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * WorkerOptions with all of the Worker required attributes
+ */
+export type WorkerOptionsWithDefaults = WorkerOptions &
+  Required<
+    Pick<
+      WorkerOptions,
+      | 'namespace'
+      | 'identity'
+      | 'useVersioning'
+      | 'shutdownGraceTime'
+      | 'nonStickyToStickyPollRatio'
+      | 'enableNonLocalActivities'
+      | 'stickyQueueScheduleToStartTimeout'
+      | 'maxCachedWorkflows'
+      | 'workflowThreadPoolSize'
+      | 'maxHeartbeatThrottleInterval'
+      | 'defaultHeartbeatThrottleInterval'
+      | 'showStackTraceSources'
+      | 'debugMode'
+      | 'reuseV8Context'
+      | 'tuner'
+    >
+  > & {
+    interceptors: Required<WorkerInterceptors>;
+
+    /**
+     * Time to wait for result when calling a Workflow isolate function.
+     * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
+     *
+     * This value is not exposed at the moment.
+     *
+     * @default 5s
+     */
+    isolateExecutionTimeout: Duration;
+
+    workflowTaskPollerBehavior: Required<PollerBehavior>;
+    activityTaskPollerBehavior: Required<PollerBehavior>;
+    nexusTaskPollerBehavior: Required<PollerBehavior>;
+  };
+
+/**
+ * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms
+ * formatted strings to numbers.
+ */
+export interface CompiledWorkerOptions
+  extends Omit<WorkerOptionsWithDefaults, 'interceptors' | 'activities' | 'nexusServices' | 'tuner'> {
+  interceptors: CompiledWorkerInterceptors;
+  shutdownGraceTimeMs: number;
+  shutdownForceTimeMs?: number;
+  isolateExecutionTimeoutMs: number;
+  stickyQueueScheduleToStartTimeoutMs: number;
+  maxHeartbeatThrottleIntervalMs: number;
+  defaultHeartbeatThrottleIntervalMs: number;
+  loadedDataConverter: LoadedDataConverter;
+  activities: Map<string, ActivityFunction>;
+  nexusServiceRegistry?: nexus.ServiceRegistry;
+  tuner: native.WorkerTunerOptions;
+}
+
+export type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
+  buildId: string;
+};
+
+function addDefaultWorkerOptions(
+  options: WorkerOptions,
+  logger: Logger,
+  metricMeter: MetricMeter
+): WorkerOptionsWithDefaults {
   const {
-    buildId,
-    useVersioning,
+    buildId, // eslint-disable-line deprecation/deprecation
+    useVersioning, // eslint-disable-line deprecation/deprecation
     maxCachedWorkflows,
     showStackTraceSources,
     namespace,
-    reuseV8Context,
     sinks,
+    nonStickyToStickyPollRatio,
+    interceptors,
+    maxConcurrentActivityTaskExecutions,
+    maxConcurrentLocalActivityExecutions,
+    maxConcurrentWorkflowTaskExecutions,
+    maxConcurrentNexusTaskExecutions,
+    workflowTaskPollerBehavior,
+    activityTaskPollerBehavior,
+    nexusTaskPollerBehavior,
     ...rest
   } = options;
   const debugMode = options.debugMode || isSet(process.env.TEMPORAL_DEBUG);
-  const maxConcurrentWorkflowTaskExecutions = options.maxConcurrentWorkflowTaskExecutions ?? 40;
-  const maxConcurrentActivityTaskExecutions = options.maxConcurrentActivityTaskExecutions ?? 100;
+
+  const reuseV8Context = options.reuseV8Context ?? true;
 
   const heapSizeMiB = v8.getHeapStatistics().heap_size_limit / MiB;
   const defaultMaxCachedWorkflows = reuseV8Context
@@ -664,16 +909,76 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     throw new TypeError('Must provide a buildId if useVersioning is true');
   }
 
+  // Difficult to predict appropriate poll numbers for resource based slots
+  let maxWFTPolls = 10;
+  let maxATPolls = 10;
+  let maxNexusTaskPolls = 10;
+  let setTuner: WorkerTuner;
+  if (rest.tuner !== undefined) {
+    if (maxConcurrentActivityTaskExecutions !== undefined) {
+      throw new TypeError('Cannot set both tuner and maxConcurrentActivityTaskExecutions');
+    }
+    if (maxConcurrentLocalActivityExecutions !== undefined) {
+      throw new TypeError('Cannot set both tuner and maxConcurrentLocalActivityExecutions');
+    }
+    if (maxConcurrentWorkflowTaskExecutions !== undefined) {
+      throw new TypeError('Cannot set both tuner and maxConcurrentWorkflowTaskExecutions');
+    }
+    setTuner = rest.tuner;
+  } else {
+    const maxWft = maxConcurrentWorkflowTaskExecutions ?? 40;
+    maxWFTPolls = Math.min(maxWFTPolls, maxWft);
+    const maxAT = maxConcurrentActivityTaskExecutions ?? 100;
+    maxATPolls = Math.min(maxATPolls, maxAT);
+    const maxLAT = maxConcurrentLocalActivityExecutions ?? 100;
+    const maxNexusTasks = maxConcurrentNexusTaskExecutions ?? 100;
+    maxNexusTaskPolls = Math.min(maxNexusTaskPolls, maxNexusTasks);
+    setTuner = {
+      workflowTaskSlotSupplier: {
+        type: 'fixed-size',
+        numSlots: maxWft,
+      },
+      activityTaskSlotSupplier: {
+        type: 'fixed-size',
+        numSlots: maxAT,
+      },
+      localActivityTaskSlotSupplier: {
+        type: 'fixed-size',
+        numSlots: maxLAT,
+      },
+      nexusTaskSlotSupplier: {
+        type: 'fixed-size',
+        numSlots: maxNexusTasks,
+      },
+    };
+  }
+
+  const createPollerBehavior = (defaultMax: number, behavior?: PollerBehavior): Required<PollerBehavior> =>
+    !behavior
+      ? { type: 'simple-maximum', maximum: defaultMax }
+      : behavior.type === 'simple-maximum'
+        ? { type: 'simple-maximum', maximum: behavior.maximum ?? defaultMax }
+        : {
+            type: 'autoscaling',
+            minimum: behavior.minimum ?? 1,
+            initial: behavior.initial ?? 5,
+            maximum: behavior.maximum ?? 100,
+          };
+
+  const wftPollerBehavior = createPollerBehavior(maxWFTPolls, workflowTaskPollerBehavior);
+  const atPollerBehavior = createPollerBehavior(maxATPolls, activityTaskPollerBehavior);
+  const nexusPollerBehavior = createPollerBehavior(maxNexusTaskPolls, nexusTaskPollerBehavior);
+
   return {
     namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
     useVersioning: useVersioning ?? false,
     buildId,
     shutdownGraceTime: 0,
-    maxConcurrentLocalActivityExecutions: 100,
     enableNonLocalActivities: true,
-    maxConcurrentWorkflowTaskPolls: Math.min(10, maxConcurrentWorkflowTaskExecutions),
-    maxConcurrentActivityTaskPolls: Math.min(10, maxConcurrentActivityTaskExecutions),
+    workflowTaskPollerBehavior: wftPollerBehavior,
+    activityTaskPollerBehavior: atPollerBehavior,
+    nexusTaskPollerBehavior: nexusPollerBehavior,
     stickyQueueScheduleToStartTimeout: '10s',
     maxHeartbeatThrottleInterval: '60s',
     defaultHeartbeatThrottleInterval: '30s',
@@ -681,46 +986,76 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
     isolateExecutionTimeout: debugMode ? '4294967295ms' : '5s',
     workflowThreadPoolSize: reuseV8Context ? 1 : 2,
     maxCachedWorkflows: maxCachedWorkflows ?? defaultMaxCachedWorkflows,
-    enableSDKTracing: false,
     showStackTraceSources: showStackTraceSources ?? false,
-    reuseV8Context: reuseV8Context ?? false,
     debugMode: debugMode ?? false,
-    interceptors: appendDefaultInterceptors({}),
-    sinks: { ...defaultSinks(), ...sinks },
+    interceptors: {
+      client: {
+        workflow: interceptors?.client?.workflow ?? [],
+        schedule: interceptors?.client?.schedule ?? [],
+      },
+      activity: interceptors?.activity ?? [],
+      nexus: interceptors?.nexus ?? [],
+      // eslint-disable-next-line deprecation/deprecation
+      activityInbound: interceptors?.activityInbound ?? [],
+      workflowModules: interceptors?.workflowModules ?? [],
+    },
+    nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
+    sinks: {
+      ...initLoggerSink(logger),
+      ...initMetricSink(metricMeter),
+      // Fix deprecated registration of the 'defaultWorkerLogger' sink
+      ...(sinks?.defaultWorkerLogger ? { __temporal_logger: sinks.defaultWorkerLogger } : {}),
+      ...sinks,
+    },
     ...rest,
-    maxConcurrentWorkflowTaskExecutions,
-    maxConcurrentActivityTaskExecutions,
+    tuner: setTuner,
+    reuseV8Context,
   };
 }
 
-function isSet(env: string | undefined): boolean {
-  if (env === undefined) return false;
-  env = env.toLocaleLowerCase();
-  return env === '1' || env === 't' || env === 'true';
-}
+export function compileWorkerOptions(
+  rawOpts: WorkerOptions,
+  logger: Logger,
+  metricMeter: MetricMeter
+): CompiledWorkerOptions {
+  // Validate sink names to ensure they don't use reserved prefixes/names
+  if (rawOpts.sinks) {
+    for (const sinkName of Object.keys(rawOpts.sinks)) {
+      throwIfReservedName('sink', sinkName);
+    }
+  }
 
-export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledWorkerOptions {
+  const opts = addDefaultWorkerOptions(rawOpts, logger, metricMeter);
   if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
-    Runtime.instance().logger.warn(
-      'maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.'
-    );
+    logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
     opts.maxCachedWorkflows = 2;
   }
-  if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions > opts.maxCachedWorkflows) {
-    Runtime.instance().logger.warn(
-      "maxConcurrentWorkflowTaskExecutions can't exceed maxCachedWorkflows (unless cache is disabled). Defaulting to maxCachedWorkflows."
-    );
-    opts.maxConcurrentWorkflowTaskExecutions = opts.maxCachedWorkflows;
+
+  if (opts.maxConcurrentWorkflowTaskExecutions !== undefined) {
+    if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions > opts.maxCachedWorkflows) {
+      logger.warn(
+        "maxConcurrentWorkflowTaskExecutions can't exceed maxCachedWorkflows (unless cache is disabled). Defaulting to maxCachedWorkflows."
+      );
+      opts.maxConcurrentWorkflowTaskExecutions = opts.maxCachedWorkflows;
+    }
+    if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions < 2) {
+      logger.warn(
+        "maxConcurrentWorkflowTaskExecutions can't be lower than 2 if maxCachedWorkflows is non-zero. Defaulting to 2."
+      );
+      opts.maxConcurrentWorkflowTaskExecutions = 2;
+    }
   }
-  if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions < 2) {
-    Runtime.instance().logger.warn(
-      "maxConcurrentWorkflowTaskExecutions can't be lower than 2 if maxCachedWorkflows is non-zero. Defaulting to 2."
-    );
-    opts.maxConcurrentWorkflowTaskExecutions = 2;
+
+  const activities = new Map(Object.entries(opts.activities ?? {}).filter(([_, v]) => typeof v === 'function'));
+  for (const activityName of activities.keys()) {
+    throwIfReservedName('activity', activityName);
   }
+
+  const tuner = asNativeTuner(opts.tuner, logger);
 
   return {
     ...opts,
+    interceptors: compileWorkerInterceptors(opts.interceptors),
     shutdownGraceTimeMs: msToNumber(opts.shutdownGraceTime),
     shutdownForceTimeMs: msOptionalToNumber(opts.shutdownForceTime),
     stickyQueueScheduleToStartTimeoutMs: msToNumber(opts.stickyQueueScheduleToStartTimeout),
@@ -728,5 +1063,131 @@ export function compileWorkerOptions(opts: WorkerOptionsWithDefaults): CompiledW
     maxHeartbeatThrottleIntervalMs: msToNumber(opts.maxHeartbeatThrottleInterval),
     defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
     loadedDataConverter: loadDataConverter(opts.dataConverter),
+    activities,
+    nexusServiceRegistry: nexusServiceRegistryFromOptions(opts),
+    enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,
+    tuner,
   };
+}
+
+function nexusServiceRegistryFromOptions(opts: WorkerOptions): nexus.ServiceRegistry | undefined {
+  if (opts.nexusServices == null || opts.nexusServices.length === 0) {
+    return undefined;
+  }
+  return nexus.ServiceRegistry.create(opts.nexusServices);
+}
+
+export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): native.WorkerOptions {
+  return {
+    identity: opts.identity,
+    buildId: opts.buildId, // eslint-disable-line deprecation/deprecation
+    useVersioning: opts.useVersioning, // eslint-disable-line deprecation/deprecation
+    workerDeploymentOptions: toNativeDeploymentOptions(opts.workerDeploymentOptions),
+    taskQueue: opts.taskQueue,
+    namespace: opts.namespace,
+    tuner: opts.tuner,
+    nonStickyToStickyPollRatio: opts.nonStickyToStickyPollRatio,
+    workflowTaskPollerBehavior: toNativeTaskPollerBehavior(opts.workflowTaskPollerBehavior),
+    activityTaskPollerBehavior: toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior),
+    nexusTaskPollerBehavior: toNativeTaskPollerBehavior(opts.nexusTaskPollerBehavior),
+    enableNonLocalActivities: opts.enableNonLocalActivities,
+    stickyQueueScheduleToStartTimeout: msToNumber(opts.stickyQueueScheduleToStartTimeout),
+    maxCachedWorkflows: opts.maxCachedWorkflows,
+    maxHeartbeatThrottleInterval: msToNumber(opts.maxHeartbeatThrottleInterval),
+    defaultHeartbeatThrottleInterval: msToNumber(opts.defaultHeartbeatThrottleInterval),
+    maxTaskQueueActivitiesPerSecond: opts.maxTaskQueueActivitiesPerSecond ?? null,
+    maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
+    shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
+  };
+}
+
+export function toNativeTaskPollerBehavior(behavior: Required<PollerBehavior>): native.PollerBehavior {
+  switch (behavior.type) {
+    case 'simple-maximum':
+      return {
+        type: 'simple-maximum',
+        maximum: behavior.maximum,
+      };
+    case 'autoscaling':
+      return {
+        type: 'autoscaling',
+        minimum: behavior.minimum,
+        initial: behavior.initial,
+        maximum: behavior.maximum,
+      };
+    default:
+      throw new Error(`Unknown poller behavior type: ${(behavior as any).type}`);
+  }
+}
+
+function toNativeDeploymentOptions(options?: WorkerDeploymentOptions): native.WorkerDeploymentOptions | null {
+  if (options === undefined) {
+    return null;
+  }
+  let vb: native.VersioningBehavior;
+  switch (options.defaultVersioningBehavior) {
+    case 'PINNED':
+      vb = { type: 'pinned' };
+      break;
+    case 'AUTO_UPGRADE':
+      vb = { type: 'auto-upgrade' };
+      break;
+    default:
+      options.defaultVersioningBehavior satisfies never;
+      throw new Error(`Unknown versioning behavior: ${options.defaultVersioningBehavior}`);
+  }
+  return {
+    version: options.version,
+    useWorkerVersioning: options.useWorkerVersioning,
+    defaultVersioningBehavior: vb,
+  };
+}
+
+/**
+ * Plugin interface for worker functionality.
+ *
+ * Plugins provide a way to extend and customize the behavior of Temporal workers.
+ * They allow you to intercept and modify worker configuration and worker execution.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
+ */
+export interface WorkerPlugin {
+  /**
+   * Gets the name of this plugin.
+   */
+  get name(): string;
+
+  /**
+   * Hook called when creating a worker to allow modification of configuration.
+   *
+   * This method is called during worker creation and allows plugins to modify
+   * the worker configuration before the worker is fully initialized. Plugins
+   * can add activities, workflows, interceptors, or change other settings.
+   */
+  configureWorker?(options: WorkerOptions): WorkerOptions;
+
+  /**
+   * Hook called when creating a replay worker to allow modification of configuration.
+   *
+   * This method is called during worker creation and allows plugins to modify
+   * the worker configuration before the worker is fully initialized. Plugins
+   * can add workflows, interceptors, or change other settings.
+   */
+  configureReplayWorker?(options: ReplayWorkerOptions): ReplayWorkerOptions;
+
+  /**
+   * Hook called when running a worker.
+   *
+   * This method is not called when running a replay worker, as activities will not be
+   * executed, and global state can't affect the workflow.
+   */
+  runWorker?(worker: Worker, next: (w: Worker) => Promise<void>): Promise<void>;
+}
+
+// Utils ///////////////////////////////////////////////////////////////////////////////////////////
+
+function isSet(env: string | undefined): boolean {
+  if (env === undefined) return false;
+  env = env.toLocaleLowerCase();
+  return env === '1' || env === 't' || env === 'true';
 }

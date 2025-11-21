@@ -20,18 +20,21 @@
  * <!--SNIPSTART typescript-schedule-activity-workflow-->
  * <!--SNIPEND-->
  *
- * ### Signals and Queries
+ * ### Updates, Signals and Queries
  *
- * To add signal handlers to a Workflow, add a signals property to the exported `workflow` object. Signal handlers can
- * return either `void` or `Promise<void>`, you may schedule activities and timers from a signal handler.
+ * Use {@link setHandler} to set handlers for Updates, Signals, and Queries.
  *
- * To add query handlers to a Workflow, add a queries property to the exported `workflow` object. Query handlers must
- * **not** mutate any variables or generate any commands (like Activities or Timers), they run synchronously and thus
- * **must** return a `Promise`.
+ * Update and Signal handlers can be either async or non-async functions. Update handlers may return a value, but signal
+ * handlers may not (return `void` or `Promise<void>`). You may use Activities, Timers, child Workflows, etc in Update
+ * and Signal handlers, but this should be done cautiously: for example, note that if you await async operations such as
+ * these in an Update or Signal handler, then you are responsible for ensuring that the workflow does not complete first.
+ *
+ * Query handlers may **not** be async functions, and may **not** mutate any variables or use Activities, Timers,
+ * child Workflows, etc.
  *
  * #### Implementation
  *
- * <!--SNIPSTART typescript-workflow-signal-implementation-->
+ * <!--SNIPSTART typescript-workflow-update-signal-query-example-->
  * <!--SNIPEND-->
  *
  * ### More
@@ -57,6 +60,8 @@ export {
   PayloadConverter,
   RetryPolicy,
   rootCause,
+  SearchAttributes, // eslint-disable-line deprecation/deprecation
+  SearchAttributeValue, // eslint-disable-line deprecation/deprecation
   ServerFailure,
   TemporalFailure,
   TerminatedFailure,
@@ -68,8 +73,6 @@ export {
   ActivityInterface, // eslint-disable-line deprecation/deprecation
   Payload,
   QueryDefinition,
-  SearchAttributes,
-  SearchAttributeValue,
   SignalDefinition,
   UntypedActivities,
   Workflow,
@@ -89,16 +92,35 @@ export {
   ContinueAsNew,
   ContinueAsNewOptions,
   EnhancedStackTrace,
-  FileLocation,
-  FileSlice,
+  StackTraceFileLocation,
+  StackTraceFileSlice,
   ParentClosePolicy,
   ParentWorkflowInfo,
-  SDKInfo,
+  RootWorkflowInfo,
+  StackTraceSDKInfo,
   StackTrace,
   UnsafeWorkflowInfo,
   WorkflowInfo,
 } from './interfaces';
-export { LoggerSinks, Sink, SinkCall, SinkFunction, Sinks } from './sinks';
+export { proxySinks, Sink, SinkCall, SinkFunction, Sinks } from './sinks';
+export { log } from './logs';
 export { Trigger } from './trigger';
 export * from './workflow';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
+export { metricMeter } from './metrics';
+
+export { createNexusClient, NexusClientOptions, NexusClient, NexusOperationHandle } from './nexus';
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Deprecated APIs
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export {
+  /**
+   * @deprecated Do not use LoggerSinks directly. To log from Workflow code, use the `log` object
+   *             exported by the `@temporalio/workflow` package. To capture log messages emitted
+   *             by Workflow code, set the {@link Runtime.logger} property.
+   */
+  // eslint-disable-next-line deprecation/deprecation
+  LoggerSinksDeprecated as LoggerSinks,
+} from './logs';

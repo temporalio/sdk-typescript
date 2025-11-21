@@ -1,15 +1,15 @@
 import { randomUUID } from 'crypto';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
 import {
   DefaultFailureConverter,
   ApplicationFailure,
   DataConverter,
   DefaultEncodedFailureAttributes,
+  TemporalFailure,
 } from '@temporalio/common';
 import { proxyActivities } from '@temporalio/workflow';
 import { WorkflowFailedError } from '@temporalio/client';
 import { decodeFromPayloadsAtIndex } from '@temporalio/common/lib/internal-non-workflow';
-import { test, bundlerOptions, ByteSkewerPayloadCodec, Worker } from './helpers';
+import { test, bundlerOptions, ByteSkewerPayloadCodec, Worker, TestWorkflowEnvironment } from './helpers';
 
 export const failureConverter = new DefaultFailureConverter({ encodeCommonAttributes: true });
 
@@ -46,6 +46,10 @@ test('Client and Worker use provided failureConverter', async (t) => {
     const handle = await env.client.workflow.start(workflow, { taskQueue, workflowId: randomUUID() });
     const err = (await worker.runUntil(t.throwsAsync(handle.result()))) as WorkflowFailedError;
     t.is(err.cause?.message, 'Activity task failed');
+    if (!(err.cause instanceof TemporalFailure)) {
+      t.fail('expected error cause to be a TemporalFailure');
+      return;
+    }
     t.is(err.cause?.cause?.message, 'error message');
     t.true(err.cause?.cause?.stack?.includes('ApplicationFailure: error message\n'));
 

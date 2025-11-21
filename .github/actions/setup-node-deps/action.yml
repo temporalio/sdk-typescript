@@ -1,0 +1,64 @@
+name: 'Setup Node and Install Dependencies'
+description: 'Sets up Node.js, configures NPM cache, and installs dependencies with retry logic'
+
+inputs:
+  node-version:
+    description: 'Version of Node.js to install'
+    required: false
+    default: '22'
+  platform:
+    description: 'Platform identifier for cache key (e.g., linux-x64, macos-arm, windows-x64)'
+    required: true
+  save-cache:
+    description: 'Whether to save the NPM cache at the end'
+    required: false
+    default: 'false'
+
+outputs:
+  cache-dir:
+    description: 'Path to the NPM cache directory'
+    value: ${{ steps.npm-cache-dir.outputs.dir }}
+  cache-hit:
+    description: 'Whether the cache was restored successfully'
+    value: ${{ steps.restore-cache.outputs.cache-hit }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: '10'
+        run_install: false
+
+    - name: Install Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'pnpm'
+
+    - name: Get PNPM store directory
+      id: npm-cache-dir
+      shell: bash
+      run: echo "dir=$(pnpm store path)" >> ${GITHUB_OUTPUT}
+
+    - name: Restore PNPM store
+      id: restore-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.npm-cache-dir.outputs.dir }}
+        key: pnpm-main-${{ inputs.platform }}-${{ hashFiles('./pnpm-lock.yaml') }}
+        restore-keys: |
+          pnpm-main-${{ inputs.platform }}-
+
+    - name: Download dependencies
+      shell: bash
+      run: |
+        pnpm install --frozen-lockfile
+
+    - name: Save PNPM store
+      if: inputs.save-cache == 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.npm-cache-dir.outputs.dir }}
+        key: pnpm-main-${{ inputs.platform }}-${{ hashFiles('./pnpm-lock.yaml') }}

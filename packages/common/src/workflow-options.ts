@@ -1,60 +1,150 @@
-import type { temporal, google } from '@temporalio/proto';
-import { SearchAttributes, Workflow } from './interfaces';
+import type { temporal } from '@temporalio/proto';
+import { Workflow } from './interfaces';
 import { RetryPolicy } from './retry-policy';
-import { Duration, msOptionalToTs } from './time';
-import { checkExtends, Replace } from './type-helpers';
+import { Duration } from './time';
+import { makeProtoEnumConverters } from './internal-workflow';
+import { SearchAttributePair, SearchAttributes, TypedSearchAttributes } from './search-attributes';
+import { Priority } from './priority';
+import { WorkflowFunctionWithOptions } from './workflow-definition-options';
 
-// Avoid importing the proto implementation to reduce workflow bundle size
-// Copied from temporal.api.enums.v1.WorkflowIdReusePolicy
 /**
+ * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
+ *
+ * See {@link WorkflowOptions.workflowIdConflictPolicy} for what happens when trying to start a
+ * Workflow with the same ID as a *Running* Workflow.
+ *
  * Concept: {@link https://docs.temporal.io/concepts/what-is-a-workflow-id-reuse-policy/ | Workflow Id Reuse Policy}
  *
- * Whether a Workflow can be started with a Workflow Id of a Closed Workflow.
+ * *Note: It is not possible to have two actively running Workflows with the same ID.*
  *
- * *Note: A Workflow can never be started with a Workflow Id of a Running Workflow.*
  */
-export enum WorkflowIdReusePolicy {
-  /**
-   * No need to use this.
-   *
-   * (If a `WorkflowIdReusePolicy` is set to this, or is not set at all, the default value will be used.)
-   */
-  WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED = 0,
-
+export const WorkflowIdReusePolicy = {
   /**
    * The Workflow can be started if the previous Workflow is in a Closed state.
    * @default
    */
-  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE = 1,
+  ALLOW_DUPLICATE: 'ALLOW_DUPLICATE',
 
   /**
    * The Workflow can be started if the previous Workflow is in a Closed state that is not Completed.
    */
-  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY = 2,
+  ALLOW_DUPLICATE_FAILED_ONLY: 'ALLOW_DUPLICATE_FAILED_ONLY',
 
   /**
    * The Workflow cannot be started.
    */
-  WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE = 3,
+  REJECT_DUPLICATE: 'REJECT_DUPLICATE',
 
   /**
-   * Terminate the current workflow if one is already running.
+   * Terminate the current Workflow if one is already running; otherwise allow reusing the Workflow ID.
+   *
+   * @deprecated Use {@link WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE} instead, and
+   *             set `WorkflowOptions.workflowIdConflictPolicy` to
+   *             {@link WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING}.
+   *             When using this option, `WorkflowOptions.workflowIdConflictPolicy` must be left unspecified.
    */
-  WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING = 4,
-}
+  TERMINATE_IF_RUNNING: 'TERMINATE_IF_RUNNING', // eslint-disable-line deprecation/deprecation
 
-checkExtends<temporal.api.enums.v1.WorkflowIdReusePolicy, WorkflowIdReusePolicy>();
-checkExtends<WorkflowIdReusePolicy, temporal.api.enums.v1.WorkflowIdReusePolicy>();
+  /// Anything below this line has been deprecated
+
+  /**
+   * No need to use this. If a `WorkflowIdReusePolicy` is set to this, or is not set at all, the default value will be used.
+   *
+   * @deprecated Either leave property `undefined`, or use {@link ALLOW_DUPLICATE} instead.
+   */
+  WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link ALLOW_DUPLICATE} instead. */
+  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE: 'ALLOW_DUPLICATE', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link ALLOW_DUPLICATE_FAILED_ONLY} instead. */
+  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY: 'ALLOW_DUPLICATE_FAILED_ONLY', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link REJECT_DUPLICATE} instead. */
+  WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE: 'REJECT_DUPLICATE', // eslint-disable-line deprecation/deprecation
+
+  /** @deprecated Use {@link TERMINATE_IF_RUNNING} instead. */
+  WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING: 'TERMINATE_IF_RUNNING', // eslint-disable-line deprecation/deprecation
+} as const;
+export type WorkflowIdReusePolicy = (typeof WorkflowIdReusePolicy)[keyof typeof WorkflowIdReusePolicy];
+
+export const [encodeWorkflowIdReusePolicy, decodeWorkflowIdReusePolicy] = makeProtoEnumConverters<
+  temporal.api.enums.v1.WorkflowIdReusePolicy,
+  typeof temporal.api.enums.v1.WorkflowIdReusePolicy,
+  keyof typeof temporal.api.enums.v1.WorkflowIdReusePolicy,
+  typeof WorkflowIdReusePolicy,
+  'WORKFLOW_ID_REUSE_POLICY_'
+>(
+  {
+    [WorkflowIdReusePolicy.ALLOW_DUPLICATE]: 1,
+    [WorkflowIdReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY]: 2,
+    [WorkflowIdReusePolicy.REJECT_DUPLICATE]: 3,
+    [WorkflowIdReusePolicy.TERMINATE_IF_RUNNING]: 4, // eslint-disable-line deprecation/deprecation
+    UNSPECIFIED: 0,
+  } as const,
+  'WORKFLOW_ID_REUSE_POLICY_'
+);
+
+/**
+ * Defines what happens when trying to start a Workflow with the same ID as a *Running* Workflow.
+ *
+ * See {@link WorkflowOptions.workflowIdReusePolicy} for what happens when trying to start a Workflow
+ * with the same ID as a *Closed* Workflow.
+ *
+ * *Note: It is never possible to have two _actively running_ Workflows with the same ID.*
+ */
+export type WorkflowIdConflictPolicy = (typeof WorkflowIdConflictPolicy)[keyof typeof WorkflowIdConflictPolicy];
+export const WorkflowIdConflictPolicy = {
+  /**
+   * Do not start a new Workflow. Instead raise a `WorkflowExecutionAlreadyStartedError`.
+   */
+  FAIL: 'FAIL',
+
+  /**
+   * Do not start a new Workflow. Instead return a Workflow Handle for the already Running Workflow.
+   */
+  USE_EXISTING: 'USE_EXISTING',
+
+  /**
+   * Start a new Workflow, terminating the current workflow if one is already running.
+   */
+  TERMINATE_EXISTING: 'TERMINATE_EXISTING',
+} as const;
+
+export const [encodeWorkflowIdConflictPolicy, decodeWorkflowIdConflictPolicy] = makeProtoEnumConverters<
+  temporal.api.enums.v1.WorkflowIdConflictPolicy,
+  typeof temporal.api.enums.v1.WorkflowIdConflictPolicy,
+  keyof typeof temporal.api.enums.v1.WorkflowIdConflictPolicy,
+  typeof WorkflowIdConflictPolicy,
+  'WORKFLOW_ID_CONFLICT_POLICY_'
+>(
+  {
+    [WorkflowIdConflictPolicy.FAIL]: 1,
+    [WorkflowIdConflictPolicy.USE_EXISTING]: 2,
+    [WorkflowIdConflictPolicy.TERMINATE_EXISTING]: 3,
+    UNSPECIFIED: 0,
+  } as const,
+  'WORKFLOW_ID_CONFLICT_POLICY_'
+);
 
 export interface BaseWorkflowOptions {
   /**
-   * Whether a Workflow can be started with a Workflow Id of a Closed Workflow.
+   * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
    *
-   * *Note: A Workflow can never be started with a Workflow Id of a Running Workflow.*
+   * *Note: It is not possible to have two actively running Workflows with the same ID.*
    *
    * @default {@link WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE}
    */
   workflowIdReusePolicy?: WorkflowIdReusePolicy;
+
+  /**
+   * Defines what happens when trying to start a Workflow with the same ID as a *Running* Workflow.
+   *
+   * *Note: It is not possible to have two actively running Workflows with the same ID.*
+   *
+   * @default {@link WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_UNSPECIFIED}
+   */
+  workflowIdConflictPolicy?: WorkflowIdConflictPolicy;
 
   /**
    * Controls how a Workflow Execution is retried.
@@ -86,8 +176,42 @@ export interface BaseWorkflowOptions {
    * https://docs.temporal.io/docs/typescript/search-attributes
    *
    * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
+   *
+   * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes?: SearchAttributes;
+  searchAttributes?: SearchAttributes; // eslint-disable-line deprecation/deprecation
+
+  /**
+   * Specifies additional indexed information to attach to the Workflow Execution. More info:
+   * https://docs.temporal.io/docs/typescript/search-attributes
+   *
+   * Values are always converted using {@link JsonPayloadConverter}, even when a custom data converter is provided.
+   * Note that search attributes are not encoded, as such, do not include any sensitive information.
+   *
+   * If both {@link searchAttributes} and {@link typedSearchAttributes} are provided, conflicting keys will be overwritten
+   * by {@link typedSearchAttributes}.
+   */
+  typedSearchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
+
+  /**
+   * General fixed details for this workflow execution that may appear in UI/CLI.
+   * This can be in Temporal markdown format and can span multiple lines.
+   *
+   * @experimental User metadata is a new API and susceptible to change.
+   */
+  staticDetails?: string;
+  /**
+   * A single-line fixed summary for this workflow execution that may appear in the UI/CLI.
+   * This can be in single-line Temporal markdown format.
+   *
+   * @experimental User metadata is a new API and susceptible to change.
+   */
+  staticSummary?: string;
+
+  /**
+   * Priority of a workflow
+   */
+  priority?: Priority;
 }
 
 export type WithWorkflowArgs<W extends Workflow, T> = T &
@@ -135,27 +259,9 @@ export interface WorkflowDurationOptions {
 
 export type CommonWorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
 
-export type WithCompiledWorkflowOptions<T extends CommonWorkflowOptions> = Replace<
-  T,
-  {
-    workflowExecutionTimeout?: google.protobuf.IDuration;
-    workflowRunTimeout?: google.protobuf.IDuration;
-    workflowTaskTimeout?: google.protobuf.IDuration;
-  }
->;
-
-export function compileWorkflowOptions<T extends CommonWorkflowOptions>(options: T): WithCompiledWorkflowOptions<T> {
-  const { workflowExecutionTimeout, workflowRunTimeout, workflowTaskTimeout, ...rest } = options;
-
-  return {
-    ...rest,
-    workflowExecutionTimeout: msOptionalToTs(workflowExecutionTimeout),
-    workflowRunTimeout: msOptionalToTs(workflowRunTimeout),
-    workflowTaskTimeout: msOptionalToTs(workflowTaskTimeout),
-  };
-}
-
-export function extractWorkflowType<T extends Workflow>(workflowTypeOrFunc: string | T): string {
+export function extractWorkflowType<T extends Workflow>(
+  workflowTypeOrFunc: string | T | WorkflowFunctionWithOptions<any[], any>
+): string {
   if (typeof workflowTypeOrFunc === 'string') return workflowTypeOrFunc as string;
   if (typeof workflowTypeOrFunc === 'function') {
     if (workflowTypeOrFunc?.name) return workflowTypeOrFunc.name;

@@ -1,0 +1,41 @@
+{
+  "name": "@temporalio/nexus",
+  "version": "1.13.2",
+  "description": "Temporal.io SDK Nexus sub-package",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "keywords": [
+    "temporal",
+    "workflow",
+    "worker",
+    "nexus"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/proto": "workspace:*",
+    "long": "^5.2.3",
+    "nexus-rpc": "^0.0.1"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "packages/nexus"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/nexus",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">= 18.0.0"
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
+}

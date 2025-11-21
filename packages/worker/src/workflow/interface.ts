@@ -1,6 +1,6 @@
-import { coresdk } from '@temporalio/proto';
-import { SinkCall } from '@temporalio/workflow';
-import { WorkflowCreateOptions } from '@temporalio/workflow/lib/interfaces';
+import { type coresdk } from '@temporalio/proto';
+import { type SinkCall } from '@temporalio/workflow';
+import { type WorkflowCreateOptions } from '@temporalio/workflow/lib/interfaces';
 
 export { WorkflowCreateOptions };
 
@@ -9,7 +9,7 @@ export interface Workflow {
    * Activate the Workflow.
    *
    * This method should return a completion after processing a single activation.
-   * It is guaranteed to that only a single activation will be processed concurrently for a Workflow execution.
+   * It is guaranteed that only a single activation will be processed concurrently for a Workflow execution.
    */
   activate(
     activation: coresdk.workflow_activation.IWorkflowActivation
@@ -34,6 +34,8 @@ export interface Workflow {
 export interface WorkflowCreator {
   /**
    * Create a Workflow for the Worker to activate
+   *
+   * Note: this needs to be async because of the ThreadedWorkflowCreator.
    */
   createWorkflow(options: WorkflowCreateOptions): Promise<Workflow>;
 

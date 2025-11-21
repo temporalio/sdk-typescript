@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/common",
-  "version": "1.8.6",
+  "version": "1.13.2",
   "description": "Common library for code that's used across the Client, Worker, and/or Workflow",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -12,11 +12,13 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@opentelemetry/api": "^1.4.1",
-    "@temporalio/proto": "file:../proto",
-    "long": "^5.2.0",
-    "ms": "^3.0.0-canary.1",
-    "proto3-json-serializer": "^1.0.3",
+    "@temporalio/proto": "workspace:*",
+    "long": "^5.2.3",
+    "ms": "3.0.0-canary.1",
+    "nexus-rpc": "^0.0.1",
+    "proto3-json-serializer": "^2.0.0"
+  },
+  "devDependencies": {
     "protobufjs": "^7.2.5"
   },
   "bugs": {
@@ -30,6 +32,9 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/common",
   "publishConfig": {
     "access": "public"
+  },
+  "engines": {
+    "node": ">= 18.0.0"
   },
   "files": [
     "src",

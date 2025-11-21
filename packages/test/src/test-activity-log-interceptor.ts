@@ -1,175 +1,193 @@
 import test from 'ava';
-import {
-  ActivityInboundLogInterceptor,
-  activityLogAttributes,
-  DefaultLogger,
-  LogEntry,
-  Runtime,
-} from '@temporalio/worker';
+import { ActivityInboundLogInterceptor, DefaultLogger, LogEntry, Runtime } from '@temporalio/worker';
+import { activityLogAttributes } from '@temporalio/worker/lib/activity';
 import { MockActivityEnvironment, defaultActivityInfo } from '@temporalio/testing';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import { isCancellation } from '@temporalio/workflow';
+import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import * as activity from '@temporalio/activity';
+import { SdkComponent } from '@temporalio/common';
 import { withZeroesHTTPServer } from './zeroes-http-server';
-import { cancellableFetch } from './activities/cancellable-fetch';
+import { cancellableFetch } from './activities';
 
 interface MyTestActivityContext extends activity.Context {
   logs: Array<LogEntry>;
 }
 
-test.before(() => {
-  const mockLogger = new DefaultLogger('DEBUG', (entry) => {
+const mockLogger = new DefaultLogger('DEBUG', (entry) => {
+  try {
     (activity.Context.current() as MyTestActivityContext).logs ??= [];
     (activity.Context.current() as MyTestActivityContext).logs.push(entry);
-  });
-  Runtime.install({
-    logger: mockLogger,
-  });
-});
-
-test("Activity Context's logger defaults to Runtime's Logger", async (t) => {
-  const env = new MockActivityEnvironment();
-  const logs: LogEntry[] = await env.run(async () => {
-    const ctx = activity.Context.current();
-    ctx.log.debug('log message from activity');
-    return (ctx as MyTestActivityContext).logs;
-  });
-  const activityLogEntry = logs.find((entry) => entry.message === 'log message from activity');
-  t.not(activityLogEntry, undefined);
-  t.is(activityLogEntry?.level, 'DEBUG');
-});
-
-test("Activity Log Interceptor dont override Context's logger by default", async (t) => {
-  const env = new MockActivityEnvironment();
-  const logs: LogEntry[] = await env.run(async () => {
-    const ctx = activity.Context.current();
-    const interceptor = new ActivityInboundLogInterceptor(ctx);
-    const execute = composeInterceptors([interceptor], 'execute', async () => {
-      ctx.log.debug('log message from activity');
-    });
-    try {
-      await execute({ args: [], headers: {} });
-    } catch {
-      // ignore
-    }
-    return (ctx as MyTestActivityContext).logs;
-  });
-  const activityLogEntry = logs.find((entry) => entry.message === 'log message from activity');
-  t.not(activityLogEntry, undefined);
-  t.is(activityLogEntry?.level, 'DEBUG');
-});
-
-async function runActivity(
-  fn: activity.ActivityFunction,
-  heartbeatCallback = (_env: MockActivityEnvironment) => {
-    // not an empty body eslint
+  } catch (e) {
+    // Ignore messages produced from non activity context
+    if ((e as Error).message !== 'Activity context not initialized') throw e;
   }
-): Promise<LogEntry[]> {
-  const logs = Array<LogEntry>();
-  const env = new MockActivityEnvironment();
-  env.on('heartbeat', () => heartbeatCallback(env));
+});
+Runtime.install({
+  logger: mockLogger,
+});
+
+test('Activity Context logger funnel through the parent Logger', async (t) => {
+  const env = new MockActivityEnvironment({}, { logger: mockLogger });
   await env.run(async () => {
-    const ctx = activity.Context.current();
-    const interceptor = new ActivityInboundLogInterceptor(
-      ctx,
-      new DefaultLogger('DEBUG', (entry) => {
-        logs.push(entry);
-      })
-    );
-    const execute = composeInterceptors([interceptor], 'execute', fn);
-    try {
-      await execute({ args: [], headers: {} });
-    } catch {
-      // ignore
-    }
+    activity.log.debug('log message from activity');
   });
-  return logs;
-}
-
-test('ActivityInboundLogInterceptor overrides Context logger if specified', async (t) => {
-  const logs = await runActivity(async () => {
-    activity.Context.current().log.debug('log message from activity');
-  });
-  t.is(logs.length, 3);
-  const [_, midLog] = logs;
-  t.is(midLog.level, 'DEBUG');
-  t.is(midLog.message, 'log message from activity');
-  t.deepEqual(midLog.meta, activityLogAttributes(defaultActivityInfo));
+  const logs = (env.context as MyTestActivityContext).logs;
+  const entry = logs.find((x) => x.level === 'DEBUG' && x.message === 'log message from activity');
+  t.not(entry, undefined);
+  t.deepEqual(entry?.meta, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.activity });
 });
 
-test('ActivityInboundLogInterceptor logs when activity starts', async (t) => {
-  const logs = await runActivity(async () => {
-    // not an empty body eslint
+test('Activity Worker logs when activity starts', async (t) => {
+  const env = new MockActivityEnvironment({}, { logger: mockLogger });
+  await env.run(async () => {
+    activity.log.debug('log message from activity');
   });
-  t.is(logs.length, 2);
-  const [startLog] = logs;
-  t.is(startLog.level, 'DEBUG');
-  t.is(startLog.message, 'Activity started');
-  t.deepEqual(startLog.meta, activityLogAttributes(defaultActivityInfo));
+  const logs = (env.context as MyTestActivityContext).logs;
+  const entry = logs.find((x) => x.level === 'DEBUG' && x.message === 'Activity started');
+  t.not(entry, undefined);
+  t.deepEqual(entry?.meta, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 
-test('ActivityInboundLogInterceptor logs warning when activity fails', async (t) => {
+test('Activity Worker logs warning when activity fails', async (t) => {
   const err = new Error('Failed for test');
-  const logs = await runActivity(async () => {
-    throw err;
-  });
-  t.is(logs.length, 2);
-  const [_, endLog] = logs;
-  t.is(endLog.level, 'WARN');
-  t.is(endLog.message, 'Activity failed');
-  const { durationMs, error, ...rest } = endLog.meta ?? {};
+  const env = new MockActivityEnvironment({}, { logger: mockLogger });
+  try {
+    await env.run(async () => {
+      throw err;
+    });
+  } catch (e) {
+    if (e !== err) throw e;
+  }
+  const logs = (env.context as MyTestActivityContext).logs;
+  console.log(logs);
+  const entry = logs.find((entry) => entry.level === 'WARN' && entry.message === 'Activity failed');
+  t.not(entry, undefined);
+  const { durationMs, error, ...rest } = entry?.meta ?? {};
   t.true(Number.isInteger(durationMs));
   t.is(err, error);
-  t.deepEqual(rest, activityLogAttributes(defaultActivityInfo));
+  t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 
-test('ActivityInboundLogInterceptor logs when activity completes async', async (t) => {
-  const logs = await runActivity(async () => {
-    throw new activity.CompleteAsyncError();
-  });
-  t.is(logs.length, 2);
-  const [_, endLog] = logs;
-  t.is(endLog.level, 'DEBUG');
-  t.is(endLog.message, 'Activity will complete asynchronously');
-  const { durationMs, ...rest } = endLog.meta ?? {};
+test('Activity Worker logs when activity completes async', async (t) => {
+  const env = new MockActivityEnvironment({}, { logger: mockLogger });
+  try {
+    await env.run(async () => {
+      throw new activity.CompleteAsyncError();
+    });
+  } catch (e) {
+    if (!(e instanceof activity.CompleteAsyncError)) throw e;
+  }
+  const logs = (env.context as MyTestActivityContext).logs;
+  const entry = logs.find((x) => x.level === 'DEBUG' && x.message === 'Activity will complete asynchronously');
+  t.not(entry, undefined);
+  const { durationMs, ...rest } = entry?.meta ?? {};
   t.true(Number.isInteger(durationMs));
-  t.deepEqual(rest, activityLogAttributes(defaultActivityInfo));
+  t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 
-test('ActivityInboundLogInterceptor logs when activity is cancelled with promise', async (t) => {
-  const logs = await runActivity(
-    async () => {
+test('Activity Worker logs when activity is cancelled with promise', async (t) => {
+  const env = new MockActivityEnvironment({}, { logger: mockLogger });
+  env.on('heartbeat', () => env.cancel());
+  try {
+    await env.run(async () => {
       activity.Context.current().heartbeat();
       await activity.Context.current().cancelled;
-    },
-    (env) => {
-      env.cancel();
-    }
-  );
-  t.is(logs.length, 2);
-  const [_, endLog] = logs;
-  t.is(endLog.level, 'DEBUG');
-  t.is(endLog.message, 'Activity completed as cancelled');
-  const { durationMs, ...rest } = endLog.meta ?? {};
+    });
+  } catch (e) {
+    if (!isCancellation(e)) throw e;
+  }
+  const logs = (env.context as MyTestActivityContext).logs;
+  const entry = logs.find((x) => x.level === 'DEBUG' && x.message === 'Activity completed as cancelled');
+  t.not(entry, undefined);
+  const { durationMs, ...rest } = entry?.meta ?? {};
   t.true(Number.isInteger(durationMs));
-  t.deepEqual(rest, activityLogAttributes(defaultActivityInfo));
+  t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 
-test('ActivityInboundLogInterceptor logs when activity is cancelled with signal', async (t) => {
-  const logs = await runActivity(
-    async () => {
+test('Activity Worker logs when activity is cancelled with signal', async (t) => {
+  const env = new MockActivityEnvironment({}, { logger: mockLogger });
+  env.on('heartbeat', () => env.cancel());
+  try {
+    await env.run(async () => {
       await withZeroesHTTPServer(async (port) => {
         await cancellableFetch(`http:127.0.0.1:${port}`);
       });
-    },
-    (env) => {
-      env.cancel();
+    });
+  } catch (e) {
+    if (!isAbortError(e)) throw e;
+  }
+  const logs = (env.context as MyTestActivityContext).logs;
+  const entry = logs.find((x) => x.level === 'DEBUG' && x.message === 'Activity completed as cancelled');
+  t.not(entry, undefined);
+  const { durationMs, ...rest } = entry?.meta ?? {};
+  t.true(Number.isInteger(durationMs));
+  t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
+});
+
+test('(Legacy) ActivityInboundLogInterceptor does not override Context.log by default', async (t) => {
+  const env = new MockActivityEnvironment(
+    {},
+    {
+      // eslint-disable-next-line deprecation/deprecation
+      interceptors: [(ctx) => ({ inbound: new ActivityInboundLogInterceptor(ctx) })],
+      logger: mockLogger,
     }
   );
-  t.is(logs.length, 2);
-  const [_, endLog] = logs;
-  t.is(endLog.level, 'DEBUG');
-  t.is(endLog.message, 'Activity completed as cancelled');
-  const { durationMs, ...rest } = endLog.meta ?? {};
-  t.true(Number.isInteger(durationMs));
-  t.deepEqual(rest, activityLogAttributes(defaultActivityInfo));
+  await env.run(async () => {
+    activity.log.debug('log message from activity');
+  });
+  const logs = (env.context as MyTestActivityContext).logs;
+  const activityLogEntry = logs.find((entry) => entry.message === 'log message from activity');
+  t.not(activityLogEntry, undefined);
+  t.is(activityLogEntry?.level, 'DEBUG');
+});
+
+test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if a logger is specified', async (t) => {
+  const logs: LogEntry[] = [];
+  const logger = new DefaultLogger('DEBUG', (entry) => {
+    logs.push(entry);
+  });
+  const env = new MockActivityEnvironment(
+    {},
+    {
+      // eslint-disable-next-line deprecation/deprecation
+      interceptors: [(ctx) => ({ inbound: new ActivityInboundLogInterceptor(ctx, logger) })],
+      logger: mockLogger,
+    }
+  );
+  await env.run(async () => {
+    activity.log.debug('log message from activity');
+  });
+  const entry = logs.find((x) => x.level === 'DEBUG' && x.message === 'log message from activity');
+  t.not(entry, undefined);
+});
+
+test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if class is extended', async (t) => {
+  // eslint-disable-next-line deprecation/deprecation
+  class CustomActivityInboundLogInterceptor extends ActivityInboundLogInterceptor {
+    protected logAttributes(): Record<string, unknown> {
+      const { namespace: _, ...rest } = super.logAttributes();
+      return {
+        ...rest,
+        custom: 'attribute',
+      };
+    }
+  }
+  const env = new MockActivityEnvironment(
+    {},
+    {
+      interceptors: [(ctx) => ({ inbound: new CustomActivityInboundLogInterceptor(ctx) })],
+      logger: mockLogger,
+    }
+  );
+  await env.run(async () => {
+    activity.log.debug('log message from activity');
+  });
+  const logs = (env.context as MyTestActivityContext).logs;
+  const activityLogEntry = logs.find((entry) => entry.message === 'log message from activity');
+  t.not(activityLogEntry, undefined);
+  t.is(activityLogEntry?.level, 'DEBUG');
+  t.is(activityLogEntry?.meta?.taskQueue, env.context.info.taskQueue);
+  t.is(activityLogEntry?.meta?.custom, 'attribute');
+  t.false('namespace' in (activityLogEntry?.meta ?? {}));
 });

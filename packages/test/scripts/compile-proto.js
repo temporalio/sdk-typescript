@@ -14,7 +14,7 @@ const moduleOutputFile = resolve(outputDir, 'json-module.js');
 const typesOutputFile = resolve(outputDir, 'root.d.ts');
 const tempFile = resolve(outputDir, 'temp.js');
 const protoBaseDir = resolve(__dirname, '../protos');
-const protoFiles = glob.sync(protoBaseDir + '/*.proto');
+const protoFiles = glob.sync('*.proto', { cwd: protoBaseDir, absolute: true, root: '' });
 
 function mtime(path) {
   try {

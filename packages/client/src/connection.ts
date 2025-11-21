@@ -1,40 +1,78 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as grpc from '@grpc/grpc-js';
-import type { RPCImpl } from 'protobufjs';
-import { filterNullAndUndefined, normalizeTlsConfig, TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
+import type * as proto from 'protobufjs';
+import {
+  normalizeTlsConfig,
+  TLSConfig,
+  normalizeGrpcEndpointAddress,
+} from '@temporalio/common/lib/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { Duration, msOptionalToNumber } from '@temporalio/common/lib/time';
+import { type temporal } from '@temporalio/proto';
 import { isGrpcServiceError, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 import pkg from './pkg';
-import { CallContext, HealthService, Metadata, OperatorService, WorkflowService } from './types';
+import { CallContext, HealthService, Metadata, OperatorService, TestService, WorkflowService } from './types';
+
+/**
+ * The default Temporal Server's TCP port for public gRPC connections.
+ */
+const DEFAULT_TEMPORAL_GRPC_PORT = 7233;
 
 /**
  * gRPC and Temporal Server connection options
  */
 export interface ConnectionOptions {
   /**
-   * Server hostname and optional port.
-   * Port defaults to 7233 if address contains only host.
+   * The address of the Temporal server to connect to, in `hostname:port` format.
+   *
+   * Port defaults to 7233. Raw IPv6 addresses must be wrapped in square brackets (e.g. `[ipv6]:port`).
    *
    * @default localhost:7233
    */
   address?: string;
 
   /**
-   * TLS configuration.
-   * Pass a falsy value to use a non-encrypted connection or `true` or `{}` to
-   * connect with TLS without any customization.
+   * TLS configuration. Pass a falsy value to use a non-encrypted connection,
+   * or `true` or `{}` to connect with TLS without any customization.
+   *
+   * For advanced scenario, a prebuilt {@link grpc.ChannelCredentials} object
+   * may instead be specified using the {@link credentials} property.
    *
    * Either {@link credentials} or this may be specified for configuring TLS
+   *
+   * @default TLS is disabled
    */
   tls?: TLSConfig | boolean | null;
 
   /**
-   * Channel credentials, create using the factory methods defined {@link https://grpc.github.io/grpc/node/grpc.credentials.html | here}
+   * gRPC channel credentials.
+   *
+   * `ChannelCredentials` are things like SSL credentials that can be used to secure a connection.
+   * There may be only one `ChannelCredentials`. They can be created using some of the factory
+   * methods defined {@link https://grpc.github.io/grpc/node/grpc.credentials.html | here}
+   *
+   * Specifying a prebuilt `ChannelCredentials` should only be required for advanced use cases.
+   * For simple TLS use cases, using the {@link tls} property is recommended. To register
+   * `CallCredentials` (eg. metadata-based authentication), use the {@link callCredentials} property.
    *
    * Either {@link tls} or this may be specified for configuring TLS
    */
   credentials?: grpc.ChannelCredentials;
+
+  /**
+   * gRPC call credentials.
+   *
+   * `CallCredentials` generaly modify metadata; they can be attached to a connection to affect all method
+   * calls made using that connection. They can be created using some of the factory methods defined
+   * {@link https://grpc.github.io/grpc/node/grpc.credentials.html | here}
+   *
+   * If `callCredentials` are specified, they will be composed with channel credentials
+   * (either the one created implicitely by using the {@link tls} option, or the one specified
+   * explicitly through {@link credentials}). Notice that gRPC doesn't allow registering
+   * `callCredentials` on insecure connections.
+   */
+  callCredentials?: grpc.CallCredentials[];
 
   /**
    * GRPC Channel arguments
@@ -67,10 +105,20 @@ export interface ConnectionOptions {
 
   /**
    * Optional mapping of gRPC metadata (HTTP headers) to send with each request to the server.
+   * Setting the `Authorization` header is mutually exclusive with the {@link apiKey} option.
    *
    * In order to dynamically set metadata, use {@link Connection.withMetadata}
    */
   metadata?: Metadata;
+
+  /**
+   * API key for Temporal. This becomes the "Authorization" HTTP header with "Bearer " prepended.
+   * This is mutually exclusive with the `Authorization` header in {@link ConnectionOptions.metadata}.
+   *
+   * You may provide a static string or a callback. Also see {@link Connection.withApiKey} or
+   * {@link Connection.setApiKey}
+   */
+  apiKey?: string | (() => string);
 
   /**
    * Milliseconds to wait until establishing a connection with the server.
@@ -82,13 +130,42 @@ export interface ConnectionOptions {
    * @default 10 seconds
    */
   connectTimeout?: Duration;
+
+  /**
+   * List of plugins to register with the connection.
+   *
+   * Plugins allow you to configure the connection options.
+   * Any plugins provided will also be passed to any client built from this connection.
+   *
+   * @experimental Plugins is an experimental feature; APIs may change without notice.
+   */
+  plugins?: ConnectionPlugin[];
 }
 
-export type ConnectionOptionsWithDefaults = Required<Omit<ConnectionOptions, 'tls' | 'connectTimeout'>> & {
+export type ConnectionOptionsWithDefaults = Required<
+  Omit<ConnectionOptions, 'tls' | 'connectTimeout' | 'callCredentials' | 'apiKey'>
+> & {
   connectTimeoutMs: number;
 };
 
-export const LOCAL_TARGET = '127.0.0.1:7233';
+/**
+ * A symbol used to attach extra, SDK-internal connection options.
+ *
+ * @internal
+ * @hidden
+ */
+export const InternalConnectionOptionsSymbol = Symbol('__temporal_internal_connection_options');
+export type InternalConnectionOptions = ConnectionOptions & {
+  [InternalConnectionOptionsSymbol]?: {
+    /**
+     * Indicate whether the `TestService` should be enabled on this connection. This is set to true
+     * on connections created internally by `TestWorkflowEnvironment.createTimeSkipping()`.
+     */
+    supportsTestService?: boolean;
+  };
+};
+
+export const LOCAL_TARGET = 'localhost:7233';
 
 function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults {
   const { channelArgs, interceptors, connectTimeout, ...rest } = options;
@@ -99,11 +176,13 @@ function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults 
       'grpc.keepalive_permit_without_calls': 1,
       'grpc.keepalive_time_ms': 30_000,
       'grpc.keepalive_timeout_ms': 15_000,
+      max_receive_message_length: 128 * 1024 * 1024, // 128 MB
       ...channelArgs,
     },
     interceptors: interceptors ?? [makeGrpcRetryInterceptor(defaultGrpcRetryOptions())],
     metadata: {},
     connectTimeoutMs: msOptionalToNumber(connectTimeout) ?? 10_000,
+    plugins: [],
     ...filterNullAndUndefined(rest),
   };
 }
@@ -112,26 +191,38 @@ function addDefaults(options: ConnectionOptions): ConnectionOptionsWithDefaults 
  * - Convert {@link ConnectionOptions.tls} to {@link grpc.ChannelCredentials}
  * - Add the grpc.ssl_target_name_override GRPC {@link ConnectionOptions.channelArgs | channel arg}
  * - Add default port to address if port not specified
+ * - Set `Authorization` header based on {@link ConnectionOptions.apiKey}
  */
-function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
-  const { tls: tlsFromConfig, credentials, ...rest } = options || {};
+function normalizeGRPCConfig(options: ConnectionOptions): ConnectionOptions {
+  const { tls: tlsFromConfig, credentials, callCredentials, ...rest } = options;
+  if (rest.apiKey) {
+    if (rest.metadata?.['Authorization']) {
+      throw new TypeError(
+        'Both `apiKey` option and `Authorization` header were provided, but only one makes sense to use at a time.'
+      );
+    }
+    if (credentials !== undefined) {
+      throw new TypeError(
+        'Both `apiKey` and `credentials` ConnectionOptions were provided, but only one makes sense to use at a time'
+      );
+    }
+  }
   if (rest.address) {
-    // eslint-disable-next-line prefer-const
-    let [host, port] = rest.address.split(':', 2);
-    port = port || '7233';
-    rest.address = `${host}:${port}`;
+    rest.address = normalizeGrpcEndpointAddress(rest.address, DEFAULT_TEMPORAL_GRPC_PORT);
   }
   const tls = normalizeTlsConfig(tlsFromConfig);
   if (tls) {
     if (credentials) {
       throw new TypeError('Both `tls` and `credentials` ConnectionOptions were provided');
     }
+    const serverRootCert = tls.serverRootCACertificate && Buffer.from(tls.serverRootCACertificate);
+    const clientCertKey = tls.clientCertPair?.key && Buffer.from(tls.clientCertPair?.key);
+    const clientCertCrt = tls.clientCertPair?.crt && Buffer.from(tls.clientCertPair?.crt);
     return {
       ...rest,
-      credentials: grpc.credentials.createSsl(
-        tls.serverRootCACertificate,
-        tls.clientCertPair?.key,
-        tls.clientCertPair?.crt
+      credentials: grpc.credentials.combineChannelCredentials(
+        grpc.credentials.createSsl(serverRootCert, clientCertKey, clientCertCrt),
+        ...(callCredentials ?? [])
       ),
       channelArgs: {
         ...rest.channelArgs,
@@ -144,7 +235,13 @@ function normalizeGRPCConfig(options?: ConnectionOptions): ConnectionOptions {
       },
     };
   } else {
-    return rest;
+    return {
+      ...rest,
+      credentials: grpc.credentials.combineChannelCredentials(
+        credentials ?? grpc.credentials.createInsecure(),
+        ...(callCredentials ?? [])
+      ),
+    };
   }
 }
 
@@ -154,33 +251,46 @@ export interface RPCImplOptions {
   callContextStorage: AsyncLocalStorage<CallContext>;
   interceptors?: grpc.Interceptor[];
   staticMetadata: Metadata;
+  apiKeyFnRef: { fn?: () => string };
 }
 
 export interface ConnectionCtorOptions {
   readonly options: ConnectionOptionsWithDefaults;
   readonly client: grpc.Client;
+
   /**
    * Raw gRPC access to the Temporal service.
    *
    * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made to the service.
    */
   readonly workflowService: WorkflowService;
+
   /**
    * Raw gRPC access to the Temporal {@link https://github.com/temporalio/api/blob/ddf07ab9933e8230309850e3c579e1ff34b03f53/temporal/api/operatorservice/v1/service.proto | operator service}.
    */
   readonly operatorService: OperatorService;
+
+  /**
+   * Raw gRPC access to the Temporal test service.
+   *
+   * Will be `undefined` if connected to a server that does not support the test service.
+   */
+  readonly testService: TestService | undefined;
+
   /**
    * Raw gRPC access to the standard gRPC {@link https://github.com/grpc/grpc/blob/92f58c18a8da2728f571138c37760a721c8915a2/doc/health-checking.md | health service}.
    */
   readonly healthService: HealthService;
+
   readonly callContextStorage: AsyncLocalStorage<CallContext>;
+  readonly apiKeyFnRef: { fn?: () => string };
 }
 
 /**
  * Client connection to the Temporal Server
  *
- * ⚠️ Connections are expensive to construct and should be reused. Make sure to {@link close} any unused connections to
- * avoid leaking resources.
+ * ⚠️ Connections are expensive to construct and should be reused.
+ * Make sure to {@link close} any unused connections to avoid leaking resources.
  */
 export class Connection {
   /**
@@ -205,13 +315,44 @@ export class Connection {
   /**
    * Raw gRPC access to Temporal Server's
    * {@link https://github.com/temporalio/api/blob/master/temporal/api/operatorservice/v1/service.proto | Operator service}
+   *
+   * The Operator Service API defines how Temporal SDKs and other clients interact with the Temporal
+   * server to perform administrative functions like registering a search attribute or a namespace.
+   *
+   * This Service API is NOT compatible with Temporal Cloud. Attempt to use it against a Temporal
+   * Cloud namespace will result in gRPC `unauthorized` error.
    */
   public readonly operatorService: OperatorService;
-  public readonly healthService: HealthService;
-  readonly callContextStorage: AsyncLocalStorage<CallContext>;
 
-  protected static createCtorOptions(options?: ConnectionOptions): ConnectionCtorOptions {
-    const optionsWithDefaults = addDefaults(normalizeGRPCConfig(options));
+  /**
+   * Raw gRPC access to the Temporal test service.
+   *
+   * Will be `undefined` if connected to a server that does not support the test service.
+   */
+  public readonly testService: TestService | undefined;
+
+  /**
+   * Raw gRPC access to the standard gRPC {@link https://github.com/grpc/grpc/blob/92f58c18a8da2728f571138c37760a721c8915a2/doc/health-checking.md | health service}.
+   */
+  public readonly healthService: HealthService;
+
+  public readonly plugins: ConnectionPlugin[];
+
+  readonly callContextStorage: AsyncLocalStorage<CallContext>;
+  private readonly apiKeyFnRef: { fn?: () => string };
+
+  protected static createCtorOptions(options: ConnectionOptions): ConnectionCtorOptions {
+    const normalizedOptions = normalizeGRPCConfig(options);
+    const apiKeyFnRef: { fn?: () => string } = {};
+    if (normalizedOptions.apiKey) {
+      if (typeof normalizedOptions.apiKey === 'string') {
+        const apiKey = normalizedOptions.apiKey;
+        apiKeyFnRef.fn = () => apiKey;
+      } else {
+        apiKeyFnRef.fn = normalizedOptions.apiKey;
+      }
+    }
+    const optionsWithDefaults = addDefaults(normalizedOptions);
     // Allow overriding this
     optionsWithDefaults.metadata['client-name'] ??= 'temporal-typescript';
     optionsWithDefaults.metadata['client-version'] ??= pkg.version;
@@ -229,22 +370,40 @@ export class Connection {
       callContextStorage,
       interceptors: optionsWithDefaults?.interceptors,
       staticMetadata: optionsWithDefaults.metadata,
+      apiKeyFnRef,
     });
     const workflowService = WorkflowService.create(workflowRpcImpl, false, false);
+
     const operatorRpcImpl = this.generateRPCImplementation({
       serviceName: 'temporal.api.operatorservice.v1.OperatorService',
       client,
       callContextStorage,
       interceptors: optionsWithDefaults?.interceptors,
       staticMetadata: optionsWithDefaults.metadata,
+      apiKeyFnRef,
     });
     const operatorService = OperatorService.create(operatorRpcImpl, false, false);
+
+    let testService: TestService | undefined = undefined;
+    if ((options as InternalConnectionOptions)?.[InternalConnectionOptionsSymbol]?.supportsTestService) {
+      const testRpcImpl = this.generateRPCImplementation({
+        serviceName: 'temporal.api.testservice.v1.TestService',
+        client,
+        callContextStorage,
+        interceptors: optionsWithDefaults?.interceptors,
+        staticMetadata: optionsWithDefaults.metadata,
+        apiKeyFnRef,
+      });
+      testService = TestService.create(testRpcImpl, false, false);
+    }
+
     const healthRpcImpl = this.generateRPCImplementation({
       serviceName: 'grpc.health.v1.Health',
       client,
       callContextStorage,
       interceptors: optionsWithDefaults?.interceptors,
       staticMetadata: optionsWithDefaults.metadata,
+      apiKeyFnRef,
     });
     const healthService = HealthService.create(healthRpcImpl, false, false);
 
@@ -253,8 +412,10 @@ export class Connection {
       callContextStorage,
       workflowService,
       operatorService,
+      testService,
       healthService,
       options: optionsWithDefaults,
+      apiKeyFnRef,
     };
   }
 
@@ -296,6 +457,12 @@ export class Connection {
    * This method does not verify connectivity with the server. We recommend using {@link connect} instead.
    */
   static lazy(options?: ConnectionOptions): Connection {
+    options = options ?? {};
+    for (const plugin of options.plugins ?? []) {
+      if (plugin.configureConnection !== undefined) {
+        options = plugin.configureConnection(options);
+      }
+    }
     return new this(this.createCtorOptions(options));
   }
 
@@ -316,15 +483,20 @@ export class Connection {
     client,
     workflowService,
     operatorService,
+    testService,
     healthService,
     callContextStorage,
+    apiKeyFnRef,
   }: ConnectionCtorOptions) {
     this.options = options;
     this.client = client;
-    this.workflowService = workflowService;
+    this.workflowService = this.withNamespaceHeaderInjector(workflowService);
     this.operatorService = operatorService;
+    this.testService = testService;
     this.healthService = healthService;
     this.callContextStorage = callContextStorage;
+    this.apiKeyFnRef = apiKeyFnRef;
+    this.plugins = options.plugins ?? [];
   }
 
   protected static generateRPCImplementation({
@@ -333,10 +505,19 @@ export class Connection {
     callContextStorage,
     interceptors,
     staticMetadata,
-  }: RPCImplOptions): RPCImpl {
-    return (method: { name: string }, requestData: any, callback: grpc.requestCallback<any>) => {
+    apiKeyFnRef,
+  }: RPCImplOptions): proto.RPCImpl {
+    return (
+      method: proto.Method | proto.rpc.ServiceMethod<proto.Message<any>, proto.Message<any>>,
+      requestData: Uint8Array,
+      callback: grpc.requestCallback<any>
+    ) => {
       const metadataContainer = new grpc.Metadata();
-      const { metadata, deadline } = callContextStorage.getStore() ?? {};
+      const { metadata, deadline, abortSignal } = callContextStorage.getStore() ?? {};
+      if (apiKeyFnRef.fn) {
+        const apiKey = apiKeyFnRef.fn();
+        if (apiKey) metadataContainer.set('Authorization', `Bearer ${apiKey}`);
+      }
       for (const [k, v] of Object.entries(staticMetadata)) {
         metadataContainer.set(k, v);
       }
@@ -345,7 +526,8 @@ export class Connection {
           metadataContainer.set(k, v);
         }
       }
-      return client.makeUnaryRequest(
+
+      const call = client.makeUnaryRequest(
         `/${serviceName}/${method.name}`,
         (arg: any) => arg,
         (arg: any) => arg,
@@ -354,17 +536,61 @@ export class Connection {
         { interceptors, deadline },
         callback
       );
+
+      if (abortSignal != null) {
+        abortSignal.addEventListener('abort', () => call.cancel());
+      }
+
+      return call;
     };
   }
 
   /**
-   * Set the deadline for any service requests executed in `fn`'s scope.
+   * Set a deadline for any service requests executed in `fn`'s scope.
    *
-   * @returns value returned from `fn`
+   * The deadline is a point in time after which any pending gRPC request will be considered as failed;
+   * this will locally result in the request call throwing a {@link grpc.ServiceError|ServiceError}
+   * with code {@link grpc.status.DEADLINE_EXCEEDED|DEADLINE_EXCEEDED}; see {@link isGrpcDeadlineError}.
+   *
+   * It is strongly recommended to explicitly set deadlines. If no deadline is set, then it is
+   * possible for the client to end up waiting forever for a response.
+   *
+   * @param deadline a point in time after which the request will be considered as failed; either a
+   *                 Date object, or a number of milliseconds since the Unix epoch (UTC).
+   * @returns the value returned from `fn`
+   *
+   * @see https://grpc.io/docs/guides/deadlines/
    */
   async withDeadline<ReturnType>(deadline: number | Date, fn: () => Promise<ReturnType>): Promise<ReturnType> {
     const cc = this.callContextStorage.getStore();
-    return await this.callContextStorage.run({ deadline, metadata: cc?.metadata }, fn);
+    return await this.callContextStorage.run({ ...cc, deadline }, fn);
+  }
+
+  /**
+   * Set an {@link AbortSignal} that, when aborted, cancels any ongoing service requests executed in
+   * `fn`'s scope. This will locally result in the request call throwing a {@link grpc.ServiceError|ServiceError}
+   * with code {@link grpc.status.CANCELLED|CANCELLED}; see {@link isGrpcCancelledError}.
+   *
+   * This method is only a convenience wrapper around {@link Connection.withAbortSignal}.
+   *
+   * @example
+   *
+   * ```ts
+   * const ctrl = new AbortController();
+   * setTimeout(() => ctrl.abort(), 10_000);
+   * // 👇 throws if incomplete by the timeout.
+   * await conn.withAbortSignal(ctrl.signal, () => client.workflow.execute(myWorkflow, options));
+   * ```
+   *
+   * @returns value returned from `fn`
+   *
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
+   */
+  // FIXME: `abortSignal` should be cumulative, i.e. if a signal is already set, it should be added
+  //        to the list of signals, and both the new and existing signal should abort the request.
+  async withAbortSignal<ReturnType>(abortSignal: AbortSignal, fn: () => Promise<ReturnType>): Promise<ReturnType> {
+    const cc = this.callContextStorage.getStore();
+    return await this.callContextStorage.run({ ...cc, abortSignal }, fn);
   }
 
   /**
@@ -377,16 +603,60 @@ export class Connection {
    *
    * @example
    *
-   *```ts
-   *const workflowHandle = await conn.withMetadata({ apiKey: 'secret' }, () =>
-   *  conn.withMetadata({ otherKey: 'set' }, () => client.start(options)))
-   *);
-   *```
+   * ```ts
+   * const workflowHandle = await conn.withMetadata({ apiKey: 'secret' }, () =>
+   *   conn.withMetadata({ otherKey: 'set' }, () => client.start(options)))
+   * );
+   * ```
    */
   async withMetadata<ReturnType>(metadata: Metadata, fn: () => Promise<ReturnType>): Promise<ReturnType> {
     const cc = this.callContextStorage.getStore();
-    metadata = { ...cc?.metadata, ...metadata };
-    return await this.callContextStorage.run({ metadata, deadline: cc?.deadline }, fn);
+    return await this.callContextStorage.run(
+      {
+        ...cc,
+        metadata: { ...cc?.metadata, ...metadata },
+      },
+      fn
+    );
+  }
+
+  /**
+   * Set the apiKey for any service requests executed in `fn`'s scope (thus changing the `Authorization` header).
+   *
+   * @returns value returned from `fn`
+   *
+   * @example
+   *
+   * ```ts
+   * const workflowHandle = await conn.withApiKey('secret', () =>
+   *   conn.withMetadata({ otherKey: 'set' }, () => client.start(options)))
+   * );
+   * ```
+   */
+  async withApiKey<ReturnType>(apiKey: string, fn: () => Promise<ReturnType>): Promise<ReturnType> {
+    const cc = this.callContextStorage.getStore();
+    return await this.callContextStorage.run(
+      {
+        ...cc,
+        metadata: { ...cc?.metadata, Authorization: `Bearer ${apiKey}` },
+      },
+      fn
+    );
+  }
+
+  /**
+   * Set the {@link ConnectionOptions.apiKey} for all subsequent requests. A static string or a
+   * callback function may be provided.
+   */
+  setApiKey(apiKey: string | (() => string)): void {
+    if (typeof apiKey === 'string') {
+      if (apiKey === '') {
+        throw new TypeError('`apiKey` must not be an empty string');
+      }
+      this.apiKeyFnRef.fn = () => apiKey;
+    } else {
+      this.apiKeyFnRef.fn = apiKey;
+    }
   }
 
   /**
@@ -414,5 +684,44 @@ export class Connection {
    */
   public async close(): Promise<void> {
     this.client.close();
+    this.callContextStorage.disable();
   }
+
+  private withNamespaceHeaderInjector(
+    workflowService: temporal.api.workflowservice.v1.WorkflowService
+  ): temporal.api.workflowservice.v1.WorkflowService {
+    const wrapper: any = {};
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+    for (const [methodName, methodImpl] of Object.entries(workflowService) as [string, Function][]) {
+      if (typeof methodImpl !== 'function') continue;
+
+      wrapper[methodName] = (...args: any[]) => {
+        const namespace = args[0]?.namespace;
+        if (namespace) {
+          return this.withMetadata({ 'temporal-namespace': namespace }, () => methodImpl.apply(workflowService, args));
+        } else {
+          return methodImpl.apply(workflowService, args);
+        }
+      };
+    }
+    return wrapper as WorkflowService;
+  }
+}
+
+/**
+ * Plugin to control the configuration of a connection.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
+ */
+export interface ConnectionPlugin {
+  /**
+   * Gets the name of this plugin.
+   */
+  get name(): string;
+
+  /**
+   * Hook called when creating a connection to allow modification of configuration.
+   */
+  configureConnection?(options: ConnectionOptions): ConnectionOptions;
 }

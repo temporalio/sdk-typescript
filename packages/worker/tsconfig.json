@@ -10,6 +10,7 @@
     { "path": "../core-bridge" },
     { "path": "../workflow" },
     { "path": "../activity" },
+    { "path": "../nexus" },
     { "path": "../common" }
   ],
   "include": ["./src/**/*.ts"]

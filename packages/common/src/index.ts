@@ -8,6 +8,7 @@ import * as encoding from './encoding';
 import * as helpers from './type-helpers';
 
 export * from './activity-options';
+export { ActivityCancellationDetailsOptions, ActivityCancellationDetails } from './activity-cancellation-details';
 export * from './converter/data-converter';
 export * from './converter/failure-converter';
 export * from './converter/payload-codec';
@@ -19,11 +20,24 @@ export * from './failure';
 export { Headers, Next } from './interceptors';
 export * from './interfaces';
 export * from './logger';
+export * from './priority';
+export * from './metrics';
 export * from './retry-policy';
 export type { Timestamp, Duration, StringValue } from './time';
+export * from './worker-deployments';
+export * from './workflow-definition-options';
 export * from './workflow-handle';
 export * from './workflow-options';
 export * from './versioning-intent';
+export {
+  SearchAttributes, // eslint-disable-line deprecation/deprecation
+  SearchAttributeValue, // eslint-disable-line deprecation/deprecation
+  SearchAttributeType,
+  SearchAttributePair,
+  SearchAttributeUpdatePair,
+  TypedSearchAttributes,
+  defineSearchAttributeKey,
+} from './search-attributes';
 
 /**
  * Encode a UTF-8 string into a Uint8Array

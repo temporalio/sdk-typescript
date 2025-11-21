@@ -1,6 +1,6 @@
 import { status } from '@grpc/grpc-js';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-non-workflow';
 import { assertNever, SymbolBasedInstanceOfError, RequireAtLeastOne } from '@temporalio/common/lib/type-helpers';
+import { filterNullAndUndefined, makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import { BaseClient, BaseClientOptions, defaultBaseClientOptions, LoadedWithDefaults } from './base-client';
 import { WorkflowService } from './types';
@@ -13,18 +13,18 @@ type IUpdateWorkerBuildIdCompatibilityRequest =
 type GetWorkerTaskReachabilityResponse = temporal.api.workflowservice.v1.GetWorkerTaskReachabilityResponse;
 
 /**
- * @experimental
+ * @experimental The Worker Versioning API is still being designed. Major changes are expected.
  */
 export type TaskQueueClientOptions = BaseClientOptions;
 
 /**
- * @experimental
+ * @experimental The Worker Versioning API is still being designed. Major changes are expected.
  */
 export type LoadedTaskQueueClientOptions = LoadedWithDefaults<TaskQueueClientOptions>;
 
 /**
  * A stand-in for a Build Id for unversioned Workers
- * @experimental
+ * @experimental The Worker Versioning API is still being designed. Major changes are expected.
  */
 export const UnversionedBuildId = Symbol.for('__temporal_unversionedBuildId');
 export type UnversionedBuildIdType = typeof UnversionedBuildId;
@@ -32,7 +32,7 @@ export type UnversionedBuildIdType = typeof UnversionedBuildId;
 /**
  * Client for starting Workflow executions and creating Workflow handles
  *
- * @experimental
+ * @experimental The Worker Versioning API is still being designed. Major changes are expected.
  */
 export class TaskQueueClient extends BaseClient {
   public readonly options: LoadedTaskQueueClientOptions;
@@ -148,7 +148,7 @@ export class TaskQueueClient extends BaseClient {
         namespace: this.options.namespace,
         taskQueues: options.taskQueues,
         buildIds,
-        reachability: reachabilityTypeToProto(options.reachability),
+        reachability: encodeTaskReachability(options.reachability),
       });
     } catch (e) {
       this.rethrowGrpcError(e, 'Unexpected error fetching Build Id reachability');
@@ -173,6 +173,20 @@ export class TaskQueueClient extends BaseClient {
  */
 export type ReachabilityOptions = RequireAtLeastOne<BaseReachabilityOptions, 'buildIds' | 'taskQueues'>;
 
+export const ReachabilityType = {
+  /** The Build Id might be used by new workflows. */
+  NEW_WORKFLOWS: 'NEW_WORKFLOWS',
+
+  /** The Build Id might be used by open workflows and/or closed workflows. */
+  EXISTING_WORKFLOWS: 'EXISTING_WORKFLOWS',
+
+  /** The Build Id might be used by open workflows. */
+  OPEN_WORKFLOWS: 'OPEN_WORKFLOWS',
+
+  /** The Build Id might be used by closed workflows. */
+  CLOSED_WORKFLOWS: 'CLOSED_WORKFLOWS',
+} as const;
+
 /**
  * There are different types of reachability:
  *   - `NEW_WORKFLOWS`: The Build Id might be used by new workflows
@@ -180,7 +194,24 @@ export type ReachabilityOptions = RequireAtLeastOne<BaseReachabilityOptions, 'bu
  *   - `OPEN_WORKFLOWS` The Build Id might be used by open workflows
  *   - `CLOSED_WORKFLOWS` The Build Id might be used by closed workflows
  */
-export type ReachabilityType = 'NEW_WORKFLOWS' | 'EXISTING_WORKFLOWS' | 'OPEN_WORKFLOWS' | 'CLOSED_WORKFLOWS';
+export type ReachabilityType = (typeof ReachabilityType)[keyof typeof ReachabilityType];
+
+export const [encodeTaskReachability, decodeTaskReachability] = makeProtoEnumConverters<
+  temporal.api.enums.v1.TaskReachability,
+  typeof temporal.api.enums.v1.TaskReachability,
+  keyof typeof temporal.api.enums.v1.TaskReachability,
+  typeof ReachabilityType,
+  'TASK_REACHABILITY_'
+>(
+  {
+    [ReachabilityType.NEW_WORKFLOWS]: 1,
+    [ReachabilityType.EXISTING_WORKFLOWS]: 2,
+    [ReachabilityType.OPEN_WORKFLOWS]: 3,
+    [ReachabilityType.CLOSED_WORKFLOWS]: 4,
+    UNSPECIFIED: 0,
+  } as const,
+  'TASK_REACHABILITY_'
+);
 
 /**
  * See {@link ReachabilityOptions}
@@ -215,24 +246,6 @@ export interface BuildIdReachability {
   taskQueueReachability: Record<string, ReachabilityTypeResponse[]>;
 }
 
-function reachabilityTypeToProto(type: ReachabilityType | undefined | null): temporal.api.enums.v1.TaskReachability {
-  switch (type) {
-    case null:
-    case undefined:
-      return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_UNSPECIFIED;
-    case 'NEW_WORKFLOWS':
-      return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_NEW_WORKFLOWS;
-    case 'EXISTING_WORKFLOWS':
-      return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_EXISTING_WORKFLOWS;
-    case 'OPEN_WORKFLOWS':
-      return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_OPEN_WORKFLOWS;
-    case 'CLOSED_WORKFLOWS':
-      return temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_CLOSED_WORKFLOWS;
-    default:
-      assertNever('Unknown Build Id reachability operation', type);
-  }
-}
-
 export function reachabilityResponseFromProto(resp: GetWorkerTaskReachabilityResponse): ReachabilityResponse {
   return {
     buildIdReachability: Object.fromEntries(
@@ -247,7 +260,9 @@ export function reachabilityResponseFromProto(resp: GetWorkerTaskReachabilityRes
               taskQueueReachability[tqr.taskQueue] = [];
               continue;
             }
-            taskQueueReachability[tqr.taskQueue] = tqr.reachability.map(reachabilityTypeFromProto);
+            taskQueueReachability[tqr.taskQueue] = tqr.reachability.map(
+              (x) => decodeTaskReachability(x) ?? 'NOT_FETCHED'
+            );
           }
         }
         let bid: string | UnversionedBuildIdType;
@@ -262,23 +277,6 @@ export function reachabilityResponseFromProto(resp: GetWorkerTaskReachabilityRes
   };
 }
 
-function reachabilityTypeFromProto(rtype: temporal.api.enums.v1.TaskReachability): ReachabilityTypeResponse {
-  switch (rtype) {
-    case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_UNSPECIFIED:
-      return 'NOT_FETCHED';
-    case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_NEW_WORKFLOWS:
-      return 'NEW_WORKFLOWS';
-    case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_EXISTING_WORKFLOWS:
-      return 'EXISTING_WORKFLOWS';
-    case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_OPEN_WORKFLOWS:
-      return 'OPEN_WORKFLOWS';
-    case temporal.api.enums.v1.TaskReachability.TASK_REACHABILITY_CLOSED_WORKFLOWS:
-      return 'CLOSED_WORKFLOWS';
-    default:
-      return assertNever('Unknown Build Id reachability operation', rtype);
-  }
-}
-
 /**
  * Thrown when one or more Build Ids are not found while using the {@link TaskQueueClient}.
  *
@@ -286,7 +284,7 @@ function reachabilityTypeFromProto(rtype: temporal.api.enums.v1.TaskReachability
  * - Id passed is incorrect
  * - Build Id has been scavenged by the server.
  *
- * @experimental
+ * @experimental The Worker Versioning API is still being designed. Major changes are expected.
  */
 @SymbolBasedInstanceOfError('BuildIdNotFoundError')
 export class BuildIdNotFoundError extends Error {}

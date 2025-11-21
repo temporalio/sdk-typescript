@@ -1,15 +1,30 @@
 import { formatWithOptions } from 'node:util';
-import { getTimeOfDay } from '@temporalio/core-bridge';
+import * as supportsColor from 'supports-color';
+import { native } from '@temporalio/core-bridge';
 import { LogLevel, LogMetadata, Logger } from '@temporalio/common';
 
 /** @deprecated Import from @temporalio/common instead */
 export { LogLevel, LogMetadata, Logger };
 
 export interface LogEntry {
-  level: LogLevel;
+  /**
+   * Log message
+   */
   message: string;
+
+  /**
+   * Log level
+   */
+  level: LogLevel;
+
+  /**
+   * Time since epoch, in nanoseconds.
+   */
   timestampNanos: bigint;
-  /** Custom attributes */
+
+  /**
+   * Custom attributes
+   */
   meta?: LogMetadata;
 }
 
@@ -17,7 +32,12 @@ export const LogTimestamp = Symbol.for('log_timestamp');
 
 const severities: LogLevel[] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
 
-const format = formatWithOptions.bind(undefined, { colors: true });
+/**
+ * @internal
+ */
+const loggerHasColorsSymbol = Symbol.for('logger_has_colors');
+const stderrHasColors = !!supportsColor.stderr;
+const format = formatWithOptions.bind(undefined, { colors: stderrHasColors });
 
 /**
  * Log messages to `stderr` using basic formatting
@@ -34,22 +54,19 @@ function defaultLogFunction(entry: LogEntry): void {
 }
 
 /**
- * Takes a `[seconds, nanos]` tuple as returned from getTimeOfDay and turns it into bigint.
- */
-export function timeOfDayToBigint(timeOfDay: [number, number]): bigint {
-  const [seconds, nanos] = timeOfDay;
-  return BigInt(seconds) * 1_000_000_000n + BigInt(nanos);
-}
-
-/**
  * Default worker logger - uses a default log function to log messages to `console.error`.
  * See constructor arguments for customization.
  */
 export class DefaultLogger implements Logger {
   protected readonly severity: number;
 
-  constructor(public readonly level: LogLevel = 'INFO', protected readonly logFunction = defaultLogFunction) {
+  constructor(
+    public readonly level: LogLevel = 'INFO',
+    protected readonly logFunction = defaultLogFunction
+  ) {
     this.severity = severities.indexOf(this.level);
+    (this as LoggerWithColorSupport)[loggerHasColorsSymbol] =
+      (logFunction === defaultLogFunction && stderrHasColors) ?? false;
   }
 
   log(level: LogLevel, message: string, meta?: LogMetadata): void {
@@ -59,7 +76,7 @@ export class DefaultLogger implements Logger {
         level,
         message,
         meta: Object.keys(rest).length === 0 ? undefined : rest,
-        timestampNanos: timestampNanos ?? timeOfDayToBigint(getTimeOfDay()),
+        timestampNanos: timestampNanos ?? native.getTimeOfDay(),
       });
     }
   }
@@ -83,4 +100,27 @@ export class DefaultLogger implements Logger {
   error(message: string, meta?: LogMetadata): void {
     this.log('ERROR', message, meta);
   }
+}
+
+/**
+ * @internal
+ */
+interface LoggerWithColorSupport extends Logger {
+  [loggerHasColorsSymbol]?: boolean;
+}
+
+/**
+ * @internal
+ */
+export function hasColorSupport(logger: Logger): boolean {
+  return (logger as LoggerWithColorSupport)[loggerHasColorsSymbol] ?? false;
+}
+
+export interface FlushableLogger extends Logger {
+  flush(): void;
+  close?(): void;
+}
+
+export function isFlushableLogger(logger: Logger): logger is FlushableLogger {
+  return 'flush' in logger && typeof logger.flush === 'function';
 }

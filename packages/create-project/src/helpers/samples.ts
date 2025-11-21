@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { rm, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import * as tar from 'tar';
+// eslint-disable-next-line import/no-named-as-default
 import got from 'got';
 import chalk from 'chalk';
 import { getErrorCode } from './get-error-code.js';
@@ -22,7 +23,7 @@ export async function isUrlOk(url: string): Promise<boolean> {
   let res;
   try {
     res = await got.head(url, { headers });
-  } catch (e) {
+  } catch (_e) {
     return false;
   }
   return res.statusCode === 200;
@@ -47,7 +48,7 @@ export async function getRepoInfo(url: URL, samplePath?: string): Promise<RepoIn
     try {
       // https://github.com/sindresorhus/got/blob/main/documentation/3-streams.md#response-1
       infoResponse = await got(repo, { headers });
-    } catch (error) {
+    } catch (_error) {
       throw new Error(`Unable to fetch ${repo}`);
     }
 

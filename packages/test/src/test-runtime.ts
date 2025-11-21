@@ -2,14 +2,15 @@
  * Test the lifecycle of the Runtime singleton.
  * Tests run serially because Runtime is a singleton.
  */
-import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import asyncRetry from 'async-retry';
-import { Runtime, DefaultLogger, LogEntry, makeTelemetryFilterString } from '@temporalio/worker';
+import { Runtime, DefaultLogger, LogEntry, makeTelemetryFilterString, NativeConnection } from '@temporalio/worker';
 import { Client, WorkflowClient } from '@temporalio/client';
+import * as wf from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
-import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { RUN_INTEGRATION_TESTS, Worker, test } from './helpers';
+import { createTestWorkflowBundle } from './helpers-integration';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Runtime can be created and disposed', async (t) => {
@@ -52,8 +53,8 @@ if (RUN_INTEGRATION_TESTS) {
 
   // Stopping and starting Workers is probably not a common pattern but if we don't remember what
   // Runtime configuration was installed, creating a new Worker after Runtime shutdown we would fallback
-  // to the default configuration (localhost) which is surprising behavior.
-  test.serial('Runtime.instance() remembers installed options after it has been shut down', async (t) => {
+  // to the default configuration (127.0.0.1) which is surprising behavior.
+  test.serial('Runtime.install() remembers installed options after it has been shut down', async (t) => {
     const logger = new DefaultLogger('DEBUG');
     Runtime.install({ logger });
     {
@@ -74,7 +75,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test.serial('Runtime.instance() Core forwarded logs contains metadata', async (t) => {
+  test.serial('Runtime.install() Core forwarded logs contains metadata', async (t) => {
     const logEntries: LogEntry[] = [];
     const logger = new DefaultLogger('DEBUG', (entry) => logEntries.push(entry));
     Runtime.install({
@@ -82,10 +83,6 @@ if (RUN_INTEGRATION_TESTS) {
       telemetryOptions: { logging: { forward: {}, filter: makeTelemetryFilterString({ core: 'DEBUG' }) } },
     });
     try {
-      {
-        const runtime = Runtime.instance();
-        t.is(runtime.options.logger, logger);
-      }
       await new Client().workflow.start('not-existant', { taskQueue: 'q1', workflowId: uuid4() });
       const worker = await Worker.create({
         ...defaultOptions,
@@ -97,7 +94,7 @@ if (RUN_INTEGRATION_TESTS) {
             if (!logEntries.some((x) => x.message === 'Failing workflow task'))
               throw new Error('Waiting for failing workflow task');
           },
-          { minTimeout: 100, factor: 1, maxTimeout: 5000 }
+          { maxTimeout: 200, minTimeout: 20, retries: 40 }
         )
       );
 
@@ -112,30 +109,58 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(typeof failingWftEntry.meta?.['failure'], 'string');
       t.is(typeof failingWftEntry.meta?.['runId'], 'string');
       t.is(typeof failingWftEntry.meta?.['workflowId'], 'string');
-      t.is(typeof failingWftEntry.meta?.['subsystem'], 'string');
+      t.is(typeof failingWftEntry.meta?.['sdkComponent'], 'string');
     } finally {
       await Runtime.instance().shutdown();
     }
   });
 
-  test.serial('Runtime.instance() throws meaningful error when passed invalid tracing.otel.url', (t) => {
-    t.throws(() => Runtime.install({ telemetryOptions: { tracing: { otel: { url: ':invalid' } } } }), {
-      instanceOf: TypeError,
-      message: 'Invalid telemetryOptions.tracing.otel.url',
-    });
-  });
+  test.serial(`NativeLogCollector: Buffered logs are periodically flushed even if Core isn't flushing`, async (t) => {
+    const logEntries: LogEntry[] = [];
 
-  test.serial('Runtime.instance() throws meaningful error when passed invalid metrics.prometheus.bindAddress', (t) => {
-    t.throws(() => Runtime.install({ telemetryOptions: { metrics: { prometheus: { bindAddress: ':invalid' } } } }), {
-      instanceOf: TypeError,
-      message: 'Invalid telemetryOptions.metrics.prometheus.bindAddress',
+    const runtime = Runtime.install({
+      logger: new DefaultLogger('DEBUG', (entry) => logEntries.push(entry)),
+      telemetryOptions: {
+        // Sets native logger to ERROR level, so that it never flushes
+        logging: { forward: {}, filter: { core: 'ERROR', other: 'ERROR' } },
+      },
     });
-  });
+    const bufferedLogger = runtime.logger;
 
-  test.serial('Runtime.instance() throws meaningful error when passed invalid telemetryOptions.logging.filter', (t) => {
-    t.throws(() => Runtime.install({ telemetryOptions: { logging: { filter: 2 as any } } }), {
-      instanceOf: TypeError,
-      message: 'Invalid filter',
-    });
+    // Hold on to a connection to prevent implicit shutdown of the runtime before we print 'final log'
+    const connection = await NativeConnection.connect();
+
+    try {
+      const taskQueue = `runtime-native-log-collector-preriodically-flushed-${uuid4()}`;
+      const worker = await Worker.create({
+        ...defaultOptions,
+        connection,
+        taskQueue,
+        workflowBundle: await createTestWorkflowBundle({ workflowsPath: __filename }),
+      });
+
+      await worker.runUntil(async () => {
+        await new Client().workflow.execute(log5Times, { taskQueue, workflowId: uuid4() });
+      });
+      t.true(logEntries.some((x) => x.message.startsWith('workflow log ')));
+
+      // This one will get buffered
+      bufferedLogger.info('final log');
+      t.false(logEntries.some((x) => x.message.startsWith('final log')));
+    } finally {
+      await connection.close();
+      await runtime.shutdown();
+    }
+
+    // Assert all log messages have been flushed
+    t.is(logEntries.filter((x) => x.message.startsWith('workflow log ')).length, 5);
+    t.is(logEntries.filter((x) => x.message.startsWith('final log')).length, 1);
   });
+}
+
+export async function log5Times(): Promise<void> {
+  for (let i = 0; i < 5; i++) {
+    wf.log.info(`workflow log ${i}`);
+    await wf.sleep(1);
+  }
 }

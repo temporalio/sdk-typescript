@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/interceptors-opentelemetry",
-  "version": "1.8.6",
+  "version": "1.13.2",
   "description": "Temporal.io SDK interceptors bundle for tracing with opentelemetry",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -14,15 +14,26 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@opentelemetry/api": "^1.4.1",
-    "@opentelemetry/core": "^1.12.0",
-    "@opentelemetry/resources": "^1.12.0",
-    "@opentelemetry/sdk-trace-base": "^1.12.0",
-    "@temporalio/activity": "file:../activity",
-    "@temporalio/client": "file:../client",
-    "@temporalio/common": "file:../common",
-    "@temporalio/worker": "file:../worker",
-    "@temporalio/workflow": "file:../workflow"
+    "@opentelemetry/api": "^1.7.0",
+    "@opentelemetry/core": "^1.19.0",
+    "@opentelemetry/resources": "^1.19.0",
+    "@opentelemetry/sdk-trace-base": "^1.19.0"
+  },
+  "devDependencies": {
+    "@temporalio/activity": "workspace:*",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "@temporalio/workflow": "workspace:*"
+  },
+  "peerDependencies": {
+    "@temporalio/common": "workspace:*",
+    "@temporalio/workflow": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@temporalio/workflow": {
+      "optional": true
+    }
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -35,6 +46,9 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/interceptors-opentelemetry",
   "publishConfig": {
     "access": "public"
+  },
+  "engines": {
+    "node": ">= 18.0.0"
   },
   "files": [
     "src",

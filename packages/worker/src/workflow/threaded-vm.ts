@@ -11,8 +11,9 @@
 
 import { Worker as NodeWorker } from 'node:worker_threads';
 import { coresdk } from '@temporalio/proto';
-import { IllegalStateError, SinkCall } from '@temporalio/workflow';
-import { UnexpectedError } from '@temporalio/core-bridge';
+import { IllegalStateError, type SinkCall } from '@temporalio/workflow';
+import { Logger } from '@temporalio/common';
+import { UnexpectedError } from '../errors';
 import {
   WorkflowBundleWithSourceMapAndFilename,
   WorkerThreadInput,
@@ -56,8 +57,12 @@ export class WorkerThreadClient {
   private shutDownRequested = false;
   private workerExited = false;
   private activeWorkflowCount = 0;
+  private exitError: Error | undefined;
 
-  constructor(protected workerThread: NodeWorker) {
+  constructor(
+    protected workerThread: NodeWorker,
+    protected logger: Logger
+  ) {
     workerThread.on('message', ({ requestId, result }: WorkerThreadResponse) => {
       const completion = this.requestIdToCompletion.get(requestId);
       if (completion === undefined) {
@@ -74,21 +79,25 @@ export class WorkerThreadClient {
 
       completion.resolve(result.output);
     });
-    workerThread.on('exit', () => {
+    workerThread.on('error', (err) => {
+      logger.error(`Workflow Worker Thread failed: ${err}`, err);
+      this.exitError = new UnexpectedError(`Workflow Worker Thread exited prematurely: ${err}`, err);
+      // Node will automatically terminate the Worker Thread, immediately after this event.
+    });
+    workerThread.on('exit', (exitCode) => {
+      logger.trace(`Workflow Worker Thread exited with code ${exitCode}`, { exitError: this.exitError });
       this.workerExited = true;
-      if (this.shutDownRequested) {
-        return; // ignore
-      }
+
+      const error =
+        this.exitError ??
+        new UnexpectedError('Workflow Worker Thread exited while there were still pending completions', {
+          shutDownRequested: this.shutDownRequested,
+        });
+
       const completions = this.requestIdToCompletion.values();
       this.requestIdToCompletion = new Map();
       for (const completion of completions) {
-        completion.reject(
-          new UnexpectedError(
-            'Worker thread shut down prematurely, this could be caused by an' +
-              ' unhandled rejection in workflow code that could not be' +
-              ' associated with a workflow run'
-          )
-        );
+        completion.reject(error);
       }
     });
   }
@@ -97,6 +106,9 @@ export class WorkerThreadClient {
    * Send input to Worker thread and await for output
    */
   async send(input: WorkerThreadInput): Promise<WorkerThreadOutput> {
+    if (this.exitError || this.workerExited) {
+      throw this.exitError ?? new UnexpectedError('Received request after worker thread exited');
+    }
     const requestId = this.requestIdx++;
     const request: WorkerThreadRequest = { requestId, input };
     if (request.input.type === 'create-workflow') {
@@ -105,10 +117,9 @@ export class WorkerThreadClient {
       this.activeWorkflowCount--;
     }
     this.workerThread.postMessage(request);
-    const promise = new Promise<WorkerThreadOutput>((resolve, reject) => {
+    return new Promise<WorkerThreadOutput>((resolve, reject) => {
       this.requestIdToCompletion.set(requestId, { resolve, reject });
     });
-    return promise;
   }
 
   /**
@@ -137,6 +148,7 @@ export interface ThreadedVMWorkflowCreatorOptions {
   isolateExecutionTimeoutMs: number;
   reuseV8Context: boolean;
   registeredActivityNames: Set<string>;
+  logger: Logger;
 }
 
 /**
@@ -154,10 +166,11 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
     isolateExecutionTimeoutMs,
     reuseV8Context,
     registeredActivityNames,
+    logger,
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
-      .map(() => new WorkerThreadClient(new NodeWorker(require.resolve('./workflow-worker-thread'))));
+      .map(() => new WorkerThreadClient(new NodeWorker(require.resolve('./workflow-worker-thread')), logger));
     await Promise.all(
       workerThreadClients.map((client) =>
         client.send({
@@ -211,7 +224,10 @@ export class VMWorkflowThreadProxy implements Workflow {
     return new this(workerThreadClient, options.info.runId);
   }
 
-  constructor(protected readonly workerThreadClient: WorkerThreadClient, public readonly runId: string) {}
+  constructor(
+    protected readonly workerThreadClient: WorkerThreadClient,
+    public readonly runId: string
+  ) {}
 
   /**
    * Proxy request to the VMWorkflow instance
@@ -224,8 +240,9 @@ export class VMWorkflowThreadProxy implements Workflow {
     if (output?.type !== 'sink-calls') {
       throw new TypeError(`Got invalid response output from Workflow Worker thread ${output}`);
     }
+
     output.calls.forEach((call) => {
-      call.workflowInfo.unsafe.now = Date.now;
+      (call.workflowInfo.unsafe.now as any) = Date.now;
     });
     return output.calls;
   }
@@ -251,6 +268,10 @@ export class VMWorkflowThreadProxy implements Workflow {
    * Proxy request to the VMWorkflow instance
    */
   async dispose(): Promise<void> {
-    await this.workerThreadClient.send({ type: 'dispose-workflow', runId: this.runId });
+    try {
+      await this.workerThreadClient.send({ type: 'dispose-workflow', runId: this.runId });
+    } catch (_e) {
+      // Ignore errors when disposing
+    }
   }
 }

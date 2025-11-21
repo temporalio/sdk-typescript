@@ -5,18 +5,17 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import arg from 'arg';
-import { LogLevel, TelemetryOptions } from '@temporalio/core-bridge';
-import { Connection } from '@temporalio/client';
 import {
   DefaultLogger,
   LogEntry,
+  LogLevel,
   NativeConnection,
   Runtime,
+  TelemetryOptions,
   Worker,
   makeTelemetryFilterString,
 } from '@temporalio/worker';
 import * as activities from '../activities';
-import { ConnectionInjectorInterceptor } from '../activities/interceptors';
 import { getRequired, WorkerArgSpec, workerArgSpec } from './args';
 
 /**
@@ -110,7 +109,6 @@ async function main() {
   const maxConcurrentWorkflowTaskPolls = args['--max-wft-pollers'] ?? 2;
   const maxConcurrentActivityTaskPolls = args['--max-at-pollers'] ?? 2;
   const workflowThreadPoolSize: number | undefined = args['--wf-thread-pool-size'];
-  const oTelUrl = args['--otel-url'];
   const logLevel = (args['--log-level'] || 'INFO').toUpperCase();
   const logFile = args['--log-file'];
   const serverAddress = getRequired(args, '--server-address');
@@ -126,14 +124,6 @@ async function main() {
       filter: makeTelemetryFilterString({ core: logLevel as LogLevel }),
       forward: {},
     },
-    ...(oTelUrl
-      ? {
-          filter: makeTelemetryFilterString({ core: logLevel as LogLevel }),
-          tracing: {
-            otel: { url: oTelUrl },
-          },
-        }
-      : undefined),
   };
 
   const logger = logFile
@@ -156,11 +146,6 @@ async function main() {
         }
       : {};
 
-  const clientConnection = await Connection.connect({
-    address: serverAddress,
-    ...tlsConfig,
-  });
-
   const connection = await NativeConnection.connect({
     address: serverAddress,
     ...tlsConfig,
@@ -181,11 +166,8 @@ async function main() {
       workflowThreadPoolSize,
       maxConcurrentActivityTaskPolls,
       maxConcurrentWorkflowTaskPolls,
-      interceptors: {
-        activityInbound: [() => new ConnectionInjectorInterceptor(clientConnection)],
-      },
       // Can't reuse the helper because it defines `test` and ava thinks it's an ava test.
-      reuseV8Context: ['1', 't', 'true'].includes((process.env.REUSE_V8_CONTEXT ?? 'false').toLowerCase()),
+      reuseV8Context: ['1', 't', 'true'].includes((process.env.REUSE_V8_CONTEXT ?? 'true').toLowerCase()),
     });
 
     await withOptionalStatusServer(worker, statusPort, async () => {

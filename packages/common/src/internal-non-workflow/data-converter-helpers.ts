@@ -4,22 +4,40 @@ import { FailureConverter } from '../converter/failure-converter';
 import { errorCode, hasOwnProperty, isRecord } from '../type-helpers';
 import { ValueError } from '../errors';
 
-const isValidPayloadConverter = (converter: unknown): converter is PayloadConverter =>
-  typeof converter === 'object' &&
-  converter !== null &&
-  ['toPayload', 'fromPayload'].every((method) => typeof (converter as Record<string, unknown>)[method] === 'function');
+const isValidPayloadConverter = (converter: unknown, path: string): asserts converter is PayloadConverter => {
+  const isValid =
+    typeof converter === 'object' &&
+    converter !== null &&
+    ['toPayload', 'fromPayload'].every(
+      (method) => typeof (converter as Record<string, unknown>)[method] === 'function'
+    );
+  if (!isValid) {
+    throw new ValueError(`payloadConverter export at ${path} must be an object with toPayload and fromPayload methods`);
+  }
+};
 
-const isValidFailureConverter = (converter: unknown): converter is FailureConverter =>
-  typeof converter === 'object' &&
-  converter !== null &&
-  ['errorToFailure', 'failureToError'].every(
-    (method) => typeof (converter as Record<string, unknown>)[method] === 'function'
-  );
+const isValidFailureConverter = (converter: unknown, path: string): asserts converter is FailureConverter => {
+  const isValid =
+    typeof converter === 'object' &&
+    converter !== null &&
+    ['errorToFailure', 'failureToError'].every(
+      (method) => typeof (converter as Record<string, unknown>)[method] === 'function'
+    );
+  if (!isValid) {
+    throw new ValueError(
+      `failureConverter export at ${path} must be an object with errorToFailure and failureToError methods`
+    );
+  }
+};
 
-function requireConverter<T>(path: string, type: string, validator: (converter: unknown) => converter is T): T {
+function requireConverter<T>(
+  path: string,
+  type: string,
+  validator: (converter: unknown, path: string) => asserts converter is T
+): T {
   let module;
   try {
-    module = require(path); // eslint-disable-line @typescript-eslint/no-var-requires
+    module = require(path); // eslint-disable-line @typescript-eslint/no-require-imports
   } catch (error) {
     if (errorCode(error) === 'MODULE_NOT_FOUND') {
       throw new ValueError(`Could not find a file at the specified ${type}Path: '${path}'.`);
@@ -29,15 +47,10 @@ function requireConverter<T>(path: string, type: string, validator: (converter: 
 
   if (isRecord(module) && hasOwnProperty(module, type)) {
     const converter = module[type];
-    if (validator(converter)) {
-      return converter;
-    } else {
-      throw new ValueError(
-        `payloadConverter export at ${path} must be an object with toPayload and fromPayload methods`
-      );
-    }
+    validator(converter, path);
+    return converter;
   } else {
-    throw new ValueError(`Module ${path} does not have a \`payloadConverter\` named export`);
+    throw new ValueError(`Module ${path} does not have a \`${type}\` named export`);
   }
 }
 

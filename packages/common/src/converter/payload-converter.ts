@@ -45,11 +45,26 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
 }
 
 /**
+ * Run {@link PayloadConverter.toPayload} on an optional value, and then encode it.
+ */
+export function convertOptionalToPayload(
+  payloadConverter: PayloadConverter,
+  value: unknown
+): Payload | null | undefined {
+  if (value == null) return value;
+
+  return payloadConverter.toPayload(value);
+}
+
+/**
  * Run {@link PayloadConverter.toPayload} on each value in the map.
  *
  * @throws {@link ValueError} if conversion of any value in the map fails
  */
-export function mapToPayloads<K extends string>(converter: PayloadConverter, map: Record<K, any>): Record<K, Payload> {
+export function mapToPayloads<K extends string, T = any>(
+  converter: PayloadConverter,
+  map: Record<K, T>
+): Record<K, Payload> {
   return Object.fromEntries(
     Object.entries(map).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)])
   ) as Record<K, Payload>;
@@ -84,17 +99,40 @@ export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payloa
   return payloads.map((payload: Payload) => converter.fromPayload(payload));
 }
 
-export function mapFromPayloads<K extends string>(
+export function mapFromPayloads<K extends string, T = unknown>(
   converter: PayloadConverter,
   map?: Record<K, Payload> | null | undefined
-): Record<K, unknown> | undefined | null {
-  if (map == null) return map;
+): Record<K, T> | undefined {
+  if (map == null) return undefined;
   return Object.fromEntries(
     Object.entries(map).map(([k, payload]): [K, unknown] => {
       const value = converter.fromPayload(payload as Payload);
       return [k as K, value];
     })
-  ) as Record<K, unknown>;
+  ) as Record<K, T>;
+}
+
+export declare const rawPayloadTypeBrand: unique symbol;
+/**
+ * RawValue is a wrapper over a payload.
+ * A payload that belongs to a RawValue is special in that it bypasses user-defined payload converters,
+ * instead using the default payload converter. The payload still undergoes codec conversion.
+ */
+export class RawValue<T = unknown> {
+  private readonly _payload: Payload;
+  private readonly [rawPayloadTypeBrand]: T = undefined as T;
+
+  constructor(value: T, payloadConverter: PayloadConverter = defaultPayloadConverter) {
+    this._payload = payloadConverter.toPayload(value);
+  }
+
+  static fromPayload(p: Payload): RawValue {
+    return new RawValue(p, identityPayloadConverter);
+  }
+
+  get payload(): Payload {
+    return this._payload;
+  }
 }
 
 export interface PayloadConverterWithEncoding {
@@ -140,6 +178,9 @@ export class CompositePayloadConverter implements PayloadConverter {
    * Returns the first successful result, throws {@link ValueError} if there is no converter that can handle the value.
    */
   public toPayload<T>(value: T): Payload {
+    if (value instanceof RawValue) {
+      return value.payload;
+    }
     for (const converter of this.converters) {
       const result = converter.toPayload(value);
       if (result !== undefined) {
@@ -157,6 +198,7 @@ export class CompositePayloadConverter implements PayloadConverter {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');
     }
+
     const encoding = decode(payload.metadata[METADATA_ENCODING_KEY]);
     const converter = this.converterByEncoding.get(encoding);
     if (converter === undefined) {
@@ -232,7 +274,7 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
     let json;
     try {
       json = JSON.stringify(value);
-    } catch (err) {
+    } catch (_err) {
       return undefined;
     }
 
@@ -251,73 +293,6 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
     return JSON.parse(decode(content.data));
   }
 }
-
-/**
- * Converts Search Attribute values using JsonPayloadConverter
- */
-export class SearchAttributePayloadConverter implements PayloadConverter {
-  jsonConverter = new JsonPayloadConverter();
-  validNonDateTypes = ['string', 'number', 'boolean'];
-
-  public toPayload(values: unknown): Payload {
-    if (!Array.isArray(values)) {
-      throw new ValueError(`SearchAttribute value must be an array`);
-    }
-
-    if (values.length > 0) {
-      const firstValue = values[0];
-      const firstType = typeof firstValue;
-      if (firstType === 'object') {
-        for (const [idx, value] of values.entries()) {
-          if (!(value instanceof Date)) {
-            throw new ValueError(
-              `SearchAttribute values must arrays of strings, numbers, booleans, or Dates. The value ${value} at index ${idx} is of type ${typeof value}`
-            );
-          }
-        }
-      } else {
-        if (!this.validNonDateTypes.includes(firstType)) {
-          throw new ValueError(`SearchAttribute array values must be: string | number | boolean | Date`);
-        }
-
-        for (const [idx, value] of values.entries()) {
-          if (typeof value !== firstType) {
-            throw new ValueError(
-              `All SearchAttribute array values must be of the same type. The first value ${firstValue} of type ${firstType} doesn't match value ${value} of type ${typeof value} at index ${idx}`
-            );
-          }
-        }
-      }
-    }
-
-    // JSON.stringify takes care of converting Dates to ISO strings
-    const ret = this.jsonConverter.toPayload(values);
-    if (ret === undefined) {
-      throw new ValueError('Could not convert search attributes to payloads');
-    }
-    return ret;
-  }
-
-  /**
-   * Datetime Search Attribute values are converted to `Date`s
-   */
-  public fromPayload<T>(payload: Payload): T {
-    if (payload.metadata === undefined || payload.metadata === null) {
-      throw new ValueError('Missing payload metadata');
-    }
-
-    const value = this.jsonConverter.fromPayload(payload);
-    let arrayWrappedValue = Array.isArray(value) ? value : [value];
-
-    const searchAttributeType = decode(payload.metadata.type);
-    if (searchAttributeType === 'Datetime') {
-      arrayWrappedValue = arrayWrappedValue.map((dateString) => new Date(dateString));
-    }
-    return arrayWrappedValue as unknown as T;
-  }
-}
-
-export const searchAttributePayloadConverter = new SearchAttributePayloadConverter();
 
 export class DefaultPayloadConverter extends CompositePayloadConverter {
   // Match the order used in other SDKs, but exclude Protobuf converters so that the code, including
@@ -341,3 +316,18 @@ export class DefaultPayloadConverter extends CompositePayloadConverter {
  * `const myConverter = new DefaultPayloadConverter({ protobufRoot })`
  */
 export const defaultPayloadConverter = new DefaultPayloadConverter();
+
+/**
+ * The identity payload converter returns the inputs it was given.
+ */
+class IdentityPayloadConverter implements PayloadConverter {
+  toPayload<T>(value: T): Payload {
+    return value as Payload;
+  }
+
+  fromPayload<T>(payload: Payload): T {
+    return payload as T;
+  }
+}
+
+const identityPayloadConverter = new IdentityPayloadConverter();

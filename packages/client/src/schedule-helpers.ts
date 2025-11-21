@@ -1,14 +1,18 @@
 import Long from 'long'; // eslint-disable-line import/no-named-as-default
 import {
+  compilePriority,
   compileRetryPolicy,
+  decodePriority,
   decompileRetryPolicy,
   extractWorkflowType,
   LoadedDataConverter,
-  mapFromPayloads,
-  mapToPayloads,
-  searchAttributePayloadConverter,
-  SearchAttributes,
 } from '@temporalio/common';
+import { encodeUserMetadata, decodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
+import {
+  encodeUnifiedSearchAttributes,
+  decodeSearchAttributes,
+  decodeTypedSearchAttributes,
+} from '@temporalio/common/lib/converter/payload-search-attributes';
 import { Headers } from '@temporalio/common/lib/interceptors';
 import {
   decodeArrayFromPayloads,
@@ -23,7 +27,7 @@ import {
   optionalDateToTs,
   optionalTsToDate,
   optionalTsToMs,
-  tsToDate,
+  requiredTsToDate,
 } from '@temporalio/common/lib/time';
 import {
   CalendarSpec,
@@ -32,7 +36,6 @@ import {
   CompiledScheduleUpdateOptions,
   Range,
   ScheduleOptions,
-  ScheduleOverlapPolicy,
   ScheduleUpdateOptions,
   DayOfWeek,
   DAYS_OF_WEEK,
@@ -47,6 +50,7 @@ import {
   ScheduleExecutionActionResult,
   ScheduleExecutionResult,
   ScheduleExecutionStartWorkflowActionResult,
+  encodeScheduleOverlapPolicy,
 } from './schedule-types';
 
 const [encodeSecond, decodeSecond] = makeCalendarSpecFieldCoders(
@@ -192,24 +196,8 @@ export function decodeOptionalStructuredCalendarSpecs(
   );
 }
 
-export function encodeOverlapPolicy(input: ScheduleOverlapPolicy): temporal.api.enums.v1.ScheduleOverlapPolicy {
-  return temporal.api.enums.v1.ScheduleOverlapPolicy[
-    `SCHEDULE_OVERLAP_POLICY_${ScheduleOverlapPolicy[input] as keyof typeof ScheduleOverlapPolicy}`
-  ];
-}
-
-export function decodeOverlapPolicy(input?: temporal.api.enums.v1.ScheduleOverlapPolicy | null): ScheduleOverlapPolicy {
-  if (!input) return ScheduleOverlapPolicy.UNSPECIFIED;
-  const encodedPolicyName = temporal.api.enums.v1.ScheduleOverlapPolicy[input];
-  const decodedPolicyName = encodedPolicyName.substring(
-    'SCHEDULE_OVERLAP_POLICY_'.length
-  ) as keyof typeof ScheduleOverlapPolicy;
-  return ScheduleOverlapPolicy[decodedPolicyName];
-}
-
 export function compileScheduleOptions(options: ScheduleOptions): CompiledScheduleOptions {
-  const workflowTypeOrFunc = options.action.workflowType;
-  const workflowType = extractWorkflowType(workflowTypeOrFunc);
+  const workflowType = extractWorkflowType(options.action.workflowType);
   return {
     ...options,
     action: {
@@ -267,7 +255,7 @@ export async function encodeScheduleAction(
       },
       input: { payloads: await encodeToPayloads(dataConverter, ...action.args) },
       taskQueue: {
-        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
+        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: action.taskQueue,
       },
       workflowExecutionTimeout: msOptionalToTs(action.workflowExecutionTimeout),
@@ -275,12 +263,15 @@ export async function encodeScheduleAction(
       workflowTaskTimeout: msOptionalToTs(action.workflowTaskTimeout),
       retryPolicy: action.retry ? compileRetryPolicy(action.retry) : undefined,
       memo: action.memo ? { fields: await encodeMapToPayloads(dataConverter, action.memo) } : undefined,
-      searchAttributes: action.searchAttributes
-        ? {
-            indexedFields: mapToPayloads(searchAttributePayloadConverter, action.searchAttributes),
-          }
-        : undefined,
+      searchAttributes:
+        action.searchAttributes || action.typedSearchAttributes // eslint-disable-line deprecation/deprecation
+          ? {
+              indexedFields: encodeUnifiedSearchAttributes(action.searchAttributes, action.typedSearchAttributes), // eslint-disable-line deprecation/deprecation
+            }
+          : undefined,
       header: { fields: headers },
+      userMetadata: await encodeUserMetadata(dataConverter, action.staticSummary, action.staticDetails),
+      priority: action.priority ? compilePriority(action.priority) : undefined,
     },
   };
 }
@@ -290,7 +281,7 @@ export function encodeSchedulePolicies(
 ): temporal.api.schedule.v1.ISchedulePolicies {
   return {
     catchupWindow: msOptionalToTs(policies?.catchupWindow),
-    overlapPolicy: policies?.overlap ? encodeOverlapPolicy(policies.overlap) : undefined,
+    overlapPolicy: policies?.overlap ? encodeScheduleOverlapPolicy(policies.overlap) : undefined,
     pauseOnFailure: policies?.pauseOnFailure,
   };
 }
@@ -330,6 +321,7 @@ export async function decodeScheduleAction(
   pb: temporal.api.schedule.v1.IScheduleAction
 ): Promise<ScheduleDescriptionAction> {
   if (pb.startWorkflow) {
+    const { staticSummary, staticDetails } = await decodeUserMetadata(dataConverter, pb.startWorkflow?.userMetadata);
     return {
       type: 'startWorkflow',
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -341,31 +333,17 @@ export async function decodeScheduleAction(
       args: await decodeArrayFromPayloads(dataConverter, pb.startWorkflow.input?.payloads),
       memo: await decodeMapFromPayloads(dataConverter, pb.startWorkflow.memo?.fields),
       retry: decompileRetryPolicy(pb.startWorkflow.retryPolicy),
-      searchAttributes: Object.fromEntries(
-        Object.entries(
-          mapFromPayloads(
-            searchAttributePayloadConverter,
-            pb.startWorkflow.searchAttributes?.indexedFields ?? {}
-          ) as SearchAttributes
-        )
-      ),
+      searchAttributes: decodeSearchAttributes(pb.startWorkflow.searchAttributes?.indexedFields),
+      typedSearchAttributes: decodeTypedSearchAttributes(pb.startWorkflow.searchAttributes?.indexedFields),
       workflowExecutionTimeout: optionalTsToMs(pb.startWorkflow.workflowExecutionTimeout),
       workflowRunTimeout: optionalTsToMs(pb.startWorkflow.workflowRunTimeout),
       workflowTaskTimeout: optionalTsToMs(pb.startWorkflow.workflowTaskTimeout),
+      staticSummary,
+      staticDetails,
+      priority: decodePriority(pb.startWorkflow.priority),
     };
   }
   throw new TypeError('Unsupported schedule action');
-}
-
-export function decodeSearchAttributes(
-  pb: temporal.api.common.v1.ISearchAttributes | undefined | null
-): SearchAttributes {
-  if (!pb?.indexedFields) return {};
-  return Object.fromEntries(
-    Object.entries(mapFromPayloads(searchAttributePayloadConverter, pb.indexedFields) as SearchAttributes).filter(
-      ([_, v]) => v && v.length > 0
-    ) // Filter out empty arrays returned by pre 1.18 servers
-  );
 }
 
 export function decodeScheduleRunningActions(
@@ -405,10 +383,8 @@ export function decodeScheduleRecentActions(
       } else throw new TypeError('Unsupported schedule action');
 
       return {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        scheduledAt: tsToDate(executionResult.scheduleTime!),
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        takenAt: tsToDate(executionResult.actualTime!),
+        scheduledAt: requiredTsToDate(executionResult.scheduleTime, 'scheduleTime'),
+        takenAt: requiredTsToDate(executionResult.actualTime, 'actualTime'),
         action,
       };
     }

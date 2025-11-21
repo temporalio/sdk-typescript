@@ -1,8 +1,8 @@
-import anyTest, { TestFn } from 'ava';
+import * as process from 'process';
+import { TestFn } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowFailedError } from '@temporalio/client';
-import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
-import { Connection } from '@temporalio/testing/lib/connection';
+import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode, WorkflowBundleWithSourceMap } from '@temporalio/worker';
 import {
   assertFromWorkflow,
@@ -12,16 +12,16 @@ import {
   unblockSignal,
   waitOnSignalWithTimeout,
 } from './workflows/testenv-test-workflows';
-import { Worker } from './helpers';
+import { Worker, TestWorkflowEnvironment, testTimeSkipping as anyTestTimeSkipping } from './helpers';
 
 interface Context {
   testEnv: TestWorkflowEnvironment;
   bundle: WorkflowBundleWithSourceMap;
 }
 
-const test = anyTest as TestFn<Context>;
+const testTimeSkipping = anyTestTimeSkipping as TestFn<Context>;
 
-test.before(async (t) => {
+testTimeSkipping.before(async (t) => {
   t.context = {
     testEnv: await TestWorkflowEnvironment.createTimeSkipping(),
     bundle: await bundleWorkflowCode({
@@ -31,28 +31,31 @@ test.before(async (t) => {
   };
 });
 
-test.after.always(async (t) => {
+testTimeSkipping.after.always(async (t) => {
   await t.context.testEnv?.teardown();
 });
 
-test.serial('TestEnvironment sets up test server and is able to run a Workflow with time skipping', async (t) => {
-  const { client, nativeConnection } = t.context.testEnv;
-  const worker = await Worker.create({
-    connection: nativeConnection,
-    taskQueue: 'test',
-    workflowBundle: t.context.bundle,
-  });
-  await worker.runUntil(
-    client.workflow.execute(sleep, {
-      workflowId: uuid4(),
+testTimeSkipping.serial(
+  'TestEnvironment sets up test server and is able to run a Workflow with time skipping',
+  async (t) => {
+    const { client, nativeConnection } = t.context.testEnv;
+    const worker = await Worker.create({
+      connection: nativeConnection,
       taskQueue: 'test',
-      args: [1_000_000],
-    })
-  );
-  t.pass();
-});
+      workflowBundle: t.context.bundle,
+    });
+    await worker.runUntil(
+      client.workflow.execute(sleep, {
+        workflowId: uuid4(),
+        taskQueue: 'test',
+        args: [1_000_000],
+      })
+    );
+    t.pass();
+  }
+);
 
-test.serial('TestEnvironment can toggle between normal and skipped time', async (t) => {
+testTimeSkipping.serial('TestEnvironment can toggle between normal and skipped time', async (t) => {
   const { client, nativeConnection } = t.context.testEnv;
 
   const worker = await Worker.create({
@@ -78,12 +81,7 @@ test.serial('TestEnvironment can toggle between normal and skipped time', async 
   t.pass();
 });
 
-test.serial('TestEnvironment sleep can be used to delay activity completion', async (t) => {
-  // TODO: check why this fails on windows
-  if (process.platform === 'win32') {
-    t.pass();
-    return;
-  }
+testTimeSkipping.serial('TestEnvironment sleep can be used to delay activity completion', async (t) => {
   const { client, nativeConnection, sleep } = t.context.testEnv;
 
   const worker = await Worker.create({
@@ -106,26 +104,14 @@ test.serial('TestEnvironment sleep can be used to delay activity completion', as
     t.is(winner, expectedWinner);
   };
   await worker.runUntil(async () => {
-    // TODO: there's an issue with the Java test server where if an activity
-    // does not complete before its scheduling workflow, time skipping stays
-    // locked.
-    // If the order of the below 2 statements is reversed, this test will hang.
     await run('activity');
     await run('timer');
   });
   t.pass();
 });
 
-test.serial('TestEnvironment sleep can be used to delay sending a signal', async (t) => {
-  // TODO: check why this fails on windows
-  if (process.platform === 'win32') {
-    t.pass();
-    return;
-  }
+testTimeSkipping.serial('TestEnvironment sleep can be used to delay sending a signal', async (t) => {
   const { client, nativeConnection, sleep } = t.context.testEnv;
-  // TODO: due to the test server issue mentioned in the test avove we need to manually unlock time skipping
-  // for the current test to balance out the time skipping lock counter.
-  await (t.context.testEnv.connection as Connection).testService.unlockTimeSkipping({});
 
   const worker = await Worker.create({
     connection: nativeConnection,
@@ -145,7 +131,7 @@ test.serial('TestEnvironment sleep can be used to delay sending a signal', async
   t.pass();
 });
 
-test.serial('Workflow code can run assertions', async (t) => {
+testTimeSkipping.serial('Workflow code can run assertions', async (t) => {
   const { client, nativeConnection } = t.context.testEnv;
 
   const worker = await Worker.create({
@@ -167,7 +153,7 @@ test.serial('Workflow code can run assertions', async (t) => {
   t.is(err?.cause?.message, 'Expected values to be strictly equal:\n\n6 !== 7\n');
 });
 
-test.serial('ABNADONED child timer can be fast-forwarded', async (t) => {
+testTimeSkipping.serial('ABNADONED child timer can be fast-forwarded', async (t) => {
   const { client, nativeConnection } = t.context.testEnv;
 
   const worker = await Worker.create({

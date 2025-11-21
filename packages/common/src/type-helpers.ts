@@ -1,9 +1,20 @@
+export type NonNullableObject<T> = { [P in keyof T]-?: NonNullable<T[P]> };
+
 /** Shorthand alias */
 export type AnyFunc = (...args: any[]) => any;
+
 /** A tuple without its last element */
 export type OmitLast<T> = T extends [...infer REST, any] ? REST : never;
+
 /** F with all arguments but the last */
 export type OmitLastParam<F extends AnyFunc> = (...args: OmitLast<Parameters<F>>) => ReturnType<F>;
+
+export type OmitFirst<T> = T extends [any, ...infer REST] ? REST : never;
+
+export type OmitFirstParam<T> = T extends (...args: any[]) => any
+  ? (...args: OmitFirst<Parameters<T>>) => ReturnType<T>
+  : never;
+
 /** Require that T has at least one of the provided properties defined */
 export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Pick<T, Exclude<keyof T, Keys>> &
   {
@@ -16,6 +27,84 @@ export function checkExtends<_Orig, _Copy extends _Orig>(): void {
 }
 
 export type Replace<Base, New> = Omit<Base, keyof New> & New;
+
+// From https://github.com/sindresorhus/type-fest/blob/main/source/union-to-intersection.d.ts
+// MIT or CC0-1.0 — It is meant to be copied into your codebase rather than being used as a dependency.
+export type UnionToIntersection<Union> =
+  // `extends unknown` is always going to be the case and is used to convert the `Union` into a
+  // [distributive conditional type](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-8.html#distributive-conditional-types).
+  (
+    Union extends unknown
+      ? // The union type is used as the only argument to a function since the union
+        // of function arguments is an intersection.
+        (distributedUnion: Union) => void
+      : // This won't happen.
+        never
+  ) extends // Infer the `Intersection` type since TypeScript represents the positional
+  // arguments of unions of functions as an intersection of the union.
+  (mergedIntersection: infer Intersection) => void
+    ? // The `& Union` is to allow indexing by the resulting type
+      Intersection & Union
+    : never;
+
+type IsEqual<A, B> = (<G>() => G extends A ? 1 : 2) extends <G>() => G extends B ? 1 : 2 ? true : false;
+
+type Primitive = null | undefined | string | number | boolean | symbol | bigint;
+
+type IsNull<T> = [T] extends [null] ? true : false;
+
+type IsUnknown<T> = unknown extends T // `T` can be `unknown` or `any`
+  ? IsNull<T> extends false // `any` can be `null`, but `unknown` can't be
+    ? true
+    : false
+  : false;
+
+type ObjectValue<T, K> = K extends keyof T
+  ? T[K]
+  : ToString<K> extends keyof T
+    ? T[ToString<K>]
+    : K extends `${infer NumberK extends number}`
+      ? NumberK extends keyof T
+        ? T[NumberK]
+        : never
+      : never;
+
+type ToString<T> = T extends string | number ? `${T}` : never;
+
+type KeysOfUnion<ObjectType> = ObjectType extends unknown ? keyof ObjectType : never;
+
+type ArrayElement<T> = T extends readonly unknown[] ? T[0] : never;
+
+type ExactObject<ParameterType, InputType> = {
+  [Key in keyof ParameterType]: Exact<ParameterType[Key], ObjectValue<InputType, Key>>;
+} & Record<Exclude<keyof InputType, KeysOfUnion<ParameterType>>, never>;
+
+export type Exact<ParameterType, InputType> =
+  // Before distributing, check if the two types are equal and if so, return the parameter type immediately
+  IsEqual<ParameterType, InputType> extends true
+    ? ParameterType
+    : // If the parameter is a primitive, return it as is immediately to avoid it being converted to a complex type
+      ParameterType extends Primitive
+      ? ParameterType
+      : // If the parameter is an unknown, return it as is immediately to avoid it being converted to a complex type
+        IsUnknown<ParameterType> extends true
+        ? unknown
+        : // If the parameter is a Function, return it as is because this type is not capable of handling function, leave it to TypeScript
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+          ParameterType extends Function
+          ? ParameterType
+          : // Convert union of array to array of union: A[] & B[] => (A & B)[]
+            ParameterType extends unknown[]
+            ? Array<Exact<ArrayElement<ParameterType>, ArrayElement<InputType>>>
+            : // In TypeScript, Array is a subtype of ReadonlyArray, so always test Array before ReadonlyArray.
+              ParameterType extends readonly unknown[]
+              ? ReadonlyArray<Exact<ArrayElement<ParameterType>, ArrayElement<InputType>>>
+              : ExactObject<ParameterType, InputType>;
+// End of borrow from  https://github.com/sindresorhus/type-fest/blob/main/source/union-to-intersection.d.ts
+
+export type RemovePrefix<Prefix extends string, Keys extends string> = {
+  [k in Keys]: k extends `${Prefix}${infer Suffix}` ? Suffix : never;
+}[Keys];
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;

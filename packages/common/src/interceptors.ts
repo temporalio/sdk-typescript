@@ -12,7 +12,10 @@ export type Next<IF, FN extends keyof IF> = Required<IF>[FN] extends AnyFunc ? O
 export type Headers = Record<string, Payload>;
 
 /**
- * Composes all interceptor methods into a single function
+ * Compose all interceptor methods into a single function.
+ *
+ * Calling the composed function results in calling each of the provided interceptor, in order (from the first to
+ * the last), followed by the original function provided as argument to `composeInterceptors()`.
  *
  * @param interceptors a list of interceptors
  * @param method the name of the interceptor method to compose
@@ -24,7 +27,7 @@ export function composeInterceptors<I, M extends keyof I>(interceptors: I[], met
     const interceptor = interceptors[i];
     if (interceptor[method] !== undefined) {
       const prev = next;
-      // We loose type safety here because Typescript can't deduce that interceptor[method] is a function that returns
+      // We lose type safety here because Typescript can't deduce that interceptor[method] is a function that returns
       // the same type as Next<I, M>
       next = ((input: any) => (interceptor[method] as any)(input, prev)) as any;
     }

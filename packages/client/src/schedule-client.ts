@@ -1,14 +1,22 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
-import { mapToPayloads, searchAttributePayloadConverter, Workflow } from '@temporalio/common';
-import { composeInterceptors, Headers } from '@temporalio/common/lib/interceptors';
+import { Workflow } from '@temporalio/common';
 import {
-  encodeMapToPayloads,
-  decodeMapFromPayloads,
-  filterNullAndUndefined,
-} from '@temporalio/common/lib/internal-non-workflow';
+  decodeSearchAttributes,
+  decodeTypedSearchAttributes,
+  encodeUnifiedSearchAttributes,
+} from '@temporalio/common/lib/converter/payload-search-attributes';
+import { composeInterceptors, Headers } from '@temporalio/common/lib/interceptors';
+import { encodeMapToPayloads, decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { temporal } from '@temporalio/proto';
-import { optionalDateToTs, optionalTsToDate, optionalTsToMs, tsToDate } from '@temporalio/common/lib/time';
+import {
+  optionalDateToTs,
+  optionalTsToDate,
+  optionalTsToMs,
+  requiredTsToDate,
+  tsToDate,
+} from '@temporalio/common/lib/time';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
 import { WorkflowService } from './types';
@@ -23,17 +31,16 @@ import {
   ScheduleUpdateOptions,
   ScheduleOptionsAction,
   ScheduleOptionsStartWorkflowAction,
+  encodeScheduleOverlapPolicy,
+  decodeScheduleOverlapPolicy,
 } from './schedule-types';
 import {
   compileScheduleOptions,
   compileUpdatedScheduleOptions,
-  decodeOverlapPolicy,
   decodeScheduleAction,
   decodeScheduleRecentActions,
   decodeScheduleRunningActions,
   decodeScheduleSpec,
-  decodeSearchAttributes,
-  encodeOverlapPolicy,
   encodeScheduleAction,
   encodeSchedulePolicies,
   encodeScheduleSpec,
@@ -156,6 +163,10 @@ export interface ListScheduleOptions {
    * @default 1000
    */
   pageSize?: number;
+  /**
+   * Filter schedules by a query string.
+   */
+  query?: string;
 }
 
 /**
@@ -228,11 +239,12 @@ export class ScheduleClient extends BaseClient {
         state: encodeScheduleState(opts.state),
       },
       memo: opts.memo ? { fields: await encodeMapToPayloads(this.dataConverter, opts.memo) } : undefined,
-      searchAttributes: opts.searchAttributes
-        ? {
-            indexedFields: mapToPayloads(searchAttributePayloadConverter, opts.searchAttributes),
-          }
-        : undefined,
+      searchAttributes:
+        opts.searchAttributes || opts.typedSearchAttributes // eslint-disable-line deprecation/deprecation
+          ? {
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes), // eslint-disable-line deprecation/deprecation
+            }
+          : undefined,
       initialPatch: {
         triggerImmediately: opts.state?.triggerImmediately
           ? { overlapPolicy: temporal.api.enums.v1.ScheduleOverlapPolicy.SCHEDULE_OVERLAP_POLICY_ALLOW_ALL }
@@ -241,7 +253,7 @@ export class ScheduleClient extends BaseClient {
           ? opts.state.backfill.map((x) => ({
               startTime: optionalDateToTs(x.start),
               endTime: optionalDateToTs(x.end),
-              overlapPolicy: x.overlap ? encodeOverlapPolicy(x.overlap) : undefined,
+              overlapPolicy: x.overlap ? encodeScheduleOverlapPolicy(x.overlap) : undefined,
             }))
           : undefined,
       },
@@ -292,6 +304,12 @@ export class ScheduleClient extends BaseClient {
       },
       identity: this.options.identity,
       requestId: uuid4(),
+      searchAttributes:
+        opts.searchAttributes || opts.typedSearchAttributes // eslint-disable-line deprecation/deprecation
+          ? {
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes), // eslint-disable-line deprecation/deprecation
+            }
+          : undefined,
     };
     try {
       return await this.workflowService.updateSchedule(req);
@@ -362,6 +380,7 @@ export class ScheduleClient extends BaseClient {
           nextPageToken,
           namespace: this.options.namespace,
           maximumPageSize: options?.pageSize,
+          query: options?.query,
         });
       } catch (e) {
         this.rethrowGrpcError(e, 'Failed to list schedules', undefined);
@@ -377,7 +396,8 @@ export class ScheduleClient extends BaseClient {
             workflowType: raw.info.workflowType.name,
           },
           memo: await decodeMapFromPayloads(this.dataConverter, raw.memo?.fields),
-          searchAttributes: decodeSearchAttributes(raw.searchAttributes),
+          searchAttributes: decodeSearchAttributes(raw.searchAttributes?.indexedFields),
+          typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes?.indexedFields),
           state: {
             paused: raw.info?.paused === true,
             note: raw.info?.notes ?? undefined,
@@ -414,9 +434,11 @@ export class ScheduleClient extends BaseClient {
           spec: decodeScheduleSpec(raw.schedule.spec),
           action: await decodeScheduleAction(this.client.dataConverter, raw.schedule.action),
           memo: await decodeMapFromPayloads(this.client.dataConverter, raw.memo?.fields),
-          searchAttributes: decodeSearchAttributes(raw.searchAttributes),
+          searchAttributes: decodeSearchAttributes(raw.searchAttributes?.indexedFields),
+          typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes?.indexedFields),
           policies: {
-            overlap: decodeOverlapPolicy(raw.schedule.policies?.overlapPolicy),
+            // 'overlap' should never be missing on describe, as the server will replace UNSPECIFIED by an actual value
+            overlap: decodeScheduleOverlapPolicy(raw.schedule.policies?.overlapPolicy) ?? ScheduleOverlapPolicy.SKIP,
             catchupWindow: optionalTsToMs(raw.schedule.policies?.catchupWindow) ?? 60_000,
             pauseOnFailure: raw.schedule.policies?.pauseOnFailure === true,
           },
@@ -430,8 +452,7 @@ export class ScheduleClient extends BaseClient {
           info: {
             recentActions: decodeScheduleRecentActions(raw.info?.recentActions),
             nextActionTimes: raw.info?.futureActionTimes?.map(tsToDate) ?? [],
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            createdAt: tsToDate(raw.info!.createTime!),
+            createdAt: requiredTsToDate(raw.info?.createTime, 'createTime'),
             lastUpdatedAt: optionalTsToDate(raw.info?.updateTime),
             runningActions: decodeScheduleRunningActions(raw.info?.runningWorkflows),
             numActionsMissedCatchupWindow: raw.info?.missedCatchupWindow?.toNumber() ?? 0,
@@ -475,7 +496,7 @@ export class ScheduleClient extends BaseClient {
         await this.client._patchSchedule(this.scheduleId, {
           triggerImmediately: {
             overlapPolicy: overlap
-              ? encodeOverlapPolicy(overlap)
+              ? encodeScheduleOverlapPolicy(overlap)
               : temporal.api.enums.v1.ScheduleOverlapPolicy.SCHEDULE_OVERLAP_POLICY_ALLOW_ALL,
           },
         });
@@ -487,7 +508,7 @@ export class ScheduleClient extends BaseClient {
           backfillRequest: backfills.map((x) => ({
             startTime: optionalDateToTs(x.start),
             endTime: optionalDateToTs(x.end),
-            overlapPolicy: x.overlap ? encodeOverlapPolicy(x.overlap) : undefined,
+            overlapPolicy: x.overlap ? encodeScheduleOverlapPolicy(x.overlap) : undefined,
           })),
         });
       },
@@ -519,7 +540,10 @@ export class ScheduleClient extends BaseClient {
  */
 @SymbolBasedInstanceOfError('ScheduleAlreadyRunning')
 export class ScheduleAlreadyRunning extends Error {
-  constructor(message: string, public readonly scheduleId: string) {
+  constructor(
+    message: string,
+    public readonly scheduleId: string
+  ) {
     super(message);
   }
 }
@@ -532,7 +556,10 @@ export class ScheduleAlreadyRunning extends Error {
  */
 @SymbolBasedInstanceOfError('ScheduleNotFoundError')
 export class ScheduleNotFoundError extends Error {
-  constructor(message: string, public readonly scheduleId: string) {
+  constructor(
+    message: string,
+    public readonly scheduleId: string
+  ) {
     super(message);
   }
 }

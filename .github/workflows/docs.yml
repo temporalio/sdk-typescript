@@ -1,0 +1,76 @@
+name: Docs
+
+on:
+  workflow_call:
+    inputs:
+      publish_target:
+        required: true
+        type: string
+        description: |
+          Whether to publish the docs. Set to either 'prod' or 'draft', or leave unset to skip publishing.
+    secrets:
+      ALGOLIA_API_KEY:
+        required: false
+        description: The Algolia API key. Required if 'publish_target' is set.
+      VERCEL_TOKEN:
+        required: false
+        description: The Vercel token. Required if 'publish_target' is set.
+      VERCEL_ORG_ID:
+        required: false
+        description: The Vercel token. Required if 'publish_target' is set.
+      VERCEL_PROJECT_ID:
+        required: false
+        description: The Vercel token. Required if 'publish_target' is set.
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build-docs:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node and Install Dependencies
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: '22'
+          platform: 'linux-x64'
+
+      - run: pnpm run build --ignore @temporalio/core-bridge
+
+      - name: Build docs
+        run: pnpm run docs
+        env:
+          ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+
+      - name: Publish production docs
+        if: ${{ inputs.publish_target == 'prod' }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          pnpm dlx vercel deploy packages/docs/build \
+            -t "$VERCEL_TOKEN" \
+            --yes \
+            --prod
+
+      - name: Publish preview docs
+        if: ${{ inputs.publish_target && inputs.publish_target != 'prod' }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          pnpm dlx vercel deploy packages/docs/build \
+            -t "$VERCEL_TOKEN" \
+            --yes

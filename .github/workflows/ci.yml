@@ -1,309 +1,290 @@
 name: Continuous Integration
 
-on: # rebuild any PRs and main branch changes
+on:
   pull_request:
   push:
     branches:
       - main
-      - 'releases/*'
+      - releases/*
+
+permissions:
+  contents: read
+  actions: write
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # Is it the official main branch, or an official release branches?
+  #
+  # Variable IS_TEMPORALIO_SDK_TYPESCRIPT_REPO is configured to true on the official repo.
+  # It can be used to determine if the present execution has access to secrets or not.
+  #
+  # AFAIK there's no way to break that line w/o introducing a trailing LF that breaks usage. Sorry.
+  IS_MAIN_OR_RELEASE: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.event_name != 'pull_request' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) }}
+
+  # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
+  # TESTS_CLI_VERSION: 'v0.13.2'
+  # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
-  build-and-test:
+  # Compile native bridge code for each target platform.
+  # Uploads the native library for each target as a build artifact.
+  compile-native-binaries-debug:
+    timeout-minutes: 20
     strategy:
       fail-fast: true
       matrix:
-        reuse-v8-context: [false]
-        node: [14, 16]
-        os: [ubuntu-latest, macos-latest, windows-latest]
         include:
-          - os: ubuntu-latest
-            node: 16
-            reuse-v8-context: true
-
-    runs-on: ${{ matrix.os }}
+          - platform: linux-x64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            out-file: libtemporal_sdk_typescript_bridge.so
+          - platform: linux-arm
+            runner: ubuntu-24.04-arm64-2-core
+            target: aarch64-unknown-linux-gnu
+            out-file: libtemporal_sdk_typescript_bridge.so
+          - platform: macos-x64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
+          - platform: macos-arm
+            runner: macos-14
+            target: aarch64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
+          - platform: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            out-file: temporal_sdk_typescript_bridge.dll
+    name: Compile Native Binaries (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
     steps:
-      - uses: actions/checkout@v2
+      - name: 'Checkout code'
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions-rs/toolchain@v1
+
+      - name: 'Cache index.node'
+        id: cached-artifact
+        uses: actions/cache@v4
         with:
-          toolchain: stable
-      - uses: actions/setup-node@v1
-        with:
-          node-version: ${{ matrix.node }}
+          path: ./packages/core-bridge/releases
+          key: corebridge-artifactcache-debug-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
+
       - name: Install protoc
-        uses: arduino/setup-protoc@v1
+        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        uses: arduino/setup-protoc@v3
         with:
-          version: '3.x'
+          # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
+          version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: Swatinem/rust-cache@v1
+
+      - name: Upgrade Rust to latest stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cargo and Build cache
+        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@v2
         with:
-          working-directory: packages/core-bridge
-      # Don't build during install phase since we're going to explicitly build
-      - run: npm ci --ignore-scripts
-      - run: npm run build
-        env:
-          BUILD_CORE_RELEASE: true
+          workspaces: packages/core-bridge -> target
+          prefix-key: corebridge-buildcache-debug
+          shared-key: ${{ matrix.platform }}
+          env-vars: ''
+          save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
 
-      # docker-compose
-      - name: Checkout docker-compose repo
-        uses: actions/checkout@v2
+      - name: Compile rust code
+        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        working-directory: ./packages/core-bridge
+        run: |
+          set -x
+          cargo build --target ${{ matrix.target }}
+          mkdir -p ./releases/${{ matrix.target }}
+          cp target/${{ matrix.target }}/debug/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
+
+      - uses: actions/upload-artifact@v4
         with:
-          repository: temporalio/docker-compose
-          path: docker-compose
-        if: ${{ startsWith(matrix.os, 'ubuntu') }}
+          name: corebridge-native-debug-${{ matrix.platform }}
+          # Actual file will be named ${{ matrix.target }}/index.node
+          path: ./packages/core-bridge/releases/*/index.node
 
-      - name: Start Temporal Server
-        run: docker-compose up -d
-        working-directory: docker-compose
-        if: ${{ startsWith(matrix.os, 'ubuntu') }}
+  # Run integration tests.
+  # Uses the native binaries built in compile-native-binaries, but build `@temporalio/*` packages locally.
+  integration-tests:
+    timeout-minutes: 20
+    needs:
+      - compile-native-binaries-debug
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 22, 24] # Min and max officially supported Node versions + next max
+        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+            # For efficiency, we only run non-reuse-v8-context tests on this platform
+            reuse-v8-context: false
+          - platform: linux-arm
+            runner: ubuntu-24.04-arm64-2-core
+            reuse-v8-context: true
+          - platform: macos-x64
+            runner: macos-15-intel
+            reuse-v8-context: true
+          - platform: macos-arm
+            runner: macos-14
+            reuse-v8-context: true
+          - platform: windows-x64
+            runner: windows-latest
+            reuse-v8-context: true
+    runs-on: ${{ matrix.runner }}
+    name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # For some unknown reason, execution of TSC may sometime introduce a CRLF/LF mismatch on some
+      # pure JS files that are preserved in the repo, which would later cause a failure when trying
+      # to publish packages to Verdaccio, as Lerna requires that the Git repo be clean.
+      - name: Set git config
+        run: git config --global core.autocrlf false
 
-      - name: Wait for Temporal Server
-        run: npm run wait-namespace
-        if: ${{ startsWith(matrix.os, 'ubuntu') }}
-      # end:docker-compose
+      - name: 'Checkout code'
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - run: npm test
+      - name: Download core-bridge native libraries
+        uses: actions/download-artifact@v4
+        with:
+          name: corebridge-native-debug-${{ matrix.platform }}
+          path: ./packages/core-bridge/releases
+
+      - name: Setup Node and Install Dependencies
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: ${{ matrix.node-release-override || matrix.node }}
+          platform: ${{ matrix.platform }}
+
+      # On Windows, the 'runner.temp' variable uses backslashes as path separators, but
+      # that may pose problems in later steps when we try to join that with subpaths;
+      # e.g. '${{ runner.temp }}/npm-registry' would get interpolated to 'd:\a\_temp/npm-registry',
+      # which may effectively get interpreted as by bash as 'd:a_temp/npm-registry', resulting in
+      # the apparition of an unwanted 'a_temp' directory.
+      #
+      # This step ensures that the 'runner.temp' variable is normalized to use forward slashes.
+      - name: Get normalized path to temp directory
+        id: tmp-dir
+        run: echo "dir=$(pwd)" >> ${GITHUB_OUTPUT}
+        working-directory: ${{ runner.temp }}
+
+      - name: Compile code
+        run: pnpm run build --ignore @temporalio/core-bridge
+
+      - name: Publish to Verdaccio
+        run: node scripts/publish-to-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
+
+      - name: Install Temporal CLI
+        uses: temporalio/setup-temporal@v0
+
+      - name: Run Temporal CLI
+        working-directory: ${{ runner.temp }}
+        run: |
+          temporal server start-dev \
+            --db-filename temporal.sqlite \
+            --sqlite-pragma journal_mode=WAL \
+            --sqlite-pragma synchronous=OFF \
+            --headless &> ./devserver.log &
+
+      - name: Run Tests
+        run: pnpm run test
         env:
-          # NOTE: Newer tests start their own server and are not subject to this env var.
-          RUN_INTEGRATION_TESTS: ${{ startsWith(matrix.os, 'ubuntu') }}
+          RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
-      - uses: actions/upload-artifact@v3
-        if: ${{ failure() }}
-        with:
-          name: npm-logs
-          path: |
-            ~/.npm/_logs/
-            C:\npm\cache\_logs\
+          # For Temporal Cloud + mTLS tests
+          TEMPORAL_CLOUD_MTLS_TEST_TARGET_HOST: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
+          TEMPORAL_CLOUD_MTLS_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLOUD_MTLS_TEST_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+          TEMPORAL_CLOUD_MTLS_TEST_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
 
-  build-docs:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
-      - uses: actions/setup-node@v1
-        with:
-          node-version: 16
-      - name: Install protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          version: '3.x'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      # Don't build during install phase since we're going to explicitly build
-      - run: npm ci --ignore-scripts
-      - run: npm run build -- --ignore @temporalio/core-bridge
+          # For Temporal Cloud + API key tests
+          TEMPORAL_CLOUD_API_KEY_TEST_TARGET_HOST: us-west-2.aws.api.temporal.io:7233
+          TEMPORAL_CLOUD_API_KEY_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLOUD_API_KEY_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
 
-      # Do docs stuff (only on one host)
-      - name: Build docs
-        run: npm run docs
+          # For Temporal Cloud + Cloud Ops tests
+          TEMPORAL_CLOUD_OPS_TEST_TARGET_HOST: saas-api.tmprl.cloud:443
+          TEMPORAL_CLOUD_OPS_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLOUD_OPS_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLOUD_OPS_TEST_API_VERSION: 2024-05-13-00
+
+      # FIXME: Move samples tests to a custom activity
+      # Sample 1: hello-world to local server
+      - name: Instantiate sample project using verdaccio artifacts - Hello World
+        run: |
+          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world
+          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world"
+
+      # Sample 2: hello-world-mtls to cloud server
+      - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
+        run: |
+          if [ -z "$TEMPORAL_ADDRESS" ] || [ -z "$TEMPORAL_NAMESPACE" ] || [ -z "$TEMPORAL_CLIENT_CERT" ] || [ -z "$TEMPORAL_CLIENT_KEY" ]; then
+            echo "Skipping hello-world-mtls sample test as required environment variables are not set"
+            exit 0
+          fi
+
+          node scripts/create-certs-dir.js ${{ steps.tmp-dir.outputs.dir }}/certs
+          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls
+          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls"
         env:
-          ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
-      - name: Deploy prod docs # TODO: only deploy prod docs when we publish a new version
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --prod --yes
-      - name: Deploy draft docs
-        # Don't run on forks, since secrets won't be available, and command will fail
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.ref != 'refs/heads/main' }}
-        run: npx vercel deploy packages/docs/build -t ${{ secrets.VERCEL_TOKEN }} --name typescript --scope temporal --yes
+          # These env vars are used by the hello-world-mtls sample
+          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
+          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
+          TEMPORAL_TASK_QUEUE: ${{ format('tssdk-ci-{0}-{1}-sample-hello-world-mtls-{2}-{3}', matrix.platform, matrix.node, github.run_id, github.run_attempt) }}
 
-  # Run TS linting and ts-prune to find unused code
-  lint-and-prune:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
-      - uses: actions/setup-node@v1
-        with:
-          node-version: 16
-      - name: Install protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          version: '3.x'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: Swatinem/rust-cache@v1
-        with:
-          working-directory: packages/core-bridge
-      - run: npm ci --ignore-scripts
-      # eslint-import-resolver-typescript requires packages to be built
-      - name: Compile all non-rust code
-        run: npm run build -- --ignore @temporalio/core-bridge
-      - run: npm run lint.check
-      - run: npm run lint.prune
+          TEMPORAL_CLIENT_CERT_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.pem
+          TEMPORAL_CLIENT_KEY_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.key
 
-  # Compile native bridge code and isolate extension for Windows, Mac and Linux.
-  # Uploads the packages as a build artifact to be tested later.
-  compile-binaries:
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - runsOn: buildjet-2vcpu-ubuntu-1804
-            target: x86_64-unknown-linux-gnu
-          - runsOn: buildjet-2vcpu-ubuntu-1804
-            target: aarch64-unknown-linux-gnu
-            rustflags: '-C linker=aarch64-linux-gnu-gcc'
-          - runsOn: macos-latest
-            target: x86_64-apple-darwin
-          - runsOn: macos-latest
-            target: aarch64-apple-darwin
-          - runsOn: windows-latest
-            target: x86_64-pc-windows-msvc
-    runs-on: ${{ matrix.runsOn }}
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - uses: actions/setup-node@v1
-        with:
-          node-version: 16
-      - name: Install protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          version: '3.x'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Add ${{ matrix.target }} rust target
-        run: rustup target add ${{ matrix.target }}
-      - name: Print libc version
-        run: ldd --version
-        if: ${{ contains(matrix.runsOn, 'ubuntu') }}
-      - name: Install gcc-aarch64-linux-gnu
-        run: sudo apt update && sudo apt install -y gcc-aarch64-linux-gnu
-        if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
-      - uses: Swatinem/rust-cache@v1
-        with:
-          working-directory: packages/core-bridge
-      # Don't build during install phase since we're going to explicitly build
-      - run: npm ci --ignore-scripts
-      - name: Compile all non-rust code
-        run: npm run build -- --ignore @temporalio/core-bridge
-      - name: Cross compile rust code
-        env:
-          RUSTFLAGS: ${{ matrix.rustflags }}
-        run: npx lerna run --stream build-rust-release -- --target ${{ matrix.target }}
-      # Restore the CLI JS only on Windows because Windows build changes the
-      # file attributes causing publish to think the change is uncommitted
-      - run: git restore packages/create-project/cli.js
-        if: ${{ matrix.runsOn == 'windows-latest' }}
-      - run: node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
-      - uses: actions/upload-artifact@v2
-        with:
-          name: packages-${{ matrix.target }}
-          path: /tmp/registry/storage
+      - name: Destroy certs dir
+        if: always()
+        run: rm -rf ${{ steps.tmp-dir.outputs.dir }}/certs
+        continue-on-error: true
 
-  # Tests that npm init @temporalio results in a working worker and client
-  # Note that the instances used here don't have the Rust toolchain installed which ensures use of prebuilt libs.
-  test-npm-init:
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            node: 16
-            server: local
-            sample: hello-world
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            node: 16
-            server: local
-            sample: fetch-esm
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            node: 16
-            server: cloud
-            sample: hello-world-mtls
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            node: 16
-            server: cloud
-            sample: hello-world-mtls
+      # Sample 3: fetch-esm to local server
+      - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
+        run: |
+          node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm
+          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm" --script-name workflow-local --expected-output "Hello World And Hello Wonderful Temporal!"
 
-    runs-on: ${{ matrix.os }}
-    needs: compile-binaries
-    env:
-      TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
-      TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
-    steps:
-      # We don't need the core submodule here since we don't build the project
-      - uses: actions/checkout@v2
-        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      - uses: actions/setup-node@v1
+      # End samples
+
+      - name: Upload Dev Server logs
+        uses: actions/upload-artifact@v4
+        if: failure() || cancelled()
         with:
-          node-version: ${{ matrix.node }}
-        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      # No need to compile anything, we just need the package ./scripts and their dependencies
-      - name: Install dependencies without compilation
-        run: npm ci --ignore-scripts
-        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      - uses: actions/download-artifact@v2
-        with:
-          name: packages-${{ matrix.target }}
-          path: /tmp/registry/storage
-        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      - run: node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample https://github.com/temporalio/samples-typescript/tree/next/${{ matrix.sample }}
-        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
+          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
+          path: ${{ steps.tmp-dir.outputs.dir }}/devserver.log
 
-      # docker-compose
-      - name: Checkout docker-compose repo
-        uses: actions/checkout@v2
-        with:
-          repository: temporalio/docker-compose
-          path: docker-compose
-        if: ${{ matrix.server == 'local' }}
-
-      - name: Start Temporal Server
-        run: docker-compose up -d
-        working-directory: docker-compose
-        if: ${{ matrix.server == 'local' }}
-
-      # Copy wait-on-temporal script to the example project where the built client package is installed
-      - run: cp scripts/wait-on-temporal.mjs /tmp/registry/example
-        if: ${{ matrix.server == 'local' }}
-
-      - name: Wait for Temporal Server
-        run: node wait-on-temporal.mjs
-        working-directory: /tmp/registry/example
-        if: ${{ matrix.server == 'local' }}
-      # end:docker-compose
-
-      - name: Create certs dir
-        # We write the certs to disk because it serves the sample
-        run: node scripts/create-certs-dir.js
-        if: ${{ matrix.server == 'cloud' && env.TEMPORAL_CLIENT_CERT != '' }}
-      - name: Test run a workflow
-        run: node scripts/test-example.js --work-dir /tmp/registry/example
-        env:
-          # TODO: get a permanent cloud namespace for CI
-          # These env vars are ignored by the local server example
-          TEMPORAL_ADDRESS: sdk-ci.a2dd6.tmprl.cloud
-          TEMPORAL_NAMESPACE: sdk-ci.a2dd6
-          TEMPORAL_CLIENT_CERT_PATH: /tmp/temporal-certs/client.pem
-          TEMPORAL_CLIENT_KEY_PATH: /tmp/temporal-certs/client.key
-          TEMPORAL_TASK_QUEUE: ${{ format('{0}-{1}-{2}', matrix.os, matrix.node, matrix.target) }}
-        if: ${{ matrix.server != 'cloud' || env.TEMPORAL_CLIENT_CERT != '' }}
-      - run: rm /tmp/temporal-certs/client.pem
-        if: ${{ matrix.server == 'cloud' && env.TEMPORAL_CLIENT_CERT != '' }}
-      - run: rm /tmp/temporal-certs/client.key
-        if: ${{ matrix.server == 'cloud' && env.TEMPORAL_CLIENT_CERT != '' }}
+  conventions:
+    name: Lint and Prune
+    uses: ./.github/workflows/conventions.yml
 
   # Runs the features repo tests with this repo's current SDK code
+  # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
   features-tests:
+    name: Features Tests
     uses: temporalio/features/.github/workflows/typescript.yaml@main
     with:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
       version: ${{github.event.pull_request.head.ref}}
       version-is-repo-ref: true
+      features-repo-ref: main
 
-  stress-tests:
+  stress-tests-no-reuse-context:
+    name: Stress Tests (No Reuse V8 Context)
+    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
     uses: ./.github/workflows/stress.yml
     with:
       test-type: ci-stress
@@ -311,8 +292,22 @@ jobs:
       reuse-v8-context: false
 
   stress-tests-reuse-context:
+    name: Stress Tests (Reuse V8 Context)
+    # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
     uses: ./.github/workflows/stress.yml
     with:
       test-type: ci-stress
       test-timeout-minutes: 20
       reuse-v8-context: true
+
+  docs:
+    name: Build Docs
+    uses: ./.github/workflows/docs.yml
+    with:
+      # Can't publish from forks, as secrets won't be available
+      publish_target: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && 'draft' || '' }}
+    secrets:
+      ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

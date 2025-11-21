@@ -5,7 +5,7 @@ async function main() {
   const { registryDir } = await getArgs();
   await withRegistry(registryDir, async () => {
     try {
-      await spawnNpx(['lerna', 'publish', 'from-package', '--yes', '--registry', 'http://localhost:4873/'], {
+      await spawnNpx(['lerna', 'publish', 'from-package', '--yes', '--registry', 'http://127.0.0.1:4873/'], {
         stdio: 'inherit',
         stdout: 'inherit',
         stderr: 'inherit',

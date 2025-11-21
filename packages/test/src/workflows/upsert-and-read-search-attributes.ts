@@ -1,6 +1,11 @@
-import { SearchAttributes, upsertSearchAttributes, workflowInfo } from '@temporalio/workflow';
+import { SearchAttributes, upsertSearchAttributes, workflowInfo, proxySinks } from '@temporalio/workflow';
+import { CustomLoggerSinks } from './log-sink-tester';
 
+const { customLogger } = proxySinks<CustomLoggerSinks>();
+
+// eslint-disable-next-line deprecation/deprecation
 export async function upsertAndReadSearchAttributes(msSinceEpoch: number): Promise<SearchAttributes | undefined> {
+  customLogger.info('Before upsert');
   upsertSearchAttributes({
     CustomIntField: [123],
     CustomBoolField: [true],
@@ -12,5 +17,6 @@ export async function upsertAndReadSearchAttributes(msSinceEpoch: number): Promi
     CustomDatetimeField: [new Date(msSinceEpoch)],
     CustomDoubleField: [3.14],
   });
-  return workflowInfo().searchAttributes;
+  customLogger.info('After upsert');
+  return workflowInfo().searchAttributes; // eslint-disable-line deprecation/deprecation
 }

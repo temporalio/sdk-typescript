@@ -1,12 +1,11 @@
 {
   "name": "@temporalio/docs",
-  "version": "1.8.6",
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "TYPEDOC_WATCH=true DOCUSAURUS_NO_DUPLICATE_TITLE_WARNING=false docusaurus start",
     "build-docs": "TYPEDOC_WATCH=false DOCUSAURUS_NO_DUPLICATE_TITLE_WARNING=false docusaurus build",
-    "maybe-install-deps-and-build-docs": "(test -d node_modules || npm ci) && npm run build-docs",
+    "maybe-install-deps-and-build-docs": "(test -d node_modules || pnpm install --frozen-lockfile) && pnpm run build-docs",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",
@@ -15,19 +14,20 @@
     "write-heading-ids": "docusaurus write-heading-ids"
   },
   "dependencies": {
-    "@docusaurus/core": "^2.3.0",
-    "@docusaurus/preset-classic": "^2.3.0",
-    "@mdx-js/react": "^1.6.22",
-    "@svgr/webpack": "^6.0.0",
-    "clsx": "^1.1.1",
+    "@docusaurus/core": "^3.7.0",
+    "@docusaurus/preset-classic": "^3.7.0",
+    "@docusaurus/plugin-content-docs": "^3.7.0",
+    "@docusaurus/theme-common": "^3.7.0",
     "docusaurus-plugin-snipsync": "^1.0.0",
-    "docusaurus-plugin-typedoc": "^0.18.0",
-    "dotenv": "^16.0.0",
-    "prism-react-renderer": "^1.2.1",
-    "react": "^17.0.2",
-    "react-dom": "^17.0.2",
-    "typedoc": "^0.23.5",
-    "typedoc-plugin-markdown": "^3.13.3"
+    "docusaurus-plugin-typedoc": "^0.22.0",
+    "dotenv": "^16.3.1",
+    "glob": "^10.3.10",
+    "prism-react-renderer": "^2.3.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "snipsync": "^1.11.0",
+    "typedoc": "^0.25.7",
+    "typedoc-plugin-markdown": "^3.17.1"
   },
   "browserslist": {
     "production": [
@@ -40,5 +40,9 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=10.16.0"
   }
 }

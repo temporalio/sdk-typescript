@@ -9,19 +9,8 @@ const pbts = require('protobufjs-cli/pbts');
 const outputDir = resolve(__dirname, '../protos');
 const jsOutputFile = resolve(outputDir, 'json-module.js');
 const tempFile = resolve(outputDir, 'temp.js');
-const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/protos');
 
-const coreProtoPath = resolve(protoBaseDir, 'local/temporal/sdk/core/core_interface.proto');
-const workflowServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/workflowservice/v1/service.proto');
-const operatorServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/operatorservice/v1/service.proto');
-const errorDetailsProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/errordetails/v1/message.proto');
-const testServiceRRProtoPath = resolve(
-  protoBaseDir,
-  'testsrv_upstream/temporal/api/testservice/v1/request_response.proto'
-);
-const testServiceProtoPath = resolve(protoBaseDir, 'testsrv_upstream/temporal/api/testservice/v1/service.proto');
-const healthServiceProtoPath = resolve(protoBaseDir, 'grpc/health/v1/health.proto');
-const googleRpcStatusProtoPath = resolve(protoBaseDir, 'google/rpc/status.proto');
+const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos');
 
 function mtime(path) {
   try {
@@ -35,32 +24,21 @@ function mtime(path) {
 }
 
 async function compileProtos(dtsOutputFile, ...args) {
-  // Use --root to avoid conflicting with user's root
-  // and to avoid this error: https://github.com/protobufjs/protobuf.js/issues/1114
   const pbjsArgs = [
-    ...args,
-    '--wrap',
-    'commonjs',
+    ...['--wrap', 'commonjs'],
     '--force-long',
     '--no-verify',
     '--alt-comment',
-    '--root',
-    '__temporal',
-    resolve(require.resolve('protobufjs'), '../google/protobuf/descriptor.proto'),
-    coreProtoPath,
-    workflowServiceProtoPath,
-    operatorServiceProtoPath,
-    errorDetailsProtoPath,
-    testServiceRRProtoPath,
-    testServiceProtoPath,
-    healthServiceProtoPath,
-    googleRpcStatusProtoPath,
+    // Use --root to avoid conflicting with user's root
+    // and to avoid this error: https://github.com/protobufjs/protobuf.js/issues/1114
+    ...['--root', '__temporal'],
+    ...args,
   ];
 
-  console.log(`Creating protobuf JS definitions from ${coreProtoPath} and ${workflowServiceProtoPath}`);
+  console.log(`Creating protobuf JS definitions`);
   await promisify(pbjs.main)([...pbjsArgs, '--target', 'json-module', '--out', jsOutputFile]);
 
-  console.log(`Creating protobuf TS definitions from ${coreProtoPath} and ${workflowServiceProtoPath}`);
+  console.log(`Creating protobuf TS definitions`);
   try {
     await promisify(pbjs.main)([...pbjsArgs, '--target', 'static-module', '--out', tempFile]);
 
@@ -84,21 +62,42 @@ async function compileProtos(dtsOutputFile, ...args) {
 async function main() {
   mkdirSync(outputDir, { recursive: true });
 
-  const protoFiles = glob.sync(resolve(protoBaseDir, '**/*.proto'));
+  const protoFiles = glob.sync('**/*.proto', { cwd: protoBaseDir, absolute: true, root: '' });
   const protosMTime = Math.max(...protoFiles.map(mtime));
+  const compileScriptMTime = mtime(resolve(__dirname, __filename));
   const genMTime = mtime(jsOutputFile);
 
-  if (protosMTime < genMTime) {
+  if (protosMTime < genMTime && compileScriptMTime < genMTime) {
     console.log('Assuming protos are up to date');
     return;
   }
 
+  const rootDirs = [
+    resolve(protoBaseDir, 'api_upstream'),
+    resolve(protoBaseDir, 'testsrv_upstream'),
+    resolve(protoBaseDir, 'local'),
+    resolve(protoBaseDir, 'api_cloud_upstream'),
+    protoBaseDir, // 'grpc' and 'google' are directly under protoBaseDir
+  ];
+
+  const entrypoints = [
+    'temporal/sdk/core/core_interface.proto',
+    'temporal/api/workflowservice/v1/service.proto',
+    'temporal/api/operatorservice/v1/service.proto',
+    'temporal/api/cloud/cloudservice/v1/service.proto',
+    'temporal/api/errordetails/v1/message.proto',
+    'temporal/api/sdk/v1/workflow_metadata.proto',
+    'temporal/api/testservice/v1/request_response.proto',
+    'temporal/api/testservice/v1/service.proto',
+    'grpc/health/v1/health.proto',
+    'google/rpc/status.proto',
+  ];
+
   await compileProtos(
     resolve(outputDir, 'root.d.ts'),
-    '--path',
-    resolve(protoBaseDir, 'api_upstream'),
-    '--path',
-    resolve(protoBaseDir, 'local')
+    // Make sure to include all
+    ...rootDirs.flatMap((dir) => ['--path', dir]),
+    ...entrypoints
   );
 
   console.log('Done');

@@ -176,7 +176,7 @@ if (RUN_INTEGRATION_TESTS) {
     await asyncRetry(
       async () => {
         const reachResp = await conn.taskQueue.getReachability({ buildIds: ['2.0', '1.0', '1.1'] });
-        assert.deepEqual(reachResp.buildIdReachability['2.0']?.taskQueueReachability[taskQueue], ['NewWorkflows']);
+        assert.deepEqual(reachResp.buildIdReachability['2.0']?.taskQueueReachability[taskQueue], ['NEW_WORKFLOWS']);
         assert.deepEqual(reachResp.buildIdReachability['1.1']?.taskQueueReachability[taskQueue], []);
         assert.deepEqual(reachResp.buildIdReachability['1.0']?.taskQueueReachability[taskQueue], []);
       },
@@ -188,7 +188,9 @@ if (RUN_INTEGRATION_TESTS) {
           buildIds: [UnversionedBuildId],
           taskQueues: [taskQueue],
         });
-        assert.deepEqual(reachResp.buildIdReachability[UnversionedBuildId]?.taskQueueReachability[taskQueue], []);
+        assert.deepEqual(reachResp.buildIdReachability[UnversionedBuildId]?.taskQueueReachability[taskQueue], [
+          'NEW_WORKFLOWS',
+        ]);
       },
       { maxTimeout: 1000 }
     );

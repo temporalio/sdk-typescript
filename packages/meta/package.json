@@ -1,16 +1,19 @@
 {
   "name": "temporalio",
-  "version": "1.8.6",
+  "private": true,
   "description": "Temporal.io SDK meta-package",
   "dependencies": {
-    "@temporalio/activity": "file:../activity",
-    "@temporalio/client": "file:../client",
-    "@temporalio/common": "file:../common",
-    "@temporalio/interceptors-opentelemetry": "file:../interceptors-opentelemetry",
-    "@temporalio/proto": "file:../proto",
-    "@temporalio/testing": "file:../testing",
-    "@temporalio/worker": "file:../worker",
-    "@temporalio/workflow": "file:../workflow"
+    "@temporalio/activity": "workspace:*",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/envconfig": "workspace:*",
+    "@temporalio/interceptors-opentelemetry": "workspace:*",
+    "@temporalio/nexus": "workspace:*",
+    "@temporalio/plugin": "workspace:*",
+    "@temporalio/proto": "workspace:*",
+    "@temporalio/testing": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "@temporalio/workflow": "workspace:*"
   },
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
@@ -29,9 +32,6 @@
   "homepage": "https://github.com/temporalio/sdk-typescript#readme",
   "publishConfig": {
     "access": "public"
-  },
-  "engines": {
-    "node": ">=14.18.0"
   },
   "files": [
     "src",

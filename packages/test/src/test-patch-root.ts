@@ -23,6 +23,8 @@ test('patchRoot', (t) => {
 });
 
 class Namespace {
+  public static className = 'Namespace';
+
   constructor(props: Record<string, unknown>) {
     for (const key in props) {
       (this as any)[key] = props[key];
@@ -30,4 +32,6 @@ class Namespace {
   }
 }
 
-class Type {}
+class Type {
+  public static className = 'Type';
+}

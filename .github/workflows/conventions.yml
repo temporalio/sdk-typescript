@@ -1,0 +1,54 @@
+name: Conventions
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  lint-and-prune:
+    name: Lint and Prune
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node and Install Dependencies
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: '22'
+          platform: 'linux-x64'
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '23.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upgrade Rust to latest stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Rust Cargo and Build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/core-bridge -> target
+          prefix-key: corebridge-buildcache
+          shared-key: linux-x64
+          env-vars: ''
+          save-if: false
+
+      # eslint-import-resolver-typescript requires packages to be built
+      - name: Compile all non-rust code
+        run: pnpm run build --ignore @temporalio/core-bridge
+
+      - run: pnpm run lint.check
+      - run: pnpm run lint.prune

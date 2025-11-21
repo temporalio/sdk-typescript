@@ -48,7 +48,7 @@
  *
  * 1. `await` on {@link Context.cancelled | `Context.current().cancelled`} or
  *    {@link Context.sleep | `Context.current().sleep()`}, which each throw a {@link CancelledFailure}.
- * 1. Pass the context's {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} at
+ * 2. Pass the context's {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} at
  *    {@link Context.cancellationSignal | `Context.current().cancellationSignal`} to a library that supports it.
  *
  * ### Examples
@@ -69,11 +69,22 @@
  * @module
  */
 
-import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Logger, Duration } from '@temporalio/common';
+import {
+  Logger,
+  Duration,
+  LogLevel,
+  LogMetadata,
+  MetricMeter,
+  Priority,
+  ActivityCancellationDetails,
+  IllegalStateError,
+  RetryPolicy,
+} from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
+import { Client } from '@temporalio/client';
 
 export {
   ActivityFunction,
@@ -91,14 +102,14 @@ export {
  *
  * @example
  *
- *```ts
+ * ```ts
  *import { CompleteAsyncError } from '@temporalio/activity';
  *
  *export async function myActivity(): Promise<never> {
  *  // ...
  *  throw new CompleteAsyncError();
  *}
- *```
+ * ```
  */
 @SymbolBasedInstanceOfError('CompleteAsyncError')
 export class CompleteAsyncError extends Error {}
@@ -115,78 +126,102 @@ export const asyncLocalStorage: AsyncLocalStorage<Context> = (globalThis as any)
  * Holds information about the current Activity Execution. Retrieved inside an Activity with `Context.current().info`.
  */
 export interface Info {
-  taskToken: Uint8Array;
+  readonly taskToken: Uint8Array;
   /**
    * Base64 encoded `taskToken`
    */
-  base64TaskToken: string;
-  activityId: string;
+  readonly base64TaskToken: string;
+  readonly activityId: string;
   /**
    * Exposed Activity function name
    */
-  activityType: string;
+  readonly activityType: string;
   /**
    * The namespace this Activity is running in
    */
-  activityNamespace: string;
+  readonly activityNamespace: string;
   /**
-   * Attempt number for this activity
+   * Attempt number for this activity. Starts at 1 and increments for every retry.
    */
-  attempt: number;
+  readonly attempt: number;
   /**
    * Whether this activity is scheduled in local or remote mode
    */
-  isLocal: boolean;
+  readonly isLocal: boolean;
   /**
    * Information about the Workflow that scheduled the Activity
    */
-  workflowExecution: {
-    workflowId: string;
-    runId: string;
+  readonly workflowExecution: {
+    readonly workflowId: string;
+    readonly runId: string;
   };
   /**
    * The namespace of the Workflow that scheduled this Activity
    */
-  workflowNamespace: string;
+  readonly workflowNamespace: string;
   /**
    * The module name of the Workflow that scheduled this Activity
    */
-  workflowType: string;
+  readonly workflowType: string;
   /**
-   * Timestamp for when this Activity was scheduled in milliseconds
+   * Timestamp for when this Activity was first scheduled.
+   * For retries, this will have the timestamp of the first attempt.
+   * See {@link currentAttemptScheduledTimestampMs} for current attempt.
+   *
+   * @format number of milliseconds from epoch
    */
-  scheduledTimestampMs: number;
+  readonly scheduledTimestampMs: number;
   /**
-   * Timeout for this Activity from schedule to close in milliseconds.
+   * Timeout for this Activity from schedule to close.
+   *
+   * @format number of milliseconds
    */
-  scheduleToCloseTimeoutMs: number;
+  readonly scheduleToCloseTimeoutMs: number;
   /**
-   * Timeout for this Activity from start to close in milliseconds
+   * Timeout for this Activity from start to close.
+   *
+   * @format number of milliseconds
    */
-  startToCloseTimeoutMs: number;
+  readonly startToCloseTimeoutMs: number;
   /**
-   * Timestamp for when the current attempt of this Activity was scheduled in milliseconds
+   * Timestamp for when the current attempt of this Activity was scheduled.
+   *
+   * @format number of milliseconds from epoch
    */
-  currentAttemptScheduledTimestampMs: number;
+  readonly currentAttemptScheduledTimestampMs: number;
   /**
-   * Heartbeat timeout in milliseconds.
+   * Heartbeat timeout.
    * If this timeout is defined, the Activity must heartbeat before the timeout is reached.
    * The Activity must **not** heartbeat in case this timeout is not defined.
+   *
+   * @format number of milliseconds
    */
-  heartbeatTimeoutMs?: number;
+  readonly heartbeatTimeoutMs?: number;
   /**
    * The {@link Context.heartbeat | details} from the last recorded heartbeat from the last attempt of this Activity.
    *
    * Use this to resume your Activity from a checkpoint.
    */
-  heartbeatDetails: any;
+  readonly heartbeatDetails: any;
 
   /**
    * Task Queue the Activity is scheduled in.
    *
    * For Local Activities, this is set to the Workflow's Task Queue.
    */
-  taskQueue: string;
+  readonly taskQueue: string;
+  /**
+   * Priority of this activity
+   */
+  readonly priority?: Priority;
+  /**
+   * The retry policy of this activity.
+   *
+   * Note that the server may have set a different policy than the one provided when scheduling the activity.
+   * If the value is undefined, it means the server didn't send information about retry policy (e.g. due to old server
+   * version), but it may still be defined server-side.
+   */
+  readonly retryPolicy?: RetryPolicy;
 }
 
 /**
@@ -201,47 +236,17 @@ export interface Info {
  */
 export class Context {
   /**
-   * Holds information about the current executing Activity.
+   * Gets the context of the current Activity.
+   *
+   * Uses {@link https://nodejs.org/docs/latest-v16.x/api/async_context.html#class-asynclocalstorage | AsyncLocalStorage} under the hood to make it accessible in nested callbacks and promises.
    */
-  public info: Info;
-  /**
-   * Await this promise in an Activity to get notified of cancellation.
-   *
-   * This promise will never resolve—it will only be rejected with a {@link CancelledFailure}.
-   *
-   * @see [Cancellation](/api/namespaces/activity#cancellation)
-   */
-  public readonly cancelled: Promise<never>;
-  /**
-   * An {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that can be used to react to
-   * Activity cancellation.
-   *
-   * This can be passed in to libraries such as
-   * {@link https://www.npmjs.com/package/node-fetch#request-cancellation-with-abortsignal | fetch} to abort an
-   * in-progress request and
-   * {@link https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options child_process}
-   * to abort a child process, as well as other built-in node modules and modules found on npm.
-   *
-   * @see [Cancellation](/api/namespaces/activity#cancellation)
-   */
-  public readonly cancellationSignal: AbortSignal;
-  /**
-   * The heartbeat implementation, injected via the constructor.
-   */
-  protected readonly heartbeatFn: (details?: any) => void;
-  /**
-   * The logger for this Activity.
-   *
-   * This defaults to the `Runtime`'s Logger (see {@link Runtime.logger}). If the {@link ActivityInboundLogInterceptor}
-   * is installed (by default, it is; see {@link WorkerOptions.interceptors}), then various attributes from the current
-   * Activity context will automatically be included as metadata on every log entries, and some key events of the
-   * Activity's life cycle will automatically be logged (at 'DEBUG' level for most messages; 'WARN' for failures).
-   *
-   * To use a different Logger, either overwrite this property from an Activity Interceptor, or explicitly register the
-   * `ActivityInboundLogInterceptor` with your custom Logger. You may also subclass `ActivityInboundLogInterceptor` to
-   * customize attributes that are emitted as metadata.
-   */
-  public log: Logger;
+  public static current(): Context {
+    const store = asyncLocalStorage.getStore();
+    if (store === undefined) {
+      throw new Error('Activity context not initialized');
+    }
+    return store;
+  }
 
   /**
    * **Not** meant to instantiated by Activity code, used by the worker.
@@ -249,18 +254,77 @@ export class Context {
    * @ignore
    */
   constructor(
-    info: Info,
-    cancelled: Promise<never>,
-    cancellationSignal: AbortSignal,
-    heartbeat: (details?: any) => void,
-    logger: Logger
-  ) {
-    this.info = info;
-    this.cancelled = cancelled;
-    this.cancellationSignal = cancellationSignal;
-    this.heartbeatFn = heartbeat;
-    this.log = logger;
-  }
+    /**
+     * Holds information about the current executing Activity.
+     */
+    public readonly info: Info,
+
+    /**
+     * A Promise that fails with a {@link CancelledFailure} when cancellation of this activity is requested. The promise
+     * is guaranteed to never successfully resolve. Await this promise in an Activity to get notified of cancellation.
+     *
+     * Note that to get notified of cancellation, an activity must _also_ {@link Context.heartbeat}.
+     *
+     * @see [Cancellation](/api/namespaces/activity#cancellation)
+     */
+    public readonly cancelled: Promise<never>,
+
+    /**
+     * An {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that can be used to react to
+     * Activity cancellation.
+     *
+     * This can be passed in to libraries such as
+     * {@link https://www.npmjs.com/package/node-fetch#request-cancellation-with-abortsignal | fetch} to abort an
+     * in-progress request and
+     * {@link https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options child_process}
+     * to abort a child process, as well as other built-in node modules and modules found on npm.
+     *
+     * Note that to get notified of cancellation, an activity must _also_ {@link Context.heartbeat}.
+     *
+     * @see [Cancellation](/api/namespaces/activity#cancellation)
+     */
+    public readonly cancellationSignal: AbortSignal,
+
+    /**
+     * The heartbeat implementation, injected via the constructor.
+     */
+    protected readonly heartbeatFn: (details?: any) => void,
+
+    /**
+     * The Worker's client, passed down through Activity context.
+     */
+    protected readonly _client: Client | undefined,
+
+    /**
+     * The logger for this Activity.
+     *
+     * This defaults to the `Runtime`'s Logger (see {@link Runtime.logger}). Attributes from the current Activity context
+     * are automatically included as metadata on every log entries. An extra `sdkComponent` metadata attribute is also
+     * added, with value `activity`; this can be used for fine-grained filtering of log entries further downstream.
+     *
+     * To customize log attributes, register a {@link ActivityOutboundCallsInterceptor} that intercepts the
+     * `getLogAttributes()` method.
+     *
+     * Modifying the context logger (eg. `context.log = myCustomLogger` or by an {@link ActivityInboundLogInterceptor}
+     * with a custom logger as argument) is deprecated. Doing so will prevent automatic inclusion of custom log attributes
+     * through the `getLogAttributes()` interceptor. To customize _where_ log messages are sent, set the
+     * {@link Runtime.logger} property instead.
+     */
+    public log: Logger,
+
+    /**
+     * Get the metric meter for this activity with activity-specific tags.
+     *
+     * To add custom tags, register a {@link ActivityOutboundCallsInterceptor} that
+     * intercepts the `getMetricTags()` method.
+     */
+    public readonly metricMeter: MetricMeter,
+
+    /**
+     * Holder object for activity cancellation details
+     */
+    protected readonly _cancellationDetails: ActivityCancellationDetailsHolder
+  ) {}
 
   /**
    * Send a {@link https://docs.temporal.io/concepts/what-is-an-activity-heartbeat | heartbeat} from an Activity.
@@ -283,21 +347,27 @@ export class Context {
    * :warning: Cancellation is not propagated from this function, use {@link cancelled} or {@link cancellationSignal} to
    * subscribe to cancellation notifications.
    */
-  public heartbeat = (details?: unknown): void => {
+  public readonly heartbeat = (details?: unknown): void => {
     this.heartbeatFn(details);
   };
 
   /**
-   * Gets the context of the current Activity.
+   * A Temporal Client, bound to the same Temporal Namespace as the Worker executing this Activity.
    *
-   * Uses {@link https://nodejs.org/docs/latest-v14.x/api/async_hooks.html#async_hooks_class_asynclocalstorage | AsyncLocalStorage} under the hood to make it accessible in nested callbacks and promises.
+   * May throw an {@link IllegalStateError} if the Activity is running inside a `MockActivityEnvironment`
+   * that was created without a Client.
+   *
+   * @experimental Client support over `NativeConnection` is experimental. Error handling may be
+   *               incomplete or different from what would be observed using a {@link Connection}
+   *               instead. Client doesn't support cancellation through a Signal.
    */
-  public static current(): Context {
-    const store = asyncLocalStorage.getStore();
-    if (store === undefined) {
-      throw new Error('Activity context not initialized');
+  public get client(): Client {
+    if (this._client === undefined) {
+      throw new IllegalStateError(
+        'No Client available. This may be a MockActivityEnvironment that was created without a Client.'
+      );
     }
-    return store;
+    return this._client;
   }
 
   /**
@@ -305,11 +375,166 @@ export class Context {
    * @param ms Sleep duration: number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @returns A Promise that either resolves when `ms` is reached or rejects when the Activity is cancelled
    */
-  public sleep = (ms: Duration): Promise<void> => {
+  public readonly sleep = (ms: Duration): Promise<void> => {
     let handle: NodeJS.Timeout;
     const timer = new Promise<void>((resolve) => {
       handle = setTimeout(resolve, msToNumber(ms));
     });
     return Promise.race([this.cancelled.finally(() => clearTimeout(handle)), timer]);
   };
+
+  /**
+   * Return the cancellation details for this activity, if any.
+   * @returns an object with boolean properties that describes the reason for cancellation, or undefined if not cancelled.
+   *
+   * @experimental Activity cancellation details include usage of experimental features such as activity pause, and may be subject to change.
+   */
+  public get cancellationDetails(): ActivityCancellationDetails | undefined {
+    return this._cancellationDetails.details;
+  }
 }
+
+/**
+ * The current Activity's context.
+ */
+export function activityInfo(): Info {
+  // For consistency with workflow.workflowInfo(), we want activityInfo() to be a function, rather than a const object.
+  return Context.current().info;
+}
+
+/**
+ * The logger for this Activity.
+ *
+ * This is a shortcut for `Context.current().log` (see {@link Context.log}).
+ */
+export const log: Logger = {
+  // Context.current().log may legitimately change during the lifetime of an Activity, so we can't
+  // just initialize that field to the value of Context.current().log and move on. Hence this indirection.
+  log(level: LogLevel, message: string, meta?: LogMetadata): any {
+    return Context.current().log.log(level, message, meta);
+  },
+  trace(message: string, meta?: LogMetadata): any {
+    return Context.current().log.trace(message, meta);
+  },
+  debug(message: string, meta?: LogMetadata): any {
+    return Context.current().log.debug(message, meta);
+  },
+  info(message: string, meta?: LogMetadata): any {
+    return Context.current().log.info(message, meta);
+  },
+  warn(message: string, meta?: LogMetadata): any {
+    return Context.current().log.warn(message, meta);
+  },
+  error(message: string, meta?: LogMetadata): any {
+    return Context.current().log.error(message, meta);
+  },
+};
+
+/**
+ * Helper function for sleeping in an Activity.
+ *
+ * This is a shortcut for `Context.current().sleep(ms)` (see {@link Context.sleep}).
+ *
+ * @param ms Sleep duration: number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
+ * @returns A Promise that either resolves when `ms` is reached or rejects when the Activity is cancelled
+ */
+export function sleep(ms: Duration): Promise<void> {
+  return Context.current().sleep(ms);
+}
+
+/**
+ * Send a {@link https://docs.temporal.io/concepts/what-is-an-activity-heartbeat | heartbeat} from an Activity.
+ *
+ * If an Activity times out, then during the next retry, the last value of `details` is available at
+ * {@link Info.heartbeatDetails}. This acts as a periodic checkpoint mechanism for the progress of an Activity.
+ *
+ * If an Activity times out on the final retry (relevant in cases in which {@link RetryPolicy.maximumAttempts} is
+ * set), the Activity function call in the Workflow code will throw an {@link ActivityFailure} with the `cause`
+ * attribute set to a {@link TimeoutFailure}, which has the last value of `details` available at
+ * {@link TimeoutFailure.lastHeartbeatDetails}.
+ *
+ * This is a shortcut for `Context.current().heatbeat(ms)` (see {@link Context.heartbeat}).
+ */
+export function heartbeat(details?: unknown): void {
+  Context.current().heartbeat(details);
+}
+
+/**
+ * Return a Promise that fails with a {@link CancelledFailure} when cancellation of this activity is requested. The
+ * promise is guaranteed to never successfully resolve. Await this promise in an Activity to get notified of
+ * cancellation.
+ *
+ * Note that to get notified of cancellation, an activity must _also_ do {@link Context.heartbeat}.
+ *
+ * This is a shortcut for `Context.current().cancelled` (see {@link Context.cancelled}).
+ */
+export function cancelled(): Promise<never> {
+  return Context.current().cancelled;
+}
+
+/**
+ * Return the cancellation details for this activity, if any.
+ * @returns an object with boolean properties that describes the reason for cancellation, or undefined if not cancelled.
+ *
+ * @experimental Activity cancellation details include usage of experimental features such as activity pause, and may be subject to change.
+ */
+export function cancellationDetails(): ActivityCancellationDetails | undefined {
+  return Context.current().cancellationDetails;
+}
+
+/**
+ * Return an {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that can be used to
+ * react to Activity cancellation.
+ *
+ * This can be passed in to libraries such as
+ * {@link https://www.npmjs.com/package/node-fetch#request-cancellation-with-abortsignal | fetch} to abort an
+ * in-progress request and
+ * {@link https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options child_process}
+ * to abort a child process, as well as other built-in node modules and modules found on npm.
+ *
+ * Note that to get notified of cancellation, an activity must _also_ do {@link Context.heartbeat}.
+ *
+ * This is a shortcut for `Context.current().cancellationSignal` (see {@link Context.cancellationSignal}).
+ */
+export function cancellationSignal(): AbortSignal {
+  return Context.current().cancellationSignal;
+}
+
+/**
+ * A Temporal Client, bound to the same Temporal Namespace as the Worker executing this Activity.
+ *
+ * May throw an {@link IllegalStateError} if the Activity is running inside a `MockActivityEnvironment`
+ * that was created without a Client.
+ *
+ * This is a shortcut for `Context.current().client` (see {@link Context.client}).
+ *
+ * @experimental Client support over `NativeConnection` is experimental. Error handling may be
+ *               incomplete or different from what would be observed using a {@link Connection}
+ *               instead. Client doesn't support cancellation through a Signal.
+ */
+export function getClient(): Client {
+  return Context.current().client;
+}
+
+/**
+ * Get the metric meter for the current activity, with activity-specific tags.
+ *
+ * To add custom tags, register a {@link ActivityOutboundCallsInterceptor} that
+ * intercepts the `getMetricTags()` method.
+ *
+ * This is a shortcut for `Context.current().metricMeter` (see {@link Context.metricMeter}).
+ */
+export const metricMeter: MetricMeter = {
+  createCounter(name, unit, description) {
+    return Context.current().metricMeter.createCounter(name, unit, description);
+  },
+  createHistogram(name, valueType = 'int', unit, description) {
+    return Context.current().metricMeter.createHistogram(name, valueType, unit, description);
+  },
+  createGauge(name, valueType = 'int', unit, description) {
+    return Context.current().metricMeter.createGauge(name, valueType, unit, description);
+  },
+  withTags(tags) {
+    return Context.current().metricMeter.withTags(tags);
+  },
+};

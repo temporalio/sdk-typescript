@@ -14,11 +14,21 @@ sequenceDiagram
     Core->>-MT: Respond with Activation
     MT->>MT: Decode Payloads
     MT->>+WT: Run Workflow Activation
-    loop patches, signals, completions, queries as jobs
-        WT->>VM: Activate(jobs)
+
+    WT->>VM: Update Activator (now, WorkflowInfo, SDK flags, patches)
+
+    alt "Single Batch mode"
+        WT->>VM: Activate(queries)
         VM->>VM: Run Microtasks
         WT->>VM: Try Unblock Conditions
+    else Legacy "Multi Batches mode"
+        loop [signals, updates+completions] as jobs
+            WT->>VM: Activate(jobs)
+            VM->>VM: Run Microtasks
+            WT->>VM: Try Unblock Conditions
+        end
     end
+
     WT->>VM: Collect Commands
     WT-->>-MT: Respond to Activation
     MT->>MT: Encode Payloads
@@ -28,6 +38,6 @@ sequenceDiagram
     WT-->>-MT: Respond with Sink Calls
     MT->>MT: Run Sink Functions
     MT->>Core: Complete Activation
-    opt Completed Workflow Task   
+    opt Completed Workflow Task
         Core->>Server: Complete Workflow Task
     end

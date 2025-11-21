@@ -1,2 +1,2 @@
-/* eslint-disable import/unambiguous */
+/* eslint-disable @typescript-eslint/no-unused-expressions,import/unambiguous */
 null;

@@ -7,7 +7,7 @@ import { setupArgSpec, starterArgSpec, workerArgSpec, allInOneArgSpec } from './
 export function addDefaults(args: arg.Result<any>): arg.Result<any> {
   const now = new Date().toISOString();
   return {
-    '--server-address': 'localhost:7233',
+    '--server-address': '127.0.0.1:7233',
     '--ns': `load-${now}`,
     '--task-queue': `load-${now}`,
     ...args,

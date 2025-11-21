@@ -1,22 +1,15 @@
-import type { coresdk } from '@temporalio/proto';
-import { IllegalStateError, ParentWorkflowInfo } from '@temporalio/workflow';
+import { WorkerDeploymentVersion } from '@temporalio/common';
+import type { coresdk, temporal } from '@temporalio/proto';
+import { IllegalStateError, ParentWorkflowInfo, RootWorkflowInfo } from '@temporalio/workflow';
 
 export const MiB = 1024 ** 2;
-
-// ts-prune-ignore-next (no idea why ts-prune is complaining all of a sudden)
-export function partition<T>(arr: T[], predicate: (x: T) => boolean): [T[], T[]] {
-  const truthy = Array<T>();
-  const falsy = Array<T>();
-  arr.forEach((v) => (predicate(v) ? truthy : falsy).push(v));
-  return [truthy, falsy];
-}
 
 export function toMB(bytes: number, fractionDigits = 2): string {
   return (bytes / 1024 / 1024).toFixed(fractionDigits);
 }
 
-export function byteArrayToBuffer(array: Uint8Array): ArrayBuffer {
-  return array.buffer.slice(array.byteOffset, array.byteLength + array.byteOffset);
+export function byteArrayToBuffer(array: Uint8Array): Buffer {
+  return Buffer.from(array, array.byteOffset, array.byteLength + array.byteOffset);
 }
 
 export function convertToParentWorkflowType(
@@ -34,5 +27,34 @@ export function convertToParentWorkflowType(
     workflowId: parent.workflowId,
     runId: parent.runId,
     namespace: parent.namespace,
+  };
+}
+
+export function convertDeploymentVersion(
+  v: coresdk.common.IWorkerDeploymentVersion | null | undefined
+): WorkerDeploymentVersion | undefined {
+  if (v == null || v.buildId == null) {
+    return undefined;
+  }
+
+  return {
+    buildId: v.buildId,
+    deploymentName: v.deploymentName ?? '',
+  };
+}
+
+export function convertToRootWorkflowType(
+  root: temporal.api.common.v1.IWorkflowExecution | null | undefined
+): RootWorkflowInfo | undefined {
+  if (root == null) {
+    return undefined;
+  }
+  if (!root.workflowId || !root.runId) {
+    throw new IllegalStateError('Root workflow execution is missing a field that should be defined');
+  }
+
+  return {
+    workflowId: root.workflowId,
+    runId: root.runId,
   };
 }

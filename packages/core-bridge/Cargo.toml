@@ -1,9 +1,12 @@
 [package]
 name = "temporal-sdk-typescript-bridge"
 version = "0.1.0"
-authors = ["Roey Berman <roey@temporal.io>"]
+authors = ["Temporal Technologies Inc. <sdk@temporal.io>"]
 license = "MIT"
-edition = "2018"
+edition = "2024"
+repository = "https://github.com/temporalio/sdk-typescript"
+description = "Core Bridge for the TypeScript Temporal SDK"
+publish = false
 exclude = ["index.node", "sdk-core"]
 
 [lib]
@@ -17,16 +20,34 @@ lto = true
 incremental = false
 
 [dependencies]
+anyhow = "1.0"
+async-trait = "0.1.83"
+bridge-macros = { path = "bridge-macros" }
 futures = { version = "0.3", features = ["executor"] }
-log = "0.4"
-neon = { version = "0.10", default-features = false, features = ["napi-6", "event-queue-api"] }
-opentelemetry = "0.18"
+neon = { version = "1.0.0", default-features = false, features = [
+  "napi-6",
+  "futures",
+] }
+opentelemetry = "0.31"
+os_pipe = "1.2.1"
 parking_lot = "0.12"
-prost = "0.11"
-prost-types = "0.11"
+prost = "0.14"
+prost-types = "0.14"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+temporalio-sdk-core = { version = "*", path = "./sdk-core/crates/sdk-core", features = [
+  "ephemeral-server",
+] }
+temporalio-client = { version = "*", path = "./sdk-core/crates/client" }
+temporalio-common = { version = "*", path = "./sdk-core/crates/common" }
+thiserror = "2"
 tokio = "1.13"
-once_cell = "1.7.2"
-temporal-sdk-core = { version = "*", path = "./sdk-core/core", features = ["ephemeral-server"] }
-temporal-client = { version = "*", path = "./sdk-core/client" }
 tokio-stream = "0.1"
+tonic = "0.14"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+  "parking_lot",
+  "env-filter",
+  "registry",
+  "ansi",
+] }

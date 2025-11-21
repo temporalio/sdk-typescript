@@ -2,12 +2,15 @@ import type { coresdk } from '@temporalio/proto';
 import type { VersioningIntent as VersioningIntentString } from './versioning-intent';
 import { assertNever, checkExtends } from './type-helpers';
 
+/* eslint-disable deprecation/deprecation */
+
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from coresdk.common.VersioningIntent
 /**
  * Protobuf enum representation of {@link VersioningIntentString}.
  *
- * @experimental
+ * @deprecated In favor of the new Worker Deployment API.
+ * @experimental The Worker Versioning API is still being designed. Major changes are expected.
  */
 export enum VersioningIntent {
   UNSPECIFIED = 0,

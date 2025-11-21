@@ -1,11 +1,17 @@
 import * as otel from '@opentelemetry/api';
-import { Resource } from '@opentelemetry/resources';
-import { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
-import { Context as ActivityContext } from '@temporalio/activity';
-import { extractContextFromHeaders } from '@temporalio/common/lib/otel';
-import { ActivityExecuteInput, ActivityInboundCallsInterceptor, InjectedSink, Next } from '@temporalio/worker';
-import { instrument } from '../instrumentation';
-import { OpenTelemetryWorkflowExporter, SerializableSpan, SpanName, SPAN_DELIMITER } from '../workflow';
+import type { Resource } from '@opentelemetry/resources';
+import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
+import type { Context as ActivityContext } from '@temporalio/activity';
+import type {
+  Next,
+  ActivityInboundCallsInterceptor,
+  ActivityOutboundCallsInterceptor,
+  InjectedSink,
+  GetLogAttributesInput,
+  ActivityExecuteInput,
+} from '@temporalio/worker';
+import { instrument, extractContextFromHeaders } from '../instrumentation';
+import { type OpenTelemetryWorkflowExporter, type SerializableSpan, SpanName, SPAN_DELIMITER } from '../workflow';
 
 export interface InterceptorOptions {
   readonly tracer?: otel.Tracer;
@@ -20,14 +26,44 @@ export interface InterceptorOptions {
 export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundCallsInterceptor {
   protected readonly tracer: otel.Tracer;
 
-  constructor(protected readonly ctx: ActivityContext, options?: InterceptorOptions) {
+  constructor(
+    protected readonly ctx: ActivityContext,
+    options?: InterceptorOptions
+  ) {
     this.tracer = options?.tracer ?? otel.trace.getTracer('@temporalio/interceptor-activity');
   }
 
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
-    const context = await extractContextFromHeaders(input.headers);
+    const context = extractContextFromHeaders(input.headers);
     const spanName = `${SpanName.ACTIVITY_EXECUTE}${SPAN_DELIMITER}${this.ctx.info.activityType}`;
     return await instrument({ tracer: this.tracer, spanName, fn: () => next(input), context });
+  }
+}
+
+/**
+ * Intercepts calls to emit logs from an Activity.
+ *
+ * Attach OpenTelemetry context tracing attributes to emitted log messages, if appropriate.
+ */
+export class OpenTelemetryActivityOutboundInterceptor implements ActivityOutboundCallsInterceptor {
+  constructor(protected readonly ctx: ActivityContext) {}
+
+  public getLogAttributes(
+    input: GetLogAttributesInput,
+    next: Next<ActivityOutboundCallsInterceptor, 'getLogAttributes'>
+  ): Record<string, unknown> {
+    const span = otel.trace.getSpan(otel.context.active());
+    const spanContext = span?.spanContext();
+    if (spanContext && otel.isSpanContextValid(spanContext)) {
+      return next({
+        trace_id: spanContext.traceId,
+        span_id: spanContext.spanId,
+        trace_flags: `0${spanContext.traceFlags.toString(16)}`,
+        ...input,
+      });
+    } else {
+      return next(input);
+    }
   }
 }
 
