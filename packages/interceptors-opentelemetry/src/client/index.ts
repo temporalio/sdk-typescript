@@ -110,7 +110,9 @@ export class OpenTelemetryWorkflowClientInterceptor implements Required<Workflow
         const workflowStartHeaders = headersWithContext(input.workflowStartHeaders);
         const updateHeaders = headersWithContext(input.updateHeaders);
         const output = await next({ ...input, workflowStartHeaders, updateHeaders });
-        span.setAttribute(RUN_ID_ATTR_KEY, output.workflowExecution.runId ?? '');
+        if (output.workflowExecution.runId) {
+          span.setAttribute(RUN_ID_ATTR_KEY, output.workflowExecution.runId);
+        }
         return output;
       },
     });

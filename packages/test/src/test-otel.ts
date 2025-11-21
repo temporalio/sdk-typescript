@@ -15,7 +15,7 @@ import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient, WithStartWorkflowOperation } from '@temporalio/client';
 import { OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
 import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry';
-import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
+import { instrument, TIMER_DURATION_MS_ATTR_KEY } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
@@ -384,6 +384,7 @@ if (RUN_INTEGRATION_TESTS) {
           name === SpanName.WORKFLOW_TIMER && parentSpanId === parentExecuteSpan?.spanContext().spanId
       );
       t.true(timerSpan !== undefined);
+      t.deepEqual(timerSpan!.attributes[TIMER_DURATION_MS_ATTR_KEY], 1000);
 
       const querySpan = spans.find(
         ({ name, parentSpanId }) =>
