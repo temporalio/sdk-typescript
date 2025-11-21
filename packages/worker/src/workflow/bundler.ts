@@ -51,6 +51,7 @@ export class WorkflowCodeBundler {
   public readonly workflowInterceptorModules: string[];
   protected readonly payloadConverterPath?: string;
   protected readonly failureConverterPath?: string;
+  protected readonly preloadedModules: string[];
   protected readonly ignoreModules: string[];
   protected readonly webpackConfigHook: (config: Configuration) => Configuration;
   protected readonly plugins: BundlerPlugin[];
@@ -68,6 +69,7 @@ export class WorkflowCodeBundler {
       payloadConverterPath,
       failureConverterPath,
       workflowInterceptorModules,
+      preloadedModules,
       ignoreModules,
       webpackConfigHook,
     } = options;
@@ -76,6 +78,7 @@ export class WorkflowCodeBundler {
     this.payloadConverterPath = payloadConverterPath;
     this.failureConverterPath = failureConverterPath;
     this.workflowInterceptorModules = workflowInterceptorModules ?? [];
+    this.preloadedModules = preloadedModules ?? [];
     this.ignoreModules = ignoreModules ?? [];
     this.webpackConfigHook = webpackConfigHook ?? ((config) => config);
   }
@@ -157,23 +160,29 @@ export class WorkflowCodeBundler {
       .map((v) => `require(/* webpackMode: "eager" */ ${JSON.stringify(v)})`)
       .join(', \n');
 
+    const preloadedModulesImports = [...new Set(this.preloadedModules)]
+      .map((v) => `require(/* webpackMode: "eager" */ ${JSON.stringify(v)})`)
+      .join(';\n');
+
     const code = `
-const api = require('@temporalio/workflow/lib/worker-interface.js');
-exports.api = api;
+      const api = require('@temporalio/workflow/lib/worker-interface.js');
+      exports.api = api;
 
-const { overrideGlobals } = require('@temporalio/workflow/lib/global-overrides.js');
-overrideGlobals();
+      const { overrideGlobals } = require('@temporalio/workflow/lib/global-overrides.js');
+      overrideGlobals();
 
-exports.importWorkflows = function importWorkflows() {
-  return require(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
-}
+      ${preloadedModulesImports}
 
-exports.importInterceptors = function importInterceptors() {
-  return [
-    ${interceptorImports}
-  ];
-}
-`;
+      exports.importWorkflows = function importWorkflows() {
+        return require(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
+      }
+
+      exports.importInterceptors = function importInterceptors() {
+        return [
+          ${interceptorImports}
+        ];
+      }
+    `;
     try {
       vol.mkdirSync(path.dirname(target), { recursive: true });
     } catch (err: any) {
@@ -198,7 +207,9 @@ exports.importInterceptors = function importInterceptors() {
         : data.request ?? '';
 
       if (moduleMatches(module, disallowedModules) && !moduleMatches(module, this.ignoreModules)) {
-        this.foundProblematicModules.add(module);
+        // this.foundProblematicModules.add(module);
+        // // callback(new Error(`Import of disallowed module: '${module}'`));
+        throw new Error(`Import of disallowed module: '${module}'`);
       }
 
       return undefined;
@@ -215,6 +226,7 @@ exports.importInterceptors = function importInterceptors() {
           __temporal_custom_failure_converter$: this.failureConverterPath ?? false,
           ...Object.fromEntries([...this.ignoreModules, ...disallowedModules].map((m) => [m, false])),
         },
+        conditionNames: ['temporalio:workflow', '...'],
       },
       externals: captureProblematicModules,
       module: {
@@ -255,7 +267,8 @@ exports.importInterceptors = function importInterceptors() {
       ignoreWarnings: [/Failed to parse source map/],
     };
 
-    const compiler = webpack(this.webpackConfigHook(options));
+    const finalOptions = this.webpackConfigHook(options);
+    const compiler = webpack(finalOptions);
 
     // Cast to any because the type declarations are inaccurate
     compiler.inputFileSystem = inputFilesystem as any;
@@ -267,22 +280,27 @@ exports.importInterceptors = function importInterceptors() {
       return await new Promise<string>((resolve, reject) => {
         compiler.run((err, stats) => {
           if (stats !== undefined) {
-            const hasError = stats.hasErrors();
+            let userStatsOptions: Parameters<typeof stats.toString>[0];
+            switch (typeof (finalOptions.stats ?? undefined)) {
+              case 'string':
+              case 'boolean':
+                userStatsOptions = { preset: finalOptions.stats as string | boolean };
+                break;
+              case 'object':
+                userStatsOptions = finalOptions.stats as object;
+                break;
+              default:
+                userStatsOptions = undefined;
+            }
+
             // To debug webpack build:
             // const lines = stats.toString({ preset: 'verbose' }).split('\n');
             const webpackOutput = stats.toString({
               chunks: false,
               colors: hasColorSupport(this.logger),
               errorDetails: true,
+              ...userStatsOptions,
             });
-            this.logger[hasError ? 'error' : 'info'](webpackOutput);
-            if (hasError) {
-              reject(
-                new Error(
-                  "Webpack finished with errors, if you're unsure what went wrong, visit our troubleshooting page at https://docs.temporal.io/develop/typescript/debugging#webpack-errors"
-                )
-              );
-            }
 
             if (this.foundProblematicModules.size) {
               const err = new Error(
@@ -295,10 +313,22 @@ exports.importInterceptors = function importInterceptors() {
                   ` • Make sure that activity code is not imported from workflow code. Use \`import type\` to import activity function signatures.\n` +
                   ` • Move code that has non-deterministic behaviour to activities.\n` +
                   ` • If you know for sure that a disallowed module will not be used at runtime, add its name to 'WorkerOptions.bundlerOptions.ignoreModules' in order to dismiss this warning.\n` +
-                  `See also: https://typescript.temporal.io/api/namespaces/worker#workflowbundleoption and https://docs.temporal.io/typescript/determinism.`
+                  `See also: https://typescript.temporal.io/api/namespaces/worker#workflowbundleoption and https://docs.temporal.io/develop/typescript/debugging#webpack-errors.`
               );
 
               reject(err);
+              return;
+            }
+
+            if (stats.hasErrors()) {
+              this.logger.error(webpackOutput);
+              reject(
+                new Error(
+                  "Webpack finished with errors, if you're unsure what went wrong, visit our troubleshooting page at https://docs.temporal.io/develop/typescript/debugging#webpack-errors"
+                )
+              );
+            } else if (finalOptions.stats !== 'none') {
+              this.logger.info(webpackOutput);
             }
 
             const outputFilename = Object.keys(stats.compilation.assets)[0];
@@ -345,35 +375,81 @@ export interface BundleOptions {
    * Path to look up workflows in, any function exported in this path will be registered as a Workflows when the bundle is loaded by a Worker.
    */
   workflowsPath: string;
+
   /**
    * List of modules to import Workflow interceptors from.
    *
    * Modules should export an `interceptors` variable of type {@link WorkflowInterceptorsFactory}.
    */
   workflowInterceptorModules?: string[];
+
   /**
    * Optional logger for logging Webpack output
    */
   logger?: Logger;
+
   /**
    * Path to a module with a `payloadConverter` named export.
    * `payloadConverter` should be an instance of a class that implements {@link PayloadConverter}.
    */
   payloadConverterPath?: string;
+
   /**
    * Path to a module with a `failureConverter` named export.
    * `failureConverter` should be an instance of a class that implements {@link FailureConverter}.
    */
   failureConverterPath?: string;
+
   /**
    * List of modules to be excluded from the Workflows bundle.
    *
+   * > WARN: This is an advanced option that should be used with care. Improper usage may result in
+   * >       runtime errors (e.g. "Cannot read properties of undefined") in Workflow code.
+   *
    * Use this option when your Workflow code references an import that cannot be used in isolation,
    * e.g. a Node.js built-in module. Modules listed here **MUST** not be used at runtime.
-   *
-   * > NOTE: This is an advanced option that should be used with care.
    */
   ignoreModules?: string[];
+
+  /**
+   * List of modules to be preloaded into the Workflow sandbox execution context.
+   *
+   * > WARN: This is an advanced option that should be used with care. Improper usage may result in
+   * >       non-deterministic behaviors and/or context leaks across workflow executions.
+   *
+   * When the Worker is configured with `reuseV8Context: true`, a single v8 execution context is
+   * reused by multiple Workflow executions. That is, a single v8 execution context is created at
+   * launch time; the source code of the workflow bundle gets injected into that context, and some
+   * modules get `require`d, which forces the actual loading of those modules (i.e. module code gets
+   * parsed, module variables and functions objects get instantiated, module gets registered into
+   * the `require` cache, etc). After that initial loading, the execution context's globals and all
+   * cached loaded modules get frozen, to avoid further mutations that could result in context
+   * leaks between workflow executions.
+   *
+   * Then, every time a workflow is started, the workflow sandbox is restored to its pristine state,
+   * and the workflow module gets `require`d, which results in loading the workflow module and any
+   * other modules imported from that one. Importantly, modules loaded at that point will be
+   * per-workflow-instance, and will therefore honor workflow-specific isolation guarantees without
+   * requirement of being frozen. That notably means that module-level variables will be distinct
+   * between workflow executions.
+   *
+   * Use this option to force preloading of some modules during the preparation phase of the
+   * workflow execution context. This may be done for two reasons:
+   *
+   * - Preloading modules may reduce the per-workflow runtime cost of those modules, notably in
+   *   terms memory footprint and workflow startup time.
+   * - Preloading modules may be necessary if those modules need to modify global variables that
+   *   would get frozen after the preparation phase, such as polyfills.
+   *
+   * Be warned, however, that preloaded modules will themselves get frozen, and may therefore be
+   * unable to use module-level variables in some ways. There are ways to work around the
+   * limitations incurred by freezing modules (e.g. use of `Map` or `Set`, closures, ECMA
+   * `#privateFields`, etc.), but doing so may result in code that exhibits non-deterministic
+   * behaviors and/or that may leak context across workflow executions.
+   *
+   * This option will have no noticeable effect if `reuseV8Context` is disabled.
+   */
+  preloadedModules?: string[];
 
   /**
    * Before Workflow code is bundled with Webpack, `webpackConfigHook` is called with the Webpack
