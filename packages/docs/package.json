@@ -5,7 +5,7 @@
     "docusaurus": "docusaurus",
     "start": "TYPEDOC_WATCH=true DOCUSAURUS_NO_DUPLICATE_TITLE_WARNING=false docusaurus start",
     "build-docs": "TYPEDOC_WATCH=false DOCUSAURUS_NO_DUPLICATE_TITLE_WARNING=false docusaurus build",
-    "maybe-install-deps-and-build-docs": "(test -d node_modules || npm ci) && npm run build-docs",
+    "maybe-install-deps-and-build-docs": "(test -d node_modules || pnpm install --frozen-lockfile) && pnpm run build-docs",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",
@@ -16,6 +16,8 @@
   "dependencies": {
     "@docusaurus/core": "^3.7.0",
     "@docusaurus/preset-classic": "^3.7.0",
+    "@docusaurus/plugin-content-docs": "^3.7.0",
+    "@docusaurus/theme-common": "^3.7.0",
     "docusaurus-plugin-snipsync": "^1.0.0",
     "docusaurus-plugin-typedoc": "^0.22.0",
     "dotenv": "^16.3.1",
@@ -38,5 +40,9 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=10.16.0"
   }
 }

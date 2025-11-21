@@ -178,7 +178,7 @@ jobs:
         working-directory: ${{ runner.temp }}
 
       - name: Compile code
-        run: npm run build -- --ignore @temporalio/core-bridge
+        run: pnpm run build --ignore @temporalio/core-bridge
 
       - name: Publish to Verdaccio
         run: node scripts/publish-to-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
@@ -196,7 +196,7 @@ jobs:
             --headless &> ./devserver.log &
 
       - name: Run Tests
-        run: npm run test
+        run: pnpm run test
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
@@ -265,13 +265,6 @@ jobs:
           node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm" --script-name workflow-local --expected-output "Hello World And Hello Wonderful Temporal!"
 
       # End samples
-
-      - name: Upload NPM logs
-        uses: actions/upload-artifact@v4
-        if: failure() || cancelled()
-        with:
-          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-logs
-          path: ${{ startsWith(matrix.platform, 'windows') && 'C:\\npm\\_logs\\' || '~/.npm/_logs/' }}
 
       - name: Upload Dev Server logs
         uses: actions/upload-artifact@v4

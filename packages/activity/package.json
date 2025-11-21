@@ -13,8 +13,8 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@temporalio/client": "file:../client",
-    "@temporalio/common": "file:../common",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
     "abort-controller": "^3.0.0"
   },
   "engines": {
