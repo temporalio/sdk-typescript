@@ -213,7 +213,9 @@ export interface WorkerOptions {
   workflowTaskPollerBehavior: PollerBehavior;
   activityTaskPollerBehavior: PollerBehavior;
   nexusTaskPollerBehavior: PollerBehavior;
-  enableNonLocalActivities: boolean;
+  enableWorkflowTasks: boolean;
+  enableActivityTasks: boolean;
+  enableNexusTasks: boolean;
   stickyQueueScheduleToStartTimeout: number;
   maxCachedWorkflows: number;
   maxHeartbeatThrottleInterval: number;
