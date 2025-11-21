@@ -1,6 +1,6 @@
 const { spawn: spawnChild, spawnSync } = require('child_process');
 const arg = require('arg');
-const { shell, kill } = require('./utils');
+const { shell, kill, sleep, waitOnChild } = require('./utils');
 
 const npm = /^win/.test(process.platform) ? 'npm.cmd' : 'npm';
 
@@ -51,7 +51,7 @@ async function main() {
   const scriptName = opts['--script-name'] ?? 'workflow';
   const expectedOutput = opts['--expected-output'] ?? 'Hello, Temporal!';
 
-  await withWorker(workdir, () => test(workdir, scriptName));
+  await withWorker(workdir, () => test(workdir, scriptName, expectedOutput));
 }
 
 main()
