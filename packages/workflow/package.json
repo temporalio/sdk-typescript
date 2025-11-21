@@ -22,8 +22,8 @@
   "types": "lib/index.d.ts",
   "scripts": {},
   "dependencies": {
-    "@temporalio/common": "file:../common",
-    "@temporalio/proto": "file:../proto",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/proto": "workspace:*",
     "nexus-rpc": "^0.0.1"
   },
   "devDependencies": {
