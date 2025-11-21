@@ -16,8 +16,6 @@ export const TRACE_HEADER = '_tracer-data';
 export const RUN_ID_ATTR_KEY = 'run_id';
 /** As in workflow id */
 export const WORKFLOW_ID_ATTR_KEY = 'workflow_id';
-/** As in if workflow was eagererly started */
-export const EAGER_START_ATTR_KEY = 'eager_start';
 /** As in termination reason */
 export const TERMINATE_REASON_ATTR_KEY = 'terminate_reason';
 /** As in timer duration */
