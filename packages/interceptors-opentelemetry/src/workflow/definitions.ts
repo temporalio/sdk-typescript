@@ -55,6 +55,36 @@ export enum SpanName {
   WORKFLOW_SIGNAL_WITH_START = 'SignalWithStartWorkflow',
 
   /**
+   * Workflow is queried
+   */
+  WORKFLOW_QUERY = 'QueryWorkflow',
+
+  /**
+   * Workflow is updated
+   */
+  WORKFLOW_UPDATE = 'UpdateWorkflow',
+
+  /**
+   * Workflow is started with an update
+   */
+  WORKFLOW_UPDATE_WITH_START = 'UpdateWithStartWorkflow',
+
+  /**
+   * Workflow is terminated
+   */
+  WORKFLOW_TERMINATE = 'TerminateWorkflow',
+
+  /**
+   * Workflow is cancelled
+   */
+  WORKFLOW_CANCEL = 'CancelWorkflow',
+
+  /**
+   * Workflow is described
+   */
+  WORKFLOW_DESCRIBE = 'DescribeWorkflow',
+
+  /**
    * Workflow run is executing
    */
   WORKFLOW_EXECUTE = 'RunWorkflow',
@@ -74,6 +104,14 @@ export enum SpanName {
    * Workflow is continuing as new
    */
   CONTINUE_AS_NEW = 'ContinueAsNew',
+  /**
+   * Workflow timer is started
+   */
+  WORKFLOW_TIMER = 'StartTimer',
+  /**
+   * Nexus operation is started
+   */
+  NEXUS_OPERATION_START = 'StartNexusOperation',
 }
 
 export const SPAN_DELIMITER = ':';
