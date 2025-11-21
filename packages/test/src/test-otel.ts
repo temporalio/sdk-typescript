@@ -672,3 +672,27 @@ test('Can replay signal workflow from 1.13.1', async (t) => {
     );
   });
 });
+
+test('Can replay smorgasbord from 1.13.2', async (t) => {
+  const hist = await loadHistory('otel_smorgasbord_1_13_2.json');
+  await t.notThrowsAsync(async () => {
+    await Worker.runReplayHistory(
+      {
+        workflowBundle: await createTestWorkflowBundle({
+          workflowsPath: require.resolve('./workflows'),
+          workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
+        }),
+        interceptors: {
+          workflowModules: [require.resolve('./workflows/otel-interceptors')],
+          activity: [
+            (ctx) => ({
+              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
+              outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
+            }),
+          ],
+        },
+      },
+      hist
+    );
+  });
+});
