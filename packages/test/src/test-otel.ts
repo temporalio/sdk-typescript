@@ -251,7 +251,7 @@ if (RUN_INTEGRATION_TESTS) {
         resource: staticResource,
         traceExporter,
       });
-      await otel.start();
+      otel.start();
 
       const sinks: InjectedSinks<OpenTelemetrySinks> = {
         exporter: makeWorkflowExporter(traceExporter, staticResource),
@@ -378,6 +378,19 @@ if (RUN_INTEGRATION_TESTS) {
           parentSpanId === firstActivityExecuteSpan?.spanContext().spanId
       );
       t.true(activityStartedSignalSpan !== undefined);
+
+      const timerSpan = spans.find(
+        ({ name, parentSpanId }) =>
+          name === SpanName.WORKFLOW_TIMER && parentSpanId === parentExecuteSpan?.spanContext().spanId
+      );
+      t.true(timerSpan !== undefined);
+
+      const querySpan = spans.find(
+        ({ name, parentSpanId }) =>
+          name === `${SpanName.WORKFLOW_QUERY}${SPAN_DELIMITER}step` &&
+          parentSpanId === secondActivityExecuteSpan?.spanContext().spanId
+      );
+      t.true(querySpan !== undefined);
 
       t.deepEqual(new Set(spans.map((span) => span.spanContext().traceId)).size, 1);
     } finally {
