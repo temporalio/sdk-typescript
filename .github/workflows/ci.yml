@@ -256,7 +256,7 @@ jobs:
       - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
         run: |
           node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm
-          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm"
+          node scripts/test-example.js --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm" --script-name workflow-local --expected-output "Hello World And Hello Wonderful Temporal!"
 
       # End samples
 
