@@ -9,7 +9,7 @@ import { ExportResultCode } from '@opentelemetry/core';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
@@ -236,7 +236,7 @@ if (RUN_INTEGRATION_TESTS) {
       const spans = Array<opentelemetry.tracing.ReadableSpan>();
 
       const staticResource = new opentelemetry.resources.Resource({
-        [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
+        [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-worker',
       });
       const traceExporter: opentelemetry.tracing.SpanExporter = {
         export(spans_, resultCallback) {
@@ -398,7 +398,7 @@ if (RUN_INTEGRATION_TESTS) {
       const oTelUrl = 'http://127.0.0.1:4317';
       const exporter = new OTLPTraceExporter({ url: oTelUrl });
       const staticResource = new opentelemetry.resources.Resource({
-        [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
+        [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-worker',
       });
       const otel = new opentelemetry.NodeSDK({
         resource: staticResource,

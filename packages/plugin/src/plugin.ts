@@ -137,9 +137,6 @@ export class SimplePlugin
    * @returns Promise that resolves when worker execution completes
    */
   runWorker(worker: Worker, next: (w: Worker) => Promise<void>): Promise<void> {
-    console.log('Hello');
-    console.log('This:', this);
-    console.log('Options:', this.options);
     if (this.options.runContext !== undefined) {
       return this.options.runContext(() => next(worker));
     }
