@@ -35,7 +35,8 @@
     "lint.prune": "ts-prune --error -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
     "format": "prettier --write . && lerna run --no-bail --stream format",
     "clean": "node ./scripts/clean.mjs",
-    "docs": "cd packages/docs && pnpm run maybe-install-deps-and-build-docs"
+    "docs": "cd packages/docs && pnpm run maybe-install-deps-and-build-docs",
+    "ava": "pnpm -C packages/test exec ava"
   },
   "dependencies": {
     "@temporalio/client": "workspace:*",
