@@ -253,12 +253,6 @@ jobs:
         continue-on-error: true
 
       # Sample 3: fetch-esm to local server
-      #
-      # DO NOT MERGE!!!
-      #
-      # The url to the sample repo below has been modified to point to the "esm-improve" branch for testing.
-      # Restore this to the main branch before merging this PR.
-      #
       - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
         run: |
           node scripts/init-from-verdaccio.js --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm

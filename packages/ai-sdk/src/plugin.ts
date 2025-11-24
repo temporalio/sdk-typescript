@@ -1,4 +1,4 @@
-import { ProviderV2 } from '@ai-sdk/provider';
+import type { ProviderV2 } from '@ai-sdk/provider';
 import type { experimental_MCPClient as MCPClient } from '@ai-sdk/mcp';
 import { SimplePlugin } from '@temporalio/plugin';
 import { createActivities } from './activities';

@@ -1,7 +1,7 @@
-import { ToolSet } from 'ai';
+import type { ToolSet } from 'ai';
 import * as workflow from '@temporalio/workflow';
-import { ActivityOptions } from '@temporalio/workflow';
-import { ListToolResult } from './activities';
+import type { ActivityOptions } from '@temporalio/workflow';
+import type { ListToolResult } from './activities';
 
 export class TemporalMCPClient {
   constructor(

@@ -10,7 +10,7 @@ import {
   SharedV2ProviderMetadata,
 } from '@ai-sdk/provider';
 import type { experimental_MCPClient as MCPClient } from '@ai-sdk/mcp';
-import { ToolCallOptions } from 'ai';
+import type { ToolCallOptions } from 'ai';
 
 export interface ListToolResult {
   description?: string;
@@ -79,6 +79,9 @@ export const createActivities = (provider: ProviderV2, mcpClientFactory?: (_: an
     async callTool(args: CallToolArgs): Promise<any> {
       const mcpClient = await mcpClientFactory(args.clientArgs);
       const tools = await mcpClient.tools();
+      if (!(args.name in tools)) {
+        throw new Error(`Tool ${args.name} not found.`);
+      }
       return tools[args.name].execute(args.args, args.options);
     },
   };

@@ -1,6 +1,4 @@
 // eslint-disable-next-line import/no-unassigned-import
-import 'ai';
-// eslint-disable-next-line import/no-unassigned-import
 import './load-polyfills';
 
 export * from './mcp';
