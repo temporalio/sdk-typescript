@@ -22,7 +22,6 @@ import {
   unblockOrCancel,
 } from './workflows';
 import { getSecretQuery, unblockWithSecretSignal } from './workflows/interceptor-example';
-import { checkDisposeRan } from './workflows/interceptor-dispose-global-asl';
 
 if (RUN_INTEGRATION_TESTS) {
   test.before(() => {
