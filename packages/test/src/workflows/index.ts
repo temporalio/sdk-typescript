@@ -46,6 +46,7 @@ export * from './log-before-timing-out';
 export * from './log-sink-tester';
 export * from './long-history-generator';
 export * from './multiple-activities-single-timeout';
+export { initAndResetFlag, checkDisposeRan } from './internal-interceptor-dispose-global';
 export * from './nested-cancellation';
 export * from './noncancellable-shields-children';
 export * from './partial-noncancelable';
