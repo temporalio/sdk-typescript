@@ -15,7 +15,9 @@ import { defaultPayloadConverter, WorkflowInfo } from '@temporalio/workflow';
 import { cleanOptionalStackTrace, compareStackTrace, RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import {
+  checkDisposeRan,
   continueAsNewToDifferentWorkflow,
+  initAndResetFlag,
   interceptorExample,
   internalsInterceptorExample,
   unblockOrCancel,
@@ -284,5 +286,30 @@ if (RUN_INTEGRATION_TESTS) {
       })
     );
     t.deepEqual(events, ['activate: 0', 'concludeActivation: 1', 'activate: 0', 'concludeActivation: 1']);
+  });
+
+  test.serial('Internal interceptor disposes in reusable VM', async (t) => {
+    const taskQueue = 'test-reusable-vm-internal-interceptor-disposes';
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      interceptors: {
+        workflowModules: [require.resolve('./workflows/internal-interceptor-dispose-global')],
+      },
+    });
+
+    const client = new WorkflowClient();
+    await worker.runUntil(async () => {
+      const disposeFlagSet = await client.execute(initAndResetFlag, {
+        taskQueue,
+        workflowId: uuid4(),
+      });
+      t.false(disposeFlagSet);
+      const disposeFlagSetNow = await client.execute(checkDisposeRan, {
+        taskQueue,
+        workflowId: uuid4(),
+      });
+      t.true(disposeFlagSetNow);
+    });
   });
 }
