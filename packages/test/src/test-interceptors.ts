@@ -15,6 +15,7 @@ import { defaultPayloadConverter, WorkflowInfo } from '@temporalio/workflow';
 import { cleanOptionalStackTrace, compareStackTrace, RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import {
+  checkDisposeRan,
   continueAsNewToDifferentWorkflow,
   initAndResetFlag,
   interceptorExample,
