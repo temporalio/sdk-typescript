@@ -298,7 +298,12 @@ const GenericConfigs = {
         initial: 5,
         maximum: 100,
       },
-      enableNonLocalActivities: false,
+      taskTypes: {
+        enableWorkflows: true,
+        enableLocalActivities: false,
+        enableRemoteActivities: false,
+        enableNexus: false,
+      },
       stickyQueueScheduleToStartTimeout: 1000,
       maxCachedWorkflows: 1000,
       maxHeartbeatThrottleInterval: 1000,
@@ -306,6 +311,7 @@ const GenericConfigs = {
       maxTaskQueueActivitiesPerSecond: null,
       maxActivitiesPerSecond: null,
       shutdownGraceTime: 1000,
+      plugins: [],
     } satisfies native.WorkerOptions,
   },
   ephemeralServer: {

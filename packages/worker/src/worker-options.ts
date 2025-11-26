@@ -1090,7 +1090,12 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     workflowTaskPollerBehavior: toNativeTaskPollerBehavior(opts.workflowTaskPollerBehavior),
     activityTaskPollerBehavior: toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior),
     nexusTaskPollerBehavior: toNativeTaskPollerBehavior(opts.nexusTaskPollerBehavior),
-    enableNonLocalActivities: opts.enableNonLocalActivities,
+    taskTypes: {
+      enableWorkflows: opts.workflowBundle !== undefined || opts.workflowsPath !== undefined,
+      enableLocalActivities: opts.maxCachedWorkflows > 0 && opts.activities.size > 0,
+      enableRemoteActivities: opts.enableNonLocalActivities && opts.activities.size > 0,
+      enableNexus: opts.nexusServiceRegistry !== undefined,
+    },
     stickyQueueScheduleToStartTimeout: msToNumber(opts.stickyQueueScheduleToStartTimeout),
     maxCachedWorkflows: opts.maxCachedWorkflows,
     maxHeartbeatThrottleInterval: msToNumber(opts.maxHeartbeatThrottleInterval),
@@ -1098,6 +1103,7 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     maxTaskQueueActivitiesPerSecond: opts.maxTaskQueueActivitiesPerSecond ?? null,
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
+    plugins: opts.plugins?.map((p) => p.name) ?? [],
   };
 }
 
