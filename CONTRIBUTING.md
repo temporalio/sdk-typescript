@@ -21,18 +21,13 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-The TypeScript SDK (as well as the rest of the Temporal codebase) is open sourced under the MIT license.
+The Temporal TypeScript SDK (as well as the rest of the Temporal codebase) is open sourced under the MIT license.
 
 We welcome contributions from the community. To contribute, please start by opening an [issue](https://github.com/temporalio/sdk-typescript/issues) and discussing the proposed change. Once a change has been agreed upon, development may start and be submitted via a [pull request](https://github.com/temporalio/sdk-typescript/pulls).
 
 ## Maintenance
 
-The current maintainers are:
-
-- [James Waktins-Harvey](https://github.com/mjameswh)
-- [Antonio Lain](https://github.com/antlai-temporal)
-
-If you'd like to give a hand, pelase reach us on our [community Slack workspace](https://temporalio.slack.com/channels/typescript-sdk). We'd be happy to have help with any of these things:
+If you'd like to give a hand, please reach us on our [community Slack workspace](https://temporalio.slack.com/channels/typescript-sdk). We'd be happy to have help with any of these things:
 
 - Triaging issues
 - Reviewing PRs
@@ -44,16 +39,12 @@ If you'd like to give a hand, pelase reach us on our [community Slack workspace]
 
 Contributors must agree to the CLA before their PR can be merged. You only have to do this once. Follow [this link](https://cla-assistant.io/temporalio/sdk-typescript) and sign in with your GitHub account.
 
-### SDK Structure
-
-See [sdk-structure.md](./docs/sdk-structure.md)
-
 ### Environment setup
 
-TS SDK is officially supported on Node 18, 20, 22, or 24. However, we recommend using the
-[Active LTS](https://nodejs.org/en/about/previous-releases#nodejs-releases) for SDK development.
-For easier testing during development you may want to use a version manager, such as
-[fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
+The Temporal TypeScript SDK is officially supported on Node 18, 20, 22, or 24.
+However, we recommend using the [Active LTS](https://nodejs.org/en/about/previous-releases#nodejs-releases)
+for SDK development. For easier testing during development, you may want to use
+a version manager, such as [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
 
 1. To run tests, you will need access to a local Temporal server, e.g. using the
    [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server).
@@ -102,7 +93,7 @@ If building fails, resetting your environment may help:
 pnpm dlx lerna clean -y && pnpm install --frozen-lockfile
 ```
 
-If `npm ci` fails in `@temporalio/core-bridge` on the command `node ./scripts/build.js`, you may
+If `pnpm install` fails in `@temporalio/core-bridge` on the command `node ./scripts/build.js`, you may
 need to do `rustup update`.
 
 To update to the latest version of the Core SDK, run `git submodule update` followed by `npm run build` to recompile.

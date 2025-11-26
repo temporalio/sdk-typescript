@@ -14,11 +14,13 @@ import { WorkflowCoverage } from '@temporalio/nyc-test-coverage';
 
 const workflowCoverage = new WorkflowCoverage();
 
-worker = await Worker.create(workflowCoverage.augmentWorkerOptions({
-  connection: nativeConnection,
-  taskQueue,
-  workflowsPath: require.resolve("./workflows"),
-}));
+worker = await Worker.create(
+  workflowCoverage.augmentWorkerOptions({
+    connection: nativeConnection,
+    taskQueue,
+    workflowsPath: require.resolve('./workflows'),
+  })
+);
 ```
 
 3. After your tests are done, call `mergeIntoGlobalCoverage()` to merge your Workflows' code coverage into nyc's global coverage.
@@ -74,11 +76,13 @@ import { WorkflowCoverage } from '@temporalio/nyc-test-coverage';
 
 const workflowCoverage = new WorkflowCoverage();
 
-worker = await Worker.create(workflowCoverage.augmentWorkerOptions({
-  connection: nativeConnection,
-  taskQueue,
-  workflowsPath: require.resolve("./workflows"),
-}));
+worker = await Worker.create(
+  workflowCoverage.augmentWorkerOptions({
+    connection: nativeConnection,
+    taskQueue,
+    workflowsPath: require.resolve('./workflows'),
+  })
+);
 ```
 
 4. After your tests are done, call `mergeIntoGlobalCoverage()` to merge your Workflows' code coverage into Jest's global coverage.
