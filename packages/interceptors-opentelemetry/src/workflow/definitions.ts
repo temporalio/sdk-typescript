@@ -60,14 +60,34 @@ export enum SpanName {
   WORKFLOW_QUERY = 'QueryWorkflow',
 
   /**
-   * Workflow is updated
+   * Workflow update is started by client
    */
-  WORKFLOW_UPDATE = 'UpdateWorkflow',
+  WORKFLOW_START_UPDATE = 'StartWorkflowUpdate',
 
   /**
    * Workflow is started with an update
    */
   WORKFLOW_UPDATE_WITH_START = 'UpdateWithStartWorkflow',
+
+  /**
+   * Workflow handles an incoming signal
+   */
+  WORKFLOW_HANDLE_SIGNAL = 'HandleSignal',
+
+  /**
+   * Workflow handles an incoming query
+   */
+  WORKFLOW_HANDLE_QUERY = 'HandleQuery',
+
+  /**
+   * Workflow handles an incoming update
+   */
+  WORKFLOW_HANDLE_UPDATE = 'HandleUpdate',
+
+  /**
+   * Workflow validates an incoming update
+   */
+  WORKFLOW_VALIDATE_UPDATE = 'ValidateUpdate',
 
   /**
    * Workflow is terminated

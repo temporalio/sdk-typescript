@@ -23,6 +23,7 @@ import {
   headersWithContext,
   RUN_ID_ATTR_KEY,
   WORKFLOW_ID_ATTR_KEY,
+  UPDATE_ID_ATTR_KEY,
   TERMINATE_REASON_ATTR_KEY,
 } from '../instrumentation';
 import { SpanName, SPAN_DELIMITER } from '../workflow';
@@ -48,7 +49,8 @@ export class OpenTelemetryWorkflowClientInterceptor implements Required<Workflow
       tracer: this.tracer,
       spanName: `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${input.workflowType}`,
       fn: async (span) => {
-        const headers = await headersWithContext(input.headers);
+        const headers = headersWithContext(input.headers);
+        span.setAttribute(WORKFLOW_ID_ATTR_KEY, input.options.workflowId);
         const runId = await next({ ...input, headers });
         span.setAttribute(RUN_ID_ATTR_KEY, runId);
         return runId;
@@ -60,8 +62,9 @@ export class OpenTelemetryWorkflowClientInterceptor implements Required<Workflow
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
-      fn: async () => {
-        const headers = await headersWithContext(input.headers);
+      fn: async (span) => {
+        span.setAttribute(WORKFLOW_ID_ATTR_KEY, input.workflowExecution.workflowId);
+        const headers = headersWithContext(input.headers);
         await next({ ...input, headers });
       },
     });
@@ -76,6 +79,7 @@ export class OpenTelemetryWorkflowClientInterceptor implements Required<Workflow
       spanName: `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${input.workflowType}`,
       fn: async (span) => {
         const headers = headersWithContext(input.headers);
+        span.setAttribute(WORKFLOW_ID_ATTR_KEY, input.options.workflowId);
         const output = await next({ ...input, headers });
         span.setAttribute(RUN_ID_ATTR_KEY, output.runId);
         return output;
@@ -89,8 +93,12 @@ export class OpenTelemetryWorkflowClientInterceptor implements Required<Workflow
   ): Promise<WorkflowStartUpdateOutput> {
     return await instrument({
       tracer: this.tracer,
-      spanName: `${SpanName.WORKFLOW_UPDATE}${SPAN_DELIMITER}${input.updateName}`,
+      spanName: `${SpanName.WORKFLOW_START_UPDATE}${SPAN_DELIMITER}${input.updateName}`,
       fn: async (span) => {
+        span.setAttribute(WORKFLOW_ID_ATTR_KEY, input.workflowExecution.workflowId);
+        if (input.options.updateId) {
+          span.setAttribute(UPDATE_ID_ATTR_KEY, input.options.updateId);
+        }
         const headers = headersWithContext(input.headers);
         const output = await next({ ...input, headers });
         span.setAttribute(RUN_ID_ATTR_KEY, output.workflowRunId);
@@ -105,8 +113,12 @@ export class OpenTelemetryWorkflowClientInterceptor implements Required<Workflow
   ): Promise<WorkflowStartUpdateWithStartOutput> {
     return await instrument({
       tracer: this.tracer,
-      spanName: `${SpanName.WORKFLOW_UPDATE_WITH_START}${SPAN_DELIMITER}${input.workflowType}${SPAN_DELIMITER}${input.updateName}`,
+      spanName: `${SpanName.WORKFLOW_UPDATE_WITH_START}${SPAN_DELIMITER}${input.updateName}`,
       fn: async (span) => {
+        span.setAttribute(WORKFLOW_ID_ATTR_KEY, input.workflowStartOptions.workflowId);
+        if (input.updateOptions.updateId) {
+          span.setAttribute(UPDATE_ID_ATTR_KEY, input.updateOptions.updateId);
+        }
         const workflowStartHeaders = headersWithContext(input.workflowStartHeaders);
         const updateHeaders = headersWithContext(input.updateHeaders);
         const output = await next({ ...input, workflowStartHeaders, updateHeaders });
@@ -124,8 +136,9 @@ export class OpenTelemetryWorkflowClientInterceptor implements Required<Workflow
   ): Promise<string> {
     return await instrument({
       tracer: this.tracer,
-      spanName: `${SpanName.WORKFLOW_SIGNAL_WITH_START}${SPAN_DELIMITER}${input.workflowType}${SPAN_DELIMITER}${input.signalName}`,
+      spanName: `${SpanName.WORKFLOW_SIGNAL_WITH_START}${SPAN_DELIMITER}${input.workflowType}`,
       fn: async (span) => {
+        span.setAttribute(WORKFLOW_ID_ATTR_KEY, input.options.workflowId);
         const headers = headersWithContext(input.headers);
         const runId = await next({ ...input, headers });
         span.setAttribute(RUN_ID_ATTR_KEY, runId);

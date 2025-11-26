@@ -30,6 +30,7 @@ import {
   extractContextFromHeaders,
   headersWithContext,
   TIMER_DURATION_MS_ATTR_KEY,
+  UPDATE_ID_ATTR_KEY,
   NEXUS_SERVICE_ATTR_KEY,
   NEXUS_OPERATION_ATTR_KEY,
   NEXUS_ENDPOINT_ATTR_KEY,
@@ -102,7 +103,7 @@ export class OpenTelemetryInboundInterceptor implements Required<WorkflowInbound
 
     return await instrument({
       tracer: this.tracer,
-      spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
+      spanName: `${SpanName.WORKFLOW_HANDLE_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
       fn: () => next(input),
       context,
     });
@@ -118,8 +119,11 @@ export class OpenTelemetryInboundInterceptor implements Required<WorkflowInbound
 
     return await instrument({
       tracer: this.tracer,
-      spanName: `${SpanName.WORKFLOW_UPDATE}${SPAN_DELIMITER}${input.name}`,
-      fn: () => next(input),
+      spanName: `${SpanName.WORKFLOW_HANDLE_UPDATE}${SPAN_DELIMITER}${input.name}`,
+      fn: (span) => {
+        span.setAttribute(UPDATE_ID_ATTR_KEY, input.updateId);
+        return next(input);
+      },
       context,
     });
   }
@@ -130,8 +134,11 @@ export class OpenTelemetryInboundInterceptor implements Required<WorkflowInbound
     const context = extractContextFromHeaders(input.headers);
     instrumentSync({
       tracer: this.tracer,
-      spanName: `${SpanName.WORKFLOW_UPDATE}${SPAN_DELIMITER}${input.name}:validate`,
-      fn: () => next(input),
+      spanName: `${SpanName.WORKFLOW_VALIDATE_UPDATE}${SPAN_DELIMITER}${input.name}`,
+      fn: (span) => {
+        span.setAttribute(UPDATE_ID_ATTR_KEY, input.updateId);
+        return next(input);
+      },
       context,
     });
   }
@@ -146,7 +153,7 @@ export class OpenTelemetryInboundInterceptor implements Required<WorkflowInbound
 
     return await instrument({
       tracer: this.tracer,
-      spanName: `${SpanName.WORKFLOW_QUERY}${SPAN_DELIMITER}${input.queryName}`,
+      spanName: `${SpanName.WORKFLOW_HANDLE_QUERY}${SPAN_DELIMITER}${input.queryName}`,
       fn: () => next(input),
       context,
     });

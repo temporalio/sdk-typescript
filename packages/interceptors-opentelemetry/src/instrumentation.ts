@@ -13,9 +13,13 @@ import {
 /** Default trace header for opentelemetry interceptors */
 export const TRACE_HEADER = '_tracer-data';
 /** As in workflow run id */
-export const RUN_ID_ATTR_KEY = 'run_id';
+export const RUN_ID_ATTR_KEY = 'temporalRunID';
 /** As in workflow id */
-export const WORKFLOW_ID_ATTR_KEY = 'workflow_id';
+export const WORKFLOW_ID_ATTR_KEY = 'temporalWorkflowID';
+/** As in activity id */
+export const ACTIVITY_ID_ATTR_KEY = 'temporalActivityID';
+/** As in update id */
+export const UPDATE_ID_ATTR_KEY = 'temporalUpdateID';
 /** As in termination reason */
 export const TERMINATE_REASON_ATTR_KEY = 'terminate_reason';
 /** As in timer duration */

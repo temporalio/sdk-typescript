@@ -11,7 +11,13 @@ import type {
   GetMetricTagsInput,
   ActivityExecuteInput,
 } from '@temporalio/worker';
-import { instrument, extractContextFromHeaders } from '../instrumentation';
+import {
+  instrument,
+  extractContextFromHeaders,
+  WORKFLOW_ID_ATTR_KEY,
+  RUN_ID_ATTR_KEY,
+  ACTIVITY_ID_ATTR_KEY,
+} from '../instrumentation';
 import { type OpenTelemetryWorkflowExporter, type SerializableSpan, SpanName, SPAN_DELIMITER } from '../workflow';
 
 export interface InterceptorOptions {
@@ -37,7 +43,17 @@ export class OpenTelemetryActivityInboundInterceptor implements Required<Activit
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
     const context = extractContextFromHeaders(input.headers);
     const spanName = `${SpanName.ACTIVITY_EXECUTE}${SPAN_DELIMITER}${this.ctx.info.activityType}`;
-    return await instrument({ tracer: this.tracer, spanName, fn: () => next(input), context });
+    return await instrument({
+      tracer: this.tracer,
+      spanName,
+      fn: (span) => {
+        span.setAttribute(WORKFLOW_ID_ATTR_KEY, this.ctx.info.workflowExecution.workflowId);
+        span.setAttribute(RUN_ID_ATTR_KEY, this.ctx.info.workflowExecution.runId);
+        span.setAttribute(ACTIVITY_ID_ATTR_KEY, this.ctx.info.activityId);
+        return next(input);
+      },
+      context,
+    });
   }
 }
 
