@@ -1,27 +1,33 @@
 packages:
-  - 'packages/activity'
-  - 'packages/client'
-  - 'packages/cloud'
-  - 'packages/common'
-  - 'packages/core-bridge'
-  - 'packages/create-project'
-  - 'packages/envconfig'
-  - 'packages/interceptors-opentelemetry'
-  - 'packages/meta'
-  - 'packages/nexus'
-  - 'packages/nyc-test-coverage'
-  - 'packages/plugin'
-  - 'packages/proto'
-  - 'packages/test'
-  - 'packages/testing'
-  - 'packages/worker'
-  - 'packages/workflow'
+  - packages/activity
+  - packages/client
+  - packages/cloud
+  - packages/common
+  - packages/core-bridge
+  - packages/create-project
+  - packages/envconfig
+  - packages/interceptors-opentelemetry
+  - packages/meta
+  - packages/nexus
+  - packages/nyc-test-coverage
+  - packages/plugin
+  - packages/proto
+  - packages/test
+  - packages/testing
+  - packages/worker
+  - packages/workflow
 
-# Only allow installing packages that are at least a day old
+ignoreScripts: true
+
 minimumReleaseAge: 1440
+
 # Allow depending on just published Temporal packages
 minimumReleaseAgeExclude:
   - '@temporalio/*'
-  - 'nexus-rpc'
+  - nexus-rpc
 
-ignoreScripts: true
+peerDependencyRules:
+  ignoreMissing:
+    # Peer of json-joy@9.9.1, missing in memfs@4.6.0
+    # No apparent issue at runtime if not present
+    - quill-delta
