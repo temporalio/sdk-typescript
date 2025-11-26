@@ -1,11 +1,10 @@
 import { resolve } from 'node:path';
 import { readdirSync, readFileSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { URL, fileURLToPath } from 'node:url';
 import arg from 'arg';
-import JSON5 from 'json5';
+import { parse as parseJson5 } from 'json5';
 
-const packagesPath = fileURLToPath(new URL('../packages', import.meta.url));
+const packagesPath = resolve(__dirname, '../packages');
 
 function cleanTsGeneratedFiles() {
   for (const pkg of readdirSync(packagesPath)) {
@@ -14,9 +13,9 @@ function cleanTsGeneratedFiles() {
     let files;
     try {
       files = readdirSync(packagePath);
-    } catch (e) {
+    } catch (e: unknown) {
       // Skip over non-directory files like .DS_Store
-      if (e?.code === 'ENOTDIR') {
+      if ((e as NodeJS.ErrnoException)?.code === 'ENOTDIR') {
         continue;
       } else {
         throw e;
@@ -26,7 +25,7 @@ function cleanTsGeneratedFiles() {
     for (const file of files) {
       if (/^tsconfig(.*).json$/.test(file)) {
         const filePath = resolve(packagePath, file);
-        const tsconfig = JSON5.parse(readFileSync(filePath));
+        const tsconfig = parseJson5(readFileSync(filePath, 'utf8'));
         const { outDir } = tsconfig.compilerOptions;
         if (outDir) {
           const outPath = resolve(packagePath, outDir);
@@ -60,4 +59,3 @@ const components = new Set(only === undefined || only.length === 0 ? ['ts', 'pro
 if (components.has('ts')) cleanTsGeneratedFiles();
 if (components.has('proto')) cleanProtoGeneratedFiles();
 if (components.has('rust')) cleanCompiledRustFiles();
-if (components.has('test-server')) cleanTestServer();

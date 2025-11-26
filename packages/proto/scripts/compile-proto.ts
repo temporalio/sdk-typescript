@@ -1,10 +1,10 @@
-const { rm, readFile, writeFile } = require('fs/promises');
-const { resolve } = require('path');
-const { promisify } = require('util');
-const glob = require('glob');
-const { statSync, mkdirSync } = require('fs');
-const pbjs = require('protobufjs-cli/pbjs');
-const pbts = require('protobufjs-cli/pbts');
+import { rm, readFile, writeFile } from 'node:fs/promises';
+import { statSync, mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { promisify } from 'node:util';
+import * as glob from 'glob';
+import * as pbjs from 'protobufjs-cli/pbjs';
+import * as pbts from 'protobufjs-cli/pbts';
 
 const outputDir = resolve(__dirname, '../protos');
 const jsOutputFile = resolve(outputDir, 'json-module.js');
@@ -12,7 +12,7 @@ const tempFile = resolve(outputDir, 'temp.js');
 
 const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos');
 
-function mtime(path) {
+function mtime(path: string) {
   try {
     return statSync(path).mtimeMs;
   } catch (err) {
@@ -23,7 +23,7 @@ function mtime(path) {
   }
 }
 
-async function compileProtos(dtsOutputFile, ...args) {
+async function compileProtos(dtsOutputFile: string, ...args: string[]) {
   const pbjsArgs = [
     ...['--wrap', 'commonjs'],
     '--force-long',

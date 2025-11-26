@@ -1,10 +1,10 @@
-const path = require('path');
-const arg = require('arg');
-const fs = require('fs');
-const which = require('which');
-const { spawnSync } = require('child_process');
-const { version } = require('../package.json');
-const { targets, getPrebuiltPath, getPrebuiltTargetName, PrebuildError } = require('../common');
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import arg from 'arg';
+import cargoCpArtifact from 'cargo-cp-artifact';
+import { version } from '../package.json';
+import { targets, getPrebuiltPath, getPrebuiltTargetName, PrebuildError } from '../common';
 
 process.chdir(path.resolve(__dirname, '..'));
 
@@ -54,7 +54,7 @@ if (unsupportedTargets.length) {
 const forceBuild = args['--force'];
 const buildRelease = args['--release'] || process.env.BUILD_CORE_RELEASE !== undefined;
 
-function compile(requestedTarget) {
+function compile(requestedTarget?: string) {
   if (!fs.existsSync('sdk-core/Cargo.toml')) {
     throw new Error('Missing sdk-core/Cargo.toml. Did you forget to run `git submodule update --init --recursive`?');
   }
@@ -83,16 +83,12 @@ function compile(requestedTarget) {
     ...(buildRelease ? ['--release'] : []),
     ...(target ? ['--target', target] : []),
   ];
-  const cmd = which.sync('cargo-cp-artifact');
 
-  console.log('Running', cmd, argv);
-  const { status, error } = spawnSync(cmd, argv, {
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
+  console.log('Running cargo-cp-artifact', argv);
+
+  cargoCpArtifact(argv, {
+    env: process.env,
   });
-  if (status !== 0 || error) {
-    throw new Error(`Failed to build${target ? ' for ' + target : ''}: status code ${status}`, error);
-  }
 }
 
 if (requestedTargets.length > 0) {

@@ -5,10 +5,10 @@
   "main": "index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "build-rust": "node ./scripts/build.js --force",
+    "build-rust": "tsx ./scripts/build.ts --force",
     "build": "pnpm run build-rust",
     "build-rust-release": "pnpm run build-rust --release",
-    "install": "node ./scripts/build.js",
+    "install": "tsx ./scripts/build.ts",
     "format": "cargo fmt",
     "lint": "cargo clippy --fix --allow-staged",
     "lint.check": "cargo clippy"
@@ -23,10 +23,12 @@
   "license": "MIT",
   "dependencies": {
     "@grpc/grpc-js": "^1.12.4",
-    "@temporalio/common": "workspace:*",
+    "@temporalio/common": "workspace:*"
+  },
+  "devDependencies": {
     "arg": "^5.0.2",
-    "cargo-cp-artifact": "^0.1.8",
-    "which": "^4.0.0"
+    "cargo-cp-artifact": "^0.1.9",
+    "tsx": "^4.20.6"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

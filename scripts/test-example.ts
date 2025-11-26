@@ -1,11 +1,11 @@
-const { spawn: spawnChild, spawnSync } = require('child_process');
-const arg = require('arg');
-const { shell, kill, sleep, waitOnChild } = require('./utils');
+import { ChildProcess, spawn, spawnSync } from 'node:child_process';
+import arg from 'arg';
+import { shell, kill, sleep, waitOnChild } from './utils';
 
 const npm = /^win/.test(process.platform) ? 'npm.cmd' : 'npm';
 
-function createWorker(workdir) {
-  return spawnChild(npm, ['start'], {
+export function createWorker(workdir: string): ChildProcess {
+  return spawn(npm, ['start'], {
     cwd: workdir,
     stdio: 'inherit',
     shell,
@@ -13,17 +13,21 @@ function createWorker(workdir) {
   });
 }
 
-async function withWorker(workdir, fn) {
+export async function withWorker(workdir: string, fn: () => Promise<void>): Promise<void> {
   console.log('Starting worker');
   const worker = createWorker(workdir);
   try {
     return await fn();
   } finally {
-    await kill(worker);
+    await Promise.race([
+      // Give 1s for the worker to terminate by itself, then send a SIGINT
+      waitOnChild(worker),
+      sleep(1000).then(() => kill(worker)),
+    ]);
   }
 }
 
-async function test(workdir, scriptName, expectedOutput) {
+export async function test(workdir: string, scriptName: string, expectedOutput: string): Promise<void> {
   const { status, output } = spawnSync(npm, ['run', scriptName], {
     cwd: workdir,
     shell,
@@ -33,12 +37,12 @@ async function test(workdir, scriptName, expectedOutput) {
   if (status !== 0) {
     throw new Error('Failed to run workflow');
   }
-  if (!output[1].includes(`${expectedOutput}\n`)) {
+  if (!output[1]?.includes(`${expectedOutput}\n`)) {
     throw new Error(`Invalid output: "${output[1]}"`);
   }
 }
 
-async function main() {
+async function main(): Promise<void> {
   const opts = arg({
     '--work-dir': String,
     '--script-name': String,
