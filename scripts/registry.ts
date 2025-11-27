@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { mkdirSync } from 'node:fs';
 import { mkdtemp } from 'fs-extra';
 import arg from 'arg';
-import { runServer, Config as VerdaccioConfig } from 'verdaccio';
+import { runServer } from 'verdaccio';
 
 interface VerdaccioServer {
   listen: (port: number, callback: () => void) => void;
@@ -40,7 +40,9 @@ class Registry {
       server: {
         keepAliveTimeout: 60,
       },
-    } satisfies Partial<VerdaccioConfig>)) as unknown as VerdaccioServer;
+
+      max_body_size: '200mb',
+    })) as unknown as VerdaccioServer;
 
     await new Promise<void>((resolve, reject) => {
       try {
