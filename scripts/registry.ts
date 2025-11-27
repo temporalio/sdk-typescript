@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { mkdirSync } from 'node:fs';
 import { mkdtemp } from 'fs-extra';
 import arg from 'arg';
-import { runServer, ConfigBuilder } from 'verdaccio';
+import { runServer, Config as VerdaccioConfig } from 'verdaccio';
 
 interface VerdaccioServer {
   listen: (port: number, callback: () => void) => void;
@@ -20,31 +20,27 @@ class Registry {
   static async create(workdir: string): Promise<Registry> {
     mkdirSync(workdir, { recursive: true });
 
-    const app = (await runServer(
-      ConfigBuilder.build({
-        self_path: workdir,
-        storage: path.resolve(workdir, 'storage'),
+    const app = (await runServer({
+      self_path: workdir,
+      storage: path.resolve(workdir, 'storage'),
 
-        packages: {
-          '@temporalio/*': {
-            access: '$all',
-            publish: '$all',
-            unpublish: '$all',
-          },
-          temporalio: {
-            access: '$all',
-            publish: '$all',
-            unpublish: '$all',
-          },
+      packages: {
+        '@temporalio/*': {
+          access: '$all',
+          publish: '$all',
+          unpublish: '$all',
         },
-
-        server: {
-          keepAliveTimeout: 60,
+        temporalio: {
+          access: '$all',
+          publish: '$all',
+          unpublish: '$all',
         },
+      },
 
-        max_body_size: '200mb',
-      }).getAsYaml()
-    )) as unknown as VerdaccioServer;
+      server: {
+        keepAliveTimeout: 60,
+      },
+    } satisfies Partial<VerdaccioConfig>)) as unknown as VerdaccioServer;
 
     await new Promise<void>((resolve, reject) => {
       try {
