@@ -8,7 +8,6 @@
     "build-rust": "tsx ./scripts/build.ts --force",
     "build": "pnpm run build-rust",
     "build-rust-release": "pnpm run build-rust --release",
-    "install": "tsx ./scripts/build.ts",
     "format": "cargo fmt",
     "lint": "cargo clippy --fix --allow-staged",
     "lint.check": "cargo clippy"

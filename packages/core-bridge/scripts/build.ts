@@ -1,6 +1,5 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import arg from 'arg';
 import cargoCpArtifact from 'cargo-cp-artifact';
 import { version } from '../package.json';
