@@ -19,11 +19,7 @@ export async function withWorker(workdir: string, fn: () => Promise<void>): Prom
   try {
     return await fn();
   } finally {
-    await Promise.race([
-      // Give 1s for the worker to terminate by itself, then send a SIGINT
-      waitOnChild(worker),
-      sleep(1000).then(() => kill(worker)),
-    ]);
+    await kill(worker);
   }
 }
 
