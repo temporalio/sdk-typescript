@@ -4,12 +4,12 @@
  */
 import * as http from 'http';
 import * as http2 from 'http2';
-import { SpanStatusCode } from '@opentelemetry/api';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
 import { ExportResultCode } from '@opentelemetry/core';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
-import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+import { BasicTracerProvider, InMemorySpanExporter, ReadableSpan, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
@@ -233,10 +233,10 @@ if (RUN_INTEGRATION_TESTS) {
   test.serial('Otel interceptor spans are connected and complete', async (t) => {
     Runtime.install({});
     try {
-      const spans = Array<opentelemetry.tracing.ReadableSpan>();
+      const spans = Array<ReadableSpan>();
 
-      const staticResource = new opentelemetry.resources.Resource({
-        [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
+      const staticResource = opentelemetry.resources.resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: 'ts-test-otel-worker',
       });
       const traceExporter: opentelemetry.tracing.SpanExporter = {
         export(spans_, resultCallback) {
@@ -284,98 +284,98 @@ if (RUN_INTEGRATION_TESTS) {
       const originalSpan = spans.find(({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}smorgasbord`);
       t.true(originalSpan !== undefined);
       t.log(
-        spans.map((span) => ({ name: span.name, parentSpanId: span.parentSpanId, spanId: span.spanContext().spanId }))
+        spans.map((span) => ({ name: span.name, parentSpanContext: span.parentSpanContext, spanId: span.spanContext().spanId }))
       );
 
       const firstExecuteSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord` &&
-          parentSpanId === originalSpan?.spanContext().spanId
+          parentSpanContext?.spanId === originalSpan?.spanContext().spanId
       );
       t.true(firstExecuteSpan !== undefined);
       t.true(firstExecuteSpan!.status.code === SpanStatusCode.OK);
 
       const continueAsNewSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}smorgasbord` &&
-          parentSpanId === firstExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === firstExecuteSpan?.spanContext().spanId
       );
       t.true(continueAsNewSpan !== undefined);
       t.true(continueAsNewSpan!.status.code === SpanStatusCode.OK);
 
       const parentExecuteSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord` &&
-          parentSpanId === continueAsNewSpan?.spanContext().spanId
+          parentSpanContext?.spanId === continueAsNewSpan?.spanContext().spanId
       );
       t.true(parentExecuteSpan !== undefined);
       const firstActivityStartSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}fakeProgress` &&
-          parentSpanId === parentExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === parentExecuteSpan?.spanContext().spanId
       );
       t.true(firstActivityStartSpan !== undefined);
 
       const firstActivityExecuteSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.ACTIVITY_EXECUTE}${SPAN_DELIMITER}fakeProgress` &&
-          parentSpanId === firstActivityStartSpan?.spanContext().spanId
+          parentSpanContext?.spanId === firstActivityStartSpan?.spanContext().spanId
       );
       t.true(firstActivityExecuteSpan !== undefined);
 
       const secondActivityStartSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}queryOwnWf` &&
-          parentSpanId === parentExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === parentExecuteSpan?.spanContext().spanId
       );
       t.true(secondActivityStartSpan !== undefined);
 
       const secondActivityExecuteSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.ACTIVITY_EXECUTE}${SPAN_DELIMITER}queryOwnWf` &&
-          parentSpanId === secondActivityStartSpan?.spanContext().spanId
+          parentSpanContext?.spanId === secondActivityStartSpan?.spanContext().spanId
       );
       t.true(secondActivityExecuteSpan !== undefined);
 
       const childWorkflowStartSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.CHILD_WORKFLOW_START}${SPAN_DELIMITER}signalTarget` &&
-          parentSpanId === parentExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === parentExecuteSpan?.spanContext().spanId
       );
       t.true(childWorkflowStartSpan !== undefined);
 
       const childWorkflowExecuteSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}signalTarget` &&
-          parentSpanId === childWorkflowStartSpan?.spanContext().spanId
+          parentSpanContext?.spanId === childWorkflowStartSpan?.spanContext().spanId
       );
       t.true(childWorkflowExecuteSpan !== undefined);
 
       const signalChildWithUnblockSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}unblock` &&
-          parentSpanId === parentExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === parentExecuteSpan?.spanContext().spanId
       );
       t.true(signalChildWithUnblockSpan !== undefined);
 
       const localActivityStartSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}echo` &&
-          parentSpanId === parentExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === parentExecuteSpan?.spanContext().spanId
       );
       t.true(localActivityStartSpan !== undefined);
 
       const localActivityExecuteSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.ACTIVITY_EXECUTE}${SPAN_DELIMITER}echo` &&
-          parentSpanId === localActivityStartSpan?.spanContext().spanId
+          parentSpanContext?.spanId === localActivityStartSpan?.spanContext().spanId
       );
       t.true(localActivityExecuteSpan !== undefined);
 
       const activityStartedSignalSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}activityStarted` &&
-          parentSpanId === firstActivityExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === firstActivityExecuteSpan?.spanContext().spanId
       );
       t.true(activityStartedSignalSpan !== undefined);
 
@@ -397,8 +397,8 @@ if (RUN_INTEGRATION_TESTS) {
     try {
       const oTelUrl = 'http://127.0.0.1:4317';
       const exporter = new OTLPTraceExporter({ url: oTelUrl });
-      const staticResource = new opentelemetry.resources.Resource({
-        [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
+      const staticResource = opentelemetry.resources.resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: 'ts-test-otel-worker',
       });
       const otel = new opentelemetry.NodeSDK({
         resource: staticResource,
@@ -441,9 +441,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('instrumentation: Error status includes message and records exception', async (t) => {
     const memoryExporter = new InMemorySpanExporter();
-    const provider = new BasicTracerProvider();
-    provider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
-    provider.register();
+    const provider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+    });
+    trace.setGlobalTracerProvider(provider);
     const tracer = provider.getTracer('test-error-tracer');
 
     const errorMessage = 'Test error message';
@@ -474,9 +475,10 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Otel workflow omits ApplicationError with BENIGN category', async (t) => {
     const memoryExporter = new InMemorySpanExporter();
-    const provider = new BasicTracerProvider();
-    provider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
-    provider.register();
+    const provider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+    });
+    trace.setGlobalTracerProvider(provider);
     const tracer = provider.getTracer('test-error-tracer');
 
     const worker = await Worker.create({
