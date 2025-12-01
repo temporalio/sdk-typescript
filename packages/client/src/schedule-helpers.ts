@@ -91,7 +91,7 @@ const [encodeMonth, decodeMonth] = makeCalendarSpecFieldCoders(
     const index = MONTHS.indexOf(month);
     return index >= 0 ? index + 1 : undefined;
   },
-  (month: number) => MONTHS[month - 1],
+  (month: number) => MONTHS[month - 1] ?? MONTHS[11],
   [{ start: 1, end: 12, step: 1 }], // default to *
   [{ start: 1, end: 12, step: 1 }]
 );
@@ -110,7 +110,7 @@ const [encodeDayOfWeek, decodeDayOfWeek] = makeCalendarSpecFieldCoders(
     const index = DAYS_OF_WEEK.indexOf(day);
     return index >= 0 ? index : undefined;
   },
-  (day: number) => DAYS_OF_WEEK[day],
+  (day: number) => DAYS_OF_WEEK[day] ?? DAYS_OF_WEEK[6],
   [{ start: 0, end: 6, step: 1 }], // default to *
   [{ start: 0, end: 6, step: 1 }]
 );

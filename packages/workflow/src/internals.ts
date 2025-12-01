@@ -918,7 +918,7 @@ export class Activator implements ActivationHandler {
           break;
         }
         const [update] = bufferedUpdates.splice(foundIndex, 1);
-        this.doUpdate(update);
+        this.doUpdate(update!);
       }
     }
   }
@@ -1001,7 +1001,7 @@ export class Activator implements ActivationHandler {
         const foundIndex = bufferedSignals.findIndex((signal) => this.signalHandlers.has(signal.signalName as string));
         if (foundIndex === -1) break;
         const [signal] = bufferedSignals.splice(foundIndex, 1);
-        this.signalWorkflow(signal);
+        this.signalWorkflow(signal!);
       }
     }
   }

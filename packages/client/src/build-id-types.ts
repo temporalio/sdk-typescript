@@ -127,7 +127,8 @@ export function versionSetsFromProto(
   return {
     versionSets: resp.majorVersionSets.map((set) => versionSetFromProto(set)),
     get defaultSet(): BuildIdVersionSet {
-      return this.versionSets[this.versionSets.length - 1];
+      // versionSets are read only so no need to worry about an undefined ending up in it
+      return this.versionSets[this.versionSets.length - 1]!;
     },
     get defaultBuildId(): string {
       return this.defaultSet.default;
@@ -139,8 +140,12 @@ function versionSetFromProto(set: temporal.api.taskqueue.v1.ICompatibleVersionSe
   if (set == null || set.buildIds == null || set.buildIds.length === 0) {
     throw new Error('Compatible version sets must contain at least one Build Id');
   }
+  const buildId = set.buildIds[set.buildIds.length - 1];
+  if (buildId === undefined) {
+    throw new Error('Compatible version sets must contain at least one Build Id');
+  }
   return {
     buildIds: set.buildIds,
-    default: set.buildIds[set.buildIds.length - 1],
+    default: buildId,
   };
 }

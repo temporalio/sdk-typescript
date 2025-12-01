@@ -25,7 +25,7 @@ export type Headers = Record<string, Payload>;
 export function composeInterceptors<I, M extends keyof I>(interceptors: I[], method: M, next: Next<I, M>): Next<I, M> {
   for (let i = interceptors.length - 1; i >= 0; --i) {
     const interceptor = interceptors[i];
-    if (interceptor[method] !== undefined) {
+    if (interceptor?.[method] !== undefined) {
       const prev = next;
       // We lose type safety here because Typescript can't deduce that interceptor[method] is a function that returns
       // the same type as Next<I, M>
