@@ -2,7 +2,7 @@ import { SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { Resource } from '@opentelemetry/resources';
 import { SimplePlugin } from '@temporalio/plugin';
 import { InjectedSinks, WorkerOptions } from '@temporalio/worker';
-import { OpenTelemetryWorkflowClientInterceptor } from './client'
+import { OpenTelemetryWorkflowClientInterceptor } from './client';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
@@ -40,8 +40,9 @@ export class OpenTelemetryPlugin extends SimplePlugin {
     };
     options.sinks = {
       ...options.sinks,
-      ...sinks
+      ...sinks,
     };
     return super.configureWorker(options);
   }
 }
+
