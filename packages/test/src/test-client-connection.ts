@@ -610,3 +610,17 @@ async function withHttp2Server(
     });
   });
 }
+
+test('Client Connection: TLS is enabled by default when apiKey is provided and tls is not configured', async (t) => {
+  const conn = Connection.lazy({ apiKey: 'test-api-key' });
+  // When TLS is enabled, credentials should NOT be insecure
+  const isInsecure = conn.options.credentials._isSecure !== undefined && !conn.options.credentials._isSecure();
+  t.false(isInsecure, 'Connection should use secure credentials when apiKey is provided');
+});
+
+test('Client Connection: TLS can be explicitly disabled even when apiKey is provided', async (t) => {
+  const conn = Connection.lazy({ apiKey: 'test-api-key', tls: false });
+  // When TLS is explicitly disabled, credentials should be insecure
+  const isInsecure = conn.options.credentials._isSecure !== undefined && !conn.options.credentials._isSecure();
+  t.true(isInsecure, 'Connection should use insecure credentials when tls: false');
+});
