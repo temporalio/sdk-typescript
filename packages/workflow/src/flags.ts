@@ -85,7 +85,7 @@ export const SdkFlags = {
    *
    * @since Introduced in 1.13.3
    */
-  OpenTelemetryInterceptorsInstrumentsAllMethods: defineFlag(6, true, [isAtLeast({ major: 1, minor: 13, patch: 3 })]),
+  OpenTelemetryInterceptorsInstrumentsAllMethods: defineFlag(6, true),
 } as const;
 
 function defineFlag(id: number, def: boolean, alternativeConditions?: AltConditionFn[]): SdkFlag {
