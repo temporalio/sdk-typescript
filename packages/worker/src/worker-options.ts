@@ -1093,8 +1093,8 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     activityTaskPollerBehavior: toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior),
     nexusTaskPollerBehavior: toNativeTaskPollerBehavior(opts.nexusTaskPollerBehavior),
     taskTypes: {
-      enableWorkflows: opts.workflowBundle !== undefined || opts.workflowsPath !== undefined,
-      enableLocalActivities: opts.maxCachedWorkflows > 0 && opts.activities.size > 0,
+      enableWorkflows,
+      enableLocalActivities,
       enableRemoteActivities: opts.enableNonLocalActivities && opts.activities.size > 0,
       enableNexus: opts.nexusServiceRegistry !== undefined,
     },
