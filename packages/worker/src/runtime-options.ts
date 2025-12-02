@@ -375,12 +375,7 @@ export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions 
   const { metrics, noTemporalPrefixForMetrics } = options.telemetryOptions ?? {}; // eslint-disable-line deprecation/deprecation
   const [logger, logExporter] = compileLoggerOptions(options);
 
-  let workerHeartbeatIntervalMillis: number | null;
-  if (options.workerHeartbeatInterval === 0) {
-    workerHeartbeatIntervalMillis = null;
-  } else {
-    workerHeartbeatIntervalMillis = msToNumber(options.workerHeartbeatInterval ?? '60s');
-  }
+  const heartbeatMillis = msToNumber(options.workerHeartbeatInterval ?? '60s');
 
   return {
     logger,
@@ -415,7 +410,7 @@ export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions 
                 globalTags: metrics.globalTags ?? {},
               } satisfies native.MetricExporterOptions)
             : null,
-      workerHeartbeatIntervalMillis,
+      workerHeartbeatIntervalMillis: heartbeatMillis === 0 ? null : heartbeatMillis,
     },
   };
 }
