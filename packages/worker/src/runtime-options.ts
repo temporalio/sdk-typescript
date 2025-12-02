@@ -33,12 +33,12 @@ export interface RuntimeOptions {
   telemetryOptions?: TelemetryOptions;
 
   /**
-   * Interval for worker heartbeats. `null` disables heartbeating.
+   * Interval for worker heartbeats. Accepted range is between 1s and 60s. `0` disables heartbeating.
    *
    * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
    * @default 60000 (60 seconds)
    */
-  workerHeartbeatInterval?: Duration | null;
+  workerHeartbeatInterval?: Duration;
 
   /**
    * Automatically shutdown workers on any of these signals.
@@ -376,7 +376,7 @@ export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions 
   const [logger, logExporter] = compileLoggerOptions(options);
 
   let workerHeartbeatIntervalMillis: number | null;
-  if (options.workerHeartbeatInterval === null) {
+  if (options.workerHeartbeatInterval === 0) {
     workerHeartbeatIntervalMillis = null;
   } else {
     workerHeartbeatIntervalMillis = msToNumber(options.workerHeartbeatInterval ?? '60s');
