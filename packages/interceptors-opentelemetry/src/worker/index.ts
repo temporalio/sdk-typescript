@@ -30,7 +30,7 @@ export interface InterceptorOptions {
  * Wraps the operation in an opentelemetry Span and links it to a parent Span context if one is
  * provided in the Activity input headers.
  */
-export class OpenTelemetryActivityInboundInterceptor implements Required<ActivityInboundCallsInterceptor> {
+export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundCallsInterceptor {
   protected readonly tracer: otel.Tracer;
 
   constructor(
@@ -62,7 +62,7 @@ export class OpenTelemetryActivityInboundInterceptor implements Required<Activit
  *
  * Attach OpenTelemetry context tracing attributes to emitted log messages and metrics, if appropriate.
  */
-export class OpenTelemetryActivityOutboundInterceptor implements Required<ActivityOutboundCallsInterceptor> {
+export class OpenTelemetryActivityOutboundInterceptor implements ActivityOutboundCallsInterceptor {
   constructor(protected readonly ctx: ActivityContext) {}
 
   public getLogAttributes(

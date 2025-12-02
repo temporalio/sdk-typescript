@@ -37,7 +37,7 @@ export interface InterceptorOptions {
  *
  * Wraps the operation in an opentelemetry Span and passes it to the Workflow via headers.
  */
-export class OpenTelemetryWorkflowClientInterceptor implements Required<WorkflowClientInterceptor> {
+export class OpenTelemetryWorkflowClientInterceptor implements WorkflowClientInterceptor {
   protected readonly tracer: otel.Tracer;
 
   constructor(options?: InterceptorOptions) {

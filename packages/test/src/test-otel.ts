@@ -12,17 +12,30 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { WorkflowClient, WithStartWorkflowOperation } from '@temporalio/client';
+import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor } from '@temporalio/client';
 import { OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
 import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry';
-import { instrument, TIMER_DURATION_MS_ATTR_KEY } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
+import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
   OpenTelemetryActivityOutboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
-import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
-import { DefaultLogger, InjectedSinks, Runtime } from '@temporalio/worker';
+import {
+  OpenTelemetrySinks,
+  SpanName,
+  SPAN_DELIMITER,
+  OpenTelemetryOutboundInterceptor,
+  OpenTelemetryInboundInterceptor,
+} from '@temporalio/interceptors-opentelemetry/lib/workflow';
+import {
+  ActivityInboundCallsInterceptor,
+  ActivityOutboundCallsInterceptor,
+  DefaultLogger,
+  InjectedSinks,
+  Runtime,
+} from '@temporalio/worker';
+import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
 import * as activities from './activities';
 import { loadHistory, RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
 import * as workflows from './workflows';
@@ -379,13 +392,6 @@ if (RUN_INTEGRATION_TESTS) {
       );
       t.true(activityStartedSignalSpan !== undefined);
 
-      const timerSpan = spans.find(
-        ({ name, parentSpanId }) =>
-          name === SpanName.WORKFLOW_TIMER && parentSpanId === parentExecuteSpan?.spanContext().spanId
-      );
-      t.true(timerSpan !== undefined);
-      t.deepEqual(timerSpan!.attributes[TIMER_DURATION_MS_ATTR_KEY], 1000);
-
       const querySpan = spans.find(
         ({ name, parentSpanId }) =>
           name === `${SpanName.WORKFLOW_QUERY}${SPAN_DELIMITER}step` &&
@@ -696,4 +702,20 @@ test('Can replay smorgasbord from 1.13.2', async (t) => {
       hist
     );
   });
+});
+
+// Skipped as we only care that it compiles
+test.skip('otel interceptors are complete', async (t) => {
+  // We only use this to verify that we trace all spans via typechecking
+  // Doing this instead of directly changing the `implements` to avoid leaking this in the docs
+  const _wfl_inbound = {} as OpenTelemetryInboundInterceptor satisfies Required<WorkflowInboundCallsInterceptor>;
+  const _wfl_outbound = {} as OpenTelemetryOutboundInterceptor satisfies Required<
+    Omit<WorkflowOutboundCallsInterceptor, 'startTimer'>
+  >;
+  const _act_inbound =
+    {} as OpenTelemetryActivityInboundInterceptor satisfies Required<ActivityInboundCallsInterceptor>;
+  const _act_outbound =
+    {} as OpenTelemetryActivityOutboundInterceptor satisfies Required<ActivityOutboundCallsInterceptor>;
+  const _client = {} as OpenTelemetryWorkflowClientInterceptor satisfies Required<WorkflowClientInterceptor>;
+  t.pass();
 });

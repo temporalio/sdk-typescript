@@ -125,10 +125,6 @@ export enum SpanName {
    */
   CONTINUE_AS_NEW = 'ContinueAsNew',
   /**
-   * Workflow timer is started
-   */
-  WORKFLOW_TIMER = 'StartTimer',
-  /**
    * Nexus operation is started
    */
   NEXUS_OPERATION_START = 'StartNexusOperation',

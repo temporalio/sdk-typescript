@@ -20,7 +20,6 @@ import type {
   WorkflowInboundCallsInterceptor,
   WorkflowInternalsInterceptor,
   WorkflowOutboundCallsInterceptor,
-  TimerInput,
   StartNexusOperationInput,
   StartNexusOperationOutput,
 } from '@temporalio/workflow';
@@ -29,7 +28,6 @@ import {
   instrumentSync,
   extractContextFromHeaders,
   headersWithContext,
-  TIMER_DURATION_MS_ATTR_KEY,
   UPDATE_ID_ATTR_KEY,
   NEXUS_SERVICE_ATTR_KEY,
   NEXUS_OPERATION_ATTR_KEY,
@@ -66,7 +64,7 @@ function getTracer(): otel.Tracer {
  *
  * `@temporalio/workflow` must be provided by host package in order to function.
  */
-export class OpenTelemetryInboundInterceptor implements Required<WorkflowInboundCallsInterceptor> {
+export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInterceptor {
   protected readonly tracer = getTracer();
 
   public constructor() {
@@ -167,29 +165,11 @@ export class OpenTelemetryInboundInterceptor implements Required<WorkflowInbound
  *
  * `@temporalio/workflow` must be provided by host package in order to function.
  */
-export class OpenTelemetryOutboundInterceptor implements Required<WorkflowOutboundCallsInterceptor> {
+export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsInterceptor {
   protected readonly tracer = getTracer();
 
   public constructor() {
     ensureWorkflowModuleLoaded();
-  }
-
-  public async startTimer(
-    input: TimerInput,
-    next: Next<WorkflowOutboundCallsInterceptor, 'startTimer'>
-  ): Promise<void> {
-    if (!hasSdkFlag('OpenTelemetryInterceptorsInstrumentsAllMethods')) return next(input);
-
-    return await instrument({
-      tracer: this.tracer,
-      spanName: input.options?.summary
-        ? `${SpanName.WORKFLOW_TIMER}${SPAN_DELIMITER}${input.options.summary}`
-        : SpanName.WORKFLOW_TIMER,
-      fn: async (span) => {
-        span.setAttribute(TIMER_DURATION_MS_ATTR_KEY, input.durationMs);
-        return await next(input);
-      },
-    });
   }
 
   public async scheduleActivity(

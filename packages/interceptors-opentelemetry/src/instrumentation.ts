@@ -22,8 +22,6 @@ export const ACTIVITY_ID_ATTR_KEY = 'temporal_activity_id';
 export const UPDATE_ID_ATTR_KEY = 'temporal_update_id';
 /** As in termination reason */
 export const TERMINATE_REASON_ATTR_KEY = 'terminate_reason';
-/** As in timer duration */
-export const TIMER_DURATION_MS_ATTR_KEY = 'timer_duration_ms';
 /** As in Nexus service */
 export const NEXUS_SERVICE_ATTR_KEY = 'nexus_service';
 /** As in Nexus operation */
