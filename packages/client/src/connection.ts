@@ -5,7 +5,6 @@ import {
   normalizeTlsConfig,
   TLSConfig,
   normalizeGrpcEndpointAddress,
-  defaultTLSFromApiKey,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { Duration, msOptionalToNumber } from '@temporalio/common/lib/time';
@@ -211,7 +210,7 @@ function normalizeGRPCConfig(options: ConnectionOptions): ConnectionOptions {
   if (rest.address) {
     rest.address = normalizeGrpcEndpointAddress(rest.address, DEFAULT_TEMPORAL_GRPC_PORT);
   }
-  const tls = normalizeTlsConfig(defaultTLSFromApiKey(tlsFromConfig, options.apiKey));
+  const tls = normalizeTlsConfig(tlsFromConfig, options.apiKey);
   if (tls) {
     if (credentials) {
       throw new TypeError('Both `tls` and `credentials` ConnectionOptions were provided');

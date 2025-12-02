@@ -8,7 +8,6 @@ import {
   TLSConfig,
 } from '@temporalio/common/lib/internal-non-workflow';
 import type { Metadata } from '@temporalio/client';
-import { defaultTLSFromApiKey } from '@temporalio/common/lib/internal-non-workflow/tls-config';
 import pkg from './pkg';
 import type { NativeConnectionPlugin } from './connection';
 
@@ -80,7 +79,7 @@ export interface NativeConnectionOptions {
 export function toNativeClientOptions(options: NativeConnectionOptions): native.ClientOptions {
   const address = normalizeGrpcEndpointAddress(options.address ?? 'localhost:7233', DEFAULT_TEMPORAL_GRPC_PORT);
 
-  const tlsInput = normalizeTlsConfig(defaultTLSFromApiKey(options.tls, options.apiKey));
+  const tlsInput = normalizeTlsConfig(options.tls, options.apiKey);
   const tls: native.TLSConfig | null = tlsInput
     ? {
         domain: tlsInput.serverNameOverride ?? null,
