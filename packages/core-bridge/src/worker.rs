@@ -167,7 +167,7 @@ pub fn worker_complete_workflow_activation(
                     }
                 }
                 CompleteWfError::WorkflowNotEnabled => {
-                    BridgeError::UnexpectedError(format!("{err}"))
+                    BridgeError::UnexpectedError(err.to_string())
                 }
             })
     })
@@ -229,7 +229,7 @@ pub fn worker_complete_activity_task(
                     message: format!("Malformed Activity Completion: {reason:?}"),
                 },
                 CompleteActivityError::ActivityNotEnabled => {
-                    BridgeError::UnexpectedError(format!("{err}"))
+                    BridgeError::UnexpectedError(err.to_string())
                 }
             })
     })
@@ -302,7 +302,7 @@ pub fn worker_complete_nexus_task(
             .await
             .map_err(|err| match err {
                 CompleteNexusError::NexusNotEnabled => {
-                    BridgeError::UnexpectedError(format!("{err}"))
+                    BridgeError::UnexpectedError(err.to_string())
                 }
                 CompleteNexusError::MalformedNexusCompletion { reason } => BridgeError::TypeError {
                     field: None,
@@ -549,6 +549,7 @@ mod config {
     }
 
     #[derive(TryFromJs)]
+    #[allow(clippy::struct_excessive_bools)]
     pub struct WorkerTaskTypes {
         enable_workflows: bool,
         enable_local_activities: bool,

@@ -1078,6 +1078,8 @@ function nexusServiceRegistryFromOptions(opts: WorkerOptions): nexus.ServiceRegi
 }
 
 export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): native.WorkerOptions {
+  const enableWorkflows = opts.workflowBundle !== undefined || opts.workflowsPath !== undefined;
+  const enableLocalActivities = enableWorkflows && opts.activities.size > 0;
   return {
     identity: opts.identity,
     buildId: opts.buildId, // eslint-disable-line deprecation/deprecation
