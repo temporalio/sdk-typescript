@@ -114,6 +114,7 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
     address: `127.0.0.1:${port}`,
     metadata: { staticKey: 'set', 'staticKey-bin': Buffer.from([0x00]) },
     apiKey: 'test-token',
+    tls: false,
   });
   await conn.withMetadata({ test: 'true' }, () =>
     conn.withMetadata({ otherKey: 'set', 'otherKey-bin': Buffer.from([0x01]) }, () =>
@@ -164,6 +165,7 @@ test('apiKey sets temporal-namespace header appropriately', async (t) => {
     address: `127.0.0.1:${port}`,
     metadata: { staticKey: 'set' },
     apiKey: 'test-token',
+    tls: false,
   });
 
   await conn.workflowService.startWorkflowExecution({ namespace: 'test-namespace' });
