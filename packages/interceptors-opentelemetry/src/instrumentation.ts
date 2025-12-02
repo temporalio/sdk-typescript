@@ -62,7 +62,7 @@ async function wrapWithSpan<T>(
     span.setStatus({ code: otel.SpanStatusCode.OK });
     return ret;
   } catch (err: any) {
-    handleError(err, span, acceptableErrors);
+    maybeAddErrorToSpan(err, span, acceptableErrors);
     throw err;
   } finally {
     span.end();
@@ -79,14 +79,14 @@ function wrapWithSpanSync<T>(
     span.setStatus({ code: otel.SpanStatusCode.OK });
     return ret;
   } catch (err: any) {
-    handleError(err, span, acceptableErrors);
+    maybeAddErrorToSpan(err, span, acceptableErrors);
     throw err;
   } finally {
     span.end();
   }
 }
 
-function handleError(err: any, span: otel.Span, acceptableErrors?: (err: unknown) => boolean): void {
+function maybeAddErrorToSpan(err: any, span: otel.Span, acceptableErrors?: (err: unknown) => boolean): void {
   const isBenignErr = err instanceof ApplicationFailure && err.category === ApplicationFailureCategory.BENIGN;
   if (acceptableErrors === undefined || !acceptableErrors(err)) {
     const statusCode = isBenignErr ? otel.SpanStatusCode.UNSET : otel.SpanStatusCode.ERROR;
