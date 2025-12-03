@@ -94,5 +94,6 @@ export * from './upsert-and-read-search-attributes';
 export * from './wait-on-user';
 export * from './workflow-cancellation-scenarios';
 export * from './upsert-and-read-memo';
+export * from './update-start-otel';
 export * from './updates-ordering';
 export * from './wait-on-signal-then-activity';

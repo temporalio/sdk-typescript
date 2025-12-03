@@ -76,6 +76,16 @@ export const SdkFlags = {
    * @since Introduced in 1.13.2
    */
   OpenTelemetryInterceporsAvoidsExtraYields: defineFlag(5, true, [isAtLeast({ major: 1, minor: 13, patch: 2 })]),
+
+  /**
+   * In 1.13.3, all remaining interceptor methods were implemented in @temporalio/interceptors-opentelemetry
+   * including `handleUpdate`, `validateUpdate`, `handleQuery`, `startTimer`, and `startNexusOperation`.
+   * These add instrumentation and yield points that were not present in earlier versions.
+   * This flag gates these new interceptor methods to prevent NDE on replay of workflows from earlier versions.
+   *
+   * @since Introduced in 1.13.3
+   */
+  OpenTelemetryInterceptorsInstrumentsAllMethods: defineFlag(6, true),
 } as const;
 
 function defineFlag(id: number, def: boolean, alternativeConditions?: AltConditionFn[]): SdkFlag {
