@@ -24,7 +24,6 @@ import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
 import { cleanStackTrace, compareStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 import { ProcessedSignal } from './workflows';
-import { title } from 'node:process';
 
 export interface Context {
   workflow: VMWorkflow | ReusableVMWorkflow;
@@ -76,8 +75,8 @@ function testWithOtel(
   impl: (t: ExecutionContext<Context>, args: any[]) => Promise<void>,
   ...args: any[]
 ) {
-  test(`${OTEL_TAG} ${name}`, impl, args);
   test(`${NON_OTEL_TAG} ${name}`, impl, args);
+  test(`${OTEL_TAG} ${name}`, impl, args);
 }
 
 test.before(async (t) => {
@@ -122,7 +121,7 @@ test.beforeEach(async (t) => {
     );
     return;
   }
-  const workflowCreator = useOtel ? workflowNonOtelCreator : workflowOtelCreator;
+  const workflowCreator = useOtel ? workflowOtelCreator : workflowNonOtelCreator;
   const logs = new Array<unknown[]>();
   workflowCreator.logs[runId] = logs;
   const startTime = Date.now();
@@ -207,6 +206,15 @@ function compareCompletion(
   expected: coresdk.workflow_completion.IWorkflowActivationCompletion
 ) {
   const stackTraces = extractFailureStackTraces(req, expected);
+  if (req.successful?.commands && expected.successful?.commands) {
+    const numCommands = req.successful.commands.length;
+    const reqPayload = req.successful.commands[numCommands - 1]?.completeWorkflowExecution?.result;
+    const expPayload = expected.successful.commands[numCommands - 1]?.completeWorkflowExecution?.result;
+    if (reqPayload && expPayload) {
+      t.deepEqual(defaultPayloadConverter.fromPayload(reqPayload), defaultPayloadConverter.fromPayload(expPayload));
+    }
+  }
+  removeOtelMetadata(req);
   t.deepEqual(
     coresdk.workflow_completion.WorkflowActivationCompletion.create(req).toJSON(),
     coresdk.workflow_completion.WorkflowActivationCompletion.create({
@@ -251,6 +259,27 @@ function extractFailureStackTraces(
     }
   }
   return stackTraces;
+}
+
+// Filter out metadata produced by OTEL interceoptors
+function removeOtelMetadata(req: coresdk.workflow_completion.IWorkflowActivationCompletion) {
+  if (!req.successful) {
+    return;
+  }
+  if (req.successful.usedInternalFlags) {
+    req.successful.usedInternalFlags = req.successful.usedInternalFlags.filter((flag) => ![3, 4, 5].includes(flag));
+  }
+  if (!req.successful.commands) {
+    return;
+  }
+  for (const command of req.successful.commands) {
+    if (command.scheduleActivity?.headers) {
+      delete command.scheduleActivity.headers;
+    }
+    if (command.continueAsNewWorkflowExecution?.headers) {
+      delete command.continueAsNewWorkflowExecution.headers;
+    }
+  }
 }
 
 function makeSuccess(
@@ -1777,6 +1806,9 @@ testWithOtel('logAndTimeout', async (t) => {
   // Ignore LogTimestamp and workflowInfo for the purpose of this comparison
   calls.forEach((call) => {
     delete call.args[1]?.[LogTimestamp];
+    delete call.args[1]?.['span_id'];
+    delete call.args[1]?.['trace_id'];
+    delete call.args[1]?.['trace_flags'];
     delete (call as any).workflowInfo;
   });
   t.deepEqual(calls, [
@@ -1787,7 +1819,7 @@ testWithOtel('logAndTimeout', async (t) => {
         'Workflow started',
         {
           namespace: 'default',
-          runId: 'beforeEach hook for logAndTimeout',
+          runId: t.context.runId,
           taskQueue: 'test',
           workflowId: 'test-workflowId',
           workflowType: 'logAndTimeout',
@@ -1802,7 +1834,7 @@ testWithOtel('logAndTimeout', async (t) => {
         'logging before getting stuck',
         {
           namespace: 'default',
-          runId: 'beforeEach hook for logAndTimeout',
+          runId: t.context.runId,
           taskQueue: 'test',
           workflowId: 'test-workflowId',
           workflowType: 'logAndTimeout',
