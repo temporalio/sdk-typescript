@@ -816,7 +816,8 @@ export class WorkflowClient extends BaseClient {
       if (events.length !== 1) {
         throw new Error(`Expected at most 1 close event(s), got: ${events.length}`);
       }
-      ev = events[0];
+      // getWorkflowExecutionHistory should never return an array of undefined events
+      ev = events[0]!;
 
       if (ev.workflowExecutionCompletedEventAttributes) {
         if (followRuns && ev.workflowExecutionCompletedEventAttributes.newExecutionRunId) {

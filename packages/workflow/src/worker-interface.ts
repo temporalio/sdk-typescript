@@ -152,7 +152,7 @@ export function activate(activation: coresdk.workflow_activation.IWorkflowActiva
       const jobs = activation.jobs as coresdk.workflow_activation.WorkflowActivationJob[];
 
       // Initialization will have been handled already, but we might still need to start the workflow function
-      const startWorkflowJob = jobs[0].variant === 'initializeWorkflow' ? jobs.shift()?.initializeWorkflow : undefined;
+      const startWorkflowJob = jobs[0]?.variant === 'initializeWorkflow' ? jobs.shift()?.initializeWorkflow : undefined;
 
       for (const job of jobs) {
         if (job.variant === undefined) throw new TypeError('Expected job.variant to be defined');

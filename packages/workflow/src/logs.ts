@@ -73,7 +73,7 @@ export const log: WorkflowLogger = Object.fromEntries(
       (message: string, attrs?: Record<string, unknown>) => {
         const activator = assertInWorkflowContext('Workflow.log(...) may only be used from workflow context.');
         const getLogAttributes = composeInterceptors(activator.interceptors.outbound, 'getLogAttributes', (a) => a);
-        return loggerSink[level](message, {
+        return loggerSink[level]!(message, {
           // Inject the call time in nanosecond resolution as expected by the worker logger.
           [LogTimestamp]: activator.getTimeOfDay(),
           sdkComponent: SdkComponent.workflow,

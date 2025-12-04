@@ -303,7 +303,7 @@ exports.importInterceptors = function importInterceptors() {
 
             const outputFilename = Object.keys(stats.compilation.assets)[0];
             if (!err) {
-              resolve(path.join(distDir, outputFilename));
+              resolve(path.join(distDir, outputFilename!));
             }
           }
           reject(err);

@@ -146,9 +146,9 @@ function parseSemver(version: string): SemVer | undefined {
   try {
     const [_, major, minor, patch] = version.match(/(\d+)\.(\d+)\.(\d+)/)!;
     return {
-      major: Number.parseInt(major),
-      minor: Number.parseInt(minor),
-      patch: Number.parseInt(patch),
+      major: Number.parseInt(major!),
+      minor: Number.parseInt(minor!),
+      patch: Number.parseInt(patch!),
     };
   } catch {
     return undefined;
