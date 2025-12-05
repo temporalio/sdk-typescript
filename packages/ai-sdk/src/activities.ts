@@ -90,10 +90,11 @@ const activitiesForName = (name: string, mcpClientFactory: McpClientFactory): ob
   const callToolActivity = async (args: CallToolArgs): Promise<any> => {
     const mcpClient = await mcpClientFactory(args.clientArgs);
     const tools = await mcpClient.tools();
-    if (!(args.name in tools)) {
+    const tool = tools[args.name];
+    if (tool === undefined) {
       throw new Error(`Tool ${args.name} not found.`);
     }
-    return tools[args.name].execute(args.args, args.options);
+    return tool.execute(args.args, args.options);
   };
   return {
     [name + '-listTools']: listToolsActivity,

@@ -29,21 +29,30 @@ export class TemporalMCPClient {
 
   async tools(): Promise<ToolSet> {
     workflow.log.info(`Options: ${this.options.activityOptions}`);
-    const tools: Record<string, ListToolResult> = await workflow
-      .proxyActivities({ startToCloseTimeout: '10 minutes', ...this.options.activityOptions })
-      [this.options.name + '-listTools']({ clientArgs: this.options.clientArgs });
+    const activities = workflow.proxyActivities({ startToCloseTimeout: '10 minutes', ...this.options.activityOptions });
+
+    const listActivity = activities[this.options.name + '-listTools']
+    if (listActivity === undefined) {
+      throw new Error(`List Tools activity could not be found for mcp client ${this.options.name}. Has it been registered in the plugin?`)
+    }
+    const tools: Record<string, ListToolResult> = await listActivity({ clientArgs: this.options.clientArgs });
     return Object.fromEntries(
       Object.entries(tools).map(([toolName, toolResult]) => [
         toolName,
         {
-          execute: async (args: any, options) =>
-            await workflow
+          execute: async (args: any, options) => {
+            const activities = workflow
               .proxyActivities({
                 summary: toolName,
                 startToCloseTimeout: '10 minutes',
                 ...this.options,
-              })
-              [this.options.name + '-callTool']({ name: toolName, args, options, clientArgs: this.options.clientArgs }),
+              });
+            const callActivity = activities[this.options.name + '-callTool'];
+            if (callActivity === undefined) {
+              throw new Error(`Call Tool activity could not be found for mcp client ${this.options.name}. Has it been registered in the plugin?`)
+            }
+            return await callActivity({ name: toolName, args, options, clientArgs: this.options.clientArgs });
+          },
           inputSchema: {
             ...toolResult.inputSchema,
             _type: undefined,
