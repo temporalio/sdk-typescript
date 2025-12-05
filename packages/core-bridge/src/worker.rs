@@ -609,7 +609,7 @@ mod config {
                             name,
                             version: String::new(),
                         })
-                        .collect::<Vec<_>>(),
+                        .collect::<HashSet<_>>(),
                 )
                 .build()
         }
