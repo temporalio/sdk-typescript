@@ -59,12 +59,13 @@ pub struct Runtime {
 pub fn runtime_new(
     bridge_options: config::RuntimeOptions,
 ) -> BridgeResult<OpaqueOutboundHandle<Runtime>> {
-    let (telemetry_options, metrics_options, logging_options) = bridge_options.try_into()?;
+    let (telemetry_options, metrics_options, logging_options, worker_heartbeat_interval_millis) =
+        bridge_options.try_into()?;
 
     // Create core runtime which starts tokio multi-thread runtime
     let runtime_options = RuntimeOptionsBuilder::default()
         .telemetry_options(telemetry_options)
-        .heartbeat_interval(None)
+        .heartbeat_interval(worker_heartbeat_interval_millis.map(Duration::from_millis))
         .build()
         .context("Failed to build runtime options")?;
     let mut core_runtime = CoreRuntime::new(runtime_options, TokioRuntimeBuilder::default())
@@ -266,6 +267,7 @@ mod config {
         log_exporter: LogExporterOptions,
         telemetry: TelemetryOptions,
         metrics_exporter: Option<MetricsExporterOptions>,
+        worker_heartbeat_interval_millis: Option<u64>,
     }
 
     #[derive(Debug, Clone, TryFromJs)]
@@ -322,6 +324,7 @@ mod config {
             CoreTelemetryOptions,
             Option<super::BridgeMetricsExporter>,
             super::BridgeLogExporter,
+            Option<u64>,
         )> for RuntimeOptions
     {
         type Error = BridgeError;
@@ -331,8 +334,16 @@ mod config {
             CoreTelemetryOptions,
             Option<super::BridgeMetricsExporter>,
             super::BridgeLogExporter,
+            Option<u64>,
         )> {
-            let (telemetry_logger, log_exporter) = match self.log_exporter {
+            let Self {
+                log_exporter,
+                telemetry,
+                metrics_exporter,
+                worker_heartbeat_interval_millis,
+            } = self;
+
+            let (telemetry_logger, log_exporter) = match log_exporter {
                 LogExporterOptions::Console { filter } => (
                     CoreTelemetryLogger::Console { filter },
                     BridgeLogExporter::Console,
@@ -352,17 +363,21 @@ mod config {
             let mut telemetry_options = TelemetryOptionsBuilder::default();
             let telemetry_options = telemetry_options
                 .logging(telemetry_logger)
-                .metric_prefix(self.telemetry.metric_prefix)
-                .attach_service_name(self.telemetry.attach_service_name)
+                .metric_prefix(telemetry.metric_prefix)
+                .attach_service_name(telemetry.attach_service_name)
                 .build()
                 .context("Failed to build telemetry options")?;
 
-            let metrics_exporter = self
-                .metrics_exporter
+            let metrics_exporter = metrics_exporter
                 .map(std::convert::TryInto::try_into)
                 .transpose()?;
 
-            Ok((telemetry_options, metrics_exporter, log_exporter))
+            Ok((
+                telemetry_options,
+                metrics_exporter,
+                log_exporter,
+                worker_heartbeat_interval_millis,
+            ))
         }
     }
 
