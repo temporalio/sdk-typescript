@@ -48,10 +48,10 @@ env:
   RUN_ID: ${{ github.run_id }}-throughput-stress
 
   # Prometheus version
-  PROM_VERSION: "3.8.0"
+  PROM_VERSION: '3.8.0'
 
   # Language
-  SDK_LANG: "typescript"
+  SDK_LANG: 'typescript'
 
 jobs:
   throughput-stress:
@@ -173,7 +173,7 @@ jobs:
         with:
           role-to-assume: ${{ env.AWS_S3_METRICS_UPLOAD_ROLE_ARN }}
           aws-region: us-west-2
-  
+
       - name: Upload metrics to S3
         if: always()
         run: |
