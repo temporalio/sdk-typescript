@@ -4,9 +4,7 @@ import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
 import type { ListToolResult } from './activities';
 
-
 export type McpClientFactory = (args: unknown) => Promise<MCPClient>;
-
 
 /**
  * Options for the Temporal MCP Client
