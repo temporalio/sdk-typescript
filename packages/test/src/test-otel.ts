@@ -533,7 +533,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('executeUpdateWithStart works correctly with OTEL interceptors', async (t) => {
     const staticResource = new opentelemetry.resources.Resource({
-      [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
+      [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-worker',
     });
     const traceExporter: opentelemetry.tracing.SpanExporter = {
       export(_spans, resultCallback) {
