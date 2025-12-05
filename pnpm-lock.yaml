@@ -61,13 +61,13 @@ importers:
         version: file:packages/meta
     devDependencies:
       '@opentelemetry/api':
-        specifier: 1.9.0
+        specifier: ^1.9.0
         version: 1.9.0
       '@opentelemetry/core':
-        specifier: 1.25.1
+        specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-node':
-        specifier: 0.52.1
+        specifier: ^0.52.1
         version: 0.52.1(@opentelemetry/api@1.9.0)
       '@tsconfig/node18':
         specifier: ^18.2.4

@@ -4,4 +4,3 @@ import './load-polyfills';
 export * from './mcp';
 export * from './plugin';
 export * from './provider';
-export * from './testing';

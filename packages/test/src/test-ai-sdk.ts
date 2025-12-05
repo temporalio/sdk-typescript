@@ -22,7 +22,7 @@ import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { ExportResultCode } from '@opentelemetry/core';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
-import { AiSdkPlugin } from '@temporalio/ai-sdk';
+import { AiSdkPlugin, McpClientFactory } from '@temporalio/ai-sdk';
 import { temporal } from '@temporalio/proto';
 import { WorkflowClient } from '@temporalio/client';
 import {
@@ -46,7 +46,6 @@ import { helpers, makeTestFunction } from './helpers-integration';
 import { getWeather } from './activities/ai-sdk';
 import { Worker } from './helpers';
 import EventType = temporal.api.enums.v1.EventType;
-import { McpClientFactory } from '@temporalio/ai-sdk/lib/activities';
 
 const remoteTests = ['1', 't', 'true'].includes((process.env.AI_SDK_REMOTE_TESTS ?? 'false').toLowerCase());
 

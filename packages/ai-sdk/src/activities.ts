@@ -9,8 +9,23 @@ import {
   SharedV2Headers,
   SharedV2ProviderMetadata,
 } from '@ai-sdk/provider';
-import type { experimental_MCPClient as MCPClient } from '@ai-sdk/mcp';
 import type { ToolCallOptions } from 'ai';
+import type { McpClientFactory } from './mcp';
+
+export interface InvokeModelArgs {
+  modelId: string;
+  options: LanguageModelV2CallOptions;
+}
+
+export interface InvokeModelResult {
+  content: Array<LanguageModelV2Content>;
+  finishReason: LanguageModelV2FinishReason;
+  usage: LanguageModelV2Usage;
+  providerMetadata?: SharedV2ProviderMetadata;
+  request?: { body?: unknown };
+  response?: LanguageModelV2ResponseMetadata & { headers?: SharedV2Headers; body?: unknown };
+  warnings: Array<LanguageModelV2CallWarning>;
+}
 
 export interface ListToolResult {
   description?: string;
@@ -34,55 +49,54 @@ export interface CallToolArgs {
  * execution guarantees and replay safety.
  *
  * @param provider The AI SDK provider to use for model invocations
- * @param mcpClientFactory
+ * @param mcpClientFactories A mapping of server names to functions to create mcp clients
  * @returns An object containing the activity functions
  *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
-export const createActivities = (provider: ProviderV2, mcpClientFactory?: (_: any) => Promise<MCPClient>): object => {
-  const activities = {
-    async invokeModel(
-      modelId: string,
-      options: LanguageModelV2CallOptions
-    ): Promise<{
-      content: Array<LanguageModelV2Content>;
-      finishReason: LanguageModelV2FinishReason;
-      usage: LanguageModelV2Usage;
-      providerMetadata?: SharedV2ProviderMetadata;
-      request?: { body?: unknown };
-      response?: LanguageModelV2ResponseMetadata & { headers?: SharedV2Headers; body?: unknown };
-      warnings: Array<LanguageModelV2CallWarning>;
-    }> {
-      const model = provider.languageModel(modelId);
-      return await model.doGenerate(options);
+export const createActivities = (provider: ProviderV2, mcpClientFactories?: [string, McpClientFactory][]): object => {
+  let activities = {
+    async invokeModel(args: InvokeModelArgs): Promise<InvokeModelResult> {
+      const model = provider.languageModel(args.modelId);
+      return await model.doGenerate(args.options);
     },
   };
-  if (mcpClientFactory === undefined) {
-    return activities;
+  if (mcpClientFactories !== undefined) {
+    mcpClientFactories.forEach(([name, func]) => {
+      activities = {
+        ...activities,
+        ...activitiesForName(name, func),
+      };
+    });
   }
-  return {
-    ...activities,
-    async listTools(args: ListToolArgs): Promise<Record<string, ListToolResult>> {
-      const mcpClient = await mcpClientFactory(args.clientArgs);
-      const tools = await mcpClient.tools();
+  return activities;
+};
 
-      return Object.fromEntries(
-        Object.entries(tools).map(([k, v]) => [
-          k,
-          {
-            description: v.description,
-            inputSchema: v.inputSchema,
-          },
-        ])
-      );
-    },
-    async callTool(args: CallToolArgs): Promise<any> {
-      const mcpClient = await mcpClientFactory(args.clientArgs);
-      const tools = await mcpClient.tools();
-      if (!(args.name in tools)) {
-        throw new Error(`Tool ${args.name} not found.`);
-      }
-      return tools[args.name].execute(args.args, args.options);
-    },
+const activitiesForName = (name: string, mcpClientFactory: McpClientFactory): object => {
+  const listToolsActivity = async (args: ListToolArgs): Promise<Record<string, ListToolResult>> => {
+    const mcpClient = await mcpClientFactory(args.clientArgs);
+    const tools = await mcpClient.tools();
+
+    return Object.fromEntries(
+      Object.entries(tools).map(([k, v]) => [
+        k,
+        {
+          description: v.description,
+          inputSchema: v.inputSchema,
+        },
+      ])
+    );
+  };
+  const callToolActivity = async (args: CallToolArgs): Promise<any> => {
+    const mcpClient = await mcpClientFactory(args.clientArgs);
+    const tools = await mcpClient.tools();
+    if (!(args.name in tools)) {
+      throw new Error(`Tool ${args.name} not found.`);
+    }
+    return tools[args.name].execute(args.args, args.options);
+  };
+  return {
+    [name + '-listTools']: listToolsActivity,
+    [name + '-callTool']: callToolActivity,
   };
 };

@@ -1,11 +1,16 @@
 import type { ProviderV2 } from '@ai-sdk/provider';
-import type { experimental_MCPClient as MCPClient } from '@ai-sdk/mcp';
 import { SimplePlugin } from '@temporalio/plugin';
 import { createActivities } from './activities';
+import type { McpClientFactory } from './mcp';
 
-export interface AiSDKPluginOptions {
+/**
+ * Options for the AI SDK plugin
+ *
+ * @experimental The AI SDK plugin is an experimental feature; APIs may change without notice.
+ */
+export interface AiSdkPluginOptions {
   modelProvider: ProviderV2;
-  mcpClientFactory?: (args?: any) => Promise<MCPClient>;
+  mcpClientFactories?: [string, McpClientFactory][];
 }
 
 /**
@@ -14,11 +19,11 @@ export interface AiSDKPluginOptions {
  *
  * @experimental The AI SDK plugin is an experimental feature; APIs may change without notice.
  */
-export class AiSDKPlugin extends SimplePlugin {
-  constructor(options: AiSDKPluginOptions) {
+export class AiSdkPlugin extends SimplePlugin {
+  constructor(options: AiSdkPluginOptions) {
     super({
       name: 'AiSDKPlugin',
-      activities: createActivities(options.modelProvider, options.mcpClientFactory),
+      activities: createActivities(options.modelProvider, options.mcpClientFactories),
     });
   }
 }

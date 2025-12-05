@@ -1,19 +1,14 @@
-import {
+import type {
   EmbeddingModelV2,
   ImageModelV2,
   LanguageModelV2,
   LanguageModelV2CallOptions,
-  LanguageModelV2CallWarning,
-  LanguageModelV2Content,
-  LanguageModelV2FinishReason,
-  LanguageModelV2ResponseMetadata,
-  LanguageModelV2Usage,
   ProviderV2,
   SharedV2Headers,
-  SharedV2ProviderMetadata,
 } from '@ai-sdk/provider';
 import * as workflow from '@temporalio/workflow';
 import { ActivityOptions } from '@temporalio/workflow';
+import { InvokeModelResult } from './activities';
 
 /**
  * A language model implementation that delegates AI model calls to Temporal activities.
@@ -31,17 +26,9 @@ export class TemporalLanguageModel implements LanguageModelV2 {
     readonly options?: ActivityOptions
   ) {}
 
-  async doGenerate(options: LanguageModelV2CallOptions): Promise<{
-    content: Array<LanguageModelV2Content>;
-    finishReason: LanguageModelV2FinishReason;
-    usage: LanguageModelV2Usage;
-    providerMetadata?: SharedV2ProviderMetadata;
-    request?: { body?: unknown };
-    response?: LanguageModelV2ResponseMetadata & { headers?: SharedV2Headers; body?: unknown };
-    warnings: Array<LanguageModelV2CallWarning>;
-  }> {
+  async doGenerate(options: LanguageModelV2CallOptions): Promise<InvokeModelResult> {
     const result = await workflow
-      .proxyActivities(this.options ?? { startToCloseTimeout: '10 minutes' })
+      .proxyActivities({ startToCloseTimeout: '10 minutes', ...this.options })
       .invokeModel(this.modelId, options);
     if (result === undefined) {
       throw new Error('Received undefined response from model activity.');

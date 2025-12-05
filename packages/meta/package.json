@@ -3,6 +3,7 @@
   "private": true,
   "description": "Temporal.io SDK meta-package",
   "dependencies": {
+    "@temporalio/ai-sdk": "workspace:*",
     "@temporalio/activity": "workspace:*",
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
