@@ -1,7 +1,20 @@
 /**
  * Test AI SDK integration with Temporal workflows
  */
-import { LanguageModelV2Content, LanguageModelV2FinishReason } from '@ai-sdk/provider';
+import type {
+  EmbeddingModelV2,
+  ImageModelV2,
+  LanguageModelV2,
+  LanguageModelV2CallOptions,
+  LanguageModelV2CallWarning,
+  LanguageModelV2Content,
+  LanguageModelV2FinishReason,
+  LanguageModelV2ResponseMetadata,
+  LanguageModelV2Usage,
+  ProviderV2,
+  SharedV2Headers,
+  SharedV2ProviderMetadata,
+} from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
 import { v4 as uuid4 } from 'uuid';
 import * as opentelemetry from '@opentelemetry/sdk-node';
@@ -9,7 +22,7 @@ import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { ExportResultCode } from '@opentelemetry/core';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
-import { AiSDKPlugin, ModelResponse, TestProvider } from '@temporalio/ai-sdk';
+import { AiSdkPlugin } from '@temporalio/ai-sdk';
 import { temporal } from '@temporalio/proto';
 import { WorkflowClient } from '@temporalio/client';
 import {
@@ -33,8 +46,76 @@ import { helpers, makeTestFunction } from './helpers-integration';
 import { getWeather } from './activities/ai-sdk';
 import { Worker } from './helpers';
 import EventType = temporal.api.enums.v1.EventType;
+import { McpClientFactory } from '@temporalio/ai-sdk/lib/activities';
 
-const remoteTests = !!process.env.AI_SDK_REMOTE_TESTS;
+const remoteTests = ['1', 't', 'true'].includes((process.env.AI_SDK_REMOTE_TESTS ?? 'false').toLowerCase());
+
+export type ModelResponse = {
+  content: Array<LanguageModelV2Content>;
+  finishReason: LanguageModelV2FinishReason;
+  usage: LanguageModelV2Usage;
+  providerMetadata?: SharedV2ProviderMetadata;
+  request?: { body?: unknown };
+  response?: LanguageModelV2ResponseMetadata & { headers?: SharedV2Headers; body?: unknown };
+  warnings: Array<LanguageModelV2CallWarning>;
+};
+
+export class TestModel implements LanguageModelV2 {
+  readonly specificationVersion = 'v2';
+  readonly provider = 'temporal';
+  readonly supportedUrls = {};
+  readonly modelId = 'TestModel';
+  private generator: Generator<ModelResponse>;
+  private done: boolean = false;
+
+  constructor(generator: Generator<ModelResponse>) {
+    this.generator = generator;
+  }
+
+  async doGenerate(_: LanguageModelV2CallOptions): Promise<{
+    content: Array<LanguageModelV2Content>;
+    finishReason: LanguageModelV2FinishReason;
+    usage: LanguageModelV2Usage;
+    providerMetadata?: SharedV2ProviderMetadata;
+    request?: { body?: unknown };
+    response?: LanguageModelV2ResponseMetadata & { headers?: SharedV2Headers; body?: unknown };
+    warnings: Array<LanguageModelV2CallWarning>;
+  }> {
+    if (this.done) {
+      throw new Error('Called generate more times than responses given to the test generator');
+    }
+
+    const result = this.generator.next();
+    this.done = result.done ?? false;
+    return result.value;
+  }
+
+  doStream(_options: LanguageModelV2CallOptions): PromiseLike<{
+    stream: any;
+    request?: { body?: unknown };
+    response?: { headers?: SharedV2Headers };
+  }> {
+    throw new Error('Streaming not supported.');
+  }
+}
+
+export class TestProvider implements ProviderV2 {
+  private generator: Generator<ModelResponse>;
+  constructor(generator: Generator<ModelResponse>) {
+    this.generator = generator;
+  }
+  imageModel(_modelId: string): ImageModelV2 {
+    throw new Error('Not implemented');
+  }
+
+  languageModel(_modelId: string): LanguageModelV2 {
+    return new TestModel(this.generator);
+  }
+
+  textEmbeddingModel(_modelId: string): EmbeddingModelV2<string> {
+    throw new Error('Not implemented');
+  }
+}
 
 function contentResponse(
   content: LanguageModelV2Content[],
@@ -84,12 +165,14 @@ const test = makeTestFunction({
 });
 
 test('Hello world agent responds in haikus', async (t) => {
-  t.timeout(120 * 1000);
+  if (remoteTests) {
+    t.timeout(120 * 1000);
+  }
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
     plugins: [
-      new AiSDKPlugin({
+      new AiSdkPlugin({
         modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator()),
       }),
     ],
@@ -113,12 +196,14 @@ function* toolsWorkflowGenerator(): Generator<ModelResponse> {
 }
 
 test('Tools workflow can use AI tools', async (t) => {
-  t.timeout(120 * 1000);
+  if (remoteTests) {
+    t.timeout(120 * 1000);
+  }
   const { createWorker, startWorkflow } = helpers(t);
 
   const worker = await createWorker({
     plugins: [
-      new AiSDKPlugin({
+      new AiSdkPlugin({
         modelProvider: remoteTests ? openai : new TestProvider(toolsWorkflowGenerator()),
       }),
     ],
@@ -165,12 +250,14 @@ function* generateObjectWorkflowGenerator(): Generator<ModelResponse> {
 }
 
 test('Generate object', async (t) => {
-  t.timeout(120 * 1000);
+  if (remoteTests) {
+    t.timeout(120 * 1000);
+  }
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
     plugins: [
-      new AiSDKPlugin({
+      new AiSdkPlugin({
         modelProvider: remoteTests ? openai : new TestProvider(generateObjectWorkflowGenerator()),
       }),
     ],
@@ -190,12 +277,14 @@ test('Generate object', async (t) => {
 });
 
 test('Middleware', async (t) => {
-  t.timeout(120 * 1000);
+  if (remoteTests) {
+    t.timeout(120 * 1000);
+  }
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
     plugins: [
-      new AiSDKPlugin({
+      new AiSdkPlugin({
         modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator()),
       }),
     ],
@@ -215,7 +304,9 @@ test('Middleware', async (t) => {
 });
 
 test('Telemetry', async (t) => {
-  t.timeout(120 * 1000);
+  if (remoteTests) {
+    t.timeout(120 * 1000);
+  }
   try {
     const spans = Array<opentelemetry.tracing.ReadableSpan>();
 
@@ -242,7 +333,7 @@ test('Telemetry', async (t) => {
 
     const worker = await Worker.create({
       plugins: [
-        new AiSDKPlugin({
+        new AiSdkPlugin({
           modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator()),
         }),
       ],
@@ -290,21 +381,28 @@ function* mcpGenerator(): Generator<ModelResponse> {
 
 // Currently fails in CI due to invalid server response but passes locally
 test.skip('MCP Use', async (t) => {
-  t.timeout(120 * 1000);
+  if (remoteTests) {
+    t.timeout(120 * 1000);
+  }
   const { createWorker, executeWorkflow } = helpers(t);
 
-  const mcpClientFactory = () =>
-    createMCPClient({
-      transport: new StdioClientTransport({
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-filesystem@latest', __dirname],
-      }),
-    });
+  const mcpClientFactories: [string, McpClientFactory][] = [
+    [
+      'testServer',
+      () =>
+        createMCPClient({
+          transport: new StdioClientTransport({
+            command: 'npx',
+            args: ['-y', '@modelcontextprotocol/server-filesystem@latest', __dirname],
+          }),
+        }),
+    ],
+  ];
   const worker = await createWorker({
     plugins: [
-      new AiSDKPlugin({
+      new AiSdkPlugin({
         modelProvider: remoteTests ? openai : new TestProvider(mcpGenerator()),
-        mcpClientFactory,
+        mcpClientFactories,
       }),
     ],
   });

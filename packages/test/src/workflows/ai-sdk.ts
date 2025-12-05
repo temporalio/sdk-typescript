@@ -98,7 +98,7 @@ export async function telemetryWorkflow(prompt: string): Promise<string> {
 }
 
 export async function mcpWorkflow(prompt: string): Promise<string> {
-  const mcpClient = new TemporalMCPClient();
+  const mcpClient = new TemporalMCPClient({name:"testServer"});
   const tools = await mcpClient.tools();
   const result = await generateText({
     model: temporalProvider.languageModel('gpt-4o-mini'),
