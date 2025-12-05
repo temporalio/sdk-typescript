@@ -46,6 +46,9 @@
     },
     {
       "path": "../nyc-test-coverage"
+    },
+    {
+      "path": "../ai-sdk"
     }
   ],
   "include": ["./src/**/*.ts"]
