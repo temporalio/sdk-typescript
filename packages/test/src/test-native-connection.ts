@@ -8,6 +8,7 @@ import * as protoLoader from '@grpc/proto-loader';
 import { Client, NamespaceNotFoundError, WorkflowNotFoundError } from '@temporalio/client';
 import { InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
 import { IllegalStateError, NativeConnection, NativeConnectionOptions, TransportError } from '@temporalio/worker';
+import { toNativeClientOptions } from '@temporalio/worker/lib/connection-options';
 import { temporal } from '@temporalio/proto';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -474,4 +475,19 @@ test('setMetadata accepts binary headers', async (t) => {
   t.deepEqual(requests[1].metadata.get('end-bin'), [Buffer.from([0x01])]);
   await connection.close();
   server.forceShutdown();
+});
+
+test('NativeConnection: TLS is enabled by default when apiKey is provided and tls is not configured', (t) => {
+  // Use toNativeClientOptions to inspect the resulting config without actually connecting
+  const options = toNativeClientOptions({ apiKey: 'test-api-key' });
+  // When TLS is enabled, targetUrl should use https://
+  t.true(options.targetUrl.startsWith('https://'), 'targetUrl should use https when apiKey is provided');
+  t.not(options.tls, null, 'TLS config should not be null when apiKey is provided');
+});
+
+test('NativeConnection: TLS can be explicitly disabled even when apiKey is provided', (t) => {
+  const options = toNativeClientOptions({ apiKey: 'test-api-key', tls: false });
+  // When TLS is explicitly disabled, targetUrl should use http://
+  t.true(options.targetUrl.startsWith('http://'), 'targetUrl should use http when tls: false');
+  t.is(options.tls, null, 'TLS config should be null when tls: false');
 });

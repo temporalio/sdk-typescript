@@ -12,7 +12,7 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { WorkflowClient } from '@temporalio/client';
+import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor } from '@temporalio/client';
 import { OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
 import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry';
 import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
@@ -21,8 +21,21 @@ import {
   OpenTelemetryActivityInboundInterceptor,
   OpenTelemetryActivityOutboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
-import { OpenTelemetrySinks, SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
-import { DefaultLogger, InjectedSinks, Runtime } from '@temporalio/worker';
+import {
+  OpenTelemetrySinks,
+  SpanName,
+  SPAN_DELIMITER,
+  OpenTelemetryOutboundInterceptor,
+  OpenTelemetryInboundInterceptor,
+} from '@temporalio/interceptors-opentelemetry/lib/workflow';
+import {
+  ActivityInboundCallsInterceptor,
+  ActivityOutboundCallsInterceptor,
+  DefaultLogger,
+  InjectedSinks,
+  Runtime,
+} from '@temporalio/worker';
+import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
 import * as activities from './activities';
 import { loadHistory, RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
 import * as workflows from './workflows';
@@ -251,7 +264,7 @@ if (RUN_INTEGRATION_TESTS) {
         resource: staticResource,
         traceExporter,
       });
-      await otel.start();
+      otel.start();
 
       const sinks: InjectedSinks<OpenTelemetrySinks> = {
         exporter: makeWorkflowExporter(traceExporter, staticResource),
@@ -378,6 +391,13 @@ if (RUN_INTEGRATION_TESTS) {
           parentSpanId === firstActivityExecuteSpan?.spanContext().spanId
       );
       t.true(activityStartedSignalSpan !== undefined);
+
+      const querySpan = spans.find(
+        ({ name, parentSpanId }) =>
+          name === `${SpanName.WORKFLOW_QUERY}${SPAN_DELIMITER}step` &&
+          parentSpanId === secondActivityExecuteSpan?.spanContext().spanId
+      );
+      t.true(querySpan !== undefined);
 
       t.deepEqual(new Set(spans.map((span) => span.spanContext().traceId)).size, 1);
     } finally {
@@ -510,6 +530,61 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(spans[1].status.message, 'benign');
     t.is(spans[2].status.code, SpanStatusCode.OK);
   });
+
+  test('executeUpdateWithStart works correctly with OTEL interceptors', async (t) => {
+    const staticResource = new opentelemetry.resources.Resource({
+      [SemanticResourceAttributes.SERVICE_NAME]: 'ts-test-otel-worker',
+    });
+    const traceExporter: opentelemetry.tracing.SpanExporter = {
+      export(_spans, resultCallback) {
+        resultCallback({ code: ExportResultCode.SUCCESS });
+      },
+      async shutdown() {},
+    };
+
+    const sinks: InjectedSinks<OpenTelemetrySinks> = {
+      exporter: makeWorkflowExporter(traceExporter, staticResource),
+    };
+
+    const worker = await Worker.create({
+      workflowBundle: await createTestWorkflowBundle({
+        workflowsPath: require.resolve('./workflows'),
+        workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
+      }),
+      activities,
+      taskQueue: 'test-otel-update-start',
+      interceptors: {
+        client: {
+          workflow: [new OpenTelemetryWorkflowClientCallsInterceptor()],
+        },
+        workflowModules: [require.resolve('./workflows/otel-interceptors')],
+      },
+      sinks,
+    });
+
+    const client = new WorkflowClient();
+
+    const startWorkflowOperation = new WithStartWorkflowOperation(workflows.updateStartOtel, {
+      workflowId: uuid4(),
+      taskQueue: 'test-otel-update-start',
+      workflowIdConflictPolicy: 'FAIL',
+    });
+
+    const { updateResult, workflowResult } = await worker.runUntil(async () => {
+      const updateResult = await client.executeUpdateWithStart(workflows.otelUpdate, {
+        args: [true],
+        startWorkflowOperation,
+      });
+
+      const handle = await startWorkflowOperation.workflowHandle();
+      const workflowResult = await handle.result();
+
+      return { updateResult, workflowResult };
+    });
+
+    t.is(updateResult, true);
+    t.is(workflowResult, true);
+  });
 }
 
 test('Can replay otel history from 1.11.3', async (t) => {
@@ -603,4 +678,44 @@ test('Can replay signal workflow from 1.13.1', async (t) => {
       hist
     );
   });
+});
+
+test('Can replay smorgasbord from 1.13.2', async (t) => {
+  const hist = await loadHistory('otel_smorgasbord_1_13_2.json');
+  await t.notThrowsAsync(async () => {
+    await Worker.runReplayHistory(
+      {
+        workflowBundle: await createTestWorkflowBundle({
+          workflowsPath: require.resolve('./workflows'),
+          workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
+        }),
+        interceptors: {
+          workflowModules: [require.resolve('./workflows/otel-interceptors')],
+          activity: [
+            (ctx) => ({
+              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
+              outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
+            }),
+          ],
+        },
+      },
+      hist
+    );
+  });
+});
+
+// Skipped as we only care that it compiles
+test.skip('otel interceptors are complete', async (t) => {
+  // We only use this to verify that we trace all spans via typechecking
+  // Doing this instead of directly changing the `implements` to avoid leaking this in the docs
+  const _wfl_inbound = {} as OpenTelemetryInboundInterceptor satisfies Required<WorkflowInboundCallsInterceptor>;
+  const _wfl_outbound = {} as OpenTelemetryOutboundInterceptor satisfies Required<
+    Omit<WorkflowOutboundCallsInterceptor, 'startTimer'>
+  >;
+  const _act_inbound =
+    {} as OpenTelemetryActivityInboundInterceptor satisfies Required<ActivityInboundCallsInterceptor>;
+  const _act_outbound =
+    {} as OpenTelemetryActivityOutboundInterceptor satisfies Required<ActivityOutboundCallsInterceptor>;
+  const _client = {} as OpenTelemetryWorkflowClientInterceptor satisfies Required<WorkflowClientInterceptor>;
+  t.pass();
 });

@@ -222,6 +222,7 @@ type WorkflowModule = typeof internals;
  */
 export class ReusableVMWorkflow extends BaseVMWorkflow {
   public async dispose(): Promise<void> {
+    this.workflowModule.dispose();
     ReusableVMWorkflowCreator.workflowByRunId.delete(this.runId);
   }
 }

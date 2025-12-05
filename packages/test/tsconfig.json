@@ -4,23 +4,52 @@
     "outDir": "./lib",
     "rootDir": "./src",
     "resolveJsonModule": true,
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "noUncheckedIndexedAccess": false
   },
   "references": [
-    { "path": "../proto" },
-    { "path": "../activity" },
-    { "path": "../client" },
-    { "path": "../cloud" },
-    { "path": "../common" },
-    { "path": "../envconfig" },
-    { "path": "../interceptors-opentelemetry" },
-    { "path": "../nexus" },
-    { "path": "../plugin" },
-    { "path": "../testing" },
-    { "path": "../worker" },
-    { "path": "../workflow" },
-    { "path": "../nyc-test-coverage" },
-    { "path": "../ai-sdk" }
+    {
+      "path": "../proto"
+    },
+    {
+      "path": "../activity"
+    },
+    {
+      "path": "../client"
+    },
+    {
+      "path": "../cloud"
+    },
+    {
+      "path": "../common"
+    },
+    {
+      "path": "../envconfig"
+    },
+    {
+      "path": "../interceptors-opentelemetry"
+    },
+    {
+      "path": "../nexus"
+    },
+    {
+      "path": "../plugin"
+    },
+    {
+      "path": "../testing"
+    },
+    {
+      "path": "../worker"
+    },
+    {
+      "path": "../workflow"
+    },
+    {
+      "path": "../nyc-test-coverage"
+    },
+    {
+      "path": "../ai-sdk"
+    }
   ],
   "include": ["./src/**/*.ts"]
 }

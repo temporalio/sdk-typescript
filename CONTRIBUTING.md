@@ -21,18 +21,13 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-The TypeScript SDK (as well as the rest of the Temporal codebase) is open sourced under the MIT license.
+The Temporal TypeScript SDK (as well as the rest of the Temporal codebase) is open sourced under the MIT license.
 
 We welcome contributions from the community. To contribute, please start by opening an [issue](https://github.com/temporalio/sdk-typescript/issues) and discussing the proposed change. Once a change has been agreed upon, development may start and be submitted via a [pull request](https://github.com/temporalio/sdk-typescript/pulls).
 
 ## Maintenance
 
-The current maintainers are:
-
-- [James Waktins-Harvey](https://github.com/mjameswh)
-- [Antonio Lain](https://github.com/antlai-temporal)
-
-If you'd like to give a hand, pelase reach us on our [community Slack workspace](https://temporalio.slack.com/channels/typescript-sdk). We'd be happy to have help with any of these things:
+If you'd like to give a hand, please reach us on our [community Slack workspace](https://temporalio.slack.com/channels/typescript-sdk). We'd be happy to have help with any of these things:
 
 - Triaging issues
 - Reviewing PRs
@@ -44,26 +39,24 @@ If you'd like to give a hand, pelase reach us on our [community Slack workspace]
 
 Contributors must agree to the CLA before their PR can be merged. You only have to do this once. Follow [this link](https://cla-assistant.io/temporalio/sdk-typescript) and sign in with your GitHub account.
 
-### SDK Structure
-
-See [sdk-structure.md](./docs/sdk-structure.md)
-
 ### Environment setup
 
-TS SDK is officially supported on Node 18, 20, 22, or 24. However, we recommend using the
-[Active LTS](https://nodejs.org/en/about/previous-releases#nodejs-releases) for SDK development.
-For easier testing during development you may want to use a version manager, such as
-[fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
+The Temporal TypeScript SDK is officially supported on Node 18, 20, 22, or 24.
+However, we recommend using the [Active LTS](https://nodejs.org/en/about/previous-releases#nodejs-releases)
+for SDK development. For easier testing during development, you may want to use
+a version manager, such as [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
 
 1. To run tests, you will need access to a local Temporal server, e.g. using the
    [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server).
 2. Install the [Rust toolchain](https://rustup.rs/).
 3. Install [Protocol Buffers](https://github.com/protocolbuffers/protobuf/releases/).
 4. Clone the [sdk-typescript](https://github.com/temporalio/sdk-typescript) repo:
+
    ```sh
    git clone https://github.com/temporalio/sdk-typescript.git
    cd sdk-typescript
    ```
+
 5. Initialize the Core SDK submodule:
 
    ```sh
@@ -73,25 +66,34 @@ For easier testing during development you may want to use a version manager, suc
    > If you get a `The authenticity of host 'github.com (192.30.252.123)' can't be established.`
    > error, run `ssh-keyscan github.com >> ~/.ssh/known_hosts` and retry.
 
-6. Install the dependencies:
+6. Install `pnpm`
+   TS SDK uses PNPM to manage dependencies. Corepack is the recommend way to install `pnpm` and is included in Node 14+
+
+```sh
+corepack enable
+```
+
+7. Install the dependencies:
+
    ```sh
-   npm ci
+   pnpm install --frozen-lockfile
    ```
+
    This may take a few minutes, as it involves downloading and compiling Rust dependencies.
 
 You should now be able to build:
 
 ```sh
-npm run build
+pnpm run build
 ```
 
 If building fails, resetting your environment may help:
 
 ```
-npx lerna clean -y && npm ci
+pnpm dlx lerna clean -y && pnpm install --frozen-lockfile
 ```
 
-If `npm ci` fails in `@temporalio/core-bridge` on the command `node ./scripts/build.js`, you may
+If `pnpm install` fails in `@temporalio/core-bridge` on the command `node ./scripts/build.js`, you may
 need to do `rustup update`.
 
 To update to the latest version of the Core SDK, run `git submodule update` followed by `npm run build` to recompile.
@@ -103,14 +105,14 @@ To update to the latest version of the Core SDK, run `git submodule update` foll
 
 After your environment is set up, you can run these commands:
 
-- `npm run build` compiles protobuf definitions, Rust bridge, C++ isolate extension, and Typescript.
-- `npm run rebuild` deletes all generated files in the project and reruns build.
-- `npm run build.watch` watches filesystem for changes and incrementally compiles Typescript on change.
-- `npm run test` runs the test suite.
-- `npm run test.watch` runs the test suite on each change to Typescript files.
-- `npm run format` formats code with prettier.
-- `npm run lint` verifies code style with prettier and ES lint.
-- `npm run commitlint` validates [commit messages](#style-guide).
+- `pnpm run build` compiles protobuf definitions, Rust bridge, C++ isolate extension, and Typescript.
+- `pnpm run rebuild` deletes all generated files in the project and reruns build.
+- `pnpm run build.watch` watches filesystem for changes and incrementally compiles Typescript on change.
+- `pnpm run test` runs the test suite.
+- `pnpm run test.watch` runs the test suite on each change to Typescript files.
+- `pnpm run format` formats code with prettier.
+- `pnpm run lint` verifies code style with prettier and ES lint.
+- `pnpm run commitlint` validates [commit messages](#style-guide).
 
 ### Testing
 
@@ -134,8 +136,8 @@ To replicate the `test-npm-init` CI test locally, you can start with the below s
 
 ```
 rm -rf /tmp/registry
-npm ci
-npm run rebuild
+pnpm install --frozen-lockfile
+pnpm run rebuild
 node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
 node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample hello-world
 cd /tmp/registry/example
@@ -233,8 +235,8 @@ We're [working on automating](https://github.com/temporalio/sdk-typescript/pull/
 set -euo pipefail
 
 git clean -fdx
-npm ci
-npm run build
+pnpm install --frozen-lockfile
+pnpm run build
 
 mkdir -p packages/core-bridge/releases
 
@@ -244,12 +246,12 @@ for f in ~/Downloads/packages-*.zip; do mkdir "$HOME/Downloads/$(basename -s .zi
 # we should now have all 5 build targets
 ls packages/core-bridge/releases/
 
-npx lerna version patch --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
+pnpm exec lerna version patch --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
 
 git checkout -B fix-deps
 node scripts/prepublish.mjs
 git commit -am 'Fix dependencies'
-npx lerna publish from-package # add `--dist-tag next` for pre-release versions
+pnpm exec lerna publish from-package # add `--dist-tag next` for pre-release versions
 git checkout -
 ```
 

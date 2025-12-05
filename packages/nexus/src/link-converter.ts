@@ -50,9 +50,9 @@ export function convertNexusLinkToWorkflowEventLink(link: NexusLink): WorkflowEv
   if (parts.length !== 7 || parts[1] !== 'namespaces' || parts[3] !== 'workflows' || parts[6] !== 'history') {
     throw new TypeError(`Invalid URL path: ${link.url}`);
   }
-  const namespace = decodeURIComponent(parts[2]);
-  const workflowId = decodeURIComponent(parts[4]);
-  const runId = decodeURIComponent(parts[5]);
+  const namespace = decodeURIComponent(parts[2]!);
+  const workflowId = decodeURIComponent(parts[4]!);
+  const runId = decodeURIComponent(parts[5]!);
 
   const query = link.url.searchParams;
   const refType = query.get(LINK_REFERENCE_TYPE_KEY);

@@ -45,7 +45,7 @@ export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string)
  */
 function cutoffStructuredStackTrace(stackTrace: StackTraceFileLocation[]): void {
   stackTrace.shift();
-  if (stackTrace[0].function_name === 'initAll' && stackTrace[0].file_path === 'node:internal/promise_hooks') {
+  if (stackTrace[0]?.function_name === 'initAll' && stackTrace[0].file_path === 'node:internal/promise_hooks') {
     stackTrace.shift();
   }
   const idx = stackTrace.findIndex(({ function_name, file_path }) => {
@@ -379,7 +379,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         // they were handled as regular jobs, making it unsafe to properly handle that job above, with patches.
         const [updateRandomSeed, rest] = partition(nonPatches, ({ updateRandomSeed }) => updateRandomSeed != null);
         if (updateRandomSeed.length > 0)
-          this.activator.updateRandomSeed(updateRandomSeed[updateRandomSeed.length - 1].updateRandomSeed!);
+          this.activator.updateRandomSeed(updateRandomSeed[updateRandomSeed.length - 1]!.updateRandomSeed!);
         this.workflowModule.activate(
           coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs: rest })
         );

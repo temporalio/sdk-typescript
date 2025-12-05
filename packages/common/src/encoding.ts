@@ -25,9 +25,11 @@ export class TextDecoder {
     for (; index < len; ) {
       nextEnd = index <= lenMinus32 ? 32 : (len - index) | 0;
       for (; pos < nextEnd; index = (index + 1) | 0, pos = (pos + 1) | 0) {
+        // @ts-expect-error ignoring unchecked index
         cp0 = inputAs8[index] & 0xff;
         switch (cp0 >> 4) {
           case 15:
+            // @ts-expect-error ignoring unchecked index
             cp1 = inputAs8[(index = (index + 1) | 0)] & 0xff;
             if (cp1 >> 6 !== 0b10 || 0b11110111 < cp0) {
               index = (index - 1) | 0;
@@ -37,6 +39,7 @@ export class TextDecoder {
             minBits = 5; // 20 ensures it never passes -> all invalid replacements
             cp0 = 0x100; //  keep track of th bit size
           case 14:
+            // @ts-expect-error ignoring unchecked index
             cp1 = inputAs8[(index = (index + 1) | 0)] & 0xff;
             codePoint <<= 6;
             codePoint |= ((cp0 & 0b1111) << 6) | (cp1 & 0b00111111);
@@ -44,6 +47,7 @@ export class TextDecoder {
             cp0 = (cp0 + 0x100) & 0x300; // keep track of th bit size
           case 13:
           case 12:
+            // @ts-expect-error ignoring unchecked index
             cp1 = inputAs8[(index = (index + 1) | 0)] & 0xff;
             codePoint <<= 6;
             codePoint |= ((cp0 & 0b11111) << 6) | (cp1 & 0b00111111);
@@ -110,6 +114,7 @@ export class TextDecoder {
         tmpBufferU16[pos] = 0xfffd; // fill with invalid replacement character
       }
       tmpStr += fromCharCode(
+        // @ts-expect-error ignoring unchecked index
         tmpBufferU16[0],
         tmpBufferU16[1],
         tmpBufferU16[2],

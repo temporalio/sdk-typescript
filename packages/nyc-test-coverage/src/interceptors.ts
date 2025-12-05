@@ -28,8 +28,10 @@ export const interceptors = (): WorkflowInterceptors => ({
 
 function clearCoverage(coverage: CoverageMapData): void {
   for (const path of Object.keys(coverage)) {
-    for (const index of Object.keys(coverage[path].s)) {
-      coverage[path].s[index] = 0;
+    if (coverage[path]) {
+      for (const index of Object.keys(coverage[path].s)) {
+        coverage[path].s[index] = 0;
+      }
     }
   }
 }

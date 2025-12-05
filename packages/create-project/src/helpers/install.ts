@@ -33,7 +33,7 @@ export function install({ root, useYarn }: InstallArgs): Promise<void> {
 }
 
 export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
-  const currentNodeVersion = +process.versions.node.split('.')[0];
+  const currentNodeVersion = +process.versions.node.split('.')[0]!;
 
   const packageName = `@tsconfig/node${currentNodeVersion}`;
 
