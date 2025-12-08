@@ -29,9 +29,9 @@ export class TemporalLanguageModel implements LanguageModelV2 {
   async doGenerate(options: LanguageModelV2CallOptions): Promise<InvokeModelResult> {
     const activities = workflow.proxyActivities({ startToCloseTimeout: '10 minutes', ...this.options });
     if (activities.invokeModel === undefined) {
-      throw new Error("Unable to find model activity. Is the plugin registered?")
+      throw new Error('Unable to find model activity. Is the plugin registered?');
     }
-    const result = await activities.invokeModel({modelId: this.modelId, options});
+    const result = await activities.invokeModel({ modelId: this.modelId, options });
     if (result === undefined) {
       throw new Error('Received undefined response from model activity.');
     }
