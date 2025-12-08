@@ -683,7 +683,7 @@ mod config {
     struct TlsOptions {
         domain: Option<String>,
         server_root_ca_cert: Option<Vec<u8>>,
-        client_tls_options: Option<TlsOptionsClientCertPair>,
+        client_tls_config: Option<TlsOptionsClientCertPair>,
     }
 
     #[derive(Debug, Clone, TryFromJs)]
@@ -709,7 +709,7 @@ mod config {
         fn try_into(self) -> Result<CoreClientOptions, Self::Error> {
             let builder = CoreClientOptions::builder();
 
-            let tls_options = self.tls.map(|tls| tls.into());
+            let tls_options = self.tls.map(Into::into);
 
             let (ascii_headers, bin_headers) = partition_headers(self.headers);
 
@@ -740,7 +740,7 @@ mod config {
             Self {
                 domain: val.domain,
                 server_root_ca_cert: val.server_root_ca_cert,
-                client_tls_options: val.client_tls_options.map(|pair| CoreClientTlsOptions {
+                client_tls_options: val.client_tls_config.map(|pair| CoreClientTlsOptions {
                     client_cert: pair.client_cert,
                     client_private_key: pair.client_private_key,
                 }),
