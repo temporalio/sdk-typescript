@@ -469,8 +469,8 @@ impl MutableFinalize for HistoryForReplayTunnelHandle {}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 mod config {
+    use std::collections::HashSet;
     use std::{sync::Arc, time::Duration};
-
     use temporalio_common::protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior;
     use temporalio_common::protos::temporal::api::worker::v1::PluginInfo;
     use temporalio_common::worker::{
