@@ -114,6 +114,7 @@ test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC 
     address: `127.0.0.1:${port}`,
     metadata: { staticKey: 'set', 'staticKey-bin': Buffer.from([0x00]) },
     apiKey: 'test-token',
+    tls: false,
   });
   await conn.withMetadata({ test: 'true' }, () =>
     conn.withMetadata({ otherKey: 'set', 'otherKey-bin': Buffer.from([0x01]) }, () =>
@@ -164,6 +165,7 @@ test('apiKey sets temporal-namespace header appropriately', async (t) => {
     address: `127.0.0.1:${port}`,
     metadata: { staticKey: 'set' },
     apiKey: 'test-token',
+    tls: false,
   });
 
   await conn.workflowService.startWorkflowExecution({ namespace: 'test-namespace' });
@@ -610,3 +612,17 @@ async function withHttp2Server(
     });
   });
 }
+
+test('Client Connection: TLS is enabled by default when apiKey is provided and tls is not configured', async (t) => {
+  const conn = Connection.lazy({ apiKey: 'test-api-key' });
+  // When TLS is enabled, credentials should NOT be insecure
+  const isInsecure = conn.options.credentials._isSecure !== undefined && !conn.options.credentials._isSecure();
+  t.false(isInsecure, 'Connection should use secure credentials when apiKey is provided');
+});
+
+test('Client Connection: TLS can be explicitly disabled even when apiKey is provided', async (t) => {
+  const conn = Connection.lazy({ apiKey: 'test-api-key', tls: false });
+  // When TLS is explicitly disabled, credentials should be insecure
+  const isInsecure = conn.options.credentials._isSecure !== undefined && !conn.options.credentials._isSecure();
+  t.true(isInsecure, 'Connection should use insecure credentials when tls: false');
+});

@@ -32,6 +32,10 @@ export type TLSConfigOption = TLSConfig | boolean | undefined | null;
 /**
  * Normalize {@link TLSConfigOption} by turning false and null to undefined and true to and empty object
  */
-export function normalizeTlsConfig(tls: TLSConfigOption): TLSConfig | undefined {
+export function normalizeTlsConfig(
+  tls: TLSConfigOption,
+  apiKey?: string | (() => string) | undefined
+): TLSConfig | undefined {
+  tls = tls ?? (apiKey !== undefined ? true : undefined);
   return typeof tls === 'object' ? (tls === null ? undefined : tls) : tls ? {} : undefined;
 }

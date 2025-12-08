@@ -57,7 +57,8 @@ export async function getRepoInfo(url: URL, samplePath?: string): Promise<RepoIn
     }
 
     const info = JSON.parse(infoResponse.body);
-    return { username, name, branch: info['default_branch'], filePath };
+    // Presence of username/name asserted by info response
+    return { username: username!, name: name!, branch: info['default_branch'], filePath };
   }
 
   // If samplePath is available, the branch name takes the entire path

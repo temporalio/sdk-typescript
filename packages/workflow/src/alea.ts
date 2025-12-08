@@ -73,7 +73,7 @@ export class Mash {
   public mash(data: number[]): number {
     let { n } = this;
     for (let i = 0; i < data.length; i++) {
-      n += data[i];
+      n += data[i]!;
       let h = 0.02519603282416938 * n;
       n = h >>> 0;
       h -= n;

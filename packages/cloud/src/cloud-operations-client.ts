@@ -229,7 +229,7 @@ function normalizeGRPCConfig(options: CloudOperationsConnectionOptions): Resolve
   } = options;
 
   const address = addressFromConfig ? normalizeGrpcEndpointAddress(addressFromConfig, 443) : 'saas-api.tmprl.cloud:443';
-  const tls = normalizeTlsConfig(tlsFromConfig) ?? {};
+  const tls = normalizeTlsConfig(tlsFromConfig, options.apiKey) ?? {};
 
   return {
     address,

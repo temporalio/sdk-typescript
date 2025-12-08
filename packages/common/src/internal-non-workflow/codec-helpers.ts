@@ -18,7 +18,7 @@ import { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailur
  */
 export async function decode(codecs: PayloadCodec[], payloads: Payload[]): Promise<DecodedPayload[]> {
   for (let i = codecs.length - 1; i >= 0; i--) {
-    payloads = await codecs[i].decode(payloads);
+    payloads = await codecs[i]!.decode(payloads);
   }
   return payloads as DecodedPayload[];
 }
@@ -28,7 +28,7 @@ export async function decode(codecs: PayloadCodec[], payloads: Payload[]): Promi
  */
 export async function encode(codecs: PayloadCodec[], payloads: Payload[]): Promise<EncodedPayload[]> {
   for (let i = 0; i < codecs.length; i++) {
-    payloads = await codecs[i].encode(payloads);
+    payloads = await codecs[i]!.encode(payloads);
   }
   return payloads as EncodedPayload[];
 }
@@ -58,7 +58,7 @@ async function encodeSingle(codecs: PayloadCodec[], payload: Payload): Promise<E
 
 async function decodeSingle(codecs: PayloadCodec[], payload: Payload): Promise<DecodedPayload> {
   const [decodedPayload] = await decode(codecs, [payload]);
-  return decodedPayload;
+  return decodedPayload!;
 }
 
 /** Run {@link PayloadCodec.encode} on a single Payload */
@@ -172,7 +172,7 @@ export async function decodeMapFromPayloads<K extends string>(
     await Promise.all(
       Object.entries(map).map(async ([k, payload]): Promise<[K, unknown]> => {
         const [decodedPayload] = await decode(payloadCodecs, [payload as Payload]);
-        const value = payloadConverter.fromPayload(decodedPayload);
+        const value = payloadConverter.fromPayload(decodedPayload!);
         return [k as K, value];
       })
     )
@@ -209,7 +209,7 @@ export async function encodeMapToPayloads<K extends string>(
         const payload = payloadConverter.toPayload(v);
         if (payload === undefined) throw new PayloadConverterError(`Failed to encode entry: ${k}: ${v}`);
         const [encodedPayload] = await encode(payloadCodecs, [payload]);
-        return [k as K, encodedPayload];
+        return [k as K, encodedPayload!];
       })
     )
   ) as Record<K, Payload>;

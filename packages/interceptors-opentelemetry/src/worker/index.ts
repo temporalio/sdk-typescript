@@ -8,9 +8,16 @@ import type {
   ActivityOutboundCallsInterceptor,
   InjectedSink,
   GetLogAttributesInput,
+  GetMetricTagsInput,
   ActivityExecuteInput,
 } from '@temporalio/worker';
-import { instrument, extractContextFromHeaders } from '../instrumentation';
+import {
+  instrument,
+  extractContextFromHeaders,
+  WORKFLOW_ID_ATTR_KEY,
+  RUN_ID_ATTR_KEY,
+  ACTIVITY_ID_ATTR_KEY,
+} from '../instrumentation';
 import { type OpenTelemetryWorkflowExporter, type SerializableSpan, SpanName, SPAN_DELIMITER } from '../workflow';
 
 export interface InterceptorOptions {
@@ -36,14 +43,24 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
   async execute(input: ActivityExecuteInput, next: Next<ActivityInboundCallsInterceptor, 'execute'>): Promise<unknown> {
     const context = extractContextFromHeaders(input.headers);
     const spanName = `${SpanName.ACTIVITY_EXECUTE}${SPAN_DELIMITER}${this.ctx.info.activityType}`;
-    return await instrument({ tracer: this.tracer, spanName, fn: () => next(input), context });
+    return await instrument({
+      tracer: this.tracer,
+      spanName,
+      fn: (span) => {
+        span.setAttribute(WORKFLOW_ID_ATTR_KEY, this.ctx.info.workflowExecution.workflowId);
+        span.setAttribute(RUN_ID_ATTR_KEY, this.ctx.info.workflowExecution.runId);
+        span.setAttribute(ACTIVITY_ID_ATTR_KEY, this.ctx.info.activityId);
+        return next(input);
+      },
+      context,
+    });
   }
 }
 
 /**
- * Intercepts calls to emit logs from an Activity.
+ * Intercepts calls to emit logs and metrics from an Activity.
  *
- * Attach OpenTelemetry context tracing attributes to emitted log messages, if appropriate.
+ * Attach OpenTelemetry context tracing attributes to emitted log messages and metrics, if appropriate.
  */
 export class OpenTelemetryActivityOutboundInterceptor implements ActivityOutboundCallsInterceptor {
   constructor(protected readonly ctx: ActivityContext) {}
@@ -52,6 +69,24 @@ export class OpenTelemetryActivityOutboundInterceptor implements ActivityOutboun
     input: GetLogAttributesInput,
     next: Next<ActivityOutboundCallsInterceptor, 'getLogAttributes'>
   ): Record<string, unknown> {
+    const span = otel.trace.getSpan(otel.context.active());
+    const spanContext = span?.spanContext();
+    if (spanContext && otel.isSpanContextValid(spanContext)) {
+      return next({
+        trace_id: spanContext.traceId,
+        span_id: spanContext.spanId,
+        trace_flags: `0${spanContext.traceFlags.toString(16)}`,
+        ...input,
+      });
+    } else {
+      return next(input);
+    }
+  }
+
+  public getMetricTags(
+    input: GetMetricTagsInput,
+    next: Next<ActivityOutboundCallsInterceptor, 'getMetricTags'>
+  ): GetMetricTagsInput {
     const span = otel.trace.getSpan(otel.context.active());
     const spanContext = span?.spanContext();
     if (spanContext && otel.isSpanContextValid(spanContext)) {

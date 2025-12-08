@@ -69,7 +69,7 @@ export class SearchAttributePayloadConverter implements PayloadConverter {
 
     const value = this.jsonConverter.fromPayload(payload);
     let arrayWrappedValue = Array.isArray(value) ? value : [value];
-    const searchAttributeType = decode(payload.metadata.type);
+    const searchAttributeType = payload.metadata.type ? decode(payload.metadata.type) : undefined;
     if (searchAttributeType === 'Datetime') {
       arrayWrappedValue = arrayWrappedValue.map((dateString) => new Date(dateString));
     }

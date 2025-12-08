@@ -86,7 +86,11 @@ export function fromPayloadsAtIndex<T>(converter: PayloadConverter, index: numbe
   if (payloads === undefined || payloads === null || index >= payloads.length) {
     return undefined as any;
   }
-  return converter.fromPayload(payloads[index]);
+  const payload = payloads?.[index];
+  if (!payload) {
+    return undefined as any;
+  }
+  return converter.fromPayload(payload);
 }
 
 /**
@@ -199,7 +203,7 @@ export class CompositePayloadConverter implements PayloadConverter {
       throw new ValueError('Missing payload metadata');
     }
 
-    const encoding = decode(payload.metadata[METADATA_ENCODING_KEY]);
+    const encoding = decode(payload.metadata[METADATA_ENCODING_KEY]!);
     const converter = this.converterByEncoding.get(encoding);
     if (converter === undefined) {
       throw new ValueError(`Unknown encoding: ${encoding}`);
