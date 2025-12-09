@@ -42,10 +42,16 @@ import { encode } from '@temporalio/common/lib/encoding';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
-import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
+import {
+  Context,
+  createLocalTestEnvironment,
+  createTestWorkflowBundle,
+  helpers,
+  makeTestFunction,
+} from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
 import { ActivityState, heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
-import { loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
+import { loadHistory, RUN_TIME_SKIPPING_TESTS, saveHistory, waitUntil } from './helpers';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -1199,6 +1205,49 @@ test("Lang's SDK flags from 1.11.2 are retroactively applied on replay", async (
   const hist = await loadHistory('lang_flags_replay_correctly_1_11_2.json');
   await runReplayHistory({}, hist);
   t.pass();
+});
+
+// Previously on replay, core would resolve LA based on schedule order instead of the order of results in history.
+// This could cause NDE if additional LAs were scheduled upon LA completion.
+test('GH 1744', async (t) => {
+  const { runReplayHistory, createWorker, startWorkflow } = helpers(t);
+
+  const replay = true;
+  const histName = 'nested_promise_1_13_2.json';
+  const workflowBundle = await createTestWorkflowBundle({
+    workflowsPath: require.resolve('./workflows/nested-promise'),
+  });
+  if (!replay) {
+    const worker = await createWorker({
+      activities: {
+        a: () => {
+          return new Promise((r) => setTimeout(r, 50));
+        },
+        b: () => {
+          return Promise.resolve();
+        },
+        c: () => {
+          return Promise.resolve();
+        },
+        d: () => {
+          return Promise.resolve();
+        },
+      },
+      workflowBundle,
+    });
+    const handle = await startWorkflow(workflows.nestedPromises);
+    const history = await worker.runUntil(async () => {
+      await handle.result();
+      return await handle.fetchHistory();
+    });
+
+    saveHistory(histName, history);
+  } else {
+    const hist = await loadHistory(histName);
+    await t.notThrowsAsync(async () => {
+      await runReplayHistory({ workflowBundle }, hist);
+    });
+  }
 });
 
 export async function cancelAbandonActivityBeforeStarted(): Promise<void> {
