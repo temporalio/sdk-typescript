@@ -3,6 +3,7 @@
 import './runtime'; // Patch the Workflow isolate runtime for opentelemetry
 import * as otel from '@opentelemetry/api';
 import * as tracing from '@opentelemetry/sdk-trace-base';
+import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import type {
   ActivityInput,
   ContinueAsNewInput,
@@ -48,9 +49,16 @@ function getTracer(): otel.Tracer {
     contextManager = new ContextManager();
   }
   if (tracer === undefined) {
-    const provider = new tracing.BasicTracerProvider();
-    provider.addSpanProcessor(new tracing.SimpleSpanProcessor(new SpanExporter()));
-    provider.register({ contextManager });
+    const provider = new tracing.BasicTracerProvider(
+      {
+        spanProcessors: [
+          new tracing.SimpleSpanProcessor(new SpanExporter())
+        ]
+      }
+    );
+    otel.propagation.setGlobalPropagator(new W3CTraceContextPropagator());
+    otel.trace.setGlobalTracerProvider(provider);
+    otel.context.setGlobalContextManager(contextManager);
     tracer = provider.getTracer('@temporalio/interceptor-workflow');
   }
   return tracer;
