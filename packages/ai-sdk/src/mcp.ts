@@ -5,6 +5,7 @@ import type { ActivityOptions } from '@temporalio/workflow';
 import type { ListToolResult } from './activities';
 
 export type McpClientFactory = (args: unknown) => Promise<MCPClient>;
+export type McpClientFactories = { [serviceName: string]: McpClientFactory };
 
 /**
  * Options for the Temporal MCP Client
@@ -32,12 +33,7 @@ export class TemporalMCPClient {
     const activities = workflow.proxyActivities({ startToCloseTimeout: '10 minutes', ...this.options.activityOptions });
 
     const listActivity = activities[this.options.name + '-listTools'];
-    if (listActivity === undefined) {
-      throw new Error(
-        `List Tools activity could not be found for mcp client ${this.options.name}. Has it been registered in the plugin?`
-      );
-    }
-    const tools: Record<string, ListToolResult> = await listActivity({ clientArgs: this.options.clientArgs });
+    const tools: Record<string, ListToolResult> = await listActivity!({ clientArgs: this.options.clientArgs });
     return Object.fromEntries(
       Object.entries(tools).map(([toolName, toolResult]) => [
         toolName,

@@ -1,7 +1,7 @@
 import type { ProviderV2 } from '@ai-sdk/provider';
 import { SimplePlugin } from '@temporalio/plugin';
 import { createActivities } from './activities';
-import type { McpClientFactory } from './mcp';
+import type { McpClientFactories } from './mcp';
 
 /**
  * Options for the AI SDK plugin
@@ -10,7 +10,12 @@ import type { McpClientFactory } from './mcp';
  */
 export interface AiSdkPluginOptions {
   modelProvider: ProviderV2;
-  mcpClientFactories?: [string, McpClientFactory][];
+
+  /**
+   * This object contains a mapping of server names to functions which create MCP clients.
+   * Any TemporalMCPClient used in a workflow should have its associated servername listed in this object.
+   */
+  mcpClientFactories?: McpClientFactories;
 }
 
 /**

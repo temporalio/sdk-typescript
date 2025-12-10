@@ -10,7 +10,7 @@ import type {
   SharedV2ProviderMetadata,
 } from '@ai-sdk/provider';
 import type { ToolCallOptions } from 'ai';
-import type { McpClientFactory } from './mcp';
+import type { McpClientFactories, McpClientFactory } from './mcp';
 
 export interface InvokeModelArgs {
   modelId: string;
@@ -54,7 +54,7 @@ export interface CallToolArgs {
  *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
-export const createActivities = (provider: ProviderV2, mcpClientFactories?: [string, McpClientFactory][]): object => {
+export function createActivities(provider: ProviderV2, mcpClientFactories?: McpClientFactories): object {
   let activities = {
     async invokeModel(args: InvokeModelArgs): Promise<InvokeModelResult> {
       const model = provider.languageModel(args.modelId);
@@ -62,7 +62,7 @@ export const createActivities = (provider: ProviderV2, mcpClientFactories?: [str
     },
   };
   if (mcpClientFactories !== undefined) {
-    mcpClientFactories.forEach(([name, func]) => {
+    Object.entries(mcpClientFactories).forEach(([name, func]) => {
       activities = {
         ...activities,
         ...activitiesForName(name, func),
@@ -70,10 +70,10 @@ export const createActivities = (provider: ProviderV2, mcpClientFactories?: [str
     });
   }
   return activities;
-};
+}
 
-const activitiesForName = (name: string, mcpClientFactory: McpClientFactory): object => {
-  const listToolsActivity = async (args: ListToolArgs): Promise<Record<string, ListToolResult>> => {
+function activitiesForName(name: string, mcpClientFactory: McpClientFactory): object {
+  async function listToolsActivity(args: ListToolArgs): Promise<Record<string, ListToolResult>> {
     const mcpClient = await mcpClientFactory(args.clientArgs);
     const tools = await mcpClient.tools();
 
@@ -86,8 +86,8 @@ const activitiesForName = (name: string, mcpClientFactory: McpClientFactory): ob
         },
       ])
     );
-  };
-  const callToolActivity = async (args: CallToolArgs): Promise<any> => {
+  }
+  async function callToolActivity(args: CallToolArgs): Promise<any> {
     const mcpClient = await mcpClientFactory(args.clientArgs);
     const tools = await mcpClient.tools();
     const tool = tools[args.name];
@@ -95,9 +95,9 @@ const activitiesForName = (name: string, mcpClientFactory: McpClientFactory): ob
       throw new Error(`Tool ${args.name} not found.`);
     }
     return tool.execute(args.args, args.options);
-  };
+  }
   return {
     [name + '-listTools']: listToolsActivity,
     [name + '-callTool']: callToolActivity,
   };
-};
+}
