@@ -385,18 +385,15 @@ test.skip('MCP Use', async (t) => {
   }
   const { createWorker, executeWorkflow } = helpers(t);
 
-  const mcpClientFactories: [string, McpClientFactory][] = [
-    [
-      'testServer',
-      () =>
-        createMCPClient({
-          transport: new StdioClientTransport({
-            command: 'npx',
-            args: ['-y', '@modelcontextprotocol/server-filesystem@latest', __dirname],
-          }),
+  const mcpClientFactories = {
+    testServer: () =>
+      createMCPClient({
+        transport: new StdioClientTransport({
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem@latest', __dirname],
         }),
-    ],
-  ];
+      }),
+  };
   const worker = await createWorker({
     plugins: [
       new AiSdkPlugin({
