@@ -44,12 +44,7 @@ export class TemporalMCPClient {
               startToCloseTimeout: '10 minutes',
               ...this.options,
             });
-            const callActivity = activities[this.options.name + '-callTool'];
-            if (callActivity === undefined) {
-              throw new Error(
-                `Call Tool activity could not be found for mcp client ${this.options.name}. Has it been registered in the plugin?`
-              );
-            }
+            const callActivity = activities[this.options.name + '-callTool']!;
             return await callActivity({ name: toolName, args, options, clientArgs: this.options.clientArgs });
           },
           inputSchema: {

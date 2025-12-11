@@ -10,6 +10,7 @@ import type {
   SharedV2ProviderMetadata,
 } from '@ai-sdk/provider';
 import type { ToolCallOptions } from 'ai';
+import { ApplicationFailure } from '@temporalio/common';
 import type { McpClientFactories, McpClientFactory } from './mcp';
 
 export interface InvokeModelArgs {
@@ -92,7 +93,7 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory): ob
     const tools = await mcpClient.tools();
     const tool = tools[args.name];
     if (tool === undefined) {
-      throw new Error(`Tool ${args.name} not found.`);
+      throw ApplicationFailure.retryable(`Tool ${args.name} not found.`);
     }
     return tool.execute(args.args, args.options);
   }

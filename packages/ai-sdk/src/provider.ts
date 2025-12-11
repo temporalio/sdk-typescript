@@ -8,6 +8,7 @@ import type {
 } from '@ai-sdk/provider';
 import * as workflow from '@temporalio/workflow';
 import { ActivityOptions } from '@temporalio/workflow';
+import { ApplicationFailure } from '@temporalio/common';
 import { InvokeModelResult } from './activities';
 
 /**
@@ -28,12 +29,9 @@ export class TemporalLanguageModel implements LanguageModelV2 {
 
   async doGenerate(options: LanguageModelV2CallOptions): Promise<InvokeModelResult> {
     const activities = workflow.proxyActivities({ startToCloseTimeout: '10 minutes', ...this.options });
-    if (activities.invokeModel === undefined) {
-      throw new Error('Unable to find model activity. Is the plugin registered?');
-    }
-    const result = await activities.invokeModel({ modelId: this.modelId, options });
+    const result = await activities.invokeModel!({ modelId: this.modelId, options });
     if (result === undefined) {
-      throw new Error('Received undefined response from model activity.');
+      throw ApplicationFailure.nonRetryable('Received undefined response from model activity.');
     }
     if (result.response !== undefined) {
       result.response.timestamp = new Date(result.response.timestamp);
@@ -46,7 +44,7 @@ export class TemporalLanguageModel implements LanguageModelV2 {
     request?: { body?: unknown };
     response?: { headers?: SharedV2Headers };
   }> {
-    throw new Error('Streaming not supported.');
+    throw ApplicationFailure.nonRetryable('Streaming not supported.');
   }
 }
 
