@@ -41,6 +41,7 @@
     "node": ">= 18.0.0"
   },
   "files": [
+    "bridge-macros",
     "scripts",
     "src",
     "releases",
