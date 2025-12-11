@@ -23,6 +23,9 @@ export interface TemporalMCPClientOptions {
  * A Temporal MCP Client which uses activities to execute list tools and call tools.
  * This should match by name an MCPClientFactory registered with the AI SDK plugin to function.
  *
+ * This is intentionally similar to the AI SDK's ``MCPClient``, but is lacking functions not used by the framework.
+ * It doesn't close either since the underlying clients are created in activities.
+ *
  * @experimental The AI SDK plugin is an experimental feature; APIs may change without notice.
  */
 export class TemporalMCPClient {

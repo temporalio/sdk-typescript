@@ -76,26 +76,34 @@ export function createActivities(provider: ProviderV2, mcpClientFactories?: McpC
 function activitiesForName(name: string, mcpClientFactory: McpClientFactory): object {
   async function listToolsActivity(args: ListToolArgs): Promise<Record<string, ListToolResult>> {
     const mcpClient = await mcpClientFactory(args.clientArgs);
-    const tools = await mcpClient.tools();
+    try {
+      const tools = await mcpClient.tools();
 
-    return Object.fromEntries(
-      Object.entries(tools).map(([k, v]) => [
-        k,
-        {
-          description: v.description,
-          inputSchema: v.inputSchema,
-        },
-      ])
-    );
+      return Object.fromEntries(
+        Object.entries(tools).map(([k, v]) => [
+          k,
+          {
+            description: v.description,
+            inputSchema: v.inputSchema,
+          },
+        ])
+      );
+    } finally {
+      await mcpClient.close();
+    }
   }
   async function callToolActivity(args: CallToolArgs): Promise<any> {
     const mcpClient = await mcpClientFactory(args.clientArgs);
-    const tools = await mcpClient.tools();
-    const tool = tools[args.name];
-    if (tool === undefined) {
-      throw ApplicationFailure.retryable(`Tool ${args.name} not found.`);
+    try {
+      const tools = await mcpClient.tools();
+      const tool = tools[args.name];
+      if (tool === undefined) {
+        throw ApplicationFailure.retryable(`Tool ${args.name} not found.`);
+      }
+      return tool.execute(args.args, args.options);
+    } finally {
+      await mcpClient.close();
     }
-    return tool.execute(args.args, args.options);
   }
   return {
     [name + '-listTools']: listToolsActivity,
