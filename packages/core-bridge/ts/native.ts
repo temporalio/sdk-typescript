@@ -40,7 +40,7 @@ export type JsonString<_T> = string;
 // Runtime
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export declare function newRuntime(telemOptions: RuntimeOptions): Runtime;
+export declare function newRuntime(runtimeOptions: RuntimeOptions): Runtime;
 
 export declare function runtimeShutdown(runtime: Runtime): void;
 
@@ -52,6 +52,7 @@ export type RuntimeOptions = {
   logExporter: LogExporterOptions;
   telemetry: TelemetryOptions;
   metricsExporter: MetricExporterOptions;
+  workerHeartbeatIntervalMillis: Option<number>;
 };
 
 export type TelemetryOptions = {
@@ -213,7 +214,12 @@ export interface WorkerOptions {
   workflowTaskPollerBehavior: PollerBehavior;
   activityTaskPollerBehavior: PollerBehavior;
   nexusTaskPollerBehavior: PollerBehavior;
-  enableNonLocalActivities: boolean;
+  taskTypes: {
+    enableWorkflows: boolean;
+    enableLocalActivities: boolean;
+    enableRemoteActivities: boolean;
+    enableNexus: boolean;
+  };
   stickyQueueScheduleToStartTimeout: number;
   maxCachedWorkflows: number;
   maxHeartbeatThrottleInterval: number;
@@ -221,6 +227,7 @@ export interface WorkerOptions {
   maxTaskQueueActivitiesPerSecond: Option<number>;
   maxActivitiesPerSecond: Option<number>;
   shutdownGraceTime: number;
+  plugins: string[];
 }
 
 export type PollerBehavior =

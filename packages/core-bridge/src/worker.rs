@@ -166,6 +166,9 @@ pub fn worker_complete_workflow_activation(
                         ),
                     }
                 }
+                CompleteWfError::WorkflowNotEnabled => {
+                    BridgeError::UnexpectedError(err.to_string())
+                }
             })
     })
 }
@@ -225,6 +228,9 @@ pub fn worker_complete_activity_task(
                     field: None,
                     message: format!("Malformed Activity Completion: {reason:?}"),
                 },
+                CompleteActivityError::ActivityNotEnabled => {
+                    BridgeError::UnexpectedError(err.to_string())
+                }
             })
     })
 }
@@ -296,7 +302,7 @@ pub fn worker_complete_nexus_task(
             .await
             .map_err(|err| match err {
                 CompleteNexusError::NexusNotEnabled => {
-                    BridgeError::UnexpectedError(format!("{err}"))
+                    BridgeError::UnexpectedError(err.to_string())
                 }
                 CompleteNexusError::MalformedNexusCompletion { reason } => BridgeError::TypeError {
                     field: None,
@@ -463,9 +469,10 @@ impl MutableFinalize for HistoryForReplayTunnelHandle {}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 mod config {
+    use std::collections::HashSet;
     use std::{sync::Arc, time::Duration};
-
     use temporalio_common::protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior;
+    use temporalio_common::protos::temporal::api::worker::v1::PluginInfo;
     use temporalio_common::worker::{
         ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
         PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder,
@@ -499,7 +506,7 @@ mod config {
         workflow_task_poller_behavior: PollerBehavior,
         activity_task_poller_behavior: PollerBehavior,
         nexus_task_poller_behavior: PollerBehavior,
-        enable_non_local_activities: bool,
+        task_types: WorkerTaskTypes,
         sticky_queue_schedule_to_start_timeout: Duration,
         max_cached_workflows: usize,
         max_heartbeat_throttle_interval: Duration,
@@ -507,6 +514,7 @@ mod config {
         max_activities_per_second: Option<f64>,
         max_task_queue_activities_per_second: Option<f64>,
         shutdown_grace_time: Option<Duration>,
+        plugins: Vec<String>,
     }
 
     #[derive(TryFromJs)]
@@ -540,6 +548,26 @@ mod config {
         AutoUpgrade,
     }
 
+    #[derive(TryFromJs)]
+    #[allow(clippy::struct_excessive_bools)]
+    pub struct WorkerTaskTypes {
+        enable_workflows: bool,
+        enable_local_activities: bool,
+        enable_remote_activities: bool,
+        enable_nexus: bool,
+    }
+
+    impl From<&WorkerTaskTypes> for temporalio_common::worker::WorkerTaskTypes {
+        fn from(t: &WorkerTaskTypes) -> Self {
+            Self {
+                enable_workflows: t.enable_workflows,
+                enable_local_activities: t.enable_local_activities,
+                enable_remote_activities: t.enable_remote_activities,
+                enable_nexus: t.enable_nexus,
+            }
+        }
+    }
+
     impl BridgeWorkerOptions {
         pub(crate) fn into_core_config(self) -> Result<WorkerConfig, WorkerConfigBuilderError> {
             // Set all other options
@@ -566,7 +594,7 @@ mod config {
                 .workflow_task_poller_behavior(self.workflow_task_poller_behavior)
                 .activity_task_poller_behavior(self.activity_task_poller_behavior)
                 .nexus_task_poller_behavior(self.nexus_task_poller_behavior)
-                .no_remote_activities(!self.enable_non_local_activities)
+                .task_types(&self.task_types)
                 .sticky_queue_schedule_to_start_timeout(self.sticky_queue_schedule_to_start_timeout)
                 .max_cached_workflows(self.max_cached_workflows)
                 .max_heartbeat_throttle_interval(self.max_heartbeat_throttle_interval)
@@ -574,6 +602,15 @@ mod config {
                 .max_task_queue_activities_per_second(self.max_task_queue_activities_per_second)
                 .max_worker_activities_per_second(self.max_activities_per_second)
                 .graceful_shutdown_period(self.shutdown_grace_time)
+                .plugins(
+                    self.plugins
+                        .into_iter()
+                        .map(|name| PluginInfo {
+                            name,
+                            version: String::new(),
+                        })
+                        .collect::<HashSet<_>>(),
+                )
                 .build()
         }
     }

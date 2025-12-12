@@ -1078,6 +1078,8 @@ function nexusServiceRegistryFromOptions(opts: WorkerOptions): nexus.ServiceRegi
 }
 
 export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): native.WorkerOptions {
+  const enableWorkflows = opts.workflowBundle !== undefined || opts.workflowsPath !== undefined;
+  const enableLocalActivities = enableWorkflows && opts.activities.size > 0;
   return {
     identity: opts.identity,
     buildId: opts.buildId, // eslint-disable-line deprecation/deprecation
@@ -1090,7 +1092,12 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     workflowTaskPollerBehavior: toNativeTaskPollerBehavior(opts.workflowTaskPollerBehavior),
     activityTaskPollerBehavior: toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior),
     nexusTaskPollerBehavior: toNativeTaskPollerBehavior(opts.nexusTaskPollerBehavior),
-    enableNonLocalActivities: opts.enableNonLocalActivities,
+    taskTypes: {
+      enableWorkflows,
+      enableLocalActivities,
+      enableRemoteActivities: opts.enableNonLocalActivities && opts.activities.size > 0,
+      enableNexus: opts.nexusServiceRegistry !== undefined,
+    },
     stickyQueueScheduleToStartTimeout: msToNumber(opts.stickyQueueScheduleToStartTimeout),
     maxCachedWorkflows: opts.maxCachedWorkflows,
     maxHeartbeatThrottleInterval: msToNumber(opts.maxHeartbeatThrottleInterval),
@@ -1098,6 +1105,7 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     maxTaskQueueActivitiesPerSecond: opts.maxTaskQueueActivitiesPerSecond ?? null,
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
+    plugins: opts.plugins?.map((p) => p.name) ?? [],
   };
 }
 

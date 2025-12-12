@@ -657,3 +657,24 @@ test.serial('retryPolicy is set correctly', async (t) => {
     t.deepEqual(await executeWorkflow(getRetryPolicyFromActivityInfo, { args: [retryPolicy, false] }), retryPolicy);
   });
 });
+
+export async function runLocalActivityWithNonLocalActivitiesDisabled(): Promise<string> {
+  const { echo } = workflow.proxyLocalActivities({ startToCloseTimeout: '1m' });
+  return await echo('hello from local activity');
+}
+
+test.serial('Local activities work when enableNonLocalActivities is false', async (t) => {
+  const { executeWorkflow, createWorker } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      async echo(message: string): Promise<string> {
+        return message;
+      },
+    },
+    enableNonLocalActivities: false,
+  });
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(runLocalActivityWithNonLocalActivitiesDisabled);
+    t.is(result, 'hello from local activity');
+  });
+});
