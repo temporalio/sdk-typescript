@@ -4,8 +4,6 @@ packages/core-bridge/target
 packages/core-bridge/bridge-macros/target
 sdk-core
 lib
-es2020
-commonjs
 .docusaurus
 packages/*/CHANGELOG.md
 packages/docs/docs/api
