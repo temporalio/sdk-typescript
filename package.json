@@ -38,6 +38,7 @@
     "ava": "pnpm -C packages/test exec ava"
   },
   "dependencies": {
+    "@temporalio/ai-sdk": "workspace:*",
     "@temporalio/client": "workspace:*",
     "@temporalio/cloud": "workspace:*",
     "@temporalio/common": "workspace:*",
@@ -56,9 +57,9 @@
     "temporalio": "file:packages/meta"
   },
   "devDependencies": {
-    "@opentelemetry/api": "^1.7.0",
-    "@opentelemetry/core": "^1.19.0",
-    "@opentelemetry/sdk-node": "^0.46.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "^1.25.1",
+    "@opentelemetry/sdk-node": "^0.52.1",
     "@tsconfig/node18": "^18.2.4",
     "@types/fs-extra": "^11.0.4",
     "@types/ms": "^0.7.34",

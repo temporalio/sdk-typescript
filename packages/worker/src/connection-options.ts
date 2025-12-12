@@ -79,7 +79,7 @@ export interface NativeConnectionOptions {
 export function toNativeClientOptions(options: NativeConnectionOptions): native.ClientOptions {
   const address = normalizeGrpcEndpointAddress(options.address ?? 'localhost:7233', DEFAULT_TEMPORAL_GRPC_PORT);
 
-  const tlsInput = normalizeTlsConfig(options.tls);
+  const tlsInput = normalizeTlsConfig(options.tls, options.apiKey);
   const tls: native.TLSConfig | null = tlsInput
     ? {
         domain: tlsInput.serverNameOverride ?? null,

@@ -84,6 +84,7 @@ test('NativeConnection passes headers provided in options', async (t) => {
     address: `127.0.0.1:${port}`,
     metadata: { initial: 'true' },
     apiKey: 'enchi_cat',
+    tls: false,
   });
   t.true(gotInitialHeader);
   t.true(gotApiKey);
@@ -130,6 +131,7 @@ test('apiKey sets temporal-namespace header appropriately', async (t) => {
     address: `127.0.0.1:${port}`,
     metadata: { staticKey: 'set' },
     apiKey: 'test-token',
+    tls: false,
   });
 
   await conn.workflowService.startWorkflowExecution({ namespace: 'test-namespace' });

@@ -8,17 +8,31 @@ import type {
   ContinueAsNewInput,
   DisposeInput,
   GetLogAttributesInput,
+  GetMetricTagsInput,
   LocalActivityInput,
   Next,
+  QueryInput,
   SignalInput,
   SignalWorkflowInput,
   StartChildWorkflowExecutionInput,
+  UpdateInput,
   WorkflowExecuteInput,
   WorkflowInboundCallsInterceptor,
   WorkflowInternalsInterceptor,
   WorkflowOutboundCallsInterceptor,
+  StartNexusOperationInput,
+  StartNexusOperationOutput,
 } from '@temporalio/workflow';
-import { instrument, extractContextFromHeaders, headersWithContext } from '../instrumentation';
+import {
+  instrument,
+  instrumentSync,
+  extractContextFromHeaders,
+  headersWithContext,
+  UPDATE_ID_ATTR_KEY,
+  NEXUS_SERVICE_ATTR_KEY,
+  NEXUS_OPERATION_ATTR_KEY,
+  NEXUS_ENDPOINT_ATTR_KEY,
+} from '../instrumentation';
 import { ContextManager } from './context-manager';
 import { SpanName, SPAN_DELIMITER } from './definitions';
 import { SpanExporter } from './span-exporter';
@@ -87,7 +101,57 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
 
     return await instrument({
       tracer: this.tracer,
-      spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
+      spanName: `${SpanName.WORKFLOW_HANDLE_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
+      fn: () => next(input),
+      context,
+    });
+  }
+
+  public async handleUpdate(
+    input: UpdateInput,
+    next: Next<WorkflowInboundCallsInterceptor, 'handleUpdate'>
+  ): Promise<unknown> {
+    if (!hasSdkFlag('OpenTelemetryInterceptorsInstrumentsAllMethods')) return next(input);
+
+    const context = extractContextFromHeaders(input.headers);
+
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.WORKFLOW_HANDLE_UPDATE}${SPAN_DELIMITER}${input.name}`,
+      fn: (span) => {
+        span.setAttribute(UPDATE_ID_ATTR_KEY, input.updateId);
+        return next(input);
+      },
+      context,
+    });
+  }
+
+  public validateUpdate(input: UpdateInput, next: Next<WorkflowInboundCallsInterceptor, 'validateUpdate'>): void {
+    if (!hasSdkFlag('OpenTelemetryInterceptorsInstrumentsAllMethods')) return next(input);
+
+    const context = extractContextFromHeaders(input.headers);
+    instrumentSync({
+      tracer: this.tracer,
+      spanName: `${SpanName.WORKFLOW_VALIDATE_UPDATE}${SPAN_DELIMITER}${input.name}`,
+      fn: (span) => {
+        span.setAttribute(UPDATE_ID_ATTR_KEY, input.updateId);
+        return next(input);
+      },
+      context,
+    });
+  }
+
+  public async handleQuery(
+    input: QueryInput,
+    next: Next<WorkflowInboundCallsInterceptor, 'handleQuery'>
+  ): Promise<unknown> {
+    if (!hasSdkFlag('OpenTelemetryInterceptorsInstrumentsAllMethods')) return next(input);
+
+    const context = extractContextFromHeaders(input.headers);
+
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.WORKFLOW_HANDLE_QUERY}${SPAN_DELIMITER}${input.queryName}`,
       fn: () => next(input),
       context,
     });
@@ -145,6 +209,24 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
           ...input,
           headers,
         });
+      },
+    });
+  }
+
+  public async startNexusOperation(
+    input: StartNexusOperationInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'startNexusOperation'>
+  ): Promise<StartNexusOperationOutput> {
+    if (!hasSdkFlag('OpenTelemetryInterceptorsInstrumentsAllMethods')) return next(input);
+
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.NEXUS_OPERATION_START}${SPAN_DELIMITER}${input.service}${SPAN_DELIMITER}${input.operation}`,
+      fn: async (span) => {
+        span.setAttribute(NEXUS_SERVICE_ATTR_KEY, input.service);
+        span.setAttribute(NEXUS_OPERATION_ATTR_KEY, input.operation);
+        span.setAttribute(NEXUS_ENDPOINT_ATTR_KEY, input.endpoint);
+        return await next(input);
       },
     });
   }
@@ -212,6 +294,24 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     input: GetLogAttributesInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'getLogAttributes'>
   ): Record<string, unknown> {
+    const span = otel.trace.getSpan(otel.context.active());
+    const spanContext = span?.spanContext();
+    if (spanContext && otel.isSpanContextValid(spanContext)) {
+      return next({
+        trace_id: spanContext.traceId,
+        span_id: spanContext.spanId,
+        trace_flags: `0${spanContext.traceFlags.toString(16)}`,
+        ...input,
+      });
+    } else {
+      return next(input);
+    }
+  }
+
+  public getMetricTags(
+    input: GetMetricTagsInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'getMetricTags'>
+  ): GetMetricTagsInput {
     const span = otel.trace.getSpan(otel.context.active());
     const spanContext = span?.spanContext();
     if (spanContext && otel.isSpanContextValid(spanContext)) {

@@ -63,7 +63,7 @@ export function splitProtoHostPort(uri: string): ProtoHostPort | undefined {
   if (!match?.groups) return undefined;
   return {
     scheme: match.groups.scheme,
-    hostname: match.groups.ipv6 ?? match.groups.hostname,
+    hostname: match.groups.ipv6 ?? match.groups.hostname!,
     port: match.groups.port !== undefined ? Number(match.groups.port) : undefined,
   };
 }

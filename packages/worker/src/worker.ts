@@ -1347,7 +1347,7 @@ export class Worker {
       const close = removeFromCacheIx !== -1;
       const jobs = activation.jobs;
       if (close) {
-        const asEvictJob = jobs.splice(removeFromCacheIx, 1)[0].removeFromCache;
+        const asEvictJob = jobs.splice(removeFromCacheIx, 1)[0]!.removeFromCache;
         if (asEvictJob) {
           this.evictionsEmitter.emit('eviction', {
             runId: activation.runId,
@@ -1989,7 +1989,7 @@ export class Worker {
     for (let i = this.plugins.length - 1; i >= 0; --i) {
       const rw = runWorker;
       const plugin = this.plugins[i];
-      if (plugin.runWorker !== undefined) {
+      if (plugin?.runWorker !== undefined) {
         runWorker = (w: Worker) => plugin.runWorker!(w, rw);
       }
     }
@@ -2116,7 +2116,7 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
   return { code, sourceMap, filename };
 }
 
-function extractSourceMap(code: string) {
+function extractSourceMap(code: string): [string, string] {
   const sourceMapCommentPos = code.lastIndexOf('//# sourceMappingURL=data:');
   if (sourceMapCommentPos > 0) {
     const base64TagIndex = code.indexOf('base64,', sourceMapCommentPos);

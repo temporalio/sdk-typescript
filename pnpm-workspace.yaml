@@ -1,5 +1,6 @@
 packages:
   - packages/activity
+  - packages/ai-sdk
   - packages/client
   - packages/cloud
   - packages/common

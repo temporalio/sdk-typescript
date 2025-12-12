@@ -210,7 +210,7 @@ function normalizeGRPCConfig(options: ConnectionOptions): ConnectionOptions {
   if (rest.address) {
     rest.address = normalizeGrpcEndpointAddress(rest.address, DEFAULT_TEMPORAL_GRPC_PORT);
   }
-  const tls = normalizeTlsConfig(tlsFromConfig);
+  const tls = normalizeTlsConfig(tlsFromConfig, options.apiKey);
   if (tls) {
     if (credentials) {
       throw new TypeError('Both `tls` and `credentials` ConnectionOptions were provided');

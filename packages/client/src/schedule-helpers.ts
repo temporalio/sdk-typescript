@@ -118,7 +118,7 @@ const [encodeDayOfWeek, decodeDayOfWeek] = makeCalendarSpecFieldCoders(
 function makeCalendarSpecFieldCoders<Unit>(
   fieldName: string,
   encodeValueFn: (x: Unit) => number | undefined,
-  decodeValueFn: (x: number) => Unit,
+  decodeValueFn: (x: number) => Unit | undefined,
   defaultValue: temporal.api.schedule.v1.IRange[],
   matchAllValue: temporal.api.schedule.v1.IRange[]
 ) {
@@ -152,6 +152,9 @@ function makeCalendarSpecFieldCoders<Unit>(
     if (!input) return [];
     return (input as temporal.api.schedule.v1.Range[]).map((pb): Range<Unit> => {
       const start = decodeValueFn(pb.start);
+      if (start === undefined) {
+        throw new RangeError(`Invalid CalendarSpec component for field ${fieldName}: ${pb.start} is out of bounds`);
+      }
       const end = pb.end > pb.start ? decodeValueFn(pb.end) ?? start : start;
       const step = pb.step > 0 ? pb.step : 1;
       return { start, end, step };
