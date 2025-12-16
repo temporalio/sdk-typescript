@@ -6,7 +6,7 @@
   "scripts": {
     "build": "pnpm run \"/^build:.*/\"",
     "build:ts": "tsc --build",
-    "build:protos": "pnpm tsx ./scripts/compile-proto.ts",
+    "build:protos": "tsx ./scripts/compile-proto.ts",
     "test": "ava ./lib/test-*.js",
     "test.watch": "ava --watch ./lib/test-*.js"
   },

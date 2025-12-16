@@ -64,8 +64,8 @@ function compile(requestedTarget?: string) {
   const out = `releases/${target}/index.node`;
   try {
     fs.unlinkSync(out);
-  } catch (err) {
-    if (err.code !== 'ENOENT') {
+  } catch (err: unknown) {
+    if ((err as { code?: string }).code !== 'ENOENT') {
       throw err;
     }
   }
@@ -85,9 +85,7 @@ function compile(requestedTarget?: string) {
 
   console.log('Running cargo-cp-artifact', argv);
 
-  cargoCpArtifact(argv, {
-    env: process.env,
-  });
+  cargoCpArtifact(argv, process.env);
 }
 
 if (requestedTargets.length > 0) {

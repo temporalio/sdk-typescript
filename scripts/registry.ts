@@ -20,7 +20,7 @@ class Registry {
   static async create(workdir: string): Promise<Registry> {
     mkdirSync(workdir, { recursive: true });
 
-    const app = (await runServer({
+    const app = await runServer({
       self_path: workdir,
       storage: path.resolve(workdir, 'storage'),
 
@@ -42,7 +42,7 @@ class Registry {
       },
 
       max_body_size: '200mb',
-    })) as unknown as VerdaccioServer;
+    });
 
     await new Promise<void>((resolve, reject) => {
       try {

@@ -19,8 +19,8 @@ const protoFiles = glob.sync('*.proto', { cwd: protoBaseDir, absolute: true, roo
 function mtime(path: string) {
   try {
     return statSync(path).mtimeMs;
-  } catch (err) {
-    if (err.code === 'ENOENT') {
+  } catch (err: unknown) {
+    if ((err as { code?: string }).code === 'ENOENT') {
       return 0;
     }
     throw err;
