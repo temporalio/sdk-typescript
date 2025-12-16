@@ -123,20 +123,20 @@ export interface ClientOptions {
   targetUrl: string;
   clientName: string;
   clientVersion: string;
-  tls: Option<TLSConfig>;
+  tls: Option<TlsOptions>;
   httpConnectProxy: Option<HttpConnectProxy>;
   headers: Option<Record<string, MetadataValue>>;
   apiKey: Option<string>;
   disableErrorCodeMetricTags: boolean;
 }
 
-export interface TLSConfig {
+export interface TlsOptions {
   domain: Option<string>;
   serverRootCaCert: Option<Buffer>;
-  clientTlsConfig: Option<TlsConfigClientCertPair>;
+  clientTlsOptions: Option<TlsOptionsClientCertPair>;
 }
 
-export interface TlsConfigClientCertPair {
+export interface TlsOptionsClientCertPair {
   clientCert: Buffer;
   clientPrivateKey: Buffer;
 }
