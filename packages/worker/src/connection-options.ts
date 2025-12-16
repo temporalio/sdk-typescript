@@ -80,11 +80,11 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
   const address = normalizeGrpcEndpointAddress(options.address ?? 'localhost:7233', DEFAULT_TEMPORAL_GRPC_PORT);
 
   const tlsInput = normalizeTlsConfig(options.tls, options.apiKey);
-  const tls: native.TLSConfig | null = tlsInput
+  const tls: native.TlsOptions | null = tlsInput
     ? {
         domain: tlsInput.serverNameOverride ?? null,
         serverRootCaCert: tlsInput.serverRootCACertificate ? Buffer.from(tlsInput.serverRootCACertificate) : null,
-        clientTlsConfig: tlsInput.clientCertPair
+        clientTlsOptions: tlsInput.clientCertPair
           ? {
               clientCert: tlsInput.clientCertPair.crt && Buffer.from(tlsInput.clientCertPair.crt),
               clientPrivateKey: tlsInput.clientCertPair.key && Buffer.from(tlsInput.clientCertPair.key),
