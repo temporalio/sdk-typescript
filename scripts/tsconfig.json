@@ -4,9 +4,9 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "types": ["node"],
-    "rootDir": "./",
+    "rootDir": "../",
     "noEmit": true,
     "resolveJsonModule": true
   },
-  "include": ["./scripts/*.ts", "./packages/*/scripts/*.ts"]
+  "include": ["./script/*.ts", "./../packages/*/scripts/*.ts"]
 }

@@ -22,10 +22,9 @@
   "files": [],
   "scripts": {
     "rebuild": "pnpm run clean && pnpm run build",
-    "build": "lerna run --stream build && pnpm run build:scripts",
+    "build": "lerna run --stream build",
     "build.watch": "pnpm run build:protos && tsc --build --watch packages/*/tsconfig.json",
     "build:protos": "tsx ./packages/proto/scripts/compile-proto.ts",
-    "build:scripts": "tsc --noEmit -p tsconfig.scripts.json",
     "test": "lerna run --stream test",
     "test.watch": "lerna run --stream test.watch",
     "ci-stress": "node ./packages/test/lib/load/run-all-stress-ci-scenarios.js",

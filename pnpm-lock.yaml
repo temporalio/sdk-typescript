@@ -775,6 +775,8 @@ importers:
         specifier: ^0.7.4
         version: 0.7.4
 
+  scripts: {}
+
 packages:
 
   '@aashutoshrathi/word-wrap@1.2.6':
