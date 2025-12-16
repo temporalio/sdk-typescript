@@ -3,7 +3,7 @@ import http from 'node:http';
 import { inspect } from 'node:util';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import arg from 'arg';
 import {
   DefaultLogger,
@@ -33,7 +33,7 @@ async function withOptionalOtel(args: arg.Result<WorkerArgSpec>, fn: () => Promi
   const traceExporter = new OTLPTraceExporter({ url });
   const otel = new opentelemetry.NodeSDK({
     resource: new opentelemetry.resources.Resource({
-      [SemanticResourceAttributes.SERVICE_NAME]: 'load-worker',
+      [SEMRESATTRS_SERVICE_NAME]: 'load-worker',
       taskQueue,
     }),
     traceExporter,
