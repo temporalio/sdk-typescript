@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/ai-sdk",
-  "version": "1.13.2",
+  "version": "1.14.0",
   "description": "Temporal AI SDK integration package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -21,8 +21,8 @@
     "web-streams-polyfill": "^4.2.0"
   },
   "peerDependencies": {
-    "@ai-sdk/provider": "^2.0.0",
     "@ai-sdk/mcp": "^0.0.8",
+    "@ai-sdk/provider": "^2.0.0",
     "ai": "^5.0.91"
   },
   "engines": {
