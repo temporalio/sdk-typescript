@@ -656,12 +656,10 @@ where
 mod config {
     use std::collections::HashMap;
 
-    use anyhow::Context as _;
-
     use temporalio_client::HttpConnectProxyOptions;
     use temporalio_sdk_core::{
-        ClientOptions as CoreClientOptions, ClientOptionsBuilder,
-        ClientTlsConfig as CoreClientTlsConfig, TlsConfig as CoreTlsConfig, Url,
+        ClientOptions as CoreClientOptions, ClientTlsOptions as CoreClientTlsOptions,
+        TlsOptions as CoreTlsOptions, Url,
     };
 
     use bridge_macros::TryFromJs;
@@ -673,7 +671,7 @@ mod config {
         target_url: Url,
         client_name: String,
         client_version: String,
-        tls: Option<TlsConfig>,
+        tls: Option<TlsOptions>,
         http_connect_proxy: Option<HttpConnectProxy>,
         headers: Option<HashMap<String, MetadataValue>>,
         api_key: Option<String>,
@@ -682,14 +680,14 @@ mod config {
 
     #[derive(Debug, Clone, TryFromJs)]
     #[allow(clippy::struct_field_names)]
-    struct TlsConfig {
+    struct TlsOptions {
         domain: Option<String>,
         server_root_ca_cert: Option<Vec<u8>>,
-        client_tls_config: Option<TlsConfigClientCertPair>,
+        client_tls_options: Option<TlsOptionsClientCertPair>,
     }
 
     #[derive(Debug, Clone, TryFromJs)]
-    struct TlsConfigClientCertPair {
+    struct TlsOptionsClientCertPair {
         client_cert: Vec<u8>,
         client_private_key: Vec<u8>,
     }
@@ -709,42 +707,35 @@ mod config {
     impl TryInto<CoreClientOptions> for ClientOptions {
         type Error = BridgeError;
         fn try_into(self) -> Result<CoreClientOptions, Self::Error> {
-            let mut builder = ClientOptionsBuilder::default();
-
-            if let Some(tls) = self.tls {
-                builder.tls_cfg(tls.into());
-            }
-
             let (ascii_headers, bin_headers) = partition_headers(self.headers);
 
-            let client_options = builder
+            let client_options = CoreClientOptions::builder()
                 .target_url(self.target_url)
                 .client_name(self.client_name)
                 .client_version(self.client_version)
-                // tls_cfg -- above
-                .http_connect_proxy(self.http_connect_proxy.map(Into::into))
-                .headers(ascii_headers)
-                .binary_headers(bin_headers)
-                .api_key(self.api_key)
+                .maybe_tls_options(self.tls.map(Into::into))
+                .maybe_http_connect_proxy(self.http_connect_proxy.map(Into::into))
+                .maybe_headers(ascii_headers)
+                .maybe_binary_headers(bin_headers)
+                .maybe_api_key(self.api_key)
                 .disable_error_code_metric_tags(self.disable_error_code_metric_tags)
                 // identity -- skipped: will be set on worker
                 // retry_config -- skipped: worker overrides anyway
                 // override_origin -- skipped: will default to tls_cfg.domain
                 // keep_alive -- skipped: defaults to true; is there any reason to disable this?
                 // skip_get_system_info -- skipped: defaults to false; is there any reason to set this?
-                .build()
-                .context("Invalid Client options")?;
+                .build();
 
             Ok(client_options)
         }
     }
 
-    impl From<TlsConfig> for CoreTlsConfig {
-        fn from(val: TlsConfig) -> Self {
+    impl From<TlsOptions> for CoreTlsOptions {
+        fn from(val: TlsOptions) -> Self {
             Self {
                 domain: val.domain,
                 server_root_ca_cert: val.server_root_ca_cert,
-                client_tls_config: val.client_tls_config.map(|pair| CoreClientTlsConfig {
+                client_tls_options: val.client_tls_options.map(|pair| CoreClientTlsOptions {
                     client_cert: pair.client_cert,
                     client_private_key: pair.client_private_key,
                 }),

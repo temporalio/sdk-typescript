@@ -50,7 +50,7 @@ export class Runtime {
     public readonly options: CompiledRuntimeOptions
   ) {
     this.logger = options.logger;
-    this.metricMeter = options.telemetryOptions.metricsExporter
+    this.metricMeter = options.runtimeOptions.metricsExporter
       ? MetricMeterWithComposedTags.compose(new RuntimeMetricMeter(this.native), {}, true)
       : noopMetricMeter;
 
@@ -97,7 +97,7 @@ export class Runtime {
    */
   protected static create(options: RuntimeOptions, instantiator: 'install' | 'instance'): Runtime {
     const compiledOptions = compileOptions(options);
-    const runtime = native.newRuntime(compiledOptions.telemetryOptions);
+    const runtime = native.newRuntime(compiledOptions.runtimeOptions);
 
     // Remember the provided options in case Core is reinstantiated after being shut down
     this.defaultOptions = options;
