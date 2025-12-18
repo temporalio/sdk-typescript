@@ -1,13 +1,13 @@
 // Script to do the equivalent of:
 // pbjs -t json-module -w commonjs -r test -o protos/json-module.js protos/*.proto
 // pbjs -t static-module protos/*.proto | pbts -o protos/root.d.ts -
-const { resolve } = require('path');
-const { promisify } = require('util');
-const glob = require('glob');
-const { statSync, mkdirsSync } = require('fs-extra');
-const { rm } = require('fs/promises');
-const pbjs = require('protobufjs-cli/pbjs');
-const pbts = require('protobufjs-cli/pbts');
+import { resolve } from 'node:path';
+import { promisify } from 'node:util';
+import { rm } from 'node:fs/promises';
+import * as glob from 'glob';
+import { statSync, mkdirsSync } from 'fs-extra';
+import * as pbjs from 'protobufjs-cli/pbjs';
+import * as pbts from 'protobufjs-cli/pbts';
 
 const outputDir = resolve(__dirname, '../protos');
 const moduleOutputFile = resolve(outputDir, 'json-module.js');
@@ -16,18 +16,18 @@ const tempFile = resolve(outputDir, 'temp.js');
 const protoBaseDir = resolve(__dirname, '../protos');
 const protoFiles = glob.sync('*.proto', { cwd: protoBaseDir, absolute: true, root: '' });
 
-function mtime(path) {
+function mtime(path: string) {
   try {
     return statSync(path).mtimeMs;
-  } catch (err) {
-    if (err.code === 'ENOENT') {
+  } catch (err: unknown) {
+    if ((err as { code?: string }).code === 'ENOENT') {
       return 0;
     }
     throw err;
   }
 }
 
-async function compileProtos(outputFile, ...args) {
+async function compileProtos(outputFile: string, ...args: string[]) {
   const pbjsArgs = [
     ...args,
     '--wrap',

@@ -181,7 +181,7 @@ jobs:
         run: pnpm run build --ignore @temporalio/core-bridge
 
       - name: Publish to Verdaccio
-        run: node scripts/publish-to-verdaccio.js --registry-dir ./tmp/registry
+        run: pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir ./tmp/registry
 
       - name: Save Verdaccio repo artifact
         uses: actions/upload-artifact@v4
@@ -250,7 +250,7 @@ jobs:
 
       # Note: here, `npx create` fails on windows if shell is bash.
       - name: Instantiate sample project using verdaccio artifacts
-        run: node scripts/init-from-verdaccio.js --registry-dir ./tmp/registry --sample ${{ matrix.sample }} --target-dir ${{ runner.temp }}/example
+        run: pnpm tsx scripts/init-from-verdaccio.ts --registry-dir ./tmp/registry --sample ${{ matrix.sample }} --target-dir ${{ runner.temp }}/example
 
       - name: Install Temporal CLI
         if: matrix.server == 'cli'
@@ -269,7 +269,7 @@ jobs:
         # We write the certs to disk because it serves the sample. Written into /tmp/temporal-certs
       - name: Create certs dir
         shell: bash
-        run: node scripts/create-certs-dir.js "${{ runner.temp }}/certs"
+        run: pnpm tsx scripts/create-certs-dir.ts "${{ runner.temp }}/certs"
         if: matrix.server == 'cloud'
         env:
           # These env vars are used by the hello-world-mtls sample
@@ -279,14 +279,14 @@ jobs:
           TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
 
       - name: Test run a workflow (non-cloud)
-        run: node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
+        run: pnpm tsx scripts/test-example.ts --work-dir "${{ runner.temp }}/example"
         shell: bash
         if: matrix.server == 'cli'
 
       - name: Test run a workflow (cloud)
         if: matrix.server == 'cloud'
         # The required environment variables must be present for releases (this must be run from the official repo)
-        run: node scripts/test-example.js --work-dir "${{ runner.temp }}/example"
+        run: pnpm tsx scripts/test-example.ts --work-dir "${{ runner.temp }}/example"
         shell: bash
         env:
           # These env vars are used by the hello-world-mtls sample

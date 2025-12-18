@@ -17,6 +17,7 @@ packages:
   - packages/testing
   - packages/worker
   - packages/workflow
+  - scripts
 
 ignoreScripts: true
 
