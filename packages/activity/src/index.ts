@@ -453,7 +453,7 @@ export function sleep(ms: Duration): Promise<void> {
  * attribute set to a {@link TimeoutFailure}, which has the last value of `details` available at
  * {@link TimeoutFailure.lastHeartbeatDetails}.
  *
- * This is a shortcut for `Context.current().heatbeat(ms)` (see {@link Context.heartbeat}).
+ * This is a shortcut for `Context.current().heartbeat(details)` (see {@link Context.heartbeat}).
  */
 export function heartbeat(details?: unknown): void {
   Context.current().heartbeat(details);
