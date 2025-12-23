@@ -32,8 +32,10 @@ export class TemporalMCPClient {
   constructor(readonly options: TemporalMCPClientOptions) {}
 
   async tools(): Promise<ToolSet> {
-    workflow.log.info(`Options: ${this.options.activityOptions}`);
-    const activities = workflow.proxyActivities({ startToCloseTimeout: '10 minutes', ...this.options.activityOptions });
+    const activities = workflow.proxyActivities({
+      startToCloseTimeout: '10 minutes',
+      ...this.options.activityOptions,
+    });
 
     const listActivity = activities[this.options.name + '-listTools'];
     const tools: Record<string, ListToolResult> = await listActivity!({ clientArgs: this.options.clientArgs });

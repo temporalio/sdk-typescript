@@ -1,32 +1,46 @@
 import type {
-  LanguageModelV2CallOptions,
-  LanguageModelV2CallWarning,
-  LanguageModelV2Content,
-  LanguageModelV2FinishReason,
-  LanguageModelV2ResponseMetadata,
-  LanguageModelV2Usage,
-  ProviderV2,
-  SharedV2Headers,
-  SharedV2ProviderMetadata,
+  LanguageModelV3CallOptions,
+  LanguageModelV3GenerateResult,
+  EmbeddingModelV3Result,
+  SharedV3ProviderOptions,
+  SharedV3Headers,
+  ProviderV3,
 } from '@ai-sdk/provider';
-import type { ToolCallOptions } from 'ai';
+import type { ToolExecutionOptions } from 'ai';
 import { ApplicationFailure } from '@temporalio/common';
 import type { McpClientFactories, McpClientFactory } from './mcp';
 
+/**
+ * Arguments for invoking a language model activity.
+ */
 export interface InvokeModelArgs {
   modelId: string;
-  options: LanguageModelV2CallOptions;
+  options: LanguageModelV3CallOptions;
 }
 
-export interface InvokeModelResult {
-  content: Array<LanguageModelV2Content>;
-  finishReason: LanguageModelV2FinishReason;
-  usage: LanguageModelV2Usage;
-  providerMetadata?: SharedV2ProviderMetadata;
-  request?: { body?: unknown };
-  response?: LanguageModelV2ResponseMetadata & { headers?: SharedV2Headers; body?: unknown };
-  warnings: Array<LanguageModelV2CallWarning>;
+/**
+ * Result from a language model invocation.
+ * This is an alias to the AI SDK's LanguageModelV3GenerateResult for type safety.
+ */
+export type InvokeModelResult = LanguageModelV3GenerateResult;
+
+/**
+ * Arguments for invoking an embedding model activity.
+ * Note: AbortSignal is not included as it cannot be serialized across activity boundaries.
+ * Temporal's workflow cancellation provides equivalent functionality.
+ */
+export interface InvokeEmbeddingModelArgs {
+  modelId: string;
+  values: string[];
+  providerOptions?: SharedV3ProviderOptions;
+  headers?: SharedV3Headers;
 }
+
+/**
+ * Result from an embedding model invocation.
+ * This is an alias to the AI SDK's EmbeddingModelV3Result for type safety.
+ */
+export type InvokeEmbeddingModelResult = EmbeddingModelV3Result;
 
 export interface ListToolResult {
   description?: string;
@@ -41,7 +55,7 @@ export interface CallToolArgs {
   clientArgs?: any;
   name: string;
   args: any;
-  options: ToolCallOptions;
+  options: ToolExecutionOptions;
 }
 
 /**
@@ -55,11 +69,19 @@ export interface CallToolArgs {
  *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
-export function createActivities(provider: ProviderV2, mcpClientFactories?: McpClientFactories): object {
+export function createActivities(provider: ProviderV3, mcpClientFactories?: McpClientFactories): object {
   let activities = {
     async invokeModel(args: InvokeModelArgs): Promise<InvokeModelResult> {
       const model = provider.languageModel(args.modelId);
       return await model.doGenerate(args.options);
+    },
+    async invokeEmbeddingModel(args: InvokeEmbeddingModelArgs): Promise<InvokeEmbeddingModelResult> {
+      const model = provider.embeddingModel(args.modelId);
+      return await model.doEmbed({
+        values: args.values,
+        providerOptions: args.providerOptions,
+        headers: args.headers,
+      });
     },
   };
   if (mcpClientFactories !== undefined) {
@@ -100,7 +122,7 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory): ob
       if (tool === undefined) {
         throw ApplicationFailure.retryable(`Tool ${args.name} not found.`);
       }
-      return tool.execute(args.args, args.options);
+      return tool.execute(args.args, args.options as any);
     } finally {
       await mcpClient.close();
     }

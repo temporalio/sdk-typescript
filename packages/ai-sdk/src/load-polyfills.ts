@@ -4,7 +4,7 @@ import { inWorkflowContext } from '@temporalio/workflow';
 if (inWorkflowContext()) {
   // Apply Headers polyfill
   if (typeof globalThis.Headers === 'undefined') {
-    globalThis.Headers = Headers;
+    globalThis.Headers = Headers as any;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-require-imports,import/no-unassigned-import
