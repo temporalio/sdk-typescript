@@ -1,7 +1,7 @@
 // Test workflow using AI model
 // eslint-disable-next-line import/no-unassigned-import
 import '@temporalio/ai-sdk/lib/load-polyfills';
-import { embed, embedMany, generateObject, generateText, stepCountIs, tool, wrapLanguageModel } from 'ai';
+import { embedMany, generateObject, generateText, stepCountIs, tool, wrapLanguageModel, type ToolExecutionOptions } from 'ai';
 import { z } from 'zod';
 import type { LanguageModelV3Middleware } from '@ai-sdk/provider';
 import { proxyActivities } from '@temporalio/workflow';
@@ -29,10 +29,10 @@ export async function toolsWorkflow(question: string): Promise<string> {
     tools: {
       getWeather: tool({
         description: 'Get the weather for a given city',
-        parameters: z.object({
+        inputSchema: z.object({
           location: z.string().describe('The location to get the weather for'),
         }),
-        execute: getWeather,
+        execute: async (input, _options) => getWeather(input),
       }),
     },
     stopWhen: stepCountIs(5),
@@ -58,6 +58,7 @@ export async function generateObjectWorkflow(): Promise<string> {
 export async function middlewareWorkflow(prompt: string): Promise<string> {
   const cache = new Map<string, any>();
   const middleware: LanguageModelV3Middleware = {
+    specificationVersion: 'v3',
     wrapGenerate: async ({ doGenerate, params }) => {
       const cacheKey = JSON.stringify(params);
       if (cache.has(cacheKey)) {
