@@ -2,18 +2,19 @@
  * Test AI SDK integration with Temporal workflows
  */
 import type {
-  EmbeddingModelV2,
-  ImageModelV2,
-  LanguageModelV2,
-  LanguageModelV2CallOptions,
-  LanguageModelV2CallWarning,
-  LanguageModelV2Content,
-  LanguageModelV2FinishReason,
-  LanguageModelV2ResponseMetadata,
-  LanguageModelV2Usage,
-  ProviderV2,
-  SharedV2Headers,
-  SharedV2ProviderMetadata,
+  EmbeddingModelV3,
+  EmbeddingModelV3CallOptions,
+  EmbeddingModelV3Result,
+  ImageModelV3,
+  LanguageModelV3,
+  LanguageModelV3CallOptions,
+  LanguageModelV3Content,
+  LanguageModelV3FinishReason,
+  LanguageModelV3GenerateResult,
+  LanguageModelV3StreamResult,
+  LanguageModelV3Usage,
+  ProviderV3,
+  TranscriptionModelV3,
 } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
 import { v4 as uuid4 } from 'uuid';
@@ -22,7 +23,7 @@ import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { ExportResultCode } from '@opentelemetry/core';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
-import { AiSdkPlugin, McpClientFactory } from '@temporalio/ai-sdk';
+import { AiSdkPlugin } from '@temporalio/ai-sdk';
 import { temporal } from '@temporalio/proto';
 import { WorkflowClient } from '@temporalio/client';
 import {
@@ -35,6 +36,7 @@ import {
 } from '@temporalio/interceptors-opentelemetry';
 import { InjectedSinks, Runtime } from '@temporalio/worker';
 import {
+  embeddingWorkflow,
   generateObjectWorkflow,
   helloWorldAgent,
   mcpWorkflow,
@@ -49,20 +51,11 @@ import EventType = temporal.api.enums.v1.EventType;
 
 const remoteTests = ['1', 't', 'true'].includes((process.env.AI_SDK_REMOTE_TESTS ?? 'false').toLowerCase());
 
-export type ModelResponse = {
-  content: Array<LanguageModelV2Content>;
-  finishReason: LanguageModelV2FinishReason;
-  usage: LanguageModelV2Usage;
-  providerMetadata?: SharedV2ProviderMetadata;
-  request?: { body?: unknown };
-  response?: LanguageModelV2ResponseMetadata & { headers?: SharedV2Headers; body?: unknown };
-  warnings: Array<LanguageModelV2CallWarning>;
-};
+export type ModelResponse = LanguageModelV3GenerateResult;
 
-export class TestModel implements LanguageModelV2 {
-  readonly specificationVersion = 'v2';
+export class TestModel implements LanguageModelV3 {
+  readonly specificationVersion = 'v3';
   readonly provider = 'temporal';
-  readonly supportedUrls = {};
   readonly modelId = 'TestModel';
   private generator: Generator<ModelResponse>;
   private done: boolean = false;
@@ -71,15 +64,11 @@ export class TestModel implements LanguageModelV2 {
     this.generator = generator;
   }
 
-  async doGenerate(_: LanguageModelV2CallOptions): Promise<{
-    content: Array<LanguageModelV2Content>;
-    finishReason: LanguageModelV2FinishReason;
-    usage: LanguageModelV2Usage;
-    providerMetadata?: SharedV2ProviderMetadata;
-    request?: { body?: unknown };
-    response?: LanguageModelV2ResponseMetadata & { headers?: SharedV2Headers; body?: unknown };
-    warnings: Array<LanguageModelV2CallWarning>;
-  }> {
+  get supportedUrls(): Record<string, RegExp[]> {
+    return {};
+  }
+
+  async doGenerate(_: LanguageModelV3CallOptions): Promise<LanguageModelV3GenerateResult> {
     if (this.done) {
       throw new Error('Called generate more times than responses given to the test generator');
     }
@@ -89,45 +78,100 @@ export class TestModel implements LanguageModelV2 {
     return result.value;
   }
 
-  doStream(_options: LanguageModelV2CallOptions): PromiseLike<{
-    stream: any;
-    request?: { body?: unknown };
-    response?: { headers?: SharedV2Headers };
-  }> {
+  doStream(_options: LanguageModelV3CallOptions): PromiseLike<LanguageModelV3StreamResult> {
     throw new Error('Streaming not supported.');
   }
 }
 
-export class TestProvider implements ProviderV2 {
-  private generator: Generator<ModelResponse>;
-  constructor(generator: Generator<ModelResponse>) {
+export type EmbeddingResponse = EmbeddingModelV3Result;
+
+export class TestEmbeddingModel implements EmbeddingModelV3 {
+  readonly specificationVersion = 'v3';
+  readonly provider = 'temporal';
+  readonly modelId = 'TestEmbeddingModel';
+  readonly maxEmbeddingsPerCall = undefined;
+  readonly supportsParallelCalls = true;
+  private generator: Generator<EmbeddingResponse>;
+  private done: boolean = false;
+
+  constructor(generator: Generator<EmbeddingResponse>) {
     this.generator = generator;
   }
-  imageModel(_modelId: string): ImageModelV2 {
+
+  async doEmbed(_options: EmbeddingModelV3CallOptions): Promise<EmbeddingModelV3Result> {
+    if (this.done) {
+      throw new Error('Called embed more times than responses given to the test generator');
+    }
+
+    const result = this.generator.next();
+    this.done = result.done ?? false;
+    return result.value;
+  }
+}
+
+export class TestProvider implements ProviderV3 {
+  readonly specificationVersion = 'v3';
+  private languageModelGenerator: Generator<ModelResponse>;
+  private embeddingModelGenerator?: Generator<EmbeddingResponse>;
+
+  constructor(
+    languageModelGenerator: Generator<ModelResponse>,
+    embeddingModelGenerator?: Generator<EmbeddingResponse>
+  ) {
+    this.languageModelGenerator = languageModelGenerator;
+    this.embeddingModelGenerator = embeddingModelGenerator;
+  }
+
+  imageModel(_modelId: string): ImageModelV3 {
     throw new Error('Not implemented');
   }
 
-  languageModel(_modelId: string): LanguageModelV2 {
-    return new TestModel(this.generator);
+  languageModel(_modelId: string): LanguageModelV3 {
+    return new TestModel(this.languageModelGenerator);
   }
 
-  textEmbeddingModel(_modelId: string): EmbeddingModelV2<string> {
+  embeddingModel(_modelId: string): EmbeddingModelV3 {
+    if (!this.embeddingModelGenerator) {
+      throw new Error('Embedding model generator not provided');
+    }
+    return new TestEmbeddingModel(this.embeddingModelGenerator);
+  }
+
+  transcriptionModel(_modelId: string): TranscriptionModelV3 {
     throw new Error('Not implemented');
   }
 }
 
+function createFinishReason(
+  unified: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other'
+): LanguageModelV3FinishReason {
+  return { unified, raw: undefined };
+}
+
+function createUsage(inputTokens: number = 10, outputTokens: number = 20): LanguageModelV3Usage {
+  return {
+    inputTokens: {
+      total: inputTokens,
+      noCache: undefined,
+      cacheRead: undefined,
+      cacheWrite: undefined,
+    },
+    outputTokens: {
+      total: outputTokens,
+      text: undefined,
+      reasoning: undefined,
+    },
+  };
+}
+
 function contentResponse(
-  content: LanguageModelV2Content[],
-  finishReason: LanguageModelV2FinishReason = 'stop'
+  content: LanguageModelV3Content[],
+  finishReason: LanguageModelV3FinishReason = createFinishReason('stop')
 ): ModelResponse {
   return {
     content,
     finishReason,
-    usage: {
-      inputTokens: undefined,
-      outputTokens: undefined,
-      totalTokens: undefined,
-    },
+    usage: createUsage(),
     warnings: [],
   };
 }
@@ -151,12 +195,31 @@ function toolCallResponse(toolName: string, input: string): ModelResponse {
         input,
       },
     ],
-    'tool-calls'
+    createFinishReason('tool-calls')
   );
+}
+
+function embeddingResponse(values: string[]): EmbeddingResponse {
+  // Generate mock embeddings (1536-dimensional vectors like OpenAI's text-embedding-3-small)
+  const embeddings = values.map((_, index) => {
+    const embedding = new Array(1536).fill(0).map((_, i) => Math.sin(index + i * 0.01));
+    return embedding;
+  });
+  return {
+    embeddings,
+    usage: {
+      tokens: values.reduce((acc, v) => acc + v.length, 0),
+    },
+    warnings: [],
+  };
 }
 
 function* helloWorkflowGenerator(): Generator<ModelResponse> {
   yield textResponse('Test Haiku');
+}
+
+function* embeddingGenerator(): Generator<EmbeddingResponse> {
+  yield embeddingResponse(['Hello, world!', 'How are you?']);
 }
 
 const test = makeTestFunction({
@@ -299,6 +362,51 @@ test('Middleware', async (t) => {
     if (!remoteTests) {
       t.is('Test Haiku', result);
     }
+  });
+});
+
+test('Embedding model generates embeddings', async (t) => {
+  if (remoteTests) {
+    t.timeout(120 * 1000);
+  }
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    plugins: [
+      new AiSdkPlugin({
+        modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator(), embeddingGenerator()),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(embeddingWorkflow, {
+      args: [['Hello, world!', 'How are you?']],
+      workflowExecutionTimeout: '30 seconds',
+    });
+
+    const result = await handle.result();
+
+    t.assert(result);
+    t.is(result.count, 2);
+    t.is(result.dimensions, 1536);
+
+    // Check that the embedding activity was scheduled
+    const { events } = await handle.fetchHistory();
+    const activityScheduledEvents =
+      events?.filter((e) => e.eventType === EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED) ?? [];
+
+    // Should have at least 1 event: invokeEmbeddingModel
+    t.assert(
+      activityScheduledEvents.length >= 1,
+      `Expected at least 1 activity scheduled, got ${activityScheduledEvents.length}`
+    );
+
+    // Check that invokeEmbeddingModel activity was called
+    const activityTypes = activityScheduledEvents.map(
+      (e) => e?.activityTaskScheduledEventAttributes?.activityType?.name
+    );
+    t.assert(activityTypes.includes('invokeEmbeddingModel'), 'invokeEmbeddingModel activity should have been called');
   });
 });
 
