@@ -320,9 +320,7 @@ test('Generate object', async (t) => {
   const worker = await createWorker({
     plugins: [
       new AiSdkPlugin({
-        modelProvider: remoteTests
-          ? openai
-          : new TestProvider(generateObjectWorkflowGenerator()),
+        modelProvider: remoteTests ? openai : new TestProvider(generateObjectWorkflowGenerator()),
       }),
     ],
   });
@@ -376,9 +374,7 @@ test('Embedding model generates embeddings', async (t) => {
   const worker = await createWorker({
     plugins: [
       new AiSdkPlugin({
-        modelProvider: remoteTests
-          ? openai
-          : new TestProvider(helloWorkflowGenerator(), embeddingGenerator()),
+        modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator(), embeddingGenerator()),
       }),
     ],
   });

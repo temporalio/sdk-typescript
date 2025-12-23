@@ -1,7 +1,15 @@
 // Test workflow using AI model
 // eslint-disable-next-line import/no-unassigned-import
 import '@temporalio/ai-sdk/lib/load-polyfills';
-import { embedMany, generateObject, generateText, stepCountIs, tool, wrapLanguageModel, type ToolExecutionOptions } from 'ai';
+import {
+  embedMany,
+  generateObject,
+  generateText,
+  stepCountIs,
+  tool,
+  wrapLanguageModel,
+  type ToolExecutionOptions,
+} from 'ai';
 import { z } from 'zod';
 import type { LanguageModelV3Middleware } from '@ai-sdk/provider';
 import { proxyActivities } from '@temporalio/workflow';
