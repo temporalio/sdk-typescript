@@ -122,7 +122,7 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory): ob
       if (tool === undefined) {
         throw ApplicationFailure.retryable(`Tool ${args.name} not found.`);
       }
-      return tool.execute(args.args, args.options as any);
+      return tool.execute(args.args, args.options);
     } finally {
       await mcpClient.close();
     }

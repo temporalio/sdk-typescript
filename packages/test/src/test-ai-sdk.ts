@@ -235,7 +235,7 @@ test('Hello world agent responds in haikus', async (t) => {
   const worker = await createWorker({
     plugins: [
       new AiSdkPlugin({
-        modelProvider: remoteTests ? (openai as unknown as ProviderV3) : new TestProvider(helloWorkflowGenerator()),
+        modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator()),
       }),
     ],
   });
@@ -266,7 +266,7 @@ test('Tools workflow can use AI tools', async (t) => {
   const worker = await createWorker({
     plugins: [
       new AiSdkPlugin({
-        modelProvider: remoteTests ? (openai as unknown as ProviderV3) : new TestProvider(toolsWorkflowGenerator()),
+        modelProvider: remoteTests ? openai : new TestProvider(toolsWorkflowGenerator()),
       }),
     ],
     activities: {
@@ -321,7 +321,7 @@ test('Generate object', async (t) => {
     plugins: [
       new AiSdkPlugin({
         modelProvider: remoteTests
-          ? (openai as unknown as ProviderV3)
+          ? openai
           : new TestProvider(generateObjectWorkflowGenerator()),
       }),
     ],
@@ -349,7 +349,7 @@ test('Middleware', async (t) => {
   const worker = await createWorker({
     plugins: [
       new AiSdkPlugin({
-        modelProvider: remoteTests ? (openai as unknown as ProviderV3) : new TestProvider(helloWorkflowGenerator()),
+        modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator()),
       }),
     ],
   });
@@ -377,7 +377,7 @@ test('Embedding model generates embeddings', async (t) => {
     plugins: [
       new AiSdkPlugin({
         modelProvider: remoteTests
-          ? (openai as unknown as ProviderV3)
+          ? openai
           : new TestProvider(helloWorkflowGenerator(), embeddingGenerator()),
       }),
     ],
@@ -445,7 +445,7 @@ test('Telemetry', async (t) => {
     const worker = await Worker.create({
       plugins: [
         new AiSdkPlugin({
-          modelProvider: remoteTests ? (openai as unknown as ProviderV3) : new TestProvider(helloWorkflowGenerator()),
+          modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator()),
         }),
       ],
       taskQueue: 'test-ai-telemetry',
@@ -509,7 +509,7 @@ test.skip('MCP Use', async (t) => {
   const worker = await createWorker({
     plugins: [
       new AiSdkPlugin({
-        modelProvider: remoteTests ? (openai as unknown as ProviderV3) : new TestProvider(mcpGenerator()),
+        modelProvider: remoteTests ? openai : new TestProvider(mcpGenerator()),
         mcpClientFactories,
       }),
     ],

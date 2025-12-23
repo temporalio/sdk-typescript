@@ -94,7 +94,8 @@ export class TemporalEmbeddingModel implements EmbeddingModelV3 {
    */
   readonly maxEmbeddingsPerCall = undefined;
   /**
-   * Temporal activities can run in parallel, so this is set to true.
+   * Indicates the underlying embedding model API can handle concurrent requests.
+   * Set to true since we delegate to the actual provider which manages its own concurrency.
    */
   readonly supportsParallelCalls = true;
 
