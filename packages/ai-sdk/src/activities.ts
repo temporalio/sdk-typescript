@@ -6,7 +6,7 @@ import type {
   SharedV3Headers,
   ProviderV3,
 } from '@ai-sdk/provider';
-import type { ToolExecutionOptions } from 'ai';
+import type { FlexibleSchema, ToolExecutionOptions } from 'ai';
 import { ApplicationFailure } from '@temporalio/common';
 import type { McpClientFactories, McpClientFactory } from './mcp';
 
@@ -44,17 +44,17 @@ export type InvokeEmbeddingModelResult = EmbeddingModelV3Result;
 
 export interface ListToolResult {
   description?: string;
-  inputSchema: any;
+  inputSchema: FlexibleSchema<unknown>;
 }
 
 export interface ListToolArgs {
-  clientArgs?: any;
+  clientArgs?: unknown;
 }
 
 export interface CallToolArgs {
-  clientArgs?: any;
+  clientArgs?: unknown;
   name: string;
-  args: any;
+  input: unknown;
   options: ToolExecutionOptions;
 }
 
@@ -114,7 +114,7 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory): ob
       await mcpClient.close();
     }
   }
-  async function callToolActivity(args: CallToolArgs): Promise<any> {
+  async function callToolActivity(args: CallToolArgs): Promise<unknown> {
     const mcpClient = await mcpClientFactory(args.clientArgs);
     try {
       const tools = await mcpClient.tools();
@@ -122,7 +122,7 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory): ob
       if (tool === undefined) {
         throw ApplicationFailure.retryable(`Tool ${args.name} not found.`);
       }
-      return tool.execute(args.args, args.options);
+      return tool.execute(args.input, args.options);
     } finally {
       await mcpClient.close();
     }
