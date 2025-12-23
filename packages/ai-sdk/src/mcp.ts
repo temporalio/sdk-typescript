@@ -1,5 +1,4 @@
-import type { ToolSet } from 'ai';
-import { jsonSchema } from 'ai';
+import { jsonSchema, type ToolSet } from 'ai';
 import type { JSONSchema7 } from '@ai-sdk/provider';
 import type { experimental_MCPClient as MCPClient } from '@ai-sdk/mcp';
 import * as workflow from '@temporalio/workflow';

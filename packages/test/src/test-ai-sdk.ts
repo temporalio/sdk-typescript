@@ -23,7 +23,7 @@ import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { ExportResultCode } from '@opentelemetry/core';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
-import { AiSdkPlugin, McpClientFactory } from '@temporalio/ai-sdk';
+import { AiSdkPlugin } from '@temporalio/ai-sdk';
 import { temporal } from '@temporalio/proto';
 import { WorkflowClient } from '@temporalio/client';
 import {
