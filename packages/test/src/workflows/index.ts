@@ -59,6 +59,7 @@ export * from './promise-then-promise';
 export * from './race';
 export * from './random';
 export * from './reject-promise';
+export * from './reusable-vm-disposal-bug';
 export * from './run-activity-in-different-task-queue';
 export * from './scope-cancelled-while-waiting-on-external-workflow-cancellation';
 export * from './set-timeout-after-microtasks';

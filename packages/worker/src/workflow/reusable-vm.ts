@@ -210,6 +210,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
    * Cleanup the pre-compiled script
    */
   public async destroy(): Promise<void> {
+    // TODO: disable AsyncLocalStorage used for cancellation/update scopes
     globalHandlers.removeWorkflowBundle(this.workflowBundle);
     delete this._context;
   }

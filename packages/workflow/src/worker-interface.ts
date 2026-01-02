@@ -6,8 +6,6 @@
 import { encodeVersioningBehavior, IllegalStateError, WorkflowFunctionWithOptions } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
-import { disableStorage } from './cancellation-scope';
-import { disableUpdateStorage } from './update-scope';
 import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowCreateOptionsInternal } from './interfaces';
 import { Activator } from './internals';
@@ -256,10 +254,7 @@ export function dispose(): void {
   const activator = getActivator();
   activator.rethrowSynchronously = true;
   try {
-    const dispose = composeInterceptors(activator.interceptors.internals, 'dispose', async () => {
-      disableStorage();
-      disableUpdateStorage();
-    });
+    const dispose = composeInterceptors(activator.interceptors.internals, 'dispose', async () => {});
     dispose({});
   } finally {
     activator.rethrowSynchronously = false;
