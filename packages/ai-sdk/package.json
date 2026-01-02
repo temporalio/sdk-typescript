@@ -9,7 +9,8 @@
     "workflow",
     "ai",
     "ai-sdk",
-    "llm"
+    "llm",
+    "embeddings"
   ],
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
@@ -21,9 +22,9 @@
     "web-streams-polyfill": "^4.2.0"
   },
   "peerDependencies": {
-    "@ai-sdk/mcp": "^0.0.8",
-    "@ai-sdk/provider": "^2.0.0",
-    "ai": "^5.0.91"
+    "@ai-sdk/mcp": "^1.0.0",
+    "@ai-sdk/provider": "^3.0.0",
+    "ai": "^6.0.0"
   },
   "engines": {
     "node": ">= 18.0.0"

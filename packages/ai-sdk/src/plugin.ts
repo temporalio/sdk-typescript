@@ -1,4 +1,4 @@
-import type { ProviderV2 } from '@ai-sdk/provider';
+import type { ProviderV3 } from '@ai-sdk/provider';
 import { SimplePlugin } from '@temporalio/plugin';
 import { createActivities } from './activities';
 import type { McpClientFactories } from './mcp';
@@ -9,7 +9,7 @@ import type { McpClientFactories } from './mcp';
  * @experimental The AI SDK plugin is an experimental feature; APIs may change without notice.
  */
 export interface AiSdkPluginOptions {
-  modelProvider: ProviderV2;
+  modelProvider: ProviderV3;
 
   /**
    * This object contains a mapping of server names to functions which create MCP clients.
