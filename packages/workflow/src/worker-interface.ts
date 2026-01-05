@@ -10,6 +10,8 @@ import { WorkflowInterceptorsFactory } from './interceptors';
 import { WorkflowCreateOptionsInternal } from './interfaces';
 import { Activator } from './internals';
 import { setActivatorUntyped, getActivator } from './global-attributes';
+import { disableStorage } from './cancellation-scope';
+import { disableUpdateStorage } from './update-scope';
 
 // Export the type for use on the "worker" side
 export { PromiseStackStore } from './internals';
@@ -259,6 +261,11 @@ export function dispose(): void {
   } finally {
     activator.rethrowSynchronously = false;
   }
+}
+
+export function destroy(): void {
+  disableStorage();
+  disableUpdateStorage();
 }
 
 function isWorkflowFunctionWithOptions(obj: any): obj is WorkflowFunctionWithOptions<any[], any> {

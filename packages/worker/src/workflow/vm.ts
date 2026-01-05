@@ -126,6 +126,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
 export class VMWorkflow extends BaseVMWorkflow {
   public async dispose(): Promise<void> {
     this.workflowModule.dispose();
+    this.workflowModule.destroy();
     VMWorkflowCreator.workflowByRunId.delete(this.runId);
     delete this.context;
   }
