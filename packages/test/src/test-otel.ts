@@ -15,10 +15,11 @@ import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import type * as workflowImportStub from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports';
 import type * as workflowImportImpl from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports-impl';
-import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor } from '@temporalio/client';
+import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor, Client } from '@temporalio/client';
 import {
   OpenTelemetryPlugin,
   OpenTelemetryWorkflowClientCallsInterceptor,
+  OpenTelemetryWorkflowClientInterceptor,
 } from '@temporalio/interceptors-opentelemetry';
 import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
 import {

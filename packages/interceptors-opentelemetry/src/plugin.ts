@@ -9,6 +9,7 @@ import {
   OpenTelemetryActivityOutboundInterceptor,
 } from './worker';
 import { OpenTelemetrySinks } from './workflow';
+import { OpenTelemetryWorkflowClientCallsInterceptor } from '.';
 
 export interface OpenTelemetryPluginOptions {
   readonly resource: Resource;
@@ -23,6 +24,9 @@ export class OpenTelemetryPlugin extends SimplePlugin {
         workflow: [new OpenTelemetryWorkflowClientInterceptor()],
       },
       workerInterceptors: {
+        client: {
+          workflow: [new OpenTelemetryWorkflowClientCallsInterceptor()],
+        },
         workflowModules: [require.resolve('./workflow-interceptors')],
         activity: [
           (ctx) => ({
@@ -45,4 +49,3 @@ export class OpenTelemetryPlugin extends SimplePlugin {
     return super.configureWorker(options);
   }
 }
-
