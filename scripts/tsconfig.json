@@ -1,0 +1,12 @@
+{
+  "extends": "@tsconfig/node18/tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "types": ["node"],
+    "rootDir": "../",
+    "noEmit": true,
+    "resolveJsonModule": true
+  },
+  "include": ["./script/*.ts", "./../packages/*/scripts/*.ts"]
+}

@@ -1,17 +1,23 @@
-const path = require('path');
-const { tmpdir } = require('os');
-const { mkdtemp } = require('fs-extra');
-const arg = require('arg');
-const { runServer } = require('verdaccio');
-const { mkdirSync } = require('fs');
+import path from 'node:path';
+import { tmpdir } from 'node:os';
+import { mkdirSync } from 'node:fs';
+import { mkdtemp } from 'fs-extra';
+import arg from 'arg';
+import { runServer } from 'verdaccio';
+
+interface VerdaccioServer {
+  listen: (port: number, callback: () => void) => void;
+  on: (event: string, listener: (...args: any[]) => void) => void;
+  close: () => Promise<void>;
+}
 
 class Registry {
-  constructor(app, workdir) {
-    this.app = app;
-    this.workdir = workdir;
-  }
+  constructor(
+    public readonly app: VerdaccioServer,
+    public readonly workdir: string
+  ) {}
 
-  static async create(workdir) {
+  static async create(workdir: string): Promise<Registry> {
     mkdirSync(workdir, { recursive: true });
 
     const app = await runServer({
@@ -38,7 +44,7 @@ class Registry {
       max_body_size: '200mb',
     });
 
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       try {
         app.listen(4873, resolve);
         app.on('error', reject);
@@ -55,7 +61,7 @@ class Registry {
   }
 }
 
-async function withRegistry(testDir, fn) {
+export async function withRegistry(testDir: string, fn: () => Promise<void>): Promise<void> {
   console.log('Starting local registry');
   const registry = await Registry.create(testDir);
   try {
@@ -79,7 +85,7 @@ async function createTempRegistryDir() {
 /**
  * Parse and return command line arguments
  */
-async function getArgs() {
+export async function getArgs(): Promise<{ registryDir: string; targetDir: string; initArgs: string[] }> {
   const opts = arg(
     {
       '--registry-dir': String,
@@ -91,5 +97,3 @@ async function getArgs() {
   const targetDir = opts['--target-dir'] ?? path.join(registryDir, 'example');
   return { registryDir, targetDir, initArgs: opts._.length > 0 ? opts._ : [] };
 }
-
-module.exports = { getArgs, withRegistry };

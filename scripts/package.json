@@ -1,0 +1,17 @@
+{
+  "name": "scripts",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Internal scripts for TS SDK repository",
+  "scripts": {
+    "build": "tsc --noEmit"
+  },
+  "keywords": [
+    "temporal",
+    "workflow",
+    "core",
+    "worker"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT"
+}

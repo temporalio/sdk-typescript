@@ -93,13 +93,10 @@ If building fails, resetting your environment may help:
 pnpm dlx lerna clean -y && pnpm install --frozen-lockfile
 ```
 
-If `pnpm install` fails in `@temporalio/core-bridge` on the command `node ./scripts/build.js`, you may
+If `pnpm install` fails in `@temporalio/core-bridge` on the command `pnpm tsx ./scripts/build.ts`, you may
 need to do `rustup update`.
 
-To update to the latest version of the Core SDK, run `git submodule update` followed by `npm run build` to recompile.
-
-> For cross compilation on MacOS follow [these instructions](https://github.com/temporalio/sdk-typescript/blob/main/docs/building.md)
-> (only required for publishing packages).
+To update to the latest version of the Core SDK, run `git submodule update` followed by `pnpm run build` to recompile.
 
 ## Development
 
@@ -135,14 +132,17 @@ To replicate the `test-npm-init` CI test locally, you can start with the below s
 > If you've run `npx @temporalio/create` before, you may need to delete the version of the package that's stored in `~/.npm/_npx/`.
 
 ```
-rm -rf /tmp/registry
 pnpm install --frozen-lockfile
 pnpm run rebuild
-node scripts/publish-to-verdaccio.js --registry-dir /tmp/registry
-node scripts/init-from-verdaccio.js --registry-dir /tmp/registry --sample hello-world
-cd /tmp/registry/example
-npm run build
-node ~/path-to/sdk-typescript/scripts/test-example.js --work-dir /tmp/registry/example
+
+TMP_DIR=$( mktemp -d )
+
+pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir "$TMP_DIR"
+pnpm tsx scripts/init-from-verdaccio.ts --registry-dir "$TMP_DIR" --sample hello-world
+
+cd "$TMP_DIR/example"
+pnpm run build
+pnpm tsx scripts/test-example.ts --work-dir "$TMP_DIR/example"
 ```
 
 ### Style Guide
@@ -195,7 +195,9 @@ To install both tools: `npm i -g npm-check npm-check-updates`.
 
 ## Publishing
 
-First, follow the instructions in [docs/building.md](docs/building.md).
+First, download the latest native artifacts from GitHub Actions.
+
+Then run the following commands:
 
 ```sh
 cargo install git-cliff
@@ -249,7 +251,7 @@ ls packages/core-bridge/releases/
 pnpm exec lerna version patch --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
 
 git checkout -B fix-deps
-node scripts/prepublish.mjs
+pnpm tsx scripts/prepublish.ts
 git commit -am 'Fix dependencies'
 pnpm exec lerna publish from-package # add `--dist-tag next` for pre-release versions
 git checkout -
