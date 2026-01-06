@@ -2,11 +2,15 @@
  * Sets global variables required for importing opentelemetry in isolate
  * @module
  */
-import { getWorkflowModuleIfAvailable } from './workflow-module-loader';
 
-const inWorkflowContext = getWorkflowModuleIfAvailable()?.inWorkflowContext;
+// Check if we're in workflow context by looking for the activator.
+// This is set by initRuntime() before interceptors are loaded.
+const inWorkflowContext = (globalThis as any).__TEMPORAL_ACTIVATOR__ !== undefined;
 
-if (inWorkflowContext?.()) {
+// Export to make this a valid ES module (required by eslint import/unambiguous)
+export {};
+
+if (inWorkflowContext) {
   // Required by opentelemetry (pretend to be a browser)
   Object.assign(globalThis, {
     performance: {

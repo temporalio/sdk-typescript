@@ -1,17 +1,12 @@
 import { type AsyncLocalStorage } from 'async_hooks';
 import * as otel from '@opentelemetry/api';
-import { ensureWorkflowModuleLoaded } from './workflow-module-loader';
 
 export class ContextManager implements otel.ContextManager {
   // The workflow sandbox provides AsyncLocalStorage through globalThis.
   protected storage: AsyncLocalStorage<otel.Context> = new (globalThis as any).AsyncLocalStorage();
 
-  public constructor() {
-    ensureWorkflowModuleLoaded();
-  }
-
   active(): otel.Context {
-    return this.storage!.getStore() || otel.ROOT_CONTEXT;
+    return this.storage.getStore() || otel.ROOT_CONTEXT;
   }
 
   bind<T>(context: otel.Context, target: T): T {
@@ -42,7 +37,7 @@ export class ContextManager implements otel.ContextManager {
   }
 
   disable(): this {
-    this.storage!.disable();
+    this.storage.disable();
     return this;
   }
 
@@ -53,6 +48,6 @@ export class ContextManager implements otel.ContextManager {
     ...args: A
   ): ReturnType<F> {
     const cb = thisArg == null ? fn : fn.bind(thisArg);
-    return this.storage!.run(context, cb, ...args);
+    return this.storage.run(context, cb, ...args);
   }
 }

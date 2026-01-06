@@ -4,7 +4,7 @@ import path from 'node:path';
 import util from 'node:util';
 import * as unionfs from 'unionfs';
 import * as memfs from 'memfs';
-import { Configuration, webpack } from 'webpack';
+import { Configuration, webpack, NormalModuleReplacementPlugin } from 'webpack';
 import { DefaultLogger, Logger, hasColorSupport } from '../logger';
 import { toMB } from '../utils';
 
@@ -216,6 +216,13 @@ exports.importInterceptors = function importInterceptors() {
           ...Object.fromEntries([...this.ignoreModules, ...disallowedModules].map((m) => [m, false])),
         },
       },
+      plugins: [
+        // Replace the workflow-imports stub with the real implementation
+        new NormalModuleReplacementPlugin(
+          /[\\/]interceptors-opentelemetry[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
+          path.resolve(__dirname, 'otel-workflow-imports.js')
+        ),
+      ],
       externals: captureProblematicModules,
       module: {
         rules: [
