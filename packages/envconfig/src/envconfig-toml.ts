@@ -295,7 +295,7 @@ function envVarToBool(envVar?: string): boolean | undefined {
 }
 
 const DEFAULT_CONFIG_FILE_PROFILE = 'default';
-const DEFAULT_CONFIG_FILE = 'config.toml';
+const DEFAULT_CONFIG_FILE = 'temporal.toml';
 
 function getDefaultConfigFilePath(): string {
   const configDir = getUserConfigDir();
