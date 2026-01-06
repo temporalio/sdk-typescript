@@ -3,44 +3,40 @@
  *
  * This module provides stubs for workflow functionality needed by interceptors.
  * When bundled by the workflow bundler, this is replaced with the real
- * implementation via module-overrides.
+ * implementation via NormalModuleReplacementPlugin.
  *
  * @module
  */
 import type {
-  WorkflowInfo,
-  Sinks,
+  inWorkflowContext as inWorkflowContextT,
+  workflowInfo as workflowInfoT,
+  proxySinks as proxySinksT,
   AsyncLocalStorage as AsyncLocalStorageT,
   ContinueAsNew as ContinueAsNewT,
 } from '@temporalio/workflow';
-import type { Activator } from '@temporalio/workflow/lib/internals';
+import type { getActivator as getActivatorT } from '@temporalio/workflow/lib/global-attributes';
 import type { SdkFlags as SdkFlagsT } from '@temporalio/workflow/lib/flags';
 
 import { IllegalStateError } from '@temporalio/common';
 
-/** Stub: always returns false outside workflow context */
-export function inWorkflowContext(): boolean {
-  return false;
-}
+// always returns false since if using this implementation, we are outside of workflow context
+export const inWorkflowContext: typeof inWorkflowContextT = () => false;
 
-/** Stub: throws outside workflow context */
-export function workflowInfo(): WorkflowInfo {
+// All of the following stubs will throw if used
+export const workflowInfo: typeof workflowInfoT = () => {
   throw new IllegalStateError('Workflow.workflowInfo(...) may only be used from a Workflow Execution.');
-}
+};
 
-/** Stub: ContinueAsNew error class */
-export const ContinueAsNew = {} as typeof ContinueAsNewT;
+export const ContinueAsNew = class ContinueAsNew {} as unknown as typeof ContinueAsNewT;
 
-/** Stub: no-op AsyncLocalStorage */
-export const AsyncLocalStorage = {} as typeof AsyncLocalStorageT;
+export const AsyncLocalStorage = class AsyncLocalStorage {} as unknown as typeof AsyncLocalStorageT;
 
-export function getActivator(): Activator {
+export const getActivator: typeof getActivatorT = () => {
   throw new IllegalStateError('Workflow uninitialized');
-}
+};
 
-/** Stub: throws outside workflow context */
-export function proxySinks<T extends Sinks>(): T {
+export const proxySinks: typeof proxySinksT = () => {
   throw new IllegalStateError('Proxied sinks functions may only be used from a Workflow Execution.');
-}
+};
 
-export const SdkFlags = {} as typeof SdkFlagsT;
+export const SdkFlags: typeof SdkFlagsT = {} as typeof SdkFlagsT;

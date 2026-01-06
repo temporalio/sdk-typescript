@@ -4,9 +4,13 @@ import { OpenTelemetrySinks, SerializableSpan } from './definitions';
 import { proxySinks } from './workflow-imports';
 
 export class SpanExporter implements tracing.SpanExporter {
+  private exporter?: OpenTelemetrySinks['exporter'];
+
   public export(spans: tracing.ReadableSpan[], resultCallback: (result: ExportResult) => void): void {
-    const exporter = proxySinks<OpenTelemetrySinks>().exporter;
-    exporter.export(spans.map((span) => this.makeSerializable(span)));
+    if (!this.exporter) {
+      this.exporter = proxySinks<OpenTelemetrySinks>().exporter;
+    }
+    this.exporter.export(spans.map((span) => this.makeSerializable(span)));
     resultCallback({ code: ExportResultCode.SUCCESS });
   }
 
