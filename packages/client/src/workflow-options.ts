@@ -1,14 +1,16 @@
-import {
+import type {
   CommonWorkflowOptions,
   SignalDefinition,
   WithWorkflowArgs,
   Workflow,
   VersioningOverride,
-  toCanonicalString,
 } from '@temporalio/common';
-import { Duration, msOptionalToTs } from '@temporalio/common/lib/time';
-import { Replace } from '@temporalio/common/lib/type-helpers';
-import { google, temporal } from '@temporalio/proto';
+import { toCanonicalString } from '@temporalio/common';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msOptionalToTs } from '@temporalio/common/lib/time';
+import type { Replace } from '@temporalio/common/lib/type-helpers';
+import type { google } from '@temporalio/proto';
+import { temporal } from '@temporalio/proto';
 
 export * from '@temporalio/common/lib/workflow-options';
 

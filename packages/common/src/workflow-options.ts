@@ -1,11 +1,11 @@
 import type { temporal } from '@temporalio/proto';
-import { Workflow } from './interfaces';
-import { RetryPolicy } from './retry-policy';
-import { Duration } from './time';
+import type { Workflow } from './interfaces';
+import type { RetryPolicy } from './retry-policy';
+import type { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
-import { SearchAttributePair, SearchAttributes, TypedSearchAttributes } from './search-attributes';
-import { Priority } from './priority';
-import { WorkflowFunctionWithOptions } from './workflow-definition-options';
+import type { SearchAttributePair, SearchAttributes, TypedSearchAttributes } from './search-attributes';
+import type { Priority } from './priority';
+import type { WorkflowFunctionWithOptions } from './workflow-definition-options';
 
 /**
  * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.

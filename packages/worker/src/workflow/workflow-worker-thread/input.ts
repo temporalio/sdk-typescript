@@ -1,6 +1,6 @@
 import type { RawSourceMap } from 'source-map';
-import { coresdk } from '@temporalio/proto';
-import { WorkflowCreateOptions } from '../interface';
+import type { coresdk } from '@temporalio/proto';
+import type { WorkflowCreateOptions } from '../interface';
 
 export interface WorkflowBundleWithSourceMapAndFilename {
   code: string;

@@ -1,4 +1,4 @@
-import { BaseWorkflowHandle, SignalDefinition, Workflow } from '@temporalio/common';
+import type { BaseWorkflowHandle, SignalDefinition, Workflow } from '@temporalio/common';
 
 /**
  * Handle representing an external Workflow Execution.

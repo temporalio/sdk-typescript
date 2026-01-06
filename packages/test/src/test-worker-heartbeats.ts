@@ -1,9 +1,10 @@
 import test from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
 import { v4 as uuid4 } from 'uuid';
-import { coresdk } from '@temporalio/proto';
+import type { coresdk } from '@temporalio/proto';
 import { Context } from '@temporalio/activity';
-import { isolateFreeWorker, Worker } from './mock-native-worker';
+import type { Worker } from './mock-native-worker';
+import { isolateFreeWorker } from './mock-native-worker';
 
 async function runActivity(worker: Worker, callback?: (completion: coresdk.ActivityTaskCompletion) => void) {
   const taskToken = Buffer.from(uuid4());

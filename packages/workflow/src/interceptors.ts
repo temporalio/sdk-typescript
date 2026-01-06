@@ -4,18 +4,17 @@
  * @module
  */
 
-import {
+import type {
   ActivityOptions,
   Duration,
-  Headers,
   LocalActivityOptions,
   MetricTags,
-  Next,
   Timestamp,
   WorkflowExecution,
 } from '@temporalio/common';
+import { Headers, Next } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
-import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
+import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 
 export { Next, Headers };
 

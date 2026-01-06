@@ -14,7 +14,7 @@
  * @module
  */
 
-import { WorkflowInfo } from './interfaces';
+import type { WorkflowInfo } from './interfaces';
 import { assertInWorkflowContext } from './global-attributes';
 
 /**

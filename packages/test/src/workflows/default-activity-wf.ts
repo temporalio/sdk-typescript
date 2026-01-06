@@ -1,9 +1,8 @@
 import { proxyActivities } from '@temporalio/workflow';
-import { NameAndArgs } from '../activities/default-and-defined';
 import type * as activities from '../activities/default-and-defined';
 
 const { definedActivity, nonExistentActivity } = proxyActivities<
-  typeof activities & { nonExistentActivity: (...args: unknown[]) => Promise<NameAndArgs> }
+  typeof activities & { nonExistentActivity: (...args: unknown[]) => Promise<activities.NameAndArgs> }
 >({
   startToCloseTimeout: '30 seconds',
 });
@@ -11,7 +10,7 @@ const { definedActivity, nonExistentActivity } = proxyActivities<
 export async function workflowWithMaybeDefinedActivity(
   useDefinedActivity: boolean,
   activityArgs: unknown[]
-): Promise<NameAndArgs> {
+): Promise<activities.NameAndArgs> {
   if (useDefinedActivity) {
     return await definedActivity(...activityArgs);
   }

@@ -1,5 +1,7 @@
-import anyTest, { TestFn, ExecutionContext } from 'ava';
-import { Observable, Subject, firstValueFrom } from 'rxjs';
+import type { TestFn, ExecutionContext } from 'ava';
+import anyTest from 'ava';
+import type { Observable } from 'rxjs';
+import { Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { v4 as uuid4 } from 'uuid';
 import {
@@ -9,7 +11,7 @@ import {
   WorkflowFailedError,
   Connection,
 } from '@temporalio/client';
-import { Info } from '@temporalio/activity';
+import type { Info } from '@temporalio/activity';
 import { rootCause } from '@temporalio/common';
 import { isCancellation } from '@temporalio/workflow';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';

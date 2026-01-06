@@ -3,13 +3,14 @@
  *
  * @module
  */
-import { encodeVersioningBehavior, IllegalStateError, WorkflowFunctionWithOptions } from '@temporalio/common';
+import type { WorkflowFunctionWithOptions } from '@temporalio/common';
+import { encodeVersioningBehavior, IllegalStateError } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { coresdk } from '@temporalio/proto';
+import type { coresdk } from '@temporalio/proto';
 import { disableStorage } from './cancellation-scope';
 import { disableUpdateStorage } from './update-scope';
-import { WorkflowInterceptorsFactory } from './interceptors';
-import { WorkflowCreateOptionsInternal } from './interfaces';
+import type { WorkflowInterceptorsFactory } from './interceptors';
+import type { WorkflowCreateOptionsInternal } from './interfaces';
 import { Activator } from './internals';
 import { setActivatorUntyped, getActivator } from './global-attributes';
 

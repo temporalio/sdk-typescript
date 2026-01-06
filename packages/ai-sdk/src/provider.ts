@@ -7,9 +7,9 @@ import type {
   SharedV2Headers,
 } from '@ai-sdk/provider';
 import * as workflow from '@temporalio/workflow';
-import { ActivityOptions } from '@temporalio/workflow';
+import type { ActivityOptions } from '@temporalio/workflow';
 import { ApplicationFailure } from '@temporalio/common';
-import { InvokeModelResult } from './activities';
+import type { InvokeModelResult } from './activities';
 
 /**
  * A language model implementation that delegates AI model calls to Temporal activities.

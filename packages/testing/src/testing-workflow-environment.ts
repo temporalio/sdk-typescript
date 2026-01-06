@@ -1,24 +1,19 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
-import {
-  AsyncCompletionClient,
-  Client,
-  ClientPlugin,
-  Connection,
-  ConnectionPlugin,
-  WorkflowClient,
-} from '@temporalio/client';
-import {
-  ConnectionOptions,
-  InternalConnectionOptions,
-  InternalConnectionOptionsSymbol,
-} from '@temporalio/client/lib/connection';
-import { Duration, TypedSearchAttributes } from '@temporalio/common';
+import type { AsyncCompletionClient, ClientPlugin, ConnectionPlugin, WorkflowClient } from '@temporalio/client';
+import { Client, Connection } from '@temporalio/client';
+import type { ConnectionOptions, InternalConnectionOptions } from '@temporalio/client/lib/connection';
+import { InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
+import type { Duration } from '@temporalio/common';
+import { TypedSearchAttributes } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
-import { NativeConnection, NativeConnectionPlugin, NativeConnectionOptions, Runtime } from '@temporalio/worker';
+import type { NativeConnectionPlugin, NativeConnectionOptions } from '@temporalio/worker';
+import { NativeConnection, Runtime } from '@temporalio/worker';
 import { native } from '@temporalio/core-bridge';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
-import { toNativeEphemeralServerConfig, DevServerConfig, TimeSkippingServerConfig } from './ephemeral-server';
-import { ClientOptionsForTestEnv, TimeSkippingClient } from './client';
+import type { DevServerConfig, TimeSkippingServerConfig } from './ephemeral-server';
+import { toNativeEphemeralServerConfig } from './ephemeral-server';
+import type { ClientOptionsForTestEnv } from './client';
+import { TimeSkippingClient } from './client';
 
 /**
  * Options for {@link TestWorkflowEnvironment.createLocal}

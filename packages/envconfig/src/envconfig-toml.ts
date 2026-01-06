@@ -1,10 +1,11 @@
 import { readFileSync } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { parse, stringify, TomlTable } from 'smol-toml';
+import type { TomlTable } from 'smol-toml';
+import { parse, stringify } from 'smol-toml';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow/objects-helpers';
 import { decode, encode } from '@temporalio/common/lib/encoding';
-import { ConfigDataSource, LoadClientConfigOptions, LoadClientProfileOptions } from './types';
+import type { ConfigDataSource, LoadClientConfigOptions, LoadClientProfileOptions } from './types';
 
 export function normalizeGrpcMetaKey(key: string): string {
   return key.toLocaleLowerCase().replace('_', '-');

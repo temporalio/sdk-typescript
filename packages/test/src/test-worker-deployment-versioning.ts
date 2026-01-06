@@ -6,12 +6,14 @@
 import assert from 'assert';
 import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
-import { ExecutionContext } from 'ava';
-import { Client } from '@temporalio/client';
-import { toCanonicalString, WorkerDeploymentVersion } from '@temporalio/common';
+import type { ExecutionContext } from 'ava';
+import type { Client } from '@temporalio/client';
+import type { WorkerDeploymentVersion } from '@temporalio/common';
+import { toCanonicalString } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { Worker } from './helpers';
-import { Context, helpers, makeTestFunction } from './helpers-integration';
+import type { Context } from './helpers-integration';
+import { helpers, makeTestFunction } from './helpers-integration';
 import { unblockSignal, versionQuery } from './workflows';
 
 const test = makeTestFunction({ workflowsPath: __filename });

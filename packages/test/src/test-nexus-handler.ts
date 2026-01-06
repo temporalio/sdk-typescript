@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import anyTest, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import Long from 'long';
 import * as nexus from 'nexus-rpc';
 import * as protoJsonSerializer from 'proto3-json-serializer';
 import * as temporalnexus from '@temporalio/nexus';
-import * as temporalclient from '@temporalio/client';
+import type * as temporalclient from '@temporalio/client';
 import * as root from '@temporalio/proto';
 import * as testing from '@temporalio/testing';
-import { DefaultLogger, LogEntry, Runtime, Worker } from '@temporalio/worker';
+import type { LogEntry } from '@temporalio/worker';
+import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import {
   ApplicationFailure,
   CancelledFailure,

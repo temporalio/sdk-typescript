@@ -5,10 +5,8 @@ import test from 'ava';
 import dedent from 'dedent';
 import { Connection, Client } from '@temporalio/client';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
+import type { ClientConfig, ClientConfigProfile, ConfigDataSource } from '@temporalio/envconfig';
 import {
-  ClientConfig,
-  ClientConfigProfile,
-  ConfigDataSource,
   fromTomlConfig,
   fromTomlProfile,
   loadClientConfig,

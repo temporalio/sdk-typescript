@@ -2,8 +2,9 @@
  * Tests continueAsNew to another Workflow
  * @module
  */
-import { ContinueAsNewOptions, makeContinueAsNewFunc } from '@temporalio/workflow';
-import { sleeper } from './sleep';
+import type { ContinueAsNewOptions } from '@temporalio/workflow';
+import { makeContinueAsNewFunc } from '@temporalio/workflow';
+import type { sleeper } from './sleep';
 
 export async function continueAsNewToDifferentWorkflow(
   ms = 1,

@@ -1,3 +1,4 @@
+import type { WorkflowInterceptors } from '@temporalio/workflow';
 import {
   ApplicationFailure,
   condition,
@@ -8,7 +9,6 @@ import {
   setHandler,
   sleep,
   startChild,
-  WorkflowInterceptors,
 } from '@temporalio/workflow';
 import { echo } from './configured-activities';
 

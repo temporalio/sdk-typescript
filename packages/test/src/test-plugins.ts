@@ -1,15 +1,16 @@
 import { randomUUID } from 'crypto';
-import anyTest, { TestFn } from 'ava';
-import { Client, ClientOptions, ConnectionPlugin, ClientPlugin as ClientPlugin } from '@temporalio/client';
-import {
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
+import type { ClientOptions, ConnectionPlugin, ClientPlugin as ClientPlugin } from '@temporalio/client';
+import { Client } from '@temporalio/client';
+import type {
   WorkerOptions,
   WorkerPlugin as WorkerPlugin,
-  Worker,
   BundlerPlugin,
   BundleOptions,
-  bundleWorkflowCode,
   NativeConnectionPlugin,
 } from '@temporalio/worker';
+import { Worker, bundleWorkflowCode } from '@temporalio/worker';
 import { SimplePlugin } from '@temporalio/plugin';
 import { activityWorkflow, helloWorkflow } from './workflows/plugins';
 import { TestWorkflowEnvironment } from './helpers';

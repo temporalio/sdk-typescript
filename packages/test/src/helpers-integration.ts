@@ -1,35 +1,29 @@
 import { randomUUID } from 'crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { ErrorConstructor, ExecutionContext, TestFn } from 'ava';
-import {
-  isGrpcServiceError,
-  WorkflowFailedError,
-  WorkflowHandle,
-  WorkflowHandleWithFirstExecutionRunId,
-  WorkflowStartOptions,
-  WorkflowUpdateFailedError,
-} from '@temporalio/client';
-import {
-  LocalTestWorkflowEnvironmentOptions,
-  workflowInterceptorModules as defaultWorkflowInterceptorModules,
-} from '@temporalio/testing';
-import {
-  DefaultLogger,
+import type { ErrorConstructor, ExecutionContext, TestFn } from 'ava';
+import type { WorkflowHandle, WorkflowHandleWithFirstExecutionRunId, WorkflowStartOptions } from '@temporalio/client';
+import { isGrpcServiceError, WorkflowFailedError, WorkflowUpdateFailedError } from '@temporalio/client';
+import type { LocalTestWorkflowEnvironmentOptions } from '@temporalio/testing';
+import { workflowInterceptorModules as defaultWorkflowInterceptorModules } from '@temporalio/testing';
+import type {
   LogEntry,
   LogLevel,
-  NativeConnection,
   NativeConnectionOptions,
   ReplayWorkerOptions,
-  Runtime,
   RuntimeOptions,
   WorkerOptions,
   WorkflowBundle,
   WorkflowBundleWithSourceMap,
+} from '@temporalio/worker';
+import {
+  DefaultLogger,
+  NativeConnection,
+  Runtime,
   bundleWorkflowCode,
   makeTelemetryFilterString,
 } from '@temporalio/worker';
-import * as workflow from '@temporalio/workflow';
-import { temporal } from '@temporalio/proto';
+import type * as workflow from '@temporalio/workflow';
+import type { temporal } from '@temporalio/proto';
 import { defineSearchAttributeKey, SearchAttributeType } from '@temporalio/common/lib/search-attributes';
 import { Worker, TestWorkflowEnvironment, test as anyTest, bundlerOptions } from './helpers';
 

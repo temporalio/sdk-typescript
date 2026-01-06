@@ -1,28 +1,32 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
-import { asyncLocalStorage, CompleteAsyncError, Context, Info } from '@temporalio/activity';
-import {
+import type { Info } from '@temporalio/activity';
+import { asyncLocalStorage, CompleteAsyncError, Context } from '@temporalio/activity';
+import type {
   ActivityCancellationDetails,
   ActivityFunction,
+  LoadedDataConverter,
+  MetricMeter,
+  MetricTags,
+} from '@temporalio/common';
+import {
   ApplicationFailure,
   ApplicationFailureCategory,
   CancelledFailure,
   ensureApplicationFailure,
   FAILURE_SOURCE,
   IllegalStateError,
-  LoadedDataConverter,
-  MetricMeter,
-  MetricTags,
   SdkComponent,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
-import { Logger, LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
+import type { Logger } from '@temporalio/common/lib/logger';
+import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
 import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
-import { Client } from '@temporalio/client';
-import { coresdk } from '@temporalio/proto';
-import { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
-import {
+import type { Client } from '@temporalio/client';
+import type { coresdk } from '@temporalio/proto';
+import type { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
+import type {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
   ActivityInterceptorsFactory,

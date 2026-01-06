@@ -3,15 +3,10 @@ import { ensureTemporalFailure } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayloads } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
-import {
-  BaseClient,
-  BaseClientOptions,
-  defaultBaseClientOptions,
-  LoadedWithDefaults,
-  WithDefaults,
-} from './base-client';
+import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
+import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { isGrpcServiceError } from './errors';
-import { WorkflowService } from './types';
+import type { WorkflowService } from './types';
 import { rethrowKnownErrorTypes } from './helpers';
 
 /**

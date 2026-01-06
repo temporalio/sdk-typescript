@@ -1,5 +1,6 @@
 import test from 'ava';
-import { DefaultLogger, LogEntry } from '@temporalio/worker';
+import type { LogEntry } from '@temporalio/worker';
+import { DefaultLogger } from '@temporalio/worker';
 
 test('DefaultLogger logs messages according to configured level', (t) => {
   const logs: Array<Omit<LogEntry, 'timestampNanos'>> = [];

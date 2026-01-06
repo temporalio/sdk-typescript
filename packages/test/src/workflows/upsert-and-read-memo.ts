@@ -1,5 +1,5 @@
 import { upsertMemo, workflowInfo, proxySinks } from '@temporalio/workflow';
-import { CustomLoggerSinks } from './log-sink-tester';
+import type { CustomLoggerSinks } from './log-sink-tester';
 
 const { customLogger } = proxySinks<CustomLoggerSinks>();
 

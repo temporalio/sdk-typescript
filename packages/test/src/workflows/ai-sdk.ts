@@ -3,7 +3,7 @@
 import '@temporalio/ai-sdk/lib/load-polyfills';
 import { generateObject, generateText, stepCountIs, tool, wrapLanguageModel } from 'ai';
 import { z } from 'zod';
-import { LanguageModelV2Middleware } from '@ai-sdk/provider';
+import type { LanguageModelV2Middleware } from '@ai-sdk/provider';
 import { proxyActivities } from '@temporalio/workflow';
 import { TemporalMCPClient, temporalProvider } from '@temporalio/ai-sdk';
 import type * as activities from '../activities/ai-sdk';

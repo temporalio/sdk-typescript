@@ -1,9 +1,9 @@
 import vm from 'node:vm';
-import * as internals from '@temporalio/workflow/lib/worker-interface';
+import type * as internals from '@temporalio/workflow/lib/worker-interface';
 import { IllegalStateError } from '@temporalio/common';
 import { native } from '@temporalio/core-bridge';
-import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
-import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
+import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
+import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import { BaseVMWorkflow, globalHandlers, injectGlobals, setUnhandledRejectionHandler } from './vm-shared';
 
 interface BagHolder {

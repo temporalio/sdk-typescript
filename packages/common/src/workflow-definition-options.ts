@@ -1,4 +1,4 @@
-import { VersioningBehavior } from './worker-deployments';
+import type { VersioningBehavior } from './worker-deployments';
 
 /**
  * Options that can be used when defining a workflow via {@link setWorkflowOptions}.

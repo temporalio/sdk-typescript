@@ -1,10 +1,13 @@
 import { status } from '@grpc/grpc-js';
-import { assertNever, SymbolBasedInstanceOfError, RequireAtLeastOne } from '@temporalio/common/lib/type-helpers';
+import type { RequireAtLeastOne } from '@temporalio/common/lib/type-helpers';
+import { assertNever, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { filterNullAndUndefined, makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
-import { temporal } from '@temporalio/proto';
-import { BaseClient, BaseClientOptions, defaultBaseClientOptions, LoadedWithDefaults } from './base-client';
-import { WorkflowService } from './types';
-import { BuildIdOperation, versionSetsFromProto, WorkerBuildIdVersionSets } from './build-id-types';
+import type { temporal } from '@temporalio/proto';
+import type { BaseClientOptions, LoadedWithDefaults } from './base-client';
+import { BaseClient, defaultBaseClientOptions } from './base-client';
+import type { WorkflowService } from './types';
+import type { BuildIdOperation, WorkerBuildIdVersionSets } from './build-id-types';
+import { versionSetsFromProto } from './build-id-types';
 import { isGrpcServiceError, ServiceError } from './errors';
 import { rethrowKnownErrorTypes } from './helpers';
 

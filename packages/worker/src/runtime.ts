@@ -3,15 +3,18 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { native } from '@temporalio/core-bridge';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
-import { IllegalStateError, Logger, noopMetricMeter, SdkComponent, MetricMeter } from '@temporalio/common';
+import type { Logger, MetricMeter } from '@temporalio/common';
+import { IllegalStateError, noopMetricMeter, SdkComponent } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
 import { isFlushableLogger } from './logger';
 import { RuntimeMetricMeter } from './runtime-metrics';
-import { toNativeClientOptions, NativeConnectionOptions } from './connection-options';
+import type { NativeConnectionOptions } from './connection-options';
+import { toNativeClientOptions } from './connection-options';
 import { byteArrayToBuffer, toMB } from './utils';
-import { CompiledRuntimeOptions, compileOptions, RuntimeOptions } from './runtime-options';
+import type { CompiledRuntimeOptions, RuntimeOptions } from './runtime-options';
+import { compileOptions } from './runtime-options';
 
 export { History };
 

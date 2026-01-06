@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
-import anyTest, { TestFn } from 'ava';
-import { temporal } from '@temporalio/proto';
-import { bundleWorkflowCode, ReplayError, WorkflowBundle } from '@temporalio/worker';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
+import type { temporal } from '@temporalio/proto';
+import type { WorkflowBundle } from '@temporalio/worker';
+import { bundleWorkflowCode, ReplayError } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
 import { loadHistory, Worker } from './helpers';
 

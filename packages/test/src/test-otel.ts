@@ -12,7 +12,8 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor } from '@temporalio/client';
+import type { WorkflowClientInterceptor } from '@temporalio/client';
+import { WorkflowClient, WithStartWorkflowOperation } from '@temporalio/client';
 import { OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
 import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry';
 import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
@@ -21,21 +22,19 @@ import {
   OpenTelemetryActivityInboundInterceptor,
   OpenTelemetryActivityOutboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
-import {
+import type {
   OpenTelemetrySinks,
-  SpanName,
-  SPAN_DELIMITER,
   OpenTelemetryOutboundInterceptor,
   OpenTelemetryInboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/workflow';
-import {
+import { SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
+import type {
   ActivityInboundCallsInterceptor,
   ActivityOutboundCallsInterceptor,
-  DefaultLogger,
   InjectedSinks,
-  Runtime,
 } from '@temporalio/worker';
-import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
+import { DefaultLogger, Runtime } from '@temporalio/worker';
+import type { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
 import * as activities from './activities';
 import { loadHistory, RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
 import * as workflows from './workflows';

@@ -4,7 +4,8 @@
  * @module
  */
 
-import { proxySinks, Sinks, setHandler, defineSignal } from '@temporalio/workflow';
+import type { Sinks } from '@temporalio/workflow';
+import { proxySinks, setHandler, defineSignal } from '@temporalio/workflow';
 
 export const incrementSignal = defineSignal('increment');
 

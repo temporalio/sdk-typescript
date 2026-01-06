@@ -1,9 +1,11 @@
-import { ExecutionContext } from 'ava';
-import { ActivityInboundCallsInterceptor, ActivityOutboundCallsInterceptor, Runtime } from '@temporalio/worker';
+import type { ExecutionContext } from 'ava';
+import type { ActivityInboundCallsInterceptor, ActivityOutboundCallsInterceptor } from '@temporalio/worker';
+import { Runtime } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
-import { MetricTags } from '@temporalio/common';
+import type { MetricTags } from '@temporalio/common';
 import { Context as ActivityContext, metricMeter as activityMetricMeter } from '@temporalio/activity';
-import { Context as BaseContext, helpers, makeTestFunction } from './helpers-integration';
+import type { Context as BaseContext } from './helpers-integration';
+import { helpers, makeTestFunction } from './helpers-integration';
 import { getRandomPort } from './helpers';
 
 interface Context extends BaseContext {

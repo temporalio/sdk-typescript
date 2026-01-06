@@ -1,4 +1,5 @@
-import { InterceptingCall, Interceptor, ListenerBuilder, RequesterBuilder, StatusObject } from '@grpc/grpc-js';
+import type { Interceptor, StatusObject } from '@grpc/grpc-js';
+import { InterceptingCall, ListenerBuilder, RequesterBuilder } from '@grpc/grpc-js';
 import * as grpc from '@grpc/grpc-js';
 
 export interface GrpcRetryOptions {

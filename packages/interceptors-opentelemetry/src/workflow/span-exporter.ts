@@ -1,6 +1,7 @@
-import * as tracing from '@opentelemetry/sdk-trace-base';
-import { ExportResult, ExportResultCode } from '@opentelemetry/core';
-import { OpenTelemetrySinks, SerializableSpan } from './definitions';
+import type * as tracing from '@opentelemetry/sdk-trace-base';
+import type { ExportResult } from '@opentelemetry/core';
+import { ExportResultCode } from '@opentelemetry/core';
+import type { OpenTelemetrySinks, SerializableSpan } from './definitions';
 import { ensureWorkflowModuleLoaded, getWorkflowModuleIfAvailable } from './workflow-module-loader';
 
 const exporter = getWorkflowModuleIfAvailable()?.proxySinks<OpenTelemetrySinks>()?.exporter;

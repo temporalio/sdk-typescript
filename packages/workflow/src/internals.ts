@@ -1,29 +1,31 @@
 import type { RawSourceMap } from 'source-map';
-import {
-  defaultFailureConverter,
+import type {
   FailureConverter,
   PayloadConverter,
+  Workflow,
+  WorkflowQueryAnnotatedType,
+  WorkflowSignalAnnotatedType,
+  WorkflowUpdateAnnotatedType,
+  ProtoFailure,
+  WorkflowUpdateType,
+  WorkflowUpdateValidatorType,
+  WorkflowFunctionWithOptions,
+  VersioningBehavior,
+  WorkflowDefinitionOptions,
+} from '@temporalio/common';
+import {
+  defaultFailureConverter,
   arrayFromPayloads,
   defaultPayloadConverter,
   ensureTemporalFailure,
   HandlerUnfinishedPolicy,
   IllegalStateError,
   TemporalFailure,
-  Workflow,
   WorkflowExecutionAlreadyStartedError,
-  WorkflowQueryAnnotatedType,
-  WorkflowSignalAnnotatedType,
-  WorkflowUpdateAnnotatedType,
-  ProtoFailure,
   ApplicationFailure,
-  WorkflowUpdateType,
-  WorkflowUpdateValidatorType,
   mapFromPayloads,
   fromPayloadsAtIndex,
   RawValue,
-  WorkflowFunctionWithOptions,
-  VersioningBehavior,
-  WorkflowDefinitionOptions,
 } from '@temporalio/common';
 import {
   decodeSearchAttributes,
@@ -37,11 +39,12 @@ import {
   STACK_TRACE_QUERY_NAME,
   ENHANCED_STACK_TRACE_QUERY_NAME,
 } from '@temporalio/common/lib/reserved';
-import { alea, RNG } from './alea';
+import type { RNG } from './alea';
+import { alea } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
-import {
+import type {
   QueryInput,
   SignalInput,
   StartNexusOperationOutput,
@@ -49,8 +52,7 @@ import {
   WorkflowExecuteInput,
   WorkflowInterceptors,
 } from './interceptors';
-import {
-  ContinueAsNew,
+import type {
   DefaultSignalHandler,
   StackTraceSDKInfo,
   StackTraceFileSlice,
@@ -62,10 +64,12 @@ import {
   DefaultQueryHandler,
   EnhancedStackTrace,
 } from './interfaces';
+import { ContinueAsNew } from './interfaces';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
-import { SdkFlag, assertValidFlag } from './flags';
+import type { SdkFlag } from './flags';
+import { assertValidFlag } from './flags';
 import { executeWithLifecycleLogging, log } from './logs';
 
 const StartChildWorkflowExecutionFailedCause = {

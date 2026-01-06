@@ -1,6 +1,7 @@
 import * as nexus from 'nexus-rpc';
 import Long from 'long';
 import type { temporal } from '@temporalio/proto';
+import type { ProtoFailure } from '../failure';
 import {
   ActivityFailure,
   ApplicationFailure,
@@ -14,7 +15,6 @@ import {
   encodeTimeoutType,
   FAILURE_SOURCE,
   NexusOperationFailure,
-  ProtoFailure,
   ServerFailure,
   TemporalFailure,
   TerminatedFailure,
@@ -23,7 +23,8 @@ import {
 import { makeProtoEnumConverters } from '../internal-workflow';
 import { isError } from '../type-helpers';
 import { msOptionalToTs } from '../time';
-import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './payload-converter';
+import type { PayloadConverter } from './payload-converter';
+import { arrayFromPayloads, fromPayloadsAtIndex, toPayloads } from './payload-converter';
 
 // Can't import proto enums into the workflow sandbox, use this helper type and enum converter instead.
 const NexusHandlerErrorRetryBehavior = {

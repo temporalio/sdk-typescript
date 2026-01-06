@@ -1,6 +1,6 @@
 import type { temporal } from '@temporalio/proto';
 import { errorMessage, isRecord, SymbolBasedInstanceOfError } from './type-helpers';
-import { Duration } from './time';
+import type { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
 
 export const FAILURE_SOURCE = 'TypeScriptSDK';

@@ -10,17 +10,17 @@
  */
 
 import { Worker as NodeWorker } from 'node:worker_threads';
-import { coresdk } from '@temporalio/proto';
+import type { coresdk } from '@temporalio/proto';
 import { IllegalStateError, type SinkCall } from '@temporalio/workflow';
-import { Logger } from '@temporalio/common';
+import type { Logger } from '@temporalio/common';
 import { UnexpectedError } from '../errors';
-import {
+import type {
   WorkflowBundleWithSourceMapAndFilename,
   WorkerThreadInput,
   WorkerThreadRequest,
 } from './workflow-worker-thread/input';
-import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
-import { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
+import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
+import type { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
 
 // https://nodejs.org/api/worker_threads.html#event-exit
 export const TERMINATED_EXIT_CODE = 1;

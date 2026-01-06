@@ -1,24 +1,25 @@
 import * as nexus from 'nexus-rpc';
 
+import type { LoadedDataConverter, Payload, MetricMeter, MetricTags } from '@temporalio/common';
 import {
   CancelledFailure,
   IllegalStateError,
-  LoadedDataConverter,
-  Payload,
   SdkComponent,
   LoggerWithComposedMetadata,
-  MetricMeter,
   MetricMeterWithComposedTags,
-  MetricTags,
 } from '@temporalio/common';
-import { temporal, coresdk } from '@temporalio/proto';
+import type { temporal, coresdk } from '@temporalio/proto';
 import { asyncLocalStorage } from '@temporalio/nexus/lib/context';
 import { encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { Client } from '@temporalio/client';
-import { Logger } from '../logger';
-import { NexusInboundCallsInterceptor, NexusInterceptorsFactory, NexusOutboundCallsInterceptor } from '../interceptors';
+import type { Client } from '@temporalio/client';
+import type { Logger } from '../logger';
+import type {
+  NexusInboundCallsInterceptor,
+  NexusInterceptorsFactory,
+  NexusOutboundCallsInterceptor,
+} from '../interceptors';
 import {
   coerceToHandlerError,
   decodePayloadIntoLazyValue,

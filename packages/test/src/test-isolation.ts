@@ -1,8 +1,9 @@
-import { ExecutionContext, ImplementationFn } from 'ava';
+import type { ExecutionContext, ImplementationFn } from 'ava';
 import { ApplicationFailure, arrayFromPayloads } from '@temporalio/common';
 import * as wf from '@temporalio/workflow';
 import { WorkflowFailedError } from '@temporalio/client';
-import { makeTestFunction, Context, helpers } from './helpers-integration';
+import type { Context } from './helpers-integration';
+import { makeTestFunction, helpers } from './helpers-integration';
 import { REUSE_V8_CONTEXT } from './helpers';
 
 const test = makeTestFunction({

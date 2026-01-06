@@ -1,15 +1,16 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import path from 'node:path';
-import vm from 'node:vm';
-import anyTest, { ExecutionContext, TestFn } from 'ava';
+import type vm from 'node:vm';
+import type { ExecutionContext, TestFn } from 'ava';
+import anyTest from 'ava';
 import dedent from 'dedent';
 import Long from 'long'; // eslint-disable-line import/no-named-as-default
+import type { Payload } from '@temporalio/common';
 import {
   ApplicationFailure,
   defaultFailureConverter,
   defaultPayloadConverter,
   SdkComponent,
-  Payload,
   toPayloads,
   TypedSearchAttributes,
 } from '@temporalio/common';
@@ -17,13 +18,16 @@ import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk, temporal } from '@temporalio/proto';
 import { LogTimestamp } from '@temporalio/worker';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
-import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
-import { SdkFlag, SdkFlags } from '@temporalio/workflow/lib/flags';
-import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
+import type { VMWorkflow } from '@temporalio/worker/lib/workflow/vm';
+import { VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import type { SdkFlag } from '@temporalio/workflow/lib/flags';
+import { SdkFlags } from '@temporalio/workflow/lib/flags';
+import type { ReusableVMWorkflow } from '@temporalio/worker/lib/workflow/reusable-vm';
+import { ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
 import { cleanStackTrace, compareStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
-import { ProcessedSignal } from './workflows';
+import type { ProcessedSignal } from './workflows';
 
 export interface Context {
   workflow: VMWorkflow | ReusableVMWorkflow;

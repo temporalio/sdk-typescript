@@ -1,17 +1,16 @@
 import { decode, encode } from '../encoding';
 import { ValueError } from '../errors';
-import { Payload } from '../interfaces';
+import type { Payload } from '../interfaces';
+import type { SearchAttributes, SearchAttributePair, SearchAttributeUpdatePair } from '../search-attributes';
 import {
   TypedSearchAttributes,
   SearchAttributeType,
-  SearchAttributes,
   isValidValueForType,
   TypedSearchAttributeValue,
-  SearchAttributePair,
-  SearchAttributeUpdatePair,
   TypedSearchAttributeUpdateValue,
 } from '../search-attributes';
-import { PayloadConverter, JsonPayloadConverter, mapFromPayloads, mapToPayloads } from './payload-converter';
+import type { PayloadConverter } from './payload-converter';
+import { JsonPayloadConverter, mapFromPayloads, mapToPayloads } from './payload-converter';
 
 /**
  * Converts Search Attribute values using JsonPayloadConverter

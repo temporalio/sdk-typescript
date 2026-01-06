@@ -1,5 +1,5 @@
-import { ExecutionContext } from 'ava';
-import {
+import type { ExecutionContext } from 'ava';
+import type {
   CustomSlotSupplier,
   ResourceBasedTunerOptions,
   SlotInfo,

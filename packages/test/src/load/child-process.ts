@@ -1,5 +1,5 @@
 // TODO: this code is duplicated in the scripts directory, consider moving to external dependency
-import { ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 
 export class ChildProcessError extends Error {
   public readonly name = 'ChildProcessError';

@@ -1,6 +1,6 @@
-import { NumericMetricValueType, type MetricMeter, type MetricTags, Metric } from '@temporalio/common';
-import { MetricSinks } from '@temporalio/workflow/lib/metrics';
-import { InjectedSinks } from '../sinks';
+import type { NumericMetricValueType, Metric, type MetricMeter, type MetricTags } from '@temporalio/common';
+import type { MetricSinks } from '@temporalio/workflow/lib/metrics';
+import type { InjectedSinks } from '../sinks';
 
 export function initMetricSink(metricMeter: MetricMeter): InjectedSinks<MetricSinks> {
   // Creation of a new metric object isn't quite cheap, requiring a call down the bridge to the

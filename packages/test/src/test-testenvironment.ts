@@ -1,9 +1,10 @@
 import * as process from 'process';
-import { TestFn } from 'ava';
+import type { TestFn } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
-import { bundleWorkflowCode, WorkflowBundleWithSourceMap } from '@temporalio/worker';
+import type { WorkflowBundleWithSourceMap } from '@temporalio/worker';
+import { bundleWorkflowCode } from '@temporalio/worker';
 import {
   assertFromWorkflow,
   asyncChildStarter,

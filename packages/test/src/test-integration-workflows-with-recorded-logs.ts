@@ -1,9 +1,10 @@
-import { ExecutionContext } from 'ava';
+import type { ExecutionContext } from 'ava';
 import * as workflow from '@temporalio/workflow';
 import { ApplicationFailureCategory, HandlerUnfinishedPolicy } from '@temporalio/common';
-import { LogEntry } from '@temporalio/worker';
+import type { LogEntry } from '@temporalio/worker';
 import { WorkflowFailedError, WorkflowUpdateFailedError } from '@temporalio/client';
-import { Context, helpers, makeTestFunction } from './helpers-integration';
+import type { Context } from './helpers-integration';
+import { helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';
 
 const recordedLogs: { [workflowId: string]: LogEntry[] } = {};

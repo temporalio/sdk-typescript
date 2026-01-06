@@ -1,14 +1,13 @@
 import { randomUUID } from 'crypto';
-import {
-  WithStartWorkflowOperation,
+import type {
   WorkflowStartUpdateInput,
   WorkflowStartUpdateOutput,
   WorkflowStartUpdateWithStartInput,
   WorkflowStartUpdateWithStartOutput,
-  WorkflowUpdateStage,
 } from '@temporalio/client';
+import { WithStartWorkflowOperation, WorkflowUpdateStage } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
-import { Next, UpdateInput, WorkflowInboundCallsInterceptor, WorkflowInterceptors } from '@temporalio/workflow';
+import type { Next, UpdateInput, WorkflowInboundCallsInterceptor, WorkflowInterceptors } from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
 const test = makeTestFunction({

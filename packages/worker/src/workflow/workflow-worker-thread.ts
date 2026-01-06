@@ -1,10 +1,10 @@
 import { isMainThread, parentPort as parentPortOrNull } from 'node:worker_threads';
 import { IllegalStateError } from '@temporalio/common';
-import { Workflow, WorkflowCreator } from './interface';
+import type { Workflow, WorkflowCreator } from './interface';
 import { ReusableVMWorkflowCreator } from './reusable-vm';
 import { VMWorkflowCreator } from './vm';
-import { WorkerThreadRequest } from './workflow-worker-thread/input';
-import { WorkerThreadResponse } from './workflow-worker-thread/output';
+import type { WorkerThreadRequest } from './workflow-worker-thread/input';
+import type { WorkerThreadResponse } from './workflow-worker-thread/output';
 
 if (isMainThread) {
   throw new IllegalStateError(`Imported ${__filename} from main thread`);

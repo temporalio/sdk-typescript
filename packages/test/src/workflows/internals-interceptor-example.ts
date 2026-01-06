@@ -1,4 +1,5 @@
-import { proxySinks, WorkflowInterceptors, Sinks, sleep } from '@temporalio/workflow';
+import type { WorkflowInterceptors, Sinks } from '@temporalio/workflow';
+import { proxySinks, sleep } from '@temporalio/workflow';
 
 export interface MyLoggerSinks extends Sinks {
   logger: {

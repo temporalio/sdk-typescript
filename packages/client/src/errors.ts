@@ -1,5 +1,6 @@
-import { ServiceError as GrpcServiceError, status } from '@grpc/grpc-js';
-import { RetryState } from '@temporalio/common';
+import type { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
+import { status } from '@grpc/grpc-js';
+import type { RetryState } from '@temporalio/common';
 import { isError, isRecord, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
 /**

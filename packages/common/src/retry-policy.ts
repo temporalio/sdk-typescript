@@ -1,6 +1,7 @@
 import type { temporal } from '@temporalio/proto';
 import { ValueError } from './errors';
-import { Duration, msOptionalToNumber, msOptionalToTs, msToNumber, msToTs, optionalTsToMs } from './time';
+import type { Duration } from './time';
+import { msOptionalToNumber, msOptionalToTs, msToNumber, msToTs, optionalTsToMs } from './time';
 
 /**
  * Options for retrying Workflows and Activities

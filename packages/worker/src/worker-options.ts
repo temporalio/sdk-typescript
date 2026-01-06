@@ -2,7 +2,7 @@ import * as os from 'node:os';
 import * as v8 from 'node:v8';
 import type { Configuration as WebpackConfiguration } from 'webpack';
 import * as nexus from 'nexus-rpc';
-import {
+import type {
   ActivityFunction,
   DataConverter,
   LoadedDataConverter,
@@ -10,23 +10,25 @@ import {
   VersioningBehavior,
   WorkerDeploymentVersion,
 } from '@temporalio/common';
-import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
-import { LoggerSinks } from '@temporalio/workflow';
-import { Context } from '@temporalio/activity';
-import { native } from '@temporalio/core-bridge';
+import type { LoggerSinks } from '@temporalio/workflow';
+import type { Context } from '@temporalio/activity';
+import type { native } from '@temporalio/core-bridge';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
-import { NativeConnection } from './connection';
-import { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
-import { Logger } from './logger';
+import type { NativeConnection } from './connection';
+import type { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
+import type { Logger } from './logger';
 import { initLoggerSink } from './workflow/logger';
 import { initMetricSink } from './workflow/metrics';
 import { Runtime } from './runtime';
-import { InjectedSinks } from './sinks';
+import type { InjectedSinks } from './sinks';
 import { MiB } from './utils';
-import { WorkflowBundleWithSourceMap } from './workflow/bundler';
-import { asNativeTuner, WorkerTuner } from './worker-tuner';
+import type { WorkflowBundleWithSourceMap } from './workflow/bundler';
+import type { WorkerTuner } from './worker-tuner';
+import { asNativeTuner } from './worker-tuner';
 import type { Worker } from './worker';
 
 /**

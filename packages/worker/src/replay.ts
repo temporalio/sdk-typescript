@@ -1,4 +1,4 @@
-import { HistoryAndWorkflowId } from '@temporalio/client';
+import type { HistoryAndWorkflowId } from '@temporalio/client';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { coresdk } from '@temporalio/proto';
 import { DeterminismViolationError } from '@temporalio/workflow';

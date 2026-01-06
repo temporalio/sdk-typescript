@@ -1,5 +1,5 @@
 import * as time from './time';
-import { type Timestamp, Duration } from './time';
+import type { Duration, type Timestamp } from './time';
 
 /**
  * Lossy conversion function from Timestamp to number due to possible overflow.

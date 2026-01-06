@@ -1,7 +1,7 @@
-import { Context } from '@temporalio/activity';
+import type { Context } from '@temporalio/activity';
 import { SdkComponent } from '@temporalio/common';
-import { ActivityInboundCallsInterceptor, ActivityExecuteInput, Next } from './interceptors';
-import { Logger } from './logger';
+import type { ActivityInboundCallsInterceptor, ActivityExecuteInput, Next } from './interceptors';
+import type { Logger } from './logger';
 import { activityLogAttributes } from './activity';
 import { Runtime } from './runtime';
 

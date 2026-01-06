@@ -1,7 +1,9 @@
 import fs from 'fs/promises';
-import anyTest, { ExecutionContext, TestFn } from 'ava';
+import type { ExecutionContext, TestFn } from 'ava';
+import anyTest from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import { bundleWorkflowCode, WorkflowBundle } from '@temporalio/worker';
+import type { WorkflowBundle } from '@temporalio/worker';
+import { bundleWorkflowCode } from '@temporalio/worker';
 import { Connection } from '@temporalio/client';
 import { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker, TestWorkflowEnvironment, testTimeSkipping as anyTestTimeSkipping, getRandomPort } from './helpers';

@@ -1,4 +1,4 @@
-import { CoverageMapData } from 'istanbul-lib-coverage';
+import type { CoverageMapData } from 'istanbul-lib-coverage';
 
 declare global {
   // eslint-disable-next-line no-var

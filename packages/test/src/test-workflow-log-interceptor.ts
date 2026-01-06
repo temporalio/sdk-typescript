@@ -1,15 +1,9 @@
-import anyTest, { TestFn, ExecutionContext } from 'ava';
+import type { TestFn, ExecutionContext } from 'ava';
+import anyTest from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import {
-  DefaultLogger,
-  InjectedSinks,
-  LogEntry,
-  LogLevel,
-  LoggerSinks,
-  Runtime,
-  defaultSinks,
-} from '@temporalio/worker';
-import { WorkflowInfo } from '@temporalio/workflow';
+import type { InjectedSinks, LogEntry, LogLevel, LoggerSinks } from '@temporalio/worker';
+import { DefaultLogger, Runtime, defaultSinks } from '@temporalio/worker';
+import type { WorkflowInfo } from '@temporalio/workflow';
 import * as workflows from './workflows';
 import { Worker, TestWorkflowEnvironment } from './helpers';
 

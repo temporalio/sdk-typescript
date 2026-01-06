@@ -1,4 +1,5 @@
-import { ProtoHostPort, splitProtoHostPort } from './parse-host-uri';
+import type { ProtoHostPort } from './parse-host-uri';
+import { splitProtoHostPort } from './parse-host-uri';
 
 /**
  * Configuration for HTTP CONNECT proxying.

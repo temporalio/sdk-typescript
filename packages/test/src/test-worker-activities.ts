@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import anyTest, { ExecutionContext, TestFn } from 'ava';
+import type { ExecutionContext, TestFn } from 'ava';
+import anyTest from 'ava';
 import dedent from 'dedent';
 import { v4 as uuid4 } from 'uuid';
 import { TemporalFailure, defaultPayloadConverter, toPayloads, ApplicationFailure } from '@temporalio/common';
@@ -7,7 +8,8 @@ import { coresdk, google } from '@temporalio/proto';
 import { msToTs } from '@temporalio/common/lib/time';
 import { httpGet } from './activities';
 import { cleanOptionalStackTrace } from './helpers';
-import { defaultOptions, isolateFreeWorker, Worker } from './mock-native-worker';
+import type { Worker } from './mock-native-worker';
+import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import Duration = google.protobuf.Duration;
 

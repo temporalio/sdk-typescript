@@ -1,11 +1,11 @@
-import * as nexus from 'nexus-rpc';
+import type * as nexus from 'nexus-rpc';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
 import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
 import { untrackPromise } from './stack-helpers';
-import { StartNexusOperationInput, StartNexusOperationOutput, StartNexusOperationOptions } from './interceptors';
+import type { StartNexusOperationInput, StartNexusOperationOutput, StartNexusOperationOptions } from './interceptors';
 
 /**
  * A Nexus client for invoking Nexus Operations for a specific service from a Workflow.

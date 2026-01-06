@@ -3,10 +3,10 @@ import asyncRetry from 'async-retry';
 import { v4 as uuid4 } from 'uuid';
 import * as iface from '@temporalio/proto';
 import { WorkflowContinuedAsNewError, WorkflowFailedError } from '@temporalio/client';
+import type { Payload } from '@temporalio/common';
 import {
   ApplicationFailure,
   defaultPayloadConverter,
-  Payload,
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
 } from '@temporalio/common';

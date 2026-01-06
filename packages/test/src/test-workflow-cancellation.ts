@@ -1,14 +1,12 @@
-import anyTest, { Macro, TestFn, ErrorConstructor } from 'ava';
+import type { Macro, TestFn, ErrorConstructor } from 'ava';
+import anyTest from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import * as activities from './activities';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
-import {
-  WorkflowCancellationScenarioOutcome,
-  workflowCancellationScenarios,
-  WorkflowCancellationScenarioTiming,
-} from './workflows';
+import type { WorkflowCancellationScenarioOutcome, WorkflowCancellationScenarioTiming } from './workflows';
+import { workflowCancellationScenarios } from './workflows';
 
 export interface Context {
   worker: Worker;

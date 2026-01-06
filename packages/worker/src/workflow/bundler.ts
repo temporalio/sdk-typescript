@@ -4,8 +4,10 @@ import path from 'node:path';
 import util from 'node:util';
 import * as unionfs from 'unionfs';
 import * as memfs from 'memfs';
-import { Configuration, webpack } from 'webpack';
-import { DefaultLogger, Logger, hasColorSupport } from '../logger';
+import type { Configuration } from 'webpack';
+import { webpack } from 'webpack';
+import type { Logger } from '../logger';
+import { DefaultLogger, hasColorSupport } from '../logger';
 import { toMB } from '../utils';
 
 export const defaultWorkflowInterceptorModules = [require.resolve('../workflow-log-interceptor')];

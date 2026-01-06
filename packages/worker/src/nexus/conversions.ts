@@ -1,10 +1,11 @@
 import { status } from '@grpc/grpc-js';
-import * as protobuf from 'protobufjs';
+import type * as protobuf from 'protobufjs';
 import * as protoJsonSerializer from 'proto3-json-serializer';
 import * as nexus from 'nexus-rpc';
 import { temporal } from '@temporalio/proto';
 import { isGrpcServiceError, ServiceError } from '@temporalio/client';
-import { ApplicationFailure, LoadedDataConverter, Payload, PayloadConverter } from '@temporalio/common';
+import type { LoadedDataConverter, Payload, PayloadConverter } from '@temporalio/common';
+import { ApplicationFailure } from '@temporalio/common';
 import { encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
 import { fixBuffers } from '@temporalio/common/lib/proto-utils';
 

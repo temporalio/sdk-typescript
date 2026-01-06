@@ -1,4 +1,4 @@
-import { ActivityCancellationDetails } from '@temporalio/common';
+import type { ActivityCancellationDetails } from '@temporalio/common';
 import * as activity from '@temporalio/activity';
 
 export interface ActivityState {

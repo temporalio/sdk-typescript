@@ -1,15 +1,10 @@
 import vm from 'node:vm';
 import { IllegalStateError } from '@temporalio/common';
 import { native } from '@temporalio/core-bridge';
-import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
-import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
-import {
-  BaseVMWorkflow,
-  globalHandlers,
-  injectGlobals,
-  setUnhandledRejectionHandler,
-  WorkflowModule,
-} from './vm-shared';
+import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
+import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
+import type { WorkflowModule } from './vm-shared';
+import { BaseVMWorkflow, globalHandlers, injectGlobals, setUnhandledRejectionHandler } from './vm-shared';
 
 /**
  * A WorkflowCreator that creates VMWorkflows in the current isolate

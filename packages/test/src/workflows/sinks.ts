@@ -1,4 +1,5 @@
-import { proxySinks, Sinks } from '@temporalio/workflow';
+import type { Sinks } from '@temporalio/workflow';
+import { proxySinks } from '@temporalio/workflow';
 
 export interface TestSinks extends Sinks {
   success: {

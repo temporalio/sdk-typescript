@@ -2,7 +2,8 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { activityInfo, Context } from '@temporalio/activity';
 import { ApplicationFailure, ApplicationFailureCategory } from '@temporalio/common';
-import { ProtoActivityInput, ProtoActivityResult } from '../../protos/root';
+import type { ProtoActivityInput } from '../../protos/root';
+import { ProtoActivityResult } from '../../protos/root';
 import { cancellableFetch as cancellableFetchInner } from './cancellable-fetch';
 import { fakeProgress as fakeProgressInner } from './fake-progress';
 import { signalSchedulingWorkflow } from './helpers';

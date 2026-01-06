@@ -5,7 +5,8 @@
  */
 import assert from 'assert';
 import { randomUUID } from 'crypto';
-import anyTest, { ImplementationFn, TestFn } from 'ava';
+import type { ImplementationFn, TestFn } from 'ava';
+import anyTest from 'ava';
 import { status } from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
 import { BuildIdNotFoundError, Client, UnversionedBuildId } from '@temporalio/client';

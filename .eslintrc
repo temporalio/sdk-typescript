@@ -12,12 +12,18 @@
     "prettier"
   ],
   "rules": {
-    "eqeqeq": ["error", "always", { "null": "ignore" }],
-    "no-duplicate-imports": "error",
+    "eqeqeq": [
+      "error",
+      "always",
+      {
+        "null": "ignore"
+      }
+    ],
     "object-shorthand": ["error", "always"],
     "deprecation/deprecation": "warn",
     "@typescript-eslint/no-explicit-any": 0,
-    "@typescript-eslint/no-floating-promises": ["error"],
+    "@typescript-eslint/no-floating-promises": "error",
+    "@typescript-eslint/consistent-type-imports": "error",
     "@typescript-eslint/explicit-module-boundary-types": 2,
     "@typescript-eslint/no-unused-vars": [
       1,
@@ -27,7 +33,12 @@
         "varsIgnorePattern": "^_"
       }
     ],
-    "import/no-unresolved": ["error", { "ignore": ["^__temporal_"] }],
+    "import/no-unresolved": [
+      "error",
+      {
+        "ignore": ["^__temporal_"]
+      }
+    ],
     // TypeScript compilation already ensures that named imports exist in the referenced module
     "import/named": "off",
     "import/default": "error",
@@ -41,6 +52,7 @@
     "import/no-named-as-default": "error",
     "import/no-extraneous-dependencies": "error",
     "import/no-mutable-exports": "error",
+    "import/no-duplicates": "error",
     "import/unambiguous": "error",
     "import/first": "error",
     "import/order": [
