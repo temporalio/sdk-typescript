@@ -246,14 +246,7 @@ export class CancellationScope {
   }
 }
 
-const storage = new AsyncLocalStorage<CancellationScope>();
-
-/**
- * Avoid exposing the storage directly so it doesn't get frozen
- */
-export function disableStorage(): void {
-  storage.disable();
-}
+const storage: ALS<CancellationScope> = new (AsyncLocalStorage as any)('CancellationScope storage');
 
 export class RootCancellationScope extends CancellationScope {
   constructor() {

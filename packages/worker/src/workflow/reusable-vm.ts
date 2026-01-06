@@ -81,8 +81,6 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       { timeout: isolateExecutionTimeoutMs, displayErrors: true }
     );
 
-    this.injectGlobals(this._context);
-
     const sharedModules = new Map<string | symbol, any>();
     const __webpack_module_cache__ = new Proxy(
       {},
@@ -114,6 +112,8 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       enumerable: false,
       configurable: false,
     });
+
+    this.injectGlobals(this._context);
 
     script.runInContext(this.context);
 

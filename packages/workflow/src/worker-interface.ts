@@ -6,17 +6,14 @@
 import { encodeVersioningBehavior, IllegalStateError, WorkflowFunctionWithOptions } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
-import { WorkflowInterceptorsFactory } from './interceptors';
-import { WorkflowCreateOptionsInternal } from './interfaces';
+import type { WorkflowInterceptorsFactory } from './interceptors';
+import type { WorkflowCreateOptionsInternal } from './interfaces';
 import { Activator } from './internals';
-import { setActivatorUntyped, getActivator } from './global-attributes';
-import { disableStorage } from './cancellation-scope';
-import { disableUpdateStorage } from './update-scope';
+import { setActivator, getActivator, maybeGetActivator } from './global-attributes';
 
 // Export the type for use on the "worker" side
 export { PromiseStackStore } from './internals';
 
-const global = globalThis as any;
 const OriginalDate = globalThis.Date;
 
 /**
@@ -35,7 +32,7 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
   // There's one activator per workflow instance, set it globally on the context.
   // We do this before importing any user code so user code can statically reference @temporalio/workflow functions
   // as well as Date and Math.random.
-  setActivatorUntyped(activator);
+  setActivator(activator);
 
   activator.rethrowSynchronously = true;
   try {
@@ -54,7 +51,7 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
       activator.failureConverter = customFailureConverter;
     }
 
-    const { importWorkflows, importInterceptors } = global.__TEMPORAL__;
+    const { importWorkflows, importInterceptors } = globalThis.__TEMPORAL__;
     if (importWorkflows === undefined || importInterceptors === undefined) {
       throw new IllegalStateError('Workflow bundle did not register import hooks');
     }
@@ -252,20 +249,59 @@ export function tryUnblockConditions(): number {
   }
 }
 
+// Handle disposal of the workflow execution context (not to be confused with destroying
+// the sandbox vm, which may possibly be reused if `reuseV8Context` is true).
 export function dispose(): void {
+  let error: unknown | undefined = undefined;
+
   const activator = getActivator();
   activator.rethrowSynchronously = true;
   try {
-    const dispose = composeInterceptors(activator.interceptors.internals, 'dispose', async () => {});
-    dispose({});
+    try {
+      const dispose = composeInterceptors(activator.interceptors.internals, 'dispose', async () => {});
+      dispose({});
+    } catch (e) {
+      error = e;
+    }
+
+    // Destructors are run outside of interceptors, because interceptors themselves often rely
+    // on objects that will be destroyed (notably AsyncLocalStorage instances), and because we
+    // want to make sure that resources get cleaned up even if an interceptor throws an error.
+    // Only the first error (if any) is rethrown.
+    for (const destructor of activator.workflowSandboxDestructors.splice(0)) {
+      try {
+        destructor();
+      } catch (e) {
+        if (error == null) {
+          error = e;
+        }
+      }
+    }
+
+    if (error != null) throw error;
   } finally {
     activator.rethrowSynchronously = false;
+
+    // The activator is no longer valid past this point.
+    setActivator(undefined);
   }
 }
 
+// Destroy the sandbox VM (not to be confused with disposing of the workflow execution context).
 export function destroy(): void {
-  disableStorage();
-  disableUpdateStorage();
+  const activator = maybeGetActivator();
+  if (activator) throw new IllegalStateError('Workflow execution context should have been disposed first');
+
+  let error: unknown | undefined = undefined;
+  for (const destructor of globalThis.__temporal_globalSandboxDestructors?.splice(0) ?? []) {
+    try {
+      destructor();
+    } catch (e) {
+      if (error == null) {
+        error = e;
+      }
+    }
+  }
 }
 
 function isWorkflowFunctionWithOptions(obj: any): obj is WorkflowFunctionWithOptions<any[], any> {
