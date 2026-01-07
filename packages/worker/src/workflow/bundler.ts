@@ -219,7 +219,7 @@ exports.importInterceptors = function importInterceptors() {
       plugins: [
         // Replace the workflow-imports stub with the real implementation
         new NormalModuleReplacementPlugin(
-          /[\\/]interceptors-opentelemetry[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
+          /[\\/](?:@temporalio|packages)[\\/]interceptors-opentelemetry[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
           path.resolve(__dirname, 'otel-workflow-imports.js')
         ),
       ],
