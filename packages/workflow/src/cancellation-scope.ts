@@ -246,7 +246,7 @@ export class CancellationScope {
   }
 }
 
-const storage: ALS<CancellationScope> = new (AsyncLocalStorage as any)('CancellationScope storage');
+const storage: ALS<CancellationScope> = new AsyncLocalStorage();
 
 export class RootCancellationScope extends CancellationScope {
   constructor() {

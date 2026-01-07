@@ -11,7 +11,6 @@ export async function asyncLocalStorageWorkflow(): Promise<void> {
   const myAls: AsyncLocalStorage<unknown> = new (globalThis as any).AsyncLocalStorage('My Workflow ALS');
   try {
     await myAls.run({}, async () => {
-      console.log('My Workflow ALS');
       await workflow.sleep(3000);
     });
   } finally {

@@ -315,42 +315,40 @@ if (RUN_INTEGRATION_TESTS) {
     });
   });
 
-  if (REUSE_V8_CONTEXT) {
-    // Test to trigger GH #1866
-    // When `reuseV8Context: true`, dispose() calls disableStorage() which disables the
-    // AsyncLocalStorage instance that stores cancellation scope.
-    // This causes CancellationScope.current() to return rootScope instead of the correct
-    // inner scope for workflows that continue afterward.
-    //
-    // The bug manifests in condition() with timeout: the finally block calls
-    // CancellationScope.current().cancel() to clean up.
-    // When storage is disabled, this incorrectly cancels the rootScope, failing the workflow with "Workflow cancelled".
-    test.serial('workflow disposal does not break CancellationScope in other workflows in reusable vm', async (t) => {
-      const taskQueue = 'test-reusable-vm-disposal-cancellation-scope';
-      const worker = await Worker.create({
-        ...defaultOptions,
-        taskQueue,
-      });
-
-      const client = new WorkflowClient();
-      const result = await worker.runUntil(async () => {
-        // Fill the cache with workflow that complete immediately
-        await client.execute(successString, { taskQueue, workflowId: uuid4() });
-
-        // Start the condition workflow
-        const conditionHandle = await client.start(conditionWithTimeoutAfterDisposal, {
-          taskQueue,
-          workflowId: uuid4(),
-        });
-
-        // Run another workflow to trigger an evictions and disposal() while
-        // conditionWithTimeoutAfterDisposal is cached and waiting
-        await client.execute(successString, { taskQueue, workflowId: uuid4() });
-
-        // If dispose incorrectly disables the cancellation scope storage, then it will fail with CancelledFailure: "Workflow cancelled"
-        return await conditionHandle.result();
-      });
-      t.is(result, 'done');
+  // Test to trigger GH #1866
+  // When `reuseV8Context: true`, dispose() calls disableStorage() which disables the
+  // AsyncLocalStorage instance that stores cancellation scope.
+  // This causes CancellationScope.current() to return rootScope instead of the correct
+  // inner scope for workflows that continue afterward.
+  //
+  // The bug manifests in condition() with timeout: the finally block calls
+  // CancellationScope.current().cancel() to clean up.
+  // When storage is disabled, this incorrectly cancels the rootScope, failing the workflow with "Workflow cancelled".
+  test.serial('workflow disposal does not break CancellationScope in other workflows in reusable vm', async (t) => {
+    const taskQueue = 'test-reusable-vm-disposal-cancellation-scope';
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
     });
-  }
+
+    const client = new WorkflowClient();
+    const result = await worker.runUntil(async () => {
+      // Fill the cache with workflow that complete immediately
+      await client.execute(successString, { taskQueue, workflowId: uuid4() });
+
+      // Start the condition workflow
+      const conditionHandle = await client.start(conditionWithTimeoutAfterDisposal, {
+        taskQueue,
+        workflowId: uuid4(),
+      });
+
+      // Run another workflow to trigger an evictions and disposal() while
+      // conditionWithTimeoutAfterDisposal is cached and waiting
+      await client.execute(successString, { taskQueue, workflowId: uuid4() });
+
+      // If dispose incorrectly disables the cancellation scope storage, then it will fail with CancelledFailure: "Workflow cancelled"
+      return await conditionHandle.result();
+    });
+    t.is(result, 'done');
+  });
 }

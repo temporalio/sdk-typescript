@@ -38,22 +38,24 @@ export class VMWorkflowCreator implements WorkflowCreator {
    * Create a workflow with given options
    */
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
-    const context = this.getContext();
+    const context = this.context;
     const { isolateExecutionTimeoutMs } = this;
+
     const workflowModule: WorkflowModule = new Proxy(
       {},
       {
         get(_: any, fn: string) {
           return (...args: any[]) => {
-            context.__TEMPORAL__.args = args;
-            return vm.runInContext(`__TEMPORAL__.api.${fn}(...__TEMPORAL__.args)`, context, {
+            // By the time we get out of this call, all microtasks will have been executed
+            context.__temporal_args = args;
+            return vm.runInContext(`__TEMPORAL__.api.${fn}(...__temporal_args)`, context, {
               timeout: isolateExecutionTimeoutMs,
               displayErrors: true,
             });
           };
         },
       }
-    ) as any;
+    );
 
     workflowModule.initRuntime({
       ...options,
@@ -61,18 +63,17 @@ export class VMWorkflowCreator implements WorkflowCreator {
       getTimeOfDay: native.getTimeOfDay,
       registeredActivityNames: this.registeredActivityNames,
     });
-    const activator = context.__TEMPORAL_ACTIVATOR__ as any;
-
+    const activator = context.__TEMPORAL_ACTIVATOR__!;
     const newVM = new VMWorkflow(options.info.runId, context, activator, workflowModule);
     VMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
     return newVM;
   }
 
-  protected getContext(): vm.Context {
+  protected get context(): vm.Context & typeof globalThis {
     if (this.script === undefined) {
       throw new IllegalStateError('Isolate context provider was destroyed');
     }
-    const context = vm.createContext({}, { microtaskMode: 'afterEvaluate' });
+    const context = vm.createContext({}, { microtaskMode: 'afterEvaluate' }) as vm.Context & typeof globalThis;
     this.injectGlobals(context);
     this.script.runInContext(context);
     return context;
@@ -126,7 +127,10 @@ export class VMWorkflowCreator implements WorkflowCreator {
 export class VMWorkflow extends BaseVMWorkflow {
   public async dispose(): Promise<void> {
     this.workflowModule.dispose();
+
+    // This sandbox VM won't be reused, so we can destroy it now.
     this.workflowModule.destroy();
+
     VMWorkflowCreator.workflowByRunId.delete(this.runId);
     delete this.context;
   }

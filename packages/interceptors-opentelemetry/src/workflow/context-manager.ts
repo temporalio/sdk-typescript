@@ -3,9 +3,8 @@ import * as otel from '@opentelemetry/api';
 import { ensureWorkflowModuleLoaded } from './workflow-module-loader';
 
 export class ContextManager implements otel.ContextManager {
-  protected storage: AsyncLocalStorage<otel.Context> = new (globalThis as any).AsyncLocalStorage(
-    'OpenTelemetryContext storage'
-  );
+  // The workflow sandbox provides AsyncLocalStorage through globalThis.
+  protected storage: AsyncLocalStorage<otel.Context> = new (globalThis as any).AsyncLocalStorage();
 
   public constructor() {
     ensureWorkflowModuleLoaded();

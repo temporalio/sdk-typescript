@@ -94,6 +94,15 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
         activator.workflowDefinitionOptionsGetter = activator.workflow.workflowDefinitionOptions;
       }
     }
+  } catch (e) {
+    try {
+      // Core won't send an eviction job after an early error, so we are responsible for triggering
+      // disposal of the workflow execution context. Otherwise, there might be resource leaks.
+      dispose();
+    } catch (_innerError) {
+      // Ignore error disposing of activator, it is more important to rethrow the original error
+    }
+    throw e;
   } finally {
     activator.rethrowSynchronously = false;
   }

@@ -57,4 +57,4 @@ export class UpdateScope {
   }
 }
 
-const storage: ALS<UpdateScope> = new (AsyncLocalStorage as any)('UpdateScope storage');
+const storage: ALS<UpdateScope> = new AsyncLocalStorage();

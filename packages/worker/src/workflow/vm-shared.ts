@@ -9,7 +9,6 @@ import { cutoffStackTrace, IllegalStateError } from '@temporalio/common';
 import { tsToMs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
 import type { StackTraceFileLocation } from '@temporalio/workflow';
-import { maybeGetActivator } from '@temporalio/workflow/lib/global-attributes';
 import { type SinkCall } from '@temporalio/workflow/lib/sinks';
 import * as internals from '@temporalio/workflow/lib/worker-interface';
 import { Activator } from '@temporalio/workflow/lib/internals';
@@ -18,6 +17,8 @@ import { UnhandledRejectionError } from '../errors';
 import { convertDeploymentVersion } from '../utils';
 import { Workflow } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
+
+import '@temporalio/workflow/lib/global-attributes'; // eslint-disable-line import/no-unassigned-import
 
 // Best effort to catch unhandled rejections from workflow code.
 // We crash the thread if we cannot find the culprit.
@@ -125,25 +126,26 @@ export function injectGlobals(context: vm.Context): void {
     constructor(private name: string = 'anonymous') {
       super();
 
-      const activator = maybeGetActivator();
+      const activator = sandboxGlobalThis.__TEMPORAL_ACTIVATOR__;
       if (activator) {
-        console.warn(`@@@ new AsyncLocalStorage("${this.name}") called in workflow context`);
         activator.workflowSandboxDestructors.push(this.__temporal_disableForReal.bind(this));
       } else {
-        console.warn(`@@@ new AsyncLocalStorage("${this.name}") called in global context`);
-
-        if ((globalThis as any).__temporal_globalSandboxDestructors === undefined)
-          (globalThis as any).__temporal_globalSandboxDestructors = [];
-        (globalThis as any).__temporal_globalSandboxDestructors.push(this.__temporal_disableForReal.bind(this));
+        if (sandboxGlobalThis.__temporal_globalSandboxDestructors === undefined)
+          Object.defineProperty(sandboxGlobalThis, '__temporal_globalSandboxDestructors', {
+            value: [],
+            writable: false,
+            enumerable: false,
+            configurable: false,
+          });
+        sandboxGlobalThis.__temporal_globalSandboxDestructors!.push(this.__temporal_disableForReal.bind(this));
       }
     }
 
     disable(): void {
-      console.warn(`@@@ Ignoring ALS.disable() for ALS named "${this.name}"`);
+      super.disable();
     }
 
     __temporal_disableForReal(): void {
-      console.warn(`@@@ Destroying ALS named "${this.name}"`);
       super.disable();
     }
   }
