@@ -127,7 +127,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       ...Object.getOwnPropertyNames(this.pristineObj),
       ...Object.getOwnPropertySymbols(this.pristineObj),
     ]) {
-      if (k !== 'globalThis') {
+      if (k !== 'globalThis' && k !== '__temporal_globalSandboxDestructors') {
         const v: PropertyDescriptor = (this.pristineObj as any)[k];
         v.value = deepFreeze(v.value);
       }

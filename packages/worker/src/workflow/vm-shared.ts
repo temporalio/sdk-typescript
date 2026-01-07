@@ -18,6 +18,7 @@ import { convertDeploymentVersion } from '../utils';
 import { Workflow } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 
+// We need this import for the ambient global extensions
 import '@temporalio/workflow/lib/global-attributes'; // eslint-disable-line import/no-unassigned-import
 
 // Best effort to catch unhandled rejections from workflow code.
@@ -109,9 +110,15 @@ export function injectGlobals(context: vm.Context): void {
   type ConsoleMethod = (typeof consoleMethods)[number];
   function makeConsoleFn(level: ConsoleMethod) {
     return function (...args: unknown[]) {
-      const { info } = sandboxGlobalThis.__TEMPORAL_ACTIVATOR__!;
-      if (info.unsafe.isReplaying) return;
-      console[level](`[${info.workflowType}(${info.workflowId})]`, ...args);
+      if (sandboxGlobalThis.__TEMPORAL_ACTIVATOR__ === undefined) {
+        // This should not happen in a normal execution environment, but this is
+        // often handy while debugging the SDK, and costs nothing to keep around.
+        console[level](`[not in workflow context]`, ...args);
+      } else {
+        const { info } = sandboxGlobalThis.__TEMPORAL_ACTIVATOR__!;
+        if (info.unsafe.isReplaying) return;
+        console[level](`[${info.workflowType}(${info.workflowId})]`, ...args);
+      }
     };
   }
   const consoleObject = Object.fromEntries(consoleMethods.map((level) => [level, makeConsoleFn(level)]));
@@ -128,7 +135,7 @@ export function injectGlobals(context: vm.Context): void {
 
       const activator = sandboxGlobalThis.__TEMPORAL_ACTIVATOR__;
       if (activator) {
-        activator.workflowSandboxDestructors.push(this.__temporal_disableForReal.bind(this));
+        activator.workflowSandboxDestructors.push(this.disable.bind(this));
       } else {
         if (sandboxGlobalThis.__temporal_globalSandboxDestructors === undefined)
           Object.defineProperty(sandboxGlobalThis, '__temporal_globalSandboxDestructors', {
@@ -137,15 +144,12 @@ export function injectGlobals(context: vm.Context): void {
             enumerable: false,
             configurable: false,
           });
-        sandboxGlobalThis.__temporal_globalSandboxDestructors!.push(this.__temporal_disableForReal.bind(this));
+        sandboxGlobalThis.__temporal_globalSandboxDestructors!.push(this.disable.bind(this));
       }
     }
 
     disable(): void {
-      super.disable();
-    }
-
-    __temporal_disableForReal(): void {
+      console.log('AsyncLocalStorage.disable', this.name);
       super.disable();
     }
   }

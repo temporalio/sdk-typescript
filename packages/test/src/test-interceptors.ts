@@ -12,7 +12,7 @@ import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { ApplicationFailure, TerminatedFailure } from '@temporalio/common';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
 import { defaultPayloadConverter, WorkflowInfo } from '@temporalio/workflow';
-import { cleanOptionalStackTrace, compareStackTrace, REUSE_V8_CONTEXT, RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { cleanOptionalStackTrace, compareStackTrace, RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import {
   checkDisposeRan,
