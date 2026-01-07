@@ -1,4 +1,5 @@
-import type { ToolSet } from 'ai';
+import { jsonSchema, type ToolSet } from 'ai';
+import type { JSONSchema7 } from '@ai-sdk/provider';
 import type { experimental_MCPClient as MCPClient } from '@ai-sdk/mcp';
 import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
@@ -14,8 +15,7 @@ export type McpClientFactories = { [serviceName: string]: McpClientFactory };
  */
 export interface TemporalMCPClientOptions {
   readonly name: string;
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-  readonly clientArgs?: any;
+  readonly clientArgs?: unknown;
   readonly activityOptions?: ActivityOptions;
 }
 
@@ -32,8 +32,10 @@ export class TemporalMCPClient {
   constructor(readonly options: TemporalMCPClientOptions) {}
 
   async tools(): Promise<ToolSet> {
-    workflow.log.info(`Options: ${this.options.activityOptions}`);
-    const activities = workflow.proxyActivities({ startToCloseTimeout: '10 minutes', ...this.options.activityOptions });
+    const activities = workflow.proxyActivities({
+      startToCloseTimeout: '10 minutes',
+      ...this.options.activityOptions,
+    });
 
     const listActivity = activities[this.options.name + '-listTools'];
     const tools: Record<string, ListToolResult> = await listActivity!({ clientArgs: this.options.clientArgs });
@@ -41,22 +43,16 @@ export class TemporalMCPClient {
       Object.entries(tools).map(([toolName, toolResult]) => [
         toolName,
         {
-          execute: async (args: any, options) => {
+          execute: async (input, options) => {
             const activities = workflow.proxyActivities({
               summary: toolName,
               startToCloseTimeout: '10 minutes',
               ...this.options,
             });
             const callActivity = activities[this.options.name + '-callTool']!;
-            return await callActivity({ name: toolName, args, options, clientArgs: this.options.clientArgs });
+            return await callActivity({ name: toolName, input, options, clientArgs: this.options.clientArgs });
           },
-          inputSchema: {
-            ...toolResult.inputSchema,
-            _type: undefined,
-            validate: undefined,
-            [Symbol.for('vercel.ai.schema')]: true,
-            [Symbol.for('vercel.ai.validator')]: true,
-          },
+          inputSchema: jsonSchema(toolResult.inputSchema as JSONSchema7),
           type: 'dynamic',
         },
       ])

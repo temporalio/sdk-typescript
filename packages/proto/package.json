@@ -10,7 +10,7 @@
     "lib/"
   ],
   "scripts": {
-    "build": "node ./scripts/compile-proto.js"
+    "build": "tsx ./scripts/compile-proto.ts"
   },
   "keywords": [
     "temporal",

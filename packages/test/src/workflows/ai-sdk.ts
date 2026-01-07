@@ -1,9 +1,9 @@
 // Test workflow using AI model
 // eslint-disable-next-line import/no-unassigned-import
 import '@temporalio/ai-sdk/lib/load-polyfills';
-import { generateObject, generateText, stepCountIs, tool, wrapLanguageModel } from 'ai';
+import { embedMany, generateObject, generateText, stepCountIs, tool, wrapLanguageModel } from 'ai';
 import { z } from 'zod';
-import { LanguageModelV2Middleware } from '@ai-sdk/provider';
+import type { LanguageModelV3Middleware } from '@ai-sdk/provider';
 import { proxyActivities } from '@temporalio/workflow';
 import { TemporalMCPClient, temporalProvider } from '@temporalio/ai-sdk';
 import type * as activities from '../activities/ai-sdk';
@@ -32,7 +32,7 @@ export async function toolsWorkflow(question: string): Promise<string> {
         inputSchema: z.object({
           location: z.string().describe('The location to get the weather for'),
         }),
-        execute: getWeather,
+        execute: async (input, _options) => getWeather(input),
       }),
     },
     stopWhen: stepCountIs(5),
@@ -57,7 +57,8 @@ export async function generateObjectWorkflow(): Promise<string> {
 
 export async function middlewareWorkflow(prompt: string): Promise<string> {
   const cache = new Map<string, any>();
-  const middleware: LanguageModelV2Middleware = {
+  const middleware: LanguageModelV3Middleware = {
+    specificationVersion: 'v3',
     wrapGenerate: async ({ doGenerate, params }) => {
       const cacheKey = JSON.stringify(params);
       if (cache.has(cacheKey)) {
@@ -108,4 +109,23 @@ export async function mcpWorkflow(prompt: string): Promise<string> {
     stopWhen: stepCountIs(5),
   });
   return result.text;
+}
+
+/**
+ * Workflow that demonstrates embedding model support.
+ * Uses the temporalProvider to generate embeddings for multiple text values.
+ */
+export async function embeddingWorkflow(
+  values: string[]
+): Promise<{ count: number; dimensions: number; totalTokens?: number }> {
+  const result = await embedMany({
+    model: temporalProvider.embeddingModel('text-embedding-3-small'),
+    values,
+  });
+
+  return {
+    count: result.embeddings.length,
+    dimensions: result.embeddings[0]?.length ?? 0,
+    totalTokens: result.usage?.tokens,
+  };
 }

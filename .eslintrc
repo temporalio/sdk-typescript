@@ -2,7 +2,7 @@
   "root": true,
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
-    "project": "./packages/*/tsconfig.json"
+    "project": ["./packages/*/tsconfig.json"]
   },
   "plugins": ["@typescript-eslint", "eslint-plugin-tsdoc", "deprecation", "import"],
   "extends": [
@@ -12,7 +12,13 @@
     "prettier"
   ],
   "rules": {
-    "eqeqeq": ["error", "always", { "null": "ignore" }],
+    "eqeqeq": [
+      "error",
+      "always",
+      {
+        "null": "ignore"
+      }
+    ],
     "no-duplicate-imports": "error",
     "object-shorthand": ["error", "always"],
     "deprecation/deprecation": "warn",
@@ -27,7 +33,12 @@
         "varsIgnorePattern": "^_"
       }
     ],
-    "import/no-unresolved": ["error", { "ignore": ["^__temporal_"] }],
+    "import/no-unresolved": [
+      "error",
+      {
+        "ignore": ["^__temporal_"]
+      }
+    ],
     // TypeScript compilation already ensures that named imports exist in the referenced module
     "import/named": "off",
     "import/default": "error",
