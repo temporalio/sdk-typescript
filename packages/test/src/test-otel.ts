@@ -725,4 +725,5 @@ test.skip('otel interceptors are complete', async (t) => {
 test.skip('workflow-imports stub and impl have same type', async (t) => {
   const _implSatisfiesStub = {} as typeof workflowImportImpl satisfies typeof workflowImportStub;
   const _stubSatisfiesImpl = {} as typeof workflowImportStub satisfies typeof workflowImportImpl;
+  t.pass();
 });

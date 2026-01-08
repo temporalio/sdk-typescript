@@ -18,7 +18,12 @@ import {
   RUN_ID_ATTR_KEY,
   ACTIVITY_ID_ATTR_KEY,
 } from '../instrumentation';
-import { type OpenTelemetryWorkflowExporter, type SerializableSpan, SpanName, SPAN_DELIMITER } from '../workflow/definitions';
+import {
+  type OpenTelemetryWorkflowExporter,
+  type SerializableSpan,
+  SpanName,
+  SPAN_DELIMITER,
+} from '../workflow/definitions';
 
 export interface InterceptorOptions {
   readonly tracer?: otel.Tracer;
