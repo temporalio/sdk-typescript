@@ -2,11 +2,9 @@
  * Sets global variables required for importing opentelemetry in isolate
  * @module
  */
-import { getWorkflowModuleIfAvailable } from './workflow-module-loader';
+import { inWorkflowContext } from './workflow-imports';
 
-const inWorkflowContext = getWorkflowModuleIfAvailable()?.inWorkflowContext;
-
-if (inWorkflowContext?.()) {
+if (inWorkflowContext()) {
   // Required by opentelemetry (pretend to be a browser)
   Object.assign(globalThis, {
     performance: {

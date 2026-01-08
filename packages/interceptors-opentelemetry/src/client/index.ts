@@ -26,7 +26,7 @@ import {
   UPDATE_ID_ATTR_KEY,
   TERMINATE_REASON_ATTR_KEY,
 } from '../instrumentation';
-import { SpanName, SPAN_DELIMITER } from '../workflow';
+import { SpanName, SPAN_DELIMITER } from '../workflow/definitions';
 
 export interface InterceptorOptions {
   readonly tracer?: otel.Tracer;

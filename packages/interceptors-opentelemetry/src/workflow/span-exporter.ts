@@ -1,17 +1,16 @@
 import * as tracing from '@opentelemetry/sdk-trace-base';
 import { ExportResult, ExportResultCode } from '@opentelemetry/core';
 import { OpenTelemetrySinks, SerializableSpan } from './definitions';
-import { ensureWorkflowModuleLoaded, getWorkflowModuleIfAvailable } from './workflow-module-loader';
-
-const exporter = getWorkflowModuleIfAvailable()?.proxySinks<OpenTelemetrySinks>()?.exporter;
+import { proxySinks } from './workflow-imports';
 
 export class SpanExporter implements tracing.SpanExporter {
-  public constructor() {
-    ensureWorkflowModuleLoaded();
-  }
+  private exporter?: OpenTelemetrySinks['exporter'];
 
   public export(spans: tracing.ReadableSpan[], resultCallback: (result: ExportResult) => void): void {
-    exporter!.export(spans.map((span) => this.makeSerializable(span)));
+    if (!this.exporter) {
+      this.exporter = proxySinks<OpenTelemetrySinks>().exporter;
+    }
+    this.exporter.export(spans.map((span) => this.makeSerializable(span)));
     resultCallback({ code: ExportResultCode.SUCCESS });
   }
 
