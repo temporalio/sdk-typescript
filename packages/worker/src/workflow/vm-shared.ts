@@ -149,7 +149,6 @@ export function injectGlobals(context: vm.Context): void {
     }
 
     disable(): void {
-      console.log('AsyncLocalStorage.disable', this.name);
       super.disable();
     }
   }
