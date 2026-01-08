@@ -219,7 +219,7 @@ jobs:
           - platform: linux-arm
             runner: ubuntu-24.04-arm64-2-core
           - platform: macos-x64
-            runner: macos-13
+            runner: macos-15-intel
           - platform: macos-arm
             runner: macos-14
           - platform: windows-x64
