@@ -517,8 +517,8 @@ importers:
         specifier: ^0.7.10
         version: 0.7.13
       '@modelcontextprotocol/sdk':
-        specifier: ^1.10.2
-        version: 1.24.0(zod@3.25.76)
+        specifier: ^1.25.2
+        version: 1.25.2(hono@4.11.3)(zod@3.25.76)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -1094,6 +1094,12 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
+  '@hono/node-server@1.19.7':
+    resolution: {integrity: sha512-vUcD0uauS7EU2caukW8z5lJKtoGMokxNbJtBiwHgpqxEXokaHCBkQUmCHhjFB1VUTWdqj25QoMkMKzgjq+uhrw==}
+    engines: {node: '>=18.14.1'}
+    peerDependencies:
+      hono: ^4
+
   '@humanwhocodes/config-array@0.13.0':
     resolution: {integrity: sha512-DZLEEqFWQFiyK6h5YIeynKx7JlvCYWL0cImfSRXZ9l4Sg2efkFGTuFf6vzXjK1cq6IYkU+Eg/JizXw+TD2vRNw==}
     engines: {node: '>=10.10.0'}
@@ -1170,8 +1176,8 @@ packages:
   '@microsoft/tsdoc@0.14.2':
     resolution: {integrity: sha512-9b8mPpKrfeGRuhFH5iO1iwCLeIIsV6+H1sRfxbkoGXIyQE2BTsPd9zqSqQJ+pv5sJ/hT5M1zvOFL02MnEezFug==}
 
-  '@modelcontextprotocol/sdk@1.24.0':
-    resolution: {integrity: sha512-D8h5KXY2vHFW8zTuxn2vuZGN0HGrQ5No6LkHwlEA9trVgNdPL3TF1dSqKA7Dny6BbBYKSW/rOBDXdC8KJAjUCg==}
+  '@modelcontextprotocol/sdk@1.25.2':
+    resolution: {integrity: sha512-LZFeo4F9M5qOhC/Uc1aQSrBHxMrvxett+9KLHt7OhcExtoiRN9DKgbZffMP/nxjutWDQpfMDfP3nkHI4X9ijww==}
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
@@ -3520,6 +3526,10 @@ packages:
     resolution: {integrity: sha512-trFMIq3PATiFRiQmNNeHtsrkwYRByIXUbYNbotiY9RLVfMkdwZdd2eQ38mGt7BRiCKBaj1DyBAIHmm7mmXPuuw==}
     engines: {node: '>=10.0.0'}
 
+  hono@4.11.3:
+    resolution: {integrity: sha512-PmQi306+M/ct/m5s66Hrg+adPnkD5jiO6IjA7WhWw0gSBSo1EcRegwuI1deZ+wd5pzCGynCcn2DprnE4/yEV4w==}
+    engines: {node: '>=16.9.0'}
+
   hosted-git-info@2.8.9:
     resolution: {integrity: sha512-mxIDAb9Lsm6DoOJ7xH+5+X4y1LU/4Hi50L9C5sIswK3JzULS4bwk1FvjdBgvYR4bzT4tuUQiC15FE2f5HbLvYw==}
 
@@ -3937,6 +3947,9 @@ packages:
 
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
+
+  json-schema-typed@8.0.2:
+    resolution: {integrity: sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA==}
 
   json-schema@0.4.0:
     resolution: {integrity: sha512-es94M3nTIfsEPisRafak+HDLfHXnKBhV3vU5eqPcS3flIWqcxJWgXHXiey3YrpaNsanY5ei1VoYEbOzijuq9BA==}
@@ -6284,6 +6297,10 @@ snapshots:
       protobufjs: 7.5.1
       yargs: 17.7.2
 
+  '@hono/node-server@1.19.7(hono@4.11.3)':
+    dependencies:
+      hono: 4.11.3
+
   '@humanwhocodes/config-array@0.13.0':
     dependencies:
       '@humanwhocodes/object-schema': 2.0.3
@@ -6440,8 +6457,9 @@ snapshots:
 
   '@microsoft/tsdoc@0.14.2': {}
 
-  '@modelcontextprotocol/sdk@1.24.0(zod@3.25.76)':
+  '@modelcontextprotocol/sdk@1.25.2(hono@4.11.3)(zod@3.25.76)':
     dependencies:
+      '@hono/node-server': 1.19.7(hono@4.11.3)
       ajv: 8.17.1
       ajv-formats: 3.0.1(ajv@8.17.1)
       content-type: 1.0.5
@@ -6452,11 +6470,13 @@ snapshots:
       express: 5.2.1
       express-rate-limit: 7.5.1(express@5.2.1)
       jose: 6.1.3
+      json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
       zod: 3.25.76
       zod-to-json-schema: 3.25.0(zod@3.25.76)
     transitivePeerDependencies:
+      - hono
       - supports-color
 
   '@napi-rs/wasm-runtime@0.2.4':
@@ -9281,6 +9301,8 @@ snapshots:
 
   heap-js@2.6.0: {}
 
+  hono@4.11.3: {}
+
   hosted-git-info@2.8.9: {}
 
   hosted-git-info@4.1.0:
@@ -9692,6 +9714,8 @@ snapshots:
   json-schema-traverse@0.4.1: {}
 
   json-schema-traverse@1.0.0: {}
+
+  json-schema-typed@8.0.2: {}
 
   json-schema@0.4.0: {}
 

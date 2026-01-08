@@ -27,6 +27,8 @@ minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
+  # TODO: remove once this ages past min release age
+  - '@modelcontextprotocol/sdk@1.25.2'
 
 peerDependencyRules:
   ignoreMissing:
