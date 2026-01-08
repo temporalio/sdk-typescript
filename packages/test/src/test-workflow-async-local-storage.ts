@@ -2,7 +2,6 @@ import type { AsyncLocalStorage } from 'async_hooks';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { unblockSignal } from './workflows/testenv-test-workflows';
-import { startWorkflow } from '@temporalio/nexus';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
