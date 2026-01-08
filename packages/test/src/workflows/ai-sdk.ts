@@ -1,7 +1,7 @@
 // Test workflow using AI model
 // eslint-disable-next-line import/no-unassigned-import
 import '@temporalio/ai-sdk/lib/load-polyfills';
-import { embedMany, generateObject, generateText, stepCountIs, tool, wrapLanguageModel } from 'ai';
+import { embedMany, generateText, Output, stepCountIs, tool, wrapLanguageModel } from 'ai';
 import { z } from 'zod';
 import type { LanguageModelV3Middleware } from '@ai-sdk/provider';
 import { proxyActivities } from '@temporalio/workflow';
@@ -41,18 +41,20 @@ export async function toolsWorkflow(question: string): Promise<string> {
 }
 
 export async function generateObjectWorkflow(): Promise<string> {
-  const { object } = await generateObject({
+  const { output } = await generateText({
     model: temporalProvider.languageModel('gpt-4o-mini'),
-    schema: z.object({
-      recipe: z.object({
-        name: z.string(),
-        ingredients: z.array(z.object({ name: z.string(), amount: z.string() })),
-        steps: z.array(z.string()),
+    output: Output.object({
+      schema: z.object({
+        recipe: z.object({
+          name: z.string(),
+          ingredients: z.array(z.object({ name: z.string(), amount: z.string() })),
+          steps: z.array(z.string()),
+        }),
       }),
     }),
     prompt: 'Generate a lasagna recipe.',
   });
-  return object.recipe.name;
+  return output.recipe.name;
 }
 
 export async function middlewareWorkflow(prompt: string): Promise<string> {
