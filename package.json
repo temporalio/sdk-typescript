@@ -86,7 +86,14 @@
   },
   "engines": {
     "node": ">= 18.0.0",
-    "pnpm": ">= 10.16.0",
+    "pnpm": ">= 10.27.0",
     "rustc": ">= 1.53.0"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "10.27.0",
+      "onFail": "warn"
+    }
   }
 }

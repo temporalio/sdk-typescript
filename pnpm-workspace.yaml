@@ -27,9 +27,15 @@ minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
+  # TODO: remove once this ages past min release age
+  - '@modelcontextprotocol/sdk@1.25.2'
 
 peerDependencyRules:
   ignoreMissing:
     # Peer of json-joy@9.9.1, missing in memfs@4.6.0
     # No apparent issue at runtime if not present
     - quill-delta
+
+overrides:
+  # Can be removed once a release of `express` with an updated qs is cut
+  'qs': '^6.14.1'
