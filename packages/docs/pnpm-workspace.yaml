@@ -1,2 +1,6 @@
 packages:
   - '.'
+
+overrides:
+  # Can be removed once a release of `express` with an updated qs is cut
+  "qs": "^6.14.1"
