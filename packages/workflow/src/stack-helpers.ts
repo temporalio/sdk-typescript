@@ -1,11 +1,10 @@
-import { maybeGetActivatorUntyped } from './global-attributes';
-import type { PromiseStackStore } from './internals';
+import { maybeGetActivator } from './global-attributes';
 
 /**
  * Helper function to remove a promise from being tracked for stack trace query purposes
  */
 export function untrackPromise(promise: Promise<unknown>): void {
-  const store = (maybeGetActivatorUntyped() as any)?.promiseStackStore as PromiseStackStore | undefined;
+  const store = maybeGetActivator()?.promiseStackStore;
   if (!store) return;
   store.childToParent.delete(promise);
   store.promiseToStack.delete(promise);

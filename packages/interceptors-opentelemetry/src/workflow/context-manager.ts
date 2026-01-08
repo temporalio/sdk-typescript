@@ -1,12 +1,10 @@
+import { type AsyncLocalStorage } from 'async_hooks';
 import * as otel from '@opentelemetry/api';
-import { ensureWorkflowModuleLoaded, getWorkflowModuleIfAvailable } from './workflow-module-loader';
-
-const AsyncLocalStorage = getWorkflowModuleIfAvailable()?.AsyncLocalStorage;
+import { ensureWorkflowModuleLoaded } from './workflow-module-loader';
 
 export class ContextManager implements otel.ContextManager {
-  // If `@temporalio/workflow` is not available, ignore for now.
-  // When ContextManager is constructed module resolution error will be thrown.
-  protected storage = AsyncLocalStorage ? new AsyncLocalStorage<otel.Context>() : undefined;
+  // The workflow sandbox provides AsyncLocalStorage through globalThis.
+  protected storage: AsyncLocalStorage<otel.Context> = new (globalThis as any).AsyncLocalStorage();
 
   public constructor() {
     ensureWorkflowModuleLoaded();

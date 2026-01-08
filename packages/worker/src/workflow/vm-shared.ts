@@ -1,6 +1,6 @@
 import v8 from 'node:v8';
 import vm from 'node:vm';
-import { AsyncLocalStorage } from 'node:async_hooks';
+import { AsyncLocalStorage as AsyncLocalStorageOriginal } from 'node:async_hooks';
 import assert from 'node:assert';
 import { URL, URLSearchParams } from 'node:url';
 import { TextDecoder, TextEncoder } from 'node:util';
@@ -17,6 +17,9 @@ import { UnhandledRejectionError } from '../errors';
 import { convertDeploymentVersion } from '../utils';
 import { Workflow } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
+
+// We need this import for the ambient global extensions
+import '@temporalio/workflow/lib/global-attributes'; // eslint-disable-line import/no-unassigned-import
 
 // Best effort to catch unhandled rejections from workflow code.
 // We crash the thread if we cannot find the culprit.
@@ -89,8 +92,9 @@ function formatCallsiteName(callsite: NodeJS.CallSite): string | null {
  * Inject global objects as well as console.[log|...] into a vm context.
  */
 export function injectGlobals(context: vm.Context): void {
+  const sandboxGlobalThis = context as typeof globalThis;
+
   const globals = {
-    AsyncLocalStorage,
     URL,
     URLSearchParams,
     assert,
@@ -99,24 +103,60 @@ export function injectGlobals(context: vm.Context): void {
     AbortController,
   };
   for (const [k, v] of Object.entries(globals)) {
-    Object.defineProperty(context, k, { value: v, writable: false, enumerable: true, configurable: false });
+    Object.defineProperty(sandboxGlobalThis, k, { value: v, writable: false, enumerable: true, configurable: false });
   }
 
   const consoleMethods = ['log', 'warn', 'error', 'info', 'debug'] as const;
   type ConsoleMethod = (typeof consoleMethods)[number];
   function makeConsoleFn(level: ConsoleMethod) {
     return function (...args: unknown[]) {
-      const { info } = context.__TEMPORAL_ACTIVATOR__;
-      if (info.isReplaying) return;
-      console[level](`[${info.workflowType}(${info.workflowId})]`, ...args);
+      if (sandboxGlobalThis.__TEMPORAL_ACTIVATOR__ === undefined) {
+        // This should not happen in a normal execution environment, but this is
+        // often handy while debugging the SDK, and costs nothing to keep around.
+        console[level](`[not in workflow context]`, ...args);
+      } else {
+        const { info } = sandboxGlobalThis.__TEMPORAL_ACTIVATOR__!;
+        if (info.unsafe.isReplaying) return;
+        console[level](`[${info.workflowType}(${info.workflowId})]`, ...args);
+      }
     };
   }
   const consoleObject = Object.fromEntries(consoleMethods.map((level) => [level, makeConsoleFn(level)]));
-  Object.defineProperty(context, 'console', {
+  Object.defineProperty(sandboxGlobalThis, 'console', {
     value: consoleObject,
     writable: true,
     enumerable: false,
     configurable: true,
+  });
+
+  class AsyncLocalStorage extends AsyncLocalStorageOriginal<any> {
+    constructor(private name: string = 'anonymous') {
+      super();
+
+      const activator = sandboxGlobalThis.__TEMPORAL_ACTIVATOR__;
+      if (activator) {
+        activator.workflowSandboxDestructors.push(this.disable.bind(this));
+      } else {
+        if (sandboxGlobalThis.__temporal_globalSandboxDestructors === undefined)
+          Object.defineProperty(sandboxGlobalThis, '__temporal_globalSandboxDestructors', {
+            value: [],
+            writable: false,
+            enumerable: false,
+            configurable: false,
+          });
+        sandboxGlobalThis.__temporal_globalSandboxDestructors!.push(this.disable.bind(this));
+      }
+    }
+
+    disable(): void {
+      super.disable();
+    }
+  }
+  Object.defineProperty(sandboxGlobalThis, 'AsyncLocalStorage', {
+    value: AsyncLocalStorage,
+    writable: false,
+    enumerable: true,
+    configurable: false,
   });
 }
 
