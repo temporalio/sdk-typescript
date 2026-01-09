@@ -1,7 +1,7 @@
 import * as otel from '@opentelemetry/api';
 import * as tracing from '@opentelemetry/sdk-trace-base';
 import { InstrumentationLibrary } from '@opentelemetry/core'; // eslint-disable deprecation/deprecation
-import { Sink, Sinks } from '@temporalio/workflow';
+import type { Sink, Sinks } from '@temporalio/workflow';
 
 /**
  * Serializable version of the opentelemetry Span for cross isolate copying

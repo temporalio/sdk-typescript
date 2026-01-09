@@ -455,6 +455,8 @@ export class Activator implements ActivationHandler {
   public versioningBehavior?: VersioningBehavior;
   public workflowDefinitionOptionsGetter?: () => WorkflowDefinitionOptions;
 
+  public readonly workflowSandboxDestructors: (() => void)[] = [];
+
   constructor({
     info,
     now,

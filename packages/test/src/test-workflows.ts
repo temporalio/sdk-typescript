@@ -97,6 +97,10 @@ test.beforeEach(async (t) => {
   };
 });
 
+test.afterEach(async (t) => {
+  await t.context.workflow?.dispose();
+});
+
 async function createWorkflow(
   workflowType: string,
   runId: string,

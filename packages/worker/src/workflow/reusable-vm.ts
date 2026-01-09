@@ -27,7 +27,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
    *
    * Use the {@link context} getter instead
    */
-  private _context?: vm.Context;
+  private _context?: vm.Context & typeof globalThis;
   private pristineObj?: object;
 
   constructor(
@@ -42,12 +42,12 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       ReusableVMWorkflowCreator.unhandledRejectionHandlerHasBeenSet = true;
     }
 
-    this._context = vm.createContext({}, { microtaskMode: 'afterEvaluate' });
+    this._context = vm.createContext({}, { microtaskMode: 'afterEvaluate' }) as vm.Context & typeof globalThis;
     vm.runInContext(
       `{
           const __TEMPORAL_CALL_INTO_SCOPE = () => {
-            const [holder, fn, args] = globalThis.__TEMPORAL_ARGS__;
-            delete globalThis.__TEMPORAL_ARGS__;
+            const [holder, fn, args] = globalThis.__temporal_args;
+            delete globalThis.__temporal_args;
 
             if (globalThis.__TEMPORAL_BAG_HOLDER__ !== holder) {
               if (globalThis.__TEMPORAL_BAG_HOLDER__ !== undefined) {
@@ -81,13 +81,11 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       { timeout: isolateExecutionTimeoutMs, displayErrors: true }
     );
 
-    this.injectGlobals(this._context);
-
     const sharedModules = new Map<string | symbol, any>();
     const __webpack_module_cache__ = new Proxy(
       {},
       {
-        get: (_, p) => {
+        get: (_, p: string) => {
           // Try the shared modules first
           const sharedModule = sharedModules.get(p);
           if (sharedModule) {
@@ -96,7 +94,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
           const moduleCache = this.context.__TEMPORAL_ACTIVATOR__?.moduleCache;
           return moduleCache?.get(p);
         },
-        set: (_, p, val) => {
+        set: (_, p: string, val) => {
           const moduleCache = this.context.__TEMPORAL_ACTIVATOR__?.moduleCache;
           if (moduleCache != null) {
             moduleCache.set(p, val);
@@ -115,6 +113,8 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       configurable: false,
     });
 
+    this.injectGlobals(this._context);
+
     script.runInContext(this.context);
 
     // The V8 context is really composed of two distinct objects: the 'this._context' object on the outside, and another
@@ -127,7 +127,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       ...Object.getOwnPropertyNames(this.pristineObj),
       ...Object.getOwnPropertySymbols(this.pristineObj),
     ]) {
-      if (k !== 'globalThis') {
+      if (k !== 'globalThis' && k !== '__temporal_globalSandboxDestructors') {
         const v: PropertyDescriptor = (this.pristineObj as any)[k];
         v.value = deepFreeze(v.value);
       }
@@ -136,7 +136,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     for (const v of sharedModules.values()) deepFreeze(v);
   }
 
-  protected get context(): vm.Context {
+  protected get context(): vm.Context & typeof globalThis {
     const { _context } = this;
     if (_context == null) {
       throw new IllegalStateError('Tried to use v8 context after Workflow creator was destroyed');
@@ -159,15 +159,15 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
   async createWorkflow(options: WorkflowCreateOptions): Promise<Workflow> {
     const context = this.context;
     const holder: BagHolder = { bag: this.pristineObj! };
-
     const { isolateExecutionTimeoutMs } = this;
+
     const workflowModule: WorkflowModule = new Proxy(
       {},
       {
         get(_: any, fn: string) {
           return (...args: any[]) => {
             // By the time we get out of this call, all microtasks will have been executed
-            context.__TEMPORAL_ARGS__ = [holder, fn, args];
+            context.__temporal_args = [holder, fn, args];
             return callIntoVmScript.runInContext(context, {
               timeout: isolateExecutionTimeoutMs,
               displayErrors: true,
@@ -175,7 +175,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
           };
         },
       }
-    ) as any;
+    );
 
     workflowModule.initRuntime({
       ...options,
@@ -183,7 +183,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       getTimeOfDay: native.getTimeOfDay,
       registeredActivityNames: this.registeredActivityNames,
     });
-    const activator = context['__TEMPORAL_ACTIVATOR__'];
+    const activator = context.__TEMPORAL_ACTIVATOR__!;
     const newVM = new ReusableVMWorkflow(options.info.runId, context, activator, workflowModule);
     ReusableVMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
     return newVM;
@@ -210,8 +210,12 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
    * Cleanup the pre-compiled script
    */
   public async destroy(): Promise<void> {
-    globalHandlers.removeWorkflowBundle(this.workflowBundle);
-    delete this._context;
+    try {
+      vm.runInContext(`__TEMPORAL__.api.destroy()`, this.context);
+    } finally {
+      globalHandlers.removeWorkflowBundle(this.workflowBundle);
+      delete this._context;
+    }
   }
 }
 

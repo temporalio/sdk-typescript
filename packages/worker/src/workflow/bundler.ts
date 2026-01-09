@@ -4,7 +4,7 @@ import path from 'node:path';
 import util from 'node:util';
 import * as unionfs from 'unionfs';
 import * as memfs from 'memfs';
-import { Configuration, webpack } from 'webpack';
+import { Configuration, webpack, NormalModuleReplacementPlugin } from 'webpack';
 import { DefaultLogger, Logger, hasColorSupport } from '../logger';
 import { toMB } from '../utils';
 
@@ -216,6 +216,17 @@ exports.importInterceptors = function importInterceptors() {
           ...Object.fromEntries([...this.ignoreModules, ...disallowedModules].map((m) => [m, false])),
         },
       },
+      plugins: [
+        // `@temporalio/interceptors-opentelemetry` only requires `@temporalio/workflow` for interceptors that run in workflow context.
+        // In order to keep `@temporalio/workflow` as an optional peer dependency for `@temporalio/interceptors-opentelemetry`
+        // we use `workflow-imports` to reexport all required imports from `@temporalio/workflow`.
+        // Outside of workflow context the module used only contains stubs that will error if they are used.
+        // When creating the workflow bundle we replace the module containing the stubs with a module that reexports the actual implementations.
+        new NormalModuleReplacementPlugin(
+          /[\\/](?:@temporalio|packages)[\\/]interceptors-opentelemetry[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
+          './workflow-imports-impl.js'
+        ),
+      ],
       externals: captureProblematicModules,
       module: {
         rules: [

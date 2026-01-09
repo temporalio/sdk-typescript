@@ -12,6 +12,8 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
+import type * as workflowImportStub from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports';
+import type * as workflowImportImpl from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports-impl';
 import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor } from '@temporalio/client';
 import { OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
 import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry';
@@ -717,5 +719,11 @@ test.skip('otel interceptors are complete', async (t) => {
   const _act_outbound =
     {} as OpenTelemetryActivityOutboundInterceptor satisfies Required<ActivityOutboundCallsInterceptor>;
   const _client = {} as OpenTelemetryWorkflowClientInterceptor satisfies Required<WorkflowClientInterceptor>;
+  t.pass();
+});
+
+test.skip('workflow-imports stub and impl have same type', async (t) => {
+  const _implSatisfiesStub = {} as typeof workflowImportImpl satisfies typeof workflowImportStub;
+  const _stubSatisfiesImpl = {} as typeof workflowImportStub satisfies typeof workflowImportImpl;
   t.pass();
 });

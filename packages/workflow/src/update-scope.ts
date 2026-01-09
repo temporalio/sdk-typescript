@@ -57,11 +57,4 @@ export class UpdateScope {
   }
 }
 
-const storage = new AsyncLocalStorage<UpdateScope>();
-
-/**
- * Disable the async local storage for updates.
- */
-export function disableUpdateStorage(): void {
-  storage.disable();
-}
+const storage: ALS<UpdateScope> = new AsyncLocalStorage();
