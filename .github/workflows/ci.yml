@@ -60,12 +60,12 @@ jobs:
       run:
         shell: bash
     steps:
-      - name: 'Checkout code'
+      - name: "Checkout code"
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: 'Cache index.node'
+      - name: "Cache index.node"
         id: cached-artifact
         uses: actions/cache@v4
         with:
@@ -77,7 +77,7 @@ jobs:
         uses: arduino/setup-protoc@v3
         with:
           # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
-          version: '23.x'
+          version: "23.x"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upgrade Rust to latest stable
@@ -90,7 +90,7 @@ jobs:
           workspaces: packages/core-bridge -> target
           prefix-key: corebridge-buildcache-debug
           shared-key: ${{ matrix.platform }}
-          env-vars: ''
+          env-vars: ""
           save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
 
       - name: Compile rust code
@@ -144,11 +144,11 @@ jobs:
     steps:
       # For some unknown reason, execution of TSC may sometime introduce a CRLF/LF mismatch on some
       # pure JS files that are preserved in the repo, which would later cause a failure when trying
-      # to publish packages to Verdaccio, as Lerna requires that the Git repo be clean.
+      # to publish packages to Verdaccio, as `pnpm publish` requires that the Git repo be clean.
       - name: Set git config
         run: git config --global core.autocrlf false
 
-      - name: 'Checkout code'
+      - name: "Checkout code"
         uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -178,7 +178,7 @@ jobs:
         working-directory: ${{ runner.temp }}
 
       - name: Compile code
-        run: pnpm run build --ignore @temporalio/core-bridge
+        run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' run build
 
       - name: Publish to Verdaccio
         run: pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry

@@ -178,7 +178,7 @@ jobs:
           save-cache: ${{ env.IS_MAIN_OR_RELEASE }}
 
       - name: Compile code
-        run: pnpm run build --ignore @temporalio/core-bridge
+        run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' run build
 
       - name: Publish to Verdaccio
         run: pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir ./tmp/registry
