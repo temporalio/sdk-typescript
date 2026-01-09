@@ -144,7 +144,7 @@ jobs:
     steps:
       # For some unknown reason, execution of TSC may sometime introduce a CRLF/LF mismatch on some
       # pure JS files that are preserved in the repo, which would later cause a failure when trying
-      # to publish packages to Verdaccio, as Lerna requires that the Git repo be clean.
+      # to publish packages to Verdaccio, as `pnpm publish` requires that the Git repo be clean.
       - name: Set git config
         run: git config --global core.autocrlf false
 

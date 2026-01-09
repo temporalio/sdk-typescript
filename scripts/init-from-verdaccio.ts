@@ -1,5 +1,4 @@
-import { resolve, dirname } from 'node:path';
-import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { getArgs, withRegistry } from './registry';
 import { spawnNpx } from './utils';
 
@@ -7,27 +6,14 @@ import { spawnNpx } from './utils';
 // we are testing. This is required when testing against a pre-release version,
 // which would not be otherwise matched by specifier like ^1.8.0.
 // eslint-disable-next-line import/order
-import { version } from '../lerna.json';
+import { version } from '../packages/client/package.json';
 
 async function main() {
   const { registryDir, targetDir, initArgs } = await getArgs();
 
-  await withRegistry(registryDir, async () => {
+  await withRegistry(registryDir, dirname(targetDir), async (npmConfigFile) => {
     console.log('spawning npx @temporalio/create with args:', initArgs);
     try {
-      const npmConfigFile = resolve(registryDir, 'npmrc-custom');
-      let npmConfig = `@temporalio:registry=http://127.0.0.1:4873`;
-
-      if (!process.env?.['CI']) {
-        // When testing on dev's local machine, uses an isolated NPM cache directory to avoid mixing
-        // existing @temporalio/* cached packages with the ones from the local registry. We don't do
-        // that in CI though, as it is not needed (i.e. there should be no such cached packages yet)
-        // and would slow down the tests (i.e. it requires redownloading ALL packages).
-        npmConfig += `\ncache=${resolve(registryDir, 'npm-cache')}`;
-      }
-
-      writeFileSync(npmConfigFile, npmConfig, { encoding: 'utf-8' });
-
       await spawnNpx(
         [`@temporalio/create@${version}`, targetDir, '--no-git-init', '--sdk-version', version, ...initArgs],
         {

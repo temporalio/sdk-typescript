@@ -90,7 +90,8 @@ pnpm run build
 If building fails, resetting your environment may help:
 
 ```
-pnpm dlx lerna clean -y && pnpm install --frozen-lockfile
+pnpm run clean -y
+pnpm install --frozen-lockfile
 ```
 
 If `pnpm install` fails in `@temporalio/core-bridge` on the command `pnpm tsx ./scripts/build.ts`, you may
@@ -138,11 +139,10 @@ pnpm run rebuild
 TMP_DIR=$( mktemp -d )
 
 pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir "$TMP_DIR"
-pnpm tsx scripts/init-from-verdaccio.ts --registry-dir "$TMP_DIR" --sample hello-world
+pnpm tsx scripts/init-from-verdaccio.ts --registry-dir "$TMP_DIR" --target-dir "./example" --sample hello-world
+pnpm tsx scripts/test-example.ts --work-dir "./example"
 
-cd "$TMP_DIR/example"
-pnpm run build
-pnpm tsx scripts/test-example.ts --work-dir "$TMP_DIR/example"
+rm -rf ./example "$TMP_DIR"
 ```
 
 ### Style Guide
@@ -192,121 +192,3 @@ done
 ```
 
 To install both tools: `npm i -g npm-check npm-check-updates`.
-
-## Publishing
-
-First, download the latest native artifacts from GitHub Actions.
-
-Then run the following commands:
-
-```sh
-cargo install git-cliff
-```
-
-```sh
-# git-cliff --tag <new version> <current version>..HEAD | pbcopy
-git-cliff --tag 1.0.1 v1.0.0..HEAD | pbcopy
-```
-
-- Paste into [CHANGELOG.md](CHANGELOG.md)
-- Clean up formatting
-- Add any important missing details
-- If core has been updated, include a note in the release about from which commit to which commit, and you should review the commits to see if there were any breaking changes that must be called out.
-- Replace PR numbers with links:
-
-```
-#(\d{3})
-[#$1](https://github.com/temporalio/sdk-typescript/pull/$1)
-```
-
-- If PRs came from external contributors, thank them & link their github handles: `([#484](link), thanks to [`@user`](https://github.com/user) 🙏)`
-- Open PR with CHANGELOG change
-- If using a custom [features](https://github.com/temporalio/features) branch for PR integration tests, make
-  sure the branch is fully up-to-date with `features` `main` before merging the CHANGELOG PR
-- Merge PR
-- Checkout latest `main`
-
-We're [working on automating](https://github.com/temporalio/sdk-typescript/pull/395) the rest of the process:
-
-- Log in to npm as `temporal-sdk-team` (`npm whoami` and `npm login`)
-- Download the 5 `packages-*` artifacts from the PR's [GitHub Action](https://github.com/temporalio/sdk-typescript/actions)
-- Publish:
-
-```sh
-#!/bin/bash
-set -euo pipefail
-
-git clean -fdx
-pnpm install --frozen-lockfile
-pnpm run build
-
-mkdir -p packages/core-bridge/releases
-
-# in the next command, replace ~/gh/release-sdk-typescript with your dir
-for f in ~/Downloads/packages-*.zip; do mkdir "$HOME/Downloads/$(basename -s .zip $f)"; (cd "$HOME/Downloads/$(basename -s .zip $f)" && unzip $f && tar -xvzf @temporalio/core-bridge/core-bridge-*.tgz package/releases/ && cp -r package/releases/* ~/gh/release-sdk-typescript/packages/core-bridge/releases/); done
-
-# we should now have all 5 build targets
-ls packages/core-bridge/releases/
-
-pnpm exec lerna version patch --force-publish='*' # or major|minor|etc, or leave out to be prompted. either way, you get a confirmation dialog.
-
-git checkout -B fix-deps
-pnpm tsx scripts/prepublish.ts
-git commit -am 'Fix dependencies'
-pnpm exec lerna publish from-package # add `--dist-tag next` for pre-release versions
-git checkout -
-```
-
-Finally:
-
-```
-npm deprecate temporalio@^1.0.0 "Instead of installing temporalio, we recommend directly installing our packages: npm remove temporalio; npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity"
-```
-
-- Cleanup after publishing:
-
-  ```sh
-  rm -rf $HOME/Downloads/packages-*
-  rm -rf packages/core-bridge/releases/*
-  ```
-
-- If using a custom [features](https://github.com/temporalio/features/) branch for PR integration tests, merge
-  that branch into features `main` and update the SDK workflow definition to trigger `features` `main`
-
-- If any APIs have changed, open a PR to update [`samples-typescript`](https://github.com/temporalio/samples-typescript/). Once merged, update the `next` branch:
-
-  ```sh
-  git checkout next
-  git rebase origin/main
-  git push
-  ```
-
-- While our tests should capture most things, if you want to verify the release works in the samples, do:
-
-  ```sh
-  cd /path/to/samples-typescript
-  lerna exec -- npm update
-  npm run build
-  npm test
-  ```
-
-### Updating published packages
-
-`npm` commands we may need to use:
-
-If we publish a version like `1.1.0-rc.1` with tag `next`, we untag it after `1.1.0` is released:
-
-```
-npm dist-tag rm @temporalio/client next
-npm dist-tag rm @temporalio/worker next
-npm dist-tag rm @temporalio/workflow next
-npm dist-tag rm @temporalio/activity next
-npm dist-tag rm @temporalio/testing next
-npm dist-tag rm @temporalio/common next
-npm dist-tag rm @temporalio/proto next
-npm dist-tag rm @temporalio/interceptors-opentelemetry next
-npm dist-tag rm @temporalio/common/lib/internal-workflow next
-npm dist-tag rm @temporalio/common/lib/internal-non-workflow next
-npm dist-tag rm @temporalio/create next
-npm dist-tag rm temporalio next
-```

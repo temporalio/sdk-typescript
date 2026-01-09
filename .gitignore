@@ -3,7 +3,6 @@ node_modules/
 lib/
 *.tsbuildinfo
 build/
-lerna*.log
 packages/test/protos/json-module.js
 packages/test/protos/root.d.ts
 packages/testing/test-server*
