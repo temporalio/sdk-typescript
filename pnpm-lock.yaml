@@ -159,6 +159,9 @@ importers:
       '@ai-sdk/provider':
         specifier: ^3.0.0
         version: 3.0.0
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../common
       '@temporalio/plugin':
         specifier: workspace:*
         version: link:../plugin
