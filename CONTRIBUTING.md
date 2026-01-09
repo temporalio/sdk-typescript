@@ -105,9 +105,9 @@ After your environment is set up, you can run these commands:
 
 - `pnpm run build` compiles protobuf definitions, Rust bridge, C++ isolate extension, and Typescript.
 - `pnpm run rebuild` deletes all generated files in the project and reruns build.
-- `pnpm run build.watch` watches filesystem for changes and incrementally compiles Typescript on change.
+- `pnpm run build:watch` watches filesystem for changes and incrementally compiles Typescript on change.
 - `pnpm run test` runs the test suite.
-- `pnpm run test.watch` runs the test suite on each change to Typescript files.
+- `pnpm run test:watch` runs the test suite on each change to Typescript files.
 - `pnpm run format` formats code with prettier.
 - `pnpm run lint` verifies code style with prettier and ES lint.
 - `pnpm run commitlint` validates [commit messages](#style-guide).
