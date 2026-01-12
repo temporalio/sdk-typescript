@@ -2,7 +2,7 @@ import * as otel from '@opentelemetry/api';
 import { SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { Resource } from '@opentelemetry/resources';
 import { SimpleClientPlugin, SimpleWorkerPlugin } from '@temporalio/plugin';
-import { InjectedSinks, WorkerOptions } from '@temporalio/worker';
+import { InjectedSinks, ReplayWorkerOptions, WorkerOptions } from '@temporalio/worker';
 import { InterceptorOptions, OpenTelemetryWorkflowClientInterceptor } from './client';
 import {
   makeWorkflowExporter,
@@ -53,14 +53,24 @@ export class OpenTelemetryWorkerPlugin extends SimpleWorkerPlugin {
   }
 
   configureWorker(options: WorkerOptions): WorkerOptions {
+    return super.configureWorker(this.injectSinks(options));
+  }
+
+  configureReplayWorker(options: ReplayWorkerOptions): ReplayWorkerOptions {
+    return super.configureReplayWorker(this.injectSinks(options));
+  }
+
+  private injectSinks<T extends { sinks?: InjectedSinks<any> }>(options: T): T {
     const sinks: InjectedSinks<OpenTelemetrySinks> = {
       exporter: makeWorkflowExporter(this.otelOptions.traceExporter, this.otelOptions.resource),
     };
-    options.sinks = {
-      ...options.sinks,
-      ...sinks,
+    return {
+      ...options,
+      sinks: {
+        ...options.sinks,
+        ...sinks,
+      },
     };
-    return super.configureWorker(options);
   }
 }
 
