@@ -23,7 +23,7 @@ import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { ExportResultCode } from '@opentelemetry/core';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
-import { AiSdkPlugin } from '@temporalio/ai-sdk';
+import { AiSdkPlugin, createActivities } from '@temporalio/ai-sdk';
 import { temporal } from '@temporalio/proto';
 import { WorkflowClient } from '@temporalio/client';
 import {
@@ -485,6 +485,64 @@ function* mcpGenerator(): Generator<ModelResponse> {
   yield toolCallResponse('list_directory', '/');
   yield textResponse('Some files');
 }
+
+test('callToolActivity awaits tool.execute before closing MCP client', async (t) => {
+  // Track the order of operations to verify close() is called AFTER execute() completes
+  const operationOrder: string[] = [];
+
+  // Create a mock MCP client that tracks when close() is called
+  // We only need to implement the methods used by callToolActivity: tools() and close()
+  const mockMcpClient = {
+    async tools() {
+      return {
+        testTool: {
+          description: 'A test tool',
+          inputSchema: { type: 'object' },
+          execute: async (_input: unknown, _options: unknown) => {
+            operationOrder.push('execute-start');
+            // Simulate async work - without await in the activity, close() will be called before this resolves
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            operationOrder.push('execute-end');
+            return { result: 'success' };
+          },
+        },
+      };
+    },
+    async close() {
+      operationOrder.push('close');
+    },
+  };
+
+  // Create a factory that returns the mock client - cast to any since we only implement the methods we need
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mockMcpClientFactory = async () => mockMcpClient as any;
+
+  // Create activities with the mock MCP client factory
+  const activities = createActivities(new TestProvider(helloWorkflowGenerator()), {
+    testServer: mockMcpClientFactory,
+  }) as Record<string, (args: unknown) => Promise<unknown>>;
+
+  // Get the callTool activity
+  const callToolActivity = activities['testServer-callTool'];
+  t.truthy(callToolActivity, 'callToolActivity should exist');
+
+  // Call the activity
+  const result = await callToolActivity({
+    name: 'testTool',
+    input: {},
+    options: {},
+  });
+
+  // Verify the result
+  t.deepEqual(result, { result: 'success' });
+
+  // Verify the order: execute should complete BEFORE close is called
+  t.deepEqual(
+    operationOrder,
+    ['execute-start', 'execute-end', 'close'],
+    'close() should be called after execute() completes, not before'
+  );
+});
 
 // Currently fails in CI due to invalid server response but passes locally
 test.skip('MCP Use', async (t) => {
