@@ -10,7 +10,7 @@
     "build-rust-release": "pnpm run build-rust --release",
     "format": "cargo fmt",
     "lint": "cargo clippy --fix --allow-staged",
-    "lint.check": "cargo clippy"
+    "lint:check": "cargo clippy"
   },
   "keywords": [
     "temporal",
