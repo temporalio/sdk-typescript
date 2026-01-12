@@ -537,24 +537,15 @@ if (RUN_INTEGRATION_TESTS) {
       async shutdown() {},
     };
 
-    const sinks: InjectedSinks<OpenTelemetrySinks> = {
-      exporter: makeWorkflowExporter(new SimpleSpanProcessor(traceExporter), staticResource),
-    };
-
+    const plugin = new OpenTelemetryWorkerPlugin({ resource: staticResource, traceExporter });
     const worker = await Worker.create({
       workflowBundle: await createTestWorkflowBundle({
         workflowsPath: require.resolve('./workflows'),
-        workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
+        plugins: [plugin],
       }),
       activities,
       taskQueue: 'test-otel-update-start',
-      interceptors: {
-        client: {
-          workflow: [new OpenTelemetryWorkflowClientCallsInterceptor()],
-        },
-        workflowModules: [require.resolve('./workflows/otel-interceptors')],
-      },
-      sinks,
+      plugins: [plugin],
     });
 
     const client = new WorkflowClient();

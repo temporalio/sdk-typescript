@@ -15,6 +15,7 @@ import {
   workflowInterceptorModules as defaultWorkflowInterceptorModules,
 } from '@temporalio/testing';
 import {
+  BundlerPlugin,
   DefaultLogger,
   LogEntry,
   LogLevel,
@@ -70,17 +71,20 @@ function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }, runti
 export interface HelperTestBundleOptions {
   workflowsPath: string;
   workflowInterceptorModules?: string[];
+  plugins?: BundlerPlugin[];
 }
 
 export async function createTestWorkflowBundle({
   workflowsPath,
   workflowInterceptorModules,
+  plugins,
 }: HelperTestBundleOptions): Promise<WorkflowBundleWithSourceMap> {
   return await bundleWorkflowCode({
     ...bundlerOptions,
     workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(workflowInterceptorModules ?? [])],
     workflowsPath,
     logger: new DefaultLogger('WARN'),
+    plugins: plugins ?? [],
   });
 }
 

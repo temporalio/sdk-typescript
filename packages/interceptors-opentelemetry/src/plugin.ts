@@ -44,7 +44,7 @@ export class OpenTelemetryWorkerPlugin extends SimpleWorkerPlugin {
         workflowModules: [workflowInterceptorsPath],
         activity: [
           (ctx) => ({
-            inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
+            inbound: new OpenTelemetryActivityInboundInterceptor(ctx, interceptorOptions),
             outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
           }),
         ],
