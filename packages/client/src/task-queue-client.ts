@@ -173,6 +173,13 @@ export class TaskQueueClient extends BaseClient {
  */
 export type ReachabilityOptions = RequireAtLeastOne<BaseReachabilityOptions, 'buildIds' | 'taskQueues'>;
 
+/**
+ * There are different types of reachability:
+ *   - `NEW_WORKFLOWS`: The Build Id might be used by new workflows
+ *   - `EXISTING_WORKFLOWS` The Build Id might be used by open workflows and/or closed workflows.
+ *   - `OPEN_WORKFLOWS` The Build Id might be used by open workflows
+ *   - `CLOSED_WORKFLOWS` The Build Id might be used by closed workflows
+ */
 export const ReachabilityType = {
   /** The Build Id might be used by new workflows. */
   NEW_WORKFLOWS: 'NEW_WORKFLOWS',
@@ -186,14 +193,6 @@ export const ReachabilityType = {
   /** The Build Id might be used by closed workflows. */
   CLOSED_WORKFLOWS: 'CLOSED_WORKFLOWS',
 } as const;
-
-/**
- * There are different types of reachability:
- *   - `NEW_WORKFLOWS`: The Build Id might be used by new workflows
- *   - `EXISTING_WORKFLOWS` The Build Id might be used by open workflows and/or closed workflows.
- *   - `OPEN_WORKFLOWS` The Build Id might be used by open workflows
- *   - `CLOSED_WORKFLOWS` The Build Id might be used by closed workflows
- */
 export type ReachabilityType = (typeof ReachabilityType)[keyof typeof ReachabilityType];
 
 export const [encodeTaskReachability, decodeTaskReachability] = makeProtoEnumConverters<

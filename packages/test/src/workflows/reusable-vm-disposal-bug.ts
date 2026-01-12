@@ -10,7 +10,7 @@ import { condition } from '@temporalio/workflow';
  * 4. rootScope.cancel() is called, failing the workflow with "Workflow cancelled"
  *
  * Actual failure happens on the second `condition` where when creating the new
- * cancellation scope, we see that the parent/root scope is already canceled.
+ * cancellation scope, we see that the parent/root scope is already cancelled.
  */
 export async function conditionWithTimeoutAfterDisposal(): Promise<string> {
   const alwaysFalse = false;

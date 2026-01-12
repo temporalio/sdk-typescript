@@ -1,4 +1,7 @@
 /**
+ * OperationTokenType is used to identify the type of Operation token.
+ * Currently, we only have one type of Operation token: WorkflowRun.
+ *
  * @internal
  * @hidden
  */
@@ -24,11 +27,6 @@ export interface WorkflowRunOperationToken {
    */
   wid: string;
 }
-
-/**
- * OperationTokenType is used to identify the type of Operation token.
- * Currently, we only have one type of Operation token: WorkflowRun.
- */
 type OperationTokenType = (typeof OperationTokenType)[keyof typeof OperationTokenType];
 
 /**

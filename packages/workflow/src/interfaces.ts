@@ -329,41 +329,67 @@ export interface ContinueAsNewOptions {
 }
 
 /**
- * Specifies:
- * - whether cancellation requests are sent to the Child
- * - whether and when a {@link CanceledFailure} is thrown from {@link executeChild} or
- *   {@link ChildWorkflowHandle.result}
+ * Determines:
+ * - whether cancellation requests should be propagated from the Parent Workflow to the Child, and
+ * - whether and when should the Child's cancellation be reported back to the Parent Workflow
+ *   (i.e. at which moment should the {@link executeChild}'s or {@link ChildWorkflowHandle.result}'s
+ *   promise fail with a `ChildWorkflowFailure`, with `cause` set to a `CancelledFailure`).
  *
- * @default {@link ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED}
+ * Note that this setting only applies to cancellation originating from an external request for the
+ * Parent Workflow itself, or from internal cancellation of the `CancellationScope` in which the
+ * Child Workflow call was made. Eventual Cancellation of a Child Workflow on completion of the
+ * Parent Workflow is controlled by the {@link ParentClosePolicy} setting.
+ *
+ * @default ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED
  */
-export type ChildWorkflowCancellationType =
-  (typeof ChildWorkflowCancellationType)[keyof typeof ChildWorkflowCancellationType];
 export const ChildWorkflowCancellationType = {
   /**
-   * Don't send a cancellation request to the Child.
+   * Do not propagate cancellation requests to the Child, and immediately report cancellation
+   * to the caller.
    */
   ABANDON: 'ABANDON',
 
   /**
-   * Send a cancellation request to the Child. Immediately throw the error.
+   * Propagate cancellation request from the Parent Workflow to the Child, yet _immediately_ report
+   * cancellation to the caller, i.e. without waiting for the server to confirm the cancellation
+   * request.
+   *
+   * Note that this cancellation type provides no guarantee, from the Parent-side, that the
+   * cancellation request will actually be atomically added to the Child workflow's history.
+   * In particular, the Child may complete (either successfully or uncessfully) before the
+   * cancellation is delivered, resulting in a situation where the Parent workflow thinks its child
+   * was cancelled, but the child actually completed successfully.
+   *
+   * To guarantee that the Child will eventually be notified of the cancellation request,
+   * use {@link WAIT_CANCELLATION_REQUESTED}.
    */
   TRY_CANCEL: 'TRY_CANCEL',
 
   /**
-   * Send a cancellation request to the Child. The Child may respect cancellation, in which case an error will be thrown
-   * when cancellation has completed, and {@link isCancellation}(error) will be true. On the other hand, the Child may
-   * ignore the cancellation request, in which case an error might be thrown with a different cause, or the Child may
-   * complete successfully.
+   * Propagate cancellation request from the Parent Workflow to the Child, then wait for the server
+   * to confirm that the Child Workflow cancellation request was recorded in its history.
+   *
+   * This cancellation type guarantees that the Child will eventually be notified of the
+   * cancellation request (that is, unless the Child terminates inbetween due to unexpected causes).
+   */
+  WAIT_CANCELLATION_REQUESTED: 'WAIT_CANCELLATION_REQUESTED',
+
+  /**
+   * Propagate cancellation request from the Parent Workflow to the Child, then wait for completion
+   * of the Child Workflow.
+   *
+   * The Child may respect cancellation, in which case the Parent's `executeChild` or
+   * `ChildWorkflowHandle.result` promise will fail with a `ChildWorkflowFailure`, with `cause`
+   * set to a `CancelledFailure`. On the other hand, the Child may ignore the cancellation request,
+   * in which case the corresponding promise will either resolve with a result (if Child completed
+   * successfully) or reject with a different cause (if Child completed uncessfully).
    *
    * @default
    */
   WAIT_CANCELLATION_COMPLETED: 'WAIT_CANCELLATION_COMPLETED',
-
-  /**
-   * Send a cancellation request to the Child. Throw the error once the Server receives the Child cancellation request.
-   */
-  WAIT_CANCELLATION_REQUESTED: 'WAIT_CANCELLATION_REQUESTED',
 } as const;
+export type ChildWorkflowCancellationType =
+  (typeof ChildWorkflowCancellationType)[keyof typeof ChildWorkflowCancellationType];
 
 // ts-prune-ignore-next
 export const [encodeChildWorkflowCancellationType, decodeChildWorkflowCancellationType] = makeProtoEnumConverters<
@@ -387,7 +413,6 @@ export const [encodeChildWorkflowCancellationType, decodeChildWorkflowCancellati
  *
  * @see {@link https://docs.temporal.io/concepts/what-is-a-parent-close-policy/ | Parent Close Policy}
  */
-export type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
 export const ParentClosePolicy = {
   /**
    * When the Parent is Closed, the Child is Terminated.
@@ -436,6 +461,7 @@ export const ParentClosePolicy = {
    */
   PARENT_CLOSE_POLICY_REQUEST_CANCEL: 'REQUEST_CANCEL', // eslint-disable-line deprecation/deprecation
 } as const;
+export type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
 
 // ts-prune-ignore-next
 export const [encodeParentClosePolicy, decodeParentClosePolicy] = makeProtoEnumConverters<
@@ -471,19 +497,25 @@ export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workf
   taskQueue?: string;
 
   /**
-   * Specifies:
-   * - whether cancellation requests are sent to the Child
-   * - whether and when an error is thrown from {@link executeChild} or
-   *   {@link ChildWorkflowHandle.result}
+   * Determines:
+   * - whether cancellation requests should be propagated from the Parent Workflow to the Child, and
+   * - whether and when should the Child's cancellation be reported back to the Parent Workflow
+   *   (i.e. at which moment should the {@link executeChild}'s or {@link ChildWorkflowHandle.result}'s
+   *   promise fail with a `ChildWorkflowFailure`, with `cause` set to a `CancelledFailure`).
    *
-   * @default {@link ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED}
+   * Note that this setting only applies to cancellation originating from an external request for the
+   * Parent Workflow itself, or from internal cancellation of the `CancellationScope` in which the
+   * Child Workflow call was made. Eventual Cancellation of a Child Workflow on completion of the
+   * Parent Workflow is controlled by the {@link ParentClosePolicy} setting.
+   *
+   * @default ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED
    */
   cancellationType?: ChildWorkflowCancellationType;
 
   /**
    * Specifies how the Child reacts to the Parent Workflow reaching a Closed state.
    *
-   * @default {@link ParentClosePolicy.PARENT_CLOSE_POLICY_TERMINATE}
+   * @default ParentClosePolicy.PARENT_CLOSE_POLICY_TERMINATE
    */
   parentClosePolicy?: ParentClosePolicy;
 
