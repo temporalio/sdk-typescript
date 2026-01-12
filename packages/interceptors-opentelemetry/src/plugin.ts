@@ -1,8 +1,9 @@
+import * as otel from '@opentelemetry/api';
 import { SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { Resource } from '@opentelemetry/resources';
-import { SimplePlugin, SimpleClientPlugin, SimpleWorkerPlugin } from '@temporalio/plugin';
+import { SimpleClientPlugin, SimpleWorkerPlugin } from '@temporalio/plugin';
 import { InjectedSinks, WorkerOptions } from '@temporalio/worker';
-import { OpenTelemetryWorkflowClientInterceptor } from './client';
+import { InterceptorOptions, OpenTelemetryWorkflowClientInterceptor } from './client';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
@@ -11,31 +12,36 @@ import {
 import { OpenTelemetrySinks } from './workflow';
 import { OpenTelemetryWorkflowClientCallsInterceptor } from '.';
 
-export interface OpenTelemetryWorkerPluginOptions {
-  readonly resource: Resource;
-  readonly traceExporter: SpanExporter;
-}
+export interface OpenTelemetryClientPluginOptions extends InterceptorOptions {}
 
 export class OpenTelemetryClientPlugin extends SimpleClientPlugin {
-  constructor() {
+  constructor(readonly otelOptions?: OpenTelemetryClientPluginOptions) {
     super({
       name: 'OpenTelemetryClientPlugin',
       clientInterceptors: {
-        workflow: [new OpenTelemetryWorkflowClientInterceptor()],
+        workflow: [new OpenTelemetryWorkflowClientInterceptor(extractInterceptorOptions(otelOptions))],
       },
     });
   }
 }
 
+export interface OpenTelemetryWorkerPluginOptions extends InterceptorOptions {
+  readonly resource: Resource;
+  readonly traceExporter: SpanExporter;
+}
+
 export class OpenTelemetryWorkerPlugin extends SimpleWorkerPlugin {
   constructor(readonly otelOptions: OpenTelemetryWorkerPluginOptions) {
+    const workflowInterceptorsPath = require.resolve('./workflow-interceptors');
+    const interceptorOptions = extractInterceptorOptions(otelOptions);
     super({
-      name: 'OpenTelemetryClientPlugin',
+      name: 'OpenTelemetryWorkerPlugin',
+      workflowInterceptorModules: [workflowInterceptorsPath],
       workerInterceptors: {
         client: {
-          workflow: [new OpenTelemetryWorkflowClientCallsInterceptor()],
+          workflow: [new OpenTelemetryWorkflowClientCallsInterceptor(interceptorOptions)],
         },
-        workflowModules: [require.resolve('./workflow-interceptors')],
+        workflowModules: [workflowInterceptorsPath],
         activity: [
           (ctx) => ({
             inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
@@ -56,4 +62,10 @@ export class OpenTelemetryWorkerPlugin extends SimpleWorkerPlugin {
     };
     return super.configureWorker(options);
   }
+}
+
+function extractInterceptorOptions(
+  options?: OpenTelemetryWorkerPluginOptions | OpenTelemetryClientPluginOptions
+): InterceptorOptions {
+  return options?.tracer ? { tracer: options.tracer } : {};
 }
