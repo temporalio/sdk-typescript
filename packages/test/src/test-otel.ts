@@ -17,7 +17,8 @@ import type * as workflowImportStub from '@temporalio/interceptors-opentelemetry
 import type * as workflowImportImpl from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports-impl';
 import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor, Client } from '@temporalio/client';
 import {
-  OpenTelemetryPlugin,
+  OpenTelemetryClientPlugin,
+  OpenTelemetryWorkerPlugin,
   OpenTelemetryWorkflowClientCallsInterceptor,
   OpenTelemetryWorkflowClientInterceptor,
 } from '@temporalio/interceptors-opentelemetry';
@@ -272,20 +273,15 @@ if (RUN_INTEGRATION_TESTS) {
       });
       otel.start();
 
-      const sinks: InjectedSinks<OpenTelemetrySinks> = {
-        exporter: makeWorkflowExporter(new SimpleSpanProcessor(traceExporter), staticResource),
-      };
-
-      const plugin = new OpenTelemetryPlugin({ resource: staticResource, traceExporter });
       const worker = await Worker.create({
         workflowsPath: require.resolve('./workflows'),
         activities,
         taskQueue: 'test-otel',
-        plugins: [plugin],
+        plugins: [new OpenTelemetryWorkerPlugin({ resource: staticResource, traceExporter })],
       });
 
       const client = new Client({
-        plugins: [plugin],
+        plugins: [new OpenTelemetryClientPlugin()],
       });
       await worker.runUntil(
         client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: uuid4() })
