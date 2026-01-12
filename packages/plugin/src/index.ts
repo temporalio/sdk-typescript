@@ -1,7 +1,6 @@
 export {
   SimplePlugin,
   SimplePluginOptions,
-  SimplePluginBaseOptions,
   SimpleClientPlugin,
   SimpleClientPluginOptions,
   SimpleWorkerPlugin,

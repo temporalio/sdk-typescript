@@ -33,10 +33,8 @@ type PluginParameter<T> = T | ((p: T | undefined) => T);
 
 /**
  * Base configuration options shared by all simple plugin variants.
- *
- * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
-export interface SimplePluginBaseOptions {
+interface SimplePluginBaseOptions {
   /** The name of the plugin */
   readonly name: string;
   /** TLS configuration for connections */
@@ -201,7 +199,7 @@ export class SimplePlugin
  *
  * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
-export class SimpleClientPlugin implements ClientPlugin, ConnectionPlugin {
+export class SimpleClientPlugin implements ClientPlugin, ConnectionPlugin, NativeConnectionPlugin {
   /** The name of the plugin */
   readonly name: string;
 
@@ -238,6 +236,19 @@ export class SimpleClientPlugin implements ClientPlugin, ConnectionPlugin {
       ...options,
       tls: resolveParameter(options.tls, this.options.tls),
       apiKey: apiKey ?? resolveParameter(options.apiKey as string | undefined, this.options.apiKey),
+    };
+  }
+
+  /**
+   * Configures native connection options by merging plugin parameters with existing options.
+   * @param options The existing native connection options
+   * @returns Modified native connection options with plugin configuration applied
+   */
+  configureNativeConnection(options: NativeConnectionOptions): NativeConnectionOptions {
+    return {
+      ...options,
+      tls: resolveParameter(options.tls, this.options.tls),
+      apiKey: resolveParameter(options.apiKey, this.options.apiKey),
     };
   }
 }
