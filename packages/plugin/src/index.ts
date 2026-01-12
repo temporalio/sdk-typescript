@@ -1,1 +1,9 @@
-export { SimplePlugin, SimplePluginOptions } from './plugin';
+export {
+  SimplePlugin,
+  SimplePluginOptions,
+  SimplePluginBaseOptions,
+  SimpleClientPlugin,
+  SimpleClientPluginOptions,
+  SimpleWorkerPlugin,
+  SimpleWorkerPluginOptions,
+} from './plugin';
