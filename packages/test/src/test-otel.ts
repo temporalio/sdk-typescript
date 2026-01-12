@@ -19,7 +19,6 @@ import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor, 
 import {
   OpenTelemetryClientPlugin,
   OpenTelemetryWorkerPlugin,
-  OpenTelemetryWorkflowClientCallsInterceptor,
   OpenTelemetryWorkflowClientInterceptor,
 } from '@temporalio/interceptors-opentelemetry';
 import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
@@ -48,7 +47,6 @@ import * as activities from './activities';
 import { bundlerOptions, loadHistory, RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
 import * as workflows from './workflows';
 import { createTestWorkflowBundle } from './helpers-integration';
-import { writeFile } from 'fs/promises';
 
 async function withFakeGrpcServer(
   fn: (port: number) => Promise<void>,
@@ -697,10 +695,6 @@ if (RUN_INTEGRATION_TESTS) {
         client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel-prebundled', workflowId: uuid4() })
       );
       await provider.shutdown();
-
-      t.log(
-        spans.map((span) => ({ name: span.name, parentSpanId: span.parentSpanId, spanId: span.spanContext().spanId }))
-      );
 
       // Verify that workflow spans were created
       const workflowStartSpan = spans.find(
