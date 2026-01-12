@@ -1,4 +1,3 @@
-import * as otel from '@opentelemetry/api';
 import { SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { Resource } from '@opentelemetry/resources';
 import { SimpleClientPlugin, SimpleWorkerPlugin } from '@temporalio/plugin';
@@ -10,9 +9,8 @@ import {
   OpenTelemetryActivityOutboundInterceptor,
 } from './worker';
 import { OpenTelemetrySinks } from './workflow';
-import { OpenTelemetryWorkflowClientCallsInterceptor } from '.';
 
-export interface OpenTelemetryClientPluginOptions extends InterceptorOptions {}
+export type OpenTelemetryClientPluginOptions = InterceptorOptions;
 
 export class OpenTelemetryClientPlugin extends SimpleClientPlugin {
   constructor(readonly otelOptions?: OpenTelemetryClientPluginOptions) {
@@ -39,7 +37,7 @@ export class OpenTelemetryWorkerPlugin extends SimpleWorkerPlugin {
       workflowInterceptorModules: [workflowInterceptorsPath],
       workerInterceptors: {
         client: {
-          workflow: [new OpenTelemetryWorkflowClientCallsInterceptor(interceptorOptions)],
+          workflow: [new OpenTelemetryWorkflowClientInterceptor(interceptorOptions)],
         },
         workflowModules: [workflowInterceptorsPath],
         activity: [

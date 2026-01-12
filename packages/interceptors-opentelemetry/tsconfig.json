@@ -21,7 +21,5 @@
       "path": "../plugin"
     }
   ],
-  "include": [
-    "./src/**/*.ts"
-  ]
+  "include": ["./src/**/*.ts"]
 }
