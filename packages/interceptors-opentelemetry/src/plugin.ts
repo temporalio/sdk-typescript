@@ -1,6 +1,6 @@
 import { SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { Resource } from '@opentelemetry/resources';
-import { SimplePlugin } from '@temporalio/plugin';
+import { SimplePlugin, SimpleClientPlugin, SimpleWorkerPlugin } from '@temporalio/plugin';
 import { InjectedSinks, WorkerOptions } from '@temporalio/worker';
 import { OpenTelemetryWorkflowClientInterceptor } from './client';
 import {
@@ -11,18 +11,26 @@ import {
 import { OpenTelemetrySinks } from './workflow';
 import { OpenTelemetryWorkflowClientCallsInterceptor } from '.';
 
-export interface OpenTelemetryPluginOptions {
+export interface OpenTelemetryWorkerPluginOptions {
   readonly resource: Resource;
   readonly traceExporter: SpanExporter;
 }
 
-export class OpenTelemetryPlugin extends SimplePlugin {
-  constructor(readonly otelOptions: OpenTelemetryPluginOptions) {
+export class OpenTelemetryClientPlugin extends SimpleClientPlugin {
+  constructor() {
     super({
-      name: 'OpenTelemetryPlugin',
+      name: 'OpenTelemetryClientPlugin',
       clientInterceptors: {
         workflow: [new OpenTelemetryWorkflowClientInterceptor()],
       },
+    });
+  }
+}
+
+export class OpenTelemetryWorkerPlugin extends SimpleWorkerPlugin {
+  constructor(readonly otelOptions: OpenTelemetryWorkerPluginOptions) {
+    super({
+      name: 'OpenTelemetryClientPlugin',
       workerInterceptors: {
         client: {
           workflow: [new OpenTelemetryWorkflowClientCallsInterceptor()],
