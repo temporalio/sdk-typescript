@@ -38,15 +38,17 @@ import {
 import {
   ActivityInboundCallsInterceptor,
   ActivityOutboundCallsInterceptor,
+  bundleWorkflowCode,
   DefaultLogger,
   InjectedSinks,
   Runtime,
 } from '@temporalio/worker';
 import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
 import * as activities from './activities';
-import { loadHistory, RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
+import { bundlerOptions, loadHistory, RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
 import * as workflows from './workflows';
 import { createTestWorkflowBundle } from './helpers-integration';
+import { writeFile } from 'fs/promises';
 
 async function withFakeGrpcServer(
   fn: (port: number) => Promise<void>,
@@ -653,6 +655,82 @@ if (RUN_INTEGRATION_TESTS) {
       });
     });
   }
+
+  test.serial('OpenTelemetryWorkerPlugin works with prebundled workflow code', async (t) => {
+    Runtime.install({});
+    try {
+      const spans = Array<opentelemetry.tracing.ReadableSpan>();
+
+      const staticResource = new opentelemetry.resources.Resource({
+        [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-prebundled-worker',
+      });
+      const traceExporter: opentelemetry.tracing.SpanExporter = {
+        export(spans_, resultCallback) {
+          spans.push(...spans_);
+          resultCallback({ code: ExportResultCode.SUCCESS });
+        },
+        async shutdown() {
+          // Nothing to shutdown
+        },
+      };
+
+      // Use BasicTracerProvider and get a tracer directly from it.
+      // We pass this tracer explicitly to the client interceptor to avoid relying on
+      // the global tracer provider, which may have been polluted by previous tests.
+      const provider = new BasicTracerProvider({ resource: staticResource });
+      provider.addSpanProcessor(new SimpleSpanProcessor(traceExporter));
+      const tracer = provider.getTracer('@temporalio/interceptor-client');
+
+      const plugin = new OpenTelemetryWorkerPlugin({ resource: staticResource, traceExporter });
+
+      // Bundle workflow code with the plugin - this tests that configureBundler passes workflowInterceptorModules
+      const workflowBundle = await bundleWorkflowCode({
+        ...bundlerOptions,
+        workflowsPath: require.resolve('./workflows'),
+        plugins: [plugin],
+        logger: new DefaultLogger('WARN'),
+      });
+
+      const worker = await Worker.create({
+        workflowBundle,
+        activities,
+        taskQueue: 'test-otel-prebundled',
+        plugins: [plugin],
+      });
+
+      // Create client with explicit tracer to bypass global tracer provider pollution from other tests
+      const client = new Client({
+        plugins: [new OpenTelemetryClientPlugin({ tracer })],
+      });
+      await worker.runUntil(
+        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel-prebundled', workflowId: uuid4() })
+      );
+      await provider.shutdown();
+
+      t.log(
+        spans.map((span) => ({ name: span.name, parentSpanId: span.parentSpanId, spanId: span.spanContext().spanId }))
+      );
+
+      // Verify that workflow spans were created
+      const workflowStartSpan = spans.find(
+        ({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}smorgasbord`
+      );
+      t.true(workflowStartSpan !== undefined, 'WORKFLOW_START span should exist');
+
+      const workflowExecuteSpan = spans.find(
+        ({ name }) => name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord`
+      );
+      t.true(workflowExecuteSpan !== undefined, 'WORKFLOW_EXECUTE span should exist');
+
+      const activityStartSpan = spans.find(
+        ({ name }) => name === `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}fakeProgress`
+      );
+      t.true(activityStartSpan !== undefined, 'ACTIVITY_START span should exist');
+    } finally {
+      // Cleanup the runtime so that it doesn't interfere with other tests
+      await Runtime._instance?.shutdown();
+    }
+  });
 
   // Regression test for https://github.com/temporalio/sdk-typescript/issues/1738
   test.serial('traceState properly crosses V8 isolate boundary', async (t) => {

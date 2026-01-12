@@ -84,6 +84,14 @@ export interface SimpleWorkerPluginOptions extends SimplePluginBaseOptions {
   readonly workflowBundle?: PluginParameter<WorkflowBundleOption>;
   /** Worker-side interceptors. When a value is provided, interceptors will be appended  */
   readonly workerInterceptors?: PluginParameter<WorkerInterceptors>;
+  /**
+   * Workflow interceptor modules to include when bundling workflow code.
+   * These modules are automatically added to {@link BundleOptions.workflowInterceptorModules}
+   * when using this plugin with {@link bundleWorkflowCode}.
+   *
+   * When a value is provided, modules will be appended to existing modules.
+   */
+  readonly workflowInterceptorModules?: PluginParameter<string[]>;
   /** Context function to wrap worker execution */
   readonly runContext?: (next: () => Promise<void>) => Promise<void>;
 }
@@ -310,6 +318,10 @@ export class SimpleWorkerPlugin implements WorkerPlugin, BundlerPlugin, NativeCo
     return {
       ...options,
       workflowsPath: resolveRequiredParameter(options.workflowsPath, this.options.workflowsPath),
+      workflowInterceptorModules: resolveAppendParameter(
+        options.workflowInterceptorModules,
+        this.options.workflowInterceptorModules
+      ),
     };
   }
 
