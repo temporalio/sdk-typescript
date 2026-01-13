@@ -1,0 +1,21 @@
+{
+  "name": "sliding-window-batch-example",
+  "version": "1.0.0",
+  "description": "Temporal sliding window batch processing example",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "start:worker": "ts-node src/worker.ts",
+    "start:client": "ts-node src/client.ts"
+  },
+  "dependencies": {
+    "@temporalio/activity": "workspace:*",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "@temporalio/workflow": "workspace:*"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.0"
+  }
+}
