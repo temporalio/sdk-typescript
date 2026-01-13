@@ -32,9 +32,12 @@ import type {
 type PluginParameter<T> = T | ((p: T | undefined) => T);
 
 /**
- * Base configuration options shared by all simple plugin variants.
+ * Configuration options for SimplePlugin.
+ * Each option can be either a direct value or a function that transforms existing configuration.
+ *
+ * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
-interface SimplePluginBaseOptions {
+export interface SimplePluginOptions {
   /** The name of the plugin */
   readonly name: string;
   /** TLS configuration for connections */
@@ -44,34 +47,8 @@ interface SimplePluginBaseOptions {
   /** Data converter for serialization/deserialization. When a value is provided, existing fields will override
    * those in the existing data converter. */
   readonly dataConverter?: PluginParameter<DataConverter>;
-}
-
-/**
- * Configuration options for SimplePlugin.
- * Each option can be either a direct value or a function that transforms existing configuration.
- *
- * @experimental Plugins is an experimental feature; APIs may change without notice.
- */
-export interface SimplePluginOptions extends SimpleClientPluginOptions, SimpleWorkerPluginOptions {}
-
-/**
- * Configuration options for SimpleClientPlugin.
- * Contains only options relevant to client-side configuration.
- *
- * @experimental Plugins is an experimental feature; APIs may change without notice.
- */
-export interface SimpleClientPluginOptions extends SimplePluginBaseOptions {
   /** Client-side interceptors. When a value is provided, interceptors will be appended */
   readonly clientInterceptors?: PluginParameter<ClientInterceptors>;
-}
-
-/**
- * Configuration options for SimpleWorkerPlugin.
- * Contains only options relevant to worker-side configuration.
- *
- * @experimental Plugins is an experimental feature; APIs may change without notice.
- */
-export interface SimpleWorkerPluginOptions extends SimplePluginBaseOptions {
   /** Activities to register with the worker. When a value is provided, activities will be appended */
   readonly activities?: PluginParameter<object>;
   /** Nexus service handlers. When a value is provided, services will be appended */
@@ -99,9 +76,6 @@ export interface SimpleWorkerPluginOptions extends SimplePluginBaseOptions {
  * Provides a simple way to configure clients, workers, bundlers, and connections
  * with consistent parameter resolution and merging strategies.
  *
- * This class composes {@link SimpleClientPlugin} and {@link SimpleWorkerPlugin} internally
- * to provide functionality for both clients and workers.
- *
  * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
 export class SimplePlugin
@@ -110,104 +84,11 @@ export class SimplePlugin
   /** The name of the plugin */
   readonly name: string;
 
-  private readonly clientPlugin: SimpleClientPlugin;
-  private readonly workerPlugin: SimpleWorkerPlugin;
-
   /**
    * Creates a new SimplePlugin instance.
    * @param options Configuration options for the plugin
    */
   constructor(protected readonly options: SimplePluginOptions) {
-    this.name = options.name;
-    this.clientPlugin = new SimpleClientPlugin(options);
-    this.workerPlugin = new SimpleWorkerPlugin(options);
-  }
-
-  /**
-   * Configures client options by merging plugin parameters with existing options.
-   * @param options The existing client options
-   * @returns Modified client options with plugin configuration applied
-   */
-  configureClient(options: ClientOptions): ClientOptions {
-    return this.clientPlugin.configureClient(options);
-  }
-
-  /**
-   * Configures worker options by merging plugin parameters with existing options.
-   * Activities and nexus services are appended, while other options are replaced.
-   * @param options The existing worker options
-   * @returns Modified worker options with plugin configuration applied
-   */
-  configureWorker(options: WorkerOptions): WorkerOptions {
-    return this.workerPlugin.configureWorker(options);
-  }
-
-  /**
-   * Configures replay worker options by merging plugin parameters with existing options.
-   * @param options The existing replay worker options
-   * @returns Modified replay worker options with plugin configuration applied
-   */
-  configureReplayWorker(options: ReplayWorkerOptions): ReplayWorkerOptions {
-    return this.workerPlugin.configureReplayWorker(options);
-  }
-
-  /**
-   * Runs the worker, optionally wrapping execution in a custom context.
-   * @param worker The worker instance to run
-   * @param next Function to continue worker execution
-   * @returns Promise that resolves when worker execution completes
-   */
-  runWorker(worker: Worker, next: (w: Worker) => Promise<void>): Promise<void> {
-    return this.workerPlugin.runWorker(worker, next);
-  }
-
-  /**
-   * Configures bundler options by merging plugin parameters with existing options.
-   * @param options The existing bundle options
-   * @returns Modified bundle options with plugin configuration applied
-   */
-  configureBundler(options: BundleOptions): BundleOptions {
-    return this.workerPlugin.configureBundler(options);
-  }
-
-  /**
-   * Configures connection options by merging plugin parameters with existing options.
-   * Special handling for function-based API keys.
-   * @param options The existing connection options
-   * @returns Modified connection options with plugin configuration applied
-   */
-  configureConnection(options: ConnectionOptions): ConnectionOptions {
-    return this.clientPlugin.configureConnection(options);
-  }
-
-  /**
-   * Configures native connection options by merging plugin parameters with existing options.
-   * @param options The existing native connection options
-   * @returns Modified native connection options with plugin configuration applied
-   */
-  configureNativeConnection(options: NativeConnectionOptions): NativeConnectionOptions {
-    return this.workerPlugin.configureNativeConnection(options);
-  }
-}
-
-/**
- * A client-only plugin that implements only client-side Temporal plugin interfaces.
- * Use this when you need a plugin that only configures Temporal Clients, not Workers.
- *
- * This class only implements {@link ClientPlugin} and {@link ConnectionPlugin}, so it cannot
- * be accidentally used with Workers (which would result in a type error).
- *
- * @experimental Plugins is an experimental feature; APIs may change without notice.
- */
-export class SimpleClientPlugin implements ClientPlugin, ConnectionPlugin, NativeConnectionPlugin {
-  /** The name of the plugin */
-  readonly name: string;
-
-  /**
-   * Creates a new SimpleClientPlugin instance.
-   * @param options Configuration options for the plugin
-   */
-  constructor(protected readonly options: SimpleClientPluginOptions) {
     this.name = options.name;
   }
 
@@ -222,56 +103,6 @@ export class SimpleClientPlugin implements ClientPlugin, ConnectionPlugin, Nativ
       dataConverter: resolveDataConverter(options.dataConverter, this.options.dataConverter),
       interceptors: resolveClientInterceptors(options.interceptors, this.options.clientInterceptors),
     };
-  }
-
-  /**
-   * Configures connection options by merging plugin parameters with existing options.
-   * Special handling for function-based API keys.
-   * @param options The existing connection options
-   * @returns Modified connection options with plugin configuration applied
-   */
-  configureConnection(options: ConnectionOptions): ConnectionOptions {
-    const apiKey = typeof options.apiKey === 'function' ? options.apiKey : undefined;
-    return {
-      ...options,
-      tls: resolveParameter(options.tls, this.options.tls),
-      apiKey: apiKey ?? resolveParameter(options.apiKey as string | undefined, this.options.apiKey),
-    };
-  }
-
-  /**
-   * Configures native connection options by merging plugin parameters with existing options.
-   * @param options The existing native connection options
-   * @returns Modified native connection options with plugin configuration applied
-   */
-  configureNativeConnection(options: NativeConnectionOptions): NativeConnectionOptions {
-    return {
-      ...options,
-      tls: resolveParameter(options.tls, this.options.tls),
-      apiKey: resolveParameter(options.apiKey, this.options.apiKey),
-    };
-  }
-}
-
-/**
- * A worker-only plugin that implements only worker-side Temporal plugin interfaces.
- * Use this when you need a plugin that only configures Temporal Workers, not Clients.
- *
- * This class only implements {@link WorkerPlugin}, {@link BundlerPlugin}, and {@link NativeConnectionPlugin},
- * so it cannot be accidentally used with Clients (which would result in a type error).
- *
- * @experimental Plugins is an experimental feature; APIs may change without notice.
- */
-export class SimpleWorkerPlugin implements WorkerPlugin, BundlerPlugin, NativeConnectionPlugin {
-  /** The name of the plugin */
-  readonly name: string;
-
-  /**
-   * Creates a new SimpleWorkerPlugin instance.
-   * @param options Configuration options for the plugin
-   */
-  constructor(protected readonly options: SimpleWorkerPluginOptions) {
-    this.name = options.name;
   }
 
   /**
@@ -333,6 +164,21 @@ export class SimpleWorkerPlugin implements WorkerPlugin, BundlerPlugin, NativeCo
         options.workflowInterceptorModules,
         this.options.workflowInterceptorModules
       ),
+    };
+  }
+
+  /**
+   * Configures connection options by merging plugin parameters with existing options.
+   * Special handling for function-based API keys.
+   * @param options The existing connection options
+   * @returns Modified connection options with plugin configuration applied
+   */
+  configureConnection(options: ConnectionOptions): ConnectionOptions {
+    const apiKey = typeof options.apiKey === 'function' ? options.apiKey : undefined;
+    return {
+      ...options,
+      tls: resolveParameter(options.tls, this.options.tls),
+      apiKey: apiKey ?? resolveParameter(options.apiKey as string | undefined, this.options.apiKey),
     };
   }
 

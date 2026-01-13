@@ -1,12 +1,6 @@
 import { randomUUID } from 'crypto';
 import anyTest, { TestFn } from 'ava';
-import {
-  Client,
-  ClientOptions,
-  ConnectionPlugin,
-  ClientPlugin as ClientPlugin,
-  WorkflowClientInterceptor,
-} from '@temporalio/client';
+import { Client, ClientOptions, ConnectionPlugin, ClientPlugin as ClientPlugin } from '@temporalio/client';
 import {
   WorkerOptions,
   WorkerPlugin as WorkerPlugin,
@@ -16,7 +10,7 @@ import {
   bundleWorkflowCode,
   NativeConnectionPlugin,
 } from '@temporalio/worker';
-import { SimplePlugin, SimpleClientPlugin, SimpleWorkerPlugin } from '@temporalio/plugin';
+import { SimplePlugin } from '@temporalio/plugin';
 import { activityWorkflow, helloWorkflow } from './workflows/plugins';
 import { TestWorkflowEnvironment } from './helpers';
 
@@ -241,111 +235,6 @@ test('SimplePlugin with activities merges them correctly', async (t) => {
   const worker = await Worker.create({
     connection: t.context.testEnv.nativeConnection,
     taskQueue: 'simple-plugin-queue' + randomUUID(),
-    activities: {
-      existingActivity: activity1,
-    },
-    plugins: [plugin],
-  });
-
-  t.truthy(worker.options.activities);
-  t.truthy(worker.options.activities.has('existingActivity'));
-  t.truthy(worker.options.activities.has('pluginActivity'));
-});
-
-test('SimpleClientPlugin configures client options', async (t) => {
-  const plugin = new SimpleClientPlugin({
-    name: 'test-client-plugin',
-    tls: true,
-    apiKey: 'clientApiKey',
-  });
-
-  const connectionOptions = plugin.configureConnection({});
-  t.is(connectionOptions.tls, true);
-  t.is(connectionOptions.apiKey, 'clientApiKey');
-});
-
-test('SimpleClientPlugin configures client interceptors', async (t) => {
-  const interceptor: WorkflowClientInterceptor = {};
-  const plugin = new SimpleClientPlugin({
-    name: 'test-client-plugin',
-    clientInterceptors: {
-      workflow: [interceptor],
-    },
-  });
-
-  const clientOptions = plugin.configureClient({});
-  t.truthy(clientOptions.interceptors?.workflow);
-  t.true(Array.isArray(clientOptions.interceptors?.workflow));
-  t.is((clientOptions.interceptors?.workflow as WorkflowClientInterceptor[])?.length, 1);
-});
-
-test('SimpleClientPlugin is usable with Client', async (t) => {
-  const plugin = new SimpleClientPlugin({
-    name: 'test-client-plugin',
-  });
-
-  const client = new Client({
-    connection: t.context.testEnv.connection,
-    plugins: [plugin],
-  });
-
-  t.truthy(client);
-});
-
-test('SimpleWorkerPlugin configures native connection options', async (t) => {
-  const plugin = new SimpleWorkerPlugin({
-    name: 'test-worker-plugin',
-    tls: true,
-    apiKey: 'workerApiKey',
-  });
-
-  const options = plugin.configureNativeConnection({});
-  t.is(options.tls, true);
-  t.is(options.apiKey, 'workerApiKey');
-});
-
-test('SimpleWorkerPlugin configures worker with activities', async (t) => {
-  const plugin = new SimpleWorkerPlugin({
-    name: 'test-worker-plugin',
-    activities,
-    workflowsPath: require.resolve('./workflows/plugins'),
-  });
-
-  const { connection } = t.context.testEnv;
-  const client = new Client({ connection });
-
-  const worker = await Worker.create({
-    workflowsPath: 'replaced',
-    connection: t.context.testEnv.nativeConnection,
-    taskQueue: 'simple-worker-plugin-queue' + randomUUID(),
-    plugins: [plugin],
-  });
-
-  await worker.runUntil(async () => {
-    const result = await client.workflow.execute(activityWorkflow, {
-      taskQueue: worker.options.taskQueue,
-      workflowExecutionTimeout: '30 seconds',
-      workflowId: randomUUID(),
-    });
-
-    t.is(result, 'Hello');
-  });
-});
-
-test('SimpleWorkerPlugin with activities merges them correctly', async (t) => {
-  const activity1 = async () => 'activity1';
-  const activity2 = async () => 'activity2';
-
-  const plugin = new SimpleWorkerPlugin({
-    name: 'test-worker-plugin',
-    activities: {
-      pluginActivity: activity2,
-    },
-  });
-
-  const worker = await Worker.create({
-    connection: t.context.testEnv.nativeConnection,
-    taskQueue: 'simple-worker-plugin-queue' + randomUUID(),
     activities: {
       existingActivity: activity1,
     },
