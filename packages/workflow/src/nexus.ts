@@ -2,6 +2,8 @@ import * as nexus from 'nexus-rpc';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
 import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
+import type { coresdk } from '@temporalio/proto';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
 import { untrackPromise } from './stack-helpers';
@@ -146,17 +148,18 @@ export function createNexusClient<T extends nexus.ServiceDefinition>(options: Ne
         startNexusOperationNextHandler
       );
 
-      // TODO: Do we want to make the interceptor async like we do for child workflow? That seems redundant.
-      // REVIEW: I ended up changing this so that the interceptor returns a Promise<StartNexusOperationOutput>,
-      //         and the result promise is contained in that Output object. As a consequence of this,
-      //         the result promise/completion does not exist until the StartNexusOperation event is received.
-      //         That's totally different from what we did in ChildWorkflow, but I think that's cleaner from
-      //         interceptors point of view, and will make it easier to extend the API in the future.
+      // The interceptor returns a Promise<StartNexusOperationOutput>, with the result promise contained
+      // in that Output object. As a consequence of this, the result promise/completion does not exist
+      // until the StartNexusOperation event is received. This is totally different from what we did in
+      // ChildWorkflow, but is much cleaner from the interceptors point of view.
       const { token, result: resultPromise } = await execute({
         endpoint: options.endpoint,
         service: options.service.name,
         operation: opName,
-        options: operationOptions ?? {},
+        options: {
+          ...operationOptions,
+          cancellationType: operationOptions?.cancellationType ?? 'WAIT_CANCELLATION_COMPLETED',
+        },
         headers: {},
         seq,
         input,
@@ -220,7 +223,7 @@ function startNexusOperationNextHandler({
         nexusHeader: headers,
         input: activator.payloadConverter.toPayload(input),
         scheduleToCloseTimeout: msOptionalToTs(options?.scheduleToCloseTimeout),
-        // FIXME(nexus-post-initial-release): cancellationType is not supported yet
+        cancellationType: encodeNexusOperationCancellationType(options?.cancellationType),
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined),
     });
@@ -231,3 +234,75 @@ function startNexusOperationNextHandler({
     });
   });
 }
+
+/**
+ * Determines:
+ * - whether cancellation requests should be propagated from the Workflow to the Nexus Operation, and
+ * - whether and when should the Operation's cancellation be reported back to the Workflow
+ *   (i.e. at which moment should the operation's result promise fail with a `NexusOperationFailure`,
+ *   with `cause` set to a `CancelledFailure`).
+ *
+ * Note that this setting only applies to cancellation originating from an external request for the
+ * Workflow itself, or from internal cancellation of the `CancellationScope` in which the
+ * Operation call was made.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export const NexusOperationCancellationType = {
+  /**
+   * Do not propagate cancellation requests to the Nexus Operation, and immediately report
+   * cancellation to the caller.
+   */
+  ABANDON: 'ABANDON',
+
+  /**
+   * Initiate a cancellation request for the Nexus operation and immediately report cancellation to
+   * the caller. Note that it doesn't guarantee that cancellation is delivered to the operation if
+   * calling workflow exits before the delivery is done. If you want to ensure that cancellation is
+   * delivered to the operation, use {@link WAIT_CANCELLATION_REQUESTED}.
+   *
+   * Propagate cancellation request from the Workflow to the Operation, yet _immediately_ report
+   * cancellation to the caller, i.e. without waiting for the server to confirm the cancellation
+   * request.
+   *
+   * Note that this cancellation type provides no guarantee, from the Workflow-side, that the
+   * cancellation request will be delivered to the Operation Handler. In particular, either the
+   * Operation or the Workflow may complete (either successfully or uncessfully) before the
+   * cancellation request is delivered, resulting in a situation where the Operation completed
+   * successfully, but the Workflow thinks it was cancelled.
+   *
+   * To guarantee that the Operation will eventually be notified of the cancellation request,
+   * use {@link WAIT_CANCELLATION_REQUESTED}.
+   */
+  TRY_CANCEL: 'TRY_CANCEL',
+
+  /**
+   * Propagate cancellation request from the Workflow to the Operation, then wait for the server
+   * to confirm that the Operation cancellation request was delivered to the Operation Handler.
+   */
+  WAIT_CANCELLATION_REQUESTED: 'WAIT_CANCELLATION_REQUESTED',
+
+  /**
+   * Propagate cancellation request from the Workflow to the Operation, then wait for completion
+   * of the Operation.
+   */
+  WAIT_CANCELLATION_COMPLETED: 'WAIT_CANCELLATION_COMPLETED',
+} as const;
+export type NexusOperationCancellationType =
+  (typeof NexusOperationCancellationType)[keyof typeof NexusOperationCancellationType];
+
+export const [encodeNexusOperationCancellationType, decodeNexusOperationCancellationType] = makeProtoEnumConverters<
+  coresdk.nexus.NexusOperationCancellationType,
+  typeof coresdk.nexus.NexusOperationCancellationType,
+  keyof typeof coresdk.nexus.NexusOperationCancellationType,
+  typeof NexusOperationCancellationType,
+  ''
+>(
+  {
+    [NexusOperationCancellationType.WAIT_CANCELLATION_COMPLETED]: 0,
+    [NexusOperationCancellationType.ABANDON]: 1,
+    [NexusOperationCancellationType.TRY_CANCEL]: 2,
+    [NexusOperationCancellationType.WAIT_CANCELLATION_REQUESTED]: 3,
+  } as const,
+  ''
+);

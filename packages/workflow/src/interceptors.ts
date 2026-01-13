@@ -15,7 +15,8 @@ import {
   WorkflowExecution,
 } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
-import { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
+import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
+import type { NexusOperationCancellationType } from './nexus';
 
 export { Next, Headers };
 
@@ -287,6 +288,21 @@ export interface StartNexusOperationOptions {
    * Optional: defaults to the maximum allowed by the Temporal server.
    */
   readonly scheduleToCloseTimeout?: Duration;
+
+  /**
+   * Determines:
+   * - whether cancellation requests should be propagated from the Workflow to the Nexus Operation, and
+   * - whether and when should the Operation's cancellation be reported back to the Workflow
+   *   (i.e. at which moment should the operation's result promise fail with a `NexusOperationFailure`,
+   *   with `cause` set to a `CancelledFailure`).
+   *
+   * Note that this setting only applies to cancellation originating from an external request for the
+   * Workflow itself, or from internal cancellation of the `CancellationScope` in which the
+   * Operation call was made.
+   *
+   * @default WAIT_CANCELLATION_COMPLETED
+   */
+  readonly cancellationType?: NexusOperationCancellationType;
 
   /**
    * A fixed, single-line summary for this Nexus Operation that may appear in the UI/CLI.
