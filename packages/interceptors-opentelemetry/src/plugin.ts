@@ -1,6 +1,6 @@
 import { SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { Resource } from '@opentelemetry/resources';
-import { SimpleClientPlugin, SimpleWorkerPlugin } from '@temporalio/plugin';
+import { SimplePlugin } from '@temporalio/plugin';
 import { InjectedSinks, ReplayWorkerOptions, WorkerOptions } from '@temporalio/worker';
 import { InterceptorOptions, OpenTelemetryWorkflowClientInterceptor } from './client';
 import {
@@ -20,7 +20,7 @@ export type OpenTelemetryClientPluginOptions = InterceptorOptions;
  *
  * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
-export class OpenTelemetryClientPlugin extends SimpleClientPlugin {
+export class OpenTelemetryClientPlugin extends SimplePlugin {
   constructor(readonly otelOptions?: OpenTelemetryClientPluginOptions) {
     super({
       name: 'OpenTelemetryClientPlugin',
@@ -51,7 +51,7 @@ export interface OpenTelemetryWorkerPluginOptions extends InterceptorOptions {
  *
  * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
-export class OpenTelemetryWorkerPlugin extends SimpleWorkerPlugin {
+export class OpenTelemetryWorkerPlugin extends SimplePlugin {
   constructor(readonly otelOptions: OpenTelemetryWorkerPluginOptions) {
     const workflowInterceptorsPath = require.resolve('./workflow-interceptors');
     const interceptorOptions = extractInterceptorOptions(otelOptions);
