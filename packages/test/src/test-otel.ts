@@ -269,7 +269,7 @@ if (RUN_INTEGRATION_TESTS) {
       otel.start();
 
       const sinks: InjectedSinks<OpenTelemetrySinks> = {
-        exporter: makeWorkflowExporter(traceExporter, staticResource),
+        exporter: makeWorkflowExporter(new SimpleSpanProcessor(traceExporter), staticResource),
       };
 
       const worker = await Worker.create({
@@ -429,7 +429,7 @@ if (RUN_INTEGRATION_TESTS) {
       await otel.start();
 
       const sinks: InjectedSinks<OpenTelemetrySinks> = {
-        exporter: makeWorkflowExporter(exporter, staticResource),
+        exporter: makeWorkflowExporter(new SimpleSpanProcessor(exporter), staticResource),
       };
       const worker = await Worker.create({
         workflowsPath: require.resolve('./workflows'),
@@ -545,7 +545,7 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     const sinks: InjectedSinks<OpenTelemetrySinks> = {
-      exporter: makeWorkflowExporter(traceExporter, staticResource),
+      exporter: makeWorkflowExporter(new SimpleSpanProcessor(traceExporter), staticResource),
     };
 
     const worker = await Worker.create({
