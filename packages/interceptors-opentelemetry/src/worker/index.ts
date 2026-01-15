@@ -1,4 +1,5 @@
 import * as otel from '@opentelemetry/api';
+import { createTraceState } from '@opentelemetry/api';
 import type { Resource } from '@opentelemetry/resources';
 import type { ReadableSpan, SpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace-base';
 import type { Context as ActivityContext } from '@temporalio/activity';
@@ -159,7 +160,15 @@ function isSpanProcessor(obj: SpanProcessor | SpanExporter): obj is SpanProcesso
  * Deserialize a serialized span created by the Workflow isolate
  */
 function extractReadableSpan(serializable: SerializableSpan, resource: Resource): ReadableSpan {
-  const { spanContext, ...rest } = serializable;
+  const {
+    spanContext: { traceState, ...restSpanContext },
+    ...rest
+  } = serializable;
+  const spanContext: otel.SpanContext = {
+    // Reconstruct the TraceState from the serialized string.
+    traceState: traceState ? createTraceState(traceState) : undefined,
+    ...restSpanContext,
+  };
   return {
     spanContext() {
       return spanContext;
