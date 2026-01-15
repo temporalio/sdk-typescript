@@ -1,5 +1,4 @@
-import { jsonSchema, type ToolSet } from 'ai';
-import type { JSONSchema7 } from '@ai-sdk/provider';
+import type { ToolSet } from 'ai';
 import type { experimental_MCPClient as MCPClient } from '@ai-sdk/mcp';
 import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
@@ -39,6 +38,7 @@ export class TemporalMCPClient {
 
     const listActivity = activities[this.options.name + '-listTools'];
     const tools: Record<string, ListToolResult> = await listActivity!({ clientArgs: this.options.clientArgs });
+
     return Object.fromEntries(
       Object.entries(tools).map(([toolName, toolResult]) => [
         toolName,
@@ -52,7 +52,13 @@ export class TemporalMCPClient {
             const callActivity = activities[this.options.name + '-callTool']!;
             return await callActivity({ name: toolName, input, options, clientArgs: this.options.clientArgs });
           },
-          inputSchema: jsonSchema(toolResult.inputSchema as JSONSchema7),
+          inputSchema: {
+            ...toolResult.inputSchema,
+            _type: undefined,
+            validate: undefined,
+            [Symbol.for('vercel.ai.schema')]: true,
+            [Symbol.for('vercel.ai.validator')]: true,
+          },
           type: 'dynamic',
         },
       ])
