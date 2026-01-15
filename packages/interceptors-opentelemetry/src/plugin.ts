@@ -36,11 +36,47 @@ export class OpenTelemetryClientPlugin extends SimplePlugin {
  *
  * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
-export interface OpenTelemetryWorkerPluginOptions extends InterceptorOptions {
+export interface OpenTelemetryWorkerPluginOptions extends InterceptorOptions, OpenTelemetryInterceptorOptions {
   /** OpenTelemetry resource attributes to attach to exported spans */
   readonly resource: Resource;
   /** Exporter used to send spans to a tracing backend */
   readonly traceExporter: SpanExporter;
+}
+
+/**
+ * Toggle options for disabling individual OpenTelemetry interceptors.
+ */
+interface OpenTelemetryInterceptorOptions {
+  /**
+   * Whether to register the {@link OpenTelemetryWorkflowClientInterceptor}.
+   * @default true
+   */
+  openTelemetryWorkflowClientInterceptor?: boolean;
+  /**
+   * Whether to register the {@link OpenTelemetryActivityInboundInterceptor}.
+   * @default true
+   */
+  openTelemetryActivityInboundInterceptor?: boolean;
+  /**
+   * Whether to register the {@link OpenTelemetryActivityOutboundInterceptor}.
+   * @default true
+   */
+  openTelemetryActivityOutboundInterceptor?: boolean;
+  /**
+   * Whether to register the {@link OpenTelemetryInboundInterceptor}.
+   * @default true
+   */
+  openTelemetryInboundInterceptor?: boolean;
+  /**
+   * Whether to register the {@link OpenTelemetryOutboundInterceptor}.
+   * @default true
+   */
+  openTelemetryOutboundInterceptor?: boolean;
+  /**
+   * Whether to register the {@link OpenTelemetryInternalsInterceptor}.
+   * @default true
+   */
+  openTelemetryInternalsInterceptor?: boolean;
 }
 
 /**
@@ -53,20 +89,30 @@ export interface OpenTelemetryWorkerPluginOptions extends InterceptorOptions {
  */
 export class OpenTelemetryWorkerPlugin extends SimplePlugin {
   constructor(readonly otelOptions: OpenTelemetryWorkerPluginOptions) {
-    const workflowInterceptorsPath = require.resolve('./workflow-interceptors');
+    const workflowInterceptorModule = getWorkflowInterceptorModule(otelOptions);
+    const workflowInterceptorModules =
+      workflowInterceptorModule !== null
+        ? [require.resolve(`./workflow-interceptors/${workflowInterceptorModule}`)]
+        : [];
     const interceptorOptions = extractInterceptorOptions(otelOptions);
     super({
       name: 'OpenTelemetryWorkerPlugin',
-      workflowInterceptorModules: [workflowInterceptorsPath],
+      workflowInterceptorModules,
       workerInterceptors: {
         client: {
-          workflow: [new OpenTelemetryWorkflowClientInterceptor(interceptorOptions)],
+          workflow: isInterceptorEnabled(otelOptions.openTelemetryWorkflowClientInterceptor)
+            ? [new OpenTelemetryWorkflowClientInterceptor(interceptorOptions)]
+            : [],
         },
-        workflowModules: [workflowInterceptorsPath],
+        workflowModules: workflowInterceptorModules,
         activity: [
           (ctx) => ({
-            inbound: new OpenTelemetryActivityInboundInterceptor(ctx, interceptorOptions),
-            outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
+            inbound: isInterceptorEnabled(otelOptions.openTelemetryActivityInboundInterceptor)
+              ? new OpenTelemetryActivityInboundInterceptor(ctx, interceptorOptions)
+              : undefined,
+            outbound: isInterceptorEnabled(otelOptions.openTelemetryActivityOutboundInterceptor)
+              ? new OpenTelemetryActivityOutboundInterceptor(ctx)
+              : undefined,
           }),
         ],
       },
@@ -99,4 +145,36 @@ function extractInterceptorOptions(
   options?: OpenTelemetryWorkerPluginOptions | OpenTelemetryClientPluginOptions
 ): InterceptorOptions {
   return options?.tracer ? { tracer: options.tracer } : {};
+}
+
+function isInterceptorEnabled(toggle: boolean | undefined): boolean {
+  return toggle !== false;
+}
+
+type WorkflowInterceptorModule =
+  | 'inbound'
+  | 'outbound'
+  | 'internals'
+  | 'inbound-outbound'
+  | 'inbound-internals'
+  | 'outbound-internals'
+  | 'inbound-outbound-internals';
+
+/**
+ * Returns the workflow interceptor module name based on the enabled toggles.
+ * Returns `null` if all workflow interceptors are disabled.
+ */
+function getWorkflowInterceptorModule(toggles: OpenTelemetryInterceptorOptions): WorkflowInterceptorModule | null {
+  const inbound = isInterceptorEnabled(toggles.openTelemetryInboundInterceptor);
+  const outbound = isInterceptorEnabled(toggles.openTelemetryOutboundInterceptor);
+  const internals = isInterceptorEnabled(toggles.openTelemetryInternalsInterceptor);
+
+  if (inbound && outbound && internals) return 'inbound-outbound-internals';
+  if (inbound && outbound) return 'inbound-outbound';
+  if (inbound && internals) return 'inbound-internals';
+  if (outbound && internals) return 'outbound-internals';
+  if (inbound) return 'inbound';
+  if (outbound) return 'outbound';
+  if (internals) return 'internals';
+  return null;
 }

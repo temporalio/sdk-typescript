@@ -569,6 +569,45 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(workflowResult, true);
   });
 
+  test('Bundling succeeds for all workflow interceptor toggle combinations', async (t) => {
+    const staticResource = new opentelemetry.resources.Resource({
+      [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-toggle-combinations',
+    });
+    const traceExporter: opentelemetry.tracing.SpanExporter = {
+      export(_spans, resultCallback) {
+        resultCallback({ code: ExportResultCode.SUCCESS });
+      },
+      async shutdown() {},
+    };
+
+    // Test all 2^3 = 8 combinations of the three workflow interceptor toggles
+    const booleanValues = [true, false];
+    for (const inbound of booleanValues) {
+      for (const outbound of booleanValues) {
+        for (const internals of booleanValues) {
+          const plugin = new OpenTelemetryWorkerPlugin({
+            resource: staticResource,
+            traceExporter,
+            openTelemetryInboundInterceptor: inbound,
+            openTelemetryOutboundInterceptor: outbound,
+            openTelemetryInternalsInterceptor: internals,
+          });
+
+          const combination = `inbound=${inbound}, outbound=${outbound}, internals=${internals}`;
+          await t.notThrowsAsync(
+            bundleWorkflowCode({
+              ...bundlerOptions,
+              workflowsPath: require.resolve('./workflows'),
+              plugins: [plugin],
+              logger: new DefaultLogger('ERROR'),
+            }),
+            `Bundling should succeed for combination: ${combination}`
+          );
+        }
+      }
+    }
+  });
+
   test.serial('OpenTelemetryWorkerPlugin works with prebundled workflow code', async (t) => {
     Runtime.install({});
     try {

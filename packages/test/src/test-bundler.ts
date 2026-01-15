@@ -20,6 +20,19 @@ test('moduleMatches works', (t) => {
   t.false(moduleMatches('fs', ['foo']));
 });
 
+test('An error is thrown when workflow interceptor module does not exist', async (t) => {
+  await t.throwsAsync(
+    bundleWorkflowCode({
+      workflowsPath: require.resolve('./workflows'),
+      workflowInterceptorModules: ['./non/existent/interceptor-module'],
+    }),
+    {
+      instanceOf: Error,
+      message: /Webpack finished with errors/,
+    }
+  );
+});
+
 if (RUN_INTEGRATION_TESTS) {
   test('Worker can be created from bundle code', async (t) => {
     const taskQueue = `${t.title}-${uuid4()}`;

@@ -1,11 +1,9 @@
-/** Not a workflow, just interceptors */
-
 import type { WorkflowInterceptors } from '@temporalio/workflow';
 import {
   OpenTelemetryInboundInterceptor,
   OpenTelemetryOutboundInterceptor,
   OpenTelemetryInternalsInterceptor,
-} from './workflow';
+} from '../workflow';
 
 export const interceptors = (): WorkflowInterceptors => ({
   inbound: [new OpenTelemetryInboundInterceptor()],
