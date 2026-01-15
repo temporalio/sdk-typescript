@@ -667,6 +667,8 @@ if (RUN_INTEGRATION_TESTS) {
   // Regression test for https://github.com/temporalio/sdk-typescript/issues/1738
   test.serial('traceState properly crosses V8 isolate boundary', async (t) => {
     const exportErrors: Error[] = [];
+    // Collect spans exported from workflow (those that crossed the isolate boundary)
+    const workflowExportedSpans: opentelemetry.tracing.ReadableSpan[] = [];
 
     await withFakeGrpcServer(async (port) => {
       const staticResource = new opentelemetry.resources.Resource({
@@ -690,6 +692,19 @@ if (RUN_INTEGRATION_TESTS) {
         },
       };
 
+      // Create a separate exporter for workflow spans that captures them for inspection
+      const workflowSpanExporter: opentelemetry.tracing.SpanExporter = {
+        export(spans, resultCallback) {
+          // Capture spans for later inspection
+          workflowExportedSpans.push(...spans);
+          // Also send to the real exporter to test serialization
+          wrappedExporter.export(spans, resultCallback);
+        },
+        async shutdown() {
+          await wrappedExporter.shutdown();
+        },
+      };
+
       const otel = new opentelemetry.NodeSDK({
         resource: staticResource,
         traceExporter: wrappedExporter,
@@ -697,7 +712,7 @@ if (RUN_INTEGRATION_TESTS) {
       otel.start();
 
       const sinks: InjectedSinks<OpenTelemetrySinks> = {
-        exporter: makeWorkflowExporter(wrappedExporter, staticResource),
+        exporter: makeWorkflowExporter(workflowSpanExporter, staticResource),
       };
 
       const worker = await Worker.create({
@@ -747,7 +762,19 @@ if (RUN_INTEGRATION_TESTS) {
       await otel.shutdown();
     });
 
-    t.deepEqual(exportErrors, []);
+    t.deepEqual(exportErrors, [], 'should have no errors exporting spans');
+
+    const traceStates = workflowExportedSpans.map((span) => span.spanContext().traceState).filter(Boolean);
+    t.assert(traceStates.length > 0, 'Should have spans with traceState');
+
+    // Verify the traceState was properly reconstructed with working methods
+    for (const traceState of traceStates) {
+      // Verify serialize() method works and returns expected value
+      const serialized = traceState!.serialize();
+      t.is(serialized, 'vendor1=value1,vendor2=value2');
+      t.is(traceState!.get('vendor1'), 'value1');
+      t.is(traceState!.get('vendor2'), 'value2');
+    }
   });
 }
 
