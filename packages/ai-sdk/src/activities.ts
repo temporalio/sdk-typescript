@@ -6,7 +6,7 @@ import type {
   SharedV3Headers,
   ProviderV3,
 } from '@ai-sdk/provider';
-import { asSchema, Schema, ToolExecutionOptions } from 'ai';
+import { asSchema, type Schema, type ToolExecutionOptions } from 'ai';
 import { ApplicationFailure } from '@temporalio/common';
 import type { McpClientFactories, McpClientFactory } from './mcp';
 
