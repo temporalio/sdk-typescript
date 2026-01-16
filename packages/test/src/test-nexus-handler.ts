@@ -119,7 +119,7 @@ test('sync Operation Handler happy path', async (t) => {
   });
 });
 
-test('Operation Handler cancelation', async (t) => {
+test('Operation Handler cancellation', async (t) => {
   const { env, taskQueue, httpPort, endpointId } = t.context;
   let p: Promise<never> | undefined;
 
@@ -577,6 +577,45 @@ test('getClient is available in handler context', async (t) => {
     t.true(res.ok);
     const output = await res.json();
     t.is(output, true);
+  });
+});
+
+test('operationInfo is available in handler context', async (t) => {
+  const { env, taskQueue, httpPort, endpointId } = t.context;
+
+  const w = await Worker.create({
+    connection: env.nativeConnection,
+    namespace: env.namespace,
+    taskQueue,
+    nexusServices: [
+      nexus.serviceHandler(
+        nexus.service('testService', {
+          testSyncOp: nexus.operation<void, { namespace: string; taskQueue: string }>(),
+        }),
+        {
+          async testSyncOp() {
+            const info = temporalnexus.operationInfo();
+            return {
+              namespace: info.namespace,
+              taskQueue: info.taskQueue,
+            };
+          },
+        }
+      ),
+    ],
+  });
+
+  await w.runUntil(async () => {
+    const res = await fetch(
+      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
+      {
+        method: 'POST',
+      }
+    );
+    t.true(res.ok);
+    const output = (await res.json()) as { namespace: string; taskQueue: string };
+    t.is(output.namespace, 'default');
+    t.is(output.taskQueue, taskQueue);
   });
 });
 

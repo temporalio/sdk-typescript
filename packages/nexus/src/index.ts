@@ -9,6 +9,8 @@ export {
   log,
   getClient,
   metricMeter,
+  operationInfo,
+  type OperationInfo,
 } from './context';
 
 export {
