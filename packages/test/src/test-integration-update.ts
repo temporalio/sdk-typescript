@@ -811,7 +811,7 @@ test('update result poll throws WorkflowUpdateRPCTimeoutOrCancelledError', async
 
 const updateThatShouldFail = wf.defineUpdate('updateThatShouldFail');
 
-export async function workflowThatWillBeCanceled(): Promise<void> {
+export async function workflowThatWillBeCancelled(): Promise<void> {
   wf.setHandler(updateThatShouldFail, async () => {
     await wf.condition(() => false);
   });
@@ -822,7 +822,7 @@ test('update caller gets update failed error on workflow cancellation', async (t
   const { createWorker, startWorkflow, assertWorkflowUpdateFailed } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const w = await startWorkflow(workflowThatWillBeCanceled);
+    const w = await startWorkflow(workflowThatWillBeCancelled);
     const u = await w.startUpdate(updateThatShouldFail, {
       waitForStage: WorkflowUpdateStage.ACCEPTED,
     });

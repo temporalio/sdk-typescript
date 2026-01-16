@@ -35,7 +35,7 @@ export interface CancellationScopeOptions {
 
 /**
  * Cancellation Scopes provide the mechanic by which a Workflow may gracefully handle incoming requests for cancellation
- * (e.g. in response to {@link WorkflowHandle.cancel} or through the UI or CLI), as well as request cancelation of
+ * (e.g. in response to {@link WorkflowHandle.cancel} or through the UI or CLI), as well as request cancellation of
  * cancellable operations it owns (e.g. Activities, Timers, Child Workflows, etc).
  *
  * Cancellation Scopes form a tree, with the Workflow's main function running in the root scope of that tree.
@@ -57,7 +57,7 @@ export interface CancellationScopeOptions {
  * ```ts
  * async function myWorkflow(...): Promise<void> {
  *   try {
- *     // This activity runs in the root cancellation scope. Therefore, a cancelation request on
+ *     // This activity runs in the root cancellation scope. Therefore, a cancellation request on
  *     // the Workflow execution (e.g. through the UI or CLI) automatically propagates to this
  *     // activity. Assuming that the activity properly handle the cancellation request, then the
  *     // call below will throw an `ActivityFailure` exception, with `cause` sets to an
