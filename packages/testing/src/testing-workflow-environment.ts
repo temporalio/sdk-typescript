@@ -16,6 +16,7 @@ import { Duration, TypedSearchAttributes } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import { NativeConnection, NativeConnectionPlugin, NativeConnectionOptions, Runtime } from '@temporalio/worker';
 import { native } from '@temporalio/core-bridge';
+import { temporal } from '@temporalio/proto';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { toNativeEphemeralServerConfig, DevServerConfig, TimeSkippingServerConfig } from './ephemeral-server';
 import { ClientOptionsForTestEnv, TimeSkippingClient } from './client';
@@ -270,7 +271,7 @@ export class TestWorkflowEnvironment {
       address
     );
   }
-
+  
   /**
    * Kill the test server process and close the connection to it
    */
@@ -356,6 +357,59 @@ export class TestWorkflowEnvironment {
     } else {
       return Date.now();
     }
+  }
+
+  /**
+   * Create a Nexus endpoint targeting a worker task queue.
+   * 
+   * This is a convenience method that wraps `connection.operatorService.createNexusEndpoint` for easier
+   * testing of Nexus services.
+   * 
+   * @param name - The name of the Nexus endpoint
+   * @param taskQueue - The task queue that will handle Nexus operations
+   * @returns The created Nexus endpoint
+   * 
+   * @example
+   * ```ts
+   * const endpoint = await testEnv.createNexusEndpoint('my-endpoint', 'my-task-queue');
+   * const endpointId = endpoint.id!;
+   * ```
+   */
+  async createNexusEndpoint(name: string, taskQueue: string): Promise<temporal.api.nexus.v1.IEndpoint> {
+    const response = await this.connection.operatorService.createNexusEndpoint({
+      spec: {
+        name,
+        target: {
+          worker: {
+            namespace: this.namespace ?? 'default',
+            taskQueue,
+          },
+        },
+      },
+    });
+    return response.endpoint!;
+  }
+
+  /**
+   * Delete a Nexus endpoint.
+   * 
+   * This is a convenience method that wraps `connection.operatorService.deleteNexusEndpoint` for easier
+   * testing of Nexus services.
+   * 
+   * @param endpoint - The endpoint to delete (can pass the full endpoint object or just an object with id and version)
+   * 
+   * @example
+   * ```ts
+   * const endpoint = await testEnv.createNexusEndpoint('my-endpoint', 'my-task-queue');
+   * // ... use the endpoint ...
+   * await testEnv.deleteNexusEndpoint(endpoint);
+   * ```
+   */
+  async deleteNexusEndpoint(endpoint: temporal.api.nexus.v1.IEndpoint): Promise<void> {
+    await this.connection.operatorService.deleteNexusEndpoint({
+      id: endpoint.id!,
+      version: endpoint.version!,
+    });
   }
 }
 

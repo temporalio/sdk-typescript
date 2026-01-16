@@ -64,19 +64,9 @@ test.after.always(async (t) => {
 test.beforeEach(async (t) => {
   const taskQueue = t.title + randomUUID();
   const { env } = t.context;
-  const response = await env.connection.operatorService.createNexusEndpoint({
-    spec: {
-      name: t.title.replaceAll(/[\s,.]/g, '-'),
-      target: {
-        worker: {
-          namespace: 'default',
-          taskQueue,
-        },
-      },
-    },
-  });
+  const endpoint = await env.createNexusEndpoint(t.title.replaceAll(/[\s,.]/g, '-'), taskQueue);
   t.context.taskQueue = taskQueue;
-  t.context.endpointId = response.endpoint!.id!;
+  t.context.endpointId = endpoint.id!;
   t.truthy(t.context.endpointId);
 });
 
@@ -712,5 +702,21 @@ test('WorkflowRunOperationHandler does not accept WorkflowHandle from WorkflowCl
   );
 
   // This test only checks for compile-time error.
+  t.pass();
+});
+
+test('createNexusEndpoint and deleteNexusEndpoint', async (t) => {
+  const { env } = t.context;
+  const taskQueue = 'test-delete-endpoint-' + randomUUID();
+  const endpointName = 'test-delete-endpoint-' + randomUUID();
+
+  // Create an endpoint
+  const endpoint = await env.createNexusEndpoint(endpointName, taskQueue);
+  t.truthy(endpoint.id);
+  t.truthy(endpoint.version);
+  t.is(endpoint.spec?.name, endpointName);
+
+  // Delete the endpoint
+  await env.deleteNexusEndpoint(endpoint);
   t.pass();
 });

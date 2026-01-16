@@ -50,18 +50,8 @@ export async function handler(action: string): Promise<string> {
 
 test('Nexus Operation from a Workflow', async (t) => {
   const { createWorker, executeWorkflow, taskQueue } = helpers(t);
-  const endpoint = t.title.replaceAll(/[\s,]/g, '-') + '-' + randomUUID();
-  await t.context.env.connection.operatorService.createNexusEndpoint({
-    spec: {
-      name: endpoint,
-      target: {
-        worker: {
-          namespace: 'default',
-          taskQueue,
-        },
-      },
-    },
-  });
+  const endpointName = t.title.replaceAll(/[\s,]/g, '-') + '-' + randomUUID();
+  const endpoint = await t.context.env.createNexusEndpoint(endpointName, taskQueue);
   const worker = await createWorker({
     nexusServices: [
       nexus.serviceHandler(service, {
@@ -96,13 +86,13 @@ test('Nexus Operation from a Workflow', async (t) => {
   });
   await worker.runUntil(async () => {
     let res = await executeWorkflow(caller, {
-      args: [endpoint, 'syncOp', 'pass'],
+      args: [endpoint.spec!.name!, 'syncOp', 'pass'],
     });
     t.is(res, 'pass');
     let err = await t.throwsAsync(
       () =>
         executeWorkflow(caller, {
-          args: [endpoint, 'syncOp', 'throwHandlerError'],
+          args: [endpoint.spec!.name!, 'syncOp', 'throwHandlerError'],
         }),
       {
         instanceOf: WorkflowFailedError,
@@ -116,13 +106,13 @@ test('Nexus Operation from a Workflow', async (t) => {
     );
 
     res = await executeWorkflow(caller, {
-      args: [endpoint, 'asyncOp', 'pass'],
+      args: [endpoint.spec!.name!, 'asyncOp', 'pass'],
     });
     t.is(res, 'pass');
     err = await t.throwsAsync(
       () =>
         executeWorkflow(caller, {
-          args: [endpoint, 'asyncOp', 'waitForCancel'],
+          args: [endpoint.spec!.name!, 'asyncOp', 'waitForCancel'],
         }),
       {
         instanceOf: WorkflowFailedError,
@@ -137,7 +127,7 @@ test('Nexus Operation from a Workflow', async (t) => {
     err = await t.throwsAsync(
       () =>
         executeWorkflow(caller, {
-          args: [endpoint, 'asyncOp', 'throwOperationError'],
+          args: [endpoint.spec!.name!, 'asyncOp', 'throwOperationError'],
         }),
       {
         instanceOf: WorkflowFailedError,
@@ -152,7 +142,7 @@ test('Nexus Operation from a Workflow', async (t) => {
     err = await t.throwsAsync(
       () =>
         executeWorkflow(caller, {
-          args: [endpoint, 'asyncOp', 'throwApplicationFailure'],
+          args: [endpoint.spec!.name!, 'asyncOp', 'throwApplicationFailure'],
         }),
       {
         instanceOf: WorkflowFailedError,
@@ -171,7 +161,7 @@ test('Nexus Operation from a Workflow', async (t) => {
     err = await t.throwsAsync(
       () =>
         executeWorkflow(caller, {
-          args: [endpoint, 'asyncOp', 'failWorkflow'],
+          args: [endpoint.spec!.name!, 'asyncOp', 'failWorkflow'],
         }),
       {
         instanceOf: WorkflowFailedError,
@@ -273,18 +263,8 @@ export async function clientOperationTypeSafetyCheckerWorkflow(endpoint: string)
 
 test('NexusClient is type-safe in regard to Operation Definitions', async (t) => {
   const { createWorker, executeWorkflow, taskQueue } = helpers(t);
-  const endpoint = t.title.replaceAll(/[\s,]/g, '-') + '-' + randomUUID();
-  await t.context.env.connection.operatorService.createNexusEndpoint({
-    spec: {
-      name: endpoint,
-      target: {
-        worker: {
-          namespace: 'default',
-          taskQueue,
-        },
-      },
-    },
-  });
+  const endpointName = t.title.replaceAll(/[\s,]/g, '-') + '-' + randomUUID();
+  const endpoint = await t.context.env.createNexusEndpoint(endpointName, taskQueue);
 
   // We intentionally use different property names here, to assert that the client side sent the
   // correct op name to the server (i.e. the operation's name, not the operation property name).
@@ -303,7 +283,7 @@ test('NexusClient is type-safe in regard to Operation Definitions', async (t) =>
   });
   await worker.runUntil(async () => {
     await executeWorkflow(clientOperationTypeSafetyCheckerWorkflow, {
-      args: [endpoint],
+      args: [endpoint.spec!.name!],
     });
   });
 
