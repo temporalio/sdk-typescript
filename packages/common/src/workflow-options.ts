@@ -93,7 +93,6 @@ export const [encodeWorkflowIdReusePolicy, decodeWorkflowIdReusePolicy] = makePr
  *
  * *Note: It is never possible to have two _actively running_ Workflows with the same ID.*
  */
-export type WorkflowIdConflictPolicy = (typeof WorkflowIdConflictPolicy)[keyof typeof WorkflowIdConflictPolicy];
 export const WorkflowIdConflictPolicy = {
   /**
    * Do not start a new Workflow. Instead raise a `WorkflowExecutionAlreadyStartedError`.
@@ -110,6 +109,7 @@ export const WorkflowIdConflictPolicy = {
    */
   TERMINATE_EXISTING: 'TERMINATE_EXISTING',
 } as const;
+export type WorkflowIdConflictPolicy = (typeof WorkflowIdConflictPolicy)[keyof typeof WorkflowIdConflictPolicy];
 
 export const [encodeWorkflowIdConflictPolicy, decodeWorkflowIdConflictPolicy] = makeProtoEnumConverters<
   temporal.api.enums.v1.WorkflowIdConflictPolicy,
@@ -133,7 +133,7 @@ export interface BaseWorkflowOptions {
    *
    * *Note: It is not possible to have two actively running Workflows with the same ID.*
    *
-   * @default {@link WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE}
+   * @default WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE
    */
   workflowIdReusePolicy?: WorkflowIdReusePolicy;
 
@@ -142,7 +142,7 @@ export interface BaseWorkflowOptions {
    *
    * *Note: It is not possible to have two actively running Workflows with the same ID.*
    *
-   * @default {@link WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_UNSPECIFIED}
+   * @default WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_UNSPECIFIED
    */
   workflowIdConflictPolicy?: WorkflowIdConflictPolicy;
 

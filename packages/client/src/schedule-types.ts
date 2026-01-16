@@ -31,7 +31,7 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
      * running. This can be changed after a Schedule has taken some Actions, and some changes might produce
      * unintuitive results. In general, the later policy overrides the earlier policy.
      *
-     * @default {@link ScheduleOverlapPolicy.SKIP}
+     * @default ScheduleOverlapPolicy.SKIP
      */
     overlap?: ScheduleOverlapPolicy;
 

@@ -10,12 +10,12 @@ import { Exact, RemovePrefix, UnionToIntersection } from '../type-helpers';
  * Newly introduced enums should follow the following pattern:
  *
  * ```ts
- *     type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
  *     const ParentClosePolicy = {
  *       TERMINATE: 'TERMINATE',
  *       ABANDON: 'ABANDON',
  *       REQUEST_CANCEL: 'REQUEST_CANCEL',
  *     } as const;
+ *     type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
  *
  *     const [encodeParentClosePolicy, decodeParentClosePolicy] = //
  *       makeProtoEnumConverters<

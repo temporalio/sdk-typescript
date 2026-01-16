@@ -951,7 +951,7 @@ export async function cancellationScopeWithTimeoutTimerGetsCancelled(): Promise<
     // Fix enabled: this timer will get cancelled
   });
 
-  // Timer cancelation won't appear in history if it sent in the same WFT as workflow complete
+  // Timer cancellation won't appear in history if it sent in the same WFT as workflow complete
   await activitySleep(1);
 
   //@ts-expect-error TSC can't see that scope variables will be initialized synchronously
@@ -973,10 +973,10 @@ test('CancellationScope.withTimeout() - timer gets cancelled', async (t) => {
 
   const { events } = await handle.fetchHistory();
 
-  const timerCanceledEvents = events?.filter((ev) => ev.timerCanceledEventAttributes) ?? [];
-  t.is(timerCanceledEvents?.length, 1);
+  const timerCancelledEvents = events?.filter((ev) => ev.timerCanceledEventAttributes) ?? [];
+  t.is(timerCancelledEvents?.length, 1);
 
-  const timerStartedEventId = timerCanceledEvents[0].timerCanceledEventAttributes?.startedEventId;
+  const timerStartedEventId = timerCancelledEvents[0].timerCanceledEventAttributes?.startedEventId;
   const timerStartedEvent = events?.find((ev) => ev.eventId?.toNumber() === timerStartedEventId?.toNumber());
   t.is(tsToMs(timerStartedEvent?.timerStartedEventAttributes?.startToFireTimeout), msToNumber('12s'));
 });
@@ -1000,7 +1000,7 @@ export async function cancellationScopeWithTimeoutScopeGetCancelledOnTimeout(): 
     await activitySleep(7000);
   }).catch(() => undefined);
 
-  // Activity cancelation won't appear in history if it sent in the same WFT as workflow complete
+  // Activity cancellation won't appear in history if it sent in the same WFT as workflow complete
   await activitySleep(1);
 
   //@ts-expect-error TSC can't see that scope variables will be initialized synchronously

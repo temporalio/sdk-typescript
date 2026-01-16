@@ -42,7 +42,7 @@ export function overrideGlobals(): void {
 
   global.Date.prototype = OriginalDate.prototype;
 
-  const timeoutCancelationScopes = new Map<number, CancellationScope>();
+  const timeoutCancellationScopes = new Map<number, CancellationScope>();
 
   /**
    * @param ms sleep duration -  number of milliseconds. If given a negative number, value will be set to 1.
@@ -57,15 +57,15 @@ export function overrideGlobals(): void {
       const sleepPromise = timerScope.run(() => sleep(ms));
       sleepPromise.then(
         () => {
-          timeoutCancelationScopes.delete(seq);
+          timeoutCancellationScopes.delete(seq);
           cb(...args);
         },
         () => {
-          timeoutCancelationScopes.delete(seq);
+          timeoutCancellationScopes.delete(seq);
         }
       );
       untrackPromise(sleepPromise);
-      timeoutCancelationScopes.set(seq, timerScope);
+      timeoutCancellationScopes.set(seq, timerScope);
       return seq;
     } else {
       const seq = activator.nextSeqs.timer++;
@@ -88,9 +88,9 @@ export function overrideGlobals(): void {
 
   global.clearTimeout = function (handle: number): void {
     const activator = getActivator();
-    const timerScope = timeoutCancelationScopes.get(handle);
+    const timerScope = timeoutCancellationScopes.get(handle);
     if (timerScope) {
-      timeoutCancelationScopes.delete(handle);
+      timeoutCancellationScopes.delete(handle);
       timerScope.cancel();
     } else {
       activator.nextSeqs.timer++; // Shouldn't increase seq number, but that's the legacy behavior

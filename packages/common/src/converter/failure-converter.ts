@@ -30,7 +30,6 @@ const NexusHandlerErrorRetryBehavior = {
   RETRYABLE: 'RETRYABLE',
   NON_RETRYABLE: 'NON_RETRYABLE',
 } as const;
-
 type NexusHandlerErrorRetryBehavior =
   (typeof NexusHandlerErrorRetryBehavior)[keyof typeof NexusHandlerErrorRetryBehavior];
 

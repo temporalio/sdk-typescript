@@ -17,7 +17,6 @@ export const SearchAttributeType = {
   DATETIME: 'DATETIME',
   KEYWORD_LIST: 'KEYWORD_LIST',
 } as const;
-
 export type SearchAttributeType = (typeof SearchAttributeType)[keyof typeof SearchAttributeType];
 
 // Note: encodeSearchAttributeIndexedValueType exported for use in tests to register search attributes

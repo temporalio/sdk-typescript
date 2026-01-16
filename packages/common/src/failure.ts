@@ -112,7 +112,6 @@ export const [encodeRetryState, decodeRetryState] = makeProtoEnumConverters<
 export const ApplicationFailureCategory = {
   BENIGN: 'BENIGN',
 } as const;
-
 export type ApplicationFailureCategory = (typeof ApplicationFailureCategory)[keyof typeof ApplicationFailureCategory];
 
 export const [encodeApplicationFailureCategory, decodeApplicationFailureCategory] = makeProtoEnumConverters<

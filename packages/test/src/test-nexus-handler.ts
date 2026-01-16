@@ -127,7 +127,7 @@ test('sync Operation Handler happy path', async (t) => {
   });
 });
 
-test('Operation Handler cancelation', async (t) => {
+test('Operation Handler cancellation', async (t) => {
   const { env, taskQueue, httpPort, endpointId } = t.context;
   let p: Promise<never> | undefined;
 
