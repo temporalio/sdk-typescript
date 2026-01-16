@@ -52,6 +52,8 @@ test('Nexus Operation from a Workflow', async (t) => {
   const { createWorker, executeWorkflow, taskQueue } = helpers(t);
   const endpointName = t.title.replaceAll(/[\s,]/g, '-') + '-' + randomUUID();
   const endpoint = await t.context.env.createNexusEndpoint(endpointName, taskQueue);
+  t.teardown(() => t.context.env.deleteNexusEndpoint(endpoint));
+
   const worker = await createWorker({
     nexusServices: [
       nexus.serviceHandler(service, {
@@ -86,13 +88,13 @@ test('Nexus Operation from a Workflow', async (t) => {
   });
   await worker.runUntil(async () => {
     let res = await executeWorkflow(caller, {
-      args: [endpoint.spec!.name!, 'syncOp', 'pass'],
+      args: [endpointName, 'syncOp', 'pass'],
     });
     t.is(res, 'pass');
     let err = await t.throwsAsync(
       () =>
         executeWorkflow(caller, {
-          args: [endpoint.spec!.name!, 'syncOp', 'throwHandlerError'],
+          args: [endpointName, 'syncOp', 'throwHandlerError'],
         }),
       {
         instanceOf: WorkflowFailedError,
@@ -106,13 +108,13 @@ test('Nexus Operation from a Workflow', async (t) => {
     );
 
     res = await executeWorkflow(caller, {
-      args: [endpoint.spec!.name!, 'asyncOp', 'pass'],
+      args: [endpointName, 'asyncOp', 'pass'],
     });
     t.is(res, 'pass');
     err = await t.throwsAsync(
       () =>
         executeWorkflow(caller, {
-          args: [endpoint.spec!.name!, 'asyncOp', 'waitForCancel'],
+          args: [endpointName, 'asyncOp', 'waitForCancel'],
         }),
       {
         instanceOf: WorkflowFailedError,
@@ -127,7 +129,7 @@ test('Nexus Operation from a Workflow', async (t) => {
     err = await t.throwsAsync(
       () =>
         executeWorkflow(caller, {
-          args: [endpoint.spec!.name!, 'asyncOp', 'throwOperationError'],
+          args: [endpointName, 'asyncOp', 'throwOperationError'],
         }),
       {
         instanceOf: WorkflowFailedError,
@@ -142,7 +144,7 @@ test('Nexus Operation from a Workflow', async (t) => {
     err = await t.throwsAsync(
       () =>
         executeWorkflow(caller, {
-          args: [endpoint.spec!.name!, 'asyncOp', 'throwApplicationFailure'],
+          args: [endpointName, 'asyncOp', 'throwApplicationFailure'],
         }),
       {
         instanceOf: WorkflowFailedError,
@@ -161,7 +163,7 @@ test('Nexus Operation from a Workflow', async (t) => {
     err = await t.throwsAsync(
       () =>
         executeWorkflow(caller, {
-          args: [endpoint.spec!.name!, 'asyncOp', 'failWorkflow'],
+          args: [endpointName, 'asyncOp', 'failWorkflow'],
         }),
       {
         instanceOf: WorkflowFailedError,
@@ -265,6 +267,7 @@ test('NexusClient is type-safe in regard to Operation Definitions', async (t) =>
   const { createWorker, executeWorkflow, taskQueue } = helpers(t);
   const endpointName = t.title.replaceAll(/[\s,]/g, '-') + '-' + randomUUID();
   const endpoint = await t.context.env.createNexusEndpoint(endpointName, taskQueue);
+  t.teardown(() => t.context.env.deleteNexusEndpoint(endpoint));
 
   // We intentionally use different property names here, to assert that the client side sent the
   // correct op name to the server (i.e. the operation's name, not the operation property name).
@@ -283,7 +286,7 @@ test('NexusClient is type-safe in regard to Operation Definitions', async (t) =>
   });
   await worker.runUntil(async () => {
     await executeWorkflow(clientOperationTypeSafetyCheckerWorkflow, {
-      args: [endpoint.spec!.name!],
+      args: [endpointName],
     });
   });
 

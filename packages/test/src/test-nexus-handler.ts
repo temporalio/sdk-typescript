@@ -65,6 +65,8 @@ test.beforeEach(async (t) => {
   const taskQueue = t.title + randomUUID();
   const { env } = t.context;
   const endpoint = await env.createNexusEndpoint(t.title.replaceAll(/[\s,.]/g, '-'), taskQueue);
+  t.teardown(() => t.context.env.deleteNexusEndpoint(endpoint));
+
   t.context.taskQueue = taskQueue;
   t.context.endpointId = endpoint.id!;
   t.truthy(t.context.endpointId);
@@ -714,7 +716,7 @@ test('createNexusEndpoint and deleteNexusEndpoint', async (t) => {
   const endpoint = await env.createNexusEndpoint(endpointName, taskQueue);
   t.truthy(endpoint.id);
   t.truthy(endpoint.version);
-  t.is(endpoint.spec?.name, endpointName);
+  t.is(endpoint.raw.spec?.name, endpointName);
 
   // Delete the endpoint
   await env.deleteNexusEndpoint(endpoint);

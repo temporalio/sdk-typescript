@@ -372,10 +372,10 @@ export class TestWorkflowEnvironment {
    * @example
    * ```ts
    * const endpoint = await testEnv.createNexusEndpoint('my-endpoint', 'my-task-queue');
-   * const endpointId = endpoint.id!;
+   * const endpointId = endpoint.id;
    * ```
    */
-  async createNexusEndpoint(name: string, taskQueue: string): Promise<temporal.api.nexus.v1.IEndpoint> {
+  async createNexusEndpoint(name: string, taskQueue: string): Promise<NexusEndpointIdentifier> {
     const response = await this.connection.operatorService.createNexusEndpoint({
       spec: {
         name,
@@ -387,7 +387,14 @@ export class TestWorkflowEnvironment {
         },
       },
     });
-    return response.endpoint!;
+    if (!response.endpoint?.id || !response.endpoint?.version) {
+      throw new TypeError('Unexpected response from createNexusEndpoint');
+    }
+    return {
+      id: response.endpoint.id,
+      version: response.endpoint.version,
+      raw: response.endpoint,
+    };
   }
 
   /**
@@ -405,13 +412,16 @@ export class TestWorkflowEnvironment {
    * await testEnv.deleteNexusEndpoint(endpoint);
    * ```
    */
-  async deleteNexusEndpoint(endpoint: temporal.api.nexus.v1.IEndpoint): Promise<void> {
-    await this.connection.operatorService.deleteNexusEndpoint({
-      id: endpoint.id!,
-      version: endpoint.version!,
-    });
+  async deleteNexusEndpoint(endpoint: Pick<NexusEndpointIdentifier, 'id' | 'version'>): Promise<void> {
+    await this.connection.operatorService.deleteNexusEndpoint(endpoint);
   }
 }
+
+export type NexusEndpointIdentifier = {
+  id: NonNullable<temporal.api.nexus.v1.IEndpoint['id']>;
+  version: NonNullable<temporal.api.nexus.v1.IEndpoint['version']>;
+  raw: temporal.api.nexus.v1.IEndpoint;
+};
 
 /**
  * Options for {@link TestWorkflowEnvironment.create}
