@@ -14,9 +14,12 @@ import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import type * as workflowImportStub from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports';
 import type * as workflowImportImpl from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports-impl';
-import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor } from '@temporalio/client';
-import { OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
-import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry';
+import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor, Client } from '@temporalio/client';
+import {
+  OpenTelemetryClientPlugin,
+  OpenTelemetryWorkerPlugin,
+  OpenTelemetryWorkflowClientInterceptor,
+} from '@temporalio/interceptors-opentelemetry';
 import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
 import {
   makeWorkflowExporter,
@@ -33,13 +36,14 @@ import {
 import {
   ActivityInboundCallsInterceptor,
   ActivityOutboundCallsInterceptor,
+  bundleWorkflowCode,
   DefaultLogger,
   InjectedSinks,
   Runtime,
 } from '@temporalio/worker';
 import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
 import * as activities from './activities';
-import { loadHistory, RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
+import { bundlerOptions, loadHistory, RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
 import * as workflows from './workflows';
 import { createTestWorkflowBundle } from './helpers-integration';
 
@@ -268,33 +272,19 @@ if (RUN_INTEGRATION_TESTS) {
       });
       otel.start();
 
-      const sinks: InjectedSinks<OpenTelemetrySinks> = {
-        exporter: makeWorkflowExporter(traceExporter, staticResource),
-      };
-
       const worker = await Worker.create({
         workflowsPath: require.resolve('./workflows'),
         activities,
         taskQueue: 'test-otel',
-        interceptors: {
-          client: {
-            workflow: [new OpenTelemetryWorkflowClientCallsInterceptor()],
-          },
-          workflowModules: [require.resolve('./workflows/otel-interceptors')],
-          activity: [
-            (ctx) => ({
-              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
-              outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
-            }),
-          ],
-        },
-        sinks,
+        plugins: [new OpenTelemetryWorkerPlugin({ resource: staticResource, traceExporter })],
       });
 
-      const client = new WorkflowClient({
-        interceptors: [new OpenTelemetryWorkflowClientInterceptor()],
+      const client = new Client({
+        plugins: [new OpenTelemetryClientPlugin()],
       });
-      await worker.runUntil(client.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: uuid4() }));
+      await worker.runUntil(
+        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: uuid4() })
+      );
       await otel.shutdown();
       const originalSpan = spans.find(({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}smorgasbord`);
       t.true(originalSpan !== undefined);
@@ -544,24 +534,15 @@ if (RUN_INTEGRATION_TESTS) {
       async shutdown() {},
     };
 
-    const sinks: InjectedSinks<OpenTelemetrySinks> = {
-      exporter: makeWorkflowExporter(traceExporter, staticResource),
-    };
-
+    const plugin = new OpenTelemetryWorkerPlugin({ resource: staticResource, traceExporter });
     const worker = await Worker.create({
       workflowBundle: await createTestWorkflowBundle({
         workflowsPath: require.resolve('./workflows'),
-        workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
+        plugins: [plugin],
       }),
       activities,
       taskQueue: 'test-otel-update-start',
-      interceptors: {
-        client: {
-          workflow: [new OpenTelemetryWorkflowClientCallsInterceptor()],
-        },
-        workflowModules: [require.resolve('./workflows/otel-interceptors')],
-      },
-      sinks,
+      plugins: [plugin],
     });
 
     const client = new WorkflowClient();
@@ -586,6 +567,117 @@ if (RUN_INTEGRATION_TESTS) {
 
     t.is(updateResult, true);
     t.is(workflowResult, true);
+  });
+
+  test('Bundling succeeds for all workflow interceptor toggle combinations', async (t) => {
+    const staticResource = new opentelemetry.resources.Resource({
+      [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-toggle-combinations',
+    });
+    const traceExporter: opentelemetry.tracing.SpanExporter = {
+      export(_spans, resultCallback) {
+        resultCallback({ code: ExportResultCode.SUCCESS });
+      },
+      async shutdown() {},
+    };
+
+    // Test all 2^3 = 8 combinations of the three workflow interceptor toggles
+    const booleanValues = [true, false];
+    for (const inbound of booleanValues) {
+      for (const outbound of booleanValues) {
+        for (const internals of booleanValues) {
+          const plugin = new OpenTelemetryWorkerPlugin({
+            resource: staticResource,
+            traceExporter,
+            openTelemetryInboundInterceptor: inbound,
+            openTelemetryOutboundInterceptor: outbound,
+            openTelemetryInternalsInterceptor: internals,
+          });
+
+          const combination = `inbound=${inbound}, outbound=${outbound}, internals=${internals}`;
+          await t.notThrowsAsync(
+            bundleWorkflowCode({
+              ...bundlerOptions,
+              workflowsPath: require.resolve('./workflows'),
+              plugins: [plugin],
+              logger: new DefaultLogger('ERROR'),
+            }),
+            `Bundling should succeed for combination: ${combination}`
+          );
+        }
+      }
+    }
+  });
+
+  test.serial('OpenTelemetryWorkerPlugin works with prebundled workflow code', async (t) => {
+    Runtime.install({});
+    try {
+      const spans = Array<opentelemetry.tracing.ReadableSpan>();
+
+      const staticResource = new opentelemetry.resources.Resource({
+        [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-prebundled-worker',
+      });
+      const traceExporter: opentelemetry.tracing.SpanExporter = {
+        export(spans_, resultCallback) {
+          spans.push(...spans_);
+          resultCallback({ code: ExportResultCode.SUCCESS });
+        },
+        async shutdown() {
+          // Nothing to shutdown
+        },
+      };
+
+      // Use BasicTracerProvider and get a tracer directly from it.
+      // We pass this tracer explicitly to the client interceptor to avoid relying on
+      // the global tracer provider, which may have been polluted by previous tests.
+      const provider = new BasicTracerProvider({ resource: staticResource });
+      provider.addSpanProcessor(new SimpleSpanProcessor(traceExporter));
+      const tracer = provider.getTracer('@temporalio/interceptor-client');
+
+      const plugin = new OpenTelemetryWorkerPlugin({ resource: staticResource, traceExporter });
+
+      // Bundle workflow code with the plugin - this tests that configureBundler passes workflowInterceptorModules
+      const workflowBundle = await bundleWorkflowCode({
+        ...bundlerOptions,
+        workflowsPath: require.resolve('./workflows'),
+        plugins: [plugin],
+        logger: new DefaultLogger('WARN'),
+      });
+
+      const worker = await Worker.create({
+        workflowBundle,
+        activities,
+        taskQueue: 'test-otel-prebundled',
+        plugins: [plugin],
+      });
+
+      // Create client with explicit tracer to bypass global tracer provider pollution from other tests
+      const client = new Client({
+        plugins: [new OpenTelemetryClientPlugin({ tracer })],
+      });
+      await worker.runUntil(
+        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel-prebundled', workflowId: uuid4() })
+      );
+      await provider.shutdown();
+
+      // Verify that workflow spans were created
+      const workflowStartSpan = spans.find(
+        ({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}smorgasbord`
+      );
+      t.true(workflowStartSpan !== undefined, 'WORKFLOW_START span should exist');
+
+      const workflowExecuteSpan = spans.find(
+        ({ name }) => name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord`
+      );
+      t.true(workflowExecuteSpan !== undefined, 'WORKFLOW_EXECUTE span should exist');
+
+      const activityStartSpan = spans.find(
+        ({ name }) => name === `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}fakeProgress`
+      );
+      t.true(activityStartSpan !== undefined, 'ACTIVITY_START span should exist');
+    } finally {
+      // Cleanup the runtime so that it doesn't interfere with other tests
+      await Runtime._instance?.shutdown();
+    }
   });
 }
 
