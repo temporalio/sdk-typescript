@@ -24,7 +24,7 @@ import { cleanStackTrace, compareStackTrace, getRandomPort } from './helpers';
 export interface Context {
   httpPort: number;
   taskQueue: string;
-  endpointId: string;
+  endpoint: testing.NexusEndpointIdentifier;
   env: testing.TestWorkflowEnvironment;
   logEntries: LogEntry[];
 }
@@ -64,24 +64,21 @@ test.after.always(async (t) => {
 test.beforeEach(async (t) => {
   const taskQueue = t.title + randomUUID();
   const { env } = t.context;
-  const response = await env.connection.operatorService.createNexusEndpoint({
-    spec: {
-      name: t.title.replaceAll(/[\s,.]/g, '-'),
-      target: {
-        worker: {
-          namespace: 'default',
-          taskQueue,
-        },
-      },
-    },
-  });
+  const endpointName = taskQueue.replaceAll(/[\s,.]/g, '-');
+  const endpoint = await env.createNexusEndpoint(endpointName, taskQueue);
+
   t.context.taskQueue = taskQueue;
-  t.context.endpointId = response.endpoint!.id!;
-  t.truthy(t.context.endpointId);
+  t.context.endpoint = endpoint;
+});
+
+test.afterEach(async (t) => {
+  const { env, endpoint } = t.context;
+  await env.deleteNexusEndpoint(endpoint);
 });
 
 test('sync Operation Handler happy path', async (t) => {
-  const { env, taskQueue, httpPort, endpointId } = t.context;
+  const { env, taskQueue, httpPort, endpoint } = t.context;
+  const endpointId = endpoint.id;
 
   const testServiceHandler = nexus.serviceHandler(
     nexus.service('testService', {
@@ -128,7 +125,8 @@ test('sync Operation Handler happy path', async (t) => {
 });
 
 test('Operation Handler cancellation', async (t) => {
-  const { env, taskQueue, httpPort, endpointId } = t.context;
+  const { env, taskQueue, httpPort, endpoint } = t.context;
+  const endpointId = endpoint.id;
   let p: Promise<never> | undefined;
 
   const w = await Worker.create({
@@ -180,7 +178,8 @@ test('Operation Handler cancellation', async (t) => {
 });
 
 test('async Operation Handler happy path', async (t) => {
-  const { env, taskQueue, httpPort, endpointId } = t.context;
+  const { env, taskQueue, httpPort, endpoint } = t.context;
+  const endpointId = endpoint.id;
   const requestId = 'test-' + randomUUID();
 
   const w = await Worker.create({
@@ -258,7 +257,8 @@ test('async Operation Handler happy path', async (t) => {
 });
 
 test('start Operation Handler errors', async (t) => {
-  const { env, taskQueue, httpPort, endpointId } = t.context;
+  const { env, taskQueue, httpPort, endpoint } = t.context;
+  const endpointId = endpoint.id;
 
   const w = await Worker.create({
     connection: env.nativeConnection,
@@ -393,7 +393,8 @@ test('start Operation Handler errors', async (t) => {
 });
 
 test('cancel Operation Handler errors', async (t) => {
-  const { env, taskQueue, httpPort, endpointId } = t.context;
+  const { env, taskQueue, httpPort, endpoint } = t.context;
+  const endpointId = endpoint.id;
 
   const w = await Worker.create({
     connection: env.nativeConnection,
@@ -503,7 +504,8 @@ test('cancel Operation Handler errors', async (t) => {
 });
 
 test('logger is available in handler context', async (t) => {
-  const { env, taskQueue, httpPort, endpointId, logEntries } = t.context;
+  const { env, taskQueue, httpPort, endpoint, logEntries } = t.context;
+  const endpointId = endpoint.id;
 
   const w = await Worker.create({
     connection: env.nativeConnection,
@@ -552,7 +554,8 @@ test('logger is available in handler context', async (t) => {
 });
 
 test('getClient is available in handler context', async (t) => {
-  const { env, taskQueue, httpPort, endpointId } = t.context;
+  const { env, taskQueue, httpPort, endpoint } = t.context;
+  const endpointId = endpoint.id;
 
   const w = await Worker.create({
     connection: env.nativeConnection,
@@ -589,7 +592,8 @@ test('getClient is available in handler context', async (t) => {
 });
 
 test('operationInfo is available in handler context', async (t) => {
-  const { env, taskQueue, httpPort, endpointId } = t.context;
+  const { env, taskQueue, httpPort, endpoint } = t.context;
+  const endpointId = endpoint.id;
 
   const w = await Worker.create({
     connection: env.nativeConnection,
@@ -628,7 +632,9 @@ test('operationInfo is available in handler context', async (t) => {
 });
 
 test('WorkflowRunOperationHandler attaches callback, link, and request ID', async (t) => {
-  const { env, taskQueue, httpPort, endpointId } = t.context;
+  const { env, taskQueue, httpPort, endpoint } = t.context;
+  const endpointId = endpoint.id;
+
   const requestId1 = randomUUID();
   const requestId2 = randomUUID();
   const workflowId = t.title;
@@ -751,5 +757,21 @@ test('WorkflowRunOperationHandler does not accept WorkflowHandle from WorkflowCl
   );
 
   // This test only checks for compile-time error.
+  t.pass();
+});
+
+test('createNexusEndpoint and deleteNexusEndpoint', async (t) => {
+  const { env } = t.context;
+  const taskQueue = 'test-delete-endpoint-' + randomUUID();
+  const endpointName = 'test-delete-endpoint-' + randomUUID();
+
+  // Create an endpoint
+  const endpoint = await env.createNexusEndpoint(endpointName, taskQueue);
+  t.truthy(endpoint.id);
+  t.truthy(endpoint.version);
+  t.is(endpoint.raw.spec?.name, endpointName);
+
+  // Delete the endpoint
+  await env.deleteNexusEndpoint(endpoint);
   t.pass();
 });
