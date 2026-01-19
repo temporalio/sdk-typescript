@@ -91,7 +91,7 @@ function helpers(t: ExecutionContext<Context>): Helpers {
 
 test.before(async (t) => {
   // Ignore invalid log levels
-  Runtime.install({ logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'DEBUG').toUpperCase() as LogLevel) });
+  Runtime.install({ logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'ERROR').toUpperCase() as LogLevel) });
   const env = await TestWorkflowEnvironment.createLocal();
   const workflowBundle = await bundleWorkflowCode({
     ...bundlerOptions,

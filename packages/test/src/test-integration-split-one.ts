@@ -21,6 +21,7 @@ import {
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
 import { tsToMs } from '@temporalio/common/lib/time';
+import { InjectedSinks } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
 import { UnsafeWorkflowInfo, WorkflowInfo } from '@temporalio/workflow/lib/interfaces';
 
@@ -664,7 +665,18 @@ test.serial('Workflow can upsert Search Attributes', configMacro, async (t, conf
   const { env, createWorkerWithDefaults } = config;
   const date = new Date();
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+  const worker = await createWorkerWithDefaults(t, {
+    sinks: {
+      customLogger: {
+        info: {
+          fn: async (_info, _message) => {
+            /* we don't need these for this test */
+          },
+          callDuringReplay: false,
+        },
+      },
+    } satisfies InjectedSinks<workflows.CustomLoggerSinks>,
+  });
   const handle = await startWorkflow(workflows.upsertAndReadSearchAttributes, {
     args: [date.getTime()],
   });
