@@ -28,7 +28,10 @@ runs:
     - name: Install pnpm
       uses: pnpm/action-setup@v4
       with:
-        version: '10'
+        # Pin PNPM to 10.28.0 to avoid a regression introduced in 10.28.1 that
+        # is causing build failures in some of our CI jobs.
+        # See https://github.com/pnpm/pnpm/issues/10485
+        version: '10.28.0'
         run_install: false
 
     - name: Install Node
