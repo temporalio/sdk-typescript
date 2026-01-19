@@ -213,7 +213,7 @@ export function configurableHelpers<T>(
   workflowBundle: WorkflowBundle,
   testEnv: TestWorkflowEnvironment
 ): Helpers {
-  const taskQueue = `${t.title}-${new Date().toISOString().replaceAll(/[:.zt]/g, '')}`
+  const taskQueue = t.title
     .toLowerCase()
     .replaceAll(/[ _()'-]+/g, '-')
     .replace(/^[-]?(.+?)[-]?$/, '$1');
