@@ -14,12 +14,15 @@ export async function unblockOrCancel(): Promise<void> {
   setHandler(unblockSignal, () => void (isBlocked = false));
   setHandler(isBlockedQuery, () => isBlocked);
   try {
+    console.log('Blocked');
     await condition(() => !isBlocked);
     isBlocked = false;
+    console.log('Unblocked');
   } catch (err) {
     if (!(err instanceof CancelledFailure)) {
       throw err;
     }
+    console.log('Cancelled');
   }
 }
 // @@@SNIPEND
