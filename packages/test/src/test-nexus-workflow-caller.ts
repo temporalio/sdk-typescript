@@ -7,14 +7,14 @@ import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
-const service = nexus.service('test', {
-  syncOp: nexus.operation<string, string>({ name: 'my-sync-op' }),
-  asyncOp: nexus.operation<string, string>(),
-});
-
 const test = makeTestFunction({
   workflowsPath: __filename,
   workflowInterceptorModules: [__filename],
+});
+
+const service = nexus.service('test', {
+  syncOp: nexus.operation<string, string>({ name: 'my-sync-op' }),
+  asyncOp: nexus.operation<string, string>(),
 });
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -49,9 +49,8 @@ export async function handler(action: string): Promise<string> {
 }
 
 test('Nexus Operation from a Workflow', async (t) => {
-  const { createWorker, executeWorkflow, taskQueue } = helpers(t);
-  const endpointName = t.title.replaceAll(/[\s,]/g, '-') + '-' + randomUUID();
-  const endpoint = await t.context.env.createNexusEndpoint(endpointName, taskQueue);
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
   try {
     const worker = await createWorker({
       nexusServices: [
@@ -178,7 +177,7 @@ test('Nexus Operation from a Workflow', async (t) => {
       );
     });
   } finally {
-    await t.context.env.deleteNexusEndpoint(endpoint);
+    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
   }
 });
 
@@ -266,9 +265,8 @@ export async function clientOperationTypeSafetyCheckerWorkflow(endpoint: string)
 }
 
 test('NexusClient is type-safe in regard to Operation Definitions', async (t) => {
-  const { createWorker, executeWorkflow, taskQueue } = helpers(t);
-  const endpointName = t.title.replaceAll(/[\s,]/g, '-') + '-' + randomUUID();
-  const endpoint = await t.context.env.createNexusEndpoint(endpointName, taskQueue);
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
   try {
     // We intentionally use different property names here, to assert that the client side sent the
     // correct op name to the server (i.e. the operation's name, not the operation property name).
@@ -295,6 +293,6 @@ test('NexusClient is type-safe in regard to Operation Definitions', async (t) =>
     // and `executeWorkflow` will have thrown if any runtime error.
     t.pass();
   } finally {
-    await t.context.env.deleteNexusEndpoint(endpoint);
+    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
   }
 });
