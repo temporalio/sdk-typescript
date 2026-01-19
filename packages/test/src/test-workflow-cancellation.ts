@@ -59,10 +59,7 @@ const testWorkflowCancellation: Macro<
         const err = await t.throwsAsync(workflow.result(), {
           instanceOf: WorkflowFailedError,
         });
-        if (!(err instanceof WorkflowFailedError)) {
-          throw new Error('Unreachable');
-        }
-        t.true(err.cause instanceof expected);
+        t.true(err!.cause instanceof expected);
       }
     });
   },
