@@ -108,8 +108,8 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory): ob
     try {
       const tools = await mcpClient.tools();
 
-      // Cast is necessary because v.inputSchema is FlexibleSchema<unknown> (with getters),
-      // but after Temporal JSON serialization it becomes { jsonSchema: JSONSchema7 }
+      // The activity returns FlexibleSchema objects, but ListToolResult describes the
+      // post-serialization form that workflows receive. The cast bridges this gap.
       return Object.fromEntries(
         Object.entries(tools).map(([k, v]) => [
           k,
