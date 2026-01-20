@@ -1,6 +1,7 @@
 import * as otel from '@opentelemetry/api';
+import { createTraceState } from '@opentelemetry/api';
 import type { Resource } from '@opentelemetry/resources';
-import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
+import type { ReadableSpan, SpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace-base';
 import type { Context as ActivityContext } from '@temporalio/activity';
 import type {
   Next,
@@ -109,11 +110,28 @@ export class OpenTelemetryActivityOutboundInterceptor implements ActivityOutboun
 
 /**
  * Takes an opentelemetry SpanExporter and turns it into an injected Workflow span exporter sink
+ *
+ * @deprecated Do not directly pass a `SpanExporter`. Pass a `SpanProcessor` instead to ensure proper handling of async attributes.
  */
 export function makeWorkflowExporter(
-  exporter: SpanExporter,
+  spanExporter: SpanExporter,
+  resource: Resource
+): InjectedSink<OpenTelemetryWorkflowExporter>;
+/**
+ * Takes an opentelemetry SpanProcessor and turns it into an injected Workflow span exporter sink.
+ *
+ * For backward compatibility, passing a `SpanExporter` directly is still supported.
+ */
+export function makeWorkflowExporter(
+  spanProcessor: SpanProcessor,
+  resource: Resource
+): InjectedSink<OpenTelemetryWorkflowExporter>;
+export function makeWorkflowExporter(
+  processorOrExporter: SpanProcessor | SpanExporter,
   resource: Resource
 ): InjectedSink<OpenTelemetryWorkflowExporter> {
+  const givenSpanProcessor = isSpanProcessor(processorOrExporter);
+
   return {
     export: {
       fn: (info, spanData) => {
@@ -122,18 +140,35 @@ export function makeWorkflowExporter(
           // Spans are copied over from the isolate and are converted to ReadableSpan instances
           return extractReadableSpan(serialized, resource);
         });
-        // Ignore the export result for simplicity
-        exporter.export(spans, () => undefined);
+
+        if (givenSpanProcessor) {
+          spans.forEach((span) => processorOrExporter.onEnd(span));
+        } else {
+          // Ignore the export result for simplicity
+          processorOrExporter.export(spans, () => undefined);
+        }
       },
     },
   };
+}
+
+function isSpanProcessor(obj: SpanProcessor | SpanExporter): obj is SpanProcessor {
+  return 'onEnd' in obj && typeof obj.onEnd === 'function';
 }
 
 /**
  * Deserialize a serialized span created by the Workflow isolate
  */
 function extractReadableSpan(serializable: SerializableSpan, resource: Resource): ReadableSpan {
-  const { spanContext, ...rest } = serializable;
+  const {
+    spanContext: { traceState, ...restSpanContext },
+    ...rest
+  } = serializable;
+  const spanContext: otel.SpanContext = {
+    // Reconstruct the TraceState from the serialized string.
+    traceState: traceState ? createTraceState(traceState) : undefined,
+    ...restSpanContext,
+  };
   return {
     spanContext() {
       return spanContext;

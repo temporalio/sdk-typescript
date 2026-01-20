@@ -33,6 +33,23 @@ export interface HandlerContext {
   taskQueue: string;
 }
 
+/**
+ * Holds information about the current Nexus Operation Execution.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface OperationInfo {
+  /**
+   * Namespace this Nexus Operation is executing in
+   */
+  readonly namespace: string;
+
+  /**
+   * Task Queue this Nexus Operation is executing on
+   */
+  readonly taskQueue: string;
+}
+
 // Basic APIs //////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -100,4 +117,19 @@ export const metricMeter: MetricMeter = {
  */
 export function getClient(): Client {
   return getHandlerContext().client;
+}
+
+/**
+ * Get information about the current Nexus Operation.
+ *
+ * @return OperationInfo for the current Nexus Operation being executed
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export function operationInfo(): OperationInfo {
+  const ctx = getHandlerContext();
+  return {
+    namespace: ctx.namespace,
+    taskQueue: ctx.taskQueue,
+  };
 }
