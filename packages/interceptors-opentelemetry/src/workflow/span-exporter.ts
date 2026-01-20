@@ -1,6 +1,6 @@
 import * as tracing from '@opentelemetry/sdk-trace-base';
 import { ExportResult, ExportResultCode } from '@opentelemetry/core';
-import { OpenTelemetrySinks, SerializableSpan } from './definitions';
+import { OpenTelemetrySinks, SerializableSpan, SerializableSpanContext } from './definitions';
 import { proxySinks } from './workflow-imports';
 
 export class SpanExporter implements tracing.SpanExporter {
@@ -19,10 +19,18 @@ export class SpanExporter implements tracing.SpanExporter {
   }
 
   public makeSerializable(span: tracing.ReadableSpan): SerializableSpan {
+    const { traceState, ...restSpanContext } = span.spanContext();
+    // Serialize traceState to a string because TraceState objects lose their
+    // prototype methods when crossing the V8 isolate boundary.
+    // See: https://github.com/temporalio/sdk-typescript/issues/1738
+    const serializableSpanContext: SerializableSpanContext = {
+      traceState: traceState?.serialize(),
+      ...restSpanContext,
+    };
     return {
       name: span.name,
       kind: span.kind,
-      spanContext: span.spanContext(),
+      spanContext: serializableSpanContext,
       parentSpanId: span.parentSpanId,
       startTime: span.startTime,
       endTime: span.endTime,
