@@ -292,7 +292,7 @@ export const NexusOperationCancellationType = {
 export type NexusOperationCancellationType =
   (typeof NexusOperationCancellationType)[keyof typeof NexusOperationCancellationType];
 
-export const [encodeNexusOperationCancellationType, decodeNexusOperationCancellationType] = makeProtoEnumConverters<
+const [encodeNexusOperationCancellationType, _] = makeProtoEnumConverters<
   coresdk.nexus.NexusOperationCancellationType,
   typeof coresdk.nexus.NexusOperationCancellationType,
   keyof typeof coresdk.nexus.NexusOperationCancellationType,
