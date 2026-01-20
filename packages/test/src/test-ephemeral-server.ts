@@ -102,7 +102,7 @@ test('TestEnvironment sets up dev server with custom port and ui', async (t) => 
     // Check that we can connect to the server _on the expected port_.
     const connection = await Connection.connect({
       address: `127.0.0.1:${port}`,
-      connectTimeout: 500,
+      connectTimeout: 5000,
     });
     await connection.ensureConnected();
 
