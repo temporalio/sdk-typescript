@@ -6,6 +6,7 @@ import type {
   EmbeddingModelV3CallOptions,
   EmbeddingModelV3Result,
   ImageModelV3,
+  JSONSchema7,
   LanguageModelV3,
   LanguageModelV3CallOptions,
   LanguageModelV3Content,
@@ -600,38 +601,36 @@ test('MCP tool inputSchema survives activity serialization', async (t) => {
 
   // The fix: access toolResult.inputSchema.jsonSchema before wrapping
   const fixedSchema = jsonSchema(toolResult.inputSchema.jsonSchema);
+  // Cast to JSONSchema7 since we know it's synchronous in this test
+  const schema = fixedSchema.jsonSchema as JSONSchema7;
 
   // Verify schema type is preserved
-  t.is(fixedSchema.jsonSchema.type, 'object', 'Schema type should be "object"');
+  t.is(schema.type, 'object', 'Schema type should be "object"');
 
   // Verify properties are preserved (#1889)
-  t.truthy(fixedSchema.jsonSchema.properties, 'Schema should have properties');
-  t.truthy(fixedSchema.jsonSchema.properties.regionId, 'Schema should have regionId property');
-  t.truthy(fixedSchema.jsonSchema.properties.limit, 'Schema should have limit property');
+  t.truthy(schema.properties, 'Schema should have properties');
+  t.truthy(schema.properties!.regionId, 'Schema should have regionId property');
+  t.truthy(schema.properties!.limit, 'Schema should have limit property');
 
   // Verify property descriptions are preserved (#1889)
-  t.is(
-    fixedSchema.jsonSchema.properties.regionId.description,
-    'The region ID to query',
-    'Property description should be preserved'
-  );
-  t.is(
-    fixedSchema.jsonSchema.properties.limit.description,
-    'Maximum results to return',
-    'Property description should be preserved'
-  );
+  const regionIdProp = schema.properties!.regionId as JSONSchema7;
+  const limitProp = schema.properties!.limit as JSONSchema7;
+  t.is(regionIdProp.description, 'The region ID to query', 'Property description should be preserved');
+  t.is(limitProp.description, 'Maximum results to return', 'Property description should be preserved');
 
   // Verify required fields are preserved
-  t.deepEqual(fixedSchema.jsonSchema.required, ['regionId'], 'Required fields should be preserved');
+  t.deepEqual(schema.required, ['regionId'], 'Required fields should be preserved');
 
   // Verify additionalProperties is preserved
-  t.is(fixedSchema.jsonSchema.additionalProperties, false, 'additionalProperties should be preserved');
+  t.is(schema.additionalProperties, false, 'additionalProperties should be preserved');
 
   // Also verify what the buggy code produces (to document the bug)
   const buggySchema = jsonSchema(toolResult.inputSchema);
-  t.is(buggySchema.jsonSchema.type, undefined, 'Buggy: type is undefined (double-wrapped)');
-  t.is(buggySchema.jsonSchema.properties, undefined, 'Buggy: properties is undefined (double-wrapped)');
-  t.truthy(buggySchema.jsonSchema.jsonSchema, 'Buggy: has nested jsonSchema showing double-wrapping');
+  const buggyInner = buggySchema.jsonSchema as JSONSchema7;
+  t.is(buggyInner.type, undefined, 'Buggy: type is undefined (double-wrapped)');
+  t.is(buggyInner.properties, undefined, 'Buggy: properties is undefined (double-wrapped)');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  t.truthy((buggyInner as any).jsonSchema, 'Buggy: has nested jsonSchema showing double-wrapping');
 });
 
 test('MCP listTools activity preserves tool and parameter metadata (#1889)', async (t) => {
@@ -706,38 +705,32 @@ test('MCP listTools activity preserves tool and parameter metadata (#1889)', asy
   const reconstructedSchema = jsonSchema(toolResult.inputSchema.jsonSchema);
 
   // Verify all schema metadata is preserved
-  const schema = reconstructedSchema.jsonSchema;
+  // Cast to JSONSchema7 since we know it's synchronous in this test
+  const schema = reconstructedSchema.jsonSchema as JSONSchema7;
 
   t.is(schema.type, 'object', 'Schema type preserved');
   t.deepEqual(schema.required, ['regionId'], 'Required fields preserved');
   t.is(schema.additionalProperties, false, 'additionalProperties preserved');
 
   // Verify all properties and their metadata
-  t.truthy(schema.properties.regionId, 'regionId property exists');
-  t.is(schema.properties.regionId.type, 'string', 'regionId type preserved');
-  t.is(
-    schema.properties.regionId.description,
-    'The AWS region identifier (e.g., us-east-1)',
-    'regionId description preserved'
-  );
+  const props = schema.properties!;
+  const regionIdProp = props.regionId as JSONSchema7;
+  const serviceTypeProp = props.serviceType as JSONSchema7;
+  const maxResultsProp = props.maxResults as JSONSchema7;
 
-  t.truthy(schema.properties.serviceType, 'serviceType property exists');
-  t.is(schema.properties.serviceType.type, 'string', 'serviceType type preserved');
-  t.deepEqual(schema.properties.serviceType.enum, ['compute', 'storage', 'database'], 'serviceType enum preserved');
-  t.is(
-    schema.properties.serviceType.description,
-    'Type of service to filter by',
-    'serviceType description preserved'
-  );
+  t.truthy(regionIdProp, 'regionId property exists');
+  t.is(regionIdProp.type, 'string', 'regionId type preserved');
+  t.is(regionIdProp.description, 'The AWS region identifier (e.g., us-east-1)', 'regionId description preserved');
 
-  t.truthy(schema.properties.maxResults, 'maxResults property exists');
-  t.is(schema.properties.maxResults.type, 'integer', 'maxResults type preserved');
-  t.is(schema.properties.maxResults.default, 10, 'maxResults default preserved');
-  t.is(
-    schema.properties.maxResults.description,
-    'Maximum number of services to return',
-    'maxResults description preserved'
-  );
+  t.truthy(serviceTypeProp, 'serviceType property exists');
+  t.is(serviceTypeProp.type, 'string', 'serviceType type preserved');
+  t.deepEqual(serviceTypeProp.enum, ['compute', 'storage', 'database'], 'serviceType enum preserved');
+  t.is(serviceTypeProp.description, 'Type of service to filter by', 'serviceType description preserved');
+
+  t.truthy(maxResultsProp, 'maxResults property exists');
+  t.is(maxResultsProp.type, 'integer', 'maxResults type preserved');
+  t.is(maxResultsProp.default, 10, 'maxResults default preserved');
+  t.is(maxResultsProp.description, 'Maximum number of services to return', 'maxResults description preserved');
 });
 
 // Currently fails in CI due to invalid server response but passes locally
