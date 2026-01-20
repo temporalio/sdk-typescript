@@ -84,35 +84,3 @@ test('Worker can replace connection to switch servers', async (t) => {
     // env1 will be cleaned up by the internal SDK test framework
   }
 });
-
-test('Worker.setConnection updates connection reference', async (t) => {
-  // This test verifies that worker connection can be replaced
-  // and the connection reference is properly updated
-
-  const { createWorker, createNativeConnection } = helpers(t);
-
-  // Create two connections
-  const connection1 = await createNativeConnection();
-  const connection2 = await createNativeConnection();
-
-  try {
-    // Create a worker with the first connection
-    const worker = await createWorker({ connection: connection1 });
-
-    await worker.runUntil(async () => {
-      // Verify initial connection
-      t.is(worker.connection, connection1);
-
-      // Replace the connection
-      worker.connection = connection2;
-
-      // Verify the connection was replaced
-      t.is(worker.connection, connection2);
-      t.not(worker.connection, connection1);
-    });
-  } finally {
-    // Clean up both connections
-    await connection1.close();
-    await connection2.close();
-  }
-});
