@@ -544,6 +544,202 @@ test('callToolActivity awaits tool.execute before closing MCP client', async (t)
   );
 });
 
+test('MCP tool inputSchema survives activity serialization', async (t) => {
+  // This test verifies that tool inputSchema is correctly reconstructed after
+  // being serialized through Temporal's activity boundary.
+  //
+  // The bug: When the listTools activity returns, v.inputSchema is a schema wrapper
+  // object with a getter. After JSON serialization (Temporal activity return), it becomes
+  // { jsonSchema: {...} }. The workflow code then wraps this again with jsonSchema(),
+  // creating { jsonSchema: { jsonSchema: {...} } } - double nesting that breaks the schema.
+  //
+  // This caused:
+  // - "Invalid schema: type 'None'" errors from OpenAI (type was undefined)
+  // - Missing properties in tool definitions (#1889)
+  // - Missing property descriptions (#1889)
+
+  const { jsonSchema } = await import('ai');
+
+  // Simulate what the AI SDK's MCP client returns for a tool's inputSchema
+  // Include property descriptions to test #1889 fix
+  const originalSchema = jsonSchema({
+    type: 'object',
+    properties: {
+      regionId: {
+        type: 'string',
+        description: 'The region ID to query',
+      },
+      limit: {
+        type: 'number',
+        description: 'Maximum results to return',
+      },
+    },
+    required: ['regionId'],
+    additionalProperties: false,
+  });
+
+  // Simulate what the listTools activity returns (extracts inputSchema from tool)
+  const activityResult = {
+    testTool: {
+      description: 'A test tool',
+      inputSchema: originalSchema,
+    },
+  };
+
+  // Simulate JSON serialization that happens when activity returns to workflow
+  // This is what Temporal does when passing data from activity to workflow
+  const serialized = JSON.stringify(activityResult);
+  const deserialized = JSON.parse(serialized);
+
+  // This is what the workflow receives - inputSchema is now { jsonSchema: {...} }
+  const toolResult = deserialized.testTool;
+
+  // Verify the serialized structure
+  t.truthy(toolResult.inputSchema.jsonSchema, 'After serialization, inputSchema has jsonSchema property');
+  t.is(toolResult.inputSchema.type, undefined, 'After serialization, inputSchema.type is undefined (nested)');
+
+  // The fix: access toolResult.inputSchema.jsonSchema before wrapping
+  const fixedSchema = jsonSchema(toolResult.inputSchema.jsonSchema);
+
+  // Verify schema type is preserved
+  t.is(fixedSchema.jsonSchema.type, 'object', 'Schema type should be "object"');
+
+  // Verify properties are preserved (#1889)
+  t.truthy(fixedSchema.jsonSchema.properties, 'Schema should have properties');
+  t.truthy(fixedSchema.jsonSchema.properties.regionId, 'Schema should have regionId property');
+  t.truthy(fixedSchema.jsonSchema.properties.limit, 'Schema should have limit property');
+
+  // Verify property descriptions are preserved (#1889)
+  t.is(
+    fixedSchema.jsonSchema.properties.regionId.description,
+    'The region ID to query',
+    'Property description should be preserved'
+  );
+  t.is(
+    fixedSchema.jsonSchema.properties.limit.description,
+    'Maximum results to return',
+    'Property description should be preserved'
+  );
+
+  // Verify required fields are preserved
+  t.deepEqual(fixedSchema.jsonSchema.required, ['regionId'], 'Required fields should be preserved');
+
+  // Verify additionalProperties is preserved
+  t.is(fixedSchema.jsonSchema.additionalProperties, false, 'additionalProperties should be preserved');
+
+  // Also verify what the buggy code produces (to document the bug)
+  const buggySchema = jsonSchema(toolResult.inputSchema);
+  t.is(buggySchema.jsonSchema.type, undefined, 'Buggy: type is undefined (double-wrapped)');
+  t.is(buggySchema.jsonSchema.properties, undefined, 'Buggy: properties is undefined (double-wrapped)');
+  t.truthy(buggySchema.jsonSchema.jsonSchema, 'Buggy: has nested jsonSchema showing double-wrapping');
+});
+
+test('MCP listTools activity preserves tool and parameter metadata (#1889)', async (t) => {
+  // This test verifies the full flow from MCP client through activity serialization,
+  // ensuring tool descriptions and parameter metadata are preserved.
+  // Regression test for https://github.com/temporalio/sdk-typescript/issues/1889
+
+  const { jsonSchema } = await import('ai');
+
+  // Simulate a real MCP tool with full metadata
+  const mockMcpToolSchema = jsonSchema({
+    type: 'object',
+    properties: {
+      regionId: {
+        type: 'string',
+        description: 'The AWS region identifier (e.g., us-east-1)',
+      },
+      serviceType: {
+        type: 'string',
+        enum: ['compute', 'storage', 'database'],
+        description: 'Type of service to filter by',
+      },
+      maxResults: {
+        type: 'integer',
+        description: 'Maximum number of services to return',
+        default: 10,
+      },
+    },
+    required: ['regionId'],
+    additionalProperties: false,
+  });
+
+  // Create mock MCP client similar to what @ai-sdk/mcp returns
+  const mockMcpClient = {
+    async tools() {
+      return {
+        'list-services': {
+          description: 'Lists all available services in a specified AWS region with optional filtering',
+          inputSchema: mockMcpToolSchema,
+          execute: async () => ({ services: [] }),
+        },
+      };
+    },
+    async close() {},
+  };
+
+  // Simulate what listToolsActivity does (from activities.ts)
+  const mcpTools = await mockMcpClient.tools();
+  const activityResult = Object.fromEntries(
+    Object.entries(mcpTools).map(([k, v]) => [
+      k,
+      {
+        description: v.description,
+        inputSchema: v.inputSchema,
+      },
+    ])
+  );
+
+  // Simulate Temporal activity serialization round-trip
+  const serialized = JSON.stringify(activityResult);
+  const workflowReceives = JSON.parse(serialized);
+
+  // Verify tool description is preserved
+  t.is(
+    workflowReceives['list-services'].description,
+    'Lists all available services in a specified AWS region with optional filtering',
+    'Tool description should survive serialization'
+  );
+
+  // Simulate what mcp.ts does with the fix applied
+  const toolResult = workflowReceives['list-services'];
+  const reconstructedSchema = jsonSchema(toolResult.inputSchema.jsonSchema);
+
+  // Verify all schema metadata is preserved
+  const schema = reconstructedSchema.jsonSchema;
+
+  t.is(schema.type, 'object', 'Schema type preserved');
+  t.deepEqual(schema.required, ['regionId'], 'Required fields preserved');
+  t.is(schema.additionalProperties, false, 'additionalProperties preserved');
+
+  // Verify all properties and their metadata
+  t.truthy(schema.properties.regionId, 'regionId property exists');
+  t.is(schema.properties.regionId.type, 'string', 'regionId type preserved');
+  t.is(
+    schema.properties.regionId.description,
+    'The AWS region identifier (e.g., us-east-1)',
+    'regionId description preserved'
+  );
+
+  t.truthy(schema.properties.serviceType, 'serviceType property exists');
+  t.is(schema.properties.serviceType.type, 'string', 'serviceType type preserved');
+  t.deepEqual(schema.properties.serviceType.enum, ['compute', 'storage', 'database'], 'serviceType enum preserved');
+  t.is(
+    schema.properties.serviceType.description,
+    'Type of service to filter by',
+    'serviceType description preserved'
+  );
+
+  t.truthy(schema.properties.maxResults, 'maxResults property exists');
+  t.is(schema.properties.maxResults.type, 'integer', 'maxResults type preserved');
+  t.is(schema.properties.maxResults.default, 10, 'maxResults default preserved');
+  t.is(
+    schema.properties.maxResults.description,
+    'Maximum number of services to return',
+    'maxResults description preserved'
+  );
+});
+
 // Currently fails in CI due to invalid server response but passes locally
 test.skip('MCP Use', async (t) => {
   if (remoteTests) {
