@@ -52,6 +52,7 @@ export class TemporalMCPClient {
             const callActivity = activities[this.options.name + '-callTool']!;
             return await callActivity({ name: toolName, input, options, clientArgs: this.options.clientArgs });
           },
+          // Symbols and undefined values are lost on serialization, and need to be replaced to ensure the schema is used correctly
           inputSchema: {
             ...toolResult.inputSchema,
             _type: undefined,

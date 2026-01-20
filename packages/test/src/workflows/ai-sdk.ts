@@ -114,6 +114,31 @@ export async function mcpWorkflow(prompt: string): Promise<string> {
 }
 
 /**
+ * Test workflow that returns MCP tool schema structure for assertion.
+ * Used to verify inputSchema survives activity serialization correctly.
+ */
+export async function mcpSchemaTestWorkflow(): Promise<{
+  toolName: string;
+  schemaType: string | undefined;
+  hasProperties: boolean;
+  propertyDescription: string | undefined;
+}> {
+  const mcpClient = new TemporalMCPClient({ name: 'testServer' });
+  const tools = await mcpClient.tools();
+
+  const [toolName, tool] = Object.entries(tools)[0];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const schema = (tool as any).inputSchema.jsonSchema;
+
+  return {
+    toolName,
+    schemaType: schema.type,
+    hasProperties: schema.properties !== undefined,
+    propertyDescription: schema.properties?.testParam?.description,
+  };
+}
+
+/**
  * Workflow that demonstrates embedding model support.
  * Uses the temporalProvider to generate embeddings for multiple text values.
  */

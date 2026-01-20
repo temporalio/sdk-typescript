@@ -105,6 +105,7 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory): ob
           k,
           {
             description: v.description,
+            // Convert the FlexibleSchema to a Schema so that the shape is known outside the activity
             inputSchema: asSchema(v.inputSchema),
           },
         ])
