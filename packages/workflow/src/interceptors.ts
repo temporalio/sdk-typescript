@@ -291,7 +291,7 @@ export interface StartNexusOperationOptions {
 
   /**
    * Determines:
-   * - whether cancellation requests should be propagated from the Workflow to the Nexus Operation, and
+   * - whether cancellation requests should be propagated from the Workflow to the Nexus Operation
    * - whether and when should the Operation's cancellation be reported back to the Workflow
    *   (i.e. at which moment should the operation's result promise fail with a `NexusOperationFailure`,
    *   with `cause` set to a `CancelledFailure`).
@@ -302,6 +302,7 @@ export interface StartNexusOperationOptions {
    *
    * @default WAIT_CANCELLATION_COMPLETED
    */
+  // MAINTENANCE: Keep this typedoc in sync with the `NexusOperationCancellationType` enum
   readonly cancellationType?: NexusOperationCancellationType;
 
   /**

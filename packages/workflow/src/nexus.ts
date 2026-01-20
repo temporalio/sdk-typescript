@@ -237,7 +237,7 @@ function startNexusOperationNextHandler({
 
 /**
  * Determines:
- * - whether cancellation requests should be propagated from the Workflow to the Nexus Operation, and
+ * - whether cancellation requests should be propagated from the Workflow to the Nexus Operation
  * - whether and when should the Operation's cancellation be reported back to the Workflow
  *   (i.e. at which moment should the operation's result promise fail with a `NexusOperationFailure`,
  *   with `cause` set to a `CancelledFailure`).
@@ -248,6 +248,7 @@ function startNexusOperationNextHandler({
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
+// MAINTENANCE: Keep this typedoc in sync with the `StartNexusOperationOptions.cancellationType` field
 export const NexusOperationCancellationType = {
   /**
    * Do not propagate cancellation requests to the Nexus Operation, and immediately report
