@@ -108,12 +108,14 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory): ob
     try {
       const tools = await mcpClient.tools();
 
+      // Cast is necessary because v.inputSchema is FlexibleSchema<unknown> (with getters),
+      // but after Temporal JSON serialization it becomes { jsonSchema: JSONSchema7 }
       return Object.fromEntries(
         Object.entries(tools).map(([k, v]) => [
           k,
           {
             description: v.description,
-            inputSchema: v.inputSchema,
+            inputSchema: v.inputSchema as ListToolResult['inputSchema'],
           },
         ])
       );
