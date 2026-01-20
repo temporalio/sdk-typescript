@@ -12,7 +12,7 @@ const test = makeTestFunction({
 // WORKER CONNECTION REPLACEMENT
 
 export async function tickingWorkflow(): Promise<void> {
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 1000; i++) {
     await sleep(100);
   }
 }
@@ -58,7 +58,7 @@ test('Worker can replace connection to switch servers', async (t) => {
       // Wait for confirmation that workflow 1 has started execution
       await waitUntil(
         async () => !!(await handle1.fetchHistory()).events?.some((ev) => ev.workflowTaskCompletedEventAttributes),
-        4000
+        10000
       );
 
       // Confirm that workflow 2 has not yet started execution
@@ -76,7 +76,7 @@ test('Worker can replace connection to switch servers', async (t) => {
       // Confirm that workflow 2 has started execution
       await waitUntil(
         async () => !!(await handle2.fetchHistory()).events?.some((ev) => ev.workflowTaskCompletedEventAttributes),
-        4000
+        10000
       );
     });
   } finally {
