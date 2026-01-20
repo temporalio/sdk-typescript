@@ -4,13 +4,13 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
 
 // ASSERTION: There MUST be a corresponding `KEY: 'KEY'` in the const object of strings enum (must be present)
 {
-  type ParentClosePolicyMissingEntry =
-    (typeof ParentClosePolicyMissingEntry)[keyof typeof ParentClosePolicyMissingEntry];
   const ParentClosePolicyMissingEntry = {
     TERMINATE: 'TERMINATE',
     // ABANDON: 'ABANDON',  // Missing entry!
     REQUEST_CANCEL: 'REQUEST_CANCEL',
   } as const;
+  type ParentClosePolicyMissingEntry =
+    (typeof ParentClosePolicyMissingEntry)[keyof typeof ParentClosePolicyMissingEntry];
 
   makeProtoEnumConverters<
     coresdk.child_workflow.ParentClosePolicy,
@@ -30,13 +30,13 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
 
 // ASSERTION: There MUST be a corresponding `KEY: 'KEY'` in the const object of strings enum (must have correct value)
 {
-  type ParentClosePolicyIncorectEntry =
-    (typeof ParentClosePolicyIncorectEntry)[keyof typeof ParentClosePolicyIncorectEntry];
   const ParentClosePolicyIncorectEntry = {
     TERMINATE: 'TERMINATE',
     ABANDON: 'INCORRECT', // Incorrect entry!
     REQUEST_CANCEL: 'REQUEST_CANCEL',
   } as const;
+  type ParentClosePolicyIncorectEntry =
+    (typeof ParentClosePolicyIncorectEntry)[keyof typeof ParentClosePolicyIncorectEntry];
 
   makeProtoEnumConverters<
     coresdk.child_workflow.ParentClosePolicy,
@@ -57,8 +57,6 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
 
 // ASSERTION: There MAY be a corresponding `PREFIX_KEY: 'KEY'` in the const object of strings enum (may be present)
 {
-  type ParentClosePolicyWithPrefixedEntries =
-    (typeof ParentClosePolicyWithPrefixedEntries)[keyof typeof ParentClosePolicyWithPrefixedEntries];
   const ParentClosePolicyWithPrefixedEntries = {
     TERMINATE: 'TERMINATE',
     ABANDON: 'ABANDON',
@@ -68,6 +66,8 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
     PARENT_CLOSE_POLICY_ABANDON: 'ABANDON',
     PARENT_CLOSE_POLICY_REQUEST_CANCEL: 'REQUEST_CANCEL',
   } as const;
+  type ParentClosePolicyWithPrefixedEntries =
+    (typeof ParentClosePolicyWithPrefixedEntries)[keyof typeof ParentClosePolicyWithPrefixedEntries];
 
   makeProtoEnumConverters<
     coresdk.child_workflow.ParentClosePolicy,
@@ -88,13 +88,13 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
 
 // ASSERTION: There MAY be a corresponding `PREFIX_KEY: 'KEY'` in the const object of strings enum (may not be present)
 {
-  type ParentClosePolicyWithoutPrefixedEntries =
-    (typeof ParentClosePolicyWithoutPrefixedEntries)[keyof typeof ParentClosePolicyWithoutPrefixedEntries];
   const ParentClosePolicyWithoutPrefixedEntries = {
     TERMINATE: 'TERMINATE',
     ABANDON: 'ABANDON',
     REQUEST_CANCEL: 'REQUEST_CANCEL',
   } as const;
+  type ParentClosePolicyWithoutPrefixedEntries =
+    (typeof ParentClosePolicyWithoutPrefixedEntries)[keyof typeof ParentClosePolicyWithoutPrefixedEntries];
 
   makeProtoEnumConverters<
     coresdk.child_workflow.ParentClosePolicy,
@@ -115,8 +115,6 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
 
 // ASSERTION: There MAY be a corresponding `PREFIX_KEY: 'KEY'` in the const object of strings enum (if present, must have correct value)
 {
-  type ParentClosePolicyWithPrefixedEntries =
-    (typeof ParentClosePolicyWithPrefixedEntries)[keyof typeof ParentClosePolicyWithPrefixedEntries];
   const ParentClosePolicyWithPrefixedEntries = {
     TERMINATE: 'TERMINATE',
     ABANDON: 'ABANDON',
@@ -126,6 +124,8 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
     PARENT_CLOSE_POLICY_ABANDON: 'ABANDON',
     PARENT_CLOSE_POLICY_REQUEST_CANCEL: 'INCORRECT', // Incorrect entry!
   } as const;
+  type ParentClosePolicyWithPrefixedEntries =
+    (typeof ParentClosePolicyWithPrefixedEntries)[keyof typeof ParentClosePolicyWithPrefixedEntries];
 
   makeProtoEnumConverters<
     coresdk.child_workflow.ParentClosePolicy,
@@ -146,7 +146,6 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
 }
 
 {
-  type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
   const ParentClosePolicy = {
     TERMINATE: 'TERMINATE',
     ABANDON: 'ABANDON',
@@ -157,6 +156,7 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
     PARENT_CLOSE_POLICY_ABANDON: 'ABANDON',
     PARENT_CLOSE_POLICY_REQUEST_CANCEL: 'REQUEST_CANCEL',
   } as const;
+  type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
 
   // ASSERTION: There MUST be a corresponding `KEY: number` in the mapping table (must be there)
   makeProtoEnumConverters<
@@ -300,13 +300,13 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
 
 // ASSERTION: The const object of strings enum MUST NOT contain any other keys than the ones mandated or optionally allowed above.
 {
-  type ParentClosePolicyWithExtra = (typeof ParentClosePolicyWithExtra)[keyof typeof ParentClosePolicyWithExtra];
   const ParentClosePolicyWithExtra = {
     TERMINATE: 'TERMINATE',
     ABANDON: 'ABANDON',
     REQUEST_CANCEL: 'REQUEST_CANCEL',
     EXTRA: 'EXTRA', // Extra entry!
   } as const;
+  type ParentClosePolicyWithExtra = (typeof ParentClosePolicyWithExtra)[keyof typeof ParentClosePolicyWithExtra];
 
   makeProtoEnumConverters<
     coresdk.child_workflow.ParentClosePolicy,
@@ -327,7 +327,6 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
 }
 
 {
-  type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
   const ParentClosePolicy = {
     TERMINATE: 'TERMINATE',
     ABANDON: 'ABANDON',
@@ -338,6 +337,7 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
     PARENT_CLOSE_POLICY_ABANDON: 'ABANDON',
     PARENT_CLOSE_POLICY_REQUEST_CANCEL: 'REQUEST_CANCEL',
   } as const;
+  type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
 
   // ASSERTION: The mapping table MUST NOT contain any other keys than the ones mandated above
   makeProtoEnumConverters<
@@ -416,7 +416,6 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
 
 // Functionnal tests
 {
-  type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
   const ParentClosePolicy = {
     TERMINATE: 'TERMINATE',
     ABANDON: 'ABANDON',
@@ -427,6 +426,7 @@ import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/
     PARENT_CLOSE_POLICY_ABANDON: 'ABANDON',
     PARENT_CLOSE_POLICY_REQUEST_CANCEL: 'REQUEST_CANCEL',
   } as const;
+  type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
 
   const [encodeParentClosePolicy, decodeParentClosePolicy] = //
     makeProtoEnumConverters<
