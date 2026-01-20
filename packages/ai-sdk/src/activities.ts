@@ -5,8 +5,9 @@ import type {
   SharedV3ProviderOptions,
   SharedV3Headers,
   ProviderV3,
+  JSONSchema7,
 } from '@ai-sdk/provider';
-import type { FlexibleSchema, ToolExecutionOptions } from 'ai';
+import type { ToolExecutionOptions } from 'ai';
 import { ApplicationFailure } from '@temporalio/common';
 import type { McpClientFactories, McpClientFactory } from './mcp';
 
@@ -42,9 +43,15 @@ export interface InvokeEmbeddingModelArgs {
  */
 export type InvokeEmbeddingModelResult = EmbeddingModelV3Result;
 
+/**
+ * Result from listing MCP tools, returned by the listTools activity.
+ * Note: inputSchema is the serialized form of the AI SDK's schema wrapper.
+ * After JSON serialization through Temporal's activity boundary, the schema
+ * wrapper becomes { jsonSchema: JSONSchema7 }.
+ */
 export interface ListToolResult {
   description?: string;
-  inputSchema: FlexibleSchema<unknown>;
+  inputSchema: { jsonSchema: JSONSchema7 };
 }
 
 export interface ListToolArgs {
@@ -101,12 +108,14 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory): ob
     try {
       const tools = await mcpClient.tools();
 
+      // The activity returns FlexibleSchema objects, but ListToolResult describes the
+      // post-serialization form that workflows receive. The cast bridges this gap.
       return Object.fromEntries(
         Object.entries(tools).map(([k, v]) => [
           k,
           {
             description: v.description,
-            inputSchema: v.inputSchema,
+            inputSchema: v.inputSchema as ListToolResult['inputSchema'],
           },
         ])
       );

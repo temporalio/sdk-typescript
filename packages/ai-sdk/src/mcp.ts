@@ -1,5 +1,4 @@
 import { jsonSchema, type ToolSet } from 'ai';
-import type { JSONSchema7 } from '@ai-sdk/provider';
 import type { experimental_MCPClient as MCPClient } from '@ai-sdk/mcp';
 import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
@@ -52,7 +51,8 @@ export class TemporalMCPClient {
             const callActivity = activities[this.options.name + '-callTool']!;
             return await callActivity({ name: toolName, input, options, clientArgs: this.options.clientArgs });
           },
-          inputSchema: jsonSchema(toolResult.inputSchema as JSONSchema7),
+          // toolResult.inputSchema is the serialized form { jsonSchema: JSONSchema7 }
+          inputSchema: jsonSchema(toolResult.inputSchema.jsonSchema),
           type: 'dynamic',
         },
       ])

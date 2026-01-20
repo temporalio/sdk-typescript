@@ -22,6 +22,9 @@ import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { ExportResultCode } from '@opentelemetry/core';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
 import { AiSdkPlugin, createActivities } from '@temporalio/ai-sdk';
 import { temporal } from '@temporalio/proto';
@@ -39,6 +42,7 @@ import {
   embeddingWorkflow,
   generateObjectWorkflow,
   helloWorldAgent,
+  mcpSchemaTestWorkflow,
   mcpWorkflow,
   middlewareWorkflow,
   telemetryWorkflow,
@@ -542,6 +546,65 @@ test('callToolActivity awaits tool.execute before closing MCP client', async (t)
     ['execute-start', 'execute-end', 'close'],
     'close() should be called after execute() completes, not before'
   );
+});
+
+test('MCP tool schema survives activity serialization', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  // Create in-memory MCP server with test tool
+  const createTestMcpClient = async () => {
+    const server = new Server(
+      { name: 'test-server', version: '1.0.0' },
+      { capabilities: { tools: {} } }
+    );
+
+    // Register tools/list handler
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({
+      tools: [
+        {
+          name: 'testTool',
+          description: 'A test tool',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              testParam: { type: 'string', description: 'Test parameter' },
+            },
+            required: ['testParam'],
+          },
+        },
+      ],
+    }));
+
+    // Register tools/call handler
+    server.setRequestHandler(CallToolRequestSchema, async () => ({
+      content: [{ type: 'text', text: 'ok' }],
+    }));
+
+    // Create linked in-memory transports
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+
+    // Return real AI SDK MCP client connected to in-memory server
+    return createMCPClient({ transport: clientTransport });
+  };
+
+  const worker = await createWorker({
+    plugins: [
+      new AiSdkPlugin({
+        modelProvider: new TestProvider(helloWorkflowGenerator()),
+        mcpClientFactories: { testServer: createTestMcpClient },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(mcpSchemaTestWorkflow);
+
+    // These would FAIL with the bug (undefined), PASS with fix
+    t.is(result.schemaType, 'object', 'Schema type should be "object", not undefined');
+    t.true(result.hasProperties, 'Schema should have properties');
+    t.is(result.propertyDescription, 'Test parameter', 'Property description should be preserved');
+  });
 });
 
 // Currently fails in CI due to invalid server response but passes locally
