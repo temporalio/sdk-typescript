@@ -24,6 +24,8 @@ import { Priority } from './priority';
  *
  * @default ActivityCancellationType.WAIT_CANCELLATION_COMPLETED
  */
+// MAINTENANCE: Keep this typedoc in sync with the `ActivityOptions.cancellationType` and
+//              `LocalActivityOptions.cancellationType` fields later in this file.
 export const ActivityCancellationType = {
   /**
    * Do not propagate cancellation requests to the Activity, and immediately report cancellation
@@ -153,6 +155,7 @@ export interface ActivityOptions {
    *
    * @default ActivityCancellationType.WAIT_CANCELLATION_COMPLETED
    */
+  // MAINTENANCE: Keep this typedoc in sync with the `ActivityCancellationType` enum
   cancellationType?: ActivityCancellationType;
 
   /**
@@ -259,6 +262,7 @@ export interface LocalActivityOptions {
    *
    * @default ActivityCancellationType.WAIT_CANCELLATION_COMPLETED
    */
+  // MAINTENANCE: Keep this typedoc in sync with the `ActivityCancellationType` enum
   cancellationType?: ActivityCancellationType;
 
   /**
