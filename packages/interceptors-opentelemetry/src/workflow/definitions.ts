@@ -4,12 +4,17 @@ import { InstrumentationLibrary } from '@opentelemetry/core'; // eslint-disable 
 import type { Sink, Sinks } from '@temporalio/workflow';
 
 /**
+ * Serializable version of SpanContext where traceState is converted to a string.
+ */
+export type SerializableSpanContext = Omit<otel.SpanContext, 'traceState'> & { traceState?: string };
+
+/**
  * Serializable version of the opentelemetry Span for cross isolate copying
  */
 export interface SerializableSpan {
   readonly name: string;
   readonly kind: otel.SpanKind;
-  readonly spanContext: otel.SpanContext;
+  readonly spanContext: SerializableSpanContext;
   readonly parentSpanId?: string;
   readonly startTime: otel.HrTime;
   readonly endTime: otel.HrTime;
