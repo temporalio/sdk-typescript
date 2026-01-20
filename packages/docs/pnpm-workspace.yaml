@@ -1,6 +1,9 @@
 packages:
-  - '.'
+  - .
 
 overrides:
-  # Can be removed once a release of `express` with an updated qs is cut
-  'qs': '^6.14.1'
+  '@octokit/plugin-paginate-rest@>=1.0.0 <9.2.2': '>=9.2.2'
+  '@octokit/request-error@>=1.0.0 <5.1.1': '>=5.1.1'
+  '@octokit/request@>=1.0.0 <8.4.1': '>=8.4.1'
+  mdast-util-to-hast@>=13.0.0 <13.2.1: '>=13.2.1'
+  qs: ^6.14.1
