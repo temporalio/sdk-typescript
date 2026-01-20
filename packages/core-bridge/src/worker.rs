@@ -34,6 +34,7 @@ use crate::{
 pub fn init(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("workerValidate", worker_validate)?;
+    cx.export_function("workerReplaceClient", worker_replace_client)?;
 
     cx.export_function(
         "workerPollWorkflowActivation",
@@ -108,6 +109,27 @@ pub fn worker_validate(worker: OpaqueInboundHandle<Worker>) -> BridgeResult<Brid
             .await
             .map_err(|err| BridgeError::TransportError(err.to_string()))
     })
+}
+
+/// Replace the client used by the worker.
+/// This allows the worker to update client configuration without restarting the worker.
+#[js_function]
+pub fn worker_replace_client(
+    worker: OpaqueInboundHandle<Worker>,
+    client: OpaqueInboundHandle<Client>,
+) -> BridgeResult<()> {
+    let worker_ref = worker.borrow()?;
+    let client_ref = client.borrow()?;
+    let new_client = client_ref.core_client.clone();
+    let runtime = worker_ref.core_runtime.clone();
+
+    enter_sync!(runtime);
+    worker_ref
+        .core_worker
+        .replace_client(new_client)
+        .map_err(|err| BridgeError::UnexpectedError(err.to_string()))?;
+
+    Ok(())
 }
 
 /// Initiate a single workflow activation poll request.

@@ -188,6 +188,8 @@ export declare function workerInitiateShutdown(worker: Worker): void;
 
 export declare function workerFinalizeShutdown(worker: Worker): Promise<void>;
 
+export declare function workerReplaceClient(worker: Worker, client: Client): void;
+
 export interface Worker {
   type: 'worker';
 }

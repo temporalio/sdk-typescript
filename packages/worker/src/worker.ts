@@ -162,6 +162,7 @@ export interface NativeWorkerLike {
   completeActivityTask: OmitFirstParam<typeof native.workerCompleteActivityTask>;
   completeNexusTask: OmitFirstParam<typeof native.workerCompleteNexusTask>;
   recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
+  replaceClient: OmitFirstParam<typeof native.workerReplaceClient>;
 }
 
 export interface NativeReplayHandle {
@@ -194,6 +195,7 @@ function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string
 
 export class NativeWorker implements NativeWorkerLike {
   public readonly type = 'worker';
+  public readonly replaceClient: OmitFirstParam<typeof native.workerReplaceClient>;
   public readonly pollWorkflowActivation: OmitFirstParam<typeof native.workerPollWorkflowActivation>;
   public readonly pollActivityTask: OmitFirstParam<typeof native.workerPollActivityTask>;
   public readonly pollNexusTask: OmitFirstParam<typeof native.workerPollNexusTask>;
@@ -227,6 +229,7 @@ export class NativeWorker implements NativeWorkerLike {
     protected readonly runtime: Runtime,
     protected readonly nativeWorker: native.Worker
   ) {
+    this.replaceClient = native.workerReplaceClient.bind(undefined, nativeWorker);
     this.pollWorkflowActivation = native.workerPollWorkflowActivation.bind(undefined, nativeWorker);
     this.pollActivityTask = native.workerPollActivityTask.bind(undefined, nativeWorker);
     this.pollNexusTask = native.workerPollNexusTask.bind(undefined, nativeWorker);
@@ -474,7 +477,7 @@ export class Worker {
    */
   protected hasOutstandingNexusPoll = false;
 
-  protected client?: Client;
+  protected _client?: Client;
 
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
@@ -818,20 +821,10 @@ export class Worker {
     protected readonly logger: Logger,
     protected readonly metricMeter: MetricMeter,
     protected readonly plugins: WorkerPlugin[],
-    protected readonly connection?: NativeConnection,
+    protected _connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
     this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodecs);
-    if (connection != null) {
-      // connection (and consequently client) will be set IIF this is not a replay worker.
-      this.client = new Client({
-        namespace: options.namespace,
-        connection,
-        identity: options.identity,
-        dataConverter: options.dataConverter,
-        interceptors: options.interceptors.client,
-      });
-    }
   }
 
   /**
@@ -880,6 +873,72 @@ export class Worker {
       numInFlightNonLocalActivities: this.numInFlightNonLocalActivitiesSubject.value,
       numInFlightLocalActivities: this.numInFlightLocalActivitiesSubject.value,
     };
+  }
+
+  /**
+   * Get the client associated with this Worker.
+   *
+   * Returns undefined if the worker was created without a connection (e.g., replay workers).
+   */
+  public get client(): Client | undefined {
+    // Lazily create the client if it's not already set. Note that _connection
+    // (and consequently _client) will be set IIF this is not a replay worker.
+    if (this._client == null && this._connection != null) {
+      this._client = new Client({
+        namespace: this.options.namespace,
+        connection: this._connection,
+        identity: this.options.identity,
+        dataConverter: this.options.dataConverter,
+        interceptors: this.options.interceptors.client,
+      });
+    }
+
+    return this._client;
+  }
+
+  /**
+   * Get the connection associated with this Worker.
+   * Returns undefined if the worker was created without a connection (e.g., replay workers).
+   */
+  public get connection(): NativeConnection | undefined {
+    return this._connection;
+  }
+
+  /**
+   * Replace the connection used by this Worker.
+   * This allows the worker to switch to a different Temporal server or update connection configuration
+   * without restarting the worker.
+   *
+   * @remarks
+   * The worker must have been created with a connection for this method to work.
+   * Subsequent calls by the worker to Temporal (e.g., responding to tasks) will use the new connection.
+   * A new client will be created automatically from the provided connection.
+   *
+   * @param newConnection - The new NativeConnection to use
+   * @throws {IllegalStateError} If the worker was created without a connection
+   * @throws {Error} If the connection replacement fails
+   */
+  public set connection(newConnection: NativeConnection) {
+    if (!this._connection) throw new IllegalStateError('Cannot replace connection on a worker without a connection');
+    if (extractNativeClient(this._connection) === extractNativeClient(newConnection)) return;
+
+    const previousConnection = this._connection;
+
+    // Call the native bridge to replace the client
+    this.nativeWorker.replaceClient(extractNativeClient(newConnection));
+
+    extractReferenceHolders(previousConnection).delete(this.nativeWorker);
+    this._connection = newConnection;
+    extractReferenceHolders(newConnection).add(this.nativeWorker);
+
+    // Clear up the cached client, if any. It will be lazily recreated on demand.
+    this._client = undefined;
+
+    if (previousConnection instanceof InternalNativeConnection) {
+      previousConnection.close().catch((err) => {
+        this.logger.error('Error closing previous connection after replacement of worker connection', { err });
+      });
+    }
   }
 
   protected get state(): State {
@@ -2063,11 +2122,11 @@ export class Worker {
       unexpectedErrorSubscription.unsubscribe();
       try {
         // Only exists in non-replay Worker
-        if (this.connection) {
-          extractReferenceHolders(this.connection).delete(this.nativeWorker);
+        if (this._connection) {
+          extractReferenceHolders(this._connection).delete(this.nativeWorker);
           // Only close if this worker is the creator of the connection
-          if (this.connection instanceof InternalNativeConnection) {
-            await this.connection.close();
+          if (this._connection instanceof InternalNativeConnection) {
+            await this._connection.close();
           }
         }
         await this.workflowCreator?.destroy();
