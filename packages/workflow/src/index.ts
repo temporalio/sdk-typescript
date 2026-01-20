@@ -108,8 +108,13 @@ export { Trigger } from './trigger';
 export * from './workflow';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 export { metricMeter } from './metrics';
-
-export { createNexusClient, NexusClientOptions, NexusClient, NexusOperationHandle } from './nexus';
+export {
+  createNexusClient,
+  NexusClientOptions,
+  NexusClient,
+  NexusOperationHandle,
+  NexusOperationCancellationType,
+} from './nexus';
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Deprecated APIs

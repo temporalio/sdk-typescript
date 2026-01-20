@@ -342,6 +342,7 @@ export interface ContinueAsNewOptions {
  *
  * @default ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED
  */
+// MAINTENANCE: Keep this typedoc in sync with the `ChildWorkflowOptions.cancellationType` field
 export const ChildWorkflowCancellationType = {
   /**
    * Do not propagate cancellation requests to the Child, and immediately report cancellation
@@ -510,6 +511,7 @@ export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workf
    *
    * @default ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED
    */
+  // MAINTENANCE: Keep this typedoc in sync with the `ChildWorkflowCancellationType` enum
   cancellationType?: ChildWorkflowCancellationType;
 
   /**

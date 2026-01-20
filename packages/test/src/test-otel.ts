@@ -4,7 +4,8 @@
  */
 import * as http from 'http';
 import * as http2 from 'http2';
-import { SpanStatusCode } from '@opentelemetry/api';
+import * as otelApi from '@opentelemetry/api';
+import { SpanStatusCode, createTraceState } from '@opentelemetry/api';
 import { ExportResultCode } from '@opentelemetry/core';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
@@ -662,6 +663,119 @@ if (RUN_INTEGRATION_TESTS) {
       });
     });
   }
+
+  // Regression test for https://github.com/temporalio/sdk-typescript/issues/1738
+  test.serial('traceState properly crosses V8 isolate boundary', async (t) => {
+    const exportErrors: Error[] = [];
+    // Collect spans exported from workflow (those that crossed the isolate boundary)
+    const workflowExportedSpans: opentelemetry.tracing.ReadableSpan[] = [];
+
+    await withFakeGrpcServer(async (port) => {
+      const staticResource = new opentelemetry.resources.Resource({
+        [SEMRESATTRS_SERVICE_NAME]: 'test-tracestate-issue-1738',
+      });
+
+      const traceExporter = new OTLPTraceExporter({ url: `http://127.0.0.1:${port}` });
+
+      // Wrap the exporter to catch errors
+      const wrappedExporter: opentelemetry.tracing.SpanExporter = {
+        export(spans, resultCallback) {
+          traceExporter.export(spans, (result) => {
+            if (result.code === ExportResultCode.FAILED && result.error) {
+              exportErrors.push(result.error);
+            }
+            resultCallback(result);
+          });
+        },
+        async shutdown() {
+          await traceExporter.shutdown();
+        },
+      };
+
+      // Create a separate exporter for workflow spans that captures them for inspection
+      const workflowSpanExporter: opentelemetry.tracing.SpanExporter = {
+        export(spans, resultCallback) {
+          // Capture spans for later inspection
+          workflowExportedSpans.push(...spans);
+          // Also send to the real exporter to test serialization
+          wrappedExporter.export(spans, resultCallback);
+        },
+        async shutdown() {
+          await wrappedExporter.shutdown();
+        },
+      };
+
+      const otel = new opentelemetry.NodeSDK({
+        resource: staticResource,
+        traceExporter: wrappedExporter,
+      });
+      otel.start();
+
+      const sinks: InjectedSinks<OpenTelemetrySinks> = {
+        exporter: makeWorkflowExporter(workflowSpanExporter, staticResource),
+      };
+
+      const worker = await Worker.create({
+        workflowsPath: require.resolve('./workflows'),
+        activities,
+        taskQueue: 'test-otel-tracestate',
+        interceptors: {
+          workflowModules: [require.resolve('./workflows/otel-interceptors')],
+        },
+        sinks,
+      });
+
+      const client = new WorkflowClient({
+        interceptors: [new OpenTelemetryWorkflowClientInterceptor()],
+      });
+
+      // Create a parent span with traceState and run the workflow within that context
+      const tracer = otelApi.trace.getTracer('test-tracestate');
+
+      await worker.runUntil(async () => {
+        // Create a span with traceState by starting a span and then creating a new context with traceState
+        const parentSpan = tracer.startSpan('parent-with-tracestate');
+        const parentContext = otelApi.trace.setSpan(otelApi.context.active(), parentSpan);
+
+        // Get the span context and create a new one with traceState
+        const originalSpanContext = parentSpan.spanContext();
+        const traceState = createTraceState('vendor1=value1,vendor2=value2');
+        const spanContextWithTraceState = {
+          ...originalSpanContext,
+          traceState,
+        };
+
+        // Create a new context with the modified span context
+        const contextWithTraceState = otelApi.trace.setSpanContext(parentContext, spanContextWithTraceState);
+
+        // Execute the workflow within this context so the traceState is propagated
+        await otelApi.context.with(contextWithTraceState, async () => {
+          await client.execute(workflows.successString, {
+            taskQueue: 'test-otel-tracestate',
+            workflowId: uuid4(),
+          });
+        });
+
+        parentSpan.end();
+      });
+
+      await otel.shutdown();
+    });
+
+    t.deepEqual(exportErrors, [], 'should have no errors exporting spans');
+
+    const traceStates = workflowExportedSpans.map((span) => span.spanContext().traceState).filter(Boolean);
+    t.assert(traceStates.length > 0, 'Should have spans with traceState');
+
+    // Verify the traceState was properly reconstructed with working methods
+    for (const traceState of traceStates) {
+      // Verify serialize() method works and returns expected value
+      const serialized = traceState!.serialize();
+      t.is(serialized, 'vendor1=value1,vendor2=value2');
+      t.is(traceState!.get('vendor1'), 'value1');
+      t.is(traceState!.get('vendor2'), 'value2');
+    }
+  });
 }
 
 test('Can replay otel history from 1.11.3', async (t) => {
