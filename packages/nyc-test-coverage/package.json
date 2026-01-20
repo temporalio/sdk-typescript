@@ -8,7 +8,7 @@
     "testing",
     "coverage"
   ],
-  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/nyc=test-coverage",
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/nyc-test-coverage",
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
   },
