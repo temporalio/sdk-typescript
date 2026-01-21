@@ -262,6 +262,9 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
     devDependencies:
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
       protobufjs:
         specifier: ^7.5.5
         version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)

@@ -1,7 +1,7 @@
 import vm from 'vm';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { SymbolBasedInstanceOfError } from '../type-helpers';
 
 interface Context {
   cx1: (script: string) => any;
