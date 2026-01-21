@@ -21,14 +21,13 @@ packages:
 
 ignoreScripts: true
 
+# Minimum release age, in minutes (1 day)
 minimumReleaseAge: 1440
 
 # Allow depending on just published Temporal packages
 minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
-  # TODO: remove once this ages past min release age
-  - '@modelcontextprotocol/sdk@1.25.2'
 
 peerDependencyRules:
   ignoreMissing:
@@ -38,4 +37,8 @@ peerDependencyRules:
 
 overrides:
   # Can be removed once a release of `express` with an updated qs is cut
-  'qs': '^6.14.1'
+  qs: ^6.14.1
+
+  hono@<4.11.4: '>=4.11.4'
+  jws@<3.2.3: '>=3.2.3'
+  tar@<=7.5.2: '>=7.5.3'
