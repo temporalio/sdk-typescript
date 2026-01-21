@@ -439,6 +439,10 @@ importers:
       nexus-rpc:
         specifier: ^0.0.1
         version: 0.0.1
+    devDependencies:
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
 
   packages/nyc-test-coverage:
     dependencies:
