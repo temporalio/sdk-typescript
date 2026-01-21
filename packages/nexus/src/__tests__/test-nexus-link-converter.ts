@@ -1,10 +1,7 @@
 import test from 'ava';
 import Long from 'long';
 import { temporal } from '@temporalio/proto';
-import {
-  convertWorkflowEventLinkToNexusLink,
-  convertNexusLinkToWorkflowEventLink,
-} from '../link-converter';
+import { convertWorkflowEventLinkToNexusLink, convertNexusLinkToWorkflowEventLink } from '../link-converter';
 
 const { EventType } = temporal.api.enums.v1;
 const WORKFLOW_EVENT_TYPE = (temporal.api.common.v1.Link.WorkflowEvent as any).fullName.slice(1);

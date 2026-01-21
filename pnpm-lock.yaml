@@ -345,9 +345,21 @@ importers:
         specifier: 1.4.2
         version: 1.4.2
     devDependencies:
+      '@temporalio/client':
+        specifier: workspace:*
+        version: link:../client
+      '@temporalio/testing':
+        specifier: workspace:*
+        version: link:../testing
       '@temporalio/worker':
         specifier: workspace:*
         version: link:../worker
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
+      dedent:
+        specifier: ^1.5.1
+        version: 1.5.3
 
   packages/interceptors-opentelemetry:
     dependencies:
@@ -701,6 +713,10 @@ importers:
       abort-controller:
         specifier: ^3.0.0
         version: 3.0.0
+    devDependencies:
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
 
   packages/worker:
     dependencies:
@@ -787,6 +803,9 @@ importers:
         specifier: ^0.0.1
         version: 0.0.1
     devDependencies:
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
       source-map:
         specifier: ^0.7.4
         version: 0.7.4

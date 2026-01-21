@@ -1,7 +1,7 @@
 import test from 'ava';
-import { MockActivityEnvironment } from '@temporalio/testing';
 import * as activity from '@temporalio/activity';
 import { Runtime } from '@temporalio/worker';
+import { MockActivityEnvironment } from '../index';
 
 test("MockActivityEnvironment doesn't implicitly instantiate Runtime", async (t) => {
   t.is(Runtime._instance, undefined);

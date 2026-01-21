@@ -13,9 +13,7 @@
     },
     {
       "path": "../common"
-    },
+    }
   ],
-  "include": [
-    "./src/**/*.ts"
-  ]
+  "include": ["./src/**/*.ts"]
 }
