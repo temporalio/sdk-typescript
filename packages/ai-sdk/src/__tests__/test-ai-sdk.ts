@@ -17,6 +17,7 @@ import type {
   TranscriptionModelV3,
 } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
+import ava, { ExecutionContext, TestFn } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
@@ -26,9 +27,8 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
-import { AiSdkPlugin, createActivities } from '@temporalio/ai-sdk';
 import { temporal } from '@temporalio/proto';
-import { WorkflowClient } from '@temporalio/client';
+import { WorkflowClient, WorkflowHandleWithFirstExecutionRunId, WorkflowStartOptions } from '@temporalio/client';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
@@ -37,7 +37,18 @@ import {
   OpenTelemetryWorkflowClientCallsInterceptor,
   OpenTelemetryWorkflowClientInterceptor,
 } from '@temporalio/interceptors-opentelemetry';
-import { InjectedSinks, Runtime } from '@temporalio/worker';
+import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
+import {
+  bundleWorkflowCode,
+  DefaultLogger,
+  InjectedSinks,
+  Runtime,
+  Worker,
+  WorkflowBundle,
+  WorkerOptions,
+} from '@temporalio/worker';
+import { Workflow, WorkflowResultType } from '@temporalio/workflow';
+import { AiSdkPlugin, createActivities } from '..';
 import {
   embeddingWorkflow,
   generateObjectWorkflow,
@@ -48,9 +59,7 @@ import {
   telemetryWorkflow,
   toolsWorkflow,
 } from './workflows/ai-sdk';
-import { helpers, makeTestFunction } from './helpers-integration';
 import { getWeather } from './activities/ai-sdk';
-import { Worker } from './helpers';
 import EventType = temporal.api.enums.v1.EventType;
 
 const remoteTests = ['1', 't', 'true'].includes((process.env.AI_SDK_REMOTE_TESTS ?? 'false').toLowerCase());
@@ -226,9 +235,79 @@ function* embeddingGenerator(): Generator<EmbeddingResponse> {
   yield embeddingResponse(['Hello, world!', 'How are you?']);
 }
 
-const test = makeTestFunction({
-  workflowsPath: require.resolve('./workflows/ai-sdk'),
+// Test infrastructure - self-contained in this package
+interface Context {
+  env: TestWorkflowEnvironment;
+  workflowBundle: WorkflowBundle;
+}
+
+const test = ava as TestFn<Context>;
+
+test.before(async (t) => {
+  const env = await TestWorkflowEnvironment.createLocal();
+  const workflowBundle = await bundleWorkflowCode({
+    workflowsPath: require.resolve('./workflows/ai-sdk'),
+    workflowInterceptorModules,
+    logger: new DefaultLogger('WARN'),
+  });
+  t.context = { env, workflowBundle };
 });
+
+test.after.always(async (t) => {
+  await t.context.env?.teardown();
+});
+
+interface Helpers {
+  taskQueue: string;
+  createWorker(opts?: Partial<WorkerOptions>): Promise<Worker>;
+  executeWorkflow<T extends () => Promise<unknown>>(workflowType: T): Promise<WorkflowResultType<T>>;
+  executeWorkflow<T extends Workflow>(
+    fn: T,
+    opts: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
+  ): Promise<WorkflowResultType<T>>;
+  startWorkflow<T extends () => Promise<unknown>>(workflowType: T): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
+  startWorkflow<T extends Workflow>(
+    fn: T,
+    opts: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
+  ): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
+}
+
+function helpers(t: ExecutionContext<Context>): Helpers {
+  const taskQueue = t.title.replace(/ /g, '_');
+  const { env, workflowBundle } = t.context;
+
+  return {
+    taskQueue,
+    async createWorker(opts?: Partial<WorkerOptions>): Promise<Worker> {
+      return await Worker.create({
+        connection: env.nativeConnection,
+        workflowBundle,
+        taskQueue,
+        ...opts,
+      });
+    },
+    async executeWorkflow(
+      fn: Workflow,
+      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
+    ): Promise<unknown> {
+      return await env.client.workflow.execute(fn, {
+        taskQueue,
+        workflowId: uuid4(),
+        ...opts,
+      });
+    },
+    async startWorkflow(
+      fn: Workflow,
+      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
+    ): Promise<WorkflowHandleWithFirstExecutionRunId<Workflow>> {
+      return await env.client.workflow.start(fn, {
+        taskQueue,
+        workflowId: uuid4(),
+        ...opts,
+      });
+    },
+  };
+}
 
 test('Hello world agent responds in haikus', async (t) => {
   if (remoteTests) {
@@ -528,7 +607,10 @@ test('callToolActivity awaits tool.execute before closing MCP client', async (t)
 
   // Get the callTool activity
   const callToolActivity = activities['testServer-callTool'];
-  t.truthy(callToolActivity, 'callToolActivity should exist');
+  if (!callToolActivity) {
+    t.fail('callToolActivity should exist');
+    return;
+  }
 
   // Call the activity
   const result = await callToolActivity({

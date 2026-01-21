@@ -1,11 +1,11 @@
 // Test workflow using AI model
 // eslint-disable-next-line import/no-unassigned-import
-import '@temporalio/ai-sdk/lib/load-polyfills';
+import '../../load-polyfills';
 import { embedMany, generateText, Output, stepCountIs, tool, wrapLanguageModel } from 'ai';
 import { z } from 'zod';
 import type { LanguageModelV3Middleware } from '@ai-sdk/provider';
 import { proxyActivities } from '@temporalio/workflow';
-import { TemporalMCPClient, temporalProvider } from '@temporalio/ai-sdk';
+import { TemporalMCPClient, temporalProvider } from '../..';
 import type * as activities from '../activities/ai-sdk';
 
 const { getWeather } = proxyActivities<typeof activities>({

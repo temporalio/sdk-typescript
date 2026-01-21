@@ -9,7 +9,11 @@ import { sleep, proxyActivities, defineSignal, setHandler, startChild } from '@t
 // Export sleep to be invoked as a workflow
 export { sleep };
 
-const activities = proxyActivities({ startToCloseTimeout: 2_000_000 });
+interface Activities {
+  sleep(duration: number): Promise<void>;
+}
+
+const activities = proxyActivities<Activities>({ startToCloseTimeout: 2_000_000 });
 export const unblockSignal = defineSignal<[]>('unblock');
 
 export async function raceActivityAndTimer(expectedWinner: 'timer' | 'activity'): Promise<string> {
