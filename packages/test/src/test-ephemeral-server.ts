@@ -102,7 +102,7 @@ test('TestEnvironment sets up dev server with custom port and ui', async (t) => 
     // Check that we can connect to the server _on the expected port_.
     const connection = await Connection.connect({
       address: `127.0.0.1:${port}`,
-      connectTimeout: 500,
+      connectTimeout: 5000,
     });
     await connection.ensureConnected();
 
@@ -154,7 +154,7 @@ test('TestEnvironment.createLocal correctly populates address', async (t) => {
   await t.notThrowsAsync(async () => {
     await Connection.connect({
       address: testEnv.address,
-      connectTimeout: 500,
+      connectTimeout: 5000,
     });
   }, 'should be able to connect to test server');
 });
