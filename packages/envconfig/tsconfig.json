@@ -4,6 +4,19 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [{ "path": "../common" }, { "path": "../worker" }],
+  "references": [
+    {
+      "path": "../common"
+    },
+    {
+      "path": "../client"
+    },
+    {
+      "path": "../testing"
+    },
+    {
+      "path": "../worker"
+    }
+  ],
   "include": ["./src/**/*.ts"]
 }

@@ -21,7 +21,13 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "test": "ava ./lib/__tests__/test-*.js"
+  },
+  "ava": {
+    "timeout": "60s",
+    "concurrency": 1,
+    "workerThreads": false
   },
   "dependencies": {
     "@temporalio/common": "workspace:*",
@@ -29,6 +35,7 @@
     "nexus-rpc": "^0.0.1"
   },
   "devDependencies": {
+    "ava": "^5.3.1",
     "source-map": "^0.7.4"
   },
   "publishConfig": {
@@ -39,6 +46,8 @@
   },
   "files": [
     "src",
-    "lib"
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
   ]
 }
