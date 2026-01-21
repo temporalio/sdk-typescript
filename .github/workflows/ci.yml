@@ -239,7 +239,7 @@ jobs:
 
       - name: Run Tests (Bun)
         if: matrix.node == 'bun'
-        run: bun run --cwd packages/test ava ./lib/test-*.js
+        run: bun run -b --cwd packages/test ava ./lib/test-*.js
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
