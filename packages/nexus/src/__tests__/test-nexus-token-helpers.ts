@@ -3,7 +3,7 @@ import {
   base64URLEncodeNoPadding,
   generateWorkflowRunOperationToken,
   loadWorkflowRunOperationToken,
-} from '@temporalio/nexus/lib/token';
+} from '../token';
 
 test('encode and decode workflow run Operation token', (t) => {
   const expected = {
