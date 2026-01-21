@@ -123,6 +123,7 @@ export interface CallContext {
  */
 export interface ConnectionLike {
   workflowService: WorkflowService;
+  operatorService: OperatorService;
   plugins: ConnectionPlugin[];
   close(): Promise<void>;
   ensureConnected(): Promise<void>;
