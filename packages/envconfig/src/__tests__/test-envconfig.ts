@@ -4,8 +4,10 @@ import * as os from 'os';
 import test from 'ava';
 import dedent from 'dedent';
 import { Connection, Client } from '@temporalio/client';
+import { encode } from '@temporalio/common/lib/encoding';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import type { ClientConfig, ClientConfigProfile, ConfigDataSource } from '@temporalio/envconfig';
+import { NativeConnection } from '@temporalio/worker';
 import {
   fromTomlConfig,
   fromTomlProfile,
@@ -15,10 +17,8 @@ import {
   toClientOptions,
   toTomlConfig,
   toTomlProfile,
-} from '@temporalio/envconfig';
-import { toPathAndData } from '@temporalio/envconfig/lib/utils';
-import { NativeConnection } from '@temporalio/worker';
-import { encode } from '@temporalio/common/lib/encoding';
+} from '../index';
+import { toPathAndData } from '../utils';
 
 // Focused TOML fixtures
 const TOML_CONFIG_BASE = dedent`
@@ -242,7 +242,7 @@ test('gRPC metadata normalization from TOML', (t) => {
     sOme-hEader_key = "some-value"
   `;
   const conf = loadClientConfig({ configSource: dataSource(toml) });
-  const prof = conf.profiles['foo'];
+  const prof = conf.profiles['foo']!;
   t.truthy(prof);
   t.is(prof.grpcMeta?.['some-header-key'], 'some-value');
 });
@@ -300,7 +300,7 @@ test('Load profiles without profile-level env overrides', (t) => {
       configSource: pathSource(filepath),
       overrideEnvVars: env,
     });
-    t.is(conf.profiles['default'].address, 'default-address');
+    t.is(conf.profiles['default']?.address, 'default-address');
 
     // Test that profile-level loading with disableEnv ignores environment
     const profile = loadClientConfigProfile({
@@ -332,8 +332,8 @@ test('Load all profiles from file', (t) => {
   const conf = loadClientConfig({ configSource: dataSource(TOML_CONFIG_BASE) });
   t.truthy(conf.profiles['default']);
   t.truthy(conf.profiles['custom']);
-  t.is(conf.profiles['default'].address, 'default-address');
-  t.is(conf.profiles['custom'].apiKey, 'custom-api-key');
+  t.is(conf.profiles['default']!.address, 'default-address');
+  t.is(conf.profiles['custom']!.apiKey, 'custom-api-key');
 });
 
 test('Load all profiles from data', (t) => {
@@ -349,8 +349,8 @@ test('Load all profiles from data', (t) => {
   const conf = loadClientConfig({ configSource: dataSource(configData) });
   t.truthy(conf.profiles['alpha']);
   t.truthy(conf.profiles['beta']);
-  t.is(conf.profiles['alpha'].address, 'alpha-address');
-  t.is(conf.profiles['beta'].apiKey, 'beta-key');
+  t.is(conf.profiles['alpha']?.address, 'alpha-address');
+  t.is(conf.profiles['beta']?.apiKey, 'beta-key');
 });
 
 test('Load profiles from non-existent file', (t) => {
@@ -372,7 +372,7 @@ test('Load all profiles with overridden file path', (t) => {
   withTempFile(TOML_CONFIG_BASE, (filepath) => {
     const conf = loadClientConfig({ overrideEnvVars: { TEMPORAL_CONFIG_FILE: filepath } });
     t.truthy(conf.profiles['default']);
-    t.is(conf.profiles['default'].address, 'default-address');
+    t.is(conf.profiles['default']?.address, 'default-address');
   });
 });
 
@@ -675,11 +675,11 @@ test('Client config to/from TOML round-trip', (t) => {
   };
   const tomlConfig = toTomlConfig(conf);
   const back = fromTomlConfig(tomlConfig);
-  t.is(back.profiles['default'].address, 'addr');
-  t.is(back.profiles['default'].namespace, 'ns');
-  t.is(back.profiles['custom'].address, 'addr2');
-  t.is(back.profiles['custom'].apiKey, 'key2');
-  t.is(back.profiles['custom'].grpcMeta?.['h'], 'v');
+  t.is(back.profiles['default']?.address, 'addr');
+  t.is(back.profiles['default']?.namespace, 'ns');
+  t.is(back.profiles['custom']?.address, 'addr2');
+  t.is(back.profiles['custom']?.apiKey, 'key2');
+  t.is(back.profiles['custom']?.grpcMeta?.['h'], 'v');
 });
 
 // =============================================================================

@@ -1,6 +1,6 @@
 import test from 'ava';
-import { SdkFlags, type SdkFlag } from '@temporalio/workflow/lib/flags';
-import type { WorkflowInfo } from '@temporalio/workflow';
+import { SdkFlags, type SdkFlag } from '../flags';
+import type { WorkflowInfo } from '../index';
 
 type Conditions = SdkFlag['alternativeConditions'];
 function composeConditions(conditions: Conditions): NonNullable<Conditions>[number] {
