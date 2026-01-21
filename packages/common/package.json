@@ -18,6 +18,9 @@
     "nexus-rpc": "^0.0.1",
     "proto3-json-serializer": "^2.0.0"
   },
+  "scripts": {
+    "build": "tsc --build"
+  },
   "devDependencies": {
     "protobufjs": "^7.2.5"
   },

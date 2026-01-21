@@ -12,6 +12,9 @@
   ],
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
+  "scripts": {
+    "build": "tsc --build"
+  },
   "devDependencies": {
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",

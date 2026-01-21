@@ -20,7 +20,9 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "scripts": {},
+  "scripts": {
+    "build": "tsc --build"
+  },
   "dependencies": {
     "@temporalio/common": "workspace:*",
     "@temporalio/proto": "workspace:*",

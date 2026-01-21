@@ -450,7 +450,7 @@ importers:
         version: 6.0.1
       ts-loader:
         specifier: ^9.5.1
-        version: 9.5.1(typescript@5.9.3)(webpack@5.105.1)
+        version: 9.5.1(typescript@5.6.3)(webpack@5.105.1)
     devDependencies:
       '@temporalio/common':
         specifier: workspace:*
@@ -473,6 +473,9 @@ importers:
       '@types/webpack':
         specifier: ^5.28.5
         version: 5.28.5
+      typescript:
+        specifier: ^5.6.3
+        version: 5.6.3
       webpack:
         specifier: ^5.104.1
         version: 5.105.1
@@ -4589,11 +4592,6 @@ packages:
 
   typescript@5.6.3:
     resolution: {integrity: sha512-hjcS1mhfuyi4WW8IWtjP7brDrG2cuDZukyrYrSauoXGNgx0S7zceP07adYkJycEr56BOUTNPzbInooiN3fn1qw==}
-    engines: {node: '>=14.17'}
-    hasBin: true
-
-  typescript@5.9.3:
-    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -8978,14 +8976,14 @@ snapshots:
     dependencies:
       typescript: 5.6.3
 
-  ts-loader@9.5.1(typescript@5.9.3)(webpack@5.105.1):
+  ts-loader@9.5.1(typescript@5.6.3)(webpack@5.105.1):
     dependencies:
       chalk: 4.1.2
-      enhanced-resolve: 5.17.1
+      enhanced-resolve: 5.19.0
       micromatch: 4.0.8
-      semver: 7.7.2
+      semver: 7.7.3
       source-map: 0.7.4
-      typescript: 5.9.3
+      typescript: 5.6.3
       webpack: 5.105.1
 
   ts-morph@13.0.3:
@@ -9092,8 +9090,6 @@ snapshots:
       - supports-color
 
   typescript@5.6.3: {}
-
-  typescript@5.9.3: {}
 
   uc.micro@1.0.6: {}
 
