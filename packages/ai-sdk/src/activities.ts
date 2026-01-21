@@ -6,7 +6,7 @@ import type {
   SharedV3Headers,
   ProviderV3,
 } from '@ai-sdk/provider';
-import type { FlexibleSchema, ToolExecutionOptions } from 'ai';
+import { asSchema, type Schema, type ToolExecutionOptions } from 'ai';
 import { ApplicationFailure } from '@temporalio/common';
 import type { McpClientFactories, McpClientFactory } from './mcp';
 
@@ -44,7 +44,7 @@ export type InvokeEmbeddingModelResult = EmbeddingModelV3Result;
 
 export interface ListToolResult {
   description?: string;
-  inputSchema: FlexibleSchema<unknown>;
+  inputSchema: Schema<unknown>;
 }
 
 export interface ListToolArgs {
@@ -100,13 +100,13 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory): ob
     const mcpClient = await mcpClientFactory(args.clientArgs);
     try {
       const tools = await mcpClient.tools();
-
       return Object.fromEntries(
         Object.entries(tools).map(([k, v]) => [
           k,
           {
             description: v.description,
-            inputSchema: v.inputSchema,
+            // Convert the FlexibleSchema to a Schema so that the shape is known outside the activity
+            inputSchema: asSchema(v.inputSchema),
           },
         ])
       );
