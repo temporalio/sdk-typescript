@@ -112,6 +112,20 @@ After your environment is set up, you can run these commands:
 - `pnpm run lint` verifies code style with prettier and ES lint.
 - `pnpm run commitlint` validates [commit messages](#style-guide).
 
+### Working with Individual Packages
+
+You can build or test a single package using pnpm's filter flag:
+
+```sh
+# Build a single package and all its dependencies explicitly
+pnpm -F @temporalio/worker... run build
+
+# Run tests for a single package
+pnpm -F @temporalio/common run test
+```
+
+The `...` suffix includes all dependencies of the specified package.
+
 ### Testing
 
 #### Testing local changes to core
