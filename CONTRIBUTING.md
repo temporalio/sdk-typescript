@@ -8,16 +8,14 @@
 - [Maintenance](#maintenance)
 - [Getting started](#getting-started)
   - [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
-  - [SDK Structure](#sdk-structure)
   - [Environment setup](#environment-setup)
 - [Development](#development)
+  - [Working with Individual Packages](#working-with-individual-packages)
   - [Testing](#testing)
     - [Testing local changes to core](#testing-local-changes-to-core)
-      - [Integration tests](#integration-tests)
     - [test-npm-init](#test-npm-init)
   - [Style Guide](#style-guide)
-- [Publishing](#publishing)
-- [Updating published packages](#updating-published-packages)
+- [Updating and pruning dependencies](#updating-and-pruning-dependencies)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -46,7 +44,7 @@ However, we recommend using the [Active LTS](https://nodejs.org/en/about/previou
 for SDK development. For easier testing during development, you may want to use
 a version manager, such as [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
 
-1. To run tests, you will need access to a local Temporal server, e.g. using the
+1. To run integration tests, you will need a local Temporal server. The easiest way is using the
    [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server).
 2. Install the [Rust toolchain](https://rustup.rs/).
 3. Install [Protocol Buffers](https://github.com/protocolbuffers/protobuf/releases/).
@@ -69,9 +67,9 @@ a version manager, such as [fnm](https://github.com/Schniz/fnm) or [nvm](https:/
 6. Install `pnpm`
    TS SDK uses PNPM to manage dependencies. Corepack is the recommend way to install `pnpm` and is included in Node 14+
 
-```sh
-corepack enable
-```
+   ```sh
+   corepack enable
+   ```
 
 7. Install the dependencies:
 
@@ -90,7 +88,7 @@ pnpm run build
 If building fails, resetting your environment may help:
 
 ```
-pnpm run clean -y
+pnpm run clean
 pnpm install --frozen-lockfile
 ```
 
@@ -133,12 +131,22 @@ The `...` suffix includes all dependencies of the specified package.
 Create a `.cargo/config.toml` file and override the path to sdk-core and/or sdk-core-protos as
 described [here](https://doc.rust-lang.org/cargo/reference/overriding-dependencies.html#paths-overrides)
 
-##### Integration tests
+#### Integration tests
 
-In order to run integration tests:
+Integration tests require a running Temporal server. By default, tests will start an ephemeral
+server automatically using the Temporal CLI.
 
-1. Run the Temporal server, e.g. using the [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server)
-1. Export `RUN_INTEGRATION_TESTS=true`
+To run tests against an existing server instead, set the `TEMPORAL_SERVICE_ADDRESS` environment variable:
+
+```sh
+export TEMPORAL_SERVICE_ADDRESS=localhost:7233
+```
+
+To skip integration tests entirely, set:
+
+```sh
+export RUN_INTEGRATION_TESTS=false
+```
 
 #### test-npm-init
 

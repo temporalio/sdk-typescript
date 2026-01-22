@@ -126,8 +126,9 @@ export async function mcpSchemaTestWorkflow(): Promise<{
   const mcpClient = new TemporalMCPClient({ name: 'testServer' });
   const tools = await mcpClient.tools();
 
-  const [toolName, tool] = Object.entries(tools)[0];
-
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const [toolName, tool] = Object.entries(tools)[0]!;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const schema = (tool as any).inputSchema.jsonSchema;
 
   return {

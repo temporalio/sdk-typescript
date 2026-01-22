@@ -558,7 +558,7 @@ if (RUN_INTEGRATION_TESTS) {
       const client = new WorkflowClient();
       await worker.runUntil(client.execute(workflows.successString, { taskQueue, workflowId: uuid4() }));
 
-      t.deepEqual(spans[0].resource.attributes, {
+      t.deepEqual(spans[0]!.resource.attributes, {
         [SEMRESATTRS_SERVICE_NAME]: serviceName,
         // If not using a span processor, then we do not expect the async attr to be present
         ...(useSpanProcessor ? { 'async.attr': 'resolved' } : {}),
