@@ -491,21 +491,6 @@ impl MutableFinalize for HistoryForReplayTunnelHandle {}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 mod config {
-    use std::collections::HashSet;
-    use std::{sync::Arc, time::Duration};
-    use temporalio_common::protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior;
-    use temporalio_common::protos::temporal::api::worker::v1::PluginInfo;
-    use temporalio_common::worker::{
-        ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
-        PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder,
-        WorkerConfigBuilderError, WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
-        WorkerDeploymentVersion as CoreWorkerDeploymentVersion, WorkflowSlotKind,
-    };
-    use temporalio_sdk_core::{
-        ResourceBasedSlotsOptions, ResourceBasedSlotsOptionsBuilder, ResourceSlotOptions,
-        SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptionsBuilder,
-    };
-
     use super::custom_slot_supplier::CustomSlotSupplierOptions;
     use crate::helpers::TryIntoJs;
     use bridge_macros::TryFromJs;
@@ -513,7 +498,17 @@ mod config {
     use neon::object::Object;
     use neon::prelude::JsResult;
     use neon::types::JsObject;
+    use std::collections::{HashMap, HashSet};
+    use std::{sync::Arc, time::Duration};
+    use temporalio_common::protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior;
+    use temporalio_common::protos::temporal::api::worker::v1::PluginInfo;
     use temporalio_common::worker::WorkerVersioningStrategy;
+    use temporalio_common::worker::{
+        ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
+        PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig, WorkerConfigBuilder,
+        WorkerConfigBuilderError, WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
+        WorkerDeploymentVersion as CoreWorkerDeploymentVersion, WorkflowSlotKind,
+    };
 
     #[derive(TryFromJs)]
     pub struct BridgeWorkerOptions {
@@ -537,6 +532,8 @@ mod config {
         max_task_queue_activities_per_second: Option<f64>,
         shutdown_grace_time: Option<Duration>,
         plugins: Vec<String>,
+        workflow_failure_errors: HashSet<WorkflowErrorType>,
+        workflow_types_to_failure_errors: HashMap<String, HashSet<WorkflowErrorType>>,
     }
 
     #[derive(TryFromJs)]
@@ -633,6 +630,10 @@ mod config {
                         })
                         .collect::<HashSet<_>>(),
                 )
+                .workflow_failure_errors(into_core_workflow_error_set(self.workflow_failure_errors))
+                .workflow_types_to_failure_errors(into_core_workflow_error_map_of_sets(
+                    self.workflow_types_to_failure_errors,
+                ))
                 .build()
         }
     }
@@ -702,6 +703,33 @@ mod config {
                 VersioningBehavior::AutoUpgrade => Self::AutoUpgrade,
             }
         }
+    }
+
+    #[derive(TryFromJs, Hash, Eq, PartialEq)]
+    pub enum WorkflowErrorType {
+        Nondeterminism,
+    }
+
+    impl From<WorkflowErrorType> for CoreWorkflowErrorType {
+        fn from(val: WorkflowErrorType) -> Self {
+            match val {
+                WorkflowErrorType::Nondeterminism => Self::Nondeterminism,
+            }
+        }
+    }
+
+    fn into_core_workflow_error_set(
+        val: HashSet<WorkflowErrorType>,
+    ) -> HashSet<CoreWorkflowErrorType> {
+        val.into_iter().map(Into::into).collect()
+    }
+
+    fn into_core_workflow_error_map_of_sets(
+        val: HashMap<String, HashSet<WorkflowErrorType>>,
+    ) -> HashMap<String, HashSet<CoreWorkflowErrorType>> {
+        val.into_iter()
+            .map(|(k, v)| (k, into_core_workflow_error_set(v)))
+            .collect()
     }
 
     #[derive(TryFromJs)]
