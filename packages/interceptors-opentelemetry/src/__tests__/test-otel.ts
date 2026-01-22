@@ -2,8 +2,10 @@
 /**
  * Manual tests to inspect tracing output
  */
+import * as fs from 'fs/promises';
 import * as http from 'http';
 import * as http2 from 'http2';
+import * as path from 'path';
 import * as otelApi from '@opentelemetry/api';
 import { SpanStatusCode, createTraceState } from '@opentelemetry/api';
 import { ExportResultCode } from '@opentelemetry/core';
@@ -13,36 +15,104 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import type * as workflowImportStub from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports';
-import type * as workflowImportImpl from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports-impl';
 import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor } from '@temporalio/client';
-import { OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry/lib/client';
-import { OpenTelemetryWorkflowClientCallsInterceptor } from '@temporalio/interceptors-opentelemetry';
-import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
+import * as iface from '@temporalio/proto';
 import {
-  makeWorkflowExporter,
-  OpenTelemetryActivityInboundInterceptor,
-  OpenTelemetryActivityOutboundInterceptor,
-} from '@temporalio/interceptors-opentelemetry/lib/worker';
-import {
-  OpenTelemetrySinks,
-  SpanName,
-  SPAN_DELIMITER,
-  OpenTelemetryOutboundInterceptor,
-  OpenTelemetryInboundInterceptor,
-} from '@temporalio/interceptors-opentelemetry/lib/workflow';
+  TestWorkflowEnvironment,
+  workflowInterceptorModules as defaultWorkflowInterceptorModules,
+} from '@temporalio/testing';
 import {
   ActivityInboundCallsInterceptor,
   ActivityOutboundCallsInterceptor,
   DefaultLogger,
   InjectedSinks,
   Runtime,
+  Worker,
+  bundleWorkflowCode,
+  WorkflowBundleWithSourceMap,
 } from '@temporalio/worker';
 import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
+import type * as workflowImportStub from '../workflow/workflow-imports';
+import type * as workflowImportImpl from '../workflow/workflow-imports-impl';
+import { OpenTelemetryWorkflowClientInterceptor } from '../client';
+import { OpenTelemetryWorkflowClientCallsInterceptor } from '..';
+import { instrument } from '../instrumentation';
+import {
+  makeWorkflowExporter,
+  OpenTelemetryActivityInboundInterceptor,
+  OpenTelemetryActivityOutboundInterceptor,
+} from '../worker';
+import {
+  OpenTelemetrySinks,
+  SpanName,
+  SPAN_DELIMITER,
+  OpenTelemetryOutboundInterceptor,
+  OpenTelemetryInboundInterceptor,
+} from '../workflow';
 import * as activities from './activities';
-import { loadHistory, RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker } from './helpers';
 import * as workflows from './workflows';
-import { createTestWorkflowBundle } from './helpers-integration';
+
+function isSet(env: string | undefined, def: boolean): boolean {
+  if (env === undefined) return def;
+  env = env.toLocaleLowerCase();
+  return env === '1' || env === 't' || env === 'true';
+}
+
+const RUN_INTEGRATION_TESTS = isSet(process.env.RUN_INTEGRATION_TESTS, true);
+
+const bundlerOptions = {
+  ignoreModules: [
+    '@temporalio/common/lib/internal-non-workflow',
+    '@temporalio/activity',
+    '@temporalio/client',
+    '@temporalio/testing',
+    '@temporalio/nexus',
+    '@temporalio/worker',
+    'ava',
+    'crypto',
+    'module',
+    'path',
+    'stack-utils',
+    '@grpc/grpc-js',
+    'async-retry',
+    'uuid',
+    'net',
+    'fs/promises',
+    'timers',
+    'timers/promises',
+    require.resolve('./activities'),
+  ],
+};
+
+async function loadHistory(fname: string): Promise<iface.temporal.api.history.v1.History> {
+  const isJson = fname.endsWith('json');
+  // JSON files are in src, not lib, since TypeScript doesn't copy them
+  const fpath = path.resolve(__dirname, `../../src/__tests__/history_files/${fname}`);
+  if (isJson) {
+    const hist = await fs.readFile(fpath, 'utf8');
+    return JSON.parse(hist);
+  } else {
+    const hist = await fs.readFile(fpath);
+    return iface.temporal.api.history.v1.History.decode(hist);
+  }
+}
+
+interface TestWorkflowBundleOptions {
+  workflowsPath: string;
+  workflowInterceptorModules?: string[];
+}
+
+async function createTestWorkflowBundle({
+  workflowsPath,
+  workflowInterceptorModules,
+}: TestWorkflowBundleOptions): Promise<WorkflowBundleWithSourceMap> {
+  return await bundleWorkflowCode({
+    ...bundlerOptions,
+    workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(workflowInterceptorModules ?? [])],
+    workflowsPath,
+    logger: new DefaultLogger('WARN'),
+  });
+}
 
 async function withFakeGrpcServer(
   fn: (port: number) => Promise<void>,
@@ -485,7 +555,7 @@ if (RUN_INTEGRATION_TESTS) {
     const spans = memoryExporter.getFinishedSpans();
     t.is(spans.length, 1);
 
-    const span = spans[0];
+    const span = spans[0]!;
 
     t.is(span.status.code, SpanStatusCode.ERROR);
 
@@ -527,11 +597,11 @@ if (RUN_INTEGRATION_TESTS) {
 
     const spans = memoryExporter.getFinishedSpans();
     t.is(spans.length, 3);
-    t.is(spans[0].status.code, SpanStatusCode.ERROR);
-    t.is(spans[0].status.message, 'not benign');
-    t.is(spans[1].status.code, SpanStatusCode.UNSET);
-    t.is(spans[1].status.message, 'benign');
-    t.is(spans[2].status.code, SpanStatusCode.OK);
+    t.is(spans[0]!.status.code, SpanStatusCode.ERROR);
+    t.is(spans[0]!.status.message, 'not benign');
+    t.is(spans[1]!.status.code, SpanStatusCode.UNSET);
+    t.is(spans[1]!.status.message, 'benign');
+    t.is(spans[2]!.status.code, SpanStatusCode.OK);
   });
 
   test('executeUpdateWithStart works correctly with OTEL interceptors', async (t) => {
