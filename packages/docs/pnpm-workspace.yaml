@@ -4,3 +4,5 @@ packages:
 overrides:
   # Can be removed once a release of `express` with an updated qs is cut
   'qs': '^6.14.1'
+  # Bumped for https://github.com/advisories/GHSA-xxjr-mmjv-4gpg
+  'lodash': '^4.17.23'
