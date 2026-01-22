@@ -126,7 +126,7 @@ export async function mcpSchemaTestWorkflow(): Promise<{
   const mcpClient = new TemporalMCPClient({ name: 'testServer' });
   const tools = await mcpClient.tools();
 
-  const [toolName, tool] = Object.entries(tools)[0];
+  const [toolName, tool] = Object.entries(tools)[0]!;
 
   const schema = (tool as any).inputSchema.jsonSchema;
 

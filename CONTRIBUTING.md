@@ -10,9 +10,10 @@
   - [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
   - [Environment setup](#environment-setup)
 - [Development](#development)
+  - [Working with Individual Packages](#working-with-individual-packages)
   - [Testing](#testing)
     - [Testing local changes to core](#testing-local-changes-to-core)
-      - [Integration tests](#integration-tests)
+    - [Integration tests](#integration-tests)
     - [test-npm-init](#test-npm-init)
   - [Style Guide](#style-guide)
 - [Updating and pruning dependencies](#updating-and-pruning-dependencies)
@@ -67,9 +68,9 @@ a version manager, such as [fnm](https://github.com/Schniz/fnm) or [nvm](https:/
 6. Install `pnpm`
    TS SDK uses PNPM to manage dependencies. Corepack is the recommend way to install `pnpm` and is included in Node 14+
 
-```sh
-corepack enable
-```
+   ```sh
+   corepack enable
+   ```
 
 7. Install the dependencies:
 
@@ -88,7 +89,7 @@ pnpm build
 If building fails, resetting your environment may help:
 
 ```
-pnpm clean
+pnpm run clean
 pnpm install --frozen-lockfile
 ```
 
@@ -110,6 +111,20 @@ After your environment is set up, you can run these commands:
 - `pnpm lint` verifies code style with prettier and ES lint.
 - `pnpm commitlint` validates [commit messages](#style-guide).
 
+### Working with Individual Packages
+
+You can build or test a single package using pnpm's filter flag:
+
+```sh
+# Build a single package and all its dependencies explicitly
+pnpm -F @temporalio/worker... run build
+
+# Run tests for a single package
+pnpm -F @temporalio/common run test
+```
+
+The `...` suffix includes all dependencies of the specified package.
+
 ### Testing
 
 #### Testing local changes to core
@@ -117,7 +132,7 @@ After your environment is set up, you can run these commands:
 Create a `.cargo/config.toml` file and override the path to sdk-core and/or sdk-core-protos as
 described [here](https://doc.rust-lang.org/cargo/reference/overriding-dependencies.html#paths-overrides)
 
-##### Integration tests
+#### Integration tests
 
 In order to run integration tests:
 

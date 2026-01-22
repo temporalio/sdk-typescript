@@ -5,7 +5,8 @@
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "test": "ava ./lib/__tests__/test-*.js"
   },
   "keywords": [
     "temporal",
@@ -23,12 +24,20 @@
     "@temporalio/plugin": "workspace:*"
   },
   "devDependencies": {
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.52.1",
+    "@opentelemetry/sdk-node": "^0.52.1",
+    "@opentelemetry/semantic-conventions": "^1.25.1",
     "@temporalio/activity": "workspace:*",
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
+    "@temporalio/proto": "workspace:*",
+    "@temporalio/test-helpers": "workspace:*",
+    "@temporalio/testing": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "@temporalio/workflow": "workspace:*",
-    "nexus-rpc": "^0.0.2"
+    "ava": "^5.3.1",
+    "nexus-rpc": "^0.0.2",
+    "uuid": "^11.1.0"
   },
   "peerDependencies": {
     "@temporalio/common": "workspace:*",
@@ -56,6 +65,13 @@
   },
   "files": [
     "src",
-    "lib"
-  ]
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
+  ],
+  "ava": {
+    "timeout": "120s",
+    "concurrency": 1,
+    "workerThreads": false
+  }
 }
