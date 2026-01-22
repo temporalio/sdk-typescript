@@ -43,6 +43,7 @@ export class TemporalMCPClient {
       Object.entries(tools).map(([toolName, toolResult]) => [
         toolName,
         {
+          description: toolResult.description,
           execute: async (input, options) => {
             const activities = workflow.proxyActivities({
               summary: toolName,
