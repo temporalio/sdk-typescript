@@ -190,7 +190,8 @@ mod config {
     use std::time::Duration;
 
     use temporalio_sdk_core::ephemeral_server::{
-        EphemeralExe, EphemeralExeVersion, TemporalDevServerConfig as CoreTemporalDevServerConfig, TestServerConfig as CoreTestServerConfig,
+        EphemeralExe, EphemeralExeVersion, TemporalDevServerConfig as CoreTemporalDevServerConfig,
+        TestServerConfig as CoreTestServerConfig,
     };
 
     use bridge_macros::TryFromJs;

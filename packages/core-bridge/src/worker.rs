@@ -500,7 +500,8 @@ mod config {
         WorkerDeploymentVersion as CoreWorkerDeploymentVersion, WorkflowSlotKind,
     };
     use temporalio_sdk_core::{
-        ResourceBasedSlotsOptions, ResourceSlotOptions, SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptions
+        ResourceBasedSlotsOptions, ResourceSlotOptions,
+        SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptions,
     };
 
     use super::custom_slot_supplier::CustomSlotSupplierOptions;
@@ -617,7 +618,9 @@ mod config {
                 .max_cached_workflows(self.max_cached_workflows)
                 .max_heartbeat_throttle_interval(self.max_heartbeat_throttle_interval)
                 .default_heartbeat_throttle_interval(self.default_heartbeat_throttle_interval)
-                .maybe_max_task_queue_activities_per_second(self.max_task_queue_activities_per_second)
+                .maybe_max_task_queue_activities_per_second(
+                    self.max_task_queue_activities_per_second,
+                )
                 .maybe_max_worker_activities_per_second(self.max_activities_per_second)
                 .maybe_graceful_shutdown_period(self.shutdown_grace_time)
                 .plugins(
@@ -717,9 +720,18 @@ mod config {
         fn into_core_config(self) -> Result<Arc<TunerHolder>, BridgeError> {
             let mut rbo = None;
             TunerHolderOptions::builder()
-                .workflow_slot_options(self.workflow_task_slot_supplier.into_slot_supplier(&mut rbo))
-                .activity_slot_options(self.activity_task_slot_supplier.into_slot_supplier(&mut rbo))
-                .local_activity_slot_options(self.local_activity_task_slot_supplier.into_slot_supplier(&mut rbo))
+                .workflow_slot_options(
+                    self.workflow_task_slot_supplier
+                        .into_slot_supplier(&mut rbo),
+                )
+                .activity_slot_options(
+                    self.activity_task_slot_supplier
+                        .into_slot_supplier(&mut rbo),
+                )
+                .local_activity_slot_options(
+                    self.local_activity_task_slot_supplier
+                        .into_slot_supplier(&mut rbo),
+                )
                 .nexus_slot_options(self.nexus_task_slot_supplier.into_slot_supplier(&mut rbo))
                 .maybe_resource_based_options(rbo)
                 .build_tuner_holder()

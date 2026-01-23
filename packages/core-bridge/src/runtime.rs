@@ -241,8 +241,8 @@ mod config {
     use neon::prelude::*;
     use temporalio_common::telemetry::{
         HistogramBucketOverrides, Logger as CoreTelemetryLogger, MetricTemporality,
-        OtelCollectorOptions as CoreOtelCollectorOptions,
-        OtlpProtocol, PrometheusExporterOptions as CorePrometheusExporterOptions,
+        OtelCollectorOptions as CoreOtelCollectorOptions, OtlpProtocol,
+        PrometheusExporterOptions as CorePrometheusExporterOptions,
         TelemetryOptions as CoreTelemetryOptions,
     };
     use temporalio_sdk_core::{Url, telemetry::CoreLogStreamConsumer};

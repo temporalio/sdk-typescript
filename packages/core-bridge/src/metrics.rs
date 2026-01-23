@@ -4,7 +4,8 @@ use neon::prelude::*;
 use serde::Deserialize;
 
 use temporalio_common::telemetry::metrics::{
-    CoreMeter, Counter as CoreCounter, Gauge as CoreGauge, Histogram as CoreHistogram, MetricParameters, NewAttributes, TemporalMeter
+    CoreMeter, Counter as CoreCounter, Gauge as CoreGauge, Histogram as CoreHistogram,
+    MetricParameters, NewAttributes, TemporalMeter,
 };
 use temporalio_common::telemetry::metrics::{
     GaugeF64 as CoreGaugeF64, HistogramF64 as CoreHistogramF64,
@@ -118,7 +119,7 @@ pub fn new_metric_counter(
             .name(name)
             .unit(unit)
             .description(description)
-            .build()
+            .build(),
     );
 
     Ok(OpaqueOutboundHandle::new(Counter { meter, counter }))
