@@ -10,7 +10,7 @@ use temporalio_common::telemetry::{
     PrometheusExporterOptions as CorePrometheusExporterOptions, metrics::CoreMeter,
 };
 use temporalio_sdk_core::{
-    CoreRuntime, RuntimeOptionsBuilder, TokioRuntimeBuilder,
+    CoreRuntime, TokioRuntimeBuilder,
     telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
 };
 
@@ -63,11 +63,11 @@ pub fn runtime_new(
         bridge_options.try_into()?;
 
     // Create core runtime which starts tokio multi-thread runtime
-    let runtime_options = RuntimeOptionsBuilder::default()
+    let runtime_options = temporalio_sdk_core::RuntimeOptions::builder()
         .telemetry_options(telemetry_options)
         .heartbeat_interval(worker_heartbeat_interval_millis.map(Duration::from_millis))
         .build()
-        .context("Failed to build runtime options")?;
+        .map_err(BridgeError::UnexpectedError)?;
     let mut core_runtime = CoreRuntime::new(runtime_options, TokioRuntimeBuilder::default())
         .context("Failed to initialize Core Runtime")?;
 
@@ -238,15 +238,12 @@ pub enum BridgeLogExporter {
 mod config {
     use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 
-    use anyhow::Context as _;
-
     use neon::prelude::*;
     use temporalio_common::telemetry::{
         HistogramBucketOverrides, Logger as CoreTelemetryLogger, MetricTemporality,
-        OtelCollectorOptions as CoreOtelCollectorOptions, OtelCollectorOptionsBuilder,
+        OtelCollectorOptions as CoreOtelCollectorOptions,
         OtlpProtocol, PrometheusExporterOptions as CorePrometheusExporterOptions,
-        PrometheusExporterOptionsBuilder, TelemetryOptions as CoreTelemetryOptions,
-        TelemetryOptionsBuilder,
+        TelemetryOptions as CoreTelemetryOptions,
     };
     use temporalio_sdk_core::{Url, telemetry::CoreLogStreamConsumer};
 
@@ -360,13 +357,11 @@ mod config {
                 }
             };
 
-            let mut telemetry_options = TelemetryOptionsBuilder::default();
-            let telemetry_options = telemetry_options
+            let telemetry_options = CoreTelemetryOptions::builder()
                 .logging(telemetry_logger)
                 .metric_prefix(telemetry.metric_prefix)
                 .attach_service_name(telemetry.attach_service_name)
-                .build()
-                .context("Failed to build telemetry options")?;
+                .build();
 
             let metrics_exporter = metrics_exporter
                 .map(std::convert::TryInto::try_into)
@@ -397,8 +392,7 @@ mod config {
         type Error = BridgeError;
 
         fn try_into(self) -> BridgeResult<CorePrometheusExporterOptions> {
-            let mut options = PrometheusExporterOptionsBuilder::default();
-            let options = options
+            let options = CorePrometheusExporterOptions::builder()
                 .socket_addr(self.socket_addr)
                 .counters_total_suffix(self.counters_total_suffix)
                 .unit_suffix(self.unit_suffix)
@@ -407,8 +401,7 @@ mod config {
                     overrides: self.histogram_bucket_overrides,
                 })
                 .global_tags(self.global_tags)
-                .build()
-                .context("Failed to build prometheus exporter options")?;
+                .build();
 
             Ok(options)
         }
@@ -418,8 +411,7 @@ mod config {
         type Error = BridgeError;
 
         fn try_into(self) -> BridgeResult<CoreOtelCollectorOptions> {
-            let mut options = OtelCollectorOptionsBuilder::default();
-            let options = options
+            let options = CoreOtelCollectorOptions::builder()
                 .url(self.url)
                 .protocol(*self.protocol)
                 .headers(self.headers)
@@ -430,8 +422,7 @@ mod config {
                     overrides: self.histogram_bucket_overrides,
                 })
                 .global_tags(self.global_tags)
-                .build()
-                .context("Failed to build otel exporter options")?;
+                .build();
 
             Ok(options)
         }

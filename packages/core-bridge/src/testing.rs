@@ -189,12 +189,8 @@ impl CoreEphemeralServerConfig {
 mod config {
     use std::time::Duration;
 
-    use anyhow::Context as _;
-
     use temporalio_sdk_core::ephemeral_server::{
-        EphemeralExe, EphemeralExeVersion, TemporalDevServerConfig as CoreTemporalDevServerConfig,
-        TemporalDevServerConfigBuilder, TestServerConfig as CoreTestServerConfig,
-        TestServerConfigBuilder,
+        EphemeralExe, EphemeralExeVersion, TemporalDevServerConfig as CoreTemporalDevServerConfig, TestServerConfig as CoreTestServerConfig,
     };
 
     use bridge_macros::TryFromJs;
@@ -271,13 +267,11 @@ mod config {
         type Error = BridgeError;
 
         fn try_into(self) -> Result<CoreTestServerConfig, Self::Error> {
-            let mut config = TestServerConfigBuilder::default();
-            let config = config
+            let config = CoreTestServerConfig::builder()
                 .exe(self.exe.into())
-                .port(self.port)
+                .maybe_port(self.port)
                 .extra_args(self.extra_args)
-                .build()
-                .context("Invalid Test Server config")?;
+                .build();
 
             Ok(config)
         }
@@ -287,19 +281,17 @@ mod config {
         type Error = BridgeError;
 
         fn try_into(self) -> Result<CoreTemporalDevServerConfig, Self::Error> {
-            let mut config = TemporalDevServerConfigBuilder::default();
-            let config = config
+            let config = CoreTemporalDevServerConfig::builder()
                 .exe(self.exe.into())
                 .namespace(self.namespace)
                 .ip(self.ip)
-                .port(self.port)
-                .ui_port(self.ui_port)
-                .db_filename(self.db_filename)
+                .maybe_port(self.port)
+                .maybe_ui_port(self.ui_port)
+                .maybe_db_filename(self.db_filename)
                 .ui(self.ui)
                 .log((self.log.format, self.log.level))
                 .extra_args(self.extra_args)
-                .build()
-                .context("Invalid Dev Server config")?;
+                .build();
 
             Ok(config)
         }

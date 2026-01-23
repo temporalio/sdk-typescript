@@ -1,12 +1,10 @@
 use std::collections::HashMap;
 
-use anyhow::Context as _;
 use neon::prelude::*;
 use serde::Deserialize;
 
 use temporalio_common::telemetry::metrics::{
-    CoreMeter, Counter as CoreCounter, Gauge as CoreGauge, Histogram as CoreHistogram,
-    MetricParametersBuilder, NewAttributes, TemporalMeter,
+    CoreMeter, Counter as CoreCounter, Gauge as CoreGauge, Histogram as CoreHistogram, MetricParameters, NewAttributes, TemporalMeter
 };
 use temporalio_common::telemetry::metrics::{
     GaugeF64 as CoreGaugeF64, HistogramF64 as CoreHistogramF64,
@@ -116,12 +114,11 @@ pub fn new_metric_counter(
         ))?;
 
     let counter = meter.inner.counter(
-        MetricParametersBuilder::default()
+        MetricParameters::builder()
             .name(name)
             .unit(unit)
             .description(description)
             .build()
-            .context("Failed to build metric parameters")?,
     );
 
     Ok(OpaqueOutboundHandle::new(Counter { meter, counter }))
@@ -143,12 +140,11 @@ pub fn new_metric_histogram(
         ))?;
 
     let histogram = meter.inner.histogram(
-        MetricParametersBuilder::default()
+        MetricParameters::builder()
             .name(name)
             .unit(unit)
             .description(description)
-            .build()
-            .context("Failed to build metric parameters")?,
+            .build(),
     );
 
     Ok(OpaqueOutboundHandle::new(Histogram { meter, histogram }))
@@ -170,12 +166,11 @@ pub fn new_metric_histogram_f64(
         ))?;
 
     let histogram = meter.inner.histogram_f64(
-        MetricParametersBuilder::default()
+        MetricParameters::builder()
             .name(name)
             .unit(unit)
             .description(description)
-            .build()
-            .context("Failed to build metric parameters")?,
+            .build(),
     );
 
     Ok(OpaqueOutboundHandle::new(HistogramF64 { meter, histogram }))
@@ -197,12 +192,11 @@ pub fn new_metric_gauge(
         ))?;
 
     let gauge = meter.inner.gauge(
-        MetricParametersBuilder::default()
+        MetricParameters::builder()
             .name(name)
             .unit(unit)
             .description(description)
-            .build()
-            .context("Failed to build metric parameters")?,
+            .build(),
     );
 
     Ok(OpaqueOutboundHandle::new(Gauge { meter, gauge }))
@@ -224,12 +218,11 @@ pub fn new_metric_gauge_f64(
         ))?;
 
     let gauge = meter.inner.gauge_f64(
-        MetricParametersBuilder::default()
+        MetricParameters::builder()
             .name(name)
             .unit(unit)
             .description(description)
-            .build()
-            .context("Failed to build metric parameters")?,
+            .build(),
     );
 
     Ok(OpaqueOutboundHandle::new(GaugeF64 { meter, gauge }))
