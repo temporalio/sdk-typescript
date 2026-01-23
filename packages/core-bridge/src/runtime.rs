@@ -67,7 +67,10 @@ pub fn runtime_new(
         .telemetry_options(telemetry_options)
         .heartbeat_interval(worker_heartbeat_interval_millis.map(Duration::from_millis))
         .build()
-        .map_err(BridgeError::UnexpectedError)?;
+        .map_err(|err| BridgeError::TypeError {
+            message: format!("Failed to build runtime options: {err}"),
+            field: None,
+        })?;
     let mut core_runtime = CoreRuntime::new(runtime_options, TokioRuntimeBuilder::default())
         .context("Failed to initialize Core Runtime")?;
 
