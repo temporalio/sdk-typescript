@@ -43,6 +43,8 @@ function workflowStatusCodeToNameInternal(
       return 'COMPLETED';
     case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW:
       return 'CONTINUED_AS_NEW';
+    case temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_PAUSED:
+      return 'PAUSED';
   }
 }
 
