@@ -34,6 +34,7 @@ function isSet(env: string | undefined, def: boolean): boolean {
 }
 
 export const RUN_INTEGRATION_TESTS = inWorkflowContext() || isSet(process.env.RUN_INTEGRATION_TESTS, true);
+export const isBun = typeof (globalThis as any).Bun !== 'undefined';
 export const REUSE_V8_CONTEXT = inWorkflowContext() || isSet(process.env.REUSE_V8_CONTEXT, true);
 export const RUN_TIME_SKIPPING_TESTS =
   inWorkflowContext() || !(process.platform === 'linux' && process.arch === 'arm64');
@@ -104,8 +105,23 @@ export function cleanStackTrace(ostack: string): string {
  * As of Node 24.6.0 type names are now present on source mapped stack traces which leads
  * to different stack traces depending on Node version.
  * See [f33e0fcc83954f728fcfd2ef6ae59435bc4af059](https://github.com/nodejs/node/commit/f33e0fcc83954f728fcfd2ef6ae59435bc4af059)
+ *
+ * In Bun, stack traces contain bundled paths instead of source-mapped paths.
+ * We only compare the first line (error message) which is consistent across runtimes.
  */
 export function compareStackTrace(t: ExecutionContext, actual: string, expected: string): void {
+  // In Bun, only compare the first line since paths differ (bundled vs source-mapped)
+  if (isBun) {
+    const actualFirstLine = actual.split('\n')[0];
+    const expectedFirstLine = expected.split('\n')[0];
+    const escapedFirstLine = expectedFirstLine
+      .replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
+      .replace(/-/g, '\\x2d')
+      .replaceAll('\\$CLASS', '(?:[A-Za-z]+)');
+    t.regex(actualFirstLine, RegExp(`^${escapedFirstLine}$`));
+    return;
+  }
+
   const escapedTrace = expected
     .replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
     .replace(/-/g, '\\x2d')

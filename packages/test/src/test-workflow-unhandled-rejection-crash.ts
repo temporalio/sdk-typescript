@@ -5,6 +5,7 @@ import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import { throwUnhandledRejection } from './workflows';
+import { isBun } from './bun-helpers';
 
 if (RUN_INTEGRATION_TESTS) {
   test('Worker crashes if workflow throws unhandled rejection that cannot be associated with a workflow run', async (t) => {
@@ -21,7 +22,7 @@ if (RUN_INTEGRATION_TESTS) {
       await t.throwsAsync(worker.run(), {
         instanceOf: UnexpectedError,
         message:
-          'Workflow Worker Thread exited prematurely: UnhandledRejectionError: ' +
+          `Workflow Worker Thread exited prematurely: ${isBun ? 'Error' : 'UnhandledRejectionError'}: ` +
           "Unhandled Promise rejection for unknown Workflow Run id='undefined': " +
           'Error: error to crash the worker',
       });

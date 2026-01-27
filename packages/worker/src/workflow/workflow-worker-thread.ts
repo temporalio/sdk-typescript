@@ -1,10 +1,12 @@
 import { isMainThread, parentPort as parentPortOrNull } from 'node:worker_threads';
 import { IllegalStateError } from '@temporalio/common';
+import { coresdk } from '@temporalio/proto';
 import { Workflow, WorkflowCreator } from './interface';
 import { ReusableVMWorkflowCreator } from './reusable-vm';
 import { VMWorkflowCreator } from './vm';
 import { WorkerThreadRequest } from './workflow-worker-thread/input';
 import { WorkerThreadResponse } from './workflow-worker-thread/output';
+import { isBun } from './bun';
 
 if (isMainThread) {
   throw new IllegalStateError(`Imported ${__filename} from main thread`);
@@ -61,10 +63,26 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
-      const completion = await workflow.activate(input.activation);
+      let activation;
+      if (input.activation instanceof Uint8Array) {
+        // TODO: guard behind isBun
+        activation = coresdk.workflow_activation.WorkflowActivation.decode(input.activation);
+      } else {
+        activation = input.activation;
+      }
+      const completion = await workflow.activate(activation);
       return {
         requestId,
-        result: { type: 'ok', output: { type: 'activation-completion', completion } },
+        result: {
+          type: 'ok',
+          output: {
+            type: 'activation-completion',
+            // TODO: probably need to actually do this
+            completion: false
+              ? coresdk.workflow_completion.WorkflowActivationCompletion.encode(completion).finish()
+              : completion,
+          },
+        },
       };
     }
     case 'extract-sink-calls': {

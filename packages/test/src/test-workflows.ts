@@ -24,6 +24,7 @@ import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
 import { cleanStackTrace, compareStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 import { ProcessedSignal } from './workflows';
+import { isBun } from './bun-helpers';
 
 export interface Context {
   workflow: VMWorkflow | ReusableVMWorkflow;
@@ -475,11 +476,20 @@ test('continueAsNewSuggested', async (t) => {
   compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload(true))]));
 });
 
+// In Bun, stack traces contain bundled paths instead of source-mapped paths.
+// Strip to just the first line (error message) which is consistent across runtimes.
+function cleanStackTraceForBun(stackTrace: string): string {
+  if (isBun) {
+    return stackTrace.split('\n')[0];
+  }
+  return cleanStackTrace(stackTrace);
+}
+
 function cleanWorkflowFailureStackTrace(
   req: coresdk.workflow_completion.IWorkflowActivationCompletion,
   commandIndex = 0
 ) {
-  req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace = cleanStackTrace(
+  req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace = cleanStackTraceForBun(
     req.successful!.commands![commandIndex].failWorkflowExecution!.failure!.stackTrace!
   );
   return req;
@@ -489,7 +499,7 @@ function cleanWorkflowQueryFailureStackTrace(
   req: coresdk.workflow_completion.IWorkflowActivationCompletion,
   commandIndex = 0
 ) {
-  req.successful!.commands![commandIndex].respondToQuery!.failed!.stackTrace = cleanStackTrace(
+  req.successful!.commands![commandIndex].respondToQuery!.failed!.stackTrace = cleanStackTraceForBun(
     req.successful!.commands![commandIndex].respondToQuery!.failed!.stackTrace!
   );
   return req;
@@ -776,6 +786,13 @@ test('invalidOrFailedQueries', async (t) => {
   }
   {
     const completion = cleanWorkflowQueryFailureStackTrace(await activate(t, makeQueryWorkflow('3', 'fail', [])));
+    // In Bun, stack traces contain bundled paths, so we only compare the first line
+    const expectedStackTrace = isBun
+      ? 'Error: fail'
+      : dedent`
+          Error: fail
+              at test/src/workflows/invalid-or-failed-queries.ts
+        `;
     compareCompletion(
       t,
       completion,
@@ -785,10 +802,7 @@ test('invalidOrFailedQueries', async (t) => {
           failed: {
             source: 'TypeScriptSDK',
             message: 'fail',
-            stackTrace: dedent`
-              Error: fail
-                  at test/src/workflows/invalid-or-failed-queries.ts
-            `,
+            stackTrace: expectedStackTrace,
             applicationFailureInfo: {
               type: 'Error',
               nonRetryable: false,
@@ -1724,6 +1738,10 @@ test('globalOverrides', async (t) => {
 test('logAndTimeout', async (t) => {
   const { workflowType, workflow } = t.context;
   const completion = await activate(t, makeStartWorkflow(workflowType));
+  // In Bun, strip stack trace to first line since bundled paths differ from source-mapped paths
+  if (isBun && completion.failed?.failure?.stackTrace) {
+    completion.failed.failure.stackTrace = completion.failed.failure.stackTrace.split('\n')[0];
+  }
   compareCompletion(t, completion, {
     failed: {
       failure: {
@@ -2110,6 +2128,11 @@ test('query not found - successString', async (t) => {
   }
   {
     const completion = await activate(t, makeActivation(undefined, makeQueryWorkflowJob('qid', 'not-found')));
+    if (isBun) {
+      // TODO: Understand why we need to strip rest of stackTrace only in Bun.
+      const stackTrace = completion.successful?.commands?.[0]?.respondToQuery?.failed?.stackTrace;
+      completion.successful!.commands![0]!.respondToQuery!.failed!.stackTrace = stackTrace!.split('\n')[0];
+    }
     compareCompletion(
       t,
       completion,

@@ -20,6 +20,7 @@ import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread
 
 // We need this import for the ambient global extensions
 import '@temporalio/workflow/lib/global-attributes'; // eslint-disable-line import/no-unassigned-import
+import { isBun } from './bun';
 
 // Best effort to catch unhandled rejections from workflow code.
 // We crash the thread if we cannot find the culprit.
@@ -402,7 +403,10 @@ export abstract class BaseVMWorkflow implements Workflow {
       // Initialization of the workflow must happen before anything else. Yet, keep the init job in
       // place in the list as we'll use it as a marker to know when to start the workflow function.
       const initWorkflowJob = activation.jobs.find((job) => job.initializeWorkflow != null)?.initializeWorkflow;
-      if (initWorkflowJob) this.workflowModule.initialize(initWorkflowJob);
+      if (initWorkflowJob) {
+        this.workflowModule.initialize(initWorkflowJob);
+        if (isBun) await new Promise(setImmediate);
+      }
 
       const hasSignals = activation.jobs.some(({ signalWorkflow }) => signalWorkflow != null);
       const doSingleBatch = !hasSignals || this.activator.hasFlag(SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch);
@@ -423,7 +427,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         this.workflowModule.activate(
           coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs: rest })
         );
-        this.tryUnblockConditionsAndMicrotasks();
+        await this.tryUnblockConditionsAndMicrotasks();
       } else {
         const [signals, nonSignals] = partition(
           nonPatches,
@@ -439,10 +443,11 @@ export abstract class BaseVMWorkflow implements Workflow {
             coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
             batchIndex++
           );
-          this.tryUnblockConditionsAndMicrotasks();
+          await this.tryUnblockConditionsAndMicrotasks();
         }
       }
 
+      if (isBun) await new Promise(setImmediate);
       const completion = this.workflowModule.concludeActivation();
 
       // Give unhandledRejection handler a chance to be triggered.
@@ -462,9 +467,9 @@ export abstract class BaseVMWorkflow implements Workflow {
     }
   }
 
-  private activateQueries(
+  private async activateQueries(
     activation: coresdk.workflow_activation.IWorkflowActivation
-  ): coresdk.workflow_completion.IWorkflowActivationCompletion {
+  ): Promise<coresdk.workflow_completion.IWorkflowActivationCompletion> {
     this.activator.mutateWorkflowInfo((info) => ({
       ...info,
       unsafe: {
@@ -473,7 +478,10 @@ export abstract class BaseVMWorkflow implements Workflow {
       },
     }));
     this.workflowModule.activate(activation);
-    return this.workflowModule.concludeActivation();
+    if (isBun) await new Promise(setImmediate);
+    const completion = this.workflowModule.concludeActivation();
+    if (isBun) await new Promise(setImmediate);
+    return completion;
   }
 
   /**
@@ -497,8 +505,9 @@ export abstract class BaseVMWorkflow implements Workflow {
    * This is performed in a loop, going in and out of the VM, allowing microtasks to be processed
    * between each iteration of the outer loop, until there are no more conditions to unblock.
    */
-  protected tryUnblockConditionsAndMicrotasks(): void {
+  protected async tryUnblockConditionsAndMicrotasks(): Promise<void> {
     for (;;) {
+      if (isBun) await new Promise(setImmediate);
       const numUnblocked = this.workflowModule.tryUnblockConditions();
       if (numUnblocked === 0) break;
     }

@@ -25,6 +25,7 @@ import {
   unblockOrCancel,
 } from './workflows';
 import { getSecretQuery, unblockWithSecretSignal } from './workflows/interceptor-example';
+import { isBun } from './bun-helpers';
 
 if (RUN_INTEGRATION_TESTS) {
   test.before(() => {
@@ -245,17 +246,23 @@ if (RUN_INTEGRATION_TESTS) {
       return;
     }
     t.deepEqual(err.cause.message, 'Expected anything other than 1');
-    compareStackTrace(
-      t,
-      cleanOptionalStackTrace(err.cause.stack)!,
-      dedent`
-      ApplicationFailure: Expected anything other than 1
-          at $CLASS.nonRetryable (common/src/failure.ts)
-          at Object.continueAsNew (test/src/workflows/interceptor-example.ts)
-          at workflow/src/workflow.ts
-          at continueAsNewToDifferentWorkflow (test/src/workflows/continue-as-new-to-different-workflow.ts)
-    `
-    );
+
+    const cleanedStack = cleanOptionalStackTrace(err.cause.stack)!;
+    if (isBun) {
+      // Bun doesn't apply source maps to workflow bundle, so stack traces show bundle paths.
+      // Just verify the error message and basic structure.
+      t.true(cleanedStack.startsWith('ApplicationFailure: Expected anything other than 1'));
+      t.true(cleanedStack.includes('continueAsNewToDifferentWorkflow'));
+    } else {
+      const expectedStack = dedent`
+        ApplicationFailure: Expected anything other than 1
+            at $CLASS.nonRetryable (common/src/failure.ts)
+            at Object.continueAsNew (test/src/workflows/interceptor-example.ts)
+            at workflow/src/workflow.ts
+            at continueAsNewToDifferentWorkflow (test/src/workflows/continue-as-new-to-different-workflow.ts)
+      `;
+      compareStackTrace(t, cleanedStack, expectedStack);
+    }
     t.is(err.cause.cause, undefined);
   });
 
