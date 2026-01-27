@@ -87,8 +87,7 @@ export class WorkerThreadClient {
       this.exitError = new UnexpectedError(`Workflow Worker Thread exited prematurely: ${err}`, err);
       // Node will automatically terminate the Worker Thread, immediately after this event.
     });
-    // TODO: Bun uses `close` maybe setup both `exit` and `close` handler for bun?
-    workerThread.on(isBun ? 'close' : 'exit', (exitCode) => {
+    workerThread.on('exit', (exitCode) => {
       logger.trace(`Workflow Worker Thread exited with code ${exitCode}`, { exitError: this.exitError });
       this.workerExited = true;
 
@@ -297,7 +296,7 @@ export class VMWorkflowThreadProxy implements Workflow {
     }
     if (output.completion instanceof Uint8Array) {
       if (isBun) {
-        return coresdk.workflow_activation.WorkflowActivation.decode(output.completion);
+        return coresdk.workflow_completion.WorkflowActivationCompletion.decode(output.completion);
       } else {
         throw new Error('got encoded message even when not using bun');
       }

@@ -65,22 +65,25 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       }
       let activation;
       if (input.activation instanceof Uint8Array) {
-        // TODO: guard behind isBun
-        activation = coresdk.workflow_activation.WorkflowActivation.decode(input.activation);
+        if (isBun) {
+          activation = coresdk.workflow_activation.WorkflowActivation.decode(input.activation);
+        } else {
+          throw new Error('Should not be encoding activations when not using Bun');
+        }
       } else {
         activation = input.activation;
       }
       const completion = await workflow.activate(activation);
+      const completion2 = isBun
+        ? coresdk.workflow_completion.WorkflowActivationCompletion.encode(completion).finish()
+        : completion;
       return {
         requestId,
         result: {
           type: 'ok',
           output: {
             type: 'activation-completion',
-            // TODO: probably need to actually do this
-            completion: false
-              ? coresdk.workflow_completion.WorkflowActivationCompletion.encode(completion).finish()
-              : completion,
+            completion: completion2,
           },
         },
       };
