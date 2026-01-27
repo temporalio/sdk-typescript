@@ -94,14 +94,15 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
       const calls = await workflow.getAndResetSinkCalls();
-      calls.map((call) => {
+      calls.forEach((call) => {
         // Delete .now because functions can't be serialized / sent to thread.
-        // Do this on a copy of the object, as workflowInfo is the live object.
-        call.workflowInfo = {
-          ...call.workflowInfo,
-          unsafe: { ...call.workflowInfo.unsafe },
-        };
         delete (call.workflowInfo.unsafe as any).now;
+        // Use structuredClone for Bun to work around a postMessage bug where
+        // shared object references get corrupted during serialization.
+        // Node.js handles shared references correctly with a shallow copy.
+        call.workflowInfo = isBun
+          ? structuredClone(call.workflowInfo)
+          : { ...call.workflowInfo, unsafe: { ...call.workflowInfo.unsafe } };
       });
 
       return {
