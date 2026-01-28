@@ -36,6 +36,9 @@
       "path": "../plugin"
     },
     {
+      "path": "../test-helpers"
+    },
+    {
       "path": "../testing"
     },
     {

@@ -17,7 +17,7 @@ import type {
   TranscriptionModelV3,
 } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
-import ava, { ExecutionContext, TestFn } from 'ava';
+import { TestFn } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
@@ -28,7 +28,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
 import { temporal } from '@temporalio/proto';
-import { WorkflowClient, WorkflowHandleWithFirstExecutionRunId, WorkflowStartOptions } from '@temporalio/client';
+import { WorkflowClient } from '@temporalio/client';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
@@ -37,17 +37,26 @@ import {
   OpenTelemetryWorkflowClientCallsInterceptor,
   OpenTelemetryWorkflowClientInterceptor,
 } from '@temporalio/interceptors-opentelemetry';
-import { TestWorkflowEnvironment, workflowInterceptorModules } from '@temporalio/testing';
+import { workflowInterceptorModules } from '@temporalio/testing';
 import {
   bundleWorkflowCode,
   DefaultLogger,
   InjectedSinks,
   Runtime,
-  Worker,
   WorkflowBundle,
   WorkerOptions,
 } from '@temporalio/worker';
-import { Workflow, WorkflowResultType } from '@temporalio/workflow';
+
+// Import from test-helpers
+import {
+  test as anyTest,
+  BaseContext,
+  BaseHelpers,
+  createHelpers,
+  Worker,
+  TestWorkflowEnvironment,
+} from '@temporalio/test-helpers';
+
 import { AiSdkPlugin, createActivities } from '..';
 import {
   embeddingWorkflow,
@@ -235,13 +244,13 @@ function* embeddingGenerator(): Generator<EmbeddingResponse> {
   yield embeddingResponse(['Hello, world!', 'How are you?']);
 }
 
-// Test infrastructure - self-contained in this package
-interface Context {
+// Test infrastructure - use shared test-helpers
+interface Context extends BaseContext {
   env: TestWorkflowEnvironment;
   workflowBundle: WorkflowBundle;
 }
 
-const test = ava as TestFn<Context>;
+const test = anyTest as TestFn<Context>;
 
 test.before(async (t) => {
   const env = await TestWorkflowEnvironment.createLocal();
@@ -257,56 +266,17 @@ test.after.always(async (t) => {
   await t.context.env?.teardown();
 });
 
-interface Helpers {
-  taskQueue: string;
+interface Helpers extends BaseHelpers {
   createWorker(opts?: Partial<WorkerOptions>): Promise<Worker>;
-  executeWorkflow<T extends () => Promise<unknown>>(workflowType: T): Promise<WorkflowResultType<T>>;
-  executeWorkflow<T extends Workflow>(
-    fn: T,
-    opts: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
-  ): Promise<WorkflowResultType<T>>;
-  startWorkflow<T extends () => Promise<unknown>>(workflowType: T): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
-  startWorkflow<T extends Workflow>(
-    fn: T,
-    opts: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
-  ): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
 }
 
-function helpers(t: ExecutionContext<Context>): Helpers {
-  const taskQueue = t.title.replace(/ /g, '_');
-  const { env, workflowBundle } = t.context;
-
-  return {
-    taskQueue,
-    async createWorker(opts?: Partial<WorkerOptions>): Promise<Worker> {
-      return await Worker.create({
-        connection: env.nativeConnection,
-        workflowBundle,
-        taskQueue,
-        ...opts,
-      });
-    },
-    async executeWorkflow(
-      fn: Workflow,
-      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
-    ): Promise<unknown> {
-      return await env.client.workflow.execute(fn, {
-        taskQueue,
-        workflowId: uuid4(),
-        ...opts,
-      });
-    },
-    async startWorkflow(
-      fn: Workflow,
-      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
-    ): Promise<WorkflowHandleWithFirstExecutionRunId<Workflow>> {
-      return await env.client.workflow.start(fn, {
-        taskQueue,
-        workflowId: uuid4(),
-        ...opts,
-      });
-    },
-  };
+function helpers(t: Parameters<typeof createHelpers>[0]['t'] & { context: Context }): Helpers {
+  return createHelpers({
+    t,
+    workflowBundle: t.context.workflowBundle,
+    testEnv: t.context.env,
+    taskQueueTransform: (title) => title.replace(/ /g, '_'),
+  });
 }
 
 test('Hello world agent responds in haikus', async (t) => {

@@ -5,15 +5,13 @@
     "rootDir": "./src"
   },
   "references": [
-    { "path": "../activity" },
     { "path": "../client" },
     { "path": "../common" },
-    { "path": "../plugin" },
     { "path": "../proto" },
-    { "path": "../test-helpers" },
     { "path": "../testing" },
     { "path": "../worker" },
     { "path": "../workflow" }
   ],
-  "include": ["./src/**/*.ts"]
+  "include": ["./src/**/*.ts"],
+  "exclude": ["node_modules"]
 }

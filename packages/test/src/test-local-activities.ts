@@ -6,7 +6,7 @@ import {
   ApplicationFailure,
   defaultPayloadConverter,
   WorkflowFailedError,
-  WorkflowHandle,
+  WorkflowHandleWithFirstExecutionRunId,
   WorkflowStartOptions,
 } from '@temporalio/client';
 import { LocalActivityOptions, RetryPolicy } from '@temporalio/common';
@@ -18,13 +18,12 @@ import {
   DefaultLogger,
   LogLevel,
   Runtime,
-  WorkflowBundle,
   WorkerOptions,
+  WorkflowBundle,
 } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
-import { test as anyTest, bundlerOptions, Worker, TestWorkflowEnvironment } from './helpers';
-
-// FIXME MOVE THIS SECTION SOMEWHERE IT CAN BE SHARED //
+import { test as anyTest, Worker, TestWorkflowEnvironment, defaultTaskQueueTransform } from '@temporalio/test-helpers';
+import { bundlerOptions } from './helpers';
 
 interface Context {
   env: TestWorkflowEnvironment;
@@ -41,15 +40,15 @@ interface Helpers {
     fn: T,
     opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
   ): Promise<workflow.WorkflowResultType<T>>;
-  startWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<WorkflowHandle<T>>;
+  startWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
   startWorkflow<T extends workflow.Workflow>(
     fn: T,
     opts: Omit<WorkflowStartOptions<T>, 'taskQueue' | 'workflowId'>
-  ): Promise<WorkflowHandle<T>>;
+  ): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
 }
 
 function helpers(t: ExecutionContext<Context>): Helpers {
-  const taskQueue = t.title.replace(/ /g, '_');
+  const taskQueue = defaultTaskQueueTransform(t.title);
 
   return {
     taskQueue,
@@ -79,7 +78,7 @@ function helpers(t: ExecutionContext<Context>): Helpers {
     async startWorkflow(
       fn: workflow.Workflow,
       opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'>
-    ): Promise<WorkflowHandle<workflow.Workflow>> {
+    ): Promise<WorkflowHandleWithFirstExecutionRunId<workflow.Workflow>> {
       return await t.context.env.client.workflow.start(fn, {
         taskQueue,
         workflowId: randomUUID(),
@@ -107,8 +106,6 @@ test.before(async (t) => {
 test.after.always(async (t) => {
   await t.context.env.teardown();
 });
-
-// END OF TO BE MOVED SECTION //
 
 export async function runOneLocalActivity(s: string): Promise<string> {
   return await workflow.proxyLocalActivities({ startToCloseTimeout: '1m' }).echo(s);

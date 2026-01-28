@@ -31,6 +31,7 @@
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/proto": "workspace:*",
+    "@temporalio/test-helpers": "workspace:*",
     "@temporalio/testing": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "@temporalio/workflow": "workspace:*",

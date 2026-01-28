@@ -186,7 +186,7 @@ importers:
         version: 3.0.0
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.2
-        version: 1.25.2(hono@4.11.3)(zod@3.25.76)
+        version: 1.26.0(zod@3.25.76)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -208,6 +208,9 @@ importers:
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
+      '@temporalio/test-helpers':
+        specifier: workspace:*
+        version: link:../test-helpers
       '@temporalio/testing':
         specifier: workspace:*
         version: link:../testing
@@ -443,6 +446,9 @@ importers:
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
+      '@temporalio/test-helpers':
+        specifier: workspace:*
+        version: link:../test-helpers
       '@temporalio/testing':
         specifier: workspace:*
         version: link:../testing
@@ -668,6 +674,9 @@ importers:
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
+      '@temporalio/test-helpers':
+        specifier: workspace:*
+        version: link:../test-helpers
       '@temporalio/testing':
         specifier: workspace:*
         version: link:../testing
@@ -750,6 +759,37 @@ importers:
       pidusage:
         specifier: ^3.0.2
         version: 3.0.2
+
+  packages/test-helpers:
+    dependencies:
+      '@temporalio/client':
+        specifier: workspace:*
+        version: link:../client
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../common
+      '@temporalio/proto':
+        specifier: workspace:*
+        version: link:../proto
+      '@temporalio/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@temporalio/worker':
+        specifier: workspace:*
+        version: link:../worker
+      '@temporalio/workflow':
+        specifier: workspace:*
+        version: link:../workflow
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
+      stack-utils:
+        specifier: ^2.0.6
+        version: 2.0.6
+    devDependencies:
+      '@types/stack-utils':
+        specifier: ^2.0.3
+        version: 2.0.3
 
   packages/testing:
     dependencies:
