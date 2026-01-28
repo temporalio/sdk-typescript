@@ -4,7 +4,14 @@ import { v4 as uuid4 } from 'uuid';
 import { bundleWorkflowCode, WorkflowBundle } from '@temporalio/worker';
 import { Connection } from '@temporalio/client';
 import { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@temporalio/testing';
-import { Worker, TestWorkflowEnvironment, testTimeSkipping as anyTestTimeSkipping, getRandomPort } from './helpers';
+import {
+  Worker,
+  TestWorkflowEnvironment,
+  RUN_TIME_SKIPPING_TESTS,
+  noopTest,
+  test as testFromHelpers,
+  getRandomPort,
+} from './helpers';
 
 interface Context {
   bundle: WorkflowBundle;
@@ -12,7 +19,7 @@ interface Context {
 }
 
 const test = anyTest as TestFn<Context>;
-const testTimeSkipping = anyTestTimeSkipping as TestFn<Context>;
+const testTimeSkipping = (RUN_TIME_SKIPPING_TESTS ? testFromHelpers : noopTest) as TestFn<Context>;
 
 test.before(async (t) => {
   t.context.bundle = await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') });

@@ -1,8 +1,5 @@
 import { inWorkflowContext } from '@temporalio/workflow';
 
-/**
- * Parse a boolean environment variable
- */
 export function isSet(env: string | undefined, def: boolean): boolean {
   if (env === undefined) return def;
   env = env.toLocaleLowerCase();

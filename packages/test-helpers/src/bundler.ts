@@ -5,6 +5,8 @@ import type { BundleOptions } from '@temporalio/worker';
  * These are modules that should be ignored when bundling workflow code.
  */
 export const baseBundlerIgnoreModules = [
+  // This is a bit ugly but it does the trick, when a test that includes workflow code tries to import a forbidden
+  // workflow module, add it to this list:
   '@temporalio/common/lib/internal-non-workflow',
   '@temporalio/activity',
   '@temporalio/client',

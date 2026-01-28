@@ -1,9 +1,10 @@
 import * as process from 'process';
-import ava, { TestFn } from 'ava';
+import { TestFn } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowFailedError } from '@temporalio/client';
-import { bundleWorkflowCode, Worker, WorkflowBundleWithSourceMap } from '@temporalio/worker';
-import { TestWorkflowEnvironment, workflowInterceptorModules } from '..';
+import { bundleWorkflowCode, WorkflowBundleWithSourceMap } from '@temporalio/worker';
+import { workflowInterceptorModules } from '@temporalio/testing';
+import { RUN_TIME_SKIPPING_TESTS, test, noopTest, Worker, TestWorkflowEnvironment } from './helpers';
 import {
   assertFromWorkflow,
   asyncChildStarter,
@@ -13,17 +14,6 @@ import {
   waitOnSignalWithTimeout,
 } from './workflows/testenv-test-workflows';
 
-// Time-skipping tests are not supported on Linux ARM64
-const RUN_TIME_SKIPPING_TESTS = !(process.platform === 'linux' && process.arch === 'arm64');
-
-function noopTest(): void {
-  // eslint: this function body is empty and it's okay.
-}
-noopTest.serial = () => undefined;
-noopTest.before = () => undefined;
-noopTest.after = Object.assign(() => undefined, { always: () => undefined });
-
-const test: TestFn<unknown> = ava;
 const testTimeSkipping = RUN_TIME_SKIPPING_TESTS ? test : (noopTest as unknown as typeof test);
 
 interface Context {

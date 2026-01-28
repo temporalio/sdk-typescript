@@ -7,13 +7,11 @@ import {
 
 export const startSignal = workflow.defineSignal('startSignal');
 
-interface LocalActivities {
-  a(): Promise<string>;
-  b(): Promise<string>;
-  c(): Promise<string>;
-}
-
-const { a, b, c } = workflow.proxyLocalActivities<LocalActivities>({
+const { a, b, c } = workflow.proxyLocalActivities<{
+  a: () => Promise<string>;
+  b: () => Promise<string>;
+  c: () => Promise<string>;
+}>({
   scheduleToCloseTimeout: '1m',
 });
 

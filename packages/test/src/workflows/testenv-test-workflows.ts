@@ -1,5 +1,5 @@
 /**
- * Workflows used in `test-testenvironment.ts`
+ * Workflows used in `test-testenvironment-timeskipping.ts`
  * @module
  */
 
