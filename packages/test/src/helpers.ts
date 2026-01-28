@@ -1,10 +1,8 @@
-import * as fs from 'fs/promises';
 import path from 'path';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
 import { v4 as uuid4 } from 'uuid';
 import { Client, Connection } from '@temporalio/client';
-import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 import * as iface from '@temporalio/proto';
 
 // Re-export from test-helpers
@@ -13,54 +11,34 @@ export {
   waitUntil,
   u8,
   approximatelyEqual,
-  isSet,
   RUN_INTEGRATION_TESTS,
   REUSE_V8_CONTEXT,
   RUN_TIME_SKIPPING_TESTS,
-  TESTS_CLI_VERSION,
-  TESTS_TIME_SKIPPING_SERVER_VERSION,
   cleanStackTrace,
   cleanOptionalStackTrace,
   compareStackTrace,
   getRandomPort,
   ByteSkewerPayloadCodec,
   test,
-  testTimeSkipping,
+  noopTest,
   Worker,
   TestWorkflowEnvironment,
   baseBundlerIgnoreModules,
   isBun,
 } from '@temporalio/test-helpers';
+import {
+  createBaseBundlerOptions,
+  loadHistory as loadHistoryBase,
+  saveHistory as saveHistoryBase,
+} from '@temporalio/test-helpers';
 
 /**
  * Package-specific bundler options that include local activity and mock-native-worker modules.
  */
-export const bundlerOptions = {
-  // This is a bit ugly but it does the trick, when a test that includes workflow code tries to import a forbidden
-  // workflow module, add it to this list:
-  ignoreModules: [
-    '@temporalio/common/lib/internal-non-workflow',
-    '@temporalio/activity',
-    '@temporalio/client',
-    '@temporalio/testing',
-    '@temporalio/nexus',
-    '@temporalio/worker',
-    'ava',
-    'crypto',
-    'module',
-    'path',
-    'stack-utils',
-    '@grpc/grpc-js',
-    'async-retry',
-    'uuid',
-    'net',
-    'fs/promises',
-    'timers',
-    'timers/promises',
-    require.resolve('./activities'),
-    require.resolve('./mock-native-worker'),
-  ],
-};
+export const bundlerOptions = createBaseBundlerOptions([
+  require.resolve('./activities'),
+  require.resolve('./mock-native-worker'),
+]);
 
 // Some of our tests expect "default custom search attributes" to exists, which used to be the case
 // in all deployment with support for advanced visibility. However, this might no longer be true in
@@ -120,18 +98,10 @@ export async function registerDefaultCustomSearchAttributes(connection: Connecti
 
 /**
  * Load a history file from the history_files directory.
- * This is kept here for backward compatibility with existing tests.
  */
 export async function loadHistory(fname: string): Promise<iface.temporal.api.history.v1.History> {
-  const isJson = fname.endsWith('json');
   const fpath = path.resolve(__dirname, `../history_files/${fname}`);
-  if (isJson) {
-    const hist = await fs.readFile(fpath, 'utf8');
-    return JSON.parse(hist);
-  } else {
-    const hist = await fs.readFile(fpath);
-    return iface.temporal.api.history.v1.History.decode(hist);
-  }
+  return loadHistoryBase(fpath);
 }
 
 /**
@@ -139,5 +109,5 @@ export async function loadHistory(fname: string): Promise<iface.temporal.api.his
  */
 export async function saveHistory(fname: string, history: iface.temporal.api.history.v1.IHistory): Promise<void> {
   const fpath = path.resolve(__dirname, `../history_files/${fname}`);
-  await fs.writeFile(fpath, historyToJSON(history));
+  return saveHistoryBase(fpath, history);
 }

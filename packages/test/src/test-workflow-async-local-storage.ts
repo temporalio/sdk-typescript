@@ -1,9 +1,7 @@
 import type { AsyncLocalStorage } from 'async_hooks';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
-
-// Signal definition for test workflow
-export const unblockSignal = workflow.defineSignal<[]>('unblock');
+import { unblockSignal } from './workflows/testenv-test-workflows';
 
 const test = makeTestFunction({
   workflowsPath: __filename,

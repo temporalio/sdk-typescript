@@ -542,11 +542,8 @@ test('callToolActivity awaits tool.execute before closing MCP client', async (t)
   }) as Record<string, (args: unknown) => Promise<unknown>>;
 
   // Get the callTool activity
-  const callToolActivity = activities['testServer-callTool'];
-  if (!callToolActivity) {
-    t.fail('callToolActivity should exist');
-    return;
-  }
+  const callToolActivity = activities['testServer-callTool']!;
+  t.truthy(callToolActivity, 'callToolActivity should exist');
 
   // Call the activity
   const result = await callToolActivity({

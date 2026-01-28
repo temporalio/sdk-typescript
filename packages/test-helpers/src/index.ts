@@ -27,7 +27,7 @@ export { baseBundlerIgnoreModules, createBaseBundlerOptions } from './bundler';
 export { ByteSkewerPayloadCodec } from './codecs';
 
 // AVA helpers
-export { test, testTimeSkipping, noopTest } from './ava-helpers';
+export { test, noopTest } from './ava-helpers';
 
 // Wrappers
 export { Worker, TestWorkflowEnvironment } from './wrappers';

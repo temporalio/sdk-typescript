@@ -28,7 +28,6 @@ import {
 import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
 
 import {
-  isSet,
   RUN_INTEGRATION_TESTS,
   loadHistory as loadHistoryBase,
   createBaseBundlerOptions,
