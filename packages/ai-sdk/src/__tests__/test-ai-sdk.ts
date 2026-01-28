@@ -38,24 +38,9 @@ import {
   OpenTelemetryWorkflowClientInterceptor,
 } from '@temporalio/interceptors-opentelemetry';
 import { workflowInterceptorModules } from '@temporalio/testing';
-import {
-  bundleWorkflowCode,
-  DefaultLogger,
-  InjectedSinks,
-  Runtime,
-  WorkflowBundle,
-  WorkerOptions,
-} from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, InjectedSinks, Runtime } from '@temporalio/worker';
 
-// Import from test-helpers
-import {
-  test as anyTest,
-  BaseContext,
-  BaseHelpers,
-  createHelpers,
-  Worker,
-  TestWorkflowEnvironment,
-} from '@temporalio/test-helpers';
+import { test as anyTest, BaseContext, helpers, Worker, TestWorkflowEnvironment } from '@temporalio/test-helpers';
 
 import { AiSdkPlugin, createActivities } from '..';
 import {
@@ -244,13 +229,7 @@ function* embeddingGenerator(): Generator<EmbeddingResponse> {
   yield embeddingResponse(['Hello, world!', 'How are you?']);
 }
 
-// Test infrastructure - use shared test-helpers
-interface Context extends BaseContext {
-  env: TestWorkflowEnvironment;
-  workflowBundle: WorkflowBundle;
-}
-
-const test = anyTest as TestFn<Context>;
+const test = anyTest as TestFn<BaseContext>;
 
 test.before(async (t) => {
   const env = await TestWorkflowEnvironment.createLocal();
@@ -265,19 +244,6 @@ test.before(async (t) => {
 test.after.always(async (t) => {
   await t.context.env?.teardown();
 });
-
-interface Helpers extends BaseHelpers {
-  createWorker(opts?: Partial<WorkerOptions>): Promise<Worker>;
-}
-
-function helpers(t: Parameters<typeof createHelpers>[0]['t'] & { context: Context }): Helpers {
-  return createHelpers({
-    t,
-    workflowBundle: t.context.workflowBundle,
-    testEnv: t.context.env,
-    taskQueueTransform: (title) => title.replace(/ /g, '_'),
-  });
-}
 
 test('Hello world agent responds in haikus', async (t) => {
   if (remoteTests) {

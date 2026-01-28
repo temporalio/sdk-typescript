@@ -33,14 +33,7 @@ export { test, testTimeSkipping, noopTest } from './ava-helpers';
 export { Worker, TestWorkflowEnvironment } from './wrappers';
 
 // Helpers
-export {
-  BaseContext,
-  BaseHelpers,
-  CreateHelpersOptions,
-  createHelpers,
-  helpers,
-  defaultTaskQueueTransform,
-} from './helpers';
+export { AnyTestWorkflowEnvironment, BaseContext, BaseHelpers, helpers, defaultTaskQueueTransform } from './helpers';
 
 // Environment utilities
 export {
