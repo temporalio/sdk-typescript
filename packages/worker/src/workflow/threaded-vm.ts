@@ -21,7 +21,6 @@ import {
 } from './workflow-worker-thread/input';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
-import { timestamp } from 'rxjs';
 
 const isBun = typeof (globalThis as any).Bun !== 'undefined';
 // https://nodejs.org/api/worker_threads.html#event-exit

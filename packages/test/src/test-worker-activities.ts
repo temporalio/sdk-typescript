@@ -170,7 +170,7 @@ test('Activity Context AbortSignal cancels a fetch request', async (t) => {
       });
       compareCompletion(t, completion.result, {
         cancelled: {
-          failure: { source: 'TypeScriptSDK', canceledFailureInfo: {}, message: isBun ? 'CANCELLED' : undefined },
+          failure: { source: 'TypeScriptSDK', canceledFailureInfo: {}, message: 'CANCELLED' },
         },
       });
     });
@@ -200,7 +200,7 @@ test('Activity cancel with reason "NOT_FOUND" is valid', async (t) => {
       });
       compareCompletion(t, completion.result, {
         cancelled: {
-          failure: { source: 'TypeScriptSDK', canceledFailureInfo: {}, message: isBun ? 'NOT_FOUND' : undefined },
+          failure: { source: 'TypeScriptSDK', canceledFailureInfo: {}, message: 'NOT_FOUND' },
         },
       });
     });
