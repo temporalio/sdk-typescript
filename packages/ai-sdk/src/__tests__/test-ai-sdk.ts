@@ -17,6 +17,7 @@ import type {
   TranscriptionModelV3,
 } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
+import { TestFn } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
@@ -26,7 +27,6 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
-import { AiSdkPlugin, createActivities } from '@temporalio/ai-sdk';
 import { temporal } from '@temporalio/proto';
 import { WorkflowClient } from '@temporalio/client';
 import {
@@ -37,7 +37,12 @@ import {
   OpenTelemetryWorkflowClientCallsInterceptor,
   OpenTelemetryWorkflowClientInterceptor,
 } from '@temporalio/interceptors-opentelemetry';
-import { InjectedSinks, Runtime } from '@temporalio/worker';
+import { workflowInterceptorModules } from '@temporalio/testing';
+import { bundleWorkflowCode, DefaultLogger, InjectedSinks, Runtime } from '@temporalio/worker';
+
+import { test as anyTest, BaseContext, helpers, Worker, TestWorkflowEnvironment } from '@temporalio/test-helpers';
+
+import { AiSdkPlugin, createActivities } from '..';
 import {
   embeddingWorkflow,
   generateObjectWorkflow,
@@ -48,9 +53,7 @@ import {
   telemetryWorkflow,
   toolsWorkflow,
 } from './workflows/ai-sdk';
-import { helpers, makeTestFunction } from './helpers-integration';
 import { getWeather } from './activities/ai-sdk';
-import { Worker } from './helpers';
 import EventType = temporal.api.enums.v1.EventType;
 
 const remoteTests = ['1', 't', 'true'].includes((process.env.AI_SDK_REMOTE_TESTS ?? 'false').toLowerCase());
@@ -226,8 +229,20 @@ function* embeddingGenerator(): Generator<EmbeddingResponse> {
   yield embeddingResponse(['Hello, world!', 'How are you?']);
 }
 
-const test = makeTestFunction({
-  workflowsPath: require.resolve('./workflows/ai-sdk'),
+const test = anyTest as TestFn<BaseContext>;
+
+test.before(async (t) => {
+  const env = await TestWorkflowEnvironment.createLocal();
+  const workflowBundle = await bundleWorkflowCode({
+    workflowsPath: require.resolve('./workflows/ai-sdk'),
+    workflowInterceptorModules,
+    logger: new DefaultLogger('WARN'),
+  });
+  t.context = { env, workflowBundle };
+});
+
+test.after.always(async (t) => {
+  await t.context.env?.teardown();
 });
 
 test('Hello world agent responds in haikus', async (t) => {
@@ -527,7 +542,7 @@ test('callToolActivity awaits tool.execute before closing MCP client', async (t)
   }) as Record<string, (args: unknown) => Promise<unknown>>;
 
   // Get the callTool activity
-  const callToolActivity = activities['testServer-callTool'];
+  const callToolActivity = activities['testServer-callTool']!;
   t.truthy(callToolActivity, 'callToolActivity should exist');
 
   // Call the activity

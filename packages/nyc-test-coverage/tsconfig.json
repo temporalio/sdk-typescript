@@ -4,6 +4,16 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [{ "path": "../worker" }, { "path": "../workflow" }],
+  "references": [
+    {
+      "path": "../worker"
+    },
+    {
+      "path": "../workflow"
+    },
+    {
+      "path": "../common"
+    }
+  ],
   "include": ["./src/**/*.ts"]
 }
