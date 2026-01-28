@@ -4,7 +4,7 @@ import { v4 as uuid4 } from 'uuid';
 import { WorkflowFailedError } from '@temporalio/client';
 import { bundleWorkflowCode, WorkflowBundleWithSourceMap } from '@temporalio/worker';
 import { workflowInterceptorModules } from '@temporalio/testing';
-import { RUN_TIME_SKIPPING_TESTS, test, noopTest, Worker, TestWorkflowEnvironment } from './helpers';
+import { Worker, TestWorkflowEnvironment, testTimeSkipping } from './helpers';
 import {
   assertFromWorkflow,
   asyncChildStarter,
@@ -13,8 +13,6 @@ import {
   unblockSignal,
   waitOnSignalWithTimeout,
 } from './workflows/testenv-test-workflows';
-
-const testTimeSkipping = RUN_TIME_SKIPPING_TESTS ? test : (noopTest as unknown as typeof test);
 
 interface Context {
   testEnv: TestWorkflowEnvironment;
