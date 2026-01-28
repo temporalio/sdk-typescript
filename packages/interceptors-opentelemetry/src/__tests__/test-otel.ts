@@ -27,7 +27,6 @@ import {
 } from '@temporalio/worker';
 import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
 
-// Import shared utilities from test-helpers
 import {
   isSet,
   RUN_INTEGRATION_TESTS,
@@ -56,16 +55,11 @@ import {
 import * as activities from './activities';
 import * as workflows from './workflows';
 
-// Re-export for backward compatibility
-export { isSet, RUN_INTEGRATION_TESTS };
-
-// Package-specific loadHistory that uses the correct path
 async function loadHistory(fname: string) {
   const fpath = path.resolve(__dirname, `../../src/__tests__/history_files/${fname}`);
   return loadHistoryBase(fpath);
 }
 
-// Create test workflow bundle with package-specific bundler options
 async function createOtelTestWorkflowBundle(opts: {
   workflowsPath: string;
   workflowInterceptorModules?: string[];

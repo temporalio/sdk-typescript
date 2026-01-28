@@ -7,13 +7,16 @@ import * as workflow from '@temporalio/workflow';
 import { Worker, TestWorkflowEnvironment } from './wrappers';
 
 export const isBun = typeof (globalThis as any).Bun !== 'undefined';
+/** Union type for all supported test environment types */
+export type AnyTestWorkflowEnvironment = TestWorkflowEnvironment | RealTestWorkflowEnvironment;
 
 /**
  * Base context interface for test environments.
- * Contains the minimum required fields for test context.
+ * Generic parameter allows specifying a more specific environment type.
+ * Defaults to TestWorkflowEnvironment since that's the most common case.
  */
-export interface BaseContext {
-  env: TestWorkflowEnvironment | RealTestWorkflowEnvironment;
+export interface BaseContext<TEnv extends AnyTestWorkflowEnvironment = TestWorkflowEnvironment> {
+  env: TEnv;
   workflowBundle: WorkflowBundle;
 }
 
@@ -37,20 +40,6 @@ export interface BaseHelpers {
 }
 
 /**
- * Options for creating helpers
- */
-export interface CreateHelpersOptions<T extends BaseContext> {
-  /** The test execution context */
-  t: ExecutionContext<T>;
-  /** The workflow bundle to use */
-  workflowBundle: WorkflowBundle;
-  /** The test workflow environment */
-  testEnv: TestWorkflowEnvironment | RealTestWorkflowEnvironment;
-  /** Optional function to transform the task queue name from test title */
-  taskQueueTransform?: (title: string) => string;
-}
-
-/**
  * Default task queue transform function that converts test title to a valid task queue name.
  */
 export function defaultTaskQueueTransform(title: string): string {
@@ -61,20 +50,28 @@ export function defaultTaskQueueTransform(title: string): string {
 }
 
 /**
- * Create base helpers for a test.
+ * Create helpers for a test.
  *
- * @param opts - Options for creating helpers
+ * When called with just `t`, extracts env and workflowBundle from `t.context`.
+ * When called with `t` and `env`, uses the provided env with workflowBundle from context.
+ *
+ * @param t - The test execution context
+ * @param env - Optional environment override (defaults to t.context.env)
  * @returns BaseHelpers instance
  */
-export function createHelpers<T extends BaseContext>(opts: CreateHelpersOptions<T>): BaseHelpers {
-  const { t, workflowBundle, testEnv, taskQueueTransform = defaultTaskQueueTransform } = opts;
-  const taskQueue = taskQueueTransform(t.title);
+export function helpers<TEnv extends AnyTestWorkflowEnvironment = TestWorkflowEnvironment>(
+  t: ExecutionContext<BaseContext<TEnv>>,
+  env: AnyTestWorkflowEnvironment = t.context.env
+): BaseHelpers {
+  // createBaseHelpers(t.title, env, t.context.workflowBundle);
+  const taskQueue = defaultTaskQueueTransform(t.title);
+  const workflowBundle = t.context.workflowBundle;
 
   return {
     taskQueue,
     async createWorker(workerOpts?: Partial<WorkerOptions>): Promise<Worker> {
       return await Worker.create({
-        connection: testEnv.nativeConnection,
+        connection: env.nativeConnection,
         workflowBundle,
         taskQueue,
         showStackTraceSources: true,
@@ -86,7 +83,7 @@ export function createHelpers<T extends BaseContext>(opts: CreateHelpersOptions<
       workflowOpts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> &
         Partial<Pick<WorkflowStartOptions, 'workflowId'>>
     ): Promise<any> {
-      return await testEnv.client.workflow.execute(fn, {
+      return await env.client.workflow.execute(fn, {
         taskQueue,
         workflowId: randomUUID(),
         ...workflowOpts,
@@ -97,26 +94,11 @@ export function createHelpers<T extends BaseContext>(opts: CreateHelpersOptions<
       workflowOpts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> &
         Partial<Pick<WorkflowStartOptions, 'workflowId'>>
     ): Promise<WorkflowHandleWithFirstExecutionRunId<workflow.Workflow>> {
-      return await testEnv.client.workflow.start(fn, {
+      return await env.client.workflow.start(fn, {
         taskQueue,
         workflowId: randomUUID(),
         ...workflowOpts,
       });
     },
   };
-}
-
-/**
- * Simple helpers factory for tests with BaseContext.
- * This is a convenience function that extracts env and workflowBundle from context.
- */
-export function helpers<T extends BaseContext>(
-  t: ExecutionContext<T>,
-  testEnv: TestWorkflowEnvironment | RealTestWorkflowEnvironment = t.context.env
-): BaseHelpers {
-  return createHelpers({
-    t,
-    workflowBundle: t.context.workflowBundle,
-    testEnv,
-  });
 }

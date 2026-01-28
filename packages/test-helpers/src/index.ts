@@ -34,10 +34,9 @@ export { Worker, TestWorkflowEnvironment } from './wrappers';
 
 // Helpers
 export {
+  AnyTestWorkflowEnvironment,
   BaseContext,
   BaseHelpers,
-  CreateHelpersOptions,
-  createHelpers,
   helpers,
   defaultTaskQueueTransform,
   isBun,
