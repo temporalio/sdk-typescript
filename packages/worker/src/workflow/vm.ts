@@ -10,6 +10,7 @@ import {
   setUnhandledRejectionHandler,
   WorkflowModule,
 } from './vm-shared';
+import { isBun } from './bun';
 
 /**
  * A WorkflowCreator that creates VMWorkflows in the current isolate
@@ -127,9 +128,11 @@ export class VMWorkflowCreator implements WorkflowCreator {
 export class VMWorkflow extends BaseVMWorkflow {
   public async dispose(): Promise<void> {
     this.workflowModule.dispose();
+    if (isBun) await new Promise(setImmediate);
 
     // This sandbox VM won't be reused, so we can destroy it now.
     this.workflowModule.destroy();
+    if (isBun) await new Promise(setImmediate);
 
     VMWorkflowCreator.workflowByRunId.delete(this.runId);
     delete this.context;

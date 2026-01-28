@@ -170,8 +170,9 @@ test.serial('activity-failure with Error', configMacro, async (t, config) => {
     return;
   }
   t.is(err.cause.cause.message, 'Fail me');
-  t.is(
-    cleanOptionalStackTrace(err.cause.cause.stack),
+  compareStackTrace(
+    t,
+    cleanOptionalStackTrace(err.cause.cause.stack)!,
     dedent`
   Error: Fail me
       at throwAnError (test/src/activities/index.ts)

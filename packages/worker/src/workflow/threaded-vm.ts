@@ -22,8 +22,10 @@ import {
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
 
+const isBun = typeof (globalThis as any).Bun !== 'undefined';
 // https://nodejs.org/api/worker_threads.html#event-exit
-export const TERMINATED_EXIT_CODE = 1;
+// Bun exits with code 0 instead of 1
+export const TERMINATED_EXIT_CODE = isBun ? 0 : 1;
 
 interface Completion<T> {
   resolve(value: T): void;
@@ -131,9 +133,35 @@ export class WorkerThreadClient {
     }
     this.shutDownRequested = true;
     await this.send({ type: 'destroy' });
-    const exitCode = await this.workerThread.terminate();
-    if (exitCode !== TERMINATED_EXIT_CODE) {
+
+    const exitCode = await (isBun ? this.terminateWithBunWorkaround() : this.workerThread.terminate());
+    if (exitCode !== null && exitCode !== TERMINATED_EXIT_CODE) {
       throw new UnexpectedError(`Failed to terminate Worker thread, exit code: ${exitCode}`);
+    }
+  }
+
+  /**
+   * Bun's terminate() hangs when called on an already exited worker thread.
+   * Race terminate() against polling for the exit event to handle this case.
+   */
+  private async terminateWithBunWorkaround(): Promise<number | null> {
+    const pollIntervalMs = 100;
+
+    const terminatePromise = this.workerThread.terminate();
+
+    while (true) {
+      if (this.workerExited) {
+        return null;
+      }
+
+      const result = await Promise.race([
+        terminatePromise,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), pollIntervalMs)),
+      ]);
+
+      if (result !== null) {
+        return result;
+      }
     }
   }
 
@@ -255,11 +283,22 @@ export class VMWorkflowThreadProxy implements Workflow {
   ): Promise<coresdk.workflow_completion.IWorkflowActivationCompletion> {
     const output = await this.workerThreadClient.send({
       type: 'activate-workflow',
-      activation,
+      // TODO: It appears that some messages will never get sent with Bun's postMessage
+      // Specific example is test-payload-converter.ts 'Worker encodes/decodes a protobuf containing a binary array'
+      // I have narrowed it down to the `arguments` field of the init workflow job causing the no send, but not further
+      // Encoding activation results in the message being delivered
+      activation: isBun ? coresdk.workflow_activation.WorkflowActivation.encode(activation).finish() : activation,
       runId: this.runId,
     });
     if (output?.type !== 'activation-completion') {
       throw new TypeError(`Got invalid response output from Workflow Worker thread ${output}`);
+    }
+    if (output.completion instanceof Uint8Array) {
+      if (isBun) {
+        return coresdk.workflow_completion.WorkflowActivationCompletion.decode(output.completion);
+      } else {
+        throw new Error('got encoded message even when not using bun');
+      }
     }
     return output.completion;
   }

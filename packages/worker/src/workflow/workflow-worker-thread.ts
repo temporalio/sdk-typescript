@@ -1,10 +1,12 @@
 import { isMainThread, parentPort as parentPortOrNull } from 'node:worker_threads';
 import { IllegalStateError } from '@temporalio/common';
+import { coresdk } from '@temporalio/proto';
 import { Workflow, WorkflowCreator } from './interface';
 import { ReusableVMWorkflowCreator } from './reusable-vm';
 import { VMWorkflowCreator } from './vm';
 import { WorkerThreadRequest } from './workflow-worker-thread/input';
 import { WorkerThreadResponse } from './workflow-worker-thread/output';
+import { isBun } from './bun';
 
 if (isMainThread) {
   throw new IllegalStateError(`Imported ${__filename} from main thread`);
@@ -61,10 +63,29 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
-      const completion = await workflow.activate(input.activation);
+      let activation;
+      if (input.activation instanceof Uint8Array) {
+        if (isBun) {
+          activation = coresdk.workflow_activation.WorkflowActivation.decode(input.activation);
+        } else {
+          throw new Error('Should not be encoding activations when not using Bun');
+        }
+      } else {
+        activation = input.activation;
+      }
+      const completion = await workflow.activate(activation);
+      const completion2 = isBun
+        ? coresdk.workflow_completion.WorkflowActivationCompletion.encode(completion).finish()
+        : completion;
       return {
         requestId,
-        result: { type: 'ok', output: { type: 'activation-completion', completion } },
+        result: {
+          type: 'ok',
+          output: {
+            type: 'activation-completion',
+            completion: completion2,
+          },
+        },
       };
     }
     case 'extract-sink-calls': {
@@ -73,14 +94,15 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
       const calls = await workflow.getAndResetSinkCalls();
-      calls.map((call) => {
+      calls.forEach((call) => {
         // Delete .now because functions can't be serialized / sent to thread.
-        // Do this on a copy of the object, as workflowInfo is the live object.
-        call.workflowInfo = {
-          ...call.workflowInfo,
-          unsafe: { ...call.workflowInfo.unsafe },
-        };
         delete (call.workflowInfo.unsafe as any).now;
+        // Use structuredClone for Bun to work around a postMessage bug where
+        // shared object references get corrupted during serialization.
+        // Node.js handles shared references correctly with a shallow copy.
+        call.workflowInfo = isBun
+          ? structuredClone(call.workflowInfo)
+          : { ...call.workflowInfo, unsafe: { ...call.workflowInfo.unsafe } };
       });
 
       return {
