@@ -4,6 +4,14 @@ import asyncRetry from 'async-retry';
 import { v4 as uuid4 } from 'uuid';
 import { Client, Connection } from '@temporalio/client';
 import * as iface from '@temporalio/proto';
+import {
+  createBaseBundlerOptions,
+  loadHistory as loadHistoryBase,
+  saveHistory as saveHistoryBase,
+  RUN_TIME_SKIPPING_TESTS,
+  test,
+  noopTest,
+} from '@temporalio/test-helpers';
 
 // Re-export from test-helpers
 export {
@@ -26,11 +34,8 @@ export {
   baseBundlerIgnoreModules,
   isBun,
 } from '@temporalio/test-helpers';
-import {
-  createBaseBundlerOptions,
-  loadHistory as loadHistoryBase,
-  saveHistory as saveHistoryBase,
-} from '@temporalio/test-helpers';
+
+export const testTimeSkipping = RUN_TIME_SKIPPING_TESTS ? test : noopTest;
 
 /**
  * Package-specific bundler options that include local activity and mock-native-worker modules.
