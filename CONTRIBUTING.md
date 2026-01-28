@@ -13,6 +13,7 @@
   - [Working with Individual Packages](#working-with-individual-packages)
   - [Testing](#testing)
     - [Testing local changes to core](#testing-local-changes-to-core)
+    - [Integration tests](#integration-tests)
     - [test-npm-init](#test-npm-init)
   - [Style Guide](#style-guide)
 - [Updating and pruning dependencies](#updating-and-pruning-dependencies)
@@ -44,7 +45,7 @@ However, we recommend using the [Active LTS](https://nodejs.org/en/about/previou
 for SDK development. For easier testing during development, you may want to use
 a version manager, such as [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
 
-1. To run integration tests, you will need a local Temporal server. The easiest way is using the
+1. To run tests, you will need access to a local Temporal server, e.g. using the
    [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server).
 2. Install the [Rust toolchain](https://rustup.rs/).
 3. Install [Protocol Buffers](https://github.com/protocolbuffers/protobuf/releases/).
@@ -133,20 +134,10 @@ described [here](https://doc.rust-lang.org/cargo/reference/overriding-dependenci
 
 #### Integration tests
 
-Integration tests require a running Temporal server. By default, tests will start an ephemeral
-server automatically using the Temporal CLI.
+In order to run integration tests:
 
-To run tests against an existing server instead, set the `TEMPORAL_SERVICE_ADDRESS` environment variable:
-
-```sh
-export TEMPORAL_SERVICE_ADDRESS=localhost:7233
-```
-
-To skip integration tests entirely, set:
-
-```sh
-export RUN_INTEGRATION_TESTS=false
-```
+1. Run the Temporal server, e.g. using the [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server)
+1. Export `RUN_INTEGRATION_TESTS=true`
 
 #### test-npm-init
 
