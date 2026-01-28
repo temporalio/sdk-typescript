@@ -9,6 +9,7 @@
     { "path": "../workflow" },
     { "path": "../client" },
     { "path": "../proto" },
+    { "path": "../test-helpers" },
     { "path": "../testing" },
     { "path": "../worker" },
     { "path": "../interceptors-opentelemetry" }
