@@ -97,12 +97,12 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       calls.forEach((call) => {
         // Delete .now because functions can't be serialized / sent to thread.
         delete (call.workflowInfo.unsafe as any).now;
-        // Use structuredClone for Bun to work around a postMessage bug where
+        // Use structuredClone when available to work around a postMessage bug where
         // shared object references get corrupted during serialization.
-        // Node.js handles shared references correctly with a shallow copy.
-        call.workflowInfo = isBun
-          ? structuredClone(call.workflowInfo)
-          : { ...call.workflowInfo, unsafe: { ...call.workflowInfo.unsafe } };
+        call.workflowInfo =
+          'structuredClone' in globalThis
+            ? structuredClone(call.workflowInfo)
+            : { ...call.workflowInfo, unsafe: { ...call.workflowInfo.unsafe } };
       });
 
       return {
