@@ -1795,7 +1795,7 @@ export class Worker {
       } finally {
         this.hasOutstandingWorkflowPoll = false;
       }
-      const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(buffer));
+      const activation = coresdk.workflow_activation.WorkflowActivation.decode(buffer);
       this.logger.trace('Got workflow activation', activation);
 
       return activation;
@@ -1856,7 +1856,7 @@ export class Worker {
       } finally {
         this.hasOutstandingActivityPoll = false;
       }
-      const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
+      const task = coresdk.activity_task.ActivityTask.decode(buffer);
       const { taskToken, ...rest } = task;
       const base64TaskToken = formatTaskToken(taskToken);
       this.logger.trace('Got activity task', {
@@ -1905,7 +1905,7 @@ export class Worker {
       } finally {
         this.hasOutstandingNexusPoll = false;
       }
-      const task = coresdk.nexus.NexusTask.decode(new Uint8Array(buffer));
+      const task = coresdk.nexus.NexusTask.decode(buffer);
       const taskToken = task.task?.taskToken || task.cancelTask?.taskToken;
       if (taskToken == null) {
         throw new TypeError('Got a Nexus task without a task token');
