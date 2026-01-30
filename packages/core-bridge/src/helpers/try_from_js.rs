@@ -1,4 +1,8 @@
-use std::{collections::HashMap, net::SocketAddr, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+    time::Duration,
+};
 
 use neon::{
     handle::Handle,
@@ -158,6 +162,24 @@ impl<T: TryFromJs> TryFromJs for Vec<T> {
         for i in 0..len {
             let value = array.get_value(cx, i)?;
             result.push(T::try_from_js(cx, value)?);
+        }
+        Ok(result)
+    }
+}
+
+#[allow(clippy::implicit_hasher)]
+impl<T: TryFromJs + std::hash::Hash + Eq> TryFromJs for HashSet<T> {
+    fn try_from_js<'cx, 'b>(
+        cx: &mut impl Context<'cx>,
+        js_value: Handle<'b, JsValue>,
+    ) -> BridgeResult<Self> {
+        let array = js_value.downcast::<JsArray, _>(cx)?;
+        let len = array.len(cx);
+        let mut result = Self::with_capacity(len as usize);
+
+        for i in 0..len {
+            let value = array.get_value(cx, i)?;
+            result.insert(T::try_from_js(cx, value)?);
         }
         Ok(result)
     }
