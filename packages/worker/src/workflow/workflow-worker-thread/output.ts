@@ -8,7 +8,7 @@ import { type SinkCall } from '@temporalio/workflow/lib/sinks';
  */
 export interface ActivationCompletion {
   type: 'activation-completion';
-  completion: coresdk.workflow_completion.IWorkflowActivationCompletion;
+  completion: coresdk.workflow_completion.IWorkflowActivationCompletion | Uint8Array;
 }
 
 /**

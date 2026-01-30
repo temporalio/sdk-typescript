@@ -5,6 +5,7 @@ import { native } from '@temporalio/core-bridge';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import { BaseVMWorkflow, globalHandlers, injectGlobals, setUnhandledRejectionHandler } from './vm-shared';
+import { isBun } from './bun';
 
 interface BagHolder {
   bag: any;
@@ -45,13 +46,40 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     this._context = vm.createContext({}, { microtaskMode: 'afterEvaluate' }) as vm.Context & typeof globalThis;
     vm.runInContext(
       `{
+          const __TEMPORAL_IS_BUN = ${isBun};
+
+          // In Bun, Object.getOwnPropertyDescriptor on numeric properties of VM globalThis
+          // returns stale values after the property is modified following a restore operation.
+          // The fix is to read numeric property values directly (globalThis[key]) instead of
+          // via descriptors, both when saving and restoring.
+          const __TEMPORAL_IS_NUMERIC_KEY = (key) => {
+            if (typeof key === 'number') return true;
+            if (typeof key === 'string') {
+              const num = Number(key);
+              return Number.isInteger(num) && num >= 0 && String(num) === key;
+            }
+            return false;
+          };
+
           const __TEMPORAL_CALL_INTO_SCOPE = () => {
             const [holder, fn, args] = globalThis.__temporal_args;
             delete globalThis.__temporal_args;
 
             if (globalThis.__TEMPORAL_BAG_HOLDER__ !== holder) {
               if (globalThis.__TEMPORAL_BAG_HOLDER__ !== undefined) {
-                globalThis.__TEMPORAL_BAG_HOLDER__.bag = Object.getOwnPropertyDescriptors(globalThis);
+                const bag = Object.getOwnPropertyDescriptors(globalThis);
+
+                // In Bun, we must read numeric property values directly because
+                // getOwnPropertyDescriptor returns stale values for numeric properties
+                if (__TEMPORAL_IS_BUN) {
+                  for (const prop of Reflect.ownKeys(bag)) {
+                    if (__TEMPORAL_IS_NUMERIC_KEY(prop)) {
+                      bag[prop].value = globalThis[prop];
+                    }
+                  }
+                }
+
+                globalThis.__TEMPORAL_BAG_HOLDER__.bag = bag;
               }
 
               // Start with all properties, and remove the ones that we see; the rest will be deleted
@@ -59,7 +87,12 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
 
               for (const prop of Reflect.ownKeys(holder.bag)) {
                 if (holder.bag[prop].value !== globalThis[prop]) {
-                  Object.defineProperty(globalThis, prop, holder.bag[prop]);
+                  if (__TEMPORAL_IS_BUN && __TEMPORAL_IS_NUMERIC_KEY(prop)) {
+                    // Work around Bun VM bug: use direct assignment for numeric properties
+                    globalThis[prop] = holder.bag[prop].value;
+                  } else {
+                    Object.defineProperty(globalThis, prop, holder.bag[prop]);
+                  }
                 }
 
                 toBeDeleted.delete(prop);
@@ -227,6 +260,11 @@ type WorkflowModule = typeof internals;
 export class ReusableVMWorkflow extends BaseVMWorkflow {
   public async dispose(): Promise<void> {
     this.workflowModule.dispose();
+    // In Bun, microtasks scheduled inside the VM context may not be processed
+    // automatically due to lack of proper microtaskMode: 'afterEvaluate' support.
+    // Drain the microtask queue to prevent state leakage to the next workflow
+    // that will reuse this VM context.
+    if (isBun) await new Promise(setImmediate);
     ReusableVMWorkflowCreator.workflowByRunId.delete(this.runId);
   }
 }
