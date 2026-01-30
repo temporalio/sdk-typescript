@@ -117,7 +117,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [18, 22, 24] # Min and max officially supported Node versions + next max
+        node: [20, 24] # Min and max officially supported Node versions + next max
         platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
         include:
           - platform: linux-x64
