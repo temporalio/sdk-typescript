@@ -1,9 +1,5 @@
 import { Context } from '@temporalio/activity';
 
-async function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export async function cancellableFetch(url: string): Promise<Uint8Array> {
   // Use native fetch - it handles AbortSignal correctly in both Node.js and Bun.
   // node-fetch has a bug in Bun where the abort reason is treated as an unhandled
@@ -22,14 +18,12 @@ export async function cancellableFetch(url: string): Promise<Uint8Array> {
     throw new Error('expected response body');
   }
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
+  let { done, value } = await reader.read();
+  while (!done) {
     bytesRead += value.length;
     chunks.push(value);
     Context.current().heartbeat(bytesRead / contentLength);
-    await sleep(500);
+    ({ done, value } = await reader.read());
   }
 
   // Concatenate chunks
