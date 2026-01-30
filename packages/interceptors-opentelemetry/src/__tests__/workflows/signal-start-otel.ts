@@ -3,16 +3,20 @@ import {
   OpenTelemetryInboundInterceptor,
   OpenTelemetryOutboundInterceptor,
   OpenTelemetryInternalsInterceptor,
-} from '@temporalio/interceptors-opentelemetry/lib/workflow';
+} from '../../workflow';
 
 export const startSignal = workflow.defineSignal('startSignal');
 
-const { a, b, c } = workflow.proxyLocalActivities({
+const { a, b, c } = workflow.proxyLocalActivities<{
+  a: () => Promise<string>;
+  b: () => Promise<string>;
+  c: () => Promise<string>;
+}>({
   scheduleToCloseTimeout: '1m',
 });
 
 export async function signalStartOtel(): Promise<string> {
-  const order = [];
+  const order: string[] = [];
   order.push(await a());
   workflow.setHandler(startSignal, async () => {
     order.push(await b());
