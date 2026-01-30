@@ -122,12 +122,30 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
 }
 
 /**
+ * Transfer a response to the parent thread with zero-copy semantics when possible.
+ *
+ * For Bun, we use structuredClone with transfer option because Bun's postMessage
+ * doesn't properly detach buffers when transferring from worker to main thread.
+ * See: https://github.com/oven-sh/bun/issues/18705
+ */
+function postResponse(response: WorkerThreadResponse): void {
+  const completion = response.result.type === 'ok' ? response.result.output : undefined;
+  if (isBun && completion?.type === 'activation-completion' && completion.completion instanceof Uint8Array) {
+    const buffer = completion.completion.buffer;
+    const cloned = structuredClone(response, { transfer: [buffer] });
+    parentPort.postMessage(cloned);
+  } else {
+    parentPort.postMessage(response);
+  }
+}
+
+/**
  * Listen on messages delivered from the parent thread (the SDK Worker),
  * process any requests and respond back with result or error.
  */
 parentPort.on('message', async (request: WorkerThreadRequest) => {
   try {
-    parentPort.postMessage(await handleRequest(request));
+    postResponse(await handleRequest(request));
   } catch (err: any) {
     parentPort.postMessage({
       requestId: request.requestId,

@@ -10,6 +10,7 @@
  */
 
 import { Worker as NodeWorker } from 'node:worker_threads';
+import { setTimeout } from 'node:timers/promises';
 import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, type SinkCall } from '@temporalio/workflow';
 import { Logger } from '@temporalio/common';
@@ -118,7 +119,12 @@ export class WorkerThreadClient {
     } else if (request.input.type === 'dispose-workflow') {
       this.activeWorkflowCount--;
     }
-    this.workerThread.postMessage(request);
+    // Transfer ownership of activation buffer when available for zero-copy transfer
+    if (request.input.type === 'activate-workflow' && request.input.activation instanceof Uint8Array) {
+      this.workerThread.postMessage(request, [request.input.activation.buffer as ArrayBuffer]);
+    } else {
+      this.workerThread.postMessage(request);
+    }
     return new Promise<WorkerThreadOutput>((resolve, reject) => {
       this.requestIdToCompletion.set(requestId, { resolve, reject });
     });
@@ -149,20 +155,12 @@ export class WorkerThreadClient {
 
     const terminatePromise = this.workerThread.terminate();
 
-    while (true) {
-      if (this.workerExited) {
-        return null;
-      }
-
-      const result = await Promise.race([
-        terminatePromise,
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), pollIntervalMs)),
-      ]);
-
-      if (result !== null) {
-        return result;
-      }
+    let result = null;
+    while (!this.workerExited) {
+      result = await Promise.race([terminatePromise, setTimeout(pollIntervalMs, null)]);
     }
+
+    return result;
   }
 
   public getActiveWorkflowCount(): number {
