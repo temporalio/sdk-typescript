@@ -1,5 +1,8 @@
 import { Context } from '@temporalio/activity';
-import { sleep } from '../helpers';
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export async function cancellableFetch(url: string): Promise<Uint8Array> {
   // Use native fetch - it handles AbortSignal correctly in both Node.js and Bun.
