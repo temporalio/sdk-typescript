@@ -60,7 +60,6 @@
     "istanbul-lib-coverage": "^3.2.2",
     "long": "^5.2.3",
     "nexus-rpc": "^0.0.1",
-    "node-fetch": "^2.7.0",
     "proto3-json-serializer": "^2.0.0",
     "protobufjs": "^7.2.5",
     "protobufjs-cli": "^1.1.2",

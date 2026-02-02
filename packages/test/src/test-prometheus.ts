@@ -1,6 +1,5 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import fetch from 'node-fetch';
 import { WorkflowClient } from '@temporalio/client';
 import { Runtime } from '@temporalio/worker';
 import { Worker, getRandomPort, TestWorkflowEnvironment } from './helpers';
