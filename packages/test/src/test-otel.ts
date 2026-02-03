@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 /**
  * Manual tests to inspect tracing output
  */
@@ -309,6 +308,7 @@ if (RUN_INTEGRATION_TESTS) {
           parentSpanId === originalSpan?.spanContext().spanId
       );
       t.true(firstExecuteSpan !== undefined);
+
       t.true(firstExecuteSpan!.status.code === SpanStatusCode.OK);
 
       const continueAsNewSpan = spans.find(
@@ -317,6 +317,7 @@ if (RUN_INTEGRATION_TESTS) {
           parentSpanId === firstExecuteSpan?.spanContext().spanId
       );
       t.true(continueAsNewSpan !== undefined);
+
       t.true(continueAsNewSpan!.status.code === SpanStatusCode.OK);
 
       const parentExecuteSpan = spans.find(
@@ -770,9 +771,12 @@ if (RUN_INTEGRATION_TESTS) {
     // Verify the traceState was properly reconstructed with working methods
     for (const traceState of traceStates) {
       // Verify serialize() method works and returns expected value
+
       const serialized = traceState!.serialize();
       t.is(serialized, 'vendor1=value1,vendor2=value2');
+
       t.is(traceState!.get('vendor1'), 'value1');
+
       t.is(traceState!.get('vendor2'), 'value2');
     }
   });

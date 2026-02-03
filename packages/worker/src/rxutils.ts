@@ -20,7 +20,6 @@ export function mergeMapWithState<T, I, O>(
       { state: initialState },
       concurrency
     ),
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     map(({ output }) => output!)
   );
 }
@@ -33,7 +32,6 @@ export function mapWithState<T, I, O>(
     scan(({ state }: StateAndOptionalOutput<T, O>, input: I): StateAndOptionalOutput<T, O> => fn(state, input), {
       state: initialState,
     }),
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     map(({ output }) => output!)
   );
 }

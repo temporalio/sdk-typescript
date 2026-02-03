@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import anyTest, { ExecutionContext, TestFn } from 'ava';
 import dedent from 'dedent';
 import { v4 as uuid4 } from 'uuid';

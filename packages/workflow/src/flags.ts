@@ -114,7 +114,7 @@ type AltConditionFn = (ctx: { info: WorkflowInfo; sdkVersion?: string }) => bool
 
 function buildIdSdkVersionMatches(version: RegExp): AltConditionFn {
   const regex = new RegExp(`^@temporalio/worker@(${version.source})[+]`);
-  return ({ info }) => info.currentBuildId != null && regex.test(info.currentBuildId); // eslint-disable-line deprecation/deprecation
+  return ({ info }) => info.currentBuildId != null && regex.test(info.currentBuildId); // eslint-disable-line @typescript-eslint/no-deprecated
 }
 
 type SemVer = {

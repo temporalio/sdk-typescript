@@ -69,7 +69,6 @@ async function activityStarted(t: ExecutionContext<Context>, workflowId: string)
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
     const infoSubject = new Subject<Info>();
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),
       activities: createActivities(infoSubject),

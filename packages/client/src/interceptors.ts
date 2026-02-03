@@ -200,7 +200,7 @@ export interface WorkflowClientCallsInterceptorFactoryInput {
  * @deprecated: Please define interceptors directly, without factory
  */
 export interface WorkflowClientCallsInterceptorFactory {
-  // eslint-disable-next-line deprecation/deprecation
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   (input: WorkflowClientCallsInterceptorFactoryInput): WorkflowClientCallsInterceptor;
 }
 
@@ -211,7 +211,7 @@ export interface WorkflowClientCallsInterceptorFactory {
  */
 export interface WorkflowClientInterceptors {
   /** @deprecated */
-  // eslint-disable-next-line deprecation/deprecation
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   calls?: WorkflowClientCallsInterceptorFactory[];
 }
 
@@ -243,7 +243,7 @@ export type CreateScheduleOutput = {
  * NOTE: Currently only for {@link WorkflowClient} and {@link ScheduleClient}. More will be added later as needed.
  */
 export interface ClientInterceptors {
-  // eslint-disable-next-line deprecation/deprecation
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   workflow?: WorkflowClientInterceptors | WorkflowClientInterceptor[];
 
   schedule?: ScheduleClientInterceptor[];

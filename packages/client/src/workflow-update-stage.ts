@@ -20,7 +20,7 @@ export const WorkflowUpdateStage = {
    * This is not an allowed value.
    * @deprecated
    */
-  UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+  UNSPECIFIED: undefined,
 } as const;
 export type WorkflowUpdateStage = (typeof WorkflowUpdateStage)[keyof typeof WorkflowUpdateStage];
 

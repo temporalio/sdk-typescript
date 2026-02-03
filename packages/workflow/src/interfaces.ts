@@ -45,7 +45,7 @@ export interface WorkflowInfo {
    * This value may change during the lifetime of an Execution.
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  readonly searchAttributes: SearchAttributes; // eslint-disable-line deprecation/deprecation
+  readonly searchAttributes: SearchAttributes; // eslint-disable-line @typescript-eslint/no-deprecated
 
   /**
    * Indexed information attached to the Workflow Execution, exposed through an interface.
@@ -304,7 +304,7 @@ export interface ContinueAsNewOptions {
    * Searchable attributes to attach to next Workflow run
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes?: SearchAttributes; // eslint-disable-line deprecation/deprecation
+  searchAttributes?: SearchAttributes; // eslint-disable-line @typescript-eslint/no-deprecated
   /**
    * Specifies additional indexed information to attach to the Workflow Execution. More info:
    * https://docs.temporal.io/docs/typescript/search-attributes
@@ -325,7 +325,7 @@ export interface ContinueAsNewOptions {
    * @deprecated In favor of the new Worker Deployment API.
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
-  versioningIntent?: VersioningIntent; // eslint-disable-line deprecation/deprecation
+  versioningIntent?: VersioningIntent; // eslint-disable-line @typescript-eslint/no-deprecated
 }
 
 /**
@@ -439,28 +439,28 @@ export const ParentClosePolicy = {
    *
    * @deprecated Either leave property `undefined`, or set an explicit policy instead.
    */
-  PARENT_CLOSE_POLICY_UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+  PARENT_CLOSE_POLICY_UNSPECIFIED: undefined,
 
   /**
    * When the Parent is Closed, the Child is Terminated.
    *
    * @deprecated Use {@link ParentClosePolicy.TERMINATE} instead.
    */
-  PARENT_CLOSE_POLICY_TERMINATE: 'TERMINATE', // eslint-disable-line deprecation/deprecation
+  PARENT_CLOSE_POLICY_TERMINATE: 'TERMINATE',
 
   /**
    * When the Parent is Closed, nothing is done to the Child.
    *
    * @deprecated Use {@link ParentClosePolicy.ABANDON} instead.
    */
-  PARENT_CLOSE_POLICY_ABANDON: 'ABANDON', // eslint-disable-line deprecation/deprecation
+  PARENT_CLOSE_POLICY_ABANDON: 'ABANDON',
 
   /**
    * When the Parent is Closed, the Child is Cancelled.
    *
    * @deprecated Use {@link ParentClosePolicy.REQUEST_CANCEL} instead.
    */
-  PARENT_CLOSE_POLICY_REQUEST_CANCEL: 'REQUEST_CANCEL', // eslint-disable-line deprecation/deprecation
+  PARENT_CLOSE_POLICY_REQUEST_CANCEL: 'REQUEST_CANCEL',
 } as const;
 export type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
 
@@ -530,7 +530,7 @@ export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workf
    * @deprecated In favor of the new Worker Deployment API.
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
-  versioningIntent?: VersioningIntent; // eslint-disable-line deprecation/deprecation
+  versioningIntent?: VersioningIntent; // eslint-disable-line @typescript-eslint/no-deprecated
 }
 
 export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, 'workflowId' | 'cancellationType'>> & {

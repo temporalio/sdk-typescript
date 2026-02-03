@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
 import http from 'node:http';
 import { sleep } from './helpers';
 

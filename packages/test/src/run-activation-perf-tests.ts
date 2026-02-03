@@ -54,7 +54,6 @@ export interface Context {
 }
 
 if (!wf.inWorkflowContext()) {
-  // eslint-disable-next-line no-inner-declarations
   async function runPerfTest() {
     const bundler = new WorkflowCodeBundler({
       workflowsPath: __filename,
@@ -171,13 +170,11 @@ if (!wf.inWorkflowContext()) {
       const { workflow, info } = await createWorkflow(xxxWorkflow);
       let lastCompletion = await activate(workflow, makeStartWorkflow(info));
 
-      // eslint-disable-next-line no-inner-declarations
       function getTimerSeq(): number {
         const startTimerCommand = lastCompletion.completion.successful?.commands?.filter((c) => c.startTimer)[0];
         return startTimerCommand?.startTimer?.seq || 0;
       }
 
-      // eslint-disable-next-line no-inner-declarations
       async function doActivate() {
         lastCompletion = await activate(workflow, makeFireTimer(info, getTimerSeq()));
       }

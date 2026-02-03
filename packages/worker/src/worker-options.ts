@@ -724,7 +724,7 @@ export type WorkflowBundleOption =
   | WorkflowBundle
   | WorkflowBundleWithSourceMap
   | WorkflowBundlePath
-  | WorkflowBundlePathWithSourceMap; // eslint-disable-line deprecation/deprecation
+  | WorkflowBundlePathWithSourceMap; // eslint-disable-line @typescript-eslint/no-deprecated
 
 export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundle {
   const opt = bundleOpt as any; // Cast to access properties without TS complaining
@@ -745,7 +745,7 @@ export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt i
  * @deprecated Calling `defaultSink()` is no longer required. To configure a custom logger, set the
  *             {@link Runtime.logger} property instead.
  */
-// eslint-disable-next-line deprecation/deprecation
+// eslint-disable-next-line @typescript-eslint/no-deprecated
 export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
   // initLoggerSink() returns a sink that complies to the new LoggerSinksInternal API (ie. named __temporal_logger), but
   // code that is still calling defaultSinks() expects return type to match the deprecated LoggerSinks API. Silently
@@ -755,12 +755,12 @@ export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
   // If no logger was provided, the legacy behavior was to _lazily_ set the sink's logger to the Runtime's logger.
   // This was required because we may call defaultSinks() before the Runtime is initialized. We preserve that behavior
   // here by silently not initializing the sink if no logger is provided.
-  // eslint-disable-next-line deprecation/deprecation
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   if (!logger) return {} as InjectedSinks<LoggerSinks>;
 
   // Register the logger sink with its historical name
   const { __temporal_logger: defaultWorkerLogger } = initLoggerSink(logger);
-  return { defaultWorkerLogger } satisfies InjectedSinks<LoggerSinks>; // eslint-disable-line deprecation/deprecation
+  return { defaultWorkerLogger } satisfies InjectedSinks<LoggerSinks>; // eslint-disable-line @typescript-eslint/no-deprecated
 }
 
 /**
@@ -779,9 +779,9 @@ export function appendDefaultInterceptors(
 
   return {
     activityInbound: [
-      // eslint-disable-next-line deprecation/deprecation
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       (ctx) => new ActivityInboundLogInterceptor(ctx, logger),
-      // eslint-disable-next-line deprecation/deprecation
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       ...(interceptors.activityInbound ?? []),
     ],
     activity: interceptors.activity,
@@ -792,7 +792,7 @@ export function appendDefaultInterceptors(
 function compileWorkerInterceptors({
   client,
   activity,
-  activityInbound, // eslint-disable-line deprecation/deprecation
+  activityInbound, // eslint-disable-line @typescript-eslint/no-deprecated
   nexus,
   workflowModules,
 }: Required<WorkerInterceptors>): CompiledWorkerInterceptors {
@@ -879,8 +879,8 @@ function addDefaultWorkerOptions(
   metricMeter: MetricMeter
 ): WorkerOptionsWithDefaults {
   const {
-    buildId, // eslint-disable-line deprecation/deprecation
-    useVersioning, // eslint-disable-line deprecation/deprecation
+    buildId, // eslint-disable-line @typescript-eslint/no-deprecated
+    useVersioning, // eslint-disable-line @typescript-eslint/no-deprecated
     maxCachedWorkflows,
     showStackTraceSources,
     namespace,
@@ -995,7 +995,7 @@ function addDefaultWorkerOptions(
       },
       activity: interceptors?.activity ?? [],
       nexus: interceptors?.nexus ?? [],
-      // eslint-disable-next-line deprecation/deprecation
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       activityInbound: interceptors?.activityInbound ?? [],
       workflowModules: interceptors?.workflowModules ?? [],
     },
@@ -1082,8 +1082,8 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
   const enableLocalActivities = enableWorkflows && opts.activities.size > 0;
   return {
     identity: opts.identity,
-    buildId: opts.buildId, // eslint-disable-line deprecation/deprecation
-    useVersioning: opts.useVersioning, // eslint-disable-line deprecation/deprecation
+    buildId: opts.buildId, // eslint-disable-line @typescript-eslint/no-deprecated
+    useVersioning: opts.useVersioning, // eslint-disable-line @typescript-eslint/no-deprecated
     workerDeploymentOptions: toNativeDeploymentOptions(opts.workerDeploymentOptions),
     taskQueue: opts.taskQueue,
     namespace: opts.namespace,

@@ -930,7 +930,6 @@ export class Activator implements ActivationHandler {
       const update = this.bufferedUpdates.shift();
       if (update) {
         this.rejectUpdate(
-          /* eslint-disable @typescript-eslint/no-non-null-assertion */
           update.protocolInstanceId!,
           ApplicationFailure.nonRetryable(`No registered handler for update: ${update.name}`)
         );
@@ -997,7 +996,6 @@ export class Activator implements ActivationHandler {
     while (bufferedSignals.length) {
       if (this.defaultSignalHandler) {
         // We have a default signal handler, so all signals are dispatchable
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         this.signalWorkflow(bufferedSignals.shift()!);
       } else {
         const foundIndex = bufferedSignals.findIndex((signal) => this.signalHandlers.has(signal.signalName as string));

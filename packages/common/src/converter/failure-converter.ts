@@ -429,7 +429,7 @@ export class DefaultFailureConverter implements FailureConverter {
     if (isError(err)) {
       return {
         ...base,
-        message: String(err.message) ?? '',
+        message: err.message ?? '',
         stackTrace: cutoffStackTrace(err.stack),
         cause: this.optionalErrorToOptionalFailure((err as any).cause, payloadConverter),
       };

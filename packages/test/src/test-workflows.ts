@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import path from 'node:path';
 import vm from 'node:vm';
 import anyTest, { ExecutionContext, TestFn } from 'ava';
 import dedent from 'dedent';
-import Long from 'long'; // eslint-disable-line import/no-named-as-default
+import Long from 'long';
 import {
   ApplicationFailure,
   defaultFailureConverter,
@@ -80,6 +79,7 @@ test.after.always(async (t) => {
 
 test.beforeEach(async (t) => {
   const { workflowCreator } = t.context;
+
   const workflowType = t.title.match(/\S+$/)![0];
   const runId = t.title;
   const logs = new Array<unknown[]>();

@@ -296,7 +296,6 @@ export class GlobalHandlers {
           ) {
             // Skip internal promises created by the aggregator and link directly.
             promise = currentAggregation;
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             stackTrace = store.promiseToStack.get(currentAggregation)!; // Must exist
           } else if (/^\s+at (Function|Promise)\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(formatted)) {
             currentAggregation = promise;

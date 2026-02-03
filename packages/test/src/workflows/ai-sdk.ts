@@ -127,7 +127,7 @@ export async function mcpSchemaTestWorkflow(): Promise<{
   const tools = await mcpClient.tools();
 
   const [toolName, tool] = Object.entries(tools)[0];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const schema = (tool as any).inputSchema.jsonSchema;
 
   return {

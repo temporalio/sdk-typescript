@@ -118,7 +118,7 @@ test.serial('WorkflowOptions are passed correctly', configMacro, async (t, confi
     ),
     [3]
   );
-  t.deepEqual(execution.searchAttributes!.CustomIntField, [3]); // eslint-disable-line deprecation/deprecation
+  t.deepEqual(execution.searchAttributes!.CustomIntField, [3]); // eslint-disable-line @typescript-eslint/no-deprecated
   t.is(execution.raw.executionConfig?.taskQueue?.name, 'diff-task-queue');
   t.is(
     execution.raw.executionConfig?.taskQueue?.kind,
@@ -246,8 +246,8 @@ test.serial('continue-as-new-to-same-workflow keeps memo and search attributes',
     const execution = await handle.describe();
     t.not(execution.runId, handle.firstExecutionRunId);
     t.deepEqual(execution.memo, { note: 'foo' });
-    t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']); // eslint-disable-line deprecation/deprecation
-    t.deepEqual(execution.searchAttributes!.CustomIntField, [1]); // eslint-disable-line deprecation/deprecation
+    t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']); // eslint-disable-line @typescript-eslint/no-deprecated
+    t.deepEqual(execution.searchAttributes!.CustomIntField, [1]); // eslint-disable-line @typescript-eslint/no-deprecated
   });
 });
 
@@ -275,8 +275,8 @@ test.serial(
       t.is(info.type, 'sleeper');
       t.not(info.runId, handle.firstExecutionRunId);
       t.deepEqual(info.memo, { note: 'foo' });
-      t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value']); // eslint-disable-line deprecation/deprecation
-      t.deepEqual(info.searchAttributes!.CustomIntField, [1]); // eslint-disable-line deprecation/deprecation
+      t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value']); // eslint-disable-line @typescript-eslint/no-deprecated
+      t.deepEqual(info.searchAttributes!.CustomIntField, [1]); // eslint-disable-line @typescript-eslint/no-deprecated
     });
   }
 );
@@ -316,8 +316,8 @@ test.serial(
       t.is(info.type, 'sleeper');
       t.not(info.runId, handle.firstExecutionRunId);
       t.deepEqual(info.memo, { note: 'bar' });
-      t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value-2']); // eslint-disable-line deprecation/deprecation
-      t.deepEqual(info.searchAttributes!.CustomIntField, [3]); // eslint-disable-line deprecation/deprecation
+      t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value-2']); // eslint-disable-line @typescript-eslint/no-deprecated
+      t.deepEqual(info.searchAttributes!.CustomIntField, [3]); // eslint-disable-line @typescript-eslint/no-deprecated
     });
   }
 );

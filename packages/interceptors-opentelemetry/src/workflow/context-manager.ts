@@ -28,7 +28,7 @@ export class ContextManager implements otel.ContextManager {
      * It isn't possible to tell Typescript that contextWrapper is the same as T
      * so we forced to cast as any here.
      */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     return contextWrapper as any;
   }
 

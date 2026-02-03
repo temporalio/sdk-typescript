@@ -52,7 +52,6 @@ export async function executionInfoFromRaw<T>(
   rawDataToEmbed: T
 ): Promise<Replace<WorkflowExecutionInfo, { raw: T }>> {
   return {
-    /* eslint-disable @typescript-eslint/no-non-null-assertion */
     type: raw.type!.name!,
     workflowId: raw.execution!.workflowId!,
     runId: raw.execution!.runId!,
@@ -121,7 +120,6 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
   for (const entry of getGrpcStatusDetails(err) ?? []) {
     if (!entry.type_url || !entry.value) continue;
     const type = entry.type_url.replace(/^type.googleapis.com\//, '') as ErrorDetailsName;
-
     switch (type) {
       case 'temporal.api.errordetails.v1.NamespaceNotFoundFailure': {
         const { namespace } = temporal.api.errordetails.v1.NamespaceNotFoundFailure.decode(entry.value);

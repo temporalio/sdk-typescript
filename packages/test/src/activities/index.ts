@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { activityInfo, Context } from '@temporalio/activity';
 import { ApplicationFailure, ApplicationFailureCategory } from '@temporalio/common';

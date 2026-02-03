@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
-
 import anyTest, { TestFn } from 'ava';
 import { temporal } from '@temporalio/proto';
 import { bundleWorkflowCode, ReplayError, WorkflowBundle } from '@temporalio/worker';
@@ -63,6 +61,7 @@ test('cancel-fake-progress-replay from JSON', async (t) => {
 test('cancel-fake-progress-replay-nondeterministic', async (t) => {
   const hist = await loadHistory('cancel_fake_progress_history.bin');
   // Manually alter the workflow type to point to different workflow code
+
   hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
 
   await t.throwsAsync(
@@ -81,6 +80,7 @@ test('cancel-fake-progress-replay-nondeterministic', async (t) => {
 test('workflow-task-failure-fails-replay', async (t) => {
   const hist = await loadHistory('cancel_fake_progress_history.bin');
   // Manually alter the workflow type to point to our workflow which will fail workflow tasks
+
   hist.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'failsWorkflowTask';
 
   await t.throwsAsync(
@@ -119,7 +119,9 @@ test('multiple-histories-replay-returns-errors', async (t) => {
   const hist1 = await loadHistory('cancel_fake_progress_history.bin');
   const hist2 = await loadHistory('cancel_fake_progress_history.json');
   // change workflow type to break determinism
+
   hist1.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
+
   hist2.events[0].workflowExecutionStartedEventAttributes!.workflowType!.name = 'http';
   const histories = historator([hist1, hist2]);
 

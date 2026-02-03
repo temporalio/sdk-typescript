@@ -53,7 +53,6 @@ export function convertNexusLinkToWorkflowEventLink(link: NexusLink): WorkflowEv
   const namespace = decodeURIComponent(parts[2]!);
   const workflowId = decodeURIComponent(parts[4]!);
   const runId = decodeURIComponent(parts[5]!);
-
   const query = link.url.searchParams;
   const refType = query.get(LINK_REFERENCE_TYPE_KEY);
 

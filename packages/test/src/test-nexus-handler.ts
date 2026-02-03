@@ -696,6 +696,7 @@ test('WorkflowRunOperationHandler attaches callback, link, and request ID', asyn
       console.log(res.headers.get('Nexus-Link'));
       const m = /<([^>]+)>; type="([^"]+)"/.exec(res.headers.get('Nexus-Link') ?? '');
       t.truthy(m);
+
       const [_, url, type] = m!;
       const backlink = convertNexusLinkToWorkflowEventLink({ url: new URL(url), type });
       backlinks.push(backlink);
@@ -726,6 +727,7 @@ test('WorkflowRunOperationHandler attaches callback, link, and request ID', asyn
   t.is(callback?.nexus?.url, callbackURL);
   t.deepEqual(callback?.nexus?.header, { token: 'token' });
   t.is(callback?.links?.length, 1);
+
   const actualLink = callback!.links![0]!.workflowEvent;
 
   t.deepEqual(actualLink?.namespace, workflowLink.namespace);

@@ -372,7 +372,7 @@ export interface CompiledRuntimeOptions {
 }
 
 export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions {
-  const { metrics, noTemporalPrefixForMetrics } = options.telemetryOptions ?? {}; // eslint-disable-line deprecation/deprecation
+  const { metrics, noTemporalPrefixForMetrics } = options.telemetryOptions ?? {}; // eslint-disable-line @typescript-eslint/no-deprecated
   const [logger, logExporter] = compileLoggerOptions(options);
 
   const heartbeatMillis = msToNumber(options.workerHeartbeatInterval ?? '60s');
@@ -405,7 +405,7 @@ export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions 
                 headers: metrics.otel.headers ?? {},
                 metricPeriodicity: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
                 useSecondsForDurations: metrics.otel.useSecondsForDurations ?? false,
-                metricTemporality: metrics.otel.temporality ?? metrics.temporality ?? 'cumulative', // eslint-disable-line deprecation/deprecation
+                metricTemporality: metrics.otel.temporality ?? metrics.temporality ?? 'cumulative', // eslint-disable-line @typescript-eslint/no-deprecated
                 histogramBucketOverrides: metrics.otel.histogramBucketOverrides ?? {},
                 globalTags: metrics.globalTags ?? {},
               } satisfies native.MetricExporterOptions)
@@ -416,7 +416,7 @@ export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions 
 }
 
 function compileLoggerOptions(options: RuntimeOptions): [Logger, native.LogExporterOptions] {
-  const { logging, tracingFilter } = options.telemetryOptions ?? {}; // eslint-disable-line deprecation/deprecation
+  const { logging, tracingFilter } = options.telemetryOptions ?? {}; // eslint-disable-line @typescript-eslint/no-deprecated
 
   const logger = options.logger ?? new DefaultLogger('INFO');
 
@@ -433,7 +433,7 @@ function compileLoggerOptions(options: RuntimeOptions): [Logger, native.LogExpor
       throw new TypeError('Invalid logging filter');
     }
   }
-  // eslint-disable-next-line deprecation/deprecation
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   const forwardLevel = (logging as ForwardLogger | undefined)?.forward?.level;
   const forwardLevelFilter =
     forwardLevel &&

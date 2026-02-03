@@ -11,7 +11,6 @@ declare global {
   // bundles with different versions of the SDK, but in this specific case, there's really no
   // user-side value in renaming this, so making a breaking change for that would not be justified.
   //
-  // eslint-disable-next-line no-var
   var __TEMPORAL__: {
     api: typeof import('./worker-interface.ts');
     importWorkflows: () => Record<string, Workflow>;
@@ -19,11 +18,9 @@ declare global {
   };
 
   // Destructors to be called when the shared sandbox is destroyed.
-  // eslint-disable-next-line no-var
   var __temporal_globalSandboxDestructors: (() => void)[] | undefined;
 
   // FIXME: Rename to lowercase syntax before 1.15.0.
-  // eslint-disable-next-line no-var
   var __TEMPORAL_ACTIVATOR__: Activator | undefined;
 }
 

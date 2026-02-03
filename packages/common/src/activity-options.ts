@@ -179,7 +179,7 @@ export interface ActivityOptions {
    * @deprecated In favor of the new Worker Deployment API.
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
-  versioningIntent?: VersioningIntent; // eslint-disable-line deprecation/deprecation
+  versioningIntent?: VersioningIntent; // eslint-disable-line @typescript-eslint/no-deprecated
 
   /**
    * A fixed, single-line summary for this workflow execution that may appear in the UI/CLI.
