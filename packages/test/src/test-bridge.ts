@@ -163,7 +163,7 @@ test("Dropping EphemeralServer without shutting it down doesn't hang process", a
 });
 
 test("Stopping Worker after creating another runtime doesn't fail", async (t) => {
-  async function expectShutdownError(taskPromise: Promise<Buffer>) {
+  async function expectShutdownError(taskPromise: () => Promise<Buffer>) {
     await t.throwsAsync(taskPromise, {
       instanceOf: errors.ShutdownError,
     });
@@ -183,17 +183,17 @@ test("Stopping Worker after creating another runtime doesn't fail", async (t) =>
   await native.workerValidate(worker1);
 
   // Start polling on Worker 1 (note reverse order of Worker 0)
-  const wftPromise1 = native.workerPollWorkflowActivation(worker1);
-  const atPromise1 = native.workerPollActivityTask(worker1);
+  const expectErrorWft1 = expectShutdownError(() => native.workerPollWorkflowActivation(worker1));
+  const expectErrorPromise1 = expectShutdownError(() => native.workerPollActivityTask(worker1));
 
   // Start polling on Worker 0
-  const wftPromise0 = native.workerPollWorkflowActivation(worker0);
-  const atPromise0 = native.workerPollActivityTask(worker0);
+  const expectErrorWft0 = expectShutdownError(() => native.workerPollWorkflowActivation(worker0));
+  const expectErrorPromise0 = expectShutdownError(() => native.workerPollActivityTask(worker0));
 
   // Cleanly shutdown Worker 1
   native.workerInitiateShutdown(worker1);
-  await expectShutdownError(wftPromise1);
-  await expectShutdownError(atPromise1);
+  await expectErrorWft1;
+  await expectErrorPromise1;
   await native.workerFinalizeShutdown(worker1);
   // Leave Client 1 and Runtime 1 alive
 
@@ -204,8 +204,8 @@ test("Stopping Worker after creating another runtime doesn't fail", async (t) =>
 
   // Cleanly shutdown Worker 0
   native.workerInitiateShutdown(worker0);
-  await expectShutdownError(wftPromise0);
-  await expectShutdownError(atPromise0);
+  await expectErrorWft0;
+  await expectErrorPromise0;
   await native.workerFinalizeShutdown(worker0);
   native.clientClose(client0);
   native.runtimeShutdown(runtime0);
@@ -215,11 +215,11 @@ test("Stopping Worker after creating another runtime doesn't fail", async (t) =>
 
   // Start polling on Worker 2, then shut it down cleanly
   await native.workerValidate(worker2);
-  const wftPromise2 = native.workerPollWorkflowActivation(worker2);
-  const atPromise2 = native.workerPollActivityTask(worker2);
+  const expectErrorWft2 = expectShutdownError(() => native.workerPollWorkflowActivation(worker2));
+  const expectErrorPromise2 = expectShutdownError(() => native.workerPollActivityTask(worker2));
   native.workerInitiateShutdown(worker2);
-  await expectShutdownError(wftPromise2);
-  await expectShutdownError(atPromise2);
+  await expectErrorWft2;
+  await expectErrorPromise2;
   await native.workerFinalizeShutdown(worker2);
   native.clientClose(client2);
   native.runtimeShutdown(runtime2);
