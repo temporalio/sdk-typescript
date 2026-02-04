@@ -99,8 +99,7 @@ test.serial('Buffered Metrics - Exporting buffered metrics from Core works prope
     t.deepEqual(updates[5].metric, {
       name: 'my-float-gauge',
       kind: 'gauge',
-      // valueType: 'float',
-      valueType: 'int', // FIXME: pending on https://github.com/temporalio/sdk-core/pull/1108
+      valueType: 'float',
       unit: 'my-float-gauge-unit',
       description: 'my-float-gauge-description',
     });
@@ -126,8 +125,7 @@ test.serial('Buffered Metrics - Exporting buffered metrics from Core works prope
     t.deepEqual(updates[11].metric, {
       name: 'my-float-histogram',
       kind: 'histogram',
-      // valueType: 'float',
-      valueType: 'int', // FIXME: pending on https://github.com/temporalio/sdk-core/pull/1108
+      valueType: 'float',
       unit: 'my-float-histogram-unit',
       description: 'my-float-histogram-description',
     });
