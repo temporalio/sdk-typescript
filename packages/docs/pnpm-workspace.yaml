@@ -7,3 +7,5 @@ overrides:
   '@octokit/request@>=1.0.0 <8.4.1': '>=8.4.1'
   mdast-util-to-hast@>=13.0.0 <13.2.1: '>=13.2.1'
   qs: ^6.14.1
+  # Bumped for https://github.com/advisories/GHSA-xxjr-mmjv-4gpg
+  'lodash': '^4.17.23'
