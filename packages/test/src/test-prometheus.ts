@@ -101,7 +101,7 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
 
       const resp = await fetch(`http://127.0.0.1:${port}/metrics`);
       const text = await resp.text();
-      
+
       // Verify use seconds & unit suffix
       t.assert(
         text.includes(
