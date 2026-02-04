@@ -71,7 +71,11 @@ export type LogExporterOptions =
       receiver: (entries: JsonString<LogEntry>[]) => void;
     };
 
-export type MetricExporterOptions = PrometheusMetricsExporterOptions | OtelMetricsExporterOptions | null;
+export type MetricExporterOptions =
+  | PrometheusMetricsExporterOptions
+  | OtelMetricsExporterOptions
+  | BufferedMetricsExporterOptions
+  | null;
 
 export interface PrometheusMetricsExporterOptions {
   type: 'prometheus';
@@ -93,6 +97,12 @@ export interface OtelMetricsExporterOptions {
   useSecondsForDurations: boolean;
   histogramBucketOverrides: Record<string, number[]>;
   protocol: 'http' | 'grpc';
+}
+
+export interface BufferedMetricsExporterOptions {
+  type: 'buffered';
+  maxBufferSize: number;
+  useSecondsForDurations: boolean;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -525,3 +535,27 @@ export declare function setMetricGaugeF64Value(
   value: number,
   attrs: JsonString<MetricAttributes>
 ): void;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Buffered Metrics
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export declare function runtimeRetrieveBufferedMetrics(runtime: Runtime): BufferedMetricUpdate[];
+
+export interface BufferedMetricUpdate {
+  metric: BufferedMetric;
+  value: number;
+  attributes: MetricAttributes;
+}
+
+export interface BufferedMetric {
+  name: string;
+  description: string;
+  unit: string;
+  kind: BufferedMetricKind;
+  valueType: BufferedMetricValueType;
+}
+
+export type BufferedMetricKind = 'counter' | 'histogram' | 'gauge';
+
+export type BufferedMetricValueType = 'int' | 'float';

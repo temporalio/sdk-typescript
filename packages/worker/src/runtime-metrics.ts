@@ -1,4 +1,5 @@
 import {
+  Metric,
   MetricCounter,
   MetricGauge,
   MetricHistogram,
@@ -8,6 +9,16 @@ import {
 } from '@temporalio/common';
 import { native } from '@temporalio/core-bridge';
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Metric Meter (aka Custom Metrics)
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * An implementation of the {@link MetricMeter} interface that pushes emitted metrics through
+ * the bridge, to be collected by whatever exporter is configured on the Core Runtime.
+ *
+ * @internal
+ */
 export class RuntimeMetricMeter implements MetricMeter {
   public constructor(protected runtime: native.Runtime) {}
 
@@ -59,6 +70,9 @@ export class RuntimeMetricMeter implements MetricMeter {
 }
 
 class RuntimeMetricCounter implements MetricCounter {
+  public readonly kind = 'counter';
+  public readonly valueType = 'int';
+
   public constructor(
     private readonly native: native.MetricCounter,
     public readonly name: string,
@@ -80,6 +94,7 @@ class RuntimeMetricCounter implements MetricCounter {
 }
 
 class RuntimeMetricHistogram implements MetricHistogram {
+  public readonly kind = 'histogram';
   public readonly valueType = 'int';
 
   public constructor(
@@ -103,6 +118,7 @@ class RuntimeMetricHistogram implements MetricHistogram {
 }
 
 class RuntimeMetricHistogramF64 implements MetricHistogram {
+  public readonly kind = 'histogram';
   public readonly valueType = 'float';
 
   public constructor(
@@ -126,6 +142,7 @@ class RuntimeMetricHistogramF64 implements MetricHistogram {
 }
 
 class RuntimeMetricGauge implements MetricGauge {
+  public readonly kind = 'gauge';
   public readonly valueType = 'int';
 
   public constructor(
@@ -149,6 +166,7 @@ class RuntimeMetricGauge implements MetricGauge {
 }
 
 class RuntimeMetricGaugeF64 implements MetricGauge {
+  public readonly kind = 'gauge';
   public readonly valueType = 'float';
 
   public constructor(
@@ -169,4 +187,52 @@ class RuntimeMetricGaugeF64 implements MetricGauge {
     // Tags composition is handled by a MetricMeterWithComposedTags wrapper over this one
     throw new Error('withTags is not supported directly on RuntimeMetricGaugeF64');
   }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Buffered Metrics (aka lang-side metrics exporter)
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * A single update event on a metric, recorded by buffered metrics exporter.
+ *
+ * When the {@link Runtime} is configured to buffer metrics, user code is expected to periodically
+ * call {@link Runtime.retrieveBufferedMetrics} to retrieve the buffered metric updates. Each update
+ * event will be represented as a single instance of this interface.
+ *
+ * @experimental Buffered metrics is an experiemental feature. APIs may be subject to change.
+ */
+export interface BufferedMetricUpdate {
+  /**
+   * The metric being updated.
+   *
+   * For performance reasons, the SDK tries to re-use the same object across updates for the same
+   * metric. User code may take advantage of this, e.g. by attaching downstream metric references to
+   * as a supplementary property on the `Metric` object. Note that the SDK may sometimes miss
+   * deduplication opportunities, notably when a same metric is accessed from different execution
+   * contexts (e.g. from both activity code and workflow code).
+   */
+  metric: Metric;
+
+  /**
+   * Value for this update event.
+   *
+   * For counters this is a delta; for gauges and histograms this is the value itself.
+   */
+  value: number;
+
+  /**
+   * Attributes for this update event.
+   *
+   * For performance reasons, the SDK tries to re-use the same object across updates for the same
+   * attribute set. User code may take advantage of this, e.g. by attaching downstream attribute
+   * sets references as a supplementary, _non-enumerable_ property on the `MetricTags` object. Make
+   * sure however not to add, modify or delete any enumerable properties on the `MetricTags` object,
+   * as those changes would affect future update events using the same `MetricTags` object, as well
+   * as further events that extend that `MetricTags` object.
+   *
+   * Note that the SDK may miss deduplication oppportunities, notably when a same set of attributes
+   * is recreated by the code emitting the metric updates, e.g. when extending an existing set of
+   */
+  attributes: MetricTags;
 }

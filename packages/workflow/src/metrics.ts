@@ -48,6 +48,9 @@ class WorkflowMetricMeterImpl implements MetricMeter {
 }
 
 class WorkflowMetricCounter implements MetricCounter {
+  public readonly kind = 'counter';
+  public readonly valueType = 'int';
+
   constructor(
     public readonly name: string,
     public readonly unit: string | undefined,
@@ -70,6 +73,8 @@ class WorkflowMetricCounter implements MetricCounter {
 }
 
 class WorkflowMetricHistogram implements MetricHistogram {
+  public readonly kind = 'histogram';
+
   constructor(
     public readonly name: string,
     public readonly valueType: NumericMetricValueType,
@@ -93,6 +98,8 @@ class WorkflowMetricHistogram implements MetricHistogram {
 }
 
 class WorkflowMetricGauge implements MetricGauge {
+  public readonly kind = 'gauge';
+
   constructor(
     public readonly name: string,
     public readonly valueType: NumericMetricValueType,

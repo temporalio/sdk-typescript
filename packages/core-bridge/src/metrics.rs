@@ -1,27 +1,40 @@
+use std::any::Any;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::Context as _;
 use neon::prelude::*;
 use serde::Deserialize;
 
 use temporalio_common::telemetry::metrics::{
-    CoreMeter, Counter as CoreCounter, Gauge as CoreGauge, Histogram as CoreHistogram,
-    MetricParametersBuilder, NewAttributes, TemporalMeter,
+    BufferInstrumentRef as CoreBufferInstrumentRef, CoreMeter, Counter as CoreCounter,
+    CustomMetricAttributes, Gauge as CoreGauge, Histogram as CoreHistogram, MetricCallBufferer,
+    MetricEvent as CoreMetricEvent, MetricKind as CoreMetricKind,
+    MetricParameters as CoreMetricParameters, MetricParametersBuilder, NewAttributes,
+    TemporalMeter,
 };
 use temporalio_common::telemetry::metrics::{
     GaugeF64 as CoreGaugeF64, HistogramF64 as CoreHistogramF64,
 };
-use temporalio_common::telemetry::metrics::{
-    MetricKeyValue as CoreMetricKeyValue, MetricValue as CoreMetricValue,
+use temporalio_common::telemetry::{
+    metrics,
+    metrics::{MetricKeyValue as CoreMetricKeyValue, MetricValue as CoreMetricValue},
 };
 
-use bridge_macros::js_function;
+use bridge_macros::{TryIntoJs, js_function};
+use temporalio_sdk_core::telemetry::MetricsCallBuffer as CoreMetricsCallBuffer;
 
+use crate::helpers::properties::ObjectExt as _;
+use crate::helpers::try_into_js::{MemoizedHandle, OptionAsUndefined};
 use crate::helpers::{
     BridgeError, BridgeResult, JsonString, MutableFinalize, OpaqueInboundHandle,
-    OpaqueOutboundHandle,
+    OpaqueOutboundHandle, TryIntoJs,
 };
 use crate::runtime::Runtime;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Metric Meter (aka Custom Metrics)
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<()> {
     cx.export_function("newMetricCounter", new_metric_counter)?;
@@ -245,10 +258,12 @@ pub fn add_metric_counter_value(
     attributes: JsonString<MetricAttributes>,
 ) -> BridgeResult<()> {
     let counter_handle = counter_handle.borrow()?;
+
     let attributes = counter_handle
         .meter
         .inner
         .new_attributes(parse_metric_attributes(attributes.value));
+
     counter_handle.counter.add(value as u64, &attributes);
     Ok(())
 }
@@ -314,6 +329,232 @@ pub fn set_metric_gauge_f64_value(
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+// Buffered Metrics (aka lang-side metrics exporter)
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Debug)]
+pub struct MetricsCallBuffer {
+    pub(crate) core_buffer: Arc<CoreMetricsCallBuffer<BufferedMetricRef>>,
+    use_seconds_for_durations: bool,
+}
+
+impl MetricsCallBuffer {
+    pub(crate) fn new(max_buffer_size: usize, use_seconds_for_durations: bool) -> Self {
+        Self {
+            core_buffer: Arc::new(CoreMetricsCallBuffer::new(max_buffer_size)),
+            use_seconds_for_durations,
+        }
+    }
+
+    pub(crate) fn retrieve(&self) -> Vec<BufferedMetricUpdate> {
+        self.core_buffer
+            .retrieve()
+            .iter()
+            .filter_map(|e| self.convert_metric_event(e))
+            .collect()
+    }
+
+    fn convert_metric_event(
+        &self,
+        event: &CoreMetricEvent<BufferedMetricRef>,
+    ) -> Option<BufferedMetricUpdate> {
+        match event {
+            CoreMetricEvent::Create {
+                params,
+                populate_into,
+                kind,
+            } => {
+                // Create the metric and put it on the lazy ref
+                let metric = BufferedMetric::new(params, kind, self.use_seconds_for_durations);
+                populate_into
+                    .set(Arc::new(BufferedMetricRef(MemoizedHandle::new(metric))))
+                    .expect("Unable to set buffered metric on reference");
+
+                None
+            }
+
+            // Create the attributes and put it on the lazy ref
+            CoreMetricEvent::CreateAttributes {
+                populate_into,
+                append_from,
+                attributes,
+            } => {
+                let append_from = append_from.as_ref().map(|f| {
+                    f.get()
+                        .clone()
+                        .as_any()
+                        .downcast::<BufferedMetricAttributesRef>()
+                        .expect("Unable to downcast to expected buffered metric attributes")
+                });
+                let attributes = BufferedMetricAttributes {
+                    new_attributes: attributes.clone(),
+                    append_from: append_from.map(|f| f.as_ref().clone()),
+                };
+
+                let r = BufferedMetricAttributesRef(MemoizedHandle::new(attributes));
+                populate_into
+                    .set(Arc::new(r))
+                    .expect("Unable to set buffered metric attributes on reference");
+
+                None
+            }
+
+            CoreMetricEvent::Update {
+                instrument,
+                attributes,
+                update,
+            } => Some(BufferedMetricUpdate {
+                metric: instrument.get().as_ref().clone(),
+                value: match update {
+                    metrics::MetricUpdateVal::Duration(v) if self.use_seconds_for_durations => {
+                        v.as_secs_f64()
+                    }
+                    metrics::MetricUpdateVal::Duration(v) => v.as_millis() as f64,
+                    metrics::MetricUpdateVal::Delta(v) => *v as f64,
+                    metrics::MetricUpdateVal::DeltaF64(v) => *v,
+                    metrics::MetricUpdateVal::Value(v) => *v as f64,
+                    metrics::MetricUpdateVal::ValueF64(v) => *v,
+                },
+                attributes: attributes
+                    .get()
+                    .clone()
+                    .as_any()
+                    .downcast::<BufferedMetricAttributesRef>()
+                    .expect("Unable to downcast to expected buffered metric attributes")
+                    .as_ref()
+                    .clone(),
+            }),
+        }
+    }
+}
+
+#[derive(TryIntoJs)]
+pub struct BufferedMetricUpdate {
+    metric: BufferedMetricRef,
+    value: f64,
+    attributes: BufferedMetricAttributesRef,
+}
+
+#[derive(TryIntoJs, Clone, Debug)]
+struct BufferedMetric {
+    name: String,
+    description: OptionAsUndefined<String>,
+    unit: OptionAsUndefined<String>,
+    kind: MetricKind,
+    value_type: MetricValueType,
+}
+
+impl BufferedMetric {
+    pub fn new(
+        params: &CoreMetricParameters,
+        kind: &CoreMetricKind,
+        use_seconds_for_durations: bool,
+    ) -> Self {
+        let unit = match *kind {
+            CoreMetricKind::HistogramDuration if params.unit == "duration" => {
+                Some((if use_seconds_for_durations { "s" } else { "ms" }).to_string())
+            }
+            _ => (!params.unit.is_empty()).then_some(params.unit.to_string()),
+        };
+
+        let (kind, value_type) = match *kind {
+            CoreMetricKind::Counter => (MetricKind::Counter, MetricValueType::Int),
+            CoreMetricKind::Gauge => (MetricKind::Gauge, MetricValueType::Int),
+            CoreMetricKind::GaugeF64 => (MetricKind::Gauge, MetricValueType::Float),
+            CoreMetricKind::Histogram => (MetricKind::Histogram, MetricValueType::Int),
+            CoreMetricKind::HistogramF64 => (MetricKind::Histogram, MetricValueType::Float),
+            CoreMetricKind::HistogramDuration => (MetricKind::Histogram, MetricValueType::Int),
+        };
+
+        let description =
+            (!params.description.is_empty()).then_some(params.description.to_string());
+
+        Self {
+            name: params.name.to_string(),
+            description: description.into(),
+            unit: unit.into(),
+            kind,
+            value_type,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BufferedMetricRef(MemoizedHandle<BufferedMetric>);
+impl CoreBufferInstrumentRef for BufferedMetricRef {}
+
+impl TryIntoJs for BufferedMetricRef {
+    type Output = JsObject;
+    fn try_into_js<'cx>(self, cx: &mut impl Context<'cx>) -> JsResult<'cx, Self::Output> {
+        self.0.try_into_js(cx)
+    }
+}
+
+#[derive(Clone, Debug)]
+struct BufferedMetricAttributes {
+    new_attributes: Vec<CoreMetricKeyValue>,
+    append_from: Option<BufferedMetricAttributesRef>,
+}
+
+impl TryIntoJs for BufferedMetricAttributes {
+    type Output = JsObject;
+    fn try_into_js<'cx>(self, cx: &mut impl Context<'cx>) -> JsResult<'cx, Self::Output> {
+        let object = cx.empty_object();
+
+        // Copy existing attributes, if any
+        if let Some(existing) = self.append_from {
+            let existing_attrs = existing.try_into_js(cx)?;
+
+            object_assign(cx, object, existing_attrs)?;
+        }
+
+        // Assign new attributes
+        for kv in self.new_attributes {
+            let k = kv.key.as_str();
+            match &kv.value {
+                metrics::MetricValue::String(v) => object.set_property_from(cx, k, v.as_str()),
+                metrics::MetricValue::Int(v) => object.set_property_from(cx, k, *v as f64),
+                metrics::MetricValue::Float(v) => object.set_property_from(cx, k, *v),
+                metrics::MetricValue::Bool(v) => object.set_property_from(cx, k, *v),
+            }?;
+        }
+
+        Ok(object)
+    }
+}
+
+#[derive(Clone, Debug)]
+struct BufferedMetricAttributesRef(MemoizedHandle<BufferedMetricAttributes>);
+
+impl CustomMetricAttributes for BufferedMetricAttributesRef {
+    fn as_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
+        self as Arc<dyn Any + Send + Sync>
+    }
+}
+
+impl TryIntoJs for BufferedMetricAttributesRef {
+    type Output = JsObject;
+    fn try_into_js<'cx>(self, cx: &mut impl Context<'cx>) -> JsResult<'cx, Self::Output> {
+        self.0.try_into_js(cx)
+    }
+}
+
+#[derive(TryIntoJs, Clone, Debug)]
+enum MetricKind {
+    Counter,
+    Gauge,
+    Histogram,
+}
+
+#[derive(TryIntoJs, Clone, Debug)]
+enum MetricValueType {
+    Int,
+    Float,
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Helpers
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 fn parse_metric_attributes(attrs: MetricAttributes) -> NewAttributes {
     let attrs = attrs
@@ -325,4 +566,17 @@ fn parse_metric_attributes(attrs: MetricAttributes) -> NewAttributes {
         })
         .collect();
     NewAttributes { attributes: attrs }
+}
+
+fn object_assign<'cx>(
+    cx: &mut impl Context<'cx>,
+    object: Handle<'cx, JsObject>,
+    source: Handle<'cx, JsObject>,
+) -> JsResult<'cx, JsObject> {
+    let object_class = cx.global::<JsFunction>("Object")?;
+    let assign_function = object_class.get::<JsFunction, _, _>(cx, "assign")?;
+    let null = cx.null();
+    assign_function.call(cx, null, vec![object.upcast(), source.upcast()])?;
+
+    Ok(object)
 }

@@ -8,7 +8,7 @@ import { temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
 import { isFlushableLogger } from './logger';
-import { RuntimeMetricMeter } from './runtime-metrics';
+import { RuntimeMetricMeter, BufferedMetricUpdate } from './runtime-metrics';
 import { toNativeClientOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer, toMB } from './utils';
 import { CompiledRuntimeOptions, compileOptions, RuntimeOptions } from './runtime-options';
@@ -286,6 +286,28 @@ export class Runtime {
     } finally {
       delete (this as any).native;
     }
+  }
+
+  /**
+   * Retrieve buffered metric updates from the runtime.
+   *
+   * This method drains the metrics buffer and returns all metric events that have accumulated
+   * since the last call to this method. This method should be called regularly when using
+   * buffered metrics to prevent buffer overflow.
+   *
+   * @throws {IllegalStateError} If buffered metrics have not been enabled for this runtime,
+   *                             or if the runtime has been shut down.
+   * @returns Array of buffered metric updates, each containing the metric metadata,
+   *          current value, and attributes
+   * @experimental Buffered metrics is an experiemental feature. APIs may be subject to change.
+   */
+  public retrieveBufferedMetrics(): ArrayIterator<BufferedMetricUpdate> {
+    if (this.native === undefined) throw new IllegalStateError('Runtime has been shut down');
+
+    // We return an iterator instead of an array in case we should, at some point in the future,
+    // need to apply per item transformation. Copying to an array would obviously be possible, the
+    // buffered metric array might be large, so avoiding the extra array allocation makes sense.
+    return native.runtimeRetrieveBufferedMetrics(this.native).values();
   }
 
   /**

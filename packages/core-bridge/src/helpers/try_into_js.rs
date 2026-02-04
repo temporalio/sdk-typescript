@@ -1,11 +1,11 @@
 use std::{
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use neon::{
     object::Object,
-    prelude::Context,
+    prelude::{Context, Root},
     result::JsResult,
     types::{
         JsArray, JsBigInt, JsBoolean, JsBuffer, JsNumber, JsString, JsUndefined, JsValue, Value,
@@ -30,6 +30,13 @@ impl TryIntoJs for bool {
 }
 
 impl TryIntoJs for u32 {
+    type Output = JsNumber;
+    fn try_into_js<'a>(self, cx: &mut impl Context<'a>) -> JsResult<'a, JsNumber> {
+        Ok(cx.number(self))
+    }
+}
+
+impl TryIntoJs for f64 {
     type Output = JsNumber;
     fn try_into_js<'a>(self, cx: &mut impl Context<'a>) -> JsResult<'a, JsNumber> {
         Ok(cx.number(self))
@@ -125,5 +132,84 @@ impl<T0: TryIntoJs, T1: TryIntoJs> TryIntoJs for (T0, T1) {
         array.set(cx, 0, v0)?;
         array.set(cx, 1, v1)?;
         Ok(array)
+    }
+}
+
+/// A handle that wraps another `TryIntoJs` type, memoizing the converted JavaScript value.
+/// That is, the value is converted to JavaScript only once, and then the same JavaScript value
+/// is returned for subsequent calls. This notably ensures that the value sent to the JS side
+/// is exactly the same object every time (i.e. `===` comparison is true).
+#[derive(Clone, Debug)]
+pub struct MemoizedHandle<T: TryIntoJs + Clone + std::fmt::Debug>
+where
+    T::Output: std::fmt::Debug,
+{
+    internal: Arc<Mutex<MemoizedInternal<T>>>,
+}
+
+#[derive(Debug)]
+enum MemoizedInternal<T: TryIntoJs + Clone + std::fmt::Debug> {
+    Pending(T),
+    Rooted(Root<T::Output>),
+}
+
+impl<T: TryIntoJs + Clone + std::fmt::Debug> MemoizedHandle<T>
+where
+    T::Output: Object + std::fmt::Debug,
+{
+    pub fn new(value: T) -> Self {
+        Self {
+            internal: Arc::new(Mutex::new(MemoizedInternal::Pending(value))),
+        }
+    }
+}
+
+impl<T: TryIntoJs + Clone + std::fmt::Debug> TryIntoJs for MemoizedHandle<T>
+where
+    T::Output: Object + std::fmt::Debug,
+{
+    type Output = T::Output;
+    fn try_into_js<'cx>(self, cx: &mut impl Context<'cx>) -> JsResult<'cx, T::Output> {
+        let mut guard = self.internal.lock().expect("MemoizedHandle lock");
+        match *guard {
+            MemoizedInternal::Pending(ref value) => {
+                let rooted_value = value.clone().try_into_js(cx)?.root(cx);
+                let js_value = rooted_value.to_inner(cx);
+                *guard = MemoizedInternal::Rooted(rooted_value);
+                Ok(js_value)
+            }
+            MemoizedInternal::Rooted(ref handle) => Ok(handle.to_inner(cx)),
+        }
+    }
+}
+
+/// To avoid some recuring error patterns when crossing the JS bridge, we normally translate
+/// `Option<T>` to `T | null` on the JS side. This however implies extra code on the JS side
+/// to check for `null` and convert to `undefined` as appropriate. This generally poses no
+/// problem, as manipulation of objects on the JS side is anyway desirable for other reasons.
+///
+/// In rare cases, however, this extra manipulation may not be desirable. For example, when
+/// passing buffered metrics to the JS Side, we want to preserve object identity. Modifying
+/// objects on the JS side would either break object identity or introduce unnecessary overhead.
+///
+/// For those rare cases, this newtype wrapper to indicate that an option property should be
+/// translated to `undefined` on the JS side, rather than `null`.
+#[derive(Clone, Debug)]
+pub struct OptionAsUndefined<T: TryIntoJs + Clone + std::fmt::Debug>(Option<T>);
+
+impl<T: TryIntoJs + Clone + std::fmt::Debug> From<Option<T>> for OptionAsUndefined<T> {
+    fn from(value: Option<T>) -> Self {
+        Self(value)
+    }
+}
+
+impl<T: TryIntoJs + Clone + std::fmt::Debug> TryIntoJs for OptionAsUndefined<T> {
+    type Output = JsValue;
+    fn try_into_js<'a>(self, cx: &mut impl Context<'a>) -> JsResult<'a, JsValue> {
+        if let Some(value) = self.0 {
+            Ok(value.try_into_js(cx)?.upcast())
+        } else {
+            Ok(cx.undefined().upcast())
+        }
     }
 }

@@ -214,6 +214,8 @@ export type MetricsExporterConfig = {
 
   /**
    * Tags to add to all metrics emitted by the worker.
+   *
+   * Note that this is not supported when the metrics are buffered.
    */
   globalTags?: Record<string, string>;
 
@@ -223,7 +225,7 @@ export type MetricsExporterConfig = {
    * @default true
    */
   attachServiceName?: boolean;
-} & (PrometheusMetricsExporter | OtelCollectorExporter);
+} & (PrometheusMetricsExporter | OtelCollectorExporter | BufferedMetricsExporter);
 
 /**
  * OpenTelemetry Collector options for exporting metrics or traces
@@ -359,6 +361,33 @@ export interface PrometheusMetricsExporter {
   };
 }
 
+/**
+ * Buffered metrics exporter options
+ *
+ * @experimental Buffered metrics is an experiemental feature. APIs may be subject to change.
+ */
+export interface BufferedMetricsExporter {
+  buffered: {
+    /**
+     * Maximum number of metric events to buffer before dropping new events.
+     *
+     * The buffer accumulates metric updates from Core and should be drained regularly by calling
+     * {@link Runtime.retrieveBufferedMetrics}. If the buffer fills up, new metric updates will be
+     * dropped and an error will be logged.
+     *
+     * @default 10000
+     */
+    maxBufferSize?: number;
+
+    /**
+     * If set to true, the exporter will use seconds for durations instead of milliseconds.
+     *
+     * @default false
+     */
+    useSecondsForDurations?: boolean;
+  };
+}
+
 // Compile Options ////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -409,7 +438,13 @@ export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions 
                 histogramBucketOverrides: metrics.otel.histogramBucketOverrides ?? {},
                 globalTags: metrics.globalTags ?? {},
               } satisfies native.MetricExporterOptions)
-            : null,
+            : metrics && isBufferedMetricsExporter(metrics)
+              ? ({
+                  type: 'buffered',
+                  maxBufferSize: metrics.buffered.maxBufferSize ?? 10000,
+                  useSecondsForDurations: metrics.buffered.useSecondsForDurations ?? false,
+                } satisfies native.MetricExporterOptions)
+              : null,
       workerHeartbeatIntervalMillis: heartbeatMillis === 0 ? null : heartbeatMillis,
     },
   };
@@ -488,6 +523,10 @@ function isOtelCollectorExporter(metrics: MetricsExporterConfig): metrics is Ote
 
 function isPrometheusMetricsExporter(metrics: MetricsExporterConfig): metrics is PrometheusMetricsExporter {
   return 'prometheus' in metrics && typeof metrics.prometheus === 'object';
+}
+
+function isBufferedMetricsExporter(metrics: MetricsExporterConfig): metrics is BufferedMetricsExporter {
+  return 'buffered' in metrics && typeof metrics.buffered === 'object';
 }
 
 function isForwardingLogger(options: LogExporterConfig): boolean {
