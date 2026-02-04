@@ -78,7 +78,7 @@ class RuntimeMetricCounter implements MetricCounter {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) { }
+  ) {}
 
   add(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -102,7 +102,7 @@ class RuntimeMetricHistogram implements MetricHistogram {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) { }
+  ) {}
 
   record(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -126,7 +126,7 @@ class RuntimeMetricHistogramF64 implements MetricHistogram {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) { }
+  ) {}
 
   record(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -150,7 +150,7 @@ class RuntimeMetricGauge implements MetricGauge {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) { }
+  ) {}
 
   set(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -174,7 +174,7 @@ class RuntimeMetricGaugeF64 implements MetricGauge {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) { }
+  ) {}
 
   set(value: number, tags: MetricTags = {}): void {
     if (value < 0) {

@@ -365,7 +365,7 @@ impl MetricsCallBuffer {
                 kind,
             } => {
                 // Create the metric and put it on the lazy ref
-                let metric = BufferedMetric::new(params, kind, self.use_seconds_for_durations);
+                let metric = BufferedMetric::new(params, *kind, self.use_seconds_for_durations);
                 populate_into
                     .set(Arc::new(BufferedMetricRef(MemoizedHandle::new(metric))))
                     .expect("Unable to set buffered metric on reference");
@@ -405,6 +405,7 @@ impl MetricsCallBuffer {
                 update,
             } => Some(BufferedMetricUpdate {
                 metric: instrument.get().as_ref().clone(),
+                #[allow(clippy::match_same_arms, clippy::cast_precision_loss)]
                 value: match update {
                     metrics::MetricUpdateVal::Duration(v) if self.use_seconds_for_durations => {
                         v.as_secs_f64()
@@ -447,17 +448,18 @@ struct BufferedMetric {
 impl BufferedMetric {
     pub fn new(
         params: &CoreMetricParameters,
-        kind: &CoreMetricKind,
+        kind: CoreMetricKind,
         use_seconds_for_durations: bool,
     ) -> Self {
-        let unit = match *kind {
+        let unit = match kind {
             CoreMetricKind::HistogramDuration if params.unit == "duration" => {
                 Some((if use_seconds_for_durations { "s" } else { "ms" }).to_string())
             }
             _ => (!params.unit.is_empty()).then_some(params.unit.to_string()),
         };
 
-        let (kind, value_type) = match *kind {
+        #[allow(clippy::match_same_arms)]
+        let (kind, value_type) = match kind {
             CoreMetricKind::Counter => (MetricKind::Counter, MetricValueType::Int),
             CoreMetricKind::Gauge => (MetricKind::Gauge, MetricValueType::Int),
             CoreMetricKind::GaugeF64 => (MetricKind::Gauge, MetricValueType::Float),
@@ -511,6 +513,7 @@ impl TryIntoJs for BufferedMetricAttributes {
         // Assign new attributes
         for kv in self.new_attributes {
             let k = kv.key.as_str();
+            #[allow(clippy::cast_precision_loss)]
             match &kv.value {
                 metrics::MetricValue::String(v) => object.set_property_from(cx, k, v.as_str()),
                 metrics::MetricValue::Int(v) => object.set_property_from(cx, k, *v as f64),
