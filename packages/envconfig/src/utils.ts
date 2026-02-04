@@ -6,8 +6,6 @@ import { normalizeGrpcMetaKey, TomlClientConfig, TomlClientConfigProfile, TomlCl
 
 /**
  * Loads configuration data from a {@link ConfigDataSource} and returns it as a Uint8Array.
- *
- * @experimental Environment configuration is new feature and subject to change.
  */
 export function loadConfigData(source?: ConfigDataSource): Uint8Array | undefined {
   if (!source) return undefined;
@@ -21,8 +19,6 @@ export function loadConfigData(source?: ConfigDataSource): Uint8Array | undefine
 
 /**
  * Converts a TOML profile structure to a {@link ClientConfigProfile}.
- *
- * @experimental Environment configuration is new feature and subject to change.
  */
 export function fromTomlProfile(tomlProfile: TomlClientConfigProfile): ClientConfigProfile {
   let grpcMeta: Record<string, string> | undefined = undefined;
@@ -45,8 +41,6 @@ export function fromTomlProfile(tomlProfile: TomlClientConfigProfile): ClientCon
 
 /**
  * Converts a {@link ClientConfigProfile} to a TOML profile structure.
- *
- * @experimental Environment configuration is new feature and subject to change.
  */
 export function toTomlProfile(profile: ClientConfigProfile): TomlClientConfigProfile {
   let grpc_meta: Record<string, string> | undefined = undefined;
@@ -69,8 +63,6 @@ export function toTomlProfile(profile: ClientConfigProfile): TomlClientConfigPro
 
 /**
  * Converts a TOML TLS configuration structure to a {@link ClientConfigTLS}.
- *
- * @experimental Environment configuration is new feature and subject to change.
  */
 export function fromTomlTLS(tomlTLS?: TomlClientConfigTLS): ClientConfigTLS | undefined {
   if (tomlTLS === undefined) {
@@ -88,8 +80,6 @@ export function fromTomlTLS(tomlTLS?: TomlClientConfigTLS): ClientConfigTLS | un
 
 /**
  * Converts a {@link ClientConfigTLS} to a TOML TLS configuration structure.
- *
- * @experimental Environment configuration is new feature and subject to change.
  */
 export function toTomlTLS(tlsConfig?: ClientConfigTLS): TomlClientConfigTLS | undefined {
   if (tlsConfig === undefined) {
@@ -113,8 +103,6 @@ export function toTomlTLS(tlsConfig?: ClientConfigTLS): TomlClientConfigTLS | un
 
 /**
  * Converts a TOML client configuration structure to a {@link ClientConfig}.
- *
- * @experimental Environment configuration is new feature and subject to change.
  */
 export function fromTomlConfig(tomlConfig: TomlClientConfig): ClientConfig {
   const profiles: Record<string, ClientConfigProfile> = {};
@@ -128,8 +116,6 @@ export function fromTomlConfig(tomlConfig: TomlClientConfig): ClientConfig {
 
 /**
  * Converts a {@link ClientConfig} to a TOML client configuration structure.
- *
- * @experimental Environment configuration is new feature and subject to change.
  */
 export function toTomlConfig(config: ClientConfig): TomlClientConfig {
   const profile: Record<string, TomlClientConfigProfile> = {};

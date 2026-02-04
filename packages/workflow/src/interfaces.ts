@@ -208,8 +208,6 @@ export interface WorkflowInfo {
    * executing this task for the first time and has a Deployment Version set, then its ID will be
    * used. This value may change over the lifetime of the workflow run, but is deterministic and
    * safe to use for branching.
-   *
-   * @experimental Deployment based versioning is experimental and may change in the future.
    */
   readonly currentDeploymentVersion?: WorkerDeploymentVersion;
 
@@ -322,8 +320,7 @@ export interface ContinueAsNewOptions {
    *
    * @default 'COMPATIBLE'
    *
-   * @deprecated In favor of the new Worker Deployment API.
-   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+   * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
   versioningIntent?: VersioningIntent; // eslint-disable-line deprecation/deprecation
 }
@@ -527,8 +524,7 @@ export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workf
    *
    * @default 'COMPATIBLE'
    *
-   * @deprecated In favor of the new Worker Deployment API.
-   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+   * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
   versioningIntent?: VersioningIntent; // eslint-disable-line deprecation/deprecation
 }

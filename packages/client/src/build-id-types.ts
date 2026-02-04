@@ -3,7 +3,7 @@ import { temporal } from '@temporalio/proto';
 /**
  * Operations that can be passed to {@link TaskQueueClient.updateBuildIdCompatibility}.
  *
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export type BuildIdOperation =
   | AddNewIdInNewDefaultSet
@@ -16,7 +16,7 @@ export type BuildIdOperation =
  * Adds a new Build Id into a new set, which will be used as the default set for
  * the queue. This means all new workflows will start on this Build Id.
  *
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export interface AddNewIdInNewDefaultSet {
   operation: 'addNewIdInNewDefaultSet';
@@ -28,7 +28,7 @@ export interface AddNewIdInNewDefaultSet {
  * the default for that compatible set, and thus new workflow tasks for workflows which have been
  * executing on workers in that set will now start on this new Build Id.
  *
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export interface AddNewCompatibleVersion {
   operation: 'addNewCompatibleVersion';
@@ -47,7 +47,7 @@ export interface AddNewCompatibleVersion {
  * default set for the task queue. Any Build Id in the set may be used to
  * target it.
  *
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export interface PromoteSetByBuildId {
   operation: 'promoteSetByBuildId';
@@ -58,7 +58,7 @@ export interface PromoteSetByBuildId {
  * Promotes a Build Id within an existing set to become the default ID for that
  * set.
  *
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export interface PromoteBuildIdWithinSet {
   operation: 'promoteBuildIdWithinSet';
@@ -70,7 +70,7 @@ export interface PromoteBuildIdWithinSet {
  * compatible with one another. The default of the primary set is maintained as
  * the merged set's overall default.
  *
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export interface MergeSets {
   operation: 'mergeSets';
@@ -84,7 +84,7 @@ export interface MergeSets {
  * Represents the sets of compatible Build Id versions associated with some
  * Task Queue, as fetched by {@link TaskQueueClient.getBuildIdCompatability}.
  *
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export interface WorkerBuildIdVersionSets {
   /**
@@ -108,7 +108,7 @@ export interface WorkerBuildIdVersionSets {
 /**
  * Represents one set of compatible Build Ids.
  *
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export interface BuildIdVersionSet {
   // All build IDs contained in the set.
