@@ -8,8 +8,7 @@
     "build:ts": "tsc --build",
     "build:protos": "tsx ./scripts/compile-proto.ts",
     "test": "ava ./lib/test-*.js",
-    "test:watch": "ava --watch ./lib/test-*.js",
-    "td": "ava --watch ./lib/test-worker-deployment-versioning.js"
+    "test:watch": "ava --watch ./lib/test-*.js"
   },
   "ava": {
     "timeout": "60s",

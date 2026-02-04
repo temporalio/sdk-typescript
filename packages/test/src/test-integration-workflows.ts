@@ -1840,7 +1840,7 @@ export async function historyInfoWorkflow(): Promise<void> {
   setHandler(bunchOfEventsSignal, async (count: number) => {
     // Generate events by doing many sleeps
     for (let i = 0; i < count; i++) {
-      await workflow.sleep(1);
+      workflow.sleep(1);
     }
   });
 
