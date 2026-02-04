@@ -1025,7 +1025,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
         versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line deprecation/deprecation
-        initialVersioningBehavior: encodeInitialVersioningBehavior(options.initialVersioningBehavior)
+        initialVersioningBehavior: encodeInitialVersioningBehavior(options.initialVersioningBehavior),
       });
     });
     return fn({

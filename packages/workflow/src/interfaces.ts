@@ -15,7 +15,7 @@ import {
   WorkerDeploymentVersion,
   VersioningBehavior,
   InitialVersioningBehavior,
-  SuggestContinueAsNewReason
+  SuggestContinueAsNewReason,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -224,10 +224,10 @@ export interface WorkflowInfo {
 
   /**
    * Reason(s) why continue as new is suggested. Can potentially be multiple reasons.
-   * 
+   *
    * @experimental Versioning semantics with continue-as-new are experimental and may change in the future.
    */
-  readonly suggestedContinueAsNewReasons?: SuggestContinueAsNewReason[]
+  readonly suggestedContinueAsNewReasons?: SuggestContinueAsNewReason[];
 }
 
 /**

@@ -7,6 +7,7 @@ export async function continueAsNewWithVersionUpgrade(attempt: number): Promise<
     return 'v1.0';
   }
 
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     await sleep(10); // 10ms - triggers WFT to refresh suggestion
     const info = workflowInfo();

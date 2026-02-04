@@ -69,7 +69,6 @@ export interface PinnedVersioningOverride {
  */
 export type AutoUpgradeVersioningOverride = 'AUTO_UPGRADE';
 
-
 /**
  * Defines the versioning behavior to be used by the first task of a new workflow run in a continue-as-new chain.
  * 
@@ -86,8 +85,8 @@ export type AutoUpgradeVersioningOverride = 'AUTO_UPGRADE';
  * @experimental Versioning semantics with continue-as-new are experimental and may change in the future.
  */
 export const InitialVersioningBehavior = {
-    AUTO_UPGRADE: 'AUTO_UPGRADE'
-} as const
+  AUTO_UPGRADE: 'AUTO_UPGRADE',
+} as const;
 export type InitialVersioningBehavior = (typeof InitialVersioningBehavior)[keyof typeof InitialVersioningBehavior];
 
 export const [encodeInitialVersioningBehavior, decodeInitialVersioningBehavior] = makeProtoEnumConverters<

@@ -62,6 +62,7 @@ import { Client } from '@temporalio/client';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
+import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/lib/continue-as-new';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
@@ -110,7 +111,6 @@ import {
 } from './errors';
 import { constructNexusOperationContext, NexusHandler } from './nexus';
 import { handlerErrorToProto } from './nexus/conversions';
-import { suggestContinueAsNewReasonsFromProto } from '../../common/lib/continue-as-new';
 
 export { DataConverter, defaultPayloadConverter };
 

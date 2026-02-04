@@ -1840,7 +1840,7 @@ export async function historyInfoWorkflow(): Promise<void> {
   setHandler(bunchOfEventsSignal, async (count: number) => {
     // Generate events by doing many sleeps
     for (let i = 0; i < count; i++) {
-      workflow.sleep(1);
+      void workflow.sleep(1);
     }
   });
 
@@ -1885,9 +1885,7 @@ test('suggestedContinueAsNewReasons persists across WFTs', async (t) => {
     info = await handle.query(getHistoryInfoQuery);
     t.true(info.continueAsNewSuggested);
     t.true(info.suggestedContinueAsNewReasons!.length > 0);
-    t.true(
-      info.suggestedContinueAsNewReasons!.includes(SuggestContinueAsNewReason.TOO_MANY_HISTORY_EVENTS)
-    );
+    t.true(info.suggestedContinueAsNewReasons!.includes(SuggestContinueAsNewReason.TOO_MANY_HISTORY_EVENTS));
 
     // Send another event to create new WFT
     await handle.signal(bunchOfEventsSignal, 1);
@@ -1895,9 +1893,7 @@ test('suggestedContinueAsNewReasons persists across WFTs', async (t) => {
     // Verify reasons persist
     info = await handle.query(getHistoryInfoQuery);
     t.true(info.continueAsNewSuggested);
-    t.true(
-      info.suggestedContinueAsNewReasons!.includes(SuggestContinueAsNewReason.TOO_MANY_HISTORY_EVENTS)
-    );
+    t.true(info.suggestedContinueAsNewReasons!.includes(SuggestContinueAsNewReason.TOO_MANY_HISTORY_EVENTS));
 
     await handle.cancel();
   });
