@@ -10,7 +10,9 @@
     "lib/"
   ],
   "scripts": {
-    "build": "tsx ./scripts/compile-proto.ts"
+    "build": "pnpm run \"/^build:.*/\"",
+    "build:ts": "tsc --build",
+    "build:protos": "tsx ./scripts/compile-proto.ts"
   },
   "keywords": [
     "temporal",

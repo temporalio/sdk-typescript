@@ -1,9 +1,5 @@
 import test from 'ava';
-import {
-  base64URLEncodeNoPadding,
-  generateWorkflowRunOperationToken,
-  loadWorkflowRunOperationToken,
-} from '@temporalio/nexus/lib/token';
+import { base64URLEncodeNoPadding, generateWorkflowRunOperationToken, loadWorkflowRunOperationToken } from '../token';
 
 test('encode and decode workflow run Operation token', (t) => {
   const expected = {

@@ -156,12 +156,6 @@ importers:
 
   packages/ai-sdk:
     dependencies:
-      '@ai-sdk/mcp':
-        specifier: ^1.0.0
-        version: 1.0.0(zod@3.25.76)
-      '@ai-sdk/provider':
-        specifier: ^3.0.0
-        version: 3.0.0
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
@@ -174,15 +168,67 @@ importers:
       '@ungap/structured-clone':
         specifier: ^1.3.0
         version: 1.3.0
-      ai:
-        specifier: ^6.0.0
-        version: 6.0.2(zod@3.25.76)
       headers-polyfill:
         specifier: ^4.0.3
         version: 4.0.3
       web-streams-polyfill:
         specifier: ^4.2.0
         version: 4.2.0
+    devDependencies:
+      '@ai-sdk/mcp':
+        specifier: ^1.0.0
+        version: 1.0.0(zod@3.25.76)
+      '@ai-sdk/openai':
+        specifier: ^3.0.0
+        version: 3.0.0(zod@3.25.76)
+      '@ai-sdk/provider':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.25.2
+        version: 1.25.2(hono@4.11.3)(zod@3.25.76)
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.0
+      '@opentelemetry/core':
+        specifier: ^1.25.1
+        version: 1.25.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-node':
+        specifier: ^0.52.1
+        version: 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/semantic-conventions':
+        specifier: ^1.25.1
+        version: 1.25.1
+      '@temporalio/client':
+        specifier: workspace:*
+        version: link:../client
+      '@temporalio/interceptors-opentelemetry':
+        specifier: workspace:*
+        version: link:../interceptors-opentelemetry
+      '@temporalio/proto':
+        specifier: workspace:*
+        version: link:../proto
+      '@temporalio/test-helpers':
+        specifier: workspace:*
+        version: link:../test-helpers
+      '@temporalio/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@temporalio/worker':
+        specifier: workspace:*
+        version: link:../worker
+      ai:
+        specifier: ^6.0.0
+        version: 6.0.2(zod@3.25.76)
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
+      uuid:
+        specifier: ^11.1.0
+        version: 11.1.0
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
 
   packages/client:
     dependencies:
@@ -252,6 +298,9 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
     devDependencies:
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
       protobufjs:
         specifier: ^7.2.5
         version: 7.5.1
@@ -342,9 +391,21 @@ importers:
         specifier: 1.4.2
         version: 1.4.2
     devDependencies:
+      '@temporalio/client':
+        specifier: file:../client
+        version: file:packages/client
+      '@temporalio/testing':
+        specifier: file:../testing
+        version: file:packages/testing
       '@temporalio/worker':
         specifier: file:../worker
         version: file:packages/worker(tslib@2.6.2)
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
+      dedent:
+        specifier: ^1.5.1
+        version: 1.5.3
 
   packages/interceptors-opentelemetry:
     dependencies:
@@ -361,6 +422,15 @@ importers:
         specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.9.0)
     devDependencies:
+      '@opentelemetry/exporter-trace-otlp-grpc':
+        specifier: ^0.52.1
+        version: 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-node':
+        specifier: ^0.52.1
+        version: 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/semantic-conventions':
+        specifier: ^1.25.1
+        version: 1.25.1
       '@temporalio/activity':
         specifier: workspace:*
         version: link:../activity
@@ -370,12 +440,27 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
+      '@temporalio/proto':
+        specifier: workspace:*
+        version: link:../proto
+      '@temporalio/test-helpers':
+        specifier: workspace:*
+        version: link:../test-helpers
+      '@temporalio/testing':
+        specifier: workspace:*
+        version: link:../testing
       '@temporalio/worker':
         specifier: workspace:*
         version: link:../worker
       '@temporalio/workflow':
         specifier: workspace:*
         version: link:../workflow
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
+      uuid:
+        specifier: ^11.1.0
+        version: 11.1.0
 
   packages/meta:
     dependencies:
@@ -433,6 +518,10 @@ importers:
       nexus-rpc:
         specifier: ^0.0.1
         version: 0.0.1
+    devDependencies:
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
 
   packages/nyc-test-coverage:
     dependencies:
@@ -447,7 +536,7 @@ importers:
         version: 6.0.1
       ts-loader:
         specifier: ^9.5.1
-        version: 9.5.1(typescript@5.9.3)(webpack@5.94.0)
+        version: 9.5.1(typescript@5.6.3)(webpack@5.94.0)
     devDependencies:
       '@temporalio/common':
         specifier: workspace:*
@@ -470,6 +559,9 @@ importers:
       '@types/webpack':
         specifier: ^5.28.5
         version: 5.28.5
+      typescript:
+        specifier: ^5.6.3
+        version: 5.6.3
       webpack:
         specifier: ^5.94.0
         version: 5.94.0
@@ -579,6 +671,9 @@ importers:
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
+      '@temporalio/test-helpers':
+        specifier: workspace:*
+        version: link:../test-helpers
       '@temporalio/testing':
         specifier: workspace:*
         version: link:../testing
@@ -662,6 +757,37 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
 
+  packages/test-helpers:
+    dependencies:
+      '@temporalio/client':
+        specifier: workspace:*
+        version: link:../client
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../common
+      '@temporalio/proto':
+        specifier: workspace:*
+        version: link:../proto
+      '@temporalio/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@temporalio/worker':
+        specifier: workspace:*
+        version: link:../worker
+      '@temporalio/workflow':
+        specifier: workspace:*
+        version: link:../workflow
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
+      stack-utils:
+        specifier: ^2.0.6
+        version: 2.0.6
+    devDependencies:
+      '@types/stack-utils':
+        specifier: ^2.0.3
+        version: 2.0.3
+
   packages/testing:
     dependencies:
       '@temporalio/activity':
@@ -688,6 +814,13 @@ importers:
       abort-controller:
         specifier: ^3.0.0
         version: 3.0.0
+    devDependencies:
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
+      uuid:
+        specifier: ^11.1.0
+        version: 11.1.0
 
   packages/worker:
     dependencies:
@@ -774,6 +907,9 @@ importers:
         specifier: ^0.0.1
         version: 0.0.1
     devDependencies:
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
       source-map:
         specifier: ^0.7.4
         version: 0.7.4
@@ -1438,6 +1574,10 @@ packages:
     resolution: {directory: packages/common, type: directory}
     engines: {node: '>= 18.0.0'}
 
+  '@temporalio/testing@file:packages/testing':
+    resolution: {directory: packages/testing, type: directory}
+    engines: {node: '>= 18.0.0'}
+
   '@temporalio/worker@file:packages/worker':
     resolution: {directory: packages/worker, type: directory}
     engines: {node: '>= 18.0.0'}
@@ -1848,10 +1988,6 @@ packages:
     resolution: {integrity: sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==}
     engines: {node: '>=8'}
 
-  ansi-regex@6.0.1:
-    resolution: {integrity: sha512-n5M855fKb2SsfMIiFFoVrABHJC8QtHwVx+mHWP3QcEqBHYienj5dHSgjbxtC0WEZXYt4wcD6zrQElDPhFuZgfA==}
-    engines: {node: '>=12'}
-
   ansi-regex@6.2.2:
     resolution: {integrity: sha512-Bq3SmSpyFHaWjPk8If9yc6svM8c56dB5BAtW4Qbw5jHTwwXXcTLoRMkpDJp6VL0XzlWaCHTXrkFURMYmD0sLqg==}
     engines: {node: '>=12'}
@@ -1859,10 +1995,6 @@ packages:
   ansi-styles@4.3.0:
     resolution: {integrity: sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg==}
     engines: {node: '>=8'}
-
-  ansi-styles@6.2.1:
-    resolution: {integrity: sha512-bN798gFfQX+viw3R7yrGWRqnrN2oRkEkUjjl4JNn4E8GxxbjtG3FbrEIIY3l8/hrwUwIeCZvi4QuOTP4MErVug==}
-    engines: {node: '>=12'}
 
   ansi-styles@6.2.3:
     resolution: {integrity: sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg==}
@@ -4157,10 +4289,6 @@ packages:
     resolution: {integrity: sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==}
     engines: {node: '>=8'}
 
-  strip-ansi@7.1.0:
-    resolution: {integrity: sha512-iq6eVVI64nQQTRYq2KtEg2d2uU7LElhTJwsH4YzIHZshxlgZms/wIc4VoDQTlG/IvVIrBKG06CrZnp0qv7hkcQ==}
-    engines: {node: '>=12'}
-
   strip-ansi@7.1.2:
     resolution: {integrity: sha512-gmBGslpoQJtgnMAvOVqGZpEz9dyoKTCzy2nfz/n8aIFhN/jCE/rCmcxabB6jOOHV+0WNnylOxaxBQPSvcWklhA==}
     engines: {node: '>=12'}
@@ -4383,11 +4511,6 @@ packages:
 
   typescript@5.6.3:
     resolution: {integrity: sha512-hjcS1mhfuyi4WW8IWtjP7brDrG2cuDZukyrYrSauoXGNgx0S7zceP07adYkJycEr56BOUTNPzbInooiN3fn1qw==}
-    engines: {node: '>=14.17'}
-    hasBin: true
-
-  typescript@5.9.3:
-    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -4656,7 +4779,7 @@ snapshots:
       '@babel/traverse': 7.23.7
       '@babel/types': 7.27.1
       convert-source-map: 2.0.0
-      debug: 4.4.1
+      debug: 4.4.3
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
@@ -4741,7 +4864,7 @@ snapshots:
       '@babel/helper-split-export-declaration': 7.24.5
       '@babel/parser': 7.27.2
       '@babel/types': 7.27.1
-      debug: 4.4.1
+      debug: 4.4.3
       globals: 11.12.0
     transitivePeerDependencies:
       - supports-color
@@ -5252,6 +5375,17 @@ snapshots:
       nexus-rpc: 0.0.1
       proto3-json-serializer: 2.0.0
 
+  '@temporalio/testing@file:packages/testing':
+    dependencies:
+      '@temporalio/activity': link:packages/activity
+      '@temporalio/client': link:packages/client
+      '@temporalio/common': link:packages/common
+      '@temporalio/core-bridge': link:packages/core-bridge
+      '@temporalio/proto': link:packages/proto
+      '@temporalio/worker': link:packages/worker
+      '@temporalio/workflow': link:packages/workflow
+      abort-controller: 3.0.0
+
   '@temporalio/worker@file:packages/worker(tslib@2.6.2)':
     dependencies:
       '@grpc/grpc-js': 1.12.4
@@ -5466,7 +5600,7 @@ snapshots:
       globby: 11.1.0
       is-glob: 4.0.3
       minimatch: 9.0.3
-      semver: 7.7.2
+      semver: 7.7.3
       ts-api-utils: 1.4.0(typescript@5.6.3)
     optionalDependencies:
       typescript: 5.6.3
@@ -5846,15 +5980,11 @@ snapshots:
 
   ansi-regex@5.0.1: {}
 
-  ansi-regex@6.0.1: {}
-
   ansi-regex@6.2.2: {}
 
   ansi-styles@4.3.0:
     dependencies:
       color-convert: 2.0.1
-
-  ansi-styles@6.2.1: {}
 
   ansi-styles@6.2.3: {}
 
@@ -5946,9 +6076,9 @@ snapshots:
 
   ava@5.3.1:
     dependencies:
-      acorn: 8.11.3
+      acorn: 8.15.0
       acorn-walk: 8.3.1
-      ansi-styles: 6.2.1
+      ansi-styles: 6.2.3
       arrgv: 1.0.2
       arrify: 3.0.0
       callsites: 4.1.0
@@ -5964,7 +6094,7 @@ snapshots:
       common-path-prefix: 3.0.0
       concordance: 5.0.4
       currently-unhandled: 0.4.1
-      debug: 4.4.1
+      debug: 4.4.3
       emittery: 1.0.3
       figures: 5.0.0
       globby: 13.2.2
@@ -5984,7 +6114,7 @@ snapshots:
       pretty-ms: 8.0.0
       resolve-cwd: 3.0.0
       stack-utils: 2.0.6
-      strip-ansi: 7.1.0
+      strip-ansi: 7.1.2
       supertap: 3.0.1
       temp-dir: 3.0.0
       write-file-atomic: 5.0.1
@@ -6256,7 +6386,7 @@ snapshots:
       js-string-escape: 1.0.1
       lodash: 4.17.21
       md5-hex: 3.0.1
-      semver: 7.7.2
+      semver: 7.7.3
       well-known-symbols: 2.0.0
 
   content-disposition@0.5.4:
@@ -8289,7 +8419,7 @@ snapshots:
 
   slice-ansi@5.0.0:
     dependencies:
-      ansi-styles: 6.2.1
+      ansi-styles: 6.2.3
       is-fullwidth-code-point: 4.0.0
 
   smol-toml@1.4.2: {}
@@ -8368,7 +8498,7 @@ snapshots:
     dependencies:
       eastasianwidth: 0.2.0
       emoji-regex: 9.2.2
-      strip-ansi: 7.1.0
+      strip-ansi: 7.1.2
 
   string.prototype.trim@1.2.8:
     dependencies:
@@ -8400,10 +8530,6 @@ snapshots:
     dependencies:
       ansi-regex: 5.0.1
 
-  strip-ansi@7.1.0:
-    dependencies:
-      ansi-regex: 6.0.1
-
   strip-ansi@7.1.2:
     dependencies:
       ansi-regex: 6.2.2
@@ -8419,7 +8545,7 @@ snapshots:
       indent-string: 5.0.0
       js-yaml: 3.14.2
       serialize-error: 7.0.1
-      strip-ansi: 7.1.0
+      strip-ansi: 7.1.2
 
   supports-color@7.2.0:
     dependencies:
@@ -8495,7 +8621,7 @@ snapshots:
   terser@5.26.0:
     dependencies:
       '@jridgewell/source-map': 0.3.5
-      acorn: 8.11.3
+      acorn: 8.15.0
       commander: 2.20.3
       source-map-support: 0.5.21
 
@@ -8550,14 +8676,14 @@ snapshots:
     dependencies:
       typescript: 5.6.3
 
-  ts-loader@9.5.1(typescript@5.9.3)(webpack@5.94.0):
+  ts-loader@9.5.1(typescript@5.6.3)(webpack@5.94.0):
     dependencies:
       chalk: 4.1.2
       enhanced-resolve: 5.17.1
       micromatch: 4.0.8
       semver: 7.7.2
       source-map: 0.7.4
-      typescript: 5.9.3
+      typescript: 5.6.3
       webpack: 5.94.0
 
   ts-morph@13.0.3:
@@ -8656,8 +8782,6 @@ snapshots:
       is-typed-array: 1.1.12
 
   typescript@5.6.3: {}
-
-  typescript@5.9.3: {}
 
   uc.micro@1.0.6: {}
 

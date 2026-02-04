@@ -1,5 +1,5 @@
 import test from 'ava';
-import { splitProtoHostPort, normalizeGrpcEndpointAddress } from '@temporalio/common/lib/internal-non-workflow';
+import { splitProtoHostPort, normalizeGrpcEndpointAddress } from '../internal-non-workflow';
 
 test('splitProtoHostPort', (t) => {
   t.deepEqual(splitProtoHostPort('127.0.0.1'), { scheme: undefined, hostname: '127.0.0.1', port: undefined });
