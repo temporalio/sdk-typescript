@@ -8,7 +8,7 @@ import { temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
 import { isFlushableLogger } from './logger';
-import { RuntimeMetricMeter, BufferedMetricUpdate } from './runtime-metrics';
+import { RuntimeMetricMeter, MetricsBuffer } from './runtime-metrics';
 import { toNativeClientOptions, NativeConnectionOptions } from './connection-options';
 import { byteArrayToBuffer, toMB } from './utils';
 import { CompiledRuntimeOptions, compileOptions, RuntimeOptions } from './runtime-options';
@@ -27,6 +27,13 @@ export class Runtime {
 
   /** The metric meter associated with this runtime. */
   public readonly metricMeter: MetricMeter;
+
+  /**
+   * The metrics buffer associated with this runtime, if buffered metrics are enabled.
+   *
+   * @experimental Buffered metrics is an experimental feature. APIs may be subject to change.
+   */
+  public readonly metricsBuffer: MetricsBuffer | undefined;
 
   /** Track the number of pending creation calls into the tokio runtime to prevent shut down */
   protected pendingCreations = 0;
@@ -50,6 +57,7 @@ export class Runtime {
     public readonly options: CompiledRuntimeOptions
   ) {
     this.logger = options.logger;
+    this.metricsBuffer = options.metricsBuffer?.bind(this);
     this.metricMeter = options.runtimeOptions.metricsExporter
       ? MetricMeterWithComposedTags.compose(new RuntimeMetricMeter(this.native), {}, true)
       : noopMetricMeter;
@@ -277,6 +285,10 @@ export class Runtime {
     try {
       if (Runtime._instance === this) delete Runtime._instance;
       (this as any).metricMeter = noopMetricMeter;
+      if (this.metricsBuffer !== undefined) {
+        this.metricsBuffer.unbind(this);
+        (this as any).metricsBuffer = undefined;
+      }
       this.teardownShutdownHook();
       // FIXME(JWH): I think we no longer need this, but will have to thoroughly validate.
       native.runtimeShutdown(this.native);
@@ -286,28 +298,6 @@ export class Runtime {
     } finally {
       delete (this as any).native;
     }
-  }
-
-  /**
-   * Retrieve buffered metric updates from the runtime.
-   *
-   * This method drains the metrics buffer and returns all metric events that have accumulated
-   * since the last call to this method. This method should be called regularly when using
-   * buffered metrics to prevent buffer overflow.
-   *
-   * @throws {IllegalStateError} If buffered metrics have not been enabled for this runtime,
-   *                             or if the runtime has been shut down.
-   * @returns Array of buffered metric updates, each containing the metric metadata,
-   *          current value, and attributes
-   * @experimental Buffered metrics is an experimental feature. APIs may be subject to change.
-   */
-  public retrieveBufferedMetrics(): ArrayIterator<BufferedMetricUpdate> {
-    if (this.native === undefined) throw new IllegalStateError('Runtime has been shut down');
-
-    // We return an iterator instead of an array in case we should, at some point in the future,
-    // need to apply per item transformation. Copying to an array would obviously be possible, the
-    // buffered metric array might be large, so avoiding the extra array allocation makes sense.
-    return native.runtimeRetrieveBufferedMetrics(this.native).values();
   }
 
   /**
@@ -396,12 +386,12 @@ export class Runtime {
 
         this.logger.warn(
           `This program is running inside a containerized environment with a memory constraint ` +
-          `(eg. '${dockerArgs}' or similar). Node itself does not consider this memory constraint ` +
-          `in how it manages its heap memory. There is consequently a high probability that ` +
-          `the process will crash due to running out of memory. To increase reliability, we recommend ` +
-          `adding '--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node arguments. ` +
-          `Refer to https://docs.temporal.io/develop/typescript/core-application#run-a-worker-on-docker ` +
-          `for more advice on tuning your Workers.`,
+            `(eg. '${dockerArgs}' or similar). Node itself does not consider this memory constraint ` +
+            `in how it manages its heap memory. There is consequently a high probability that ` +
+            `the process will crash due to running out of memory. To increase reliability, we recommend ` +
+            `adding '--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node arguments. ` +
+            `Refer to https://docs.temporal.io/develop/typescript/core-application#run-a-worker-on-docker ` +
+            `for more advice on tuning your Workers.`,
           { sdkComponent: SdkComponent.worker }
         );
       }

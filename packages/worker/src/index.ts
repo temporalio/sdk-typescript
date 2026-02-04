@@ -22,6 +22,7 @@ export {
 export * from './interceptors';
 export { DefaultLogger, LogEntry, LogLevel, LogMetadata, LogTimestamp, Logger } from './logger';
 export { History, Runtime } from './runtime';
+export { MetricsBuffer, MetricsBufferOptions, BufferedMetricUpdate } from './runtime-metrics';
 export {
   RuntimeOptions,
   makeTelemetryFilterString,

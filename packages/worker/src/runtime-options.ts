@@ -3,6 +3,7 @@ import { Logger, LogLevel } from '@temporalio/common';
 import { Duration, msToNumber } from '@temporalio/common/lib/time';
 import { DefaultLogger } from './logger';
 import { NativeLogCollector } from './runtime-logger';
+import { MetricsBuffer } from './runtime-metrics';
 
 /**
  * Options used to create a Temporal Runtime.
@@ -367,25 +368,7 @@ export interface PrometheusMetricsExporter {
  * @experimental Buffered metrics is an experimental feature. APIs may be subject to change.
  */
 export interface BufferedMetricsExporter {
-  buffered: {
-    /**
-     * Maximum number of metric events to buffer before dropping new events.
-     *
-     * The buffer accumulates metric updates from Core and should be drained regularly by calling
-     * {@link Runtime.retrieveBufferedMetrics}. If the buffer fills up, new metric updates will be
-     * dropped and an error will be logged.
-     *
-     * @default 10000
-     */
-    maxBufferSize?: number;
-
-    /**
-     * If set to true, the exporter will use seconds for durations instead of milliseconds.
-     *
-     * @default false
-     */
-    useSecondsForDurations?: boolean;
-  };
+  buffer: MetricsBuffer;
 }
 
 // Compile Options ////////////////////////////////////////////////////////////////////////////////
@@ -398,6 +381,7 @@ export interface CompiledRuntimeOptions {
   shutdownSignals: NodeJS.Signals[];
   runtimeOptions: native.RuntimeOptions;
   logger: Logger;
+  metricsBuffer: MetricsBuffer | undefined;
 }
 
 export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions {
@@ -418,35 +402,36 @@ export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions 
       metricsExporter:
         metrics && isPrometheusMetricsExporter(metrics)
           ? ({
-            type: 'prometheus',
-            socketAddr: metrics.prometheus.bindAddress,
-            countersTotalSuffix: metrics.prometheus.countersTotalSuffix ?? false,
-            unitSuffix: metrics.prometheus.unitSuffix ?? false,
-            useSecondsForDurations: metrics.prometheus.useSecondsForDurations ?? false,
-            histogramBucketOverrides: metrics.prometheus.histogramBucketOverrides ?? {},
-            globalTags: metrics.globalTags ?? {},
-          } satisfies native.MetricExporterOptions)
-          : metrics && isOtelCollectorExporter(metrics)
-            ? ({
-              type: 'otel',
-              url: metrics.otel.url,
-              protocol: metrics.otel.http ? 'http' : 'grpc',
-              headers: metrics.otel.headers ?? {},
-              metricPeriodicity: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
-              useSecondsForDurations: metrics.otel.useSecondsForDurations ?? false,
-              metricTemporality: metrics.otel.temporality ?? metrics.temporality ?? 'cumulative', // eslint-disable-line deprecation/deprecation
-              histogramBucketOverrides: metrics.otel.histogramBucketOverrides ?? {},
+              type: 'prometheus',
+              socketAddr: metrics.prometheus.bindAddress,
+              countersTotalSuffix: metrics.prometheus.countersTotalSuffix ?? false,
+              unitSuffix: metrics.prometheus.unitSuffix ?? false,
+              useSecondsForDurations: metrics.prometheus.useSecondsForDurations ?? false,
+              histogramBucketOverrides: metrics.prometheus.histogramBucketOverrides ?? {},
               globalTags: metrics.globalTags ?? {},
             } satisfies native.MetricExporterOptions)
+          : metrics && isOtelCollectorExporter(metrics)
+            ? ({
+                type: 'otel',
+                url: metrics.otel.url,
+                protocol: metrics.otel.http ? 'http' : 'grpc',
+                headers: metrics.otel.headers ?? {},
+                metricPeriodicity: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
+                useSecondsForDurations: metrics.otel.useSecondsForDurations ?? false,
+                metricTemporality: metrics.otel.temporality ?? metrics.temporality ?? 'cumulative', // eslint-disable-line deprecation/deprecation
+                histogramBucketOverrides: metrics.otel.histogramBucketOverrides ?? {},
+                globalTags: metrics.globalTags ?? {},
+              } satisfies native.MetricExporterOptions)
             : metrics && isBufferedMetricsExporter(metrics)
               ? ({
-                type: 'buffered',
-                maxBufferSize: metrics.buffered.maxBufferSize ?? 10000,
-                useSecondsForDurations: metrics.buffered.useSecondsForDurations ?? false,
-              } satisfies native.MetricExporterOptions)
+                  type: 'buffer',
+                  maxBufferSize: metrics.buffer.maxBufferSize ?? 10000,
+                  useSecondsForDurations: metrics.buffer.useSecondsForDurations ?? false,
+                } satisfies native.MetricExporterOptions)
               : null,
       workerHeartbeatIntervalMillis: heartbeatMillis === 0 ? null : heartbeatMillis,
     },
+    metricsBuffer: metrics && isBufferedMetricsExporter(metrics) ? metrics.buffer : undefined,
   };
 }
 
@@ -526,7 +511,7 @@ function isPrometheusMetricsExporter(metrics: MetricsExporterConfig): metrics is
 }
 
 function isBufferedMetricsExporter(metrics: MetricsExporterConfig): metrics is BufferedMetricsExporter {
-  return 'buffered' in metrics && typeof metrics.buffered === 'object';
+  return 'buffer' in metrics && typeof metrics.buffer === 'object';
 }
 
 function isForwardingLogger(options: LogExporterConfig): boolean {

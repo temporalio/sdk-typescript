@@ -100,7 +100,7 @@ export interface OtelMetricsExporterOptions {
 }
 
 export interface BufferedMetricsExporterOptions {
-  type: 'buffered';
+  type: 'buffer';
   maxBufferSize: number;
   useSecondsForDurations: boolean;
 }

@@ -105,7 +105,7 @@ pub fn runtime_new(
 
                 (None, Some(exporter), None)
             }
-            Some(BridgeMetricsExporter::Buffered {
+            Some(BridgeMetricsExporter::Buffer {
                 max_buffer_size,
                 use_seconds_for_durations,
             }) => {
@@ -264,7 +264,7 @@ impl RuntimeExt for Arc<CoreRuntime> {
 pub enum BridgeMetricsExporter {
     Prometheus(CorePrometheusExporterOptions),
     Otel(CoreOtelCollectorOptions),
-    Buffered {
+    Buffer {
         max_buffer_size: usize,
         use_seconds_for_durations: bool,
     },
@@ -336,7 +336,7 @@ mod config {
     pub(super) enum MetricsExporterOptions {
         Prometheus(PrometheusMetricsExporterConfig),
         Otel(OtelMetricsExporterConfig),
-        Buffered(BufferedMetricsExporterConfig),
+        Buffer(BufferedMetricsExporterConfig),
     }
 
     #[derive(Debug, Clone, TryFromJs)]
@@ -441,7 +441,7 @@ mod config {
                     Ok(super::BridgeMetricsExporter::Prometheus(prom.try_into()?))
                 }
                 Self::Otel(otel) => Ok(super::BridgeMetricsExporter::Otel(otel.try_into()?)),
-                Self::Buffered(buffered) => Ok(super::BridgeMetricsExporter::Buffered {
+                Self::Buffer(buffered) => Ok(super::BridgeMetricsExporter::Buffer {
                     max_buffer_size: buffered.max_buffer_size,
                     use_seconds_for_durations: buffered.use_seconds_for_durations,
                 }),
