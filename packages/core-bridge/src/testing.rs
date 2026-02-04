@@ -273,7 +273,6 @@ mod config {
                 .maybe_port(self.port)
                 .extra_args(self.extra_args)
                 .build();
-
             Ok(config)
         }
     }
