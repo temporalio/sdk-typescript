@@ -299,7 +299,7 @@ export class Runtime {
    *                             or if the runtime has been shut down.
    * @returns Array of buffered metric updates, each containing the metric metadata,
    *          current value, and attributes
-   * @experimental Buffered metrics is an experiemental feature. APIs may be subject to change.
+   * @experimental Buffered metrics is an experimental feature. APIs may be subject to change.
    */
   public retrieveBufferedMetrics(): ArrayIterator<BufferedMetricUpdate> {
     if (this.native === undefined) throw new IllegalStateError('Runtime has been shut down');
@@ -396,12 +396,12 @@ export class Runtime {
 
         this.logger.warn(
           `This program is running inside a containerized environment with a memory constraint ` +
-            `(eg. '${dockerArgs}' or similar). Node itself does not consider this memory constraint ` +
-            `in how it manages its heap memory. There is consequently a high probability that ` +
-            `the process will crash due to running out of memory. To increase reliability, we recommend ` +
-            `adding '--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node arguments. ` +
-            `Refer to https://docs.temporal.io/develop/typescript/core-application#run-a-worker-on-docker ` +
-            `for more advice on tuning your Workers.`,
+          `(eg. '${dockerArgs}' or similar). Node itself does not consider this memory constraint ` +
+          `in how it manages its heap memory. There is consequently a high probability that ` +
+          `the process will crash due to running out of memory. To increase reliability, we recommend ` +
+          `adding '--max-old-space-size=${suggestedOldSpaceSizeInMb}' to your node arguments. ` +
+          `Refer to https://docs.temporal.io/develop/typescript/core-application#run-a-worker-on-docker ` +
+          `for more advice on tuning your Workers.`,
           { sdkComponent: SdkComponent.worker }
         );
       }

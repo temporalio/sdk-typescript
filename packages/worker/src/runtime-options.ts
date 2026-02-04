@@ -364,7 +364,7 @@ export interface PrometheusMetricsExporter {
 /**
  * Buffered metrics exporter options
  *
- * @experimental Buffered metrics is an experiemental feature. APIs may be subject to change.
+ * @experimental Buffered metrics is an experimental feature. APIs may be subject to change.
  */
 export interface BufferedMetricsExporter {
   buffered: {
@@ -418,32 +418,32 @@ export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions 
       metricsExporter:
         metrics && isPrometheusMetricsExporter(metrics)
           ? ({
-              type: 'prometheus',
-              socketAddr: metrics.prometheus.bindAddress,
-              countersTotalSuffix: metrics.prometheus.countersTotalSuffix ?? false,
-              unitSuffix: metrics.prometheus.unitSuffix ?? false,
-              useSecondsForDurations: metrics.prometheus.useSecondsForDurations ?? false,
-              histogramBucketOverrides: metrics.prometheus.histogramBucketOverrides ?? {},
-              globalTags: metrics.globalTags ?? {},
-            } satisfies native.MetricExporterOptions)
+            type: 'prometheus',
+            socketAddr: metrics.prometheus.bindAddress,
+            countersTotalSuffix: metrics.prometheus.countersTotalSuffix ?? false,
+            unitSuffix: metrics.prometheus.unitSuffix ?? false,
+            useSecondsForDurations: metrics.prometheus.useSecondsForDurations ?? false,
+            histogramBucketOverrides: metrics.prometheus.histogramBucketOverrides ?? {},
+            globalTags: metrics.globalTags ?? {},
+          } satisfies native.MetricExporterOptions)
           : metrics && isOtelCollectorExporter(metrics)
             ? ({
-                type: 'otel',
-                url: metrics.otel.url,
-                protocol: metrics.otel.http ? 'http' : 'grpc',
-                headers: metrics.otel.headers ?? {},
-                metricPeriodicity: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
-                useSecondsForDurations: metrics.otel.useSecondsForDurations ?? false,
-                metricTemporality: metrics.otel.temporality ?? metrics.temporality ?? 'cumulative', // eslint-disable-line deprecation/deprecation
-                histogramBucketOverrides: metrics.otel.histogramBucketOverrides ?? {},
-                globalTags: metrics.globalTags ?? {},
-              } satisfies native.MetricExporterOptions)
+              type: 'otel',
+              url: metrics.otel.url,
+              protocol: metrics.otel.http ? 'http' : 'grpc',
+              headers: metrics.otel.headers ?? {},
+              metricPeriodicity: msToNumber(metrics.otel.metricsExportInterval ?? '1s'),
+              useSecondsForDurations: metrics.otel.useSecondsForDurations ?? false,
+              metricTemporality: metrics.otel.temporality ?? metrics.temporality ?? 'cumulative', // eslint-disable-line deprecation/deprecation
+              histogramBucketOverrides: metrics.otel.histogramBucketOverrides ?? {},
+              globalTags: metrics.globalTags ?? {},
+            } satisfies native.MetricExporterOptions)
             : metrics && isBufferedMetricsExporter(metrics)
               ? ({
-                  type: 'buffered',
-                  maxBufferSize: metrics.buffered.maxBufferSize ?? 10000,
-                  useSecondsForDurations: metrics.buffered.useSecondsForDurations ?? false,
-                } satisfies native.MetricExporterOptions)
+                type: 'buffered',
+                maxBufferSize: metrics.buffered.maxBufferSize ?? 10000,
+                useSecondsForDurations: metrics.buffered.useSecondsForDurations ?? false,
+              } satisfies native.MetricExporterOptions)
               : null,
       workerHeartbeatIntervalMillis: heartbeatMillis === 0 ? null : heartbeatMillis,
     },

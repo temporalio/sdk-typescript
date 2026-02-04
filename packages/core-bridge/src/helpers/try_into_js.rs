@@ -183,7 +183,7 @@ where
     }
 }
 
-/// To avoid some recuring error patterns when crossing the JS bridge, we normally translate
+/// To avoid some recurring error patterns when crossing the JS bridge, we normally translate
 /// `Option<T>` to `T | null` on the JS side. This however implies extra code on the JS side
 /// to check for `null` and convert to `undefined` as appropriate. This generally poses no
 /// problem, as manipulation of objects on the JS side is anyway desirable for other reasons.

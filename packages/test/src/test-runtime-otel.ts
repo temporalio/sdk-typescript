@@ -44,7 +44,7 @@ async function withFakeGrpcServer(
           // The OTel exporter will try to flush metrics on drop, which may result in tons of ERROR
           // messages on the console if the server has had time to complete shutdown before then.
           // Delaying closing the server by 1 second is enough to avoid that situation, and doesn't
-          // need to be awaited, no that doesn't slow down tests.
+          // need to be awaited, so that doesn't slow down tests.
           setTimeout(() => {
             srv.close();
           }, 1000).unref();
@@ -77,7 +77,7 @@ async function withHttpServer(
           // The OTel exporter will try to flush metrics on drop, which may result in tons of ERROR
           // messages on the console if the server has had time to complete shutdown before then.
           // Delaying closing the server by 1 second is enough to avoid that situation, and doesn't
-          // need to be awaited, no that doesn't slow down tests.
+          // need to be awaited, so that doesn't slow down tests.
           setTimeout(() => {
             srv.close();
           }, 1000).unref();

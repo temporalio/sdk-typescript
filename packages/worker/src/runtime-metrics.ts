@@ -20,7 +20,7 @@ import { native } from '@temporalio/core-bridge';
  * @internal
  */
 export class RuntimeMetricMeter implements MetricMeter {
-  public constructor(protected runtime: native.Runtime) {}
+  public constructor(protected runtime: native.Runtime) { }
 
   createCounter(name: string, unit: string = '', description: string = ''): MetricCounter {
     const nativeMetric = native.newMetricCounter(this.runtime, name, unit, description);
@@ -78,7 +78,7 @@ class RuntimeMetricCounter implements MetricCounter {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) {}
+  ) { }
 
   add(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -102,7 +102,7 @@ class RuntimeMetricHistogram implements MetricHistogram {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) {}
+  ) { }
 
   record(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -126,7 +126,7 @@ class RuntimeMetricHistogramF64 implements MetricHistogram {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) {}
+  ) { }
 
   record(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -150,7 +150,7 @@ class RuntimeMetricGauge implements MetricGauge {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) {}
+  ) { }
 
   set(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -174,7 +174,7 @@ class RuntimeMetricGaugeF64 implements MetricGauge {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) {}
+  ) { }
 
   set(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -200,7 +200,7 @@ class RuntimeMetricGaugeF64 implements MetricGauge {
  * call {@link Runtime.retrieveBufferedMetrics} to retrieve the buffered metric updates. Each update
  * event will be represented as a single instance of this interface.
  *
- * @experimental Buffered metrics is an experiemental feature. APIs may be subject to change.
+ * @experimental Buffered metrics is an experimental feature. APIs may be subject to change.
  */
 export interface BufferedMetricUpdate {
   /**
@@ -231,7 +231,7 @@ export interface BufferedMetricUpdate {
    * as those changes would affect future update events using the same `MetricTags` object, as well
    * as further events that extend that `MetricTags` object.
    *
-   * Note that the SDK may miss deduplication oppportunities, notably when a same set of attributes
+   * Note that the SDK may miss deduplication opportunities, notably when a same set of attributes
    * is recreated by the code emitting the metric updates, e.g. when extending an existing set of
    */
   attributes: MetricTags;
