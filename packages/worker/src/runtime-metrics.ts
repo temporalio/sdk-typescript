@@ -22,7 +22,7 @@ import type { Runtime } from './runtime';
  * @internal
  */
 export class RuntimeMetricMeter implements MetricMeter {
-  public constructor(protected runtime: native.Runtime) { }
+  public constructor(protected runtime: native.Runtime) {}
 
   createCounter(name: string, unit: string = '', description: string = ''): MetricCounter {
     const nativeMetric = native.newMetricCounter(this.runtime, name, unit, description);
@@ -80,7 +80,7 @@ class RuntimeMetricCounter implements MetricCounter {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) { }
+  ) {}
 
   add(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -104,7 +104,7 @@ class RuntimeMetricHistogram implements MetricHistogram {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) { }
+  ) {}
 
   record(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -128,7 +128,7 @@ class RuntimeMetricHistogramF64 implements MetricHistogram {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) { }
+  ) {}
 
   record(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -152,7 +152,7 @@ class RuntimeMetricGauge implements MetricGauge {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) { }
+  ) {}
 
   set(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -176,7 +176,7 @@ class RuntimeMetricGaugeF64 implements MetricGauge {
     public readonly name: string,
     public readonly unit: string,
     public readonly description: string
-  ) { }
+  ) {}
 
   set(value: number, tags: MetricTags = {}): void {
     if (value < 0) {
@@ -198,7 +198,7 @@ class RuntimeMetricGaugeF64 implements MetricGauge {
 /**
  * A buffer that can be set on {@link RuntimeOptions.telemetry.metricsExporter} to record
  * metrics instead of ignoring/exporting them.
- * 
+ *
  * It is important that the buffer size is set to a high number and that `retrieveUpdates` is
  * called regularly to drain the buffer. If the buffer is full, metric updates will be dropped
  * and an error will be logged.
