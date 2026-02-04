@@ -30,6 +30,7 @@ import {
   RawValue,
   SearchAttributePair,
   SearchAttributeType,
+  SuggestContinueAsNewReason,
   TypedSearchAttributes,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
@@ -1826,4 +1827,78 @@ test('Error thrown when requestEagerStart is used with regular Connection', asyn
       message: /Eager workflow start requires a NativeConnection/,
     }
   );
+});
+
+export const bunchOfEventsSignal = defineSignal<[number]>('bunchOfEvents');
+export const getHistoryInfoQuery = defineQuery<{
+  historyLength: number;
+  continueAsNewSuggested: boolean;
+  suggestedContinueAsNewReasons: SuggestContinueAsNewReason[] | undefined;
+}>('getHistoryInfo');
+
+export async function historyInfoWorkflow(): Promise<void> {
+  setHandler(bunchOfEventsSignal, async (count: number) => {
+    // Generate events by doing many sleeps
+    for (let i = 0; i < count; i++) {
+      await workflow.sleep(1);
+    }
+  });
+
+  setHandler(getHistoryInfoQuery, () => {
+    const info = workflow.workflowInfo();
+    return {
+      historyLength: info.historyLength,
+      continueAsNewSuggested: info.continueAsNewSuggested,
+      suggestedContinueAsNewReasons: info.suggestedContinueAsNewReasons,
+    };
+  });
+
+  // Wait forever
+  await workflow.condition(() => false);
+}
+
+test('suggestedContinueAsNewReasons persists across WFTs', async (t) => {
+  if (t.context.env.supportsTimeSkipping) {
+    t.pass("Test Server doesn't support continue-as-new suggestion");
+    return;
+  }
+
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(historyInfoWorkflow);
+
+    // Initial query - no suggestion yet
+    let info = await handle.query(getHistoryInfoQuery);
+    t.false(info.continueAsNewSuggested);
+    t.is(info.suggestedContinueAsNewReasons, undefined);
+
+    // Send events to trigger CAN suggestion (TOO_MANY_HISTORY_EVENTS)
+    // Threshold is set to 50 via limit.historyCount.suggestContinueAsNew in helpers-integration.ts
+    await handle.signal(bunchOfEventsSignal, 50);
+
+    // Send one more to trigger WFT update
+    await handle.signal(bunchOfEventsSignal, 1);
+
+    // Check suggestion
+    info = await handle.query(getHistoryInfoQuery);
+    t.true(info.continueAsNewSuggested);
+    t.true(info.suggestedContinueAsNewReasons!.length > 0);
+    t.true(
+      info.suggestedContinueAsNewReasons!.includes(SuggestContinueAsNewReason.TOO_MANY_HISTORY_EVENTS)
+    );
+
+    // Send another event to create new WFT
+    await handle.signal(bunchOfEventsSignal, 1);
+
+    // Verify reasons persist
+    info = await handle.query(getHistoryInfoQuery);
+    t.true(info.continueAsNewSuggested);
+    t.true(
+      info.suggestedContinueAsNewReasons!.includes(SuggestContinueAsNewReason.TOO_MANY_HISTORY_EVENTS)
+    );
+
+    await handle.cancel();
+  });
 });

@@ -51,6 +51,7 @@ const defaultDynamicConfigOptions = [
   'worker.buildIdScavengerEnabled=true',
   'worker.removableBuildIdDurationSinceDefault=1',
   'component.nexusoperations.recordCancelRequestCompletionEvents=true',
+  'limit.historyCount.suggestContinueAsNew=50',
 ];
 
 function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }, runtimeOpts?: Partial<RuntimeOptions>) {

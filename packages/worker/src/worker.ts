@@ -110,6 +110,7 @@ import {
 } from './errors';
 import { constructNexusOperationContext, NexusHandler } from './nexus';
 import { handlerErrorToProto } from './nexus/conversions';
+import { suggestContinueAsNewReasonsFromProto } from '../../common/lib/continue-as-new';
 
 export { DataConverter, defaultPayloadConverter };
 
@@ -1567,6 +1568,7 @@ export class Worker {
       // A zero value means that it was not set by the server
       historySize: activation.historySizeBytes.toNumber(),
       continueAsNewSuggested: activation.continueAsNewSuggested,
+      suggestedContinueAsNewReasons: suggestContinueAsNewReasonsFromProto(activation.suggestContinueAsNewReasons),
       currentBuildId: activation.deploymentVersionForCurrentTask?.buildId ?? '',
       currentDeploymentVersion: convertDeploymentVersion(activation.deploymentVersionForCurrentTask),
       unsafe: {
