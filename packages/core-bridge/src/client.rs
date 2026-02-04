@@ -260,6 +260,9 @@ async fn client_invoke_workflow_service(
     use temporalio_client::WorkflowService;
 
     match call.rpc.as_str() {
+        "CountActivityExecutions" => {
+            rpc_call!(retry_client, call, count_activity_executions)
+        }
         "CountWorkflowExecutions" => {
             rpc_call!(retry_client, call, count_workflow_executions)
         }
@@ -268,6 +271,9 @@ async fn client_invoke_workflow_service(
         }
         "CreateWorkflowRule" => {
             rpc_call!(retry_client, call, create_workflow_rule)
+        }
+        "DeleteActivityExecution" => {
+            rpc_call!(retry_client, call, delete_activity_execution)
         }
         "DeleteSchedule" => {
             rpc_call!(retry_client, call, delete_schedule)
@@ -286,6 +292,9 @@ async fn client_invoke_workflow_service(
         }
         "DescribeBatchOperation" => {
             rpc_call!(retry_client, call, describe_batch_operation)
+        }
+        "DescribeActivityExecution" => {
+            rpc_call!(retry_client, call, describe_activity_execution)
         }
         "DescribeDeployment" => {
             rpc_call!(retry_client, call, describe_deployment)
@@ -338,6 +347,9 @@ async fn client_invoke_workflow_service(
         "ListArchivedWorkflowExecutions" => {
             rpc_call!(retry_client, call, list_archived_workflow_executions)
         }
+        "ListActivityExecutions" => {
+            rpc_call!(retry_client, call, list_activity_executions)
+        }
         "ListBatchOperations" => {
             rpc_call!(retry_client, call, list_batch_operations)
         }
@@ -378,6 +390,12 @@ async fn client_invoke_workflow_service(
         "PauseActivity" => {
             rpc_call!(retry_client, call, pause_activity)
         }
+        "PauseWorkflowExecution" => {
+            rpc_call!(retry_client, call, pause_workflow_execution)
+        }
+        "PollActivityExecution" => {
+            rpc_call!(retry_client, call, poll_activity_execution)
+        }
         "PollActivityTaskQueue" => {
             rpc_call!(retry_client, call, poll_activity_task_queue)
         }
@@ -399,6 +417,9 @@ async fn client_invoke_workflow_service(
             rpc_call!(retry_client, call, record_worker_heartbeat)
         }
         "RegisterNamespace" => rpc_call!(retry_client, call, register_namespace),
+        "RequestCancelActivityExecution" => {
+            rpc_call!(retry_client, call, request_cancel_activity_execution)
+        }
         "RequestCancelWorkflowExecution" => {
             rpc_call!(retry_client, call, request_cancel_workflow_execution)
         }
@@ -468,6 +489,9 @@ async fn client_invoke_workflow_service(
         "SignalWorkflowExecution" => {
             rpc_call!(retry_client, call, signal_workflow_execution)
         }
+        "StartActivityExecution" => {
+            rpc_call!(retry_client, call, start_activity_execution)
+        }
         "StartWorkflowExecution" => {
             rpc_call!(retry_client, call, start_workflow_execution)
         }
@@ -477,6 +501,9 @@ async fn client_invoke_workflow_service(
         "StopBatchOperation" => {
             rpc_call!(retry_client, call, stop_batch_operation)
         }
+        "TerminateActivityExecution" => {
+            rpc_call!(retry_client, call, terminate_activity_execution)
+        }
         "TerminateWorkflowExecution" => {
             rpc_call!(retry_client, call, terminate_workflow_execution)
         }
@@ -485,6 +512,9 @@ async fn client_invoke_workflow_service(
         }
         "UnpauseActivity" => {
             rpc_call!(retry_client, call, unpause_activity)
+        }
+        "UnpauseWorkflowExecution" => {
+            rpc_call!(retry_client, call, unpause_workflow_execution)
         }
         "UpdateActivityOptions" => {
             rpc_call!(retry_client, call, update_activity_options)

@@ -105,9 +105,9 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
       // Verify use seconds & unit suffix
       t.assert(
         text.includes(
-          'temporal_workflow_task_replay_latency_seconds_bucket{namespace="default",' +
+          'temporal_workflow_task_execution_latency_seconds_bucket{namespace="default",' +
             'service_name="temporal-core-sdk",task_queue="test-prometheus",' +
-            'workflow_type="successString",my_tag="my_value",le="0.001"}'
+            'workflow_type="successString",my_tag="my_value",le="31415"}'
         ),
         `Actual: \n-------\n${text}\n-------`
       );
