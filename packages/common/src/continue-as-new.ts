@@ -36,7 +36,6 @@ export function suggestContinueAsNewReasonsFromProto(reasons: temporal.api.enums
         return undefined;
     }
 
-    console.log("REASONS PROTO", reasons);
     let res: SuggestContinueAsNewReason[] = [];
     for (let r of reasons) {
         let decoded = decodeSuggestContinueAsNewReason(r);

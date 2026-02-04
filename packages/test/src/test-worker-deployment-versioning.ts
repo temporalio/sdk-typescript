@@ -570,14 +570,12 @@ test('ContinueAsNew with version upgrade', async (t) => {
   const worker2Promise = worker2.run();
   worker2Promise.catch((err) => t.fail('Worker 2.0 error: ' + err));
 
-  console.log("WORKERS STARTED");
   // Wait for v1, set as current
   const describeResp1 = await waitUntilWorkerDeploymentVisible(client, v1);
   const setResp1 = await setCurrentDeploymentVersion(client, describeResp1.conflictToken, v1);
 
   // Wait for routing config propagation
   await waitForRoutingConfigPropagation(client, deploymentName, v1.buildId);
-  console.log("STARTING WF1");
 
   // Start workflow (runs on v1)
   const wfHandle = await client.workflow.start('continueAsNewWithVersionUpgrade', {
@@ -591,14 +589,12 @@ test('ContinueAsNew with version upgrade', async (t) => {
 
   // Wait for v2 visible, set as current (this triggers suggestion)
   await waitUntilWorkerDeploymentVisible(client, v2);
-  console.log("SETTING WF VERSION TO 2");
   await setCurrentDeploymentVersion(client, setResp1.conflictToken, v2);
 
   // Wait for routing config propagation
   await waitForRoutingConfigPropagation(client, deploymentName, v2.buildId);
 
   // Workflow should CAN with AUTO_UPGRADE and complete on v2
-  console.log("WAITING FOR RESULT OF 2");
   const result = await wfHandle.result();
   assert.equal(result, 'v2.0');
 

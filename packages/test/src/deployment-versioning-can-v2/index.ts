@@ -1,7 +1,7 @@
 import { setWorkflowOptions } from '@temporalio/workflow';
 
 setWorkflowOptions({ versioningBehavior: 'PINNED' }, continueAsNewWithVersionUpgrade);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function continueAsNewWithVersionUpgrade(attempt: number): Promise<string> {
-  console.log("WF2");
   return 'v2.0';
 }
