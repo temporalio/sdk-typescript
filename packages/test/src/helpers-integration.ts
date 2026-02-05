@@ -40,17 +40,8 @@ export interface Context {
 }
 
 const defaultDynamicConfigOptions = [
-  'frontend.activityAPIsEnabled=true',
-  'frontend.enableExecuteMultiOperation=true',
-  'frontend.workerVersioningDataAPIs=true',
-  'frontend.workerVersioningWorkflowAPIs=true',
   'system.enableActivityEagerExecution=true',
-  'system.enableDeploymentVersions=true',
-  'system.enableEagerWorkflowStart=true',
-  'system.forceSearchAttributesCacheRefreshOnRead=true',
-  'worker.buildIdScavengerEnabled=true',
-  'worker.removableBuildIdDurationSinceDefault=1',
-  'component.nexusoperations.recordCancelRequestCompletionEvents=true',
+  'history.enableRequestIdRefLinks=true',
 ];
 
 function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }, runtimeOpts?: Partial<RuntimeOptions>) {
