@@ -47,10 +47,10 @@ const defaultDynamicConfigOptions = [
 function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }, runtimeOpts?: Partial<RuntimeOptions>) {
   const logger = recordedLogs
     ? new DefaultLogger('DEBUG', (entry) => {
-      const workflowId = (entry.meta as any)?.workflowInfo?.workflowId ?? (entry.meta as any)?.workflowId;
-      recordedLogs![workflowId] ??= [];
-      recordedLogs![workflowId].push(entry);
-    })
+        const workflowId = (entry.meta as any)?.workflowInfo?.workflowId ?? (entry.meta as any)?.workflowId;
+        recordedLogs![workflowId] ??= [];
+        recordedLogs![workflowId].push(entry);
+      })
     : new DefaultLogger((process.env.TEST_LOG_LEVEL || 'ERROR').toUpperCase() as LogLevel);
   Runtime.install({
     ...runtimeOpts,
