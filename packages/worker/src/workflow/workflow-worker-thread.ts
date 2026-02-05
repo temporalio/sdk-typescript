@@ -66,6 +66,8 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       let activation;
       if (input.activation instanceof Uint8Array) {
         if (isBun) {
+          // Some activation messages get silently dropped by Bun's postMessage.
+          // To work around this bug, we encode activations
           activation = coresdk.workflow_activation.WorkflowActivation.decode(input.activation);
         } else {
           throw new Error('Should not be encoding activations when not using Bun');
@@ -74,7 +76,7 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
         activation = input.activation;
       }
       const completion = await workflow.activate(activation);
-      const completion2 = isBun
+      const maybeEncodedCompletion = isBun
         ? coresdk.workflow_completion.WorkflowActivationCompletion.encode(completion).finish()
         : completion;
       return {
@@ -83,7 +85,7 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
           type: 'ok',
           output: {
             type: 'activation-completion',
-            completion: completion2,
+            completion: maybeEncodedCompletion,
           },
         },
       };
@@ -97,7 +99,8 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       calls.forEach((call) => {
         // Delete .now because functions can't be serialized / sent to thread.
         delete (call.workflowInfo.unsafe as any).now;
-        // Use structuredClone when available to work around a postMessage bug where
+        // Use structuredClone when available
+        // This lets us work around a bug in Bun's postMessage where
         // shared object references get corrupted during serialization.
         call.workflowInfo =
           'structuredClone' in globalThis
