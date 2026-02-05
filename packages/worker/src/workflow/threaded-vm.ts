@@ -10,6 +10,7 @@
  */
 
 import { Worker as NodeWorker } from 'node:worker_threads';
+import { setTimeout } from 'node:timers/promises';
 import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, type SinkCall } from '@temporalio/workflow';
 import { Logger } from '@temporalio/common';
@@ -138,10 +139,28 @@ export class WorkerThreadClient {
     }
     this.shutDownRequested = true;
     await this.send({ type: 'destroy' });
-    const exitCode = await this.workerThread.terminate();
-    if (exitCode !== TERMINATED_EXIT_CODE) {
+
+    const exitCode = await (isBun ? this.terminateWithBunWorkaround() : this.workerThread.terminate());
+    if (exitCode !== null && exitCode !== TERMINATED_EXIT_CODE) {
       throw new UnexpectedError(`Failed to terminate Worker thread, exit code: ${exitCode}`);
     }
+  }
+
+  /**
+   * Bun's terminate() hangs when called on an already exited worker thread.
+   * Race terminate() against polling for the exit event to handle this case.
+   */
+  private async terminateWithBunWorkaround(): Promise<number | null> {
+    const pollIntervalMs = 100;
+
+    const terminatePromise = this.workerThread.terminate();
+
+    let result = null;
+    while (!this.workerExited) {
+      result = await Promise.race([terminatePromise, setTimeout(pollIntervalMs, null)]);
+    }
+
+    return result;
   }
 
   public getActiveWorkflowCount(): number {
