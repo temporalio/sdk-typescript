@@ -39,13 +39,13 @@
     "@types/istanbul-lib-coverage": "^2.0.6",
     "@types/istanbul-lib-instrument": "^1.7.7",
     "@types/webpack": "^5.28.5",
-    "webpack": "^5.94.0"
+    "webpack": "^5.104.1"
   },
   "peerDependencies": {
     "@temporalio/common": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "@temporalio/workflow": "workspace:*",
-    "webpack": "^5.94.0"
+    "webpack": "^5.104.1"
   },
   "publishConfig": {
     "access": "public"
