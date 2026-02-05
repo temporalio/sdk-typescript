@@ -6,7 +6,7 @@ import { TemporalFailure, defaultPayloadConverter, toPayloads, ApplicationFailur
 import { coresdk, google } from '@temporalio/proto';
 import { msToTs } from '@temporalio/common/lib/time';
 import { httpGet } from './activities';
-import { cleanOptionalStackTrace } from './helpers';
+import { cleanOptionalStackTrace, isBun } from './helpers';
 import { defaultOptions, isolateFreeWorker, Worker } from './mock-native-worker';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import Duration = google.protobuf.Duration;
@@ -88,7 +88,19 @@ test('Worker runs an activity and reports failure', async (t) => {
         failure: {
           message,
           source: 'TypeScriptSDK',
-          stackTrace: dedent`
+          stackTrace: isBun
+            ? dedent`
+            Error: :(
+                at throwAnError (test/lib/activities/index.js)
+                at execute (worker/lib/activity.js)
+                at <anonymous> (worker/lib/activity.js)
+                at <anonymous> (worker/lib/worker.js)
+                at doInnerSub (rxjs/dist/cjs/internal/operators/mergeInternals.js)
+                at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
+                at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
+                at <anonymous> (rxjs/dist/cjs/internal/operators/map.js)
+                at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)`
+            : dedent`
             Error: :(
                 at throwAnError (test/src/activities/index.ts)
           `,

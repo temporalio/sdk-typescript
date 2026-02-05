@@ -3,7 +3,7 @@ import { ApplicationFailure, arrayFromPayloads } from '@temporalio/common';
 import * as wf from '@temporalio/workflow';
 import { WorkflowFailedError } from '@temporalio/client';
 import { makeTestFunction, Context, helpers } from './helpers-integration';
-import { REUSE_V8_CONTEXT } from './helpers';
+import { isBun, REUSE_V8_CONTEXT } from './helpers';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -176,7 +176,11 @@ async function assertObjectImmutable(
   await worker.runUntil(async () => {
     const wf1 = await startWorkflow(workflow);
     const err = await t.throwsAsync(wf1.result(), { instanceOf: WorkflowFailedError });
-    t.is(err?.cause?.message, 'Cannot add property a, object is not extensible');
+    // Bun uses a different error message format for non-extensible objects
+    const expectedMessage = isBun
+      ? 'Attempting to define property on object that is not extensible.'
+      : 'Cannot add property a, object is not extensible';
+    t.is(err?.cause?.message, expectedMessage);
     t.deepEqual((err?.cause as ApplicationFailure)?.details, [[null]]);
   });
 }
