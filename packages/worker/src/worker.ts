@@ -1459,12 +1459,10 @@ export class Worker {
           // When processing workflows through runReplayHistories, Core may still send non-replay
           // activations on the very last Workflow Task in some cases. Though Core is technically exact
           // here, the fact that sinks marked with callDuringReplay = false may get called on a replay
-          // worker is definitely a surprising behavior. For that reason, we extend the isReplaying flag in
-          // this case to also include anything running under in a replay worker.
-          const isReplaying = activation.isReplaying || this.isReplayWorker;
-
+          // worker is definitely a surprising behavior. For that reason, processSinkCalls checks
+          // this.isReplayWorker to suppress all non-callDuringReplay sinks on replay workers.
           const calls = await workflow.workflow.getAndResetSinkCalls();
-          await this.processSinkCalls(calls, isReplaying, workflow.logAttributes);
+          await this.processSinkCalls(calls, workflow.logAttributes);
         }
         this.logger.trace('Completed activation', workflow.logAttributes);
       }
@@ -1598,11 +1596,7 @@ export class Worker {
    * This function does not throw, it will log in case of missing sinks
    * or failed sink function invocations.
    */
-  protected async processSinkCalls(
-    externalCalls: SinkCall[],
-    _isReplaying: boolean,
-    logAttributes: Record<string, unknown>
-  ): Promise<void> {
+  protected async processSinkCalls(externalCalls: SinkCall[], logAttributes: Record<string, unknown>): Promise<void> {
     const { sinks } = this.options;
 
     const filteredCalls = externalCalls
