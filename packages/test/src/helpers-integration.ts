@@ -40,26 +40,17 @@ export interface Context {
 }
 
 const defaultDynamicConfigOptions = [
-  'frontend.activityAPIsEnabled=true',
-  'frontend.enableExecuteMultiOperation=true',
-  'frontend.workerVersioningDataAPIs=true',
-  'frontend.workerVersioningWorkflowAPIs=true',
   'system.enableActivityEagerExecution=true',
-  'system.enableDeploymentVersions=true',
-  'system.enableEagerWorkflowStart=true',
-  'system.forceSearchAttributesCacheRefreshOnRead=true',
-  'worker.buildIdScavengerEnabled=true',
-  'worker.removableBuildIdDurationSinceDefault=1',
-  'component.nexusoperations.recordCancelRequestCompletionEvents=true',
+  'history.enableRequestIdRefLinks=true',
 ];
 
 function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }, runtimeOpts?: Partial<RuntimeOptions>) {
   const logger = recordedLogs
     ? new DefaultLogger('DEBUG', (entry) => {
-        const workflowId = (entry.meta as any)?.workflowInfo?.workflowId ?? (entry.meta as any)?.workflowId;
-        recordedLogs![workflowId] ??= [];
-        recordedLogs![workflowId].push(entry);
-      })
+      const workflowId = (entry.meta as any)?.workflowInfo?.workflowId ?? (entry.meta as any)?.workflowId;
+      recordedLogs![workflowId] ??= [];
+      recordedLogs![workflowId].push(entry);
+    })
     : new DefaultLogger((process.env.TEST_LOG_LEVEL || 'ERROR').toUpperCase() as LogLevel);
   Runtime.install({
     ...runtimeOpts,
