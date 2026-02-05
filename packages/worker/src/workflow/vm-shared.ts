@@ -116,7 +116,7 @@ export function injectGlobals(context: vm.Context): void {
         console[level](`[not in workflow context]`, ...args);
       } else {
         const { info } = sandboxGlobalThis.__TEMPORAL_ACTIVATOR__!;
-        if (info.unsafe.isReplaying) return;
+        if (info.unsafe.isReplayingHistoryEvents) return;
         console[level](`[${info.workflowType}(${info.workflowId})]`, ...args);
       }
     };
@@ -394,6 +394,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         unsafe: {
           ...info.unsafe,
           isReplaying: activation.isReplaying ?? false,
+          isReplayingHistoryEvents: activation.isReplaying ?? false,
         },
       }));
       this.activator.addKnownFlags(activation.availableInternalFlags ?? []);
@@ -470,6 +471,8 @@ export abstract class BaseVMWorkflow implements Workflow {
       unsafe: {
         ...info.unsafe,
         isReplaying: true,
+        // Queries are live read-only operations, not replay of history events
+        isReplayingHistoryEvents: false,
       },
     }));
     this.workflowModule.activate(activation);

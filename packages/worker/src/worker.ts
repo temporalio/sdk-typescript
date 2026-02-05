@@ -1572,6 +1572,7 @@ export class Worker {
       unsafe: {
         now: () => Date.now(), // re-set in initRuntime
         isReplaying: activation.isReplaying,
+        isReplayingHistoryEvents: activation.isReplaying,
       },
       priority: decodePriority(priority),
     };
@@ -1599,7 +1600,7 @@ export class Worker {
    */
   protected async processSinkCalls(
     externalCalls: SinkCall[],
-    isReplaying: boolean,
+    _isReplaying: boolean,
     logAttributes: Record<string, unknown>
   ): Promise<void> {
     const { sinks } = this.options;
@@ -1619,8 +1620,15 @@ export class Worker {
         });
         return false;
       })
-      // If appropriate, reject calls to sink functions not configured with `callDuringReplay = true`
-      .filter(({ sink }) => sink?.callDuringReplay || !isReplaying);
+      // If appropriate, reject calls to sink functions not configured with `callDuringReplay = true`.
+      // Use per-call isReplayingHistoryEvents (which is false during queries and update validators)
+      // rather than per-activation isReplaying, so that logging is permitted during live read-only operations.
+      // Replay workers still suppress all non-callDuringReplay sinks regardless.
+      .filter(({ call, sink }) => {
+        if (sink?.callDuringReplay) return true;
+        if (this.isReplayWorker) return false;
+        return !call.workflowInfo.unsafe.isReplayingHistoryEvents;
+      });
 
     // Make a wrapper function, to make things easier afterward
     await Promise.all(

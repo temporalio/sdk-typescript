@@ -85,7 +85,7 @@ if (!wf.inWorkflowContext()) {
         historyLength: 3,
         historySize: 300,
         continueAsNewSuggested: false,
-        unsafe: { isReplaying: false, now: Date.now },
+        unsafe: { isReplaying: false, isReplayingHistoryEvents: false, now: Date.now },
         startTime: new Date(),
         runStartTime: new Date(),
       };

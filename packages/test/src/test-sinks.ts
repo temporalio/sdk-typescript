@@ -554,4 +554,30 @@ if (RUN_INTEGRATION_TESTS) {
       },
     ]);
   });
+
+  test('Logging is allowed in query handlers and update validators', async (t) => {
+    const taskQueue = `${__filename}-${t.title}`;
+    const client = new WorkflowClient();
+    const workflowId = uuid4();
+    const handle = await client.start(workflows.queryAndValidatorLogging, { taskQueue, workflowId });
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+    });
+
+    await worker.runUntil(async () => {
+      // Send a query and an update, both of which log
+      await handle.query(workflows.loggingQuery);
+      await handle.executeUpdate(workflows.loggingUpdate, { args: ['good'] });
+      await handle.signal(workflows.unblockSignal);
+      await handle.result();
+    });
+
+    const logs = recordedLogs[workflowId] ?? [];
+    const logMessages = logs.map((l) => l.message);
+    t.true(logMessages.includes('Query handler called'), 'Query handler log should be emitted');
+    t.true(logMessages.includes('Update validator called'), 'Update validator log should be emitted');
+    t.true(logMessages.includes('Update handler called'), 'Update handler log should be emitted');
+  });
 }
