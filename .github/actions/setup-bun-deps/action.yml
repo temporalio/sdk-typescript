@@ -1,0 +1,51 @@
+name: 'Setup Bun and Install Dependencies'
+description: 'Sets up Bun runtime, configures cache, and installs dependencies'
+
+inputs:
+  bun-version:
+    description: 'Version of Bun to install'
+    required: false
+    default: 'latest'
+  platform:
+    description: 'Platform identifier for cache key (e.g., linux-x64, macos-arm, windows-x64)'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ inputs.bun-version }}
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: '10'
+        run_install: false
+
+    - name: Install Node (needed for pnpm and some tooling)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'pnpm'
+
+    - name: Get PNPM store directory
+      id: pnpm-cache-dir
+      shell: bash
+      run: echo "dir=$(pnpm store path)" >> ${GITHUB_OUTPUT}
+
+    - name: Restore PNPM store
+      id: restore-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.pnpm-cache-dir.outputs.dir }}
+        key: pnpm-bun-${{ inputs.platform }}-${{ hashFiles('./pnpm-lock.yaml') }}
+        restore-keys: |
+          pnpm-bun-${{ inputs.platform }}-
+          pnpm-main-${{ inputs.platform }}-
+
+    - name: Download dependencies
+      shell: bash
+      run: |
+        pnpm install --frozen-lockfile
