@@ -12,7 +12,7 @@ import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { ApplicationFailure, TerminatedFailure } from '@temporalio/common';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
 import { defaultPayloadConverter, WorkflowInfo } from '@temporalio/workflow';
-import { cleanOptionalStackTrace, compareStackTrace, RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { isBun, cleanOptionalStackTrace, compareStackTrace, RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import {
   checkDisposeRan,
@@ -245,17 +245,36 @@ if (RUN_INTEGRATION_TESTS) {
       return;
     }
     t.deepEqual(err.cause.message, 'Expected anything other than 1');
-    compareStackTrace(
-      t,
-      cleanOptionalStackTrace(err.cause.stack)!,
-      dedent`
-      ApplicationFailure: Expected anything other than 1
-          at $CLASS.nonRetryable (common/src/failure.ts)
-          at Object.continueAsNew (test/src/workflows/interceptor-example.ts)
-          at workflow/src/workflow.ts
-          at continueAsNewToDifferentWorkflow (test/src/workflows/continue-as-new-to-different-workflow.ts)
-    `
-    );
+
+    const cleanedStack = cleanOptionalStackTrace(err.cause.stack)!;
+    const expectedStack = isBun
+      ? dedent`
+        ApplicationFailure: Expected anything other than 1
+            at nonRetryable (test/workflow-bundle-$HASH.js)
+            at continueAsNew (test/workflow-bundle-$HASH.js)
+            at continueAsNewToDifferentWorkflow (test/workflow-bundle-$HASH.js)
+            at startWorkflowNextHandler (test/workflow-bundle-$HASH.js)
+            at execute (test/workflow-bundle-$HASH.js)
+            at executeWithLifecycleLogging (test/workflow-bundle-$HASH.js)
+            at startWorkflow (test/workflow-bundle-$HASH.js)
+            at <anonymous> (test/workflow-bundle-$HASH.js)
+            at activate (test/workflow-bundle-$HASH.js)
+            at __TEMPORAL_CALL_INTO_SCOPE (evalmachine.<anonymous>)
+            at file:///
+            at runInContext (unknown)
+            at activate (worker/lib/workflow/vm-shared.js)
+            at async handleRequest (worker/lib/workflow/workflow-worker-thread.js)
+            at async <anonymous> (worker/lib/workflow/workflow-worker-thread.js)
+            at processTicksAndRejections (native)
+      `
+      : dedent`
+        ApplicationFailure: Expected anything other than 1
+            at $CLASS.nonRetryable (common/src/failure.ts)
+            at Object.continueAsNew (test/src/workflows/interceptor-example.ts)
+            at workflow/src/workflow.ts
+            at continueAsNewToDifferentWorkflow (test/src/workflows/continue-as-new-to-different-workflow.ts)
+      `;
+    compareStackTrace(t, cleanedStack, expectedStack);
     t.is(err.cause.cause, undefined);
   });
 

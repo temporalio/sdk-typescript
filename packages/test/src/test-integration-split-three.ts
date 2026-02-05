@@ -8,7 +8,7 @@ import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import { configurableHelpers } from './helpers-integration';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import * as activities from './activities';
-import { approximatelyEqual, cleanOptionalStackTrace, compareStackTrace } from './helpers';
+import { approximatelyEqual, cleanOptionalStackTrace, compareStackTrace, isBun } from './helpers';
 import * as workflows from './workflows';
 
 const test = makeTestFn(() => bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') }));
@@ -29,7 +29,7 @@ test('cancel-http-request', configMacro, async (t, config) => {
   t.pass();
 });
 
-if ('promiseHooks' in v8) {
+if ('promiseHooks' in v8 && !isBun) {
   // Skip in old node versions
   test('Stack trace query returns stack that makes sense', configMacro, async (t, config) => {
     const { env, createWorkerWithDefaults } = config;

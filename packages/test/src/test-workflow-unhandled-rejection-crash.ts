@@ -3,7 +3,7 @@ import { v4 as uuid4 } from 'uuid';
 import { UnexpectedError, Worker } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
-import { RUN_INTEGRATION_TESTS } from './helpers';
+import { RUN_INTEGRATION_TESTS, isBun } from './helpers';
 import { throwUnhandledRejection } from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
@@ -21,7 +21,7 @@ if (RUN_INTEGRATION_TESTS) {
       await t.throwsAsync(worker.run(), {
         instanceOf: UnexpectedError,
         message:
-          'Workflow Worker Thread exited prematurely: UnhandledRejectionError: ' +
+          `Workflow Worker Thread exited prematurely: ${isBun ? 'Error' : 'UnhandledRejectionError'}: ` +
           "Unhandled Promise rejection for unknown Workflow Run id='undefined': " +
           'Error: error to crash the worker',
       });

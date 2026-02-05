@@ -37,7 +37,7 @@ import {
 } from '@temporalio/workflow';
 import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';
 import * as activities from './activities';
-import { cleanOptionalStackTrace, compareStackTrace, u8, Worker } from './helpers';
+import { cleanOptionalStackTrace, compareStackTrace, u8, Worker, isBun } from './helpers';
 import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import * as workflows from './workflows';
 
@@ -170,12 +170,34 @@ test.serial('activity-failure with Error', configMacro, async (t, config) => {
     return;
   }
   t.is(err.cause.cause.message, 'Fail me');
-  t.is(
-    cleanOptionalStackTrace(err.cause.cause.stack),
-    dedent`
-  Error: Fail me
-      at throwAnError (test/src/activities/index.ts)
-  `
+  compareStackTrace(
+    t,
+    cleanOptionalStackTrace(err.cause.cause.stack)!,
+    isBun
+      ? dedent`
+    Error: Fail me
+        at throwAnError (test/lib/activities/index.js)
+        at execute (worker/lib/activity.js)
+        at withAbortSignal (worker/lib/connection.js)
+        at withAbortSignal (client/lib/base-client.js)
+        at <anonymous> (worker/lib/activity.js)
+        at <anonymous> (worker/lib/worker.js)
+        at doInnerSub (rxjs/dist/cjs/internal/operators/mergeInternals.js)
+        at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
+        at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
+        at <anonymous> (rxjs/dist/cjs/internal/operators/map.js)
+        at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
+        at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
+        at <anonymous> (rxjs/dist/cjs/internal/operators/mergeInternals.js)
+        at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
+        at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
+        at <anonymous> (rxjs/dist/cjs/internal/observable/innerFrom.js)
+        at processTicksAndRejections (native)
+    `
+      : dedent`
+    Error: Fail me
+        at throwAnError (test/src/activities/index.ts)
+    `
   );
 });
 
@@ -208,10 +230,32 @@ test.serial('activity-failure with ApplicationFailure', configMacro, async (t, c
   compareStackTrace(
     t,
     cleanOptionalStackTrace(err.cause.cause.stack)!,
-    dedent`
-  ApplicationFailure: Fail me
-      at $CLASS.nonRetryable (common/src/failure.ts)
-      at throwAnError (test/src/activities/index.ts)
+    isBun
+      ? dedent`
+    ApplicationFailure: Fail me
+        at nonRetryable (common/lib/failure.js)
+        at throwAnError (test/lib/activities/index.js)
+        at execute (worker/lib/activity.js)
+        at withAbortSignal (worker/lib/connection.js)
+        at withAbortSignal (client/lib/base-client.js)
+        at <anonymous> (worker/lib/activity.js)
+        at <anonymous> (worker/lib/worker.js)
+        at doInnerSub (rxjs/dist/cjs/internal/operators/mergeInternals.js)
+        at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
+        at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
+        at <anonymous> (rxjs/dist/cjs/internal/operators/map.js)
+        at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
+        at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
+        at <anonymous> (rxjs/dist/cjs/internal/operators/mergeInternals.js)
+        at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
+        at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
+        at <anonymous> (rxjs/dist/cjs/internal/observable/innerFrom.js)
+        at processTicksAndRejections (native)
+    `
+      : dedent`
+    ApplicationFailure: Fail me
+        at $CLASS.nonRetryable (common/src/failure.ts)
+        at throwAnError (test/src/activities/index.ts)
     `
   );
 });
@@ -263,11 +307,30 @@ test.serial('child-workflow-failure', configMacro, async (t, config) => {
     compareStackTrace(
       t,
       cleanOptionalStackTrace(err.cause.cause.stack)!,
-      dedent`
-      ApplicationFailure: failure
-          at $CLASS.nonRetryable (common/src/failure.ts)
-          at throwAsync (test/src/workflows/throw-async.ts)
-    `
+      isBun
+        ? dedent`
+        ApplicationFailure: failure
+            at nonRetryable (test/workflow-bundle-$HASH.js)
+            at throwAsync (test/workflow-bundle-$HASH.js)
+            at startWorkflowNextHandler (test/workflow-bundle-$HASH.js)
+            at execute (test/workflow-bundle-$HASH.js)
+            at executeWithLifecycleLogging (test/workflow-bundle-$HASH.js)
+            at startWorkflow (test/workflow-bundle-$HASH.js)
+            at <anonymous> (test/workflow-bundle-$HASH.js)
+            at activate (test/workflow-bundle-$HASH.js)
+            at __TEMPORAL_CALL_INTO_SCOPE (evalmachine.<anonymous>)
+            at file:///
+            at runInContext (unknown)
+            at activate (worker/lib/workflow/vm-shared.js)
+            at async handleRequest (worker/lib/workflow/workflow-worker-thread.js)
+            at async <anonymous> (worker/lib/workflow/workflow-worker-thread.js)
+            at processTicksAndRejections (native)
+      `
+        : dedent`
+        ApplicationFailure: failure
+            at $CLASS.nonRetryable (common/src/failure.ts)
+            at throwAsync (test/src/workflows/throw-async.ts)
+      `
     );
   });
 });

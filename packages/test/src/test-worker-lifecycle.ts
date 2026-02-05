@@ -10,7 +10,7 @@ import test from 'ava';
 import { Runtime, PromiseCompletionTimeoutError } from '@temporalio/worker';
 import { TransportError, UnexpectedError } from '@temporalio/worker/lib/errors';
 import { Client } from '@temporalio/client';
-import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { isBun, RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { fillMemory } from './workflows';
 
@@ -80,7 +80,8 @@ if (RUN_INTEGRATION_TESTS) {
     );
   });
 
-  test.serial('Threaded VM gracely stops and fails on ERR_WORKER_OUT_OF_MEMORY', async (t) => {
+  // Skip this test for Bun as the workflow doesn't cause an OOM unlike Node
+  (isBun ? test.skip : test.serial)('Threaded VM gracely stops and fails on ERR_WORKER_OUT_OF_MEMORY', async (t) => {
     // We internally use a timeout of 10s to catch a possible case where test would
     // be non-conclusive. We need the test timeout to be longer than that.
     t.timeout(30_000);
