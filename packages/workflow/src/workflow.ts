@@ -24,6 +24,7 @@ import {
   WorkflowUpdateValidatorType,
   SearchAttributeUpdatePair,
   WorkflowDefinitionOptionsOrGetter,
+  encodeInitialVersioningBehavior,
 } from '@temporalio/common';
 import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import {
@@ -1024,6 +1025,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
         versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line deprecation/deprecation
+        initialVersioningBehavior: encodeInitialVersioningBehavior(options.initialVersioningBehavior),
       });
     });
     return fn({

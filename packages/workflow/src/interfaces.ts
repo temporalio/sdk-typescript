@@ -14,6 +14,8 @@ import {
   Priority,
   WorkerDeploymentVersion,
   VersioningBehavior,
+  InitialVersioningBehavior,
+  SuggestContinueAsNewReason,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -219,6 +221,13 @@ export interface WorkflowInfo {
    * Priority of this workflow
    */
   readonly priority?: Priority;
+
+  /**
+   * Reason(s) why continue as new is suggested. Can potentially be multiple reasons.
+   *
+   * @experimental Versioning semantics with continue-as-new are experimental and may change in the future.
+   */
+  readonly suggestedContinueAsNewReasons?: SuggestContinueAsNewReason[];
 }
 
 /**
@@ -326,6 +335,12 @@ export interface ContinueAsNewOptions {
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
   versioningIntent?: VersioningIntent; // eslint-disable-line deprecation/deprecation
+  /**
+   * Defines the versioning behavior to be used by the first task of a new workflow run in a continue-as-new chain.
+   *
+   * @experimental Versioning semantics with continue-as-new are experimental and may change in the future.
+   */
+  initialVersioningBehavior?: InitialVersioningBehavior;
 }
 
 /**
