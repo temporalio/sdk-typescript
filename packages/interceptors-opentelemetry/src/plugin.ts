@@ -1,4 +1,4 @@
-import { SpanExporter } from '@opentelemetry/sdk-trace-base';
+import { SpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { Resource } from '@opentelemetry/resources';
 import { SimplePlugin } from '@temporalio/plugin';
 import { InjectedSinks, ReplayWorkerOptions, WorkerOptions } from '@temporalio/worker';
@@ -10,53 +10,35 @@ import {
 } from './worker';
 import { OpenTelemetrySinks } from './workflow';
 
-export type OpenTelemetryClientPluginOptions = InterceptorOptions;
-
 /**
- * A client-side plugin that adds OpenTelemetry tracing to Workflow Client operations.
- *
- * Wraps client operations (start, signal, query, etc.) in OpenTelemetry spans and propagates
- * trace context to Workflows via headers.
+ * Configuration options for {@link OpenTelemetryPlugin}.
  *
  * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
-export class OpenTelemetryClientPlugin extends SimplePlugin {
-  constructor(readonly otelOptions?: OpenTelemetryClientPluginOptions) {
-    super({
-      name: 'OpenTelemetryClientPlugin',
-      clientInterceptors: {
-        workflow: [new OpenTelemetryWorkflowClientInterceptor(extractInterceptorOptions(otelOptions))],
-      },
-    });
-  }
-}
-
-/**
- * Configuration options for {@link OpenTelemetryWorkerPlugin}.
- *
- * @experimental Plugins is an experimental feature; APIs may change without notice.
- */
-export interface OpenTelemetryWorkerPluginOptions extends InterceptorOptions {
+export interface OpenTelemetryPluginOptions extends InterceptorOptions {
   /** OpenTelemetry resource attributes to attach to exported spans */
   readonly resource: Resource;
   /** Exporter used to send spans to a tracing backend */
-  readonly traceExporter: SpanExporter;
+  readonly spanProcessor: SpanProcessor;
 }
 
 /**
- * A worker-side plugin that adds OpenTelemetry tracing to Worker operations.
+ * A plugin that adds OpenTelemetry tracing.
  *
- * Configures Activity and Workflow interceptors for trace propagation, and injects
- * a span exporter sink for Workflow spans. Handles both regular Workers and Replay Workers.
+ * Configures Client, Activity, and Workflow interceptors for trace propagation and injects
+ * a span exporter sink for Workflow spans.
  *
  * @experimental Plugins is an experimental feature; APIs may change without notice.
  */
-export class OpenTelemetryWorkerPlugin extends SimplePlugin {
-  constructor(readonly otelOptions: OpenTelemetryWorkerPluginOptions) {
+export class OpenTelemetryPlugin extends SimplePlugin {
+  constructor(readonly otelOptions: OpenTelemetryPluginOptions) {
     const workflowInterceptorsPath = require.resolve('./workflow-interceptors');
-    const interceptorOptions = extractInterceptorOptions(otelOptions);
+    const interceptorOptions = otelOptions.tracer ? { tracer: otelOptions.tracer } : {};
     super({
-      name: 'OpenTelemetryWorkerPlugin',
+      name: 'OpenTelemetryPlugin',
+      clientInterceptors: {
+        workflow: [new OpenTelemetryWorkflowClientInterceptor(interceptorOptions)],
+      },
       workflowInterceptorModules: [workflowInterceptorsPath],
       workerInterceptors: {
         client: {
@@ -83,7 +65,7 @@ export class OpenTelemetryWorkerPlugin extends SimplePlugin {
 
   private injectSinks<T extends { sinks?: InjectedSinks<any> }>(options: T): T {
     const sinks: InjectedSinks<OpenTelemetrySinks> = {
-      exporter: makeWorkflowExporter(this.otelOptions.traceExporter, this.otelOptions.resource),
+      exporter: makeWorkflowExporter(this.otelOptions.spanProcessor, this.otelOptions.resource),
     };
     return {
       ...options,
@@ -93,10 +75,4 @@ export class OpenTelemetryWorkerPlugin extends SimplePlugin {
       },
     };
   }
-}
-
-function extractInterceptorOptions(
-  options?: OpenTelemetryWorkerPluginOptions | OpenTelemetryClientPluginOptions
-): InterceptorOptions {
-  return options?.tracer ? { tracer: options.tracer } : {};
 }

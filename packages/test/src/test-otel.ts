@@ -16,11 +16,7 @@ import { v4 as uuid4 } from 'uuid';
 import type * as workflowImportStub from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports';
 import type * as workflowImportImpl from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports-impl';
 import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor, Client } from '@temporalio/client';
-import {
-  OpenTelemetryClientPlugin,
-  OpenTelemetryWorkerPlugin,
-  OpenTelemetryWorkflowClientInterceptor,
-} from '@temporalio/interceptors-opentelemetry';
+import { OpenTelemetryPlugin, OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry';
 import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
 import {
   makeWorkflowExporter,
@@ -273,15 +269,19 @@ if (RUN_INTEGRATION_TESTS) {
       });
       otel.start();
 
+      const plugin = new OpenTelemetryPlugin({
+        resource: staticResource,
+        spanProcessor: new SimpleSpanProcessor(traceExporter),
+      });
       const worker = await Worker.create({
         workflowsPath: require.resolve('./workflows'),
         activities,
         taskQueue: 'test-otel',
-        plugins: [new OpenTelemetryWorkerPlugin({ resource: staticResource, traceExporter })],
+        plugins: [plugin],
       });
 
       const client = new Client({
-        plugins: [new OpenTelemetryClientPlugin()],
+        plugins: [plugin],
       });
       await worker.runUntil(
         client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: uuid4() })
@@ -535,7 +535,10 @@ if (RUN_INTEGRATION_TESTS) {
       async shutdown() {},
     };
 
-    const plugin = new OpenTelemetryWorkerPlugin({ resource: staticResource, traceExporter });
+    const plugin = new OpenTelemetryPlugin({
+      resource: staticResource,
+      spanProcessor: new SimpleSpanProcessor(traceExporter),
+    });
     const worker = await Worker.create({
       workflowBundle: await createTestWorkflowBundle({
         workflowsPath: require.resolve('./workflows'),
@@ -670,7 +673,11 @@ if (RUN_INTEGRATION_TESTS) {
       provider.addSpanProcessor(new SimpleSpanProcessor(traceExporter));
       const tracer = provider.getTracer('@temporalio/interceptor-client');
 
-      const plugin = new OpenTelemetryWorkerPlugin({ resource: staticResource, traceExporter });
+      const plugin = new OpenTelemetryPlugin({
+        resource: staticResource,
+        spanProcessor: new SimpleSpanProcessor(traceExporter),
+        tracer,
+      });
 
       // Bundle workflow code with the plugin - this tests that configureBundler passes workflowInterceptorModules
       const workflowBundle = await bundleWorkflowCode({
@@ -689,7 +696,7 @@ if (RUN_INTEGRATION_TESTS) {
 
       // Create client with explicit tracer to bypass global tracer provider pollution from other tests
       const client = new Client({
-        plugins: [new OpenTelemetryClientPlugin({ tracer })],
+        plugins: [plugin],
       });
       await worker.runUntil(
         client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel-prebundled', workflowId: uuid4() })
