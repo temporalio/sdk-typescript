@@ -3,8 +3,6 @@ import { makeProtoEnumConverters } from './internal-workflow';
 
 /**
  * Represents the version of a specific worker deployment.
- *
- * @experimental Deployment based versioning is experimental and may change in the future.
  */
 export interface WorkerDeploymentVersion {
   readonly buildId: string;
@@ -25,8 +23,6 @@ export function toCanonicalString(version: WorkerDeploymentVersion): string {
  * * 'PINNED' - The workflow will be pinned to the current Build ID unless manually moved.
  * * 'AUTO_UPGRADE' - The workflow will automatically move to the latest version (default Build ID
  *    of the task queue) when the next task is dispatched.
- *
- * @experimental Deployment based versioning is experimental and may change in the future.
  */
 export const VersioningBehavior = {
   PINNED: 'PINNED',
