@@ -119,9 +119,9 @@ export class WorkerThreadClient {
     } else if (request.input.type === 'dispose-workflow') {
       this.activeWorkflowCount--;
     }
-    // Transfer ownership of activation buffer when available for zero-copy transfer
+    // Transfer ownership of activation buffer for zero-copy transfer
     if (request.input.type === 'activate-workflow' && request.input.activation instanceof Uint8Array) {
-      this.workerThread.postMessage(request, [request.input.activation.buffer as ArrayBuffer]);
+      this.workerThread.postMessage(request, [request.input.activation.buffer]);
     } else {
       this.workerThread.postMessage(request);
     }
@@ -148,7 +148,7 @@ export class WorkerThreadClient {
 
   /**
    * Bun's terminate() hangs when called on an already exited worker thread.
-   * Race terminate() against polling for the exit event to handle this case.
+   * We race terminate() against receiving the exit event to handle this case.
    */
   private async terminateWithBunWorkaround(): Promise<number | null> {
     const pollIntervalMs = 100;
@@ -281,10 +281,9 @@ export class VMWorkflowThreadProxy implements Workflow {
   ): Promise<coresdk.workflow_completion.IWorkflowActivationCompletion> {
     const output = await this.workerThreadClient.send({
       type: 'activate-workflow',
-      // TODO: It appears that some messages will never get sent with Bun's postMessage
-      // Specific example is test-payload-converter.ts 'Worker encodes/decodes a protobuf containing a binary array'
-      // I have narrowed it down to the `arguments` field of the init workflow job causing the no send, but not further
-      // Encoding activation results in the message being delivered
+      // Some activation messages get silently dropped by Bun's postMessage.
+      // To work around this bug, we encode activations
+      // An example of a failing activation can be found in test-payload-converter.ts 'Worker encodes/decodes a protobuf containing a binary array'
       activation: isBun ? coresdk.workflow_activation.WorkflowActivation.encode(activation).finish() : activation,
       runId: this.runId,
     });
