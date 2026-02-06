@@ -50,8 +50,6 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
 
   /**
    * Override the versioning behavior of the Workflow that is about to be started.
-   *
-   * @experimental Deployment based versioning is experimental and may change in the future.
    */
   versioningOverride?: VersioningOverride;
 

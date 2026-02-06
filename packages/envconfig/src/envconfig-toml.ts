@@ -14,7 +14,6 @@ export function normalizeGrpcMetaKey(key: string): string {
  * Raw TOML structure representing the client configuration file.
  *
  * @internal
- * @experimental Environment configuration is new feature and subject to change.
  */
 export interface TomlClientConfig {
   profile: Record<string, TomlClientConfigProfile>;
@@ -25,7 +24,6 @@ export interface TomlClientConfig {
  * Note: field names use snake_case to match TOML file fields for correct parser deserialization.
  *
  * @internal
- * @experimental Environment configuration is new feature and subject to change.
  */
 export interface TomlClientConfigProfile {
   address?: string;
@@ -40,7 +38,6 @@ export interface TomlClientConfigProfile {
  * Raw TOML structure for client configuration TLS.
  *
  * @internal
- * @experimental Environment configuration is new feature and subject to change.
  */
 export interface TomlClientConfigTLS {
   disabled?: boolean;
@@ -58,7 +55,6 @@ export interface TomlClientConfigTLS {
  * Raw TOML structure for client configuration codec.
  *
  * @internal
- * @experimental Environment configuration is new feature and subject to change.
  */
 export interface TomlClientConfigCodec {
   endpoint?: string;
