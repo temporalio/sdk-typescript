@@ -38,5 +38,5 @@ export async function queryAndValidatorLogging(): Promise<string> {
   });
 
   await wf.condition(() => lastSignal === 'unblocked');
-  return updateArg
+  return updateArg;
 }
