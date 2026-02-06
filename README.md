@@ -2,7 +2,7 @@
   <img src="https://assets.temporal.io/w/ts.png" alt="Temporal TypeScript SDK" />
 </p>
 
-![Node 18 | 20 | 22 | 24](https://img.shields.io/badge/node-18%20|%2020%20|%2022%20|%2024-blue.svg?style=for-the-badge)
+![Node 20 | 22 | 24](https://img.shields.io/badge/node-20%20|%2022%20|%2024-blue.svg?style=for-the-badge)
 [![MIT](https://img.shields.io/github/license/temporalio/sdk-typescript.svg?style=for-the-badge)](LICENSE)
 [![NPM](https://img.shields.io/npm/v/@temporalio/client?style=for-the-badge)](https://www.npmjs.com/search?q=author%3Atemporal-sdk-team)
 
@@ -55,7 +55,7 @@ but it may sometime require extra cares in complex monorepos.
 
 ### Node.js
 
-The Temporal TypeScript SDK is officially supported on Node 18, 20, 22, and 24.
+The Temporal TypeScript SDK is officially supported on Node 20, 22, and 24.
 
 In line with [Node.js' release policy](https://nodejs.org/en/about/previous-releases#nodejs-releases),
 we recommend that production applications only use Node's Active LTS or Maintenance LTS releases.

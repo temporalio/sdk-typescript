@@ -75,9 +75,9 @@ importers:
       '@opentelemetry/sdk-node':
         specifier: ^0.52.1
         version: 0.52.1(@opentelemetry/api@1.9.0)
-      '@tsconfig/node18':
-        specifier: ^18.2.4
-        version: 18.2.4
+      '@tsconfig/node20':
+        specifier: ^20.1.4
+        version: 20.1.9
       '@types/fs-extra':
         specifier: ^11.0.4
         version: 11.0.4
@@ -1432,21 +1432,21 @@ packages:
 
   '@temporalio/client@file:packages/client':
     resolution: {directory: packages/client, type: directory}
-    engines: {node: '>= 18.0.0'}
+    engines: {node: '>= 20.0.0'}
 
   '@temporalio/common@file:packages/common':
     resolution: {directory: packages/common, type: directory}
-    engines: {node: '>= 18.0.0'}
+    engines: {node: '>= 20.0.0'}
 
   '@temporalio/worker@file:packages/worker':
     resolution: {directory: packages/worker, type: directory}
-    engines: {node: '>= 18.0.0'}
+    engines: {node: '>= 20.0.0'}
 
   '@ts-morph/common@0.12.3':
     resolution: {integrity: sha512-4tUmeLyXJnJWvTFOKtcNJ1yh0a3SsTLi2MUoyj8iUNznFRN1ZquaNe7Oukqrnki2FzZkm0J9adCNLDZxUzvj+w==}
 
-  '@tsconfig/node18@18.2.4':
-    resolution: {integrity: sha512-5xxU8vVs9/FNcvm3gE07fPbn9tl6tqGGWA9tSlwsUEkBxtRnTsNmwrV8gasZ9F/EobaSv9+nu8AxUKccw77JpQ==}
+  '@tsconfig/node20@20.1.9':
+    resolution: {integrity: sha512-IjlTv1RsvnPtUcjTqtVsZExKVq+KQx4g5pCP5tI7rAs6Xesl2qFwSz/tPDBC4JajkL/MlezBu3gPUwqRHl+RIg==}
 
   '@types/async-retry@1.4.8':
     resolution: {integrity: sha512-Qup/B5PWLe86yI5I3av6ePGaeQrIHNKCwbsQotD6aHQ6YkHsMUxVZkZsmx/Ry3VZQ6uysHwTjQ7666+k6UjVJA==}
@@ -5291,7 +5291,7 @@ snapshots:
       mkdirp: 1.0.4
       path-browserify: 1.0.1
 
-  '@tsconfig/node18@18.2.4': {}
+  '@tsconfig/node20@20.1.9': {}
 
   '@types/async-retry@1.4.8':
     dependencies:

@@ -41,7 +41,7 @@ Contributors must agree to the CLA before their PR can be merged. You only have 
 
 ### Environment setup
 
-The Temporal TypeScript SDK is officially supported on Node 18, 20, 22, or 24.
+The Temporal TypeScript SDK is officially supported on Node 20, 22, or 24.
 However, we recommend using the [Active LTS](https://nodejs.org/en/about/previous-releases#nodejs-releases)
 for SDK development. For easier testing during development, you may want to use
 a version manager, such as [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
