@@ -146,6 +146,7 @@ if (RUN_INTEGRATION_TESTS) {
       // unsafe.now() doesn't make it through serialization, but .now is required, so we need to cast
       unsafe: {
         isReplaying: false,
+        isReplayingHistoryEvents: false,
       } as UnsafeWorkflowInfo,
       priority: {
         fairnessKey: undefined,
