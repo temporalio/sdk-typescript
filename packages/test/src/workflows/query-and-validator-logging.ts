@@ -1,26 +1,31 @@
 import * as wf from '@temporalio/workflow';
+import { CustomLoggerSinks } from './log-sink-tester';
 import { unblockSignal } from './definitions';
+
+const { customLogger } = wf.proxySinks<CustomLoggerSinks>();
 
 export const loggingQuery = wf.defineQuery<string>('loggingQuery');
 export const loggingUpdate = wf.defineUpdate<string, [string]>('loggingUpdate');
 
-export async function queryAndValidatorLogging(): Promise<void> {
+export async function queryAndValidatorLogging(): Promise<string> {
   let lastSignal = '';
+  let updateArg = '';
 
   wf.setHandler(loggingQuery, () => {
-    wf.log.info('Query handler called');
+    customLogger.info('Query handler called');
     return lastSignal;
   });
 
   wf.setHandler(
     loggingUpdate,
     (arg: string) => {
-      wf.log.info('Update handler called');
+      customLogger.info('Update handler called');
+      updateArg = arg;
       return `update-result: ${arg}`;
     },
     {
       validator: (arg: string) => {
-        wf.log.info('Update validator called');
+        customLogger.info('Update validator called');
         if (arg === 'bad') {
           throw new Error('Validation failed');
         }
@@ -33,4 +38,5 @@ export async function queryAndValidatorLogging(): Promise<void> {
   });
 
   await wf.condition(() => lastSignal === 'unblocked');
+  return updateArg
 }
