@@ -291,11 +291,7 @@ export class VMWorkflowThreadProxy implements Workflow {
       throw new TypeError(`Got invalid response output from Workflow Worker thread ${output}`);
     }
     if (output.completion instanceof Uint8Array) {
-      if (isBun) {
-        return coresdk.workflow_completion.WorkflowActivationCompletion.decode(output.completion);
-      } else {
-        throw new Error('got encoded message even when not using bun');
-      }
+      return coresdk.workflow_completion.WorkflowActivationCompletion.decode(output.completion);
     }
     return output.completion;
   }

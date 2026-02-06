@@ -65,13 +65,9 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       }
       let activation;
       if (input.activation instanceof Uint8Array) {
-        if (isBun) {
-          // Some activation messages get silently dropped by Bun's postMessage.
-          // To work around this bug, we encode activations
-          activation = coresdk.workflow_activation.WorkflowActivation.decode(input.activation);
-        } else {
-          throw new Error('Should not be encoding activations when not using Bun');
-        }
+        // Some activation messages get silently dropped by Bun's postMessage.
+        // To work around this bug, we encode activations
+        activation = coresdk.workflow_activation.WorkflowActivation.decode(input.activation);
       } else {
         activation = input.activation;
       }
