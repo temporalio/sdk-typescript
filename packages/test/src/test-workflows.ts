@@ -530,8 +530,7 @@ test('throwAsync', async (t) => {
               at startWorkflow (test/workflow-bundle-$HASH.js)
               at <anonymous> (test/workflow-bundle-$HASH.js)
               at activate (test/workflow-bundle-$HASH.js)
-              at __TEMPORAL_CALL_INTO_SCOPE (evalmachine.<anonymous>)
-              at file:///
+              at $BUN_VM_BOUNDARY
               at runInContext (unknown)
               at activate (worker/lib/workflow/vm-shared.js)
               at async activate (test/lib/test-workflows.js)
@@ -796,8 +795,7 @@ test('invalidOrFailedQueries', async (t) => {
               at queryWorkflow (test/workflow-bundle-$HASH.js)
               at <anonymous> (test/workflow-bundle-$HASH.js)
               at activate (test/workflow-bundle-$HASH.js)
-              at __TEMPORAL_CALL_INTO_SCOPE (evalmachine.<anonymous>)
-              at file:///
+              at $BUN_VM_BOUNDARY
               at runInContext (unknown)
               at activateQueries (worker/lib/workflow/vm-shared.js)
               at activate (worker/lib/workflow/vm-shared.js)
@@ -835,8 +833,7 @@ test('invalidOrFailedQueries', async (t) => {
               at queryWorkflow (test/workflow-bundle-$HASH.js)
               at <anonymous> (test/workflow-bundle-$HASH.js)
               at activate (test/workflow-bundle-$HASH.js)
-              at __TEMPORAL_CALL_INTO_SCOPE (evalmachine.<anonymous>)
-              at file:///
+              at $BUN_VM_BOUNDARY
               at runInContext (unknown)
               at activateQueries (worker/lib/workflow/vm-shared.js)
               at activate (worker/lib/workflow/vm-shared.js)
@@ -890,8 +887,7 @@ test('interruptableWorkflow', async (t) => {
             at signalWorkflow (test/workflow-bundle-$HASH.js)
             at <anonymous> (test/workflow-bundle-$HASH.js)
             at activate (test/workflow-bundle-$HASH.js)
-            at __TEMPORAL_CALL_INTO_SCOPE (evalmachine.<anonymous>)
-            at file:///
+            at $BUN_VM_BOUNDARY
             at runInContext (unknown)
             at activate (worker/lib/workflow/vm-shared.js)
             at activate (test/lib/test-workflows.js)
@@ -931,8 +927,7 @@ test('failSignalWorkflow', async (t) => {
             at signalWorkflow (test/workflow-bundle-$HASH.js)
             at <anonymous> (test/workflow-bundle-$HASH.js)
             at activate (test/workflow-bundle-$HASH.js)
-            at __TEMPORAL_CALL_INTO_SCOPE (evalmachine.<anonymous>)
-            at file:///
+            at $BUN_VM_BOUNDARY
             at runInContext (unknown)
             at activate (worker/lib/workflow/vm-shared.js)
             at activate (test/lib/test-workflows.js)
@@ -1595,8 +1590,7 @@ test('cancellationErrorIsPropagated', async (t) => {
           at startWorkflow (test/workflow-bundle-$HASH.js)
           at <anonymous> (test/workflow-bundle-$HASH.js)
           at activate (test/workflow-bundle-$HASH.js)
-          at __TEMPORAL_CALL_INTO_SCOPE (evalmachine.<anonymous>)
-          at file:///
+          at $BUN_VM_BOUNDARY
           at runInContext (unknown)
           at activate (worker/lib/workflow/vm-shared.js)
           at async activate (test/lib/test-workflows.js)
@@ -2055,8 +2049,7 @@ test('tryToContinueAfterCompletion', async (t) => {
             at startWorkflow (test/workflow-bundle-$HASH.js)
             at <anonymous> (test/workflow-bundle-$HASH.js)
             at activate (test/workflow-bundle-$HASH.js)
-            at __TEMPORAL_CALL_INTO_SCOPE (evalmachine.<anonymous>)
-            at file:///
+            at $BUN_VM_BOUNDARY
             at runInContext (unknown)
             at activate (worker/lib/workflow/vm-shared.js)
             at async activate (test/lib/test-workflows.js)
@@ -2264,8 +2257,7 @@ test('query not found - successString', async (t) => {
             at queryWorkflow (test/workflow-bundle-$HASH.js)
             at <anonymous> (test/workflow-bundle-$HASH.js)
             at activate (test/workflow-bundle-$HASH.js)
-            at __TEMPORAL_CALL_INTO_SCOPE (evalmachine.<anonymous>)
-            at file:///
+            at $BUN_VM_BOUNDARY
             at runInContext (unknown)
             at activateQueries (worker/lib/workflow/vm-shared.js)
             at activate (worker/lib/workflow/vm-shared.js)

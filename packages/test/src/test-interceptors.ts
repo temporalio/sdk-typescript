@@ -259,8 +259,7 @@ if (RUN_INTEGRATION_TESTS) {
             at startWorkflow (test/workflow-bundle-$HASH.js)
             at <anonymous> (test/workflow-bundle-$HASH.js)
             at activate (test/workflow-bundle-$HASH.js)
-            at __TEMPORAL_CALL_INTO_SCOPE (evalmachine.<anonymous>)
-            at file:///
+            at $BUN_VM_BOUNDARY
             at runInContext (unknown)
             at activate (worker/lib/workflow/vm-shared.js)
             at async handleRequest (worker/lib/workflow/workflow-worker-thread.js)
