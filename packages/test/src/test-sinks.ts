@@ -559,7 +559,7 @@ if (RUN_INTEGRATION_TESTS) {
   test('Logging is allowed in query handlers and update validators', async (t) => {
     const taskQueue = `${__filename}-${t.title}`;
 
-    let recordedMessages = Array<{ message: string; isReplaying: boolean }>();
+    let recordedMessages: { message: string; isReplaying: boolean }[] = [];
     const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
       customLogger: {
         info: {
@@ -605,7 +605,7 @@ if (RUN_INTEGRATION_TESTS) {
     // Empty recorded messages
     recordedMessages = [];
 
-    // Run the entire workflow through workflow 2 (will replay).
+    // Run the entire workflow through worker 2 (will replay).
     await worker2.runUntil(async () => {
       await handle.query(workflows.loggingQuery);
       // No update - it will be replayed
