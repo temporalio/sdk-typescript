@@ -149,9 +149,14 @@ export class SimplePlugin
    * @returns Modified bundle options with plugin configuration applied
    */
   configureBundler(options: BundleOptions): BundleOptions {
+    const workerInterceptors = resolveWorkerInterceptors(undefined, this.options.workerInterceptors);
     return {
       ...options,
       workflowsPath: resolveRequiredParameter(options.workflowsPath, this.options.workflowsPath),
+      workflowInterceptorModules: resolveAppendParameter(
+        options.workflowInterceptorModules,
+        workerInterceptors?.workflowModules
+      ),
     };
   }
 
