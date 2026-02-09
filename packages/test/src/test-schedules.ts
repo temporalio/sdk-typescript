@@ -249,6 +249,59 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
+  test.serial('Can create schedule with keepOriginalWorkflowId policy', async (t) => {
+    const { client } = t.context;
+    const scheduleId = `can-create-schedule-with-keep-original-workflow-id-policy-${randomUUID()}`;
+    const handle = await client.schedule.create({
+      scheduleId,
+      spec: {
+        intervals: [{ every: '1h' }],
+      },
+      action: {
+        type: 'startWorkflow',
+        workflowType: dummyWorkflow,
+        workflowId: `${scheduleId}-workflow`,
+        taskQueue,
+      },
+      policies: {
+        keepOriginalWorkflowId: true,
+      },
+    });
+
+    try {
+      const describedSchedule = await handle.describe();
+      t.true(describedSchedule.policies.keepOriginalWorkflowId);
+      t.true(describedSchedule.raw.schedule?.policies?.keepOriginalWorkflowId === true);
+    } finally {
+      await handle.delete();
+    }
+  });
+
+  test.serial('keepOriginalWorkflowId policy defaults to false', async (t) => {
+    const { client } = t.context;
+    const scheduleId = `keep-original-workflow-id-policy-defaults-to-false-${randomUUID()}`;
+    const handle = await client.schedule.create({
+      scheduleId,
+      spec: {
+        intervals: [{ every: '1h' }],
+      },
+      action: {
+        type: 'startWorkflow',
+        workflowType: dummyWorkflow,
+        workflowId: `${scheduleId}-workflow`,
+        taskQueue,
+      },
+    });
+
+    try {
+      const describedSchedule = await handle.describe();
+      t.false(describedSchedule.policies.keepOriginalWorkflowId);
+      t.false(describedSchedule.raw.schedule?.policies?.keepOriginalWorkflowId === true);
+    } finally {
+      await handle.delete();
+    }
+  });
+
   test.serial('Interceptor is called on create schedule', async (t) => {
     const clientWithInterceptor = new Client({
       connection: t.context.client.connection,
@@ -438,6 +491,55 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(describedSchedule.action.type, 'startWorkflow');
       t.is(describedSchedule.action.workflowType, 'dummyWorkflowWith2Args');
       t.deepEqual(describedSchedule.action.args, [3, 4]);
+    } finally {
+      await handle.delete();
+    }
+  });
+
+  test.serial('Can update keepOriginalWorkflowId policy', async (t) => {
+    const { client } = t.context;
+    const scheduleId = `can-update-keep-original-workflow-id-policy-${randomUUID()}`;
+    const handle = await client.schedule.create({
+      scheduleId,
+      spec: {
+        intervals: [{ every: '5h' }],
+      },
+      action: {
+        type: 'startWorkflow',
+        workflowType: dummyWorkflowWith1Arg,
+        workflowId: `${scheduleId}-workflow`,
+        args: ['foo'],
+        taskQueue,
+      },
+    });
+
+    try {
+      let describedSchedule = await handle.describe();
+      t.false(describedSchedule.policies.keepOriginalWorkflowId);
+
+      await handle.update((x) => ({
+        ...x,
+        policies: {
+          ...x.policies,
+          keepOriginalWorkflowId: true,
+        },
+      }));
+
+      describedSchedule = await handle.describe();
+      t.true(describedSchedule.policies.keepOriginalWorkflowId);
+      t.true(describedSchedule.raw.schedule?.policies?.keepOriginalWorkflowId === true);
+
+      await handle.update((x) => ({
+        ...x,
+        policies: {
+          ...x.policies,
+          keepOriginalWorkflowId: false,
+        },
+      }));
+
+      describedSchedule = await handle.describe();
+      t.false(describedSchedule.policies.keepOriginalWorkflowId);
+      t.false(describedSchedule.raw.schedule?.policies?.keepOriginalWorkflowId === true);
     } finally {
       await handle.delete();
     }

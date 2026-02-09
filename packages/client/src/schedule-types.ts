@@ -57,6 +57,14 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
      * @default false
      */
     pauseOnFailure?: boolean;
+
+    /**
+     * Whether to keep the workflow id exactly as provided in {@link ScheduleOptionsStartWorkflowAction.workflowId}.
+     * If false, Temporal Server may append a timestamp suffix to ensure uniqueness.
+     *
+     * @default false
+     */
+    keepOriginalWorkflowId?: boolean;
   };
 
   /**
@@ -298,6 +306,11 @@ export type ScheduleDescription = {
      * to start after the failed one finishes.
      */
     pauseOnFailure: boolean;
+
+    /**
+     * Whether started Workflow executions keep the action workflow id exactly as configured.
+     */
+    keepOriginalWorkflowId: boolean;
   };
 
   /**

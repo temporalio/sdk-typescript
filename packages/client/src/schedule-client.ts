@@ -441,6 +441,7 @@ export class ScheduleClient extends BaseClient {
             overlap: decodeScheduleOverlapPolicy(raw.schedule.policies?.overlapPolicy) ?? ScheduleOverlapPolicy.SKIP,
             catchupWindow: optionalTsToMs(raw.schedule.policies?.catchupWindow) ?? 60_000,
             pauseOnFailure: raw.schedule.policies?.pauseOnFailure === true,
+            keepOriginalWorkflowId: raw.schedule.policies?.keepOriginalWorkflowId === true,
           },
           state: {
             paused: raw.schedule.state?.paused === true,
