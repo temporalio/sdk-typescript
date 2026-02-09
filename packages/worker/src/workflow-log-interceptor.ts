@@ -35,12 +35,12 @@ export class WorkflowLogInterceptor implements WorkflowInboundCallsInterceptor, 
  *             by the SDK. To customize workflow log attributes, simply register a custom `WorkflowInterceptors` that
  *             intercepts the `outbound.getLogAttributes()` method.
  */
-// eslint-disable-next-line deprecation/deprecation
+// eslint-disable-next-line @typescript-eslint/no-deprecated
 export const WorkflowInboundLogInterceptor = WorkflowLogInterceptor;
 
 // ts-prune-ignore-next
 export const interceptors: WorkflowInterceptorsFactory = () => {
-  // eslint-disable-next-line deprecation/deprecation
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   const interceptor = new WorkflowLogInterceptor();
   return { inbound: [interceptor], outbound: [interceptor] };
 };

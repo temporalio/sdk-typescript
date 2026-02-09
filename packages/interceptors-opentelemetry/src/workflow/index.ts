@@ -1,4 +1,3 @@
-/* eslint-disable import/order */
 // eslint-disable-next-line import/no-unassigned-import
 import './runtime'; // Patch the Workflow isolate runtime for opentelemetry
 import * as otel from '@opentelemetry/api';

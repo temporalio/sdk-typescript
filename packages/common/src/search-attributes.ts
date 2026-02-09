@@ -2,11 +2,11 @@ import type { temporal } from '@temporalio/proto';
 import { makeProtoEnumConverters } from './internal-workflow';
 
 /** @deprecated: Use {@link TypedSearchAttributes} instead */
-export type SearchAttributeValueOrReadonly = SearchAttributeValue | Readonly<SearchAttributeValue> | undefined; // eslint-disable-line deprecation/deprecation
+export type SearchAttributeValueOrReadonly = SearchAttributeValue | Readonly<SearchAttributeValue> | undefined; // eslint-disable-line @typescript-eslint/no-deprecated
 /** @deprecated: Use {@link TypedSearchAttributes} instead */
-export type SearchAttributes = Record<string, SearchAttributeValueOrReadonly>; // eslint-disable-line deprecation/deprecation
+export type SearchAttributes = Record<string, SearchAttributeValueOrReadonly>; // eslint-disable-line @typescript-eslint/no-deprecated
 /** @deprecated: Use {@link TypedSearchAttributes} instead */
-export type SearchAttributeValue = string[] | number[] | boolean[] | Date[]; // eslint-disable-line deprecation/deprecation
+export type SearchAttributeValue = string[] | number[] | boolean[] | Date[];
 
 export const SearchAttributeType = {
   TEXT: 'TEXT',
@@ -212,7 +212,7 @@ export class TypedSearchAttributes {
 
   static getKeyFromUntyped(
     key: string,
-    value: SearchAttributeValueOrReadonly // eslint-disable-line deprecation/deprecation
+    value: SearchAttributeValueOrReadonly // eslint-disable-line @typescript-eslint/no-deprecated
   ): SearchAttributeKey<SearchAttributeType> | undefined {
     if (value == null) {
       return;

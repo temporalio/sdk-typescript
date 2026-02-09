@@ -220,7 +220,7 @@ class MySS<SI extends SlotInfo> implements CustomSlotSupplier<SI> {
     this.seenSlotTypes.add(ctx.slotType);
     this.t.truthy(ctx.taskQueue);
     this.t.truthy(ctx.workerIdentity);
-    this.t.truthy(ctx.workerBuildId); // eslint-disable-line deprecation/deprecation
+    this.t.truthy(ctx.workerBuildId); // eslint-disable-line @typescript-eslint/no-deprecated
     this.t.not(ctx.isSticky, undefined);
     this.seenStickyFlags.add(ctx.isSticky);
     this.reserved++;

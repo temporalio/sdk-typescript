@@ -7,7 +7,7 @@ export function adaptWorkflowClientInterceptor(i: WorkflowClientInterceptor): Wo
 // Adapt legacy `start` interceptors to the new `startWithDetails` interceptor.
 function adaptLegacyStartInterceptor(i: WorkflowClientInterceptor): WorkflowClientInterceptor {
   // If it already has the new method, or doesn't have the legacy one, no adaptation is needed.
-  // eslint-disable-next-line deprecation/deprecation
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   if (i.startWithDetails || !i.start) {
     return i;
   }
@@ -25,7 +25,7 @@ function adaptLegacyStartInterceptor(i: WorkflowClientInterceptor): WorkflowClie
         return downstreamOut.runId;
       };
 
-      const runIdFromLegacyInterceptor = await i.start!(input, patchedNext); // eslint-disable-line deprecation/deprecation
+      const runIdFromLegacyInterceptor = await i.start!(input, patchedNext); // eslint-disable-line @typescript-eslint/no-deprecated
 
       // If the interceptor short-circuited (didn't call `next`), `downstreamOut` will be undefined.
       // In that case, we can't have an eager start.

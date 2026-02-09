@@ -185,7 +185,7 @@ interface WorkflowWithLogAttributes {
 }
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
-  const bid = options.buildId; // eslint-disable-line deprecation/deprecation
+  const bid = options.buildId; // eslint-disable-line @typescript-eslint/no-deprecated
   if (bid != null) {
     return options as CompiledWorkerOptionsWithBuildId;
   }
@@ -1499,7 +1499,6 @@ export class Worker {
     activation: Decoded<coresdk.workflow_activation.WorkflowActivation>,
     initWorkflowJob: Decoded<coresdk.workflow_activation.IInitializeWorkflow>
   ): Promise<WorkflowWithLogAttributes> {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const workflowCreator = this.workflowCreator!;
     if (
       !(

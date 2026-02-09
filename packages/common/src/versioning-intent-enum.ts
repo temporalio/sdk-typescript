@@ -2,7 +2,7 @@ import type { coresdk } from '@temporalio/proto';
 import type { VersioningIntent as VersioningIntentString } from './versioning-intent';
 import { assertNever, checkExtends } from './type-helpers';
 
-/* eslint-disable deprecation/deprecation */
+/* eslint-disable @typescript-eslint/no-deprecated */
 
 // Avoid importing the proto implementation to reduce workflow bundle size
 // Copied from coresdk.common.VersioningIntent

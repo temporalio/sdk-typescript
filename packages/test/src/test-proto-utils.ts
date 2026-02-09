@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
 import test from 'ava';
-import Long from 'long'; // eslint-disable-line import/no-named-as-default
+import Long from 'long';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import proto from '@temporalio/proto'; // eslint-disable-line import/default
 
@@ -47,7 +47,6 @@ test('null payload data doesnt crash', async (t) => {
   // Make sure that other history properties were not corrupted
   t.is(
     Buffer.from(
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       history.events?.[0].workflowExecutionCompletedEventAttributes?.result?.payloads?.[0].metadata!
         .encoding as Uint8Array
     ).toString(),

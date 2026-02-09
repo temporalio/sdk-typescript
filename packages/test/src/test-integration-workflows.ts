@@ -523,7 +523,7 @@ export async function buildIdTester(): Promise<void> {
   });
 
   workflow.setHandler(getBuildIdQuery, () => {
-    return workflow.workflowInfo().currentBuildId ?? ''; // eslint-disable-line deprecation/deprecation
+    return workflow.workflowInfo().currentBuildId ?? ''; // eslint-disable-line @typescript-eslint/no-deprecated
   });
 
   // The unblock signal will only be sent once we are in Worker 1.1.
@@ -1316,7 +1316,7 @@ test.serial('can register search attributes to dev server', async (t) => {
   // Expect workflow description to have search attribute.
   const desc = await handle.describe();
   t.deepEqual(desc.typedSearchAttributes, new TypedSearchAttributes([newSearchAttribute]));
-  t.deepEqual(desc.searchAttributes, { 'new-search-attr': [12] }); // eslint-disable-line deprecation/deprecation
+  t.deepEqual(desc.searchAttributes, { 'new-search-attr': [12] }); // eslint-disable-line @typescript-eslint/no-deprecated
   await env.teardown();
 });
 

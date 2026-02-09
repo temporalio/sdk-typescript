@@ -1,5 +1,5 @@
 import test from 'ava';
-// eslint-disable-next-line import/no-named-as-default
+
 import Long from 'long';
 import { msToTs } from '@temporalio/common/lib/time';
 

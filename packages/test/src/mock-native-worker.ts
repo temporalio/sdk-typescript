@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { lastValueFrom } from 'rxjs';
 import { SdkComponent, defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';

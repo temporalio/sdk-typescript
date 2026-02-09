@@ -38,7 +38,6 @@ export async function heartbeatCancellationDetailsActivity(
     await client.workflowService.resetActivity(req);
   }
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       // Heartbeat to propagate cancellation signals from pause/reset.

@@ -43,7 +43,7 @@ export const WorkflowIdReusePolicy = {
    *             {@link WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING}.
    *             When using this option, `WorkflowOptions.workflowIdConflictPolicy` must be left unspecified.
    */
-  TERMINATE_IF_RUNNING: 'TERMINATE_IF_RUNNING', // eslint-disable-line deprecation/deprecation
+  TERMINATE_IF_RUNNING: 'TERMINATE_IF_RUNNING',
 
   /// Anything below this line has been deprecated
 
@@ -52,19 +52,19 @@ export const WorkflowIdReusePolicy = {
    *
    * @deprecated Either leave property `undefined`, or use {@link ALLOW_DUPLICATE} instead.
    */
-  WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+  WORKFLOW_ID_REUSE_POLICY_UNSPECIFIED: undefined,
 
   /** @deprecated Use {@link ALLOW_DUPLICATE} instead. */
-  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE: 'ALLOW_DUPLICATE', // eslint-disable-line deprecation/deprecation
+  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE: 'ALLOW_DUPLICATE',
 
   /** @deprecated Use {@link ALLOW_DUPLICATE_FAILED_ONLY} instead. */
-  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY: 'ALLOW_DUPLICATE_FAILED_ONLY', // eslint-disable-line deprecation/deprecation
+  WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY: 'ALLOW_DUPLICATE_FAILED_ONLY',
 
   /** @deprecated Use {@link REJECT_DUPLICATE} instead. */
-  WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE: 'REJECT_DUPLICATE', // eslint-disable-line deprecation/deprecation
+  WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE: 'REJECT_DUPLICATE',
 
   /** @deprecated Use {@link TERMINATE_IF_RUNNING} instead. */
-  WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING: 'TERMINATE_IF_RUNNING', // eslint-disable-line deprecation/deprecation
+  WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING: 'TERMINATE_IF_RUNNING',
 } as const;
 export type WorkflowIdReusePolicy = (typeof WorkflowIdReusePolicy)[keyof typeof WorkflowIdReusePolicy];
 
@@ -79,7 +79,7 @@ export const [encodeWorkflowIdReusePolicy, decodeWorkflowIdReusePolicy] = makePr
     [WorkflowIdReusePolicy.ALLOW_DUPLICATE]: 1,
     [WorkflowIdReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY]: 2,
     [WorkflowIdReusePolicy.REJECT_DUPLICATE]: 3,
-    [WorkflowIdReusePolicy.TERMINATE_IF_RUNNING]: 4, // eslint-disable-line deprecation/deprecation
+    [WorkflowIdReusePolicy.TERMINATE_IF_RUNNING]: 4, // eslint-disable-line @typescript-eslint/no-deprecated
     UNSPECIFIED: 0,
   } as const,
   'WORKFLOW_ID_REUSE_POLICY_'
@@ -179,7 +179,7 @@ export interface BaseWorkflowOptions {
    *
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes?: SearchAttributes; // eslint-disable-line deprecation/deprecation
+  searchAttributes?: SearchAttributes; // eslint-disable-line @typescript-eslint/no-deprecated
 
   /**
    * Specifies additional indexed information to attach to the Workflow Execution. More info:
