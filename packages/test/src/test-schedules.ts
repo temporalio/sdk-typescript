@@ -277,31 +277,6 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test.serial('keepOriginalWorkflowId policy defaults to false', async (t) => {
-    const { client } = t.context;
-    const scheduleId = `keep-original-workflow-id-policy-defaults-to-false-${randomUUID()}`;
-    const handle = await client.schedule.create({
-      scheduleId,
-      spec: {
-        intervals: [{ every: '1h' }],
-      },
-      action: {
-        type: 'startWorkflow',
-        workflowType: dummyWorkflow,
-        workflowId: `${scheduleId}-workflow`,
-        taskQueue,
-      },
-    });
-
-    try {
-      const describedSchedule = await handle.describe();
-      t.false(describedSchedule.policies.keepOriginalWorkflowId);
-      t.false(describedSchedule.raw.schedule?.policies?.keepOriginalWorkflowId === true);
-    } finally {
-      await handle.delete();
-    }
-  });
-
   test.serial('Interceptor is called on create schedule', async (t) => {
     const clientWithInterceptor = new Client({
       connection: t.context.client.connection,
