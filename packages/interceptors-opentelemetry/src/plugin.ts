@@ -39,7 +39,6 @@ export class OpenTelemetryPlugin extends SimplePlugin {
       clientInterceptors: {
         workflow: [new OpenTelemetryWorkflowClientInterceptor(interceptorOptions)],
       },
-      workflowInterceptorModules: [workflowInterceptorsPath],
       workerInterceptors: {
         client: {
           workflow: [new OpenTelemetryWorkflowClientInterceptor(interceptorOptions)],
