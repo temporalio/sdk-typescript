@@ -648,7 +648,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
   }
 
-  test.serial('OpenTelemetryWorkerPlugin works with prebundled workflow code', async (t) => {
+  test.serial('OpenTelemetryPlugin works with prebundled workflow code', async (t) => {
     Runtime.install({});
     try {
       const spans = Array<opentelemetry.tracing.ReadableSpan>();
