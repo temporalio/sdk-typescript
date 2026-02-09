@@ -71,8 +71,7 @@ export interface WorkerOptions {
    *
    * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
    *
-   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
-   * @deprecated Use {@link workerDeploymentOptions} instead.
+   * @deprecated Worker Versioning is now deprecated. Use {@link workerDeploymentOptions} instead: https://docs.temporal.io/worker-deployments
    */
   buildId?: string;
 
@@ -83,15 +82,12 @@ export interface WorkerOptions {
    *
    * For more information, see https://docs.temporal.io/workers#worker-versioning
    *
-   * @experimental The Worker Versioning API is still being designed. Major changes are expected.
-   * @deprecated Use {@link workerDeploymentOptions} instead.
+   * @deprecated Worker Versioning is now deprecated. Use {@link workerDeploymentOptions} instead: https://docs.temporal.io/worker-deployments
    */
   useVersioning?: boolean;
 
   /**
    * Deployment options for the worker. Exclusive with `build_id` and `use_worker_versioning`.
-   *
-   * @experimental Deployment based versioning is still experimental.
    */
   workerDeploymentOptions?: WorkerDeploymentOptions;
 
@@ -632,8 +628,6 @@ export interface PollerBehaviorSimpleMaximum {
 /**
  * Allows specifying the deployment version of the worker and whether to use deployment-based
  * worker versioning.
- *
- * @experimental Deployment based versioning is still experimental.
  */
 export type WorkerDeploymentOptions = {
   /**

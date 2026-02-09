@@ -9,8 +9,7 @@ import { assertNever, checkExtends } from './type-helpers';
 /**
  * Protobuf enum representation of {@link VersioningIntentString}.
  *
- * @deprecated In favor of the new Worker Deployment API.
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export enum VersioningIntent {
   UNSPECIFIED = 0,
@@ -21,6 +20,9 @@ export enum VersioningIntent {
 checkExtends<coresdk.common.VersioningIntent, VersioningIntent>();
 checkExtends<VersioningIntent, coresdk.common.VersioningIntent>();
 
+/**
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
+ */
 export function versioningIntentToProto(intent: VersioningIntentString | undefined): VersioningIntent {
   switch (intent) {
     case 'DEFAULT':

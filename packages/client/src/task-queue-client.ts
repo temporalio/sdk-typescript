@@ -13,18 +13,19 @@ type IUpdateWorkerBuildIdCompatibilityRequest =
 type GetWorkerTaskReachabilityResponse = temporal.api.workflowservice.v1.GetWorkerTaskReachabilityResponse;
 
 /**
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export type TaskQueueClientOptions = BaseClientOptions;
 
 /**
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export type LoadedTaskQueueClientOptions = LoadedWithDefaults<TaskQueueClientOptions>;
 
 /**
  * A stand-in for a Build Id for unversioned Workers
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ *
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export const UnversionedBuildId = Symbol.for('__temporal_unversionedBuildId');
 export type UnversionedBuildIdType = typeof UnversionedBuildId;
@@ -32,7 +33,7 @@ export type UnversionedBuildIdType = typeof UnversionedBuildId;
 /**
  * Client for starting Workflow executions and creating Workflow handles
  *
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export class TaskQueueClient extends BaseClient {
   public readonly options: LoadedTaskQueueClientOptions;
@@ -63,6 +64,8 @@ export class TaskQueueClient extends BaseClient {
    *
    * @param taskQueue The task queue to make changes to.
    * @param operation The operation to be performed.
+   *
+   * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
   public async updateBuildIdCompatibility(taskQueue: string, operation: BuildIdOperation): Promise<void> {
     const request: IUpdateWorkerBuildIdCompatibilityRequest = {
@@ -107,6 +110,8 @@ export class TaskQueueClient extends BaseClient {
    * @param taskQueue The task queue to fetch the compatibility information for.
    * @returns The sets of compatible Build Ids for the given task queue, or undefined if the queue
    *          has no Build Ids defined on it.
+   *
+   * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
   public async getBuildIdCompatability(taskQueue: string): Promise<WorkerBuildIdVersionSets | undefined> {
     let resp;
@@ -134,6 +139,8 @@ export class TaskQueueClient extends BaseClient {
    * task queues that reachability information could not be retrieved for will be marked with a
    * `NotFetched` entry in {@link BuildIdReachability.taskQueueReachability}. The caller may issue
    * another call to get the reachability for those task queues.
+   *
+   * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
   public async getReachability(options: ReachabilityOptions): Promise<ReachabilityResponse> {
     let resp;
@@ -170,6 +177,8 @@ export class TaskQueueClient extends BaseClient {
 
 /**
  * Options for {@link TaskQueueClient.getReachability}
+ *
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export type ReachabilityOptions = RequireAtLeastOne<BaseReachabilityOptions, 'buildIds' | 'taskQueues'>;
 
@@ -179,6 +188,8 @@ export type ReachabilityOptions = RequireAtLeastOne<BaseReachabilityOptions, 'bu
  *   - `EXISTING_WORKFLOWS` The Build Id might be used by open workflows and/or closed workflows.
  *   - `OPEN_WORKFLOWS` The Build Id might be used by open workflows
  *   - `CLOSED_WORKFLOWS` The Build Id might be used by closed workflows
+ *
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export const ReachabilityType = {
   /** The Build Id might be used by new workflows. */
@@ -214,6 +225,8 @@ export const [encodeTaskReachability, decodeTaskReachability] = makeProtoEnumCon
 
 /**
  * See {@link ReachabilityOptions}
+ *
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 export interface BaseReachabilityOptions {
   /**
@@ -230,13 +243,22 @@ export interface BaseReachabilityOptions {
   reachability?: ReachabilityType;
 }
 
+/**
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
+ */
 export interface ReachabilityResponse {
   /** Maps Build Ids to their reachability information. */
   buildIdReachability: Record<string | UnversionedBuildIdType, BuildIdReachability>;
 }
 
+/**
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
+ */
 export type ReachabilityTypeResponse = ReachabilityType | 'NOT_FETCHED';
 
+/**
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
+ */
 export interface BuildIdReachability {
   /**
    *  Maps Task Queue names to how the Build Id may be reachable from them. If they are not
@@ -283,7 +305,7 @@ export function reachabilityResponseFromProto(resp: GetWorkerTaskReachabilityRes
  * - Id passed is incorrect
  * - Build Id has been scavenged by the server.
  *
- * @experimental The Worker Versioning API is still being designed. Major changes are expected.
+ * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
  */
 @SymbolBasedInstanceOfError('BuildIdNotFoundError')
 export class BuildIdNotFoundError extends Error {}
