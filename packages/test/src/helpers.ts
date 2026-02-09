@@ -120,7 +120,10 @@ export function compareStackTrace(t: ExecutionContext, actual: string, expected:
     .replace(/-/g, '\\x2d')
     .replaceAll('\\$CLASS', '(?:[A-Za-z]+)')
     .replaceAll('\\$HASH', '(?:[A-Za-z0-9]+)')
-    .replaceAll('\\$BUN_VM_BOUNDARY', '(?:__TEMPORAL_CALL_INTO_SCOPE \\(evalmachine\\.\\<anonymous\\>\\)\\n    at file:///|evalmachine\\.\\<anonymous\\>)');
+    .replaceAll(
+      '\\$BUN_VM_BOUNDARY',
+      '(?:__TEMPORAL_CALL_INTO_SCOPE \\(evalmachine\\.\\<anonymous\\>\\)\\n    at file:///|evalmachine\\.\\<anonymous\\>)'
+    );
   t.regex(actual, RegExp(`^${escapedTrace}$`));
 }
 
