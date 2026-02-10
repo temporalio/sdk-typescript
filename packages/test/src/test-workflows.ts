@@ -525,17 +525,6 @@ test('throwAsync', async (t) => {
           ApplicationFailure: failure
               at nonRetryable (test/workflow-bundle-$HASH.js)
               at throwAsync (test/workflow-bundle-$HASH.js)
-              at startWorkflowNextHandler (test/workflow-bundle-$HASH.js)
-              at executeWithLifecycleLogging (test/workflow-bundle-$HASH.js)
-              at startWorkflow (test/workflow-bundle-$HASH.js)
-              at <anonymous> (test/workflow-bundle-$HASH.js)
-              at activate (test/workflow-bundle-$HASH.js)
-              at $BUN_VM_BOUNDARY
-              at runInContext (unknown)
-              at activate (worker/lib/workflow/vm-shared.js)
-              at async activate (test/lib/test-workflows.js)
-              at async <anonymous> (test/lib/test-workflows.js)
-              at processTicksAndRejections (native)
           `
           : dedent`
           ApplicationFailure: failure
@@ -788,22 +777,7 @@ test('invalidOrFailedQueries', async (t) => {
     const completion = cleanWorkflowQueryFailureStackTrace(
       await activate(t, makeQueryWorkflow('3', 'invalidAsyncMethod', []))
     );
-    const expectedStackTrace = isBun
-      ? dedent`
-          DeterminismViolationError: Query handlers should not return a Promise
-              at queryWorkflowNextHandler (test/workflow-bundle-$HASH.js)
-              at queryWorkflow (test/workflow-bundle-$HASH.js)
-              at <anonymous> (test/workflow-bundle-$HASH.js)
-              at activate (test/workflow-bundle-$HASH.js)
-              at $BUN_VM_BOUNDARY
-              at runInContext (unknown)
-              at activateQueries (worker/lib/workflow/vm-shared.js)
-              at activate (worker/lib/workflow/vm-shared.js)
-              at activate (test/lib/test-workflows.js)
-              at <anonymous> (test/lib/test-workflows.js)
-              at processTicksAndRejections (native)
-        `
-      : 'DeterminismViolationError: Query handlers should not return a Promise';
+    const expectedStackTrace = 'DeterminismViolationError: Query handlers should not return a Promise';
     compareCompletion(
       t,
       completion,
@@ -829,17 +803,6 @@ test('invalidOrFailedQueries', async (t) => {
       ? dedent`
           Error: fail
               at <anonymous> (test/workflow-bundle-$HASH.js)
-              at queryWorkflowNextHandler (test/workflow-bundle-$HASH.js)
-              at queryWorkflow (test/workflow-bundle-$HASH.js)
-              at <anonymous> (test/workflow-bundle-$HASH.js)
-              at activate (test/workflow-bundle-$HASH.js)
-              at $BUN_VM_BOUNDARY
-              at runInContext (unknown)
-              at activateQueries (worker/lib/workflow/vm-shared.js)
-              at activate (worker/lib/workflow/vm-shared.js)
-              at activate (test/lib/test-workflows.js)
-              at <anonymous> (test/lib/test-workflows.js)
-              at processTicksAndRejections (native)
         `
       : dedent`
           Error: fail
@@ -883,16 +846,6 @@ test('interruptableWorkflow', async (t) => {
         ApplicationFailure: just because
             at retryable (test/workflow-bundle-$HASH.js)
             at <anonymous> (test/workflow-bundle-$HASH.js)
-            at signalWorkflowNextHandler (test/workflow-bundle-$HASH.js)
-            at signalWorkflow (test/workflow-bundle-$HASH.js)
-            at <anonymous> (test/workflow-bundle-$HASH.js)
-            at activate (test/workflow-bundle-$HASH.js)
-            at $BUN_VM_BOUNDARY
-            at runInContext (unknown)
-            at activate (worker/lib/workflow/vm-shared.js)
-            at activate (test/lib/test-workflows.js)
-            at <anonymous> (test/lib/test-workflows.js)
-            at processTicksAndRejections (native)
         `
       : dedent`
         ApplicationFailure: just because
@@ -923,16 +876,6 @@ test('failSignalWorkflow', async (t) => {
         ApplicationFailure: Signal failed
             at nonRetryable (test/workflow-bundle-$HASH.js)
             at <anonymous> (test/workflow-bundle-$HASH.js)
-            at signalWorkflowNextHandler (test/workflow-bundle-$HASH.js)
-            at signalWorkflow (test/workflow-bundle-$HASH.js)
-            at <anonymous> (test/workflow-bundle-$HASH.js)
-            at activate (test/workflow-bundle-$HASH.js)
-            at $BUN_VM_BOUNDARY
-            at runInContext (unknown)
-            at activate (worker/lib/workflow/vm-shared.js)
-            at activate (test/lib/test-workflows.js)
-            at <anonymous> (test/lib/test-workflows.js)
-            at processTicksAndRejections (native)
         `
       : dedent`
         ApplicationFailure: Signal failed
@@ -974,8 +917,6 @@ test('asyncFailSignalWorkflow', async (t) => {
         ApplicationFailure: Signal failed
             at nonRetryable (test/workflow-bundle-$HASH.js)
             at <anonymous> (test/workflow-bundle-$HASH.js)
-            at async signalWorkflowNextHandler (test/workflow-bundle-$HASH.js)
-            at processTicksAndRejections (native)
         `
       : dedent`
         ApplicationFailure: Signal failed
@@ -1585,17 +1526,6 @@ test('cancellationErrorIsPropagated', async (t) => {
           at <anonymous> (test/workflow-bundle-$HASH.js)
           at runInContext (test/workflow-bundle-$HASH.js)
           at cancellationErrorIsPropagated (test/workflow-bundle-$HASH.js)
-          at startWorkflowNextHandler (test/workflow-bundle-$HASH.js)
-          at executeWithLifecycleLogging (test/workflow-bundle-$HASH.js)
-          at startWorkflow (test/workflow-bundle-$HASH.js)
-          at <anonymous> (test/workflow-bundle-$HASH.js)
-          at activate (test/workflow-bundle-$HASH.js)
-          at $BUN_VM_BOUNDARY
-          at runInContext (unknown)
-          at activate (worker/lib/workflow/vm-shared.js)
-          at async activate (test/lib/test-workflows.js)
-          at async <anonymous> (test/lib/test-workflows.js)
-          at processTicksAndRejections (native)
       `
     : dedent`
       CancelledFailure: Cancellation scope cancelled
@@ -1835,16 +1765,7 @@ test('globalOverrides', async (t) => {
 test('logAndTimeout', async (t) => {
   const { workflowType, workflow } = t.context;
   const completion = await activate(t, makeStartWorkflow(workflowType));
-  const expectedStackTrace = isBun
-    ? dedent`
-      Error: Script execution timed out after 400ms
-          at runInContext (native)
-          at activate (worker/lib/workflow/vm-shared.js)
-          at activate (test/lib/test-workflows.js)
-          at <anonymous> (test/lib/test-workflows.js)
-          at processTicksAndRejections (native)
-      `
-    : 'Error: Script execution timed out after 400ms';
+  const expectedStackTrace = 'Error: Script execution timed out after 400ms';
   // Clean the stack trace for comparison
   if (completion.failed?.failure?.stackTrace) {
     completion.failed.failure.stackTrace = cleanStackTrace(completion.failed.failure.stackTrace);
@@ -2044,17 +1965,6 @@ test('tryToContinueAfterCompletion', async (t) => {
         ApplicationFailure: fail before continue
             at nonRetryable (test/workflow-bundle-$HASH.js)
             at tryToContinueAfterCompletion (test/workflow-bundle-$HASH.js)
-            at startWorkflowNextHandler (test/workflow-bundle-$HASH.js)
-            at executeWithLifecycleLogging (test/workflow-bundle-$HASH.js)
-            at startWorkflow (test/workflow-bundle-$HASH.js)
-            at <anonymous> (test/workflow-bundle-$HASH.js)
-            at activate (test/workflow-bundle-$HASH.js)
-            at $BUN_VM_BOUNDARY
-            at runInContext (unknown)
-            at activate (worker/lib/workflow/vm-shared.js)
-            at async activate (test/lib/test-workflows.js)
-            at async <anonymous> (test/lib/test-workflows.js)
-            at processTicksAndRejections (native)
         `
       : dedent`
         ApplicationFailure: fail before continue
@@ -2250,22 +2160,8 @@ test('query not found - successString', async (t) => {
     const completion = cleanWorkflowQueryFailureStackTrace(
       await activate(t, makeActivation(undefined, makeQueryWorkflowJob('qid', 'not-found')))
     );
-    const expectedStackTrace = isBun
-      ? dedent`
-        ReferenceError: Workflow did not register a handler for not-found. Registered queries: [__stack_trace __enhanced_stack_trace __temporal_workflow_metadata]
-            at queryWorkflowNextHandler (test/workflow-bundle-$HASH.js)
-            at queryWorkflow (test/workflow-bundle-$HASH.js)
-            at <anonymous> (test/workflow-bundle-$HASH.js)
-            at activate (test/workflow-bundle-$HASH.js)
-            at $BUN_VM_BOUNDARY
-            at runInContext (unknown)
-            at activateQueries (worker/lib/workflow/vm-shared.js)
-            at activate (worker/lib/workflow/vm-shared.js)
-            at activate (test/lib/test-workflows.js)
-            at <anonymous> (test/lib/test-workflows.js)
-            at processTicksAndRejections (native)
-        `
-      : 'ReferenceError: Workflow did not register a handler for not-found. Registered queries: [__stack_trace __enhanced_stack_trace __temporal_workflow_metadata]';
+    const expectedStackTrace =
+      'ReferenceError: Workflow did not register a handler for not-found. Registered queries: [__stack_trace __enhanced_stack_trace __temporal_workflow_metadata]';
     compareCompletion(
       t,
       completion,

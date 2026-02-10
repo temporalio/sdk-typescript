@@ -253,18 +253,6 @@ if (RUN_INTEGRATION_TESTS) {
             at nonRetryable (test/workflow-bundle-$HASH.js)
             at continueAsNew (test/workflow-bundle-$HASH.js)
             at continueAsNewToDifferentWorkflow (test/workflow-bundle-$HASH.js)
-            at startWorkflowNextHandler (test/workflow-bundle-$HASH.js)
-            at execute (test/workflow-bundle-$HASH.js)
-            at executeWithLifecycleLogging (test/workflow-bundle-$HASH.js)
-            at startWorkflow (test/workflow-bundle-$HASH.js)
-            at <anonymous> (test/workflow-bundle-$HASH.js)
-            at activate (test/workflow-bundle-$HASH.js)
-            at $BUN_VM_BOUNDARY
-            at runInContext (unknown)
-            at activate (worker/lib/workflow/vm-shared.js)
-            at async handleRequest (worker/lib/workflow/workflow-worker-thread.js)
-            at async <anonymous> (worker/lib/workflow/workflow-worker-thread.js)
-            at processTicksAndRejections (native)
       `
       : dedent`
         ApplicationFailure: Expected anything other than 1

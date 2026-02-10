@@ -177,22 +177,6 @@ test.serial('activity-failure with Error', configMacro, async (t, config) => {
       ? dedent`
     Error: Fail me
         at throwAnError (test/lib/activities/index.js)
-        at execute (worker/lib/activity.js)
-        at withAbortSignal (worker/lib/connection.js)
-        at withAbortSignal (client/lib/base-client.js)
-        at <anonymous> (worker/lib/activity.js)
-        at <anonymous> (worker/lib/worker.js)
-        at doInnerSub (rxjs/dist/cjs/internal/operators/mergeInternals.js)
-        at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
-        at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
-        at <anonymous> (rxjs/dist/cjs/internal/operators/map.js)
-        at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
-        at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
-        at <anonymous> (rxjs/dist/cjs/internal/operators/mergeInternals.js)
-        at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
-        at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
-        at <anonymous> (rxjs/dist/cjs/internal/observable/innerFrom.js)
-        at processTicksAndRejections (native)
     `
       : dedent`
     Error: Fail me
@@ -235,22 +219,6 @@ test.serial('activity-failure with ApplicationFailure', configMacro, async (t, c
     ApplicationFailure: Fail me
         at nonRetryable (common/lib/failure.js)
         at throwAnError (test/lib/activities/index.js)
-        at execute (worker/lib/activity.js)
-        at withAbortSignal (worker/lib/connection.js)
-        at withAbortSignal (client/lib/base-client.js)
-        at <anonymous> (worker/lib/activity.js)
-        at <anonymous> (worker/lib/worker.js)
-        at doInnerSub (rxjs/dist/cjs/internal/operators/mergeInternals.js)
-        at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
-        at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
-        at <anonymous> (rxjs/dist/cjs/internal/operators/map.js)
-        at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
-        at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
-        at <anonymous> (rxjs/dist/cjs/internal/operators/mergeInternals.js)
-        at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
-        at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
-        at <anonymous> (rxjs/dist/cjs/internal/observable/innerFrom.js)
-        at processTicksAndRejections (native)
     `
       : dedent`
     ApplicationFailure: Fail me
@@ -312,18 +280,6 @@ test.serial('child-workflow-failure', configMacro, async (t, config) => {
         ApplicationFailure: failure
             at nonRetryable (test/workflow-bundle-$HASH.js)
             at throwAsync (test/workflow-bundle-$HASH.js)
-            at startWorkflowNextHandler (test/workflow-bundle-$HASH.js)
-            at execute (test/workflow-bundle-$HASH.js)
-            at executeWithLifecycleLogging (test/workflow-bundle-$HASH.js)
-            at startWorkflow (test/workflow-bundle-$HASH.js)
-            at <anonymous> (test/workflow-bundle-$HASH.js)
-            at activate (test/workflow-bundle-$HASH.js)
-            at $BUN_VM_BOUNDARY
-            at runInContext (unknown)
-            at activate (worker/lib/workflow/vm-shared.js)
-            at async handleRequest (worker/lib/workflow/workflow-worker-thread.js)
-            at async <anonymous> (worker/lib/workflow/workflow-worker-thread.js)
-            at processTicksAndRejections (native)
       `
         : dedent`
         ApplicationFailure: failure

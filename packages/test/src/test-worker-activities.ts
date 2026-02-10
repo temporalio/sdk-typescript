@@ -91,15 +91,7 @@ test('Worker runs an activity and reports failure', async (t) => {
           stackTrace: isBun
             ? dedent`
             Error: :(
-                at throwAnError (test/lib/activities/index.js)
-                at execute (worker/lib/activity.js)
-                at <anonymous> (worker/lib/activity.js)
-                at <anonymous> (worker/lib/worker.js)
-                at doInnerSub (rxjs/dist/cjs/internal/operators/mergeInternals.js)
-                at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)
-                at <anonymous> (rxjs/dist/cjs/internal/Subscriber.js)
-                at <anonymous> (rxjs/dist/cjs/internal/operators/map.js)
-                at <anonymous> (rxjs/dist/cjs/internal/operators/OperatorSubscriber.js)`
+                at throwAnError (test/lib/activities/index.js)`
             : dedent`
             Error: :(
                 at throwAnError (test/src/activities/index.ts)
