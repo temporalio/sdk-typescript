@@ -39,7 +39,7 @@
   },
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/core-bridge",
   "engines": {
-    "node": ">= 18.0.0"
+    "node": ">= 20.0.0"
   },
   "files": [
     "bridge-macros",

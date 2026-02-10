@@ -30,6 +30,46 @@ pub fn derive_tryintojs_struct(input: &DeriveInput, data: &syn::DataStruct) -> T
 }
 
 pub fn derive_tryintojs_enum(input: &DeriveInput, data: &syn::DataEnum) -> TokenStream {
+    let all_unit = data
+        .variants
+        .iter()
+        .all(|v| matches!(v.fields, syn::Fields::Unit));
+    if all_unit {
+        derive_tryintojs_enum_as_string(input, data)
+    } else {
+        derive_tryintojs_enum_as_objects(input, data)
+    }
+}
+
+fn derive_tryintojs_enum_as_string(input: &DeriveInput, data: &syn::DataEnum) -> TokenStream {
+    let enum_ident = &input.ident;
+    let generics = &input.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let variant_conversions = data.variants.iter().map(|v| {
+        let variant_ident = &v.ident;
+        let js_discriminant = variant_ident.to_string().to_case(Case::Camel);
+        quote! {
+            #enum_ident::#variant_ident => cx.string(#js_discriminant)
+        }
+    });
+
+    let expanded = quote! {
+        impl #impl_generics crate::helpers::TryIntoJs for #enum_ident #ty_generics #where_clause {
+            type Output = neon::types::JsString;
+
+            fn try_into_js<'a>(self, cx: &mut impl neon::prelude::Context<'a>) -> neon::result::JsResult<'a, Self::Output> {
+                Ok(match self {
+                    #(#variant_conversions),*
+                })
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+fn derive_tryintojs_enum_as_objects(input: &DeriveInput, data: &syn::DataEnum) -> TokenStream {
     let enum_ident = &input.ident;
     let generics = &input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
