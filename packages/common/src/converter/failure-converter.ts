@@ -59,7 +59,7 @@ const CUTOFF_STACK_PATTERNS = combineRegExp(
   /** Activity execution */
   /\s+at (Activity\.)?execute \(.*[\\/]worker[\\/](?:src|lib)[\\/]activity\.[jt]s:\d+:\d+\)/,
   /** Nexus execution */
-  /\s+at( async)? NexusHandler\.invokeUserCode \(.*[\\/]worker[\\/](?:src|lib)[\\/]nexus[\\/]index\.[jt]s:\d+:\d+\)/,
+  /\s+at( async)? (NexusHandler\.)?invokeUserCode \(.*[\\/]worker[\\/](?:src|lib)[\\/]nexus[\\/]index\.[jt]s:\d+:\d+\)/,
   /** Workflow activation (inbound handlers only) */
   /\s+at( async)? (Activator\.)?(startWorkflow|queryWorkflow|signalWorkflow|update|validateUpdate)NextHandler \(.*\.[jt]s:\d+:\d+\)/,
   /** Workflow run anything in context */

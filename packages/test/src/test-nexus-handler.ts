@@ -494,12 +494,7 @@ test('cancel Operation Handler errors', async (t) => {
           ? `ApplicationFailure: deliberate failure
     at create (common/lib/failure.js)
     at cancel (test/lib/test-nexus-handler.js)
-    at cancel (nexus-rpc/lib/handler/service-registry.js)
-    at invokeUserCode (worker/lib/nexus/index.js)
-    at cancelOperation (worker/lib/nexus/index.js)
-    at execute (worker/lib/nexus/index.js)
-    at <anonymous> (worker/lib/nexus/index.js)
-    at withAbortSignal (worker/lib/connection.js)`
+    at cancel (nexus-rpc/lib/handler/service-registry.js)`
           : `ApplicationFailure: deliberate failure
     at $CLASS.create (common/src/failure.ts)
     at Object.cancel (test/src/test-nexus-handler.ts)
@@ -534,13 +529,7 @@ test('cancel Operation Handler errors', async (t) => {
         isBun
           ? `HandlerError: deliberate error
     at cancel (test/lib/test-nexus-handler.js)
-    at cancel (nexus-rpc/lib/handler/service-registry.js)
-    at invokeUserCode (worker/lib/nexus/index.js)
-    at cancelOperation (worker/lib/nexus/index.js)
-    at execute (worker/lib/nexus/index.js)
-    at <anonymous> (worker/lib/nexus/index.js)
-    at withAbortSignal (worker/lib/connection.js)
-    at withAbortSignal (client/lib/base-client.js)`
+    at cancel (nexus-rpc/lib/handler/service-registry.js)`
           : `HandlerError: deliberate error
     at Object.cancel (test/src/test-nexus-handler.ts)
     at ServiceRegistry.cancel (nexus-rpc/src/handler/service-registry.ts)`
