@@ -858,12 +858,26 @@ export class Activator implements ActivationHandler {
       let input: UpdateInput;
       try {
         if (runValidator && entry.validator) {
-          const validate = composeInterceptors(
-            interceptors,
-            'validateUpdate',
-            this.validateUpdateNextHandler.bind(this, entry.validator)
-          );
-          validate(makeInput());
+          // Temporarily mark as not replaying history events during validator execution
+          // so that logging is permitted. Validators are live read-only operations.
+          const wasReplayingHistoryEvents = this.info.unsafe.isReplayingHistoryEvents;
+          this.mutateWorkflowInfo((info) => ({
+            ...info,
+            unsafe: { ...info.unsafe, isReplayingHistoryEvents: false },
+          }));
+          try {
+            const validate = composeInterceptors(
+              interceptors,
+              'validateUpdate',
+              this.validateUpdateNextHandler.bind(this, entry.validator)
+            );
+            validate(makeInput());
+          } finally {
+            this.mutateWorkflowInfo((info) => ({
+              ...info,
+              unsafe: { ...info.unsafe, isReplayingHistoryEvents: wasReplayingHistoryEvents },
+            }));
+          }
         }
         input = makeInput();
       } catch (error) {

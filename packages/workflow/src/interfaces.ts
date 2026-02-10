@@ -233,7 +233,22 @@ export interface UnsafeWorkflowInfo {
    */
   readonly now: () => number;
 
+  /**
+   * Whether the workflow is currently replaying.
+   */
   readonly isReplaying: boolean;
+
+  /**
+   * Whether the workflow is currently replaying history events.
+   *
+   * This is similar to {@link isReplaying}, but returns `false` during query handlers and update
+   * validators, which are live read-only operations that should not be considered as replaying
+   * history events.
+   *
+   * When this property is true, workflow log messages are suppressed and sinks defined with
+   * callDuringReplay=false won't get processed.
+   */
+  readonly isReplayingHistoryEvents: boolean;
 }
 
 /**

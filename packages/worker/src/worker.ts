@@ -1459,12 +1459,10 @@ export class Worker {
           // When processing workflows through runReplayHistories, Core may still send non-replay
           // activations on the very last Workflow Task in some cases. Though Core is technically exact
           // here, the fact that sinks marked with callDuringReplay = false may get called on a replay
-          // worker is definitely a surprising behavior. For that reason, we extend the isReplaying flag in
-          // this case to also include anything running under in a replay worker.
-          const isReplaying = activation.isReplaying || this.isReplayWorker;
-
+          // worker is definitely a surprising behavior. For that reason, processSinkCalls checks
+          // this.isReplayWorker to suppress all non-callDuringReplay sinks on replay workers.
           const calls = await workflow.workflow.getAndResetSinkCalls();
-          await this.processSinkCalls(calls, isReplaying, workflow.logAttributes);
+          await this.processSinkCalls(calls, workflow.logAttributes);
         }
         this.logger.trace('Completed activation', workflow.logAttributes);
       }
@@ -1572,6 +1570,7 @@ export class Worker {
       unsafe: {
         now: () => Date.now(), // re-set in initRuntime
         isReplaying: activation.isReplaying,
+        isReplayingHistoryEvents: activation.isReplaying,
       },
       priority: decodePriority(priority),
     };
@@ -1597,11 +1596,7 @@ export class Worker {
    * This function does not throw, it will log in case of missing sinks
    * or failed sink function invocations.
    */
-  protected async processSinkCalls(
-    externalCalls: SinkCall[],
-    isReplaying: boolean,
-    logAttributes: Record<string, unknown>
-  ): Promise<void> {
+  protected async processSinkCalls(externalCalls: SinkCall[], logAttributes: Record<string, unknown>): Promise<void> {
     const { sinks } = this.options;
 
     const filteredCalls = externalCalls
@@ -1619,8 +1614,15 @@ export class Worker {
         });
         return false;
       })
-      // If appropriate, reject calls to sink functions not configured with `callDuringReplay = true`
-      .filter(({ sink }) => sink?.callDuringReplay || !isReplaying);
+      // If appropriate, reject calls to sink functions not configured with `callDuringReplay = true`.
+      // Use per-call isReplayingHistoryEvents (which is false during queries and update validators)
+      // rather than per-activation isReplaying, so that logging is permitted during live read-only operations.
+      // Replay workers still suppress all non-callDuringReplay sinks regardless.
+      .filter(({ call, sink }) => {
+        if (sink?.callDuringReplay) return true;
+        if (this.isReplayWorker) return false;
+        return !call.workflowInfo.unsafe.isReplayingHistoryEvents;
+      });
 
     // Make a wrapper function, to make things easier afterward
     await Promise.all(

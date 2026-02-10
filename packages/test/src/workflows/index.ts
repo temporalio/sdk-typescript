@@ -54,6 +54,7 @@ export * from './patched';
 export * from './patched-top-level';
 export * from './priority';
 export * from './promise-all';
+export * from './query-and-validator-logging';
 export * from './promise-race';
 export * from './promise-then-promise';
 export * from './race';

@@ -146,6 +146,7 @@ if (RUN_INTEGRATION_TESTS) {
       // unsafe.now() doesn't make it through serialization, but .now is required, so we need to cast
       unsafe: {
         isReplaying: false,
+        isReplayingHistoryEvents: false,
       } as UnsafeWorkflowInfo,
       priority: {
         fairnessKey: undefined,
@@ -553,5 +554,73 @@ if (RUN_INTEGRATION_TESTS) {
         isReplaying: false,
       },
     ]);
+  });
+
+  test('Logging is allowed in query handlers and update validators', async (t) => {
+    const taskQueue = `${__filename}-${t.title}`;
+
+    let recordedMessages: { message: string; isReplaying: boolean }[] = [];
+    const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
+      customLogger: {
+        info: {
+          fn: async (info, message) => {
+            recordedMessages.push({
+              message,
+              isReplaying: info.unsafe.isReplaying,
+            });
+          },
+        },
+      },
+    };
+
+    const client = new WorkflowClient();
+    const handle = await client.start(workflows.queryAndValidatorLogging, { taskQueue, workflowId: uuid4() });
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+      // Avoid waiting for sticky execution timeout on worker transition
+      stickyQueueScheduleToStartTimeout: '1s',
+    });
+
+    await worker.runUntil(async () => {
+      await handle.query(workflows.loggingQuery);
+      await handle.executeUpdate(workflows.loggingUpdate, { args: ['good'] });
+    });
+
+    let messages = recordedMessages.map((m) => m.message);
+    t.true(messages.includes('Query handler called'), 'Query handler log should be emitted');
+    t.true(messages.includes('Update validator called'), 'Update validator log should be emitted');
+    t.true(messages.includes('Update handler called'), 'Update handler log should be emitted');
+
+    const worker2 = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+      sinks,
+      // Avoid waiting for sticky execution timeout on worker transition
+      stickyQueueScheduleToStartTimeout: '1s',
+    });
+
+    // Empty recorded messages
+    recordedMessages = [];
+
+    // Run the entire workflow through worker 2 (will replay).
+    await worker2.runUntil(async () => {
+      await handle.query(workflows.loggingQuery);
+      // No update - it will be replayed
+      await handle.signal(workflows.unblockSignal);
+      const res = await handle.result();
+      // Assert that the update replayed (expect initial update arg as result)
+      t.is(res, 'good');
+    });
+
+    messages = recordedMessages.map((m) => m.message);
+    // Query is a live operation even during replay — log should be emitted
+    t.true(messages.includes('Query handler called'), 'Query handler log should be emitted on replay');
+    // Validator does not re-run during replay (Core sends runValidator: false for accepted updates)
+    t.false(messages.includes('Update validator called'), 'Update validator log should not be emitted on replay');
+    // Update handler re-runs during replay to rebuild state, but its logs should be suppressed
+    t.false(messages.includes('Update handler called'), 'Update handler log should not be emitted on replay');
   });
 }
