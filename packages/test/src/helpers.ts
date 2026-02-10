@@ -112,18 +112,13 @@ export function cleanStackTrace(ostack: string): string {
  * Special:
  * - $CLASS: used to match class names that might be inconsistent
  * - $HASH: used to match bundle hash suffixes in workflow paths
- * - $BUN_VM_BOUNDARY: used to match VM boundary frames that differ between Linux and macOS/Windows on Bun
  */
 export function compareStackTrace(t: ExecutionContext, actual: string, expected: string): void {
   const escapedTrace = expected
     .replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
     .replace(/-/g, '\\x2d')
     .replaceAll('\\$CLASS', '(?:[A-Za-z]+)')
-    .replaceAll('\\$HASH', '(?:[A-Za-z0-9]+)')
-    .replaceAll(
-      '\\$BUN_VM_BOUNDARY',
-      '(?:__TEMPORAL_CALL_INTO_SCOPE \\(evalmachine\\.\\<anonymous\\>\\)\\n    at file:///|evalmachine\\.\\<anonymous\\>)'
-    );
+    .replaceAll('\\$HASH', '(?:[A-Za-z0-9]+)');
   t.regex(actual, RegExp(`^${escapedTrace}$`));
 }
 
