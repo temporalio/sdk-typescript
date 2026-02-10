@@ -106,7 +106,7 @@ export function cleanStackTrace(ostack: string): string {
  * to different stack traces depending on Node version.
  * See [f33e0fcc83954f728fcfd2ef6ae59435bc4af059](https://github.com/nodejs/node/commit/f33e0fcc83954f728fcfd2ef6ae59435bc4af059)
  *
- * Bun does not support promist hooks meaning we are currently unable to apply the source map on stack traces and workflow bundles
+ * Bun does not support promise hooks meaning we are currently unable to apply the source map on stack traces and workflow bundles
  * end up in the stack trace.
  *
  * Special:
