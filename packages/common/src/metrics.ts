@@ -69,7 +69,42 @@ export interface Metric {
    * The description of the metric, if any.
    */
   description?: string;
+
+  /**
+   * The kind of the metric (e.g. `counter`, `histogram`, `gauge`).
+   */
+  kind: MetricKind;
+
+  /**
+   * The type of value recorded by the metric. Either `int` or `float`.
+   */
+  valueType: NumericMetricValueType;
 }
+
+/**
+ * Tags to be attached to some metrics.
+ *
+ * @experimental The Metric API is an experimental feature and may be subject to change.
+ */
+export type MetricTags = Record<string, string | number | boolean>;
+
+/**
+ * Type of numerical values recorded by a metric.
+ *
+ * Note that this represents the _configuration_ of the metric; however, since JavaScript doesn't
+ * have different runtime representation for integers and floats, the actual value type is always
+ * a JS 'number'.
+ *
+ * @experimental The Metric API is an experimental feature and may be subject to change.
+ */
+export type NumericMetricValueType = 'int' | 'float';
+
+/**
+ * The kind of a metric.
+ *
+ * @experimental The Metric API is an experimental feature and may be subject to change.
+ */
+export type MetricKind = 'counter' | 'histogram' | 'gauge';
 
 /**
  * A metric that supports adding values as a counter.
@@ -91,6 +126,9 @@ export interface MetricCounter extends Metric {
    * @param tags Tags to append to existing tags.
    */
   withTags(tags: MetricTags): MetricCounter;
+
+  kind: 'counter';
+  valueType: 'int';
 }
 
 /**
@@ -99,11 +137,6 @@ export interface MetricCounter extends Metric {
  * @experimental The Metric API is an experimental feature and may be subject to change.
  */
 export interface MetricHistogram extends Metric {
-  /**
-   * The type of value to record. Either `int` or `float`.
-   */
-  valueType: NumericMetricValueType;
-
   /**
    * Record the given value on the histogram.
    *
@@ -120,6 +153,8 @@ export interface MetricHistogram extends Metric {
    * @param tags Tags to append to existing tags.
    */
   withTags(tags: MetricTags): MetricHistogram;
+
+  kind: 'histogram';
 }
 
 /**
@@ -128,11 +163,6 @@ export interface MetricHistogram extends Metric {
  * @experimental The Metric API is an experimental feature and may be subject to change.
  */
 export interface MetricGauge extends Metric {
-  /**
-   * The type of value to set. Either `int` or `float`.
-   */
-  valueType: NumericMetricValueType;
-
   /**
    * Set the given value on the gauge.
    *
@@ -147,16 +177,9 @@ export interface MetricGauge extends Metric {
    * @param tags Tags to append to existing tags.
    */
   withTags(tags: MetricTags): MetricGauge;
+
+  kind: 'gauge';
 }
-
-/**
- * Tags to be attached to some metrics.
- *
- * @experimental The Metric API is an experimental feature and may be subject to change.
- */
-export type MetricTags = Record<string, string | number | boolean>;
-
-export type NumericMetricValueType = 'int' | 'float';
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -169,6 +192,9 @@ class NoopMetricMeter implements MetricMeter {
       name,
       unit,
       description,
+
+      kind: 'counter',
+      valueType: 'int',
 
       add(_value, _extraTags) {},
 
@@ -186,9 +212,11 @@ class NoopMetricMeter implements MetricMeter {
   ): MetricHistogram {
     return {
       name,
-      valueType,
       unit,
       description,
+
+      kind: 'histogram',
+      valueType,
 
       record(_value, _extraTags) {},
 
@@ -198,12 +226,19 @@ class NoopMetricMeter implements MetricMeter {
     };
   }
 
-  createGauge(name: string, valueType?: NumericMetricValueType, unit?: string, description?: string): MetricGauge {
+  createGauge(
+    name: string,
+    valueType: NumericMetricValueType = 'int',
+    unit?: string,
+    description?: string
+  ): MetricGauge {
     return {
       name,
-      valueType: valueType ?? 'int',
       unit,
       description,
+
+      kind: 'gauge',
+      valueType,
 
       set(_value, _extraTags) {},
 
@@ -300,6 +335,9 @@ export class MetricMeterWithComposedTags implements MetricMeter {
  * @experimental The Metric API is an experimental feature and may be subject to change.
  */
 class MetricCounterWithComposedTags implements MetricCounter {
+  public readonly kind = 'counter';
+  public readonly valueType = 'int';
+
   constructor(
     private parentCounter: MetricCounter,
     private contributors: MetricTagsOrFunc[]
@@ -332,6 +370,8 @@ class MetricCounterWithComposedTags implements MetricCounter {
  * @experimental The Metric API is an experimental feature and may be subject to change.
  */
 class MetricHistogramWithComposedTags implements MetricHistogram {
+  public readonly kind = 'histogram';
+
   constructor(
     private parentHistogram: MetricHistogram,
     private contributors: MetricTagsOrFunc[]
@@ -369,6 +409,8 @@ class MetricHistogramWithComposedTags implements MetricHistogram {
  * @hidden
  */
 class MetricGaugeWithComposedTags implements MetricGauge {
+  public readonly kind = 'gauge';
+
   constructor(
     private parentGauge: MetricGauge,
     private contributors: MetricTagsOrFunc[]

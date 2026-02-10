@@ -3,6 +3,7 @@ import { Logger, LogLevel } from '@temporalio/common';
 import { Duration, msToNumber } from '@temporalio/common/lib/time';
 import { DefaultLogger } from './logger';
 import { NativeLogCollector } from './runtime-logger';
+import { MetricsBuffer } from './runtime-metrics';
 
 /**
  * Options used to create a Temporal Runtime.
@@ -214,6 +215,8 @@ export type MetricsExporterConfig = {
 
   /**
    * Tags to add to all metrics emitted by the worker.
+   *
+   * Note that this is not supported when the metrics are buffered.
    */
   globalTags?: Record<string, string>;
 
@@ -223,7 +226,7 @@ export type MetricsExporterConfig = {
    * @default true
    */
   attachServiceName?: boolean;
-} & (PrometheusMetricsExporter | OtelCollectorExporter);
+} & (PrometheusMetricsExporter | OtelCollectorExporter | BufferedMetricsExporter);
 
 /**
  * OpenTelemetry Collector options for exporting metrics or traces
@@ -359,6 +362,15 @@ export interface PrometheusMetricsExporter {
   };
 }
 
+/**
+ * Buffered metrics exporter options
+ *
+ * @experimental Buffered metrics is an experimental feature. APIs may be subject to change.
+ */
+export interface BufferedMetricsExporter {
+  buffer: MetricsBuffer;
+}
+
 // Compile Options ////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -369,6 +381,7 @@ export interface CompiledRuntimeOptions {
   shutdownSignals: NodeJS.Signals[];
   runtimeOptions: native.RuntimeOptions;
   logger: Logger;
+  metricsBuffer: MetricsBuffer | undefined;
 }
 
 export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions {
@@ -409,9 +422,16 @@ export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions 
                 histogramBucketOverrides: metrics.otel.histogramBucketOverrides ?? {},
                 globalTags: metrics.globalTags ?? {},
               } satisfies native.MetricExporterOptions)
-            : null,
+            : metrics && isBufferedMetricsExporter(metrics)
+              ? ({
+                  type: 'buffer',
+                  maxBufferSize: metrics.buffer.maxBufferSize ?? 10000,
+                  useSecondsForDurations: metrics.buffer.useSecondsForDurations ?? false,
+                } satisfies native.MetricExporterOptions)
+              : null,
       workerHeartbeatIntervalMillis: heartbeatMillis === 0 ? null : heartbeatMillis,
     },
+    metricsBuffer: metrics && isBufferedMetricsExporter(metrics) ? metrics.buffer : undefined,
   };
 }
 
@@ -488,6 +508,10 @@ function isOtelCollectorExporter(metrics: MetricsExporterConfig): metrics is Ote
 
 function isPrometheusMetricsExporter(metrics: MetricsExporterConfig): metrics is PrometheusMetricsExporter {
   return 'prometheus' in metrics && typeof metrics.prometheus === 'object';
+}
+
+function isBufferedMetricsExporter(metrics: MetricsExporterConfig): metrics is BufferedMetricsExporter {
+  return 'buffer' in metrics && typeof metrics.buffer === 'object';
 }
 
 function isForwardingLogger(options: LogExporterConfig): boolean {
