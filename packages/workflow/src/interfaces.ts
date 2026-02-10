@@ -244,7 +244,7 @@ export interface UnsafeWorkflowInfo {
    * This is similar to {@link isReplaying}, but returns `false` during query handlers and update
    * validators, which are live read-only operations that should not be considered as replaying
    * history events.
-   * 
+   *
    * When this property is true, workflow log messages are suppressed and sinks defined with
    * callDuringReplay=false won't get processed.
    */
