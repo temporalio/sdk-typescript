@@ -92,7 +92,7 @@ export type MetricTags = Record<string, string | number | boolean>;
  * Type of numerical values recorded by a metric.
  *
  * Note that this represents the _configuration_ of the metric; however, since JavaScript doesn't
- * actually have different representation for integers and floats, the actual value type is always
+ * have different runtime representation for integers and floats, the actual value type is always
  * a JS 'number'.
  *
  * @experimental The Metric API is an experimental feature and may be subject to change.
