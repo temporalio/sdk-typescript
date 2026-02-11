@@ -69,7 +69,7 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
         // To work around this bug, we encode activations
         activation = coresdk.workflow_activation.WorkflowActivation.decode(input.activation);
       } else {
-        activation = input.activation;
+        activation = coresdk.workflow_activation.WorkflowActivation.fromObject(input.activation);
       }
       const completion = await workflow.activate(activation);
       const maybeEncodedCompletion = isBun

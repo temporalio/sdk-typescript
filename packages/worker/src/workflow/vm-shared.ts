@@ -374,7 +374,6 @@ export abstract class BaseVMWorkflow implements Workflow {
   ): Promise<coresdk.workflow_completion.IWorkflowActivationCompletion> {
     try {
       if (this.context === undefined) throw new IllegalStateError('Workflow isolate context uninitialized');
-      activation = coresdk.workflow_activation.WorkflowActivation.fromObject(activation);
       if (!activation.jobs) throw new TypeError('Expected workflow activation jobs to be defined');
 
       // Queries are particular in many ways, and Core guarantees that a single activation will not
