@@ -10,7 +10,6 @@
     { "path": "../common" },
     { "path": "../plugin" },
     { "path": "../proto" },
-    { "path": "../test-helpers" },
     { "path": "../testing" },
     { "path": "../worker" },
     { "path": "../workflow" }

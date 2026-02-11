@@ -5,9 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  qs: ^6.14.1
   hono@<4.11.4: '>=4.11.4'
   jws@<3.2.3: '>=3.2.3'
-  qs: ^6.14.1
   tar@<=7.5.2: '>=7.5.3'
 
 importers:
