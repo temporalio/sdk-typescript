@@ -457,6 +457,8 @@ export class Activator implements ActivationHandler {
 
   public readonly workflowSandboxDestructors: (() => void)[] = [];
 
+  protected readonly stackTracesEnabled: boolean;
+
   constructor({
     info,
     now,
@@ -465,6 +467,7 @@ export class Activator implements ActivationHandler {
     getTimeOfDay,
     randomnessSeed,
     registeredActivityNames,
+    stackTracesEnabled,
   }: WorkflowCreateOptionsInternal) {
     this.getTimeOfDay = getTimeOfDay;
     this.info = info;
@@ -473,6 +476,7 @@ export class Activator implements ActivationHandler {
     this.sourceMap = sourceMap;
     this.random = alea(randomnessSeed);
     this.registeredActivityNames = registeredActivityNames;
+    this.stackTracesEnabled = stackTracesEnabled;
   }
 
   /**
@@ -483,6 +487,9 @@ export class Activator implements ActivationHandler {
   }
 
   protected getStackTraces(): Stack[] {
+    if (!this.stackTracesEnabled) {
+      throw new IllegalStateError('Workflow stack traces are not enabled on this worker');
+    }
     const { childToParent, promiseToStack } = this.promiseStackStore;
     const internalNodes = [...childToParent.values()].reduce((acc, curr) => {
       for (const p of curr) {

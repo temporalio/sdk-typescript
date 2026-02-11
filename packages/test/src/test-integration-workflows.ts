@@ -1171,7 +1171,7 @@ test("Lang's SDK flags replay correctly", async (t) => {
   await worker.runUntil(() => handle.result());
 
   const worker2 = await createWorker();
-  await worker2.runUntil(() => handle.query('__stack_trace'));
+  await worker2.runUntil(() => handle.query('__temporal_workflow_metadata'));
 
   // Query would have thrown if the workflow couldn't be replayed correctly
   t.pass();

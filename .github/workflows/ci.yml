@@ -117,7 +117,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22, 24] # Min and max officially supported Node versions + next max
+        node: [20, 24, bun] # Min and max officially supported Node versions + Bun
         platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
         include:
           - platform: linux-x64
@@ -137,7 +137,9 @@ jobs:
             runner: windows-latest
             reuse-v8-context: true
     runs-on: ${{ matrix.runner }}
-    name: Run Integration Tests (${{ matrix.platform }}, Node ${{ matrix.node }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
+    # Allow Bun test failures since support is experimental
+    continue-on-error: ${{ matrix.node == 'bun' }}
+    name: Run Integration Tests (${{ matrix.platform }}, ${{ matrix.node == 'bun' && 'Bun' || format('Node {0}', matrix.node) }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
     defaults:
       run:
         shell: bash
@@ -160,9 +162,16 @@ jobs:
           path: ./packages/core-bridge/releases
 
       - name: Setup Node and Install Dependencies
+        if: matrix.node != 'bun'
         uses: ./.github/actions/setup-node-deps
         with:
           node-version: ${{ matrix.node-release-override || matrix.node }}
+          platform: ${{ matrix.platform }}
+
+      - name: Setup Bun and Install Dependencies
+        if: matrix.node == 'bun'
+        uses: ./.github/actions/setup-bun-deps
+        with:
           platform: ${{ matrix.platform }}
 
       # On Windows, the 'runner.temp' variable uses backslashes as path separators, but
@@ -195,7 +204,8 @@ jobs:
             --sqlite-pragma synchronous=OFF \
             --headless &> ./devserver.log &
 
-      - name: Run Tests
+      - name: Run Tests (Node)
+        if: matrix.node != 'bun'
         run: pnpm run test
         env:
           RUN_INTEGRATION_TESTS: true
@@ -218,15 +228,24 @@ jobs:
           TEMPORAL_CLOUD_OPS_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
           TEMPORAL_CLOUD_OPS_TEST_API_VERSION: 2024-05-13-00
 
+      - name: Run Tests (Bun)
+        if: matrix.node == 'bun'
+        run: bun run -b --cwd packages/test ava ./lib/test-*.js
+        env:
+          RUN_INTEGRATION_TESTS: true
+          REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
+
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
       - name: Instantiate sample project using verdaccio artifacts - Hello World
+        if: matrix.node != 'bun'
         run: |
           pnpm tsx scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world
           pnpm tsx scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world"
 
       # Sample 2: hello-world-mtls to cloud server
       - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
+        if: matrix.node != 'bun'
         run: |
           if [ -z "$TEMPORAL_ADDRESS" ] || [ -z "$TEMPORAL_NAMESPACE" ] || [ -z "$TEMPORAL_CLIENT_CERT" ] || [ -z "$TEMPORAL_CLIENT_KEY" ]; then
             echo "Skipping hello-world-mtls sample test as required environment variables are not set"
@@ -248,12 +267,13 @@ jobs:
           TEMPORAL_CLIENT_KEY_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.key
 
       - name: Destroy certs dir
-        if: always()
+        if: always() && matrix.node != 'bun'
         run: rm -rf ${{ steps.tmp-dir.outputs.dir }}/certs
         continue-on-error: true
 
       # Sample 3: fetch-esm to local server
       - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
+        if: matrix.node != 'bun'
         run: |
           pnpm tsx scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm
           pnpm tsx scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm" --script-name workflow-local --expected-output "Hello World And Hello Wonderful Temporal!"
@@ -264,7 +284,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: failure() || cancelled()
         with:
-          name: integration-tests-${{ matrix.platform }}-node${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
+          name: integration-tests-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
           path: ${{ steps.tmp-dir.outputs.dir }}/devserver.log
 
   conventions:

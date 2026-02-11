@@ -5,12 +5,105 @@ import { native } from '@temporalio/core-bridge';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import { BaseVMWorkflow, globalHandlers, injectGlobals, setUnhandledRejectionHandler } from './vm-shared';
+import { isBun } from './bun';
 
 interface BagHolder {
   bag: any;
 }
 
 const callIntoVmScript = new vm.Script(`__TEMPORAL_CALL_INTO_SCOPE()`);
+
+function generateNodeCallIntoScopeScript(): string {
+  return `{
+    const __TEMPORAL_CALL_INTO_SCOPE = () => {
+      const [holder, fn, args] = globalThis.__temporal_args;
+      delete globalThis.__temporal_args;
+
+      if (globalThis.__TEMPORAL_BAG_HOLDER__ !== holder) {
+        if (globalThis.__TEMPORAL_BAG_HOLDER__ !== undefined) {
+          globalThis.__TEMPORAL_BAG_HOLDER__.bag = Object.getOwnPropertyDescriptors(globalThis);
+        }
+
+        const toBeDeleted = new Set(Reflect.ownKeys(globalThis));
+
+        for (const prop of Reflect.ownKeys(holder.bag)) {
+          if (holder.bag[prop].value !== globalThis[prop]) {
+            Object.defineProperty(globalThis, prop, holder.bag[prop]);
+          }
+          toBeDeleted.delete(prop);
+        }
+
+        for (const prop of toBeDeleted) {
+          delete globalThis[prop];
+        }
+
+        globalThis.__TEMPORAL_BAG_HOLDER__ = holder;
+      }
+
+      return __TEMPORAL__.api[fn](...args);
+    };
+    Object.defineProperty(globalThis, '__TEMPORAL_CALL_INTO_SCOPE', {
+      value: __TEMPORAL_CALL_INTO_SCOPE, writable: false, enumerable: false, configurable: false
+    });
+  }`;
+}
+
+// This is a workaround for a bug in Bun where Object.getOwnPropertyDescriptor returns
+// stale values for numeric properties after modification. We must read/write numeric
+// properties directly.
+function generateBunCallIntoScopeScript(): string {
+  return `{
+    const __TEMPORAL_IS_NUMERIC_KEY = (key) => {
+      if (typeof key === 'number') return true;
+      if (typeof key === 'string') {
+        const num = Number(key);
+        return Number.isInteger(num) && num >= 0 && String(num) === key;
+      }
+      return false;
+    };
+
+    const __TEMPORAL_CALL_INTO_SCOPE = () => {
+      const [holder, fn, args] = globalThis.__temporal_args;
+      delete globalThis.__temporal_args;
+
+      if (globalThis.__TEMPORAL_BAG_HOLDER__ !== holder) {
+        if (globalThis.__TEMPORAL_BAG_HOLDER__ !== undefined) {
+          const bag = Object.getOwnPropertyDescriptors(globalThis);
+          for (const prop of Reflect.ownKeys(bag)) {
+            if (__TEMPORAL_IS_NUMERIC_KEY(prop)) {
+              bag[prop].value = globalThis[prop];
+            }
+          }
+          globalThis.__TEMPORAL_BAG_HOLDER__.bag = bag;
+        }
+
+        const toBeDeleted = new Set(Reflect.ownKeys(globalThis));
+
+        for (const prop of Reflect.ownKeys(holder.bag)) {
+          if (holder.bag[prop].value !== globalThis[prop]) {
+            if (__TEMPORAL_IS_NUMERIC_KEY(prop)) {
+              globalThis[prop] = holder.bag[prop].value;
+            } else {
+              Object.defineProperty(globalThis, prop, holder.bag[prop]);
+            }
+          }
+          toBeDeleted.delete(prop);
+        }
+
+        for (const prop of toBeDeleted) {
+          delete globalThis[prop];
+        }
+
+        globalThis.__TEMPORAL_BAG_HOLDER__ = holder;
+      }
+
+      return __TEMPORAL__.api[fn](...args);
+    };
+    Object.defineProperty(globalThis, '__TEMPORAL_CALL_INTO_SCOPE', {
+      value: __TEMPORAL_CALL_INTO_SCOPE, writable: false, enumerable: false, configurable: false
+    });
+  }`;
+}
 
 /**
  * A WorkflowCreator that creates VMWorkflows in the current isolate
@@ -43,43 +136,10 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     }
 
     this._context = vm.createContext({}, { microtaskMode: 'afterEvaluate' }) as vm.Context & typeof globalThis;
-    vm.runInContext(
-      `{
-          const __TEMPORAL_CALL_INTO_SCOPE = () => {
-            const [holder, fn, args] = globalThis.__temporal_args;
-            delete globalThis.__temporal_args;
-
-            if (globalThis.__TEMPORAL_BAG_HOLDER__ !== holder) {
-              if (globalThis.__TEMPORAL_BAG_HOLDER__ !== undefined) {
-                globalThis.__TEMPORAL_BAG_HOLDER__.bag = Object.getOwnPropertyDescriptors(globalThis);
-              }
-
-              // Start with all properties, and remove the ones that we see; the rest will be deleted
-              const toBeDeleted = new Set(Reflect.ownKeys(globalThis));
-
-              for (const prop of Reflect.ownKeys(holder.bag)) {
-                if (holder.bag[prop].value !== globalThis[prop]) {
-                  Object.defineProperty(globalThis, prop, holder.bag[prop]);
-                }
-
-                toBeDeleted.delete(prop);
-              }
-
-              // Delete extra properties, left from the former context
-              for (const prop of toBeDeleted) {
-                delete globalThis[prop];
-              }
-
-              globalThis.__TEMPORAL_BAG_HOLDER__ = holder;
-            }
-
-            return __TEMPORAL__.api[fn](...args);
-          }
-          Object.defineProperty(globalThis, '__TEMPORAL_CALL_INTO_SCOPE', { value: __TEMPORAL_CALL_INTO_SCOPE, writable: false, enumerable: false, configurable: false });
-        }`,
-      this._context,
-      { timeout: isolateExecutionTimeoutMs, displayErrors: true }
-    );
+    vm.runInContext(isBun ? generateBunCallIntoScopeScript() : generateNodeCallIntoScopeScript(), this._context, {
+      timeout: isolateExecutionTimeoutMs,
+      displayErrors: true,
+    });
 
     const sharedModules = new Map<string | symbol, any>();
     const __webpack_module_cache__ = new Proxy(
@@ -182,6 +242,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       sourceMap: this.workflowBundle.sourceMap,
       getTimeOfDay: native.getTimeOfDay,
       registeredActivityNames: this.registeredActivityNames,
+      stackTracesEnabled: globalHandlers.promiseHookInstalled,
     });
     const activator = context.__TEMPORAL_ACTIVATOR__!;
     const newVM = new ReusableVMWorkflow(options.info.runId, context, activator, workflowModule);
@@ -227,6 +288,11 @@ type WorkflowModule = typeof internals;
 export class ReusableVMWorkflow extends BaseVMWorkflow {
   public async dispose(): Promise<void> {
     this.workflowModule.dispose();
+    // In Bun, microtasks scheduled inside the VM context may not be processed
+    // automatically due to lack of proper microtaskMode: 'afterEvaluate' support.
+    // Drain the microtask queue to prevent state leakage to the next workflow
+    // that will reuse this VM context.
+    if (isBun) await new Promise(setImmediate);
     ReusableVMWorkflowCreator.workflowByRunId.delete(this.runId);
   }
 }

@@ -22,7 +22,7 @@ import { SdkFlag, SdkFlags } from '@temporalio/workflow/lib/flags';
 import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
-import { cleanStackTrace, compareStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
+import { isBun, cleanStackTrace, compareStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 import { ProcessedSignal } from './workflows';
 
 export interface Context {
@@ -194,21 +194,37 @@ function extractFailureStackTraces(
   if (!reqCommands || !expectedCommands || reqCommands.length !== expectedCommands.length) {
     return;
   }
+
+  function getStackTrace(command: coresdk.workflow_commands.IWorkflowCommand | null | undefined): string | undefined {
+    return (
+      command?.failWorkflowExecution?.failure?.stackTrace ?? command?.respondToQuery?.failed?.stackTrace ?? undefined
+    );
+  }
+
+  function deleteStackTrace(command: coresdk.workflow_commands.IWorkflowCommand | null | undefined): void {
+    if (command?.failWorkflowExecution?.failure?.stackTrace) {
+      delete command.failWorkflowExecution.failure.stackTrace;
+    }
+    if (command?.respondToQuery?.failed?.stackTrace) {
+      delete command.respondToQuery.failed.stackTrace;
+    }
+  }
+
   for (let commandIndex = 0; commandIndex < reqCommands.length; commandIndex++) {
-    const reqStack = reqCommands[commandIndex].failWorkflowExecution?.failure?.stackTrace;
-    const expectedStack = expectedCommands[commandIndex].failWorkflowExecution?.failure?.stackTrace;
+    const reqStack = getStackTrace(reqCommands[commandIndex]);
+    const expectedStack = getStackTrace(expectedCommands[commandIndex]);
     if (typeof reqStack !== typeof expectedStack) {
       return;
     }
   }
   const stackTraces: { actual: string; expected: string }[] = [];
   for (let commandIndex = 0; commandIndex < reqCommands.length; commandIndex++) {
-    const reqStack = reqCommands[commandIndex].failWorkflowExecution?.failure?.stackTrace;
-    const expectedStack = expectedCommands[commandIndex].failWorkflowExecution?.failure?.stackTrace;
+    const reqStack = getStackTrace(reqCommands[commandIndex]);
+    const expectedStack = getStackTrace(expectedCommands[commandIndex]);
     if (reqStack && expectedStack) {
       stackTraces.push({ actual: reqStack, expected: expectedStack });
-      delete reqCommands[commandIndex].failWorkflowExecution?.failure?.stackTrace;
-      delete expectedCommands[commandIndex].failWorkflowExecution?.failure?.stackTrace;
+      deleteStackTrace(reqCommands[commandIndex]);
+      deleteStackTrace(expectedCommands[commandIndex]);
     }
   }
   return stackTraces;
@@ -504,11 +520,17 @@ test('throwAsync', async (t) => {
     makeSuccess([
       makeFailWorkflowExecution(
         'failure',
-        dedent`
-        ApplicationFailure: failure
-            at $CLASS.nonRetryable (common/src/failure.ts)
-            at throwAsync (test/src/workflows/throw-async.ts)
-        `
+        isBun
+          ? dedent`
+          ApplicationFailure: failure
+              at nonRetryable (test/workflow-bundle-$HASH.js)
+              at throwAsync (test/workflow-bundle-$HASH.js)
+          `
+          : dedent`
+          ApplicationFailure: failure
+              at $CLASS.nonRetryable (common/src/failure.ts)
+              at throwAsync (test/src/workflows/throw-async.ts)
+          `
       ),
     ])
   );
@@ -755,6 +777,7 @@ test('invalidOrFailedQueries', async (t) => {
     const completion = cleanWorkflowQueryFailureStackTrace(
       await activate(t, makeQueryWorkflow('3', 'invalidAsyncMethod', []))
     );
+    const expectedStackTrace = 'DeterminismViolationError: Query handlers should not return a Promise';
     compareCompletion(
       t,
       completion,
@@ -764,7 +787,7 @@ test('invalidOrFailedQueries', async (t) => {
           failed: {
             message: 'Query handlers should not return a Promise',
             source: 'TypeScriptSDK',
-            stackTrace: 'DeterminismViolationError: Query handlers should not return a Promise',
+            stackTrace: expectedStackTrace,
             applicationFailureInfo: {
               type: 'DeterminismViolationError',
               nonRetryable: false,
@@ -776,6 +799,15 @@ test('invalidOrFailedQueries', async (t) => {
   }
   {
     const completion = cleanWorkflowQueryFailureStackTrace(await activate(t, makeQueryWorkflow('3', 'fail', [])));
+    const expectedStackTrace = isBun
+      ? dedent`
+          Error: fail
+              at <anonymous> (test/workflow-bundle-$HASH.js)
+        `
+      : dedent`
+          Error: fail
+              at test/src/workflows/invalid-or-failed-queries.ts
+        `;
     compareCompletion(
       t,
       completion,
@@ -785,10 +817,7 @@ test('invalidOrFailedQueries', async (t) => {
           failed: {
             source: 'TypeScriptSDK',
             message: 'fail',
-            stackTrace: dedent`
-              Error: fail
-                  at test/src/workflows/invalid-or-failed-queries.ts
-            `,
+            stackTrace: expectedStackTrace,
             applicationFailureInfo: {
               type: 'Error',
               nonRetryable: false,
@@ -810,24 +839,24 @@ test('interruptableWorkflow', async (t) => {
     const req = cleanWorkflowFailureStackTrace(
       await activate(t, await makeSignalWorkflow('interrupt', ['just because']))
     );
+    // The stack trace is weird here and might confuse users, it might be a JS limitation
+    // since the Error stack trace is generated in the constructor.
+    const expectedStackTrace = isBun
+      ? dedent`
+        ApplicationFailure: just because
+            at retryable (test/workflow-bundle-$HASH.js)
+            at <anonymous> (test/workflow-bundle-$HASH.js)
+        `
+      : dedent`
+        ApplicationFailure: just because
+            at $CLASS.retryable (common/src/failure.ts)
+            at test/src/workflows/interrupt-signal.ts
+        `;
     compareCompletion(
       t,
       req,
       makeSuccess(
-        [
-          makeFailWorkflowExecution(
-            'just because',
-            // The stack trace is weird here and might confuse users, it might be a JS limitation
-            // since the Error stack trace is generated in the constructor.
-            dedent`
-          ApplicationFailure: just because
-              at $CLASS.retryable (common/src/failure.ts)
-              at test/src/workflows/interrupt-signal.ts
-          `,
-            'Error',
-            false
-          ),
-        ],
+        [makeFailWorkflowExecution('just because', expectedStackTrace, 'Error', false)],
         [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
       )
     );
@@ -842,21 +871,22 @@ test('failSignalWorkflow', async (t) => {
   }
   {
     const req = cleanWorkflowFailureStackTrace(await activate(t, await makeSignalWorkflow('fail', [])));
+    const expectedStackTrace = isBun
+      ? dedent`
+        ApplicationFailure: Signal failed
+            at nonRetryable (test/workflow-bundle-$HASH.js)
+            at <anonymous> (test/workflow-bundle-$HASH.js)
+        `
+      : dedent`
+        ApplicationFailure: Signal failed
+            at $CLASS.nonRetryable (common/src/failure.ts)
+            at test/src/workflows/fail-signal.ts
+        `;
     compareCompletion(
       t,
       req,
       makeSuccess(
-        [
-          makeFailWorkflowExecution(
-            'Signal failed',
-            dedent`
-          ApplicationFailure: Signal failed
-              at $CLASS.nonRetryable (common/src/failure.ts)
-              at test/src/workflows/fail-signal.ts
-          `,
-            'Error'
-          ),
-        ],
+        [makeFailWorkflowExecution('Signal failed', expectedStackTrace, 'Error')],
         [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
       )
     );
@@ -882,20 +912,22 @@ test('asyncFailSignalWorkflow', async (t) => {
   }
   {
     const req = cleanWorkflowFailureStackTrace(await activate(t, makeFireTimer(2)));
+    const expectedStackTrace = isBun
+      ? dedent`
+        ApplicationFailure: Signal failed
+            at nonRetryable (test/workflow-bundle-$HASH.js)
+            at <anonymous> (test/workflow-bundle-$HASH.js)
+        `
+      : dedent`
+        ApplicationFailure: Signal failed
+            at $CLASS.nonRetryable (common/src/failure.ts)
+            at test/src/workflows/async-fail-signal.ts
+        `;
     compareCompletion(
       t,
       req,
       makeSuccess(
-        [
-          makeFailWorkflowExecution(
-            'Signal failed',
-            dedent`
-          ApplicationFailure: Signal failed
-              at $CLASS.nonRetryable (common/src/failure.ts)
-              at test/src/workflows/async-fail-signal.ts`,
-            'Error'
-          ),
-        ],
+        [makeFailWorkflowExecution('Signal failed', expectedStackTrace, 'Error')],
         [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
       )
     );
@@ -1487,6 +1519,23 @@ test('nonCancellableInNonCancellable', async (t) => {
 test('cancellationErrorIsPropagated', async (t) => {
   const { workflowType, logs } = t.context;
   const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(workflowType)), 2);
+  const expectedStackTrace = isBun
+    ? dedent`
+      CancelledFailure: Cancellation scope cancelled
+          at cancel (test/workflow-bundle-$HASH.js)
+          at <anonymous> (test/workflow-bundle-$HASH.js)
+          at runInContext (test/workflow-bundle-$HASH.js)
+          at cancellationErrorIsPropagated (test/workflow-bundle-$HASH.js)
+      `
+    : dedent`
+      CancelledFailure: Cancellation scope cancelled
+          at CancellationScope.cancel (workflow/src/cancellation-scope.ts)
+          at test/src/workflows/cancellation-error-is-propagated.ts
+          at CancellationScope.runInContext (workflow/src/cancellation-scope.ts)
+          at CancellationScope.run (workflow/src/cancellation-scope.ts)
+          at $CLASS.cancellable (workflow/src/cancellation-scope.ts)
+          at cancellationErrorIsPropagated (test/src/workflows/cancellation-error-is-propagated.ts)
+      `;
   compareCompletion(
     t,
     req,
@@ -1497,15 +1546,7 @@ test('cancellationErrorIsPropagated', async (t) => {
         failWorkflowExecution: {
           failure: {
             message: 'Cancellation scope cancelled',
-            stackTrace: dedent`
-        CancelledFailure: Cancellation scope cancelled
-            at CancellationScope.cancel (workflow/src/cancellation-scope.ts)
-            at test/src/workflows/cancellation-error-is-propagated.ts
-            at CancellationScope.runInContext (workflow/src/cancellation-scope.ts)
-            at CancellationScope.run (workflow/src/cancellation-scope.ts)
-            at $CLASS.cancellable (workflow/src/cancellation-scope.ts)
-            at cancellationErrorIsPropagated (test/src/workflows/cancellation-error-is-propagated.ts)
-        `,
+            stackTrace: expectedStackTrace,
             canceledFailureInfo: {},
             source: 'TypeScriptSDK',
           },
@@ -1724,12 +1765,17 @@ test('globalOverrides', async (t) => {
 test('logAndTimeout', async (t) => {
   const { workflowType, workflow } = t.context;
   const completion = await activate(t, makeStartWorkflow(workflowType));
+  const expectedStackTrace = 'Error: Script execution timed out after 400ms';
+  // Clean the stack trace for comparison
+  if (completion.failed?.failure?.stackTrace) {
+    completion.failed.failure.stackTrace = cleanStackTrace(completion.failed.failure.stackTrace);
+  }
   compareCompletion(t, completion, {
     failed: {
       failure: {
         message: 'Script execution timed out after 400ms',
         source: 'TypeScriptSDK',
-        stackTrace: 'Error: Script execution timed out after 400ms',
+        stackTrace: expectedStackTrace,
         cause: undefined,
       },
     },
@@ -1914,19 +1960,21 @@ test('tryToContinueAfterCompletion', async (t) => {
   const { workflowType } = t.context;
   {
     const completion = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(workflowType)));
+    const expectedStackTrace = isBun
+      ? dedent`
+        ApplicationFailure: fail before continue
+            at nonRetryable (test/workflow-bundle-$HASH.js)
+            at tryToContinueAfterCompletion (test/workflow-bundle-$HASH.js)
+        `
+      : dedent`
+        ApplicationFailure: fail before continue
+            at $CLASS.nonRetryable (common/src/failure.ts)
+            at tryToContinueAfterCompletion (test/src/workflows/try-to-continue-after-completion.ts)
+        `;
     compareCompletion(
       t,
       completion,
-      makeSuccess([
-        makeFailWorkflowExecution(
-          'fail before continue',
-          dedent`
-          ApplicationFailure: fail before continue
-              at $CLASS.nonRetryable (common/src/failure.ts)
-              at tryToContinueAfterCompletion (test/src/workflows/try-to-continue-after-completion.ts)
-        `
-        ),
-      ])
+      makeSuccess([makeFailWorkflowExecution('fail before continue', expectedStackTrace)])
     );
   }
 });
@@ -2109,7 +2157,11 @@ test('query not found - successString', async (t) => {
     );
   }
   {
-    const completion = await activate(t, makeActivation(undefined, makeQueryWorkflowJob('qid', 'not-found')));
+    const completion = cleanWorkflowQueryFailureStackTrace(
+      await activate(t, makeActivation(undefined, makeQueryWorkflowJob('qid', 'not-found')))
+    );
+    const expectedStackTrace =
+      'ReferenceError: Workflow did not register a handler for not-found. Registered queries: [__stack_trace __enhanced_stack_trace __temporal_workflow_metadata]';
     compareCompletion(
       t,
       completion,
@@ -2120,8 +2172,7 @@ test('query not found - successString', async (t) => {
             message:
               'Workflow did not register a handler for not-found. Registered queries: [__stack_trace __enhanced_stack_trace __temporal_workflow_metadata]',
             source: 'TypeScriptSDK',
-            stackTrace:
-              'ReferenceError: Workflow did not register a handler for not-found. Registered queries: [__stack_trace __enhanced_stack_trace __temporal_workflow_metadata]',
+            stackTrace: expectedStackTrace,
             applicationFailureInfo: {
               type: 'ReferenceError',
               nonRetryable: false,

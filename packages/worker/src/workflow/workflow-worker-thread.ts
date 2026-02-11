@@ -1,10 +1,12 @@
 import { isMainThread, parentPort as parentPortOrNull } from 'node:worker_threads';
 import { IllegalStateError } from '@temporalio/common';
+import { coresdk } from '@temporalio/proto';
 import { Workflow, WorkflowCreator } from './interface';
 import { ReusableVMWorkflowCreator } from './reusable-vm';
 import { VMWorkflowCreator } from './vm';
 import { WorkerThreadRequest } from './workflow-worker-thread/input';
 import { WorkerThreadResponse } from './workflow-worker-thread/output';
+import { isBun } from './bun';
 
 if (isMainThread) {
   throw new IllegalStateError(`Imported ${__filename} from main thread`);
@@ -61,10 +63,27 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
-      const completion = await workflow.activate(input.activation);
+      let activation;
+      if (input.activation instanceof Uint8Array) {
+        // Some activation messages get silently dropped by Bun's postMessage.
+        // To work around this bug, we encode activations
+        activation = coresdk.workflow_activation.WorkflowActivation.decode(input.activation);
+      } else {
+        activation = coresdk.workflow_activation.WorkflowActivation.fromObject(input.activation);
+      }
+      const completion = await workflow.activate(activation);
+      const maybeEncodedCompletion = isBun
+        ? coresdk.workflow_completion.WorkflowActivationCompletion.encode(completion).finish()
+        : completion;
       return {
         requestId,
-        result: { type: 'ok', output: { type: 'activation-completion', completion } },
+        result: {
+          type: 'ok',
+          output: {
+            type: 'activation-completion',
+            completion: maybeEncodedCompletion,
+          },
+        },
       };
     }
     case 'extract-sink-calls': {
@@ -73,14 +92,16 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
       const calls = await workflow.getAndResetSinkCalls();
-      calls.map((call) => {
+      calls.forEach((call) => {
         // Delete .now because functions can't be serialized / sent to thread.
-        // Do this on a copy of the object, as workflowInfo is the live object.
-        call.workflowInfo = {
-          ...call.workflowInfo,
-          unsafe: { ...call.workflowInfo.unsafe },
-        };
         delete (call.workflowInfo.unsafe as any).now;
+        // Use structuredClone when available
+        // This lets us work around a bug in Bun's postMessage where
+        // shared object references get corrupted during serialization.
+        call.workflowInfo =
+          'structuredClone' in globalThis
+            ? structuredClone(call.workflowInfo)
+            : { ...call.workflowInfo, unsafe: { ...call.workflowInfo.unsafe } };
       });
 
       return {
@@ -100,12 +121,30 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
 }
 
 /**
+ * Transfer a response to the parent thread with zero-copy semantics when possible.
+ *
+ * For Bun, we use structuredClone with transfer option because Bun's postMessage
+ * doesn't properly detach buffers when transferring from worker to main thread.
+ * See: https://github.com/oven-sh/bun/issues/18705
+ */
+function postResponse(response: WorkerThreadResponse): void {
+  const completion = response.result.type === 'ok' ? response.result.output : undefined;
+  if (isBun && completion?.type === 'activation-completion' && completion.completion instanceof Uint8Array) {
+    const buffer = completion.completion.buffer;
+    const cloned = structuredClone(response, { transfer: [buffer] });
+    parentPort.postMessage(cloned);
+  } else {
+    parentPort.postMessage(response);
+  }
+}
+
+/**
  * Listen on messages delivered from the parent thread (the SDK Worker),
  * process any requests and respond back with result or error.
  */
 parentPort.on('message', async (request: WorkerThreadRequest) => {
   try {
-    parentPort.postMessage(await handleRequest(request));
+    postResponse(await handleRequest(request));
   } catch (err: any) {
     parentPort.postMessage({
       requestId: request.requestId,

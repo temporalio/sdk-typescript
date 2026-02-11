@@ -4,7 +4,13 @@ import { v4 as uuid4 } from 'uuid';
 import { bundleWorkflowCode, WorkflowBundle } from '@temporalio/worker';
 import { Connection } from '@temporalio/client';
 import { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@temporalio/testing';
-import { Worker, TestWorkflowEnvironment, testTimeSkipping as anyTestTimeSkipping, getRandomPort } from './helpers';
+import {
+  Worker,
+  TestWorkflowEnvironment,
+  testTimeSkipping as anyTestTimeSkipping,
+  getRandomPort,
+  isBun,
+} from './helpers';
 
 interface Context {
   bundle: WorkflowBundle;
@@ -82,7 +88,11 @@ test('TestEnvironment sets up dev server with db filename', async (t) => {
   }
 });
 
-test('TestEnvironment sets up dev server with custom port and ui', async (t) => {
+// Something with the Bun implementation of `node:net` on Windows results in
+// parallel calls to `getRandomPort` resulting in the same port.
+const testMaybeSerial = isBun && process.platform === 'win32' ? test.serial : test;
+
+testMaybeSerial('TestEnvironment sets up dev server with custom port and ui', async (t) => {
   // FIXME: We'd really need to assert that the UI port is not being used by another process.
   let port = await getRandomPort();
   if (port > 65535 - 1000) port = 65535 - 1000;
@@ -115,7 +125,7 @@ test('TestEnvironment sets up dev server with custom port and ui', async (t) => 
   }
 });
 
-test('TestEnvironment sets up dev server with custom ui port', async (t) => {
+testMaybeSerial('TestEnvironment sets up dev server with custom ui port', async (t) => {
   const port = await getRandomPort();
   const testEnv = await RealTestWorkflowEnvironment.createLocal({
     server: {

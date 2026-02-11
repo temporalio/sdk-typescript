@@ -10,6 +10,7 @@
  */
 
 import { Worker as NodeWorker } from 'node:worker_threads';
+import { setTimeout } from 'node:timers/promises';
 import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, type SinkCall } from '@temporalio/workflow';
 import { Logger } from '@temporalio/common';
@@ -21,9 +22,11 @@ import {
 } from './workflow-worker-thread/input';
 import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
+import { isBun } from './bun';
 
 // https://nodejs.org/api/worker_threads.html#event-exit
-export const TERMINATED_EXIT_CODE = 1;
+// Bun exits with code 0 instead of 1
+export const TERMINATED_EXIT_CODE = isBun ? 0 : 1;
 
 interface Completion<T> {
   resolve(value: T): void;
@@ -116,7 +119,12 @@ export class WorkerThreadClient {
     } else if (request.input.type === 'dispose-workflow') {
       this.activeWorkflowCount--;
     }
-    this.workerThread.postMessage(request);
+    // Transfer ownership of activation buffer for zero-copy transfer
+    if (request.input.type === 'activate-workflow' && request.input.activation instanceof Uint8Array) {
+      this.workerThread.postMessage(request, [request.input.activation.buffer]);
+    } else {
+      this.workerThread.postMessage(request);
+    }
     return new Promise<WorkerThreadOutput>((resolve, reject) => {
       this.requestIdToCompletion.set(requestId, { resolve, reject });
     });
@@ -131,10 +139,28 @@ export class WorkerThreadClient {
     }
     this.shutDownRequested = true;
     await this.send({ type: 'destroy' });
-    const exitCode = await this.workerThread.terminate();
-    if (exitCode !== TERMINATED_EXIT_CODE) {
+
+    const exitCode = await (isBun ? this.terminateWithBunWorkaround() : this.workerThread.terminate());
+    if (exitCode !== null && exitCode !== TERMINATED_EXIT_CODE) {
       throw new UnexpectedError(`Failed to terminate Worker thread, exit code: ${exitCode}`);
     }
+  }
+
+  /**
+   * Bun's terminate() hangs when called on an already exited worker thread.
+   * We race terminate() against receiving the exit event to handle this case.
+   */
+  private async terminateWithBunWorkaround(): Promise<number | null> {
+    const pollIntervalMs = 100;
+
+    const terminatePromise = this.workerThread.terminate();
+
+    let result = null;
+    while (!this.workerExited) {
+      result = await Promise.race([terminatePromise, setTimeout(pollIntervalMs, null)]);
+    }
+
+    return result;
   }
 
   public getActiveWorkflowCount(): number {
@@ -255,11 +281,17 @@ export class VMWorkflowThreadProxy implements Workflow {
   ): Promise<coresdk.workflow_completion.IWorkflowActivationCompletion> {
     const output = await this.workerThreadClient.send({
       type: 'activate-workflow',
-      activation,
+      // Some activation messages get silently dropped by Bun's postMessage.
+      // To work around this bug, we encode activations
+      // An example of a failing activation can be found in test-payload-converter.ts 'Worker encodes/decodes a protobuf containing a binary array'
+      activation: isBun ? coresdk.workflow_activation.WorkflowActivation.encode(activation).finish() : activation,
       runId: this.runId,
     });
     if (output?.type !== 'activation-completion') {
       throw new TypeError(`Got invalid response output from Workflow Worker thread ${output}`);
+    }
+    if (output.completion instanceof Uint8Array) {
+      return coresdk.workflow_completion.WorkflowActivationCompletion.decode(output.completion);
     }
     return output.completion;
   }

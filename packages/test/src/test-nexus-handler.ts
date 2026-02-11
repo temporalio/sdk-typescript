@@ -19,7 +19,7 @@ import {
   convertWorkflowEventLinkToNexusLink,
   convertNexusLinkToWorkflowEventLink,
 } from '@temporalio/nexus/lib/link-converter';
-import { cleanStackTrace, compareStackTrace, getRandomPort } from './helpers';
+import { isBun, cleanStackTrace, compareStackTrace, getRandomPort } from './helpers';
 
 export interface Context {
   httpPort: number;
@@ -317,7 +317,14 @@ test('start Operation Handler errors', async (t) => {
       compareStackTrace(
         t,
         cleanStackTrace(err.stack!),
-        `ApplicationFailure: deliberate failure
+        isBun
+          ? `ApplicationFailure: deliberate failure
+    at create (common/lib/failure.js)
+    at op (test/lib/test-nexus-handler.js)
+    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)
+    at start (nexus-rpc/lib/handler/service-registry.js)
+    at processTicksAndRejections (native)`
+          : `ApplicationFailure: deliberate failure
     at $CLASS.create (common/src/failure.ts)
     at op (test/src/test-nexus-handler.ts)
     at Object.start (nexus-rpc/src/handler/operation-handler.ts)
@@ -345,7 +352,13 @@ test('start Operation Handler errors', async (t) => {
       t.is(err.message, '');
       t.deepEqual(
         cleanStackTrace(err.stack!),
-        `HandlerError: deliberate error
+        isBun
+          ? `HandlerError: deliberate error
+    at op (test/lib/test-nexus-handler.js)
+    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)
+    at start (nexus-rpc/lib/handler/service-registry.js)
+    at processTicksAndRejections (native)`
+          : `HandlerError: deliberate error
     at op (test/src/test-nexus-handler.ts)
     at Object.start (nexus-rpc/src/handler/operation-handler.ts)
     at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
@@ -368,9 +381,16 @@ test('start Operation Handler errors', async (t) => {
       t.true(err instanceof Error);
       t.is(err.message, '');
       t.is(res.headers.get('nexus-operation-state'), 'failed');
-      t.deepEqual(
+      compareStackTrace(
+        t,
         cleanStackTrace(err.stack!),
-        `OperationError: deliberate error
+        isBun
+          ? `OperationError: deliberate error
+    at op (test/lib/test-nexus-handler.js)
+    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)
+    at start (nexus-rpc/lib/handler/service-registry.js)
+    at processTicksAndRejections (native)`
+          : `OperationError: deliberate error
     at op (test/src/test-nexus-handler.ts)
     at Object.start (nexus-rpc/src/handler/operation-handler.ts)
     at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
@@ -386,8 +406,13 @@ test('start Operation Handler errors', async (t) => {
       });
       t.is(res.status, 400);
       const { message } = (await res.json()) as { message: string };
-      // Exact error message varies between Node versions.
-      t.regex(message, /Failed to deserialize input: SyntaxError: Unexpected token .* JSON/);
+      // Exact error message varies between Node versions and runtimes.
+      t.regex(
+        message,
+        isBun
+          ? /Failed to deserialize input: SyntaxError: JSON Parse error:/
+          : /Failed to deserialize input: SyntaxError: Unexpected token .* JSON/
+      );
     }
   });
 });
@@ -465,7 +490,12 @@ test('cancel Operation Handler errors', async (t) => {
       compareStackTrace(
         t,
         cleanStackTrace(err.stack!),
-        `ApplicationFailure: deliberate failure
+        isBun
+          ? `ApplicationFailure: deliberate failure
+    at create (common/lib/failure.js)
+    at cancel (test/lib/test-nexus-handler.js)
+    at cancel (nexus-rpc/lib/handler/service-registry.js)`
+          : `ApplicationFailure: deliberate failure
     at $CLASS.create (common/src/failure.ts)
     at Object.cancel (test/src/test-nexus-handler.ts)
     at ServiceRegistry.cancel (nexus-rpc/src/handler/service-registry.ts)`
@@ -493,9 +523,14 @@ test('cancel Operation Handler errors', async (t) => {
       delete failure.details;
       t.true(err instanceof Error);
       t.is(err.message, '');
-      t.deepEqual(
+      compareStackTrace(
+        t,
         cleanStackTrace(err.stack!),
-        `HandlerError: deliberate error
+        isBun
+          ? `HandlerError: deliberate error
+    at cancel (test/lib/test-nexus-handler.js)
+    at cancel (nexus-rpc/lib/handler/service-registry.js)`
+          : `HandlerError: deliberate error
     at Object.cancel (test/src/test-nexus-handler.ts)
     at ServiceRegistry.cancel (nexus-rpc/src/handler/service-registry.ts)`
       );

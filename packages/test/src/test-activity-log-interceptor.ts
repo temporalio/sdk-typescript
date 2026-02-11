@@ -109,7 +109,7 @@ test('Activity Worker logs when activity is cancelled with signal', async (t) =>
   try {
     await env.run(async () => {
       await withZeroesHTTPServer(async (port) => {
-        await cancellableFetch(`http:127.0.0.1:${port}`);
+        await cancellableFetch(`http://127.0.0.1:${port}`);
       });
     });
   } catch (e) {

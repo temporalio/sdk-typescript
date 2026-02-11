@@ -37,7 +37,7 @@ import {
 } from '@temporalio/workflow';
 import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';
 import * as activities from './activities';
-import { cleanOptionalStackTrace, compareStackTrace, u8, Worker } from './helpers';
+import { cleanOptionalStackTrace, compareStackTrace, u8, Worker, isBun } from './helpers';
 import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import * as workflows from './workflows';
 
@@ -170,12 +170,18 @@ test.serial('activity-failure with Error', configMacro, async (t, config) => {
     return;
   }
   t.is(err.cause.cause.message, 'Fail me');
-  t.is(
-    cleanOptionalStackTrace(err.cause.cause.stack),
-    dedent`
-  Error: Fail me
-      at throwAnError (test/src/activities/index.ts)
-  `
+  compareStackTrace(
+    t,
+    cleanOptionalStackTrace(err.cause.cause.stack)!,
+    isBun
+      ? dedent`
+    Error: Fail me
+        at throwAnError (test/lib/activities/index.js)
+    `
+      : dedent`
+    Error: Fail me
+        at throwAnError (test/src/activities/index.ts)
+    `
   );
 });
 
@@ -208,10 +214,16 @@ test.serial('activity-failure with ApplicationFailure', configMacro, async (t, c
   compareStackTrace(
     t,
     cleanOptionalStackTrace(err.cause.cause.stack)!,
-    dedent`
-  ApplicationFailure: Fail me
-      at $CLASS.nonRetryable (common/src/failure.ts)
-      at throwAnError (test/src/activities/index.ts)
+    isBun
+      ? dedent`
+    ApplicationFailure: Fail me
+        at nonRetryable (common/lib/failure.js)
+        at throwAnError (test/lib/activities/index.js)
+    `
+      : dedent`
+    ApplicationFailure: Fail me
+        at $CLASS.nonRetryable (common/src/failure.ts)
+        at throwAnError (test/src/activities/index.ts)
     `
   );
 });
@@ -263,11 +275,17 @@ test.serial('child-workflow-failure', configMacro, async (t, config) => {
     compareStackTrace(
       t,
       cleanOptionalStackTrace(err.cause.cause.stack)!,
-      dedent`
-      ApplicationFailure: failure
-          at $CLASS.nonRetryable (common/src/failure.ts)
-          at throwAsync (test/src/workflows/throw-async.ts)
-    `
+      isBun
+        ? dedent`
+        ApplicationFailure: failure
+            at nonRetryable (test/workflow-bundle-$HASH.js)
+            at throwAsync (test/workflow-bundle-$HASH.js)
+      `
+        : dedent`
+        ApplicationFailure: failure
+            at $CLASS.nonRetryable (common/src/failure.ts)
+            at throwAsync (test/src/workflows/throw-async.ts)
+      `
     );
   });
 });

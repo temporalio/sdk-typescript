@@ -626,6 +626,7 @@ export interface WorkflowCreateOptionsInternal extends WorkflowCreateOptions {
   sourceMap: RawSourceMap;
   registeredActivityNames: Set<string>;
   getTimeOfDay(): bigint;
+  stackTracesEnabled: boolean;
 }
 
 /**

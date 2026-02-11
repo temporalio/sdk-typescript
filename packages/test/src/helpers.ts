@@ -34,6 +34,7 @@ function isSet(env: string | undefined, def: boolean): boolean {
 }
 
 export const RUN_INTEGRATION_TESTS = inWorkflowContext() || isSet(process.env.RUN_INTEGRATION_TESTS, true);
+export const isBun = typeof (globalThis as any).Bun !== 'undefined';
 export const REUSE_V8_CONTEXT = inWorkflowContext() || isSet(process.env.REUSE_V8_CONTEXT, true);
 export const RUN_TIME_SKIPPING_TESTS =
   inWorkflowContext() || !(process.platform === 'linux' && process.arch === 'arm64');
@@ -99,17 +100,25 @@ export function cleanStackTrace(ostack: string): string {
 }
 
 /**
- * Compare stack traces using $CLASS keyword to match any inconsistent identifiers
+ * Compare stack traces using keywords to match any inconsistent parts of the stack trace
  *
  * As of Node 24.6.0 type names are now present on source mapped stack traces which leads
  * to different stack traces depending on Node version.
  * See [f33e0fcc83954f728fcfd2ef6ae59435bc4af059](https://github.com/nodejs/node/commit/f33e0fcc83954f728fcfd2ef6ae59435bc4af059)
+ *
+ * Bun does not support promise hooks meaning we are currently unable to apply the source map on stack traces and workflow bundles
+ * end up in the stack trace.
+ *
+ * Special:
+ * - $CLASS: used to match class names that might be inconsistent
+ * - $HASH: used to match bundle hash suffixes in workflow paths
  */
 export function compareStackTrace(t: ExecutionContext, actual: string, expected: string): void {
   const escapedTrace = expected
     .replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
     .replace(/-/g, '\\x2d')
-    .replaceAll('\\$CLASS', '(?:[A-Za-z]+)');
+    .replaceAll('\\$CLASS', '(?:[A-Za-z]+)')
+    .replaceAll('\\$HASH', '(?:[A-Za-z0-9]+)');
   t.regex(actual, RegExp(`^${escapedTrace}$`));
 }
 
