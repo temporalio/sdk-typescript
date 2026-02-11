@@ -13,19 +13,19 @@ export const TimeoutType = {
   HEARTBEAT: 'HEARTBEAT',
 
   /** @deprecated Use {@link START_TO_CLOSE} instead. */
-  TIMEOUT_TYPE_START_TO_CLOSE: 'START_TO_CLOSE', // eslint-disable-line deprecation/deprecation
+  TIMEOUT_TYPE_START_TO_CLOSE: 'START_TO_CLOSE',
 
   /** @deprecated Use {@link SCHEDULE_TO_START} instead. */
-  TIMEOUT_TYPE_SCHEDULE_TO_START: 'SCHEDULE_TO_START', // eslint-disable-line deprecation/deprecation
+  TIMEOUT_TYPE_SCHEDULE_TO_START: 'SCHEDULE_TO_START',
 
   /** @deprecated Use {@link SCHEDULE_TO_CLOSE} instead. */
-  TIMEOUT_TYPE_SCHEDULE_TO_CLOSE: 'SCHEDULE_TO_CLOSE', // eslint-disable-line deprecation/deprecation
+  TIMEOUT_TYPE_SCHEDULE_TO_CLOSE: 'SCHEDULE_TO_CLOSE',
 
   /** @deprecated Use {@link HEARTBEAT} instead. */
-  TIMEOUT_TYPE_HEARTBEAT: 'HEARTBEAT', // eslint-disable-line deprecation/deprecation
+  TIMEOUT_TYPE_HEARTBEAT: 'HEARTBEAT',
 
   /** @deprecated Use `undefined` instead. */
-  TIMEOUT_TYPE_UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+  TIMEOUT_TYPE_UNSPECIFIED: undefined,
 } as const;
 export type TimeoutType = (typeof TimeoutType)[keyof typeof TimeoutType];
 
@@ -56,28 +56,28 @@ export const RetryState = {
   CANCEL_REQUESTED: 'CANCEL_REQUESTED',
 
   /** @deprecated Use {@link IN_PROGRESS} instead. */
-  RETRY_STATE_IN_PROGRESS: 'IN_PROGRESS', // eslint-disable-line deprecation/deprecation
+  RETRY_STATE_IN_PROGRESS: 'IN_PROGRESS',
 
   /** @deprecated Use {@link NON_RETRYABLE_FAILURE} instead. */
-  RETRY_STATE_NON_RETRYABLE_FAILURE: 'NON_RETRYABLE_FAILURE', // eslint-disable-line deprecation/deprecation
+  RETRY_STATE_NON_RETRYABLE_FAILURE: 'NON_RETRYABLE_FAILURE',
 
   /** @deprecated Use {@link TIMEOUT} instead. */
-  RETRY_STATE_TIMEOUT: 'TIMEOUT', // eslint-disable-line deprecation/deprecation
+  RETRY_STATE_TIMEOUT: 'TIMEOUT',
 
   /** @deprecated Use {@link MAXIMUM_ATTEMPTS_REACHED} instead. */
-  RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED: 'MAXIMUM_ATTEMPTS_REACHED', // eslint-disable-line deprecation/deprecation
+  RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED: 'MAXIMUM_ATTEMPTS_REACHED',
 
   /** @deprecated Use {@link RETRY_POLICY_NOT_SET} instead. */
-  RETRY_STATE_RETRY_POLICY_NOT_SET: 'RETRY_POLICY_NOT_SET', // eslint-disable-line deprecation/deprecation
+  RETRY_STATE_RETRY_POLICY_NOT_SET: 'RETRY_POLICY_NOT_SET',
 
   /** @deprecated Use {@link INTERNAL_SERVER_ERROR} instead. */
-  RETRY_STATE_INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR', // eslint-disable-line deprecation/deprecation
+  RETRY_STATE_INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
 
   /** @deprecated Use {@link CANCEL_REQUESTED} instead. */
-  RETRY_STATE_CANCEL_REQUESTED: 'CANCEL_REQUESTED', // eslint-disable-line deprecation/deprecation
+  RETRY_STATE_CANCEL_REQUESTED: 'CANCEL_REQUESTED',
 
   /** @deprecated Use `undefined` instead. */
-  RETRY_STATE_UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+  RETRY_STATE_UNSPECIFIED: undefined,
 } as const;
 export type RetryState = (typeof RetryState)[keyof typeof RetryState];
 

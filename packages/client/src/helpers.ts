@@ -54,7 +54,6 @@ export async function executionInfoFromRaw<T>(
   rawDataToEmbed: T
 ): Promise<Replace<WorkflowExecutionInfo, { raw: T }>> {
   return {
-    /* eslint-disable @typescript-eslint/no-non-null-assertion */
     type: raw.type!.name!,
     workflowId: raw.execution!.workflowId!,
     runId: raw.execution!.runId!,

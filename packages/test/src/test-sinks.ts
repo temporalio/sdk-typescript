@@ -106,7 +106,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
 
     // Capture volatile values that are hard to predict
-    const { historySize, startTime, runStartTime, currentBuildId, currentDeploymentVersion } = recordedCalls[0].info; // eslint-disable-line deprecation/deprecation
+    const { historySize, startTime, runStartTime, currentBuildId, currentDeploymentVersion } = recordedCalls[0].info; // eslint-disable-line @typescript-eslint/no-deprecated
     t.true(historySize > 300);
 
     const info: WorkflowInfo = {
@@ -390,14 +390,14 @@ if (RUN_INTEGRATION_TESTS) {
   test('Sink functions contains upserted search attributes', async (t) => {
     const taskQueue = `${__filename}-${t.title}`;
 
-    const recordedMessages = Array<{ message: string; searchAttributes: SearchAttributes }>(); // eslint-disable-line deprecation/deprecation
+    const recordedMessages = Array<{ message: string; searchAttributes: SearchAttributes }>(); // eslint-disable-line @typescript-eslint/no-deprecated
     const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
       customLogger: {
         info: {
           fn: async (info, message) => {
             recordedMessages.push({
               message,
-              searchAttributes: info.searchAttributes, // eslint-disable-line deprecation/deprecation
+              searchAttributes: info.searchAttributes, // eslint-disable-line @typescript-eslint/no-deprecated
             });
           },
           callDuringReplay: false,

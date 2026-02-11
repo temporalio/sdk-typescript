@@ -185,7 +185,6 @@ if (RUN_INTEGRATION_TESTS) {
         new TestEncodeCodec(),
         {
           async encode(payloads: Payload[]): Promise<Payload[]> {
-            /* eslint-disable @typescript-eslint/no-non-null-assertion */
             if (decode(payloads[0]!.data!) !== '"encoded"') {
               throw new Error('wrong order');
             }
@@ -236,7 +235,6 @@ if (RUN_INTEGRATION_TESTS) {
             return payloads;
           },
           async decode(payloads: Payload[]): Promise<Payload[]> {
-            /* eslint-disable @typescript-eslint/no-non-null-assertion */
             if (decode(payloads[0]!.data!) !== '"decoded"') {
               throw new Error('wrong order');
             }

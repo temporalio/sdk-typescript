@@ -88,7 +88,7 @@ import { Client } from '@temporalio/client';
 
 export {
   ActivityFunction,
-  ActivityInterface, // eslint-disable-line deprecation/deprecation
+  ActivityInterface, // eslint-disable-line @typescript-eslint/no-deprecated
   ApplicationFailure,
   CancelledFailure,
   UntypedActivities,

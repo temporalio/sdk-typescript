@@ -67,7 +67,6 @@ export {
   SlotReleaseContext,
 } from './worker-tuner';
 
-/* eslint-disable deprecation/deprecation */
 // Anything below this line is deprecated
 
 export {

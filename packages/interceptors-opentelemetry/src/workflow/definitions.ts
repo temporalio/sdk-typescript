@@ -1,6 +1,6 @@
 import * as otel from '@opentelemetry/api';
 import * as tracing from '@opentelemetry/sdk-trace-base';
-import { InstrumentationLibrary } from '@opentelemetry/core'; // eslint-disable deprecation/deprecation
+import { InstrumentationLibrary } from '@opentelemetry/core'; // eslint-disable @typescript-eslint/no-deprecated
 import type { Sink, Sinks } from '@temporalio/workflow';
 
 /**
@@ -28,7 +28,7 @@ export interface SerializableSpan {
   readonly droppedLinksCount: number;
   readonly droppedEventsCount: number;
   // readonly resource: Resource;
-  // eslint-disable-next-line deprecation/deprecation
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   readonly instrumentationLibrary: InstrumentationLibrary;
 }
 

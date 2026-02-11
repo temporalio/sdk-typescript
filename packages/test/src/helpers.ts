@@ -196,7 +196,7 @@ if (inWorkflowContext()) {
 
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
-  RealTestWorkflowEnvironment = class {}; // eslint-disable-line import/namespace
+  RealTestWorkflowEnvironment = class {};
 }
 
 export class Worker extends worker.Worker {

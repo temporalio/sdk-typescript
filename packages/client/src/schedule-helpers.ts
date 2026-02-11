@@ -1,4 +1,4 @@
-import Long from 'long'; // eslint-disable-line import/no-named-as-default
+import Long from 'long';
 import {
   compilePriority,
   compileRetryPolicy,
@@ -267,9 +267,9 @@ export async function encodeScheduleAction(
       retryPolicy: action.retry ? compileRetryPolicy(action.retry) : undefined,
       memo: action.memo ? { fields: await encodeMapToPayloads(dataConverter, action.memo) } : undefined,
       searchAttributes:
-        action.searchAttributes || action.typedSearchAttributes // eslint-disable-line deprecation/deprecation
+        action.searchAttributes || action.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(action.searchAttributes, action.typedSearchAttributes), // eslint-disable-line deprecation/deprecation
+              indexedFields: encodeUnifiedSearchAttributes(action.searchAttributes, action.typedSearchAttributes), // eslint-disable-line @typescript-eslint/no-deprecated
             }
           : undefined,
       header: { fields: headers },
@@ -327,11 +327,11 @@ export async function decodeScheduleAction(
     const { staticSummary, staticDetails } = await decodeUserMetadata(dataConverter, pb.startWorkflow?.userMetadata);
     return {
       type: 'startWorkflow',
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       workflowId: pb.startWorkflow.workflowId!,
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       workflowType: pb.startWorkflow.workflowType!.name!,
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       taskQueue: pb.startWorkflow.taskQueue!.name!,
       args: await decodeArrayFromPayloads(dataConverter, pb.startWorkflow.input?.payloads),
       memo: await decodeMapFromPayloads(dataConverter, pb.startWorkflow.memo?.fields),
@@ -357,9 +357,8 @@ export function decodeScheduleRunningActions(
     (x): ScheduleExecutionStartWorkflowActionResult => ({
       type: 'startWorkflow',
       workflow: {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         workflowId: x.workflowId!,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
         firstExecutionRunId: x.runId!,
       },
     })
@@ -377,9 +376,8 @@ export function decodeScheduleRecentActions(
         action = {
           type: 'startWorkflow',
           workflow: {
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             workflowId: executionResult.startWorkflowResult!.workflowId!,
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
             firstExecutionRunId: executionResult.startWorkflowResult!.runId!,
           },
         };

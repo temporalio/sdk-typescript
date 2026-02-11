@@ -31,7 +31,7 @@ export class ActivityInboundLogInterceptor implements ActivityInboundCallsInterc
     // this class is now handled elsewhere.
     if (
       this.logger === runtimeLogger &&
-      Object.getPrototypeOf(this) === ActivityInboundLogInterceptor.prototype // eslint-disable-line deprecation/deprecation
+      Object.getPrototypeOf(this) === ActivityInboundLogInterceptor.prototype // eslint-disable-line @typescript-eslint/no-deprecated
     )
       return;
 

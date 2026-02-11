@@ -8,7 +8,6 @@ import { RUN_INTEGRATION_TESTS } from './helpers';
 import { successString } from './workflows';
 
 declare global {
-  // eslint-disable-next-line no-var
   var __coverage__: libCoverage.CoverageMapData;
 }
 

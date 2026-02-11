@@ -198,7 +198,7 @@ export interface WorkerInterceptors {
    *
    * @deprecated Use {@link WorkerInterceptors.activity} instead.
    */
-  activityInbound?: ActivityInboundCallsInterceptorFactory[]; // eslint-disable-line deprecation/deprecation
+  activityInbound?: ActivityInboundCallsInterceptorFactory[]; // eslint-disable-line @typescript-eslint/no-deprecated
 
   /**
    * List of factory functions that instanciate {@link NexusInterceptors}s.

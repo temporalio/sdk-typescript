@@ -60,8 +60,8 @@ export {
   PayloadConverter,
   RetryPolicy,
   rootCause,
-  SearchAttributes, // eslint-disable-line deprecation/deprecation
-  SearchAttributeValue, // eslint-disable-line deprecation/deprecation
+  SearchAttributes, // eslint-disable-line @typescript-eslint/no-deprecated
+  SearchAttributeValue, // eslint-disable-line @typescript-eslint/no-deprecated
   ServerFailure,
   TemporalFailure,
   TerminatedFailure,
@@ -70,7 +70,7 @@ export {
 export * from '@temporalio/common/lib/errors';
 export {
   ActivityFunction,
-  ActivityInterface, // eslint-disable-line deprecation/deprecation
+  ActivityInterface, // eslint-disable-line @typescript-eslint/no-deprecated
   Payload,
   QueryDefinition,
   SignalDefinition,
@@ -126,6 +126,6 @@ export {
    *             exported by the `@temporalio/workflow` package. To capture log messages emitted
    *             by Workflow code, set the {@link Runtime.logger} property.
    */
-  // eslint-disable-next-line deprecation/deprecation
+
   LoggerSinksDeprecated as LoggerSinks,
 } from './logs';

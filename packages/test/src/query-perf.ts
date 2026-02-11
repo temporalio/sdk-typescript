@@ -17,7 +17,7 @@ async function main() {
   // TODO: pagination and limit
 
   const query = args['--workflow-query'];
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
   const workflowIds = executions.map(({ execution }) => execution!.workflowId!);
 
   const durations = await Rx.firstValueFrom(

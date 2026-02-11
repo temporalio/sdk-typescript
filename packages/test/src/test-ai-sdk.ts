@@ -439,7 +439,7 @@ test('Telemetry', async (t) => {
     });
     await otel.start();
     const sinks: InjectedSinks<OpenTelemetrySinks> = {
-      exporter: makeWorkflowExporter(traceExporter, staticResource), // eslint-disable-line deprecation/deprecation
+      exporter: makeWorkflowExporter(traceExporter, staticResource), // eslint-disable-line @typescript-eslint/no-deprecated
     };
 
     const worker = await Worker.create({
@@ -518,7 +518,7 @@ test('callToolActivity awaits tool.execute before closing MCP client', async (t)
   };
 
   // Create a factory that returns the mock client - cast to any since we only implement the methods we need
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const mockMcpClientFactory = async () => mockMcpClient as any;
 
   // Create activities with the mock MCP client factory
@@ -553,7 +553,7 @@ test('MCP tool schema survives activity serialization', async (t) => {
 
   // Create in-memory MCP server with test tool
   const createTestMcpClient = async () => {
-    // eslint-disable-next-line deprecation/deprecation
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     const server = new Server({ name: 'test-server', version: '1.0.0' }, { capabilities: { tools: {} } });
 
     // Register tools/list handler

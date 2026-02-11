@@ -50,7 +50,7 @@ export interface WorkflowExecutionInfo {
   closeTime?: Date;
   memo?: Record<string, unknown>;
   /** @deprecated Use {@link typedSearchAttributes} instead. */
-  searchAttributes: SearchAttributes; // eslint-disable-line deprecation/deprecation
+  searchAttributes: SearchAttributes; // eslint-disable-line @typescript-eslint/no-deprecated
   typedSearchAttributes: TypedSearchAttributes;
   parentExecution?: Required<proto.temporal.api.common.v1.IWorkflowExecution>;
   rootExecution?: Required<proto.temporal.api.common.v1.IWorkflowExecution>;
@@ -62,7 +62,7 @@ export interface CountWorkflowExecution {
   count: number;
   groups: {
     count: number;
-    groupValues: SearchAttributeValue[]; // eslint-disable-line deprecation/deprecation
+    groupValues: SearchAttributeValue[]; // eslint-disable-line @typescript-eslint/no-deprecated
   }[];
 }
 
@@ -185,16 +185,16 @@ export const QueryRejectCondition = {
   NOT_COMPLETED_CLEANLY: 'NOT_COMPLETED_CLEANLY',
 
   /** @deprecated Use {@link NONE} instead. */
-  QUERY_REJECT_CONDITION_NONE: 'NONE', // eslint-disable-line deprecation/deprecation
+  QUERY_REJECT_CONDITION_NONE: 'NONE',
 
   /** @deprecated Use {@link NOT_OPEN} instead. */
-  QUERY_REJECT_CONDITION_NOT_OPEN: 'NOT_OPEN', // eslint-disable-line deprecation/deprecation
+  QUERY_REJECT_CONDITION_NOT_OPEN: 'NOT_OPEN',
 
   /** @deprecated Use {@link NOT_COMPLETED_CLEANLY} instead. */
-  QUERY_REJECT_CONDITION_NOT_COMPLETED_CLEANLY: 'NOT_COMPLETED_CLEANLY', // eslint-disable-line deprecation/deprecation
+  QUERY_REJECT_CONDITION_NOT_COMPLETED_CLEANLY: 'NOT_COMPLETED_CLEANLY',
 
   /** @deprecated Use `undefined` instead. */
-  QUERY_REJECT_CONDITION_UNSPECIFIED: undefined, // eslint-disable-line deprecation/deprecation
+  QUERY_REJECT_CONDITION_UNSPECIFIED: undefined,
 } as const;
 export type QueryRejectCondition = (typeof QueryRejectCondition)[keyof typeof QueryRejectCondition];
 

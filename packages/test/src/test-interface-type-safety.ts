@@ -131,7 +131,7 @@ test('startUpdate and executeUpdate call signatures', async (t) => {
     });
     // @ts-expect-error: waitForStage must be ACCEPTED
     await handle.startUpdate(nullaryUpdate, {
-      waitForStage: WorkflowUpdateStage.UNSPECIFIED, // eslint-disable-line deprecation/deprecation
+      waitForStage: WorkflowUpdateStage.UNSPECIFIED, // eslint-disable-line @typescript-eslint/no-deprecated
     });
     // @ts-expect-error: args must be empty if present
     await handle.startUpdate(nullaryUpdate, {

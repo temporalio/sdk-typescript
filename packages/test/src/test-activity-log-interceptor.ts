@@ -127,7 +127,7 @@ test('(Legacy) ActivityInboundLogInterceptor does not override Context.log by de
   const env = new MockActivityEnvironment(
     {},
     {
-      // eslint-disable-next-line deprecation/deprecation
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       interceptors: [(ctx) => ({ inbound: new ActivityInboundLogInterceptor(ctx) })],
       logger: mockLogger,
     }
@@ -149,7 +149,7 @@ test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if a logger i
   const env = new MockActivityEnvironment(
     {},
     {
-      // eslint-disable-next-line deprecation/deprecation
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       interceptors: [(ctx) => ({ inbound: new ActivityInboundLogInterceptor(ctx, logger) })],
       logger: mockLogger,
     }
@@ -162,7 +162,7 @@ test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if a logger i
 });
 
 test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if class is extended', async (t) => {
-  // eslint-disable-next-line deprecation/deprecation
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   class CustomActivityInboundLogInterceptor extends ActivityInboundLogInterceptor {
     protected logAttributes(): Record<string, unknown> {
       const { namespace: _, ...rest } = super.logAttributes();

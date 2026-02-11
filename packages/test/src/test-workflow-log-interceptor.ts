@@ -127,7 +127,7 @@ test('(Legacy) defaultSinks(logger) can be used to customize where logs are sent
     connection: nativeConnection,
     taskQueue: t.context.taskQueue,
     workflowsPath: require.resolve('./workflows'),
-    // eslint-disable-next-line deprecation/deprecation
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     sinks: defaultSinks(logger),
   });
   await worker.runUntil(
@@ -159,7 +159,7 @@ test('(Legacy) Can register defaultWorkerLogger sink to customize where logs are
     connection: nativeConnection,
     taskQueue: t.context.taskQueue,
     workflowsPath: require.resolve('./workflows'),
-    // eslint-disable-next-line deprecation/deprecation
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     sinks: <InjectedSinks<LoggerSinks>>{
       defaultWorkerLogger: {
         trace: { fn: fn.bind(undefined, 'TRACE') },
