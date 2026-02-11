@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import pkg from '@temporalio/worker/lib/pkg';
 import { bundleWorkflowCode } from '@temporalio/worker';
 import { temporal } from '@temporalio/proto';
+import { QueryNotRegisteredError } from '@temporalio/client';
 import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import { configurableHelpers } from './helpers-integration';
 import { withZeroesHTTPServer } from './zeroes-http-server';
@@ -144,6 +145,21 @@ if ('promiseHooks' in v8 && !isBun) {
       [{ content: readFileSync(path.resolve(__dirname, p), 'utf8'), line_offset: 0 }],
     ]);
     t.deepEqual(Object.entries(enhancedStack.sources), expectedSources);
+  });
+} else {
+  test('Stack trace query throws when not enabled', configMacro, async (t, config) => {
+    const { env, createWorkerWithDefaults } = config;
+    const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+    const worker = await createWorkerWithDefaults(t);
+    const handle = await startWorkflow(workflows.unblockOrCancel);
+    await worker.runUntil(async () => {
+      await t.throwsAsync(handle.query('__stack_trace'), {
+        instanceOf: QueryNotRegisteredError,
+        message: /Workflow stack traces are not enabled on this worker/,
+      });
+      await handle.signal(workflows.unblockSignal);
+      await handle.result();
+    });
   });
 }
 

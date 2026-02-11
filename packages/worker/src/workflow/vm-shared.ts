@@ -169,6 +169,7 @@ export class GlobalHandlers {
   bundleFilenameToSourceMapConsumer = new Map<string, SourceMapConsumer>();
   origPrepareStackTrace = Error.prepareStackTrace;
   private stopPromiseHook = () => {};
+  promiseHookInstalled = false;
   installed = false;
 
   async addWorkflowBundle(workflowBundle: WorkflowBundleWithSourceMapAndFilename): Promise<void> {
@@ -325,6 +326,7 @@ export class GlobalHandlers {
           store.promiseToStack.delete(promise);
         },
       }) as () => void;
+      this.promiseHookInstalled = true;
     } catch (_) {
       // v8.promiseHooks.createHook is not available in bun and Node.js < 16.14.0.
       // That's ok, collecting stack trace is an optional feature anyway.

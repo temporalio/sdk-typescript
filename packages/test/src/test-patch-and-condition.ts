@@ -23,7 +23,7 @@ if (RUN_INTEGRATION_TESTS) {
         taskQueue: 'patch-in-condition',
         workflowId,
       });
-      await handle.query('__stack_trace');
+      await handle.query('__temporal_workflow_metadata');
       return handle;
     });
 
@@ -37,7 +37,7 @@ if (RUN_INTEGRATION_TESTS) {
     // Trigger a signal and wait for it to be processed
     await worker2.runUntil(async () => {
       await handle.signal(workflows.generateCommandSignal);
-      await handle.query('__stack_trace');
+      await handle.query('__temporal_workflow_metadata');
     });
 
     // Create the third worker that is identical to the second one

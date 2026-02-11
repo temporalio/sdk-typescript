@@ -242,6 +242,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       sourceMap: this.workflowBundle.sourceMap,
       getTimeOfDay: native.getTimeOfDay,
       registeredActivityNames: this.registeredActivityNames,
+      stackTracesEnabled: globalHandlers.promiseHookInstalled,
     });
     const activator = context.__TEMPORAL_ACTIVATOR__!;
     const newVM = new ReusableVMWorkflow(options.info.runId, context, activator, workflowModule);
