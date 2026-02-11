@@ -336,15 +336,15 @@ importers:
   packages/envconfig:
     dependencies:
       '@temporalio/common':
-        specifier: file:../common
-        version: file:packages/common
+        specifier: workspace:*
+        version: link:../common
       smol-toml:
         specifier: 1.4.2
         version: 1.4.2
     devDependencies:
       '@temporalio/worker':
-        specifier: file:../worker
-        version: file:packages/worker(tslib@2.6.2)
+        specifier: workspace:*
+        version: link:../worker
 
   packages/interceptors-opentelemetry:
     dependencies:
@@ -480,14 +480,14 @@ importers:
   packages/plugin:
     devDependencies:
       '@temporalio/client':
-        specifier: file:../client
-        version: file:packages/client
+        specifier: workspace:*
+        version: link:../client
       '@temporalio/common':
-        specifier: file:../common
-        version: file:packages/common
+        specifier: workspace:*
+        version: link:../common
       '@temporalio/worker':
-        specifier: file:../worker
-        version: file:packages/worker(tslib@2.6.2)
+        specifier: workspace:*
+        version: link:../worker
       nexus-rpc:
         specifier: ^0.0.1
         version: 0.0.1
@@ -1432,18 +1432,6 @@ packages:
   '@szmarczak/http-timer@5.0.1':
     resolution: {integrity: sha512-+PmQX0PiAYPMeVYe237LJAYvOMYW1j2rH5YROyS3b4CTVJum34HfRvKvAzozHAQG0TnHNdUfY9nCeUyRAs//cw==}
     engines: {node: '>=14.16'}
-
-  '@temporalio/client@file:packages/client':
-    resolution: {directory: packages/client, type: directory}
-    engines: {node: '>= 20.0.0'}
-
-  '@temporalio/common@file:packages/common':
-    resolution: {directory: packages/common, type: directory}
-    engines: {node: '>= 20.0.0'}
-
-  '@temporalio/worker@file:packages/worker':
-    resolution: {directory: packages/worker, type: directory}
-    engines: {node: '>= 20.0.0'}
 
   '@ts-morph/common@0.12.3':
     resolution: {integrity: sha512-4tUmeLyXJnJWvTFOKtcNJ1yh0a3SsTLi2MUoyj8iUNznFRN1ZquaNe7Oukqrnki2FzZkm0J9adCNLDZxUzvj+w==}
@@ -5246,55 +5234,6 @@ snapshots:
   '@szmarczak/http-timer@5.0.1':
     dependencies:
       defer-to-connect: 2.0.1
-
-  '@temporalio/client@file:packages/client':
-    dependencies:
-      '@grpc/grpc-js': 1.12.4
-      '@temporalio/common': link:packages/common
-      '@temporalio/proto': link:packages/proto
-      abort-controller: 3.0.0
-      long: 5.2.3
-      uuid: 11.1.0
-
-  '@temporalio/common@file:packages/common':
-    dependencies:
-      '@temporalio/proto': link:packages/proto
-      long: 5.2.3
-      ms: 3.0.0-canary.1
-      nexus-rpc: 0.0.1
-      proto3-json-serializer: 2.0.0
-
-  '@temporalio/worker@file:packages/worker(tslib@2.6.2)':
-    dependencies:
-      '@grpc/grpc-js': 1.12.4
-      '@swc/core': 1.3.102
-      '@temporalio/activity': link:packages/activity
-      '@temporalio/client': link:packages/client
-      '@temporalio/common': link:packages/common
-      '@temporalio/core-bridge': link:packages/core-bridge
-      '@temporalio/nexus': link:packages/nexus
-      '@temporalio/proto': link:packages/proto
-      '@temporalio/workflow': link:packages/workflow
-      abort-controller: 3.0.0
-      heap-js: 2.6.0
-      memfs: 4.6.0(quill-delta@5.1.0)(rxjs@7.8.1)(tslib@2.6.2)
-      nexus-rpc: 0.0.1
-      proto3-json-serializer: 2.0.0
-      protobufjs: 7.5.1
-      rxjs: 7.8.1
-      source-map: 0.7.4
-      source-map-loader: 4.0.2(webpack@5.94.0(@swc/core@1.3.102))
-      supports-color: 8.1.1
-      swc-loader: 0.2.3(@swc/core@1.3.102)(webpack@5.94.0(@swc/core@1.3.102))
-      unionfs: 4.5.1
-      webpack: 5.94.0(@swc/core@1.3.102)
-    transitivePeerDependencies:
-      - '@swc/helpers'
-      - esbuild
-      - quill-delta
-      - tslib
-      - uglify-js
-      - webpack-cli
 
   '@ts-morph/common@0.12.3':
     dependencies:

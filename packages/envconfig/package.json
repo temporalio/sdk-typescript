@@ -14,11 +14,11 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@temporalio/common": "file:../common",
+    "@temporalio/common": "workspace:*",
     "smol-toml": "1.4.2"
   },
   "devDependencies": {
-    "@temporalio/worker": "file:../worker"
+    "@temporalio/worker": "workspace:*"
   },
   "engines": {
     "node": ">= 20.0.0"
