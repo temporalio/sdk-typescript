@@ -13,9 +13,9 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "devDependencies": {
-    "@temporalio/client": "file:../client",
-    "@temporalio/common": "file:../common",
-    "@temporalio/worker": "file:../worker",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/worker": "workspace:*",
     "nexus-rpc": "^0.0.1"
   },
   "bugs": {
