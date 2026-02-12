@@ -34,7 +34,7 @@
     "supports-color": "^8.1.1",
     "swc-loader": "^0.2.3",
     "unionfs": "^4.5.1",
-    "webpack": "^5.94.0"
+    "webpack": "^5.104.1"
   },
   "devDependencies": {
     "@types/supports-color": "^8.1.3"
