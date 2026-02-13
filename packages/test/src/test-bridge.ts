@@ -151,7 +151,7 @@ test("Dropping Worker without shutting it down doesn't hang process", async (t) 
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
   const client = await native.newClient(runtime, GenericConfigs.client.basic);
   const worker = native.newWorker(client, GenericConfigs.worker.basic);
-  await native.workerValidate(worker);
+  t.true(Buffer.isBuffer(await native.workerValidate(worker)));
   t.pass();
 });
 
