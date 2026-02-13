@@ -97,16 +97,18 @@ pub fn worker_new(
 
 /// Validate a worker.
 #[js_function]
-pub fn worker_validate(worker: OpaqueInboundHandle<Worker>) -> BridgeResult<BridgeFuture<()>> {
+pub fn worker_validate(worker: OpaqueInboundHandle<Worker>) -> BridgeResult<BridgeFuture<Vec<u8>>> {
     let worker_ref = worker.borrow()?;
     let worker = worker_ref.core_worker.clone();
     let runtime = worker_ref.core_runtime.clone();
 
     runtime.future_to_promise(async move {
-        worker
-            .validate()
-            .await
-            .map_err(|err| BridgeError::TransportError(err.to_string()))
+        let result = worker.validate().await;
+
+        match result {
+            Ok(task) => Ok(task.encode_to_vec()),
+            Err(err) => Err(BridgeError::TransportError(err.to_string())),
+        }
     })
 }
 

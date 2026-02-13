@@ -147,12 +147,12 @@ export class Runtime {
    * Hidden in the docs because it is only meant to be used internally by the Worker.
    * @hidden
    */
-  public async registerWorker(client: native.Client, options: native.WorkerOptions): Promise<native.Worker> {
+  public async registerWorker(client: native.Client, options: native.WorkerOptions): Promise<[native.Worker, Buffer]> {
     return await this.createNativeNoBackRef(async () => {
       const worker = native.newWorker(client, options);
-      await native.workerValidate(worker);
+      const validationBuffer = await native.workerValidate(worker);
       this.backRefs.add(worker);
-      return worker;
+      return [worker, validationBuffer];
     });
   }
 

@@ -6,12 +6,14 @@ import { EventEmitter, on } from 'node:events';
 import { setTimeout as setTimeoutCallback } from 'node:timers';
 import {
   BehaviorSubject,
+  concat,
   EMPTY,
   from,
   lastValueFrom,
   merge,
   MonoTypeOperatorFunction,
   Observable,
+  of,
   OperatorFunction,
   pipe,
   race,
@@ -155,6 +157,7 @@ export interface NativeWorkerLike {
   initiateShutdown: OmitFirstParam<typeof native.workerInitiateShutdown>;
   finalizeShutdown(): Promise<void>;
   flushCoreLogs(): void;
+  consumeValidationActivation(): Buffer | undefined;
   pollWorkflowActivation: OmitFirstParam<typeof native.workerPollWorkflowActivation>;
   pollActivityTask: OmitFirstParam<typeof native.workerPollActivityTask>;
   pollNexusTask: OmitFirstParam<typeof native.workerPollNexusTask>;
@@ -203,13 +206,19 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
   public readonly initiateShutdown: OmitFirstParam<typeof native.workerInitiateShutdown>;
 
+  /**
+   * Buffer containing the WorkflowActivation from validation, if any.
+   * This should be processed before starting to poll for new activations.
+   */
+  private validationActivationBuffer?: Buffer;
+
   public static async create(
     runtime: Runtime,
     connection: NativeConnection,
     options: CompiledWorkerOptionsWithBuildId
   ): Promise<NativeWorkerLike> {
-    const nativeWorker = await runtime.registerWorker(extractNativeClient(connection), toNativeWorkerOptions(options));
-    return new NativeWorker(runtime, nativeWorker);
+    const [nativeWorker, validationBuffer] = await runtime.registerWorker(extractNativeClient(connection), toNativeWorkerOptions(options));
+    return new NativeWorker(runtime, nativeWorker, validationBuffer);
   }
 
   public static async createReplay(
@@ -225,8 +234,10 @@ export class NativeWorker implements NativeWorkerLike {
 
   protected constructor(
     protected readonly runtime: Runtime,
-    protected readonly nativeWorker: native.Worker
+    protected readonly nativeWorker: native.Worker,
+    validationBuffer?: Buffer
   ) {
+    this.validationActivationBuffer = validationBuffer;
     this.pollWorkflowActivation = native.workerPollWorkflowActivation.bind(undefined, nativeWorker);
     this.pollActivityTask = native.workerPollActivityTask.bind(undefined, nativeWorker);
     this.pollNexusTask = native.workerPollNexusTask.bind(undefined, nativeWorker);
@@ -235,6 +246,17 @@ export class NativeWorker implements NativeWorkerLike {
     this.completeNexusTask = native.workerCompleteNexusTask.bind(undefined, nativeWorker);
     this.recordActivityHeartbeat = native.workerRecordActivityHeartbeat.bind(undefined, nativeWorker);
     this.initiateShutdown = native.workerInitiateShutdown.bind(undefined, nativeWorker);
+  }
+
+  /**
+   * Gets and consumes the validation activation buffer if present.
+   * This should be called once during worker initialization.
+   * @returns The validation activation buffer, or undefined if already consumed or not present
+   */
+  public consumeValidationActivation(): Buffer | undefined {
+    const buffer = this.validationActivationBuffer;
+    this.validationActivationBuffer = undefined;
+    return buffer;
   }
 
   flushCoreLogs(): void {
@@ -1728,7 +1750,20 @@ export class Worker {
    * Poll core for `WorkflowActivation`s while respecting worker state.
    */
   protected workflowPoll$(): Observable<WorkflowActivation> {
-    return this.pollLoop$(async () => {
+    // Check for validation activation that needs to be processed first
+    const validationBuffer = this.nativeWorker.consumeValidationActivation();
+    let validationActivation$: Observable<WorkflowActivation> = EMPTY;
+
+    if (validationBuffer && validationBuffer.length > 0) {
+      const activation = coresdk.workflow_activation.WorkflowActivation.decode(new Uint8Array(validationBuffer));
+      // Only emit the validation activation if it contains jobs to process
+      if (activation.jobs && activation.jobs.length > 0) {
+        this.logger.trace('Got validation workflow activation', activation);
+        validationActivation$ = of(activation);
+      }
+    }
+
+    const pollStream$ = this.pollLoop$(async () => {
       this.hasOutstandingWorkflowPoll = true;
       let buffer: Buffer;
       try {
@@ -1752,6 +1787,9 @@ export class Worker {
         },
       })
     );
+
+    // Emit validation activation first (if present), then continue with normal polling
+    return concat(validationActivation$, pollStream$);
   }
 
   /**

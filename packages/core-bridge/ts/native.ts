@@ -168,7 +168,7 @@ export interface RpcCall {
 
 export declare function newWorker(client: Client, workerOptions: WorkerOptions): Worker;
 
-export declare function workerValidate(worker: Worker): Promise<void>;
+export declare function workerValidate(worker: Worker): Promise<Buffer>;
 
 export declare function workerPollWorkflowActivation(worker: Worker): Promise<Buffer>;
 
