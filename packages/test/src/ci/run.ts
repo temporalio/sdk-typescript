@@ -1,4 +1,4 @@
-import { Connection, WorkflowClient } from '@temporalio/client';
+import { Connection, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { NativeConnection, Worker } from '@temporalio/worker';
 import * as activities from './activities';
 import { testSuiteWorkflow } from './workflows';
@@ -54,6 +54,21 @@ function printResults(result: TestSuiteResult): void {
   }
 }
 
+function printError(err: unknown): void {
+  console.error('\n=== Test Suite Failed ===');
+
+  if (err instanceof WorkflowFailedError && err.cause) {
+    console.error(`Reason: ${err.cause.message}`);
+    if (err.cause.cause instanceof Error) {
+      console.error(`Root cause: ${err.cause.cause.message}`);
+    }
+  } else if (err instanceof Error) {
+    console.error(`Error: ${err.message}`);
+  } else {
+    console.error(err);
+  }
+}
+
 async function main() {
   const maxRetries = process.env.TEST_MAX_RETRIES ? parseInt(process.env.TEST_MAX_RETRIES, 10) : 3;
 
@@ -87,7 +102,7 @@ async function main() {
     );
     printResults(result);
   } catch (err) {
-    console.error('Test suite workflow failed:', err);
+    printError(err);
     process.exit(1);
   }
 }

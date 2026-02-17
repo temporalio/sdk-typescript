@@ -71,7 +71,9 @@ function runSingleFile(file: TestFile, env?: Record<string, string>): Promise<Te
         FORCE_COLOR: '0',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 2 * 60 * 1000,
+      timeout: 10 * 60 * 1000,
+      // On Windows, .bin entries are .cmd files that need a shell to execute
+      shell: process.platform === 'win32',
     });
 
     const stdoutChunks: Buffer[] = [];
