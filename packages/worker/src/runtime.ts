@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import { native } from '@temporalio/core-bridge';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { IllegalStateError, Logger, noopMetricMeter, SdkComponent, MetricMeter } from '@temporalio/common';
-import { temporal } from '@temporalio/proto';
+import { coresdk, temporal } from '@temporalio/proto';
 import { History } from '@temporalio/common/lib/proto-utils';
 import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
 import { isFlushableLogger } from './logger';
@@ -158,7 +158,8 @@ export class Runtime {
   public async registerWorker(client: native.Client, options: native.WorkerOptions): Promise<native.Worker> {
     return await this.createNativeNoBackRef(async () => {
       const worker = native.newWorker(client, options);
-      await native.workerValidate(worker);
+      const buffer = await native.workerValidate(worker);
+      const _namespaceInfo = coresdk.NamespaceInfo.decode(new Uint8Array(buffer));
       this.backRefs.add(worker);
       return worker;
     });
