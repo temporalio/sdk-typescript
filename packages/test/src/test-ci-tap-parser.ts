@@ -199,3 +199,31 @@ not ok 2 - future feature two # TODO
   t.deepEqual(result.passed, ['lib/test-future.js']);
   t.deepEqual(result.failed, []);
 });
+
+// AVA emits "No tests found in $FILE" when all tests are conditionally
+// skipped at registration time (e.g. platform-gated tests on Linux ARM).
+
+test('no tests found is not a failure', (t) => {
+  const tap = `TAP version 13
+not ok 1 - No tests found in lib/test-testenvironment.js
+
+1..1
+# tests 1
+# pass 0
+# fail 1`;
+
+  const result = parseTapOutput(tap, ['lib/test-testenvironment.js']);
+  t.deepEqual(result.passed, ['lib/test-testenvironment.js']);
+  t.deepEqual(result.failed, []);
+});
+
+test('no tests found alongside real tests in multi-file', (t) => {
+  const tap = `TAP version 13
+not ok 1 - testenvironment \u203a No tests found in lib/test-testenvironment.js
+ok 2 - time \u203a msToTs converts to Timestamp
+1..2`;
+
+  const result = parseTapOutput(tap, ['lib/test-testenvironment.js', 'lib/test-time.js']);
+  t.deepEqual(result.passed, ['lib/test-testenvironment.js', 'lib/test-time.js']);
+  t.deepEqual(result.failed, []);
+});

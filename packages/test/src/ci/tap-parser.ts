@@ -71,8 +71,8 @@ export function parseTapOutput(output: string, expectedFiles: TestFile[]): TestB
     }
 
     result.seen = true;
-    // skip and todo assertions are not real failures
-    if (!assert.ok && !assert.directive) {
+    // skip, todo, and "no tests found" assertions are not real failures
+    if (!assert.ok && !assert.directive && !isNoTestsFound(assert.title)) {
       result.hasFailed = true;
       if (assert.title) {
         result.failedTitles.push(assert.title);
@@ -95,6 +95,12 @@ export function parseTapOutput(output: string, expectedFiles: TestFile[]): TestB
   }
 
   return { passed, failed, failureDetails };
+}
+
+// AVA emits "No tests found in $FILE" when all tests in a file are
+// conditionally skipped at registration time (e.g. platform guards).
+function isNoTestsFound(title: string): boolean {
+  return title.startsWith('No tests found in ');
 }
 
 function resolveFile(tapName: string, expectedFiles: TestFile[]): TestFile | undefined {
