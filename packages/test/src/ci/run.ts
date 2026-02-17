@@ -1,4 +1,6 @@
 import { Connection, WorkflowClient } from '@temporalio/client';
+import { NativeConnection, Worker } from '@temporalio/worker';
+import * as activities from './activities';
 import { testSuiteWorkflow } from './workflows';
 import type { TestSuiteInput, TestSuiteResult } from './types';
 
@@ -53,9 +55,6 @@ function printResults(result: TestSuiteResult): void {
 }
 
 async function main() {
-  const connection = await Connection.connect({ address: 'localhost:7233' });
-  const client = new WorkflowClient({ connection });
-
   const maxRetries = process.env.TEST_MAX_RETRIES ? parseInt(process.env.TEST_MAX_RETRIES, 10) : 3;
 
   const input: TestSuiteInput = {
@@ -63,15 +62,29 @@ async function main() {
     env: collectEnv(),
   };
 
+  const nativeConnection = await NativeConnection.connect({ address: 'localhost:7233' });
+  const worker = await Worker.create({
+    connection: nativeConnection,
+    taskQueue: 'test-suite',
+    workflowsPath: require.resolve('./workflows'),
+    activities,
+    maxConcurrentActivityTaskExecutions: 1,
+  });
+
+  const connection = await Connection.connect({ address: 'localhost:7233' });
+  const client = new WorkflowClient({ connection });
+
   console.log(`Starting test suite workflow (maxRetries=${maxRetries})...`);
 
   try {
-    const result = await client.execute(testSuiteWorkflow, {
-      workflowId: `test-suite-${Date.now()}`,
-      taskQueue: 'test-suite',
-      args: [input],
-      workflowExecutionTimeout: '30m',
-    });
+    const result = await worker.runUntil(
+      client.execute(testSuiteWorkflow, {
+        workflowId: `test-suite-${Date.now()}`,
+        taskQueue: 'test-suite',
+        args: [input],
+        workflowExecutionTimeout: '30m',
+      })
+    );
     printResults(result);
   } catch (err) {
     console.error('Test suite workflow failed:', err);
