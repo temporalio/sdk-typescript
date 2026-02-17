@@ -204,10 +204,18 @@ jobs:
             --sqlite-pragma synchronous=OFF \
             --headless &> ./devserver.log &
 
+      - name: Start test suite worker (Node)
+        if: matrix.node != 'bun'
+        run: pnpm -F @temporalio/test run test:ci:worker &
+        env:
+          RUN_INTEGRATION_TESTS: true
+          REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
+
       - name: Run Tests (Node)
         if: matrix.node != 'bun'
-        run: pnpm run test
+        run: pnpm -F @temporalio/test run test:ci:run
         env:
+          TEST_MAX_RETRIES: '3'
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
@@ -228,10 +236,18 @@ jobs:
           TEMPORAL_CLOUD_OPS_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
           TEMPORAL_CLOUD_OPS_TEST_API_VERSION: 2024-05-13-00
 
+      - name: Start test suite worker (Bun)
+        if: matrix.node == 'bun'
+        run: bun run -b packages/test/lib/ci/worker.js &
+        env:
+          RUN_INTEGRATION_TESTS: true
+          REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
+
       - name: Run Tests (Bun)
         if: matrix.node == 'bun'
-        run: bun run -b --cwd packages/test ava ./lib/test-*.js
+        run: bun run -b packages/test/lib/ci/run.js
         env:
+          TEST_MAX_RETRIES: '3'
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 

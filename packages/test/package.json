@@ -9,7 +9,10 @@
     "build:protos": "tsx ./scripts/compile-proto.ts",
     "test": "ava ./lib/test-*.js",
     "test:watch": "ava --watch ./lib/test-*.js",
-    "test:bun": "bun run -b ava ./lib/test-*.js"
+    "test:bun": "bun run -b ava ./lib/test-*.js",
+    "test:ci:worker": "node ./lib/ci/worker.js",
+    "test:ci:run": "node ./lib/ci/run.js",
+    "test:ci:discover": "node -e \"require('./lib/ci/activities').discoverTests().then(f => f.forEach(t => console.log(t)))\""
   },
   "ava": {
     "timeout": "60s",
