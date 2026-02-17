@@ -57,7 +57,11 @@ export function parseTapOutput(output: string, expectedFiles: TestFile[]): TestB
     // When AVA runs a single file it omits the file prefix;
     // attribute all assertions to the sole expected file.
     const file =
-      assert.file !== undefined ? resolveFile(assert.file, expectedFiles) : expectedFiles.length === 1 ? expectedFiles[0] : undefined;
+      assert.file !== undefined
+        ? resolveFile(assert.file, expectedFiles)
+        : expectedFiles.length === 1
+          ? expectedFiles[0]
+          : undefined;
     if (!file) continue;
 
     let result = fileResults.get(file);
