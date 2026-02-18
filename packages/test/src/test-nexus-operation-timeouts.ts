@@ -1,8 +1,6 @@
-import { randomUUID } from 'crypto';
 import * as nexus from 'nexus-rpc';
 import { NexusOperationFailure, TimeoutFailure, TimeoutType } from '@temporalio/common';
 import { WorkflowFailedError } from '@temporalio/client';
-import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
@@ -73,12 +71,6 @@ const startToCloseService = nexus.service('nexus-start-to-close-timeout-test-ser
   asyncOp: nexus.operation<string, string>(),
 });
 
-// Underlying workflow that blocks forever — used as the async operation body.
-export async function blockingTargetWorkflow(): Promise<string> {
-  await workflow.condition(() => false);
-  return ''; // unreachable
-}
-
 export async function startToCloseTimeoutCallerWorkflow(endpoint: string): Promise<string> {
   const client = workflow.createNexusClient({
     endpoint,
@@ -86,7 +78,7 @@ export async function startToCloseTimeoutCallerWorkflow(endpoint: string): Promi
   });
   // Use startOperation (not executeOperation) so we can set startToCloseTimeout independently.
   const handle = await client.startOperation(startToCloseService.operations.asyncOp, 'input', {
-    startToCloseTimeout: '100ms',
+    startToCloseTimeout: '1s',
   });
   return await handle.result();
 }
@@ -95,14 +87,22 @@ test('startToCloseTimeout fires when async Nexus operation never completes', asy
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
 
-  // The handler immediately returns a token by starting an underlying workflow that blocks forever,
-  // so the operation starts but never completes within startToCloseTimeout.
-  const asyncOpHandler = new temporalnexus.WorkflowRunOperationHandler<string, string>(async (ctx, _input) => {
-    return await temporalnexus.startWorkflow(ctx, blockingTargetWorkflow, {
-      workflowId: randomUUID(),
-      args: [],
-    });
-  });
+  // The handler immediately returns a fake async token to simulate a long-running operation.
+  // It never completes, so startToCloseTimeout fires.
+  const asyncOpHandler: nexus.OperationHandler<string, string> = {
+    async start(_ctx, _input): Promise<nexus.HandlerStartOperationResult<string>> {
+      return nexus.HandlerStartOperationResult.async('fake-operation-token');
+    },
+    async getInfo(_ctx, _token) {
+      throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Not implemented');
+    },
+    async getResult(_ctx, _token): Promise<string> {
+      throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Not implemented');
+    },
+    async cancel(_ctx, _token) {
+      // No-op: nothing to cancel for a fake operation.
+    },
+  };
 
   const worker = await createWorker({
     nexusServices: [
