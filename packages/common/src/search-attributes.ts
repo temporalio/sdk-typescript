@@ -269,20 +269,29 @@ export class TypedSearchAttributes {
   }
 
   static toSearchAttributeType(type: string): SearchAttributeType | undefined {
+    // The type metadata is usually in PascalCase (e.g. "KeywordList") but in
+    // rare cases may be in SCREAMING_SNAKE_CASE (e.g. "INDEXED_VALUE_TYPE_KEYWORD_LIST").
     switch (type) {
       case 'Text':
+      case 'INDEXED_VALUE_TYPE_TEXT':
         return SearchAttributeType.TEXT;
       case 'Keyword':
+      case 'INDEXED_VALUE_TYPE_KEYWORD':
         return SearchAttributeType.KEYWORD;
       case 'Int':
+      case 'INDEXED_VALUE_TYPE_INT':
         return SearchAttributeType.INT;
       case 'Double':
+      case 'INDEXED_VALUE_TYPE_DOUBLE':
         return SearchAttributeType.DOUBLE;
       case 'Bool':
+      case 'INDEXED_VALUE_TYPE_BOOL':
         return SearchAttributeType.BOOL;
       case 'Datetime':
+      case 'INDEXED_VALUE_TYPE_DATETIME':
         return SearchAttributeType.DATETIME;
       case 'KeywordList':
+      case 'INDEXED_VALUE_TYPE_KEYWORD_LIST':
         return SearchAttributeType.KEYWORD_LIST;
       default:
         return;
