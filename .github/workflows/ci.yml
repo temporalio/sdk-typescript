@@ -195,7 +195,7 @@ jobs:
       - name: Install Temporal CLI
         uses: temporalio/setup-temporal@v0
         with:
-          version: 1.6.1-server-1.31.0-150.0
+          version: 'v1.6.1-server-1.31.0-150.0'
 
       - name: Run Temporal CLI
         working-directory: ${{ runner.temp }}
