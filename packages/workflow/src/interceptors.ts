@@ -290,6 +290,22 @@ export interface StartNexusOperationOptions {
   readonly scheduleToCloseTimeout?: Duration;
 
   /**
+   * How long the operation may wait before it begins executing. If the operation has not started
+   * within this window, a timeout error with type SCHEDULE_TO_START is raised.
+   *
+   * Optional: defaults to no timeout.
+   */
+  readonly scheduleToStartTimeout?: Duration;
+
+  /**
+   * How long an async operation may take to complete after it has started. If the operation does
+   * not complete within this window, a timeout error with type START_TO_CLOSE is raised.
+   *
+   * Optional: defaults to no timeout.
+   */
+  readonly startToCloseTimeout?: Duration;
+
+  /**
    * Determines:
    * - whether cancellation requests should be propagated from the Workflow to the Nexus Operation
    * - whether and when should the Operation's cancellation be reported back to the Workflow
