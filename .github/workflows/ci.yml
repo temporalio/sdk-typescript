@@ -22,7 +22,7 @@ env:
   IS_MAIN_OR_RELEASE: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.event_name != 'pull_request' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) }}
 
   # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
-  # TESTS_CLI_VERSION: 'v0.13.2'
+  TESTS_CLI_VERSION: 'v1.6.1-server-1.31.0-150.0'
   # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
@@ -194,8 +194,6 @@ jobs:
 
       - name: Install Temporal CLI
         uses: temporalio/setup-temporal@v0
-        with:
-          version: 'v1.6.1-server-1.31.0-150.0'
 
       - name: Run Temporal CLI
         working-directory: ${{ runner.temp }}
