@@ -223,6 +223,8 @@ function startNexusOperationNextHandler({
         nexusHeader: headers,
         input: activator.payloadConverter.toPayload(input),
         scheduleToCloseTimeout: msOptionalToTs(options?.scheduleToCloseTimeout),
+        scheduleToStartTimeout: msOptionalToTs(options?.scheduleToStartTimeout),
+        startToCloseTimeout: msOptionalToTs(options?.startToCloseTimeout),
         cancellationType: encodeNexusOperationCancellationType(options?.cancellationType),
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined),
