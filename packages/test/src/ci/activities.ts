@@ -21,11 +21,6 @@ export async function runTests(files: TestFile[], env?: Record<string, string>):
   // Resume from last heartbeat checkpoint if this is a retry after worker crash
   const checkpoint = ctx.info.heartbeatDetails as TestBatchResult | undefined;
   const completedFiles = new Set([...(checkpoint?.passed ?? []), ...(checkpoint?.failed ?? [])]);
-  const result: TestBatchResult = {
-    passed: [...(checkpoint?.passed ?? [])],
-    failed: [...(checkpoint?.failed ?? [])],
-    failureDetails: { ...(checkpoint?.failureDetails ?? {}) },
-  };
 
   const remainingFiles = files.filter((f) => !completedFiles.has(f));
 
@@ -35,34 +30,20 @@ export async function runTests(files: TestFile[], env?: Record<string, string>):
     );
   }
 
-  console.log(`Running ${remainingFiles.length} test file(s)`);
-
-  for (const file of remainingFiles) {
-    console.log(`Running: ${file}`);
-    const fileResult = await runSingleFile(file, env);
-
-    if (fileResult.failed.length > 0) {
-      result.failed.push(file);
-      result.failureDetails[file] = fileResult.failureDetails[file] ?? [];
-      console.log(`FAIL: ${file}`);
-    } else {
-      result.passed.push(file);
-      console.log(`PASS: ${file}`);
-    }
-
-    // Heartbeat with accumulated results so this activity can resume here on retry
-    ctx.heartbeat(result);
+  if (remainingFiles.length === 0) {
+    return {
+      passed: [...(checkpoint?.passed ?? [])],
+      failed: [...(checkpoint?.failed ?? [])],
+      failureDetails: { ...(checkpoint?.failureDetails ?? {}) },
+    };
   }
 
-  console.log(`Finished: ${result.passed.length} passed, ${result.failed.length} failed`);
-  return result;
-}
+  console.log(`Running ${remainingFiles.length} test file(s)`);
 
-function runSingleFile(file: TestFile, env?: Record<string, string>): Promise<TestBatchResult> {
   const avaPath = path.resolve(TEST_PKG_DIR, 'node_modules/.bin/ava');
-  const args = ['--tap', '--timeout', '60s', '--no-worker-threads', file];
+  const args = ['--tap', '--timeout', '60s', '--concurrency', '1', '--no-worker-threads', ...remainingFiles];
 
-  return new Promise<TestBatchResult>((resolve, reject) => {
+  const batchResult = await new Promise<TestBatchResult>((resolve, reject) => {
     const child = spawn(avaPath, args, {
       cwd: TEST_PKG_DIR,
       env: {
@@ -71,7 +52,7 @@ function runSingleFile(file: TestFile, env?: Record<string, string>): Promise<Te
         FORCE_COLOR: '0',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 10 * 60 * 1000,
+      timeout: 15 * 60 * 1000,
       // On Windows, .bin entries are .cmd files that need a shell to execute
       shell: process.platform === 'win32',
     });
@@ -85,6 +66,8 @@ function runSingleFile(file: TestFile, env?: Record<string, string>): Promise<Te
         const trimmed = line.trim();
         if (trimmed.startsWith('ok ') || trimmed.startsWith('not ok ')) {
           console.log(trimmed);
+          // Heartbeat on every assertion so the server knows we're alive
+          ctx.heartbeat();
         }
       }
     });
@@ -97,12 +80,22 @@ function runSingleFile(file: TestFile, env?: Record<string, string>): Promise<Te
     child.on('close', (code) => {
       const stdout = Buffer.concat(stdoutChunks).toString();
       if (code !== null && code !== 0 && stdout.length === 0) {
-        reject(new Error(`AVA exited with code ${code} and no output for ${file}`));
+        reject(new Error(`AVA exited with code ${code} and no output`));
       } else {
-        resolve(parseTapOutput(stdout, [file]));
+        resolve(parseTapOutput(stdout, remainingFiles));
       }
     });
   });
+
+  // Merge checkpoint results with batch results
+  const result: TestBatchResult = {
+    passed: [...(checkpoint?.passed ?? []), ...batchResult.passed],
+    failed: [...(checkpoint?.failed ?? []), ...batchResult.failed],
+    failureDetails: { ...(checkpoint?.failureDetails ?? {}), ...batchResult.failureDetails },
+  };
+
+  console.log(`Finished: ${result.passed.length} passed, ${result.failed.length} failed`);
+  return result;
 }
 
 export async function alertFlakes(flakes: FlakyTest[]): Promise<void> {
