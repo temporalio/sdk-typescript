@@ -227,3 +227,42 @@ ok 2 - time \u203a msToTs converts to Timestamp
   t.deepEqual(result.passed, ['lib/test-testenvironment.js', 'lib/test-time.js']);
   t.deepEqual(result.failed, []);
 });
+
+// Windows: AVA uses » (U+00BB) instead of › (U+203A) as the separator.
+
+test('windows separator multi-file', (t) => {
+  const tap = `TAP version 13
+ok 1 - time \u00bb msToTs converts to Timestamp
+ok 2 - time \u00bb msToTs converts number to Timestamp
+not ok 3 - worker \u00bb activity failure is propagated
+ok 4 - worker \u00bb cancellation works
+1..4`;
+
+  const result = parseTapOutput(tap, ['lib/test-time.js', 'lib/test-worker.js']);
+  t.deepEqual(result.passed, ['lib/test-time.js']);
+  t.deepEqual(result.failed, ['lib/test-worker.js']);
+  t.deepEqual(result.failureDetails, {
+    'lib/test-worker.js': ['activity failure is propagated'],
+  });
+});
+
+test('windows separator todo not a failure', (t) => {
+  const tap = `TAP version 13
+not ok 1 - ephemeral-server \u00bb sets up server # TODO
+ok 2 - ephemeral-server \u00bb populates address
+1..2`;
+
+  const result = parseTapOutput(tap, ['lib/test-ephemeral-server.js']);
+  t.deepEqual(result.passed, ['lib/test-ephemeral-server.js']);
+  t.deepEqual(result.failed, []);
+});
+
+test('windows backslash paths in resolveFile', (t) => {
+  const tap = `TAP version 13
+ok 1 - time \u00bb converts
+1..1`;
+
+  const result = parseTapOutput(tap, ['lib\\test-time.js']);
+  t.deepEqual(result.passed, ['lib\\test-time.js']);
+  t.deepEqual(result.failed, []);
+});

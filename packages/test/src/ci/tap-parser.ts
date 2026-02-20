@@ -1,7 +1,8 @@
 import type { TestBatchResult, TestFile } from './types';
 
-// AVA's TAP output uses ' › ' (U+203A) as the separator between file and test title
-const SEPARATOR = ' \u203a ';
+// AVA uses `figures.pointerSmall` as the separator between file and test title.
+// The character varies by platform: › (U+203A) on Unix, » (U+00BB) on Windows.
+const SEPARATOR_RE = / [\u203a\u00bb] /;
 
 type Directive = 'skip' | 'todo' | undefined;
 
@@ -30,15 +31,15 @@ function parseAssertLine(line: string): AssertLine | undefined {
     fullName = fullName.slice(0, directiveMatch.index);
   }
 
-  const sepIdx = fullName.indexOf(SEPARATOR);
-  if (sepIdx === -1) {
+  const sepMatch = fullName.match(SEPARATOR_RE);
+  if (!sepMatch) {
     // AVA omits the file prefix when running a single file
     return { ok, file: undefined, title: fullName, directive };
   }
   return {
     ok,
-    file: fullName.slice(0, sepIdx),
-    title: fullName.slice(sepIdx + SEPARATOR.length),
+    file: fullName.slice(0, sepMatch.index),
+    title: fullName.slice(sepMatch.index! + sepMatch[0].length),
     directive,
   };
 }
@@ -107,7 +108,7 @@ function resolveFile(tapName: string, expectedFiles: TestFile[]): TestFile | und
   for (const file of expectedFiles) {
     // AVA strips the directory, the "test-" prefix, and the extension in TAP output.
     // e.g. "lib/test-time.js" becomes "time", "lib/test-enums-helpers.js" becomes "enums-helpers"
-    const shortName = file.replace(/^.*\/test-/, '').replace(/\.js$/, '');
+    const shortName = file.replace(/^.*[/\\]test-/, '').replace(/\.js$/, '');
     if (shortName === tapName) {
       return file;
     }
