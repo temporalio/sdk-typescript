@@ -206,8 +206,9 @@ jobs:
 
       - name: Run Tests (Node)
         if: matrix.node != 'bun'
-        run: pnpm run test
+        run: pnpm -F @temporalio/test run test:ci
         env:
+          TEST_MAX_RETRIES: '3'
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
@@ -230,8 +231,9 @@ jobs:
 
       - name: Run Tests (Bun)
         if: matrix.node == 'bun'
-        run: bun run -b --cwd packages/test ava ./lib/test-*.js
+        run: bun run -b packages/test/lib/ci/run.js
         env:
+          TEST_MAX_RETRIES: '3'
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
