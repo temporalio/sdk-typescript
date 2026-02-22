@@ -40,7 +40,7 @@ export interface ResourceBasedTuner {
   tunerOptions: ResourceBasedTunerOptions;
   /**
    * Options for workflow task slots. Defaults to a minimum of 2 slots and a maximum of 1000 slots
-   * with no ramp throttle
+   * with 10ms ramp throttle
    */
   workflowTaskSlotOptions?: ResourceBasedSlotOptions;
   /**
