@@ -826,7 +826,11 @@ export class Worker {
     protected _connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
-    this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodecs);
+    this.workflowCodecRunner = new WorkflowCodecRunner(
+      options.loadedDataConverter.payloadCodecs,
+      options.namespace,
+      options.taskQueue
+    );
   }
 
   /**
@@ -1395,6 +1399,7 @@ export class Worker {
       tap(({ close }) => {
         this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value - 1);
         if (close) {
+          this.workflowCodecRunner.forgetRun(activations$.key);
           activations$.close();
           this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value - 1);
         }
@@ -2231,9 +2236,10 @@ async function extractActivityInfo(
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
+  const workflowId = start.workflowExecution.workflowId ?? '';
   const context: ActivitySerializationContext = {
     namespace: start.workflowNamespace,
-    workflowId: start.workflowExecution.workflowId,
+    workflowId,
     workflowType: start.workflowType,
     activityType: start.activityType,
     activityTaskQueue: taskQueue,
