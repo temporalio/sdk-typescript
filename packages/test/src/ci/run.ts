@@ -4,6 +4,8 @@ import * as activities from './activities';
 import { testSuiteWorkflow } from './workflows';
 import type { TestSuiteInput, TestSuiteResult } from './types';
 
+const TEMPORAL_ADDRESS = process.env.TEMPORAL_ADDRESS ?? 'localhost:7233';
+
 // Env vars to forward to AVA child processes
 const FORWARDED_ENV_VARS = [
   'RUN_INTEGRATION_TESTS',
@@ -22,14 +24,9 @@ const FORWARDED_ENV_VARS = [
 ];
 
 function collectEnv(): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const key of FORWARDED_ENV_VARS) {
-    const value = process.env[key];
-    if (value !== undefined) {
-      env[key] = value;
-    }
-  }
-  return env;
+  return Object.fromEntries(
+    FORWARDED_ENV_VARS.filter((k) => process.env[k] !== undefined).map((k) => [k, process.env[k]!])
+  );
 }
 
 function printResults(result: TestSuiteResult): void {
@@ -77,7 +74,7 @@ async function main() {
     env: collectEnv(),
   };
 
-  const nativeConnection = await NativeConnection.connect({ address: 'localhost:7233' });
+  const nativeConnection = await NativeConnection.connect({ address: TEMPORAL_ADDRESS });
   const worker = await Worker.create({
     connection: nativeConnection,
     taskQueue: 'test-suite',
@@ -86,7 +83,7 @@ async function main() {
     maxConcurrentActivityTaskExecutions: 1,
   });
 
-  const connection = await Connection.connect({ address: 'localhost:7233' });
+  const connection = await Connection.connect({ address: TEMPORAL_ADDRESS });
   const client = new WorkflowClient({ connection });
 
   console.log(`Starting test suite workflow (maxRetries=${maxRetries})...`);

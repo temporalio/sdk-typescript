@@ -8,8 +8,9 @@ const { discoverTests, runTests, alertFlakes } = proxyActivities<typeof activiti
   // within this window the activity is considered stuck.
   heartbeatTimeout: '1m',
   retry: {
-    // Allow retries since the activity heartbeats with checkpoint data
-    // and can resume from the last completed file.
+    // Activity-level retries handle infrastructure failures (worker crash,
+    // heartbeat timeout). The workflow's own retry loop handles test flakiness
+    // by re-running only the failed files.
     maximumAttempts: 3,
   },
 });
@@ -32,7 +33,6 @@ export async function testSuiteWorkflow(input: TestSuiteInput = {}): Promise<Tes
   const totalFiles = testsToRun.length;
   const allPassed: TestFile[] = [];
   const flakes: FlakyTest[] = [];
-  // Track how many attempts each file has had
   const attemptCounts = new Map<TestFile, number>();
   let retriesUsed = 0;
   let currentFailed: TestFile[] = [];

@@ -18,30 +18,10 @@ export async function discoverTests(): Promise<TestFile[]> {
 export async function runTests(files: TestFile[], env?: Record<string, string>): Promise<TestBatchResult> {
   const ctx = Context.current();
 
-  // Resume from last heartbeat checkpoint if this is a retry after worker crash
-  const checkpoint = ctx.info.heartbeatDetails as TestBatchResult | undefined;
-  const completedFiles = new Set([...(checkpoint?.passed ?? []), ...(checkpoint?.failed ?? [])]);
-
-  const remainingFiles = files.filter((f) => !completedFiles.has(f));
-
-  if (checkpoint && completedFiles.size > 0) {
-    console.log(
-      `Resuming from checkpoint: ${completedFiles.size} files already completed, ${remainingFiles.length} remaining`
-    );
-  }
-
-  if (remainingFiles.length === 0) {
-    return {
-      passed: [...(checkpoint?.passed ?? [])],
-      failed: [...(checkpoint?.failed ?? [])],
-      failureDetails: { ...(checkpoint?.failureDetails ?? {}) },
-    };
-  }
-
-  console.log(`Running ${remainingFiles.length} test file(s)`);
+  console.log(`Running ${files.length} test file(s)`);
 
   const avaPath = path.resolve(TEST_PKG_DIR, 'node_modules/.bin/ava');
-  const args = ['--tap', '--timeout', '60s', '--concurrency', '1', '--no-worker-threads', ...remainingFiles];
+  const args = ['--tap', '--timeout', '60s', '--concurrency', '1', '--no-worker-threads', ...files];
 
   const batchResult = await new Promise<TestBatchResult>((resolve, reject) => {
     const child = spawn(avaPath, args, {
@@ -82,20 +62,13 @@ export async function runTests(files: TestFile[], env?: Record<string, string>):
       if (code !== null && code !== 0 && stdout.length === 0) {
         reject(new Error(`AVA exited with code ${code} and no output`));
       } else {
-        resolve(parseTapOutput(stdout, remainingFiles));
+        resolve(parseTapOutput(stdout, files));
       }
     });
   });
 
-  // Merge checkpoint results with batch results
-  const result: TestBatchResult = {
-    passed: [...(checkpoint?.passed ?? []), ...batchResult.passed],
-    failed: [...(checkpoint?.failed ?? []), ...batchResult.failed],
-    failureDetails: { ...(checkpoint?.failureDetails ?? {}), ...batchResult.failureDetails },
-  };
-
-  console.log(`Finished: ${result.passed.length} passed, ${result.failed.length} failed`);
-  return result;
+  console.log(`Finished: ${batchResult.passed.length} passed, ${batchResult.failed.length} failed`);
+  return batchResult;
 }
 
 export async function alertFlakes(flakes: FlakyTest[]): Promise<void> {

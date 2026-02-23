@@ -137,7 +137,50 @@ test.serial('fails after exhausting retries', async (t) => {
     { instanceOf: WorkflowFailedError }
   );
   t.truthy(err);
-  t.truthy(err!.message.includes('lib/test-a.js') || err!.cause?.message.includes('lib/test-a.js'));
+  t.regex(err!.cause!.message, /lib\/test-a\.js/);
+});
+
+test.serial('passes on final allowed attempt', async (t) => {
+  let attempt = 0;
+  const taskQueue = `test-ci-${randomUUID()}`;
+  const worker = await Worker.create({
+    connection: t.context.env.nativeConnection,
+    workflowBundle: t.context.workflowBundle,
+    taskQueue,
+    activities: {
+      async discoverTests() {
+        return ['lib/test-flaky.js'];
+      },
+      async runTests(files: string[]): Promise<TestBatchResult> {
+        attempt++;
+        if (attempt <= 2) {
+          return {
+            passed: [],
+            failed: files,
+            failureDetails: { [files[0]]: ['transient failure'] },
+          };
+        }
+        return { passed: files, failed: [], failureDetails: {} };
+      },
+      async alertFlakes(flakes: FlakyTest[]) {
+        t.is(flakes.length, 1);
+        t.is(flakes[0].attemptsToPass, 3);
+      },
+    },
+  });
+
+  const result = await worker.runUntil(
+    t.context.env.client.workflow.execute(testSuiteWorkflow, {
+      workflowId: randomUUID(),
+      taskQueue,
+      args: [{ maxRetries: 2 }],
+    })
+  );
+
+  t.is(result.passed.length, 1);
+  t.is(result.failed.length, 0);
+  t.is(result.flakes.length, 1);
+  t.is(result.retriesUsed, 2);
 });
 
 test.serial('uses provided file list instead of discovery', async (t) => {
