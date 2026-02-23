@@ -187,7 +187,9 @@ export class Activator implements ActivationHandler {
   readonly serializationContexts = {
     activity: new Map<number, ActivitySerializationContext>(),
     childWorkflow: new Map<number, WorkflowSerializationContext>(),
-    externalWorkflow: new Map<number, WorkflowSerializationContext>(),
+    // signalWorkflow and cancelWorkflow maintain independent seq counters; keep separate context maps.
+    signalExternalWorkflow: new Map<number, WorkflowSerializationContext>(),
+    cancelExternalWorkflow: new Map<number, WorkflowSerializationContext>(),
   };
 
   /**
@@ -476,13 +478,23 @@ export class Activator implements ActivationHandler {
     return context;
   }
 
-  public setExternalWorkflowSerializationContext(seq: number, context: WorkflowSerializationContext): void {
-    this.serializationContexts.externalWorkflow.set(seq, context);
+  public setSignalExternalWorkflowSerializationContext(seq: number, context: WorkflowSerializationContext): void {
+    this.serializationContexts.signalExternalWorkflow.set(seq, context);
   }
 
-  public takeExternalWorkflowSerializationContext(seq: number): WorkflowSerializationContext | undefined {
-    const context = this.serializationContexts.externalWorkflow.get(seq);
-    this.serializationContexts.externalWorkflow.delete(seq);
+  public takeSignalExternalWorkflowSerializationContext(seq: number): WorkflowSerializationContext | undefined {
+    const context = this.serializationContexts.signalExternalWorkflow.get(seq);
+    this.serializationContexts.signalExternalWorkflow.delete(seq);
+    return context;
+  }
+
+  public setCancelExternalWorkflowSerializationContext(seq: number, context: WorkflowSerializationContext): void {
+    this.serializationContexts.cancelExternalWorkflow.set(seq, context);
+  }
+
+  public takeCancelExternalWorkflowSerializationContext(seq: number): WorkflowSerializationContext | undefined {
+    const context = this.serializationContexts.cancelExternalWorkflow.get(seq);
+    this.serializationContexts.cancelExternalWorkflow.delete(seq);
     return context;
   }
 
@@ -717,6 +729,8 @@ export class Activator implements ActivationHandler {
   ): void {
     const seq = getSeq(activation);
     const { resolve, reject } = this.consumeCompletion('childWorkflowStart', seq);
+    // Keep context until ResolveChildWorkflowExecution to decode the child result with child workflow identity.
+    // For failed/cancelled start, no completion resolve follows, so consume context immediately.
     const childContext = this.serializationContexts.childWorkflow.get(seq);
     const childWorkflowId = childContext?.workflowId ?? this.info.workflowId;
     if (activation.succeeded) {
@@ -1134,7 +1148,7 @@ export class Activator implements ActivationHandler {
   public resolveSignalExternalWorkflow(activation: coresdk.workflow_activation.IResolveSignalExternalWorkflow): void {
     const seq = getSeq(activation);
     const { resolve, reject } = this.consumeCompletion('signalWorkflow', seq);
-    const workflowId = this.takeExternalWorkflowSerializationContext(seq)?.workflowId ?? this.info.workflowId;
+    const workflowId = this.takeSignalExternalWorkflowSerializationContext(seq)?.workflowId ?? this.info.workflowId;
     if (activation.failure) {
       reject(this.failureToError(activation.failure, workflowId));
     } else {
@@ -1147,7 +1161,7 @@ export class Activator implements ActivationHandler {
   ): void {
     const seq = getSeq(activation);
     const { resolve, reject } = this.consumeCompletion('cancelWorkflow', seq);
-    const workflowId = this.takeExternalWorkflowSerializationContext(seq)?.workflowId ?? this.info.workflowId;
+    const workflowId = this.takeCancelExternalWorkflowSerializationContext(seq)?.workflowId ?? this.info.workflowId;
     if (activation.failure) {
       reject(this.failureToError(activation.failure, workflowId));
     } else {

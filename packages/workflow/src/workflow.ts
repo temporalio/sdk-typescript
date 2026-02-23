@@ -491,7 +491,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
     });
 
     // Add at scheduling time; consumed and removed on resolveSignalExternalWorkflow in Activator.
-    activator.setExternalWorkflowSerializationContext(seq, activator.workflowSerializationContext(targetWorkflowId));
+    activator.setSignalExternalWorkflowSerializationContext(seq, activator.workflowSerializationContext(targetWorkflowId));
     activator.completions.signalWorkflow.set(seq, { resolve, reject });
   });
 }
@@ -749,7 +749,7 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
           },
         });
         // Add at scheduling time; consumed and removed on resolveRequestCancelExternalWorkflow in Activator.
-        activator.setExternalWorkflowSerializationContext(seq, activator.workflowSerializationContext(workflowId));
+        activator.setCancelExternalWorkflowSerializationContext(seq, activator.workflowSerializationContext(workflowId));
         activator.completions.cancelWorkflow.set(seq, { resolve, reject });
       });
     },

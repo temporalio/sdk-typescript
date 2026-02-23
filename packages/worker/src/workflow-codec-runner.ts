@@ -24,6 +24,9 @@ import {
 import { coresdk } from '@temporalio/proto';
 
 interface BaseWorkflowContext extends WorkflowSerializationContext {
+  /**
+   * Additional run metadata used only to derive ActivitySerializationContext for schedule commands.
+   */
   workflowType: string;
   taskQueue: string;
 }
@@ -32,7 +35,9 @@ interface WorkflowCodecRunState {
   baseContext: BaseWorkflowContext;
   activityContexts: Map<number, ActivitySerializationContext>;
   childWorkflowContexts: Map<number, WorkflowSerializationContext>;
-  externalWorkflowContexts: Map<number, WorkflowSerializationContext>;
+  // signalExternalWorkflowExecution and requestCancelExternalWorkflowExecution use independent seq counters.
+  signalExternalWorkflowContexts: Map<number, WorkflowSerializationContext>;
+  cancelExternalWorkflowContexts: Map<number, WorkflowSerializationContext>;
 }
 
 function getSeq(seq: number | null | undefined): number | undefined {
@@ -48,6 +53,7 @@ function getRunId(runId: string | null | undefined): string | undefined {
  */
 export class WorkflowCodecRunner {
   protected readonly runStates = new Map<string, WorkflowCodecRunState>();
+  protected readonly codecsByContext = new WeakMap<SerializationContext, PayloadCodec[]>();
 
   constructor(
     protected readonly codecs: PayloadCodec[],
@@ -67,6 +73,11 @@ export class WorkflowCodecRunner {
       return this.codecs;
     }
 
+    const cached = this.codecsByContext.get(context);
+    if (cached != null) {
+      return cached;
+    }
+
     let codecs = this.codecs;
     for (let i = 0; i < this.codecs.length; i++) {
       const codec = this.codecs[i]!;
@@ -78,6 +89,7 @@ export class WorkflowCodecRunner {
         codecs[i] = nextCodec;
       }
     }
+    this.codecsByContext.set(context, codecs);
     return codecs;
   }
 
@@ -152,7 +164,8 @@ export class WorkflowCodecRunner {
       },
       activityContexts: new Map(),
       childWorkflowContexts: new Map(),
-      externalWorkflowContexts: new Map(),
+      signalExternalWorkflowContexts: new Map(),
+      cancelExternalWorkflowContexts: new Map(),
     };
   }
 
@@ -182,6 +195,22 @@ export class WorkflowCodecRunner {
     };
   }
 
+  protected activityContext(
+    baseContext: BaseWorkflowContext,
+    activityType: string,
+    activityTaskQueue: string,
+    isLocal: boolean
+  ): ActivitySerializationContext {
+    return {
+      namespace: baseContext.namespace,
+      workflowId: baseContext.workflowId,
+      workflowType: baseContext.workflowType,
+      activityType,
+      activityTaskQueue,
+      isLocal,
+    };
+  }
+
   /**
    * Run codec.decode on the Payloads in the Activation message.
    */
@@ -190,6 +219,7 @@ export class WorkflowCodecRunner {
   ): Promise<Decoded<T>> {
     const runId = getRunId(activation.runId);
     const initializeWorkflow = activation.jobs?.find((job) => job.initializeWorkflow)?.initializeWorkflow ?? undefined;
+    // A run state may be absent on sticky cache misses/restarts. Fall back to context-free decoding in that case.
     const runState = runId ? this.getOrCreateRunState(runId, initializeWorkflow) : undefined;
     const baseContext = runState?.baseContext;
 
@@ -214,11 +244,15 @@ export class WorkflowCodecRunner {
 
               const resolveSignalExternalSeq = getSeq(job.resolveSignalExternalWorkflow?.seq);
               const resolveSignalExternalContext =
-                resolveSignalExternalSeq != null ? runState?.externalWorkflowContexts.get(resolveSignalExternalSeq) : undefined;
+                resolveSignalExternalSeq != null
+                  ? runState?.signalExternalWorkflowContexts.get(resolveSignalExternalSeq)
+                  : undefined;
 
               const resolveCancelExternalSeq = getSeq(job.resolveRequestCancelExternalWorkflow?.seq);
               const resolveCancelExternalContext =
-                resolveCancelExternalSeq != null ? runState?.externalWorkflowContexts.get(resolveCancelExternalSeq) : undefined;
+                resolveCancelExternalSeq != null
+                  ? runState?.cancelExternalWorkflowContexts.get(resolveCancelExternalSeq)
+                  : undefined;
 
               const initializeContext = job.initializeWorkflow?.workflowId
                 ? this.workflowContext(job.initializeWorkflow.workflowId)
@@ -421,11 +455,11 @@ export class WorkflowCodecRunner {
               }
 
               if (resolveSignalExternalSeq != null) {
-                runState?.externalWorkflowContexts.delete(resolveSignalExternalSeq);
+                runState?.signalExternalWorkflowContexts.delete(resolveSignalExternalSeq);
               }
 
               if (resolveCancelExternalSeq != null) {
-                runState?.externalWorkflowContexts.delete(resolveCancelExternalSeq);
+                runState?.cancelExternalWorkflowContexts.delete(resolveCancelExternalSeq);
               }
 
               return decodedJob;
@@ -442,6 +476,8 @@ export class WorkflowCodecRunner {
     completion: coresdk.workflow_completion.IWorkflowActivationCompletion
   ): Promise<Uint8Array> {
     const runId = getRunId(completion.runId);
+    // A run state may be absent if no InitializeWorkflow has been seen for this worker process.
+    // Preserve compatibility by encoding without context in that case.
     const runState = runId ? this.getRunState(runId) : undefined;
     const baseContext = runState?.baseContext;
 
@@ -463,27 +499,23 @@ export class WorkflowCodecRunner {
                       const scheduleActivitySeq = getSeq(command.scheduleActivity?.seq);
                       const scheduleActivityContext =
                         runState && command.scheduleActivity
-                          ? {
-                              namespace: runState.baseContext.namespace,
-                              workflowId: runState.baseContext.workflowId,
-                              workflowType: runState.baseContext.workflowType,
-                              activityType: command.scheduleActivity.activityType ?? '',
-                              activityTaskQueue: command.scheduleActivity.taskQueue ?? runState.baseContext.taskQueue,
-                              isLocal: false,
-                            }
+                          ? this.activityContext(
+                              runState.baseContext,
+                              command.scheduleActivity.activityType ?? '',
+                              command.scheduleActivity.taskQueue ?? runState.baseContext.taskQueue,
+                              false
+                            )
                           : undefined;
 
                       const scheduleLocalActivitySeq = getSeq(command.scheduleLocalActivity?.seq);
                       const scheduleLocalActivityContext =
                         runState && command.scheduleLocalActivity
-                          ? {
-                              namespace: runState.baseContext.namespace,
-                              workflowId: runState.baseContext.workflowId,
-                              workflowType: runState.baseContext.workflowType,
-                              activityType: command.scheduleLocalActivity.activityType ?? '',
-                              activityTaskQueue: runState.baseContext.taskQueue,
-                              isLocal: true,
-                            }
+                          ? this.activityContext(
+                              runState.baseContext,
+                              command.scheduleLocalActivity.activityType ?? '',
+                              runState.baseContext.taskQueue,
+                              true
+                            )
                           : undefined;
 
                       const childWorkflowSeq = getSeq(command.startChildWorkflowExecution?.seq);
@@ -519,10 +551,10 @@ export class WorkflowCodecRunner {
                         runState?.childWorkflowContexts.set(childWorkflowSeq, childWorkflowContext);
                       }
                       if (signalExternalSeq != null && signalExternalContext) {
-                        runState?.externalWorkflowContexts.set(signalExternalSeq, signalExternalContext);
+                        runState?.signalExternalWorkflowContexts.set(signalExternalSeq, signalExternalContext);
                       }
                       if (cancelExternalSeq != null && cancelExternalContext) {
-                        runState?.externalWorkflowContexts.set(cancelExternalSeq, cancelExternalContext);
+                        runState?.cancelExternalWorkflowContexts.set(cancelExternalSeq, cancelExternalContext);
                       }
 
                       return <Encoded<coresdk.workflow_commands.IWorkflowCommand>>{
