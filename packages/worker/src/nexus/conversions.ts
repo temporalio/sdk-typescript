@@ -20,7 +20,10 @@ export async function decodePayloadIntoLazyValue(
   try {
     decoded = await decodeOptionalSingle(dataConverter.payloadCodecs, payload);
   } catch (err) {
-    throw new nexus.HandlerError('BAD_REQUEST', `Failed to decode payload: ${err}`);
+    if (err instanceof ApplicationFailure) {
+      throw err;
+    }
+    throw new nexus.HandlerError('INTERNAL', `Payload codec failed to decode Nexus operation input: ${err}`);
   }
 
   // Nexus headers have string values and Temporal Payloads have binary values. Instead of
@@ -47,7 +50,12 @@ class PayloadSerializer implements nexus.Serializer {
     try {
       return this.payloadConverter.fromPayload(this.payload);
     } catch (err) {
-      throw new nexus.HandlerError('BAD_REQUEST', `Failed to deserialize input: ${err}`);
+      if (err instanceof ApplicationFailure) {
+        throw err;
+      }
+      throw new nexus.HandlerError('BAD_REQUEST', `Payload converter failed to decode Nexus operation input: ${err}`, {
+        retryableOverride: false,
+      });
     }
   }
 
