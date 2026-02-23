@@ -7,7 +7,9 @@ cd "$workdir"
 
 # FIXME Make this a parameter
 # e.g. 'main' or 'releases/1.10.x'
-source_branch=main
+local source_branch=main
+export version="1.15.0"
+
 
 # Manually download all native artifacts from the latest build
 
@@ -38,8 +40,8 @@ for name in ../artifacts/*.zip ; do
     unzip -q ${name} -d packages/core-bridge/releases/
 done
 
-npm ci  --ignore-scripts
-npm run build -- --ignore @temporalio/core-bridge
+pnpm install --frozen-lockfile
+pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
 
 echo
 echo 'Does this look correct?'
@@ -51,26 +53,19 @@ echo 'Press ENTER to go on with publishing, or Ctrl+C to abort'
 
 read enterKey
 
-echo 'Publishing...'
+echo 'Bumping version numbers...'
 
-# User will be asked to indicate which type of release and to confirm,
-# then the Publish commit will be created and pushed to the main branch.
-npx lerna version --force-publish='*'
+pnpm -r exec npm version "${version}"
+git switch -c "release-v${version}"
+git add packages/*/package.json scripts/package.json
+git commit -m "Release v${version}"
+git push origin "release-v${version}"
 
-local version=$( jq -r '.version' < lerna.json )
+gh pr create
+git switch main
+git pull
 
-git checkout -B fix-deps
-node scripts/prepublish.mjs
-git commit -am 'Fix dependencies'
 
-# Check if the version matches the pattern
-if [[ $version =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
-    npx lerna publish from-package
-else
-    npx lerna publish from-package --dist-tag next
-fi
-
-npm deprecate "temporalio@^${version}" "Instead of installing temporalio, we recommend directly installing our packages: npm remove temporalio; npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity"
 
 echo -e 'Please do the following:'
 echo -e ' 1. Open the \e]8;https://github.com/temporalio/sdk-typescript/releases/new?tag=v'"$version"'\e\\GitHub New Release page\e]8;;\e\\ and select the 'v"$version"' tag.'
@@ -94,9 +89,43 @@ cd "$workdir"
 
 if [[ $version =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
 
-  ##
-  # Update the samples repo
-  ##
+  # Update the feature repo
+  (
+    git clone --depth 1 --shallow-submodules --recurse-submodules https://github.com/temporalio/features.git
+    cd features
+
+    # Note this only update _regular_ dependencies. There's no dev/peer dependencies at the moment.
+    npm install $(jq -r '.dependencies | keys[] | select(startswith("@temporalio/")) | . + "@^" + env.version' package.json)
+
+    git checkout -b "typescript-${version}"
+    git add --all
+    git commit -m "Update TS SDK to ${version}"
+    git push
+
+    gh pr create \
+        --title "Update TS SDK to ${version}" \
+        --body "## What changed"$'\n\n'"- Update TS SDK to ${version}" \
+        --head "typescript-${version}"
+  )
+
+  # Update the Omes repo
+  (
+    git clone --depth 1 --shallow-submodules --recurse-submodules https://github.com/temporalio/omes.git
+    cd omes
+
+    # Note this only update _regular_ dependencies. There's no dev/peer dependencies at the moment.
+    npm install $(jq -r '.dependencies | keys[] | select(startswith("@temporalio/")) | . + "@^" + env.version' package.json)
+
+    git checkout -b "typescript-${version}"
+    git add --all
+    git commit -m "Update TS SDK to ${version}"
+    git push
+
+    gh pr create \
+        --title "Update TS SDK to ${version}" \
+        --body "## What changed"$'\n\n'"- Update TS SDK to ${version}" \
+        --head "typescript-${version}"
+  )
 
   (
     git clone --depth 1 --shallow-submodules --recurse-submodules https://github.com/temporalio/samples-typescript.git
