@@ -410,8 +410,8 @@ test('start Operation Handler errors', async (t) => {
       t.regex(
         message,
         isBun
-          ? /Failed to deserialize input: SyntaxError: JSON Parse error:/
-          : /Failed to deserialize input: SyntaxError: Unexpected token .* JSON/
+          ? /Payload converter failed to decode Nexus operation input: SyntaxError: JSON Parse error:/
+          : /Payload converter failed to decode Nexus operation input: SyntaxError: Unexpected token .* JSON/
       );
     }
   });
