@@ -13,6 +13,13 @@ export * from './converter/data-converter';
 export * from './converter/failure-converter';
 export * from './converter/payload-codec';
 export * from './converter/payload-converter';
+export type {
+  ActivitySerializationContext,
+  HasWorkflowSerializationContext,
+  SerializationContext,
+  WithSerializationContext,
+  WorkflowSerializationContext,
+} from './converter/serialization-context';
 export * from './converter/types';
 export * from './deprecated-time';
 export * from './errors';
