@@ -184,7 +184,7 @@ export class WorkflowCodecRunner {
                       cancelled: job.resolveNexusOperation.result?.cancelled
                         ? await decodeOptionalFailure(this.codecs, job.resolveNexusOperation.result?.cancelled)
                         : null,
-                      timedOut: job.resolveNexusOperation.result?.cancelled
+                      timedOut: job.resolveNexusOperation.result?.timedOut
                         ? await decodeOptionalFailure(this.codecs, job.resolveNexusOperation.result?.timedOut)
                         : null,
                     },
