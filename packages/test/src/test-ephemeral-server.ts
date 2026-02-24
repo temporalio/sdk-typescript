@@ -7,7 +7,7 @@ import { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@tempora
 import {
   Worker,
   TestWorkflowEnvironment,
-  testTimeSkipping as anyTestTimeSkipping,
+  testTimeSkipping as testTimeSkippingFromHelpers,
   getRandomPort,
   isBun,
 } from './helpers';
@@ -18,7 +18,7 @@ interface Context {
 }
 
 const test = anyTest as TestFn<Context>;
-const testTimeSkipping = anyTestTimeSkipping as TestFn<Context>;
+const testTimeSkipping = testTimeSkippingFromHelpers as TestFn<Context>;
 
 test.before(async (t) => {
   t.context.bundle = await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') });

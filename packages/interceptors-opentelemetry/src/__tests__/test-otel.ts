@@ -3,6 +3,7 @@
  */
 import * as http from 'http';
 import * as http2 from 'http2';
+import * as path from 'path';
 import * as otelApi from '@opentelemetry/api';
 import { SpanStatusCode, createTraceState } from '@opentelemetry/api';
 import { ExportResultCode } from '@opentelemetry/core';
@@ -12,36 +13,62 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
-import type * as workflowImportStub from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports';
-import type * as workflowImportImpl from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports-impl';
 import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor, Client } from '@temporalio/client';
-import { OpenTelemetryPlugin, OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry';
-import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
+import { TestWorkflowEnvironment } from '@temporalio/testing';
+import {
+  ActivityInboundCallsInterceptor,
+  ActivityOutboundCallsInterceptor,
+  BundlerPlugin,
+  bundleWorkflowCode,
+  DefaultLogger,
+  InjectedSinks,
+  Runtime,
+  Worker,
+} from '@temporalio/worker';
+import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
+
+import {
+  RUN_INTEGRATION_TESTS,
+  loadHistory as loadHistoryBase,
+  createBaseBundlerOptions,
+  createTestWorkflowBundle,
+} from '@temporalio/test-helpers';
+
+import type * as workflowImportStub from '../workflow/workflow-imports';
+import type * as workflowImportImpl from '../workflow/workflow-imports-impl';
+import { OpenTelemetryWorkflowClientInterceptor } from '../client';
+import { OpenTelemetryPlugin, OpenTelemetryWorkflowClientCallsInterceptor } from '..';
+import { instrument } from '../instrumentation';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
   OpenTelemetryActivityOutboundInterceptor,
-} from '@temporalio/interceptors-opentelemetry/lib/worker';
+} from '../worker';
 import {
   OpenTelemetrySinks,
   SpanName,
   SPAN_DELIMITER,
   OpenTelemetryOutboundInterceptor,
   OpenTelemetryInboundInterceptor,
-} from '@temporalio/interceptors-opentelemetry/lib/workflow';
-import {
-  ActivityInboundCallsInterceptor,
-  ActivityOutboundCallsInterceptor,
-  bundleWorkflowCode,
-  DefaultLogger,
-  InjectedSinks,
-  Runtime,
-} from '@temporalio/worker';
-import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
+} from '../workflow';
 import * as activities from './activities';
-import { bundlerOptions, loadHistory, RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import * as workflows from './workflows';
-import { createTestWorkflowBundle } from './helpers-integration';
+
+async function loadHistory(fname: string) {
+  const fpath = path.resolve(__dirname, `../../src/__tests__/history_files/${fname}`);
+  return loadHistoryBase(fpath);
+}
+
+async function createOtelTestWorkflowBundle(opts: {
+  workflowsPath: string;
+  workflowInterceptorModules?: string[];
+  plugins?: BundlerPlugin[];
+}) {
+  return createTestWorkflowBundle({
+    ...opts,
+    additionalIgnoreModules: [require.resolve('./activities')],
+  });
+}
 
 async function withFakeGrpcServer(
   fn: (port: number) => Promise<void>,
@@ -319,7 +346,7 @@ if (RUN_INTEGRATION_TESTS) {
     const spans = memoryExporter.getFinishedSpans();
     t.is(spans.length, 1);
 
-    const span = spans[0];
+    const span = spans[0]!;
 
     t.is(span.status.code, SpanStatusCode.ERROR);
 
@@ -361,11 +388,11 @@ if (RUN_INTEGRATION_TESTS) {
 
     const spans = memoryExporter.getFinishedSpans();
     t.is(spans.length, 3);
-    t.is(spans[0].status.code, SpanStatusCode.ERROR);
-    t.is(spans[0].status.message, 'not benign');
-    t.is(spans[1].status.code, SpanStatusCode.UNSET);
-    t.is(spans[1].status.message, 'benign');
-    t.is(spans[2].status.code, SpanStatusCode.OK);
+    t.is(spans[0]!.status.code, SpanStatusCode.ERROR);
+    t.is(spans[0]!.status.message, 'not benign');
+    t.is(spans[1]!.status.code, SpanStatusCode.UNSET);
+    t.is(spans[1]!.status.message, 'benign');
+    t.is(spans[2]!.status.code, SpanStatusCode.OK);
   });
 
   test('executeUpdateWithStart works correctly with OTEL interceptors', async (t) => {
@@ -384,7 +411,7 @@ if (RUN_INTEGRATION_TESTS) {
       spanProcessor: new SimpleSpanProcessor(traceExporter),
     });
     const worker = await Worker.create({
-      workflowBundle: await createTestWorkflowBundle({
+      workflowBundle: await createOtelTestWorkflowBundle({
         workflowsPath: require.resolve('./workflows'),
         plugins: [plugin],
       }),
@@ -484,7 +511,7 @@ if (RUN_INTEGRATION_TESTS) {
       const client = new WorkflowClient();
       await worker.runUntil(client.execute(workflows.successString, { taskQueue, workflowId: uuid4() }));
 
-      t.deepEqual(spans[0].resource.attributes, {
+      t.deepEqual(spans[0]!.resource.attributes, {
         [SEMRESATTRS_SERVICE_NAME]: serviceName,
         // If not using a span processor, then we do not expect the async attr to be present
         ...(useSpanProcessor ? { 'async.attr': 'resolved' } : {}),
@@ -525,7 +552,7 @@ if (RUN_INTEGRATION_TESTS) {
 
       // Bundle workflow code with the plugin - this tests that configureBundler passes workflowInterceptorModules
       const workflowBundle = await bundleWorkflowCode({
-        ...bundlerOptions,
+        ...createBaseBundlerOptions([require.resolve('./activities')]),
         workflowsPath: require.resolve('./workflows'),
         plugins: [plugin],
         logger: new DefaultLogger('WARN'),
@@ -687,7 +714,7 @@ test('Can replay otel history from 1.11.3', async (t) => {
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
       {
-        workflowBundle: await createTestWorkflowBundle({
+        workflowBundle: await createOtelTestWorkflowBundle({
           workflowsPath: require.resolve('./workflows/signal-start-otel'),
           workflowInterceptorModules: [require.resolve('./workflows/signal-start-otel')],
         }),
@@ -710,7 +737,7 @@ test('Can replay otel history from 1.13.1', async (t) => {
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
       {
-        workflowBundle: await createTestWorkflowBundle({
+        workflowBundle: await createOtelTestWorkflowBundle({
           workflowsPath: require.resolve('./workflows/signal-start-otel'),
           workflowInterceptorModules: [require.resolve('./workflows/signal-start-otel')],
         }),
@@ -734,7 +761,7 @@ test('Can replay smorgasbord from 1.13.1', async (t) => {
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
       {
-        workflowBundle: await createTestWorkflowBundle({
+        workflowBundle: await createOtelTestWorkflowBundle({
           workflowsPath: require.resolve('./workflows'),
           workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
         }),
@@ -757,7 +784,7 @@ test('Can replay signal workflow from 1.13.1', async (t) => {
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
       {
-        workflowBundle: await createTestWorkflowBundle({
+        workflowBundle: await createOtelTestWorkflowBundle({
           workflowsPath: require.resolve('./workflows/signal-workflow'),
           workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
         }),
@@ -780,7 +807,7 @@ test('Can replay smorgasbord from 1.13.2', async (t) => {
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
       {
-        workflowBundle: await createTestWorkflowBundle({
+        workflowBundle: await createOtelTestWorkflowBundle({
           workflowsPath: require.resolve('./workflows'),
           workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
         }),

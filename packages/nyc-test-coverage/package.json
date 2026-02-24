@@ -21,6 +21,9 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
+  "scripts": {
+    "build": "tsc --build"
+  },
   "files": [
     "lib",
     "src"
@@ -39,6 +42,7 @@
     "@types/istanbul-lib-coverage": "^2.0.6",
     "@types/istanbul-lib-instrument": "^1.7.7",
     "@types/webpack": "^5.28.5",
+    "typescript": "^5.6.3",
     "webpack": "^5.104.1"
   },
   "peerDependencies": {

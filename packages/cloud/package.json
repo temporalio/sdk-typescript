@@ -4,7 +4,9 @@
   "description": "Temporal.io SDK — Temporal Cloud Client",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
-  "scripts": {},
+  "scripts": {
+    "build": "tsc --build"
+  },
   "keywords": [
     "temporal",
     "workflow",

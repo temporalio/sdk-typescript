@@ -1,0 +1,41 @@
+{
+  "private": true,
+  "name": "@temporalio/test-helpers",
+  "version": "1.14.1",
+  "description": "Temporal.io SDK Test Helpers - Internal shared test infrastructure",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "keywords": [
+    "temporal",
+    "workflow",
+    "testing",
+    "helpers"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/proto": "workspace:*",
+    "@temporalio/testing": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "@temporalio/workflow": "workspace:*",
+    "ava": "^5.3.1",
+    "stack-utils": "^2.0.6"
+  },
+  "devDependencies": {
+    "@types/stack-utils": "^2.0.3"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "packages/test-helpers"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript#readme"
+}

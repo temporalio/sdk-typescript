@@ -1,7 +1,7 @@
 import test from 'ava';
 
 import Long from 'long';
-import { msToTs } from '@temporalio/common/lib/time';
+import { msToTs } from '../time';
 
 test('msToTs converts to Timestamp', (t) => {
   t.deepEqual({ seconds: Long.fromInt(600), nanos: 0 }, msToTs('10 minutes'));

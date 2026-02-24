@@ -5,21 +5,14 @@
     "rootDir": "./src"
   },
   "references": [
-    {
-      "path": "../client"
-    },
-    {
-      "path": "../common"
-    },
-    {
-      "path": "../worker"
-    },
-    {
-      "path": "../workflow"
-    },
-    {
-      "path": "../plugin"
-    }
+    { "path": "../activity" },
+    { "path": "../client" },
+    { "path": "../common" },
+    { "path": "../plugin" },
+    { "path": "../proto" },
+    { "path": "../testing" },
+    { "path": "../worker" },
+    { "path": "../workflow" }
   ],
   "include": ["./src/**/*.ts"]
 }

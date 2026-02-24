@@ -14,6 +14,15 @@
   ],
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
+  "scripts": {
+    "build": "tsc --build",
+    "test": "ava ./lib/__tests__/test-*.js"
+  },
+  "ava": {
+    "timeout": "120s",
+    "concurrency": 1,
+    "workerThreads": false
+  },
   "dependencies": {
     "@temporalio/common": "workspace:*",
     "@temporalio/plugin": "workspace:*",
@@ -26,6 +35,26 @@
     "@ai-sdk/mcp": "^1.0.0",
     "@ai-sdk/provider": "^3.0.0",
     "ai": "^6.0.0"
+  },
+  "devDependencies": {
+    "@ai-sdk/mcp": "^1.0.0",
+    "@ai-sdk/openai": "^3.0.0",
+    "@ai-sdk/provider": "^3.0.0",
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "^1.25.1",
+    "@opentelemetry/sdk-node": "^0.52.1",
+    "@opentelemetry/semantic-conventions": "^1.25.1",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/interceptors-opentelemetry": "workspace:*",
+    "@temporalio/proto": "workspace:*",
+    "@temporalio/test-helpers": "workspace:*",
+    "@temporalio/testing": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "ai": "^6.0.0",
+    "ava": "^5.3.1",
+    "uuid": "^11.1.0",
+    "zod": "^3.25.76"
   },
   "engines": {
     "node": ">= 20.0.0"
@@ -44,6 +73,8 @@
   },
   "files": [
     "src",
-    "lib"
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
   ]
 }

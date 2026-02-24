@@ -4,6 +4,15 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [{ "path": "../plugin" }, { "path": "../workflow" }],
+  "references": [
+    { "path": "../plugin" },
+    { "path": "../workflow" },
+    { "path": "../client" },
+    { "path": "../proto" },
+    { "path": "../test-helpers" },
+    { "path": "../testing" },
+    { "path": "../worker" },
+    { "path": "../interceptors-opentelemetry" }
+  ],
   "include": ["./src/**/*.ts"]
 }

@@ -1,6 +1,6 @@
 import test from 'ava';
 import { coresdk } from '@temporalio/proto';
-import { makeProtoEnumConverters as makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
+import { makeProtoEnumConverters as makeProtoEnumConverters } from '../internal-workflow/enums-helpers';
 
 // ASSERTION: There MUST be a corresponding `KEY: 'KEY'` in the const object of strings enum (must be present)
 {
