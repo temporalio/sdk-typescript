@@ -187,8 +187,7 @@ jobs:
         working-directory: ${{ runner.temp }}
 
       - name: Compile code
-        # Temporary measure to work around PNPM installs of local packages
-        run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build && pnpm install --frozen-lockfile
+        run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
 
       - name: Publish to Verdaccio
         run: pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry

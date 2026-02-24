@@ -1,4 +1,3 @@
-/* eslint-disable no-duplicate-imports */
 import { defineQuery, defineSignal } from '@temporalio/workflow';
 
 export const activityStartedSignal = defineSignal('activityStarted');

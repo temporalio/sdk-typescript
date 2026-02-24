@@ -2,7 +2,13 @@ import {
   LocalTestWorkflowEnvironmentOptions,
   workflowInterceptorModules as defaultWorkflowInterceptorModules,
 } from '@temporalio/testing';
-import { bundleWorkflowCode, BundlerPlugin, DefaultLogger, WorkflowBundleWithSourceMap, BundleOptions } from '@temporalio/worker';
+import {
+  bundleWorkflowCode,
+  BundlerPlugin,
+  DefaultLogger,
+  WorkflowBundleWithSourceMap,
+  BundleOptions,
+} from '@temporalio/worker';
 import { defineSearchAttributeKey, SearchAttributeType } from '@temporalio/common/lib/search-attributes';
 import { TestWorkflowEnvironment } from './wrappers';
 import { baseBundlerIgnoreModules } from './bundler';
