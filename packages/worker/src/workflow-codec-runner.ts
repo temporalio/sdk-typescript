@@ -1,8 +1,6 @@
 import {
   ActivitySerializationContext,
-  Payload,
   PayloadCodec,
-  ProtoFailure,
   SerializationContext,
   WorkflowSerializationContext,
 } from '@temporalio/common';
@@ -153,16 +151,28 @@ export class WorkflowCodecRunner {
                 initializeWorkflow: job.initializeWorkflow
                   ? {
                       ...job.initializeWorkflow,
-                      arguments: await decodeOptional(this.codecsForContext(initializeContext), job.initializeWorkflow.arguments),
+                      arguments: await decodeOptional(
+                        this.codecsForContext(initializeContext),
+                        job.initializeWorkflow.arguments
+                      ),
                       headers: noopDecodeMap(job.initializeWorkflow.headers),
-                      continuedFailure: await decodeOptionalFailure(this.codecsForContext(initializeContext), job.initializeWorkflow.continuedFailure),
+                      continuedFailure: await decodeOptionalFailure(
+                        this.codecsForContext(initializeContext),
+                        job.initializeWorkflow.continuedFailure
+                      ),
                       memo: {
                         ...job.initializeWorkflow.memo,
-                        fields: await decodeOptionalMap(this.codecsForContext(initializeContext), job.initializeWorkflow.memo?.fields),
+                        fields: await decodeOptionalMap(
+                          this.codecsForContext(initializeContext),
+                          job.initializeWorkflow.memo?.fields
+                        ),
                       },
                       lastCompletionResult: {
                         ...job.initializeWorkflow.lastCompletionResult,
-                        payloads: await decodeOptional(this.codecsForContext(initializeContext), job.initializeWorkflow.lastCompletionResult?.payloads),
+                        payloads: await decodeOptional(
+                          this.codecsForContext(initializeContext),
+                          job.initializeWorkflow.lastCompletionResult?.payloads
+                        ),
                       },
                       searchAttributes: job.initializeWorkflow.searchAttributes
                         ? {
@@ -177,7 +187,10 @@ export class WorkflowCodecRunner {
                 queryWorkflow: job.queryWorkflow
                   ? {
                       ...job.queryWorkflow,
-                      arguments: await decodeOptional(this.codecsForContext(workflowContext), job.queryWorkflow.arguments),
+                      arguments: await decodeOptional(
+                        this.codecsForContext(workflowContext),
+                        job.queryWorkflow.arguments
+                      ),
                       headers: noopDecodeMap(job.queryWorkflow.headers),
                     }
                   : null,
@@ -204,7 +217,8 @@ export class WorkflowCodecRunner {
                             completed: job.resolveActivity.result.completed
                               ? {
                                   ...job.resolveActivity.result.completed,
-                                  result: await decodeOptionalSingle(this.codecsForContext(resolveActivityContext),
+                                  result: await decodeOptionalSingle(
+                                    this.codecsForContext(resolveActivityContext),
                                     job.resolveActivity.result.completed.result
                                   ),
                                 }
@@ -212,7 +226,8 @@ export class WorkflowCodecRunner {
                             failed: job.resolveActivity.result.failed
                               ? {
                                   ...job.resolveActivity.result.failed,
-                                  failure: await decodeOptionalFailure(this.codecsForContext(resolveActivityContext),
+                                  failure: await decodeOptionalFailure(
+                                    this.codecsForContext(resolveActivityContext),
                                     job.resolveActivity.result.failed.failure
                                   ),
                                 }
@@ -220,7 +235,8 @@ export class WorkflowCodecRunner {
                             cancelled: job.resolveActivity.result.cancelled
                               ? {
                                   ...job.resolveActivity.result.cancelled,
-                                  failure: await decodeOptionalFailure(this.codecsForContext(resolveActivityContext),
+                                  failure: await decodeOptionalFailure(
+                                    this.codecsForContext(resolveActivityContext),
                                     job.resolveActivity.result.cancelled.failure
                                   ),
                                 }
@@ -238,7 +254,8 @@ export class WorkflowCodecRunner {
                             completed: job.resolveChildWorkflowExecution.result.completed
                               ? {
                                   ...job.resolveChildWorkflowExecution.result.completed,
-                                  result: await decodeOptionalSingle(this.codecsForContext(resolveChildContext),
+                                  result: await decodeOptionalSingle(
+                                    this.codecsForContext(resolveChildContext),
                                     job.resolveChildWorkflowExecution.result.completed.result
                                   ),
                                 }
@@ -246,7 +263,8 @@ export class WorkflowCodecRunner {
                             failed: job.resolveChildWorkflowExecution.result.failed
                               ? {
                                   ...job.resolveChildWorkflowExecution.result.failed,
-                                  failure: await decodeOptionalFailure(this.codecsForContext(resolveChildContext),
+                                  failure: await decodeOptionalFailure(
+                                    this.codecsForContext(resolveChildContext),
                                     job.resolveChildWorkflowExecution.result.failed.failure
                                   ),
                                 }
@@ -254,7 +272,8 @@ export class WorkflowCodecRunner {
                             cancelled: job.resolveChildWorkflowExecution.result.cancelled
                               ? {
                                   ...job.resolveChildWorkflowExecution.result.cancelled,
-                                  failure: await decodeOptionalFailure(this.codecsForContext(resolveChildContext),
+                                  failure: await decodeOptionalFailure(
+                                    this.codecsForContext(resolveChildContext),
                                     job.resolveChildWorkflowExecution.result.cancelled.failure
                                   ),
                                 }
@@ -269,7 +288,8 @@ export class WorkflowCodecRunner {
                       cancelled: job.resolveChildWorkflowExecutionStart.cancelled
                         ? {
                             ...job.resolveChildWorkflowExecutionStart.cancelled,
-                            failure: await decodeOptionalFailure(this.codecsForContext(resolveChildStartContext),
+                            failure: await decodeOptionalFailure(
+                              this.codecsForContext(resolveChildStartContext),
                               job.resolveChildWorkflowExecutionStart.cancelled.failure
                             ),
                           }
@@ -281,22 +301,26 @@ export class WorkflowCodecRunner {
                       ...job.resolveNexusOperation,
                       result: {
                         completed: job.resolveNexusOperation.result?.completed
-                          ? await decodeOptionalSingle(this.codecsForContext(workflowContext),
+                          ? await decodeOptionalSingle(
+                              this.codecsForContext(workflowContext),
                               job.resolveNexusOperation.result?.completed
                             )
                           : null,
                         failed: job.resolveNexusOperation.result?.failed
-                          ? await decodeOptionalFailure(this.codecsForContext(workflowContext),
+                          ? await decodeOptionalFailure(
+                              this.codecsForContext(workflowContext),
                               job.resolveNexusOperation.result?.failed
                             )
                           : null,
                         cancelled: job.resolveNexusOperation.result?.cancelled
-                          ? await decodeOptionalFailure(this.codecsForContext(workflowContext),
+                          ? await decodeOptionalFailure(
+                              this.codecsForContext(workflowContext),
                               job.resolveNexusOperation.result?.cancelled
                             )
                           : null,
                         timedOut: job.resolveNexusOperation.result?.cancelled
-                          ? await decodeOptionalFailure(this.codecsForContext(workflowContext),
+                          ? await decodeOptionalFailure(
+                              this.codecsForContext(workflowContext),
                               job.resolveNexusOperation.result?.timedOut
                             )
                           : null,
@@ -306,7 +330,8 @@ export class WorkflowCodecRunner {
                 resolveSignalExternalWorkflow: job.resolveSignalExternalWorkflow
                   ? {
                       ...job.resolveSignalExternalWorkflow,
-                      failure: await decodeOptionalFailure(this.codecsForContext(resolveSignalExternalContext),
+                      failure: await decodeOptionalFailure(
+                        this.codecsForContext(resolveSignalExternalContext),
                         job.resolveSignalExternalWorkflow.failure
                       ),
                     }
@@ -314,7 +339,8 @@ export class WorkflowCodecRunner {
                 resolveRequestCancelExternalWorkflow: job.resolveRequestCancelExternalWorkflow
                   ? {
                       ...job.resolveRequestCancelExternalWorkflow,
-                      failure: await decodeOptionalFailure(this.codecsForContext(resolveCancelExternalContext),
+                      failure: await decodeOptionalFailure(
+                        this.codecsForContext(resolveCancelExternalContext),
                         job.resolveRequestCancelExternalWorkflow.failure
                       ),
                     }
@@ -377,228 +403,231 @@ export class WorkflowCodecRunner {
             ...completion.successful,
             commands: completion.successful.commands
               ? await Promise.all(
-                  completion.successful.commands.map(
-                    async (command) => {
-                      const scheduleActivitySeq = command.scheduleActivity?.seq ?? undefined;
-                      const scheduleActivityContext =
-                        runState && command.scheduleActivity
-                          ? {
-                              namespace: runState.workflowContext.namespace,
-                              workflowId: runState.workflowContext.workflowId,
-                              workflowType: runState.workflowType,
-                              activityType: command.scheduleActivity.activityType ?? '',
-                              activityTaskQueue: command.scheduleActivity.taskQueue ?? this.taskQueue,
-                              isLocal: false,
-                            }
-                          : undefined;
-
-                      const scheduleLocalActivitySeq = command.scheduleLocalActivity?.seq ?? undefined;
-                      const scheduleLocalActivityContext =
-                        runState && command.scheduleLocalActivity
-                          ? {
-                              namespace: runState.workflowContext.namespace,
-                              workflowId: runState.workflowContext.workflowId,
-                              workflowType: runState.workflowType,
-                              activityType: command.scheduleLocalActivity.activityType ?? '',
-                              activityTaskQueue: this.taskQueue,
-                              isLocal: true,
-                            }
-                          : undefined;
-
-                      const childWorkflowSeq = command.startChildWorkflowExecution?.seq ?? undefined;
-                      const childWorkflowId =
-                        command.startChildWorkflowExecution?.workflowId ?? runState?.workflowContext.workflowId ?? '';
-                      const childWorkflowContext = runState ? { namespace: this.namespace, workflowId: childWorkflowId } : undefined;
-
-                      const signalExternalSeq = command.signalExternalWorkflowExecution?.seq ?? undefined;
-                      const signalExternalTargetWorkflowId =
-                        command.signalExternalWorkflowExecution?.workflowExecution?.workflowId ??
-                        command.signalExternalWorkflowExecution?.childWorkflowId ??
-                        runState?.workflowContext.workflowId ??
-                        '';
-                      const signalExternalContext = runState
-                        ? { namespace: this.namespace, workflowId: signalExternalTargetWorkflowId }
+                  completion.successful.commands.map(async (command) => {
+                    const scheduleActivitySeq = command.scheduleActivity?.seq ?? undefined;
+                    const scheduleActivityContext: ActivitySerializationContext | undefined =
+                      runState && command.scheduleActivity
+                        ? {
+                            namespace: runState.workflowContext.namespace,
+                            activityId: command.scheduleActivity.activityId ?? undefined,
+                            workflowId: runState.workflowContext.workflowId,
+                            workflowType: runState.workflowType,
+                            isLocal: false,
+                          }
                         : undefined;
 
-                      const cancelExternalSeq = command.requestCancelExternalWorkflowExecution?.seq ?? undefined;
-                      const cancelExternalWorkflowId =
-                        command.requestCancelExternalWorkflowExecution?.workflowExecution?.workflowId ??
-                        runState?.workflowContext.workflowId ??
-                        '';
-                      const cancelExternalContext = runState ? { namespace: this.namespace, workflowId: cancelExternalWorkflowId } : undefined;
+                    const scheduleLocalActivitySeq = command.scheduleLocalActivity?.seq ?? undefined;
+                    const scheduleLocalActivityContext: ActivitySerializationContext | undefined =
+                      runState && command.scheduleLocalActivity
+                        ? {
+                            namespace: runState.workflowContext.namespace,
+                            activityId: command.scheduleLocalActivity.activityId ?? undefined,
+                            workflowId: runState.workflowContext.workflowId,
+                            workflowType: runState.workflowType,
+                            isLocal: true,
+                          }
+                        : undefined;
 
-                      // Add seq contexts while encoding commands.
-                      if (scheduleActivitySeq != null && scheduleActivityContext) {
-                        runState?.activityContexts.set(scheduleActivitySeq, scheduleActivityContext);
-                      }
-                      if (scheduleLocalActivitySeq != null && scheduleLocalActivityContext) {
-                        runState?.activityContexts.set(scheduleLocalActivitySeq, scheduleLocalActivityContext);
-                      }
-                      if (childWorkflowSeq != null && childWorkflowContext) {
-                        runState?.childWorkflowContexts.set(childWorkflowSeq, childWorkflowContext);
-                      }
-                      if (signalExternalSeq != null && signalExternalContext) {
-                        runState?.signalExternalWorkflowContexts.set(signalExternalSeq, signalExternalContext);
-                      }
-                      if (cancelExternalSeq != null && cancelExternalContext) {
-                        runState?.cancelExternalWorkflowContexts.set(cancelExternalSeq, cancelExternalContext);
-                      }
+                    const childWorkflowSeq = command.startChildWorkflowExecution?.seq ?? undefined;
+                    const childWorkflowId =
+                      command.startChildWorkflowExecution?.workflowId ?? runState?.workflowContext.workflowId ?? '';
+                    const childWorkflowContext = runState
+                      ? { namespace: this.namespace, workflowId: childWorkflowId }
+                      : undefined;
 
-                      return <Encoded<coresdk.workflow_commands.IWorkflowCommand>>{
-                        ...command,
-                        scheduleActivity: command.scheduleActivity
-                          ? {
-                              ...command.scheduleActivity,
-                              arguments: await encodeOptional(this.codecsForContext(scheduleActivityContext),
-                                command.scheduleActivity?.arguments
-                              ),
-                              // don't encode headers
-                              headers: noopEncodeMap(command.scheduleActivity?.headers),
-                            }
-                          : undefined,
-                        upsertWorkflowSearchAttributes: command.upsertWorkflowSearchAttributes
-                          ? {
-                              ...command.upsertWorkflowSearchAttributes,
-                              searchAttributes: noopEncodeMap(command.upsertWorkflowSearchAttributes.searchAttributes),
-                            }
-                          : undefined,
-                        respondToQuery: command.respondToQuery
-                          ? {
-                              ...command.respondToQuery,
-                              succeeded: {
-                                ...command.respondToQuery.succeeded,
-                                response: await encodeOptionalSingle(this.codecsForContext(workflowContext),
-                                  command.respondToQuery.succeeded?.response
-                                ),
-                              },
-                              failed: await encodeOptionalFailure(this.codecsForContext(workflowContext),
-                                command.respondToQuery.failed
-                              ),
-                            }
-                          : undefined,
-                        updateResponse: command.updateResponse
-                          ? {
-                              ...command.updateResponse,
-                              rejected: await encodeOptionalFailure(this.codecsForContext(
-                                workflowContext),
-                                command.updateResponse.rejected
-                              ),
-                              completed: await encodeOptionalSingle(this.codecsForContext(
-                                workflowContext),
-                                command.updateResponse.completed
-                              ),
-                            }
-                          : undefined,
-                        completeWorkflowExecution: command.completeWorkflowExecution
-                          ? {
-                              ...command.completeWorkflowExecution,
-                              result: await encodeOptionalSingle(this.codecsForContext(
-                                workflowContext),
-                                command.completeWorkflowExecution.result
-                              ),
-                            }
-                          : undefined,
-                        failWorkflowExecution: command.failWorkflowExecution
-                          ? {
-                              ...command.failWorkflowExecution,
-                              failure: await encodeOptionalFailure(this.codecsForContext(
-                                workflowContext),
-                                command.failWorkflowExecution.failure
-                              ),
-                            }
-                          : undefined,
-                        continueAsNewWorkflowExecution: command.continueAsNewWorkflowExecution
-                          ? {
-                              ...command.continueAsNewWorkflowExecution,
-                              arguments: await encodeOptional(this.codecsForContext(
-                                workflowContext),
-                                command.continueAsNewWorkflowExecution.arguments
-                              ),
-                              memo: await encodeMap(this.codecsForContext(
-                                workflowContext),
-                                command.continueAsNewWorkflowExecution.memo
-                              ),
-                              // don't encode headers
-                              headers: noopEncodeMap(command.continueAsNewWorkflowExecution.headers),
-                              // don't encode searchAttributes
-                              searchAttributes: noopEncodeMap(command.continueAsNewWorkflowExecution.searchAttributes),
-                            }
-                          : undefined,
-                        startChildWorkflowExecution: command.startChildWorkflowExecution
-                          ? {
-                              ...command.startChildWorkflowExecution,
-                              input: await encodeOptional(this.codecsForContext(
-                                childWorkflowContext),
-                                command.startChildWorkflowExecution.input
-                              ),
-                              memo: await encodeMap(this.codecsForContext(
-                                childWorkflowContext),
-                                command.startChildWorkflowExecution.memo
-                              ),
-                              // don't encode headers
-                              headers: noopEncodeMap(command.startChildWorkflowExecution.headers),
-                              // don't encode searchAttributes
-                              searchAttributes: noopEncodeMap(command.startChildWorkflowExecution.searchAttributes),
-                            }
-                          : undefined,
-                        signalExternalWorkflowExecution: command.signalExternalWorkflowExecution
-                          ? {
-                              ...command.signalExternalWorkflowExecution,
-                              args: await encodeOptional(this.codecsForContext(
-                                signalExternalContext),
-                                command.signalExternalWorkflowExecution.args
-                              ),
-                              headers: noopEncodeMap(command.signalExternalWorkflowExecution.headers),
-                            }
-                          : undefined,
-                        scheduleLocalActivity: command.scheduleLocalActivity
-                          ? {
-                              ...command.scheduleLocalActivity,
-                              arguments: await encodeOptional(this.codecsForContext(
-                                scheduleLocalActivityContext),
-                                command.scheduleLocalActivity.arguments
-                              ),
-                              // don't encode headers
-                              headers: noopEncodeMap(command.scheduleLocalActivity.headers),
-                            }
-                          : undefined,
-                        scheduleNexusOperation: command.scheduleNexusOperation
-                          ? {
-                              ...command.scheduleNexusOperation,
-                              input: await encodeOptionalSingle(this.codecsForContext(
-                                workflowContext),
-                                command.scheduleNexusOperation.input
-                              ),
-                            }
-                          : undefined,
-                        modifyWorkflowProperties: command.modifyWorkflowProperties
-                          ? {
-                              ...command.modifyWorkflowProperties,
-                              upsertedMemo: {
-                                ...command.modifyWorkflowProperties.upsertedMemo,
-                                fields: await encodeMap(this.codecsForContext(
-                                  workflowContext),
-                                  command.modifyWorkflowProperties.upsertedMemo?.fields
-                                ),
-                              },
-                            }
-                          : undefined,
-                        userMetadata:
-                          command.userMetadata && (command.userMetadata.summary || command.userMetadata.details)
-                            ? {
-                                summary: await encodeOptionalSingle(this.codecsForContext(
-                                  workflowContext),
-                                  command.userMetadata.summary
-                                ),
-                                details: await encodeOptionalSingle(this.codecsForContext(
-                                  workflowContext),
-                                  command.userMetadata.details
-                                ),
-                              }
-                            : undefined,
-                      };
+                    const signalExternalSeq = command.signalExternalWorkflowExecution?.seq ?? undefined;
+                    const signalExternalTargetWorkflowId =
+                      command.signalExternalWorkflowExecution?.workflowExecution?.workflowId ??
+                      command.signalExternalWorkflowExecution?.childWorkflowId ??
+                      runState?.workflowContext.workflowId ??
+                      '';
+                    const signalExternalContext = runState
+                      ? { namespace: this.namespace, workflowId: signalExternalTargetWorkflowId }
+                      : undefined;
+
+                    const cancelExternalSeq = command.requestCancelExternalWorkflowExecution?.seq ?? undefined;
+                    const cancelExternalWorkflowId =
+                      command.requestCancelExternalWorkflowExecution?.workflowExecution?.workflowId ??
+                      runState?.workflowContext.workflowId ??
+                      '';
+                    const cancelExternalContext = runState
+                      ? { namespace: this.namespace, workflowId: cancelExternalWorkflowId }
+                      : undefined;
+
+                    // Add seq contexts while encoding commands.
+                    if (scheduleActivitySeq != null && scheduleActivityContext) {
+                      runState?.activityContexts.set(scheduleActivitySeq, scheduleActivityContext);
                     }
-                  ) ?? []
+                    if (scheduleLocalActivitySeq != null && scheduleLocalActivityContext) {
+                      runState?.activityContexts.set(scheduleLocalActivitySeq, scheduleLocalActivityContext);
+                    }
+                    if (childWorkflowSeq != null && childWorkflowContext) {
+                      runState?.childWorkflowContexts.set(childWorkflowSeq, childWorkflowContext);
+                    }
+                    if (signalExternalSeq != null && signalExternalContext) {
+                      runState?.signalExternalWorkflowContexts.set(signalExternalSeq, signalExternalContext);
+                    }
+                    if (cancelExternalSeq != null && cancelExternalContext) {
+                      runState?.cancelExternalWorkflowContexts.set(cancelExternalSeq, cancelExternalContext);
+                    }
+
+                    return <Encoded<coresdk.workflow_commands.IWorkflowCommand>>{
+                      ...command,
+                      scheduleActivity: command.scheduleActivity
+                        ? {
+                            ...command.scheduleActivity,
+                            arguments: await encodeOptional(
+                              this.codecsForContext(scheduleActivityContext),
+                              command.scheduleActivity?.arguments
+                            ),
+                            // don't encode headers
+                            headers: noopEncodeMap(command.scheduleActivity?.headers),
+                          }
+                        : undefined,
+                      upsertWorkflowSearchAttributes: command.upsertWorkflowSearchAttributes
+                        ? {
+                            ...command.upsertWorkflowSearchAttributes,
+                            searchAttributes: noopEncodeMap(command.upsertWorkflowSearchAttributes.searchAttributes),
+                          }
+                        : undefined,
+                      respondToQuery: command.respondToQuery
+                        ? {
+                            ...command.respondToQuery,
+                            succeeded: {
+                              ...command.respondToQuery.succeeded,
+                              response: await encodeOptionalSingle(
+                                this.codecsForContext(workflowContext),
+                                command.respondToQuery.succeeded?.response
+                              ),
+                            },
+                            failed: await encodeOptionalFailure(
+                              this.codecsForContext(workflowContext),
+                              command.respondToQuery.failed
+                            ),
+                          }
+                        : undefined,
+                      updateResponse: command.updateResponse
+                        ? {
+                            ...command.updateResponse,
+                            rejected: await encodeOptionalFailure(
+                              this.codecsForContext(workflowContext),
+                              command.updateResponse.rejected
+                            ),
+                            completed: await encodeOptionalSingle(
+                              this.codecsForContext(workflowContext),
+                              command.updateResponse.completed
+                            ),
+                          }
+                        : undefined,
+                      completeWorkflowExecution: command.completeWorkflowExecution
+                        ? {
+                            ...command.completeWorkflowExecution,
+                            result: await encodeOptionalSingle(
+                              this.codecsForContext(workflowContext),
+                              command.completeWorkflowExecution.result
+                            ),
+                          }
+                        : undefined,
+                      failWorkflowExecution: command.failWorkflowExecution
+                        ? {
+                            ...command.failWorkflowExecution,
+                            failure: await encodeOptionalFailure(
+                              this.codecsForContext(workflowContext),
+                              command.failWorkflowExecution.failure
+                            ),
+                          }
+                        : undefined,
+                      continueAsNewWorkflowExecution: command.continueAsNewWorkflowExecution
+                        ? {
+                            ...command.continueAsNewWorkflowExecution,
+                            arguments: await encodeOptional(
+                              this.codecsForContext(workflowContext),
+                              command.continueAsNewWorkflowExecution.arguments
+                            ),
+                            memo: await encodeMap(
+                              this.codecsForContext(workflowContext),
+                              command.continueAsNewWorkflowExecution.memo
+                            ),
+                            // don't encode headers
+                            headers: noopEncodeMap(command.continueAsNewWorkflowExecution.headers),
+                            // don't encode searchAttributes
+                            searchAttributes: noopEncodeMap(command.continueAsNewWorkflowExecution.searchAttributes),
+                          }
+                        : undefined,
+                      startChildWorkflowExecution: command.startChildWorkflowExecution
+                        ? {
+                            ...command.startChildWorkflowExecution,
+                            input: await encodeOptional(
+                              this.codecsForContext(childWorkflowContext),
+                              command.startChildWorkflowExecution.input
+                            ),
+                            memo: await encodeMap(
+                              this.codecsForContext(childWorkflowContext),
+                              command.startChildWorkflowExecution.memo
+                            ),
+                            // don't encode headers
+                            headers: noopEncodeMap(command.startChildWorkflowExecution.headers),
+                            // don't encode searchAttributes
+                            searchAttributes: noopEncodeMap(command.startChildWorkflowExecution.searchAttributes),
+                          }
+                        : undefined,
+                      signalExternalWorkflowExecution: command.signalExternalWorkflowExecution
+                        ? {
+                            ...command.signalExternalWorkflowExecution,
+                            args: await encodeOptional(
+                              this.codecsForContext(signalExternalContext),
+                              command.signalExternalWorkflowExecution.args
+                            ),
+                            headers: noopEncodeMap(command.signalExternalWorkflowExecution.headers),
+                          }
+                        : undefined,
+                      scheduleLocalActivity: command.scheduleLocalActivity
+                        ? {
+                            ...command.scheduleLocalActivity,
+                            arguments: await encodeOptional(
+                              this.codecsForContext(scheduleLocalActivityContext),
+                              command.scheduleLocalActivity.arguments
+                            ),
+                            // don't encode headers
+                            headers: noopEncodeMap(command.scheduleLocalActivity.headers),
+                          }
+                        : undefined,
+                      scheduleNexusOperation: command.scheduleNexusOperation
+                        ? {
+                            ...command.scheduleNexusOperation,
+                            input: await encodeOptionalSingle(
+                              this.codecsForContext(workflowContext),
+                              command.scheduleNexusOperation.input
+                            ),
+                          }
+                        : undefined,
+                      modifyWorkflowProperties: command.modifyWorkflowProperties
+                        ? {
+                            ...command.modifyWorkflowProperties,
+                            upsertedMemo: {
+                              ...command.modifyWorkflowProperties.upsertedMemo,
+                              fields: await encodeMap(
+                                this.codecsForContext(workflowContext),
+                                command.modifyWorkflowProperties.upsertedMemo?.fields
+                              ),
+                            },
+                          }
+                        : undefined,
+                      userMetadata:
+                        command.userMetadata && (command.userMetadata.summary || command.userMetadata.details)
+                          ? {
+                              summary: await encodeOptionalSingle(
+                                this.codecsForContext(workflowContext),
+                                command.userMetadata.summary
+                              ),
+                              details: await encodeOptionalSingle(
+                                this.codecsForContext(workflowContext),
+                                command.userMetadata.details
+                              ),
+                            }
+                          : undefined,
+                    };
+                  }) ?? []
                 )
               : null,
           }

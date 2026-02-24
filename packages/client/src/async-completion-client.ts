@@ -107,14 +107,12 @@ export class AsyncCompletionClient extends BaseClient {
    * Return a client instance with all serialization operations bound to `context`.
    */
   withContext(context: SerializationContext): AsyncCompletionClient {
-    const client = new AsyncCompletionClient(
-      {
-        connection: this.connection,
-        dataConverter: this.dataConverter,
-        identity: this.options.identity,
-        namespace: this.options.namespace,
-      },
-    );
+    const client = new AsyncCompletionClient({
+      connection: this.connection,
+      dataConverter: this.dataConverter,
+      identity: this.options.identity,
+      namespace: this.options.namespace,
+    });
     client.context = context;
     return client;
   }
@@ -145,7 +143,9 @@ export class AsyncCompletionClient extends BaseClient {
   async complete(fullActivityId: FullActivityId, result: unknown): Promise<void>;
 
   async complete(taskTokenOrFullActivityId: Uint8Array | FullActivityId, result: unknown): Promise<void> {
-    const dataConverter = this.context ? withSerializationContext(this.dataConverter, this.context) : this.dataConverter;
+    const dataConverter = this.context
+      ? withSerializationContext(this.dataConverter, this.context)
+      : this.dataConverter;
     const payloads = await encodeToPayloads(dataConverter, result);
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
@@ -178,7 +178,9 @@ export class AsyncCompletionClient extends BaseClient {
   async fail(fullActivityId: FullActivityId, err: unknown): Promise<void>;
 
   async fail(taskTokenOrFullActivityId: Uint8Array | FullActivityId, err: unknown): Promise<void> {
-    const dataConverter = this.context ? withSerializationContext(this.dataConverter, this.context) : this.dataConverter;
+    const dataConverter = this.context
+      ? withSerializationContext(this.dataConverter, this.context)
+      : this.dataConverter;
     const failure = await encodeErrorToFailure(dataConverter, ensureTemporalFailure(err));
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
@@ -211,7 +213,9 @@ export class AsyncCompletionClient extends BaseClient {
   reportCancellation(fullActivityId: FullActivityId, details?: unknown): Promise<void>;
 
   async reportCancellation(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
-    const dataConverter = this.context ? withSerializationContext(this.dataConverter, this.context) : this.dataConverter;
+    const dataConverter = this.context
+      ? withSerializationContext(this.dataConverter, this.context)
+      : this.dataConverter;
     const payloads = await encodeToPayloads(dataConverter, details);
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
@@ -244,7 +248,9 @@ export class AsyncCompletionClient extends BaseClient {
   heartbeat(fullActivityId: FullActivityId, details?: unknown): Promise<void>;
 
   async heartbeat(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
-    const dataConverter = this.context ? withSerializationContext(this.dataConverter, this.context) : this.dataConverter;
+    const dataConverter = this.context
+      ? withSerializationContext(this.dataConverter, this.context)
+      : this.dataConverter;
     const payloads = await encodeToPayloads(dataConverter, details);
     let cancelRequested = false;
     let paused = false;

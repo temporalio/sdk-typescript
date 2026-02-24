@@ -8,8 +8,8 @@ import {
   extractWorkflowType,
   LoadedDataConverter,
 } from '@temporalio/common';
-import { encodeUserMetadata, decodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { withSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
+import { encodeUserMetadata, decodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import {
   encodeUnifiedSearchAttributes,
   decodeSearchAttributes,

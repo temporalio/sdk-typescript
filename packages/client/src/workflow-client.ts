@@ -24,8 +24,8 @@ import {
   WorkflowIdConflictPolicy,
   compilePriority,
 } from '@temporalio/common';
-import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { withSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
+import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { History } from '@temporalio/common/lib/proto-utils';
@@ -852,10 +852,7 @@ export class WorkflowClient extends BaseClient {
       } else if (ev.workflowExecutionCanceledEventAttributes) {
         const failure = new CancelledFailure(
           'Workflow canceled',
-          await decodeArrayFromPayloads(
-            dataConverter,
-            ev.workflowExecutionCanceledEventAttributes.details?.payloads
-          )
+          await decodeArrayFromPayloads(dataConverter, ev.workflowExecutionCanceledEventAttributes.details?.payloads)
         );
         failure.stack = '';
         throw new WorkflowFailedError('Workflow execution cancelled', failure, RetryState.NON_RETRYABLE_FAILURE);

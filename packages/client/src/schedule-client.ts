@@ -432,7 +432,11 @@ export class ScheduleClient extends BaseClient {
         return {
           scheduleId,
           spec: decodeScheduleSpec(raw.schedule.spec),
-          action: await decodeScheduleAction(this.client.dataConverter, this.client.options.namespace, raw.schedule.action),
+          action: await decodeScheduleAction(
+            this.client.dataConverter,
+            this.client.options.namespace,
+            raw.schedule.action
+          ),
           memo: await decodeMapFromPayloads(this.client.dataConverter, raw.memo?.fields),
           searchAttributes: decodeSearchAttributes(raw.searchAttributes?.indexedFields),
           typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes?.indexedFields),

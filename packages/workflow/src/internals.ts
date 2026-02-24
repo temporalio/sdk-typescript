@@ -600,9 +600,7 @@ export class Activator implements ActivationHandler {
       memo: mapFromPayloads(payloadConverter, memo?.fields),
       lastResult: fromPayloadsAtIndex(payloadConverter, 0, lastCompletionResult?.payloads),
       lastFailure:
-        continuedFailure != null
-          ? failureConverter.failureToError(continuedFailure, payloadConverter)
-          : undefined,
+        continuedFailure != null ? failureConverter.failureToError(continuedFailure, payloadConverter) : undefined,
     }));
     if (this.workflowDefinitionOptionsGetter) {
       this.versioningBehavior = this.workflowDefinitionOptionsGetter().versioningBehavior;

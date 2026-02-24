@@ -36,7 +36,10 @@ import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
 import { deepMerge } from '@temporalio/common/lib/internal-workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
-import { withPayloadConverterContext } from '@temporalio/common/lib/converter/serialization-context';
+import {
+  ActivitySerializationContext,
+  withPayloadConverterContext,
+} from '@temporalio/common/lib/converter/serialization-context';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import {
@@ -173,12 +176,12 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
   const activator = getActivator();
   validateActivityOptions(options);
   const taskQueue = options.taskQueue || activator.info.taskQueue;
-  const context = {
+  const activityId = options.activityId ?? `${seq}`;
+  const context: ActivitySerializationContext = {
     namespace: activator.info.namespace,
+    activityId,
     workflowId: activator.info.workflowId,
     workflowType: activator.info.workflowType,
-    activityType,
-    activityTaskQueue: taskQueue,
     isLocal: false,
   };
   const payloadConverter = withPayloadConverterContext(activator.payloadConverter, context);
@@ -205,7 +208,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
     activator.pushCommand({
       scheduleActivity: {
         seq,
-        activityId: options.activityId ?? `${seq}`,
+        activityId,
         activityType,
         arguments: toPayloads(payloadConverter, ...args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
@@ -244,12 +247,12 @@ async function scheduleLocalActivityNextHandler({
   originalScheduleTime,
 }: LocalActivityInput): Promise<unknown> {
   const activator = getActivator();
-  const context = {
+  const activityId = `${seq}`;
+  const context: ActivitySerializationContext = {
     namespace: activator.info.namespace,
+    activityId,
     workflowId: activator.info.workflowId,
     workflowType: activator.info.workflowType,
-    activityType,
-    activityTaskQueue: activator.info.taskQueue,
     isLocal: true,
   };
   const payloadConverter = withPayloadConverterContext(activator.payloadConverter, context);
@@ -286,7 +289,7 @@ async function scheduleLocalActivityNextHandler({
         attempt,
         originalScheduleTime,
         // Intentionally not exposing activityId as an option
-        activityId: `${seq}`,
+        activityId,
         activityType,
         arguments: toPayloads(payloadConverter, ...args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
@@ -472,9 +475,7 @@ function startChildWorkflowExecutionNextHandler({
 
 function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: SignalWorkflowInput) {
   const activator = getActivator();
-  const targetWorkflowId = (
-    target.type === 'external' ? target.workflowExecution.workflowId : target.childWorkflowId
-  )!;
+  const targetWorkflowId = (target.type === 'external' ? target.workflowExecution.workflowId : target.childWorkflowId)!;
   const context = {
     namespace: activator.info.namespace,
     workflowId: targetWorkflowId,

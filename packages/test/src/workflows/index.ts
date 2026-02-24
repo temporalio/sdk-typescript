@@ -64,6 +64,7 @@ export * from './reusable-vm-disposal-bug';
 export * from './run-activity-in-different-task-queue';
 export * from './scope-cancelled-while-waiting-on-external-workflow-cancellation';
 export * from './set-timeout-after-microtasks';
+export * from './serialization-context';
 export * from './shared-cancellation-scopes';
 export * from './noncancellable-awaited-in-root-scope';
 export * from './noncancellable-in-noncancellable';

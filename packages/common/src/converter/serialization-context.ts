@@ -7,17 +7,30 @@ import type { PayloadConverter } from './payload-converter';
  * Context for workflow-level serialization operations.
  */
 export interface WorkflowSerializationContext {
+  /** Namespace of the workflow. */
   namespace: string;
+  /**
+   * ID of the workflow that owns the payload being serialized.
+   *
+   * When creating/describing schedules, this may be the workflow ID prefix
+   * as configured, not the final workflow ID when the workflow is created.
+   */
   workflowId: string;
 }
 
 /**
  * Context for activity-level serialization operations.
  */
-export interface ActivitySerializationContext extends WorkflowSerializationContext {
-  workflowType: string;
-  activityType: string;
-  activityTaskQueue: string;
+export interface ActivitySerializationContext {
+  /** Namespace of the activity. */
+  namespace: string;
+  /** Activity ID for this execution when provided by the activity context source. */
+  activityId?: string;
+  /** Parent workflow ID when this activity is associated with a workflow. */
+  workflowId?: string;
+  /** Parent workflow type when this activity is associated with a workflow. */
+  workflowType?: string;
+  /** Whether the activity is a local activity started from a workflow. */
   isLocal: boolean;
 }
 
@@ -56,6 +69,7 @@ export function withPayloadCodecContext(codec: PayloadCodec, context: Serializat
 /**
  * Return a loaded data converter where all components are context-bound when supported.
  */
+// ts-prune-ignore-next (imported via lib/converter/serialization-context)
 export function withSerializationContext(
   converter: LoadedDataConverter,
   context: SerializationContext
@@ -70,7 +84,6 @@ export function withSerializationContext(
     }
     return maybeContextCodec;
   });
-  const payloadCodecs = codecsChanged ? maybeBoundCodecs : converter.payloadCodecs;
 
   if (
     payloadConverter === converter.payloadConverter &&
@@ -79,5 +92,9 @@ export function withSerializationContext(
   ) {
     return converter;
   }
-  return { payloadConverter, failureConverter, payloadCodecs };
+  return {
+    payloadConverter,
+    failureConverter,
+    payloadCodecs: codecsChanged ? maybeBoundCodecs : converter.payloadCodecs,
+  };
 }

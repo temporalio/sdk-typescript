@@ -27,7 +27,6 @@ import {
   defaultPayloadConverter,
   IllegalStateError,
   LoadedDataConverter,
-  ActivitySerializationContext,
   SdkComponent,
   Payload,
   ApplicationFailure,
@@ -37,6 +36,7 @@ import {
   CancelledFailure,
   MetricMeter,
   ActivityCancellationDetails,
+  ActivitySerializationContext,
 } from '@temporalio/common';
 import { withSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 import {
@@ -1085,14 +1085,14 @@ export class Worker {
                       this.options.namespace,
                       this.options.taskQueue
                     );
-                    contextDataConverter = withSerializationContext(this.options.loadedDataConverter, {
+                    const context: ActivitySerializationContext = {
                       namespace: info.workflowNamespace,
-                      workflowId: info.workflowExecution.workflowId,
-                      workflowType: info.workflowType,
-                      activityType: info.activityType,
-                      activityTaskQueue: info.taskQueue,
+                      activityId: info.activityId,
+                      ...(info.workflowExecution.workflowId ? { workflowId: info.workflowExecution.workflowId } : {}),
+                      ...(info.workflowType ? { workflowType: info.workflowType } : {}),
                       isLocal: info.isLocal,
-                    });
+                    };
+                    contextDataConverter = withSerializationContext(this.options.loadedDataConverter, context);
 
                     const { activityType } = info;
                     // Use the corresponding activity if it exists, otherwise, fallback to default activity function (if exists)
@@ -1162,10 +1162,7 @@ export class Worker {
                       type: 'result',
                       result: {
                         failed: {
-                          failure: await encodeErrorToFailure(
-                            contextDataConverter,
-                            error
-                          ),
+                          failure: await encodeErrorToFailure(contextDataConverter, error),
                         },
                       },
                     };
@@ -1776,17 +1773,14 @@ export class Worker {
             let payload: Payload;
             try {
               try {
-                const activityDataConverter = withSerializationContext(
-                  this.options.loadedDataConverter,
-                  {
-                    namespace: info.workflowNamespace,
-                    workflowId: info.workflowExecution.workflowId,
-                    workflowType: info.workflowType,
-                    activityType: info.activityType,
-                    activityTaskQueue: info.taskQueue,
-                    isLocal: info.isLocal,
-                  }
-                );
+                const context: ActivitySerializationContext = {
+                  namespace: info.workflowNamespace,
+                  activityId: info.activityId,
+                  ...(info.workflowExecution.workflowId ? { workflowId: info.workflowExecution.workflowId } : {}),
+                  ...(info.workflowType ? { workflowType: info.workflowType } : {}),
+                  isLocal: info.isLocal,
+                };
+                const activityDataConverter = withSerializationContext(this.options.loadedDataConverter, context);
                 payload = await encodeToPayload(activityDataConverter, details);
               } catch (error: any) {
                 this.logger.warn('Failed to encode heartbeat details, cancelling Activity', {
@@ -2232,14 +2226,14 @@ async function extractActivityInfo(
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
-  const contextDataConverter = withSerializationContext(dataConverter, {
-    namespace: start.workflowNamespace,
-    workflowId: start.workflowExecution.workflowId!,
-    workflowType: start.workflowType,
-    activityType: start.activityType,
-    activityTaskQueue: taskQueue,
+  const context: ActivitySerializationContext = {
+    namespace: start.workflowNamespace || activityNamespace,
+    activityId: start.activityId || undefined,
+    ...(start.workflowExecution?.workflowId ? { workflowId: start.workflowExecution.workflowId } : {}),
+    ...(start.workflowType ? { workflowType: start.workflowType } : {}),
     isLocal: start.isLocal,
-  });
+  };
+  const contextDataConverter = withSerializationContext(dataConverter, context);
   const activityId = start.activityId;
   let heartbeatDetails = undefined;
   try {
