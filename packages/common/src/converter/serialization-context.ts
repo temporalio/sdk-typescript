@@ -4,36 +4,27 @@ import type { PayloadCodec } from './payload-codec';
 import type { PayloadConverter } from './payload-converter';
 
 /**
- * Context passed to data conversion interfaces so they can adjust serialization behavior.
+ * Context for workflow-level serialization operations.
  */
-export interface SerializationContext {}
-
-/**
- * Base context for serialization operations that are tied to a workflow execution.
- */
-export interface HasWorkflowSerializationContext extends SerializationContext {
+export interface WorkflowSerializationContext {
   namespace: string;
   workflowId: string;
 }
 
 /**
- * Context for workflow-level serialization operations.
- */
-export interface WorkflowSerializationContext extends HasWorkflowSerializationContext {}
-
-/**
  * Context for activity-level serialization operations.
  */
-export interface ActivitySerializationContext extends HasWorkflowSerializationContext {
+export interface ActivitySerializationContext extends WorkflowSerializationContext {
   workflowType: string;
   activityType: string;
   activityTaskQueue: string;
   isLocal: boolean;
 }
 
-export interface WithSerializationContext<T> {
-  withContext(context: SerializationContext): T;
-}
+/**
+ * Context passed to data conversion interfaces so they can adjust serialization behavior.
+ */
+export type SerializationContext = WorkflowSerializationContext | ActivitySerializationContext;
 
 /**
  * Return a payload converter bound to `context` if the converter supports context binding.
@@ -65,29 +56,26 @@ export function withPayloadCodecContext(codec: PayloadCodec, context: Serializat
 /**
  * Return a loaded data converter where all components are context-bound when supported.
  */
-export function withLoadedDataConverterContext(
+export function withSerializationContext(
   converter: LoadedDataConverter,
   context: SerializationContext
 ): LoadedDataConverter {
   const payloadConverter = withPayloadConverterContext(converter.payloadConverter, context);
   const failureConverter = withFailureConverterContext(converter.failureConverter, context);
-
-  let payloadCodecs = converter.payloadCodecs;
-  for (let i = 0; i < converter.payloadCodecs.length; i++) {
-    const codec = converter.payloadCodecs[i]!;
-    const nextCodec = withPayloadCodecContext(codec, context);
-    if (nextCodec !== codec) {
-      if (payloadCodecs === converter.payloadCodecs) {
-        payloadCodecs = converter.payloadCodecs.slice();
-      }
-      payloadCodecs[i] = nextCodec;
+  let codecsChanged = false;
+  const maybeBoundCodecs = converter.payloadCodecs.map((codec) => {
+    const maybeContextCodec = withPayloadCodecContext(codec, context);
+    if (maybeContextCodec !== codec) {
+      codecsChanged = true;
     }
-  }
+    return maybeContextCodec;
+  });
+  const payloadCodecs = codecsChanged ? maybeBoundCodecs : converter.payloadCodecs;
 
   if (
     payloadConverter === converter.payloadConverter &&
     failureConverter === converter.failureConverter &&
-    payloadCodecs === converter.payloadCodecs
+    !codecsChanged
   ) {
     return converter;
   }

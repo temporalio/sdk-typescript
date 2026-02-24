@@ -36,6 +36,7 @@ import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
 import { deepMerge } from '@temporalio/common/lib/internal-workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
+import { withPayloadConverterContext } from '@temporalio/common/lib/converter/serialization-context';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import {
@@ -93,7 +94,10 @@ export function addDefaultWorkflowOptions<T extends Workflow>(
  */
 function timerNextHandler({ seq, durationMs, options }: TimerInput) {
   const activator = getActivator();
-  const payloadConverter = activator.payloadConverterWithWorkflowContext();
+  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, {
+    namespace: activator.info.namespace,
+    workflowId: activator.info.workflowId,
+  });
   return new Promise<void>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -169,7 +173,15 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
   const activator = getActivator();
   validateActivityOptions(options);
   const taskQueue = options.taskQueue || activator.info.taskQueue;
-  const payloadConverter = activator.payloadConverterWithActivityContext(activityType, taskQueue, false);
+  const context = {
+    namespace: activator.info.namespace,
+    workflowId: activator.info.workflowId,
+    workflowType: activator.info.workflowType,
+    activityType,
+    activityTaskQueue: taskQueue,
+    isLocal: false,
+  };
+  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, context);
   return new Promise((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -211,7 +223,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
       userMetadata: userMetadataToPayload(payloadConverter, options.summary, undefined),
     });
     // Add at scheduling time; consumed and removed on resolveActivity in Activator.
-    activator.setActivitySerializationContext(seq, activator.activitySerializationContext(activityType, taskQueue, false));
+    activator.serializationContexts.activity.set(seq, context);
     activator.completions.activity.set(seq, {
       resolve,
       reject,
@@ -232,7 +244,15 @@ async function scheduleLocalActivityNextHandler({
   originalScheduleTime,
 }: LocalActivityInput): Promise<unknown> {
   const activator = getActivator();
-  const payloadConverter = activator.payloadConverterWithActivityContext(activityType, activator.info.taskQueue, true);
+  const context = {
+    namespace: activator.info.namespace,
+    workflowId: activator.info.workflowId,
+    workflowType: activator.info.workflowType,
+    activityType,
+    activityTaskQueue: activator.info.taskQueue,
+    isLocal: true,
+  };
+  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, context);
   // Eagerly fail the local activity (which will in turn fail the workflow task.
   // Do not fail on replay where the local activities may not be registered on the replay worker.
   if (!activator.info.unsafe.isReplaying && !activator.registeredActivityNames.has(activityType)) {
@@ -280,10 +300,7 @@ async function scheduleLocalActivityNextHandler({
       userMetadata: userMetadataToPayload(payloadConverter, options.summary, undefined),
     });
     // Add at scheduling time; consumed and removed on resolveActivity in Activator.
-    activator.setActivitySerializationContext(
-      seq,
-      activator.activitySerializationContext(activityType, activator.info.taskQueue, true)
-    );
+    activator.serializationContexts.activity.set(seq, context);
     activator.completions.activity.set(seq, {
       resolve,
       reject,
@@ -374,7 +391,11 @@ function startChildWorkflowExecutionNextHandler({
 }: StartChildWorkflowExecutionInput): Promise<[Promise<string>, Promise<unknown>]> {
   const activator = getActivator();
   const workflowId = options.workflowId ?? uuid4();
-  const payloadConverter = activator.payloadConverterWithWorkflowContext(workflowId);
+  const context = {
+    namespace: activator.info.namespace,
+    workflowId,
+  };
+  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, context);
   const startPromise = new Promise<string>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -423,7 +444,7 @@ function startChildWorkflowExecutionNextHandler({
       userMetadata: userMetadataToPayload(payloadConverter, options?.staticSummary, options?.staticDetails),
     });
     // Add at scheduling time; consumed and removed on child resolve jobs in Activator.
-    activator.setChildWorkflowSerializationContext(seq, activator.workflowSerializationContext(workflowId));
+    activator.serializationContexts.childWorkflow.set(seq, context);
     activator.completions.childWorkflowStart.set(seq, {
       resolve,
       reject,
@@ -451,9 +472,14 @@ function startChildWorkflowExecutionNextHandler({
 
 function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: SignalWorkflowInput) {
   const activator = getActivator();
-  const targetWorkflowId =
-    (target.type === 'external' ? target.workflowExecution.workflowId : target.childWorkflowId) ?? activator.info.workflowId;
-  const payloadConverter = activator.payloadConverterWithWorkflowContext(targetWorkflowId);
+  const targetWorkflowId = (
+    target.type === 'external' ? target.workflowExecution.workflowId : target.childWorkflowId
+  )!;
+  const context = {
+    namespace: activator.info.namespace,
+    workflowId: targetWorkflowId,
+  };
+  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, context);
   return new Promise<any>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -491,7 +517,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
     });
 
     // Add at scheduling time; consumed and removed on resolveSignalExternalWorkflow in Activator.
-    activator.setSignalExternalWorkflowSerializationContext(seq, activator.workflowSerializationContext(targetWorkflowId));
+    activator.serializationContexts.signalExternalWorkflow.set(seq, context);
     activator.completions.signalWorkflow.set(seq, { resolve, reject });
   });
 }
@@ -749,7 +775,10 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
           },
         });
         // Add at scheduling time; consumed and removed on resolveRequestCancelExternalWorkflow in Activator.
-        activator.setCancelExternalWorkflowSerializationContext(seq, activator.workflowSerializationContext(workflowId));
+        activator.serializationContexts.cancelExternalWorkflow.set(seq, {
+          namespace: activator.info.namespace,
+          workflowId,
+        });
         activator.completions.cancelWorkflow.set(seq, { resolve, reject });
       });
     },
@@ -1030,7 +1059,10 @@ export function makeContinueAsNewFunc<F extends Workflow>(
   };
 
   return (...args: Parameters<F>): Promise<never> => {
-    const payloadConverter = activator.payloadConverterWithWorkflowContext();
+    const payloadConverter = withPayloadConverterContext(activator.payloadConverter, {
+      namespace: activator.info.namespace,
+      workflowId: activator.info.workflowId,
+    });
     const fn = composeInterceptors(activator.interceptors.outbound, 'continueAsNew', async (input) => {
       const { headers, args, options } = input;
       throw new ContinueAsNew({
@@ -1686,7 +1718,10 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
  */
 export function upsertMemo(memo: Record<string, unknown>): void {
   const activator = assertInWorkflowContext('Workflow.upsertMemo(...) may only be used from a Workflow Execution.');
-  const payloadConverter = activator.payloadConverterWithWorkflowContext();
+  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, {
+    namespace: activator.info.namespace,
+    workflowId: activator.info.workflowId,
+  });
 
   if (memo == null) {
     throw new Error('memo must be a non-null Record');

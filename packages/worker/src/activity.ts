@@ -5,7 +5,6 @@ import {
   ActivityFunction,
   ApplicationFailure,
   ApplicationFailureCategory,
-  ActivitySerializationContext,
   CancelledFailure,
   ensureApplicationFailure,
   FAILURE_SOURCE,
@@ -15,7 +14,7 @@ import {
   MetricTags,
   SdkComponent,
 } from '@temporalio/common';
-import { encodeErrorToFailure, encodeToPayload, withSerializationContext } from '@temporalio/common/lib/internal-non-workflow';
+import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { Logger, LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
@@ -41,7 +40,6 @@ export class Activity {
   protected cancelReason?: CancelReason;
   protected cancellationDetails: ActivityCancellationDetailsHolder;
   public readonly context: Context;
-  public readonly contextDataConverter: LoadedDataConverter;
   public cancel: (reason: CancelReason, details: ActivityCancellationDetails) => void = () => undefined;
   public readonly abortController: AbortController = new AbortController();
 
@@ -73,15 +71,6 @@ export class Activity {
     workerMetricMeter: MetricMeter,
     interceptors: ActivityInterceptorsFactory[]
   ) {
-    const serializationContext: ActivitySerializationContext = {
-      namespace: info.workflowNamespace,
-      workflowId: info.workflowExecution.workflowId,
-      workflowType: info.workflowType,
-      activityType: info.activityType,
-      activityTaskQueue: info.taskQueue,
-      isLocal: info.isLocal,
-    };
-    this.contextDataConverter = withSerializationContext(dataConverter, serializationContext);
     this.workerLogger = LoggerWithComposedMetadata.compose(workerLogger, this.getLogAttributes.bind(this));
     this.metricMeter = MetricMeterWithComposedTags.compose(workerMetricMeter, this.getMetricTags.bind(this));
     this.cancellationDetails = {};
@@ -201,7 +190,7 @@ export class Activity {
       try {
         if (this.fn === undefined) throw new IllegalStateError('Activity function is not defined');
         const result = await this.executeWithClient(this.fn, input);
-        return { completed: { result: await encodeToPayload(this.contextDataConverter, result) } };
+        return { completed: { result: await encodeToPayload(this.dataConverter, result) } };
       } catch (err) {
         if (err instanceof CompleteAsyncError) {
           return { willCompleteAsync: {} };
@@ -212,7 +201,7 @@ export class Activity {
           return {
             failed: {
               failure: await encodeErrorToFailure(
-                this.contextDataConverter,
+                this.dataConverter,
                 ApplicationFailure.retryable(this.cancelReason, 'CancelledFailure')
               ),
             },
@@ -225,7 +214,7 @@ export class Activity {
               return {
                 failed: {
                   failure: await encodeErrorToFailure(
-                    this.contextDataConverter,
+                    this.dataConverter,
                     new ApplicationFailure('Activity reset', 'ActivityReset')
                   ),
                 },
@@ -234,13 +223,13 @@ export class Activity {
               return {
                 failed: {
                   failure: await encodeErrorToFailure(
-                    this.contextDataConverter,
+                    this.dataConverter,
                     new ApplicationFailure('Activity paused', 'ActivityPause')
                   ),
                 },
               };
             } else {
-              const failure = await encodeErrorToFailure(this.contextDataConverter, err);
+              const failure = await encodeErrorToFailure(this.dataConverter, err);
               failure.stackTrace = undefined;
               return { cancelled: { failure } };
             }
@@ -250,7 +239,7 @@ export class Activity {
         }
         return {
           failed: {
-            failure: await encodeErrorToFailure(this.contextDataConverter, ensureApplicationFailure(err)),
+            failure: await encodeErrorToFailure(this.dataConverter, ensureApplicationFailure(err)),
           },
         };
       }

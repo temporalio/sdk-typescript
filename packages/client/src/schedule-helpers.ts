@@ -9,6 +9,7 @@ import {
   LoadedDataConverter,
 } from '@temporalio/common';
 import { encodeUserMetadata, decodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
+import { withSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 import {
   encodeUnifiedSearchAttributes,
   decodeSearchAttributes,
@@ -20,7 +21,6 @@ import {
   decodeMapFromPayloads,
   encodeMapToPayloads,
   encodeToPayloads,
-  withSerializationContext,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
 import {
@@ -330,10 +330,8 @@ export async function decodeScheduleAction(
   pb: temporal.api.schedule.v1.IScheduleAction
 ): Promise<ScheduleDescriptionAction> {
   if (pb.startWorkflow) {
-    const contextDataConverter = withSerializationContext(dataConverter, {
-      namespace,
-      workflowId: pb.startWorkflow.workflowId!,
-    });
+    const workflowId = pb.startWorkflow.workflowId!;
+    const contextDataConverter = withSerializationContext(dataConverter, { namespace, workflowId });
     const { staticSummary, staticDetails } = await decodeUserMetadata(
       contextDataConverter,
       pb.startWorkflow?.userMetadata
@@ -341,7 +339,7 @@ export async function decodeScheduleAction(
     return {
       type: 'startWorkflow',
 
-      workflowId: pb.startWorkflow.workflowId!,
+      workflowId,
 
       workflowType: pb.startWorkflow.workflowType!.name!,
 

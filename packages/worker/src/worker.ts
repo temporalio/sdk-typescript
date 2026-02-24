@@ -38,13 +38,13 @@ import {
   MetricMeter,
   ActivityCancellationDetails,
 } from '@temporalio/common';
+import { withSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 import {
   decodeArrayFromPayloads,
   Decoded,
   decodeFromPayloadsAtIndex,
   encodeErrorToFailure,
   encodeToPayload,
-  withSerializationContext,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import {
@@ -1072,6 +1072,7 @@ export class Worker {
               switch (variant) {
                 case 'start': {
                   let info: ActivityInfo | undefined = undefined;
+                  let contextDataConverter: LoadedDataConverter = this.options.loadedDataConverter;
                   try {
                     if (activity !== undefined) {
                       throw new IllegalStateError(
@@ -1084,6 +1085,14 @@ export class Worker {
                       this.options.namespace,
                       this.options.taskQueue
                     );
+                    contextDataConverter = withSerializationContext(this.options.loadedDataConverter, {
+                      namespace: info.workflowNamespace,
+                      workflowId: info.workflowExecution.workflowId,
+                      workflowType: info.workflowType,
+                      activityType: info.activityType,
+                      activityTaskQueue: info.taskQueue,
+                      isLocal: info.isLocal,
+                    });
 
                     const { activityType } = info;
                     // Use the corresponding activity if it exists, otherwise, fallback to default activity function (if exists)
@@ -1098,12 +1107,8 @@ export class Worker {
                       });
                     }
                     let args: unknown[];
-                    const activityDataConverter = withSerializationContext(
-                      this.options.loadedDataConverter,
-                      activityInfoToSerializationContext(info)
-                    );
                     try {
-                      args = await decodeArrayFromPayloads(activityDataConverter, task.start?.input);
+                      args = await decodeArrayFromPayloads(contextDataConverter, task.start?.input);
                     } catch (err) {
                       throw ApplicationFailure.fromError(err, {
                         message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(err)}`,
@@ -1121,7 +1126,7 @@ export class Worker {
                     activity = new Activity(
                       info,
                       fn,
-                      this.options.loadedDataConverter,
+                      contextDataConverter,
                       (details) =>
                         this.activityHeartbeatSubject.next({
                           type: 'heartbeat',
@@ -1158,12 +1163,7 @@ export class Worker {
                       result: {
                         failed: {
                           failure: await encodeErrorToFailure(
-                            info
-                              ? withSerializationContext(
-                                  this.options.loadedDataConverter,
-                                  activityInfoToSerializationContext(info)
-                                )
-                              : this.options.loadedDataConverter,
+                            contextDataConverter,
                             error
                           ),
                         },
@@ -1778,7 +1778,14 @@ export class Worker {
               try {
                 const activityDataConverter = withSerializationContext(
                   this.options.loadedDataConverter,
-                  activityInfoToSerializationContext(info)
+                  {
+                    namespace: info.workflowNamespace,
+                    workflowId: info.workflowExecution.workflowId,
+                    workflowType: info.workflowType,
+                    activityType: info.activityType,
+                    activityTaskQueue: info.taskQueue,
+                    isLocal: info.isLocal,
+                  }
                 );
                 payload = await encodeToPayload(activityDataConverter, details);
               } catch (error: any) {
@@ -2213,17 +2220,6 @@ function extractSourceMap(code: string): [string, string] {
   throw new Error("Can't extract inlined source map from the provided Workflow Bundle");
 }
 
-function activityInfoToSerializationContext(info: ActivityInfo): ActivitySerializationContext {
-  return {
-    namespace: info.workflowNamespace,
-    workflowId: info.workflowExecution.workflowId,
-    workflowType: info.workflowType,
-    activityType: info.activityType,
-    activityTaskQueue: info.taskQueue,
-    isLocal: info.isLocal,
-  };
-}
-
 /**
  * Transform an ActivityTask into ActivityInfo to pass on into an Activity
  */
@@ -2236,16 +2232,14 @@ async function extractActivityInfo(
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
-  const workflowId = start.workflowExecution.workflowId ?? '';
-  const context: ActivitySerializationContext = {
+  const contextDataConverter = withSerializationContext(dataConverter, {
     namespace: start.workflowNamespace,
-    workflowId,
+    workflowId: start.workflowExecution.workflowId!,
     workflowType: start.workflowType,
     activityType: start.activityType,
     activityTaskQueue: taskQueue,
     isLocal: start.isLocal,
-  };
-  const contextDataConverter = withSerializationContext(dataConverter, context);
+  });
   const activityId = start.activityId;
   let heartbeatDetails = undefined;
   try {

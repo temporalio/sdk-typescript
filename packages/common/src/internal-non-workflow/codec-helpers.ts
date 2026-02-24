@@ -8,24 +8,10 @@ import {
 } from '../converter/payload-converter';
 import { PayloadConverterError } from '../errors';
 import { PayloadCodec } from '../converter/payload-codec';
-import {
-  withLoadedDataConverterContext,
-  type SerializationContext,
-} from '../converter/serialization-context';
 import { ProtoFailure } from '../failure';
 import { LoadedDataConverter } from '../converter/data-converter';
 import { UserMetadata } from '../user-metadata';
 import { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
-
-/**
- * Return a loaded data converter where supported components are bound to `context`.
- */
-export function withSerializationContext(
-  dataConverter: LoadedDataConverter,
-  context: SerializationContext
-): LoadedDataConverter {
-  return withLoadedDataConverterContext(dataConverter, context);
-}
 
 /**
  * Decode through each codec, starting with the last codec.

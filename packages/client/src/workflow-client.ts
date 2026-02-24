@@ -17,7 +17,6 @@ import {
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
   WorkflowResultType,
-  WorkflowSerializationContext,
   extractWorkflowType,
   encodeWorkflowIdReusePolicy,
   decodeRetryState,
@@ -26,6 +25,7 @@ import {
   compilePriority,
 } from '@temporalio/common';
 import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
+import { withSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { History } from '@temporalio/common/lib/proto-utils';
@@ -37,7 +37,6 @@ import {
   decodeOptionalSinglePayload,
   encodeMapToPayloads,
   encodeToPayloads,
-  withSerializationContext,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { temporal } from '@temporalio/proto';
@@ -525,25 +524,6 @@ export class WorkflowClient extends BaseClient {
     return this.connection.workflowService;
   }
 
-  protected workflowSerializationContext(workflowId: string): WorkflowSerializationContext {
-    return {
-      namespace: this.options.namespace,
-      workflowId,
-    };
-  }
-
-  protected dataConverterWithWorkflowId(workflowId: string) {
-    return withSerializationContext(this.dataConverter, this.workflowSerializationContext(workflowId));
-  }
-
-  protected dataConverterWithExecution(execution: temporal.api.common.v1.IWorkflowExecution | undefined) {
-    const workflowId = execution?.workflowId;
-    if (typeof workflowId !== 'string' || workflowId.length === 0) {
-      return this.dataConverter;
-    }
-    return this.dataConverterWithWorkflowId(workflowId);
-  }
-
   protected async _start<T extends Workflow>(
     workflowTypeOrFunc: string | T,
     options: WorkflowStartOptions<T>,
@@ -810,7 +790,10 @@ export class WorkflowClient extends BaseClient {
     runId?: string,
     opts?: WorkflowResultOptions
   ): Promise<WorkflowResultType<T>> {
-    const dataConverter = this.dataConverterWithWorkflowId(workflowId);
+    const dataConverter = withSerializationContext(this.dataConverter, {
+      namespace: this.options.namespace,
+      workflowId,
+    });
     const followRuns = opts?.followRuns ?? true;
     const execution: temporal.api.common.v1.IWorkflowExecution = { workflowId, runId };
     const req: GetWorkflowExecutionHistoryRequest = {
@@ -959,7 +942,10 @@ export class WorkflowClient extends BaseClient {
    * Used as the final function of the query interceptor chain
    */
   protected async _queryWorkflowHandler(input: WorkflowQueryInput): Promise<unknown> {
-    const dataConverter = this.dataConverterWithExecution(input.workflowExecution);
+    const dataConverter = withSerializationContext(this.dataConverter, {
+      namespace: this.options.namespace,
+      workflowId: input.workflowExecution.workflowId!,
+    });
     const req: temporal.api.workflowservice.v1.IQueryWorkflowRequest = {
       queryRejectCondition: input.queryRejectCondition,
       namespace: this.options.namespace,
@@ -999,7 +985,10 @@ export class WorkflowClient extends BaseClient {
     lifecycleStage: temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage,
     input: WorkflowStartUpdateInput
   ): Promise<temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest> {
-    const dataConverter = this.dataConverterWithExecution(input.workflowExecution);
+    const dataConverter = withSerializationContext(this.dataConverter, {
+      namespace: this.options.namespace,
+      workflowId: input.workflowExecution.workflowId!,
+    });
     const updateId = input.options?.updateId ?? uuid4();
     return {
       namespace: this.options.namespace,
@@ -1160,7 +1149,10 @@ export class WorkflowClient extends BaseClient {
     workflowRunId?: string,
     outcome?: temporal.api.update.v1.IOutcome
   ): WorkflowUpdateHandle<Ret> {
-    const dataConverter = this.dataConverterWithWorkflowId(workflowId);
+    const dataConverter = withSerializationContext(this.dataConverter, {
+      namespace: this.options.namespace,
+      workflowId,
+    });
     return {
       updateId,
       workflowId,
@@ -1203,8 +1195,7 @@ export class WorkflowClient extends BaseClient {
           return response.outcome;
         }
       } catch (err) {
-        const wE = typeof workflowExecution.workflowId === 'string' ? workflowExecution : undefined;
-        this.rethrowUpdateGrpcError(err, 'Workflow Update Poll failed', wE as WorkflowExecution);
+        this.rethrowUpdateGrpcError(err, 'Workflow Update Poll failed', workflowExecution as WorkflowExecution);
       }
     }
   }
@@ -1215,7 +1206,10 @@ export class WorkflowClient extends BaseClient {
    * Used as the final function of the signal interceptor chain
    */
   protected async _signalWorkflowHandler(input: WorkflowSignalInput): Promise<void> {
-    const dataConverter = this.dataConverterWithExecution(input.workflowExecution);
+    const dataConverter = withSerializationContext(this.dataConverter, {
+      namespace: this.options.namespace,
+      workflowId: input.workflowExecution.workflowId!,
+    });
     const req: temporal.api.workflowservice.v1.ISignalWorkflowExecutionRequest = {
       identity: this.options.identity,
       namespace: this.options.namespace,
@@ -1241,7 +1235,10 @@ export class WorkflowClient extends BaseClient {
   protected async _signalWithStartWorkflowHandler(input: WorkflowSignalWithStartInput): Promise<string> {
     const { identity } = this.options;
     const { options, workflowType, signalName, signalArgs, headers } = input;
-    const dataConverter = this.dataConverterWithWorkflowId(options.workflowId);
+    const dataConverter = withSerializationContext(this.dataConverter, {
+      namespace: this.options.namespace,
+      workflowId: options.workflowId,
+    });
     const req: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest = {
       namespace: this.options.namespace,
       identity,
@@ -1322,7 +1319,10 @@ export class WorkflowClient extends BaseClient {
   protected async createStartWorkflowRequest(input: WorkflowStartInput): Promise<StartWorkflowExecutionRequest> {
     const { options: opts, workflowType, headers } = input;
     const { identity, namespace } = this.options;
-    const dataConverter = this.dataConverterWithWorkflowId(opts.workflowId);
+    const dataConverter = withSerializationContext(this.dataConverter, {
+      namespace: this.options.namespace,
+      workflowId: opts.workflowId,
+    });
     const internalOptions = (opts as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
     const supportsEagerStart = (this.connection as InternalConnectionLike)?.[InternalConnectionLikeSymbol]
       ?.supportsEagerStart;
@@ -1377,7 +1377,10 @@ export class WorkflowClient extends BaseClient {
   protected async _terminateWorkflowHandler(
     input: WorkflowTerminateInput
   ): Promise<TerminateWorkflowExecutionResponse> {
-    const dataConverter = this.dataConverterWithExecution(input.workflowExecution);
+    const dataConverter = withSerializationContext(this.dataConverter, {
+      namespace: this.options.namespace,
+      workflowId: input.workflowExecution.workflowId!,
+    });
     const req: temporal.api.workflowservice.v1.ITerminateWorkflowExecutionRequest = {
       namespace: this.options.namespace,
       identity: this.options.identity,
@@ -1499,7 +1502,10 @@ export class WorkflowClient extends BaseClient {
         const raw = await fn({
           workflowExecution: { workflowId, runId },
         });
-        const dataConverter = this.client.dataConverterWithWorkflowId(workflowId);
+        const dataConverter = withSerializationContext(this.client.dataConverter, {
+          namespace: this.client.options.namespace,
+          workflowId,
+        });
         const info = await executionInfoFromRaw(raw.workflowExecutionInfo ?? {}, dataConverter, raw);
         const userMetadata = raw.executionConfig?.userMetadata;
         return {
@@ -1623,9 +1629,10 @@ export class WorkflowClient extends BaseClient {
       // Decoding is done for `memo` fields which tend to be small.
       // We might decide to change that based on user feedback.
       for (const raw of response.executions) {
-        const workflowId = raw.execution?.workflowId;
-        const dataConverter =
-          typeof workflowId === 'string' ? this.dataConverterWithWorkflowId(workflowId) : this.dataConverter;
+        const dataConverter = withSerializationContext(this.dataConverter, {
+          namespace: this.options.namespace,
+          workflowId: raw.execution!.workflowId!,
+        });
         yield await executionInfoFromRaw(raw, dataConverter, raw);
       }
       nextPageToken = response.nextPageToken;
