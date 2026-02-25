@@ -4,3 +4,4 @@ export * from './smorgasbord';
 export * from './success-string';
 export * from './throw-maybe-benign';
 export * from './update-start-otel';
+export * from './prng-isolation';
