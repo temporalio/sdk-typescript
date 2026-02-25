@@ -38,6 +38,7 @@ import {
 import { ContextManager } from './context-manager';
 import { SpanName, SPAN_DELIMITER } from './definitions';
 import { SpanExporter } from './span-exporter';
+import { DeterministicIdGenerator, resetIdGenerator } from './id-generator';
 import { workflowInfo, ContinueAsNew, getActivator, SdkFlags } from './workflow-imports';
 
 export * from './definitions';
@@ -51,6 +52,7 @@ function getTracer(): otel.Tracer {
   }
   if (tracer === undefined) {
     const provider = new tracing.BasicTracerProvider({
+      idGenerator: new DeterministicIdGenerator(),
       spanProcessors: [new tracing.SimpleSpanProcessor(new SpanExporter())],
     });
     otel.propagation.setGlobalPropagator(new W3CTraceContextPropagator());
@@ -326,6 +328,7 @@ export class OpenTelemetryInternalsInterceptor implements WorkflowInternalsInter
     if (contextManager !== undefined) {
       contextManager.disable();
     }
+    resetIdGenerator();
     next(input);
   }
 }

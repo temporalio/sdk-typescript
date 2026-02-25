@@ -16,6 +16,7 @@ import type {
 } from '@temporalio/workflow';
 import type { getActivator as getActivatorT } from '@temporalio/workflow/lib/global-attributes';
 import type { SdkFlags as SdkFlagsT } from '@temporalio/workflow/lib/flags';
+import type { alea as aleaT, RNG } from '@temporalio/workflow/lib/alea';
 
 import { IllegalStateError } from '@temporalio/common';
 
@@ -40,3 +41,9 @@ export const proxySinks: typeof proxySinksT = () => {
 };
 
 export const SdkFlags: typeof SdkFlagsT = {} as typeof SdkFlagsT;
+
+export type { RNG };
+
+export const alea: typeof aleaT = () => {
+  throw new IllegalStateError('alea may only be used from a Workflow Execution.');
+};
