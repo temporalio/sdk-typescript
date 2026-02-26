@@ -1,0 +1,796 @@
+{
+  "events": [
+    {
+      "eventId": "1",
+      "eventTime": "2026-02-25T14:57:14.909195Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+      "taskId": "1176734",
+      "workflowExecutionStartedEventAttributes": {
+        "workflowType": {
+          "name": "smorgasbord"
+        },
+        "taskQueue": {
+          "name": "test-otel-record-history",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "Mg=="
+            }
+          ]
+        },
+        "workflowRunTimeout": "0s",
+        "workflowTaskTimeout": "10s",
+        "continuedExecutionRunId": "fd207c92-65bb-4acb-9917-71033c267734",
+        "initiator": "CONTINUE_AS_NEW_INITIATOR_WORKFLOW",
+        "originalExecutionRunId": "68d80caf-aef3-46e3-98d2-e28dbca9d759",
+        "firstExecutionRunId": "019c954d-d895-7e57-af1e-8a96bd82816d",
+        "attempt": 1,
+        "prevAutoResetPoints": {
+          "points": [
+            {
+              "runId": "019c954d-d895-7e57-af1e-8a96bd82816d",
+              "firstWorkflowTaskCompletedId": "4",
+              "createTime": "2026-02-25T14:57:12.900229Z",
+              "expireTime": "2026-02-26T14:57:12.900432Z",
+              "resettable": true,
+              "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+            }
+          ]
+        },
+        "header": {
+          "fields": {
+            "_tracer-data": {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJ0cmFjZXBhcmVudCI6IjAwLWRiOTdiMjIwMmUyYWFkN2RlNDA5YzM2ZGRkMTc3MWNmLTM5NWViOTY0MTQ4YTVlYTEtMDEifQ=="
+            }
+          }
+        },
+        "workflowId": "cdddebed-19ae-49ce-80ff-c848b66545d6"
+      }
+    },
+    {
+      "eventId": "2",
+      "eventTime": "2026-02-25T14:57:14.909253Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1176735",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "test-otel-record-history",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "3",
+      "eventTime": "2026-02-25T14:57:14.911852Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1176742",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "21239@mac.lan",
+        "requestId": "9dbf5dc1-9554-430f-8825-e463d6093ac1",
+        "historySizeBytes": "620",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        }
+      }
+    },
+    {
+      "eventId": "4",
+      "eventTime": "2026-02-25T14:57:14.923803Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1176746",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "2",
+        "startedEventId": "3",
+        "identity": "21239@mac.lan",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        },
+        "sdkMetadata": {
+          "coreUsedFlags": [
+            1,
+            2,
+            3
+          ],
+          "langUsedFlags": [
+            5,
+            4
+          ],
+          "sdkName": "temporal-typescript",
+          "sdkVersion": "1.15.0"
+        },
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "5",
+      "eventTime": "2026-02-25T14:57:14.923830Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+      "taskId": "1176747",
+      "activityTaskScheduledEventAttributes": {
+        "activityId": "1",
+        "activityType": {
+          "name": "fakeProgress"
+        },
+        "taskQueue": {
+          "name": "test-otel-record-history",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "header": {
+          "fields": {
+            "_tracer-data": {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJ0cmFjZXBhcmVudCI6IjAwLWRiOTdiMjIwMmUyYWFkN2RlNDA5YzM2ZGRkMTc3MWNmLTJiN2EwNGFiMzNmYTIzNjctMDEifQ=="
+            }
+          }
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "MTAw"
+            },
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "MTA="
+            }
+          ]
+        },
+        "scheduleToCloseTimeout": "0s",
+        "scheduleToStartTimeout": "0s",
+        "startToCloseTimeout": "60s",
+        "heartbeatTimeout": "0s",
+        "workflowTaskCompletedEventId": "4",
+        "retryPolicy": {
+          "initialInterval": "1s",
+          "backoffCoefficient": 2,
+          "maximumInterval": "100s"
+        },
+        "useWorkflowBuildId": true
+      }
+    },
+    {
+      "eventId": "6",
+      "eventTime": "2026-02-25T14:57:14.923844Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+      "taskId": "1176748",
+      "activityTaskScheduledEventAttributes": {
+        "activityId": "2",
+        "activityType": {
+          "name": "queryOwnWf"
+        },
+        "taskQueue": {
+          "name": "test-otel-record-history",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "header": {
+          "fields": {
+            "_tracer-data": {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJ0cmFjZXBhcmVudCI6IjAwLWRiOTdiMjIwMmUyYWFkN2RlNDA5YzM2ZGRkMTc3MWNmLTVmZjZiODZlN2U2OWY4MWUtMDEifQ=="
+            }
+          }
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJ0eXBlIjoicXVlcnkiLCJuYW1lIjoic3RlcCJ9"
+            }
+          ]
+        },
+        "scheduleToCloseTimeout": "0s",
+        "scheduleToStartTimeout": "0s",
+        "startToCloseTimeout": "60s",
+        "heartbeatTimeout": "0s",
+        "workflowTaskCompletedEventId": "4",
+        "retryPolicy": {
+          "initialInterval": "1s",
+          "backoffCoefficient": 2,
+          "maximumInterval": "100s"
+        },
+        "useWorkflowBuildId": true
+      }
+    },
+    {
+      "eventId": "7",
+      "eventTime": "2026-02-25T14:57:14.923850Z",
+      "eventType": "EVENT_TYPE_TIMER_STARTED",
+      "taskId": "1176749",
+      "timerStartedEventAttributes": {
+        "timerId": "1",
+        "startToFireTimeout": "1s",
+        "workflowTaskCompletedEventId": "4"
+      }
+    },
+    {
+      "eventId": "8",
+      "eventTime": "2026-02-25T14:57:14.924005Z",
+      "eventType": "EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED",
+      "taskId": "1176750",
+      "startChildWorkflowExecutionInitiatedEventAttributes": {
+        "namespace": "default",
+        "workflowId": "09f59c5f-5485-4d79-b0db-553311ba45af",
+        "workflowType": {
+          "name": "signalTarget"
+        },
+        "taskQueue": {
+          "name": "test-otel-record-history",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "workflowRunTimeout": "0s",
+        "workflowTaskTimeout": "10s",
+        "parentClosePolicy": "PARENT_CLOSE_POLICY_TERMINATE",
+        "workflowTaskCompletedEventId": "4",
+        "workflowIdReusePolicy": "WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE",
+        "header": {
+          "fields": {
+            "_tracer-data": {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJ0cmFjZXBhcmVudCI6IjAwLWRiOTdiMjIwMmUyYWFkN2RlNDA5YzM2ZGRkMTc3MWNmLTVmMzY1NTJjZjM1ZGE1YTktMDEifQ=="
+            }
+          }
+        },
+        "memo": {
+          "fields": {}
+        },
+        "searchAttributes": {
+          "indexedFields": {}
+        },
+        "namespaceId": "019c1ffb-866d-7923-92d6-91b5cd447e46",
+        "inheritBuildId": true
+      }
+    },
+    {
+      "eventId": "9",
+      "eventTime": "2026-02-25T14:57:14.924017Z",
+      "eventType": "EVENT_TYPE_MARKER_RECORDED",
+      "taskId": "1176751",
+      "markerRecordedEventAttributes": {
+        "details": {
+          "data": {
+            "payloads": [
+              {
+                "metadata": {
+                  "encoding": "anNvbi9wbGFpbg=="
+                },
+                "data": "eyJzZXEiOjMsImF0dGVtcHQiOjEsImFjdGl2aXR5X2lkIjoiMyIsImFjdGl2aXR5X3R5cGUiOiJlY2hvIiwiY29tcGxldGVfdGltZSI6eyJzZWNvbmRzIjoxNzcyMDMxNDM0LCJuYW5vcyI6OTEyNDg2NTgzfSwiYmFja29mZiI6bnVsbCwib3JpZ2luYWxfc2NoZWR1bGVfdGltZSI6eyJzZWNvbmRzIjoxNzcyMDMxNDM0LCJuYW5vcyI6OTIxMjgyMDAwfX0="
+              }
+            ]
+          },
+          "result": {
+            "payloads": [
+              {
+                "metadata": {
+                  "encoding": "anNvbi9wbGFpbg=="
+                },
+                "data": "ImxvY2FsLWFjdGl2aXR5Ig=="
+              }
+            ]
+          }
+        },
+        "markerName": "core_local_activity",
+        "workflowTaskCompletedEventId": "4"
+      }
+    },
+    {
+      "eventId": "10",
+      "eventTime": "2026-02-25T14:57:14.925178Z",
+      "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED",
+      "taskId": "1176762",
+      "childWorkflowExecutionStartedEventAttributes": {
+        "namespace": "default",
+        "initiatedEventId": "8",
+        "workflowExecution": {
+          "workflowId": "09f59c5f-5485-4d79-b0db-553311ba45af",
+          "runId": "019c954d-e0ac-7c50-8742-b7f8e872e889"
+        },
+        "workflowType": {
+          "name": "signalTarget"
+        },
+        "header": {
+          "fields": {
+            "_tracer-data": {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJ0cmFjZXBhcmVudCI6IjAwLWRiOTdiMjIwMmUyYWFkN2RlNDA5YzM2ZGRkMTc3MWNmLTVmMzY1NTJjZjM1ZGE1YTktMDEifQ=="
+            }
+          }
+        },
+        "namespaceId": "019c1ffb-866d-7923-92d6-91b5cd447e46"
+      }
+    },
+    {
+      "eventId": "11",
+      "eventTime": "2026-02-25T14:57:14.925182Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1176763",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "21239@mac.lan-b092b43e50124306ad901ff99b92f80a",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "test-otel-record-history"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "12",
+      "eventTime": "2026-02-25T14:57:14.927434Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1176774",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "11",
+        "identity": "21239@mac.lan",
+        "requestId": "6da477dc-868a-4d63-bd2f-e63083caa2fd",
+        "historySizeBytes": "2650",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        }
+      }
+    },
+    {
+      "eventId": "13",
+      "eventTime": "2026-02-25T14:57:14.934184Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1176785",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "11",
+        "startedEventId": "12",
+        "identity": "21239@mac.lan",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "14",
+      "eventTime": "2026-02-25T14:57:14.934201Z",
+      "eventType": "EVENT_TYPE_SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_INITIATED",
+      "taskId": "1176786",
+      "signalExternalWorkflowExecutionInitiatedEventAttributes": {
+        "workflowTaskCompletedEventId": "13",
+        "namespace": "default",
+        "workflowExecution": {
+          "workflowId": "09f59c5f-5485-4d79-b0db-553311ba45af"
+        },
+        "signalName": "unblock",
+        "childWorkflowOnly": true,
+        "header": {
+          "fields": {
+            "_tracer-data": {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJ0cmFjZXBhcmVudCI6IjAwLWRiOTdiMjIwMmUyYWFkN2RlNDA5YzM2ZGRkMTc3MWNmLWIyNTkwNzg0YWVkMTMwN2EtMDEifQ=="
+            }
+          }
+        },
+        "namespaceId": "019c1ffb-866d-7923-92d6-91b5cd447e46"
+      }
+    },
+    {
+      "eventId": "15",
+      "eventTime": "2026-02-25T14:57:14.929624Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED",
+      "taskId": "1176787",
+      "workflowExecutionSignaledEventAttributes": {
+        "signalName": "activityStarted",
+        "input": {},
+        "identity": "21239@mac.lan",
+        "header": {
+          "fields": {
+            "_tracer-data": {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "e30="
+            }
+          }
+        }
+      }
+    },
+    {
+      "eventId": "16",
+      "eventTime": "2026-02-25T14:57:14.934211Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1176788",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "21239@mac.lan-b092b43e50124306ad901ff99b92f80a",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "test-otel-record-history"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "17",
+      "eventTime": "2026-02-25T14:57:14.934212Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1176789",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "16",
+        "identity": "21239@mac.lan",
+        "requestId": "request-from-RespondWorkflowTaskCompleted",
+        "historySizeBytes": "2830",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        }
+      }
+    },
+    {
+      "eventId": "18",
+      "eventTime": "2026-02-25T14:57:14.941611Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1176808",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "16",
+        "startedEventId": "17",
+        "identity": "21239@mac.lan",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        },
+        "sdkMetadata": {
+          "langUsedFlags": [
+            2,
+            3
+          ]
+        },
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "19",
+      "eventTime": "2026-02-25T14:57:14.935951Z",
+      "eventType": "EVENT_TYPE_EXTERNAL_WORKFLOW_EXECUTION_SIGNALED",
+      "taskId": "1176809",
+      "externalWorkflowExecutionSignaledEventAttributes": {
+        "initiatedEventId": "14",
+        "namespace": "default",
+        "workflowExecution": {
+          "workflowId": "09f59c5f-5485-4d79-b0db-553311ba45af"
+        },
+        "namespaceId": "019c1ffb-866d-7923-92d6-91b5cd447e46"
+      }
+    },
+    {
+      "eventId": "20",
+      "eventTime": "2026-02-25T14:57:14.940949Z",
+      "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED",
+      "taskId": "1176810",
+      "childWorkflowExecutionCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "YmluYXJ5L251bGw="
+              }
+            }
+          ]
+        },
+        "namespace": "default",
+        "workflowExecution": {
+          "workflowId": "09f59c5f-5485-4d79-b0db-553311ba45af",
+          "runId": "019c954d-e0ac-7c50-8742-b7f8e872e889"
+        },
+        "workflowType": {
+          "name": "signalTarget"
+        },
+        "initiatedEventId": "8",
+        "startedEventId": "10",
+        "namespaceId": "019c1ffb-866d-7923-92d6-91b5cd447e46"
+      }
+    },
+    {
+      "eventId": "21",
+      "eventTime": "2026-02-25T14:57:14.941622Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1176811",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "21239@mac.lan-b092b43e50124306ad901ff99b92f80a",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "test-otel-record-history"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "22",
+      "eventTime": "2026-02-25T14:57:14.941624Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1176812",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "21",
+        "identity": "21239@mac.lan",
+        "requestId": "request-from-RespondWorkflowTaskCompleted",
+        "historySizeBytes": "3626",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        }
+      }
+    },
+    {
+      "eventId": "23",
+      "eventTime": "2026-02-25T14:57:14.943920Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1176816",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "21",
+        "startedEventId": "22",
+        "identity": "21239@mac.lan",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "24",
+      "eventTime": "2026-02-25T14:57:14.925799Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+      "taskId": "1176817",
+      "activityTaskStartedEventAttributes": {
+        "scheduledEventId": "6",
+        "identity": "21239@mac.lan",
+        "requestId": "001dd426-ff9e-4edb-9857-af4fb603df8c",
+        "attempt": 1,
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        }
+      }
+    },
+    {
+      "eventId": "25",
+      "eventTime": "2026-02-25T14:57:14.942693Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+      "taskId": "1176818",
+      "activityTaskCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "Mg=="
+            }
+          ]
+        },
+        "scheduledEventId": "6",
+        "startedEventId": "24",
+        "identity": "21239@mac.lan"
+      }
+    },
+    {
+      "eventId": "26",
+      "eventTime": "2026-02-25T14:57:14.943934Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1176819",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "21239@mac.lan-b092b43e50124306ad901ff99b92f80a",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "test-otel-record-history"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "27",
+      "eventTime": "2026-02-25T14:57:14.943935Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1176820",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "26",
+        "identity": "21239@mac.lan",
+        "requestId": "request-from-RespondWorkflowTaskCompleted",
+        "historySizeBytes": "4388",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        }
+      }
+    },
+    {
+      "eventId": "28",
+      "eventTime": "2026-02-25T14:57:14.945884Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1176823",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "26",
+        "startedEventId": "27",
+        "identity": "21239@mac.lan",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "29",
+      "eventTime": "2026-02-25T14:57:15.925643Z",
+      "eventType": "EVENT_TYPE_TIMER_FIRED",
+      "taskId": "1176825",
+      "timerFiredEventAttributes": {
+        "timerId": "1",
+        "startedEventId": "7"
+      }
+    },
+    {
+      "eventId": "30",
+      "eventTime": "2026-02-25T14:57:15.925650Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1176826",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "21239@mac.lan-b092b43e50124306ad901ff99b92f80a",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "test-otel-record-history"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "31",
+      "eventTime": "2026-02-25T14:57:15.927302Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1176830",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "30",
+        "identity": "21239@mac.lan",
+        "requestId": "b6a218a1-404d-42c9-968a-06d077f37573",
+        "historySizeBytes": "5370",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        }
+      }
+    },
+    {
+      "eventId": "32",
+      "eventTime": "2026-02-25T14:57:15.931793Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1176834",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "30",
+        "startedEventId": "31",
+        "identity": "21239@mac.lan",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "33",
+      "eventTime": "2026-02-25T14:57:14.927158Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+      "taskId": "1176836",
+      "activityTaskStartedEventAttributes": {
+        "scheduledEventId": "5",
+        "identity": "21239@mac.lan",
+        "requestId": "317baba1-6a78-4ff1-8771-d9b1a293ae96",
+        "attempt": 1,
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        }
+      }
+    },
+    {
+      "eventId": "34",
+      "eventTime": "2026-02-25T14:57:15.943085Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+      "taskId": "1176837",
+      "activityTaskCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "YmluYXJ5L251bGw="
+              }
+            }
+          ]
+        },
+        "scheduledEventId": "5",
+        "startedEventId": "33",
+        "identity": "21239@mac.lan"
+      }
+    },
+    {
+      "eventId": "35",
+      "eventTime": "2026-02-25T14:57:15.943089Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1176838",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "21239@mac.lan-b092b43e50124306ad901ff99b92f80a",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "test-otel-record-history"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "36",
+      "eventTime": "2026-02-25T14:57:15.944032Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1176842",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "35",
+        "identity": "21239@mac.lan",
+        "requestId": "9afc6de1-32e7-4848-ace6-a1c4de0ce4ba",
+        "historySizeBytes": "6059",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        }
+      }
+    },
+    {
+      "eventId": "37",
+      "eventTime": "2026-02-25T14:57:15.949011Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1176846",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "35",
+        "startedEventId": "36",
+        "identity": "21239@mac.lan",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "38",
+      "eventTime": "2026-02-25T14:57:15.949031Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
+      "taskId": "1176847",
+      "workflowExecutionCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "YmluYXJ5L251bGw="
+              }
+            }
+          ]
+        },
+        "workflowTaskCompletedEventId": "37"
+      }
+    }
+  ]
+}

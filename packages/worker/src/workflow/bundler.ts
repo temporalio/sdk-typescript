@@ -223,7 +223,7 @@ exports.importInterceptors = function importInterceptors() {
         // Outside of workflow context the module used only contains stubs that will error if they are used.
         // When creating the workflow bundle we replace the module containing the stubs with a module that reexports the actual implementations.
         new NormalModuleReplacementPlugin(
-          /[\\/](?:@temporalio|packages)[\\/]interceptors-opentelemetry[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
+          /[\\/](?:@temporalio|packages)[\\/]interceptors-opentelemetry(?:-v2)?[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
           './workflow-imports-impl.js'
         ),
       ],
