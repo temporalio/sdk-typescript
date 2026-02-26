@@ -20,6 +20,10 @@ export async function echo(message?: string): Promise<string> {
   return message;
 }
 
+export async function echoTracer<T>(value: T): Promise<T> {
+  return value;
+}
+
 export async function httpGet(url: string): Promise<string> {
   return `<html><body>hello from ${url}</body></html>`;
 }

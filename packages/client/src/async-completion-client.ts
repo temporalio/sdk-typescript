@@ -1,5 +1,6 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { ensureTemporalFailure } from '@temporalio/common';
+import { ensureTemporalFailure, SerializationContext } from '@temporalio/common';
+import { withSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 import { encodeErrorToFailure, encodeToPayloads } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
@@ -81,6 +82,7 @@ export interface FullActivityId {
  */
 export class AsyncCompletionClient extends BaseClient {
   public readonly options: LoadedAsyncCompletionClientOptions;
+  private context?: SerializationContext;
 
   constructor(options?: AsyncCompletionClientOptions) {
     super(options);
@@ -99,6 +101,20 @@ export class AsyncCompletionClient extends BaseClient {
    */
   get workflowService(): WorkflowService {
     return this.connection.workflowService;
+  }
+
+  /**
+   * Return a client instance with all serialization operations bound to `context`.
+   */
+  withContext(context: SerializationContext): AsyncCompletionClient {
+    const client = new AsyncCompletionClient({
+      connection: this.connection,
+      dataConverter: this.dataConverter,
+      identity: this.options.identity,
+      namespace: this.options.namespace,
+    });
+    client.context = context;
+    return client;
   }
 
   /**
@@ -127,7 +143,10 @@ export class AsyncCompletionClient extends BaseClient {
   async complete(fullActivityId: FullActivityId, result: unknown): Promise<void>;
 
   async complete(taskTokenOrFullActivityId: Uint8Array | FullActivityId, result: unknown): Promise<void> {
-    const payloads = await encodeToPayloads(this.dataConverter, result);
+    const dataConverter = this.context
+      ? withSerializationContext(this.dataConverter, this.context)
+      : this.dataConverter;
+    const payloads = await encodeToPayloads(dataConverter, result);
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
         await this.workflowService.respondActivityTaskCompleted({
@@ -159,7 +178,10 @@ export class AsyncCompletionClient extends BaseClient {
   async fail(fullActivityId: FullActivityId, err: unknown): Promise<void>;
 
   async fail(taskTokenOrFullActivityId: Uint8Array | FullActivityId, err: unknown): Promise<void> {
-    const failure = await encodeErrorToFailure(this.dataConverter, ensureTemporalFailure(err));
+    const dataConverter = this.context
+      ? withSerializationContext(this.dataConverter, this.context)
+      : this.dataConverter;
+    const failure = await encodeErrorToFailure(dataConverter, ensureTemporalFailure(err));
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
         await this.workflowService.respondActivityTaskFailed({
@@ -191,7 +213,10 @@ export class AsyncCompletionClient extends BaseClient {
   reportCancellation(fullActivityId: FullActivityId, details?: unknown): Promise<void>;
 
   async reportCancellation(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
-    const payloads = await encodeToPayloads(this.dataConverter, details);
+    const dataConverter = this.context
+      ? withSerializationContext(this.dataConverter, this.context)
+      : this.dataConverter;
+    const payloads = await encodeToPayloads(dataConverter, details);
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
         await this.workflowService.respondActivityTaskCanceled({
@@ -223,7 +248,10 @@ export class AsyncCompletionClient extends BaseClient {
   heartbeat(fullActivityId: FullActivityId, details?: unknown): Promise<void>;
 
   async heartbeat(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
-    const payloads = await encodeToPayloads(this.dataConverter, details);
+    const dataConverter = this.context
+      ? withSerializationContext(this.dataConverter, this.context)
+      : this.dataConverter;
+    const payloads = await encodeToPayloads(dataConverter, details);
     let cancelRequested = false;
     let paused = false;
     let reset = false;

@@ -36,7 +36,9 @@ import {
   CancelledFailure,
   MetricMeter,
   ActivityCancellationDetails,
+  ActivitySerializationContext,
 } from '@temporalio/common';
+import { withSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 import {
   decodeArrayFromPayloads,
   Decoded,
@@ -824,7 +826,11 @@ export class Worker {
     protected _connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
-    this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodecs);
+    this.workflowCodecRunner = new WorkflowCodecRunner(
+      options.loadedDataConverter.payloadCodecs,
+      options.namespace,
+      options.taskQueue
+    );
   }
 
   /**
@@ -1066,6 +1072,7 @@ export class Worker {
               switch (variant) {
                 case 'start': {
                   let info: ActivityInfo | undefined = undefined;
+                  let contextDataConverter: LoadedDataConverter = this.options.loadedDataConverter;
                   try {
                     if (activity !== undefined) {
                       throw new IllegalStateError(
@@ -1078,6 +1085,14 @@ export class Worker {
                       this.options.namespace,
                       this.options.taskQueue
                     );
+                    const context: ActivitySerializationContext = {
+                      namespace: info.workflowNamespace,
+                      activityId: info.activityId,
+                      ...(info.workflowExecution.workflowId ? { workflowId: info.workflowExecution.workflowId } : {}),
+                      ...(info.workflowType ? { workflowType: info.workflowType } : {}),
+                      isLocal: info.isLocal,
+                    };
+                    contextDataConverter = withSerializationContext(this.options.loadedDataConverter, context);
 
                     const { activityType } = info;
                     // Use the corresponding activity if it exists, otherwise, fallback to default activity function (if exists)
@@ -1093,7 +1108,7 @@ export class Worker {
                     }
                     let args: unknown[];
                     try {
-                      args = await decodeArrayFromPayloads(this.options.loadedDataConverter, task.start?.input);
+                      args = await decodeArrayFromPayloads(contextDataConverter, task.start?.input);
                     } catch (err) {
                       throw ApplicationFailure.fromError(err, {
                         message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(err)}`,
@@ -1111,7 +1126,7 @@ export class Worker {
                     activity = new Activity(
                       info,
                       fn,
-                      this.options.loadedDataConverter,
+                      contextDataConverter,
                       (details) =>
                         this.activityHeartbeatSubject.next({
                           type: 'heartbeat',
@@ -1147,7 +1162,7 @@ export class Worker {
                       type: 'result',
                       result: {
                         failed: {
-                          failure: await encodeErrorToFailure(this.options.loadedDataConverter, error),
+                          failure: await encodeErrorToFailure(contextDataConverter, error),
                         },
                       },
                     };
@@ -1381,6 +1396,7 @@ export class Worker {
       tap(({ close }) => {
         this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value - 1);
         if (close) {
+          this.workflowCodecRunner.forgetRun(activations$.key);
           activations$.close();
           this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value - 1);
         }
@@ -1757,7 +1773,15 @@ export class Worker {
             let payload: Payload;
             try {
               try {
-                payload = await encodeToPayload(this.options.loadedDataConverter, details);
+                const context: ActivitySerializationContext = {
+                  namespace: info.workflowNamespace,
+                  activityId: info.activityId,
+                  ...(info.workflowExecution.workflowId ? { workflowId: info.workflowExecution.workflowId } : {}),
+                  ...(info.workflowType ? { workflowType: info.workflowType } : {}),
+                  isLocal: info.isLocal,
+                };
+                const activityDataConverter = withSerializationContext(this.options.loadedDataConverter, context);
+                payload = await encodeToPayload(activityDataConverter, details);
               } catch (error: any) {
                 this.logger.warn('Failed to encode heartbeat details, cancelling Activity', {
                   error,
@@ -2202,10 +2226,18 @@ async function extractActivityInfo(
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
+  const context: ActivitySerializationContext = {
+    namespace: start.workflowNamespace || activityNamespace,
+    activityId: start.activityId || undefined,
+    ...(start.workflowExecution?.workflowId ? { workflowId: start.workflowExecution.workflowId } : {}),
+    ...(start.workflowType ? { workflowType: start.workflowType } : {}),
+    isLocal: start.isLocal,
+  };
+  const contextDataConverter = withSerializationContext(dataConverter, context);
   const activityId = start.activityId;
   let heartbeatDetails = undefined;
   try {
-    heartbeatDetails = await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails);
+    heartbeatDetails = await decodeFromPayloadsAtIndex(contextDataConverter, 0, start.heartbeatDetails);
   } catch (e) {
     throw ApplicationFailure.fromError(e, {
       message: `Failed to parse heartbeat details for activity ${activityId}: ${errorMessage(e)}`,

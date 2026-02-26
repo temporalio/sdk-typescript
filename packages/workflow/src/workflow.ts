@@ -36,6 +36,10 @@ import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
 import { deepMerge } from '@temporalio/common/lib/internal-workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
+import {
+  ActivitySerializationContext,
+  withPayloadConverterContext,
+} from '@temporalio/common/lib/converter/serialization-context';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import {
@@ -93,6 +97,10 @@ export function addDefaultWorkflowOptions<T extends Workflow>(
  */
 function timerNextHandler({ seq, durationMs, options }: TimerInput) {
   const activator = getActivator();
+  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, {
+    namespace: activator.info.namespace,
+    workflowId: activator.info.workflowId,
+  });
   return new Promise<void>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -119,7 +127,7 @@ function timerNextHandler({ seq, durationMs, options }: TimerInput) {
         seq,
         startToFireTimeout: msToTs(durationMs),
       },
-      userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined),
+      userMetadata: userMetadataToPayload(payloadConverter, options?.summary, undefined),
     });
     activator.completions.timer.set(seq, {
       resolve,
@@ -167,6 +175,16 @@ const validateLocalActivityOptions = validateActivityOptions;
 function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
   const activator = getActivator();
   validateActivityOptions(options);
+  const taskQueue = options.taskQueue || activator.info.taskQueue;
+  const activityId = options.activityId ?? `${seq}`;
+  const context: ActivitySerializationContext = {
+    namespace: activator.info.namespace,
+    activityId,
+    workflowId: activator.info.workflowId,
+    workflowType: activator.info.workflowType,
+    isLocal: false,
+  };
+  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, context);
   return new Promise((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -190,11 +208,11 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
     activator.pushCommand({
       scheduleActivity: {
         seq,
-        activityId: options.activityId ?? `${seq}`,
+        activityId,
         activityType,
-        arguments: toPayloads(activator.payloadConverter, ...args),
+        arguments: toPayloads(payloadConverter, ...args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
-        taskQueue: options.taskQueue || activator.info.taskQueue,
+        taskQueue,
         heartbeatTimeout: msOptionalToTs(options.heartbeatTimeout),
         scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
@@ -205,8 +223,10 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line @typescript-eslint/no-deprecated
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
-      userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined),
+      userMetadata: userMetadataToPayload(payloadConverter, options.summary, undefined),
     });
+    // Add at scheduling time; consumed and removed on resolveActivity in Activator.
+    activator.serializationContexts.activity.set(seq, context);
     activator.completions.activity.set(seq, {
       resolve,
       reject,
@@ -227,6 +247,15 @@ async function scheduleLocalActivityNextHandler({
   originalScheduleTime,
 }: LocalActivityInput): Promise<unknown> {
   const activator = getActivator();
+  const activityId = `${seq}`;
+  const context: ActivitySerializationContext = {
+    namespace: activator.info.namespace,
+    activityId,
+    workflowId: activator.info.workflowId,
+    workflowType: activator.info.workflowType,
+    isLocal: true,
+  };
+  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, context);
   // Eagerly fail the local activity (which will in turn fail the workflow task.
   // Do not fail on replay where the local activities may not be registered on the replay worker.
   if (!activator.info.unsafe.isReplaying && !activator.registeredActivityNames.has(activityType)) {
@@ -260,9 +289,9 @@ async function scheduleLocalActivityNextHandler({
         attempt,
         originalScheduleTime,
         // Intentionally not exposing activityId as an option
-        activityId: `${seq}`,
+        activityId,
         activityType,
-        arguments: toPayloads(activator.payloadConverter, ...args),
+        arguments: toPayloads(payloadConverter, ...args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
@@ -271,8 +300,10 @@ async function scheduleLocalActivityNextHandler({
         headers,
         cancellationType: encodeActivityCancellationType(options.cancellationType),
       },
-      userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined),
+      userMetadata: userMetadataToPayload(payloadConverter, options.summary, undefined),
     });
+    // Add at scheduling time; consumed and removed on resolveActivity in Activator.
+    activator.serializationContexts.activity.set(seq, context);
     activator.completions.activity.set(seq, {
       resolve,
       reject,
@@ -363,6 +394,11 @@ function startChildWorkflowExecutionNextHandler({
 }: StartChildWorkflowExecutionInput): Promise<[Promise<string>, Promise<unknown>]> {
   const activator = getActivator();
   const workflowId = options.workflowId ?? uuid4();
+  const context = {
+    namespace: activator.info.namespace,
+    workflowId,
+  };
+  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, context);
   const startPromise = new Promise<string>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -388,7 +424,7 @@ function startChildWorkflowExecutionNextHandler({
         seq,
         workflowId,
         workflowType,
-        input: toPayloads(activator.payloadConverter, ...options.args),
+        input: toPayloads(payloadConverter, ...options.args),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || activator.info.taskQueue,
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
@@ -404,12 +440,14 @@ function startChildWorkflowExecutionNextHandler({
           options.searchAttributes || options.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
             ? encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) // eslint-disable-line @typescript-eslint/no-deprecated
             : undefined,
-        memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
+        memo: options.memo && mapToPayloads(payloadConverter, options.memo),
         versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line @typescript-eslint/no-deprecated
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
-      userMetadata: userMetadataToPayload(activator.payloadConverter, options?.staticSummary, options?.staticDetails),
+      userMetadata: userMetadataToPayload(payloadConverter, options?.staticSummary, options?.staticDetails),
     });
+    // Add at scheduling time; consumed and removed on child resolve jobs in Activator.
+    activator.serializationContexts.childWorkflow.set(seq, context);
     activator.completions.childWorkflowStart.set(seq, {
       resolve,
       reject,
@@ -437,6 +475,12 @@ function startChildWorkflowExecutionNextHandler({
 
 function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: SignalWorkflowInput) {
   const activator = getActivator();
+  const targetWorkflowId = (target.type === 'external' ? target.workflowExecution.workflowId : target.childWorkflowId)!;
+  const context = {
+    namespace: activator.info.namespace,
+    workflowId: targetWorkflowId,
+  };
+  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, context);
   return new Promise<any>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -457,7 +501,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
     activator.pushCommand({
       signalExternalWorkflowExecution: {
         seq,
-        args: toPayloads(activator.payloadConverter, ...args),
+        args: toPayloads(payloadConverter, ...args),
         headers,
         signalName,
         ...(target.type === 'external'
@@ -473,6 +517,8 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
       },
     });
 
+    // Add at scheduling time; consumed and removed on resolveSignalExternalWorkflow in Activator.
+    activator.serializationContexts.signalExternalWorkflow.set(seq, context);
     activator.completions.signalWorkflow.set(seq, { resolve, reject });
   });
 }
@@ -728,6 +774,11 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
               runId,
             },
           },
+        });
+        // Add at scheduling time; consumed and removed on resolveRequestCancelExternalWorkflow in Activator.
+        activator.serializationContexts.cancelExternalWorkflow.set(seq, {
+          namespace: activator.info.namespace,
+          workflowId,
         });
         activator.completions.cancelWorkflow.set(seq, { resolve, reject });
       });
@@ -1009,14 +1060,18 @@ export function makeContinueAsNewFunc<F extends Workflow>(
   };
 
   return (...args: Parameters<F>): Promise<never> => {
+    const payloadConverter = withPayloadConverterContext(activator.payloadConverter, {
+      namespace: activator.info.namespace,
+      workflowId: activator.info.workflowId,
+    });
     const fn = composeInterceptors(activator.interceptors.outbound, 'continueAsNew', async (input) => {
       const { headers, args, options } = input;
       throw new ContinueAsNew({
         workflowType: options.workflowType,
-        arguments: toPayloads(activator.payloadConverter, ...args),
+        arguments: toPayloads(payloadConverter, ...args),
         headers,
         taskQueue: options.taskQueue,
-        memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
+        memo: options.memo && mapToPayloads(payloadConverter, options.memo),
         searchAttributes:
           options.searchAttributes || options.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
             ? encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) // eslint-disable-line @typescript-eslint/no-deprecated
@@ -1664,6 +1719,10 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
  */
 export function upsertMemo(memo: Record<string, unknown>): void {
   const activator = assertInWorkflowContext('Workflow.upsertMemo(...) may only be used from a Workflow Execution.');
+  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, {
+    namespace: activator.info.namespace,
+    workflowId: activator.info.workflowId,
+  });
 
   if (memo == null) {
     throw new Error('memo must be a non-null Record');
@@ -1673,7 +1732,7 @@ export function upsertMemo(memo: Record<string, unknown>): void {
     modifyWorkflowProperties: {
       upsertedMemo: {
         fields: mapToPayloads(
-          activator.payloadConverter,
+          payloadConverter,
           // Convert null to undefined
           Object.fromEntries(Object.entries(memo).map(([k, v]) => [k, v ?? undefined]))
         ),
