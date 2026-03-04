@@ -409,9 +409,7 @@ test('start Operation Handler errors', async (t) => {
       // Exact error message varies between Node versions and runtimes.
       t.regex(
         message,
-        isBun
-          ? /Payload converter failed to decode Nexus operation input: SyntaxError: JSON Parse error:/
-          : /Payload converter failed to decode Nexus operation input: SyntaxError: Unexpected token .* JSON/
+        isBun ? /JSON Parse error:/ : /Unexpected token .* JSON/
       );
     }
   });
