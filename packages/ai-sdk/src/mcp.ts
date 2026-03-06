@@ -48,7 +48,7 @@ export class TemporalMCPClient {
             const activities = workflow.proxyActivities({
               summary: toolName,
               startToCloseTimeout: '10 minutes',
-              ...this.options,
+              ...this.options.activityOptions,
             });
             const callActivity = activities[this.options.name + '-callTool']!;
             return await callActivity({ name: toolName, input, options, clientArgs: this.options.clientArgs });
