@@ -198,7 +198,12 @@ export class WorkflowCodecRunner {
                   : undefined;
 
               const initializeContext = job.initializeWorkflow?.workflowId
-                ? { type: 'workflow' as const, namespace: this.namespace, workflowId: job.initializeWorkflow.workflowId, workflowType: job.initializeWorkflow.workflowType ?? undefined }
+                ? {
+                    type: 'workflow' as const,
+                    namespace: this.namespace,
+                    workflowId: job.initializeWorkflow.workflowId,
+                    workflowType: job.initializeWorkflow.workflowType ?? undefined,
+                  }
                 : workflowContext;
               const initializeCodecs = this.codecsForContext(initializeContext);
               const workflowCodecs = this.codecsForContext(workflowContext);

@@ -588,7 +588,12 @@ export class Activator implements ActivationHandler {
 
   public initializeWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
     const { continuedFailure, lastCompletionResult, memo, searchAttributes } = activation;
-    const workflowContext = { type: 'workflow' as const, namespace: this.info.namespace, workflowId: this.info.workflowId, workflowType: this.info.workflowType };
+    const workflowContext = {
+      type: 'workflow' as const,
+      namespace: this.info.namespace,
+      workflowId: this.info.workflowId,
+      workflowType: this.info.workflowType,
+    };
     const payloadConverter = withPayloadConverterContext(this.payloadConverter, workflowContext);
     const failureConverter = withFailureConverterContext(this.failureConverter, workflowContext);
 
@@ -1390,14 +1395,24 @@ export class Activator implements ActivationHandler {
   }
 
   errorToFailure(err: unknown): ProtoFailure {
-    const workflowContext = { type: 'workflow' as const, namespace: this.info.namespace, workflowId: this.info.workflowId, workflowType: this.info.workflowType };
+    const workflowContext = {
+      type: 'workflow' as const,
+      namespace: this.info.namespace,
+      workflowId: this.info.workflowId,
+      workflowType: this.info.workflowType,
+    };
     const payloadConverter = withPayloadConverterContext(this.payloadConverter, workflowContext);
     const failureConverter = withFailureConverterContext(this.failureConverter, workflowContext);
     return failureConverter.errorToFailure(err, payloadConverter);
   }
 
   failureToError(failure: ProtoFailure): Error {
-    const workflowContext = { type: 'workflow' as const, namespace: this.info.namespace, workflowId: this.info.workflowId, workflowType: this.info.workflowType };
+    const workflowContext = {
+      type: 'workflow' as const,
+      namespace: this.info.namespace,
+      workflowId: this.info.workflowId,
+      workflowType: this.info.workflowType,
+    };
     const payloadConverter = withPayloadConverterContext(this.payloadConverter, workflowContext);
     const failureConverter = withFailureConverterContext(this.failureConverter, workflowContext);
     return failureConverter.failureToError(failure, payloadConverter);

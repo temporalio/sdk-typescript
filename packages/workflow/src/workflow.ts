@@ -403,7 +403,7 @@ function startChildWorkflowExecutionNextHandler({
     type: 'workflow',
     namespace: activator.info.namespace,
     workflowId,
-    workflowType: workflowType,
+    workflowType,
   };
   const payloadConverter = withPayloadConverterContext(activator.payloadConverter, context);
   const startPromise = new Promise<string>((resolve, reject) => {

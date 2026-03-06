@@ -88,7 +88,13 @@ if (RUN_INTEGRATION_TESTS) {
     });
 
     // Workflow activities default activityId to seq, and this workflow schedules a single activity first.
-    const activityTag = activityContextTag({ type: 'activity', namespace, workflowId, activityId: '1', isLocal: false });
+    const activityTag = activityContextTag({
+      type: 'activity',
+      namespace,
+      workflowId,
+      activityId: '1',
+      isLocal: false,
+    });
     // Local activities share the activity seq counter, so the local activity (scheduled second) gets activityId '2'.
     const localActivityTag = activityContextTag({
       type: 'activity',
@@ -312,7 +318,11 @@ if (RUN_INTEGRATION_TESTS) {
         activityId: unboundInfo.activityId,
         isLocal: false,
       });
-      const unboundWorkflowTag = workflowContextTag({ type: 'workflow', namespace, workflowId: workflowIdUnboundToken });
+      const unboundWorkflowTag = workflowContextTag({
+        type: 'workflow',
+        namespace,
+        workflowId: workflowIdUnboundToken,
+      });
       // Unbound token without withContext(): same as by-ID — no client context
       t.deepEqual(unboundResult.trace, [
         `to:none`,
