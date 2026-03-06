@@ -73,8 +73,10 @@ export class WorkflowCodecRunner {
     }
     return {
       workflowContext: {
+        type: 'workflow',
         namespace: this.namespace,
         workflowId: initializeWorkflow.workflowId,
+        workflowType: initializeWorkflow.workflowType ?? undefined,
       },
       workflowType: initializeWorkflow.workflowType ?? '',
       activityContexts: new Map(),
@@ -106,6 +108,7 @@ export class WorkflowCodecRunner {
   ): ActivitySerializationContext | undefined {
     return runState
       ? {
+          type: 'activity',
           namespace: runState.workflowContext.namespace,
           activityId: activityId ?? undefined,
           workflowId: runState.workflowContext.workflowId,
@@ -119,7 +122,7 @@ export class WorkflowCodecRunner {
     runState: WorkflowCodecRunState | undefined,
     workflowId: string | null | undefined
   ): WorkflowSerializationContext | undefined {
-    return runState ? { namespace: this.namespace, workflowId: workflowId ?? '' } : undefined;
+    return runState ? { type: 'workflow', namespace: this.namespace, workflowId: workflowId ?? '' } : undefined;
   }
 
   protected setContextIfPresent<T>(
@@ -195,7 +198,7 @@ export class WorkflowCodecRunner {
                   : undefined;
 
               const initializeContext = job.initializeWorkflow?.workflowId
-                ? { namespace: this.namespace, workflowId: job.initializeWorkflow.workflowId }
+                ? { type: 'workflow' as const, namespace: this.namespace, workflowId: job.initializeWorkflow.workflowId, workflowType: job.initializeWorkflow.workflowType ?? undefined }
                 : workflowContext;
               const initializeCodecs = this.codecsForContext(initializeContext);
               const workflowCodecs = this.codecsForContext(workflowContext);

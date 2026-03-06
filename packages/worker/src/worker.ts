@@ -1086,10 +1086,11 @@ export class Worker {
                       this.options.taskQueue
                     );
                     const context: ActivitySerializationContext = {
+                      type: 'activity',
                       namespace: info.workflowNamespace,
                       activityId: info.activityId,
-                      ...(info.workflowExecution.workflowId ? { workflowId: info.workflowExecution.workflowId } : {}),
-                      ...(info.workflowType ? { workflowType: info.workflowType } : {}),
+                      workflowId: info.workflowExecution.workflowId,
+                      workflowType: info.workflowType,
                       isLocal: info.isLocal,
                     };
                     contextDataConverter = withSerializationContext(this.options.loadedDataConverter, context);
@@ -1774,10 +1775,11 @@ export class Worker {
             try {
               try {
                 const context: ActivitySerializationContext = {
+                  type: 'activity',
                   namespace: info.workflowNamespace,
                   activityId: info.activityId,
-                  ...(info.workflowExecution.workflowId ? { workflowId: info.workflowExecution.workflowId } : {}),
-                  ...(info.workflowType ? { workflowType: info.workflowType } : {}),
+                  workflowId: info.workflowExecution.workflowId,
+                  workflowType: info.workflowType,
                   isLocal: info.isLocal,
                 };
                 const activityDataConverter = withSerializationContext(this.options.loadedDataConverter, context);
@@ -2227,10 +2229,11 @@ async function extractActivityInfo(
   const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
   const context: ActivitySerializationContext = {
+    type: 'activity',
     namespace: start.workflowNamespace || activityNamespace,
     activityId: start.activityId || undefined,
-    ...(start.workflowExecution?.workflowId ? { workflowId: start.workflowExecution.workflowId } : {}),
-    ...(start.workflowType ? { workflowType: start.workflowType } : {}),
+    workflowId: start.workflowExecution?.workflowId ?? undefined,
+    workflowType: start.workflowType ?? undefined,
     isLocal: start.isLocal,
   };
   const contextDataConverter = withSerializationContext(dataConverter, context);

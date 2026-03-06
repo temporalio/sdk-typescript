@@ -4,18 +4,7 @@ import { filter } from 'rxjs/operators';
 import { firstValueFrom, Observable, Subject } from 'rxjs';
 import { Client } from '@temporalio/client';
 import { Info } from '@temporalio/activity';
-import {
-  DataConverter,
-  FailureConverter,
-  LoadedDataConverter,
-  Payload,
-  PayloadCodec,
-  PayloadConverter,
-  ProtoFailure,
-  SerializationContext,
-  defaultPayloadConverter,
-} from '@temporalio/common';
-import { withSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
+import { DataConverter } from '@temporalio/common';
 import { RUN_INTEGRATION_TESTS, TestWorkflowEnvironment, Worker, bundlerOptions } from './helpers';
 import * as activities from './activities';
 import { createActivities } from './activities/async-completer';
@@ -32,126 +21,6 @@ import {
   serializationContextUpdate,
   serializationContextWorkflow,
 } from './workflows/serialization-context';
-
-const test = anyTest as TestFn;
-
-class IdentityPayloadConverter implements PayloadConverter {
-  constructor(private readonly context?: SerializationContext) {}
-
-  toPayload(value: unknown): Payload {
-    return defaultPayloadConverter.toPayload(value);
-  }
-
-  fromPayload<T>(payload: Payload): T {
-    return defaultPayloadConverter.fromPayload(payload);
-  }
-
-  withContext(context: SerializationContext): PayloadConverter {
-    if (this.context === context) return this;
-    return new IdentityPayloadConverter(context);
-  }
-}
-
-class IdentityFailureConverter implements FailureConverter {
-  constructor(private readonly context?: SerializationContext) {}
-
-  errorToFailure(err: unknown): ProtoFailure {
-    return { message: String(err ?? '') };
-  }
-
-  failureToError(failure: ProtoFailure): Error {
-    return new Error(failure.message ?? '');
-  }
-
-  withContext(context: SerializationContext): FailureConverter {
-    if (this.context === context) return this;
-    return new IdentityFailureConverter(context);
-  }
-}
-
-class IdentityCodec implements PayloadCodec {
-  constructor(private readonly context?: SerializationContext) {}
-
-  async encode(payloads: Payload[]): Promise<Payload[]> {
-    return payloads;
-  }
-
-  async decode(payloads: Payload[]): Promise<Payload[]> {
-    return payloads;
-  }
-
-  withContext(context: SerializationContext): PayloadCodec {
-    if (this.context === context) return this;
-    return new IdentityCodec(context);
-  }
-}
-
-test('withSerializationContext preserves converter identity for no-op withContext hooks', (t) => {
-  const payloadConverter: PayloadConverter = {
-    toPayload(value: unknown): Payload {
-      return defaultPayloadConverter.toPayload(value);
-    },
-    fromPayload<T>(payload: Payload): T {
-      return defaultPayloadConverter.fromPayload(payload);
-    },
-    withContext() {
-      return this;
-    },
-  };
-  const failureConverter: FailureConverter = {
-    errorToFailure(err: unknown): ProtoFailure {
-      return { message: String(err ?? '') };
-    },
-    failureToError(failure: ProtoFailure): Error {
-      return new Error(failure.message ?? '');
-    },
-    withContext() {
-      return this;
-    },
-  };
-  const codec: PayloadCodec = {
-    async encode(payloads: Payload[]): Promise<Payload[]> {
-      return payloads;
-    },
-    async decode(payloads: Payload[]): Promise<Payload[]> {
-      return payloads;
-    },
-    withContext() {
-      return this;
-    },
-  };
-
-  const converter: LoadedDataConverter = {
-    payloadConverter,
-    failureConverter,
-    payloadCodecs: [codec],
-  };
-  const context = { namespace: 'default', workflowId: 'wid' };
-  const withContext = withSerializationContext(converter, context);
-
-  // Guards the fast path: no unnecessary wrapper allocation when all components are identity.
-  t.is(withContext, converter);
-});
-
-test('withSerializationContext rebinds supported converter components', (t) => {
-  const context = { namespace: 'default', workflowId: 'wid' };
-
-  const payloadConverter = new IdentityPayloadConverter();
-  const failureConverter = new IdentityFailureConverter();
-  const codec = new IdentityCodec();
-  const converter: LoadedDataConverter = {
-    payloadConverter,
-    failureConverter,
-    payloadCodecs: [codec],
-  };
-
-  const withContextConverter = withSerializationContext(converter, context);
-
-  t.not(withContextConverter, converter);
-  t.not(withContextConverter.payloadConverter, payloadConverter);
-  t.not(withContextConverter.failureConverter, failureConverter);
-  t.not(withContextConverter.payloadCodecs[0], codec);
-});
 
 interface IntegrationContext {
   env: TestWorkflowEnvironment;
@@ -196,12 +65,12 @@ if (RUN_INTEGRATION_TESTS) {
     const childWorkflowId = `child-${randomUUID()}`;
     const signalTargetWorkflowId = `missing-signal-${randomUUID()}`;
     const cancelTargetWorkflowId = `missing-cancel-${randomUUID()}`;
-    const workflowTag = workflowContextTag({ namespace, workflowId });
-    const childWorkflowTag = workflowContextTag({ namespace, workflowId: childWorkflowId });
-    const signalWorkflowTag = workflowContextTag({ namespace, workflowId: signalTargetWorkflowId });
-    const cancelWorkflowTag = workflowContextTag({ namespace, workflowId: cancelTargetWorkflowId });
+    const workflowTag = workflowContextTag({ type: 'workflow', namespace, workflowId });
+    const childWorkflowTag = workflowContextTag({ type: 'workflow', namespace, workflowId: childWorkflowId });
+    const signalWorkflowTag = workflowContextTag({ type: 'workflow', namespace, workflowId: signalTargetWorkflowId });
+    const cancelWorkflowTag = workflowContextTag({ type: 'workflow', namespace, workflowId: cancelTargetWorkflowId });
 
-    await worker.runUntil(async () => {
+    const { result, queryResult, updateResult } = await worker.runUntil(async () => {
       const handle = await client.workflow.start(serializationContextWorkflow, {
         workflowId,
         taskQueue,
@@ -215,66 +84,83 @@ if (RUN_INTEGRATION_TESTS) {
       await handle.signal(serializationContextFinishSignal, makeTracer('finish-signal-input'));
 
       const result = await handle.result();
-
-      // Workflow activities default activityId to seq, and this workflow schedules a single activity first.
-      const activityTag = activityContextTag({ namespace, workflowId, activityId: '1', isLocal: false });
-
-      // Start input: client encodes → workflow decodes
-      t.deepEqual(result.startInput.trace, [`to:${workflowTag}`, `from:${workflowTag}`]);
-
-      // Activity result: workflow encodes args → worker decodes args → worker encodes result → workflow decodes result
-      t.deepEqual(result.activityResult.trace, [
-        `to:${activityTag}`,
-        `from:${activityTag}`,
-        `to:${activityTag}`,
-        `from:${activityTag}`,
-      ]);
-
-      // Child workflow result: parent encodes input → child decodes args → child encodes return → parent decodes result
-      t.deepEqual(result.childResult.trace, [
-        `to:${childWorkflowTag}`,
-        `from:${childWorkflowTag}`,
-        `to:${childWorkflowTag}`,
-        `from:${childWorkflowTag}`,
-      ]);
-
-      // Query input: client encodes → workflow decodes
-      t.deepEqual(result.seenQueryInput.trace, [`to:${workflowTag}`, `from:${workflowTag}`]);
-
-      // Query result: workflow encodes response → client decodes (round trip through codec runner)
-      t.deepEqual(queryResult.trace, [
-        `to:${workflowTag}`,
-        `from:${workflowTag}`,
-        `to:${workflowTag}`,
-        `from:${workflowTag}`,
-      ]);
-
-      // Update input: client encodes → workflow decodes
-      t.deepEqual(result.seenUpdateInput.trace, [`to:${workflowTag}`, `from:${workflowTag}`]);
-
-      // Update result: workflow encodes response → client decodes
-      t.deepEqual(updateResult.trace, [
-        `to:${workflowTag}`,
-        `from:${workflowTag}`,
-        `to:${workflowTag}`,
-        `from:${workflowTag}`,
-      ]);
-
-      // Signal input: client encodes → workflow decodes
-      t.deepEqual(result.seenSignalInput.trace, [`to:${workflowTag}`, `from:${workflowTag}`]);
-
-      // External signal failure: error message contains target workflow's context tag
-      t.true(
-        result.signalExternalErrorMessage.includes(`failureToError:${signalWorkflowTag}`),
-        `signalExternal error missing context tag: ${result.signalExternalErrorMessage}`
-      );
-
-      // External cancel failure: error message contains target workflow's context tag
-      t.true(
-        result.cancelExternalErrorMessage.includes(`failureToError:${cancelWorkflowTag}`),
-        `cancelExternal error missing context tag: ${result.cancelExternalErrorMessage}`
-      );
+      return { result, queryResult, updateResult };
     });
+
+    // Workflow activities default activityId to seq, and this workflow schedules a single activity first.
+    const activityTag = activityContextTag({ type: 'activity', namespace, workflowId, activityId: '1', isLocal: false });
+    // Local activities share the activity seq counter, so the local activity (scheduled second) gets activityId '2'.
+    const localActivityTag = activityContextTag({
+      type: 'activity',
+      namespace,
+      workflowId,
+      activityId: '2',
+      isLocal: true,
+    });
+
+    // Start input: client encodes → workflow decodes
+    t.deepEqual(result.startInput.trace, [`to:${workflowTag}`, `from:${workflowTag}`]);
+
+    // Activity result: workflow encodes args → worker decodes args → worker encodes result → workflow decodes result
+    t.deepEqual(result.activityResult.trace, [
+      `to:${activityTag}`,
+      `from:${activityTag}`,
+      `to:${activityTag}`,
+      `from:${activityTag}`,
+    ]);
+
+    // Local activity result: same round-trip but with isLocal=true context
+    t.deepEqual(result.localActivityResult.trace, [
+      `to:${localActivityTag}`,
+      `from:${localActivityTag}`,
+      `to:${localActivityTag}`,
+      `from:${localActivityTag}`,
+    ]);
+
+    // Child workflow result: parent encodes input → child decodes args → child encodes return → parent decodes result
+    t.deepEqual(result.childResult.trace, [
+      `to:${childWorkflowTag}`,
+      `from:${childWorkflowTag}`,
+      `to:${childWorkflowTag}`,
+      `from:${childWorkflowTag}`,
+    ]);
+
+    // Query input: client encodes → workflow decodes
+    t.deepEqual(result.seenQueryInput.trace, [`to:${workflowTag}`, `from:${workflowTag}`]);
+
+    // Query result: workflow encodes response → client decodes (round trip through codec runner)
+    t.deepEqual(queryResult.trace, [
+      `to:${workflowTag}`,
+      `from:${workflowTag}`,
+      `to:${workflowTag}`,
+      `from:${workflowTag}`,
+    ]);
+
+    // Update input: client encodes → workflow decodes
+    t.deepEqual(result.seenUpdateInput.trace, [`to:${workflowTag}`, `from:${workflowTag}`]);
+
+    // Update result: workflow encodes response → client decodes
+    t.deepEqual(updateResult.trace, [
+      `to:${workflowTag}`,
+      `from:${workflowTag}`,
+      `to:${workflowTag}`,
+      `from:${workflowTag}`,
+    ]);
+
+    // Signal input: client encodes → workflow decodes
+    t.deepEqual(result.seenSignalInput.trace, [`to:${workflowTag}`, `from:${workflowTag}`]);
+
+    // External signal failure: error message contains target workflow's context tag
+    t.true(
+      result.signalExternalErrorMessage.includes(`failureToError:${signalWorkflowTag}`),
+      `signalExternal error missing context tag: ${result.signalExternalErrorMessage}`
+    );
+
+    // External cancel failure: error message contains target workflow's context tag
+    t.true(
+      result.cancelExternalErrorMessage.includes(`failureToError:${cancelWorkflowTag}`),
+      `cancelExternal error missing context tag: ${result.cancelExternalErrorMessage}`
+    );
   });
 
   integrationTest.serial('schedule action conversions use target workflow serialization context', async (t) => {
@@ -288,7 +174,7 @@ if (RUN_INTEGRATION_TESTS) {
     const namespace = client.options.namespace;
     const scheduleId = `serialization-context-schedule-${randomUUID()}`;
     const actionWorkflowId = `scheduled-${randomUUID()}`;
-    const workflowTag = workflowContextTag({ namespace, workflowId: actionWorkflowId });
+    const workflowTag = workflowContextTag({ type: 'workflow', namespace, workflowId: actionWorkflowId });
 
     const handle = await client.schedule.create({
       scheduleId,
@@ -368,12 +254,13 @@ if (RUN_INTEGRATION_TESTS) {
       );
       const byIdResult = (await byIdHandle.result()) as Tracer;
       const byIdActivityTag = activityContextTag({
+        type: 'activity',
         namespace,
         workflowId: workflowIdById,
         activityId: byIdInfo.activityId,
         isLocal: false,
       });
-      const byIdWorkflowTag = workflowContextTag({ namespace, workflowId: workflowIdById });
+      const byIdWorkflowTag = workflowContextTag({ type: 'workflow', namespace, workflowId: workflowIdById });
       // By-ID without withContext(): client encodes with no context → worker decodes with activity context →
       // workflow encodes return → client decodes
       t.deepEqual(byIdResult.trace, [
@@ -390,16 +277,17 @@ if (RUN_INTEGRATION_TESTS) {
       });
       const boundInfo = await activityStarted(workflowIdBoundToken);
       await client.activity
-        .withContext({ namespace, workflowId: workflowIdBoundToken })
+        .withContext({ type: 'workflow', namespace, workflowId: workflowIdBoundToken })
         .complete(boundInfo.taskToken, makeTracer('async-bound-token'));
       const boundResult = (await boundHandle.result()) as Tracer;
       const boundActivityTag = activityContextTag({
+        type: 'activity',
         namespace,
         workflowId: workflowIdBoundToken,
         activityId: boundInfo.activityId,
         isLocal: false,
       });
-      const boundWorkflowTag = workflowContextTag({ namespace, workflowId: workflowIdBoundToken });
+      const boundWorkflowTag = workflowContextTag({ type: 'workflow', namespace, workflowId: workflowIdBoundToken });
       // Bound token with withContext(): client encodes with workflow context → worker decodes with activity context →
       // workflow encodes return → client decodes
       t.deepEqual(boundResult.trace, [
@@ -418,12 +306,13 @@ if (RUN_INTEGRATION_TESTS) {
       await client.activity.complete(unboundInfo.taskToken, makeTracer('async-unbound-token'));
       const unboundResult = (await unboundHandle.result()) as Tracer;
       const unboundActivityTag = activityContextTag({
+        type: 'activity',
         namespace,
         workflowId: workflowIdUnboundToken,
         activityId: unboundInfo.activityId,
         isLocal: false,
       });
-      const unboundWorkflowTag = workflowContextTag({ namespace, workflowId: workflowIdUnboundToken });
+      const unboundWorkflowTag = workflowContextTag({ type: 'workflow', namespace, workflowId: workflowIdUnboundToken });
       // Unbound token without withContext(): same as by-ID — no client context
       t.deepEqual(unboundResult.trace, [
         `to:none`,

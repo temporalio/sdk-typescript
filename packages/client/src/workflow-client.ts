@@ -791,6 +791,7 @@ export class WorkflowClient extends BaseClient {
     opts?: WorkflowResultOptions
   ): Promise<WorkflowResultType<T>> {
     const dataConverter = withSerializationContext(this.dataConverter, {
+      type: 'workflow',
       namespace: this.options.namespace,
       workflowId,
     });
@@ -940,6 +941,7 @@ export class WorkflowClient extends BaseClient {
    */
   protected async _queryWorkflowHandler(input: WorkflowQueryInput): Promise<unknown> {
     const dataConverter = withSerializationContext(this.dataConverter, {
+      type: 'workflow',
       namespace: this.options.namespace,
       workflowId: input.workflowExecution.workflowId!,
     });
@@ -983,6 +985,7 @@ export class WorkflowClient extends BaseClient {
     input: WorkflowStartUpdateInput
   ): Promise<temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest> {
     const dataConverter = withSerializationContext(this.dataConverter, {
+      type: 'workflow',
       namespace: this.options.namespace,
       workflowId: input.workflowExecution.workflowId!,
     });
@@ -1147,6 +1150,7 @@ export class WorkflowClient extends BaseClient {
     outcome?: temporal.api.update.v1.IOutcome
   ): WorkflowUpdateHandle<Ret> {
     const dataConverter = withSerializationContext(this.dataConverter, {
+      type: 'workflow',
       namespace: this.options.namespace,
       workflowId,
     });
@@ -1204,6 +1208,7 @@ export class WorkflowClient extends BaseClient {
    */
   protected async _signalWorkflowHandler(input: WorkflowSignalInput): Promise<void> {
     const dataConverter = withSerializationContext(this.dataConverter, {
+      type: 'workflow',
       namespace: this.options.namespace,
       workflowId: input.workflowExecution.workflowId!,
     });
@@ -1233,8 +1238,10 @@ export class WorkflowClient extends BaseClient {
     const { identity } = this.options;
     const { options, workflowType, signalName, signalArgs, headers } = input;
     const dataConverter = withSerializationContext(this.dataConverter, {
+      type: 'workflow',
       namespace: this.options.namespace,
       workflowId: options.workflowId,
+      workflowType,
     });
     const req: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest = {
       namespace: this.options.namespace,
@@ -1317,8 +1324,10 @@ export class WorkflowClient extends BaseClient {
     const { options: opts, workflowType, headers } = input;
     const { identity, namespace } = this.options;
     const dataConverter = withSerializationContext(this.dataConverter, {
+      type: 'workflow',
       namespace: this.options.namespace,
       workflowId: opts.workflowId,
+      workflowType,
     });
     const internalOptions = (opts as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
     const supportsEagerStart = (this.connection as InternalConnectionLike)?.[InternalConnectionLikeSymbol]
@@ -1375,6 +1384,7 @@ export class WorkflowClient extends BaseClient {
     input: WorkflowTerminateInput
   ): Promise<TerminateWorkflowExecutionResponse> {
     const dataConverter = withSerializationContext(this.dataConverter, {
+      type: 'workflow',
       namespace: this.options.namespace,
       workflowId: input.workflowExecution.workflowId!,
     });
@@ -1500,6 +1510,7 @@ export class WorkflowClient extends BaseClient {
           workflowExecution: { workflowId, runId },
         });
         const dataConverter = withSerializationContext(this.client.dataConverter, {
+          type: 'workflow',
           namespace: this.client.options.namespace,
           workflowId,
         });
@@ -1627,8 +1638,10 @@ export class WorkflowClient extends BaseClient {
       // We might decide to change that based on user feedback.
       for (const raw of response.executions) {
         const dataConverter = withSerializationContext(this.dataConverter, {
+          type: 'workflow',
           namespace: this.options.namespace,
           workflowId: raw.execution!.workflowId!,
+          workflowType: raw.type?.name ?? undefined,
         });
         yield await executionInfoFromRaw(raw, dataConverter, raw);
       }

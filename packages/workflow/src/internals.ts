@@ -570,8 +570,10 @@ export class Activator implements ActivationHandler {
   public startWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
     const execute = composeInterceptors(this.interceptors.inbound, 'execute', this.startWorkflowNextHandler.bind(this));
     const payloadConverter = withPayloadConverterContext(this.payloadConverter, {
+      type: 'workflow',
       namespace: this.info.namespace,
       workflowId: this.info.workflowId,
+      workflowType: this.info.workflowType,
     });
 
     untrackPromise(
@@ -586,7 +588,7 @@ export class Activator implements ActivationHandler {
 
   public initializeWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
     const { continuedFailure, lastCompletionResult, memo, searchAttributes } = activation;
-    const workflowContext = { namespace: this.info.namespace, workflowId: this.info.workflowId };
+    const workflowContext = { type: 'workflow' as const, namespace: this.info.namespace, workflowId: this.info.workflowId, workflowType: this.info.workflowType };
     const payloadConverter = withPayloadConverterContext(this.payloadConverter, workflowContext);
     const failureConverter = withFailureConverterContext(this.failureConverter, workflowContext);
 
@@ -757,8 +759,10 @@ export class Activator implements ActivationHandler {
 
     if (activation.result?.completed) {
       const result = withPayloadConverterContext(this.payloadConverter, {
+        type: 'workflow',
         namespace: this.info.namespace,
         workflowId: this.info.workflowId,
+        workflowType: this.info.workflowType,
       }).fromPayload(activation.result.completed);
 
       // It is possible for ResolveNexusOperation to be received without a prior ResolveNexusOperationStart,
@@ -833,8 +837,10 @@ export class Activator implements ActivationHandler {
     const interceptors = isInternalQuery ? [] : this.interceptors.inbound;
     const execute = composeInterceptors(interceptors, 'handleQuery', this.queryWorkflowNextHandler.bind(this));
     const payloadConverter = withPayloadConverterContext(this.payloadConverter, {
+      type: 'workflow',
       namespace: this.info.namespace,
       workflowId: this.info.workflowId,
+      workflowType: this.info.workflowType,
     });
     execute({
       queryName: queryType,
@@ -890,8 +896,10 @@ export class Activator implements ActivationHandler {
 
     const makeInput = (): UpdateInput => {
       const payloadConverter = withPayloadConverterContext(this.payloadConverter, {
+        type: 'workflow',
         namespace: this.info.namespace,
         workflowId: this.info.workflowId,
+        workflowType: this.info.workflowType,
       });
       return {
         updateId,
@@ -1071,8 +1079,10 @@ export class Activator implements ActivationHandler {
     this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
     const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
     const payloadConverter = withPayloadConverterContext(this.payloadConverter, {
+      type: 'workflow',
       namespace: this.info.namespace,
       workflowId: this.info.workflowId,
+      workflowType: this.info.workflowType,
     });
     execute({
       args: arrayFromPayloads(payloadConverter, activation.input),
@@ -1294,8 +1304,10 @@ export class Activator implements ActivationHandler {
 
   private completeQuery(queryId: string, result: unknown): void {
     const payloadConverter = withPayloadConverterContext(this.payloadConverter, {
+      type: 'workflow',
       namespace: this.info.namespace,
       workflowId: this.info.workflowId,
+      workflowType: this.info.workflowType,
     });
     this.pushCommand({
       respondToQuery: { queryId, succeeded: { response: payloadConverter.toPayload(result) } },
@@ -1317,8 +1329,10 @@ export class Activator implements ActivationHandler {
 
   private completeUpdate(protocolInstanceId: string, result: unknown): void {
     const payloadConverter = withPayloadConverterContext(this.payloadConverter, {
+      type: 'workflow',
       namespace: this.info.namespace,
       workflowId: this.info.workflowId,
+      workflowType: this.info.workflowType,
     });
     this.pushCommand({
       updateResponse: { protocolInstanceId, completed: payloadConverter.toPayload(result) },
@@ -1360,8 +1374,10 @@ export class Activator implements ActivationHandler {
 
   private completeWorkflow(result: unknown): void {
     const payloadConverter = withPayloadConverterContext(this.payloadConverter, {
+      type: 'workflow',
       namespace: this.info.namespace,
       workflowId: this.info.workflowId,
+      workflowType: this.info.workflowType,
     });
     this.pushCommand(
       {
@@ -1374,14 +1390,14 @@ export class Activator implements ActivationHandler {
   }
 
   errorToFailure(err: unknown): ProtoFailure {
-    const workflowContext = { namespace: this.info.namespace, workflowId: this.info.workflowId };
+    const workflowContext = { type: 'workflow' as const, namespace: this.info.namespace, workflowId: this.info.workflowId, workflowType: this.info.workflowType };
     const payloadConverter = withPayloadConverterContext(this.payloadConverter, workflowContext);
     const failureConverter = withFailureConverterContext(this.failureConverter, workflowContext);
     return failureConverter.errorToFailure(err, payloadConverter);
   }
 
   failureToError(failure: ProtoFailure): Error {
-    const workflowContext = { namespace: this.info.namespace, workflowId: this.info.workflowId };
+    const workflowContext = { type: 'workflow' as const, namespace: this.info.namespace, workflowId: this.info.workflowId, workflowType: this.info.workflowType };
     const payloadConverter = withPayloadConverterContext(this.payloadConverter, workflowContext);
     const failureConverter = withFailureConverterContext(this.failureConverter, workflowContext);
     return failureConverter.failureToError(failure, payloadConverter);

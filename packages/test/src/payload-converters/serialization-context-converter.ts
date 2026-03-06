@@ -43,7 +43,7 @@ function contextTag(context: SerializationContext | undefined): string {
   if (context == null) {
     return 'none';
   }
-  if ('isLocal' in context) {
+  if (context.type === 'activity') {
     return activityContextTag(context);
   }
   return workflowContextTag(context);

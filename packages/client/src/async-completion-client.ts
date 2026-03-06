@@ -1,5 +1,5 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { ensureTemporalFailure, SerializationContext } from '@temporalio/common';
+import { ensureTemporalFailure, LoadedDataConverter, SerializationContext } from '@temporalio/common';
 import { withSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 import { encodeErrorToFailure, encodeToPayloads } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
@@ -94,6 +94,13 @@ export class AsyncCompletionClient extends BaseClient {
   }
 
   /**
+   * Return the data converter bound to the current serialization context, if any.
+   */
+  private get contextDataConverter(): LoadedDataConverter {
+    return this.context ? withSerializationContext(this.dataConverter, this.context) : this.dataConverter;
+  }
+
+  /**
    * Raw gRPC access to the Temporal service.
    *
    * **NOTE**: The namespace provided in {@link options} is **not** automatically set on requests made via this service
@@ -143,9 +150,7 @@ export class AsyncCompletionClient extends BaseClient {
   async complete(fullActivityId: FullActivityId, result: unknown): Promise<void>;
 
   async complete(taskTokenOrFullActivityId: Uint8Array | FullActivityId, result: unknown): Promise<void> {
-    const dataConverter = this.context
-      ? withSerializationContext(this.dataConverter, this.context)
-      : this.dataConverter;
+    const dataConverter = this.contextDataConverter;
     const payloads = await encodeToPayloads(dataConverter, result);
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
@@ -178,9 +183,7 @@ export class AsyncCompletionClient extends BaseClient {
   async fail(fullActivityId: FullActivityId, err: unknown): Promise<void>;
 
   async fail(taskTokenOrFullActivityId: Uint8Array | FullActivityId, err: unknown): Promise<void> {
-    const dataConverter = this.context
-      ? withSerializationContext(this.dataConverter, this.context)
-      : this.dataConverter;
+    const dataConverter = this.contextDataConverter;
     const failure = await encodeErrorToFailure(dataConverter, ensureTemporalFailure(err));
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
@@ -213,9 +216,7 @@ export class AsyncCompletionClient extends BaseClient {
   reportCancellation(fullActivityId: FullActivityId, details?: unknown): Promise<void>;
 
   async reportCancellation(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
-    const dataConverter = this.context
-      ? withSerializationContext(this.dataConverter, this.context)
-      : this.dataConverter;
+    const dataConverter = this.contextDataConverter;
     const payloads = await encodeToPayloads(dataConverter, details);
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
@@ -248,9 +249,7 @@ export class AsyncCompletionClient extends BaseClient {
   heartbeat(fullActivityId: FullActivityId, details?: unknown): Promise<void>;
 
   async heartbeat(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
-    const dataConverter = this.context
-      ? withSerializationContext(this.dataConverter, this.context)
-      : this.dataConverter;
+    const dataConverter = this.contextDataConverter;
     const payloads = await encodeToPayloads(dataConverter, details);
     let cancelRequested = false;
     let paused = false;

@@ -7,6 +7,7 @@ import {
   executeChild,
   getExternalWorkflowHandle,
   proxyActivities,
+  proxyLocalActivities,
   setHandler,
 } from '@temporalio/workflow';
 
@@ -19,6 +20,7 @@ export interface Tracer {
 export interface SerializationContextWorkflowResult {
   startInput: Tracer;
   activityResult: Tracer;
+  localActivityResult: Tracer;
   childResult: Tracer;
   seenQueryInput: Tracer;
   seenUpdateInput: Tracer;
@@ -39,6 +41,13 @@ const { echoTracer, completeAsync } = proxyActivities<{
   scheduleToCloseTimeout: '30m',
   retry: { maximumAttempts: 1 },
   cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+});
+
+const { echoTracer: localEchoTracer } = proxyLocalActivities<{
+  echoTracer(value: Tracer): Promise<Tracer>;
+}>({
+  startToCloseTimeout: '1m',
+  retry: { maximumAttempts: 1 },
 });
 
 export async function serializationContextChildWorkflow(input: Tracer): Promise<Tracer> {
@@ -68,6 +77,7 @@ export async function serializationContextWorkflow(
   });
 
   const activityResult = await echoTracer({ __tracer: 'activity', trace: [] });
+  const localActivityResult = await localEchoTracer({ __tracer: 'local-activity', trace: [] });
   const childResult = await executeChild(serializationContextChildWorkflow, {
     workflowId: childWorkflowId,
     args: [{ __tracer: 'child', trace: [] }],
@@ -95,6 +105,7 @@ export async function serializationContextWorkflow(
   return {
     startInput,
     activityResult,
+    localActivityResult,
     childResult,
     seenQueryInput: seenQueryInput!,
     seenUpdateInput: seenUpdateInput!,

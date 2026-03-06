@@ -7,6 +7,8 @@ import type { PayloadConverter } from './payload-converter';
  * Context for workflow-level serialization operations.
  */
 export interface WorkflowSerializationContext {
+  /** Discriminant for narrowing the {@link SerializationContext} union. */
+  type: 'workflow';
   /** Namespace of the workflow. */
   namespace: string;
   /**
@@ -16,12 +18,16 @@ export interface WorkflowSerializationContext {
    * as configured, not the final workflow ID when the workflow is created.
    */
   workflowId: string;
+  /** Workflow type name, when available. */
+  workflowType?: string;
 }
 
 /**
  * Context for activity-level serialization operations.
  */
 export interface ActivitySerializationContext {
+  /** Discriminant for narrowing the {@link SerializationContext} union. */
+  type: 'activity';
   /** Namespace of the activity. */
   namespace: string;
   /** Activity ID for this execution when provided by the activity context source. */
@@ -68,6 +74,15 @@ export function withPayloadCodecContext(codec: PayloadCodec, context: Serializat
 
 /**
  * Return a loaded data converter where all components are context-bound when supported.
+ *
+ * **Internal — worker main thread only.** Do not call from within the workflow sandbox;
+ * doing so would pull unnecessary code into the workflow bundle, increasing memory footprint.
+ * Inside the sandbox, use the individual `withPayloadConverterContext` / `withFailureConverterContext`
+ * helpers instead.
+ *
+ * Uses identity (`===`) checks to skip allocation when no converter actually changed.
+ * A `withContext` implementation that returns a new object with identical behaviour will
+ * defeat this optimisation but is otherwise harmless.
  */
 // ts-prune-ignore-next (imported via lib/converter/serialization-context)
 export function withSerializationContext(
