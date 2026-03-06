@@ -1,4 +1,5 @@
 import { Payload } from '../interfaces';
+import type { SerializationContext } from './serialization-context';
 
 /**
  * `PayloadCodec` is an optional step that happens between the wire and the {@link PayloadConverter}:
@@ -19,4 +20,9 @@ export interface PayloadCodec {
    * Decode an array of {@link Payload}s received from the wire.
    */
   decode(payloads: Payload[]): Promise<Payload[]>;
+
+  /**
+   * Optionally return a context-bound codec for a specific serialization operation.
+   */
+  withContext?(context: SerializationContext): PayloadCodec;
 }
