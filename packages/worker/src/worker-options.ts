@@ -11,7 +11,7 @@ import {
   WorkerDeploymentVersion,
 } from '@temporalio/common';
 import { Duration, msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
-import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
+import { isLoadedDataConverter, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { LoggerSinks } from '@temporalio/workflow';
 import { Context } from '@temporalio/activity';
 import { native } from '@temporalio/core-bridge';
@@ -166,12 +166,16 @@ export interface WorkerOptions {
   shutdownForceTime?: Duration;
 
   /**
-   * Provide a custom {@link DataConverter}.
+   * Provide a custom {@link DataConverter} or a pre-loaded {@link LoadedDataConverter}.
    *
    * When bundling workflows ahead of time, make sure to provide custom payload and failure
    * converter paths as options to `bundleWorkflowCode`.
+   *
+   * Passing a pre-loaded {@link LoadedDataConverter} avoids the `require()`-based loading
+   * path, which is useful when running under ESM where `require()` creates a separate module
+   * cache from `import`, causing `instanceof` checks to silently fail.
    */
-  dataConverter?: DataConverter;
+  dataConverter?: DataConverter | LoadedDataConverter;
 
   /**
    * Provide a custom {@link WorkerTuner}.
@@ -1056,7 +1060,9 @@ export function compileWorkerOptions(
     isolateExecutionTimeoutMs: msToNumber(opts.isolateExecutionTimeout),
     maxHeartbeatThrottleIntervalMs: msToNumber(opts.maxHeartbeatThrottleInterval),
     defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
-    loadedDataConverter: loadDataConverter(opts.dataConverter),
+    loadedDataConverter: isLoadedDataConverter(opts.dataConverter)
+      ? opts.dataConverter
+      : loadDataConverter(opts.dataConverter),
     activities,
     nexusServiceRegistry: nexusServiceRegistryFromOptions(opts),
     enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,
