@@ -78,7 +78,7 @@ export async function startToCloseTimeoutCallerWorkflow(endpoint: string): Promi
   });
   // Use startOperation (not executeOperation) so we can set startToCloseTimeout independently.
   const handle = await client.startOperation(startToCloseService.operations.asyncOp, 'input', {
-    startToCloseTimeout: '1s',
+    startToCloseTimeout: '100ms',
   });
   return await handle.result();
 }
