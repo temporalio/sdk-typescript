@@ -681,6 +681,7 @@ test.serial('Workflow can read Search Attributes set at start', configMacro, asy
 
 test.serial('Workflow can upsert Search Attributes', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
+  console.log(env.address);
   const date = new Date();
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t, {
@@ -708,6 +709,7 @@ test.serial('Workflow can upsert Search Attributes', configMacro, async (t, conf
   });
   const { searchAttributes } = await handle.describe(); // eslint-disable-line @typescript-eslint/no-deprecated
   const { BinaryChecksums, BuildIds, ...rest } = searchAttributes;
+  console.log(rest);
   t.deepEqual(rest, {
     CustomBoolField: [true],
     CustomKeywordField: ['durable code'],
@@ -726,8 +728,8 @@ test.serial('Workflow can upsert Search Attributes', configMacro, async (t, conf
   }
   t.true(
     typeof checksum === 'string' &&
-      checksum.includes(`@temporalio/worker@${pkg.version}+`) &&
-      /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
+    checksum.includes(`@temporalio/worker@${pkg.version}+`) &&
+    /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
   );
 });
 

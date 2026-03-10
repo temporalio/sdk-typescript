@@ -9,10 +9,8 @@ use temporalio_common::telemetry::{
     CoreLog, OtelCollectorOptions as CoreOtelCollectorOptions,
     PrometheusExporterOptions as CorePrometheusExporterOptions, metrics::CoreMeter,
 };
-use temporalio_sdk_core::{
-    CoreRuntime, TokioRuntimeBuilder,
-    telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
-};
+use temporalio_common::telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter};
+use temporalio_sdk_core::{CoreRuntime, TokioRuntimeBuilder};
 
 use bridge_macros::js_function;
 use tokio_stream::StreamExt as _;
@@ -293,7 +291,8 @@ mod config {
         PrometheusExporterOptions as CorePrometheusExporterOptions,
         TelemetryOptions as CoreTelemetryOptions,
     };
-    use temporalio_sdk_core::{Url, telemetry::CoreLogStreamConsumer};
+    use temporalio_common::telemetry::CoreLogStreamConsumer;
+    use temporalio_sdk_core::Url;
 
     use bridge_macros::TryFromJs;
 

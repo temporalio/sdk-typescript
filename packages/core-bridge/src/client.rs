@@ -5,10 +5,10 @@ use std::{collections::HashMap, sync::Arc};
 use neon::prelude::*;
 use tonic::metadata::{BinaryMetadataValue, MetadataKey};
 
-use temporalio_sdk_core::{ClientOptions as CoreClientOptions, CoreRuntime, RetryClient};
+use temporalio_sdk_core::CoreRuntime;
 
 use bridge_macros::{TryFromJs, js_function};
-use temporalio_client::{ClientInitError, ConfiguredClient, TemporalServiceClient};
+use temporalio_client::{Connection, errors::ClientConnectError};
 
 use crate::runtime::Runtime;
 use crate::{helpers::*, runtime::RuntimeExt as _};
@@ -38,12 +38,10 @@ pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<
     Ok(())
 }
 
-type CoreClient = RetryClient<ConfiguredClient<TemporalServiceClient>>;
-
 pub struct Client {
     // These fields are pub because they are accessed from Worker::new
     pub(crate) core_runtime: Arc<CoreRuntime>,
-    pub(crate) core_client: CoreClient,
+    pub(crate) core_connection: Connection,
 }
 
 /// Create a connected gRPC client which can be used to initialize workers.
@@ -53,33 +51,32 @@ pub fn client_new(
     config: config::ClientOptions,
 ) -> BridgeResult<BridgeFuture<OpaqueOutboundHandle<Client>>> {
     let runtime = runtime.borrow()?.core_runtime.clone();
-    let config: CoreClientOptions = config.try_into()?;
+    let metric_meter = runtime.telemetry().get_temporal_metric_meter();
+    let options = config.into_connection_options(metric_meter);
 
     runtime.clone().future_to_promise(async move {
-        let metric_meter = runtime.clone().telemetry().get_temporal_metric_meter();
-        let res = config.connect_no_namespace(metric_meter).await;
-
-        let core_client = match res {
-            Ok(core_client) => core_client,
-            Err(ClientInitError::InvalidHeaders(e)) => Err(BridgeError::TypeError {
+        let core_connection = match Connection::connect(options).await {
+            Ok(conn) => conn,
+            Err(ClientConnectError::InvalidHeaders(e)) => Err(BridgeError::TypeError {
                 message: format!("Invalid metadata key: {e}"),
                 field: None,
             })?,
-            Err(ClientInitError::SystemInfoCallError(e)) => Err(BridgeError::TransportError(
+            Err(ClientConnectError::SystemInfoCallError(e)) => Err(BridgeError::TransportError(
                 format!("Failed to call GetSystemInfo: {e}"),
             ))?,
-            Err(ClientInitError::TonicTransportError(e)) => {
+            Err(ClientConnectError::TonicTransportError(e)) => {
                 Err(BridgeError::TransportError(format!("{e:?}")))?
             }
-            Err(ClientInitError::InvalidUri(e)) => Err(BridgeError::TypeError {
+            Err(ClientConnectError::InvalidUri(e)) => Err(BridgeError::TypeError {
                 message: e.to_string(),
                 field: None,
             })?,
+            Err(e) => Err(BridgeError::TransportError(format!("{e:?}")))?,
         };
 
         Ok(OpaqueOutboundHandle::new(Client {
             core_runtime: runtime,
-            core_client,
+            core_connection,
         }))
     })
 }
@@ -93,8 +90,7 @@ pub fn client_update_headers(
     let (ascii_headers, bin_headers) = config::partition_headers(Some(headers));
     client
         .borrow()?
-        .core_client
-        .get_client()
+        .core_connection
         .set_headers(ascii_headers.unwrap_or_default())
         .map_err(|err| BridgeError::TypeError {
             message: format!("Invalid metadata key: {err}"),
@@ -102,8 +98,7 @@ pub fn client_update_headers(
         })?;
     client
         .borrow()?
-        .core_client
-        .get_client()
+        .core_connection
         .set_binary_headers(bin_headers.unwrap_or_default())
         .map_err(|err| BridgeError::TypeError {
             message: format!("Invalid metadata key: {err}"),
@@ -115,11 +110,7 @@ pub fn client_update_headers(
 /// Update a Client's API key
 #[js_function]
 pub fn client_update_api_key(client: OpaqueInboundHandle<Client>, key: String) -> BridgeResult<()> {
-    client
-        .borrow()?
-        .core_client
-        .get_client()
-        .set_api_key(Some(key));
+    client.borrow()?.core_connection.set_api_key(Some(key));
     Ok(())
 }
 
@@ -158,11 +149,12 @@ pub fn client_send_workflow_service_request(
 ) -> BridgeResult<BridgeFuture<Vec<u8>>> {
     let client = client.borrow()?;
     let core_runtime = client.core_runtime.clone();
-    let core_client = client.core_client.clone();
+    let core_connection = client.core_connection.clone();
 
     // FIXME: "large future with a size of 18560 bytes"
-    core_runtime
-        .future_to_promise(async move { client_invoke_workflow_service(core_client, call).await })
+    core_runtime.future_to_promise(async move {
+        client_invoke_workflow_service(core_connection, call).await
+    })
 }
 
 /// Send a request to the Operator Service using the provided Client
@@ -173,10 +165,11 @@ pub fn client_send_operator_service_request(
 ) -> BridgeResult<BridgeFuture<Vec<u8>>> {
     let client = client.borrow()?;
     let core_runtime = client.core_runtime.clone();
-    let core_client = client.core_client.clone();
+    let core_connection = client.core_connection.clone();
 
-    core_runtime
-        .future_to_promise(async move { client_invoke_operator_service(core_client, call).await })
+    core_runtime.future_to_promise(async move {
+        client_invoke_operator_service(core_connection, call).await
+    })
 }
 
 /// Send a request to the Test Service using the provided Client
@@ -187,10 +180,10 @@ pub fn client_send_test_service_request(
 ) -> BridgeResult<BridgeFuture<Vec<u8>>> {
     let client = client.borrow()?;
     let core_runtime = client.core_runtime.clone();
-    let core_client = client.core_client.clone();
+    let core_connection = client.core_connection.clone();
 
     core_runtime
-        .future_to_promise(async move { client_invoke_test_service(core_client, call).await })
+        .future_to_promise(async move { client_invoke_test_service(core_connection, call).await })
 }
 
 /// Send a request to the Health Service using the provided Client
@@ -201,10 +194,10 @@ pub fn client_send_health_service_request(
 ) -> BridgeResult<BridgeFuture<Vec<u8>>> {
     let client = client.borrow()?;
     let core_runtime = client.core_runtime.clone();
-    let core_client = client.core_client.clone();
+    let core_connection = client.core_connection.clone();
 
     core_runtime
-        .future_to_promise(async move { client_invoke_health_service(core_client, call).await })
+        .future_to_promise(async move { client_invoke_health_service(core_connection, call).await })
 }
 
 /// Indicates that a gRPC request failed
@@ -240,11 +233,16 @@ impl TryIntoJs for tonic::Status {
 }
 
 macro_rules! rpc_call {
-    ($retry_client:ident, $call:ident, $call_name:ident) => {
+    ($connection:ident, $call:ident, $call_name:ident, $service_accessor:ident) => {
         if $call.retry {
-            rpc_resp($retry_client.$call_name(rpc_req($call)?).await)
+            rpc_resp($connection.$call_name(rpc_req($call)?).await)
         } else {
-            rpc_resp($retry_client.into_inner().$call_name(rpc_req($call)?).await)
+            rpc_resp(
+                $connection
+                    .$service_accessor()
+                    .$call_name(rpc_req($call)?)
+                    .await,
+            )
         }
     };
 }
@@ -254,297 +252,547 @@ macro_rules! rpc_call {
 #[allow(clippy::large_stack_frames)]
 #[allow(clippy::too_many_lines)]
 async fn client_invoke_workflow_service(
-    mut retry_client: CoreClient,
+    mut connection: Connection,
     call: RpcCall,
 ) -> BridgeResult<Vec<u8>> {
-    use temporalio_client::WorkflowService;
+    use temporalio_client::grpc::WorkflowService;
 
     match call.rpc.as_str() {
         "CountActivityExecutions" => {
-            rpc_call!(retry_client, call, count_activity_executions)
+            rpc_call!(
+                connection,
+                call,
+                count_activity_executions,
+                workflow_service
+            )
+        }
+        "CountSchedules" => {
+            rpc_call!(connection, call, count_schedules, workflow_service)
         }
         "CountWorkflowExecutions" => {
-            rpc_call!(retry_client, call, count_workflow_executions)
+            rpc_call!(
+                connection,
+                call,
+                count_workflow_executions,
+                workflow_service
+            )
         }
         "CreateSchedule" => {
-            rpc_call!(retry_client, call, create_schedule)
+            rpc_call!(connection, call, create_schedule, workflow_service)
         }
         "CreateWorkflowRule" => {
-            rpc_call!(retry_client, call, create_workflow_rule)
+            rpc_call!(connection, call, create_workflow_rule, workflow_service)
         }
         "DeleteActivityExecution" => {
-            rpc_call!(retry_client, call, delete_activity_execution)
+            rpc_call!(
+                connection,
+                call,
+                delete_activity_execution,
+                workflow_service
+            )
         }
         "DeleteSchedule" => {
-            rpc_call!(retry_client, call, delete_schedule)
+            rpc_call!(connection, call, delete_schedule, workflow_service)
         }
         "DeleteWorkerDeployment" => {
-            rpc_call!(retry_client, call, delete_worker_deployment)
+            rpc_call!(connection, call, delete_worker_deployment, workflow_service)
         }
         "DeleteWorkerDeploymentVersion" => {
-            rpc_call!(retry_client, call, delete_worker_deployment_version)
+            rpc_call!(
+                connection,
+                call,
+                delete_worker_deployment_version,
+                workflow_service
+            )
         }
         "DeleteWorkflowExecution" => {
-            rpc_call!(retry_client, call, delete_workflow_execution)
+            rpc_call!(
+                connection,
+                call,
+                delete_workflow_execution,
+                workflow_service
+            )
         }
         "DeleteWorkflowRule" => {
-            rpc_call!(retry_client, call, delete_workflow_rule)
+            rpc_call!(connection, call, delete_workflow_rule, workflow_service)
         }
         "DescribeBatchOperation" => {
-            rpc_call!(retry_client, call, describe_batch_operation)
+            rpc_call!(connection, call, describe_batch_operation, workflow_service)
         }
         "DescribeActivityExecution" => {
-            rpc_call!(retry_client, call, describe_activity_execution)
+            rpc_call!(
+                connection,
+                call,
+                describe_activity_execution,
+                workflow_service
+            )
         }
         "DescribeDeployment" => {
-            rpc_call!(retry_client, call, describe_deployment)
+            rpc_call!(connection, call, describe_deployment, workflow_service)
         }
         "DescribeWorker" => {
-            rpc_call!(retry_client, call, describe_worker)
+            rpc_call!(connection, call, describe_worker, workflow_service)
         }
-        "DeprecateNamespace" => rpc_call!(retry_client, call, deprecate_namespace),
-        "DescribeNamespace" => rpc_call!(retry_client, call, describe_namespace),
-        "DescribeSchedule" => rpc_call!(retry_client, call, describe_schedule),
-        "DescribeTaskQueue" => rpc_call!(retry_client, call, describe_task_queue),
+        "DeprecateNamespace" => rpc_call!(connection, call, deprecate_namespace, workflow_service),
+        "DescribeNamespace" => rpc_call!(connection, call, describe_namespace, workflow_service),
+        "DescribeSchedule" => rpc_call!(connection, call, describe_schedule, workflow_service),
+        "DescribeTaskQueue" => rpc_call!(connection, call, describe_task_queue, workflow_service),
         "DescribeWorkerDeployment" => {
-            rpc_call!(retry_client, call, describe_worker_deployment)
+            rpc_call!(
+                connection,
+                call,
+                describe_worker_deployment,
+                workflow_service
+            )
         }
         "DescribeWorkerDeploymentVersion" => {
-            rpc_call!(retry_client, call, describe_worker_deployment_version)
+            rpc_call!(
+                connection,
+                call,
+                describe_worker_deployment_version,
+                workflow_service
+            )
         }
         "DescribeWorkflowExecution" => {
-            rpc_call!(retry_client, call, describe_workflow_execution)
+            rpc_call!(
+                connection,
+                call,
+                describe_workflow_execution,
+                workflow_service
+            )
         }
         "DescribeWorkflowRule" => {
-            rpc_call!(retry_client, call, describe_workflow_rule)
+            rpc_call!(connection, call, describe_workflow_rule, workflow_service)
         }
-        "ExecuteMultiOperation" => rpc_call!(retry_client, call, execute_multi_operation),
-        "FetchWorkerConfig" => rpc_call!(retry_client, call, fetch_worker_config),
-        "GetClusterInfo" => rpc_call!(retry_client, call, get_cluster_info),
-        "GetCurrentDeployment" => rpc_call!(retry_client, call, get_current_deployment),
+        "ExecuteMultiOperation" => {
+            rpc_call!(connection, call, execute_multi_operation, workflow_service)
+        }
+        "FetchWorkerConfig" => rpc_call!(connection, call, fetch_worker_config, workflow_service),
+        "GetClusterInfo" => rpc_call!(connection, call, get_cluster_info, workflow_service),
+        "GetCurrentDeployment" => {
+            rpc_call!(connection, call, get_current_deployment, workflow_service)
+        }
         "GetDeploymentReachability" => {
-            rpc_call!(retry_client, call, get_deployment_reachability)
+            rpc_call!(
+                connection,
+                call,
+                get_deployment_reachability,
+                workflow_service
+            )
         }
         "GetSearchAttributes" => {
-            rpc_call!(retry_client, call, get_search_attributes)
+            rpc_call!(connection, call, get_search_attributes, workflow_service)
         }
-        "GetSystemInfo" => rpc_call!(retry_client, call, get_system_info),
+        "GetSystemInfo" => rpc_call!(connection, call, get_system_info, workflow_service),
         "GetWorkerBuildIdCompatibility" => {
-            rpc_call!(retry_client, call, get_worker_build_id_compatibility)
+            rpc_call!(
+                connection,
+                call,
+                get_worker_build_id_compatibility,
+                workflow_service
+            )
         }
         "GetWorkerTaskReachability" => {
-            rpc_call!(retry_client, call, get_worker_task_reachability)
+            rpc_call!(
+                connection,
+                call,
+                get_worker_task_reachability,
+                workflow_service
+            )
         }
         "GetWorkerVersioningRules" => {
-            rpc_call!(retry_client, call, get_worker_versioning_rules)
+            rpc_call!(
+                connection,
+                call,
+                get_worker_versioning_rules,
+                workflow_service
+            )
         }
         "GetWorkflowExecutionHistory" => {
-            rpc_call!(retry_client, call, get_workflow_execution_history)
+            rpc_call!(
+                connection,
+                call,
+                get_workflow_execution_history,
+                workflow_service
+            )
         }
         "GetWorkflowExecutionHistoryReverse" => {
-            rpc_call!(retry_client, call, get_workflow_execution_history_reverse)
+            rpc_call!(
+                connection,
+                call,
+                get_workflow_execution_history_reverse,
+                workflow_service
+            )
         }
         "ListArchivedWorkflowExecutions" => {
-            rpc_call!(retry_client, call, list_archived_workflow_executions)
+            rpc_call!(
+                connection,
+                call,
+                list_archived_workflow_executions,
+                workflow_service
+            )
         }
         "ListActivityExecutions" => {
-            rpc_call!(retry_client, call, list_activity_executions)
+            rpc_call!(connection, call, list_activity_executions, workflow_service)
         }
         "ListBatchOperations" => {
-            rpc_call!(retry_client, call, list_batch_operations)
+            rpc_call!(connection, call, list_batch_operations, workflow_service)
         }
         "ListClosedWorkflowExecutions" => {
-            rpc_call!(retry_client, call, list_closed_workflow_executions)
+            rpc_call!(
+                connection,
+                call,
+                list_closed_workflow_executions,
+                workflow_service
+            )
         }
         "ListDeployments" => {
-            rpc_call!(retry_client, call, list_deployments)
+            rpc_call!(connection, call, list_deployments, workflow_service)
         }
-        "ListNamespaces" => rpc_call!(retry_client, call, list_namespaces),
+        "ListNamespaces" => rpc_call!(connection, call, list_namespaces, workflow_service),
         "ListOpenWorkflowExecutions" => {
-            rpc_call!(retry_client, call, list_open_workflow_executions)
+            rpc_call!(
+                connection,
+                call,
+                list_open_workflow_executions,
+                workflow_service
+            )
         }
         "ListScheduleMatchingTimes" => {
-            rpc_call!(retry_client, call, list_schedule_matching_times)
+            rpc_call!(
+                connection,
+                call,
+                list_schedule_matching_times,
+                workflow_service
+            )
         }
         "ListSchedules" => {
-            rpc_call!(retry_client, call, list_schedules)
+            rpc_call!(connection, call, list_schedules, workflow_service)
         }
         "ListTaskQueuePartitions" => {
-            rpc_call!(retry_client, call, list_task_queue_partitions)
+            rpc_call!(
+                connection,
+                call,
+                list_task_queue_partitions,
+                workflow_service
+            )
         }
         "ListWorkerDeployments" => {
-            rpc_call!(retry_client, call, list_worker_deployments)
+            rpc_call!(connection, call, list_worker_deployments, workflow_service)
         }
         "ListWorkers" => {
-            rpc_call!(retry_client, call, list_workers)
+            rpc_call!(connection, call, list_workers, workflow_service)
         }
         "ListWorkflowExecutions" => {
-            rpc_call!(retry_client, call, list_workflow_executions)
+            rpc_call!(connection, call, list_workflow_executions, workflow_service)
         }
         "ListWorkflowRules" => {
-            rpc_call!(retry_client, call, list_workflow_rules)
+            rpc_call!(connection, call, list_workflow_rules, workflow_service)
         }
         "PatchSchedule" => {
-            rpc_call!(retry_client, call, patch_schedule)
+            rpc_call!(connection, call, patch_schedule, workflow_service)
         }
         "PauseActivity" => {
-            rpc_call!(retry_client, call, pause_activity)
+            rpc_call!(connection, call, pause_activity, workflow_service)
         }
         "PauseWorkflowExecution" => {
-            rpc_call!(retry_client, call, pause_workflow_execution)
+            rpc_call!(connection, call, pause_workflow_execution, workflow_service)
         }
         "PollActivityExecution" => {
-            rpc_call!(retry_client, call, poll_activity_execution)
+            rpc_call!(connection, call, poll_activity_execution, workflow_service)
         }
         "PollActivityTaskQueue" => {
-            rpc_call!(retry_client, call, poll_activity_task_queue)
+            rpc_call!(connection, call, poll_activity_task_queue, workflow_service)
         }
-        "PollNexusTaskQueue" => rpc_call!(retry_client, call, poll_nexus_task_queue),
+        "PollNexusTaskQueue" => {
+            rpc_call!(connection, call, poll_nexus_task_queue, workflow_service)
+        }
         "PollWorkflowExecutionUpdate" => {
-            rpc_call!(retry_client, call, poll_workflow_execution_update)
+            rpc_call!(
+                connection,
+                call,
+                poll_workflow_execution_update,
+                workflow_service
+            )
         }
         "PollWorkflowTaskQueue" => {
-            rpc_call!(retry_client, call, poll_workflow_task_queue)
+            rpc_call!(connection, call, poll_workflow_task_queue, workflow_service)
         }
-        "QueryWorkflow" => rpc_call!(retry_client, call, query_workflow),
+        "QueryWorkflow" => rpc_call!(connection, call, query_workflow, workflow_service),
         "RecordActivityTaskHeartbeat" => {
-            rpc_call!(retry_client, call, record_activity_task_heartbeat)
+            rpc_call!(
+                connection,
+                call,
+                record_activity_task_heartbeat,
+                workflow_service
+            )
         }
         "RecordActivityTaskHeartbeatById" => {
-            rpc_call!(retry_client, call, record_activity_task_heartbeat_by_id)
+            rpc_call!(
+                connection,
+                call,
+                record_activity_task_heartbeat_by_id,
+                workflow_service
+            )
         }
         "RecordWorkerHeartbeat" => {
-            rpc_call!(retry_client, call, record_worker_heartbeat)
+            rpc_call!(connection, call, record_worker_heartbeat, workflow_service)
         }
-        "RegisterNamespace" => rpc_call!(retry_client, call, register_namespace),
+        "RegisterNamespace" => rpc_call!(connection, call, register_namespace, workflow_service),
         "RequestCancelActivityExecution" => {
-            rpc_call!(retry_client, call, request_cancel_activity_execution)
+            rpc_call!(
+                connection,
+                call,
+                request_cancel_activity_execution,
+                workflow_service
+            )
         }
         "RequestCancelWorkflowExecution" => {
-            rpc_call!(retry_client, call, request_cancel_workflow_execution)
+            rpc_call!(
+                connection,
+                call,
+                request_cancel_workflow_execution,
+                workflow_service
+            )
         }
         "ResetActivity" => {
-            rpc_call!(retry_client, call, reset_activity)
+            rpc_call!(connection, call, reset_activity, workflow_service)
         }
         "ResetStickyTaskQueue" => {
-            rpc_call!(retry_client, call, reset_sticky_task_queue)
+            rpc_call!(connection, call, reset_sticky_task_queue, workflow_service)
         }
         "ResetWorkflowExecution" => {
-            rpc_call!(retry_client, call, reset_workflow_execution)
+            rpc_call!(connection, call, reset_workflow_execution, workflow_service)
         }
         "RespondActivityTaskCanceled" => {
-            rpc_call!(retry_client, call, respond_activity_task_canceled)
+            rpc_call!(
+                connection,
+                call,
+                respond_activity_task_canceled,
+                workflow_service
+            )
         }
         "RespondActivityTaskCanceledById" => {
-            rpc_call!(retry_client, call, respond_activity_task_canceled_by_id)
+            rpc_call!(
+                connection,
+                call,
+                respond_activity_task_canceled_by_id,
+                workflow_service
+            )
         }
         "RespondActivityTaskCompleted" => {
-            rpc_call!(retry_client, call, respond_activity_task_completed)
+            rpc_call!(
+                connection,
+                call,
+                respond_activity_task_completed,
+                workflow_service
+            )
         }
         "RespondActivityTaskCompletedById" => {
-            rpc_call!(retry_client, call, respond_activity_task_completed_by_id)
+            rpc_call!(
+                connection,
+                call,
+                respond_activity_task_completed_by_id,
+                workflow_service
+            )
         }
         "RespondActivityTaskFailed" => {
-            rpc_call!(retry_client, call, respond_activity_task_failed)
+            rpc_call!(
+                connection,
+                call,
+                respond_activity_task_failed,
+                workflow_service
+            )
         }
         "RespondActivityTaskFailedById" => {
-            rpc_call!(retry_client, call, respond_activity_task_failed_by_id)
+            rpc_call!(
+                connection,
+                call,
+                respond_activity_task_failed_by_id,
+                workflow_service
+            )
         }
         "RespondNexusTaskCompleted" => {
-            rpc_call!(retry_client, call, respond_nexus_task_completed)
+            rpc_call!(
+                connection,
+                call,
+                respond_nexus_task_completed,
+                workflow_service
+            )
         }
         "RespondNexusTaskFailed" => {
-            rpc_call!(retry_client, call, respond_nexus_task_failed)
+            rpc_call!(
+                connection,
+                call,
+                respond_nexus_task_failed,
+                workflow_service
+            )
         }
         "RespondQueryTaskCompleted" => {
-            rpc_call!(retry_client, call, respond_query_task_completed)
+            rpc_call!(
+                connection,
+                call,
+                respond_query_task_completed,
+                workflow_service
+            )
         }
         "RespondWorkflowTaskCompleted" => {
-            rpc_call!(retry_client, call, respond_workflow_task_completed)
+            rpc_call!(
+                connection,
+                call,
+                respond_workflow_task_completed,
+                workflow_service
+            )
         }
         "RespondWorkflowTaskFailed" => {
-            rpc_call!(retry_client, call, respond_workflow_task_failed)
+            rpc_call!(
+                connection,
+                call,
+                respond_workflow_task_failed,
+                workflow_service
+            )
         }
         "ScanWorkflowExecutions" => {
-            rpc_call!(retry_client, call, scan_workflow_executions)
+            rpc_call!(connection, call, scan_workflow_executions, workflow_service)
         }
         "SetCurrentDeployment" => {
-            rpc_call!(retry_client, call, set_current_deployment)
+            rpc_call!(connection, call, set_current_deployment, workflow_service)
         }
         "SetWorkerDeploymentCurrentVersion" => {
-            rpc_call!(retry_client, call, set_worker_deployment_current_version)
+            rpc_call!(
+                connection,
+                call,
+                set_worker_deployment_current_version,
+                workflow_service
+            )
         }
         "SetWorkerDeploymentManager" => {
-            rpc_call!(retry_client, call, set_worker_deployment_manager)
+            rpc_call!(
+                connection,
+                call,
+                set_worker_deployment_manager,
+                workflow_service
+            )
         }
         "SetWorkerDeploymentRampingVersion" => {
-            rpc_call!(retry_client, call, set_worker_deployment_ramping_version)
+            rpc_call!(
+                connection,
+                call,
+                set_worker_deployment_ramping_version,
+                workflow_service
+            )
         }
         "ShutdownWorker" => {
-            rpc_call!(retry_client, call, shutdown_worker)
+            rpc_call!(connection, call, shutdown_worker, workflow_service)
         }
         "SignalWithStartWorkflowExecution" => {
-            rpc_call!(retry_client, call, signal_with_start_workflow_execution)
+            rpc_call!(
+                connection,
+                call,
+                signal_with_start_workflow_execution,
+                workflow_service
+            )
         }
         "SignalWorkflowExecution" => {
-            rpc_call!(retry_client, call, signal_workflow_execution)
+            rpc_call!(
+                connection,
+                call,
+                signal_workflow_execution,
+                workflow_service
+            )
         }
         "StartActivityExecution" => {
-            rpc_call!(retry_client, call, start_activity_execution)
+            rpc_call!(connection, call, start_activity_execution, workflow_service)
         }
         "StartWorkflowExecution" => {
-            rpc_call!(retry_client, call, start_workflow_execution)
+            rpc_call!(connection, call, start_workflow_execution, workflow_service)
         }
         "StartBatchOperation" => {
-            rpc_call!(retry_client, call, start_batch_operation)
+            rpc_call!(connection, call, start_batch_operation, workflow_service)
         }
         "StopBatchOperation" => {
-            rpc_call!(retry_client, call, stop_batch_operation)
+            rpc_call!(connection, call, stop_batch_operation, workflow_service)
         }
         "TerminateActivityExecution" => {
-            rpc_call!(retry_client, call, terminate_activity_execution)
+            rpc_call!(
+                connection,
+                call,
+                terminate_activity_execution,
+                workflow_service
+            )
         }
         "TerminateWorkflowExecution" => {
-            rpc_call!(retry_client, call, terminate_workflow_execution)
+            rpc_call!(
+                connection,
+                call,
+                terminate_workflow_execution,
+                workflow_service
+            )
         }
         "TriggerWorkflowRule" => {
-            rpc_call!(retry_client, call, trigger_workflow_rule)
+            rpc_call!(connection, call, trigger_workflow_rule, workflow_service)
         }
         "UnpauseActivity" => {
-            rpc_call!(retry_client, call, unpause_activity)
+            rpc_call!(connection, call, unpause_activity, workflow_service)
         }
         "UnpauseWorkflowExecution" => {
-            rpc_call!(retry_client, call, unpause_workflow_execution)
+            rpc_call!(
+                connection,
+                call,
+                unpause_workflow_execution,
+                workflow_service
+            )
         }
         "UpdateActivityOptions" => {
-            rpc_call!(retry_client, call, update_activity_options)
+            rpc_call!(connection, call, update_activity_options, workflow_service)
         }
         "UpdateNamespace" => {
-            rpc_call!(retry_client, call, update_namespace)
+            rpc_call!(connection, call, update_namespace, workflow_service)
         }
-        "UpdateSchedule" => rpc_call!(retry_client, call, update_schedule),
-        "UpdateWorkerConfig" => rpc_call!(retry_client, call, update_worker_config),
+        "UpdateSchedule" => rpc_call!(connection, call, update_schedule, workflow_service),
+        "UpdateWorkerConfig" => rpc_call!(connection, call, update_worker_config, workflow_service),
         "UpdateWorkerDeploymentVersionMetadata" => {
             rpc_call!(
-                retry_client,
+                connection,
                 call,
-                update_worker_deployment_version_metadata
+                update_worker_deployment_version_metadata,
+                workflow_service
             )
         }
         "UpdateTaskQueueConfig" => {
-            rpc_call!(retry_client, call, update_task_queue_config)
+            rpc_call!(connection, call, update_task_queue_config, workflow_service)
         }
         "UpdateWorkflowExecution" => {
-            rpc_call!(retry_client, call, update_workflow_execution)
+            rpc_call!(
+                connection,
+                call,
+                update_workflow_execution,
+                workflow_service
+            )
         }
         "UpdateWorkflowExecutionOptions" => {
-            rpc_call!(retry_client, call, update_workflow_execution_options)
+            rpc_call!(
+                connection,
+                call,
+                update_workflow_execution_options,
+                workflow_service
+            )
         }
         "UpdateWorkerBuildIdCompatibility" => {
-            rpc_call!(retry_client, call, update_worker_build_id_compatibility)
+            rpc_call!(
+                connection,
+                call,
+                update_worker_build_id_compatibility,
+                workflow_service
+            )
         }
         "UpdateWorkerVersioningRules" => {
-            rpc_call!(retry_client, call, update_worker_versioning_rules)
+            rpc_call!(
+                connection,
+                call,
+                update_worker_versioning_rules,
+                workflow_service
+            )
         }
         _ => Err(BridgeError::TypeError {
             field: None,
@@ -555,36 +803,47 @@ async fn client_invoke_workflow_service(
 
 #[allow(clippy::cognitive_complexity)]
 async fn client_invoke_operator_service(
-    mut retry_client: CoreClient,
+    mut connection: Connection,
     call: RpcCall,
 ) -> BridgeResult<Vec<u8>> {
-    use temporalio_client::OperatorService;
+    use temporalio_client::grpc::OperatorService;
 
     match call.rpc.as_str() {
         "AddOrUpdateRemoteCluster" => {
-            rpc_call!(retry_client, call, add_or_update_remote_cluster)
+            rpc_call!(
+                connection,
+                call,
+                add_or_update_remote_cluster,
+                operator_service
+            )
         }
         "AddSearchAttributes" => {
-            rpc_call!(retry_client, call, add_search_attributes)
+            rpc_call!(connection, call, add_search_attributes, operator_service)
         }
-        "CreateNexusEndpoint" => rpc_call!(retry_client, call, create_nexus_endpoint),
+        "CreateNexusEndpoint" => {
+            rpc_call!(connection, call, create_nexus_endpoint, operator_service)
+        }
         "DeleteNamespace" => {
-            rpc_call!(retry_client, call, delete_namespace)
+            rpc_call!(connection, call, delete_namespace, operator_service)
         }
-        "DeleteNexusEndpoint" => rpc_call!(retry_client, call, delete_nexus_endpoint),
-        "GetNexusEndpoint" => rpc_call!(retry_client, call, get_nexus_endpoint),
-        "ListClusters" => rpc_call!(retry_client, call, list_clusters),
-        "ListNexusEndpoints" => rpc_call!(retry_client, call, list_nexus_endpoints),
+        "DeleteNexusEndpoint" => {
+            rpc_call!(connection, call, delete_nexus_endpoint, operator_service)
+        }
+        "GetNexusEndpoint" => rpc_call!(connection, call, get_nexus_endpoint, operator_service),
+        "ListClusters" => rpc_call!(connection, call, list_clusters, operator_service),
+        "ListNexusEndpoints" => rpc_call!(connection, call, list_nexus_endpoints, operator_service),
         "ListSearchAttributes" => {
-            rpc_call!(retry_client, call, list_search_attributes)
+            rpc_call!(connection, call, list_search_attributes, operator_service)
         }
         "RemoveRemoteCluster" => {
-            rpc_call!(retry_client, call, remove_remote_cluster)
+            rpc_call!(connection, call, remove_remote_cluster, operator_service)
         }
         "RemoveSearchAttributes" => {
-            rpc_call!(retry_client, call, remove_search_attributes)
+            rpc_call!(connection, call, remove_search_attributes, operator_service)
         }
-        "UpdateNexusEndpoint" => rpc_call!(retry_client, call, update_nexus_endpoint),
+        "UpdateNexusEndpoint" => {
+            rpc_call!(connection, call, update_nexus_endpoint, operator_service)
+        }
         _ => Err(BridgeError::TypeError {
             field: None,
             message: format!("Unknown RPC call {}", call.rpc),
@@ -593,20 +852,25 @@ async fn client_invoke_operator_service(
 }
 
 async fn client_invoke_test_service(
-    mut retry_client: CoreClient,
+    mut connection: Connection,
     call: RpcCall,
 ) -> BridgeResult<Vec<u8>> {
-    use temporalio_client::TestService;
+    use temporalio_client::grpc::TestService;
 
     match call.rpc.as_str() {
-        "GetCurrentTime" => rpc_call!(retry_client, call, get_current_time),
-        "LockTimeSkipping" => rpc_call!(retry_client, call, lock_time_skipping),
-        "SleepUntil" => rpc_call!(retry_client, call, sleep_until),
-        "Sleep" => rpc_call!(retry_client, call, sleep),
+        "GetCurrentTime" => rpc_call!(connection, call, get_current_time, test_service),
+        "LockTimeSkipping" => rpc_call!(connection, call, lock_time_skipping, test_service),
+        "SleepUntil" => rpc_call!(connection, call, sleep_until, test_service),
+        "Sleep" => rpc_call!(connection, call, sleep, test_service),
         "UnlockTimeSkippingWithSleep" => {
-            rpc_call!(retry_client, call, unlock_time_skipping_with_sleep)
+            rpc_call!(
+                connection,
+                call,
+                unlock_time_skipping_with_sleep,
+                test_service
+            )
         }
-        "UnlockTimeSkipping" => rpc_call!(retry_client, call, unlock_time_skipping),
+        "UnlockTimeSkipping" => rpc_call!(connection, call, unlock_time_skipping, test_service),
         _ => Err(BridgeError::TypeError {
             field: None,
             message: format!("Unknown RPC call {}", call.rpc),
@@ -615,13 +879,13 @@ async fn client_invoke_test_service(
 }
 
 async fn client_invoke_health_service(
-    mut retry_client: CoreClient,
+    mut connection: Connection,
     call: RpcCall,
 ) -> BridgeResult<Vec<u8>> {
-    use temporalio_client::HealthService;
+    use temporalio_client::grpc::HealthService;
 
     match call.rpc.as_str() {
-        "Check" => rpc_call!(retry_client, call, check),
+        "Check" => rpc_call!(connection, call, check, health_service),
         // Intentionally ignore 'watch' because it's a streaming method, which is not currently
         // supported by the macro and client-side code, and not needed anyway for any SDK use case.
         _ => Err(BridgeError::TypeError {
@@ -686,15 +950,16 @@ where
 mod config {
     use std::collections::HashMap;
 
-    use temporalio_client::HttpConnectProxyOptions;
-    use temporalio_sdk_core::{
-        ClientOptions as CoreClientOptions, ClientTlsOptions as CoreClientTlsOptions,
-        TlsOptions as CoreTlsOptions, Url,
+    use temporalio_client::{
+        ClientTlsOptions as CoreClientTlsOptions, ConnectionOptions, HttpConnectProxyOptions,
+        TlsOptions as CoreTlsOptions,
     };
+    use temporalio_common::telemetry::metrics::TemporalMeter;
+    use temporalio_sdk_core::Url;
 
     use bridge_macros::TryFromJs;
 
-    use crate::{client::MetadataValue, helpers::*};
+    use crate::client::MetadataValue;
 
     #[derive(Debug, Clone, TryFromJs)]
     pub(super) struct ClientOptions {
@@ -734,13 +999,14 @@ mod config {
         password: String,
     }
 
-    impl TryInto<CoreClientOptions> for ClientOptions {
-        type Error = BridgeError;
-        fn try_into(self) -> Result<CoreClientOptions, Self::Error> {
+    impl ClientOptions {
+        pub(super) fn into_connection_options(
+            self,
+            metrics_meter: Option<TemporalMeter>,
+        ) -> ConnectionOptions {
             let (ascii_headers, bin_headers) = partition_headers(self.headers);
 
-            let client_options = CoreClientOptions::builder()
-                .target_url(self.target_url)
+            ConnectionOptions::new(self.target_url)
                 .client_name(self.client_name)
                 .client_version(self.client_version)
                 .maybe_tls_options(self.tls.map(Into::into))
@@ -748,15 +1014,14 @@ mod config {
                 .maybe_headers(ascii_headers)
                 .maybe_binary_headers(bin_headers)
                 .maybe_api_key(self.api_key)
+                .maybe_metrics_meter(metrics_meter)
                 .disable_error_code_metric_tags(self.disable_error_code_metric_tags)
                 // identity -- skipped: will be set on worker
                 // retry_config -- skipped: worker overrides anyway
                 // override_origin -- skipped: will default to tls_cfg.domain
                 // keep_alive -- skipped: defaults to true; is there any reason to disable this?
                 // skip_get_system_info -- skipped: defaults to false; is there any reason to set this?
-                .build();
-
-            Ok(client_options)
+                .build()
         }
     }
 
