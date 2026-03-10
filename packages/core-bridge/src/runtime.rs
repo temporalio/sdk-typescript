@@ -285,13 +285,13 @@ mod config {
     use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 
     use neon::prelude::*;
+    use temporalio_common::telemetry::CoreLogStreamConsumer;
     use temporalio_common::telemetry::{
         HistogramBucketOverrides, Logger as CoreTelemetryLogger, MetricTemporality,
         OtelCollectorOptions as CoreOtelCollectorOptions, OtlpProtocol,
         PrometheusExporterOptions as CorePrometheusExporterOptions,
         TelemetryOptions as CoreTelemetryOptions,
     };
-    use temporalio_common::telemetry::CoreLogStreamConsumer;
     use temporalio_sdk_core::Url;
 
     use bridge_macros::TryFromJs;

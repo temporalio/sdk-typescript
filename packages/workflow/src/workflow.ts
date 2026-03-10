@@ -322,7 +322,7 @@ export async function scheduleLocalActivity<R>(
   let attempt = 1;
   let originalScheduleTime = undefined;
 
-  for (; ;) {
+  for (;;) {
     const seq = activator.nextSeqs.activity++;
     const execute = composeInterceptors(
       activator.interceptors.outbound,
@@ -462,14 +462,14 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
         signalName,
         ...(target.type === 'external'
           ? {
-            workflowExecution: {
-              namespace: activator.info.namespace,
-              ...target.workflowExecution,
-            },
-          }
+              workflowExecution: {
+                namespace: activator.info.namespace,
+                ...target.workflowExecution,
+              },
+            }
           : {
-            childWorkflowId: target.childWorkflowId,
-          }),
+              childWorkflowId: target.childWorkflowId,
+            }),
       },
     });
 
@@ -1556,7 +1556,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
       upsertWorkflowSearchAttributes: {
         searchAttributes: {
           indexedFields: mapToPayloads(searchAttributePayloadConverter, searchAttributes),
-        }
+        },
       },
     });
 

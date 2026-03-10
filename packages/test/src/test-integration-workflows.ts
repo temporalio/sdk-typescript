@@ -70,8 +70,8 @@ test('Workflow fails if it tries to start a child with an existing workflow ID',
     });
     t.true(
       err instanceof WorkflowFailedError &&
-      err.cause?.name === 'TemporalFailure' &&
-      err.cause?.message === 'Workflow execution already started'
+        err.cause?.name === 'TemporalFailure' &&
+        err.cause?.message === 'Workflow execution already started'
     );
   });
 });
@@ -134,7 +134,7 @@ test('Worker allows heartbeating activities after shutdown has been requested', 
         const ctx = activity.Context.current();
         await firstValueFrom(workerWasShutdownSubject);
         try {
-          for (; ;) {
+          for (;;) {
             await ctx.sleep('100ms');
             ctx.heartbeat();
           }
@@ -1163,7 +1163,7 @@ test("Lang's SDK flags replay correctly", async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker({
     activities: {
-      noopActivity: () => { },
+      noopActivity: () => {},
     },
   });
 
@@ -1324,9 +1324,9 @@ export async function rawValueWorkflow(value: unknown, isPayload: boolean = fals
   const { rawValueActivity } = workflow.proxyActivities({ startToCloseTimeout: '10s' });
   const rv = isPayload
     ? RawValue.fromPayload({
-      metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
-      data: value as Uint8Array,
-    })
+        metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
+        data: value as Uint8Array,
+      })
     : new RawValue(value);
   return await rawValueActivity(rv, isPayload);
 }
@@ -1338,9 +1338,9 @@ test('workflow and activity can receive/return RawValue', async (t) => {
       async rawValueActivity(value: unknown, isPayload: boolean = false): Promise<RawValue> {
         const rv = isPayload
           ? RawValue.fromPayload({
-            metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
-            data: value as Uint8Array,
-          })
+              metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
+              data: value as Uint8Array,
+            })
           : new RawValue(value);
         return rv;
       },
@@ -1562,7 +1562,7 @@ test('Cannot register activities using reserved prefixes', async (t) => {
     const activityName = name === TEMPORAL_RESERVED_PREFIX ? name + '_test' : name;
     await t.throwsAsync(
       createWorker({
-        activities: { [activityName]: () => { } },
+        activities: { [activityName]: () => {} },
       }),
       {
         name: 'TypeError',
@@ -1606,7 +1606,7 @@ test('Cannot register sinks using reserved prefixes', async (t) => {
         sinks: {
           [sinkName]: {
             test: {
-              fn: () => { },
+              fn: () => {},
             },
           },
         },
@@ -1631,21 +1631,21 @@ export async function workflowReservedNameHandler(name: string): Promise<Handler
   // Re-package errors, default payload converter has trouble converting native errors (no 'data' field).
   const expectedErrors: HandlerError[] = [];
   try {
-    setHandler(defineSignal(name === TEMPORAL_RESERVED_PREFIX ? name + '_signal' : name), () => { });
+    setHandler(defineSignal(name === TEMPORAL_RESERVED_PREFIX ? name + '_signal' : name), () => {});
   } catch (e) {
     if (e instanceof Error) {
       expectedErrors.push({ name: e.name, message: e.message });
     }
   }
   try {
-    setHandler(defineUpdate(name === TEMPORAL_RESERVED_PREFIX ? name + '_update' : name), () => { });
+    setHandler(defineUpdate(name === TEMPORAL_RESERVED_PREFIX ? name + '_update' : name), () => {});
   } catch (e) {
     if (e instanceof Error) {
       expectedErrors.push({ name: e.name, message: e.message });
     }
   }
   try {
-    setHandler(defineQuery(name === TEMPORAL_RESERVED_PREFIX ? name + '_query' : name), () => { });
+    setHandler(defineQuery(name === TEMPORAL_RESERVED_PREFIX ? name + '_query' : name), () => {});
   } catch (e) {
     if (e instanceof Error) {
       expectedErrors.push({ name: e.name, message: e.message });
@@ -1696,9 +1696,9 @@ export async function workflowWithDefaultHandlers(): Promise<void> {
     unblocked = true;
   });
 
-  setDefaultQueryHandler(() => { });
-  setDefaultSignalHandler(() => { });
-  setDefaultUpdateHandler(() => { });
+  setDefaultQueryHandler(() => {});
+  setDefaultSignalHandler(() => {});
+  setDefaultUpdateHandler(() => {});
   setHandler(wfReadyQuery, () => true);
 
   await condition(() => unblocked);
@@ -1783,7 +1783,6 @@ test('Default handlers fail given reserved prefix', async (t) => {
 });
 
 export async function helloWorkflow(name: string): Promise<string> {
-  console.log("hello");
   return `Hello, ${name}!`;
 }
 
@@ -1796,7 +1795,6 @@ test('Workflow can be started eagerly with shared NativeConnection', async (t) =
 
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    console.log("starting")
     const handle = await client.workflow.start(helloWorkflow, {
       args: ['Temporal'],
       workflowId: `eager-workflow-${randomUUID()}`,
@@ -1804,7 +1802,6 @@ test('Workflow can be started eagerly with shared NativeConnection', async (t) =
       requestEagerStart: true,
       workflowTaskTimeout: '1h', // hang if retry needed
     });
-    console.log("started", handle);
 
     t.true(handle.eagerlyStarted);
 

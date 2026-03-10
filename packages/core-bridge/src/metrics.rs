@@ -5,15 +5,15 @@ use std::sync::Arc;
 use neon::prelude::*;
 use serde::Deserialize;
 
+use temporalio_common::telemetry::metrics::core::{
+    BufferInstrumentRef as CoreBufferInstrumentRef, CustomMetricAttributes, MetricCallBufferer,
+    MetricEvent as CoreMetricEvent, MetricKind as CoreMetricKind, MetricUpdateVal,
+};
 use temporalio_common::telemetry::metrics::{
     Counter as CoreCounter, Gauge as CoreGauge, GaugeF64 as CoreGaugeF64,
     Histogram as CoreHistogram, HistogramF64 as CoreHistogramF64,
     MetricKeyValue as CoreMetricKeyValue, MetricParameters as CoreMetricParameters,
     MetricValue as CoreMetricValue, NewAttributes, TemporalMeter,
-};
-use temporalio_common::telemetry::metrics::core::{
-    BufferInstrumentRef as CoreBufferInstrumentRef, CustomMetricAttributes, MetricCallBufferer,
-    MetricEvent as CoreMetricEvent, MetricKind as CoreMetricKind, MetricUpdateVal,
 };
 
 use bridge_macros::{TryIntoJs, js_function};

@@ -6,7 +6,6 @@ use prost::Message;
 use tokio::sync::mpsc::{Sender, channel};
 use tokio_stream::wrappers::ReceiverStream;
 
-use temporalio_sdk_core::{CompleteActivityError, CompleteNexusError, CompleteWfError, PollError};
 use temporalio_common::protos::{
     coresdk::{
         ActivityHeartbeat, ActivityTaskCompletion, nexus::NexusTaskCompletion,
@@ -14,6 +13,7 @@ use temporalio_common::protos::{
     },
     temporal::api::history::v1::History,
 };
+use temporalio_sdk_core::{CompleteActivityError, CompleteNexusError, CompleteWfError, PollError};
 use temporalio_sdk_core::{
     CoreRuntime, init_replay_worker, init_worker,
     replay::{HistoryForReplay, ReplayWorkerInput},
@@ -808,7 +808,8 @@ mod custom_slot_supplier {
         SlotMarkUsedContext as CoreSlotMarkUsedContext,
         SlotReleaseContext as CoreSlotReleaseContext,
         SlotReservationContext as CoreSlotReservationContext, SlotSupplier as CoreSlotSupplier,
-        SlotSupplierOptions as CoreSlotSupplierOptions, SlotSupplierPermit as CoreSlotSupplierPermit,
+        SlotSupplierOptions as CoreSlotSupplierOptions,
+        SlotSupplierPermit as CoreSlotSupplierPermit,
     };
 
     use bridge_macros::{TryFromJs, TryIntoJs};
