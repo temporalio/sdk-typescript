@@ -28,4 +28,3 @@ if ('__webpack_module_cache__' in globalThis && typeof performance === 'undefine
 // Empty export to mark this as a module for ESLint's import/unambiguous rule.
 // This file intentionally has no imports to ensure it initializes before OTel.
 export {};
-

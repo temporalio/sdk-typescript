@@ -35,7 +35,7 @@ import {
 import type * as workflowImportStub from '../workflow/workflow-imports';
 import type * as workflowImportImpl from '../workflow/workflow-imports-impl';
 import { OpenTelemetryWorkflowClientInterceptor } from '../client';
-import { OpenTelemetryPlugin, OpenTelemetryWorkflowClientCallsInterceptor } from '..';
+import { OpenTelemetryPlugin } from '..';
 import { instrument } from '../instrumentation';
 import {
   makeWorkflowExporter,
@@ -704,6 +704,62 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(traceState!.get('vendor1'), 'value1');
       t.is(traceState!.get('vendor2'), 'value2');
     }
+  });
+
+  test.serial('DeterministicIdGenerator isolates PRNG and replays correctly', async (t) => {
+    const spans = Array<opentelemetry.tracing.ReadableSpan>();
+    const staticResource = opentelemetry.resources.resourceFromAttributes({
+      [ATTR_SERVICE_NAME]: 'ts-test-otel-v2-idgen',
+    });
+    const traceExporter: opentelemetry.tracing.SpanExporter = {
+      export(spans_, resultCallback) {
+        spans.push(...spans_);
+        resultCallback({ code: ExportResultCode.SUCCESS });
+      },
+      async shutdown() {},
+    };
+
+    const plugin = new OpenTelemetryPlugin({
+      resource: staticResource,
+      spanProcessor: new SimpleSpanProcessor(traceExporter),
+    });
+
+    const taskQueue = 'test-otel-v2-idgen';
+    const worker = await Worker.create({
+      workflowsPath: require.resolve('./workflows'),
+      activities,
+      taskQueue,
+      plugins: [plugin],
+    });
+
+    const client = new Client({ plugins: [plugin] });
+    const workflowId = uuid4();
+
+    await worker.runUntil(client.workflow.execute(workflows.prngIsolation, { taskQueue, workflowId }));
+
+    // Verify span IDs from DeterministicIdGenerator are valid hex
+    t.is(spans.length, 3);
+    for (const span of spans) {
+      const { traceId, spanId } = span.spanContext();
+      t.regex(traceId, /^[0-9a-f]{32}$/);
+      t.regex(spanId, /^[0-9a-f]{16}$/);
+      t.not(traceId, '00000000000000000000000000000000');
+      t.not(spanId, '0000000000000000');
+    }
+
+    // Replay the history to verify child ids remain the same
+    const history = await client.workflow.getHandle(workflowId).fetchHistory();
+    await t.notThrowsAsync(
+      Worker.runReplayHistory(
+        {
+          workflowBundle: await createOtelTestWorkflowBundle({
+            workflowsPath: require.resolve('./workflows'),
+            plugins: [plugin],
+          }),
+        },
+        history
+      )
+    );
   });
 }
 

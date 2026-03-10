@@ -97,15 +97,8 @@
           "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
         },
         "sdkMetadata": {
-          "coreUsedFlags": [
-            1,
-            2,
-            3
-          ],
-          "langUsedFlags": [
-            5,
-            4
-          ],
+          "coreUsedFlags": [1, 2, 3],
+          "langUsedFlags": [5, 4],
           "sdkName": "temporal-typescript",
           "sdkVersion": "1.15.0"
         },
@@ -459,10 +452,7 @@
           "buildId": "@temporalio/worker@1.15.0+023a93a5578a3d7389ffdf5fc19b3fb9e4b80776ff22d7863fe910a5cf421e7e"
         },
         "sdkMetadata": {
-          "langUsedFlags": [
-            2,
-            3
-          ]
+          "langUsedFlags": [2, 3]
         },
         "meteringMetadata": {}
       }
