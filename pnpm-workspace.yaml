@@ -39,6 +39,7 @@ overrides:
   # Can be removed once a release of `express` with an updated qs is cut
   qs: ^6.14.1
 
-  hono@<4.11.4: '>=4.11.4'
   jws@<3.2.3: '>=3.2.3'
-  tar@<=7.5.2: '>=7.5.3'
+  tar: '>=7.5.10'
+  'minimatch@>=7.0.0 <7.4.8': '>=7.4.8'
+  serialize-javascript: '>=7.0.3'
