@@ -233,6 +233,9 @@ impl TryIntoJs for tonic::Status {
 }
 
 macro_rules! rpc_call {
+    ($connection:ident, $call:ident, $call_name:ident) => {
+        rpc_call!($connection, $call, $call_name, workflow_service)
+    };
     ($connection:ident, $call:ident, $call_name:ident, $service_accessor:ident) => {
         if $call.retry {
             rpc_resp($connection.$call_name(rpc_req($call)?).await)
