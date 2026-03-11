@@ -647,15 +647,15 @@ export type WorkerDeploymentOptions = {
    */
   defaultVersioningBehavior?: VersioningBehavior | undefined;
 } & (
-  | {
+    | {
       useWorkerVersioning: true;
       defaultVersioningBehavior: VersioningBehavior;
     }
-  | {
+    | {
       useWorkerVersioning: false;
-      defaultVersioningBehavior?: undefined;
+      defaultVersioningBehavior?: never;
     }
-);
+  );
 
 // Replay Worker ///////////////////////////////////////////////////////////////////////////////////
 
@@ -963,11 +963,11 @@ function addDefaultWorkerOptions(
       : behavior.type === 'simple-maximum'
         ? { type: 'simple-maximum', maximum: behavior.maximum ?? defaultMax }
         : {
-            type: 'autoscaling',
-            minimum: behavior.minimum ?? 1,
-            initial: behavior.initial ?? 5,
-            maximum: behavior.maximum ?? 100,
-          };
+          type: 'autoscaling',
+          minimum: behavior.minimum ?? 1,
+          initial: behavior.initial ?? 5,
+          maximum: behavior.maximum ?? 100,
+        };
 
   const wftPollerBehavior = createPollerBehavior(maxWFTPolls, workflowTaskPollerBehavior);
   const atPollerBehavior = createPollerBehavior(maxATPolls, activityTaskPollerBehavior);
