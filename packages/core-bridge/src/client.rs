@@ -261,541 +261,160 @@ async fn client_invoke_workflow_service(
     use temporalio_client::grpc::WorkflowService;
 
     match call.rpc.as_str() {
-        "CountActivityExecutions" => {
-            rpc_call!(
-                connection,
-                call,
-                count_activity_executions,
-                workflow_service
-            )
-        }
-        "CountSchedules" => {
-            rpc_call!(connection, call, count_schedules, workflow_service)
-        }
-        "CountWorkflowExecutions" => {
-            rpc_call!(
-                connection,
-                call,
-                count_workflow_executions,
-                workflow_service
-            )
-        }
-        "CreateSchedule" => {
-            rpc_call!(connection, call, create_schedule, workflow_service)
-        }
-        "CreateWorkflowRule" => {
-            rpc_call!(connection, call, create_workflow_rule, workflow_service)
-        }
-        "DeleteActivityExecution" => {
-            rpc_call!(
-                connection,
-                call,
-                delete_activity_execution,
-                workflow_service
-            )
-        }
-        "DeleteSchedule" => {
-            rpc_call!(connection, call, delete_schedule, workflow_service)
-        }
-        "DeleteWorkerDeployment" => {
-            rpc_call!(connection, call, delete_worker_deployment, workflow_service)
-        }
+        "CountActivityExecutions" => rpc_call!(connection, call, count_activity_executions),
+        "CountSchedules" => rpc_call!(connection, call, count_schedules),
+        "CountWorkflowExecutions" => rpc_call!(connection, call, count_workflow_executions),
+        "CreateSchedule" => rpc_call!(connection, call, create_schedule),
+        "CreateWorkflowRule" => rpc_call!(connection, call, create_workflow_rule),
+        "DeleteActivityExecution" => rpc_call!(connection, call, delete_activity_execution),
+        "DeleteSchedule" => rpc_call!(connection, call, delete_schedule),
+        "DeleteWorkerDeployment" => rpc_call!(connection, call, delete_worker_deployment),
         "DeleteWorkerDeploymentVersion" => {
-            rpc_call!(
-                connection,
-                call,
-                delete_worker_deployment_version,
-                workflow_service
-            )
+            rpc_call!(connection, call, delete_worker_deployment_version)
         }
-        "DeleteWorkflowExecution" => {
-            rpc_call!(
-                connection,
-                call,
-                delete_workflow_execution,
-                workflow_service
-            )
-        }
-        "DeleteWorkflowRule" => {
-            rpc_call!(connection, call, delete_workflow_rule, workflow_service)
-        }
-        "DescribeBatchOperation" => {
-            rpc_call!(connection, call, describe_batch_operation, workflow_service)
-        }
-        "DescribeActivityExecution" => {
-            rpc_call!(
-                connection,
-                call,
-                describe_activity_execution,
-                workflow_service
-            )
-        }
-        "DescribeDeployment" => {
-            rpc_call!(connection, call, describe_deployment, workflow_service)
-        }
-        "DescribeWorker" => {
-            rpc_call!(connection, call, describe_worker, workflow_service)
-        }
-        "DeprecateNamespace" => rpc_call!(connection, call, deprecate_namespace, workflow_service),
-        "DescribeNamespace" => rpc_call!(connection, call, describe_namespace, workflow_service),
-        "DescribeSchedule" => rpc_call!(connection, call, describe_schedule, workflow_service),
-        "DescribeTaskQueue" => rpc_call!(connection, call, describe_task_queue, workflow_service),
-        "DescribeWorkerDeployment" => {
-            rpc_call!(
-                connection,
-                call,
-                describe_worker_deployment,
-                workflow_service
-            )
-        }
+        "DeleteWorkflowExecution" => rpc_call!(connection, call, delete_workflow_execution),
+        "DeleteWorkflowRule" => rpc_call!(connection, call, delete_workflow_rule),
+        "DescribeBatchOperation" => rpc_call!(connection, call, describe_batch_operation),
+        "DescribeActivityExecution" => rpc_call!(connection, call, describe_activity_execution),
+        "DescribeDeployment" => rpc_call!(connection, call, describe_deployment),
+        "DescribeWorker" => rpc_call!(connection, call, describe_worker),
+        "DeprecateNamespace" => rpc_call!(connection, call, deprecate_namespace),
+        "DescribeNamespace" => rpc_call!(connection, call, describe_namespace),
+        "DescribeSchedule" => rpc_call!(connection, call, describe_schedule),
+        "DescribeTaskQueue" => rpc_call!(connection, call, describe_task_queue),
+        "DescribeWorkerDeployment" => rpc_call!(connection, call, describe_worker_deployment),
         "DescribeWorkerDeploymentVersion" => {
-            rpc_call!(
-                connection,
-                call,
-                describe_worker_deployment_version,
-                workflow_service
-            )
+            rpc_call!(connection, call, describe_worker_deployment_version)
         }
-        "DescribeWorkflowExecution" => {
-            rpc_call!(
-                connection,
-                call,
-                describe_workflow_execution,
-                workflow_service
-            )
-        }
-        "DescribeWorkflowRule" => {
-            rpc_call!(connection, call, describe_workflow_rule, workflow_service)
-        }
-        "ExecuteMultiOperation" => {
-            rpc_call!(connection, call, execute_multi_operation, workflow_service)
-        }
-        "FetchWorkerConfig" => rpc_call!(connection, call, fetch_worker_config, workflow_service),
-        "GetClusterInfo" => rpc_call!(connection, call, get_cluster_info, workflow_service),
-        "GetCurrentDeployment" => {
-            rpc_call!(connection, call, get_current_deployment, workflow_service)
-        }
-        "GetDeploymentReachability" => {
-            rpc_call!(
-                connection,
-                call,
-                get_deployment_reachability,
-                workflow_service
-            )
-        }
-        "GetSearchAttributes" => {
-            rpc_call!(connection, call, get_search_attributes, workflow_service)
-        }
-        "GetSystemInfo" => rpc_call!(connection, call, get_system_info, workflow_service),
+        "DescribeWorkflowExecution" => rpc_call!(connection, call, describe_workflow_execution),
+        "DescribeWorkflowRule" => rpc_call!(connection, call, describe_workflow_rule),
+        "ExecuteMultiOperation" => rpc_call!(connection, call, execute_multi_operation),
+        "FetchWorkerConfig" => rpc_call!(connection, call, fetch_worker_config),
+        "GetClusterInfo" => rpc_call!(connection, call, get_cluster_info),
+        "GetCurrentDeployment" => rpc_call!(connection, call, get_current_deployment),
+        "GetDeploymentReachability" => rpc_call!(connection, call, get_deployment_reachability),
+        "GetSearchAttributes" => rpc_call!(connection, call, get_search_attributes),
+        "GetSystemInfo" => rpc_call!(connection, call, get_system_info),
         "GetWorkerBuildIdCompatibility" => {
-            rpc_call!(
-                connection,
-                call,
-                get_worker_build_id_compatibility,
-                workflow_service
-            )
+            rpc_call!(connection, call, get_worker_build_id_compatibility)
         }
-        "GetWorkerTaskReachability" => {
-            rpc_call!(
-                connection,
-                call,
-                get_worker_task_reachability,
-                workflow_service
-            )
-        }
-        "GetWorkerVersioningRules" => {
-            rpc_call!(
-                connection,
-                call,
-                get_worker_versioning_rules,
-                workflow_service
-            )
-        }
+        "GetWorkerTaskReachability" => rpc_call!(connection, call, get_worker_task_reachability),
+        "GetWorkerVersioningRules" => rpc_call!(connection, call, get_worker_versioning_rules),
         "GetWorkflowExecutionHistory" => {
-            rpc_call!(
-                connection,
-                call,
-                get_workflow_execution_history,
-                workflow_service
-            )
+            rpc_call!(connection, call, get_workflow_execution_history)
         }
         "GetWorkflowExecutionHistoryReverse" => {
-            rpc_call!(
-                connection,
-                call,
-                get_workflow_execution_history_reverse,
-                workflow_service
-            )
+            rpc_call!(connection, call, get_workflow_execution_history_reverse)
         }
         "ListArchivedWorkflowExecutions" => {
-            rpc_call!(
-                connection,
-                call,
-                list_archived_workflow_executions,
-                workflow_service
-            )
+            rpc_call!(connection, call, list_archived_workflow_executions)
         }
-        "ListActivityExecutions" => {
-            rpc_call!(connection, call, list_activity_executions, workflow_service)
-        }
-        "ListBatchOperations" => {
-            rpc_call!(connection, call, list_batch_operations, workflow_service)
-        }
+        "ListActivityExecutions" => rpc_call!(connection, call, list_activity_executions),
+        "ListBatchOperations" => rpc_call!(connection, call, list_batch_operations),
         "ListClosedWorkflowExecutions" => {
-            rpc_call!(
-                connection,
-                call,
-                list_closed_workflow_executions,
-                workflow_service
-            )
+            rpc_call!(connection, call, list_closed_workflow_executions)
         }
-        "ListDeployments" => {
-            rpc_call!(connection, call, list_deployments, workflow_service)
-        }
-        "ListNamespaces" => rpc_call!(connection, call, list_namespaces, workflow_service),
-        "ListOpenWorkflowExecutions" => {
-            rpc_call!(
-                connection,
-                call,
-                list_open_workflow_executions,
-                workflow_service
-            )
-        }
-        "ListScheduleMatchingTimes" => {
-            rpc_call!(
-                connection,
-                call,
-                list_schedule_matching_times,
-                workflow_service
-            )
-        }
-        "ListSchedules" => {
-            rpc_call!(connection, call, list_schedules, workflow_service)
-        }
-        "ListTaskQueuePartitions" => {
-            rpc_call!(
-                connection,
-                call,
-                list_task_queue_partitions,
-                workflow_service
-            )
-        }
-        "ListWorkerDeployments" => {
-            rpc_call!(connection, call, list_worker_deployments, workflow_service)
-        }
-        "ListWorkers" => {
-            rpc_call!(connection, call, list_workers, workflow_service)
-        }
-        "ListWorkflowExecutions" => {
-            rpc_call!(connection, call, list_workflow_executions, workflow_service)
-        }
-        "ListWorkflowRules" => {
-            rpc_call!(connection, call, list_workflow_rules, workflow_service)
-        }
-        "PatchSchedule" => {
-            rpc_call!(connection, call, patch_schedule, workflow_service)
-        }
-        "PauseActivity" => {
-            rpc_call!(connection, call, pause_activity, workflow_service)
-        }
-        "PauseWorkflowExecution" => {
-            rpc_call!(connection, call, pause_workflow_execution, workflow_service)
-        }
-        "PollActivityExecution" => {
-            rpc_call!(connection, call, poll_activity_execution, workflow_service)
-        }
-        "PollActivityTaskQueue" => {
-            rpc_call!(connection, call, poll_activity_task_queue, workflow_service)
-        }
-        "PollNexusTaskQueue" => {
-            rpc_call!(connection, call, poll_nexus_task_queue, workflow_service)
-        }
+        "ListDeployments" => rpc_call!(connection, call, list_deployments),
+        "ListNamespaces" => rpc_call!(connection, call, list_namespaces),
+        "ListOpenWorkflowExecutions" => rpc_call!(connection, call, list_open_workflow_executions),
+        "ListScheduleMatchingTimes" => rpc_call!(connection, call, list_schedule_matching_times),
+        "ListSchedules" => rpc_call!(connection, call, list_schedules),
+        "ListTaskQueuePartitions" => rpc_call!(connection, call, list_task_queue_partitions),
+        "ListWorkerDeployments" => rpc_call!(connection, call, list_worker_deployments),
+        "ListWorkers" => rpc_call!(connection, call, list_workers),
+        "ListWorkflowExecutions" => rpc_call!(connection, call, list_workflow_executions),
+        "ListWorkflowRules" => rpc_call!(connection, call, list_workflow_rules),
+        "PatchSchedule" => rpc_call!(connection, call, patch_schedule),
+        "PauseActivity" => rpc_call!(connection, call, pause_activity),
+        "PauseWorkflowExecution" => rpc_call!(connection, call, pause_workflow_execution),
+        "PollActivityExecution" => rpc_call!(connection, call, poll_activity_execution),
+        "PollActivityTaskQueue" => rpc_call!(connection, call, poll_activity_task_queue),
+        "PollNexusTaskQueue" => rpc_call!(connection, call, poll_nexus_task_queue),
         "PollWorkflowExecutionUpdate" => {
-            rpc_call!(
-                connection,
-                call,
-                poll_workflow_execution_update,
-                workflow_service
-            )
+            rpc_call!(connection, call, poll_workflow_execution_update)
         }
-        "PollWorkflowTaskQueue" => {
-            rpc_call!(connection, call, poll_workflow_task_queue, workflow_service)
-        }
-        "QueryWorkflow" => rpc_call!(connection, call, query_workflow, workflow_service),
+        "PollWorkflowTaskQueue" => rpc_call!(connection, call, poll_workflow_task_queue),
+        "QueryWorkflow" => rpc_call!(connection, call, query_workflow),
         "RecordActivityTaskHeartbeat" => {
-            rpc_call!(
-                connection,
-                call,
-                record_activity_task_heartbeat,
-                workflow_service
-            )
+            rpc_call!(connection, call, record_activity_task_heartbeat)
         }
         "RecordActivityTaskHeartbeatById" => {
-            rpc_call!(
-                connection,
-                call,
-                record_activity_task_heartbeat_by_id,
-                workflow_service
-            )
+            rpc_call!(connection, call, record_activity_task_heartbeat_by_id)
         }
-        "RecordWorkerHeartbeat" => {
-            rpc_call!(connection, call, record_worker_heartbeat, workflow_service)
-        }
-        "RegisterNamespace" => rpc_call!(connection, call, register_namespace, workflow_service),
+        "RecordWorkerHeartbeat" => rpc_call!(connection, call, record_worker_heartbeat),
+        "RegisterNamespace" => rpc_call!(connection, call, register_namespace),
         "RequestCancelActivityExecution" => {
-            rpc_call!(
-                connection,
-                call,
-                request_cancel_activity_execution,
-                workflow_service
-            )
+            rpc_call!(connection, call, request_cancel_activity_execution)
         }
         "RequestCancelWorkflowExecution" => {
-            rpc_call!(
-                connection,
-                call,
-                request_cancel_workflow_execution,
-                workflow_service
-            )
+            rpc_call!(connection, call, request_cancel_workflow_execution)
         }
-        "ResetActivity" => {
-            rpc_call!(connection, call, reset_activity, workflow_service)
-        }
-        "ResetStickyTaskQueue" => {
-            rpc_call!(connection, call, reset_sticky_task_queue, workflow_service)
-        }
-        "ResetWorkflowExecution" => {
-            rpc_call!(connection, call, reset_workflow_execution, workflow_service)
-        }
+        "ResetActivity" => rpc_call!(connection, call, reset_activity),
+        "ResetStickyTaskQueue" => rpc_call!(connection, call, reset_sticky_task_queue),
+        "ResetWorkflowExecution" => rpc_call!(connection, call, reset_workflow_execution),
         "RespondActivityTaskCanceled" => {
-            rpc_call!(
-                connection,
-                call,
-                respond_activity_task_canceled,
-                workflow_service
-            )
+            rpc_call!(connection, call, respond_activity_task_canceled)
         }
         "RespondActivityTaskCanceledById" => {
-            rpc_call!(
-                connection,
-                call,
-                respond_activity_task_canceled_by_id,
-                workflow_service
-            )
+            rpc_call!(connection, call, respond_activity_task_canceled_by_id)
         }
         "RespondActivityTaskCompleted" => {
-            rpc_call!(
-                connection,
-                call,
-                respond_activity_task_completed,
-                workflow_service
-            )
+            rpc_call!(connection, call, respond_activity_task_completed)
         }
         "RespondActivityTaskCompletedById" => {
-            rpc_call!(
-                connection,
-                call,
-                respond_activity_task_completed_by_id,
-                workflow_service
-            )
+            rpc_call!(connection, call, respond_activity_task_completed_by_id)
         }
-        "RespondActivityTaskFailed" => {
-            rpc_call!(
-                connection,
-                call,
-                respond_activity_task_failed,
-                workflow_service
-            )
-        }
+        "RespondActivityTaskFailed" => rpc_call!(connection, call, respond_activity_task_failed),
         "RespondActivityTaskFailedById" => {
-            rpc_call!(
-                connection,
-                call,
-                respond_activity_task_failed_by_id,
-                workflow_service
-            )
+            rpc_call!(connection, call, respond_activity_task_failed_by_id)
         }
-        "RespondNexusTaskCompleted" => {
-            rpc_call!(
-                connection,
-                call,
-                respond_nexus_task_completed,
-                workflow_service
-            )
-        }
-        "RespondNexusTaskFailed" => {
-            rpc_call!(
-                connection,
-                call,
-                respond_nexus_task_failed,
-                workflow_service
-            )
-        }
-        "RespondQueryTaskCompleted" => {
-            rpc_call!(
-                connection,
-                call,
-                respond_query_task_completed,
-                workflow_service
-            )
-        }
+        "RespondNexusTaskCompleted" => rpc_call!(connection, call, respond_nexus_task_completed),
+        "RespondNexusTaskFailed" => rpc_call!(connection, call, respond_nexus_task_failed),
+        "RespondQueryTaskCompleted" => rpc_call!(connection, call, respond_query_task_completed),
         "RespondWorkflowTaskCompleted" => {
-            rpc_call!(
-                connection,
-                call,
-                respond_workflow_task_completed,
-                workflow_service
-            )
+            rpc_call!(connection, call, respond_workflow_task_completed)
         }
-        "RespondWorkflowTaskFailed" => {
-            rpc_call!(
-                connection,
-                call,
-                respond_workflow_task_failed,
-                workflow_service
-            )
-        }
-        "ScanWorkflowExecutions" => {
-            rpc_call!(connection, call, scan_workflow_executions, workflow_service)
-        }
-        "SetCurrentDeployment" => {
-            rpc_call!(connection, call, set_current_deployment, workflow_service)
-        }
+        "RespondWorkflowTaskFailed" => rpc_call!(connection, call, respond_workflow_task_failed),
+        "ScanWorkflowExecutions" => rpc_call!(connection, call, scan_workflow_executions),
+        "SetCurrentDeployment" => rpc_call!(connection, call, set_current_deployment),
         "SetWorkerDeploymentCurrentVersion" => {
-            rpc_call!(
-                connection,
-                call,
-                set_worker_deployment_current_version,
-                workflow_service
-            )
+            rpc_call!(connection, call, set_worker_deployment_current_version)
         }
-        "SetWorkerDeploymentManager" => {
-            rpc_call!(
-                connection,
-                call,
-                set_worker_deployment_manager,
-                workflow_service
-            )
-        }
+        "SetWorkerDeploymentManager" => rpc_call!(connection, call, set_worker_deployment_manager),
         "SetWorkerDeploymentRampingVersion" => {
-            rpc_call!(
-                connection,
-                call,
-                set_worker_deployment_ramping_version,
-                workflow_service
-            )
+            rpc_call!(connection, call, set_worker_deployment_ramping_version)
         }
-        "ShutdownWorker" => {
-            rpc_call!(connection, call, shutdown_worker, workflow_service)
-        }
+        "ShutdownWorker" => rpc_call!(connection, call, shutdown_worker),
         "SignalWithStartWorkflowExecution" => {
-            rpc_call!(
-                connection,
-                call,
-                signal_with_start_workflow_execution,
-                workflow_service
-            )
+            rpc_call!(connection, call, signal_with_start_workflow_execution)
         }
-        "SignalWorkflowExecution" => {
-            rpc_call!(
-                connection,
-                call,
-                signal_workflow_execution,
-                workflow_service
-            )
-        }
-        "StartActivityExecution" => {
-            rpc_call!(connection, call, start_activity_execution, workflow_service)
-        }
-        "StartWorkflowExecution" => {
-            rpc_call!(connection, call, start_workflow_execution, workflow_service)
-        }
-        "StartBatchOperation" => {
-            rpc_call!(connection, call, start_batch_operation, workflow_service)
-        }
-        "StopBatchOperation" => {
-            rpc_call!(connection, call, stop_batch_operation, workflow_service)
-        }
-        "TerminateActivityExecution" => {
-            rpc_call!(
-                connection,
-                call,
-                terminate_activity_execution,
-                workflow_service
-            )
-        }
-        "TerminateWorkflowExecution" => {
-            rpc_call!(
-                connection,
-                call,
-                terminate_workflow_execution,
-                workflow_service
-            )
-        }
-        "TriggerWorkflowRule" => {
-            rpc_call!(connection, call, trigger_workflow_rule, workflow_service)
-        }
-        "UnpauseActivity" => {
-            rpc_call!(connection, call, unpause_activity, workflow_service)
-        }
-        "UnpauseWorkflowExecution" => {
-            rpc_call!(
-                connection,
-                call,
-                unpause_workflow_execution,
-                workflow_service
-            )
-        }
-        "UpdateActivityOptions" => {
-            rpc_call!(connection, call, update_activity_options, workflow_service)
-        }
-        "UpdateNamespace" => {
-            rpc_call!(connection, call, update_namespace, workflow_service)
-        }
-        "UpdateSchedule" => rpc_call!(connection, call, update_schedule, workflow_service),
-        "UpdateWorkerConfig" => rpc_call!(connection, call, update_worker_config, workflow_service),
+        "SignalWorkflowExecution" => rpc_call!(connection, call, signal_workflow_execution),
+        "StartActivityExecution" => rpc_call!(connection, call, start_activity_execution),
+        "StartWorkflowExecution" => rpc_call!(connection, call, start_workflow_execution),
+        "StartBatchOperation" => rpc_call!(connection, call, start_batch_operation),
+        "StopBatchOperation" => rpc_call!(connection, call, stop_batch_operation),
+        "TerminateActivityExecution" => rpc_call!(connection, call, terminate_activity_execution),
+        "TerminateWorkflowExecution" => rpc_call!(connection, call, terminate_workflow_execution),
+        "TriggerWorkflowRule" => rpc_call!(connection, call, trigger_workflow_rule),
+        "UnpauseActivity" => rpc_call!(connection, call, unpause_activity),
+        "UnpauseWorkflowExecution" => rpc_call!(connection, call, unpause_workflow_execution),
+        "UpdateActivityOptions" => rpc_call!(connection, call, update_activity_options),
+        "UpdateNamespace" => rpc_call!(connection, call, update_namespace),
+        "UpdateSchedule" => rpc_call!(connection, call, update_schedule),
+        "UpdateWorkerConfig" => rpc_call!(connection, call, update_worker_config),
         "UpdateWorkerDeploymentVersionMetadata" => {
-            rpc_call!(
-                connection,
-                call,
-                update_worker_deployment_version_metadata,
-                workflow_service
-            )
+            rpc_call!(connection, call, update_worker_deployment_version_metadata)
         }
-        "UpdateTaskQueueConfig" => {
-            rpc_call!(connection, call, update_task_queue_config, workflow_service)
-        }
-        "UpdateWorkflowExecution" => {
-            rpc_call!(
-                connection,
-                call,
-                update_workflow_execution,
-                workflow_service
-            )
-        }
+        "UpdateTaskQueueConfig" => rpc_call!(connection, call, update_task_queue_config),
+        "UpdateWorkflowExecution" => rpc_call!(connection, call, update_workflow_execution),
         "UpdateWorkflowExecutionOptions" => {
-            rpc_call!(
-                connection,
-                call,
-                update_workflow_execution_options,
-                workflow_service
-            )
+            rpc_call!(connection, call, update_workflow_execution_options)
         }
         "UpdateWorkerBuildIdCompatibility" => {
-            rpc_call!(
-                connection,
-                call,
-                update_worker_build_id_compatibility,
-                workflow_service
-            )
+            rpc_call!(connection, call, update_worker_build_id_compatibility)
         }
         "UpdateWorkerVersioningRules" => {
-            rpc_call!(
-                connection,
-                call,
-                update_worker_versioning_rules,
-                workflow_service
-            )
+            rpc_call!(connection, call, update_worker_versioning_rules)
         }
         _ => Err(BridgeError::TypeError {
             field: None,
