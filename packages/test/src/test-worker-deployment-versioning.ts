@@ -10,10 +10,10 @@ import { ExecutionContext } from 'ava';
 import { Client } from '@temporalio/client';
 import { toCanonicalString, WorkerDeploymentVersion } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
+import { WorkerOptions } from '@temporalio/worker';
 import { Worker } from './helpers';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
 import { unblockSignal, versionQuery } from './workflows';
-import { WorkerOptions } from '@temporalio/worker';
 
 type WorkerDeploymentOptions = NonNullable<WorkerOptions['workerDeploymentOptions']>;
 
@@ -305,7 +305,7 @@ async function testWorkerDeploymentWithDynamicBehavior(
     (event) =>
       event.workflowTaskCompletedEventAttributes &&
       event.workflowTaskCompletedEventAttributes.versioningBehavior ===
-      temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
+        temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
   );
   assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
 
@@ -363,7 +363,7 @@ test('Workflows can use default versioning behavior', async (t) => {
     (event) =>
       event.workflowTaskCompletedEventAttributes &&
       event.workflowTaskCompletedEventAttributes.versioningBehavior ===
-      temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
+        temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
   );
   assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
 
@@ -418,7 +418,7 @@ test('Workflow versioningOverride overrides default versioning behavior', async 
   const hasPinnedVersioningBehavior = historyPinned.events!.some(
     (event) =>
       event.workflowExecutionStartedEventAttributes?.versioningOverride?.behavior ===
-      temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED ||
+        temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED ||
       event.workflowExecutionStartedEventAttributes?.versioningOverride?.pinned != null
   );
   assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
