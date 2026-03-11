@@ -13,6 +13,9 @@ import { temporal } from '@temporalio/proto';
 import { Worker } from './helpers';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
 import { unblockSignal, versionQuery } from './workflows';
+import { WorkerOptions } from '@temporalio/worker';
+
+type WorkerDeploymentOptions = NonNullable<WorkerOptions['workerDeploymentOptions']>;
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
@@ -302,7 +305,7 @@ async function testWorkerDeploymentWithDynamicBehavior(
     (event) =>
       event.workflowTaskCompletedEventAttributes &&
       event.workflowTaskCompletedEventAttributes.versioningBehavior ===
-        temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
+      temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
   );
   assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
 
@@ -360,7 +363,7 @@ test('Workflows can use default versioning behavior', async (t) => {
     (event) =>
       event.workflowTaskCompletedEventAttributes &&
       event.workflowTaskCompletedEventAttributes.versioningBehavior ===
-        temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
+      temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
   );
   assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
 
@@ -415,7 +418,7 @@ test('Workflow versioningOverride overrides default versioning behavior', async 
   const hasPinnedVersioningBehavior = historyPinned.events!.some(
     (event) =>
       event.workflowExecutionStartedEventAttributes?.versioningOverride?.behavior ===
-        temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED ||
+      temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED ||
       event.workflowExecutionStartedEventAttributes?.versioningOverride?.pinned != null
   );
   assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
@@ -474,3 +477,52 @@ async function setCurrentDeploymentVersion(
     conflictToken,
   });
 }
+
+///////////////////////////////
+
+/**
+ * Type-level tests for WorkerDeploymentOptions.
+ *
+ * Ensures that:
+ * - When useWorkerVersioning is true, defaultVersioningBehavior is required
+ * - When useWorkerVersioning is false, defaultVersioningBehavior must be absent
+ * - version is always required
+ */
+
+test('WorkerDeploymentOptions with useWorkerVersioning true requires defaultVersioningBehavior', (t) => {
+  const valid: WorkerDeploymentOptions = {
+    version: { buildId: '1.0', deploymentName: 'my-deployment' },
+    useWorkerVersioning: true,
+    defaultVersioningBehavior: 'AUTO_UPGRADE',
+  };
+
+  const validPinned: WorkerDeploymentOptions = {
+    version: { buildId: '1.0', deploymentName: 'my-deployment' },
+    useWorkerVersioning: true,
+    defaultVersioningBehavior: 'PINNED',
+  };
+
+  // @ts-expect-error defaultVersioningBehavior is required when useWorkerVersioning is true
+  const missingBehavior: WorkerDeploymentOptions = {
+    version: { buildId: '1.0', deploymentName: 'my-deployment' },
+    useWorkerVersioning: true,
+  };
+
+  t.pass();
+});
+
+test('WorkerDeploymentOptions with useWorkerVersioning false does not allow defaultVersioningBehavior', (t) => {
+  const _validNoVersioning: WorkerDeploymentOptions = {
+    version: { buildId: '1.0', deploymentName: 'my-deployment' },
+    useWorkerVersioning: false,
+  };
+
+  const invalidWithBehavior: WorkerDeploymentOptions = {
+    version: { buildId: '1.0', deploymentName: 'my-deployment' },
+    useWorkerVersioning: false,
+    // @ts-expect-error defaultVersioningBehavior must not be specified when useWorkerVersioning is false
+    defaultVersioningBehavior: 'AUTO_UPGRADE',
+  };
+
+  t.pass();
+});

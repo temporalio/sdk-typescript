@@ -553,7 +553,7 @@ mod config {
     pub struct WorkerDeploymentOptions {
         version: WorkerDeploymentVersion,
         use_worker_versioning: bool,
-        default_versioning_behavior: VersioningBehavior,
+        default_versioning_behavior: Option<VersioningBehavior>,
     }
 
     #[derive(TryFromJs)]
@@ -662,7 +662,7 @@ mod config {
             Self {
                 version: val.version.into(),
                 use_worker_versioning: val.use_worker_versioning,
-                default_versioning_behavior: Some(val.default_versioning_behavior.into()),
+                default_versioning_behavior: val.default_versioning_behavior.map(Into::into),
             }
         }
     }
