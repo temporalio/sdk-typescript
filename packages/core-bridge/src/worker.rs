@@ -6,10 +6,6 @@ use prost::Message;
 use tokio::sync::mpsc::{Sender, channel};
 use tokio_stream::wrappers::ReceiverStream;
 
-use temporalio_common::Worker as CoreWorkerTrait;
-use temporalio_common::errors::{
-    CompleteActivityError, CompleteNexusError, CompleteWfError, PollError,
-};
 use temporalio_common::protos::{
     coresdk::{
         ActivityHeartbeat, ActivityTaskCompletion, nexus::NexusTaskCompletion,
@@ -17,6 +13,7 @@ use temporalio_common::protos::{
     },
     temporal::api::history::v1::History,
 };
+use temporalio_sdk_core::{CompleteActivityError, CompleteNexusError, CompleteWfError, PollError};
 use temporalio_sdk_core::{
     CoreRuntime, init_replay_worker, init_worker,
     replay::{HistoryForReplay, ReplayWorkerInput},
@@ -82,11 +79,12 @@ pub fn worker_new(
     let config = worker_options.into_core_config()?;
 
     let client_ref = client.borrow()?;
-    let client = client_ref.core_client.clone();
+    let connection = client_ref.core_connection.clone();
     let runtime = client_ref.core_runtime.clone();
 
     enter_sync!(runtime);
-    let worker = init_worker(&runtime, config, client).context("Failed to initialize worker")?;
+    let worker =
+        init_worker(&runtime, config, connection).context("Failed to initialize worker")?;
 
     Ok(OpaqueOutboundHandle::new(Worker {
         core_runtime: runtime,
@@ -120,13 +118,13 @@ pub fn worker_replace_client(
 ) -> BridgeResult<()> {
     let worker_ref = worker.borrow()?;
     let client_ref = client.borrow()?;
-    let new_client = client_ref.core_client.clone();
+    let new_connection = client_ref.core_connection.clone();
     let runtime = worker_ref.core_runtime.clone();
 
     enter_sync!(runtime);
     worker_ref
         .core_worker
-        .replace_client(new_client)
+        .replace_client(new_connection)
         .map_err(|err| BridgeError::UnexpectedError(err.to_string()))?;
 
     Ok(())
@@ -494,14 +492,14 @@ mod config {
     use temporalio_common::protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior;
     use temporalio_common::protos::temporal::api::worker::v1::PluginInfo;
     use temporalio_common::worker::{
-        ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
-        PollerBehavior as CorePollerBehavior, SlotKind, WorkerConfig,
         WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
-        WorkerDeploymentVersion as CoreWorkerDeploymentVersion, WorkflowSlotKind,
+        WorkerDeploymentVersion as CoreWorkerDeploymentVersion,
     };
     use temporalio_sdk_core::{
-        ResourceBasedSlotsOptions, ResourceSlotOptions,
-        SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptions,
+        ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
+        PollerBehavior as CorePollerBehavior, ResourceBasedSlotsOptions, ResourceSlotOptions,
+        SlotKind, SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptions,
+        WorkerConfig, WorkerVersioningStrategy, WorkflowSlotKind,
     };
 
     use super::custom_slot_supplier::CustomSlotSupplierOptions;
@@ -511,7 +509,6 @@ mod config {
     use neon::object::Object;
     use neon::prelude::JsResult;
     use neon::types::JsObject;
-    use temporalio_common::worker::WorkerVersioningStrategy;
 
     #[derive(TryFromJs)]
     pub struct BridgeWorkerOptions {
@@ -806,14 +803,14 @@ mod custom_slot_supplier {
 
     use neon::{context::Context, handle::Handle, prelude::*};
 
-    use temporalio_common::worker::{
+    use temporalio_sdk_core::{
         SlotInfo as CoreSlotInfo, SlotInfoTrait as _, SlotKind, SlotKindType as CoreSlotKindType,
         SlotMarkUsedContext as CoreSlotMarkUsedContext,
         SlotReleaseContext as CoreSlotReleaseContext,
         SlotReservationContext as CoreSlotReservationContext, SlotSupplier as CoreSlotSupplier,
+        SlotSupplierOptions as CoreSlotSupplierOptions,
         SlotSupplierPermit as CoreSlotSupplierPermit,
     };
-    use temporalio_sdk_core::SlotSupplierOptions as CoreSlotSupplierOptions;
 
     use bridge_macros::{TryFromJs, TryIntoJs};
     use tracing::warn;
