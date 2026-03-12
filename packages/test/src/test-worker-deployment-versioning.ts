@@ -517,8 +517,7 @@ test('Worker with deployment options and useWorkerVersioning false can run workf
 
   const history = await handle.fetchHistory();
   const buildIdInHistory = history.events!.some(
-    (event) =>
-      event.workflowTaskCompletedEventAttributes?.workerVersion?.buildId === buildId
+    (event) => event.workflowTaskCompletedEventAttributes?.workerVersion?.buildId === buildId
   );
   assert.ok(buildIdInHistory, 'Expected build ID to appear in workflow history');
   t.pass();
