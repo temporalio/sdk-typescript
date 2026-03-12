@@ -402,7 +402,7 @@ function startChildWorkflowExecutionNextHandler({
         cronSchedule: options.cronSchedule,
         searchAttributes:
           options.searchAttributes || options.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
-            ? encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) // eslint-disable-line @typescript-eslint/no-deprecated
+            ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) } // eslint-disable-line @typescript-eslint/no-deprecated
             : undefined,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
         versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line @typescript-eslint/no-deprecated
@@ -1019,7 +1019,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo),
         searchAttributes:
           options.searchAttributes || options.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
-            ? encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) // eslint-disable-line @typescript-eslint/no-deprecated
+            ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) } // eslint-disable-line @typescript-eslint/no-deprecated
             : undefined,
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
@@ -1523,7 +1523,9 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
     // Typed search attributes
     activator.pushCommand({
       upsertWorkflowSearchAttributes: {
-        searchAttributes: encodeUnifiedSearchAttributes(undefined, searchAttributes),
+        searchAttributes: {
+          indexedFields: encodeUnifiedSearchAttributes(undefined, searchAttributes),
+        },
       },
     });
 
@@ -1552,7 +1554,9 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
     // Legacy search attributes
     activator.pushCommand({
       upsertWorkflowSearchAttributes: {
-        searchAttributes: mapToPayloads(searchAttributePayloadConverter, searchAttributes),
+        searchAttributes: {
+          indexedFields: mapToPayloads(searchAttributePayloadConverter, searchAttributes),
+        },
       },
     });
 

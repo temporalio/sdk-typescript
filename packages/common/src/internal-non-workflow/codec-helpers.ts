@@ -357,6 +357,17 @@ export function noopEncodeMap<K extends string>(
   return map as Record<K, EncodedPayload> | null | undefined;
 }
 
+export function noopEncodeSearchAttrs<K extends string>(
+  attrs: temporal.api.common.v1.ISearchAttributes | null | undefined
+): temporal.api.common.v1.ISearchAttributes | null | undefined {
+  if (!attrs) {
+    return attrs;
+  }
+  return {
+    indexedFields: noopEncodeMap(attrs.indexedFields),
+  };
+}
+
 /**
  * Mark all values in the map as decoded.
  * Use this for headers, which we don't encode.

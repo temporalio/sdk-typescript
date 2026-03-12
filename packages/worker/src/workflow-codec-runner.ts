@@ -12,6 +12,7 @@ import {
   encodeOptionalSingle,
   noopDecodeMap,
   noopEncodeMap,
+  noopEncodeSearchAttrs,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { coresdk } from '@temporalio/proto';
 
@@ -242,7 +243,9 @@ export class WorkflowCodecRunner {
                         upsertWorkflowSearchAttributes: command.upsertWorkflowSearchAttributes
                           ? {
                               ...command.upsertWorkflowSearchAttributes,
-                              searchAttributes: noopEncodeMap(command.upsertWorkflowSearchAttributes.searchAttributes),
+                              searchAttributes: noopEncodeSearchAttrs(
+                                command.upsertWorkflowSearchAttributes.searchAttributes
+                              ),
                             }
                           : undefined,
                         respondToQuery: command.respondToQuery
@@ -288,7 +291,9 @@ export class WorkflowCodecRunner {
                               // don't encode headers
                               headers: noopEncodeMap(command.continueAsNewWorkflowExecution.headers),
                               // don't encode searchAttributes
-                              searchAttributes: noopEncodeMap(command.continueAsNewWorkflowExecution.searchAttributes),
+                              searchAttributes: noopEncodeSearchAttrs(
+                                command.continueAsNewWorkflowExecution.searchAttributes
+                              ),
                             }
                           : undefined,
                         startChildWorkflowExecution: command.startChildWorkflowExecution
@@ -299,7 +304,9 @@ export class WorkflowCodecRunner {
                               // don't encode headers
                               headers: noopEncodeMap(command.startChildWorkflowExecution.headers),
                               // don't encode searchAttributes
-                              searchAttributes: noopEncodeMap(command.startChildWorkflowExecution.searchAttributes),
+                              searchAttributes: noopEncodeSearchAttrs(
+                                command.startChildWorkflowExecution.searchAttributes
+                              ),
                             }
                           : undefined,
                         signalExternalWorkflowExecution: command.signalExternalWorkflowExecution
