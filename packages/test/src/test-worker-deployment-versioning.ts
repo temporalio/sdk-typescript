@@ -489,6 +489,41 @@ async function setCurrentDeploymentVersion(
  * - version is always required
  */
 
+test('Worker with deployment options and useWorkerVersioning false can run workflows', async (t) => {
+  const taskQueue = 'versioning-off-with-build-id-' + randomUUID();
+  const buildId = 'my-custom-build-id-1.0';
+  const { client, nativeConnection } = t.context.env;
+
+  const worker = await Worker.create({
+    workflowsPath: require.resolve('./workflows'),
+    taskQueue,
+    workerDeploymentOptions: {
+      useWorkerVersioning: false,
+      version: {
+        buildId,
+        deploymentName: 'deployment-' + randomUUID(),
+      },
+    },
+    connection: nativeConnection,
+  });
+
+  const handle = await client.workflow.start('successString', {
+    taskQueue,
+    workflowId: 'versioning-off-build-id-' + randomUUID(),
+  });
+
+  await worker.runUntil(handle.result());
+  assert.equal(await handle.result(), 'success');
+
+  const history = await handle.fetchHistory();
+  const buildIdInHistory = history.events!.some(
+    (event) =>
+      event.workflowTaskCompletedEventAttributes?.workerVersion?.buildId === buildId
+  );
+  assert.ok(buildIdInHistory, 'Expected build ID to appear in workflow history');
+  t.pass();
+});
+
 test('WorkerDeploymentOptions with useWorkerVersioning true requires defaultVersioningBehavior', (t) => {
   const valid: WorkerDeploymentOptions = {
     version: { buildId: '1.0', deploymentName: 'my-deployment' },
