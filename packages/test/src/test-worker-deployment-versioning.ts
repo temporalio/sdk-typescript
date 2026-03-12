@@ -3,7 +3,6 @@
  *
  * @module
  */
-import assert from 'assert';
 import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
 import { ExecutionContext } from 'ava';
@@ -97,7 +96,7 @@ test('Worker deployment based versioning', async (t) => {
     workflowId: 'deployment-versioning-v1-' + randomUUID(),
   });
   const state1 = await wf1.query(versionQuery);
-  assert.equal(state1, 'v1');
+  t.is(state1, 'v1');
 
   // Wait for worker 2 to be visible and set as current version
   const describeResp2 = await waitUntilWorkerDeploymentVisible(client, w2DeploymentVersion);
@@ -109,7 +108,7 @@ test('Worker deployment based versioning', async (t) => {
     workflowId: 'deployment-versioning-v2-' + randomUUID(),
   });
   const state2 = await wf2.query(versionQuery);
-  assert.equal(state2, 'v2');
+  t.is(state2, 'v2');
 
   // Wait for worker 3 to be visible and set as current version
   const describeResp3 = await waitUntilWorkerDeploymentVisible(client, w3DeploymentVersion);
@@ -121,7 +120,7 @@ test('Worker deployment based versioning', async (t) => {
     workflowId: 'deployment-versioning-v3-' + randomUUID(),
   });
   const state3 = await wf3.query(versionQuery);
-  assert.equal(state3, 'v3');
+  t.is(state3, 'v3');
 
   // Signal all workflows to finish
   await wf1.signal(unblockSignal);
@@ -132,9 +131,9 @@ test('Worker deployment based versioning', async (t) => {
   const res2 = await wf2.result();
   const res3 = await wf3.result();
 
-  assert.equal(res1, 'version-v3');
-  assert.equal(res2, 'version-v2');
-  assert.equal(res3, 'version-v3');
+  t.is(res1, 'version-v3');
+  t.is(res2, 'version-v2');
+  t.is(res3, 'version-v3');
 
   worker1.shutdown();
   worker2.shutdown();
@@ -142,7 +141,6 @@ test('Worker deployment based versioning', async (t) => {
   await worker1Promise;
   await worker2Promise;
   await worker3Promise;
-  t.pass();
 });
 
 test('Worker deployment based versioning with ramping', async (t) => {
@@ -208,7 +206,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
     });
     await wf.signal(unblockSignal);
     const res = await wf.result();
-    assert.equal(res, 'version-v2');
+    t.is(res, 'version-v2');
   }
 
   // Set ramp to 0, expecting workflows to run on v1
@@ -220,7 +218,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
     });
     await wf.signal(unblockSignal);
     const res = await wf.result();
-    assert.equal(res, 'version-v1');
+    t.is(res, 'version-v1');
   }
 
   // Set ramp to 50 and eventually verify workflows run on both versions
@@ -260,7 +258,7 @@ async function testWorkerDeploymentWithDynamicBehavior(
   expectedResult: string
 ) {
   if (t.context.env.supportsTimeSkipping) {
-    t.pass("Test Server doesn't support worker deployments");
+    t.fail("Test Server doesn't support worker deployments");
     return;
   }
 
@@ -298,7 +296,7 @@ async function testWorkerDeploymentWithDynamicBehavior(
   });
 
   const result = await wf.result();
-  assert.equal(result, expectedResult);
+  t.is(result, expectedResult);
 
   const history = await wf.fetchHistory();
   const hasPinnedVersioningBehavior = history.events!.some(
@@ -307,11 +305,10 @@ async function testWorkerDeploymentWithDynamicBehavior(
       event.workflowTaskCompletedEventAttributes.versioningBehavior ===
         temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
   );
-  assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
+  t.true(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
 
   worker.shutdown();
   await workerPromise;
-  t.pass();
 }
 
 test('Worker deployment with dynamic workflow static behavior', async (t) => {
@@ -365,11 +362,10 @@ test('Workflows can use default versioning behavior', async (t) => {
       event.workflowTaskCompletedEventAttributes.versioningBehavior ===
         temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
   );
-  assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
+  t.true(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
 
   worker.shutdown();
   await workerPromise;
-  t.pass();
 });
 
 test('Workflow versioningOverride overrides default versioning behavior', async (t) => {
@@ -409,7 +405,7 @@ test('Workflow versioningOverride overrides default versioning behavior', async 
     },
   });
   const statePinned = await wfPinned.query(versionQuery);
-  assert.equal(statePinned, 'v1');
+  t.is(statePinned, 'v1');
 
   await wfPinned.signal(unblockSignal);
 
@@ -421,14 +417,13 @@ test('Workflow versioningOverride overrides default versioning behavior', async 
         temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED ||
       event.workflowExecutionStartedEventAttributes?.versioningOverride?.pinned != null
   );
-  assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
+  t.true(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
 
   const resPinned = await wfPinned.result();
-  assert.equal(resPinned, 'version-v1');
+  t.is(resPinned, 'version-v1');
 
   worker1.shutdown();
   await worker1Promise;
-  t.pass();
 });
 
 async function setRampingVersion(
@@ -513,14 +508,13 @@ test('Worker with deployment options and useWorkerVersioning false can run workf
   });
 
   await worker.runUntil(handle.result());
-  assert.equal(await handle.result(), 'success');
+  t.is(await handle.result(), 'success');
 
   const history = await handle.fetchHistory();
   const buildIdInHistory = history.events!.some(
     (event) => event.workflowTaskCompletedEventAttributes?.workerVersion?.buildId === buildId
   );
-  assert.ok(buildIdInHistory, 'Expected build ID to appear in workflow history');
-  t.pass();
+  t.true(buildIdInHistory, 'Expected build ID to appear in workflow history');
 });
 
 test('WorkerDeploymentOptions with useWorkerVersioning true requires defaultVersioningBehavior', (t) => {
