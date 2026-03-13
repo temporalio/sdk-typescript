@@ -1346,7 +1346,7 @@ export class Worker {
         e instanceof nexus.HandlerError ? e : new nexus.HandlerError('INTERNAL', undefined, { cause: e });
       return {
         taskToken,
-        error: await handlerErrorToProto(this.options.loadedDataConverter, handlerError),
+        failure: await handlerErrorToProto(this.options.loadedDataConverter, handlerError),
       };
     }
   }

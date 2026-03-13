@@ -74,9 +74,6 @@ function makeNexusServiceHandler() {
       cancel: async (_ctx, _token): Promise<void> => {
         throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Intentional failure');
       },
-      // FIXME: Update nexus-rpc dependency, then remove these two methods
-      getInfo: startWorkflow.getInfo.bind(startWorkflow),
-      getResult: startWorkflow.getResult.bind(startWorkflow),
     },
   });
 }

@@ -1,12 +1,16 @@
 import { status } from '@grpc/grpc-js';
-import * as protobuf from 'protobufjs';
-import * as protoJsonSerializer from 'proto3-json-serializer';
 import * as nexus from 'nexus-rpc';
-import { temporal } from '@temporalio/proto';
+import type { temporal } from '@temporalio/proto';
 import { isGrpcServiceError, ServiceError } from '@temporalio/client';
-import { ApplicationFailure, LoadedDataConverter, Payload, PayloadConverter } from '@temporalio/common';
+import {
+  ApplicationFailure,
+  CancelledFailure,
+  LoadedDataConverter,
+  Payload,
+  PayloadConverter,
+  ProtoFailure,
+} from '@temporalio/common';
 import { encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
-import { fixBuffers } from '@temporalio/common/lib/proto-utils';
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Payloads
@@ -69,79 +73,26 @@ class PayloadSerializer implements nexus.Serializer {
 // Failures
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// fullName isn't part of the generated typed unfortunately.
-const TEMPORAL_FAILURE_METADATA = { type: (temporal.api.failure.v1.Failure as any).fullName.slice(1) };
-
 export async function operationErrorToProto(
   dataConverter: LoadedDataConverter,
   err: nexus.OperationError
-): Promise<temporal.api.nexus.v1.IUnsuccessfulOperationError> {
-  let { cause } = err;
-  if (cause == null) {
-    // Create an error without capturing a stack trace.
-    const wrapped = Object.create(ApplicationFailure.prototype);
-    wrapped.message = err.message;
-    wrapped.stack = err.stack;
-    wrapped.nonRetryable = true;
-    cause = wrapped;
+): Promise<ProtoFailure> {
+  let newError: Error;
+  if (err.state === 'canceled') {
+    newError = new CancelledFailure(err.message, undefined, err.cause);
+  } else {
+    newError = ApplicationFailure.nonRetryable(err.message, 'OperationError');
+    newError.cause = err.cause;
   }
-  return {
-    operationState: err.state,
-    failure: await errorToNexusFailure(dataConverter, cause),
-  };
-}
-
-async function errorToNexusFailure(
-  dataConverter: LoadedDataConverter,
-  err: unknown
-): Promise<temporal.api.nexus.v1.IFailure> {
-  const failure = await encodeErrorToFailure(dataConverter, err);
-
-  const { message } = failure;
-  delete failure.message;
-
-  // TODO: there must be a more graceful way of passing this object to this function.
-  const pbj = protoJsonSerializer.toProto3JSON(
-    temporal.api.failure.v1.Failure.fromObject(failure) as any as protobuf.Message
-  );
-
-  return {
-    message,
-    metadata: TEMPORAL_FAILURE_METADATA,
-    details: Buffer.from(JSON.stringify(fixBuffers(pbj))),
-  };
+  newError.stack = err.stack;
+  return await encodeErrorToFailure(dataConverter, newError);
 }
 
 export async function handlerErrorToProto(
   dataConverter: LoadedDataConverter,
   err: nexus.HandlerError
-): Promise<temporal.api.nexus.v1.IHandlerError> {
-  let retryBehavior: temporal.api.enums.v1.NexusHandlerErrorRetryBehavior =
-    temporal.api.enums.v1.NexusHandlerErrorRetryBehavior.NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_UNSPECIFIED;
-  if (err.retryable === true) {
-    retryBehavior = temporal.api.enums.v1.NexusHandlerErrorRetryBehavior.NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_RETRYABLE;
-  } else if (err.retryable === false) {
-    retryBehavior =
-      temporal.api.enums.v1.NexusHandlerErrorRetryBehavior.NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_NON_RETRYABLE;
-  }
-
-  let { cause } = err;
-  if (cause == null) {
-    // TODO(nexus/error): I believe this is wrong, but leaving as-is until we have a decision on
-    //                    on how we want to encode Nexus errors going forward.
-    //
-    // Create an error without capturing a stack trace.
-    const wrapped = Object.create(ApplicationFailure.prototype);
-    wrapped.message = err.message;
-    wrapped.stack = err.stack;
-    cause = wrapped;
-  }
-
-  return {
-    errorType: err.type,
-    failure: await errorToNexusFailure(dataConverter, cause),
-    retryBehavior,
-  };
+): Promise<ProtoFailure> {
+  return await encodeErrorToFailure(dataConverter, err);
 }
 
 export function coerceToHandlerError(err: unknown): nexus.HandlerError {

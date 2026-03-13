@@ -214,12 +214,6 @@ test('async Operation Handler happy path', async (t) => {
                 throw new nexus.HandlerError('BAD_REQUEST', 'expected token to equal original requestId');
               }
             },
-            async getInfo() {
-              throw new Error('not implemented');
-            },
-            async getResult() {
-              throw new Error('not implemented');
-            },
           },
         }
       ),
@@ -237,7 +231,7 @@ test('async Operation Handler happy path', async (t) => {
       },
     });
     t.true(res.ok);
-    const output = (await res.json()) as { token: string; state: nexus.OperationState };
+    const output = (await res.json()) as { token: string; state: string };
 
     t.is(output.token, requestId);
     t.is(output.state, 'running');
@@ -442,12 +436,6 @@ test('cancel Operation Handler errors', async (t) => {
                   throw new nexus.HandlerError('INTERNAL', 'deliberate error', { retryableOverride: false });
               }
               throw new nexus.HandlerError('BAD_REQUEST', 'invalid outcome requested');
-            },
-            async getInfo() {
-              throw new Error('not implemented');
-            },
-            async getResult() {
-              throw new Error('not implemented');
             },
           },
         }
@@ -721,7 +709,7 @@ test('WorkflowRunOperationHandler attaches callback, link, and request ID', asyn
         },
       });
       t.true(res.ok);
-      const output = (await res.json()) as { token: string; state: nexus.OperationState };
+      const output = (await res.json()) as { token: string; state: string };
       t.is(output.state, 'running');
       console.log(res.headers.get('Nexus-Link'));
       const m = /<([^>]+)>; type="([^"]+)"/.exec(res.headers.get('Nexus-Link') ?? '');

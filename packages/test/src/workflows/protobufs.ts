@@ -5,5 +5,6 @@ import type * as activities from '../activities';
 const { protoActivity } = proxyActivities<typeof activities>({ startToCloseTimeout: '1s' });
 
 export async function protobufWorkflow(args: ProtoActivityInput): Promise<ProtoActivityResult> {
+  console.log("pb wf");
   return await protoActivity(args);
 }

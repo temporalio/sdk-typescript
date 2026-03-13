@@ -219,6 +219,7 @@ export async function encodeMapToPayloads<K extends string>(
  * Run {@link errorToFailure} on `error`, and then {@link encodeFailure}.
  */
 export async function encodeErrorToFailure(dataConverter: LoadedDataConverter, error: unknown): Promise<ProtoFailure> {
+  console.log("suppp");
   const { failureConverter, payloadConverter, payloadCodecs } = dataConverter;
   return await encodeFailure(payloadCodecs, failureConverter.errorToFailure(error, payloadConverter));
 }
@@ -233,43 +234,43 @@ export async function encodeFailure(codecs: PayloadCodec[], failure: ProtoFailur
     cause: failure.cause ? await encodeFailure(codecs, failure.cause) : null,
     applicationFailureInfo: failure.applicationFailureInfo
       ? {
-          ...failure.applicationFailureInfo,
-          details: failure.applicationFailureInfo.details
-            ? {
-                payloads: await encode(codecs, failure.applicationFailureInfo.details.payloads ?? []),
-              }
-            : undefined,
-        }
+        ...failure.applicationFailureInfo,
+        details: failure.applicationFailureInfo.details
+          ? {
+            payloads: await encode(codecs, failure.applicationFailureInfo.details.payloads ?? []),
+          }
+          : undefined,
+      }
       : undefined,
     timeoutFailureInfo: failure.timeoutFailureInfo
       ? {
-          ...failure.timeoutFailureInfo,
-          lastHeartbeatDetails: failure.timeoutFailureInfo.lastHeartbeatDetails
-            ? {
-                payloads: await encode(codecs, failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? []),
-              }
-            : undefined,
-        }
+        ...failure.timeoutFailureInfo,
+        lastHeartbeatDetails: failure.timeoutFailureInfo.lastHeartbeatDetails
+          ? {
+            payloads: await encode(codecs, failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? []),
+          }
+          : undefined,
+      }
       : undefined,
     canceledFailureInfo: failure.canceledFailureInfo
       ? {
-          ...failure.canceledFailureInfo,
-          details: failure.canceledFailureInfo.details
-            ? {
-                payloads: await encode(codecs, failure.canceledFailureInfo.details.payloads ?? []),
-              }
-            : undefined,
-        }
+        ...failure.canceledFailureInfo,
+        details: failure.canceledFailureInfo.details
+          ? {
+            payloads: await encode(codecs, failure.canceledFailureInfo.details.payloads ?? []),
+          }
+          : undefined,
+      }
       : undefined,
     resetWorkflowFailureInfo: failure.resetWorkflowFailureInfo
       ? {
-          ...failure.resetWorkflowFailureInfo,
-          lastHeartbeatDetails: failure.resetWorkflowFailureInfo.lastHeartbeatDetails
-            ? {
-                payloads: await encode(codecs, failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? []),
-              }
-            : undefined,
-        }
+        ...failure.resetWorkflowFailureInfo,
+        lastHeartbeatDetails: failure.resetWorkflowFailureInfo.lastHeartbeatDetails
+          ? {
+            payloads: await encode(codecs, failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? []),
+          }
+          : undefined,
+      }
       : undefined,
   };
 }
@@ -284,43 +285,43 @@ export async function decodeFailure(codecs: PayloadCodec[], failure: ProtoFailur
     cause: failure.cause ? await decodeFailure(codecs, failure.cause) : null,
     applicationFailureInfo: failure.applicationFailureInfo
       ? {
-          ...failure.applicationFailureInfo,
-          details: failure.applicationFailureInfo.details
-            ? {
-                payloads: await decode(codecs, failure.applicationFailureInfo.details.payloads ?? []),
-              }
-            : undefined,
-        }
+        ...failure.applicationFailureInfo,
+        details: failure.applicationFailureInfo.details
+          ? {
+            payloads: await decode(codecs, failure.applicationFailureInfo.details.payloads ?? []),
+          }
+          : undefined,
+      }
       : undefined,
     timeoutFailureInfo: failure.timeoutFailureInfo
       ? {
-          ...failure.timeoutFailureInfo,
-          lastHeartbeatDetails: failure.timeoutFailureInfo.lastHeartbeatDetails
-            ? {
-                payloads: await decode(codecs, failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? []),
-              }
-            : undefined,
-        }
+        ...failure.timeoutFailureInfo,
+        lastHeartbeatDetails: failure.timeoutFailureInfo.lastHeartbeatDetails
+          ? {
+            payloads: await decode(codecs, failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? []),
+          }
+          : undefined,
+      }
       : undefined,
     canceledFailureInfo: failure.canceledFailureInfo
       ? {
-          ...failure.canceledFailureInfo,
-          details: failure.canceledFailureInfo.details
-            ? {
-                payloads: await decode(codecs, failure.canceledFailureInfo.details.payloads ?? []),
-              }
-            : undefined,
-        }
+        ...failure.canceledFailureInfo,
+        details: failure.canceledFailureInfo.details
+          ? {
+            payloads: await decode(codecs, failure.canceledFailureInfo.details.payloads ?? []),
+          }
+          : undefined,
+      }
       : undefined,
     resetWorkflowFailureInfo: failure.resetWorkflowFailureInfo
       ? {
-          ...failure.resetWorkflowFailureInfo,
-          lastHeartbeatDetails: failure.resetWorkflowFailureInfo.lastHeartbeatDetails
-            ? {
-                payloads: await decode(codecs, failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? []),
-              }
-            : undefined,
-        }
+        ...failure.resetWorkflowFailureInfo,
+        lastHeartbeatDetails: failure.resetWorkflowFailureInfo.lastHeartbeatDetails
+          ? {
+            payloads: await decode(codecs, failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? []),
+          }
+          : undefined,
+      }
       : undefined,
   };
 }
