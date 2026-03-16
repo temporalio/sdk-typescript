@@ -407,12 +407,7 @@ test('start Operation Handler errors', async (t) => {
       t.is(res.status, 400);
       const { message } = (await res.json()) as { message: string };
       // Exact error message varies between Node versions and runtimes.
-      t.regex(
-        message,
-        isBun
-          ? /Failed to deserialize input: SyntaxError: JSON Parse error:/
-          : /Failed to deserialize input: SyntaxError: Unexpected token .* JSON/
-      );
+      t.regex(message, isBun ? /JSON Parse error:/ : /Unexpected token .* JSON/);
     }
   });
 });

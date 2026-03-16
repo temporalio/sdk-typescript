@@ -39,6 +39,7 @@ export { DataConverter, defaultPayloadConverter, State, Worker, WorkerStatus } f
 export {
   CompiledWorkerOptions,
   ReplayWorkerOptions,
+  WorkerDeploymentOptions,
   WorkerOptions,
   WorkerPlugin,
   WorkflowBundle,

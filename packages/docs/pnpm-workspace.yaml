@@ -9,3 +9,6 @@ overrides:
   qs: ^6.14.1
   # Bumped for https://github.com/advisories/GHSA-xxjr-mmjv-4gpg
   'lodash': '^4.17.23'
+  ajv@<6.14.0: '>=6.14.0'
+  serialize-javascript: '>=7.0.3'
+  svgo@<3.3.3: '>=3.3.3'

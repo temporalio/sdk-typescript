@@ -5,18 +5,15 @@ use std::sync::Arc;
 use neon::prelude::*;
 use serde::Deserialize;
 
-use temporalio_common::telemetry::metrics::{
-    BufferInstrumentRef as CoreBufferInstrumentRef, CoreMeter, Counter as CoreCounter,
-    CustomMetricAttributes, Gauge as CoreGauge, Histogram as CoreHistogram, MetricCallBufferer,
-    MetricEvent as CoreMetricEvent, MetricKind as CoreMetricKind,
-    MetricParameters as CoreMetricParameters, NewAttributes, TemporalMeter,
+use temporalio_common::telemetry::metrics::core::{
+    BufferInstrumentRef as CoreBufferInstrumentRef, CustomMetricAttributes, MetricCallBufferer,
+    MetricEvent as CoreMetricEvent, MetricKind as CoreMetricKind, MetricUpdateVal,
 };
 use temporalio_common::telemetry::metrics::{
-    GaugeF64 as CoreGaugeF64, HistogramF64 as CoreHistogramF64,
-};
-use temporalio_common::telemetry::{
-    metrics,
-    metrics::{MetricKeyValue as CoreMetricKeyValue, MetricValue as CoreMetricValue},
+    Counter as CoreCounter, Gauge as CoreGauge, GaugeF64 as CoreGaugeF64,
+    Histogram as CoreHistogram, HistogramF64 as CoreHistogramF64,
+    MetricKeyValue as CoreMetricKeyValue, MetricParameters as CoreMetricParameters,
+    MetricValue as CoreMetricValue, NewAttributes, TemporalMeter,
 };
 
 use bridge_macros::{TryIntoJs, js_function};
@@ -126,7 +123,7 @@ pub fn new_metric_counter(
             "Failed to get metric meter".into(),
         ))?;
 
-    let counter = meter.inner.counter(
+    let counter = meter.counter(
         CoreMetricParameters::builder()
             .name(name)
             .unit(unit)
@@ -152,7 +149,7 @@ pub fn new_metric_histogram(
             "Failed to get metric meter".into(),
         ))?;
 
-    let histogram = meter.inner.histogram(
+    let histogram = meter.histogram(
         CoreMetricParameters::builder()
             .name(name)
             .unit(unit)
@@ -178,7 +175,7 @@ pub fn new_metric_histogram_f64(
             "Failed to get metric meter".into(),
         ))?;
 
-    let histogram = meter.inner.histogram_f64(
+    let histogram = meter.histogram_f64(
         CoreMetricParameters::builder()
             .name(name)
             .unit(unit)
@@ -204,7 +201,7 @@ pub fn new_metric_gauge(
             "Failed to get metric meter".into(),
         ))?;
 
-    let gauge = meter.inner.gauge(
+    let gauge = meter.gauge(
         CoreMetricParameters::builder()
             .name(name)
             .unit(unit)
@@ -230,7 +227,7 @@ pub fn new_metric_gauge_f64(
             "Failed to get metric meter".into(),
         ))?;
 
-    let gauge = meter.inner.gauge_f64(
+    let gauge = meter.gauge_f64(
         CoreMetricParameters::builder()
             .name(name)
             .unit(unit)
@@ -254,7 +251,6 @@ pub fn add_metric_counter_value(
 
     let attributes = counter_handle
         .meter
-        .inner
         .new_attributes(parse_metric_attributes(attributes.value));
 
     counter_handle.counter.add(value as u64, &attributes);
@@ -270,7 +266,6 @@ pub fn record_metric_histogram_value(
     let histogram_handle = histogram_handle.borrow()?;
     let attributes = histogram_handle
         .meter
-        .inner
         .new_attributes(parse_metric_attributes(attributes.value));
     histogram_handle.histogram.record(value, &attributes);
     Ok(())
@@ -285,7 +280,6 @@ pub fn record_metric_histogram_f64_value(
     let histogram_handle = histogram_handle.borrow()?;
     let attributes = histogram_handle
         .meter
-        .inner
         .new_attributes(parse_metric_attributes(attributes.value));
     histogram_handle.histogram.record(value, &attributes);
     Ok(())
@@ -300,7 +294,6 @@ pub fn set_metric_gauge_value(
     let gauge_handle = gauge_handle.borrow()?;
     let attributes = gauge_handle
         .meter
-        .inner
         .new_attributes(parse_metric_attributes(attributes.value));
     gauge_handle.gauge.record(value, &attributes);
     Ok(())
@@ -315,7 +308,6 @@ pub fn set_metric_gauge_f64_value(
     let gauge_handle = gauge_handle.borrow()?;
     let attributes = gauge_handle
         .meter
-        .inner
         .new_attributes(parse_metric_attributes(attributes.value));
     gauge_handle.gauge.record(value, &attributes);
     Ok(())
@@ -400,14 +392,14 @@ impl MetricsCallBuffer {
                 metric: instrument.get().as_ref().clone(),
                 #[allow(clippy::match_same_arms, clippy::cast_precision_loss)]
                 value: match update {
-                    metrics::MetricUpdateVal::Duration(v) if self.use_seconds_for_durations => {
+                    MetricUpdateVal::Duration(v) if self.use_seconds_for_durations => {
                         v.as_secs_f64()
                     }
-                    metrics::MetricUpdateVal::Duration(v) => v.as_millis() as f64,
-                    metrics::MetricUpdateVal::Delta(v) => *v as f64,
-                    metrics::MetricUpdateVal::DeltaF64(v) => *v,
-                    metrics::MetricUpdateVal::Value(v) => *v as f64,
-                    metrics::MetricUpdateVal::ValueF64(v) => *v,
+                    MetricUpdateVal::Duration(v) => v.as_millis() as f64,
+                    MetricUpdateVal::Delta(v) => *v as f64,
+                    MetricUpdateVal::DeltaF64(v) => *v,
+                    MetricUpdateVal::Value(v) => *v as f64,
+                    MetricUpdateVal::ValueF64(v) => *v,
                 },
                 attributes: attributes
                     .get()
@@ -508,10 +500,10 @@ impl TryIntoJs for BufferedMetricAttributes {
             let k = kv.key.as_str();
             #[allow(clippy::cast_precision_loss)]
             match &kv.value {
-                metrics::MetricValue::String(v) => object.set_property_from(cx, k, v.as_str()),
-                metrics::MetricValue::Int(v) => object.set_property_from(cx, k, *v as f64),
-                metrics::MetricValue::Float(v) => object.set_property_from(cx, k, *v),
-                metrics::MetricValue::Bool(v) => object.set_property_from(cx, k, *v),
+                CoreMetricValue::String(v) => object.set_property_from(cx, k, v.as_str()),
+                CoreMetricValue::Int(v) => object.set_property_from(cx, k, *v as f64),
+                CoreMetricValue::Float(v) => object.set_property_from(cx, k, *v),
+                CoreMetricValue::Bool(v) => object.set_property_from(cx, k, *v),
             }?;
         }
 

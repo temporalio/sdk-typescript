@@ -641,11 +641,21 @@ export type WorkerDeploymentOptions = {
   useWorkerVersioning: boolean;
 
   /**
-   * The default versioning behavior to use for all workflows on this worker. Specifying a default
-   * behavior is required.
+   * The default versioning behavior to use for all workflows on this worker.
+   *
+   * Required if {@link useWorkerVersioning} is `true`; should be left unset otherwise.
    */
-  defaultVersioningBehavior: VersioningBehavior;
-};
+  defaultVersioningBehavior?: VersioningBehavior | undefined;
+} & (
+  | {
+      useWorkerVersioning: true;
+      defaultVersioningBehavior: VersioningBehavior;
+    }
+  | {
+      useWorkerVersioning: false;
+      defaultVersioningBehavior?: never;
+    }
+);
 
 // Replay Worker ///////////////////////////////////////////////////////////////////////////////////
 
@@ -1126,8 +1136,16 @@ function toNativeDeploymentOptions(options?: WorkerDeploymentOptions): native.Wo
   if (options === undefined) {
     return null;
   }
+  if (!options.useWorkerVersioning) {
+    return {
+      version: options.version,
+      useWorkerVersioning: false,
+      defaultVersioningBehavior: null,
+    };
+  }
+  const { defaultVersioningBehavior } = options;
   let vb: native.VersioningBehavior;
-  switch (options.defaultVersioningBehavior) {
+  switch (defaultVersioningBehavior) {
     case 'PINNED':
       vb = { type: 'pinned' };
       break;
@@ -1135,12 +1153,12 @@ function toNativeDeploymentOptions(options?: WorkerDeploymentOptions): native.Wo
       vb = { type: 'auto-upgrade' };
       break;
     default:
-      options.defaultVersioningBehavior satisfies never;
-      throw new Error(`Unknown versioning behavior: ${options.defaultVersioningBehavior}`);
+      defaultVersioningBehavior satisfies never;
+      throw new Error(`Unknown versioning behavior: ${defaultVersioningBehavior}`);
   }
   return {
     version: options.version,
-    useWorkerVersioning: options.useWorkerVersioning,
+    useWorkerVersioning: true,
     defaultVersioningBehavior: vb,
   };
 }

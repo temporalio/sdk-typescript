@@ -9,10 +9,8 @@ use temporalio_common::telemetry::{
     CoreLog, OtelCollectorOptions as CoreOtelCollectorOptions,
     PrometheusExporterOptions as CorePrometheusExporterOptions, metrics::CoreMeter,
 };
-use temporalio_sdk_core::{
-    CoreRuntime, TokioRuntimeBuilder,
-    telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter},
-};
+use temporalio_common::telemetry::{build_otlp_metric_exporter, start_prometheus_metric_exporter};
+use temporalio_sdk_core::{CoreRuntime, TokioRuntimeBuilder};
 
 use bridge_macros::js_function;
 use tokio_stream::StreamExt as _;
@@ -287,13 +285,14 @@ mod config {
     use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 
     use neon::prelude::*;
+    use temporalio_common::telemetry::CoreLogStreamConsumer;
     use temporalio_common::telemetry::{
         HistogramBucketOverrides, Logger as CoreTelemetryLogger, MetricTemporality,
         OtelCollectorOptions as CoreOtelCollectorOptions, OtlpProtocol,
         PrometheusExporterOptions as CorePrometheusExporterOptions,
         TelemetryOptions as CoreTelemetryOptions,
     };
-    use temporalio_sdk_core::{Url, telemetry::CoreLogStreamConsumer};
+    use temporalio_sdk_core::Url;
 
     use bridge_macros::TryFromJs;
 
