@@ -1,5 +1,5 @@
 import * as nexus from 'nexus-rpc';
-import { Workflow } from '@temporalio/common';
+import { Workflow, WorkflowResultType } from '@temporalio/common';
 import { Replace } from '@temporalio/common/lib/type-helpers';
 import { WorkflowStartOptions as ClientWorkflowStartOptions } from '@temporalio/client';
 import { type temporal } from '@temporalio/proto';
@@ -9,14 +9,19 @@ import { convertNexusLinkToWorkflowEventLink, convertWorkflowEventLinkToNexusLin
 import { getClient, getHandlerContext, log } from './context';
 
 declare const isNexusWorkflowHandle: unique symbol;
+declare const workflowResultType: unique symbol;
 
 /**
  * A handle to a running workflow that is returned by the {@link startWorkflow} helper.
  * This handle should be returned by {@link WorkflowRunOperationStartHandler} implementations.
  *
+ * The type parameter `T` carries the workflow's result type for downstream type inference in
+ * {@link WorkflowRunOperationHandler}. It is encoded in the {@link workflowResultType} brand so
+ * that `WorkflowHandle<string>` and `WorkflowHandle<number>` are structurally distinct.
+ *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
-export interface WorkflowHandle<_T> {
+export interface WorkflowHandle<T> {
   readonly workflowId: string;
   readonly runId: string;
 
@@ -31,6 +36,17 @@ export interface WorkflowHandle<_T> {
    * @experimental Nexus support in Temporal SDK is experimental.
    */
   readonly [isNexusWorkflowHandle]: typeof isNexusWorkflowHandle;
+
+  /**
+   * Type brand that carries the workflow's result type, making `WorkflowHandle<X>` structurally
+   * distinct from `WorkflowHandle<Y>` so TypeScript can catch type mismatches.
+   *
+   * @internal
+   * @hidden
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  readonly [workflowResultType]: T;
 }
 
 /**
@@ -54,7 +70,7 @@ export async function startWorkflow<T extends Workflow>(
   ctx: nexus.StartOperationContext,
   workflowTypeOrFunc: string | T,
   workflowOptions: WorkflowStartOptions<T>
-): Promise<WorkflowHandle<T>> {
+): Promise<WorkflowHandle<WorkflowResultType<T>>> {
   const { client, taskQueue } = getHandlerContext();
   const links = Array<temporal.api.common.v1.ILink>();
   if (ctx.inboundLinks?.length > 0) {
@@ -107,7 +123,7 @@ export async function startWorkflow<T extends Workflow>(
   return {
     workflowId: handle.workflowId,
     runId: handle.firstExecutionRunId,
-  } as WorkflowHandle<T>;
+  } as WorkflowHandle<WorkflowResultType<T>>;
 }
 
 /**
@@ -122,6 +138,11 @@ export type WorkflowRunOperationStartHandler<I, O> = (
 
 /**
  * A Nexus Operation implementation that is backed by a Workflow run.
+ *
+ * The type parameter `O` represents the operation's output type. When the handler uses
+ * {@link startWorkflow} with a typed workflow function, `O` is inferred as the workflow's
+ * return type (e.g. `string`), since {@link startWorkflow} returns
+ * `WorkflowHandle<WorkflowResultType<T>>`.
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
