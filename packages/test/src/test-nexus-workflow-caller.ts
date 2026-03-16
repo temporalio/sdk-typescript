@@ -183,6 +183,143 @@ test('Nexus Operation from a Workflow', async (t) => {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+const errorService = nexus.service('errorTestService', {
+  op: nexus.operation<string, string>(),
+});
+
+export async function startOpErrorCaller(endpoint: string, action: string): Promise<string> {
+  const client = workflow.createNexusClient({ endpoint, service: errorService });
+  return await client.executeOperation(errorService.operations.op, action);
+}
+
+test('start Operation Handler errors from workflow', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
+  try {
+    const worker = await createWorker({
+      nexusServices: [
+        nexus.serviceHandler(errorService, {
+          async op(_ctx, outcome) {
+            switch (outcome) {
+              case 'NonRetryableApplicationFailure':
+                throw ApplicationFailure.create({
+                  nonRetryable: true,
+                  message: 'deliberate failure',
+                  details: ['details'],
+                });
+              case 'NonRetryableInternalHandlerError':
+                throw new nexus.HandlerError('INTERNAL', 'deliberate error', { retryableOverride: false });
+              case 'OperationError':
+                throw new nexus.OperationError('failed', 'deliberate error');
+            }
+            throw new nexus.HandlerError('BAD_REQUEST', 'invalid outcome requested');
+          },
+        }),
+      ],
+    });
+    await worker.runUntil(async () => {
+      {
+        // NonRetryableApplicationFailure:
+        // Older servers add an extra HandlerError wrapper:
+        //   NexusOperationFailure > HandlerError(INTERNAL) > HandlerError(INTERNAL) > ApplicationFailure
+        // Newer servers do not:
+        //   NexusOperationFailure > HandlerError(INTERNAL) > ApplicationFailure
+        const err = await t.throwsAsync(
+          () =>
+            executeWorkflow(startOpErrorCaller, {
+              args: [endpointName, 'NonRetryableApplicationFailure'],
+            }),
+          {
+            instanceOf: WorkflowFailedError,
+          }
+        );
+        t.true(
+          err instanceof WorkflowFailedError &&
+            err.cause instanceof NexusOperationFailure &&
+            err.cause.cause instanceof nexus.HandlerError &&
+            err.cause.cause.type === 'INTERNAL'
+        );
+        // Navigate past the optional server-added HandlerError wrapper to find the ApplicationFailure
+        const outerHandler =
+          err instanceof WorkflowFailedError &&
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof nexus.HandlerError
+            ? err.cause.cause
+            : undefined;
+        const appFailure =
+          outerHandler?.cause instanceof nexus.HandlerError
+            ? outerHandler.cause.cause // old server: skip extra HandlerError wrapper
+            : outerHandler?.cause; // new server: ApplicationFailure is direct cause
+        t.true(appFailure instanceof ApplicationFailure);
+        if (appFailure instanceof ApplicationFailure) {
+          t.is(appFailure.message, 'deliberate failure');
+          t.deepEqual(appFailure.details, ['details']);
+        }
+      }
+
+      {
+        // NonRetryableInternalHandlerError:
+        // Older servers: NexusOperationFailure > HandlerError(INTERNAL) > HandlerError(INTERNAL)
+        // Newer servers: NexusOperationFailure > HandlerError(INTERNAL)
+        const err = await t.throwsAsync(
+          () =>
+            executeWorkflow(startOpErrorCaller, {
+              args: [endpointName, 'NonRetryableInternalHandlerError'],
+            }),
+          {
+            instanceOf: WorkflowFailedError,
+          }
+        );
+        t.true(
+          err instanceof WorkflowFailedError &&
+            err.cause instanceof NexusOperationFailure &&
+            err.cause.cause instanceof nexus.HandlerError &&
+            err.cause.cause.type === 'INTERNAL'
+        );
+        // The original error message should be present at some level of the HandlerError chain
+        if (
+          err instanceof WorkflowFailedError &&
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof nexus.HandlerError
+        ) {
+          const handler = err.cause.cause;
+          if (handler.cause instanceof nexus.HandlerError) {
+            // Old server: message is on the inner HandlerError
+            t.is(handler.cause.message, 'deliberate error');
+          } else {
+            // New server: message is on the HandlerError itself
+            t.is(handler.message, 'deliberate error');
+          }
+        }
+      }
+
+      {
+        // OperationError: NexusOperationFailure > ApplicationFailure(type='OperationError')
+        // (same on both old and new servers)
+        const err = await t.throwsAsync(
+          () =>
+            executeWorkflow(startOpErrorCaller, {
+              args: [endpointName, 'OperationError'],
+            }),
+          {
+            instanceOf: WorkflowFailedError,
+          }
+        );
+        t.true(
+          err instanceof WorkflowFailedError &&
+            err.cause instanceof NexusOperationFailure &&
+            err.cause.cause instanceof ApplicationFailure &&
+            (err.cause.cause as ApplicationFailure).type === 'OperationError'
+        );
+      }
+    });
+  } finally {
+    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
+  }
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 type InputA = { a: string };
 type InputB = { b: string };
 

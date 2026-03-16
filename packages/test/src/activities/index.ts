@@ -34,17 +34,17 @@ export async function httpGetJSON(url: string): Promise<any> {
 /**
  * Just a mock, used in Workflow samples as an example of an activity that creates a side-effect
  */
-export async function httpPostJSON(_url: string, _data: any): Promise<void> { }
+export async function httpPostJSON(_url: string, _data: any): Promise<void> {}
 
 /**
  * Mock for Workflow samples
  */
-export async function setup(): Promise<void> { }
+export async function setup(): Promise<void> {}
 
 /**
  * Mock for Workflow samples, used to demo cleanup (e.g. after cancellation)
  */
-export async function cleanup(_url: string): Promise<void> { }
+export async function cleanup(_url: string): Promise<void> {}
 
 export async function throwAnError(useApplicationFailure: boolean, message: string): Promise<void> {
   if (useApplicationFailure) {
@@ -90,7 +90,6 @@ export async function progressiveSleep(): Promise<void> {
 }
 
 export async function protoActivity(args: ProtoActivityInput): Promise<ProtoActivityResult> {
-  console.log("pb act");
   return ProtoActivityResult.create({ sentence: `${args.name} is ${args.age} years old.` });
 }
 

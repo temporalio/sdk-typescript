@@ -1,6 +1,5 @@
 import { status } from '@grpc/grpc-js';
 import * as nexus from 'nexus-rpc';
-import type { temporal } from '@temporalio/proto';
 import { isGrpcServiceError, ServiceError } from '@temporalio/client';
 import {
   ApplicationFailure,
@@ -11,6 +10,7 @@ import {
   ProtoFailure,
 } from '@temporalio/common';
 import { encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
+import type { temporal } from '@temporalio/proto';
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Payloads
@@ -45,7 +45,7 @@ class PayloadSerializer implements nexus.Serializer {
   constructor(
     readonly payloadConverter: PayloadConverter,
     readonly payload?: Payload
-  ) {}
+  ) { }
 
   deserialize<T>(): T {
     if (this.payload == null) {
@@ -92,7 +92,8 @@ export async function handlerErrorToProto(
   dataConverter: LoadedDataConverter,
   err: nexus.HandlerError
 ): Promise<ProtoFailure> {
-  return await encodeErrorToFailure(dataConverter, err);
+  let failure = await encodeErrorToFailure(dataConverter, err);
+  return failure;
 }
 
 export function coerceToHandlerError(err: unknown): nexus.HandlerError {
@@ -102,7 +103,10 @@ export function coerceToHandlerError(err: unknown): nexus.HandlerError {
 
   // REVIEW: This check could be moved down and fold into the next one but will keep for now to help readability.
   if (err instanceof ApplicationFailure && err.nonRetryable) {
-    return new nexus.HandlerError('INTERNAL', undefined, { cause: err, retryableOverride: false });
+    return new nexus.HandlerError('INTERNAL', 'Handler failed with non-retryable application error', {
+      cause: err,
+      retryableOverride: false,
+    });
   }
 
   if (err instanceof ServiceError) {
@@ -115,11 +119,11 @@ export function coerceToHandlerError(err: unknown): nexus.HandlerError {
         case (status.ABORTED, status.UNAVAILABLE):
           return new nexus.HandlerError('UNAVAILABLE', undefined, { cause: err });
         case (status.CANCELLED,
-        status.DATA_LOSS,
-        status.INTERNAL,
-        status.UNKNOWN,
-        status.UNAUTHENTICATED,
-        status.PERMISSION_DENIED):
+          status.DATA_LOSS,
+          status.INTERNAL,
+          status.UNKNOWN,
+          status.UNAUTHENTICATED,
+          status.PERMISSION_DENIED):
           // Note that UNAUTHENTICATED and PERMISSION_DENIED have Nexus error types but we convert to internal because
           // this is not a client auth error and happens when the handler fails to auth with Temporal and should be
           // considered retryable.

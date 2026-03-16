@@ -1,7 +1,6 @@
 import * as nexus from 'nexus-rpc';
 import Long from 'long';
-import { temporal } from '@temporalio/proto';
-import * as protoRoot from '@temporalio/proto';
+import type { temporal } from '@temporalio/proto';
 import {
   ActivityFailure,
   ApplicationFailure,
@@ -25,9 +24,6 @@ import { makeProtoEnumConverters } from '../internal-workflow';
 import { isError } from '../type-helpers';
 import { msOptionalToTs } from '../time';
 import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './payload-converter';
-import * as protobuf from 'protobufjs';
-import * as protoJsonSerializer from 'proto3-json-serializer';
-import { fixBuffers } from '../proto-utils';
 
 // Can't import proto enums into the workflow sandbox, use this helper type and enum converter instead.
 const NexusHandlerErrorRetryBehavior = {
@@ -80,9 +76,6 @@ const DROPPED_STACK_FRAMES_PATTERNS = combineRegExp(
   /** Internal functions used to recursively chain interceptors */
   /\s+at (null\.)?executeNextHandler \(.*[\\/]worker[\\/](?:src|lib)[\\/]activity\.[jt]s:\d+:\d+\)/
 );
-
-const TEMPORAL_FAILURE_METADATA = { type: (temporal.api.failure.v1.Failure as any).fullName.slice(1) };
-const TEMPORAL_FAILURE_TYPE = (protoRoot as any).lookupType('temporal.api.failure.v1.Failure');
 
 /**
  * Cuts out the framework part of a stack trace, leaving only user code entries
@@ -160,7 +153,6 @@ export class DefaultFailureConverter implements FailureConverter {
    * Does not set common properties, that is done in {@link failureToError}.
    */
   failureToErrorInner(failure: ProtoFailure, payloadConverter: PayloadConverter): Error {
-    console.log("hlloe");
     if (failure.applicationFailureInfo) {
       return new ApplicationFailure(
         failure.message ?? undefined,
@@ -303,7 +295,6 @@ export class DefaultFailureConverter implements FailureConverter {
   }
 
   errorToFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
-    console.log("plzplzplz");
     const failure = this.errorToFailureInner(err, payloadConverter);
     if (this.options.encodeCommonAttributes) {
       const { message, stackTrace } = failure;
@@ -396,7 +387,7 @@ export class DefaultFailureConverter implements FailureConverter {
       }
       if (err instanceof nexus.HandlerError) {
         if (err.originalFailure) {
-          return this.nexusFailureToTemporalFailure(err.originalFailure, true)
+          return this.nexusFailureToTemporalFailure(err.originalFailure, true);
         } else {
           let retryBehavior: temporal.api.enums.v1.NexusHandlerErrorRetryBehavior | undefined = undefined;
           switch (err.retryableOverride) {
@@ -481,37 +472,11 @@ export class DefaultFailureConverter implements FailureConverter {
     return err ? this.errorToFailure(err, payloadConverter) : undefined;
   }
 
-  temporalFailureToNexusFailure(failure: ProtoFailure): nexus.Failure {
-    const { message, stackTrace } = failure;
-    delete failure.message;
-    delete failure.stackTrace;
-
-    const pbj = protoJsonSerializer.toProto3JSON(
-      temporal.api.failure.v1.Failure.fromObject(failure) as any as protobuf.Message
-    ) as protoJsonSerializer.JSONObject;
-
-    failure.message = message;
-    failure.stackTrace = stackTrace;
-
-    return {
-      message: message ?? '',
-      metadata: TEMPORAL_FAILURE_METADATA,
-      details: pbj,
-    };
-  }
-
-  nexusFailureToTemporalFailure(failure: nexus.Failure, retryable: boolean): ProtoFailure {
+  private nexusFailureToTemporalFailure(failure: nexus.Failure, retryable: boolean): ProtoFailure {
     const temporalFailure: ProtoFailure = {};
 
-    if (failure.metadata?.type === TEMPORAL_FAILURE_METADATA.type) {
-      const decoded = protoJsonSerializer.fromProto3JSON(
-        TEMPORAL_FAILURE_TYPE,
-        failure.details as protoJsonSerializer.JSONValue
-      );
-      console.log('\nHELLO\n', decoded);
-      if (decoded) {
-        Object.assign(temporalFailure, fixBuffers(temporal.api.failure.v1.Failure.toObject(decoded as any)));
-      }
+    if (failure.metadata?.type === 'temporal.api.failure.v1.Failure') {
+      return failure.details as ProtoFailure;
     } else {
       temporalFailure.applicationFailureInfo = {
         type: 'NexusFailure',
@@ -531,5 +496,13 @@ export class DefaultFailureConverter implements FailureConverter {
     temporalFailure.stackTrace = failure.stackTrace ?? '';
 
     return temporalFailure;
+  }
+
+  private temporalFailureToNexusFailure(failure: ProtoFailure): nexus.Failure {
+    return {
+      message: failure.message ?? '',
+      metadata: { type: 'temporal.api.failure.v1.Failure' },
+      details: failure as Record<string, unknown>,
+    };
   }
 }
