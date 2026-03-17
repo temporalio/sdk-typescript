@@ -257,7 +257,7 @@ export type PollerBehavior =
 export type WorkerDeploymentOptions = {
   version: WorkerDeploymentVersion;
   useWorkerVersioning: boolean;
-  defaultVersioningBehavior: VersioningBehavior;
+  defaultVersioningBehavior: Option<VersioningBehavior>;
 };
 
 export type WorkerDeploymentVersion = {
