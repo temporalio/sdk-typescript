@@ -139,15 +139,10 @@ export type WorkflowRunOperationStartHandler<I, O> = (
 /**
  * A Nexus Operation implementation that is backed by a Workflow run.
  *
- * The type parameter `O` represents the operation's output type. When the handler uses
- * {@link startWorkflow} with a typed workflow function, `O` is inferred as the workflow's
- * return type (e.g. `string`), since {@link startWorkflow} returns
- * `WorkflowHandle<WorkflowResultType<T>>`.
- *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
 export class WorkflowRunOperationHandler<I, O> implements nexus.OperationHandler<I, O> {
-  constructor(readonly handler: WorkflowRunOperationStartHandler<I, O>) {}
+  constructor(readonly handler: WorkflowRunOperationStartHandler<I, O>) { }
 
   async start(ctx: nexus.StartOperationContext, input: I): Promise<nexus.HandlerStartOperationResult<O>> {
     const { namespace } = getHandlerContext();

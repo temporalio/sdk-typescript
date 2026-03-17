@@ -797,7 +797,6 @@ export async function echoWorkflow(input: string): Promise<string> {
 test('WorkflowRunOperationHandler infers correct output type from typed workflow function', async (t) => {
   // When constructing WorkflowRunOperationHandler without explicit type parameters using a typed
   // workflow function, the operation output type should be inferred as the workflow's return type
-  // (e.g. string), not the workflow function type (e.g. (input: string) => Promise<string>).
   const _stringOp: nexus.OperationHandler<string, string> = new temporalnexus.WorkflowRunOperationHandler(
     async (ctx, input: string) => {
       return await temporalnexus.startWorkflow(ctx, echoWorkflow, {
