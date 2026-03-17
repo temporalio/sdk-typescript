@@ -1,6 +1,6 @@
 import { WorkerDeploymentVersion } from '@temporalio/common';
 import type { coresdk, temporal } from '@temporalio/proto';
-import { IllegalStateError, ParentWorkflowInfo, RootWorkflowInfo } from '@temporalio/workflow';
+import { ParentWorkflowInfo, RootWorkflowInfo } from '@temporalio/workflow';
 
 export const MiB = 1024 ** 2;
 
