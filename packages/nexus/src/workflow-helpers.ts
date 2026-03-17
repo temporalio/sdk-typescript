@@ -142,7 +142,7 @@ export type WorkflowRunOperationStartHandler<I, O> = (
  * @experimental Nexus support in Temporal SDK is experimental.
  */
 export class WorkflowRunOperationHandler<I, O> implements nexus.OperationHandler<I, O> {
-  constructor(readonly handler: WorkflowRunOperationStartHandler<I, O>) { }
+  constructor(readonly handler: WorkflowRunOperationStartHandler<I, O>) {}
 
   async start(ctx: nexus.StartOperationContext, input: I): Promise<nexus.HandlerStartOperationResult<O>> {
     const { namespace } = getHandlerContext();
