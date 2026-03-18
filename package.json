@@ -58,7 +58,7 @@
   },
   "pnpm": {
     "overrides": {
-      "nexus-rpc": "link:/Users/amazzeo/projects/nexus/sdk-typescript"
+      "nexus-rpc": "github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged"
     }
   },
   "devDependencies": {

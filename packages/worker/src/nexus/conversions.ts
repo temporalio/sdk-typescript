@@ -81,8 +81,7 @@ export async function operationErrorToProto(
   if (err.state === 'canceled') {
     newError = new CancelledFailure(err.message, undefined, err.cause);
   } else {
-    newError = ApplicationFailure.nonRetryable(err.message, 'OperationError');
-    newError.cause = err.cause;
+    newError = ApplicationFailure.create({ message: err.message, type: 'OperationError', nonRetryable: true, cause: err.cause });
   }
   newError.stack = err.stack;
   return await encodeErrorToFailure(dataConverter, newError);
@@ -92,8 +91,7 @@ export async function handlerErrorToProto(
   dataConverter: LoadedDataConverter,
   err: nexus.HandlerError
 ): Promise<ProtoFailure> {
-  let failure = await encodeErrorToFailure(dataConverter, err);
-  return failure;
+  return await encodeErrorToFailure(dataConverter, err);
 }
 
 export function coerceToHandlerError(err: unknown): nexus.HandlerError {
@@ -114,16 +112,19 @@ export function coerceToHandlerError(err: unknown): nexus.HandlerError {
       switch (err.cause.code) {
         case status.INVALID_ARGUMENT:
           return new nexus.HandlerError('BAD_REQUEST', undefined, { cause: err });
-        case (status.ALREADY_EXISTS, status.FAILED_PRECONDITION, status.OUT_OF_RANGE):
+        case status.ALREADY_EXISTS:
+        case status.FAILED_PRECONDITION:
+        case status.OUT_OF_RANGE:
           return new nexus.HandlerError('INTERNAL', undefined, { cause: err, retryableOverride: false });
-        case (status.ABORTED, status.UNAVAILABLE):
+        case status.ABORTED:
+        case status.UNAVAILABLE:
           return new nexus.HandlerError('UNAVAILABLE', undefined, { cause: err });
-        case (status.CANCELLED,
-          status.DATA_LOSS,
-          status.INTERNAL,
-          status.UNKNOWN,
-          status.UNAUTHENTICATED,
-          status.PERMISSION_DENIED):
+        case status.CANCELLED:
+        case status.DATA_LOSS:
+        case status.INTERNAL:
+        case status.UNKNOWN:
+        case status.UNAUTHENTICATED:
+        case status.PERMISSION_DENIED:
           // Note that UNAUTHENTICATED and PERMISSION_DENIED have Nexus error types but we convert to internal because
           // this is not a client auth error and happens when the handler fails to auth with Temporal and should be
           // considered retryable.

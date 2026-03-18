@@ -20,6 +20,10 @@ import {
   convertWorkflowEventLinkToNexusLink,
   convertNexusLinkToWorkflowEventLink,
 } from '@temporalio/nexus/lib/link-converter';
+import { ServiceError } from '@temporalio/client';
+import { status as grpcStatus } from '@grpc/grpc-js';
+import { coerceToHandlerError, operationErrorToProto } from '@temporalio/worker/lib/nexus/conversions';
+import { defaultDataConverter } from '@temporalio/common';
 import { isBun, cleanStackTrace, compareStackTrace, getRandomPort } from './helpers';
 
 export interface Context {
@@ -185,6 +189,115 @@ test('HandlerError round-trips losslessly through failure converter via original
     const roundTripped = defaultFailureConverter.errorToFailure(error, defaultPayloadConverter);
     t.deepEqual(roundTripped, failure, `${name}: round-tripped ProtoFailure should equal original`);
   }
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// coerceToHandlerError unit tests
+
+function makeGrpcServiceError(code: number): ServiceError {
+  const grpcError = Object.assign(new Error(`gRPC error ${code}`), {
+    code,
+    details: 'test details',
+    metadata: {},
+  });
+  return new ServiceError(`ServiceError wrapping gRPC ${code}`, { cause: grpcError });
+}
+
+test('coerceToHandlerError maps gRPC status codes to expected HandlerError types', (t) => {
+  const cases: { code: number; name: string; expectedType: nexus.HandlerErrorType; expectedRetryableOverride?: boolean }[] = [
+    // Single-code cases
+    { code: grpcStatus.INVALID_ARGUMENT, name: 'INVALID_ARGUMENT', expectedType: 'BAD_REQUEST' },
+    { code: grpcStatus.NOT_FOUND, name: 'NOT_FOUND', expectedType: 'NOT_FOUND' },
+    { code: grpcStatus.RESOURCE_EXHAUSTED, name: 'RESOURCE_EXHAUSTED', expectedType: 'RESOURCE_EXHAUSTED' },
+    { code: grpcStatus.UNIMPLEMENTED, name: 'UNIMPLEMENTED', expectedType: 'NOT_IMPLEMENTED' },
+    { code: grpcStatus.DEADLINE_EXCEEDED, name: 'DEADLINE_EXCEEDED', expectedType: 'UPSTREAM_TIMEOUT' },
+    // Multi-code cases: non-retryable INTERNAL
+    { code: grpcStatus.ALREADY_EXISTS, name: 'ALREADY_EXISTS', expectedType: 'INTERNAL', expectedRetryableOverride: false },
+    { code: grpcStatus.FAILED_PRECONDITION, name: 'FAILED_PRECONDITION', expectedType: 'INTERNAL', expectedRetryableOverride: false },
+    { code: grpcStatus.OUT_OF_RANGE, name: 'OUT_OF_RANGE', expectedType: 'INTERNAL', expectedRetryableOverride: false },
+    // Multi-code cases: UNAVAILABLE
+    { code: grpcStatus.ABORTED, name: 'ABORTED', expectedType: 'UNAVAILABLE' },
+    { code: grpcStatus.UNAVAILABLE, name: 'UNAVAILABLE', expectedType: 'UNAVAILABLE' },
+    // Multi-code cases: retryable INTERNAL
+    { code: grpcStatus.CANCELLED, name: 'CANCELLED', expectedType: 'INTERNAL' },
+    { code: grpcStatus.DATA_LOSS, name: 'DATA_LOSS', expectedType: 'INTERNAL' },
+    { code: grpcStatus.INTERNAL, name: 'INTERNAL', expectedType: 'INTERNAL' },
+    { code: grpcStatus.UNKNOWN, name: 'UNKNOWN', expectedType: 'INTERNAL' },
+    { code: grpcStatus.UNAUTHENTICATED, name: 'UNAUTHENTICATED', expectedType: 'INTERNAL' },
+    { code: grpcStatus.PERMISSION_DENIED, name: 'PERMISSION_DENIED', expectedType: 'INTERNAL' },
+  ];
+
+  for (const { code, name, expectedType, expectedRetryableOverride } of cases) {
+    const result = coerceToHandlerError(makeGrpcServiceError(code));
+    t.is(result.type, expectedType, `${name}: expected type ${expectedType}, got ${result.type}`);
+    if (expectedRetryableOverride !== undefined) {
+      t.is(result.retryableOverride, expectedRetryableOverride, `${name}: expected retryableOverride ${expectedRetryableOverride}`);
+    }
+  }
+});
+
+test('coerceToHandlerError passes through HandlerError unchanged', (t) => {
+  const original = new nexus.HandlerError('BAD_REQUEST', 'test');
+  t.is(coerceToHandlerError(original), original);
+});
+
+test('coerceToHandlerError maps non-retryable ApplicationFailure to INTERNAL', (t) => {
+  const result = coerceToHandlerError(ApplicationFailure.create({ nonRetryable: true, message: 'fail' }));
+  t.is(result.type, 'INTERNAL');
+  t.is(result.retryableOverride, false);
+});
+
+test('coerceToHandlerError maps unknown errors to INTERNAL', (t) => {
+  t.is(coerceToHandlerError(new Error('something')).type, 'INTERNAL');
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// operationErrorToProto unit tests
+
+test('operationErrorToProto - failed state produces ApplicationFailure with cause chain', async (t) => {
+  const cause = ApplicationFailure.create({ message: 'root cause', type: 'RootError', nonRetryable: true, details: ['detail1'] });
+  const opErr = new nexus.OperationError('failed', 'operation failed', { cause });
+
+  const failure = await operationErrorToProto(defaultDataConverter, opErr);
+
+  // Top-level should be an ApplicationFailure with type 'OperationError'
+  t.truthy(failure.applicationFailureInfo);
+  t.is(failure.applicationFailureInfo?.type, 'OperationError');
+  t.is(failure.applicationFailureInfo?.nonRetryable, true);
+  t.is(failure.message, 'operation failed');
+
+  // Cause chain should preserve the original ApplicationFailure
+  t.truthy(failure.cause);
+  t.truthy(failure.cause?.applicationFailureInfo);
+  t.is(failure.cause?.message, 'root cause');
+  t.is(failure.cause?.applicationFailureInfo?.type, 'RootError');
+  t.is(failure.cause?.applicationFailureInfo?.nonRetryable, true);
+});
+
+test('operationErrorToProto - canceled state produces CancelledFailure with cause chain', async (t) => {
+  const cause = new CancelledFailure('inner cancel');
+  const opErr = new nexus.OperationError('canceled', 'operation canceled', { cause });
+
+  const failure = await operationErrorToProto(defaultDataConverter, opErr);
+
+  t.truthy(failure.canceledFailureInfo);
+  t.is(failure.message, 'operation canceled');
+
+  // Cause chain should preserve the CancelledFailure
+  t.truthy(failure.cause);
+  t.truthy(failure.cause?.canceledFailureInfo);
+  t.is(failure.cause?.message, 'inner cancel');
+});
+
+test('operationErrorToProto - failed state without cause produces standalone ApplicationFailure', async (t) => {
+  const opErr = new nexus.OperationError('failed', 'no cause');
+
+  const failure = await operationErrorToProto(defaultDataConverter, opErr);
+
+  t.truthy(failure.applicationFailureInfo);
+  t.is(failure.applicationFailureInfo?.type, 'OperationError');
+  t.is(failure.message, 'no cause');
+  t.falsy(failure.cause);
 });
 
 test('createNexusEndpoint and deleteNexusEndpoint', async (t) => {

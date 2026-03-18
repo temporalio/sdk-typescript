@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  nexus-rpc: link:/Users/amazzeo/projects/nexus/sdk-typescript
+  nexus-rpc: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
 
 importers:
 
@@ -57,8 +57,8 @@ importers:
         specifier: workspace:*
         version: link:packages/workflow
       nexus-rpc:
-        specifier: link:/Users/amazzeo/projects/nexus/sdk-typescript
-        version: link:../nexus/sdk-typescript
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
       temporalio:
         specifier: file:packages/meta
         version: file:packages/meta
@@ -243,8 +243,8 @@ importers:
         specifier: 3.0.0-canary.1
         version: 3.0.0-canary.1
       nexus-rpc:
-        specifier: link:/Users/amazzeo/projects/nexus/sdk-typescript
-        version: link:../../../nexus/sdk-typescript
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
       proto3-json-serializer:
         specifier: ^2.0.0
         version: 2.0.0
@@ -431,8 +431,8 @@ importers:
         specifier: ^5.2.3
         version: 5.2.3
       nexus-rpc:
-        specifier: link:/Users/amazzeo/projects/nexus/sdk-typescript
-        version: link:../../../nexus/sdk-typescript
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
 
   packages/nyc-test-coverage:
     dependencies:
@@ -486,8 +486,8 @@ importers:
         specifier: workspace:*
         version: link:../worker
       nexus-rpc:
-        specifier: link:/Users/amazzeo/projects/nexus/sdk-typescript
-        version: link:../../../nexus/sdk-typescript
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
 
   packages/proto:
     dependencies:
@@ -613,8 +613,8 @@ importers:
         specifier: ^5.2.3
         version: 5.2.3
       nexus-rpc:
-        specifier: link:/Users/amazzeo/projects/nexus/sdk-typescript
-        version: link:../../../nexus/sdk-typescript
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
       proto3-json-serializer:
         specifier: ^2.0.0
         version: 2.0.0
@@ -728,8 +728,8 @@ importers:
         specifier: ^4.6.0
         version: 4.6.0(quill-delta@5.1.0)(rxjs@7.8.1)(tslib@2.6.2)
       nexus-rpc:
-        specifier: link:/Users/amazzeo/projects/nexus/sdk-typescript
-        version: link:../../../nexus/sdk-typescript
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
       proto3-json-serializer:
         specifier: ^2.0.0
         version: 2.0.0
@@ -771,8 +771,8 @@ importers:
         specifier: workspace:*
         version: link:../proto
       nexus-rpc:
-        specifier: link:/Users/amazzeo/projects/nexus/sdk-typescript
-        version: link:../../../nexus/sdk-typescript
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
     devDependencies:
       source-map:
         specifier: ^0.7.4
@@ -3703,6 +3703,11 @@ packages:
 
   neo-async@2.6.2:
     resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
+
+  nexus-rpc@https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead:
+    resolution: {tarball: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead}
+    version: 0.0.1
+    engines: {node: '>= 18.0.0'}
 
   node-fetch@2.6.7:
     resolution: {integrity: sha512-ZjMPFEfVx5j+y2yF35Kzx5sF7kDzxuDj6ziH4FFbOp87zKDZNx8yExJIb05OGF4Nlt9IHFIMBkRl41VdvcNdbQ==}
@@ -8082,6 +8087,8 @@ snapshots:
   negotiator@1.0.0: {}
 
   neo-async@2.6.2: {}
+
+  nexus-rpc@https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead: {}
 
   node-fetch@2.6.7(encoding@0.1.13):
     dependencies:

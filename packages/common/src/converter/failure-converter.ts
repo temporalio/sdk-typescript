@@ -484,8 +484,8 @@ export class DefaultFailureConverter implements FailureConverter {
         details: {
           payloads: [
             {
-              metadata: { encoding: new Uint8Array(Buffer.from('json/plain')) },
-              data: new Uint8Array(Buffer.from(JSON.stringify({ ...failure, message: '' }), 'utf-8')),
+              metadata: { encoding: new TextEncoder().encode('json/plain') },
+              data: new TextEncoder().encode(JSON.stringify({ ...failure, message: '' })),
             },
           ],
         },
@@ -502,6 +502,8 @@ export class DefaultFailureConverter implements FailureConverter {
     return {
       message: failure.message ?? '',
       metadata: { type: 'temporal.api.failure.v1.Failure' },
+      // Store the full ProtoFailure as the Nexus failure details so it can be round-tripped
+      // losslessly back to a ProtoFailure via nexusFailureToTemporalFailure.
       details: failure as Record<string, unknown>,
     };
   }
