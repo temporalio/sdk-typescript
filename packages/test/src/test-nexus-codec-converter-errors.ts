@@ -105,9 +105,14 @@ test('Nexus operation converter failure is not retried', async (t) => {
     t.true(err!.cause instanceof NexusOperationFailure);
     const nexusFailure = err!.cause as NexusOperationFailure;
     t.true(nexusFailure.cause instanceof nexus.HandlerError);
-    const handlerError = nexusFailure.cause as nexus.HandlerError;
-    t.is(handlerError.type, 'BAD_REQUEST');
-    t.false(handlerError.retryable);
-    t.regex(handlerError.message, /Intentional payload converter failure for testing/);
+    const outerHandler = nexusFailure.cause as nexus.HandlerError;
+    t.is(outerHandler.type, 'BAD_REQUEST');
+    t.false(outerHandler.retryable);
+    // Older servers add an extra HandlerError wrapper; newer servers do not.
+    const handlerError =
+      outerHandler.cause instanceof nexus.HandlerError ? outerHandler.cause : outerHandler;
+    t.regex(handlerError.message, /Payload converter failed to decode Nexus operation input/);
+    const converterError = handlerError.cause as Error;
+    t.regex(converterError.message, /Intentional payload converter failure for testing/);
   });
 });

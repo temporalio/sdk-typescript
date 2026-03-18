@@ -148,15 +148,33 @@ test('Nexus Operation from a Workflow', async (t) => {
           instanceOf: WorkflowFailedError,
         }
       );
+      // Older servers add an extra HandlerError wrapper:
+      //   NexusOperationFailure > HandlerError(INTERNAL) > HandlerError(INTERNAL) > ApplicationFailure
+      // Newer servers do not:
+      //   NexusOperationFailure > HandlerError(INTERNAL) > ApplicationFailure
       t.true(
         err instanceof WorkflowFailedError &&
           err.cause instanceof NexusOperationFailure &&
           err.cause.cause instanceof nexus.HandlerError &&
-          err.cause.cause.cause instanceof ApplicationFailure &&
-          err.cause.cause.cause.message === 'test asked to fail' &&
-          err.cause.cause.cause.details?.length === 1 &&
-          err.cause.cause.cause.details[0] === 'a detail'
+          err.cause.cause.type === 'INTERNAL'
       );
+      {
+        const outerHandler =
+          err instanceof WorkflowFailedError &&
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof nexus.HandlerError
+            ? err.cause.cause
+            : undefined;
+        const appFailure =
+          outerHandler?.cause instanceof nexus.HandlerError
+            ? outerHandler.cause.cause // old server: skip extra HandlerError wrapper
+            : outerHandler?.cause; // new server: ApplicationFailure is direct cause
+        t.true(appFailure instanceof ApplicationFailure);
+        if (appFailure instanceof ApplicationFailure) {
+          t.is(appFailure.message, 'test asked to fail');
+          t.deepEqual(appFailure.details, ['a detail']);
+        }
+      }
 
       err = await t.throwsAsync(
         () =>

@@ -190,9 +190,12 @@ test('Workflow calling Nexus operation with cancellation type WAIT_CANCELLATION_
   assert(err instanceof WorkflowFailedError);
   assert(err.cause instanceof NexusOperationFailure);
   assert(err.cause.cause instanceof nexus.HandlerError);
-  assert(err.cause.cause.type, 'NOT_IMPLEMENTED');
-  assert(err.cause.cause.cause instanceof ApplicationFailure);
-  t.is(err.cause.cause.cause.message, 'Intentional failure');
+  // Older servers add an extra HandlerError wrapper; newer servers do not.
+  // Navigate to the innermost HandlerError which carries the handler's message.
+  const innerHandler =
+    err.cause.cause.cause instanceof nexus.HandlerError ? err.cause.cause.cause : err.cause.cause;
+  t.is(innerHandler.type, 'NOT_IMPLEMENTED');
+  t.regex(innerHandler.message, /Intentional failure/);
 });
 
 test('Workflow calling Nexus operation with cancellation type TRY_CANCEL properly cancels', async (t) => {
