@@ -1,6 +1,6 @@
 import { WorkerDeploymentVersion } from '@temporalio/common';
 import type { coresdk, temporal } from '@temporalio/proto';
-import { IllegalStateError, ParentWorkflowInfo, RootWorkflowInfo } from '@temporalio/workflow';
+import { ParentWorkflowInfo, RootWorkflowInfo } from '@temporalio/workflow';
 
 export const MiB = 1024 ** 2;
 
@@ -15,12 +15,8 @@ export function byteArrayToBuffer(array: Uint8Array): Buffer {
 export function convertToParentWorkflowType(
   parent: coresdk.common.INamespacedWorkflowExecution | null | undefined
 ): ParentWorkflowInfo | undefined {
-  if (!parent) {
+  if (!parent || !parent.workflowId || !parent.runId || !parent.namespace) {
     return undefined;
-  }
-
-  if (!parent.workflowId || !parent.runId || !parent.namespace) {
-    throw new IllegalStateError('Parent INamespacedWorkflowExecution is missing a field that should be defined');
   }
 
   return {
@@ -33,7 +29,7 @@ export function convertToParentWorkflowType(
 export function convertDeploymentVersion(
   v: coresdk.common.IWorkerDeploymentVersion | null | undefined
 ): WorkerDeploymentVersion | undefined {
-  if (v == null || v.buildId == null) {
+  if (!v || !v.buildId) {
     return undefined;
   }
 
@@ -46,11 +42,8 @@ export function convertDeploymentVersion(
 export function convertToRootWorkflowType(
   root: temporal.api.common.v1.IWorkflowExecution | null | undefined
 ): RootWorkflowInfo | undefined {
-  if (root == null) {
+  if (!root || !root.workflowId || !root.runId) {
     return undefined;
-  }
-  if (!root.workflowId || !root.runId) {
-    throw new IllegalStateError('Root workflow execution is missing a field that should be defined');
   }
 
   return {
