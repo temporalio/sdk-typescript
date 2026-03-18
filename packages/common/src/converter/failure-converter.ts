@@ -24,6 +24,7 @@ import { makeProtoEnumConverters } from '../internal-workflow';
 import { isError } from '../type-helpers';
 import { msOptionalToTs } from '../time';
 import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './payload-converter';
+import { encode } from '../encoding';
 
 // Can't import proto enums into the workflow sandbox, use this helper type and enum converter instead.
 const NexusHandlerErrorRetryBehavior = {
@@ -484,8 +485,8 @@ export class DefaultFailureConverter implements FailureConverter {
         details: {
           payloads: [
             {
-              metadata: { encoding: new TextEncoder().encode('json/plain') },
-              data: new TextEncoder().encode(JSON.stringify({ ...failure, message: '' })),
+              metadata: { encoding: encode('json/plain') },
+              data: encode(JSON.stringify({ ...failure, message: '' })),
             },
           ],
         },
