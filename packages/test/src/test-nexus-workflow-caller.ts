@@ -216,7 +216,7 @@ export async function clientOperationTypeSafetyCheckerWorkflow(endpoint: string)
       await client.startOperation('non-existent', { x: 'x' });
     } catch (err) {
       assert(err instanceof NexusOperationFailure, `Expected a NexusOperationFailure, got ${err}`);
-      assert(err.cause instanceof nexus.HandlerError, `Expected casue to be a HandlerError, got ${err.cause}`);
+      assert(err.cause instanceof nexus.HandlerError, `Expected cause to be a HandlerError, got ${err.cause}`);
       assert(err.cause.type === 'NOT_FOUND', `Expected a NOT_FOUND error, got ${err.cause.type}`);
     }
   }
