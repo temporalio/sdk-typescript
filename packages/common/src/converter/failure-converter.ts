@@ -388,7 +388,7 @@ export class DefaultFailureConverter implements FailureConverter {
       }
       if (err instanceof nexus.HandlerError) {
         if (err.originalFailure) {
-          return this.nexusFailureToTemporalFailure(err.originalFailure, true);
+          return this.nexusFailureToTemporalFailure(err.originalFailure, err.retryable);
         } else {
           let retryBehavior: temporal.api.enums.v1.NexusHandlerErrorRetryBehavior | undefined = undefined;
           switch (err.retryableOverride) {
