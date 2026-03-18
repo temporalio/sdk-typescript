@@ -5,6 +5,7 @@ import { Client, WorkflowFailedError } from '@temporalio/client';
 import type { PayloadCodec } from '@temporalio/common/lib/converter/payload-codec';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
+import { innermostHandlerError } from './helpers-nexus';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -108,9 +109,7 @@ test('Nexus operation converter failure is not retried', async (t) => {
     const outerHandler = nexusFailure.cause as nexus.HandlerError;
     t.is(outerHandler.type, 'BAD_REQUEST');
     t.false(outerHandler.retryable);
-    // Older servers add an extra HandlerError wrapper; newer servers do not.
-    const handlerError =
-      outerHandler.cause instanceof nexus.HandlerError ? outerHandler.cause : outerHandler;
+    const handlerError = innermostHandlerError(outerHandler);
     t.regex(handlerError.message, /Payload converter failed to decode Nexus operation input/);
     const converterError = handlerError.cause as Error;
     t.regex(converterError.message, /Intentional payload converter failure for testing/);

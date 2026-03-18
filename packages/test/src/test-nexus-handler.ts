@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import anyTest, { TestFn } from 'ava';
-import Long from 'long';
 import * as nexus from 'nexus-rpc';
-import * as protoJsonSerializer from 'proto3-json-serializer';
+import { status as grpcStatus } from '@grpc/grpc-js';
 import * as temporalnexus from '@temporalio/nexus';
 import * as temporalclient from '@temporalio/client';
 import * as root from '@temporalio/proto';
@@ -13,18 +12,12 @@ import {
   CancelledFailure,
   defaultFailureConverter,
   defaultPayloadConverter,
+  defaultDataConverter,
   ProtoFailure,
-  SdkComponent,
 } from '@temporalio/common';
-import {
-  convertWorkflowEventLinkToNexusLink,
-  convertNexusLinkToWorkflowEventLink,
-} from '@temporalio/nexus/lib/link-converter';
 import { ServiceError } from '@temporalio/client';
-import { status as grpcStatus } from '@grpc/grpc-js';
 import { coerceToHandlerError, operationErrorToProto } from '@temporalio/worker/lib/nexus/conversions';
-import { defaultDataConverter } from '@temporalio/common';
-import { isBun, cleanStackTrace, compareStackTrace, getRandomPort } from './helpers';
+import { getRandomPort } from './helpers';
 
 export interface Context {
   httpPort: number;
@@ -204,7 +197,12 @@ function makeGrpcServiceError(code: number): ServiceError {
 }
 
 test('coerceToHandlerError maps gRPC status codes to expected HandlerError types', (t) => {
-  const cases: { code: number; name: string; expectedType: nexus.HandlerErrorType; expectedRetryableOverride?: boolean }[] = [
+  const cases: {
+    code: number;
+    name: string;
+    expectedType: nexus.HandlerErrorType;
+    expectedRetryableOverride?: boolean;
+  }[] = [
     // Single-code cases
     { code: grpcStatus.INVALID_ARGUMENT, name: 'INVALID_ARGUMENT', expectedType: 'BAD_REQUEST' },
     { code: grpcStatus.NOT_FOUND, name: 'NOT_FOUND', expectedType: 'NOT_FOUND' },
@@ -212,8 +210,18 @@ test('coerceToHandlerError maps gRPC status codes to expected HandlerError types
     { code: grpcStatus.UNIMPLEMENTED, name: 'UNIMPLEMENTED', expectedType: 'NOT_IMPLEMENTED' },
     { code: grpcStatus.DEADLINE_EXCEEDED, name: 'DEADLINE_EXCEEDED', expectedType: 'UPSTREAM_TIMEOUT' },
     // Multi-code cases: non-retryable INTERNAL
-    { code: grpcStatus.ALREADY_EXISTS, name: 'ALREADY_EXISTS', expectedType: 'INTERNAL', expectedRetryableOverride: false },
-    { code: grpcStatus.FAILED_PRECONDITION, name: 'FAILED_PRECONDITION', expectedType: 'INTERNAL', expectedRetryableOverride: false },
+    {
+      code: grpcStatus.ALREADY_EXISTS,
+      name: 'ALREADY_EXISTS',
+      expectedType: 'INTERNAL',
+      expectedRetryableOverride: false,
+    },
+    {
+      code: grpcStatus.FAILED_PRECONDITION,
+      name: 'FAILED_PRECONDITION',
+      expectedType: 'INTERNAL',
+      expectedRetryableOverride: false,
+    },
     { code: grpcStatus.OUT_OF_RANGE, name: 'OUT_OF_RANGE', expectedType: 'INTERNAL', expectedRetryableOverride: false },
     // Multi-code cases: UNAVAILABLE
     { code: grpcStatus.ABORTED, name: 'ABORTED', expectedType: 'UNAVAILABLE' },
@@ -231,7 +239,11 @@ test('coerceToHandlerError maps gRPC status codes to expected HandlerError types
     const result = coerceToHandlerError(makeGrpcServiceError(code));
     t.is(result.type, expectedType, `${name}: expected type ${expectedType}, got ${result.type}`);
     if (expectedRetryableOverride !== undefined) {
-      t.is(result.retryableOverride, expectedRetryableOverride, `${name}: expected retryableOverride ${expectedRetryableOverride}`);
+      t.is(
+        result.retryableOverride,
+        expectedRetryableOverride,
+        `${name}: expected retryableOverride ${expectedRetryableOverride}`
+      );
     }
   }
 });
@@ -255,7 +267,12 @@ test('coerceToHandlerError maps unknown errors to INTERNAL', (t) => {
 // operationErrorToProto unit tests
 
 test('operationErrorToProto - failed state produces ApplicationFailure with cause chain', async (t) => {
-  const cause = ApplicationFailure.create({ message: 'root cause', type: 'RootError', nonRetryable: true, details: ['detail1'] });
+  const cause = ApplicationFailure.create({
+    message: 'root cause',
+    type: 'RootError',
+    nonRetryable: true,
+    details: ['detail1'],
+  });
   const opErr = new nexus.OperationError('failed', 'operation failed', { cause });
 
   const failure = await operationErrorToProto(defaultDataConverter, opErr);

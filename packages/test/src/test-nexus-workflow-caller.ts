@@ -8,6 +8,7 @@ import { LogEntry } from '@temporalio/worker';
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
+import { unwrapHandlerErrorCause, innermostHandlerError } from './helpers-nexus';
 import { waitUntil } from './helpers';
 
 const recordedLogs: { [key: string]: LogEntry[] } = {};
@@ -135,7 +136,11 @@ export async function cancelHandlerErrorCaller(endpoint: string): Promise<void> 
   }
 }
 
-export async function multiOpCaller(endpoint: string, op: keyof typeof multiOpService.operations, action: string): Promise<string> {
+export async function multiOpCaller(
+  endpoint: string,
+  op: keyof typeof multiOpService.operations,
+  action: string
+): Promise<string> {
   const client = workflow.createNexusClient({
     endpoint,
     service: multiOpService,
@@ -299,8 +304,7 @@ test('Operation Handler cancellation via workflow cancel', async (t) => {
     // Wait for the Nexus Operation to be scheduled (sync ops that block forever
     // never emit a NexusOperationStartedEvent, so we wait for scheduled instead).
     await waitUntil(
-      async () =>
-        !!(await callerHandle.fetchHistory()).events?.some((ev) => ev.nexusOperationScheduledEventAttributes),
+      async () => !!(await callerHandle.fetchHistory()).events?.some((ev) => ev.nexusOperationScheduledEventAttributes),
       4000
     );
     // Give the worker time to pick up and start executing the blocking handler.
@@ -387,25 +391,21 @@ test('start Operation Handler errors - caller workflow', async (t) => {
       );
       t.true(
         err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof nexus.HandlerError &&
-        err.cause.cause.type === 'INTERNAL'
-      );
-      // Navigate past the optional server-added HandlerError wrapper to find the ApplicationFailure
-      const outerHandler =
-        err instanceof WorkflowFailedError &&
           err.cause instanceof NexusOperationFailure &&
-          err.cause.cause instanceof nexus.HandlerError
-          ? err.cause.cause
-          : undefined;
-      const appFailure =
-        outerHandler?.cause instanceof nexus.HandlerError
-          ? outerHandler.cause.cause // old server: skip extra HandlerError wrapper
-          : outerHandler?.cause; // new server: ApplicationFailure is direct cause
-      t.true(appFailure instanceof ApplicationFailure);
-      if (appFailure instanceof ApplicationFailure) {
-        t.is(appFailure.message, 'deliberate failure');
-        t.deepEqual(appFailure.details, ['details']);
+          err.cause.cause instanceof nexus.HandlerError &&
+          err.cause.cause.type === 'INTERNAL'
+      );
+      if (
+        err instanceof WorkflowFailedError &&
+        err.cause instanceof NexusOperationFailure &&
+        err.cause.cause instanceof nexus.HandlerError
+      ) {
+        const appFailure = unwrapHandlerErrorCause(err.cause.cause);
+        t.true(appFailure instanceof ApplicationFailure);
+        if (appFailure instanceof ApplicationFailure) {
+          t.is(appFailure.message, 'deliberate failure');
+          t.deepEqual(appFailure.details, ['details']);
+        }
       }
     }
 
@@ -419,24 +419,17 @@ test('start Operation Handler errors - caller workflow', async (t) => {
       );
       t.true(
         err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof nexus.HandlerError &&
-        err.cause.cause.type === 'INTERNAL'
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof nexus.HandlerError &&
+          err.cause.cause.type === 'INTERNAL'
       );
-      // The original error message should be present at some level of the HandlerError chain
       if (
         err instanceof WorkflowFailedError &&
         err.cause instanceof NexusOperationFailure &&
         err.cause.cause instanceof nexus.HandlerError
       ) {
-        const handler = err.cause.cause;
-        if (handler.cause instanceof nexus.HandlerError) {
-          // Old server: message is on the inner HandlerError
-          t.is(handler.cause.message, 'deliberate error');
-        } else {
-          // New server: message is on the HandlerError itself
-          t.is(handler.message, 'deliberate error');
-        }
+        const inner = innermostHandlerError(err.cause.cause);
+        t.is(inner.message, 'deliberate error');
       }
     }
 
@@ -449,9 +442,9 @@ test('start Operation Handler errors - caller workflow', async (t) => {
       );
       t.true(
         err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof ApplicationFailure &&
-        (err.cause.cause as ApplicationFailure).type === 'OperationError'
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof ApplicationFailure &&
+          (err.cause.cause as ApplicationFailure).type === 'OperationError'
       );
     }
   });
@@ -497,8 +490,7 @@ test('cancel Operation Handler errors - caller workflow', async (t) => {
         args: [endpointName],
       });
       await waitUntil(
-        async () =>
-          !!(await callerHandle.fetchHistory()).events?.some((ev) => ev.nexusOperationStartedEventAttributes),
+        async () => !!(await callerHandle.fetchHistory()).events?.some((ev) => ev.nexusOperationStartedEventAttributes),
         4000
       );
       await callerHandle.cancel();
@@ -507,18 +499,15 @@ test('cancel Operation Handler errors - caller workflow', async (t) => {
       });
       t.true(
         err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof nexus.HandlerError
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof nexus.HandlerError
       );
-      // Navigate to find the ApplicationFailure in the cause chain
       if (
         err instanceof WorkflowFailedError &&
         err.cause instanceof NexusOperationFailure &&
         err.cause.cause instanceof nexus.HandlerError
       ) {
-        const handler = err.cause.cause;
-        const appFailure =
-          handler.cause instanceof nexus.HandlerError ? handler.cause.cause : handler.cause;
+        const appFailure = unwrapHandlerErrorCause(err.cause.cause);
         t.true(appFailure instanceof ApplicationFailure);
         if (appFailure instanceof ApplicationFailure) {
           t.is(appFailure.message, 'deliberate failure');
@@ -533,8 +522,7 @@ test('cancel Operation Handler errors - caller workflow', async (t) => {
         args: [endpointName],
       });
       await waitUntil(
-        async () =>
-          !!(await callerHandle.fetchHistory()).events?.some((ev) => ev.nexusOperationStartedEventAttributes),
+        async () => !!(await callerHandle.fetchHistory()).events?.some((ev) => ev.nexusOperationStartedEventAttributes),
         4000
       );
       await callerHandle.cancel();
@@ -543,9 +531,9 @@ test('cancel Operation Handler errors - caller workflow', async (t) => {
       });
       t.true(
         err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof nexus.HandlerError &&
-        err.cause.cause.type === 'INTERNAL'
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof nexus.HandlerError &&
+          err.cause.cause.type === 'INTERNAL'
       );
     }
   });
@@ -670,8 +658,7 @@ test('WorkflowRunOperationHandler attaches links and callbacks - caller workflow
 
     // Wait for the Nexus operation to start (i.e. the target workflow has been created).
     await waitUntil(
-      async () =>
-        !!(await callerHandle.fetchHistory()).events?.some((ev) => ev.nexusOperationStartedEventAttributes),
+      async () => !!(await callerHandle.fetchHistory()).events?.some((ev) => ev.nexusOperationStartedEventAttributes),
       4000
     );
 
@@ -804,27 +791,18 @@ test('Nexus sync and async Operations from a Workflow', async (t) => {
           instanceOf: WorkflowFailedError,
         }
       );
-      // Older servers add an extra HandlerError wrapper:
-      //   NexusOperationFailure > HandlerError(INTERNAL) > HandlerError(INTERNAL) > ApplicationFailure
-      // Newer servers do not:
-      //   NexusOperationFailure > HandlerError(INTERNAL) > ApplicationFailure
       t.true(
         err instanceof WorkflowFailedError &&
           err.cause instanceof NexusOperationFailure &&
           err.cause.cause instanceof nexus.HandlerError &&
           err.cause.cause.type === 'INTERNAL'
       );
-      {
-        const outerHandler =
-          err instanceof WorkflowFailedError &&
-          err.cause instanceof NexusOperationFailure &&
-          err.cause.cause instanceof nexus.HandlerError
-            ? err.cause.cause
-            : undefined;
-        const appFailure =
-          outerHandler?.cause instanceof nexus.HandlerError
-            ? outerHandler.cause.cause // old server: skip extra HandlerError wrapper
-            : outerHandler?.cause; // new server: ApplicationFailure is direct cause
+      if (
+        err instanceof WorkflowFailedError &&
+        err.cause instanceof NexusOperationFailure &&
+        err.cause.cause instanceof nexus.HandlerError
+      ) {
+        const appFailure = unwrapHandlerErrorCause(err.cause.cause);
         t.true(appFailure instanceof ApplicationFailure);
         if (appFailure instanceof ApplicationFailure) {
           t.is(appFailure.message, 'test asked to fail');

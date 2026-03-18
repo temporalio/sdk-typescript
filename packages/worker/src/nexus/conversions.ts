@@ -45,7 +45,7 @@ class PayloadSerializer implements nexus.Serializer {
   constructor(
     readonly payloadConverter: PayloadConverter,
     readonly payload?: Payload
-  ) { }
+  ) {}
 
   deserialize<T>(): T {
     if (this.payload == null) {
@@ -81,7 +81,12 @@ export async function operationErrorToProto(
   if (err.state === 'canceled') {
     newError = new CancelledFailure(err.message, undefined, err.cause);
   } else {
-    newError = ApplicationFailure.create({ message: err.message, type: 'OperationError', nonRetryable: true, cause: err.cause });
+    newError = ApplicationFailure.create({
+      message: err.message,
+      type: 'OperationError',
+      nonRetryable: true,
+      cause: err.cause,
+    });
   }
   newError.stack = err.stack;
   return await encodeErrorToFailure(dataConverter, newError);

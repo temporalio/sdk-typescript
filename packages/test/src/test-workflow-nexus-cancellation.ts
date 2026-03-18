@@ -8,6 +8,7 @@ import { History } from '@temporalio/common/lib/proto-utils';
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
+import { innermostHandlerError } from './helpers-nexus';
 import { waitUntil } from './helpers';
 
 const test = makeTestFunction({ workflowsPath: __filename });
@@ -190,10 +191,7 @@ test('Workflow calling Nexus operation with cancellation type WAIT_CANCELLATION_
   assert(err instanceof WorkflowFailedError);
   assert(err.cause instanceof NexusOperationFailure);
   assert(err.cause.cause instanceof nexus.HandlerError);
-  // Older servers add an extra HandlerError wrapper; newer servers do not.
-  // Navigate to the innermost HandlerError which carries the handler's message.
-  const innerHandler =
-    err.cause.cause.cause instanceof nexus.HandlerError ? err.cause.cause.cause : err.cause.cause;
+  const innerHandler = innermostHandlerError(err.cause.cause);
   t.is(innerHandler.type, 'NOT_IMPLEMENTED');
   t.regex(innerHandler.message, /Intentional failure/);
 });
