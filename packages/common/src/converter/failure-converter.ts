@@ -474,11 +474,10 @@ export class DefaultFailureConverter implements FailureConverter {
   }
 
   private nexusFailureToTemporalFailure(failure: nexus.Failure, retryable: boolean): ProtoFailure {
-    const temporalFailure: ProtoFailure = {};
-
     if (failure.metadata?.type === 'temporal.api.failure.v1.Failure') {
       return failure.details as ProtoFailure;
     } else {
+      const temporalFailure: ProtoFailure = {};
       temporalFailure.applicationFailureInfo = {
         type: 'NexusFailure',
         nonRetryable: !retryable,
@@ -491,12 +490,10 @@ export class DefaultFailureConverter implements FailureConverter {
           ],
         },
       };
+      temporalFailure.message = failure.message;
+      temporalFailure.stackTrace = failure.stackTrace ?? '';
+      return temporalFailure;
     }
-
-    temporalFailure.message = failure.message;
-    temporalFailure.stackTrace = failure.stackTrace ?? '';
-
-    return temporalFailure;
   }
 
   private temporalFailureToNexusFailure(failure: ProtoFailure): nexus.Failure {
