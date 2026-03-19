@@ -6,7 +6,7 @@
 import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
 import { ExecutionContext } from 'ava';
-import { Client } from '@temporalio/client';
+import { Client, WorkflowHandleWithFirstExecutionRunId } from '@temporalio/client';
 import { toCanonicalString, WorkerDeploymentVersion } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import { WorkerOptions } from '@temporalio/worker';
@@ -472,6 +472,135 @@ async function setCurrentDeploymentVersion(
     conflictToken,
   });
 }
+
+async function waitForWorkflowRunningOnVersion(
+  client: Client,
+  handle: WorkflowHandleWithFirstExecutionRunId,
+  expectedBuildId: string
+) {
+  return await asyncRetry(
+    async () => {
+      const desc = await client.workflowService.describeWorkflowExecution({
+        namespace: client.options.namespace,
+        execution: { workflowId: handle.workflowId, runId: handle.firstExecutionRunId },
+      });
+      const status = desc.workflowExecutionInfo?.status;
+      if (status !== temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING) {
+        throw new Error(`Workflow not running yet, status: ${status}`);
+      }
+      const buildId = desc.workflowExecutionInfo?.versioningInfo?.deploymentVersion?.buildId;
+      if (buildId !== expectedBuildId) {
+        throw new Error(`Workflow on ${buildId}, expected ${expectedBuildId}`);
+      }
+    },
+    { maxTimeout: 1000, retries: 10 }
+  );
+}
+
+async function waitForRoutingConfigPropagation(
+  client: Client,
+  deploymentName: string,
+  expectedCurrentBuildId: string,
+  expectedRampingBuildId?: string
+) {
+  return await asyncRetry(
+    async () => {
+      const resp = await client.workflowService.describeWorkerDeployment({
+        namespace: client.options.namespace,
+        deploymentName,
+      });
+      const routingConfig = resp.workerDeploymentInfo?.routingConfig;
+      const currentBuildId = routingConfig?.currentDeploymentVersion?.buildId;
+      const rampingBuildId = routingConfig?.rampingDeploymentVersion?.buildId;
+
+      if (currentBuildId !== expectedCurrentBuildId) {
+        throw new Error(`Current version ${currentBuildId}, expected ${expectedCurrentBuildId}`);
+      }
+      if (rampingBuildId !== expectedRampingBuildId) {
+        throw new Error(`Ramping version ${rampingBuildId}, expected ${expectedRampingBuildId}`);
+      }
+
+      const state = resp.workerDeploymentInfo?.routingConfigUpdateState;
+      if (state === temporal.api.enums.v1.RoutingConfigUpdateState.ROUTING_CONFIG_UPDATE_STATE_IN_PROGRESS) {
+        throw new Error('Routing config update still in progress');
+      }
+    },
+    { maxTimeout: 1000, retries: 10 }
+  );
+}
+
+test('ContinueAsNew with version upgrade', async (t) => {
+  const taskQueue = 'can-version-upgrade-' + randomUUID();
+  const deploymentName = 'deployment-can-' + randomUUID();
+  const { client, nativeConnection } = t.context.env;
+  const { createNativeConnection } = helpers(t);
+
+  const v1 = { buildId: '1.0', deploymentName };
+  const v2 = { buildId: '2.0', deploymentName };
+
+  // Create worker v1 (pinned, with CAN logic)
+  const worker1 = await Worker.create({
+    workflowsPath: require.resolve('./deployment-versioning-can-v1'),
+    taskQueue,
+    workerDeploymentOptions: {
+      useWorkerVersioning: true,
+      version: v1,
+      defaultVersioningBehavior: 'PINNED',
+    },
+    connection: nativeConnection,
+  });
+  const worker1Promise = worker1.run();
+  worker1Promise.catch((err) => t.fail('Worker 1.0 error: ' + err));
+
+  // Create worker v2 (just returns v2.0)
+  const worker2Connection = await createNativeConnection();
+  t.teardown(() => worker2Connection.close());
+  const worker2 = await Worker.create({
+    workflowsPath: require.resolve('./deployment-versioning-can-v2'),
+    taskQueue,
+    workerDeploymentOptions: {
+      useWorkerVersioning: true,
+      version: v2,
+      defaultVersioningBehavior: 'PINNED',
+    },
+    connection: worker2Connection,
+  });
+  const worker2Promise = worker2.run();
+  worker2Promise.catch((err) => t.fail('Worker 2.0 error: ' + err));
+
+  // Wait for v1, set as current
+  const describeResp1 = await waitUntilWorkerDeploymentVisible(client, v1);
+  const setResp1 = await setCurrentDeploymentVersion(client, describeResp1.conflictToken, v1);
+
+  // Wait for v1 routing config to propagate
+  await waitForRoutingConfigPropagation(client, deploymentName, v1.buildId);
+
+  // Start workflow on v1
+  const handle = await client.workflow.start('continueAsNewWithVersionUpgrade', {
+    args: [0],
+    taskQueue,
+    workflowId: 'can-version-upgrade-' + randomUUID(),
+  });
+
+  // Wait for workflow to be running on v1
+  await waitForWorkflowRunningOnVersion(client, handle, v1.buildId);
+
+  // Wait for v2 to be visible, set as current
+  await waitUntilWorkerDeploymentVisible(client, v2);
+  await setCurrentDeploymentVersion(client, setResp1.conflictToken, v2);
+
+  // Wait for v2 routing config to propagate
+  await waitForRoutingConfigPropagation(client, deploymentName, v2.buildId);
+
+  // Expect workflow to CAN to v2 and return 'v2.0'
+  const result = await handle.result();
+  t.is(result, 'v2.0');
+
+  worker1.shutdown();
+  worker2.shutdown();
+  await worker1Promise;
+  await worker2Promise;
+});
 
 ///////////////////////////////
 
