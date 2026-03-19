@@ -322,13 +322,11 @@ test('start Operation Handler errors', async (t) => {
     at create (common/lib/failure.js)
     at op (test/lib/test-nexus-handler.js)
     at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)
-    at start (nexus-rpc/lib/handler/service-registry.js)
     at processTicksAndRejections (native)`
           : `ApplicationFailure: deliberate failure
     at $CLASS.create (common/src/failure.ts)
     at op (test/src/test-nexus-handler.ts)
-    at Object.start (nexus-rpc/src/handler/operation-handler.ts)
-    at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
+    at Object.start (nexus-rpc/src/handler/operation-handler.ts)`
       );
       t.deepEqual((err as ApplicationFailure).details, ['details']);
       t.is((err as ApplicationFailure).failure?.source, 'TypeScriptSDK');
@@ -356,12 +354,10 @@ test('start Operation Handler errors', async (t) => {
           ? `HandlerError: deliberate error
     at op (test/lib/test-nexus-handler.js)
     at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)
-    at start (nexus-rpc/lib/handler/service-registry.js)
     at processTicksAndRejections (native)`
           : `HandlerError: deliberate error
     at op (test/src/test-nexus-handler.ts)
-    at Object.start (nexus-rpc/src/handler/operation-handler.ts)
-    at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
+    at Object.start (nexus-rpc/src/handler/operation-handler.ts)`
       );
     }
     {
@@ -388,12 +384,10 @@ test('start Operation Handler errors', async (t) => {
           ? `OperationError: deliberate error
     at op (test/lib/test-nexus-handler.js)
     at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)
-    at start (nexus-rpc/lib/handler/service-registry.js)
     at processTicksAndRejections (native)`
           : `OperationError: deliberate error
     at op (test/src/test-nexus-handler.ts)
-    at Object.start (nexus-rpc/src/handler/operation-handler.ts)
-    at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
+    at Object.start (nexus-rpc/src/handler/operation-handler.ts)`
       );
     }
     {
@@ -488,12 +482,10 @@ test('cancel Operation Handler errors', async (t) => {
         isBun
           ? `ApplicationFailure: deliberate failure
     at create (common/lib/failure.js)
-    at cancel (test/lib/test-nexus-handler.js)
-    at cancel (nexus-rpc/lib/handler/service-registry.js)`
+    at cancel (test/lib/test-nexus-handler.js)`
           : `ApplicationFailure: deliberate failure
     at $CLASS.create (common/src/failure.ts)
-    at Object.cancel (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.cancel (nexus-rpc/src/handler/service-registry.ts)`
+    at Object.cancel (test/src/test-nexus-handler.ts)`
       );
       t.deepEqual((err as ApplicationFailure).details, ['details']);
       t.is((err as ApplicationFailure).failure?.source, 'TypeScriptSDK');
@@ -523,11 +515,9 @@ test('cancel Operation Handler errors', async (t) => {
         cleanStackTrace(err.stack!),
         isBun
           ? `HandlerError: deliberate error
-    at cancel (test/lib/test-nexus-handler.js)
-    at cancel (nexus-rpc/lib/handler/service-registry.js)`
+    at cancel (test/lib/test-nexus-handler.js)`
           : `HandlerError: deliberate error
-    at Object.cancel (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.cancel (nexus-rpc/src/handler/service-registry.ts)`
+    at Object.cancel (test/src/test-nexus-handler.ts)`
       );
     }
   });
@@ -788,6 +778,231 @@ test('WorkflowRunOperationHandler does not accept WorkflowHandle from WorkflowCl
 
   // This test only checks for compile-time error.
   t.pass();
+});
+
+test('inbound execute interceptor is invoked for startOperation', async (t) => {
+  const { env, taskQueue, httpPort, endpoint } = t.context;
+  const endpointId = endpoint.id;
+
+  const interceptorCalls: string[] = [];
+
+  const w = await Worker.create({
+    connection: env.nativeConnection,
+    namespace: env.namespace,
+    taskQueue,
+    nexusServices: [
+      nexus.serviceHandler(
+        nexus.service('testService', {
+          testSyncOp: nexus.operation<string, string>(),
+        }),
+        {
+          async testSyncOp(_ctx, input) {
+            return input;
+          },
+        }
+      ),
+    ],
+    interceptors: {
+      nexus: [
+        () => ({
+          inbound: {
+            async execute(input, next) {
+              interceptorCalls.push('execute');
+              return await next(input);
+            },
+          },
+        }),
+      ],
+    },
+  });
+
+  await w.runUntil(async () => {
+    const res = await fetch(
+      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
+      {
+        method: 'POST',
+        body: JSON.stringify('hello'),
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+    t.true(res.ok);
+    const output = await res.json();
+    t.is(output, 'hello');
+  });
+
+  t.deepEqual(interceptorCalls, ['execute']);
+});
+
+test('inbound execute interceptor can observe and modify result', async (t) => {
+  const { env, taskQueue, httpPort, endpoint } = t.context;
+  const endpointId = endpoint.id;
+
+  const observedResults: unknown[] = [];
+
+  const w = await Worker.create({
+    connection: env.nativeConnection,
+    namespace: env.namespace,
+    taskQueue,
+    nexusServices: [
+      nexus.serviceHandler(
+        nexus.service('testService', {
+          testSyncOp: nexus.operation<string, string>(),
+        }),
+        {
+          async testSyncOp(_ctx, input) {
+            return input;
+          },
+        }
+      ),
+    ],
+    interceptors: {
+      nexus: [
+        () => ({
+          inbound: {
+            async execute(input, next) {
+              const output = await next(input);
+              // The result is a HandlerStartOperationResult; for sync operations, it has
+              // isAsync=false and a value property.
+              observedResults.push(output.result);
+              const syncResult = output.result as { isAsync: false; value: string };
+              if (!syncResult.isAsync) {
+                return { result: nexus.HandlerStartOperationResult.sync(syncResult.value + ' intercepted') };
+              }
+              return output;
+            },
+          },
+        }),
+      ],
+    },
+  });
+
+  await w.runUntil(async () => {
+    const res = await fetch(
+      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
+      {
+        method: 'POST',
+        body: JSON.stringify('hello'),
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+    t.true(res.ok);
+    const output = await res.json();
+    t.is(output, 'hello intercepted');
+  });
+
+  t.is(observedResults.length, 1);
+  const syncResult = observedResults[0] as { isAsync: false; value: string };
+  t.false(syncResult.isAsync);
+  t.is(syncResult.value, 'hello');
+});
+
+test('inbound cancelOperation interceptor is invoked', async (t) => {
+  const { env, taskQueue, httpPort, endpoint } = t.context;
+  const endpointId = endpoint.id;
+  const requestId = 'test-' + randomUUID();
+
+  const interceptorCalls: string[] = [];
+
+  const w = await Worker.create({
+    connection: env.nativeConnection,
+    namespace: env.namespace,
+    taskQueue,
+    nexusServices: [
+      nexus.serviceHandler(
+        nexus.service('testService', {
+          testAsyncOp: nexus.operation<string, string>({ name: 'async-op' }),
+        }),
+        {
+          testAsyncOp: {
+            async start(ctx, _input): Promise<nexus.HandlerStartOperationResult<string>> {
+              return nexus.HandlerStartOperationResult.async(ctx.requestId ?? requestId);
+            },
+            async cancel(_ctx, _token) {
+              // no-op
+            },
+            async getInfo() {
+              throw new Error('not implemented');
+            },
+            async getResult() {
+              throw new Error('not implemented');
+            },
+          },
+        }
+      ),
+    ],
+    interceptors: {
+      nexus: [
+        () => ({
+          inbound: {
+            async cancelOperation(input, next) {
+              interceptorCalls.push('cancelOperation');
+              return await next(input);
+            },
+          },
+        }),
+      ],
+    },
+  });
+
+  await w.runUntil(async () => {
+    // Start the async operation first.
+    const startRes = await fetch(
+      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/async-op`,
+      {
+        method: 'POST',
+        body: JSON.stringify('hello'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Nexus-Request-Id': requestId,
+        },
+      }
+    );
+    t.true(startRes.ok);
+    const output = (await startRes.json()) as { token: string; state: nexus.OperationState };
+    t.is(output.state, 'running');
+
+    // Now cancel it.
+    const cancelRes = await fetch(
+      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/async-op/cancel`,
+      {
+        method: 'POST',
+        headers: {
+          'Nexus-Operation-Token': output.token,
+        },
+      }
+    );
+    t.true(cancelRes.ok);
+  });
+
+  t.deepEqual(interceptorCalls, ['cancelOperation']);
+});
+
+test('Worker.create rejects duplicate nexus service registrations', async (t) => {
+  const { env, taskQueue } = t.context;
+
+  const handler = nexus.serviceHandler(
+    nexus.service('testService', {
+      op: nexus.operation<void, void>(),
+    }),
+    {
+      async op() {
+        /* no-op */
+      },
+    }
+  );
+
+  await t.throwsAsync(
+    Worker.create({
+      connection: env.nativeConnection,
+      namespace: env.namespace,
+      taskQueue,
+      nexusServices: [handler, handler],
+    }),
+    {
+      instanceOf: TypeError,
+      message: "Duplicate registration of nexus service 'testService'",
+    }
+  );
 });
 
 test('createNexusEndpoint and deleteNexusEndpoint', async (t) => {

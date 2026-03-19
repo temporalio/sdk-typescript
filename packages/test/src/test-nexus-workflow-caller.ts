@@ -264,6 +264,69 @@ export async function clientOperationTypeSafetyCheckerWorkflow(endpoint: string)
   }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const nonExistentService = nexus.service('nonExistentService', {
+  op: nexus.operation<string, string>(),
+});
+
+export async function callNonExistentService(endpoint: string): Promise<string> {
+  const client = workflow.createNexusClient({
+    endpoint,
+    service: nonExistentService,
+  });
+  return await client.executeOperation('op', 'hello');
+}
+
+test('calling a nonexistent service returns NOT_FOUND', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
+  try {
+    const worker = await createWorker({
+      nexusServices: [
+        nexus.serviceHandler(service, {
+          async syncOp(_ctx, input) {
+            return input;
+          },
+          asyncOp: {
+            async start() {
+              throw new Error('not implemented');
+            },
+            async cancel() {},
+            async getInfo() {
+              throw new Error('not implemented');
+            },
+            async getResult() {
+              throw new Error('not implemented');
+            },
+          },
+        }),
+      ],
+    });
+    await worker.runUntil(async () => {
+      const err = await t.throwsAsync(
+        () =>
+          executeWorkflow(callNonExistentService, {
+            args: [endpointName],
+          }),
+        {
+          instanceOf: WorkflowFailedError,
+        }
+      );
+      t.true(
+        err instanceof WorkflowFailedError &&
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof nexus.HandlerError &&
+          err.cause.cause.type === 'NOT_FOUND'
+      );
+    });
+  } finally {
+    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
+  }
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 test('NexusClient is type-safe in regard to Operation Definitions', async (t) => {
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
   const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
