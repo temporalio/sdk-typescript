@@ -1,4 +1,5 @@
 import type { temporal } from '@temporalio/proto';
+import { cutoffStackTrace } from '../lib';
 import { errorMessage, isRecord, SymbolBasedInstanceOfError } from './type-helpers';
 import { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
@@ -433,9 +434,31 @@ export function ensureApplicationFailure(error: unknown): ApplicationFailure {
     return error;
   }
 
+  function toDetails(error: unknown): Record<string, unknown> | undefined {
+    if (isRecord(error)) {
+      return {
+        message: String(error.message),
+        type: error.constructor?.name ?? error.name,
+        stack: cutoffStackTrace(String(error.stack)),
+        cause: toDetails(error.cause),
+        details: Array.isArray(error.errors) ? error.errors.map(toDetails) : undefined,
+      };
+    } else if (error != null) {
+      return { message: String(error) };
+    } else {
+      return undefined;
+    }
+  }
+
   const message = (isRecord(error) && String(error.message)) || String(error);
   const type = (isRecord(error) && (error.constructor?.name ?? error.name)) || undefined;
-  const failure = ApplicationFailure.create({ message, type, nonRetryable: false });
+  const failure = ApplicationFailure.create({
+    message,
+    type,
+    cause: isRecord(error) && error.cause instanceof Error ? error.cause : undefined,
+    details: isRecord(error) && Array.isArray(error.errors) ? error.errors.map(toDetails) : undefined,
+    nonRetryable: false,
+  });
   failure.stack = (isRecord(error) && String(error.stack)) || '';
   return failure;
 }
