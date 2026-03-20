@@ -23,6 +23,7 @@ import {
 import { makeProtoEnumConverters } from '../internal-workflow';
 import { isError } from '../type-helpers';
 import { msOptionalToTs } from '../time';
+import { encode } from '../encoding';
 import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './payload-converter';
 
 // Can't import proto enums into the workflow sandbox, use this helper type and enum converter instead.
@@ -238,15 +239,17 @@ export class DefaultFailureConverter implements FailureConverter {
           break;
       }
 
-      return new nexus.HandlerError(
-        (failure.nexusHandlerFailureInfo.type as nexus.HandlerErrorType) ?? 'INTERNAL',
-        // TODO(nexus/error): Maybe set a default message here, once we've decided on error handling.
-        failure.message ?? undefined,
-        {
-          cause: this.optionalFailureToOptionalError(failure.cause, payloadConverter),
-          retryableOverride,
-        }
-      );
+      const rawErrorType = failure.nexusHandlerFailureInfo.type || '';
+      const resolvedType: nexus.HandlerErrorType = Object.hasOwn(nexus.HandlerErrorType, rawErrorType)
+        ? nexus.HandlerErrorType[rawErrorType as keyof typeof nexus.HandlerErrorType]
+        : 'UNKNOWN';
+
+      return new nexus.HandlerError(resolvedType, failure.message ?? 'Nexus handler error', {
+        cause: this.optionalFailureToOptionalError(failure.cause, payloadConverter),
+        retryableOverride,
+        rawErrorType,
+        originalFailure: this.temporalFailureToNexusFailure(failure),
+      });
     }
     if (failure.nexusOperationExecutionFailureInfo) {
       return new NexusOperationFailure(
@@ -303,9 +306,6 @@ export class DefaultFailureConverter implements FailureConverter {
   }
 
   errorToFailureInner(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
-    // TODO(nexus/error): If we decide not to have a NexusHandlerFailure, we could still attach the
-    //                    failure proto to the Nexus HandlerError object, by using a private symbol
-    //                    property. To be considered once we have a decision on error handling.
     if (err instanceof TemporalFailure || err instanceof nexus.HandlerError) {
       if (err instanceof TemporalFailure && err.failure) return err.failure;
       const base = {
@@ -386,28 +386,30 @@ export class DefaultFailureConverter implements FailureConverter {
         };
       }
       if (err instanceof nexus.HandlerError) {
-        let retryBehavior: temporal.api.enums.v1.NexusHandlerErrorRetryBehavior | undefined = undefined;
-        switch (err.retryableOverride) {
-          case true:
-            retryBehavior = encodeNexusHandlerErrorRetryBehavior('RETRYABLE');
-            break;
-          case false:
-            retryBehavior = encodeNexusHandlerErrorRetryBehavior('NON_RETRYABLE');
-            break;
-        }
+        if (err.originalFailure) {
+          return this.nexusFailureToTemporalFailure(err.originalFailure, err.retryable);
+        } else {
+          let retryBehavior: temporal.api.enums.v1.NexusHandlerErrorRetryBehavior | undefined = undefined;
+          switch (err.retryableOverride) {
+            case true:
+              retryBehavior = encodeNexusHandlerErrorRetryBehavior('RETRYABLE');
+              break;
+            case false:
+              retryBehavior = encodeNexusHandlerErrorRetryBehavior('NON_RETRYABLE');
+              break;
+          }
 
-        return {
-          // TODO(nexus/error): Maybe set a default message here, once we've decided on error handling.
-          ...base,
-          nexusHandlerFailureInfo: {
-            type: err.type,
-            retryBehavior,
-          },
-        };
+          return {
+            ...base,
+            nexusHandlerFailureInfo: {
+              type: err.type,
+              retryBehavior,
+            },
+          };
+        }
       }
       if (err instanceof NexusOperationFailure) {
         return {
-          // TODO(nexus/error): Maybe set a default message here, once we've decided on error handling.
           ...base,
           nexusOperationExecutionFailureInfo: {
             scheduledEventId: err.scheduledEventId ? Long.fromNumber(err.scheduledEventId) : undefined,
@@ -468,5 +470,41 @@ export class DefaultFailureConverter implements FailureConverter {
    */
   optionalErrorToOptionalFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure | undefined {
     return err ? this.errorToFailure(err, payloadConverter) : undefined;
+  }
+
+  private nexusFailureToTemporalFailure(failure: nexus.Failure, retryable: boolean): ProtoFailure {
+    if (failure.metadata?.type === 'temporal.api.failure.v1.Failure') {
+      if (!failure.details) {
+        throw new TypeError("missing details for Nexus Failure of type 'temporal.api.failure.v1.Failure")
+      }
+      return failure.details as ProtoFailure;
+    } else {
+      const temporalFailure: ProtoFailure = {};
+      temporalFailure.applicationFailureInfo = {
+        type: 'NexusFailure',
+        nonRetryable: !retryable,
+        details: {
+          payloads: [
+            {
+              metadata: { encoding: encode('json/plain') },
+              data: encode(JSON.stringify({ ...failure, message: '' })),
+            },
+          ],
+        },
+      };
+      temporalFailure.message = failure.message;
+      temporalFailure.stackTrace = failure.stackTrace ?? '';
+      return temporalFailure;
+    }
+  }
+
+  private temporalFailureToNexusFailure(failure: ProtoFailure): nexus.Failure {
+    return {
+      message: failure.message ?? '',
+      metadata: { type: 'temporal.api.failure.v1.Failure' },
+      // Store the full ProtoFailure as the Nexus failure details so it can be round-tripped
+      // losslessly back to a ProtoFailure via nexusFailureToTemporalFailure.
+      details: { ...failure } as Record<string, unknown>,
+    };
   }
 }

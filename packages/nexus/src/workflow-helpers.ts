@@ -134,16 +134,6 @@ export class WorkflowRunOperationHandler<I, O> implements nexus.OperationHandler
     return nexus.HandlerStartOperationResult.async(generateWorkflowRunOperationToken(namespace, handle.workflowId));
   }
 
-  getInfo(_ctx: nexus.GetOperationInfoContext, _token: string): Promise<nexus.OperationInfo> {
-    // Not implemented in Temporal yet.
-    throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Method not implemented');
-  }
-
-  getResult(_ctx: nexus.GetOperationResultContext, _token: string): Promise<O> {
-    // Not implemented in Temporal yet.
-    throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Method not implemented');
-  }
-
   async cancel(_ctx: nexus.CancelOperationContext, token: string): Promise<void> {
     const decoded = loadWorkflowRunOperationToken(token);
     await getClient().workflow.getHandle(decoded.wid).cancel();

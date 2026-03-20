@@ -139,14 +139,14 @@ export class NexusHandler {
           taskToken: this.taskToken,
           completed: {
             startOperation: {
-              operationError: await operationErrorToProto(this.dataConverter, err),
+              failure: await operationErrorToProto(this.dataConverter, err),
             },
           },
         };
       }
       return {
         taskToken: this.taskToken,
-        error: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err)),
+        failure: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err)),
       };
     }
   }
@@ -166,7 +166,7 @@ export class NexusHandler {
     } catch (err) {
       return {
         taskToken: this.taskToken,
-        error: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err)),
+        failure: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err)),
       };
     }
   }

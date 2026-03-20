@@ -56,6 +56,11 @@
     "nexus-rpc": "^0.0.1",
     "temporalio": "file:packages/meta"
   },
+  "pnpm": {
+    "overrides": {
+      "nexus-rpc": "github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged"
+    }
+  },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/core": "^1.25.1",
