@@ -240,10 +240,9 @@ export class DefaultFailureConverter implements FailureConverter {
       }
 
       const rawErrorType = failure.nexusHandlerFailureInfo.type || '';
-      const resolvedType: nexus.HandlerErrorType =
-        rawErrorType in nexus.HandlerErrorType
-          ? nexus.HandlerErrorType[rawErrorType as keyof typeof nexus.HandlerErrorType]
-          : 'UNKNOWN';
+      const resolvedType: nexus.HandlerErrorType = Object.hasOwn(nexus.HandlerErrorType, rawErrorType)
+        ? nexus.HandlerErrorType[rawErrorType as keyof typeof nexus.HandlerErrorType]
+        : 'UNKNOWN';
 
       return new nexus.HandlerError(resolvedType, failure.message ?? 'Nexus handler error', {
         cause: this.optionalFailureToOptionalError(failure.cause, payloadConverter),
