@@ -62,6 +62,7 @@ import { Client } from '@temporalio/client';
 import { coresdk, temporal } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
+import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/lib/continue-as-new';
 import { Activity, CancelReason, activityLogAttributes } from './activity';
 import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
 import { ActivityExecuteInput } from './interceptors';
@@ -1564,6 +1565,8 @@ export class Worker {
       // A zero value means that it was not set by the server
       historySize: activation.historySizeBytes.toNumber(),
       continueAsNewSuggested: activation.continueAsNewSuggested,
+      targetWorkerDeploymentVersionChanged: activation.targetWorkerDeploymentVersionChanged ?? false,
+      suggestedContinueAsNewReasons: suggestContinueAsNewReasonsFromProto(activation.suggestContinueAsNewReasons),
       currentBuildId: activation.deploymentVersionForCurrentTask?.buildId ?? '',
       currentDeploymentVersion: convertDeploymentVersion(activation.deploymentVersionForCurrentTask),
       unsafe: {

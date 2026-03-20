@@ -763,6 +763,7 @@ test.serial('Workflow can read WorkflowInfo', configMacro, async (t, config) => 
     workflowId: handle.workflowId,
     historyLength: 3,
     continueAsNewSuggested: false,
+    targetWorkerDeploymentVersionChanged: false,
     // values ignored for the purpose of comparison
     historySize: res.historySize,
     startTime: res.startTime,
@@ -773,6 +774,7 @@ test.serial('Workflow can read WorkflowInfo', configMacro, async (t, config) => 
     unsafe: { isReplaying: false, isReplayingHistoryEvents: false } as UnsafeWorkflowInfo,
     priority: {},
   });
+  t.is(res.suggestedContinueAsNewReasons, undefined);
 });
 
 /**

@@ -14,6 +14,8 @@ import {
   Priority,
   WorkerDeploymentVersion,
   VersioningBehavior,
+  InitialVersioningBehavior,
+  SuggestContinueAsNewReason,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -121,6 +123,24 @@ export interface WorkflowInfo {
    * Supported only on Temporal Server 1.20+, always `false` on older servers.
    */
   readonly continueAsNewSuggested: boolean;
+
+  /**
+   * Whether the workflow's Target Worker Deployment Version has changed from its Pinned Version.
+   * When true, the workflow should consider continuing-as-new with
+   * `initialVersioningBehavior: 'AUTO_UPGRADE'` to move to the new version.
+   *
+   * This value changes during the lifetime of an Execution.
+   *
+   * @experimental Upgrade-on-Continue-as-New is experimental and may change.
+   */
+  readonly targetWorkerDeploymentVersionChanged: boolean;
+
+  /**
+   * Reason(s) why continue as new is suggested. Can potentially be multiple reasons.
+   *
+   * @experimental May be removed or changed in the future.
+   */
+  readonly suggestedContinueAsNewReasons?: SuggestContinueAsNewReason[];
 
   /**
    * Task queue this Workflow is executing on
@@ -338,6 +358,12 @@ export interface ContinueAsNewOptions {
    * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
   versioningIntent?: VersioningIntent; // eslint-disable-line @typescript-eslint/no-deprecated
+  /**
+   * Defines the versioning behavior to be used by the first task of a new workflow run in a continue-as-new chain.
+   *
+   * @experimental Versioning semantics with continue-as-new are experimental and may change in the future.
+   */
+  initialVersioningBehavior?: InitialVersioningBehavior;
 }
 
 /**
