@@ -327,6 +327,151 @@ test('calling a nonexistent service returns NOT_FOUND', async (t) => {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+test('inbound executeStartOperation interceptor is invoked', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
+  try {
+    const interceptorCalls: string[] = [];
+    const worker = await createWorker({
+      nexusServices: [
+        nexus.serviceHandler(service, {
+          async syncOp(_ctx, input) {
+            return input;
+          },
+          asyncOp: new temporalnexus.WorkflowRunOperationHandler<string, string>(async (ctx, input) => {
+            return await temporalnexus.startWorkflow(ctx, handler, { workflowId: randomUUID(), args: [input] });
+          }),
+        }),
+      ],
+      interceptors: {
+        nexus: [
+          () => ({
+            inbound: {
+              async executeStartOperation(input, next) {
+                interceptorCalls.push('executeStartOperation');
+                return await next(input);
+              },
+            },
+          }),
+        ],
+      },
+    });
+    await worker.runUntil(async () => {
+      const res = await executeWorkflow(caller, {
+        args: [endpointName, 'syncOp', 'hello'],
+      });
+      t.is(res, 'hello');
+    });
+    t.deepEqual(interceptorCalls, ['executeStartOperation']);
+  } finally {
+    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
+  }
+});
+
+test('inbound executeStartOperation interceptor can observe and modify result', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
+  try {
+    const observedResults: unknown[] = [];
+    const worker = await createWorker({
+      nexusServices: [
+        nexus.serviceHandler(service, {
+          async syncOp(_ctx, input) {
+            return input;
+          },
+          asyncOp: new temporalnexus.WorkflowRunOperationHandler<string, string>(async (ctx, input) => {
+            return await temporalnexus.startWorkflow(ctx, handler, { workflowId: randomUUID(), args: [input] });
+          }),
+        }),
+      ],
+      interceptors: {
+        nexus: [
+          () => ({
+            inbound: {
+              async executeStartOperation(input, next) {
+                const output = await next(input);
+                const { result } = output;
+                observedResults.push(result);
+                if (!result.isAsync) {
+                  return { result: nexus.HandlerStartOperationResult.sync(result.value + ' intercepted') };
+                }
+                return output;
+              },
+            },
+          }),
+        ],
+      },
+    });
+    await worker.runUntil(async () => {
+      const res = await executeWorkflow(caller, {
+        args: [endpointName, 'syncOp', 'hello'],
+      });
+      t.is(res, 'hello intercepted');
+    });
+    t.is(observedResults.length, 1);
+    const result = observedResults[0] as nexus.HandlerStartOperationResult<string>;
+    t.false(result.isAsync);
+    if (!result.isAsync) {
+      t.is(result.value, 'hello');
+    }
+  } finally {
+    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
+  }
+});
+
+test('inbound executeCancelOperation interceptor is invoked', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
+  try {
+    const interceptorCalls: string[] = [];
+    const worker = await createWorker({
+      nexusServices: [
+        nexus.serviceHandler(service, {
+          async syncOp(_ctx, input) {
+            return input;
+          },
+          asyncOp: new temporalnexus.WorkflowRunOperationHandler<string, string>(async (ctx, input) => {
+            return await temporalnexus.startWorkflow(ctx, handler, { workflowId: randomUUID(), args: [input] });
+          }),
+        }),
+      ],
+      interceptors: {
+        nexus: [
+          () => ({
+            inbound: {
+              async executeCancelOperation(input, next) {
+                interceptorCalls.push('executeCancelOperation');
+                return await next(input);
+              },
+            },
+          }),
+        ],
+      },
+    });
+    await worker.runUntil(async () => {
+      const err = await t.throwsAsync(
+        () =>
+          executeWorkflow(caller, {
+            args: [endpointName, 'asyncOp', 'waitForCancel'],
+          }),
+        {
+          instanceOf: WorkflowFailedError,
+        }
+      );
+      t.true(
+        err instanceof WorkflowFailedError &&
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof CancelledFailure
+      );
+    });
+    t.deepEqual(interceptorCalls, ['executeCancelOperation']);
+  } finally {
+    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
+  }
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 test('NexusClient is type-safe in regard to Operation Definitions', async (t) => {
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
   const { endpointName, endpointIdentifier } = await registerNexusEndpoint();

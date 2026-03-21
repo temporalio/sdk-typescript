@@ -116,17 +116,16 @@ export class NexusHandler {
         const result = await this.invokeUserCode('startOperation', handler.start.bind(handler, ctx, input));
         return { result };
       };
-      const executeWithInterceptors = composeInterceptors(this.interceptors.inbound, 'execute', executeNextHandler);
+      const executeWithInterceptors = composeInterceptors(this.interceptors.inbound, 'executeStartOperation', executeNextHandler);
       const { result } = await executeWithInterceptors({ ctx, input });
-      const startResult = result as nexus.HandlerStartOperationResult<unknown>;
 
-      if (startResult.isAsync) {
+      if (result.isAsync) {
         return {
           taskToken: this.taskToken,
           completed: {
             startOperation: {
               asyncSuccess: {
-                operationToken: startResult.token,
+                operationToken: result.token,
                 links: ctx.outboundLinks.map(nexusLinkToProtoLink),
               },
             },
@@ -138,7 +137,7 @@ export class NexusHandler {
           completed: {
             startOperation: {
               syncSuccess: {
-                payload: await encodeToPayload(this.dataConverter, startResult.value),
+                payload: await encodeToPayload(this.dataConverter, result.value),
                 links: ctx.outboundLinks.map(nexusLinkToProtoLink),
               },
             },
@@ -172,7 +171,7 @@ export class NexusHandler {
       const cancelNextHandler = async () => {
         await this.invokeUserCode('cancelOperation', handler.cancel.bind(handler, ctx, token));
       };
-      const cancelWithInterceptors = composeInterceptors(this.interceptors.inbound, 'cancelOperation', cancelNextHandler);
+      const cancelWithInterceptors = composeInterceptors(this.interceptors.inbound, 'executeCancelOperation', cancelNextHandler);
       await cancelWithInterceptors({ ctx, token });
       return {
         taskToken: this.taskToken,
