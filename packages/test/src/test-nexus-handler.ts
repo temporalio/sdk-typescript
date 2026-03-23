@@ -321,8 +321,7 @@ test('start Operation Handler errors', async (t) => {
           ? `ApplicationFailure: deliberate failure
     at create (common/lib/failure.js)
     at op (test/lib/test-nexus-handler.js)
-    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)
-    at processTicksAndRejections (native)`
+    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)`
           : `ApplicationFailure: deliberate failure
     at $CLASS.create (common/src/failure.ts)
     at op (test/src/test-nexus-handler.ts)
@@ -353,8 +352,7 @@ test('start Operation Handler errors', async (t) => {
         isBun
           ? `HandlerError: deliberate error
     at op (test/lib/test-nexus-handler.js)
-    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)
-    at processTicksAndRejections (native)`
+    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)`
           : `HandlerError: deliberate error
     at op (test/src/test-nexus-handler.ts)
     at Object.start (nexus-rpc/src/handler/operation-handler.ts)`
@@ -383,8 +381,7 @@ test('start Operation Handler errors', async (t) => {
         isBun
           ? `OperationError: deliberate error
     at op (test/lib/test-nexus-handler.js)
-    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)
-    at processTicksAndRejections (native)`
+    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)`
           : `OperationError: deliberate error
     at op (test/src/test-nexus-handler.ts)
     at Object.start (nexus-rpc/src/handler/operation-handler.ts)`
