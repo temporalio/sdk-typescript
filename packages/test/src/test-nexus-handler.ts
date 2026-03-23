@@ -835,6 +835,88 @@ test('Worker.create rejects nexus services without a name', async (t) => {
     }
   );
 });
+export async function echoWorkflow(input: string): Promise<string> {
+  return input;
+}
+
+test('WorkflowRunOperationHandler infers correct output type from typed workflow function', async (t) => {
+  // When constructing WorkflowRunOperationHandler without explicit type parameters using a typed
+  // workflow function, the operation output type should be inferred as the workflow's return type
+  const _stringOp: nexus.OperationHandler<string, string> = new temporalnexus.WorkflowRunOperationHandler(
+    async (ctx, input: string) => {
+      return await temporalnexus.startWorkflow(ctx, echoWorkflow, {
+        args: [input],
+        workflowId: 'test',
+      });
+    }
+  );
+
+  // @ts-expect-error - Output type should be string, not number
+  const _mismatchedOp: nexus.OperationHandler<string, number> = new temporalnexus.WorkflowRunOperationHandler(
+    async (ctx, input: string) => {
+      return await temporalnexus.startWorkflow(ctx, echoWorkflow, {
+        args: [input],
+        workflowId: 'test',
+      });
+    }
+  );
+
+  // Explicit type parameters should also work correctly.
+  const _explicitStringOp: nexus.OperationHandler<string, string> = new temporalnexus.WorkflowRunOperationHandler<
+    string,
+    string
+  >(async (ctx, input) => {
+    return await temporalnexus.startWorkflow(ctx, echoWorkflow, {
+      args: [input],
+      workflowId: 'test',
+    });
+  });
+
+  // @ts-expect-error - Explicit output type string is not assignable to number
+  const _explicitMismatchedOp: nexus.OperationHandler<string, number> = new temporalnexus.WorkflowRunOperationHandler<
+    string,
+    string
+  >(async (ctx, input) => {
+    return await temporalnexus.startWorkflow(ctx, echoWorkflow, {
+      args: [input],
+      workflowId: 'test',
+    });
+  });
+
+  const _explicitContradictsWorkflow: nexus.OperationHandler<string, number> =
+    // @ts-expect-error - Explicit type params <string, number> contradict echoWorkflow which returns string
+    new temporalnexus.WorkflowRunOperationHandler<string, number>(async (ctx, input) => {
+      return await temporalnexus.startWorkflow(ctx, echoWorkflow, {
+        args: [input],
+        workflowId: 'test',
+      });
+    });
+
+  // When a string workflow name is used, T infers as Workflow (the base type), so
+  // WorkflowResultType<Workflow> resolves to `any`. This means the handler is assignable to any
+  // output type and TypeScript cannot catch mismatches.
+  const _stringNameOp: nexus.OperationHandler<string, string> = new temporalnexus.WorkflowRunOperationHandler(
+    async (ctx, input: string) => {
+      return await temporalnexus.startWorkflow(ctx, 'some-workflow', {
+        args: [input],
+        workflowId: 'test',
+      });
+    }
+  );
+
+  // This is NOT caught — string workflow names lose type safety on the output type.
+  const _stringNameAnyOutput: nexus.OperationHandler<string, number> = new temporalnexus.WorkflowRunOperationHandler(
+    async (ctx, input: string) => {
+      return await temporalnexus.startWorkflow(ctx, 'some-workflow', {
+        args: [input],
+        workflowId: 'test',
+      });
+    }
+  );
+
+  // This test only checks for compile-time errors.
+  t.pass();
+});
 
 test('createNexusEndpoint and deleteNexusEndpoint', async (t) => {
   const { env } = t.context;
