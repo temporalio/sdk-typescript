@@ -808,6 +808,37 @@ test('Worker.create rejects duplicate nexus service registrations', async (t) =>
   );
 });
 
+test('Worker.create rejects nexus services without a name', async (t) => {
+  const { env, taskQueue } = t.context;
+
+  const handler = nexus.serviceHandler(
+    nexus.service('testService', {
+      op: nexus.operation<void, void>(),
+    }),
+    {
+      async op() {
+        /* no-op */
+      },
+    }
+  );
+
+  // Override the name to be empty to simulate a service without a name.
+  (handler.definition as { name: string }).name = '';
+
+  await t.throwsAsync(
+    Worker.create({
+      connection: env.nativeConnection,
+      namespace: env.namespace,
+      taskQueue,
+      nexusServices: [handler],
+    }),
+    {
+      instanceOf: TypeError,
+      message: 'Nexus services must have a non-empty name.',
+    }
+  );
+});
+
 test('createNexusEndpoint and deleteNexusEndpoint', async (t) => {
   const { env } = t.context;
   const taskQueue = 'test-delete-endpoint-' + randomUUID();
