@@ -1082,7 +1082,7 @@ function nexusServiceHandlersFromOptions(opts: WorkerOptions): Map<string, nexus
   for (const s of opts.nexusServices) {
     const name = s.definition.name;
     if (!name) {
-      throw new TypeError('Tried to register a Nexus service with no name');
+      throw new TypeError('Nexus services must have a non-empty name.');
     }
     if (services.has(name)) {
       throw new TypeError(`Duplicate registration of nexus service '${name}'`);

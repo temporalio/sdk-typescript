@@ -18,13 +18,14 @@ import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { Client } from '@temporalio/client';
 import { Logger } from '../logger';
-import { NexusInboundCallsInterceptor, NexusInterceptorsFactory, NexusOutboundCallsInterceptor } from '../interceptors';
 import {
-  coerceToHandlerError,
-  decodePayload,
-  handlerErrorToProto,
-  operationErrorToProto,
-} from './conversions';
+  ExecuteNexusOperationCancelInput,
+  ExecuteNexusOperationStartInput,
+  NexusInboundCallsInterceptor,
+  NexusInterceptorsFactory,
+  NexusOutboundCallsInterceptor,
+} from '../interceptors';
+import { coerceToHandlerError, decodePayload, handlerErrorToProto, operationErrorToProto } from './conversions';
 
 const UNINITIALIZED = Symbol();
 
@@ -112,11 +113,18 @@ export class NexusHandler {
       const handler = this.getOperationHandler(ctx);
       const input = await decodePayload(this.dataConverter, payload);
 
-      const executeNextHandler = async () => {
-        const result = await this.invokeUserCode('startOperation', handler.start.bind(handler, ctx, input));
+      const executeNextHandler = async (interceptorInput: ExecuteNexusOperationStartInput) => {
+        const result = await this.invokeUserCode(
+          'startOperation',
+          handler.start.bind(handler, interceptorInput.ctx, interceptorInput.input)
+        );
         return { result };
       };
-      const executeWithInterceptors = composeInterceptors(this.interceptors.inbound, 'executeStartOperation', executeNextHandler);
+      const executeWithInterceptors = composeInterceptors(
+        this.interceptors.inbound,
+        'executeStartOperation',
+        executeNextHandler
+      );
       const { result } = await executeWithInterceptors({ ctx, input });
 
       if (result.isAsync) {
@@ -168,10 +176,17 @@ export class NexusHandler {
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
       const handler = this.getOperationHandler(ctx);
-      const cancelNextHandler = async () => {
-        await this.invokeUserCode('cancelOperation', handler.cancel.bind(handler, ctx, token));
+      const cancelNextHandler = async (interceptorInput: ExecuteNexusOperationCancelInput) => {
+        await this.invokeUserCode(
+          'cancelOperation',
+          handler.cancel.bind(handler, interceptorInput.ctx, interceptorInput.token)
+        );
       };
-      const cancelWithInterceptors = composeInterceptors(this.interceptors.inbound, 'executeCancelOperation', cancelNextHandler);
+      const cancelWithInterceptors = composeInterceptors(
+        this.interceptors.inbound,
+        'executeCancelOperation',
+        cancelNextHandler
+      );
       await cancelWithInterceptors({ ctx, token });
       return {
         taskToken: this.taskToken,
