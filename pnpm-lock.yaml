@@ -340,8 +340,8 @@ importers:
         specifier: workspace:*
         version: link:../common
       smol-toml:
-        specifier: 1.4.2
-        version: 1.4.2
+        specifier: 1.6.1
+        version: 1.6.1
     devDependencies:
       '@temporalio/worker':
         specifier: workspace:*
@@ -4261,8 +4261,8 @@ packages:
     resolution: {integrity: sha512-FC+lgizVPfie0kkhqUScwRu1O/lF6NOgJmlCgK+/LYxDCTk8sGelYaHDhFcDN+Sn3Cv+3VSa4Byeo+IMCzpMgQ==}
     engines: {node: '>=12'}
 
-  smol-toml@1.4.2:
-    resolution: {integrity: sha512-rInDH6lCNiEyn3+hH8KVGFdbjc099j47+OSgbMrfDYX1CmXLfdKd7qi6IfcWj2wFxvSVkuI46M+wPGYfEOEj6g==}
+  smol-toml@1.6.1:
+    resolution: {integrity: sha512-dWUG8F5sIIARXih1DTaQAX4SsiTXhInKf1buxdY9DIg4ZYPZK5nGM1VRIYmEbDbsHt7USo99xSLFu5Q1IqTmsg==}
     engines: {node: '>= 18'}
 
   sonic-boom@3.8.1:
@@ -8700,7 +8700,7 @@ snapshots:
       ansi-styles: 6.2.3
       is-fullwidth-code-point: 4.0.0
 
-  smol-toml@1.4.2: {}
+  smol-toml@1.6.1: {}
 
   sonic-boom@3.8.1:
     dependencies:
