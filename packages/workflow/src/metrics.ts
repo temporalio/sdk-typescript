@@ -5,6 +5,7 @@ import {
   MetricMeter,
   MetricMeterWithComposedTags,
   MetricTags,
+  MetricUpDownCounter,
   NumericMetricValueType,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -18,6 +19,11 @@ class WorkflowMetricMeterImpl implements MetricMeter {
   createCounter(name: string, unit?: string, description?: string): MetricCounter {
     assertInWorkflowContext("Workflow's `metricMeter` can only be used while in Workflow Context");
     return new WorkflowMetricCounter(name, unit, description);
+  }
+
+  createUpDownCounter(name: string, unit?: string, description?: string): MetricUpDownCounter {
+    assertInWorkflowContext("Workflow's `metricMeter` can only be used while in Workflow Context");
+    return new WorkflowMetricUpDownCounter(name, unit, description);
   }
 
   createHistogram(
@@ -69,6 +75,28 @@ class WorkflowMetricCounter implements MetricCounter {
   withTags(_tags: MetricTags): MetricCounter {
     // Tags composition is handled by a MetricMeterWithComposedTags wrapper over this one
     throw new Error(`withTags is not supported directly on WorkflowMetricCounter`);
+  }
+}
+
+class WorkflowMetricUpDownCounter implements MetricUpDownCounter {
+  public readonly kind = 'up_down_counter';
+  public readonly valueType = 'int';
+
+  constructor(
+    public readonly name: string,
+    public readonly unit: string | undefined,
+    public readonly description: string | undefined
+  ) {}
+
+  add(value: number, tags?: MetricTags): void {
+    if (!workflowInfo().unsafe.isReplaying) {
+      metricSink.addMetricUpDownCounterValue(this.name, this.unit, this.description, value, tags ?? {});
+    }
+  }
+
+  withTags(_tags: MetricTags): MetricUpDownCounter {
+    // Tags composition is handled by a MetricMeterWithComposedTags wrapper over this one
+    throw new Error('withTags is not supported directly on WorkflowMetricUpDownCounter');
   }
 }
 
@@ -151,6 +179,14 @@ export interface MetricSinks extends Sinks {
  */
 export interface WorkflowMetricMeter extends Sink {
   addMetricCounterValue(
+    metricName: string,
+    unit: string | undefined,
+    description: string | undefined,
+    value: number,
+    attrs: MetricTags
+  ): void;
+
+  addMetricUpDownCounterValue(
     metricName: string,
     unit: string | undefined,
     description: string | undefined,
