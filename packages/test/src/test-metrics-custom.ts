@@ -87,6 +87,13 @@ test('Custom Metrics - Bridge supports works properly (no tags)', async (t) => {
   await assertMetricReported(t, /my_float_histogram_bucket{le="0.05"} 1/);
   await assertMetricReported(t, /my_float_histogram_bucket{le="0.1"} 2/);
   await assertMetricReported(t, /my_float_histogram_bucket{le="1"} 3/);
+
+  // UpDownCounter
+  const upDownCounter = meter.createUpDownCounter('my-up-down-counter', 'my-up-down-counter-unit', 'my-up-down-counter-description');
+  upDownCounter.add(1);
+  upDownCounter.add(1);
+  upDownCounter.add(-1); // 1+1-1 => 1
+  await assertMetricReported(t, /my_up_down_counter 1/);
 });
 
 /**
@@ -125,6 +132,11 @@ test('Custom Metrics - Tags composition works properly', async (t) => {
     t,
     /my_float_histogram_bucket{labelA="value-a",labelB="true",labelC="123",labelD="123.456",le="0.5"} 1/
   );
+
+  // UpDownCounter
+  const upDownCounter = meter.createUpDownCounter('my-up-down-counter', 'my-up-down-counter-unit', 'my-up-down-counter-description');
+  upDownCounter.add(3, { labelA: 'value-a', labelB: true, labelC: 123, labelD: 123.456 });
+  await assertMetricReported(t, /my_up_down_counter{labelA="value-a",labelB="true",labelC="123",labelD="123.456"} 3/);
 });
 
 export async function metricWorksWorkflow(): Promise<void> {
@@ -159,12 +171,18 @@ export async function metricWorksWorkflow(): Promise<void> {
     'workflow-float-gauge-unit',
     'workflow-float-gauge-description'
   );
+  const myUpDownCounterMetric = metricMeter.createUpDownCounter(
+    'workflow-up-down-counter',
+    'workflow-up-down-counter-unit',
+    'workflow-up-down-counter-description'
+  );
 
   myCounterMetric.add(1);
   myHistogramMetric.record(1);
   myFloatHistogramMetric.record(0.01);
   myGaugeMetric.set(1);
   myFloatGaugeMetric.set(0.1);
+  myUpDownCounterMetric.add(1);
 
   // Pause here, so that we can force replay to a distinct worker
   let signalReceived = false;
@@ -179,6 +197,7 @@ export async function metricWorksWorkflow(): Promise<void> {
   myFloatHistogramMetric.record(0.03);
   myGaugeMetric.set(3);
   myFloatGaugeMetric.set(0.3);
+  myUpDownCounterMetric.add(-1);
 }
 
 test('Metric in Workflow works and are not replayed', async (t) => {
@@ -210,6 +229,7 @@ test('Metric in Workflow works and are not replayed', async (t) => {
   await assertMetricReported(t, /workflow_float_histogram_bucket{[^}]+?,le="0.05"} 2/);
   await assertMetricReported(t, /workflow_gauge{[^}]+} 1/);
   await assertMetricReported(t, /workflow_float_gauge{[^}]+} 0.1/);
+  await assertMetricReported(t, /workflow_up_down_counter{[^}]+} 2/); // 1 + 1 (two workflows)
 
   const worker2 = await createWorker();
   await worker2.runUntil(async () => {
@@ -222,6 +242,7 @@ test('Metric in Workflow works and are not replayed', async (t) => {
   await assertMetricReported(t, /workflow_float_histogram_bucket{[^}]+?,le="0.05"} 4/);
   await assertMetricReported(t, /workflow_gauge{[^}]+} 3/);
   await assertMetricReported(t, /workflow_float_gauge{[^}]+} 0.3/);
+  await assertMetricReported(t, /workflow_up_down_counter{[^}]+} 0/); // 1 + 1 - 1 - 1
 });
 
 export async function MetricTagsWorkflow(): Promise<void> {
@@ -259,6 +280,17 @@ export async function MetricTagsWorkflow(): Promise<void> {
     .withTags({ labelA: 'value-a', labelB: 'value-b' })
     .withTags({ labelC: 'value-c', labelB: 'value-b2' })
     .set(2, { labelD: 'value-d' });
+
+  const myUpDownCounterMetric = metricMeter.createUpDownCounter(
+    'workflow2-up-down-counter',
+    'workflow2-up-down-counter-unit',
+    'workflow2-up-down-counter-description'
+  );
+
+  myUpDownCounterMetric
+    .withTags({ labelA: 'value-a', labelB: 'value-b' })
+    .withTags({ labelC: 'value-c', labelB: 'value-b2' })
+    .add(2, { labelD: 'value-d' });
 }
 
 test('Metric tags in Workflow works', async (t) => {
@@ -271,6 +303,7 @@ test('Metric tags in Workflow works', async (t) => {
   await assertMetricReported(t, new RegExp(`workflow2_counter{${tags}} 2`));
   await assertMetricReported(t, new RegExp(`workflow2_histogram_bucket{${tags},le="50"} 1`));
   await assertMetricReported(t, new RegExp(`workflow2_gauge{${tags}} 2`));
+  await assertMetricReported(t, new RegExp(`workflow2_up_down_counter{${tags}} 2`));
 });
 
 // Define workflow interceptor for metrics
