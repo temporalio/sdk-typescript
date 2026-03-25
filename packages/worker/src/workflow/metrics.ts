@@ -67,6 +67,21 @@ export function initMetricSink(metricMeter: MetricMeter): InjectedSinks<MetricSi
         },
         callDuringReplay: false,
       },
+      addMetricUpDownCounterValue: {
+        fn(
+          _,
+          metricName: string,
+          unit: string | undefined,
+          description: string | undefined,
+          value: number,
+          attrs: MetricTags
+        ) {
+          const cacheKey = `${metricName}:up_down_counter`;
+          const createFn = () => metricMeter.createUpDownCounter(metricName, unit, description);
+          getOrCreate(cacheKey, createFn).add(value, attrs);
+        },
+        callDuringReplay: false,
+      },
     },
   };
 }
