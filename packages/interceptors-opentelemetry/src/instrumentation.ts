@@ -90,7 +90,8 @@ function maybeAddErrorToSpan(err: any, span: otel.Span, acceptableErrors?: (err:
   const isBenignErr = err instanceof ApplicationFailure && err.category === ApplicationFailureCategory.BENIGN;
   if (acceptableErrors === undefined || !acceptableErrors(err)) {
     const statusCode = isBenignErr ? otel.SpanStatusCode.UNSET : otel.SpanStatusCode.ERROR;
-    span.setStatus({ code: statusCode, message: (err as Error).message ?? String(err) });
+    const message = err != null && typeof err.message === 'string' ? err.message : String(err);
+    span.setStatus({ code: statusCode, message });
     span.recordException(err);
   } else {
     span.setStatus({ code: otel.SpanStatusCode.OK });
