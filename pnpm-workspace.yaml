@@ -45,4 +45,3 @@ overrides:
   'minimatch@>=7.0.0 <7.4.8': '>=7.4.8'
   serialize-javascript: '>=7.0.3'
   handlebars: '>=4.7.9'
-  brace-expansion: '>=5.0.5'
