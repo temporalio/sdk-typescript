@@ -12,9 +12,17 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
+import { Subject, firstValueFrom } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import type * as workflowImportStub from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports';
 import type * as workflowImportImpl from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports-impl';
-import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor, Client } from '@temporalio/client';
+import {
+  WorkflowClient,
+  WithStartWorkflowOperation,
+  WorkflowClientInterceptor,
+  Client,
+  Connection,
+} from '@temporalio/client';
 import { OpenTelemetryPlugin, OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry';
 import { instrument, instrumentSync } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
 import {
@@ -39,9 +47,6 @@ import {
 } from '@temporalio/worker';
 import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
 import { Info } from '@temporalio/activity';
-import { Subject, firstValueFrom } from 'rxjs';
-import { filter } from 'rxjs/operators';
-import { Connection } from '@temporalio/client';
 import * as activities from './activities';
 import { createActivities as createAsyncActivities } from './activities/async-completer';
 import { bundlerOptions, loadHistory, RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -443,16 +448,12 @@ if (RUN_INTEGRATION_TESTS) {
         taskQueue,
         workflowId,
       });
-      const info = await firstValueFrom(
-        infoSubject.pipe(filter((i) => i.workflowExecution.workflowId === workflowId))
-      );
+      const info = await firstValueFrom(infoSubject.pipe(filter((i) => i.workflowExecution.workflowId === workflowId)));
       await client.activity.complete(info.taskToken, 'async-result');
       t.is(await handle.result(), 'async-result');
     });
 
-    const activitySpans = memoryExporter
-      .getFinishedSpans()
-      .filter((s) => s.name.startsWith(SpanName.ACTIVITY_EXECUTE));
+    const activitySpans = memoryExporter.getFinishedSpans().filter((s) => s.name.startsWith(SpanName.ACTIVITY_EXECUTE));
     t.is(activitySpans.length, 1);
 
     // CompleteAsyncError is control flow, not a real error
