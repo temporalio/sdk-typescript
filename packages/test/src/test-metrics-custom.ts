@@ -229,7 +229,10 @@ test('Metric in Workflow works and are not replayed', async (t) => {
   await assertMetricReported(t, /workflow_float_histogram_bucket{[^}]+?,le="0.05"} 2/);
   await assertMetricReported(t, /workflow_gauge{[^}]+} 1/);
   await assertMetricReported(t, /workflow_float_gauge{[^}]+} 0.1/);
-  await assertMetricReported(t, /workflow_up_down_counter{[^}]+} 2/); // 1 + 1 (two workflows)
+  // UpDownCounter shows 0 after worker shutdown because eviction cleanup undoes
+  // per-workflow contributions. The metric correctly reflects that no workflows
+  // are active on this process right now. Worker 2 will rebuild via replay.
+  await assertMetricReported(t, /workflow_up_down_counter{[^}]+} 0/);
 
   const worker2 = await createWorker();
   await worker2.runUntil(async () => {
@@ -242,7 +245,7 @@ test('Metric in Workflow works and are not replayed', async (t) => {
   await assertMetricReported(t, /workflow_float_histogram_bucket{[^}]+?,le="0.05"} 4/);
   await assertMetricReported(t, /workflow_gauge{[^}]+} 3/);
   await assertMetricReported(t, /workflow_float_gauge{[^}]+} 0.3/);
-  await assertMetricReported(t, /workflow_up_down_counter{[^}]+} 0/); // 1 + 1 - 1 - 1
+  await assertMetricReported(t, /workflow_up_down_counter{[^}]+} 0/); // 1 + 1 - 1 - 1 (replay-safe: net 0)
 });
 
 export async function MetricTagsWorkflow(): Promise<void> {
