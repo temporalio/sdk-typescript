@@ -3,6 +3,7 @@ import { createTraceState } from '@opentelemetry/api';
 import type { Resource } from '@opentelemetry/resources';
 import type { ReadableSpan, SpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace-base';
 import type { Context as ActivityContext } from '@temporalio/activity';
+import { CompleteAsyncError } from '@temporalio/common';
 import type {
   Next,
   ActivityInboundCallsInterceptor,
@@ -59,6 +60,7 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
         return next(input);
       },
       context,
+      acceptableErrors: (err) => err instanceof CompleteAsyncError,
     });
   }
 }
