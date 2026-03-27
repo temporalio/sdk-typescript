@@ -53,3 +53,23 @@ export class NamespaceNotFoundError extends Error {
     super(`Namespace not found: '${namespace}'`);
   }
 }
+
+/**
+ * Throw this error from an Activity in order to make the Worker forget about this Activity.
+ *
+ * The Activity can then be completed asynchronously (from anywhere—usually outside the Worker) using
+ * the Client's activity handle.
+ *
+ * @example
+ *
+ * ```ts
+ *import { CompleteAsyncError } from '@temporalio/activity';
+ *
+ *export async function myActivity(): Promise<never> {
+ *  // ...
+ *  throw new CompleteAsyncError();
+ *}
+ * ```
+ */
+@SymbolBasedInstanceOfError('CompleteAsyncError')
+export class CompleteAsyncError extends Error {}
