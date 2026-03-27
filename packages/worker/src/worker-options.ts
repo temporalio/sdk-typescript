@@ -871,6 +871,8 @@ export interface CompiledWorkerOptions
   activities: Map<string, ActivityFunction>;
   nexusServiceRegistry?: nexus.ServiceRegistry;
   tuner: native.WorkerTunerOptions;
+  /** Cleanup function to undo UpDownCounter contributions when a workflow is evicted. */
+  cleanupWorkflowMetrics?: (runId: string) => void;
 }
 
 export type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
@@ -1006,7 +1008,8 @@ function addDefaultWorkerOptions(
     nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
     sinks: {
       ...initLoggerSink(logger),
-      ...initMetricSink(metricMeter),
+      // Note: metric sinks are added in compileWorkerOptions so the cleanup
+      // function can be extracted for UpDownCounter eviction handling.
       // Fix deprecated registration of the 'defaultWorkerLogger' sink
       ...(sinks?.defaultWorkerLogger ? { __temporal_logger: sinks.defaultWorkerLogger } : {}),
       ...sinks,
@@ -1057,8 +1060,19 @@ export function compileWorkerOptions(
 
   const tuner = asNativeTuner(opts.tuner, logger);
 
+  // Extract the metric sink cleanup function. The sinks themselves are already
+  // wired into opts.sinks by addDefaultWorkerOptions, but the cleanup function
+  // needs to be passed separately so the worker can call it on eviction.
+  const metricSinkResult = initMetricSink(metricMeter);
+
   return {
     ...opts,
+    // Merge metric sinks into the sinks already assembled by addDefaultWorkerOptions.
+    // This ensures the cleanup function and sinks come from the same initMetricSink call.
+    sinks: {
+      ...opts.sinks,
+      ...metricSinkResult.sinks,
+    },
     interceptors: compileWorkerInterceptors(opts.interceptors),
     shutdownGraceTimeMs: msToNumber(opts.shutdownGraceTime),
     shutdownForceTimeMs: msOptionalToNumber(opts.shutdownForceTime),
@@ -1071,6 +1085,7 @@ export function compileWorkerOptions(
     nexusServiceRegistry: nexusServiceRegistryFromOptions(opts),
     enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,
     tuner,
+    cleanupWorkflowMetrics: metricSinkResult.cleanupWorkflow,
   };
 }
 
