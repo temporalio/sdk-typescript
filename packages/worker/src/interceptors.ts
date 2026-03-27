@@ -131,29 +131,44 @@ export type NexusInterceptors = {
  * @experimental Nexus support in Temporal SDK is experimental.
  */
 export type NexusInboundCallsInterceptor = {
-  execute?: (
-    input: NexusExecuteInput,
-    next: Next<NexusInboundCallsInterceptor, 'execute'>
-  ) => Promise<NexusExecuteOutput>;
+  executeStartOperation?: (
+    input: ExecuteNexusOperationStartInput,
+    next: Next<NexusInboundCallsInterceptor, 'executeStartOperation'>
+  ) => Promise<ExecuteNexusOperationStartOutput>;
+
+  executeCancelOperation?: (
+    input: ExecuteNexusOperationCancelInput,
+    next: Next<NexusInboundCallsInterceptor, 'executeCancelOperation'>
+  ) => Promise<void>;
 };
 
 /**
- * Input for {@link NexusInboundCallsInterceptor.execute}
+ * Input for {@link NexusInboundCallsInterceptor.executeStartOperation}
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
-export interface NexusExecuteInput {
-  readonly args: unknown[];
-  readonly headers: Headers;
+export interface ExecuteNexusOperationStartInput {
+  readonly ctx: nexus.StartOperationContext;
+  readonly input: unknown;
 }
 
 /**
- * Output for {@link NexusInboundCallsInterceptor.execute}
+ * Output for {@link NexusInboundCallsInterceptor.executeStartOperation}
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
-export interface NexusExecuteOutput {
-  readonly result: unknown;
+export interface ExecuteNexusOperationStartOutput {
+  readonly result: nexus.HandlerStartOperationResult<unknown>;
+}
+
+/**
+ * Input for {@link NexusInboundCallsInterceptor.executeCancelOperation}
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface ExecuteNexusOperationCancelInput {
+  readonly ctx: nexus.CancelOperationContext;
+  readonly token: string;
 }
 
 /**
