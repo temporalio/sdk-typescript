@@ -195,15 +195,15 @@ test('UpDownCounter sink - different tags tracked separately', (t) => {
   const meter = new TestMetricMeter();
   const sink = initMetricSink(meter);
 
-  callSink(sink, 'run-1', 'inflight', 1, { product: 'clinician-api' });
-  callSink(sink, 'run-1', 'inflight', 1, { product: 'epic-haiku' });
-  t.is(meter.getValue('inflight', { product: 'clinician-api' }), 1);
-  t.is(meter.getValue('inflight', { product: 'epic-haiku' }), 1);
+  callSink(sink, 'run-1', 'inflight', 1, { region: 'us-east-1' });
+  callSink(sink, 'run-1', 'inflight', 1, { region: 'eu-west-1' });
+  t.is(meter.getValue('inflight', { region: 'us-east-1' }), 1);
+  t.is(meter.getValue('inflight', { region: 'eu-west-1' }), 1);
 
   // Cleanup undoes all tag combos for the workflow
   sink.cleanupWorkflow('run-1');
-  t.is(meter.getValue('inflight', { product: 'clinician-api' }), 0);
-  t.is(meter.getValue('inflight', { product: 'epic-haiku' }), 0);
+  t.is(meter.getValue('inflight', { region: 'us-east-1' }), 0);
+  t.is(meter.getValue('inflight', { region: 'eu-west-1' }), 0);
 });
 
 test('UpDownCounter sink - multiple metrics tracked independently', (t) => {
