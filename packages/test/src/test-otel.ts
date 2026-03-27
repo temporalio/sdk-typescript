@@ -16,7 +16,7 @@ import type * as workflowImportStub from '@temporalio/interceptors-opentelemetry
 import type * as workflowImportImpl from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports-impl';
 import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor, Client } from '@temporalio/client';
 import { OpenTelemetryPlugin, OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry';
-import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
+import { instrument, instrumentSync } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
@@ -327,6 +327,44 @@ if (RUN_INTEGRATION_TESTS) {
 
     const exceptionEvents = span.events.filter((event) => event.name === 'exception');
     t.is(exceptionEvents.length, 1);
+  });
+
+  test('instrumentation: handles non-Error thrown values without crashing', (t) => {
+    const memoryExporter = new InMemorySpanExporter();
+    const provider = new BasicTracerProvider();
+    provider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
+    provider.register();
+    const tracer = provider.getTracer('test-non-error-tracer');
+
+    const cases: Array<{ thrown: unknown; expectedMessage: string }> = [
+      { thrown: undefined, expectedMessage: 'undefined' },
+      { thrown: null, expectedMessage: 'null' },
+      { thrown: 'some string error', expectedMessage: 'some string error' },
+      { thrown: { message: 'oops' }, expectedMessage: 'oops' },
+    ];
+
+    for (const { thrown } of cases) {
+      try {
+        instrumentSync({
+          tracer,
+          spanName: `test-thrown-${String(thrown)}`,
+          fn: () => {
+            throw thrown; // eslint-disable-line no-throw-literal
+          },
+        });
+        t.fail('expected instrumentSync to throw');
+      } catch {
+        // The original thrown value should propagate, not a TypeError
+      }
+    }
+
+    const spans = memoryExporter.getFinishedSpans();
+    t.is(spans.length, cases.length);
+
+    for (let i = 0; i < cases.length; i++) {
+      t.is(spans[i].status.code, SpanStatusCode.ERROR, `case ${i}: status code`);
+      t.is(spans[i].status.message, cases[i].expectedMessage, `case ${i}: message`);
+    }
   });
 
   test('Otel workflow omits ApplicationError with BENIGN category', async (t) => {
