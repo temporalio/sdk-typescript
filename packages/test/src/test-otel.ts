@@ -38,7 +38,12 @@ import {
   Runtime,
 } from '@temporalio/worker';
 import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
+import { Info } from '@temporalio/activity';
+import { Subject, firstValueFrom } from 'rxjs';
+import { filter } from 'rxjs/operators';
+import { Connection } from '@temporalio/client';
 import * as activities from './activities';
+import { createActivities as createAsyncActivities } from './activities/async-completer';
 import { bundlerOptions, loadHistory, RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import * as workflows from './workflows';
 import { createTestWorkflowBundle } from './helpers-integration';
@@ -404,6 +409,57 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(spans[1].status.code, SpanStatusCode.UNSET);
     t.is(spans[1].status.message, 'benign');
     t.is(spans[2].status.code, SpanStatusCode.OK);
+  });
+
+  test('Otel activity span is not marked as error for CompleteAsyncError', async (t) => {
+    const memoryExporter = new InMemorySpanExporter();
+    const provider = new BasicTracerProvider();
+    provider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
+    provider.register();
+    const tracer = provider.getTracer('test-complete-async-tracer');
+
+    const infoSubject = new Subject<Info>();
+    const taskQueue = 'test-otel-complete-async';
+
+    const worker = await Worker.create({
+      workflowsPath: require.resolve('./workflows'),
+      activities: createAsyncActivities(infoSubject),
+      taskQueue,
+      interceptors: {
+        activity: [
+          (ctx) => {
+            return { inbound: new OpenTelemetryActivityInboundInterceptor(ctx, { tracer }) };
+          },
+        ],
+      },
+    });
+
+    const connection = await Connection.connect();
+    const client = new Client({ connection });
+    const workflowId = uuid4();
+
+    await worker.runUntil(async () => {
+      const handle = await client.workflow.start(workflows.runAnAsyncActivity, {
+        taskQueue,
+        workflowId,
+      });
+      const info = await firstValueFrom(
+        infoSubject.pipe(filter((i) => i.workflowExecution.workflowId === workflowId))
+      );
+      await client.activity.complete(info.taskToken, 'async-result');
+      t.is(await handle.result(), 'async-result');
+    });
+
+    const activitySpans = memoryExporter
+      .getFinishedSpans()
+      .filter((s) => s.name.startsWith(SpanName.ACTIVITY_EXECUTE));
+    t.is(activitySpans.length, 1);
+
+    // CompleteAsyncError is control flow, not a real error
+    t.is(activitySpans[0].status.code, SpanStatusCode.OK);
+
+    const exceptionEvents = activitySpans[0].events.filter((event) => event.name === 'exception');
+    t.is(exceptionEvents.length, 0);
   });
 
   test('executeUpdateWithStart works correctly with OTEL interceptors', async (t) => {
