@@ -432,6 +432,17 @@ export class DefaultFailureConverter implements FailureConverter {
         message: String(err.message ?? ''),
         stackTrace: cutoffStackTrace(err.stack),
         cause: this.optionalErrorToOptionalFailure((err as any).cause, payloadConverter),
+        applicationFailureInfo:
+          'errors' in err && Array.isArray(err.errors)
+            ? {
+                details: {
+                  payloads: toPayloads(
+                    payloadConverter,
+                    err.errors.map((errInner) => this.optionalErrorToOptionalFailure(errInner, payloadConverter))
+                  ),
+                },
+              }
+            : undefined,
       };
     }
 
