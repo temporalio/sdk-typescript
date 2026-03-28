@@ -1422,6 +1422,8 @@ export class Worker {
         if (!close) {
           throw new IllegalStateError('Got a Workflow activation with no jobs');
         }
+        // Undo UpDownCounter contributions for the evicted workflow
+        this.options.cleanupWorkflowMetrics?.(activation.runId);
         const completion = synthetic
           ? undefined
           : coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
@@ -1464,6 +1466,11 @@ export class Worker {
           // this.isReplayWorker to suppress all non-callDuringReplay sinks on replay workers.
           const calls = await workflow.workflow.getAndResetSinkCalls();
           await this.processSinkCalls(calls, workflow.logAttributes);
+        }
+        // When a workflow is being evicted from cache, undo its UpDownCounter
+        // contributions so the process-level metric only reflects active workflows.
+        if (close) {
+          this.options.cleanupWorkflowMetrics?.(activation.runId);
         }
         this.logger.trace('Completed activation', workflow.logAttributes);
       }

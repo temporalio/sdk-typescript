@@ -41,6 +41,17 @@ export interface MetricMeter {
   createGauge(name: string, valueType?: NumericMetricValueType, unit?: string, description?: string): MetricGauge;
 
   /**
+   * Create a new up-down counter metric that supports adding signed values.
+   * Unlike a regular counter, values can be negative, making this suitable
+   * for tracking inflight/active counts.
+   *
+   * @param name Name for the up-down counter metric.
+   * @param unit Unit for the up-down counter metric. Optional.
+   * @param description Description for the up-down counter metric. Optional.
+   */
+  createUpDownCounter(name: string, unit?: string, description?: string): MetricUpDownCounter;
+
+  /**
    * Return a clone of this meter, with additional tags. All metrics created off the meter will
    * have the tags.
    *
@@ -104,7 +115,7 @@ export type NumericMetricValueType = 'int' | 'float';
  *
  * @experimental The Metric API is an experimental feature and may be subject to change.
  */
-export type MetricKind = 'counter' | 'histogram' | 'gauge';
+export type MetricKind = 'counter' | 'histogram' | 'gauge' | 'up_down_counter';
 
 /**
  * A metric that supports adding values as a counter.
@@ -181,6 +192,33 @@ export interface MetricGauge extends Metric {
   kind: 'gauge';
 }
 
+/**
+ * A metric that supports adding signed values as an up-down counter.
+ * Unlike a regular counter, values can be negative, making this suitable
+ * for tracking inflight/active counts.
+ *
+ * @experimental The Metric API is an experimental feature and may be subject to change.
+ */
+export interface MetricUpDownCounter extends Metric {
+  /**
+   * Add the given value to the up-down counter. Value may be negative.
+   *
+   * @param value Value to add (can be positive or negative).
+   * @param extraTags Extra tags if any.
+   */
+  add(value: number, extraTags?: MetricTags): void;
+
+  /**
+   * Return a clone of this up-down counter, with additional tags.
+   *
+   * @param tags Tags to append to existing tags.
+   */
+  withTags(tags: MetricTags): MetricUpDownCounter;
+
+  kind: 'up_down_counter';
+  valueType: 'int';
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -241,6 +279,23 @@ class NoopMetricMeter implements MetricMeter {
       valueType,
 
       set(_value, _extraTags) {},
+
+      withTags(_extraTags) {
+        return this;
+      },
+    };
+  }
+
+  createUpDownCounter(name: string, unit?: string, description?: string): MetricUpDownCounter {
+    return {
+      name,
+      unit,
+      description,
+
+      kind: 'up_down_counter',
+      valueType: 'int',
+
+      add(_value, _extraTags) {},
 
       withTags(_extraTags) {
         return this;
@@ -324,6 +379,11 @@ export class MetricMeterWithComposedTags implements MetricMeter {
   ): MetricGauge {
     const parentGauge = this.parentMeter.createGauge(name, valueType, unit, description);
     return new MetricGaugeWithComposedTags(parentGauge, this.contributors);
+  }
+
+  createUpDownCounter(name: string, unit?: string, description?: string): MetricUpDownCounter {
+    const parentCounter = this.parentMeter.createUpDownCounter(name, unit, description);
+    return new MetricUpDownCounterWithComposedTags(parentCounter, this.contributors);
   }
 
   withTags(tags: MetricTags): MetricMeter {
@@ -440,6 +500,42 @@ class MetricGaugeWithComposedTags implements MetricGauge {
 
   get description(): string | undefined {
     return this.parentGauge.description;
+  }
+}
+
+/**
+ * @internal
+ * @hidden
+ */
+class MetricUpDownCounterWithComposedTags implements MetricUpDownCounter {
+  public readonly kind = 'up_down_counter';
+  public readonly valueType = 'int';
+
+  constructor(
+    private parentCounter: MetricUpDownCounter,
+    private contributors: MetricTagsOrFunc[]
+  ) {}
+
+  add(value: number, extraTags?: MetricTags | undefined): void {
+    this.parentCounter.add(value, resolveTags(this.contributors, extraTags));
+  }
+
+  withTags(extraTags: MetricTags): MetricUpDownCounter {
+    const contributors = appendToChain(this.contributors, extraTags);
+    if (contributors === undefined) return this;
+    return new MetricUpDownCounterWithComposedTags(this.parentCounter, contributors);
+  }
+
+  get name(): string {
+    return this.parentCounter.name;
+  }
+
+  get unit(): string | undefined {
+    return this.parentCounter.unit;
+  }
+
+  get description(): string | undefined {
+    return this.parentCounter.description;
   }
 }
 
