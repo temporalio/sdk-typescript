@@ -122,7 +122,7 @@ export class NexusHandler {
       };
       const executeWithInterceptors = composeInterceptors(
         this.interceptors.inbound,
-        'executeStartOperation',
+        'startOperation',
         executeNextHandler
       );
       const { result } = await executeWithInterceptors({ ctx, input });
@@ -184,7 +184,7 @@ export class NexusHandler {
       };
       const cancelWithInterceptors = composeInterceptors(
         this.interceptors.inbound,
-        'executeCancelOperation',
+        'cancelOperation',
         cancelNextHandler
       );
       await cancelWithInterceptors({ ctx, token });

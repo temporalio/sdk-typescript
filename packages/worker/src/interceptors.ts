@@ -131,19 +131,19 @@ export type NexusInterceptors = {
  * @experimental Nexus support in Temporal SDK is experimental.
  */
 export type NexusInboundCallsInterceptor = {
-  executeStartOperation?: (
+  startOperation?: (
     input: ExecuteNexusOperationStartInput,
-    next: Next<NexusInboundCallsInterceptor, 'executeStartOperation'>
+    next: Next<NexusInboundCallsInterceptor, 'startOperation'>
   ) => Promise<ExecuteNexusOperationStartOutput>;
 
-  executeCancelOperation?: (
+  cancelOperation?: (
     input: ExecuteNexusOperationCancelInput,
-    next: Next<NexusInboundCallsInterceptor, 'executeCancelOperation'>
+    next: Next<NexusInboundCallsInterceptor, 'cancelOperation'>
   ) => Promise<void>;
 };
 
 /**
- * Input for {@link NexusInboundCallsInterceptor.executeStartOperation}
+ * Input for {@link NexusInboundCallsInterceptor.startOperation}
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
@@ -153,7 +153,7 @@ export interface ExecuteNexusOperationStartInput {
 }
 
 /**
- * Output for {@link NexusInboundCallsInterceptor.executeStartOperation}
+ * Output for {@link NexusInboundCallsInterceptor.startOperation}
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
@@ -162,7 +162,7 @@ export interface ExecuteNexusOperationStartOutput {
 }
 
 /**
- * Input for {@link NexusInboundCallsInterceptor.executeCancelOperation}
+ * Input for {@link NexusInboundCallsInterceptor.cancelOperation}
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */

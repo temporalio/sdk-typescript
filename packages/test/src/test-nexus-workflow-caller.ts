@@ -352,7 +352,7 @@ test('inbound executeStartOperation interceptor can modify input and result', as
         nexus: [
           () => ({
             inbound: {
-              async executeStartOperation(input, next) {
+              async startOperation(input, next) {
                 const output = await next({ ...input, input: input.input + ' modified' });
                 const { result } = output;
                 observedResults.push(result);
@@ -414,7 +414,7 @@ test('inbound executeCancelOperation interceptor can modify input', async (t) =>
         nexus: [
           () => ({
             inbound: {
-              async executeCancelOperation(input, next) {
+              async cancelOperation(input, next) {
                 return await next({ ...input, token: input.token + '-modified' });
               },
             },
