@@ -389,24 +389,14 @@ test('start Operation Handler errors - caller workflow', async (t) => {
         () => executeWorkflow(errorOpCaller, { args: [endpointName, 'NonRetryableApplicationFailure'] }),
         { instanceOf: WorkflowFailedError }
       );
-      t.true(
-        err instanceof WorkflowFailedError &&
-          err.cause instanceof NexusOperationFailure &&
-          err.cause.cause instanceof nexus.HandlerError &&
-          err.cause.cause.type === 'INTERNAL'
-      );
-      if (
-        err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof nexus.HandlerError
-      ) {
-        const appFailure = unwrapHandlerErrorCause(err.cause.cause);
-        t.true(appFailure instanceof ApplicationFailure);
-        if (appFailure instanceof ApplicationFailure) {
-          t.is(appFailure.message, 'deliberate failure');
-          t.deepEqual(appFailure.details, ['details']);
-        }
-      }
+      assert(err instanceof WorkflowFailedError);
+      assert(err.cause instanceof NexusOperationFailure);
+      assert(err.cause.cause instanceof nexus.HandlerError);
+      t.is(err.cause.cause.type, 'INTERNAL');
+      const appFailure = unwrapHandlerErrorCause(err.cause.cause);
+      assert(appFailure instanceof ApplicationFailure);
+      t.is(appFailure.message, 'deliberate failure');
+      t.deepEqual(appFailure.details, ['details']);
     }
 
     // NonRetryableInternalHandlerError:
@@ -417,20 +407,12 @@ test('start Operation Handler errors - caller workflow', async (t) => {
         () => executeWorkflow(errorOpCaller, { args: [endpointName, 'NonRetryableInternalHandlerError'] }),
         { instanceOf: WorkflowFailedError }
       );
-      t.true(
-        err instanceof WorkflowFailedError &&
-          err.cause instanceof NexusOperationFailure &&
-          err.cause.cause instanceof nexus.HandlerError &&
-          err.cause.cause.type === 'INTERNAL'
-      );
-      if (
-        err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof nexus.HandlerError
-      ) {
-        const inner = innermostHandlerError(err.cause.cause);
-        t.is(inner.message, 'deliberate error');
-      }
+      assert(err instanceof WorkflowFailedError);
+      assert(err.cause instanceof NexusOperationFailure);
+      assert(err.cause.cause instanceof nexus.HandlerError);
+      t.is(err.cause.cause.type, 'INTERNAL');
+      const inner = innermostHandlerError(err.cause.cause);
+      t.is(inner.message, 'deliberate error');
     }
 
     // OperationError: NexusOperationFailure > ApplicationFailure(type='OperationError')
@@ -497,23 +479,13 @@ test('cancel Operation Handler errors - caller workflow', async (t) => {
       const err = await t.throwsAsync(callerHandle.result(), {
         instanceOf: WorkflowFailedError,
       });
-      t.true(
-        err instanceof WorkflowFailedError &&
-          err.cause instanceof NexusOperationFailure &&
-          err.cause.cause instanceof nexus.HandlerError
-      );
-      if (
-        err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof nexus.HandlerError
-      ) {
-        const appFailure = unwrapHandlerErrorCause(err.cause.cause);
-        t.true(appFailure instanceof ApplicationFailure);
-        if (appFailure instanceof ApplicationFailure) {
-          t.is(appFailure.message, 'deliberate failure');
-          t.deepEqual(appFailure.details, ['details']);
-        }
-      }
+      assert(err instanceof WorkflowFailedError);
+      assert(err.cause instanceof NexusOperationFailure);
+      assert(err.cause.cause instanceof nexus.HandlerError);
+      const appFailure = unwrapHandlerErrorCause(err.cause.cause);
+      assert(appFailure instanceof ApplicationFailure);
+      t.is(appFailure.message, 'deliberate failure');
+      t.deepEqual(appFailure.details, ['details']);
     }
 
     // NonRetryableInternalHandlerError from cancel handler
@@ -529,12 +501,10 @@ test('cancel Operation Handler errors - caller workflow', async (t) => {
       const err = await t.throwsAsync(callerHandle.result(), {
         instanceOf: WorkflowFailedError,
       });
-      t.true(
-        err instanceof WorkflowFailedError &&
-          err.cause instanceof NexusOperationFailure &&
-          err.cause.cause instanceof nexus.HandlerError &&
-          err.cause.cause.type === 'INTERNAL'
-      );
+      assert(err instanceof WorkflowFailedError);
+      assert(err.cause instanceof NexusOperationFailure);
+      assert(err.cause.cause instanceof nexus.HandlerError);
+      t.is(err.cause.cause.type, 'INTERNAL');
     }
   });
 });
@@ -791,24 +761,14 @@ test('Nexus sync and async Operations from a Workflow', async (t) => {
           instanceOf: WorkflowFailedError,
         }
       );
-      t.true(
-        err instanceof WorkflowFailedError &&
-          err.cause instanceof NexusOperationFailure &&
-          err.cause.cause instanceof nexus.HandlerError &&
-          err.cause.cause.type === 'INTERNAL'
-      );
-      if (
-        err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof nexus.HandlerError
-      ) {
-        const appFailure = unwrapHandlerErrorCause(err.cause.cause);
-        t.true(appFailure instanceof ApplicationFailure);
-        if (appFailure instanceof ApplicationFailure) {
-          t.is(appFailure.message, 'test asked to fail');
-          t.deepEqual(appFailure.details, ['a detail']);
-        }
-      }
+      assert(err instanceof WorkflowFailedError);
+      assert(err.cause instanceof NexusOperationFailure);
+      assert(err.cause.cause instanceof nexus.HandlerError);
+      t.is(err.cause.cause.type, 'INTERNAL');
+      const appFailure = unwrapHandlerErrorCause(err.cause.cause);
+      assert(appFailure instanceof ApplicationFailure);
+      t.is(appFailure.message, 'test asked to fail');
+      t.deepEqual(appFailure.details, ['a detail']);
 
       err = await t.throwsAsync(
         () =>

@@ -474,7 +474,7 @@ export class DefaultFailureConverter implements FailureConverter {
 
   private nexusFailureToTemporalFailure(failure: nexus.Failure, retryable: boolean): ProtoFailure {
     if (failure.metadata?.type === 'temporal.api.failure.v1.Failure') {
-      if (!failure.details) {
+      if (failure.details == null) {
         throw new TypeError("missing details for Nexus Failure of type 'temporal.api.failure.v1.Failure")
       }
       return failure.details as ProtoFailure;
