@@ -5,12 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  qs: ^6.14.1
-  jws@<3.2.3: '>=3.2.3'
-  tar: '>=7.5.10'
-  minimatch@>=7.0.0 <7.4.8: '>=7.4.8'
-  serialize-javascript: '>=7.0.3'
-  handlebars: '>=4.7.9'
+  nexus-rpc: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
 
 importers:
 
@@ -62,8 +57,8 @@ importers:
         specifier: workspace:*
         version: link:packages/workflow
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
       temporalio:
         specifier: file:packages/meta
         version: file:packages/meta
@@ -248,8 +243,8 @@ importers:
         specifier: 3.0.0-canary.1
         version: 3.0.0-canary.1
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
       proto3-json-serializer:
         specifier: ^2.0.0
         version: 2.0.0
@@ -304,7 +299,7 @@ importers:
         specifier: ^2.4.2
         version: 2.4.2
       tar:
-        specifier: '>=7.5.10'
+        specifier: ^7.5.10
         version: 7.5.11
       update-check:
         specifier: 1.5.4
@@ -436,8 +431,8 @@ importers:
         specifier: ^5.2.3
         version: 5.2.3
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
 
   packages/nyc-test-coverage:
     dependencies:
@@ -491,8 +486,8 @@ importers:
         specifier: workspace:*
         version: link:../worker
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
 
   packages/proto:
     dependencies:
@@ -618,8 +613,8 @@ importers:
         specifier: ^5.2.3
         version: 5.2.3
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
       proto3-json-serializer:
         specifier: ^2.0.0
         version: 2.0.0
@@ -733,8 +728,8 @@ importers:
         specifier: ^4.6.0
         version: 4.6.0(quill-delta@5.1.0)(rxjs@7.8.1)(tslib@2.6.2)
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
       proto3-json-serializer:
         specifier: ^2.0.0
         version: 2.0.0
@@ -776,8 +771,8 @@ importers:
         specifier: workspace:*
         version: link:../proto
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged
+        version: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead
     devDependencies:
       source-map:
         specifier: ^0.7.4
@@ -3416,11 +3411,11 @@ packages:
     resolution: {integrity: sha512-gqXddjPqQ6G40VdnI6T6yObEC+pDNvyP95wdQhkWkg7crHH3km5qP1FsOXEkzEQwnz6gz5qGTn1c2Y52wP3OyQ==}
     engines: {'0': node >=0.6.0}
 
-  jwa@2.0.1:
-    resolution: {integrity: sha512-hRF04fqJIP8Abbkq5NKGN0Bbr3JxlQ+qhZufXVr0DvujKy93ZCbXZMHDL4EOtodSbCWxOqR8MS1tXA5hwqCXDg==}
+  jwa@1.4.2:
+    resolution: {integrity: sha512-eeH5JO+21J78qMvTIDdBXidBd6nG2kZjg5Ohz/1fpa28Z4CcsWUzJ1ZZyFq/3z3N17aZy+ZuBoHljASbL1WfOw==}
 
-  jws@4.0.1:
-    resolution: {integrity: sha512-EKI/M/yqPncGUUh44xz0PxSidXFr/+r0pA70+gIYhjv+et7yxM+s29Y+VGDkovRofQem0fs7Uvf4+YmAdyRduA==}
+  jws@3.2.3:
+    resolution: {integrity: sha512-byiJ0FLRdLdSVSReO/U4E7RoEyOCKnEnEPMjq3HxWtvzLsV08/i5RQKsFVNkCldrCaPr2vDNAOMsfs8T/Hze7g==}
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
@@ -3650,6 +3645,10 @@ packages:
     resolution: {integrity: sha512-7o1wEA2RyMP7Iu7GNba9vc0RWWGACJOCZBJX2GJWip0ikV+wcOsgVuY9uE8CPiyQhkGFSlhuSkZPavN7u1c2Fw==}
     engines: {node: '>=10'}
 
+  minimatch@7.4.6:
+    resolution: {integrity: sha512-sBz8G/YjVniEz6lKPNpKxXwazJe4c19fEfV2GDMX6AjFz+MX9uDWIZW8XreVhkFW3fkIdTv/gxWr/Kks5FFAVw==}
+    engines: {node: '>=10'}
+
   minimatch@9.0.9:
     resolution: {integrity: sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg==}
     engines: {node: '>=16 || 14 >=14.17'}
@@ -3705,8 +3704,9 @@ packages:
   neo-async@2.6.2:
     resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
 
-  nexus-rpc@0.0.1:
-    resolution: {integrity: sha512-hAWn8Hh2eewpB5McXR5EW81R3pR/ziuGhKCF3wFyUVCklanPqrIgMNr7jKCbzXeNVad0nUDfWpFRqh2u+zxQtw==}
+  nexus-rpc@https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead:
+    resolution: {tarball: https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead}
+    version: 0.0.1
     engines: {node: '>= 18.0.0'}
 
   node-fetch@2.6.7:
@@ -4009,6 +4009,14 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
 
+  qs@6.13.0:
+    resolution: {integrity: sha512-+38qI9SOr8tfZ4QmJNplMUxqjbe7LKvvZgWdExBOmd+egZTtjLB67Gu0HRX3u/XOq7UU2Nx6nsjvS16Z9uwfpg==}
+    engines: {node: '>=0.6'}
+
+  qs@6.14.0:
+    resolution: {integrity: sha512-YWWTjgABSKcvs/nWBi9PycY/JiPJqOD4JA6o9Sej2AtvSGarXxKC3OQSk4pAarbdQlKAh5D4FCQkJNkW+GAn3w==}
+    engines: {node: '>=0.6'}
+
   qs@6.14.1:
     resolution: {integrity: sha512-4EK3+xJl8Ts67nLYNwqw/dsFVnCf+qR7RgXSK9jEEm9unao3njwMDdmsdvoKBKHzxd7tCYz5e5M+SnMjdtXGQQ==}
     engines: {node: '>=0.6'}
@@ -4026,6 +4034,9 @@ packages:
   quill-delta@5.1.0:
     resolution: {integrity: sha512-X74oCeRI4/p0ucjb5Ma8adTXd9Scumz367kkMK5V/IatcX6A0vlgLgKbzXWy5nZmCGeNJm2oQX0d2Eqj+ZIlCA==}
     engines: {node: '>= 12.0.0'}
+
+  randombytes@2.1.0:
+    resolution: {integrity: sha512-vYl3iOX+4CKUWuxGi9Ukhie6fsqXqS9FE2Zaic4tNFD2N2QQaXOMFbuKK4QmDHC0JO6B1Zp41J0LpT0oR68amQ==}
 
   range-parser@1.2.1:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
@@ -4190,9 +4201,8 @@ packages:
     resolution: {integrity: sha512-8I8TjW5KMOKsZQTvoxjuSIa7foAwPWGOts+6o7sgjz41/qMD9VQHEDxi6PBvK2l0MXUmqZyNpUK+T2tQaaElvw==}
     engines: {node: '>=10'}
 
-  serialize-javascript@7.0.4:
-    resolution: {integrity: sha512-DuGdB+Po43Q5Jxwpzt1lhyFSYKryqoNjQSA9M92tyw0lyHIOur+XCalOUe0KTJpyqzT8+fQ5A0Jf7vCx/NKmIg==}
-    engines: {node: '>=20.0.0'}
+  serialize-javascript@6.0.2:
+    resolution: {integrity: sha512-Saa1xPByTTq2gdeFZYLLo+RFE35NHZkAbqZeWNd3BpzppeVisAqpDjcp8dyf6uIvEqJRd46jemmyA4iFIeVk8g==}
 
   serve-static@1.16.2:
     resolution: {integrity: sha512-VqpjJZKadQB/PEbEwvFdO43Ax5dFBZ2UECszz8bQ7pi7wt//PWe1P6MN7eCnjsatYtBT6EuiClbjSWP2WrIoTw==}
@@ -4987,7 +4997,7 @@ snapshots:
       json-stringify-safe: 5.0.1
       mime-types: 2.1.35
       performance-now: 2.1.0
-      qs: 6.14.1
+      qs: 6.14.0
       safe-buffer: 5.2.1
       tough-cookie: 5.1.2
       tunnel-agent: 0.6.0
@@ -5810,7 +5820,7 @@ snapshots:
       ajv: 8.17.1
       http-errors: 2.0.0
       http-status-codes: 2.3.0
-      minimatch: 9.0.9
+      minimatch: 7.4.6
       process-warning: 1.0.0
       semver: 7.7.2
 
@@ -5819,7 +5829,7 @@ snapshots:
       ajv: 8.17.1
       http-errors: 2.0.0
       http-status-codes: 2.3.0
-      minimatch: 9.0.9
+      minimatch: 7.4.6
       process-warning: 1.0.0
       semver: 7.7.3
 
@@ -5939,7 +5949,7 @@ snapshots:
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.27
       lodash: 4.17.21
-      minimatch: 9.0.9
+      minimatch: 7.4.6
 
   '@webassemblyjs/ast@1.14.1':
     dependencies:
@@ -6304,7 +6314,7 @@ snapshots:
       http-errors: 2.0.0
       iconv-lite: 0.4.24
       on-finished: 2.4.1
-      qs: 6.14.1
+      qs: 6.13.0
       raw-body: 2.5.2
       type-is: 1.6.18
       unpipe: 1.0.0
@@ -7097,7 +7107,7 @@ snapshots:
       parseurl: 1.3.3
       path-to-regexp: 0.1.12
       proxy-addr: 2.0.7
-      qs: 6.14.1
+      qs: 6.13.0
       range-parser: 1.2.1
       safe-buffer: 5.2.1
       send: 0.19.0
@@ -7827,7 +7837,7 @@ snapshots:
 
   jsonwebtoken@9.0.2:
     dependencies:
-      jws: 4.0.1
+      jws: 3.2.3
       lodash.includes: 4.3.0
       lodash.isboolean: 3.0.3
       lodash.isinteger: 4.0.4
@@ -7845,15 +7855,15 @@ snapshots:
       json-schema: 0.4.0
       verror: 1.10.0
 
-  jwa@2.0.1:
+  jwa@1.4.2:
     dependencies:
       buffer-equal-constant-time: 1.0.1
       ecdsa-sig-formatter: 1.0.11
       safe-buffer: 5.2.1
 
-  jws@4.0.1:
+  jws@3.2.3:
     dependencies:
-      jwa: 2.0.1
+      jwa: 1.4.2
       safe-buffer: 5.2.1
 
   keyv@4.5.4:
@@ -8040,6 +8050,10 @@ snapshots:
     dependencies:
       brace-expansion: 2.0.2
 
+  minimatch@7.4.6:
+    dependencies:
+      brace-expansion: 2.0.2
+
   minimatch@9.0.9:
     dependencies:
       brace-expansion: 2.0.2
@@ -8074,7 +8088,7 @@ snapshots:
 
   neo-async@2.6.2: {}
 
-  nexus-rpc@0.0.1: {}
+  nexus-rpc@https://codeload.github.com/nexus-rpc/sdk-typescript/tar.gz/a5f400dfd19daf308df253e8d00a9b2ba0962ead: {}
 
   node-fetch@2.6.7(encoding@0.1.13):
     dependencies:
@@ -8374,6 +8388,14 @@ snapshots:
 
   punycode@2.3.1: {}
 
+  qs@6.13.0:
+    dependencies:
+      side-channel: 1.1.0
+
+  qs@6.14.0:
+    dependencies:
+      side-channel: 1.1.0
+
   qs@6.14.1:
     dependencies:
       side-channel: 1.1.0
@@ -8389,6 +8411,10 @@ snapshots:
       fast-diff: 1.3.0
       lodash.clonedeep: 4.5.0
       lodash.isequal: 4.5.0
+
+  randombytes@2.1.0:
+    dependencies:
+      safe-buffer: 5.2.1
 
   range-parser@1.2.1: {}
 
@@ -8608,7 +8634,9 @@ snapshots:
     dependencies:
       type-fest: 0.13.1
 
-  serialize-javascript@7.0.4: {}
+  serialize-javascript@6.0.2:
+    dependencies:
+      randombytes: 2.1.0
 
   serve-static@1.16.2:
     dependencies:
@@ -8894,7 +8922,7 @@ snapshots:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
       schema-utils: 4.3.3
-      serialize-javascript: 7.0.4
+      serialize-javascript: 6.0.2
       terser: 5.46.0
       webpack: 5.105.1(@swc/core@1.3.102)
     optionalDependencies:
@@ -8905,7 +8933,7 @@ snapshots:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
       schema-utils: 4.3.3
-      serialize-javascript: 7.0.4
+      serialize-javascript: 6.0.2
       terser: 5.46.0
       webpack: 5.105.1
 
