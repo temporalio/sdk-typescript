@@ -321,14 +321,11 @@ test('start Operation Handler errors', async (t) => {
           ? `ApplicationFailure: deliberate failure
     at create (common/lib/failure.js)
     at op (test/lib/test-nexus-handler.js)
-    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)
-    at start (nexus-rpc/lib/handler/service-registry.js)
-    at processTicksAndRejections (native)`
+    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)`
           : `ApplicationFailure: deliberate failure
     at $CLASS.create (common/src/failure.ts)
     at op (test/src/test-nexus-handler.ts)
-    at Object.start (nexus-rpc/src/handler/operation-handler.ts)
-    at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
+    at Object.start (nexus-rpc/src/handler/operation-handler.ts)`
       );
       t.deepEqual((err as ApplicationFailure).details, ['details']);
       t.is((err as ApplicationFailure).failure?.source, 'TypeScriptSDK');
@@ -355,13 +352,10 @@ test('start Operation Handler errors', async (t) => {
         isBun
           ? `HandlerError: deliberate error
     at op (test/lib/test-nexus-handler.js)
-    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)
-    at start (nexus-rpc/lib/handler/service-registry.js)
-    at processTicksAndRejections (native)`
+    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)`
           : `HandlerError: deliberate error
     at op (test/src/test-nexus-handler.ts)
-    at Object.start (nexus-rpc/src/handler/operation-handler.ts)
-    at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
+    at Object.start (nexus-rpc/src/handler/operation-handler.ts)`
       );
     }
     {
@@ -387,13 +381,10 @@ test('start Operation Handler errors', async (t) => {
         isBun
           ? `OperationError: deliberate error
     at op (test/lib/test-nexus-handler.js)
-    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)
-    at start (nexus-rpc/lib/handler/service-registry.js)
-    at processTicksAndRejections (native)`
+    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)`
           : `OperationError: deliberate error
     at op (test/src/test-nexus-handler.ts)
-    at Object.start (nexus-rpc/src/handler/operation-handler.ts)
-    at ServiceRegistry.start (nexus-rpc/src/handler/service-registry.ts)`
+    at Object.start (nexus-rpc/src/handler/operation-handler.ts)`
       );
     }
     {
@@ -488,12 +479,10 @@ test('cancel Operation Handler errors', async (t) => {
         isBun
           ? `ApplicationFailure: deliberate failure
     at create (common/lib/failure.js)
-    at cancel (test/lib/test-nexus-handler.js)
-    at cancel (nexus-rpc/lib/handler/service-registry.js)`
+    at cancel (test/lib/test-nexus-handler.js)`
           : `ApplicationFailure: deliberate failure
     at $CLASS.create (common/src/failure.ts)
-    at Object.cancel (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.cancel (nexus-rpc/src/handler/service-registry.ts)`
+    at Object.cancel (test/src/test-nexus-handler.ts)`
       );
       t.deepEqual((err as ApplicationFailure).details, ['details']);
       t.is((err as ApplicationFailure).failure?.source, 'TypeScriptSDK');
@@ -523,11 +512,9 @@ test('cancel Operation Handler errors', async (t) => {
         cleanStackTrace(err.stack!),
         isBun
           ? `HandlerError: deliberate error
-    at cancel (test/lib/test-nexus-handler.js)
-    at cancel (nexus-rpc/lib/handler/service-registry.js)`
+    at cancel (test/lib/test-nexus-handler.js)`
           : `HandlerError: deliberate error
-    at Object.cancel (test/src/test-nexus-handler.ts)
-    at ServiceRegistry.cancel (nexus-rpc/src/handler/service-registry.ts)`
+    at Object.cancel (test/src/test-nexus-handler.ts)`
       );
     }
   });
@@ -790,6 +777,64 @@ test('WorkflowRunOperationHandler does not accept WorkflowHandle from WorkflowCl
   t.pass();
 });
 
+test('Worker.create rejects duplicate nexus service registrations', async (t) => {
+  const { env, taskQueue } = t.context;
+
+  const handler = nexus.serviceHandler(
+    nexus.service('testService', {
+      op: nexus.operation<void, void>(),
+    }),
+    {
+      async op() {
+        /* no-op */
+      },
+    }
+  );
+
+  await t.throwsAsync(
+    Worker.create({
+      connection: env.nativeConnection,
+      namespace: env.namespace,
+      taskQueue,
+      nexusServices: [handler, handler],
+    }),
+    {
+      instanceOf: TypeError,
+      message: "Duplicate registration of nexus service 'testService'",
+    }
+  );
+});
+
+test('Worker.create rejects nexus services without a name', async (t) => {
+  const { env, taskQueue } = t.context;
+
+  const handler = nexus.serviceHandler(
+    nexus.service('testService', {
+      op: nexus.operation<void, void>(),
+    }),
+    {
+      async op() {
+        /* no-op */
+      },
+    }
+  );
+
+  // Override the name to be empty to simulate a service without a name.
+  (handler.definition as { name: string }).name = '';
+
+  await t.throwsAsync(
+    Worker.create({
+      connection: env.nativeConnection,
+      namespace: env.namespace,
+      taskQueue,
+      nexusServices: [handler],
+    }),
+    {
+      instanceOf: TypeError,
+      message: 'Nexus services must have a non-empty name.',
+    }
+  );
+});
 export async function echoWorkflow(input: string): Promise<string> {
   return input;
 }

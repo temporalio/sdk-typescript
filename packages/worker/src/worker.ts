@@ -1323,7 +1323,7 @@ export class Worker {
         constructNexusOperationContext(task.request, abortController.signal),
         this.client!, // Must be defined if we are handling Nexus tasks.
         abortController,
-        this.options.nexusServiceRegistry!, // Must be defined if we are handling Nexus tasks.
+        this.options.nexusServiceHandlers!, // Must be defined if we are handling Nexus tasks.
         this.options.loadedDataConverter,
         this.logger,
         this.metricMeter,
@@ -1934,7 +1934,7 @@ export class Worker {
 
   protected nexus$(): Observable<void> {
     // This Worker did not register any Nexus services, return early.
-    if (this.options.nexusServiceRegistry == null) {
+    if (this.options.nexusServiceHandlers == null) {
       if (!this.isReplayWorker) this.logger.info('No Nexus services registered, not polling for Nexus tasks');
       this.nexusPollerStateSubject.next('SHUTDOWN');
       return EMPTY;

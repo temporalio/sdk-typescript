@@ -4,7 +4,7 @@ import * as protoJsonSerializer from 'proto3-json-serializer';
 import * as nexus from 'nexus-rpc';
 import { temporal } from '@temporalio/proto';
 import { isGrpcServiceError, ServiceError } from '@temporalio/client';
-import { ApplicationFailure, LoadedDataConverter, Payload, PayloadConverter } from '@temporalio/common';
+import { ApplicationFailure, LoadedDataConverter, Payload } from '@temporalio/common';
 import { encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
 import { fixBuffers } from '@temporalio/common/lib/proto-utils';
 
@@ -12,10 +12,10 @@ import { fixBuffers } from '@temporalio/common/lib/proto-utils';
 // Payloads
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export async function decodePayloadIntoLazyValue(
+export async function decodePayload(
   dataConverter: LoadedDataConverter,
   payload: temporal.api.common.v1.IPayload | undefined
-): Promise<nexus.LazyValue> {
+): Promise<unknown> {
   let decoded: Payload | undefined | null;
   try {
     decoded = await decodeOptionalSingle(dataConverter.payloadCodecs, payload);
@@ -26,42 +26,19 @@ export async function decodePayloadIntoLazyValue(
     throw new nexus.HandlerError('INTERNAL', `Payload codec failed to decode Nexus operation input`, { cause: err });
   }
 
-  // Nexus headers have string values and Temporal Payloads have binary values. Instead of
-  // converting Payload instances into Content instances, we embed the Payload in the serializer
-  // and pretend we are deserializing an empty Content.
-  const input = new nexus.LazyValue(new PayloadSerializer(dataConverter.payloadConverter, decoded ?? undefined), {});
-
-  return input;
-}
-
-/**
- * An adapter from a Temporal PayloadConverer and a Nexus Serializer.
- */
-class PayloadSerializer implements nexus.Serializer {
-  constructor(
-    readonly payloadConverter: PayloadConverter,
-    readonly payload?: Payload
-  ) {}
-
-  deserialize<T>(): T {
-    if (this.payload == null) {
-      return undefined as T;
-    }
-    try {
-      return this.payloadConverter.fromPayload(this.payload);
-    } catch (err) {
-      if (err instanceof ApplicationFailure) {
-        throw err;
-      }
-      throw new nexus.HandlerError('BAD_REQUEST', `Payload converter failed to decode Nexus operation input`, {
-        cause: err,
-      });
-    }
+  if (decoded == null) {
+    return undefined;
   }
 
-  /** Not used in this path */
-  serialize(): nexus.Content {
-    throw new Error('not implemented');
+  try {
+    return dataConverter.payloadConverter.fromPayload(decoded);
+  } catch (err) {
+    if (err instanceof ApplicationFailure) {
+      throw err;
+    }
+    throw new nexus.HandlerError('BAD_REQUEST', `Payload converter failed to decode Nexus operation input`, {
+      cause: err,
+    });
   }
 }
 

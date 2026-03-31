@@ -19,13 +19,18 @@ const service = nexus.service('test', {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export async function caller(endpoint: string, op: keyof typeof service.operations, action: string): Promise<string> {
+export async function caller(
+  endpoint: string,
+  op: keyof typeof service.operations,
+  action: string,
+  cancellationType?: workflow.NexusOperationCancellationType
+): Promise<string> {
   const client = workflow.createNexusClient({
     endpoint,
     service,
   });
   return await workflow.CancellationScope.cancellable(async () => {
-    const handle = await client.startOperation(op, action);
+    const handle = await client.startOperation(op, action, { cancellationType });
     if (action === 'waitForCancel') {
       workflow.CancellationScope.current().cancel();
     }
@@ -263,6 +268,184 @@ export async function clientOperationTypeSafetyCheckerWorkflow(endpoint: string)
     }
   }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const nonExistentService = nexus.service('nonExistentService', {
+  op: nexus.operation<string, string>(),
+});
+
+export async function callNonExistentService(endpoint: string): Promise<string> {
+  const client = workflow.createNexusClient({
+    endpoint,
+    service: nonExistentService,
+  });
+  return await client.executeOperation('op', 'hello');
+}
+
+test('calling a nonexistent service returns NOT_FOUND', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
+  try {
+    const worker = await createWorker({
+      nexusServices: [
+        nexus.serviceHandler(service, {
+          async syncOp(_ctx, input) {
+            return input;
+          },
+          asyncOp: {
+            async start() {
+              throw new Error('not implemented');
+            },
+            async cancel() {},
+            async getInfo() {
+              throw new Error('not implemented');
+            },
+            async getResult() {
+              throw new Error('not implemented');
+            },
+          },
+        }),
+      ],
+    });
+    await worker.runUntil(async () => {
+      const err = await t.throwsAsync(
+        () =>
+          executeWorkflow(callNonExistentService, {
+            args: [endpointName],
+          }),
+        {
+          instanceOf: WorkflowFailedError,
+        }
+      );
+      t.true(
+        err instanceof WorkflowFailedError &&
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof nexus.HandlerError &&
+          err.cause.cause.type === 'NOT_FOUND'
+      );
+    });
+  } finally {
+    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
+  }
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+test('inbound executeStartOperation interceptor can modify input and result', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
+  try {
+    const observedResults: nexus.HandlerStartOperationResult<unknown>[] = [];
+    const worker = await createWorker({
+      nexusServices: [
+        nexus.serviceHandler(service, {
+          async syncOp(_ctx, input) {
+            return input;
+          },
+          asyncOp: new temporalnexus.WorkflowRunOperationHandler<string, string>(async (ctx, input) => {
+            return await temporalnexus.startWorkflow(ctx, handler, { workflowId: randomUUID(), args: [input] });
+          }),
+        }),
+      ],
+      interceptors: {
+        nexus: [
+          () => ({
+            inbound: {
+              async startOperation(input, next) {
+                const output = await next({ ...input, input: input.input + ' modified' });
+                const { result } = output;
+                observedResults.push(result);
+                if (!result.isAsync) {
+                  return { result: nexus.HandlerStartOperationResult.sync(result.value + ' intercepted') };
+                }
+                return output;
+              },
+            },
+          }),
+        ],
+      },
+    });
+    await worker.runUntil(async () => {
+      const res = await executeWorkflow(caller, {
+        args: [endpointName, 'syncOp', 'hello'],
+      });
+      t.is(res, 'hello modified intercepted');
+    });
+    t.is(observedResults.length, 1);
+    const result = observedResults[0];
+    t.false(result.isAsync);
+    if (!result.isAsync) {
+      t.is(result.value, 'hello modified');
+    }
+  } finally {
+    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
+  }
+});
+
+test('inbound executeCancelOperation interceptor can modify input', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
+  try {
+    const receivedTokens: string[] = [];
+    const worker = await createWorker({
+      nexusServices: [
+        nexus.serviceHandler(service, {
+          async syncOp(_ctx, input) {
+            return input;
+          },
+          asyncOp: {
+            async start(_ctx, input) {
+              return nexus.HandlerStartOperationResult.async('original-token');
+            },
+            async cancel(_ctx, token) {
+              receivedTokens.push(token);
+            },
+            async getInfo() {
+              throw new Error('not implemented');
+            },
+            async getResult() {
+              throw new Error('not implemented');
+            },
+          },
+        }),
+      ],
+      interceptors: {
+        nexus: [
+          () => ({
+            inbound: {
+              async cancelOperation(input, next) {
+                return await next({ ...input, token: input.token + '-modified' });
+              },
+            },
+          }),
+        ],
+      },
+    });
+    await worker.runUntil(async () => {
+      const err = await t.throwsAsync(
+        () =>
+          executeWorkflow(caller, {
+            args: [endpointName, 'asyncOp', 'waitForCancel', 'WAIT_CANCELLATION_REQUESTED'],
+          }),
+        {
+          instanceOf: WorkflowFailedError,
+        }
+      );
+      t.true(
+        err instanceof WorkflowFailedError &&
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof CancelledFailure
+      );
+    });
+    t.is(receivedTokens.length, 1);
+    t.is(receivedTokens[0], 'original-token-modified');
+  } finally {
+    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
+  }
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 test('NexusClient is type-safe in regard to Operation Definitions', async (t) => {
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);

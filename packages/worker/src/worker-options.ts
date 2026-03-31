@@ -869,7 +869,7 @@ export interface CompiledWorkerOptions
   defaultHeartbeatThrottleIntervalMs: number;
   loadedDataConverter: LoadedDataConverter;
   activities: Map<string, ActivityFunction>;
-  nexusServiceRegistry?: nexus.ServiceRegistry;
+  nexusServiceHandlers?: Map<string, nexus.ServiceHandler>;
   tuner: native.WorkerTunerOptions;
 }
 
@@ -1068,17 +1068,28 @@ export function compileWorkerOptions(
     defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
     loadedDataConverter: loadDataConverter(opts.dataConverter),
     activities,
-    nexusServiceRegistry: nexusServiceRegistryFromOptions(opts),
+    nexusServiceHandlers: nexusServiceHandlersFromOptions(opts),
     enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,
     tuner,
   };
 }
 
-function nexusServiceRegistryFromOptions(opts: WorkerOptions): nexus.ServiceRegistry | undefined {
+function nexusServiceHandlersFromOptions(opts: WorkerOptions): Map<string, nexus.ServiceHandler> | undefined {
   if (opts.nexusServices == null || opts.nexusServices.length === 0) {
     return undefined;
   }
-  return nexus.ServiceRegistry.create(opts.nexusServices);
+  const services = new Map<string, nexus.ServiceHandler>();
+  for (const s of opts.nexusServices) {
+    const name = s.definition.name;
+    if (!name) {
+      throw new TypeError('Nexus services must have a non-empty name.');
+    }
+    if (services.has(name)) {
+      throw new TypeError(`Duplicate registration of nexus service '${name}'`);
+    }
+    services.set(name, s);
+  }
+  return services;
 }
 
 export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): native.WorkerOptions {
@@ -1100,7 +1111,7 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
       enableWorkflows,
       enableLocalActivities,
       enableRemoteActivities: opts.enableNonLocalActivities && opts.activities.size > 0,
-      enableNexus: opts.nexusServiceRegistry !== undefined,
+      enableNexus: opts.nexusServiceHandlers !== undefined,
     },
     stickyQueueScheduleToStartTimeout: msToNumber(opts.stickyQueueScheduleToStartTimeout),
     maxCachedWorkflows: opts.maxCachedWorkflows,
