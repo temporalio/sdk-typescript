@@ -166,7 +166,7 @@ test('updateWithStart failure: invalid argument', async (t) => {
   }
 });
 
-// Regression test for https://github.com/temporalio/sdk-typescript/issues/1960:
+// Regression test for https://github.com/temporalio/sdk-typescript/issues/1960
 // when executeUpdateWithStart fails at the transport level, workflowHandlePromise is
 // rejected. If the caller never awaits workflowHandle(), that rejection was unhandled,
 // causing Node 15+ to terminate the process.
@@ -238,11 +238,11 @@ export const neverReturningUpdate = wf.defineUpdate<string[], [string]>('never-r
 
 export async function workflowWithNeverReturningUpdate(): Promise<never> {
   const updateHandler = async (): Promise<never> => {
-    await new Promise(() => { });
+    await new Promise(() => {});
     throw new Error('unreachable');
   };
   wf.setHandler(neverReturningUpdate, updateHandler);
-  await new Promise(() => { });
+  await new Promise(() => {});
   throw new Error('unreachable');
 }
 
