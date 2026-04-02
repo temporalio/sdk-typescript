@@ -37,7 +37,7 @@ import {
   STACK_TRACE_QUERY_NAME,
   ENHANCED_STACK_TRACE_QUERY_NAME,
 } from '@temporalio/common/lib/reserved';
-import { alea, RNG } from './alea';
+import { alea, deriveAleaSeed, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
 import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
@@ -419,6 +419,16 @@ export class Activator implements ActivationHandler {
    */
   public random: RNG;
 
+  /**
+   * The current seed material for this workflow execution's deterministic RNGs.
+   */
+  public readonly randomnessSeed: number[];
+
+  /**
+   * Additional deterministic RNG streams keyed by stable stream name.
+   */
+  public readonly namedRandomStreams = new Map<string, RNG>();
+
   public payloadConverter: PayloadConverter = defaultPayloadConverter;
   public failureConverter: FailureConverter = defaultFailureConverter;
 
@@ -474,9 +484,21 @@ export class Activator implements ActivationHandler {
     this.now = now;
     this.showStackTraceSources = showStackTraceSources;
     this.sourceMap = sourceMap;
-    this.random = alea(randomnessSeed);
+    this.randomnessSeed = [...randomnessSeed];
+    this.random = alea(this.randomnessSeed);
     this.registeredActivityNames = registeredActivityNames;
     this.stackTracesEnabled = stackTracesEnabled;
+  }
+
+  public getNamedRandom(name: string): RNG {
+    const cached = this.namedRandomStreams.get(name);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const random = alea(deriveAleaSeed(this.randomnessSeed, name));
+    this.namedRandomStreams.set(name, random);
+    return random;
   }
 
   /**
