@@ -50,6 +50,11 @@ const cancelErrorService = nexus.service('cancelErrorService', {
   cancelThrowsHandlerError: nexus.operation<void, void>(),
 });
 
+const requestDeadlineService = nexus.service('requestDeadlineService', {
+  checkDeadlineOnStart: nexus.operation<void, boolean>(),
+  checkDeadlineOnCancel: nexus.operation<void, void>(),
+});
+
 const linkCallbackService = nexus.service('linkCallbackService', {
   startTargetWorkflow: nexus.operation<void, void>(),
 });
@@ -128,6 +133,23 @@ export async function cancelHandlerErrorCaller(endpoint: string): Promise<void> 
   const client = workflow.createNexusClient({ endpoint, service: cancelErrorService });
   try {
     await client.executeOperation('cancelThrowsHandlerError', undefined, {
+      cancellationType: 'WAIT_CANCELLATION_REQUESTED',
+    });
+  } catch (err) {
+    if (workflow.isCancellation(err)) return;
+    throw err;
+  }
+}
+
+export async function requestDeadlineStartCaller(endpoint: string): Promise<boolean> {
+  const client = workflow.createNexusClient({ endpoint, service: requestDeadlineService });
+  return await client.executeOperation('checkDeadlineOnStart', undefined);
+}
+
+export async function requestDeadlineCancelCaller(endpoint: string): Promise<void> {
+  const client = workflow.createNexusClient({ endpoint, service: requestDeadlineService });
+  try {
+    await client.executeOperation('checkDeadlineOnCancel', undefined, {
       cancellationType: 'WAIT_CANCELLATION_REQUESTED',
     });
   } catch (err) {
@@ -824,4 +846,82 @@ test('NexusClient is type-safe in regard to Operation Definitions', async (t) =>
   } finally {
     await t.context.env.deleteNexusEndpoint(endpointIdentifier);
   }
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// requestDeadline tests
+
+test('requestDeadline is available in start operation context', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+
+  const worker = await createWorker({
+    nexusServices: [
+      nexus.serviceHandler(requestDeadlineService, {
+        checkDeadlineOnStart: async (ctx) => {
+          return ctx.requestDeadline instanceof Date && !isNaN(ctx.requestDeadline.getTime());
+        },
+        checkDeadlineOnCancel: {
+          async start() {
+            return nexus.HandlerStartOperationResult.async('fake-token');
+          },
+          async cancel() {
+            // no-op
+          },
+        },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(requestDeadlineStartCaller, {
+      args: [endpointName],
+    });
+    t.true(result);
+  });
+});
+
+test('requestDeadline is available in cancel operation context', async (t) => {
+  const { createWorker, startWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+
+  let cancelDeadlineIsValid = false;
+
+  const cancelStartHandler = new temporalnexus.WorkflowRunOperationHandler<void, void>(async (ctx) => {
+    return await temporalnexus.startWorkflow(ctx, blockingTargetWorkflow, {
+      workflowId: randomUUID(),
+    });
+  });
+
+  const worker = await createWorker({
+    nexusServices: [
+      nexus.serviceHandler(requestDeadlineService, {
+        async checkDeadlineOnStart() {
+          return false;
+        },
+        checkDeadlineOnCancel: {
+          start: cancelStartHandler.start.bind(cancelStartHandler),
+          cancel: async (ctx) => {
+            cancelDeadlineIsValid = ctx.requestDeadline instanceof Date && !isNaN(ctx.requestDeadline.getTime());
+          },
+        },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const callerHandle = await startWorkflow(requestDeadlineCancelCaller, {
+      args: [endpointName],
+    });
+    await waitUntil(async () => {
+      const { events } = await callerHandle.fetchHistory();
+      return (events ?? []).some(
+        (ev) => ev.nexusOperationStartedEventAttributes != null || ev.nexusOperationFailedEventAttributes != null
+      );
+    }, 10_000);
+    await callerHandle.cancel();
+    await callerHandle.result();
+  });
+
+  t.true(cancelDeadlineIsValid);
 });

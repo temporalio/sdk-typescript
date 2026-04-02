@@ -17,6 +17,7 @@ import { encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { Client } from '@temporalio/client';
+import { uuid4 } from '@temporalio/workflow';
 import { Logger } from '../logger';
 import {
   ExecuteNexusOperationCancelInput,
@@ -238,7 +239,7 @@ export class NexusHandler {
       return await this.startOperation(
         {
           ...this.context,
-          requestId: variant.requestId ?? undefined,
+          requestId: variant.requestId ?? uuid4(),
           inboundLinks: (variant.links ?? []).map(protoLinkToNexusLink),
           callbackUrl: variant.callback ?? undefined,
           callbackHeaders: variant.callbackHeader ?? undefined,
@@ -284,11 +285,13 @@ export class NexusHandler {
 
 export function constructNexusOperationContext(
   request: temporal.api.nexus.v1.IRequest | null | undefined,
-  abortSignal: AbortSignal
+  abortSignal: AbortSignal,
+  requestDeadline?: Date
 ): nexus.OperationContext {
   const base = {
     abortSignal,
     headers: headersProxy(request?.header),
+    requestDeadline,
   };
 
   if (request?.startOperation != null) {
