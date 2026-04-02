@@ -166,6 +166,36 @@ test('updateWithStart failure: invalid argument', async (t) => {
   }
 });
 
+// Regression test for https://github.com/temporalio/sdk-typescript/issues/1960:
+// when executeUpdateWithStart fails at the transport level, workflowHandlePromise is
+// rejected. If the caller never awaits workflowHandle(), that rejection was unhandled,
+// causing Node 15+ to terminate the process.
+test('executeUpdateWithStart: no unhandledRejection when caller ignores workflowHandle', async (t) => {
+  const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
+    workflowId: randomUUID().repeat(77), // too long → INVALID_ARGUMENT before any response
+    taskQueue: 'does-not-exist',
+    workflowIdConflictPolicy: 'FAIL',
+  });
+
+  const unhandledRejections: unknown[] = [];
+  const onUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason);
+  process.on('unhandledRejection', onUnhandledRejection);
+  try {
+    // Intentionally do NOT await startOp.workflowHandle() — this is the failing scenario.
+    await t.throwsAsync(
+      t.context.env.client.workflow.executeUpdateWithStart(update, {
+        args: ['1'],
+        startWorkflowOperation: startOp,
+      })
+    );
+    // Flush the event loop so any pending unhandledRejection event would have fired.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    t.deepEqual(unhandledRejections, []);
+  } finally {
+    process.removeListener('unhandledRejection', onUnhandledRejection);
+  }
+});
+
 test('updateWithStart failure: workflow already exists', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const workflowId = randomUUID();
@@ -208,11 +238,11 @@ export const neverReturningUpdate = wf.defineUpdate<string[], [string]>('never-r
 
 export async function workflowWithNeverReturningUpdate(): Promise<never> {
   const updateHandler = async (): Promise<never> => {
-    await new Promise(() => {});
+    await new Promise(() => { });
     throw new Error('unreachable');
   };
   wf.setHandler(neverReturningUpdate, updateHandler);
-  await new Promise(() => {});
+  await new Promise(() => { });
   throw new Error('unreachable');
 }
 

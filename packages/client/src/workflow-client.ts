@@ -488,6 +488,10 @@ export class WithStartWorkflowOperation<T extends Workflow> {
       this[withStartWorkflowOperationResolve] = resolve;
       this[withStartWorkflowOperationReject] = reject;
     });
+    // Suppress unhandled rejection: if executeUpdateWithStart fails before any
+    // response, we reject this promise AND re-throw to the caller. Without this
+    // no-op catch the rejected promise has no handler and Node 15+ terminates.
+    this.workflowHandlePromise.catch(() => undefined);
   }
 
   public async workflowHandle(): Promise<WorkflowHandle<T>> {
