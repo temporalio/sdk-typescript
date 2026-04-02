@@ -8,12 +8,20 @@ import { coresdk } from '@temporalio/proto';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import type { WorkflowBundleWithSourceMapAndFilename } from '@temporalio/worker/lib/workflow/workflow-worker-thread/input';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import { REUSE_V8_CONTEXT } from './helpers';
 
-interface Context {
-  workflowCreator: TestVMWorkflowCreator | TestReusableVMWorkflowCreator;
+type TestWorkflowCreator = TestVMWorkflowCreator | TestReusableVMWorkflowCreator;
+
+interface DriveContext {
+  workflowCreator: TestWorkflowCreator;
   nextRunNumber: number;
+}
+
+interface Context extends DriveContext {
+  workflowCreator: TestVMWorkflowCreator | TestReusableVMWorkflowCreator;
+  workflowBundle: WorkflowBundleWithSourceMapAndFilename;
 }
 
 interface DriveWorkflowOptions {
@@ -64,9 +72,10 @@ test.before(async (t) => {
   const workflowInterceptorModules = [path.join(workflowsPath, 'random-stream-interceptors')];
   const bundler = new WorkflowCodeBundler({ workflowsPath, workflowInterceptorModules });
   const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
+  t.context.workflowBundle = workflowBundle;
   t.context.workflowCreator = REUSE_V8_CONTEXT
-    ? await TestReusableVMWorkflowCreator.create(workflowBundle, 400, new Set())
-    : await TestVMWorkflowCreator.create(workflowBundle, 400, new Set());
+    ? await TestReusableVMWorkflowCreator.create(t.context.workflowBundle, 400, new Set())
+    : await TestVMWorkflowCreator.create(t.context.workflowBundle, 400, new Set());
   t.context.nextRunNumber = 0;
 });
 
@@ -132,7 +141,7 @@ function extractStrings(logs: unknown[][], label: string): string[] {
 }
 
 async function createWorkflow(
-  t: Context,
+  t: DriveContext,
   workflowType: string,
   { randomnessSeed = Long.fromInt(1337).toBytes() }: Pick<DriveWorkflowOptions, 'randomnessSeed'> = {}
 ): Promise<{ runId: string; logs: unknown[][]; workflow: TestWorkflow }> {
@@ -167,7 +176,11 @@ async function createWorkflow(
   return { runId, logs, workflow };
 }
 
-async function driveWorkflow(t: Context, workflowType: string, options: DriveWorkflowOptions = {}): Promise<unknown[][]> {
+async function driveWorkflow(
+  t: DriveContext,
+  workflowType: string,
+  options: DriveWorkflowOptions = {}
+): Promise<unknown[][]> {
   const { runId, logs, workflow } = await createWorkflow(t, workflowType, options);
   try {
     let completion = await workflow.activate(
@@ -208,6 +221,19 @@ async function driveWorkflow(t: Context, workflowType: string, options: DriveWor
   }
 }
 
+async function withReusableWorkflowCreator<T>(t: Context, fn: (driveContext: DriveContext) => Promise<T>): Promise<T> {
+  const workflowCreator = await TestReusableVMWorkflowCreator.create(t.workflowBundle, 400, new Set());
+  const driveContext: DriveContext = {
+    workflowCreator,
+    nextRunNumber: 0,
+  };
+  try {
+    return await fn(driveContext);
+  } finally {
+    await workflowCreator.destroy();
+  }
+}
+
 test.serial('main workflow randomness remains deterministic without plugin random streams', async (t) => {
   const first = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
   const second = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
@@ -241,6 +267,30 @@ test.serial('plugin named streams preserve state across activations', async (t) 
   t.deepEqual(actual, baseline);
 });
 
+test.serial('plugin named streams do not leak between workflows when the VM context is reused', async (t) => {
+  await withReusableWorkflowCreator(t.context, async (driveContext) => {
+    const baseline = extractNumbers(await driveWorkflow(driveContext, 'randomStreamPluginActivationBaseline'), 'plugin-activation');
+    await driveWorkflow(driveContext, 'randomStreamPluginActivationWithWorkflowInterference');
+    const actual = extractNumbers(await driveWorkflow(driveContext, 'randomStreamPluginActivationBaseline'), 'plugin-activation');
+    t.deepEqual(actual, baseline);
+  });
+});
+
+test.serial('plugin cached named streams do not leak between workflows when the VM context is reused', async (t) => {
+  await withReusableWorkflowCreator(t.context, async (driveContext) => {
+    const baseline = extractNumbers(
+      await driveWorkflow(driveContext, 'randomStreamPluginCachedStreamSingleActivation'),
+      'plugin-conclude'
+    );
+    await driveWorkflow(driveContext, 'randomStreamPluginCachedStreamAcrossActivations');
+    const actual = extractNumbers(
+      await driveWorkflow(driveContext, 'randomStreamPluginCachedStreamSingleActivation'),
+      'plugin-conclude'
+    );
+    t.deepEqual(actual, baseline);
+  });
+});
+
 test.serial('plugin-scoped randomness around internals next does not perturb workflow Math.random', async (t) => {
   const workflowBaseline = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
   const pluginBaseline = extractNumbers(
@@ -250,6 +300,15 @@ test.serial('plugin-scoped randomness around internals next does not perturb wor
   const logs = await driveWorkflow(t.context, 'randomStreamPluginInternalsScopedWithWorkflowInterference');
   t.deepEqual(extractNumbers(logs, 'plugin-internals-scoped'), pluginBaseline);
   t.deepEqual(extractNumbers(logs, 'workflow'), workflowBaseline);
+});
+
+test.serial('plugin-scoped randomness does not leak between workflows when the VM context is reused', async (t) => {
+  await withReusableWorkflowCreator(t.context, async (driveContext) => {
+    const baseline = extractNumbers(await driveWorkflow(driveContext, 'randomStreamMainBaselineWithSleep'), 'workflow');
+    await driveWorkflow(driveContext, 'randomStreamPluginScopedMathAroundNext');
+    const actual = extractNumbers(await driveWorkflow(driveContext, 'randomStreamMainBaselineWithSleep'), 'workflow');
+    t.deepEqual(actual, baseline);
+  });
 });
 
 test.serial('plugin-scoped randomness survives await and restores before next runs', async (t) => {
