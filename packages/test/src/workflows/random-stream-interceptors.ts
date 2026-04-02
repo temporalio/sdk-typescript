@@ -1,4 +1,4 @@
-import { getRandomStream, workflowInfo, withRandomStream, WorkflowInterceptors } from '@temporalio/workflow';
+import { getRandomStream, uuid4, workflowInfo, withRandomStream, WorkflowInterceptors } from '@temporalio/workflow';
 import type { WorkflowRandomStream } from '@temporalio/workflow';
 
 const pluginNamedStreamDoesNotConsumeMain = 'randomStreamPluginNamedStreamDoesNotConsumeMain';
@@ -8,6 +8,8 @@ const pluginActivationBaseline = 'randomStreamPluginActivationBaseline';
 const pluginActivationWithWorkflowInterference = 'randomStreamPluginActivationWithWorkflowInterference';
 const pluginScopedMathAcrossAwaitBaseline = 'randomStreamPluginScopedMathAcrossAwaitBaseline';
 const pluginScopedMathAcrossAwaitBeforeNext = 'randomStreamPluginScopedMathAcrossAwaitBeforeNext';
+const pluginScopedUuidAcrossAwaitBaseline = 'randomStreamPluginScopedUuidAcrossAwaitBaseline';
+const pluginScopedUuidAcrossAwaitBeforeNext = 'randomStreamPluginScopedUuidAcrossAwaitBeforeNext';
 const pluginScopedMathAroundNext = 'randomStreamPluginScopedMathAroundNext';
 const pluginScopedUuidAroundNext = 'randomStreamPluginScopedUuidAroundNext';
 const pluginOutboundTimerNamedStream = 'randomStreamPluginOutboundTimerNamedStream';
@@ -55,6 +57,19 @@ export const interceptors = (): WorkflowInterceptors => {
                 console.log('plugin-scoped', Math.random());
                 await Promise.resolve();
                 console.log('plugin-scoped', Math.random());
+              });
+              return next(input);
+            case pluginScopedUuidAcrossAwaitBaseline: {
+              const stream = getRandomStream('@temporalio/test/random-streams/plugin-scoped');
+              console.log('plugin-scoped-uuid', stream.uuid4());
+              console.log('plugin-scoped-uuid', stream.uuid4());
+              return next(input);
+            }
+            case pluginScopedUuidAcrossAwaitBeforeNext:
+              await withRandomStream('@temporalio/test/random-streams/plugin-scoped', async () => {
+                console.log('plugin-scoped-uuid', uuid4());
+                await Promise.resolve();
+                console.log('plugin-scoped-uuid', uuid4());
               });
               return next(input);
             default:

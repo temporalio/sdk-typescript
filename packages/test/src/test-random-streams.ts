@@ -252,6 +252,17 @@ test.serial('plugin-scoped randomness survives await and restores before next ru
   t.deepEqual(extractNumbers(logs, 'workflow'), workflowBaseline);
 });
 
+test.serial('plugin-scoped uuid4 survives await and restores before next runs', async (t) => {
+  const workflowBaseline = extractStrings(await driveWorkflow(t.context, 'randomStreamUuidBaselineWithSleep'), 'workflow-uuid');
+  const pluginBaseline = extractStrings(
+    await driveWorkflow(t.context, 'randomStreamPluginScopedUuidAcrossAwaitBaseline'),
+    'plugin-scoped-uuid'
+  );
+  const logs = await driveWorkflow(t.context, 'randomStreamPluginScopedUuidAcrossAwaitBeforeNext');
+  t.deepEqual(extractStrings(logs, 'plugin-scoped-uuid'), pluginBaseline);
+  t.deepEqual(extractStrings(logs, 'workflow-uuid'), workflowBaseline);
+});
+
 test.serial('plugin-scoped randomness around next does not perturb workflow Math.random', async (t) => {
   const baseline = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
   const logs = await driveWorkflow(t.context, 'randomStreamPluginScopedMathAroundNext');

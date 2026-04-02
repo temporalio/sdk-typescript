@@ -52,6 +52,14 @@ export async function randomStreamPluginScopedMathAcrossAwaitBeforeNext(): Promi
   await logWorkflowRandomAcrossActivation();
 }
 
+export async function randomStreamPluginScopedUuidAcrossAwaitBaseline(): Promise<void> {
+  await logWorkflowUuidAcrossActivation();
+}
+
+export async function randomStreamPluginScopedUuidAcrossAwaitBeforeNext(): Promise<void> {
+  await logWorkflowUuidAcrossActivation();
+}
+
 export async function randomStreamPluginScopedUuidAroundNext(): Promise<void> {
   await logWorkflowUuidAcrossActivation();
 }
