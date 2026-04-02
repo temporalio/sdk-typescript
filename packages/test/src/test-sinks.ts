@@ -137,6 +137,8 @@ if (RUN_INTEGRATION_TESTS) {
       typedSearchAttributes: { searchAttributes: {} } as unknown as TypedSearchAttributes,
       historyLength: 3,
       continueAsNewSuggested: false,
+      targetWorkerDeploymentVersionChanged: false,
+      suggestedContinueAsNewReasons: undefined,
       // values ignored for the purpose of comparison
       historySize,
       startTime,

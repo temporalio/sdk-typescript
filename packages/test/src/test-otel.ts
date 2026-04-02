@@ -12,11 +12,19 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
+import { Subject, firstValueFrom } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import type * as workflowImportStub from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports';
 import type * as workflowImportImpl from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports-impl';
-import { WorkflowClient, WithStartWorkflowOperation, WorkflowClientInterceptor, Client } from '@temporalio/client';
+import {
+  WorkflowClient,
+  WithStartWorkflowOperation,
+  WorkflowClientInterceptor,
+  Client,
+  Connection,
+} from '@temporalio/client';
 import { OpenTelemetryPlugin, OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry';
-import { instrument } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
+import { instrument, instrumentSync } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
@@ -38,7 +46,9 @@ import {
   Runtime,
 } from '@temporalio/worker';
 import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
+import { Info } from '@temporalio/activity';
 import * as activities from './activities';
+import { createActivities as createAsyncActivities } from './activities/async-completer';
 import { bundlerOptions, loadHistory, RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import * as workflows from './workflows';
 import { createTestWorkflowBundle } from './helpers-integration';
@@ -329,6 +339,44 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(exceptionEvents.length, 1);
   });
 
+  test('instrumentation: handles non-Error thrown values without crashing', (t) => {
+    const memoryExporter = new InMemorySpanExporter();
+    const provider = new BasicTracerProvider();
+    provider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
+    provider.register();
+    const tracer = provider.getTracer('test-non-error-tracer');
+
+    const cases: Array<{ thrown: unknown; expectedMessage: string }> = [
+      { thrown: undefined, expectedMessage: 'undefined' },
+      { thrown: null, expectedMessage: 'null' },
+      { thrown: 'some string error', expectedMessage: 'some string error' },
+      { thrown: { message: 'oops' }, expectedMessage: 'oops' },
+    ];
+
+    for (const { thrown } of cases) {
+      try {
+        instrumentSync({
+          tracer,
+          spanName: `test-thrown-${String(thrown)}`,
+          fn: () => {
+            throw thrown; // eslint-disable-line no-throw-literal
+          },
+        });
+        t.fail('expected instrumentSync to throw');
+      } catch {
+        // The original thrown value should propagate, not a TypeError
+      }
+    }
+
+    const spans = memoryExporter.getFinishedSpans();
+    t.is(spans.length, cases.length);
+
+    for (let i = 0; i < cases.length; i++) {
+      t.is(spans[i].status.code, SpanStatusCode.ERROR, `case ${i}: status code`);
+      t.is(spans[i].status.message, cases[i].expectedMessage, `case ${i}: message`);
+    }
+  });
+
   test('Otel workflow omits ApplicationError with BENIGN category', async (t) => {
     const memoryExporter = new InMemorySpanExporter();
     const provider = new BasicTracerProvider();
@@ -366,6 +414,53 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(spans[1].status.code, SpanStatusCode.UNSET);
     t.is(spans[1].status.message, 'benign');
     t.is(spans[2].status.code, SpanStatusCode.OK);
+  });
+
+  test('Otel activity span is not marked as error for CompleteAsyncError', async (t) => {
+    const memoryExporter = new InMemorySpanExporter();
+    const provider = new BasicTracerProvider();
+    provider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
+    provider.register();
+    const tracer = provider.getTracer('test-complete-async-tracer');
+
+    const infoSubject = new Subject<Info>();
+    const taskQueue = 'test-otel-complete-async';
+
+    const worker = await Worker.create({
+      workflowsPath: require.resolve('./workflows'),
+      activities: createAsyncActivities(infoSubject),
+      taskQueue,
+      interceptors: {
+        activity: [
+          (ctx) => {
+            return { inbound: new OpenTelemetryActivityInboundInterceptor(ctx, { tracer }) };
+          },
+        ],
+      },
+    });
+
+    const connection = await Connection.connect();
+    const client = new Client({ connection });
+    const workflowId = uuid4();
+
+    await worker.runUntil(async () => {
+      const handle = await client.workflow.start(workflows.runAnAsyncActivity, {
+        taskQueue,
+        workflowId,
+      });
+      const info = await firstValueFrom(infoSubject.pipe(filter((i) => i.workflowExecution.workflowId === workflowId)));
+      await client.activity.complete(info.taskToken, 'async-result');
+      t.is(await handle.result(), 'async-result');
+    });
+
+    const activitySpans = memoryExporter.getFinishedSpans().filter((s) => s.name.startsWith(SpanName.ACTIVITY_EXECUTE));
+    t.is(activitySpans.length, 1);
+
+    // CompleteAsyncError is control flow, not a real error
+    t.is(activitySpans[0].status.code, SpanStatusCode.OK);
+
+    const exceptionEvents = activitySpans[0].events.filter((event) => event.name === 'exception');
+    t.is(exceptionEvents.length, 0);
   });
 
   test('executeUpdateWithStart works correctly with OTEL interceptors', async (t) => {

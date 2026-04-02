@@ -82,7 +82,7 @@ import {
   RetryPolicy,
 } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+
 import { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
 import { Client } from '@temporalio/client';
 
@@ -91,28 +91,9 @@ export {
   ActivityInterface, // eslint-disable-line @typescript-eslint/no-deprecated
   ApplicationFailure,
   CancelledFailure,
+  CompleteAsyncError,
   UntypedActivities,
 } from '@temporalio/common';
-
-/**
- * Throw this error from an Activity in order to make the Worker forget about this Activity.
- *
- * The Activity can then be completed asynchronously (from anywhere—usually outside the Worker) using
- * {@link Client.activity}.
- *
- * @example
- *
- * ```ts
- *import { CompleteAsyncError } from '@temporalio/activity';
- *
- *export async function myActivity(): Promise<never> {
- *  // ...
- *  throw new CompleteAsyncError();
- *}
- * ```
- */
-@SymbolBasedInstanceOfError('CompleteAsyncError')
-export class CompleteAsyncError extends Error {}
 
 // Make it safe to use @temporalio/activity with multiple versions installed.
 const asyncLocalStorageSymbol = Symbol.for('__temporal_activity_context_storage__');

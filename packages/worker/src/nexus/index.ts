@@ -18,13 +18,14 @@ import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { Client } from '@temporalio/client';
 import { Logger } from '../logger';
-import { NexusInboundCallsInterceptor, NexusInterceptorsFactory, NexusOutboundCallsInterceptor } from '../interceptors';
 import {
-  coerceToHandlerError,
-  decodePayloadIntoLazyValue,
-  handlerErrorToProto,
-  operationErrorToProto,
-} from './conversions';
+  ExecuteNexusOperationCancelInput,
+  ExecuteNexusOperationStartInput,
+  NexusInboundCallsInterceptor,
+  NexusInterceptorsFactory,
+  NexusOutboundCallsInterceptor,
+} from '../interceptors';
+import { coerceToHandlerError, decodePayload, handlerErrorToProto, operationErrorToProto } from './conversions';
 
 const UNINITIALIZED = Symbol();
 
@@ -54,7 +55,7 @@ export class NexusHandler {
     public readonly context: nexus.OperationContext,
     public readonly client: Client,
     public readonly abortController: AbortController,
-    public readonly serviceRegistry: nexus.ServiceRegistry,
+    private readonly services: Map<string, nexus.ServiceHandler>,
     public readonly dataConverter: LoadedDataConverter,
     workerLogger: Logger,
     workerMetricMeter: MetricMeter,
@@ -96,17 +97,35 @@ export class NexusHandler {
     return composeInterceptors(this.interceptors.outbound, 'getMetricTags', (a) => a)(baseTags);
   }
 
+  private getOperationHandler(ctx: nexus.OperationContext): nexus.OperationHandler<unknown, unknown> {
+    const serviceHandler = this.services.get(ctx.service);
+    if (serviceHandler == null) {
+      throw new nexus.HandlerError('NOT_FOUND', `No service handler registered for service name '${ctx.service}'`);
+    }
+    return serviceHandler.getOperationHandler(ctx.operation);
+  }
+
   protected async startOperation(
     ctx: nexus.StartOperationContext,
     payload: Payload | undefined
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
-      const input = await decodePayloadIntoLazyValue(this.dataConverter, payload);
+      const handler = this.getOperationHandler(ctx);
+      const input = await decodePayload(this.dataConverter, payload);
 
-      const result = await this.invokeUserCode(
+      const executeNextHandler = async (interceptorInput: ExecuteNexusOperationStartInput) => {
+        const result = await this.invokeUserCode(
+          'startOperation',
+          handler.start.bind(handler, interceptorInput.ctx, interceptorInput.input)
+        );
+        return { result };
+      };
+      const executeWithInterceptors = composeInterceptors(
+        this.interceptors.inbound,
         'startOperation',
-        this.serviceRegistry.start.bind(this.serviceRegistry, ctx, input)
+        executeNextHandler
       );
+      const { result } = await executeWithInterceptors({ ctx, input });
 
       if (result.isAsync) {
         return {
@@ -156,7 +175,19 @@ export class NexusHandler {
     token: string
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
-      await this.invokeUserCode('cancelOperation', this.serviceRegistry.cancel.bind(this.serviceRegistry, ctx, token));
+      const handler = this.getOperationHandler(ctx);
+      const cancelNextHandler = async (interceptorInput: ExecuteNexusOperationCancelInput) => {
+        await this.invokeUserCode(
+          'cancelOperation',
+          handler.cancel.bind(handler, interceptorInput.ctx, interceptorInput.token)
+        );
+      };
+      const cancelWithInterceptors = composeInterceptors(
+        this.interceptors.inbound,
+        'cancelOperation',
+        cancelNextHandler
+      );
+      await cancelWithInterceptors({ ctx, token });
       return {
         taskToken: this.taskToken,
         completed: {

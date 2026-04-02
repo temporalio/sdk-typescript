@@ -3,16 +3,18 @@
  *
  * @module
  */
-import assert from 'assert';
 import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
 import { ExecutionContext } from 'ava';
-import { Client } from '@temporalio/client';
+import { Client, WorkflowHandleWithFirstExecutionRunId } from '@temporalio/client';
 import { toCanonicalString, WorkerDeploymentVersion } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
+import { WorkerOptions } from '@temporalio/worker';
 import { Worker } from './helpers';
 import { Context, helpers, makeTestFunction } from './helpers-integration';
 import { unblockSignal, versionQuery } from './workflows';
+
+type WorkerDeploymentOptions = NonNullable<WorkerOptions['workerDeploymentOptions']>;
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
@@ -94,7 +96,7 @@ test('Worker deployment based versioning', async (t) => {
     workflowId: 'deployment-versioning-v1-' + randomUUID(),
   });
   const state1 = await wf1.query(versionQuery);
-  assert.equal(state1, 'v1');
+  t.is(state1, 'v1');
 
   // Wait for worker 2 to be visible and set as current version
   const describeResp2 = await waitUntilWorkerDeploymentVisible(client, w2DeploymentVersion);
@@ -106,7 +108,7 @@ test('Worker deployment based versioning', async (t) => {
     workflowId: 'deployment-versioning-v2-' + randomUUID(),
   });
   const state2 = await wf2.query(versionQuery);
-  assert.equal(state2, 'v2');
+  t.is(state2, 'v2');
 
   // Wait for worker 3 to be visible and set as current version
   const describeResp3 = await waitUntilWorkerDeploymentVisible(client, w3DeploymentVersion);
@@ -118,7 +120,7 @@ test('Worker deployment based versioning', async (t) => {
     workflowId: 'deployment-versioning-v3-' + randomUUID(),
   });
   const state3 = await wf3.query(versionQuery);
-  assert.equal(state3, 'v3');
+  t.is(state3, 'v3');
 
   // Signal all workflows to finish
   await wf1.signal(unblockSignal);
@@ -129,9 +131,9 @@ test('Worker deployment based versioning', async (t) => {
   const res2 = await wf2.result();
   const res3 = await wf3.result();
 
-  assert.equal(res1, 'version-v3');
-  assert.equal(res2, 'version-v2');
-  assert.equal(res3, 'version-v3');
+  t.is(res1, 'version-v3');
+  t.is(res2, 'version-v2');
+  t.is(res3, 'version-v3');
 
   worker1.shutdown();
   worker2.shutdown();
@@ -139,7 +141,6 @@ test('Worker deployment based versioning', async (t) => {
   await worker1Promise;
   await worker2Promise;
   await worker3Promise;
-  t.pass();
 });
 
 test('Worker deployment based versioning with ramping', async (t) => {
@@ -205,7 +206,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
     });
     await wf.signal(unblockSignal);
     const res = await wf.result();
-    assert.equal(res, 'version-v2');
+    t.is(res, 'version-v2');
   }
 
   // Set ramp to 0, expecting workflows to run on v1
@@ -217,7 +218,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
     });
     await wf.signal(unblockSignal);
     const res = await wf.result();
-    assert.equal(res, 'version-v1');
+    t.is(res, 'version-v1');
   }
 
   // Set ramp to 50 and eventually verify workflows run on both versions
@@ -257,7 +258,7 @@ async function testWorkerDeploymentWithDynamicBehavior(
   expectedResult: string
 ) {
   if (t.context.env.supportsTimeSkipping) {
-    t.pass("Test Server doesn't support worker deployments");
+    t.fail("Test Server doesn't support worker deployments");
     return;
   }
 
@@ -295,7 +296,7 @@ async function testWorkerDeploymentWithDynamicBehavior(
   });
 
   const result = await wf.result();
-  assert.equal(result, expectedResult);
+  t.is(result, expectedResult);
 
   const history = await wf.fetchHistory();
   const hasPinnedVersioningBehavior = history.events!.some(
@@ -304,11 +305,10 @@ async function testWorkerDeploymentWithDynamicBehavior(
       event.workflowTaskCompletedEventAttributes.versioningBehavior ===
         temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
   );
-  assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
+  t.true(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
 
   worker.shutdown();
   await workerPromise;
-  t.pass();
 }
 
 test('Worker deployment with dynamic workflow static behavior', async (t) => {
@@ -362,11 +362,10 @@ test('Workflows can use default versioning behavior', async (t) => {
       event.workflowTaskCompletedEventAttributes.versioningBehavior ===
         temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED
   );
-  assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
+  t.true(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
 
   worker.shutdown();
   await workerPromise;
-  t.pass();
 });
 
 test('Workflow versioningOverride overrides default versioning behavior', async (t) => {
@@ -406,7 +405,7 @@ test('Workflow versioningOverride overrides default versioning behavior', async 
     },
   });
   const statePinned = await wfPinned.query(versionQuery);
-  assert.equal(statePinned, 'v1');
+  t.is(statePinned, 'v1');
 
   await wfPinned.signal(unblockSignal);
 
@@ -418,14 +417,13 @@ test('Workflow versioningOverride overrides default versioning behavior', async 
         temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED ||
       event.workflowExecutionStartedEventAttributes?.versioningOverride?.pinned != null
   );
-  assert.ok(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
+  t.true(hasPinnedVersioningBehavior, 'Expected workflow to use pinned versioning behavior');
 
   const resPinned = await wfPinned.result();
-  assert.equal(resPinned, 'version-v1');
+  t.is(resPinned, 'version-v1');
 
   worker1.shutdown();
   await worker1Promise;
-  t.pass();
 });
 
 async function setRampingVersion(
@@ -474,3 +472,214 @@ async function setCurrentDeploymentVersion(
     conflictToken,
   });
 }
+
+async function waitForWorkflowRunningOnVersion(
+  client: Client,
+  handle: WorkflowHandleWithFirstExecutionRunId,
+  expectedBuildId: string
+) {
+  return await asyncRetry(
+    async () => {
+      const desc = await client.workflowService.describeWorkflowExecution({
+        namespace: client.options.namespace,
+        execution: { workflowId: handle.workflowId, runId: handle.firstExecutionRunId },
+      });
+      const status = desc.workflowExecutionInfo?.status;
+      if (status !== temporal.api.enums.v1.WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING) {
+        throw new Error(`Workflow not running yet, status: ${status}`);
+      }
+      const buildId = desc.workflowExecutionInfo?.versioningInfo?.deploymentVersion?.buildId;
+      if (buildId !== expectedBuildId) {
+        throw new Error(`Workflow on ${buildId}, expected ${expectedBuildId}`);
+      }
+    },
+    { maxTimeout: 1000, retries: 10 }
+  );
+}
+
+async function waitForRoutingConfigPropagation(
+  client: Client,
+  deploymentName: string,
+  expectedCurrentBuildId: string,
+  expectedRampingBuildId?: string
+) {
+  return await asyncRetry(
+    async () => {
+      const resp = await client.workflowService.describeWorkerDeployment({
+        namespace: client.options.namespace,
+        deploymentName,
+      });
+      const routingConfig = resp.workerDeploymentInfo?.routingConfig;
+      const currentBuildId = routingConfig?.currentDeploymentVersion?.buildId;
+      const rampingBuildId = routingConfig?.rampingDeploymentVersion?.buildId;
+
+      if (currentBuildId !== expectedCurrentBuildId) {
+        throw new Error(`Current version ${currentBuildId}, expected ${expectedCurrentBuildId}`);
+      }
+      if (rampingBuildId !== expectedRampingBuildId) {
+        throw new Error(`Ramping version ${rampingBuildId}, expected ${expectedRampingBuildId}`);
+      }
+
+      const state = resp.workerDeploymentInfo?.routingConfigUpdateState;
+      if (state === temporal.api.enums.v1.RoutingConfigUpdateState.ROUTING_CONFIG_UPDATE_STATE_IN_PROGRESS) {
+        throw new Error('Routing config update still in progress');
+      }
+    },
+    { maxTimeout: 1000, retries: 10 }
+  );
+}
+
+test('ContinueAsNew with version upgrade', async (t) => {
+  const taskQueue = 'can-version-upgrade-' + randomUUID();
+  const deploymentName = 'deployment-can-' + randomUUID();
+  const { client, nativeConnection } = t.context.env;
+  const { createNativeConnection } = helpers(t);
+
+  const v1 = { buildId: '1.0', deploymentName };
+  const v2 = { buildId: '2.0', deploymentName };
+
+  // Create worker v1 (pinned, with CAN logic)
+  const worker1 = await Worker.create({
+    workflowsPath: require.resolve('./deployment-versioning-can-v1'),
+    taskQueue,
+    workerDeploymentOptions: {
+      useWorkerVersioning: true,
+      version: v1,
+      defaultVersioningBehavior: 'PINNED',
+    },
+    connection: nativeConnection,
+  });
+  const worker1Promise = worker1.run();
+  worker1Promise.catch((err) => t.fail('Worker 1.0 error: ' + err));
+
+  // Create worker v2 (just returns v2.0)
+  const worker2Connection = await createNativeConnection();
+  t.teardown(() => worker2Connection.close());
+  const worker2 = await Worker.create({
+    workflowsPath: require.resolve('./deployment-versioning-can-v2'),
+    taskQueue,
+    workerDeploymentOptions: {
+      useWorkerVersioning: true,
+      version: v2,
+      defaultVersioningBehavior: 'PINNED',
+    },
+    connection: worker2Connection,
+  });
+  const worker2Promise = worker2.run();
+  worker2Promise.catch((err) => t.fail('Worker 2.0 error: ' + err));
+
+  // Wait for v1, set as current
+  const describeResp1 = await waitUntilWorkerDeploymentVisible(client, v1);
+  const setResp1 = await setCurrentDeploymentVersion(client, describeResp1.conflictToken, v1);
+
+  // Wait for v1 routing config to propagate
+  await waitForRoutingConfigPropagation(client, deploymentName, v1.buildId);
+
+  // Start workflow on v1
+  const handle = await client.workflow.start('continueAsNewWithVersionUpgrade', {
+    args: [0],
+    taskQueue,
+    workflowId: 'can-version-upgrade-' + randomUUID(),
+  });
+
+  // Wait for workflow to be running on v1
+  await waitForWorkflowRunningOnVersion(client, handle, v1.buildId);
+
+  // Wait for v2 to be visible, set as current
+  await waitUntilWorkerDeploymentVisible(client, v2);
+  await setCurrentDeploymentVersion(client, setResp1.conflictToken, v2);
+
+  // Wait for v2 routing config to propagate
+  await waitForRoutingConfigPropagation(client, deploymentName, v2.buildId);
+
+  // Expect workflow to CAN to v2 and return 'v2.0'
+  const result = await handle.result();
+  t.is(result, 'v2.0');
+
+  worker1.shutdown();
+  worker2.shutdown();
+  await worker1Promise;
+  await worker2Promise;
+});
+
+///////////////////////////////
+
+/**
+ * Type-level tests for WorkerDeploymentOptions.
+ *
+ * Ensures that:
+ * - When useWorkerVersioning is true, defaultVersioningBehavior is required
+ * - When useWorkerVersioning is false, defaultVersioningBehavior must be absent
+ * - version is always required
+ */
+
+test('Worker with deployment options and useWorkerVersioning false can run workflows', async (t) => {
+  const taskQueue = 'versioning-off-with-build-id-' + randomUUID();
+  const buildId = 'my-custom-build-id-1.0';
+  const { client, nativeConnection } = t.context.env;
+
+  const worker = await Worker.create({
+    workflowsPath: require.resolve('./workflows'),
+    taskQueue,
+    workerDeploymentOptions: {
+      useWorkerVersioning: false,
+      version: {
+        buildId,
+        deploymentName: 'deployment-' + randomUUID(),
+      },
+    },
+    connection: nativeConnection,
+  });
+
+  const handle = await client.workflow.start('successString', {
+    taskQueue,
+    workflowId: 'versioning-off-build-id-' + randomUUID(),
+  });
+
+  await worker.runUntil(handle.result());
+  t.is(await handle.result(), 'success');
+
+  const history = await handle.fetchHistory();
+  const buildIdInHistory = history.events!.some(
+    (event) => event.workflowTaskCompletedEventAttributes?.workerVersion?.buildId === buildId
+  );
+  t.true(buildIdInHistory, 'Expected build ID to appear in workflow history');
+});
+
+test('WorkerDeploymentOptions with useWorkerVersioning true requires defaultVersioningBehavior', (t) => {
+  const valid: WorkerDeploymentOptions = {
+    version: { buildId: '1.0', deploymentName: 'my-deployment' },
+    useWorkerVersioning: true,
+    defaultVersioningBehavior: 'AUTO_UPGRADE',
+  };
+
+  const validPinned: WorkerDeploymentOptions = {
+    version: { buildId: '1.0', deploymentName: 'my-deployment' },
+    useWorkerVersioning: true,
+    defaultVersioningBehavior: 'PINNED',
+  };
+
+  // @ts-expect-error defaultVersioningBehavior is required when useWorkerVersioning is true
+  const missingBehavior: WorkerDeploymentOptions = {
+    version: { buildId: '1.0', deploymentName: 'my-deployment' },
+    useWorkerVersioning: true,
+  };
+
+  t.pass();
+});
+
+test('WorkerDeploymentOptions with useWorkerVersioning false does not allow defaultVersioningBehavior', (t) => {
+  const _validNoVersioning: WorkerDeploymentOptions = {
+    version: { buildId: '1.0', deploymentName: 'my-deployment' },
+    useWorkerVersioning: false,
+  };
+
+  const invalidWithBehavior: WorkerDeploymentOptions = {
+    version: { buildId: '1.0', deploymentName: 'my-deployment' },
+    useWorkerVersioning: false,
+    // @ts-expect-error defaultVersioningBehavior must not be specified when useWorkerVersioning is false
+    defaultVersioningBehavior: 'AUTO_UPGRADE',
+  };
+
+  t.pass();
+});

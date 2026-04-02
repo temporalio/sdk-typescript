@@ -28,6 +28,7 @@ minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
+  - handlebars
 
 peerDependencyRules:
   ignoreMissing:
@@ -43,3 +44,4 @@ overrides:
   tar: '>=7.5.10'
   'minimatch@>=7.0.0 <7.4.8': '>=7.4.8'
   serialize-javascript: '>=7.0.3'
+  handlebars: '>=4.7.9'
