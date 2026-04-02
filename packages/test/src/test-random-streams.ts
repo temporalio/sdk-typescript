@@ -241,6 +241,17 @@ test.serial('plugin named streams preserve state across activations', async (t) 
   t.deepEqual(actual, baseline);
 });
 
+test.serial('plugin-scoped randomness around internals next does not perturb workflow Math.random', async (t) => {
+  const workflowBaseline = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
+  const pluginBaseline = extractNumbers(
+    await driveWorkflow(t.context, 'randomStreamPluginInternalsScopedBaseline'),
+    'plugin-internals-scoped'
+  );
+  const logs = await driveWorkflow(t.context, 'randomStreamPluginInternalsScopedWithWorkflowInterference');
+  t.deepEqual(extractNumbers(logs, 'plugin-internals-scoped'), pluginBaseline);
+  t.deepEqual(extractNumbers(logs, 'workflow'), workflowBaseline);
+});
+
 test.serial('plugin-scoped randomness survives await and restores before next runs', async (t) => {
   const workflowBaseline = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
   const pluginBaseline = extractNumbers(
@@ -265,15 +276,23 @@ test.serial('plugin-scoped uuid4 survives await and restores before next runs', 
 
 test.serial('plugin-scoped randomness around next does not perturb workflow Math.random', async (t) => {
   const baseline = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
+  const pluginBaseline = extractNumbers(
+    await driveWorkflow(t.context, 'randomStreamPluginScopedMathAcrossAwaitBaseline'),
+    'plugin-scoped'
+  );
   const logs = await driveWorkflow(t.context, 'randomStreamPluginScopedMathAroundNext');
-  t.is(extractNumbers(logs, 'plugin-scoped').length, 2);
+  t.deepEqual(extractNumbers(logs, 'plugin-scoped'), pluginBaseline);
   t.deepEqual(extractNumbers(logs, 'workflow'), baseline);
 });
 
 test.serial('plugin-scoped randomness around next does not perturb workflow uuid4', async (t) => {
   const baseline = extractStrings(await driveWorkflow(t.context, 'randomStreamUuidBaselineWithSleep'), 'workflow-uuid');
+  const pluginBaseline = extractStrings(
+    await driveWorkflow(t.context, 'randomStreamPluginScopedUuidAcrossAwaitBaseline'),
+    'plugin-scoped-uuid'
+  );
   const logs = await driveWorkflow(t.context, 'randomStreamPluginScopedUuidAroundNext');
-  t.is(extractNumbers(logs, 'plugin-scoped').length, 2);
+  t.deepEqual(extractStrings(logs, 'plugin-scoped-uuid'), pluginBaseline);
   t.deepEqual(extractStrings(logs, 'workflow-uuid'), baseline);
 });
 

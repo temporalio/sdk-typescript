@@ -40,6 +40,14 @@ export async function randomStreamPluginActivationWithWorkflowInterference(): Pr
   await logWorkflowRandomAcrossActivation();
 }
 
+export async function randomStreamPluginInternalsScopedBaseline(): Promise<void> {
+  await sleep(1);
+}
+
+export async function randomStreamPluginInternalsScopedWithWorkflowInterference(): Promise<void> {
+  await logWorkflowRandomAcrossActivation();
+}
+
 export async function randomStreamPluginScopedMathAroundNext(): Promise<void> {
   await logWorkflowRandomAcrossActivation();
 }

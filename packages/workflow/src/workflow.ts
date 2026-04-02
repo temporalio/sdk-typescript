@@ -33,11 +33,11 @@ import {
 } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
 import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
 import { deepMerge } from '@temporalio/common/lib/internal-workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
+import { composeInterceptors } from './interceptor-composition';
 import { UpdateScope } from './update-scope';
 import {
   ActivityInput,

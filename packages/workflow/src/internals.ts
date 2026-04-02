@@ -30,7 +30,6 @@ import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';
 import {
@@ -40,6 +39,7 @@ import {
 } from '@temporalio/common/lib/reserved';
 import { alea, deriveAleaSeed, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
+import { composeInterceptors } from './interceptor-composition';
 import { AsyncLocalStorage, UpdateScope } from './update-scope';
 import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
 import {
@@ -436,7 +436,7 @@ export class Activator implements ActivationHandler {
    */
   public readonly namedRandomStreams = new Map<string, RNG>();
 
-  protected currentRandomStorage?: ALS<ScopedWorkflowRandomSource>;
+  protected currentRandomStorage?: ALS<ScopedWorkflowRandomSource | undefined>;
 
   public payloadConverter: PayloadConverter = defaultPayloadConverter;
   public failureConverter: FailureConverter = defaultFailureConverter;
@@ -516,8 +516,20 @@ export class Activator implements ActivationHandler {
     return random;
   }
 
+  protected withRandomSource<T>(randomSource: ScopedWorkflowRandomSource | undefined, fn: () => T): T {
+    return (this.currentRandomStorage ??= new AsyncLocalStorage<ScopedWorkflowRandomSource | undefined>()).run(
+      randomSource,
+      fn
+    );
+  }
+
   public withCurrentRandom<T>(randomSource: ScopedWorkflowRandomSource, fn: () => T): T {
-    return (this.currentRandomStorage ??= new AsyncLocalStorage<ScopedWorkflowRandomSource>()).run(randomSource, fn);
+    return this.withRandomSource(randomSource, fn);
+  }
+
+  public bindCurrentRandom<T extends (...args: any[]) => any>(fn: T): T {
+    const randomSource = this.currentRandomStorage?.getStore();
+    return (((...args: Parameters<T>) => this.withRandomSource(randomSource, () => fn(...args))) as unknown) as T;
   }
 
   public currentRandom(): number {
