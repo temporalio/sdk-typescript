@@ -16,6 +16,14 @@ interface Context {
   nextRunNumber: number;
 }
 
+interface DriveWorkflowOptions {
+  randomnessSeed?: number[];
+  makeTimerActivationJobs?: (
+    startedTimers: number[],
+    timerActivationIndex: number
+  ) => coresdk.workflow_activation.IWorkflowActivationJob[];
+}
+
 type TestWorkflow = VMWorkflow | ReusableVMWorkflow;
 
 const test = anyTest as TestFn<Context>;
@@ -84,6 +92,21 @@ function makeStartWorkflow(runId: string, workflowType: string): coresdk.workflo
   });
 }
 
+function getActivationJobPriority(job: coresdk.workflow_activation.IWorkflowActivationJob): number {
+  if (job.initializeWorkflow) return 0;
+  if (job.notifyHasPatch) return 1;
+  if (job.updateRandomSeed) return 2;
+  if (job.signalWorkflow || job.doUpdate) return 3;
+  if (job.resolveActivity?.isLocal) return 5;
+  return 4;
+}
+
+function sortActivationJobs(
+  jobs: coresdk.workflow_activation.IWorkflowActivationJob[]
+): coresdk.workflow_activation.IWorkflowActivationJob[] {
+  return [...jobs].sort((left, right) => getActivationJobPriority(left) - getActivationJobPriority(right));
+}
+
 function extractNumbers(logs: unknown[][], label: string): number[] {
   return logs
     .filter((entry) => entry[0] === label)
@@ -108,7 +131,11 @@ function extractStrings(logs: unknown[][], label: string): string[] {
     });
 }
 
-async function createWorkflow(t: Context, workflowType: string): Promise<{ runId: string; logs: unknown[][]; workflow: TestWorkflow }> {
+async function createWorkflow(
+  t: Context,
+  workflowType: string,
+  { randomnessSeed = Long.fromInt(1337).toBytes() }: Pick<DriveWorkflowOptions, 'randomnessSeed'> = {}
+): Promise<{ runId: string; logs: unknown[][]; workflow: TestWorkflow }> {
   const { workflowCreator } = t;
   const runId = `random-stream-test-${t.nextRunNumber++}-${workflowType}`;
   const logs: unknown[][] = [];
@@ -133,19 +160,20 @@ async function createWorkflow(t: Context, workflowType: string): Promise<{ runId
       startTime: new Date(),
       runStartTime: new Date(),
     },
-    randomnessSeed: Long.fromInt(1337).toBytes(),
+    randomnessSeed,
     now: Date.now(),
     showStackTraceSources: true,
   })) as TestWorkflow;
   return { runId, logs, workflow };
 }
 
-async function driveWorkflow(t: Context, workflowType: string): Promise<unknown[][]> {
-  const { runId, logs, workflow } = await createWorkflow(t, workflowType);
+async function driveWorkflow(t: Context, workflowType: string, options: DriveWorkflowOptions = {}): Promise<unknown[][]> {
+  const { runId, logs, workflow } = await createWorkflow(t, workflowType, options);
   try {
     let completion = await workflow.activate(
       coresdk.workflow_activation.WorkflowActivation.fromObject(makeStartWorkflow(runId, workflowType))
     );
+    let timerActivationIndex = 0;
 
     for (;;) {
       if (completion.failed) {
@@ -165,9 +193,12 @@ async function driveWorkflow(t: Context, workflowType: string): Promise<unknown[
           makeActivation(
             runId,
             Date.now(),
-            ...startedTimers.map((seq) => ({
-              fireTimer: { seq },
-            }))
+            ...sortActivationJobs([
+              ...(options.makeTimerActivationJobs?.(startedTimers, timerActivationIndex++) ?? []),
+              ...startedTimers.map((seq) => ({
+                fireTimer: { seq },
+              })),
+            ])
           )
         )
       );
@@ -229,4 +260,24 @@ test.serial('plugin named streams in outbound interceptors do not perturb workfl
   const logs = await driveWorkflow(t.context, 'randomStreamPluginOutboundTimerNamedStream');
   t.is(extractNumbers(logs, 'plugin-outbound').length, 1);
   t.deepEqual(extractNumbers(logs, 'workflow'), baseline);
+});
+
+test.serial('plugin cached named streams are reseeded when core updates the workflow random seed', async (t) => {
+  const updatedRandomnessSeed = Long.fromInt(7331);
+  const expected = extractNumbers(
+    await driveWorkflow(t.context, 'randomStreamPluginCachedStreamSingleActivation', {
+      randomnessSeed: updatedRandomnessSeed.toBytes(),
+    }),
+    'plugin-conclude'
+  );
+  const actual = extractNumbers(
+    await driveWorkflow(t.context, 'randomStreamPluginCachedStreamAcrossActivations', {
+      makeTimerActivationJobs: (_startedTimers, timerActivationIndex) =>
+        timerActivationIndex === 0 ? [{ updateRandomSeed: { randomnessSeed: updatedRandomnessSeed } }] : [],
+    }),
+    'plugin-conclude'
+  );
+
+  t.is(actual.length, 2);
+  t.deepEqual(actual[1], expected[0]);
 });

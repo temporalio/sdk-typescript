@@ -422,7 +422,7 @@ export class Activator implements ActivationHandler {
   /**
    * The current seed material for this workflow execution's deterministic RNGs.
    */
-  public readonly randomnessSeed: number[];
+  public randomnessSeed: number[];
 
   /**
    * Additional deterministic RNG streams keyed by stable stream name.
@@ -488,6 +488,12 @@ export class Activator implements ActivationHandler {
     this.random = alea(this.randomnessSeed);
     this.registeredActivityNames = registeredActivityNames;
     this.stackTracesEnabled = stackTracesEnabled;
+  }
+
+  protected setRandomnessSeed(randomnessSeed: number[]): void {
+    this.randomnessSeed = [...randomnessSeed];
+    this.random = alea(this.randomnessSeed);
+    this.namedRandomStreams.clear();
   }
 
   public getNamedRandom(name: string): RNG {
@@ -1094,7 +1100,7 @@ export class Activator implements ActivationHandler {
     if (!activation.randomnessSeed) {
       throw new TypeError('Expected activation with randomnessSeed attribute');
     }
-    this.random = alea(activation.randomnessSeed.toBytes());
+    this.setRandomnessSeed(activation.randomnessSeed.toBytes());
   }
 
   public notifyHasPatch(activation: coresdk.workflow_activation.INotifyHasPatch): void {

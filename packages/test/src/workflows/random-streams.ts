@@ -51,3 +51,11 @@ export async function randomStreamPluginScopedUuidAroundNext(): Promise<void> {
 export async function randomStreamPluginOutboundTimerNamedStream(): Promise<void> {
   await logWorkflowRandomAcrossActivation();
 }
+
+export async function randomStreamPluginCachedStreamSingleActivation(): Promise<void> {
+  // Intentionally empty: plugin concludeActivation behavior is the test surface.
+}
+
+export async function randomStreamPluginCachedStreamAcrossActivations(): Promise<void> {
+  await sleep(1);
+}
