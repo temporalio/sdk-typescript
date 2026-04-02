@@ -53,13 +53,8 @@
     "@temporalio/testing": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "@temporalio/workflow": "workspace:*",
-    "nexus-rpc": "^0.0.1",
+    "nexus-rpc": "^0.0.2",
     "temporalio": "file:packages/meta"
-  },
-  "pnpm": {
-    "overrides": {
-      "nexus-rpc": "github:nexus-rpc/sdk-typescript#amazzeo/error-serialization-staged"
-    }
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.0",

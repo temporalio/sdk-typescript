@@ -16,7 +16,7 @@
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/worker": "workspace:*",
-    "nexus-rpc": "^0.0.1"
+    "nexus-rpc": "^0.0.2"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
