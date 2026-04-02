@@ -17,7 +17,6 @@ import { encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { Client } from '@temporalio/client';
-import { uuid4 } from '@temporalio/workflow';
 import { Logger } from '../logger';
 import {
   ExecuteNexusOperationCancelInput,
@@ -236,10 +235,13 @@ export class NexusHandler {
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     if (task.request?.startOperation != null) {
       const variant = task.request?.startOperation;
+      if (!variant.requestId) {
+        throw new IllegalStateError('Missing requestId in Nexus start operation request');
+      }
       return await this.startOperation(
         {
           ...this.context,
-          requestId: variant.requestId ?? uuid4(),
+          requestId: variant.requestId,
           inboundLinks: (variant.links ?? []).map(protoLinkToNexusLink),
           callbackUrl: variant.callback ?? undefined,
           callbackHeaders: variant.callbackHeader ?? undefined,
