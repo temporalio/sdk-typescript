@@ -241,6 +241,17 @@ test.serial('plugin named streams preserve state across activations', async (t) 
   t.deepEqual(actual, baseline);
 });
 
+test.serial('plugin-scoped randomness survives await and restores before next runs', async (t) => {
+  const workflowBaseline = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
+  const pluginBaseline = extractNumbers(
+    await driveWorkflow(t.context, 'randomStreamPluginScopedMathAcrossAwaitBaseline'),
+    'plugin-scoped'
+  );
+  const logs = await driveWorkflow(t.context, 'randomStreamPluginScopedMathAcrossAwaitBeforeNext');
+  t.deepEqual(extractNumbers(logs, 'plugin-scoped'), pluginBaseline);
+  t.deepEqual(extractNumbers(logs, 'workflow'), workflowBaseline);
+});
+
 test.serial('plugin-scoped randomness around next does not perturb workflow Math.random', async (t) => {
   const baseline = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
   const logs = await driveWorkflow(t.context, 'randomStreamPluginScopedMathAroundNext');

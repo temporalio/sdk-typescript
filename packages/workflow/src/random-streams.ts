@@ -1,5 +1,3 @@
-import { IllegalStateError } from '@temporalio/common';
-
 import { assertInWorkflowContext } from './global-attributes';
 import type { Activator } from './internals';
 import { fillWithRandom, uuid4FromRandom } from './random-helpers';
@@ -38,7 +36,7 @@ export function getRandomStream(name: string): WorkflowRandomStream {
   return new ActivatorRandomStream(activator, name);
 }
 
-export function withRandomStream<T>(_name: string, _fn: () => T): T {
-  assertInWorkflowContext('Workflow.withRandomStream(...) may only be used from workflow context.');
-  throw new IllegalStateError('TODO: Workflow.withRandomStream(...) is not implemented yet');
+export function withRandomStream<T>(name: string, fn: () => T): T {
+  const activator = assertInWorkflowContext('Workflow.withRandomStream(...) may only be used from workflow context.');
+  return activator.withCurrentRandom(new ActivatorRandomStream(activator, name), fn);
 }

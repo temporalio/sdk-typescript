@@ -103,6 +103,6 @@ export function overrideGlobals(): void {
     }
   };
 
-  // activator.random is mutable, don't hardcode its reference
-  Math.random = () => getActivator().random();
+  // currentRandom() dispatches to a scoped stream when withRandomStream(...) is active.
+  Math.random = () => getActivator().currentRandom();
 }

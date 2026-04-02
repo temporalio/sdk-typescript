@@ -6,6 +6,8 @@ const pluginNamedStreamNamespaceBaseline = 'randomStreamPluginNamedStreamNamespa
 const pluginNamedStreamNamespaceIsolation = 'randomStreamPluginNamedStreamNamespaceIsolation';
 const pluginActivationBaseline = 'randomStreamPluginActivationBaseline';
 const pluginActivationWithWorkflowInterference = 'randomStreamPluginActivationWithWorkflowInterference';
+const pluginScopedMathAcrossAwaitBaseline = 'randomStreamPluginScopedMathAcrossAwaitBaseline';
+const pluginScopedMathAcrossAwaitBeforeNext = 'randomStreamPluginScopedMathAcrossAwaitBeforeNext';
 const pluginScopedMathAroundNext = 'randomStreamPluginScopedMathAroundNext';
 const pluginScopedUuidAroundNext = 'randomStreamPluginScopedUuidAroundNext';
 const pluginOutboundTimerNamedStream = 'randomStreamPluginOutboundTimerNamedStream';
@@ -42,6 +44,19 @@ export const interceptors = (): WorkflowInterceptors => {
               console.log('plugin-a', stream.random());
               return next(input);
             }
+            case pluginScopedMathAcrossAwaitBaseline: {
+              const stream = getRandomStream('@temporalio/test/random-streams/plugin-scoped');
+              console.log('plugin-scoped', stream.random());
+              console.log('plugin-scoped', stream.random());
+              return next(input);
+            }
+            case pluginScopedMathAcrossAwaitBeforeNext:
+              await withRandomStream('@temporalio/test/random-streams/plugin-scoped', async () => {
+                console.log('plugin-scoped', Math.random());
+                await Promise.resolve();
+                console.log('plugin-scoped', Math.random());
+              });
+              return next(input);
             default:
               break;
           }

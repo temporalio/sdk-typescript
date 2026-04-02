@@ -1,3 +1,4 @@
+import type { AsyncLocalStorage as ALS } from 'node:async_hooks';
 import type { RawSourceMap } from 'source-map';
 import {
   defaultFailureConverter,
@@ -39,7 +40,7 @@ import {
 } from '@temporalio/common/lib/reserved';
 import { alea, deriveAleaSeed, RNG } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
-import { UpdateScope } from './update-scope';
+import { AsyncLocalStorage, UpdateScope } from './update-scope';
 import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
 import {
   QueryInput,
@@ -134,6 +135,10 @@ interface MessageHandlerExecution {
 }
 
 type InferMapValue<T> = T extends Map<number, infer V> ? V : never;
+
+interface ScopedWorkflowRandomSource {
+  random(): number;
+}
 
 /**
  * Keeps all of the Workflow runtime state like pending completions for activities and timers.
@@ -415,7 +420,9 @@ export class Activator implements ActivationHandler {
   public info: WorkflowInfo;
 
   /**
-   * A deterministic RNG, used by the isolate's overridden Math.random
+   * The main deterministic RNG for this workflow execution.
+   *
+   * Scoped overrides used by `withRandomStream(...)` are layered on top of this RNG.
    */
   public random: RNG;
 
@@ -428,6 +435,8 @@ export class Activator implements ActivationHandler {
    * Additional deterministic RNG streams keyed by stable stream name.
    */
   public readonly namedRandomStreams = new Map<string, RNG>();
+
+  protected currentRandomStorage?: ALS<ScopedWorkflowRandomSource>;
 
   public payloadConverter: PayloadConverter = defaultPayloadConverter;
   public failureConverter: FailureConverter = defaultFailureConverter;
@@ -505,6 +514,14 @@ export class Activator implements ActivationHandler {
     const random = alea(deriveAleaSeed(this.randomnessSeed, name));
     this.namedRandomStreams.set(name, random);
     return random;
+  }
+
+  public withCurrentRandom<T>(randomSource: ScopedWorkflowRandomSource, fn: () => T): T {
+    return (this.currentRandomStorage ??= new AsyncLocalStorage<ScopedWorkflowRandomSource>()).run(randomSource, fn);
+  }
+
+  public currentRandom(): number {
+    return this.currentRandomStorage?.getStore()?.random() ?? this.random();
   }
 
   /**
