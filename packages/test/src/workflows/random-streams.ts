@@ -1,9 +1,15 @@
-import { sleep, uuid4 } from '@temporalio/workflow';
+import { sleep, uuid4, workflowRandom } from '@temporalio/workflow';
 
 async function logWorkflowRandomAcrossActivation(): Promise<void> {
   console.log('workflow', Math.random());
   await sleep(1);
   console.log('workflow', Math.random());
+}
+
+async function logWorkflowRandomStreamAcrossActivation(): Promise<void> {
+  console.log('workflow-default', workflowRandom.random());
+  await sleep(1);
+  console.log('workflow-default', workflowRandom.random());
 }
 
 async function logWorkflowUuidAcrossActivation(): Promise<void> {
@@ -18,6 +24,10 @@ export async function randomStreamMainBaselineWithSleep(): Promise<void> {
 
 export async function randomStreamUuidBaselineWithSleep(): Promise<void> {
   await logWorkflowUuidAcrossActivation();
+}
+
+export async function randomStreamWorkflowRandomBaselineWithSleep(): Promise<void> {
+  await logWorkflowRandomStreamAcrossActivation();
 }
 
 export async function randomStreamPluginNamedStreamDoesNotConsumeMain(): Promise<void> {
@@ -58,6 +68,10 @@ export async function randomStreamPluginScopedMathAcrossAwaitBaseline(): Promise
 
 export async function randomStreamPluginScopedMathAcrossAwaitBeforeNext(): Promise<void> {
   await logWorkflowRandomAcrossActivation();
+}
+
+export async function randomStreamPluginWorkflowRandomInsideScope(): Promise<void> {
+  // Intentionally empty: plugin interceptor behavior is the test surface.
 }
 
 export async function randomStreamPluginScopedUuidAcrossAwaitBaseline(): Promise<void> {

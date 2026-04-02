@@ -104,6 +104,6 @@ export function overrideGlobals(): void {
     }
   };
 
-  // currentRandom() dispatches to a scoped stream when withRandomStream(...) is active.
+  // currentRandom() dispatches to a scoped stream when WorkflowRandomStream.with(...) is active.
   Math.random = currentRandom;
 }

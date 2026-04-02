@@ -240,6 +240,15 @@ test.serial('main workflow randomness remains deterministic without plugin rando
   t.deepEqual(first, second);
 });
 
+test.serial('workflowRandom exposes the main workflow random sequence', async (t) => {
+  const baseline = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
+  const actual = extractNumbers(
+    await driveWorkflow(t.context, 'randomStreamWorkflowRandomBaselineWithSleep'),
+    'workflow-default'
+  );
+  t.deepEqual(actual, baseline);
+});
+
 test.serial('plugin named streams do not consume the workflow random stream', async (t) => {
   const baseline = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
   const actual = extractNumbers(await driveWorkflow(t.context, 'randomStreamPluginNamedStreamDoesNotConsumeMain'), 'workflow');
@@ -320,6 +329,20 @@ test.serial('plugin-scoped randomness survives await and restores before next ru
   const logs = await driveWorkflow(t.context, 'randomStreamPluginScopedMathAcrossAwaitBeforeNext');
   t.deepEqual(extractNumbers(logs, 'plugin-scoped'), pluginBaseline);
   t.deepEqual(extractNumbers(logs, 'workflow'), workflowBaseline);
+});
+
+test.serial('workflowRandom keeps referring to the main workflow stream inside a named scope', async (t) => {
+  const workflowBaseline = extractNumbers(
+    await driveWorkflow(t.context, 'randomStreamWorkflowRandomBaselineWithSleep'),
+    'workflow-default'
+  );
+  const pluginBaseline = extractNumbers(
+    await driveWorkflow(t.context, 'randomStreamPluginScopedMathAcrossAwaitBaseline'),
+    'plugin-scoped'
+  );
+  const logs = await driveWorkflow(t.context, 'randomStreamPluginWorkflowRandomInsideScope');
+  t.deepEqual(extractNumbers(logs, 'plugin-scoped'), pluginBaseline);
+  t.deepEqual(extractNumbers(logs, 'workflow-default'), workflowBaseline);
 });
 
 test.serial('plugin-scoped uuid4 survives await and restores before next runs', async (t) => {

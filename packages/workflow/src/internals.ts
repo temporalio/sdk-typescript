@@ -422,7 +422,7 @@ export class Activator implements ActivationHandler {
   /**
    * The main deterministic RNG for this workflow execution.
    *
-   * Scoped overrides used by `withRandomStream(...)` are layered on top of this RNG.
+   * Scoped overrides used by `WorkflowRandomStream.with(...)` are layered on top of this RNG.
    */
   public random: RNG;
 

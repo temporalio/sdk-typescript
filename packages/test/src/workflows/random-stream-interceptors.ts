@@ -1,4 +1,4 @@
-import { getRandomStream, uuid4, workflowInfo, withRandomStream, WorkflowInterceptors } from '@temporalio/workflow';
+import { getRandomStream, uuid4, workflowInfo, workflowRandom, WorkflowInterceptors } from '@temporalio/workflow';
 import type { WorkflowRandomStream } from '@temporalio/workflow';
 
 const pluginNamedStreamDoesNotConsumeMain = 'randomStreamPluginNamedStreamDoesNotConsumeMain';
@@ -10,6 +10,7 @@ const pluginInternalsScopedBaseline = 'randomStreamPluginInternalsScopedBaseline
 const pluginInternalsScopedWithWorkflowInterference = 'randomStreamPluginInternalsScopedWithWorkflowInterference';
 const pluginScopedMathAcrossAwaitBaseline = 'randomStreamPluginScopedMathAcrossAwaitBaseline';
 const pluginScopedMathAcrossAwaitBeforeNext = 'randomStreamPluginScopedMathAcrossAwaitBeforeNext';
+const pluginWorkflowRandomInsideScope = 'randomStreamPluginWorkflowRandomInsideScope';
 const pluginScopedUuidAcrossAwaitBaseline = 'randomStreamPluginScopedUuidAcrossAwaitBaseline';
 const pluginScopedUuidAcrossAwaitBeforeNext = 'randomStreamPluginScopedUuidAcrossAwaitBeforeNext';
 const pluginScopedMathAroundNext = 'randomStreamPluginScopedMathAroundNext';
@@ -57,45 +58,64 @@ export const interceptors = (): WorkflowInterceptors => {
               console.log('plugin-scoped', stream.random());
               return next(input);
             }
-            case pluginScopedMathAcrossAwaitBeforeNext:
-              await withRandomStream('@temporalio/test/random-streams/plugin-scoped', async () => {
+            case pluginScopedMathAcrossAwaitBeforeNext: {
+              const stream = getRandomStream('@temporalio/test/random-streams/plugin-scoped');
+              await stream.with(async () => {
                 console.log('plugin-scoped', Math.random());
                 await Promise.resolve();
                 console.log('plugin-scoped', Math.random());
               });
               return next(input);
+            }
+            case pluginWorkflowRandomInsideScope: {
+              const stream = getRandomStream('@temporalio/test/random-streams/plugin-scoped');
+              await stream.with(async () => {
+                console.log('plugin-scoped', Math.random());
+                console.log('workflow-default', workflowRandom.random());
+                await Promise.resolve();
+                console.log('plugin-scoped', Math.random());
+                console.log('workflow-default', workflowRandom.random());
+              });
+              return next(input);
+            }
             case pluginScopedUuidAcrossAwaitBaseline: {
               const stream = getRandomStream('@temporalio/test/random-streams/plugin-scoped');
               console.log('plugin-scoped-uuid', stream.uuid4());
               console.log('plugin-scoped-uuid', stream.uuid4());
               return next(input);
             }
-            case pluginScopedUuidAcrossAwaitBeforeNext:
-              await withRandomStream('@temporalio/test/random-streams/plugin-scoped', async () => {
+            case pluginScopedUuidAcrossAwaitBeforeNext: {
+              const stream = getRandomStream('@temporalio/test/random-streams/plugin-scoped');
+              await stream.with(async () => {
                 console.log('plugin-scoped-uuid', uuid4());
                 await Promise.resolve();
                 console.log('plugin-scoped-uuid', uuid4());
               });
               return next(input);
+            }
             default:
               break;
           }
 
           switch (workflowInfo().workflowType) {
-            case pluginScopedMathAroundNext:
-              return await withRandomStream('@temporalio/test/random-streams/plugin-scoped', async () => {
+            case pluginScopedMathAroundNext: {
+              const stream = getRandomStream('@temporalio/test/random-streams/plugin-scoped');
+              return await stream.with(async () => {
                 console.log('plugin-scoped', Math.random());
                 const result = await next(input);
                 console.log('plugin-scoped', Math.random());
                 return result;
               });
-            case pluginScopedUuidAroundNext:
-              return await withRandomStream('@temporalio/test/random-streams/plugin-scoped', async () => {
+            }
+            case pluginScopedUuidAroundNext: {
+              const stream = getRandomStream('@temporalio/test/random-streams/plugin-scoped');
+              return await stream.with(async () => {
                 console.log('plugin-scoped-uuid', uuid4());
                 const result = await next(input);
                 console.log('plugin-scoped-uuid', uuid4());
                 return result;
               });
+            }
             default:
               return next(input);
           }
@@ -119,7 +139,7 @@ export const interceptors = (): WorkflowInterceptors => {
             console.log('plugin-activation', getRandomStream('@temporalio/test/random-streams/plugin-activation').random());
           }
           if (pluginInternalsScopedWorkflowTypes.has(workflowInfo().workflowType)) {
-            return withRandomStream('@temporalio/test/random-streams/plugin-internals-scoped', () => {
+            return getRandomStream('@temporalio/test/random-streams/plugin-internals-scoped').with(() => {
               console.log('plugin-internals-scoped', Math.random());
               next(input);
               console.log('plugin-internals-scoped', Math.random());

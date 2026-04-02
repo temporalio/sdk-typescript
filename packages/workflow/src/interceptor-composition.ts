@@ -17,10 +17,10 @@ import { getActivator } from './global-attributes';
  * calls `next(...)`, the wrapper restores that captured scope before entering the rest of
  * the interceptor chain or the base workflow/runtime handler.
  *
- * That is the behavior we need for `withRandomStream(...)`: a temporary plugin/interceptor
- * scope should apply to the plugin's own code, but it must not leak through `next(...)`
- * into downstream workflow code unless that downstream code explicitly establishes its own
- * scope.
+ * That is the behavior we need for `WorkflowRandomStream.with(...)`: a temporary
+ * plugin/interceptor scope should apply to the plugin's own code, but it must not
+ * leak through `next(...)` into downstream workflow code unless that downstream code
+ * explicitly establishes its own scope.
  */
 export function composeInterceptors<I, M extends keyof I>(interceptors: I[], method: M, next: Next<I, M>): Next<I, M> {
   return (((input: any) => {

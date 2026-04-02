@@ -32,6 +32,27 @@ export interface WorkflowRandomStream {
    * Fill a byte array deterministically from this stream.
    */
   fill(bytes: Uint8Array): Uint8Array;
+
+  /**
+   * Run `fn` with scoped workflow-random helpers such as `Math.random()` and `uuid4()`
+   * routed through this stream.
+   *
+   * This is the scoped override API for workflow random streams. It is intended for
+   * bounded plugin/interceptor code that needs existing calls to `Math.random()` or
+   * `uuid4()` to use this stream without perturbing the workflow's default random
+   * sequence or any other named stream.
+   *
+   * The override follows async continuations started by `fn`. Workflow interceptor
+   * `next(...)` continuations restore the downstream workflow random scope before
+   * entering the rest of the interceptor chain or workflow code, so a temporary
+   * plugin scope does not leak downstream unless that downstream code explicitly
+   * establishes its own scope.
+   *
+   * Prefer explicit `stream.random()` / `stream.uuid4()` calls when that is practical.
+   * Use `stream.with(...)` when a temporary scoped override is the better fit, or
+   * when you want to keep the stream instance in module scope and reuse it directly.
+   */
+  with<T>(fn: () => T): T;
 }
 
 class ActivatorRandomStream implements WorkflowRandomStream {
@@ -52,7 +73,40 @@ class ActivatorRandomStream implements WorkflowRandomStream {
   fill(bytes: Uint8Array): Uint8Array {
     return fillWithRandom(() => this.random(), bytes);
   }
+
+  with<T>(fn: () => T): T {
+    return this.activator.withCurrentRandom(this, fn);
+  }
 }
+
+class DefaultWorkflowRandomStream implements WorkflowRandomStream {
+  random(): number {
+    return assertInWorkflowContext('Workflow.workflowRandom may only be used from workflow context.').random();
+  }
+
+  uuid4(): string {
+    return uuid4FromRandom(() => this.random());
+  }
+
+  fill(bytes: Uint8Array): Uint8Array {
+    return fillWithRandom(() => this.random(), bytes);
+  }
+
+  with<T>(fn: () => T): T {
+    const activator = assertInWorkflowContext('Workflow.workflowRandom may only be used from workflow context.');
+    return activator.withCurrentRandom(this, fn);
+  }
+}
+
+/**
+ * The default deterministic random stream for the current workflow execution.
+ *
+ * This exposes the same underlying sequence used by workflow-level `Math.random()`
+ * when no named override is active. It can be useful for plugin/interceptor code
+ * that wants an explicit handle to the main workflow random stream, including from
+ * inside a temporary named scope established by another `WorkflowRandomStream`.
+ */
+export const workflowRandom: WorkflowRandomStream = new DefaultWorkflowRandomStream();
 
 /**
  * Get a named deterministic random stream for the current workflow execution.
@@ -62,32 +116,12 @@ class ActivatorRandomStream implements WorkflowRandomStream {
  * calls with the same `name` within a workflow execution refer to the same
  * logical stream state, including across activations.
  *
- * This is the preferred API for workflow plugins and interceptors that need
- * their own deterministic entropy. Use stable package- or module-style names
- * so the stream identity remains replay-safe.
+ * This is the preferred entry point for workflow plugins and interceptors that
+ * need their own deterministic entropy. Use stable package- or module-style
+ * names so the stream identity remains replay-safe, then keep the returned
+ * `WorkflowRandomStream` around and call its methods directly.
  */
 export function getRandomStream(name: string): WorkflowRandomStream {
   const activator = assertInWorkflowContext('Workflow.getRandomStream(...) may only be used from workflow context.');
   return new ActivatorRandomStream(activator, name);
-}
-
-/**
- * Run `fn` with `Math.random()` and other scoped workflow-random helpers routed
- * through a named deterministic stream.
- *
- * This is intended for bounded plugin/interceptor scopes that need existing code
- * calling `Math.random()` or `uuid4()` to use a plugin-private stream without
- * perturbing the workflow's default random stream. The scope follows async
- * continuations spawned by `fn`.
- *
- * Workflow interceptor `next(...)` continuations restore the downstream workflow
- * random scope before running the rest of the interceptor chain or workflow code.
- * That keeps a temporary plugin scope from leaking into downstream workflow logic.
- *
- * Prefer {@link getRandomStream} for new code when explicit stream usage is
- * practical; use this helper when a temporary scoped override is the better fit.
- */
-export function withRandomStream<T>(name: string, fn: () => T): T {
-  const activator = assertInWorkflowContext('Workflow.withRandomStream(...) may only be used from workflow context.');
-  return activator.withCurrentRandom(new ActivatorRandomStream(activator, name), fn);
 }
