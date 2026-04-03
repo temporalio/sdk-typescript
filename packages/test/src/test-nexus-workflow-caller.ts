@@ -459,9 +459,9 @@ test('start Operation Handler errors - caller workflow', async (t) => {
       );
       t.true(
         err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof ApplicationFailure &&
-        (err.cause.cause as ApplicationFailure).type === 'OperationError'
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof ApplicationFailure &&
+          (err.cause.cause as ApplicationFailure).type === 'OperationError'
       );
     }
   });
@@ -748,9 +748,9 @@ test('Nexus sync and async Operations from a Workflow', async (t) => {
       );
       t.true(
         err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof nexus.HandlerError &&
-        err.cause.cause.type === 'INTERNAL'
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof nexus.HandlerError &&
+          err.cause.cause.type === 'INTERNAL'
       );
 
       res = await executeWorkflow(multiOpCaller, {
@@ -768,8 +768,8 @@ test('Nexus sync and async Operations from a Workflow', async (t) => {
       );
       t.true(
         err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof CancelledFailure
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof CancelledFailure
       );
 
       err = await t.throwsAsync(
@@ -783,8 +783,8 @@ test('Nexus sync and async Operations from a Workflow', async (t) => {
       );
       t.true(
         err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof ApplicationFailure
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof ApplicationFailure
       );
 
       err = await t.throwsAsync(
@@ -816,11 +816,11 @@ test('Nexus sync and async Operations from a Workflow', async (t) => {
       );
       t.true(
         err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof ApplicationFailure &&
-        err.cause.cause.message === 'test asked to fail' &&
-        err.cause.cause.details?.length === 1 &&
-        err.cause.cause.details[0] === 'a detail'
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof ApplicationFailure &&
+          err.cause.cause.message === 'test asked to fail' &&
+          err.cause.cause.details?.length === 1 &&
+          err.cause.cause.details[0] === 'a detail'
       );
     });
   } finally {
@@ -842,7 +842,7 @@ test('calling a nonexistent service returns NOT_FOUND', async (t) => {
             async start() {
               throw new Error('not implemented');
             },
-            async cancel() { },
+            async cancel() {},
           },
         }),
       ],
@@ -859,9 +859,9 @@ test('calling a nonexistent service returns NOT_FOUND', async (t) => {
       );
       t.true(
         err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof nexus.HandlerError &&
-        err.cause.cause.type === 'NOT_FOUND'
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof nexus.HandlerError &&
+          err.cause.cause.type === 'NOT_FOUND'
       );
     });
   } finally {
@@ -965,8 +965,8 @@ test('inbound cancelOperation interceptor can modify input', async (t) => {
       );
       t.true(
         err instanceof WorkflowFailedError &&
-        err.cause instanceof NexusOperationFailure &&
-        err.cause.cause instanceof CancelledFailure
+          err.cause instanceof NexusOperationFailure &&
+          err.cause.cause instanceof CancelledFailure
       );
     });
     t.is(receivedTokens.length, 1);
