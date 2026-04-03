@@ -67,7 +67,6 @@ import {
   DefaultQueryHandler,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
-import { currentRandom } from './current-random';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
 import { uuid4FromRandom } from './random-helpers';
 import { untrackPromise } from './stack-helpers';
@@ -1067,7 +1066,8 @@ export function continueAsNew<F extends Workflow>(...args: Parameters<F>): Promi
  * See the {@link https://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid | stackoverflow discussion}.
  */
 export function uuid4(): string {
-  return uuid4FromRandom(currentRandom);
+  const activator = maybeGetActivator();
+  return uuid4FromRandom(activator ? () => activator.currentRandom() : Math.random);
 }
 
 /**

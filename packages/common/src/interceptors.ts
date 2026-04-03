@@ -33,7 +33,7 @@ export function composeInterceptorsWith<I, M extends keyof I>(
   next: Next<I, M>,
   wrapNext: WrapNext
 ): Next<I, M> {
-  let composedNext: any = wrapNext(next as any);
+  let composedNext: any = next;
   for (let i = interceptors.length - 1; i >= 0; --i) {
     const interceptor = interceptors[i];
     if (interceptor?.[method] !== undefined) {

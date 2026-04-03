@@ -528,8 +528,17 @@ export class Activator implements ActivationHandler {
   }
 
   public bindCurrentRandom<T extends (...args: any[]) => any>(fn: T): T {
-    const randomSource = this.currentRandomStorage?.getStore();
-    return ((...args: Parameters<T>) => this.withRandomSource(randomSource, () => fn(...args))) as unknown as T;
+    const storage = (this.currentRandomStorage ??= new AsyncLocalStorage<ScopedWorkflowRandomSource | undefined>());
+    const randomSource = storage.getStore();
+    const bind = (
+      AsyncLocalStorage as typeof AsyncLocalStorage & {
+        bind?: <F extends (...args: any[]) => any>(fn: F) => F;
+      }
+    ).bind;
+    if (bind) {
+      return storage.run(randomSource, () => bind(fn)) as T;
+    }
+    return ((...args: Parameters<T>) => storage.run(randomSource, () => fn(...args))) as unknown as T;
   }
 
   public currentRandom(): number {
