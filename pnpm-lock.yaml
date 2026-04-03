@@ -385,6 +385,37 @@ importers:
         specifier: ^0.0.2
         version: 0.0.2
 
+  packages/lambda-worker:
+    dependencies:
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.0
+      '@opentelemetry/exporter-trace-otlp-grpc':
+        specifier: ^0.52.0
+        version: 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources':
+        specifier: ^1.25.1
+        version: 1.25.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-node':
+        specifier: ^0.52.0
+        version: 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/semantic-conventions':
+        specifier: ^1.25.1
+        version: 1.25.1
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../common
+      '@temporalio/envconfig':
+        specifier: workspace:*
+        version: link:../envconfig
+      '@temporalio/worker':
+        specifier: workspace:*
+        version: link:../worker
+    devDependencies:
+      '@types/aws-lambda':
+        specifier: ^8.10.145
+        version: 8.10.161
+
   packages/meta:
     dependencies:
       '@temporalio/activity':
@@ -1479,6 +1510,9 @@ packages:
 
   '@types/async-retry@1.4.8':
     resolution: {integrity: sha512-Qup/B5PWLe86yI5I3av6ePGaeQrIHNKCwbsQotD6aHQ6YkHsMUxVZkZsmx/Ry3VZQ6uysHwTjQ7666+k6UjVJA==}
+
+  '@types/aws-lambda@8.10.161':
+    resolution: {integrity: sha512-rUYdp+MQwSFocxIOcSsYSF3YYYC/uUpMbCY/mbO21vGqfrEYvNSoPyKYDj6RhXXpPfS0KstW9RwG3qXh9sL7FQ==}
 
   '@types/babel-types@7.0.15':
     resolution: {integrity: sha512-JUgfZHUOMbtjopxiOQaaF+Uovk5wpDqpXR+XLWiOivCWSy1FccO30lvNNpCt8geFwq8VmGT2y9OMkOpA0g5O5g==}
@@ -5498,6 +5532,8 @@ snapshots:
   '@types/async-retry@1.4.8':
     dependencies:
       '@types/retry': 0.12.5
+
+  '@types/aws-lambda@8.10.161': {}
 
   '@types/babel-types@7.0.15': {}
 

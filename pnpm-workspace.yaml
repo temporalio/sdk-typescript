@@ -8,6 +8,7 @@ packages:
   - packages/create-project
   - packages/envconfig
   - packages/interceptors-opentelemetry
+  - packages/lambda-worker
   - packages/meta
   - packages/nexus
   - packages/nyc-test-coverage
