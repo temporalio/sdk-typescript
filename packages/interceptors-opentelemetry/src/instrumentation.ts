@@ -44,6 +44,19 @@ export function extractContextFromHeaders(headers: Headers): otel.Context | unde
 }
 
 /**
+ * If found, return an otel Context deserialized from the provided Nexus headers.
+ *
+ * Nexus headers are plain `Record<string, string>`, so we extract the context
+ * directly from the string map.
+ */
+export function extractContextFromNexusHeaders(headers: Record<string, string>): otel.Context | undefined {
+  if (Object.keys(headers).length === 0) {
+    return undefined;
+  }
+  return otel.propagation.extract(otel.context.active(), headers, otel.defaultTextMapGetter);
+}
+
+/**
  * Given headers, return new headers with the current otel context inserted
  */
 export function headersWithContext(headers: Headers): Headers {

@@ -11,6 +11,7 @@ import * as opentelemetry from '@opentelemetry/sdk-node';
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
+import * as nexus from 'nexus-rpc';
 import { v4 as uuid4 } from 'uuid';
 import { Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -24,7 +25,12 @@ import {
   Connection,
 } from '@temporalio/client';
 import { OpenTelemetryPlugin, OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry';
-import { instrument, instrumentSync } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
+import {
+  instrument,
+  instrumentSync,
+  NEXUS_SERVICE_ATTR_KEY,
+  NEXUS_OPERATION_ATTR_KEY,
+} from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
@@ -51,7 +57,7 @@ import * as activities from './activities';
 import { createActivities as createAsyncActivities } from './activities/async-completer';
 import { bundlerOptions, loadHistory, RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import * as workflows from './workflows';
-import { createTestWorkflowBundle } from './helpers-integration';
+import { createTestWorkflowBundle, createTestWorkflowEnvironment } from './helpers-integration';
 
 async function withFakeGrpcServer(
   fn: (port: number) => Promise<void>,
@@ -249,6 +255,87 @@ if (RUN_INTEGRATION_TESTS) {
       t.deepEqual(new Set(spans.map((span) => span.spanContext().traceId)).size, 1);
     } finally {
       // Cleanup the runtime so that it doesn't interfere with other tests
+      await Runtime._instance?.shutdown();
+    }
+  });
+
+  test.serial('Otel nexus inbound interceptor creates spans for sync operation', async (t) => {
+    Runtime.install({});
+    try {
+      const spans = Array<opentelemetry.tracing.ReadableSpan>();
+      const staticResource = new opentelemetry.resources.Resource({
+        [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-nexus-worker',
+      });
+      const traceExporter: opentelemetry.tracing.SpanExporter = {
+        export(spans_, resultCallback) {
+          spans.push(...spans_);
+          resultCallback({ code: ExportResultCode.SUCCESS });
+        },
+        async shutdown() {},
+      };
+
+      const provider = new BasicTracerProvider({ resource: staticResource });
+      provider.addSpanProcessor(new SimpleSpanProcessor(traceExporter));
+      const tracer = provider.getTracer('@temporalio/test-nexus-otel');
+
+      const plugin = new OpenTelemetryPlugin({
+        resource: staticResource,
+        spanProcessor: new SimpleSpanProcessor(traceExporter),
+        tracer,
+      });
+
+      const env = await createTestWorkflowEnvironment();
+      try {
+        const taskQueue = `test-otel-nexus-${uuid4()}`;
+        const endpointName = taskQueue.replaceAll('_', '-');
+        const endpointIdentifier = await env.createNexusEndpoint(endpointName, taskQueue);
+
+        const workflowBundle = await bundleWorkflowCode({
+          ...bundlerOptions,
+          workflowsPath: require.resolve('./workflows/otel-nexus-caller'),
+          plugins: [plugin],
+          logger: new DefaultLogger('WARN'),
+        });
+
+        const worker = await Worker.create({
+          connection: env.nativeConnection,
+          workflowBundle,
+          taskQueue,
+          plugins: [plugin],
+          nexusServices: [
+            nexus.serviceHandler(workflows.otelNexusService, {
+              async syncOp(_ctx, input) {
+                return `echo: ${input}`;
+              },
+            }),
+          ],
+        });
+
+        const res = await worker.runUntil(
+          env.client.workflow.execute('otelNexusCaller', {
+            taskQueue,
+            workflowId: uuid4(),
+            args: [endpointName, 'syncOp', 'hello'],
+          })
+        );
+        t.is(res, 'echo: hello');
+
+        await provider.shutdown();
+        await env.deleteNexusEndpoint(endpointIdentifier);
+
+        // Find the RunNexusStartOperation span for the sync op
+        const executeSpan = spans.find(
+          ({ name }) =>
+            name === `${SpanName.NEXUS_START_OPERATION_EXECUTE}${SPAN_DELIMITER}otel-test-service/my-sync-op`
+        );
+        t.truthy(executeSpan, 'RunNexusStartOperation span should exist');
+        t.is(executeSpan!.status.code, SpanStatusCode.OK);
+        t.is(executeSpan!.attributes[NEXUS_SERVICE_ATTR_KEY], 'otel-test-service');
+        t.is(executeSpan!.attributes[NEXUS_OPERATION_ATTR_KEY], 'my-sync-op');
+      } finally {
+        await env.teardown();
+      }
+    } finally {
       await Runtime._instance?.shutdown();
     }
   });

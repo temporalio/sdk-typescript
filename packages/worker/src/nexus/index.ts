@@ -19,8 +19,8 @@ import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { Client } from '@temporalio/client';
 import { Logger } from '../logger';
 import {
-  ExecuteNexusOperationCancelInput,
-  ExecuteNexusOperationStartInput,
+  NexusCancelOperationInput,
+  NexusStartOperationInput,
   NexusInboundCallsInterceptor,
   NexusInterceptorsFactory,
   NexusOutboundCallsInterceptor,
@@ -113,7 +113,7 @@ export class NexusHandler {
       const handler = this.getOperationHandler(ctx);
       const input = await decodePayload(this.dataConverter, payload);
 
-      const executeNextHandler = async (interceptorInput: ExecuteNexusOperationStartInput) => {
+      const executeNextHandler = async (interceptorInput: NexusStartOperationInput) => {
         const result = await this.invokeUserCode(
           'startOperation',
           handler.start.bind(handler, interceptorInput.ctx, interceptorInput.input)
@@ -176,7 +176,7 @@ export class NexusHandler {
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
       const handler = this.getOperationHandler(ctx);
-      const cancelNextHandler = async (interceptorInput: ExecuteNexusOperationCancelInput) => {
+      const cancelNextHandler = async (interceptorInput: NexusCancelOperationInput) => {
         await this.invokeUserCode(
           'cancelOperation',
           handler.cancel.bind(handler, interceptorInput.ctx, interceptorInput.token)
