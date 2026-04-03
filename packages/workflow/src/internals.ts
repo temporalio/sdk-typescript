@@ -529,7 +529,7 @@ export class Activator implements ActivationHandler {
 
   public bindCurrentRandom<T extends (...args: any[]) => any>(fn: T): T {
     const randomSource = this.currentRandomStorage?.getStore();
-    return (((...args: Parameters<T>) => this.withRandomSource(randomSource, () => fn(...args))) as unknown) as T;
+    return ((...args: Parameters<T>) => this.withRandomSource(randomSource, () => fn(...args))) as unknown as T;
   }
 
   public currentRandom(): number {

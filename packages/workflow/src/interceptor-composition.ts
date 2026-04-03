@@ -23,15 +23,11 @@ import { getActivator } from './global-attributes';
  * explicitly establishes its own scope.
  */
 export function composeInterceptors<I, M extends keyof I>(interceptors: I[], method: M, next: Next<I, M>): Next<I, M> {
-  return (((input: any) => {
+  return ((input: any) => {
     const activator = getActivator();
-    return (composeInterceptorsWith(
-      interceptors,
-      method,
-      next,
-      ((wrappedNext) => activator.bindCurrentRandom(wrappedNext as any)) as <F extends (...args: any[]) => any>(
-        next: F
-      ) => F
-    ) as any)(input);
-  }) as unknown) as Next<I, M>;
+    return (
+      composeInterceptorsWith(interceptors, method, next, ((wrappedNext) =>
+        activator.bindCurrentRandom(wrappedNext as any)) as <F extends (...args: any[]) => any>(next: F) => F) as any
+    )(input);
+  }) as unknown as Next<I, M>;
 }

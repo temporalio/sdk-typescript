@@ -190,7 +190,9 @@ async function driveWorkflow(
 
     for (;;) {
       if (completion.failed) {
-        throw new Error(`Workflow ${workflowType} failed unexpectedly: ${completion.failed.failure?.message ?? 'unknown error'}`);
+        throw new Error(
+          `Workflow ${workflowType} failed unexpectedly: ${completion.failed.failure?.message ?? 'unknown error'}`
+        );
       }
 
       const startedTimers = (completion.successful?.commands ?? []).flatMap((command) =>
@@ -251,7 +253,10 @@ test.serial('workflowRandom exposes the main workflow random sequence', async (t
 
 test.serial('plugin named streams do not consume the workflow random stream', async (t) => {
   const baseline = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
-  const actual = extractNumbers(await driveWorkflow(t.context, 'randomStreamPluginNamedStreamDoesNotConsumeMain'), 'workflow');
+  const actual = extractNumbers(
+    await driveWorkflow(t.context, 'randomStreamPluginNamedStreamDoesNotConsumeMain'),
+    'workflow'
+  );
   t.deepEqual(actual, baseline);
 });
 
@@ -268,7 +273,10 @@ test.serial('plugin named streams are isolated from one another', async (t) => {
 });
 
 test.serial('plugin named streams preserve state across activations', async (t) => {
-  const baseline = extractNumbers(await driveWorkflow(t.context, 'randomStreamPluginActivationBaseline'), 'plugin-activation');
+  const baseline = extractNumbers(
+    await driveWorkflow(t.context, 'randomStreamPluginActivationBaseline'),
+    'plugin-activation'
+  );
   const actual = extractNumbers(
     await driveWorkflow(t.context, 'randomStreamPluginActivationWithWorkflowInterference'),
     'plugin-activation'
@@ -278,9 +286,15 @@ test.serial('plugin named streams preserve state across activations', async (t) 
 
 test.serial('plugin named streams do not leak between workflows when the VM context is reused', async (t) => {
   await withReusableWorkflowCreator(t.context, async (driveContext) => {
-    const baseline = extractNumbers(await driveWorkflow(driveContext, 'randomStreamPluginActivationBaseline'), 'plugin-activation');
+    const baseline = extractNumbers(
+      await driveWorkflow(driveContext, 'randomStreamPluginActivationBaseline'),
+      'plugin-activation'
+    );
     await driveWorkflow(driveContext, 'randomStreamPluginActivationWithWorkflowInterference');
-    const actual = extractNumbers(await driveWorkflow(driveContext, 'randomStreamPluginActivationBaseline'), 'plugin-activation');
+    const actual = extractNumbers(
+      await driveWorkflow(driveContext, 'randomStreamPluginActivationBaseline'),
+      'plugin-activation'
+    );
     t.deepEqual(actual, baseline);
   });
 });
@@ -301,7 +315,10 @@ test.serial('plugin cached named streams do not leak between workflows when the 
 });
 
 test.serial('plugin-scoped randomness around internals next does not perturb workflow Math.random', async (t) => {
-  const workflowBaseline = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
+  const workflowBaseline = extractNumbers(
+    await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'),
+    'workflow'
+  );
   const pluginBaseline = extractNumbers(
     await driveWorkflow(t.context, 'randomStreamPluginInternalsScopedBaseline'),
     'plugin-internals-scoped'
@@ -321,7 +338,10 @@ test.serial('plugin-scoped randomness does not leak between workflows when the V
 });
 
 test.serial('plugin-scoped randomness survives await and restores before next runs', async (t) => {
-  const workflowBaseline = extractNumbers(await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'), 'workflow');
+  const workflowBaseline = extractNumbers(
+    await driveWorkflow(t.context, 'randomStreamMainBaselineWithSleep'),
+    'workflow'
+  );
   const pluginBaseline = extractNumbers(
     await driveWorkflow(t.context, 'randomStreamPluginScopedMathAcrossAwaitBaseline'),
     'plugin-scoped'
@@ -346,7 +366,10 @@ test.serial('workflowRandom keeps referring to the main workflow stream inside a
 });
 
 test.serial('plugin-scoped uuid4 survives await and restores before next runs', async (t) => {
-  const workflowBaseline = extractStrings(await driveWorkflow(t.context, 'randomStreamUuidBaselineWithSleep'), 'workflow-uuid');
+  const workflowBaseline = extractStrings(
+    await driveWorkflow(t.context, 'randomStreamUuidBaselineWithSleep'),
+    'workflow-uuid'
+  );
   const pluginBaseline = extractStrings(
     await driveWorkflow(t.context, 'randomStreamPluginScopedUuidAcrossAwaitBaseline'),
     'plugin-scoped-uuid'

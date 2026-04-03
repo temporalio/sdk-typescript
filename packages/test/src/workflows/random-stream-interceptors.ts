@@ -1,5 +1,11 @@
-import { getRandomStream, uuid4, workflowInfo, workflowRandom, WorkflowInterceptors } from '@temporalio/workflow';
-import type { WorkflowRandomStream } from '@temporalio/workflow';
+import {
+  getRandomStream,
+  type WorkflowRandomStream,
+  uuid4,
+  workflowInfo,
+  workflowRandom,
+  WorkflowInterceptors,
+} from '@temporalio/workflow';
 
 const pluginNamedStreamDoesNotConsumeMain = 'randomStreamPluginNamedStreamDoesNotConsumeMain';
 const pluginNamedStreamNamespaceBaseline = 'randomStreamPluginNamedStreamNamespaceBaseline';
@@ -24,7 +30,10 @@ const pluginInternalsScopedWorkflowTypes = new Set([
   pluginInternalsScopedBaseline,
   pluginInternalsScopedWithWorkflowInterference,
 ]);
-const pluginCachedStreamWorkflowTypes = new Set([pluginCachedStreamSingleActivation, pluginCachedStreamAcrossActivations]);
+const pluginCachedStreamWorkflowTypes = new Set([
+  pluginCachedStreamSingleActivation,
+  pluginCachedStreamAcrossActivations,
+]);
 
 export const interceptors = (): WorkflowInterceptors => {
   // Keep the wrapper alive across activations to verify that updateRandomSeed
@@ -119,7 +128,7 @@ export const interceptors = (): WorkflowInterceptors => {
             default:
               return next(input);
           }
-        }
+        },
       },
     ],
     outbound: [
@@ -136,7 +145,10 @@ export const interceptors = (): WorkflowInterceptors => {
       {
         activate(input, next) {
           if (pluginActivationWorkflowTypes.has(workflowInfo().workflowType)) {
-            console.log('plugin-activation', getRandomStream('@temporalio/test/random-streams/plugin-activation').random());
+            console.log(
+              'plugin-activation',
+              getRandomStream('@temporalio/test/random-streams/plugin-activation').random()
+            );
           }
           if (pluginInternalsScopedWorkflowTypes.has(workflowInfo().workflowType)) {
             return getRandomStream('@temporalio/test/random-streams/plugin-internals-scoped').with(() => {
