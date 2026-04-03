@@ -1,10 +1,12 @@
 import {
   CommonWorkflowOptions,
+  SearchAttributes,
   SignalDefinition,
+  toCanonicalString,
+  TypedSearchAttributes,
+  VersioningOverride,
   WithWorkflowArgs,
   Workflow,
-  VersioningOverride,
-  toCanonicalString,
 } from '@temporalio/common';
 import { Duration, msOptionalToTs } from '@temporalio/common/lib/time';
 import { Replace } from '@temporalio/common/lib/type-helpers';
@@ -58,6 +60,49 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
    * start it on a local worker running with this same client.
    */
   requestEagerStart?: boolean;
+
+  /**
+   * Specifies a set of search attributes to associate with the workflow.
+   *
+   * Search attributes are indexed and can be used to search for workflows.
+   *
+   * The search attributes can be of type `string`, `number`, `boolean`, `Date`.
+   * To use search attributes, you must configure them on the Temporal server.
+   *
+   * @deprecated use {@link typedSearchAttributes} instead.
+   */
+  searchAttributes?: SearchAttributes;
+
+  /**
+   * Specifies a typed set of search attributes to associate with the workflow.
+   *
+   * Search attributes are indexed and can be used to search for workflows.
+   *
+   * To use search attributes, you must configure them on the Temporal server.
+   *
+   * The values should be an array of values, even for single-value search attributes.
+   *
+   * @example
+   * ```ts
+   * import { defineSearchAttributes, SearchAttribute } from '@temporalio/common';
+   *
+   * export const searchAttributes = defineSearchAttributes({
+   *   channel: SearchAttribute.Keyword(),
+   *   user: SearchAttribute.Keyword(),
+   *   numMessages: SearchAttribute.Int(),
+   * });
+   *
+   * // In client code
+   * await client.workflow.start(workflow, {
+   *   // ...
+   *   typedSearchAttributes: {
+   *     channel: ['my-channel'],
+   *     user: ['user-1'],
+   *   },
+   * });
+   * ```
+   */
+  typedSearchAttributes?: TypedSearchAttributes;
 }
 
 export type WithCompiledWorkflowOptions<T extends WorkflowOptions> = Replace<
