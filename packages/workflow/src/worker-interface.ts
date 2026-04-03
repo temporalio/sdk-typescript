@@ -4,11 +4,11 @@
  * @module
  */
 import { encodeVersioningBehavior, IllegalStateError, WorkflowFunctionWithOptions } from '@temporalio/common';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { coresdk } from '@temporalio/proto';
 import type { WorkflowInterceptorsFactory } from './interceptors';
 import type { WorkflowCreateOptionsInternal } from './interfaces';
 import { Activator } from './internals';
+import { composeInterceptors } from './interceptor-composition';
 import { setActivator, getActivator, maybeGetActivator } from './global-attributes';
 
 // Export the type for use on the "worker" side

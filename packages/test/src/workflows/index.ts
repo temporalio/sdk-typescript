@@ -59,6 +59,7 @@ export * from './promise-race';
 export * from './promise-then-promise';
 export * from './race';
 export * from './random';
+export * from './random-streams';
 export * from './reject-promise';
 export * from './reusable-vm-disposal-bug';
 export * from './run-activity-in-different-task-queue';

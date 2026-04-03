@@ -1,11 +1,11 @@
 import * as nexus from 'nexus-rpc';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
 import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
 import type { coresdk } from '@temporalio/proto';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
+import { composeInterceptors } from './interceptor-composition';
 import { untrackPromise } from './stack-helpers';
 import { StartNexusOperationInput, StartNexusOperationOutput, StartNexusOperationOptions } from './interceptors';
 

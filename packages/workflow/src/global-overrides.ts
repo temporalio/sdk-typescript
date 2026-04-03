@@ -5,6 +5,7 @@
  */
 import { msToTs } from '@temporalio/common/lib/time';
 import { CancellationScope } from './cancellation-scope';
+import { currentRandom } from './current-random';
 import { DeterminismViolationError } from './errors';
 import { getActivator } from './global-attributes';
 import { SdkFlags } from './flags';
@@ -103,6 +104,6 @@ export function overrideGlobals(): void {
     }
   };
 
-  // activator.random is mutable, don't hardcode its reference
-  Math.random = () => getActivator().random();
+  // currentRandom() dispatches to a scoped stream when WorkflowRandomStream.with(...) is active.
+  Math.random = currentRandom;
 }
