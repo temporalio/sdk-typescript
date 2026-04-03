@@ -25,7 +25,7 @@ export async function caller(
   action: string,
   cancellationType?: workflow.NexusOperationCancellationType
 ): Promise<string> {
-  const client = workflow.createNexusClient({
+  const client = workflow.createNexusServiceClient({
     endpoint,
     service,
   });
@@ -199,7 +199,7 @@ const clientOperationTypeSafetyCheckerService = nexus.service('test', {
 export async function clientOperationTypeSafetyCheckerWorkflow(endpoint: string): Promise<void> {
   const Service = clientOperationTypeSafetyCheckerService;
   const operations = Service.operations;
-  const client = workflow.createNexusClient({
+  const client = workflow.createNexusServiceClient({
     endpoint,
     service: Service,
   });
@@ -276,7 +276,7 @@ const nonExistentService = nexus.service('nonExistentService', {
 });
 
 export async function callNonExistentService(endpoint: string): Promise<string> {
-  const client = workflow.createNexusClient({
+  const client = workflow.createNexusServiceClient({
     endpoint,
     service: nonExistentService,
   });
@@ -445,9 +445,7 @@ test('inbound executeCancelOperation interceptor can modify input', async (t) =>
   }
 });
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-test('NexusClient is type-safe in regard to Operation Definitions', async (t) => {
+test('NexusServiceClient is type-safe in regard to Operation Definitions', async (t) => {
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
   const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
   try {

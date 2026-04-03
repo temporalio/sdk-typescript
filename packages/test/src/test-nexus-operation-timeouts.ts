@@ -22,7 +22,7 @@ const scheduleToStartService = nexus.service('nexus-schedule-to-start-timeout-te
 });
 
 export async function scheduleToStartTimeoutCallerWorkflow(endpoint: string): Promise<string> {
-  const client = workflow.createNexusClient({
+  const client = workflow.createNexusServiceClient({
     endpoint,
     service: scheduleToStartService,
   });
@@ -72,7 +72,7 @@ const startToCloseService = nexus.service('nexus-start-to-close-timeout-test-ser
 });
 
 export async function startToCloseTimeoutCallerWorkflow(endpoint: string): Promise<string> {
-  const client = workflow.createNexusClient({
+  const client = workflow.createNexusServiceClient({
     endpoint,
     service: startToCloseService,
   });

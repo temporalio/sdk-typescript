@@ -109,9 +109,9 @@ export * from './workflow';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 export { metricMeter } from './metrics';
 export {
-  createNexusClient,
-  NexusClientOptions,
-  NexusClient,
+  createNexusServiceClient,
+  NexusServiceClientOptions,
+  NexusServiceClient,
   NexusOperationHandle,
   NexusOperationCancellationType,
 } from './nexus';

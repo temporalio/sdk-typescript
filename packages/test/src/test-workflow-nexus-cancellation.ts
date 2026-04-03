@@ -43,7 +43,7 @@ export async function cancellationTestCallerWorkflow(
 ): Promise<void> {
   const { cancellationType, operationName: nexusOperationName } = scenario;
   try {
-    const client = workflow.createNexusClient({ endpoint, service });
+    const client = workflow.createNexusServiceClient({ endpoint, service });
     await client.executeOperation(nexusOperationName, scenario, { cancellationType });
     throw ApplicationFailure.nonRetryable('Unexpected Success');
   } catch (err) {
