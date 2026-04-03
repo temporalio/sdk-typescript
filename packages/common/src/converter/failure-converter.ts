@@ -24,6 +24,7 @@ import { makeProtoEnumConverters } from '../internal-workflow';
 import { isError } from '../type-helpers';
 import { msOptionalToTs } from '../time';
 import { arrayFromPayloads, fromPayloadsAtIndex, PayloadConverter, toPayloads } from './payload-converter';
+import type { SerializationContext } from './serialization-context';
 
 // Can't import proto enums into the workflow sandbox, use this helper type and enum converter instead.
 const NexusHandlerErrorRetryBehavior = {
@@ -108,6 +109,17 @@ export interface FailureConverter {
    * The returned error must be an instance of `TemporalFailure`.
    */
   failureToError(err: ProtoFailure, payloadConverter: PayloadConverter): Error;
+
+  /**
+   * Optionally return a converter bound to the current serialization context.
+   *
+   * The SDK may call this for individual failure conversion operations across
+   * different workflows and activities. Implementations should treat this as
+   * side-effect free and may return `this` when no rebinding is needed.
+   *
+   * @experimental Serialization context is an experimental feature and may change.
+   */
+  withContext?(context: SerializationContext): FailureConverter;
 }
 
 /**

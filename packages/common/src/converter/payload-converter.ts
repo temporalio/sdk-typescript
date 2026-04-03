@@ -1,6 +1,7 @@
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import { Payload } from '../interfaces';
+import type { SerializationContext } from './serialization-context';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
 /**
@@ -25,6 +26,17 @@ export interface PayloadConverter {
    * Converts a {@link Payload} back to a value.
    */
   fromPayload<T>(payload: Payload): T;
+
+  /**
+   * Optionally return a converter bound to the current serialization context.
+   *
+   * The SDK may call this for individual conversion operations across different
+   * workflows and activities. Implementations should treat this as side-effect
+   * free and may return `this` when no rebinding is needed.
+   *
+   * @experimental Serialization context is an experimental feature and may change.
+   */
+  withContext?(context: SerializationContext): PayloadConverter;
 }
 
 /**
