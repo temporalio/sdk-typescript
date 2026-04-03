@@ -133,6 +133,14 @@ export enum SpanName {
    * Nexus operation is started
    */
   NEXUS_OPERATION_START = 'StartNexusOperation',
+  /**
+   * Nexus operation is executing
+   */
+  NEXUS_START_OPERATION_EXECUTE = 'RunStartNexusOperation',
+  /**
+   * Nexus operation cancel is executing
+   */
+  NEXUS_CANCEL_OPERATION_EXECUTE = 'RunCancelNexusOperation',
 }
 
 export const SPAN_DELIMITER = ':';

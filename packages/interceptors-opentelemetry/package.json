@@ -25,7 +25,8 @@
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/worker": "workspace:*",
-    "@temporalio/workflow": "workspace:*"
+    "@temporalio/workflow": "workspace:*",
+    "nexus-rpc": "^0.0.2"
   },
   "peerDependencies": {
     "@temporalio/common": "workspace:*",

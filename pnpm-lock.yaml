@@ -381,6 +381,9 @@ importers:
       '@temporalio/workflow':
         specifier: workspace:*
         version: link:../workflow
+      nexus-rpc:
+        specifier: ^0.0.2
+        version: 0.0.2
 
   packages/meta:
     dependencies:
@@ -3708,6 +3711,10 @@ packages:
   nexus-rpc@0.0.1:
     resolution: {integrity: sha512-hAWn8Hh2eewpB5McXR5EW81R3pR/ziuGhKCF3wFyUVCklanPqrIgMNr7jKCbzXeNVad0nUDfWpFRqh2u+zxQtw==}
     engines: {node: '>= 18.0.0'}
+
+  nexus-rpc@0.0.2:
+    resolution: {integrity: sha512-IWjIExdVYlmwXuzHdY/Q3lXCv1gbqoAXPazQhy2w4Xgtgha3H0OOujEESVPQcFUFMWm+pAk2gKnb57g8S41JZg==}
+    engines: {node: '>= 20.0.0'}
 
   node-fetch@2.6.7:
     resolution: {integrity: sha512-ZjMPFEfVx5j+y2yF35Kzx5sF7kDzxuDj6ziH4FFbOp87zKDZNx8yExJIb05OGF4Nlt9IHFIMBkRl41VdvcNdbQ==}
@@ -8075,6 +8082,8 @@ snapshots:
   neo-async@2.6.2: {}
 
   nexus-rpc@0.0.1: {}
+
+  nexus-rpc@0.0.2: {}
 
   node-fetch@2.6.7(encoding@0.1.13):
     dependencies:
