@@ -1,6 +1,13 @@
 import type { Context } from 'aws-lambda';
 import type { WorkerDeploymentVersion } from '@temporalio/common';
-import { type WorkerOptions, type NativeConnectionOptions, type Logger, NativeConnection, Worker, DefaultLogger } from '@temporalio/worker';
+import {
+  type WorkerOptions,
+  type NativeConnectionOptions,
+  type Logger,
+  NativeConnection,
+  Worker,
+  DefaultLogger,
+} from '@temporalio/worker';
 import type { ClientConnectConfig, LoadClientProfileOptions } from '@temporalio/envconfig';
 import {
   LAMBDA_WORKER_DEFAULTS,
@@ -11,10 +18,12 @@ import {
 import { loadLambdaClientConnectConfig } from './config';
 import type { LambdaWorkerConfig, LambdaHandler } from './types';
 
-/** @internal Dependency injection for testing. */
+/**
+ * @internal Dependency injection interface for testing.
+ */
 export interface WorkerDeps {
-  connect: (options: NativeConnectionOptions) => Promise<NativeConnection>;
-  createWorker: (options: WorkerOptions) => Promise<Worker>;
+  connect: (options: NativeConnectionOptions) => Promise<{ close(): Promise<void> }>;
+  createWorker: (options: WorkerOptions) => Promise<{ runUntil(p: Promise<void>): Promise<void> }>;
   loadConnectConfig: (options?: Partial<LoadClientProfileOptions>) => ClientConnectConfig;
   logger: Logger;
 }
@@ -25,17 +34,6 @@ const defaultDeps: WorkerDeps = {
   loadConnectConfig: loadLambdaClientConnectConfig,
   logger: new DefaultLogger('INFO'),
 };
-
-/**
- * @internal Replaceable deps for testing. Mutate properties on this object
- * to swap implementations; call `_resetDeps()` to restore defaults.
- */
-export const _deps: WorkerDeps = { ...defaultDeps };
-
-/** @internal Reset deps to defaults. */
-export function _resetDeps(): void {
-  Object.assign(_deps, defaultDeps);
-}
 
 /**
  * Create an AWS Lambda handler that runs a Temporal Worker for the duration of each invocation.
@@ -67,25 +65,39 @@ export function runWorker(
   version: WorkerDeploymentVersion,
   configure: (config: LambdaWorkerConfig) => void
 ): LambdaHandler {
-  // Build config with Lambda defaults pre-applied
+  return _runWorkerInternal(version, configure, defaultDeps);
+}
+
+/**
+ * @internal Testable implementation of runWorker with injected dependencies.
+ */
+export function _runWorkerInternal(
+  version: WorkerDeploymentVersion,
+  configure: (config: LambdaWorkerConfig) => void,
+  deps: WorkerDeps
+): LambdaHandler {
   const config: LambdaWorkerConfig = {
-    workerOptions: { ...LAMBDA_WORKER_DEFAULTS },
+    workerOptions: {
+      ...LAMBDA_WORKER_DEFAULTS,
+      workerDeploymentOptions: {
+        version,
+        useWorkerVersioning: true,
+        defaultVersioningBehavior: 'PINNED',
+      },
+    },
     shutdownHooks: [],
   };
 
-  // Pre-populate taskQueue from env var if available
   const envTaskQueue = process.env['TEMPORAL_TASK_QUEUE'];
   if (envTaskQueue) {
     config.workerOptions.taskQueue = envTaskQueue;
   }
 
-  // Load client connect config (done once at init, not per invocation)
-  const connectConfig = _deps.loadConnectConfig(config.envConfigOptions);
+  const connectConfig = deps.loadConnectConfig(config.envConfigOptions);
 
-  // Let the user customize
   configure(config);
 
-  // Validate
+  // Validate taskQueue
   if (!config.workerOptions.taskQueue) {
     throw new Error(
       'taskQueue is required: set config.workerOptions.taskQueue in the configure callback ' +
@@ -93,13 +105,17 @@ export function runWorker(
     );
   }
 
+  // Validate workerDeploymentOptions
+  if (!config.workerOptions.workerDeploymentOptions) {
+    throw new Error('workerDeploymentOptions must not be removed: worker deployment versioning is required in Lambda');
+  }
+  if (!config.workerOptions.workerDeploymentOptions.useWorkerVersioning) {
+    throw new Error('useWorkerVersioning must not be set to false: worker deployment versioning is required in Lambda');
+  }
+
   const shutdownDeadlineBufferMs = config.shutdownDeadlineBufferMs ?? DEFAULT_SHUTDOWN_DEADLINE_BUFFER_MS;
 
-  // Return the Lambda handler
   return async (_event: unknown, context: Context): Promise<void> => {
-    const logger = _deps.logger;
-
-    // Calculate available work time
     const remainingMs = context.getRemainingTimeInMillis();
     const workTimeMs = remainingMs - shutdownDeadlineBufferMs;
 
@@ -111,14 +127,13 @@ export function runWorker(
       );
     }
     if (workTimeMs < WARN_WORK_TIME_MS) {
-      logger.warn('Low work time available for Lambda worker', {
+      deps.logger.warn('Low work time available for Lambda worker', {
         remainingMs,
         shutdownDeadlineBufferMs,
         workTimeMs,
       });
     }
 
-    // Build per-invocation identity from Lambda context
     const identity = `${context.awsRequestId}@${context.invokedFunctionArn}`;
 
     // Merge connection options: envconfig base + user overrides
@@ -127,7 +142,7 @@ export function runWorker(
       ...config.connectionOptions,
     };
 
-    const connection = await _deps.connect(connectionOptions);
+    const connection = await deps.connect(connectionOptions);
     try {
       // Build worker options: user config + managed fields
       const namespace = config.namespace ?? connectConfig.namespace ?? 'default';
@@ -136,36 +151,28 @@ export function runWorker(
         connection,
         namespace,
         identity,
-        workerDeploymentOptions: {
-          version,
-          useWorkerVersioning: true,
-          defaultVersioningBehavior: 'PINNED',
-        },
       } as WorkerOptions;
 
-      const worker = await _deps.createWorker(workerOptions);
+      const worker = await deps.createWorker(workerOptions);
 
-      // Run worker until timeout, then runUntil triggers graceful shutdown
       await worker.runUntil(
         new Promise<void>((resolve) => {
           setTimeout(resolve, workTimeMs);
         })
       );
     } finally {
-      // Run shutdown hooks (in order, error-resilient)
       for (const hook of config.shutdownHooks) {
         try {
           await hook();
         } catch (err) {
-          logger.error('Lambda worker shutdown hook failed', { error: err });
+          deps.logger.error('Lambda worker shutdown hook failed', { error: err });
         }
       }
 
-      // Close connection
       try {
         await connection.close();
       } catch (err) {
-        logger.error('Failed to close Temporal connection', { error: err });
+        deps.logger.error('Failed to close Temporal connection', { error: err });
       }
     }
   };

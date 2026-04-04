@@ -1,6 +1,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { type ClientConnectConfig, type LoadClientProfileOptions, loadClientConnectConfig } from '@temporalio/envconfig';
+import {
+  type ClientConnectConfig,
+  type LoadClientProfileOptions,
+  loadClientConnectConfig,
+} from '@temporalio/envconfig';
 
 /**
  * Load client connection config with Lambda-aware config file resolution.
