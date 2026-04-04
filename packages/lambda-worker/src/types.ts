@@ -11,18 +11,18 @@ export type ShutdownHook = () => Promise<void> | void;
 /**
  * Configuration object passed to the {@link runWorker} configure callback.
  *
- * Pre-populated with Lambda-tuned defaults. The user should set `workerOptions.taskQueue`,
- * register activities/workflows, and override any defaults as needed.
+ * Pre-populated with Lambda-tuned defaults. You should set `workerOptions.taskQueue`, register
+ * activities/workflows, and override any defaults as needed.
  */
 export interface LambdaWorkerConfig {
   /**
    * Worker options, pre-populated with Lambda-appropriate defaults.
    *
-   * The user must set at least `taskQueue` (or set the `TEMPORAL_TASK_QUEUE` env var).
-   * Typically also sets `activities` and `workflowBundle` (prefer pre-bundled workflows
-   * over `workflowsPath` to avoid bundling overhead on Lambda cold starts).
+   * You must set at least `taskQueue` (or set the `TEMPORAL_TASK_QUEUE` env var). Typically you'll
+   * also set `activities` and `workflowBundle` (prefer pre-bundled workflows over `workflowsPath`
+   * to avoid bundling overhead on Lambda cold starts).
    *
-   * The following fields are managed internally and will be overridden per-invocation:
+   * The following fields are managed by settings elsewhere and will be overridden per-invocation:
    * `connection`, `namespace`, `identity`, `workerDeploymentOptions`.
    */
   workerOptions: Partial<WorkerOptions>;

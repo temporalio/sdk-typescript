@@ -603,6 +603,9 @@ importers:
       '@temporalio/interceptors-opentelemetry':
         specifier: workspace:*
         version: link:../interceptors-opentelemetry
+      '@temporalio/lambda-worker':
+        specifier: workspace:*
+        version: link:../lambda-worker
       '@temporalio/nexus':
         specifier: workspace:*
         version: link:../nexus
