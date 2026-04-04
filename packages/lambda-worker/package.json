@@ -19,9 +19,11 @@
     "@temporalio/worker": "workspace:*"
   },
   "devDependencies": {
+    "@aws-lambda-powertools/logger": "^2.0.0",
     "@types/aws-lambda": "^8.10.145"
   },
   "peerDependencies": {
+    "@aws-lambda-powertools/logger": "^2.0.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.52.0",
     "@opentelemetry/resources": "^1.25.1",
@@ -29,6 +31,9 @@
     "@opentelemetry/semantic-conventions": "^1.25.1"
   },
   "peerDependenciesMeta": {
+    "@aws-lambda-powertools/logger": {
+      "optional": true
+    },
     "@opentelemetry/api": {
       "optional": true
     },

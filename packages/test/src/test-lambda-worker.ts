@@ -9,7 +9,11 @@ import { LAMBDA_WORKER_DEFAULTS } from '@temporalio/lambda-worker/lib/defaults';
 const TEST_VERSION = { buildId: 'test-build', deploymentName: 'test-deployment' };
 
 // Minimal mock that satisfies the Context interface used by the handler
-function makeMockContext(remainingMs: number, requestId = 'req-abc-123', arn = 'arn:aws:lambda:us-east-1:123456:function:my-func'): any {
+function makeMockContext(
+  remainingMs: number,
+  requestId = 'req-abc-123',
+  arn = 'arn:aws:lambda:us-east-1:123456:function:my-func'
+): any {
   return {
     awsRequestId: requestId,
     invokedFunctionArn: arn,
@@ -17,12 +21,15 @@ function makeMockContext(remainingMs: number, requestId = 'req-abc-123', arn = '
   };
 }
 
+const noopLogger = { log() {}, trace() {}, debug() {}, info() {}, warn() {}, error() {} };
+
 function makeTestDeps(overrides?: Partial<WorkerDeps>): WorkerDeps {
   return {
     connect: async () => ({ close: async () => {} }),
     createWorker: async () => ({ runUntil: async () => {} }),
     loadConnectConfig: () => ({ connectionOptions: {}, namespace: 'default' }),
-    logger: { log() {}, trace() {}, debug() {}, info() {}, warn() {}, error() {} },
+    installRuntime: () => {},
+    getLogger: () => noopLogger,
     ...overrides,
   };
 }
@@ -31,10 +38,14 @@ function makeTestDeps(overrides?: Partial<WorkerDeps>): WorkerDeps {
 
 test('workerDeploymentOptions defaults to PINNED', (t) => {
   let captured: LambdaWorkerConfig | undefined;
-  _runWorkerInternal(TEST_VERSION, (config) => {
-    captured = config;
-    config.workerOptions.taskQueue = 'q';
-  }, makeTestDeps());
+  _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      captured = config;
+      config.workerOptions.taskQueue = 'q';
+    },
+    makeTestDeps()
+  );
 
   const opts = captured!.workerOptions.workerDeploymentOptions;
   t.truthy(opts);
@@ -45,16 +56,20 @@ test('workerDeploymentOptions defaults to PINNED', (t) => {
 
 test('user can override defaultVersioningBehavior to AUTO_UPGRADE', (t) => {
   let captured: LambdaWorkerConfig | undefined;
-  _runWorkerInternal(TEST_VERSION, (config) => {
-    captured = config;
-    config.workerOptions.taskQueue = 'q';
-    const prev = config.workerOptions.workerDeploymentOptions!;
-    config.workerOptions.workerDeploymentOptions = {
-      version: prev.version,
-      useWorkerVersioning: true,
-      defaultVersioningBehavior: 'AUTO_UPGRADE',
-    };
-  }, makeTestDeps());
+  _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      captured = config;
+      config.workerOptions.taskQueue = 'q';
+      const prev = config.workerOptions.workerDeploymentOptions!;
+      config.workerOptions.workerDeploymentOptions = {
+        version: prev.version,
+        useWorkerVersioning: true,
+        defaultVersioningBehavior: 'AUTO_UPGRADE',
+      };
+    },
+    makeTestDeps()
+  );
 
   const opts = captured!.workerOptions.workerDeploymentOptions;
   t.is(opts!.defaultVersioningBehavior, 'AUTO_UPGRADE');
@@ -63,40 +78,51 @@ test('user can override defaultVersioningBehavior to AUTO_UPGRADE', (t) => {
 
 test('throws if workerDeploymentOptions is removed', (t) => {
   t.throws(
-    () => _runWorkerInternal(TEST_VERSION, (config) => {
-      config.workerOptions.taskQueue = 'q';
-      delete config.workerOptions.workerDeploymentOptions;
-    }, makeTestDeps()),
+    () =>
+      _runWorkerInternal(
+        TEST_VERSION,
+        (config) => {
+          config.workerOptions.taskQueue = 'q';
+          delete config.workerOptions.workerDeploymentOptions;
+        },
+        makeTestDeps()
+      ),
     { message: /workerDeploymentOptions must not be removed/ }
   );
 });
 
 test('throws if useWorkerVersioning is set to false', (t) => {
   t.throws(
-    () => _runWorkerInternal(TEST_VERSION, (config) => {
-      config.workerOptions.taskQueue = 'q';
-      config.workerOptions.workerDeploymentOptions = {
-        ...config.workerOptions.workerDeploymentOptions!,
-        useWorkerVersioning: false,
-      } as any;
-    }, makeTestDeps()),
+    () =>
+      _runWorkerInternal(
+        TEST_VERSION,
+        (config) => {
+          config.workerOptions.taskQueue = 'q';
+          config.workerOptions.workerDeploymentOptions = {
+            ...config.workerOptions.workerDeploymentOptions!,
+            useWorkerVersioning: false,
+          } as any;
+        },
+        makeTestDeps()
+      ),
     { message: /useWorkerVersioning must not be set to false/ }
   );
 });
 
 test('throws if taskQueue is not set', (t) => {
-  t.throws(
-    () => _runWorkerInternal(TEST_VERSION, () => {}, makeTestDeps()),
-    { message: /taskQueue is required/ }
-  );
+  t.throws(() => _runWorkerInternal(TEST_VERSION, () => {}, makeTestDeps()), { message: /taskQueue is required/ });
 });
 
 test('Lambda defaults applied to workerOptions', (t) => {
   let captured: LambdaWorkerConfig | undefined;
-  _runWorkerInternal(TEST_VERSION, (config) => {
-    captured = config;
-    config.workerOptions.taskQueue = 'q';
-  }, makeTestDeps());
+  _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      captured = config;
+      config.workerOptions.taskQueue = 'q';
+    },
+    makeTestDeps()
+  );
 
   const opts = captured!.workerOptions;
   t.is(opts.maxConcurrentActivityTaskExecutions, LAMBDA_WORKER_DEFAULTS.maxConcurrentActivityTaskExecutions);
@@ -112,15 +138,19 @@ test('Lambda defaults applied to workerOptions', (t) => {
 
 test('user overrides take precedence over Lambda defaults', async (t) => {
   let capturedWorkerOpts: WorkerOptions | undefined;
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'user-queue';
-    config.workerOptions.maxConcurrentActivityTaskExecutions = 99;
-  }, makeTestDeps({
-    createWorker: async (opts) => {
-      capturedWorkerOpts = opts;
-      return { runUntil: async () => {} };
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'user-queue';
+      config.workerOptions.maxConcurrentActivityTaskExecutions = 99;
     },
-  }));
+    makeTestDeps({
+      createWorker: async (opts) => {
+        capturedWorkerOpts = opts;
+        return { runUntil: async () => {} };
+      },
+    })
+  );
 
   await handler({}, makeMockContext(60_000));
   t.is(capturedWorkerOpts!.taskQueue, 'user-queue');
@@ -129,10 +159,14 @@ test('user overrides take precedence over Lambda defaults', async (t) => {
 
 test('configure callback receives pre-populated config with defaults', (t) => {
   let captured: LambdaWorkerConfig | undefined;
-  _runWorkerInternal(TEST_VERSION, (config) => {
-    captured = config;
-    config.workerOptions.taskQueue = 'q';
-  }, makeTestDeps());
+  _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      captured = config;
+      config.workerOptions.taskQueue = 'q';
+    },
+    makeTestDeps()
+  );
 
   t.truthy(captured);
   t.is(captured!.workerOptions.maxConcurrentActivityTaskExecutions, 2);
@@ -141,16 +175,67 @@ test('configure callback receives pre-populated config with defaults', (t) => {
   t.deepEqual(captured!.shutdownHooks, []);
 });
 
+test('runtimeOptions pre-populated with shutdownSignals disabled', (t) => {
+  let captured: LambdaWorkerConfig | undefined;
+  _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      captured = config;
+      config.workerOptions.taskQueue = 'q';
+    },
+    makeTestDeps()
+  );
+
+  t.deepEqual(captured!.runtimeOptions.shutdownSignals, []);
+});
+
+test('Runtime.install called with runtimeOptions', (t) => {
+  let installedOptions: any;
+  _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+    },
+    makeTestDeps({
+      installRuntime: (opts) => { installedOptions = opts; },
+    })
+  );
+
+  t.truthy(installedOptions);
+  t.deepEqual(installedOptions.shutdownSignals, []);
+});
+
+test('user can override runtimeOptions.logger', (t) => {
+  const customLogger = { log() {}, trace() {}, debug() {}, info() {}, warn() {}, error() {} };
+  let installedOptions: any;
+  _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+      config.runtimeOptions.logger = customLogger;
+    },
+    makeTestDeps({
+      installRuntime: (opts) => { installedOptions = opts; },
+    })
+  );
+
+  t.is(installedOptions.logger, customLogger);
+});
+
 test('task queue from configure callback', async (t) => {
   let capturedWorkerOpts: WorkerOptions | undefined;
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'explicit-queue';
-  }, makeTestDeps({
-    createWorker: async (opts) => {
-      capturedWorkerOpts = opts;
-      return { runUntil: async () => {} };
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'explicit-queue';
     },
-  }));
+    makeTestDeps({
+      createWorker: async (opts) => {
+        capturedWorkerOpts = opts;
+        return { runUntil: async () => {} };
+      },
+    })
+  );
 
   await handler({}, makeMockContext(60_000));
   t.is(capturedWorkerOpts!.taskQueue, 'explicit-queue');
@@ -161,9 +246,13 @@ test('task queue pre-populated from TEMPORAL_TASK_QUEUE env var', (t) => {
   try {
     process.env['TEMPORAL_TASK_QUEUE'] = 'env-queue';
     let captured: LambdaWorkerConfig | undefined;
-    _runWorkerInternal(TEST_VERSION, (config) => {
-      captured = config;
-    }, makeTestDeps());
+    _runWorkerInternal(
+      TEST_VERSION,
+      (config) => {
+        captured = config;
+      },
+      makeTestDeps()
+    );
 
     t.is(captured!.workerOptions.taskQueue, 'env-queue');
   } finally {
@@ -177,15 +266,19 @@ test('task queue pre-populated from TEMPORAL_TASK_QUEUE env var', (t) => {
 
 test('user namespace override applied', async (t) => {
   let capturedWorkerOpts: WorkerOptions | undefined;
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-    config.namespace = 'custom-ns';
-  }, makeTestDeps({
-    createWorker: async (opts) => {
-      capturedWorkerOpts = opts;
-      return { runUntil: async () => {} };
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+      config.namespace = 'custom-ns';
     },
-  }));
+    makeTestDeps({
+      createWorker: async (opts) => {
+        capturedWorkerOpts = opts;
+        return { runUntil: async () => {} };
+      },
+    })
+  );
 
   await handler({}, makeMockContext(60_000));
   t.is(capturedWorkerOpts!.namespace, 'custom-ns');
@@ -195,14 +288,18 @@ test('user namespace override applied', async (t) => {
 
 test('identity built from Lambda context', async (t) => {
   let capturedWorkerOpts: WorkerOptions | undefined;
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-  }, makeTestDeps({
-    createWorker: async (opts) => {
-      capturedWorkerOpts = opts;
-      return { runUntil: async () => {} };
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
     },
-  }));
+    makeTestDeps({
+      createWorker: async (opts) => {
+        capturedWorkerOpts = opts;
+        return { runUntil: async () => {} };
+      },
+    })
+  );
 
   await handler({}, makeMockContext(60_000, 'req-abc-123', 'arn:aws:lambda:us-east-1:123456:function:my-func'));
   t.is(capturedWorkerOpts!.identity, 'req-abc-123@arn:aws:lambda:us-east-1:123456:function:my-func');
@@ -212,10 +309,16 @@ test('identity built from Lambda context', async (t) => {
 
 test('shutdown hooks called', async (t) => {
   let shutdownCalled = false;
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-    config.shutdownHooks.push(() => { shutdownCalled = true; });
-  }, makeTestDeps());
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+      config.shutdownHooks.push(() => {
+        shutdownCalled = true;
+      });
+    },
+    makeTestDeps()
+  );
 
   await handler({}, makeMockContext(60_000));
   t.true(shutdownCalled);
@@ -223,10 +326,16 @@ test('shutdown hooks called', async (t) => {
 
 test('shutdown hooks called per invocation', async (t) => {
   let shutdownCount = 0;
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-    config.shutdownHooks.push(() => { shutdownCount++; });
-  }, makeTestDeps());
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+      config.shutdownHooks.push(() => {
+        shutdownCount++;
+      });
+    },
+    makeTestDeps()
+  );
 
   await handler({}, makeMockContext(60_000));
   await handler({}, makeMockContext(60_000));
@@ -236,11 +345,19 @@ test('shutdown hooks called per invocation', async (t) => {
 
 test('multiple shutdown hooks run in order', async (t) => {
   const order: string[] = [];
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-    config.shutdownHooks.push(() => { order.push('first'); });
-    config.shutdownHooks.push(() => { order.push('second'); });
-  }, makeTestDeps());
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+      config.shutdownHooks.push(() => {
+        order.push('first');
+      });
+      config.shutdownHooks.push(() => {
+        order.push('second');
+      });
+    },
+    makeTestDeps()
+  );
 
   await handler({}, makeMockContext(60_000));
   t.deepEqual(order, ['first', 'second']);
@@ -248,13 +365,17 @@ test('multiple shutdown hooks run in order', async (t) => {
 
 test('async shutdown hooks are awaited', async (t) => {
   let called = false;
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-    config.shutdownHooks.push(async () => {
-      await new Promise((r) => setTimeout(r, 10));
-      called = true;
-    });
-  }, makeTestDeps());
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+      config.shutdownHooks.push(async () => {
+        await new Promise((r) => setTimeout(r, 10));
+        called = true;
+      });
+    },
+    makeTestDeps()
+  );
 
   await handler({}, makeMockContext(60_000));
   t.true(called);
@@ -262,11 +383,19 @@ test('async shutdown hooks are awaited', async (t) => {
 
 test('shutdown hook error does not prevent subsequent hooks', async (t) => {
   let secondCalled = false;
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-    config.shutdownHooks.push(() => { throw new Error('hook failed'); });
-    config.shutdownHooks.push(() => { secondCalled = true; });
-  }, makeTestDeps());
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+      config.shutdownHooks.push(() => {
+        throw new Error('hook failed');
+      });
+      config.shutdownHooks.push(() => {
+        secondCalled = true;
+      });
+    },
+    makeTestDeps()
+  );
 
   await handler({}, makeMockContext(60_000));
   t.true(secondCalled);
@@ -275,46 +404,55 @@ test('shutdown hook error does not prevent subsequent hooks', async (t) => {
 // ---- Deadline Tests ----
 
 test('tight deadline throws error', async (t) => {
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-  }, makeTestDeps());
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+    },
+    makeTestDeps()
+  );
 
   // remaining = 2000, buffer = 7000 (default), work time = -5000 <= 1000
-  await t.throwsAsync(
-    () => handler({}, makeMockContext(2000)),
-    { message: /Insufficient time for Lambda worker/ }
-  );
+  await t.throwsAsync(() => handler({}, makeMockContext(2000)), { message: /Insufficient time for Lambda worker/ });
 });
 
 test('tight deadline with custom buffer throws error', async (t) => {
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-    config.shutdownDeadlineBufferMs = 1500;
-  }, makeTestDeps());
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+      config.shutdownDeadlineBufferMs = 1500;
+    },
+    makeTestDeps()
+  );
 
   // remaining = 2000, buffer = 1500, work time = 500 <= 1000
-  await t.throwsAsync(
-    () => handler({}, makeMockContext(2000)),
-    { message: /Insufficient time for Lambda worker/ }
-  );
+  await t.throwsAsync(() => handler({}, makeMockContext(2000)), { message: /Insufficient time for Lambda worker/ });
 });
 
 test('low work time logs warning', async (t) => {
   let warnCalled = false;
   let warnMessage = '';
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-    config.shutdownDeadlineBufferMs = 500;
-  }, makeTestDeps({
-    logger: {
-      log() {},
-      trace() {},
-      debug() {},
-      info() {},
-      warn(msg: string) { warnCalled = true; warnMessage = msg; },
-      error() {},
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+      config.shutdownDeadlineBufferMs = 500;
     },
-  }));
+    makeTestDeps({
+      getLogger: () => ({
+        log() {},
+        trace() {},
+        debug() {},
+        info() {},
+        warn(msg: string) {
+          warnCalled = true;
+          warnMessage = msg;
+        },
+        error() {},
+      }),
+    })
+  );
 
   // remaining = 4000, buffer = 500, work time = 3500 < 5000 (warn threshold)
   await handler({}, makeMockContext(4000));
@@ -326,14 +464,18 @@ test('low work time logs warning', async (t) => {
 
 test('new connection created per invocation', async (t) => {
   let connectCount = 0;
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-  }, makeTestDeps({
-    connect: async () => {
-      connectCount++;
-      return { close: async () => {} };
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
     },
-  }));
+    makeTestDeps({
+      connect: async () => {
+        connectCount++;
+        return { close: async () => {} };
+      },
+    })
+  );
 
   await handler({}, makeMockContext(60_000));
   await handler({}, makeMockContext(60_000));
@@ -343,16 +485,24 @@ test('new connection created per invocation', async (t) => {
 
 test('connection closed after worker completes', async (t) => {
   const order: string[] = [];
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-  }, makeTestDeps({
-    createWorker: async () => ({
-      runUntil: async () => { order.push('worker.runUntil'); },
-    }),
-    connect: async () => ({
-      close: async () => { order.push('connection.close'); },
-    }),
-  }));
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+    },
+    makeTestDeps({
+      createWorker: async () => ({
+        runUntil: async () => {
+          order.push('worker.runUntil');
+        },
+      }),
+      connect: async () => ({
+        close: async () => {
+          order.push('connection.close');
+        },
+      }),
+    })
+  );
 
   await handler({}, makeMockContext(60_000));
   t.deepEqual(order, ['worker.runUntil', 'connection.close']);
@@ -360,17 +510,27 @@ test('connection closed after worker completes', async (t) => {
 
 test('shutdown hooks run after worker completes but before connection close', async (t) => {
   const order: string[] = [];
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-    config.shutdownHooks.push(() => { order.push('shutdown-hook'); });
-  }, makeTestDeps({
-    createWorker: async () => ({
-      runUntil: async () => { order.push('worker.runUntil'); },
-    }),
-    connect: async () => ({
-      close: async () => { order.push('connection.close'); },
-    }),
-  }));
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+      config.shutdownHooks.push(() => {
+        order.push('shutdown-hook');
+      });
+    },
+    makeTestDeps({
+      createWorker: async () => ({
+        runUntil: async () => {
+          order.push('worker.runUntil');
+        },
+      }),
+      connect: async () => ({
+        close: async () => {
+          order.push('connection.close');
+        },
+      }),
+    })
+  );
 
   await handler({}, makeMockContext(60_000));
   t.deepEqual(order, ['worker.runUntil', 'shutdown-hook', 'connection.close']);
@@ -378,14 +538,22 @@ test('shutdown hooks run after worker completes but before connection close', as
 
 test('connection closed even if worker creation fails', async (t) => {
   let closeCalled = false;
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-  }, makeTestDeps({
-    createWorker: async () => { throw new Error('worker creation failed'); },
-    connect: async () => ({
-      close: async () => { closeCalled = true; },
-    }),
-  }));
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+    },
+    makeTestDeps({
+      createWorker: async () => {
+        throw new Error('worker creation failed');
+      },
+      connect: async () => ({
+        close: async () => {
+          closeCalled = true;
+        },
+      }),
+    })
+  );
 
   await t.throwsAsync(() => handler({}, makeMockContext(60_000)), { message: /worker creation failed/ });
   t.true(closeCalled);
@@ -393,12 +561,20 @@ test('connection closed even if worker creation fails', async (t) => {
 
 test('shutdown hooks run even if worker creation fails', async (t) => {
   let hookCalled = false;
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-    config.shutdownHooks.push(() => { hookCalled = true; });
-  }, makeTestDeps({
-    createWorker: async () => { throw new Error('worker creation failed'); },
-  }));
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+      config.shutdownHooks.push(() => {
+        hookCalled = true;
+      });
+    },
+    makeTestDeps({
+      createWorker: async () => {
+        throw new Error('worker creation failed');
+      },
+    })
+  );
 
   await t.throwsAsync(() => handler({}, makeMockContext(60_000)));
   t.true(hookCalled);
@@ -408,19 +584,23 @@ test('shutdown hooks run even if worker creation fails', async (t) => {
 
 test('user connectionOptions merged on top of envconfig', async (t) => {
   let capturedOpts: NativeConnectionOptions | undefined;
-  const handler = _runWorkerInternal(TEST_VERSION, (config) => {
-    config.workerOptions.taskQueue = 'q';
-    config.connectionOptions = { address: 'user-override:7233' };
-  }, makeTestDeps({
-    loadConnectConfig: () => ({
-      connectionOptions: { address: 'envconfig:7233', apiKey: 'from-env' },
-      namespace: 'default',
-    }),
-    connect: async (opts) => {
-      capturedOpts = opts;
-      return { close: async () => {} };
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
+      config.connectionOptions = { address: 'user-override:7233' };
     },
-  }));
+    makeTestDeps({
+      loadConnectConfig: () => ({
+        connectionOptions: { address: 'envconfig:7233', apiKey: 'from-env' },
+        namespace: 'default',
+      }),
+      connect: async (opts) => {
+        capturedOpts = opts;
+        return { close: async () => {} };
+      },
+    })
+  );
 
   await handler({}, makeMockContext(60_000));
   t.is(capturedOpts!.address, 'user-override:7233');
