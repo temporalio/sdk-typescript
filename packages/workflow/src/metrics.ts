@@ -5,12 +5,40 @@ import {
   MetricMeter,
   MetricMeterWithComposedTags,
   MetricTags,
+  MetricUpDownCounter,
   NumericMetricValueType,
 } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { proxySinks, Sink, Sinks } from './sinks';
 import { workflowInfo } from './workflow';
 import { assertInWorkflowContext } from './global-attributes';
+import type { Activator } from './internals';
+
+/**
+ * Per-workflow cache of UpDownCounter instances, keyed by metric name.
+ * Uses a WeakMap on the Activator so that each workflow execution gets
+ * its own set of singletons, even in reuseV8Context mode.
+ */
+const upDownCounterCaches = new WeakMap<Activator, Map<string, WorkflowMetricUpDownCounter>>();
+
+function getOrCreateUpDownCounter(
+  activator: Activator,
+  name: string,
+  unit: string | undefined,
+  description: string | undefined
+): WorkflowMetricUpDownCounter {
+  let cache = upDownCounterCaches.get(activator);
+  if (!cache) {
+    cache = new Map();
+    upDownCounterCaches.set(activator, cache);
+  }
+  let counter = cache.get(name);
+  if (!counter) {
+    counter = new WorkflowMetricUpDownCounter(name, unit, description);
+    cache.set(name, counter);
+  }
+  return counter;
+}
 
 class WorkflowMetricMeterImpl implements MetricMeter {
   constructor() {}
@@ -18,6 +46,11 @@ class WorkflowMetricMeterImpl implements MetricMeter {
   createCounter(name: string, unit?: string, description?: string): MetricCounter {
     assertInWorkflowContext("Workflow's `metricMeter` can only be used while in Workflow Context");
     return new WorkflowMetricCounter(name, unit, description);
+  }
+
+  createUpDownCounter(name: string, unit?: string, description?: string): MetricUpDownCounter {
+    const activator = assertInWorkflowContext("Workflow's `metricMeter` can only be used while in Workflow Context");
+    return getOrCreateUpDownCounter(activator, name, unit, description);
   }
 
   createHistogram(
@@ -69,6 +102,53 @@ class WorkflowMetricCounter implements MetricCounter {
   withTags(_tags: MetricTags): MetricCounter {
     // Tags composition is handled by a MetricMeterWithComposedTags wrapper over this one
     throw new Error(`withTags is not supported directly on WorkflowMetricCounter`);
+  }
+}
+
+/**
+ * Replay-safe UpDownCounter for workflow metrics.
+ *
+ * Unlike other metric types which skip emission during replay, the UpDownCounter
+ * tracks its cumulative net value per tag combination and always emits the absolute
+ * net value to the worker sink. This allows the sink to correctly reconstruct the
+ * metric state after cache eviction (same process) or worker restart (new process).
+ *
+ * Singleton per metric name per workflow execution — enforced by the WeakMap cache
+ * on the Activator. This follows OpenTelemetry conventions where the same instrument
+ * name always returns the same instrument.
+ */
+class WorkflowMetricUpDownCounter implements MetricUpDownCounter {
+  public readonly kind = 'up_down_counter';
+  public readonly valueType = 'int';
+
+  /**
+   * Tracks the cumulative net value per tag combination.
+   * Key is a stable serialization of the tags object.
+   */
+  private readonly netValues = new Map<string, number>();
+
+  constructor(
+    public readonly name: string,
+    public readonly unit: string | undefined,
+    public readonly description: string | undefined
+  ) {}
+
+  add(value: number, tags?: MetricTags): void {
+    const resolvedTags = tags ?? {};
+    const key = stableTagsKey(resolvedTags);
+    const oldNet = this.netValues.get(key) ?? 0;
+    const newNet = oldNet + value;
+    this.netValues.set(key, newNet);
+
+    // Always emit — even during replay. The sink receives the absolute net value
+    // and applies only the delta from what it previously tracked for this workflow.
+    // This makes UpDownCounter correct across cache evictions and worker restarts.
+    metricSink.addMetricUpDownCounterValue(this.name, this.unit, this.description, newNet, resolvedTags);
+  }
+
+  withTags(_tags: MetricTags): MetricUpDownCounter {
+    // Tags composition is handled by a MetricMeterWithComposedTags wrapper over this one
+    throw new Error('withTags is not supported directly on WorkflowMetricUpDownCounter');
   }
 }
 
@@ -124,9 +204,20 @@ class WorkflowMetricGauge implements MetricGauge {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Serializes tags into a stable string key for the per-instance net value tracking.
+ * Keys are sorted to ensure deterministic ordering regardless of insertion order.
+ */
+function stableTagsKey(tags: MetricTags): string {
+  const keys = Object.keys(tags).sort();
+  if (keys.length === 0) return '';
+  return keys.map((k) => `${k}=${tags[k]}`).join(',');
+}
+
 // Note: given that forwarding metrics outside of the sanbox can be quite chatty and add non
 // negligeable overhead, we eagerly check for `isReplaying` and completely skip doing sink
-// calls if we are replaying.
+// calls if we are replaying. The exception is UpDownCounter, which must emit during replay
+// to correctly rebuild its state after cache eviction or worker restart.
 const metricSink = proxySinks<MetricSinks>().__temporal_metrics;
 
 /**
@@ -155,6 +246,19 @@ export interface WorkflowMetricMeter extends Sink {
     unit: string | undefined,
     description: string | undefined,
     value: number,
+    attrs: MetricTags
+  ): void;
+
+  /**
+   * Receives the absolute net value of an UpDownCounter for a workflow, not a delta.
+   * The worker sink tracks per-workflow contributions and applies only the real delta
+   * to the underlying metric, enabling correct behavior across replays.
+   */
+  addMetricUpDownCounterValue(
+    metricName: string,
+    unit: string | undefined,
+    description: string | undefined,
+    netValue: number,
     attrs: MetricTags
   ): void;
 
