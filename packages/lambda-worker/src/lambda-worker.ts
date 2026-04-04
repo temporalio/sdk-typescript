@@ -1,12 +1,12 @@
 import type { Context } from 'aws-lambda';
-import type { WorkerDeploymentVersion } from '@temporalio/common';
+import type { WorkerDeploymentVersion, Logger } from '@temporalio/common';
 import {
   type WorkerOptions,
   type NativeConnectionOptions,
-  type Logger,
+  type RuntimeOptions,
   NativeConnection,
   Worker,
-  DefaultLogger,
+  Runtime,
 } from '@temporalio/worker';
 import type { ClientConnectConfig, LoadClientProfileOptions } from '@temporalio/envconfig';
 import {
@@ -16,6 +16,7 @@ import {
   WARN_WORK_TIME_MS,
 } from './defaults';
 import { loadLambdaClientConnectConfig } from './config';
+import { makePowertoolsLogger } from './logger-factory';
 import type { LambdaWorkerConfig, LambdaHandler } from './types';
 
 /**
@@ -25,14 +26,16 @@ export interface WorkerDeps {
   connect: (options: NativeConnectionOptions) => Promise<{ close(): Promise<void> }>;
   createWorker: (options: WorkerOptions) => Promise<{ runUntil(p: Promise<void>): Promise<void> }>;
   loadConnectConfig: (options?: Partial<LoadClientProfileOptions>) => ClientConnectConfig;
-  logger: Logger;
+  installRuntime: (options: RuntimeOptions) => void;
+  getLogger: () => Logger;
 }
 
 const defaultDeps: WorkerDeps = {
   connect: (opts) => NativeConnection.connect(opts),
   createWorker: (opts) => Worker.create(opts),
   loadConnectConfig: loadLambdaClientConnectConfig,
-  logger: new DefaultLogger('INFO'),
+  installRuntime: (opts) => Runtime.install(opts),
+  getLogger: () => Runtime.instance().logger,
 };
 
 /**
@@ -85,6 +88,10 @@ export function _runWorkerInternal(
         defaultVersioningBehavior: 'PINNED',
       },
     },
+    runtimeOptions: {
+      logger: makePowertoolsLogger(),
+      shutdownSignals: [],
+    },
     shutdownHooks: [],
   };
 
@@ -113,9 +120,13 @@ export function _runWorkerInternal(
     throw new Error('useWorkerVersioning must not be set to false: worker deployment versioning is required in Lambda');
   }
 
+  // Install the Runtime with the (possibly user-modified) options
+  deps.installRuntime(config.runtimeOptions);
+
   const shutdownDeadlineBufferMs = config.shutdownDeadlineBufferMs ?? DEFAULT_SHUTDOWN_DEADLINE_BUFFER_MS;
 
   return async (_event: unknown, context: Context): Promise<void> => {
+    const logger = deps.getLogger();
     const remainingMs = context.getRemainingTimeInMillis();
     const workTimeMs = remainingMs - shutdownDeadlineBufferMs;
 
@@ -127,7 +138,7 @@ export function _runWorkerInternal(
       );
     }
     if (workTimeMs < WARN_WORK_TIME_MS) {
-      deps.logger.warn('Low work time available for Lambda worker', {
+      logger.warn('Low work time available for Lambda worker', {
         remainingMs,
         shutdownDeadlineBufferMs,
         workTimeMs,
@@ -165,14 +176,14 @@ export function _runWorkerInternal(
         try {
           await hook();
         } catch (err) {
-          deps.logger.error('Lambda worker shutdown hook failed', { error: err });
+          logger.error('Lambda worker shutdown hook failed', { error: err });
         }
       }
 
       try {
         await connection.close();
       } catch (err) {
-        deps.logger.error('Failed to close Temporal connection', { error: err });
+        logger.error('Failed to close Temporal connection', { error: err });
       }
     }
   };

@@ -1,5 +1,5 @@
 import type { Context } from 'aws-lambda';
-import type { WorkerOptions, NativeConnectionOptions } from '@temporalio/worker';
+import type { WorkerOptions, NativeConnectionOptions, RuntimeOptions } from '@temporalio/worker';
 import type { LoadClientProfileOptions } from '@temporalio/envconfig';
 
 /**
@@ -44,6 +44,17 @@ export interface LambdaWorkerConfig {
    * @default 7000 (5s graceful shutdown + 2s margin)
    */
   shutdownDeadlineBufferMs?: number;
+
+  /**
+   * Options for the Temporal {@link Runtime} singleton, installed automatically by `runWorker`.
+   *
+   * Pre-populated with a Powertools JSON logger (if `@aws-lambda-powertools/logger` is installed)
+   * and `shutdownSignals: []` (Lambda manages its own lifecycle).
+   *
+   * Override `runtimeOptions.logger` to use a custom logger, or modify `runtimeOptions.telemetryOptions`
+   * to configure Core-side telemetry.
+   */
+  runtimeOptions: RuntimeOptions;
 
   /**
    * Hooks executed in order after the worker stops on each invocation.
