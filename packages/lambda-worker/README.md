@@ -66,6 +66,30 @@ config.workerOptions.workerDeploymentOptions = {
 };
 ```
 
+## Logging
+
+The Temporal `Runtime` is installed automatically by `runWorker`. If
+[`@aws-lambda-powertools/logger`](https://docs.aws.amazon.com/powertools/typescript/latest/features/logger/)
+is installed, the runtime is configured with a `PowertoolsLoggerAdapter` that produces structured
+JSON output automatically parsed by CloudWatch Logs. If Powertools is not installed, the SDK's
+default human-readable logger is used.
+
+To customize the logger or other runtime options, modify `config.runtimeOptions` in the configure
+callback:
+
+```typescript
+export const handler = runWorker({ deploymentName: 'my-service', buildId: 'v1.0' }, (config) => {
+  config.workerOptions.taskQueue = 'my-task-queue';
+  // Use a custom logger
+  config.runtimeOptions.logger = myCustomLogger;
+  // Or configure telemetry
+  config.runtimeOptions.telemetryOptions = { ... };
+});
+```
+
+Shutdown signals are disabled by default (`shutdownSignals: []`) since Lambda manages its own
+lifecycle.
+
 ## Observability
 
 Metrics and tracing are opt-in. The `otel` module provides convenience helpers for AWS Distro for
