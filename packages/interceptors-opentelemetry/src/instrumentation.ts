@@ -65,6 +65,17 @@ export function headersWithContext(headers: Headers): Headers {
   return { ...headers, [TRACE_HEADER]: payloadConverter.toPayload(carrier) };
 }
 
+/**
+ * Given Nexus headers, return new headers with the current otel context injected directly
+ */
+export function nexusHeadersWithContext(headers: Record<string, string>): Record<string, string> {
+  const carrier: Record<string, string> = {};
+  // Use the global propagator here (which IS registered in the workflow isolate
+  // via BasicTracerProvider.register()), not the explicit nexusPropagator instance.
+  otel.propagation.inject(otel.context.active(), carrier, otel.defaultTextMapSetter);
+  return { ...headers, ...carrier };
+}
+
 async function wrapWithSpan<T>(
   span: otel.Span,
   fn: (span: otel.Span) => Promise<T>,
