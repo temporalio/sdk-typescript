@@ -1,7 +1,6 @@
 /**
  * Manual tests to inspect tracing output
  */
-import * as http from 'http';
 import * as http2 from 'http2';
 import * as otelApi from '@opentelemetry/api';
 import { SpanStatusCode, createTraceState } from '@opentelemetry/api';
@@ -105,6 +104,30 @@ async function withFakeGrpcServer(
   });
 }
 
+// A small wrapper around opentelemetry.NodeSDK to allow  serial tests to execute using the global
+// TracerProvider without collisions
+class OtelSdkContext {
+  private readonly sdk: opentelemetry.NodeSDK;
+
+  constructor(opts: { resource: opentelemetry.resources.Resource; traceExporter: opentelemetry.tracing.SpanExporter }) {
+    this.sdk = new opentelemetry.NodeSDK({
+      resource: opts.resource,
+      traceExporter: opts.traceExporter,
+    });
+  }
+
+  start(): void {
+    // start sets the global TracerProvider which cannot be overridden without removal
+    this.sdk.start();
+  }
+
+  async shutdown(): Promise<void> {
+    await this.sdk.shutdown();
+    // disable removes the global TracerProvider so a new instance of `OtelSdkContext` can set it
+    otelApi.trace.disable();
+  }
+}
+
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Otel interceptor spans are connected and complete', async (t) => {
     Runtime.install({});
@@ -123,10 +146,7 @@ if (RUN_INTEGRATION_TESTS) {
           // Nothing to shutdown
         },
       };
-      const otel = new opentelemetry.NodeSDK({
-        resource: staticResource,
-        traceExporter,
-      });
+      const otel = new OtelSdkContext({ resource: staticResource, traceExporter });
       otel.start();
 
       const plugin = new OpenTelemetryPlugin({
@@ -259,7 +279,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test.serial('Otel nexus inbound interceptor creates spans for sync operation', async (t) => {
+  test.serial('Otel nexus inbound interceptor creates spans for startOperation and cancelOperation', async (t) => {
     Runtime.install({});
     try {
       const spans = Array<opentelemetry.tracing.ReadableSpan>();
@@ -274,14 +294,12 @@ if (RUN_INTEGRATION_TESTS) {
         async shutdown() {},
       };
 
-      const provider = new BasicTracerProvider({ resource: staticResource });
-      provider.addSpanProcessor(new SimpleSpanProcessor(traceExporter));
-      const tracer = provider.getTracer('@temporalio/test-nexus-otel');
+      const otel = new OtelSdkContext({ resource: staticResource, traceExporter });
+      otel.start();
 
       const plugin = new OpenTelemetryPlugin({
         resource: staticResource,
         spanProcessor: new SimpleSpanProcessor(traceExporter),
-        tracer,
       });
 
       const env = await createTestWorkflowEnvironment();
@@ -292,7 +310,7 @@ if (RUN_INTEGRATION_TESTS) {
 
         const workflowBundle = await bundleWorkflowCode({
           ...bundlerOptions,
-          workflowsPath: require.resolve('./workflows/otel-nexus-caller'),
+          workflowsPath: require.resolve('./workflows/nexus-caller-otel'),
           plugins: [plugin],
           logger: new DefaultLogger('WARN'),
         });
@@ -304,34 +322,93 @@ if (RUN_INTEGRATION_TESTS) {
           plugins: [plugin],
           nexusServices: [
             nexus.serviceHandler(workflows.otelNexusService, {
-              async syncOp(_ctx, input) {
-                return `echo: ${input}`;
+              asyncOp: {
+                async start(ctx, _input): Promise<nexus.HandlerStartOperationResult<string>> {
+                  return nexus.HandlerStartOperationResult.async(ctx.requestId!);
+                },
+                async cancel(_ctx, _token): Promise<void> {},
+                async getInfo() {
+                  throw new Error('not implemented');
+                },
+                async getResult() {
+                  throw new Error('not implemented');
+                },
               },
             }),
           ],
         });
 
         const res = await worker.runUntil(
-          env.client.workflow.execute('otelNexusCaller', {
+          env.client.workflow.execute(workflows.otelNexusCancelCaller, {
             taskQueue,
             workflowId: uuid4(),
-            args: [endpointName, 'syncOp', 'hello'],
+            args: [endpointName, 'asyncOp', 'hello'],
           })
         );
-        t.is(res, 'echo: hello');
+        t.is(res, 'cancelled');
 
-        await provider.shutdown();
         await env.deleteNexusEndpoint(endpointIdentifier);
+        await otel.shutdown();
 
-        // Find the RunNexusStartOperation span for the sync op
-        const executeSpan = spans.find(
-          ({ name }) =>
-            name === `${SpanName.NEXUS_START_OPERATION_EXECUTE}${SPAN_DELIMITER}otel-test-service/my-sync-op`
+        t.log(
+          'All spans:',
+          spans.map((s) => ({
+            name: s.name,
+            traceId: s.spanContext().traceId,
+            spanId: s.spanContext().spanId,
+            parentSpanId: s.parentSpanId,
+          }))
         );
-        t.truthy(executeSpan, 'RunNexusStartOperation span should exist');
-        t.is(executeSpan!.status.code, SpanStatusCode.OK);
-        t.is(executeSpan!.attributes[NEXUS_SERVICE_ATTR_KEY], 'otel-test-service');
-        t.is(executeSpan!.attributes[NEXUS_OPERATION_ATTR_KEY], 'my-sync-op');
+
+        // Outbound span from workflow
+        const startSpan = spans.find(
+          ({ name }) => name === `${SpanName.NEXUS_OPERATION_START}${SPAN_DELIMITER}otel-test-service/my-async-op`
+        );
+        t.truthy(startSpan, 'StartNexusOperation span should exist');
+        t.is(startSpan!.attributes[NEXUS_SERVICE_ATTR_KEY], 'otel-test-service');
+        t.is(startSpan!.attributes[NEXUS_OPERATION_ATTR_KEY], 'my-async-op');
+
+        // Inbound span on handler
+        const inboundStartSpan = spans.find(
+          ({ name }) =>
+            name === `${SpanName.NEXUS_START_OPERATION_EXECUTE}${SPAN_DELIMITER}otel-test-service/my-async-op`
+        );
+        t.truthy(inboundStartSpan, 'RunStartNexusOperation span should exist');
+        t.is(inboundStartSpan!.status.code, SpanStatusCode.OK);
+        t.is(inboundStartSpan!.attributes[NEXUS_SERVICE_ATTR_KEY], 'otel-test-service');
+        t.is(inboundStartSpan!.attributes[NEXUS_OPERATION_ATTR_KEY], 'my-async-op');
+
+        // Verify parent-child: inbound handler span should be a child of the outbound start span
+        t.is(
+          inboundStartSpan!.parentSpanId,
+          startSpan!.spanContext().spanId,
+          'RunStartNexusOperation should be a child of StartNexusOperation'
+        );
+        t.is(
+          inboundStartSpan!.spanContext().traceId,
+          startSpan!.spanContext().traceId,
+          'RunStartNexusOperation should share the same trace as StartNexusOperation'
+        );
+
+        const inboundCancelSpan = spans.find(
+          ({ name }) =>
+            name === `${SpanName.NEXUS_CANCEL_OPERATION_EXECUTE}${SPAN_DELIMITER}otel-test-service/my-async-op`
+        );
+        t.truthy(inboundCancelSpan, 'RunCancelNexusOperation span should exist');
+        t.is(inboundCancelSpan!.status.code, SpanStatusCode.OK);
+        t.is(inboundCancelSpan!.attributes[NEXUS_SERVICE_ATTR_KEY], 'otel-test-service');
+        t.is(inboundCancelSpan!.attributes[NEXUS_OPERATION_ATTR_KEY], 'my-async-op');
+
+        t.is(
+          inboundCancelSpan!.parentSpanId,
+          startSpan!.spanContext().spanId,
+          'RunCancelNexusOperation should be a child of StartNexusOperation'
+        );
+        t.is(
+          inboundCancelSpan!.spanContext().traceId,
+          startSpan!.spanContext().traceId,
+          'RunCancelNexusOperation should share the same trace as StartNexusOperation'
+        );
       } finally {
         await env.teardown();
       }
@@ -354,11 +431,8 @@ if (RUN_INTEGRATION_TESTS) {
       const staticResource = new opentelemetry.resources.Resource({
         [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-worker',
       });
-      const otel = new opentelemetry.NodeSDK({
-        resource: staticResource,
-        traceExporter: exporter,
-      });
-      await otel.start();
+      const otel = new OtelSdkContext({ resource: staticResource, traceExporter: exporter });
+      otel.start();
 
       const sinks: InjectedSinks<OpenTelemetrySinks> = {
         exporter: makeWorkflowExporter(new SimpleSpanProcessor(exporter), staticResource),
@@ -791,10 +865,7 @@ if (RUN_INTEGRATION_TESTS) {
         },
       };
 
-      const otel = new opentelemetry.NodeSDK({
-        resource: staticResource,
-        traceExporter: wrappedExporter,
-      });
+      const otel = new OtelSdkContext({ resource: staticResource, traceExporter: wrappedExporter });
       otel.start();
 
       const sinks: InjectedSinks<OpenTelemetrySinks> = {
