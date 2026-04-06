@@ -90,10 +90,7 @@ function currentWorkflowSerializationContext(info: WorkflowInfo): WorkflowSerial
   };
 }
 
-function targetWorkflowSerializationContext(
-  info: WorkflowInfo,
-  workflowId: string
-): WorkflowSerializationContext {
+function targetWorkflowSerializationContext(info: WorkflowInfo, workflowId: string): WorkflowSerializationContext {
   return {
     type: 'workflow',
     namespace: info.namespace,
@@ -135,7 +132,10 @@ export function addDefaultWorkflowOptions<T extends Workflow>(
  */
 function timerNextHandler({ seq, durationMs, options }: TimerInput) {
   const activator = getActivator();
-  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, currentWorkflowSerializationContext(activator.info));
+  const payloadConverter = withPayloadConverterContext(
+    activator.payloadConverter,
+    currentWorkflowSerializationContext(activator.info)
+  );
   return new Promise<void>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -1071,7 +1071,10 @@ export function makeContinueAsNewFunc<F extends Workflow>(
   };
 
   return (...args: Parameters<F>): Promise<never> => {
-    const payloadConverter = withPayloadConverterContext(activator.payloadConverter, currentWorkflowSerializationContext(info));
+    const payloadConverter = withPayloadConverterContext(
+      activator.payloadConverter,
+      currentWorkflowSerializationContext(info)
+    );
     const fn = composeInterceptors(activator.interceptors.outbound, 'continueAsNew', async (input) => {
       const { headers, args, options } = input;
       throw new ContinueAsNew({
@@ -1732,7 +1735,10 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
  */
 export function upsertMemo(memo: Record<string, unknown>): void {
   const activator = assertInWorkflowContext('Workflow.upsertMemo(...) may only be used from a Workflow Execution.');
-  const payloadConverter = withPayloadConverterContext(activator.payloadConverter, currentWorkflowSerializationContext(activator.info));
+  const payloadConverter = withPayloadConverterContext(
+    activator.payloadConverter,
+    currentWorkflowSerializationContext(activator.info)
+  );
 
   if (memo == null) {
     throw new Error('memo must be a non-null Record');
