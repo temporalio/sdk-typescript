@@ -359,7 +359,7 @@ if (RUN_INTEGRATION_TESTS) {
           tracer,
           spanName: `test-thrown-${String(thrown)}`,
           fn: () => {
-            throw thrown; // eslint-disable-line no-throw-literal
+            throw thrown;
           },
         });
         t.fail('expected instrumentSync to throw');

@@ -22,6 +22,7 @@ import type { RawSourceMap } from 'source-map';
 import * as nexus from 'nexus-rpc';
 import { Info as ActivityInfo } from '@temporalio/activity';
 import {
+  ActivitySerializationContext,
   DataConverter,
   decompileRetryPolicy,
   defaultPayloadConverter,
@@ -44,6 +45,7 @@ import {
   encodeErrorToFailure,
   encodeToPayload,
 } from '@temporalio/common/lib/internal-non-workflow';
+import { withSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import {
   Duration,
@@ -1067,6 +1069,11 @@ export class Worker {
               switch (variant) {
                 case 'start': {
                   let info: ActivityInfo | undefined = undefined;
+                  const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
+                  const loadedDataConverter = withSerializationContext(
+                    this.options.loadedDataConverter,
+                    activitySerializationContextFromTaskStart(start, this.options.namespace)
+                  );
                   try {
                     if (activity !== undefined) {
                       throw new IllegalStateError(
@@ -1075,7 +1082,7 @@ export class Worker {
                     }
                     info = await extractActivityInfo(
                       task,
-                      this.options.loadedDataConverter,
+                      loadedDataConverter,
                       this.options.namespace,
                       this.options.taskQueue
                     );
@@ -1094,7 +1101,7 @@ export class Worker {
                     }
                     let args: unknown[];
                     try {
-                      args = await decodeArrayFromPayloads(this.options.loadedDataConverter, task.start?.input);
+                      args = await decodeArrayFromPayloads(loadedDataConverter, task.start?.input);
                     } catch (err) {
                       throw ApplicationFailure.fromError(err, {
                         message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(err)}`,
@@ -1112,7 +1119,7 @@ export class Worker {
                     activity = new Activity(
                       info,
                       fn,
-                      this.options.loadedDataConverter,
+                      loadedDataConverter,
                       (details) =>
                         this.activityHeartbeatSubject.next({
                           type: 'heartbeat',
@@ -1148,7 +1155,7 @@ export class Worker {
                       type: 'result',
                       result: {
                         failed: {
-                          failure: await encodeErrorToFailure(this.options.loadedDataConverter, error),
+                          failure: await encodeErrorToFailure(loadedDataConverter, error),
                         },
                       },
                     };
@@ -1760,7 +1767,13 @@ export class Worker {
             let payload: Payload;
             try {
               try {
-                payload = await encodeToPayload(this.options.loadedDataConverter, details);
+                payload = await encodeToPayload(
+                  withSerializationContext(
+                    this.options.loadedDataConverter,
+                    activitySerializationContextFromInfo(info)
+                  ),
+                  details
+                );
               } catch (error: any) {
                 this.logger.warn('Failed to encode heartbeat details, cancelling Activity', {
                   error,
@@ -2237,6 +2250,29 @@ async function extractActivityInfo(
     ),
     priority: decodePriority(start.priority),
     retryPolicy: decompileRetryPolicy(start.retryPolicy),
+  };
+}
+
+function activitySerializationContextFromInfo(info: ActivityInfo): ActivitySerializationContext {
+  return {
+    type: 'activity',
+    namespace: info.activityNamespace,
+    activityId: info.activityId,
+    workflowId: info.workflowExecution.workflowId,
+    isLocal: info.isLocal,
+  };
+}
+
+function activitySerializationContextFromTaskStart(
+  start: NonNullableObject<coresdk.activity_task.IStart>,
+  activityNamespace: string
+): ActivitySerializationContext {
+  return {
+    type: 'activity',
+    namespace: activityNamespace,
+    activityId: start.activityId || undefined,
+    workflowId: start.workflowExecution?.workflowId ?? undefined,
+    isLocal: start.isLocal,
   };
 }
 

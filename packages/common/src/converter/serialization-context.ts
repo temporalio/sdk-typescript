@@ -82,10 +82,10 @@ export function withFailureConverterContext(
 /**
  * Return a loaded data converter with its payload and failure converters bound to `context`.
  *
- * Payload codecs are intentionally left unchanged in this PR and will be handled separately.
- *
  * Internal helper for non-workflow code paths. Workflow-isolate code should bind the individual
  * payload or failure converter directly to avoid pulling unnecessary code into the workflow bundle.
+ *
+ * NOTE: this does *not* bind `context` to payload codecs
  */
 export function withSerializationContext(
   converter: LoadedDataConverter,
