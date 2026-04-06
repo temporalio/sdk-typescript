@@ -1485,14 +1485,15 @@ export class WorkflowClient extends BaseClient {
         const raw = await fn({
           workflowExecution: { workflowId, runId },
         });
-        const info = await executionInfoFromRaw(raw.workflowExecutionInfo ?? {}, this.client.dataConverter, raw);
+        const dataConverter = this.client.dataConverterWithWorkflowContext(workflowId);
+        const info = await executionInfoFromRaw(raw.workflowExecutionInfo ?? {}, dataConverter, raw);
         const userMetadata = raw.executionConfig?.userMetadata;
         return {
           ...info,
           staticDetails: async () =>
-            (await decodeOptionalSinglePayload(this.client.dataConverter, userMetadata?.details)) ?? undefined,
+            (await decodeOptionalSinglePayload(dataConverter, userMetadata?.details)) ?? undefined,
           staticSummary: async () =>
-            (await decodeOptionalSinglePayload(this.client.dataConverter, userMetadata?.summary)) ?? undefined,
+            (await decodeOptionalSinglePayload(dataConverter, userMetadata?.summary)) ?? undefined,
           raw,
         };
       },
@@ -1608,7 +1609,8 @@ export class WorkflowClient extends BaseClient {
       // Decoding is done for `memo` fields which tend to be small.
       // We might decide to change that based on user feedback.
       for (const raw of response.executions) {
-        yield await executionInfoFromRaw(raw, this.dataConverter, raw);
+        // Non-null assertion is a bit ugly, but we do it inside executionInfoFromRaw already
+        yield await executionInfoFromRaw(raw, this.dataConverterWithWorkflowContext(raw.execution!.workflowId!), raw);
       }
       nextPageToken = response.nextPageToken;
       if (nextPageToken == null || nextPageToken.length === 0) break;

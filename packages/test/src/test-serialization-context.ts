@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import asyncRetry from 'async-retry';
 import { Client, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode } from '@temporalio/worker';
@@ -84,6 +85,13 @@ function dec(label: string, ctx: string): string {
 // Helper to assert paired payload encode/decode operations in trace strings
 function encdec(label: string, ctx: string): string[] {
   return [enc(label, ctx), dec(label, ctx)];
+}
+
+function roundTripTrace(label: string, ctx: string) {
+  return {
+    label,
+    trace: [enc(label, ctx), dec(label, ctx)],
+  };
 }
 
 test('workflow start/result payloads carry workflow context', async (t) => {
@@ -521,4 +529,164 @@ test('local activity failure observed by workflow carries local activity decode 
     const message = await handle.result();
     t.is(message, `failure.decode.bound|${localAct}|failure.encode.bound|${localAct}|local-activity-failure`);
   });
+});
+
+test('workflow describe uses workflow serialization context', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ dataConverter });
+  const workflowId = `wf-id-${randomUUID()}`;
+  const wf = workflowCtx(workflowId);
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(currentWorkflowContext, {
+      args: [makeContextTrace('wf-input')],
+      workflowId,
+      taskQueue: h.taskQueue,
+      memo: { probe: makeContextTrace('wf-memo') },
+      staticSummary: 'wf static summary',
+      staticDetails: 'wf static details',
+    });
+
+    const desc = await handle.describe();
+    t.deepEqual(desc.memo?.probe, roundTripTrace('wf-memo', wf));
+    t.is(await desc.staticSummary(), 'wf static summary');
+    t.is(await desc.staticDetails(), 'wf static details');
+
+    await handle.result();
+  });
+});
+
+test('workflow list uses workflow serialization context', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ dataConverter });
+  const workflowId = `wf-id-${randomUUID()}`;
+  const wf = workflowCtx(workflowId);
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(messagePassingContexts, {
+      workflowId,
+      taskQueue: h.taskQueue,
+      memo: { probe: makeContextTrace('wf-list-memo') },
+    });
+
+    await asyncRetry(
+      async () => {
+        let found: { memo?: Record<string, unknown> } | undefined;
+        for await (const execution of client.workflow.list({ query: `WorkflowId = '${workflowId}'` })) {
+          found = execution;
+          break;
+        }
+
+        if (found === undefined) {
+          throw new Error('Missing list entry');
+        }
+
+        t.deepEqual(found.memo?.probe, roundTripTrace('wf-list-memo', wf));
+      },
+      {
+        retries: 10,
+        maxTimeout: 1000,
+      }
+    );
+
+    await handle.signal(unblockSignal, makeContextTrace('signal-input'));
+    await handle.result();
+  });
+});
+
+test('schedule create/describe uses target workflow serialization context', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const scheduleId = `schedule-id-${randomUUID()}`;
+  const targetWorkflowId = `scheduled-wf-id-${randomUUID()}`;
+  const wf = workflowCtx(targetWorkflowId);
+
+  const handle = await client.schedule.create({
+    scheduleId,
+    spec: {},
+    action: {
+      type: 'startWorkflow',
+      workflowType: currentWorkflowContext,
+      workflowId: targetWorkflowId,
+      taskQueue: h.taskQueue,
+      args: [makeContextTrace('schedule-action-arg')],
+      memo: { probe: makeContextTrace('schedule-action-memo') },
+      staticSummary: 'schedule action static summary',
+      staticDetails: 'schedule action static details',
+    },
+  });
+
+  try {
+    const described = await handle.describe();
+    t.is(described.action.type, 'startWorkflow');
+    if (described.action.type !== 'startWorkflow') {
+      throw new Error('Expected startWorkflow action');
+    }
+    t.truthy(described.action.args);
+    t.deepEqual(described.action.args?.[0], roundTripTrace('schedule-action-arg', wf));
+    t.deepEqual(described.action.memo?.probe, roundTripTrace('schedule-action-memo', wf));
+    t.is(described.action.staticSummary, 'schedule action static summary');
+    t.is(described.action.staticDetails, 'schedule action static details');
+  } finally {
+    await handle.delete();
+  }
+});
+
+test('schedule update/describe uses target workflow serialization context', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const scheduleId = `schedule-id-${randomUUID()}`;
+  const initialWorkflowId = `scheduled-wf-id-${randomUUID()}`;
+  const updatedWorkflowId = `scheduled-wf-id-${randomUUID()}`;
+  const updatedWf = workflowCtx(updatedWorkflowId);
+
+  const handle = await client.schedule.create({
+    scheduleId,
+    spec: {},
+    action: {
+      type: 'startWorkflow',
+      workflowType: currentWorkflowContext,
+      workflowId: initialWorkflowId,
+      taskQueue: h.taskQueue,
+      args: [makeContextTrace('schedule-action-arg-initial')],
+      memo: { probe: makeContextTrace('schedule-action-memo-initial') },
+      staticSummary: 'schedule action static summary initial',
+      staticDetails: 'schedule action static details initial',
+    },
+  });
+
+  try {
+    await handle.update((previous) => {
+      if (previous.action.type !== 'startWorkflow') {
+        throw new Error('Expected startWorkflow action');
+      }
+
+      return {
+        ...previous,
+        action: {
+          ...previous.action,
+          workflowId: updatedWorkflowId,
+          args: [makeContextTrace('schedule-action-arg-updated')],
+          memo: { probe: makeContextTrace('schedule-action-memo-updated') },
+          staticSummary: 'schedule action static summary updated',
+          staticDetails: 'schedule action static details updated',
+        },
+      };
+    });
+
+    const described = await handle.describe();
+    t.is(described.action.type, 'startWorkflow');
+    if (described.action.type !== 'startWorkflow') {
+      throw new Error('Expected startWorkflow action');
+    }
+    t.truthy(described.action.args);
+    t.deepEqual(described.action.args?.[0], roundTripTrace('schedule-action-arg-updated', updatedWf));
+    t.deepEqual(described.action.memo?.probe, roundTripTrace('schedule-action-memo-updated', updatedWf));
+    t.is(described.action.staticSummary, 'schedule action static summary updated');
+    t.is(described.action.staticDetails, 'schedule action static details updated');
+  } finally {
+    await handle.delete();
+  }
 });
