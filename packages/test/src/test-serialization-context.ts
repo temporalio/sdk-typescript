@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode } from '@temporalio/worker';
+import { decodeOptionalSinglePayload } from '@temporalio/common/lib/internal-non-workflow';
 import { bundlerOptions, TestWorkflowEnvironment } from './helpers';
 import {
   makeConfigurableEnvironmentTestFn,
@@ -34,7 +35,6 @@ import {
 import { makeContextTrace } from './payload-converters/serialization-context-converter';
 import { echoTrace, heartbeatTrace } from './activities/serialization-context';
 import { throwAnError } from './activities';
-import { decodeOptionalSinglePayload } from '@temporalio/common/lib/internal-non-workflow';
 
 const converterPath = require.resolve('./payload-converters/serialization-context-converter');
 const dataConverter = { payloadConverterPath: converterPath, failureConverterPath: converterPath };
@@ -418,9 +418,7 @@ test('timer summary still serializes', async (t) => {
       execution: { workflowId },
     });
 
-    const timerStarted = resp.history?.events?.find(
-      (e) => e.timerStartedEventAttributes != null
-    );
+    const timerStarted = resp.history?.events?.find((e) => e.timerStartedEventAttributes != null);
 
     t.is(
       await decodeOptionalSinglePayload(
@@ -431,7 +429,6 @@ test('timer summary still serializes', async (t) => {
     );
   });
 });
-
 
 test('workflow with many payload boundaries', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
