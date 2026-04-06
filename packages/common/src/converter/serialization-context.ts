@@ -87,6 +87,7 @@ export function withFailureConverterContext(
  *
  * NOTE: this does *not* bind `context` to payload codecs
  */
+// ts-prune-ignore-next
 export function withSerializationContext(
   converter: LoadedDataConverter,
   context: SerializationContext
