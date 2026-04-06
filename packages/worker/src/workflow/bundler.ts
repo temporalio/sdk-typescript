@@ -74,12 +74,12 @@ export class WorkflowCodeBundler {
       webpackConfigHook,
     } = options;
     const dedupedPreloadModules = [...new Set(preloadModules ?? [])];
-    const ignoredPreloadModules = dedupedPreloadModules.filter((module) =>
-      moduleMatches(module, ignoreModules ?? [])
-    );
+    const ignoredPreloadModules = dedupedPreloadModules.filter((module) => moduleMatches(module, ignoreModules ?? []));
     if (ignoredPreloadModules.length > 0) {
       throw new Error(
-        `Cannot preload modules that are also ignored: ${ignoredPreloadModules.map((module) => `'${module}'`).join(', ')}`
+        `Cannot preload modules that are also ignored: ${ignoredPreloadModules
+          .map((module) => `'${module}'`)
+          .join(', ')}`
       );
     }
     this.logger = logger ?? new DefaultLogger('INFO');
