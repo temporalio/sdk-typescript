@@ -331,12 +331,6 @@ if (RUN_INTEGRATION_TESTS) {
                   return nexus.HandlerStartOperationResult.async(ctx.requestId!);
                 },
                 async cancel(_ctx, _token): Promise<void> {},
-                async getInfo() {
-                  throw new Error('not implemented');
-                },
-                async getResult() {
-                  throw new Error('not implemented');
-                },
               },
             }),
           ],
