@@ -81,6 +81,10 @@ function enc(label: string, ctx: string): string {
 function dec(label: string, ctx: string): string {
   return `payload.decode.bound|${label}|${ctx}`;
 }
+// Helper to assert paired payload encode/decode operations in trace strings
+function encdec(label: string, ctx: string): string[] {
+  return [enc(label, ctx), dec(label, ctx)];
+}
 
 test('workflow start/result payloads carry workflow context', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
@@ -97,7 +101,7 @@ test('workflow start/result payloads carry workflow context', async (t) => {
     const wfTrace = await handle.result();
     t.deepEqual(wfTrace, {
       label: 'wf-output',
-      trace: [enc('wf-input', wf), dec('wf-input', wf), enc('wf-output', wf), dec('wf-output', wf)],
+      trace: [...encdec('wf-input', wf), ...encdec('wf-output', wf)],
     });
   });
 });
@@ -119,15 +123,15 @@ test('query/signal/update carry workflow context', async (t) => {
     const signalTrace = await handle.result();
     t.deepEqual(queryTrace, {
       label: 'query-output',
-      trace: [enc('query-input', wf), dec('query-input', wf), enc('query-output', wf), dec('query-output', wf)],
+      trace: [...encdec('query-input', wf), ...encdec('query-output', wf)],
     });
     t.deepEqual(updateTrace, {
       label: 'update-output',
-      trace: [enc('update-input', wf), dec('update-input', wf), enc('update-output', wf), dec('update-output', wf)],
+      trace: [...encdec('update-input', wf), ...encdec('update-output', wf)],
     });
     t.deepEqual(signalTrace, {
       label: 'signal-received',
-      trace: [enc('signal-input', wf), dec('signal-input', wf), enc('signal-received', wf), dec('signal-received', wf)],
+      trace: [...encdec('signal-input', wf), ...encdec('signal-received', wf)],
     });
   });
 });
@@ -149,14 +153,10 @@ test('activity carries serialization context', async (t) => {
     t.deepEqual(wfTrace, {
       label: 'wf-output',
       trace: [
-        enc('wf-input', wf),
-        dec('wf-input', wf),
-        enc('activity-input', act),
-        dec('activity-input', act),
-        enc('activity-output', act),
-        dec('activity-output', act),
-        enc('wf-output', wf),
-        dec('wf-output', wf),
+        ...encdec('wf-input', wf),
+        ...encdec('activity-input', act),
+        ...encdec('activity-output', act),
+        ...encdec('wf-output', wf),
       ],
     });
   });
@@ -182,16 +182,11 @@ test('activity heartbeat carries workflow context', async (t) => {
     t.deepEqual(wfTrace, {
       label: 'wf-output',
       trace: [
-        enc('wf-input', wf),
-        dec('wf-input', wf),
-        enc('activity-input', act),
-        dec('activity-input', act),
-        enc('activity-heartbeat-details', act),
-        dec('activity-heartbeat-details', act),
-        enc('activity-heartbeat-details', act),
-        dec('activity-heartbeat-details', act),
-        enc('wf-output', wf),
-        dec('wf-output', wf),
+        ...encdec('wf-input', wf),
+        ...encdec('activity-input', act),
+        ...encdec('activity-heartbeat-details', act),
+        ...encdec('activity-heartbeat-details', act),
+        ...encdec('wf-output', wf),
       ],
     });
   });
@@ -214,14 +209,10 @@ test('local activity carries serialization context', async (t) => {
     t.deepEqual(wfTrace, {
       label: 'wf-output',
       trace: [
-        enc('wf-input', wf),
-        dec('wf-input', wf),
-        enc('local-activity-input', localAct),
-        dec('local-activity-input', localAct),
-        enc('local-activity-output', localAct),
-        dec('local-activity-output', localAct),
-        enc('wf-output', wf),
-        dec('wf-output', wf),
+        ...encdec('wf-input', wf),
+        ...encdec('local-activity-input', localAct),
+        ...encdec('local-activity-output', localAct),
+        ...encdec('wf-output', wf),
       ],
     });
   });
@@ -243,12 +234,9 @@ test('workflow continue-as-new carry workflow context', async (t) => {
     t.deepEqual(wfTrace, {
       label: 'wf-output',
       trace: [
-        enc('wf-input', wf),
-        dec('wf-input', wf),
-        enc('continue-as-new', wf),
-        dec('continue-as-new', wf),
-        enc('wf-output', wf),
-        dec('wf-output', wf),
+        ...encdec('wf-input', wf),
+        ...encdec('continue-as-new', wf),
+        ...encdec('wf-output', wf),
       ],
     });
   });
@@ -272,14 +260,10 @@ test('child workflow carry workflow context', async (t) => {
     t.deepEqual(wfTrace, {
       label: 'parent-wf-output',
       trace: [
-        enc('parent-wf-input', wf),
-        dec('parent-wf-input', wf),
-        enc('child-wf-input', childWf),
-        dec('child-wf-input', childWf),
-        enc('child-wf-output', childWf),
-        dec('child-wf-output', childWf),
-        enc('parent-wf-output', wf),
-        dec('parent-wf-output', wf),
+        ...encdec('parent-wf-input', wf),
+        ...encdec('child-wf-input', childWf),
+        ...encdec('child-wf-output', childWf),
+        ...encdec('parent-wf-output', wf),
       ],
     });
   });
@@ -386,11 +370,9 @@ test('workflow upsertMemo carries workflow context on encode', async (t) => {
     t.deepEqual(wfTrace, {
       label: 'wf-output',
       trace: [
-        enc('wf-input', wf),
-        dec('wf-input', wf),
+        ...encdec('wf-input', wf),
         enc('memo-upsert', wf),
-        enc('wf-output', wf),
-        dec('wf-output', wf),
+        ...encdec('wf-output', wf),
       ],
     });
   });
@@ -451,44 +433,29 @@ test('workflow with many payload boundaries', async (t) => {
     t.deepEqual(wfTrace, {
       label: 'wf-output',
       trace: [
-        enc('wf-input', wf),
-        dec('wf-input', wf),
+        ...encdec('wf-input', wf),
 
-        enc('activity-input', act),
-        dec('activity-input', act),
-        enc('activity-output', act),
-        dec('activity-output', act),
+        ...encdec('activity-input', act),
+        ...encdec('activity-output', act),
 
-        enc('local-activity-input', localAct),
-        dec('local-activity-input', localAct),
-        enc('local-activity-output', localAct),
-        dec('local-activity-output', localAct),
+        ...encdec('local-activity-input', localAct),
+        ...encdec('local-activity-output', localAct),
 
-        enc('child-wf-input', childWf1),
-        dec('child-wf-input', childWf1),
-        enc('child-wf-output', childWf1),
-        dec('child-wf-output', childWf1),
+        ...encdec('child-wf-input', childWf1),
+        ...encdec('child-wf-output', childWf1),
 
-        enc('continue-as-new', wf),
-        dec('continue-as-new', wf),
+        ...encdec('continue-as-new', wf),
 
-        enc('activity-input', act),
-        dec('activity-input', act),
-        enc('activity-output', act),
-        dec('activity-output', act),
+        ...encdec('activity-input', act),
+        ...encdec('activity-output', act),
 
-        enc('local-activity-input', localAct),
-        dec('local-activity-input', localAct),
-        enc('local-activity-output', localAct),
-        dec('local-activity-output', localAct),
+        ...encdec('local-activity-input', localAct),
+        ...encdec('local-activity-output', localAct),
 
-        enc('child-wf-input', childWf2),
-        dec('child-wf-input', childWf2),
-        enc('child-wf-output', childWf2),
-        dec('child-wf-output', childWf2),
+        ...encdec('child-wf-input', childWf2),
+        ...encdec('child-wf-output', childWf2),
 
-        enc('wf-output', wf),
-        dec('wf-output', wf),
+        ...encdec('wf-output', wf),
       ],
     });
   });
@@ -514,14 +481,10 @@ test('external signal success carries target workflow context', async (t) => {
     t.deepEqual(wfTrace, {
       label: 'wf-output',
       trace: [
-        enc('wf-input', wf),
-        dec('wf-input', wf),
-        enc('signal-input', childWf),
-        dec('signal-input', childWf),
-        enc('signal-received', childWf),
-        dec('signal-received', childWf),
-        enc('wf-output', wf),
-        dec('wf-output', wf),
+        ...encdec('wf-input', wf),
+        ...encdec('signal-input', childWf),
+        ...encdec('signal-received', childWf),
+        ...encdec('wf-output', wf),
       ],
     });
   });
