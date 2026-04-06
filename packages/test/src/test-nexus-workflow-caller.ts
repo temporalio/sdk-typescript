@@ -80,49 +80,49 @@ const clientOperationTypeSafetyCheckerService = nexus.service('typeSafetyService
 // Caller workflows
 
 export async function syncOpCaller(endpoint: string): Promise<string> {
-  const client = workflow.createNexusClient({ endpoint, service: syncOpService });
+  const client = workflow.createNexusServiceClient({ endpoint, service: syncOpService });
   return await client.executeOperation('testSyncOp', 'hello');
 }
 
 export async function cancelSyncOpCaller(endpoint: string): Promise<void> {
-  const client = workflow.createNexusClient({ endpoint, service: blockingOpService });
+  const client = workflow.createNexusServiceClient({ endpoint, service: blockingOpService });
   return await client.executeOperation('blockingOp', undefined, {
     cancellationType: 'TRY_CANCEL',
   });
 }
 
 export async function errorOpCaller(endpoint: string, outcome: string): Promise<string> {
-  const client = workflow.createNexusClient({ endpoint, service: errorOpService });
+  const client = workflow.createNexusServiceClient({ endpoint, service: errorOpService });
   return await client.executeOperation('op', outcome);
 }
 
 export async function asyncOpCaller(endpoint: string): Promise<string> {
-  const client = workflow.createNexusClient({ endpoint, service: asyncOpService });
+  const client = workflow.createNexusServiceClient({ endpoint, service: asyncOpService });
   return await client.executeOperation('asyncOp', 'hello');
 }
 
 export async function loggerOpCaller(endpoint: string): Promise<string> {
-  const client = workflow.createNexusClient({ endpoint, service: loggerService });
+  const client = workflow.createNexusServiceClient({ endpoint, service: loggerService });
   return await client.executeOperation('loggerOp', 'hello');
 }
 
 export async function getClientCaller(endpoint: string): Promise<boolean> {
-  const client = workflow.createNexusClient({ endpoint, service: getClientService });
+  const client = workflow.createNexusServiceClient({ endpoint, service: getClientService });
   return await client.executeOperation('getClientOp', undefined);
 }
 
 export async function operationInfoCaller(endpoint: string): Promise<{ namespace: string; taskQueue: string }> {
-  const client = workflow.createNexusClient({ endpoint, service: operationInfoService });
+  const client = workflow.createNexusServiceClient({ endpoint, service: operationInfoService });
   return await client.executeOperation('operationInfoOp', undefined);
 }
 
 export async function linkCallbackCaller(endpoint: string): Promise<void> {
-  const client = workflow.createNexusClient({ endpoint, service: linkCallbackService });
+  const client = workflow.createNexusServiceClient({ endpoint, service: linkCallbackService });
   return await client.executeOperation('startTargetWorkflow', undefined);
 }
 
 export async function cancelAppFailureCaller(endpoint: string): Promise<void> {
-  const client = workflow.createNexusClient({ endpoint, service: cancelErrorService });
+  const client = workflow.createNexusServiceClient({ endpoint, service: cancelErrorService });
   try {
     await client.executeOperation('cancelThrowsAppFailure', undefined, {
       cancellationType: 'WAIT_CANCELLATION_REQUESTED',
@@ -134,7 +134,7 @@ export async function cancelAppFailureCaller(endpoint: string): Promise<void> {
 }
 
 export async function cancelHandlerErrorCaller(endpoint: string): Promise<void> {
-  const client = workflow.createNexusClient({ endpoint, service: cancelErrorService });
+  const client = workflow.createNexusServiceClient({ endpoint, service: cancelErrorService });
   try {
     await client.executeOperation('cancelThrowsHandlerError', undefined, {
       cancellationType: 'WAIT_CANCELLATION_REQUESTED',
@@ -146,12 +146,12 @@ export async function cancelHandlerErrorCaller(endpoint: string): Promise<void> 
 }
 
 export async function requestDeadlineStartCaller(endpoint: string): Promise<boolean> {
-  const client = workflow.createNexusClient({ endpoint, service: requestDeadlineService });
+  const client = workflow.createNexusServiceClient({ endpoint, service: requestDeadlineService });
   return await client.executeOperation('checkDeadlineOnStart', undefined);
 }
 
 export async function requestDeadlineCancelCaller(endpoint: string): Promise<void> {
-  const client = workflow.createNexusClient({ endpoint, service: requestDeadlineService });
+  const client = workflow.createNexusServiceClient({ endpoint, service: requestDeadlineService });
   try {
     await client.executeOperation('checkDeadlineOnCancel', undefined, {
       cancellationType: 'WAIT_CANCELLATION_REQUESTED',
@@ -168,7 +168,7 @@ export async function multiOpCaller(
   action: string,
   cancellationType?: workflow.NexusOperationCancellationType
 ): Promise<string> {
-  const client = workflow.createNexusClient({
+  const client = workflow.createNexusServiceClient({
     endpoint,
     service: multiOpService,
   });
@@ -182,7 +182,7 @@ export async function multiOpCaller(
 }
 
 export async function callNonExistentService(endpoint: string): Promise<string> {
-  const client = workflow.createNexusClient({
+  const client = workflow.createNexusServiceClient({
     endpoint,
     service: nonExistentService,
   });
@@ -192,7 +192,7 @@ export async function callNonExistentService(endpoint: string): Promise<string> 
 export async function clientOperationTypeSafetyCheckerWorkflow(endpoint: string): Promise<void> {
   const Service = clientOperationTypeSafetyCheckerService;
   const operations = Service.operations;
-  const client = workflow.createNexusClient({
+  const client = workflow.createNexusServiceClient({
     endpoint,
     service: Service,
   });
@@ -976,7 +976,7 @@ test('inbound cancelOperation interceptor can modify input', async (t) => {
   }
 });
 
-test('NexusClient is type-safe in regard to Operation Definitions', async (t) => {
+test('NexusServiceClient is type-safe in regard to Operation Definitions', async (t) => {
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
   const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
   try {

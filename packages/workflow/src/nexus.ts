@@ -14,7 +14,7 @@ import { StartNexusOperationInput, StartNexusOperationOutput, StartNexusOperatio
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
-export interface NexusClient<T extends nexus.ServiceDefinition> {
+export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
   /**
    * Start a Nexus Operation and wait for its completion taking a {@link nexus.operation}.
    * Returns the operation's result.
@@ -104,9 +104,9 @@ export interface NexusOperationHandle<T> {
 }
 
 /**
- * Options for {@link createNexusClient}.
+ * Options for {@link createNexusServiceClient}.
  */
-export interface NexusClientOptions<T> {
+export interface NexusServiceClientOptions<T> {
   endpoint: string;
   service: T;
 }
@@ -116,8 +116,10 @@ export interface NexusClientOptions<T> {
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
-export function createNexusClient<T extends nexus.ServiceDefinition>(options: NexusClientOptions<T>): NexusClient<T> {
-  class NexusClientImpl<T extends nexus.ServiceDefinition> implements NexusClient<T> {
+export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
+  options: NexusServiceClientOptions<T>
+): NexusServiceClient<T> {
+  class NexusServiceClientImpl<T extends nexus.ServiceDefinition> implements NexusServiceClient<T> {
     async executeOperation<O extends T['operations'][keyof T['operations']]>(
       operation: string | T['operations'][nexus.OperationKey<T['operations']>],
       input: nexus.OperationInput<T['operations'][nexus.OperationKey<T['operations']>]>,
@@ -176,7 +178,7 @@ export function createNexusClient<T extends nexus.ServiceDefinition>(options: Ne
     }
   }
 
-  return new NexusClientImpl<T>();
+  return new NexusServiceClientImpl<T>();
 }
 
 function startNexusOperationNextHandler({
