@@ -1,9 +1,7 @@
 import test from 'ava';
 import type { WorkerOptions, NativeConnectionOptions } from '@temporalio/worker';
-import { runWorker } from '@temporalio/lambda-worker';
-import type { LambdaWorkerConfig } from '@temporalio/lambda-worker';
-import type { WorkerDeps } from '@temporalio/lambda-worker/lib/lambda-worker';
-import { _runWorkerInternal } from '@temporalio/lambda-worker/lib/lambda-worker';
+import { runWorker, type LambdaWorkerConfig } from '@temporalio/lambda-worker';
+import { type WorkerDeps, _runWorkerInternal } from '@temporalio/lambda-worker/lib/lambda-worker';
 import { LAMBDA_WORKER_DEFAULTS } from '@temporalio/lambda-worker/lib/defaults';
 
 const TEST_VERSION = { buildId: 'test-build', deploymentName: 'test-deployment' };
@@ -197,7 +195,9 @@ test('Runtime.install called with runtimeOptions', (t) => {
       config.workerOptions.taskQueue = 'q';
     },
     makeTestDeps({
-      installRuntime: (opts) => { installedOptions = opts; },
+      installRuntime: (opts) => {
+        installedOptions = opts;
+      },
     })
   );
 
@@ -215,7 +215,9 @@ test('user can override runtimeOptions.logger', (t) => {
       config.runtimeOptions.logger = customLogger;
     },
     makeTestDeps({
-      installRuntime: (opts) => { installedOptions = opts; },
+      installRuntime: (opts) => {
+        installedOptions = opts;
+      },
     })
   );
 
