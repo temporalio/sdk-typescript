@@ -93,12 +93,6 @@ test('startToCloseTimeout fires when async Nexus operation never completes', asy
     async start(_ctx, _input): Promise<nexus.HandlerStartOperationResult<string>> {
       return nexus.HandlerStartOperationResult.async('fake-operation-token');
     },
-    async getInfo(_ctx, _token) {
-      throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Not implemented');
-    },
-    async getResult(_ctx, _token): Promise<string> {
-      throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Not implemented');
-    },
     async cancel(_ctx, _token) {
       // No-op: nothing to cancel for a fake operation.
     },
