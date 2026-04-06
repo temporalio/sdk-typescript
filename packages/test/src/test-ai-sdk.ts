@@ -439,7 +439,7 @@ test('Telemetry', async (t) => {
     });
     await otel.start();
     const sinks: InjectedSinks<OpenTelemetrySinks> = {
-      exporter: makeWorkflowExporter(traceExporter, staticResource), // eslint-disable-line @typescript-eslint/no-deprecated
+      exporter: makeWorkflowExporter(traceExporter, staticResource),
     };
 
     const worker = await Worker.create({
