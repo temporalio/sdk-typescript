@@ -48,6 +48,7 @@ export * from './long-history-generator';
 export * from './multiple-activities-single-timeout';
 export { initAndResetFlag, checkDisposeRan } from './internal-interceptor-dispose-global';
 export * from './nested-cancellation';
+export * from './nexus-caller-otel';
 export * from './noncancellable-shields-children';
 export * from './partial-noncancelable';
 export * from './patched';

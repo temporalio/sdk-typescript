@@ -381,6 +381,9 @@ importers:
       '@temporalio/workflow':
         specifier: workspace:*
         version: link:../workflow
+      nexus-rpc:
+        specifier: ^0.0.2
+        version: 0.0.2
 
   packages/meta:
     dependencies:
