@@ -17,10 +17,8 @@ import {
 } from '@temporalio/common';
 import { ServiceError } from '@temporalio/client';
 import { coerceToHandlerError, operationErrorToProto } from '@temporalio/worker/lib/nexus/conversions';
-import { getRandomPort } from './helpers';
 
 export interface Context {
-  httpPort: number;
   taskQueue: string;
   endpoint: testing.NexusEndpointIdentifier;
   env: testing.TestWorkflowEnvironment;
@@ -37,15 +35,9 @@ test.before(async (t) => {
   });
 
   Runtime.install({ logger });
-  t.context.httpPort = await getRandomPort();
   t.context.env = await testing.TestWorkflowEnvironment.createLocal({
     server: {
       extraArgs: [
-        '--http-port',
-        `${t.context.httpPort}`,
-        // SDK tests use arbitrary callback URLs, permit that on the server.
-        '--dynamic-config-value',
-        'component.callbacks.allowedAddresses=[{"Pattern":"*","AllowInsecure":true}]',
         // TODO: remove this config when it becomes the default on the server.
         '--dynamic-config-value',
         'history.enableRequestIdRefLinks=true',

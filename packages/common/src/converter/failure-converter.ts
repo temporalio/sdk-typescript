@@ -477,7 +477,7 @@ export class DefaultFailureConverter implements FailureConverter {
       if (failure.details == null) {
         throw new TypeError("missing details for Nexus Failure of type 'temporal.api.failure.v1.Failure'");
       }
-      return failure.details as ProtoFailure;
+      return failure.details;
     } else {
       const temporalFailure: ProtoFailure = {};
       temporalFailure.applicationFailureInfo = {
@@ -504,7 +504,7 @@ export class DefaultFailureConverter implements FailureConverter {
       metadata: { type: 'temporal.api.failure.v1.Failure' },
       // Store the full ProtoFailure as the Nexus failure details so it can be round-tripped
       // losslessly back to a ProtoFailure via nexusFailureToTemporalFailure.
-      details: { ...failure } as Record<string, unknown>,
+      details: { ...failure },
     };
   }
 }
