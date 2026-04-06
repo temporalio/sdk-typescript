@@ -22,7 +22,7 @@ const scheduleToStartService = nexus.service('nexus-schedule-to-start-timeout-te
 });
 
 export async function scheduleToStartTimeoutCallerWorkflow(endpoint: string): Promise<string> {
-  const client = workflow.createNexusClient({
+  const client = workflow.createNexusServiceClient({
     endpoint,
     service: scheduleToStartService,
   });
@@ -72,7 +72,7 @@ const startToCloseService = nexus.service('nexus-start-to-close-timeout-test-ser
 });
 
 export async function startToCloseTimeoutCallerWorkflow(endpoint: string): Promise<string> {
-  const client = workflow.createNexusClient({
+  const client = workflow.createNexusServiceClient({
     endpoint,
     service: startToCloseService,
   });
@@ -92,12 +92,6 @@ test('startToCloseTimeout fires when async Nexus operation never completes', asy
   const asyncOpHandler: nexus.OperationHandler<string, string> = {
     async start(_ctx, _input): Promise<nexus.HandlerStartOperationResult<string>> {
       return nexus.HandlerStartOperationResult.async('fake-operation-token');
-    },
-    async getInfo(_ctx, _token) {
-      throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Not implemented');
-    },
-    async getResult(_ctx, _token): Promise<string> {
-      throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Not implemented');
     },
     async cancel(_ctx, _token) {
       // No-op: nothing to cancel for a fake operation.

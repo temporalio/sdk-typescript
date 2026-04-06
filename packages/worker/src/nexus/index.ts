@@ -158,14 +158,14 @@ export class NexusHandler {
           taskToken: this.taskToken,
           completed: {
             startOperation: {
-              operationError: await operationErrorToProto(this.dataConverter, err),
+              failure: await operationErrorToProto(this.dataConverter, err),
             },
           },
         };
       }
       return {
         taskToken: this.taskToken,
-        error: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err)),
+        failure: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err)),
       };
     }
   }
@@ -197,7 +197,7 @@ export class NexusHandler {
     } catch (err) {
       return {
         taskToken: this.taskToken,
-        error: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err)),
+        failure: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err)),
       };
     }
   }
@@ -235,10 +235,13 @@ export class NexusHandler {
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     if (task.request?.startOperation != null) {
       const variant = task.request?.startOperation;
+      if (!variant.requestId) {
+        throw new IllegalStateError('Missing requestId in Nexus start operation request');
+      }
       return await this.startOperation(
         {
           ...this.context,
-          requestId: variant.requestId ?? undefined,
+          requestId: variant.requestId,
           inboundLinks: (variant.links ?? []).map(protoLinkToNexusLink),
           callbackUrl: variant.callback ?? undefined,
           callbackHeaders: variant.callbackHeader ?? undefined,
@@ -284,11 +287,13 @@ export class NexusHandler {
 
 export function constructNexusOperationContext(
   request: temporal.api.nexus.v1.IRequest | null | undefined,
-  abortSignal: AbortSignal
+  abortSignal: AbortSignal,
+  requestDeadline?: Date
 ): nexus.OperationContext {
   const base = {
     abortSignal,
     headers: headersProxy(request?.header),
+    requestDeadline,
   };
 
   if (request?.startOperation != null) {

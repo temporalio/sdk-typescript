@@ -1276,7 +1276,8 @@ export class Worker {
               if (task.task == null) {
                 throw new IllegalStateError(`Got empty task for task variant with token: ${base64TaskToken}`);
               }
-              return await this.handleNexusRunTask(task.task, base64TaskToken, protobufEncodedTask);
+              const requestDeadline = task.requestDeadline != null ? tsToDate(task.requestDeadline) : undefined;
+              return await this.handleNexusRunTask(task.task, base64TaskToken, protobufEncodedTask, requestDeadline);
             }
             case 'cancelTask': {
               const nexusHandler = this.taskTokenToNexusHandler.get(base64TaskToken);
@@ -1306,7 +1307,8 @@ export class Worker {
   private async handleNexusRunTask(
     task: temporal.api.workflowservice.v1.IPollNexusTaskQueueResponse,
     base64TaskToken: string,
-    protobufEncodedTask: ArrayBuffer
+    protobufEncodedTask: ArrayBuffer,
+    requestDeadline: Date | undefined
   ) {
     const { taskToken } = task;
     if (taskToken == null) {
@@ -1321,7 +1323,7 @@ export class Worker {
         taskToken,
         this.options.namespace,
         this.options.taskQueue,
-        constructNexusOperationContext(task.request, abortController.signal),
+        constructNexusOperationContext(task.request, abortController.signal, requestDeadline),
         this.client!, // Must be defined if we are handling Nexus tasks.
         abortController,
         this.options.nexusServiceHandlers!, // Must be defined if we are handling Nexus tasks.
@@ -1348,7 +1350,7 @@ export class Worker {
         e instanceof nexus.HandlerError ? e : new nexus.HandlerError('INTERNAL', undefined, { cause: e });
       return {
         taskToken,
-        error: await handlerErrorToProto(this.options.loadedDataConverter, handlerError),
+        failure: await handlerErrorToProto(this.options.loadedDataConverter, handlerError),
       };
     }
   }
