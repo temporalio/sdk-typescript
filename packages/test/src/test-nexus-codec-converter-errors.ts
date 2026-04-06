@@ -16,7 +16,7 @@ const testService = nexus.service('codec-converter-test', {
 });
 
 export async function nexusEchoCaller(endpoint: string): Promise<string> {
-  const client = workflow.createNexusClient({
+  const client = workflow.createNexusServiceClient({
     endpoint,
     service: testService,
   });
