@@ -34,6 +34,8 @@ import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
   OpenTelemetryActivityOutboundInterceptor,
+  OpenTelemetryNexusInboundInterceptor,
+  OpenTelemetryNexusOutboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
 import {
   OpenTelemetrySinks,
@@ -48,6 +50,8 @@ import {
   bundleWorkflowCode,
   DefaultLogger,
   InjectedSinks,
+  NexusInboundCallsInterceptor,
+  NexusOutboundCallsInterceptor,
   Runtime,
 } from '@temporalio/worker';
 import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
@@ -1065,6 +1069,9 @@ test.skip('otel interceptors are complete', async (t) => {
   const _act_outbound =
     {} as OpenTelemetryActivityOutboundInterceptor satisfies Required<ActivityOutboundCallsInterceptor>;
   const _client = {} as OpenTelemetryWorkflowClientInterceptor satisfies Required<WorkflowClientInterceptor>;
+  const _nexus_inbound = {} as OpenTelemetryNexusInboundInterceptor satisfies Required<NexusInboundCallsInterceptor>;
+  const _nexus_outbound = {} as OpenTelemetryNexusOutboundInterceptor satisfies Required<NexusOutboundCallsInterceptor>;
+
   t.pass();
 });
 
