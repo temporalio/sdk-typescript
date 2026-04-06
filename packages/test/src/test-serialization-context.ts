@@ -233,11 +233,7 @@ test('workflow continue-as-new carry workflow context', async (t) => {
     const wfTrace = await handle.result();
     t.deepEqual(wfTrace, {
       label: 'wf-output',
-      trace: [
-        ...encdec('wf-input', wf),
-        ...encdec('continue-as-new', wf),
-        ...encdec('wf-output', wf),
-      ],
+      trace: [...encdec('wf-input', wf), ...encdec('continue-as-new', wf), ...encdec('wf-output', wf)],
     });
   });
 });
@@ -369,11 +365,7 @@ test('workflow upsertMemo carries workflow context on encode', async (t) => {
     const wfTrace = await handle.result();
     t.deepEqual(wfTrace, {
       label: 'wf-output',
-      trace: [
-        ...encdec('wf-input', wf),
-        enc('memo-upsert', wf),
-        ...encdec('wf-output', wf),
-      ],
+      trace: [...encdec('wf-input', wf), enc('memo-upsert', wf), ...encdec('wf-output', wf)],
     });
   });
 });
