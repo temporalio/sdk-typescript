@@ -412,7 +412,9 @@ export interface BundleOptions {
    * Module scope in these modules runs before a workflow activator exists, so this option is only
    * appropriate for modules that are safe to initialize that early.
    *
-   * > NOTE: This is an advanced option that should be used with care.
+   * > NOTE: This is an advanced option that should be used with care. Preloading modules that
+   * internally stores some form of per-workflow state will very likely cause workflow context
+   * leak, which may result in non-deterministic behavior and/or cause other unexpected beheviours.
    */
   preloadModules?: string[];
 

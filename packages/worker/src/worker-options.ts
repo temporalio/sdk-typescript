@@ -589,7 +589,10 @@ export interface WorkerOptions {
      * Preloaded modules are shared across workflows that execute in the same reusable V8 context,
      * and their module scope runs before a workflow activator exists.
      *
-     * > NOTE: This is an advanced option that should be used with care.
+     * > NOTE: This is an advanced option that should be used with care. Preloading modules that
+     * internally stores some form of per-workflow state will very likely cause workflow context
+     * leak, which may result in non-deterministic behavior and/or cause other unexpected beheviours.
+     *
      */
     preloadModules?: string[];
   };
