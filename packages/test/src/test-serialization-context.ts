@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
+import { Client, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode } from '@temporalio/worker';
 import { decodeOptionalSinglePayload } from '@temporalio/common/lib/internal-non-workflow';
@@ -56,8 +56,8 @@ const test = makeConfigurableEnvironmentTestFn<Context>({
   },
 });
 
-function makeClient(env: TestWorkflowEnvironment): WorkflowClient {
-  return new WorkflowClient({
+function makeClient(env: TestWorkflowEnvironment): Client {
+  return new Client({
     connection: env.client.connection,
     namespace: env.client.options.namespace,
     dataConverter,
@@ -89,7 +89,7 @@ test('workflow start/result payloads carry workflow context', async (t) => {
   const workflowId = `wf-id-${randomUUID()}`;
   const wf = workflowCtx(workflowId);
   await worker.runUntil(async () => {
-    const handle = await client.start(currentWorkflowContext, {
+    const handle = await client.workflow.start(currentWorkflowContext, {
       args: [makeContextTrace('wf-input')],
       workflowId,
       taskQueue: h.taskQueue,
@@ -109,7 +109,7 @@ test('query/signal/update carry workflow context', async (t) => {
   const workflowId = `wf-id-${randomUUID()}`;
   const wf = workflowCtx(workflowId);
   await worker.runUntil(async () => {
-    const handle = await client.start(messagePassingContexts, {
+    const handle = await client.workflow.start(messagePassingContexts, {
       workflowId,
       taskQueue: h.taskQueue,
     });
@@ -140,7 +140,7 @@ test('activity carries serialization context', async (t) => {
   const wf = workflowCtx(workflowId);
   const act = activityCtx(workflowId);
   await worker.runUntil(async () => {
-    const handle = await client.start(wfContextWithRemoteActivity, {
+    const handle = await client.workflow.start(wfContextWithRemoteActivity, {
       args: [makeContextTrace('wf-input')],
       workflowId,
       taskQueue: h.taskQueue,
@@ -173,7 +173,7 @@ test('activity heartbeat carries workflow context', async (t) => {
   const wf = workflowCtx(workflowId);
   const act = activityCtx(workflowId);
   await worker.runUntil(async () => {
-    const handle = await client.start(wfContextWithHeartbeatDetails, {
+    const handle = await client.workflow.start(wfContextWithHeartbeatDetails, {
       args: [makeContextTrace('wf-input')],
       workflowId,
       taskQueue: h.taskQueue,
@@ -205,7 +205,7 @@ test('local activity carries serialization context', async (t) => {
   const wf = workflowCtx(workflowId);
   const localAct = activityCtx(workflowId, '1', true);
   await worker.runUntil(async () => {
-    const handle = await client.start(wfContextWithLocalActivity, {
+    const handle = await client.workflow.start(wfContextWithLocalActivity, {
       args: [makeContextTrace('wf-input')],
       workflowId,
       taskQueue: h.taskQueue,
@@ -234,7 +234,7 @@ test('workflow continue-as-new carry workflow context', async (t) => {
   const workflowId = `wf-id-${randomUUID()}`;
   const wf = workflowCtx(workflowId);
   await worker.runUntil(async () => {
-    const handle = await client.start(wfContextWithContinueAsNew, {
+    const handle = await client.workflow.start(wfContextWithContinueAsNew, {
       args: [makeContextTrace('wf-input'), true],
       workflowId,
       taskQueue: h.taskQueue,
@@ -263,7 +263,7 @@ test('child workflow carry workflow context', async (t) => {
   const wf = workflowCtx(workflowId);
   const childWf = workflowCtx(childId);
   await worker.runUntil(async () => {
-    const handle = await client.start(wfContextWithChildWorkflow, {
+    const handle = await client.workflow.start(wfContextWithChildWorkflow, {
       args: [makeContextTrace('parent-wf-input'), childId],
       workflowId,
       taskQueue: h.taskQueue,
@@ -293,7 +293,7 @@ test('workflow failure carries workflow failure context', async (t) => {
   const wf = workflowCtx(workflowId);
 
   await worker.runUntil(async () => {
-    const handle = await client.start(wfFailureContext, {
+    const handle = await client.workflow.start(wfFailureContext, {
       workflowId,
       taskQueue: h.taskQueue,
     });
@@ -317,7 +317,7 @@ test('activity failure observed by workflow carries workflow decode context', as
   const act = activityCtx(workflowId);
 
   await worker.runUntil(async () => {
-    const handle = await client.start(wfActivityFailureContext, {
+    const handle = await client.workflow.start(wfActivityFailureContext, {
       workflowId,
       taskQueue: h.taskQueue,
     });
@@ -333,7 +333,7 @@ test('external signal failure carries target workflow decode context', async (t)
   const worker = await h.createWorker({ dataConverter });
   const missingWfId = `missing-wf-id-${randomUUID()}`;
   await worker.runUntil(async () => {
-    const handle = await client.start(wfExternalSignalFailureContext, {
+    const handle = await client.workflow.start(wfExternalSignalFailureContext, {
       workflowId: `wf-id-${randomUUID()}`,
       taskQueue: h.taskQueue,
       args: [missingWfId],
@@ -354,7 +354,7 @@ test('external cancel failure carries target workflow decode context', async (t)
   const missingWfId = `missing-wf-id-${randomUUID()}`;
 
   await worker.runUntil(async () => {
-    const handle = await client.start(wfExternalCancelFailureContext, {
+    const handle = await client.workflow.start(wfExternalCancelFailureContext, {
       workflowId: `wf-id-${randomUUID()}`,
       taskQueue: h.taskQueue,
       args: [missingWfId],
@@ -376,7 +376,7 @@ test('workflow upsertMemo carries workflow context on encode', async (t) => {
   const wf = workflowCtx(workflowId);
 
   await worker.runUntil(async () => {
-    const handle = await client.start(wfContextWithUpsertMemo, {
+    const handle = await client.workflow.start(wfContextWithUpsertMemo, {
       args: [makeContextTrace('wf-input')],
       workflowId,
       taskQueue: h.taskQueue,
@@ -407,7 +407,7 @@ test('timer summary still serializes', async (t) => {
   const workflowId = `wf-id-${randomUUID()}`;
 
   await worker.runUntil(async () => {
-    await client.execute(wfContextWithTimerSummary, {
+    await client.workflow.execute(wfContextWithTimerSummary, {
       args: [makeContextTrace('wf-input')],
       workflowId,
       taskQueue: h.taskQueue,
@@ -442,7 +442,7 @@ test('workflow with many payload boundaries', async (t) => {
   const act = activityCtx(workflowId, '1', false);
   const localAct = activityCtx(workflowId, '2', true);
   await worker.runUntil(async () => {
-    const handle = await client.start(wfContextSmoke, {
+    const handle = await client.workflow.start(wfContextSmoke, {
       args: [makeContextTrace('wf-input'), true, childId],
       workflowId,
       taskQueue: h.taskQueue,
@@ -504,7 +504,7 @@ test('external signal success carries target workflow context', async (t) => {
   const childWf = workflowCtx(childId);
 
   await worker.runUntil(async () => {
-    const handle = await client.start(wfExternalSignalSuccessContext, {
+    const handle = await client.workflow.start(wfExternalSignalSuccessContext, {
       args: [makeContextTrace('wf-input'), childId],
       workflowId,
       taskQueue: h.taskQueue,
@@ -536,7 +536,7 @@ test('child workflow failure observed by parent carries child workflow decode co
   const childWf = workflowCtx(childId);
 
   await worker.runUntil(async () => {
-    const handle = await client.start(wfChildWorkflowFailureContext, {
+    const handle = await client.workflow.start(wfChildWorkflowFailureContext, {
       args: [childId],
       workflowId,
       taskQueue: h.taskQueue,
@@ -558,7 +558,7 @@ test('local activity failure observed by workflow carries local activity decode 
   const localAct = activityCtx(workflowId, '1', true);
 
   await worker.runUntil(async () => {
-    const handle = await client.start(wfLocalActivityFailureContext, {
+    const handle = await client.workflow.start(wfLocalActivityFailureContext, {
       workflowId,
       taskQueue: h.taskQueue,
     });
