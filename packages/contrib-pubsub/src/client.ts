@@ -9,11 +9,25 @@ import { randomUUID } from 'crypto';
 import { Client, WorkflowHandle, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
 import type { PollInput, PollResult, PubSubItem, PublishEntry, PublishInput } from './types';
 
+/** Thrown when a flush retry exceeds maxRetryDuration. */
+export class FlushTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FlushTimeoutError';
+  }
+}
+
 export interface PubSubClientOptions {
   /** Seconds between automatic flushes. Default: 2.0 */
   batchInterval?: number;
   /** Auto-flush when buffer reaches this size. */
   maxBatchSize?: number;
+  /**
+   * Maximum seconds to retry a failed flush before throwing.
+   * Must be less than the workflow's publisherTtl (default 900s) to preserve
+   * exactly-once delivery. Default: 600.
+   */
+  maxRetryDuration?: number;
 }
 
 export class PubSubClient {
@@ -22,24 +36,29 @@ export class PubSubClient {
   private readonly workflowId: string;
   private readonly batchInterval: number;
   private readonly maxBatchSize: number | undefined;
+  private readonly maxRetryDuration: number;
   private buffer: PublishEntry[] = [];
+  private pending: PublishEntry[] | null = null;
+  private pendingSeq = 0;
+  private pendingStartedAt: number | null = null;
   private flushTimer: ReturnType<typeof setInterval> | undefined;
   private flushPromise: Promise<void> | undefined;
-  private publisherId: string = randomUUID().replace(/-/g, '');
-  private sequence: number = 0;
+  private publisherId: string = randomUUID().replace(/-/g, '').slice(0, 16);
+  private sequence = 0;
 
   constructor(handle: WorkflowHandle, options?: PubSubClientOptions) {
     this.handle = handle;
     this.workflowId = handle.workflowId;
     this.batchInterval = options?.batchInterval ?? 2.0;
     this.maxBatchSize = options?.maxBatchSize;
+    this.maxRetryDuration = options?.maxRetryDuration ?? 600;
   }
 
   /**
    * Create a PubSubClient from a Temporal client and workflow ID.
    * Preferred constructor — enables continue-as-new following in subscribe().
    */
-  static forWorkflow(client: Client, workflowId: string, options?: PubSubClientOptions): PubSubClient {
+  static create(client: Client, workflowId: string, options?: PubSubClientOptions): PubSubClient {
     const handle = client.workflow.getHandle(workflowId);
     const instance = new PubSubClient(handle, options);
     (instance as unknown as { client: Client | undefined }).client = client;
@@ -50,7 +69,7 @@ export class PubSubClient {
   start(): void {
     if (this.flushTimer) return;
     this.flushTimer = setInterval(() => {
-      void this.flush();
+      void this._flush();
     }, this.batchInterval * 1000);
   }
 
@@ -60,40 +79,80 @@ export class PubSubClient {
       clearInterval(this.flushTimer);
       this.flushTimer = undefined;
     }
-    await this.flush();
+    await this._flush();
   }
 
-  /** Buffer a message for publishing. */
+  /**
+   * Buffer a message for publishing.
+   * @param priority - If true, triggers immediate flush (fire-and-forget).
+   */
   publish(topic: string, data: number[], priority = false): void {
     this.buffer.push({ topic, data });
     if (priority || (this.maxBatchSize !== undefined && this.buffer.length >= this.maxBatchSize)) {
-      void this.flush();
+      void this._flush();
     }
   }
 
-  /** Send all buffered messages to the workflow via signal. */
-  async flush(): Promise<void> {
+  /**
+   * Send pending or buffered messages to the workflow via signal.
+   *
+   * Implements the TLA+-verified dedup algorithm (see verification/PROOF.md):
+   * 1. If pending batch exists (from prior failure), retry with same sequence.
+   * 2. Otherwise, swap buffer into pending with new sequence.
+   * 3. On success: advance confirmed sequence, clear pending.
+   * 4. On failure: pending stays for retry.
+   */
+  private async _flush(): Promise<void> {
     // Simple serialization: wait for any in-progress flush
     if (this.flushPromise) {
       await this.flushPromise;
     }
-    if (this.buffer.length === 0) return;
 
-    this.sequence += 1;
-    const batch = this.buffer;
-    this.buffer = [];
+    let batch: PublishEntry[];
+    let seq: number;
+
+    if (this.pending !== null) {
+      // Retry path: check max_retry_duration
+      if (
+        this.pendingStartedAt !== null &&
+        (Date.now() - this.pendingStartedAt) / 1000 > this.maxRetryDuration
+      ) {
+        this.pending = null;
+        this.pendingSeq = 0;
+        this.pendingStartedAt = null;
+        throw new FlushTimeoutError(
+          `Flush retry exceeded maxRetryDuration (${this.maxRetryDuration}s). ` +
+          'Pending batch dropped.'
+        );
+      }
+      batch = this.pending;
+      seq = this.pendingSeq;
+    } else if (this.buffer.length > 0) {
+      // New batch path
+      seq = this.sequence + 1;
+      batch = this.buffer;
+      this.buffer = [];
+      this.pending = batch;
+      this.pendingSeq = seq;
+      this.pendingStartedAt = Date.now();
+    } else {
+      return;
+    }
 
     const doFlush = async (): Promise<void> => {
       try {
         await this.handle.signal<[PublishInput]>('__pubsub_publish', {
           items: batch,
           publisher_id: this.publisherId,
-          sequence: this.sequence,
+          sequence: seq,
         });
+        // Success: advance confirmed sequence, clear pending
+        this.sequence = seq;
+        this.pending = null;
+        this.pendingSeq = 0;
+        this.pendingStartedAt = null;
       } catch (err) {
-        // Restore items for retry, but keep advanced sequence to avoid
-        // dedup-dropping newly buffered items merged with retry batch
-        this.buffer = [...batch, ...this.buffer];
+        // Pending stays set for retry on next _flush() call
         throw err;
       }
     };
@@ -108,14 +167,14 @@ export class PubSubClient {
 
   /**
    * Async generator that polls for new items.
-   * Automatically follows continue-as-new chains when created via forWorkflow().
+   * Automatically follows continue-as-new chains when created via create().
    */
   async *subscribe(
     topics?: string[],
     fromOffset = 0,
-    options?: { pollInterval?: number }
+    options?: { pollCooldown?: number }
   ): AsyncGenerator<PubSubItem, void, unknown> {
-    const pollInterval = options?.pollInterval ?? 0.1;
+    const pollCooldown = options?.pollCooldown ?? 0.1;
     let offset = fromOffset;
 
     while (true) {
@@ -139,8 +198,8 @@ export class PubSubClient {
       }
       offset = result.next_offset;
 
-      if (pollInterval > 0) {
-        await new Promise((resolve) => setTimeout(resolve, pollInterval * 1000));
+      if (pollCooldown > 0) {
+        await new Promise((resolve) => setTimeout(resolve, pollCooldown * 1000));
       }
     }
   }

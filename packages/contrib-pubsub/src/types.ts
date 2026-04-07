@@ -48,6 +48,8 @@ export interface PubSubState {
   log: PubSubItem[];
   base_offset: number;
   publisher_sequences: Record<string, number>;
+  /** Per-publisher last-seen timestamps for TTL pruning. */
+  publisher_last_seen?: Record<string, number>;
 }
 
 /** Convert a string to wire format (number[] matching Python bytes). */

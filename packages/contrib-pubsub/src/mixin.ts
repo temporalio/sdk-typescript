@@ -24,8 +24,18 @@ export interface PubSubHandle {
   /** Unblock all waiting poll handlers and reject new polls for CAN. */
   drain(): void;
 
-  /** Return a serializable snapshot of pub/sub state for continue-as-new. */
-  getState(): PubSubState;
+  /**
+   * Return a serializable snapshot of pub/sub state for continue-as-new.
+   * Prunes publisher dedup entries older than publisherTtl seconds.
+   */
+  getState(publisherTtl?: number): PubSubState;
+
+  /**
+   * Discard log entries before upToOffset.
+   * After truncation, polls requesting an offset before the new base
+   * will receive an error.
+   */
+  truncate(upToOffset: number): void;
 }
 
 /**
@@ -39,9 +49,12 @@ export interface PubSubHandle {
  */
 export function initPubSub(priorState?: PubSubState): PubSubHandle {
   const log: PubSubItem[] = priorState?.log ? [...priorState.log] : [];
-  const baseOffset: number = priorState?.base_offset ?? 0;
+  let baseOffset: number = priorState?.base_offset ?? 0;
   const publisherSequences: Record<string, number> = priorState?.publisher_sequences
     ? { ...priorState.publisher_sequences }
+    : {};
+  const publisherLastSeen: Record<string, number> = priorState?.publisher_last_seen
+    ? { ...priorState.publisher_last_seen }
     : {};
   let draining = false;
 
@@ -53,6 +66,7 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
         return; // duplicate — skip
       }
       publisherSequences[input.publisher_id] = input.sequence;
+      publisherLastSeen[input.publisher_id] = Date.now() / 1000; // seconds
     }
     for (const entry of input.items) {
       log.push({ topic: entry.topic, data: entry.data });
@@ -106,12 +120,39 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
       draining = true;
     },
 
-    getState(): PubSubState {
+    getState(publisherTtl = 900): PubSubState {
+      const now = Date.now() / 1000;
+      const activeSeqs: Record<string, number> = {};
+      const activeSeen: Record<string, number> = {};
+      // Iterate over publisher_sequences (not publisher_last_seen) to
+      // preserve legacy entries that predate the last_seen field.
+      for (const pid of Object.keys(publisherSequences)) {
+        const ts = publisherLastSeen[pid];
+        if (ts === undefined || now - ts < publisherTtl) {
+          activeSeqs[pid] = publisherSequences[pid] ?? 0;
+          if (ts !== undefined) {
+            activeSeen[pid] = ts;
+          }
+        }
+      }
       return {
         log: [...log],
         base_offset: baseOffset,
-        publisher_sequences: { ...publisherSequences },
+        publisher_sequences: activeSeqs,
+        publisher_last_seen: activeSeen,
       };
+    },
+
+    truncate(upToOffset: number): void {
+      const logIndex = upToOffset - baseOffset;
+      if (logIndex <= 0) return;
+      if (logIndex > log.length) {
+        throw new Error(
+          `Cannot truncate to offset ${upToOffset}: only ${baseOffset + log.length} items exist`
+        );
+      }
+      log.splice(0, logIndex);
+      baseOffset = upToOffset;
     },
   };
 }

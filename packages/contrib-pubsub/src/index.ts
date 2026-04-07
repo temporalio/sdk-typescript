@@ -14,5 +14,5 @@ export type { PubSubItem, PublishEntry, PublishInput, PollInput, PollResult, Pub
 export { toWireBytes, fromWireBytes } from './types';
 export { initPubSub, pubsubPublishSignal, pubsubPollUpdate, pubsubOffsetQuery } from './mixin';
 export type { PubSubHandle } from './mixin';
-export { PubSubClient } from './client';
+export { PubSubClient, FlushTimeoutError } from './client';
 export type { PubSubClientOptions } from './client';
