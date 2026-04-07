@@ -140,21 +140,17 @@ export class PubSubClient {
     }
 
     const doFlush = async (): Promise<void> => {
-      try {
-        await this.handle.signal<[PublishInput]>('__pubsub_publish', {
-          items: batch,
-          publisher_id: this.publisherId,
-          sequence: seq,
-        });
-        // Success: advance confirmed sequence, clear pending
-        this.sequence = seq;
-        this.pending = null;
-        this.pendingSeq = 0;
-        this.pendingStartedAt = null;
-      } catch (err) {
-        // Pending stays set for retry on next _flush() call
-        throw err;
-      }
+      // On failure, the signal throws and pending stays set for retry.
+      // On success, we advance confirmed sequence and clear pending.
+      await this.handle.signal<[PublishInput]>('__pubsub_publish', {
+        items: batch,
+        publisher_id: this.publisherId,
+        sequence: seq,
+      });
+      this.sequence = seq;
+      this.pending = null;
+      this.pendingSeq = 0;
+      this.pendingStartedAt = null;
     };
 
     this.flushPromise = doFlush();
