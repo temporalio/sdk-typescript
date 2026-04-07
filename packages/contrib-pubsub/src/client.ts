@@ -96,11 +96,8 @@ export class PubSubClient {
   /**
    * Send pending or buffered messages to the workflow via signal.
    *
-   * Implements the TLA+-verified dedup algorithm (see verification/PROOF.md):
-   * 1. If pending batch exists (from prior failure), retry with same sequence.
-   * 2. Otherwise, swap buffer into pending with new sequence.
-   * 3. On success: advance confirmed sequence, clear pending.
-   * 4. On failure: pending stays for retry.
+   * On failure, the pending batch and sequence are kept for retry.
+   * Only advances the confirmed sequence on success.
    */
   private async _flush(): Promise<void> {
     // Simple serialization: wait for any in-progress flush
