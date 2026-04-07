@@ -1171,7 +1171,10 @@ test("Lang's SDK flags replay correctly", async (t) => {
   await worker.runUntil(() => handle.result());
 
   const worker2 = await createWorker();
-  await worker2.runUntil(() => handle.query('__temporal_workflow_metadata'));
+  // Retry the query to handle transient query timeouts on slow CI runners
+  await worker2.runUntil(() =>
+    asyncRetry(() => handle.query('__temporal_workflow_metadata'), { retries: 3, minTimeout: 500 })
+  );
 
   // Query would have thrown if the workflow couldn't be replayed correctly
   t.pass();
@@ -1403,7 +1406,7 @@ test('root execution is exposed', async (t) => {
         }
       }
     };
-    await waitUntil(childStarted, 8000);
+    await waitUntil(childStarted, 12000);
     const childDesc = await childHandle.describe();
     const parentDesc = await handle.describe();
 

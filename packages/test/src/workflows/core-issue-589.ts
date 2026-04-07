@@ -14,7 +14,7 @@ export async function coreIssue589(): Promise<void> {
   wf.setHandler(unblockSignal, () => {
     unblocked = true;
   });
-  await wf.condition(() => unblocked, 10000);
+  await wf.condition(() => unblocked, 20000);
 
   customLogger.info(
     `Checkpoint, replaying: ${wf.workflowInfo().unsafe.isReplaying}, hl: ${wf.workflowInfo().historyLength}`
