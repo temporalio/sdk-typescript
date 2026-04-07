@@ -5,13 +5,14 @@
  * message broker. External clients (activities, starters, other services)
  * publish and subscribe through the workflow handle using Temporal primitives.
  *
- * Payloads are opaque byte strings for cross-language compatibility.
+ * Payloads are opaque bytes. Base64 encoding is used on the wire for
+ * cross-language compatibility, but users work with native Uint8Array.
  *
  * @module
  */
 
 export type { PubSubItem, PublishEntry, PublishInput, PollInput, PollResult, PubSubState } from './types';
-export { toWireBytes, fromWireBytes } from './types';
+export { toWireBytes, fromWireBytes, encodeData, decodeData } from './types';
 export { initPubSub, pubsubPublishSignal, pubsubPollUpdate, pubsubOffsetQuery } from './mixin';
 export type { PubSubHandle } from './mixin';
 export { PubSubClient, FlushTimeoutError } from './client';

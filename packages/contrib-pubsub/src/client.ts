@@ -8,6 +8,7 @@
 import { randomUUID } from 'crypto';
 import { Client, WorkflowHandle, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
 import type { PollInput, PollResult, PubSubItem, PublishEntry, PublishInput } from './types';
+import { encodeData, decodeData } from './types';
 
 /** Thrown when a flush retry exceeds maxRetryDuration. */
 export class FlushTimeoutError extends Error {
@@ -84,10 +85,11 @@ export class PubSubClient {
 
   /**
    * Buffer a message for publishing.
+   * @param data - Opaque byte payload.
    * @param priority - If true, triggers immediate flush (fire-and-forget).
    */
-  publish(topic: string, data: number[], priority = false): void {
-    this.buffer.push({ topic, data });
+  publish(topic: string, data: Uint8Array, priority = false): void {
+    this.buffer.push({ topic, data: encodeData(data) });
     if (priority || (this.maxBatchSize !== undefined && this.buffer.length >= this.maxBatchSize)) {
       void this._flush();
     }
@@ -186,8 +188,11 @@ export class PubSubClient {
         throw err;
       }
 
-      for (const item of result.items) {
-        yield item;
+      for (const wireItem of result.items) {
+        yield {
+          topic: wireItem.topic,
+          data: decodeData(wireItem.data),
+        };
       }
       offset = result.next_offset;
 

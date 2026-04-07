@@ -9,7 +9,8 @@
  */
 
 import { condition, defineSignal, defineUpdate, defineQuery, setHandler } from '@temporalio/workflow';
-import type { PollInput, PollResult, PubSubItem, PubSubState, PublishInput } from './types';
+import type { PollInput, PollResult, PubSubItem, PubSubState, PublishInput, _WireItem } from './types';
+import { encodeData, decodeData } from './types';
 
 // Fixed handler names for cross-language interop
 export const pubsubPublishSignal = defineSignal<[PublishInput]>('__pubsub_publish');
@@ -19,7 +20,7 @@ export const pubsubOffsetQuery = defineQuery<number>('__pubsub_offset');
 /** Handle returned by initPubSub for interacting with pub/sub state. */
 export interface PubSubHandle {
   /** Publish an item from within workflow code. Deterministic — just appends. */
-  publish(topic: string, data: number[]): void;
+  publish(topic: string, data: Uint8Array): void;
 
   /** Unblock all waiting poll handlers and reject new polls for CAN. */
   drain(): void;
@@ -48,7 +49,10 @@ export interface PubSubHandle {
  * @returns A handle for publishing, draining, and getting state.
  */
 export function initPubSub(priorState?: PubSubState): PubSubHandle {
-  const log: PubSubItem[] = priorState?.log ? [...priorState.log] : [];
+  // Decode wire items (base64) to in-memory items (Uint8Array)
+  const log: PubSubItem[] = priorState?.log
+    ? priorState.log.map((item) => ({ topic: item.topic, data: decodeData(item.data) }))
+    : [];
   let baseOffset: number = priorState?.base_offset ?? 0;
   const publisherSequences: Record<string, number> = priorState?.publisher_sequences
     ? { ...priorState.publisher_sequences }
@@ -69,7 +73,8 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
       publisherLastSeen[input.publisher_id] = Date.now() / 1000; // seconds
     }
     for (const entry of input.items) {
-      log.push({ topic: entry.topic, data: entry.data });
+      // Decode base64 wire data to Uint8Array for in-memory storage
+      log.push({ topic: entry.topic, data: decodeData(entry.data) });
     }
   });
 
@@ -96,7 +101,11 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
       } else {
         filtered = [...allNew];
       }
-      return { items: filtered, next_offset: nextOffset };
+      // Encode Uint8Array to base64 for wire response
+      return {
+        items: filtered.map((item) => ({ topic: item.topic, data: encodeData(item.data) })),
+        next_offset: nextOffset,
+      };
     },
     {
       // Validator: reject new polls when draining for continue-as-new
@@ -112,7 +121,7 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
   setHandler(pubsubOffsetQuery, () => baseOffset + log.length);
 
   return {
-    publish(topic: string, data: number[]): void {
+    publish(topic: string, data: Uint8Array): void {
       log.push({ topic, data });
     },
 
@@ -124,8 +133,6 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
       const now = Date.now() / 1000;
       const activeSeqs: Record<string, number> = {};
       const activeSeen: Record<string, number> = {};
-      // Iterate over publisher_sequences (not publisher_last_seen) to
-      // preserve legacy entries that predate the last_seen field.
       for (const pid of Object.keys(publisherSequences)) {
         const ts = publisherLastSeen[pid];
         if (ts === undefined || now - ts < publisherTtl) {
@@ -136,7 +143,8 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
         }
       }
       return {
-        log: [...log],
+        // Encode Uint8Array to base64 for serializable state
+        log: log.map((item) => ({ topic: item.topic, data: encodeData(item.data) })),
         base_offset: baseOffset,
         publisher_sequences: activeSeqs,
         publisher_last_seen: activeSeen,
