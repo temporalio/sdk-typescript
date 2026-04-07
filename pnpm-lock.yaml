@@ -62,8 +62,8 @@ importers:
         specifier: workspace:*
         version: link:packages/workflow
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: ^0.0.2
+        version: 0.0.2
       temporalio:
         specifier: file:packages/meta
         version: file:packages/meta
@@ -248,8 +248,8 @@ importers:
         specifier: 3.0.0-canary.1
         version: 3.0.0-canary.1
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: ^0.0.2
+        version: 0.0.2
       proto3-json-serializer:
         specifier: ^2.0.0
         version: 2.0.0
@@ -381,6 +381,9 @@ importers:
       '@temporalio/workflow':
         specifier: workspace:*
         version: link:../workflow
+      nexus-rpc:
+        specifier: ^0.0.2
+        version: 0.0.2
 
   packages/meta:
     dependencies:
@@ -436,8 +439,8 @@ importers:
         specifier: ^5.2.3
         version: 5.2.3
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: ^0.0.2
+        version: 0.0.2
 
   packages/nyc-test-coverage:
     dependencies:
@@ -491,8 +494,8 @@ importers:
         specifier: workspace:*
         version: link:../worker
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: ^0.0.2
+        version: 0.0.2
 
   packages/proto:
     dependencies:
@@ -618,8 +621,8 @@ importers:
         specifier: ^5.2.3
         version: 5.2.3
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: ^0.0.2
+        version: 0.0.2
       proto3-json-serializer:
         specifier: ^2.0.0
         version: 2.0.0
@@ -733,8 +736,8 @@ importers:
         specifier: ^4.6.0
         version: 4.6.0(quill-delta@5.1.0)(rxjs@7.8.1)(tslib@2.6.2)
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: ^0.0.2
+        version: 0.0.2
       proto3-json-serializer:
         specifier: ^2.0.0
         version: 2.0.0
@@ -776,8 +779,8 @@ importers:
         specifier: workspace:*
         version: link:../proto
       nexus-rpc:
-        specifier: ^0.0.1
-        version: 0.0.1
+        specifier: ^0.0.2
+        version: 0.0.2
     devDependencies:
       source-map:
         specifier: ^0.7.4
@@ -3705,9 +3708,9 @@ packages:
   neo-async@2.6.2:
     resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
 
-  nexus-rpc@0.0.1:
-    resolution: {integrity: sha512-hAWn8Hh2eewpB5McXR5EW81R3pR/ziuGhKCF3wFyUVCklanPqrIgMNr7jKCbzXeNVad0nUDfWpFRqh2u+zxQtw==}
-    engines: {node: '>= 18.0.0'}
+  nexus-rpc@0.0.2:
+    resolution: {integrity: sha512-IWjIExdVYlmwXuzHdY/Q3lXCv1gbqoAXPazQhy2w4Xgtgha3H0OOujEESVPQcFUFMWm+pAk2gKnb57g8S41JZg==}
+    engines: {node: '>= 20.0.0'}
 
   node-fetch@2.6.7:
     resolution: {integrity: sha512-ZjMPFEfVx5j+y2yF35Kzx5sF7kDzxuDj6ziH4FFbOp87zKDZNx8yExJIb05OGF4Nlt9IHFIMBkRl41VdvcNdbQ==}
@@ -8074,7 +8077,7 @@ snapshots:
 
   neo-async@2.6.2: {}
 
-  nexus-rpc@0.0.1: {}
+  nexus-rpc@0.0.2: {}
 
   node-fetch@2.6.7(encoding@0.1.13):
     dependencies:

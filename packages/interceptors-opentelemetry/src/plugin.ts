@@ -7,6 +7,8 @@ import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
   OpenTelemetryActivityOutboundInterceptor,
+  OpenTelemetryNexusInboundInterceptor,
+  OpenTelemetryNexusOutboundInterceptor,
 } from './worker';
 import { OpenTelemetrySinks } from './workflow';
 
@@ -48,6 +50,12 @@ export class OpenTelemetryPlugin extends SimplePlugin {
           (ctx) => ({
             inbound: new OpenTelemetryActivityInboundInterceptor(ctx, interceptorOptions),
             outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
+          }),
+        ],
+        nexus: [
+          (ctx) => ({
+            inbound: new OpenTelemetryNexusInboundInterceptor(ctx, interceptorOptions),
+            outbound: new OpenTelemetryNexusOutboundInterceptor(ctx),
           }),
         ],
       },

@@ -52,6 +52,7 @@ export class WorkflowCodeBundler {
   protected readonly payloadConverterPath?: string;
   protected readonly failureConverterPath?: string;
   protected readonly ignoreModules: string[];
+  protected readonly preloadModules: string[];
   protected readonly webpackConfigHook: (config: Configuration) => Configuration;
   protected readonly plugins: BundlerPlugin[];
 
@@ -69,14 +70,25 @@ export class WorkflowCodeBundler {
       failureConverterPath,
       workflowInterceptorModules,
       ignoreModules,
+      preloadModules,
       webpackConfigHook,
     } = options;
+    const dedupedPreloadModules = [...new Set(preloadModules ?? [])];
+    const ignoredPreloadModules = dedupedPreloadModules.filter((module) => moduleMatches(module, ignoreModules ?? []));
+    if (ignoredPreloadModules.length > 0) {
+      throw new Error(
+        `Cannot preload modules that are also ignored: ${ignoredPreloadModules
+          .map((module) => `'${module}'`)
+          .join(', ')}`
+      );
+    }
     this.logger = logger ?? new DefaultLogger('INFO');
     this.workflowsPath = workflowsPath;
     this.payloadConverterPath = payloadConverterPath;
     this.failureConverterPath = failureConverterPath;
     this.workflowInterceptorModules = workflowInterceptorModules ?? [];
     this.ignoreModules = ignoreModules ?? [];
+    this.preloadModules = dedupedPreloadModules;
     this.webpackConfigHook = webpackConfigHook ?? ((config) => config);
   }
 
@@ -156,6 +168,9 @@ export class WorkflowCodeBundler {
     const interceptorImports = [...new Set(this.workflowInterceptorModules)]
       .map((v) => `require(/* webpackMode: "eager" */ ${JSON.stringify(v)})`)
       .join(', \n');
+    const preloadModuleImports = this.preloadModules
+      .map((v) => `  require(/* webpackMode: "eager" */ ${JSON.stringify(v)});`)
+      .join('\n');
 
     const code = `
 const api = require('@temporalio/workflow/lib/worker-interface.js');
@@ -163,6 +178,10 @@ exports.api = api;
 
 const { overrideGlobals } = require('@temporalio/workflow/lib/global-overrides.js');
 overrideGlobals();
+
+exports.preloadModules = function preloadModules() {
+${preloadModuleImports}
+}
 
 exports.importWorkflows = function importWorkflows() {
   return require(/* webpackMode: "eager" */ ${JSON.stringify(this.workflowsPath)});
@@ -385,6 +404,19 @@ export interface BundleOptions {
    * > NOTE: This is an advanced option that should be used with care.
    */
   ignoreModules?: string[];
+
+  /**
+   * List of modules to load once during reusable V8 context bootstrap.
+   *
+   * Preloaded modules are shared across workflows that execute in the same reusable V8 context.
+   * Module scope in these modules runs before a workflow activator exists, so this option is only
+   * appropriate for modules that are safe to initialize that early.
+   *
+   * > NOTE: This is an advanced option that should be used with care. Preloading modules that
+   * internally stores some form of per-workflow state will very likely cause workflow context
+   * leak, which may result in non-deterministic behavior and/or cause other unexpected behaviors.
+   */
+  preloadModules?: string[];
 
   /**
    * Before Workflow code is bundled with Webpack, `webpackConfigHook` is called with the Webpack

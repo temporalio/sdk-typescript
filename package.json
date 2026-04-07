@@ -53,7 +53,7 @@
     "@temporalio/testing": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "@temporalio/workflow": "workspace:*",
-    "nexus-rpc": "^0.0.1",
+    "nexus-rpc": "^0.0.2",
     "temporalio": "file:packages/meta"
   },
   "devDependencies": {
