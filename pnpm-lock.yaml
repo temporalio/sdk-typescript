@@ -258,6 +258,18 @@ importers:
         specifier: ^7.2.5
         version: 7.5.1
 
+  packages/contrib-pubsub:
+    dependencies:
+      '@temporalio/client':
+        specifier: workspace:*
+        version: link:../client
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../common
+      '@temporalio/workflow':
+        specifier: workspace:*
+        version: link:../workflow
+
   packages/core-bridge:
     dependencies:
       '@grpc/grpc-js':
