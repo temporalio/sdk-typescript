@@ -1,0 +1,32 @@
+{
+  "name": "@temporalio/contrib-pubsub",
+  "version": "1.15.0",
+  "description": "Temporal.io SDK Pub/Sub contrib module",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "keywords": [
+    "temporal",
+    "pubsub",
+    "streaming"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/workflow": "workspace:*"
+  },
+  "engines": {
+    "node": ">= 20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
+}
