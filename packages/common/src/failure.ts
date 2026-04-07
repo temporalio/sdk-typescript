@@ -104,7 +104,7 @@ export const [encodeRetryState, decodeRetryState] = makeProtoEnumConverters<
 /**
  * A category to describe the severity and change the observability behavior of an application failure.
  *
- * Currently, observability behaviour changes are limited to:
+ * Currently, observability behavior changes are limited to:
  * - activities that fail due to a BENIGN application failure emit DEBUG level logs and do not record metrics
  *
  * @experimental Category is a new feature and may be subject to change.

@@ -797,6 +797,7 @@ export class Worker {
         failureConverterPath: compiledOptions.dataConverter?.failureConverterPath,
         payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
         ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
+        preloadModules: compiledOptions.bundlerOptions?.preloadModules,
         webpackConfigHook: compiledOptions.bundlerOptions?.webpackConfigHook,
         plugins: compiledOptions.plugins,
       });
