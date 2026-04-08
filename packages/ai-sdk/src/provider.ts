@@ -28,7 +28,14 @@ export interface TemporalProviderOptions {
    * Activity options specific to language model calls.
    * Merged with default options, with these taking precedence.
    */
-  languageModel?: ActivityOptions;
+  languageModel?: ActivityOptions & {
+    /**
+     * When true, model calls use the streaming LLM endpoint and publish
+     * token events via PubSubClient. The workflow receives a complete result;
+     * real-time streaming happens via pubsub as a side channel.
+     */
+    streaming?: boolean;
+  };
 
   /**
    * Activity options specific to embedding model calls.
@@ -46,11 +53,14 @@ export interface TemporalProviderOptions {
 export class TemporalLanguageModel implements LanguageModelV3 {
   readonly specificationVersion = 'v3';
   readonly provider = 'temporal';
+  private streaming: boolean;
 
   constructor(
     readonly modelId: string,
-    readonly options?: ActivityOptions
-  ) {}
+    readonly options?: ActivityOptions & { streaming?: boolean }
+  ) {
+    this.streaming = options?.streaming ?? false;
+  }
 
   get supportedUrls(): Record<string, RegExp[]> {
     return {};
@@ -75,8 +85,54 @@ export class TemporalLanguageModel implements LanguageModelV3 {
     return result;
   }
 
-  doStream(_options: LanguageModelV3CallOptions): PromiseLike<LanguageModelV3StreamResult> {
-    throw ApplicationFailure.nonRetryable('Streaming not supported.');
+  async doStream(options: LanguageModelV3CallOptions): Promise<LanguageModelV3StreamResult> {
+    if (!this.streaming) {
+      throw ApplicationFailure.nonRetryable(
+        'Streaming not enabled. Set streaming: true in languageModel provider options.'
+      );
+    }
+
+    // Call the streaming activity, which publishes tokens via pubsub
+    // and returns the accumulated result.
+    const activities = workflow.proxyActivities({
+      startToCloseTimeout: '10 minutes',
+      ...this.options,
+    });
+    const result = await activities.invokeModelStreaming!({ modelId: this.modelId, options });
+    if (result === undefined) {
+      throw ApplicationFailure.nonRetryable('Received undefined response from streaming model activity.');
+    }
+
+    // Wrap the accumulated result as a ReadableStream that replays the content.
+    // Real-time token streaming already happened via pubsub in the activity.
+    const stream = new ReadableStream({
+      start(controller: ReadableStreamDefaultController) {
+        controller.enqueue({ type: 'stream-start', warnings: result.warnings ?? [] });
+        let partIndex = 0;
+        for (const item of result.content ?? []) {
+          const id = `part-${partIndex++}`;
+          if (item.type === 'text') {
+            controller.enqueue({ type: 'text-start', id });
+            controller.enqueue({ type: 'text-delta', id, delta: item.text });
+            controller.enqueue({ type: 'text-end', id });
+          } else if (item.type === 'reasoning') {
+            controller.enqueue({ type: 'reasoning-start', id });
+            controller.enqueue({ type: 'reasoning-delta', id, delta: item.text });
+            controller.enqueue({ type: 'reasoning-end', id });
+          } else {
+            controller.enqueue(item);
+          }
+        }
+        controller.enqueue({
+          type: 'finish',
+          finishReason: result.finishReason,
+          usage: result.usage,
+        });
+        controller.close();
+      },
+    });
+
+    return { stream, request: result.request, response: result.response };
   }
 }
 
@@ -140,9 +196,11 @@ export class TemporalProvider implements ProviderV3 {
   }
 
   languageModel(modelId: string): LanguageModelV3 {
+    const { streaming, ...languageModelOptions } = this.options?.languageModel ?? {};
     return new TemporalLanguageModel(modelId, {
       ...this.options?.default,
-      ...this.options?.languageModel,
+      ...languageModelOptions,
+      streaming,
     });
   }
 

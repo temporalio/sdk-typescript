@@ -1,4 +1,5 @@
 import type { ProviderV3 } from '@ai-sdk/provider';
+import type { Client } from '@temporalio/client';
 import { SimplePlugin } from '@temporalio/plugin';
 import { createActivities } from './activities';
 import type { McpClientFactories } from './mcp';
@@ -16,6 +17,12 @@ export interface AiSdkPluginOptions {
    * Any TemporalMCPClient used in a workflow should have its associated servername listed in this object.
    */
   mcpClientFactories?: McpClientFactories;
+
+  /**
+   * Temporal client, required for streaming support. The streaming activity
+   * uses this to create a PubSubClient for publishing token events.
+   */
+  temporalClient?: Client;
 }
 
 /**
@@ -28,7 +35,9 @@ export class AiSdkPlugin extends SimplePlugin {
   constructor(options: AiSdkPluginOptions) {
     super({
       name: 'AiSDKPlugin',
-      activities: createActivities(options.modelProvider, options.mcpClientFactories),
+      activities: createActivities(options.modelProvider, options.mcpClientFactories, {
+        temporalClient: options.temporalClient,
+      }),
     });
   }
 }

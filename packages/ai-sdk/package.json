@@ -15,7 +15,10 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
+    "@temporalio/activity": "workspace:*",
+    "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
+    "@temporalio/contrib-pubsub": "workspace:*",
     "@temporalio/plugin": "workspace:*",
     "@temporalio/workflow": "workspace:*",
     "@ungap/structured-clone": "^1.3.0",
