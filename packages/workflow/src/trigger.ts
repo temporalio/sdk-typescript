@@ -10,8 +10,23 @@ import { untrackPromise } from './stack-helpers';
  * Useful for e.g. waiting for unblocking a Workflow from a Signal.
  *
  * @example
- * <!--SNIPSTART typescript-trigger-workflow-->
- * <!--SNIPEND-->
+ * ```ts
+ * import { defineSignal, setHandler, sleep, Trigger } from '@temporalio/workflow';
+ *
+ * const completeUserInteraction = defineSignal('completeUserInteraction');
+ *
+ * export async function waitOnUser(userId: string): Promise<void> {
+ *   const userInteraction = new Trigger<boolean>();
+ *
+ *   // programmatically resolve Trigger
+ *   setHandler(completeUserInteraction, () => userInteraction.resolve(true));
+ *
+ *   const userInteracted = await Promise.race([userInteraction, sleep('30 days')]);
+ *   if (!userInteracted) {
+ *     await sendReminderEmail(userId);
+ *   }
+ * }
+ * ```
  */
 export class Trigger<T> implements PromiseLike<T> {
   // Typescript does not realize that the promise executor is run synchronously in the constructor
