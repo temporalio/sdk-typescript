@@ -88,10 +88,7 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
           `Requested offset ${input.from_offset} is before base offset ${baseOffset} (log has been truncated)`
         );
       }
-      await condition(
-        () => log.length > logOffset || draining,
-        input.timeout * 1000, // convert seconds to ms
-      );
+      await condition(() => log.length > logOffset || draining);
       const allNew = log.slice(logOffset);
       const nextOffset = baseOffset + log.length;
       let filtered: PubSubItem[];

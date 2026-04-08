@@ -40,7 +40,6 @@ export interface PublishInput {
 export interface PollInput {
   topics: string[];
   from_offset: number;
-  timeout: number;
 }
 
 /** Update response: items matching the poll request (wire type). */

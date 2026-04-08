@@ -176,7 +176,7 @@ export class PubSubClient {
       let result: PollResult;
       try {
         result = await this.handle.executeUpdate<PollResult, [PollInput]>('__pubsub_poll', {
-          args: [{ topics: topics ?? [], from_offset: offset, timeout: 300.0 }],
+          args: [{ topics: topics ?? [], from_offset: offset }],
         });
       } catch (err) {
         if (err instanceof WorkflowUpdateRPCTimeoutOrCancelledError) {
