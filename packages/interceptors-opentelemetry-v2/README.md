@@ -1,6 +1,6 @@
-# `@temporalio/interceptors-opentelemetry-v2`
+# `@blotoutio/temporal-interceptors-opentelemetry-v2`
 
-[![NPM](https://img.shields.io/npm/v/@temporalio/interceptors-opentelemetry-v2?style=for-the-badge)](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry-v2)
+[![NPM](https://img.shields.io/npm/v/@blotoutio/temporal-interceptors-opentelemetry-v2?style=for-the-badge)](https://www.npmjs.com/package/@blotoutio/temporal-interceptors-opentelemetry-v2)
 
 [Temporal](https://temporal.io)'s [TypeScript SDK](https://docs.temporal.io/typescript/introduction) interceptors for tracing Workflow and Activity executions with [OpenTelemetry](https://opentelemetry.io/) v2.
 

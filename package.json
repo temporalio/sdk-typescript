@@ -1,5 +1,5 @@
 {
-  "name": "typescript-sdk",
+  "name": "temporal-typescript-sdk",
   "private": true,
   "keywords": [
     "temporal",

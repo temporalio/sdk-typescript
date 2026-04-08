@@ -18,8 +18,8 @@ import { OpenTelemetrySinks } from './workflow';
 export interface OpenTelemetryPluginOptions extends InterceptorOptions {
   /** OpenTelemetry resource attributes to attach to exported spans */
   readonly resource: Resource;
-  /** Exporter used to send spans to a tracing backend */
-  readonly spanProcessor: SpanProcessor;
+  /** Span processors used to send spans to a tracing backend */
+  readonly spanProcessors: SpanProcessor[];
 }
 
 /**
@@ -64,7 +64,7 @@ export class OpenTelemetryPlugin extends SimplePlugin {
 
   private injectSinks<T extends { sinks?: InjectedSinks<any> }>(options: T): T {
     const sinks: InjectedSinks<OpenTelemetrySinks> = {
-      exporter: makeWorkflowExporter(this.otelOptions.spanProcessor, this.otelOptions.resource),
+      exporter: makeWorkflowExporter(this.otelOptions.spanProcessors, this.otelOptions.resource),
     };
     return {
       ...options,

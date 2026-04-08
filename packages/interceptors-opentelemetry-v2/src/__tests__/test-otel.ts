@@ -140,7 +140,7 @@ if (RUN_INTEGRATION_TESTS) {
 
       const plugin = new OpenTelemetryPlugin({
         resource: staticResource,
-        spanProcessor: new SimpleSpanProcessor(traceExporter),
+        spanProcessors: [new SimpleSpanProcessor(traceExporter)],
       });
       const worker = await Worker.create({
         workflowsPath: require.resolve('./workflows'),
@@ -293,7 +293,7 @@ if (RUN_INTEGRATION_TESTS) {
       await otel.start();
 
       const sinks: InjectedSinks<OpenTelemetrySinks> = {
-        exporter: makeWorkflowExporter(new SimpleSpanProcessor(exporter), staticResource),
+        exporter: makeWorkflowExporter([new SimpleSpanProcessor(exporter)], staticResource),
       };
       const worker = await Worker.create({
         workflowsPath: require.resolve('./workflows'),
@@ -410,7 +410,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const plugin = new OpenTelemetryPlugin({
       resource: staticResource,
-      spanProcessor: new SimpleSpanProcessor(traceExporter),
+      spanProcessors: [new SimpleSpanProcessor(traceExporter)],
     });
     const worker = await Worker.create({
       workflowBundle: await createOtelTestWorkflowBundle({
@@ -486,7 +486,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
 
     const sinks: InjectedSinks<OpenTelemetrySinks> = {
-      exporter: makeWorkflowExporter(new TestSpanProcessor(traceExporter), resource),
+      exporter: makeWorkflowExporter([new TestSpanProcessor(traceExporter)], resource),
     };
 
     const worker = await Worker.create({
@@ -544,7 +544,7 @@ if (RUN_INTEGRATION_TESTS) {
 
       const plugin = new OpenTelemetryPlugin({
         resource: staticResource,
-        spanProcessor: new SimpleSpanProcessor(traceExporter),
+        spanProcessors: [new SimpleSpanProcessor(traceExporter)],
         tracer,
       });
 
@@ -641,7 +641,7 @@ if (RUN_INTEGRATION_TESTS) {
       otel.start();
 
       const sinks: InjectedSinks<OpenTelemetrySinks> = {
-        exporter: makeWorkflowExporter(new SimpleSpanProcessor(workflowSpanExporter), staticResource),
+        exporter: makeWorkflowExporter([new SimpleSpanProcessor(workflowSpanExporter)], staticResource),
       };
 
       const worker = await Worker.create({
@@ -721,7 +721,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const plugin = new OpenTelemetryPlugin({
       resource: staticResource,
-      spanProcessor: new SimpleSpanProcessor(traceExporter),
+      spanProcessors: [new SimpleSpanProcessor(traceExporter)],
     });
 
     const taskQueue = 'test-otel-v2-idgen';

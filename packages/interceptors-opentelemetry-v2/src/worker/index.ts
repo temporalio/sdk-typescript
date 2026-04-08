@@ -1,7 +1,7 @@
 import * as otel from '@opentelemetry/api';
 import { createTraceState } from '@opentelemetry/api';
 import type { Resource } from '@opentelemetry/resources';
-import type { ReadableSpan, SpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace-base';
+import type { ReadableSpan, SpanProcessor } from '@opentelemetry/sdk-trace-base';
 import type { Context as ActivityContext } from '@temporalio/activity';
 import type {
   Next,
@@ -109,14 +109,10 @@ export class OpenTelemetryActivityOutboundInterceptor implements ActivityOutboun
 }
 
 /**
- * Takes an opentelemetry SpanProcessor and turns it into an injected Workflow span exporter sink.
+ * Takes an array of opentelemetry SpanProcessors and turns them into an injected Workflow span exporter sink.
  */
 export function makeWorkflowExporter(
-  spanProcessor: SpanProcessor,
-  resource: Resource
-): InjectedSink<OpenTelemetryWorkflowExporter>;
-export function makeWorkflowExporter(
-  processor: SpanProcessor,
+  spanProcessors: SpanProcessor[],
   resource: Resource
 ): InjectedSink<OpenTelemetryWorkflowExporter> {
   return {
@@ -128,7 +124,7 @@ export function makeWorkflowExporter(
           return extractReadableSpan(serialized, resource);
         });
 
-        spans.forEach((span) => processor.onEnd(span));
+        spans.forEach((span) => spanProcessors.forEach((p) => p.onEnd(span)));
       },
     },
   };

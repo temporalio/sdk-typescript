@@ -480,8 +480,8 @@ importers:
         specifier: ^2.2.0
         version: 2.5.1(@opentelemetry/api@1.9.0)
       '@temporalio/plugin':
-        specifier: workspace:*
-        version: link:../plugin
+        specifier: ^1.15.0
+        version: 1.15.0
     devDependencies:
       '@opentelemetry/exporter-trace-otlp-grpc':
         specifier: ^0.208.0
@@ -1835,6 +1835,10 @@ packages:
   '@szmarczak/http-timer@5.0.1':
     resolution: {integrity: sha512-+PmQX0PiAYPMeVYe237LJAYvOMYW1j2rH5YROyS3b4CTVJum34HfRvKvAzozHAQG0TnHNdUfY9nCeUyRAs//cw==}
     engines: {node: '>=14.16'}
+
+  '@temporalio/plugin@1.15.0':
+    resolution: {integrity: sha512-oXwQn+4HrSSqEg2efTtfenis9RYmWcEz0z56MCYZamYXVPOUSd3kfuDQ9KyJacp+r1zh9C8qh1No07Mm4dIjOA==}
+    engines: {node: '>= 20.0.0'}
 
   '@ts-morph/common@0.12.3':
     resolution: {integrity: sha512-4tUmeLyXJnJWvTFOKtcNJ1yh0a3SsTLi2MUoyj8iUNznFRN1ZquaNe7Oukqrnki2FzZkm0J9adCNLDZxUzvj+w==}
@@ -6104,6 +6108,8 @@ snapshots:
   '@szmarczak/http-timer@5.0.1':
     dependencies:
       defer-to-connect: 2.0.1
+
+  '@temporalio/plugin@1.15.0': {}
 
   '@ts-morph/common@0.12.3':
     dependencies:
