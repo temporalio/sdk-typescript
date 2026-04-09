@@ -61,16 +61,19 @@ git add packages/*/package.json scripts/package.json
 git commit -m "Release v${version}"
 git push origin "release-v${version}"
 
+gh repo set-default temporalio/sdk-typescript
 gh pr create
+# Get PR approved and merged
 git switch main
 git pull
 
-
+pnpm login
+pnpm -r publish
 
 echo -e 'Please do the following:'
 echo -e ' 1. Open the \e]8;https://github.com/temporalio/sdk-typescript/releases/new?tag=v'"$version"'\e\\GitHub New Release page\e]8;;\e\\ and select the 'v"$version"' tag.'
 echo -e ' 2. In the Release Title field, enter '"$version"''
-echo -e ' 3. Paste the release notes inkto the description field'
+echo -e ' 3. Paste the release notes into the description field'
 if [[ $version =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
     echo -e ' 4. Make sure that the "Set as a pre-release" checkbox is unchecked'
     echo -e '    and that the "Set as the latest release" checkbox is checked'
