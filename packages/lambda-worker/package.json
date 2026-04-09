@@ -12,6 +12,10 @@
     "./otel": {
       "types": "./lib/otel.d.ts",
       "default": "./lib/otel.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
     }
   },
   "scripts": {},
