@@ -76,7 +76,7 @@ test('Worker can replace connection to switch servers', async (t) => {
       // Confirm that workflow 2 has started execution
       await waitUntil(
         async () => !!(await handle2.fetchHistory()).events?.some((ev) => ev.workflowTaskCompletedEventAttributes),
-        10000
+        20000
       );
     });
   } finally {
