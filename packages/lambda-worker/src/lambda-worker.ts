@@ -1,3 +1,4 @@
+import { setTimeout } from 'timers/promises';
 import type { Context } from 'aws-lambda';
 import type { WorkerDeploymentVersion, Logger } from '@temporalio/common';
 import {
@@ -58,7 +59,7 @@ const defaultDeps: WorkerDeps = {
  *   { buildId: 'v1.0.0', deploymentName: 'my-service' },
  *   (config) => {
  *     config.workerOptions.taskQueue = 'my-task-queue';
- *     config.workerOptions.workflowBundle = require('./workflow-bundle.json');
+ *     config.workerOptions.workflowBundle = { code: require('./workflow-bundle.js') };
  *     config.workerOptions.activities = activities;
  *   },
  * );
@@ -83,8 +84,6 @@ export function _runWorkerInternal(
     workerOptions: {
       ...LAMBDA_WORKER_DEFAULTS,
       workerDeploymentOptions: {
-        version,
-        useWorkerVersioning: true,
         defaultVersioningBehavior: 'PINNED',
       },
     },
@@ -104,20 +103,12 @@ export function _runWorkerInternal(
 
   configure(config);
 
-  // Validate taskQueue
-  if (!config.workerOptions.taskQueue) {
+  const taskQueue = config.workerOptions.taskQueue;
+  if (!taskQueue) {
     throw new Error(
       'taskQueue is required: set config.workerOptions.taskQueue in the configure callback ' +
         'or set the TEMPORAL_TASK_QUEUE environment variable'
     );
-  }
-
-  // Validate workerDeploymentOptions
-  if (!config.workerOptions.workerDeploymentOptions) {
-    throw new Error('workerDeploymentOptions must not be removed: worker deployment versioning is required in Lambda');
-  }
-  if (!config.workerOptions.workerDeploymentOptions.useWorkerVersioning) {
-    throw new Error('useWorkerVersioning must not be set to false: worker deployment versioning is required in Lambda');
   }
 
   // Install the Runtime with the (possibly user-modified) options
@@ -159,18 +150,21 @@ export function _runWorkerInternal(
       const namespace = config.namespace ?? connectConfig.namespace ?? 'default';
       const workerOptions: WorkerOptions = {
         ...config.workerOptions,
-        connection,
+        taskQueue,
+        connection: connection as NativeConnection,
         namespace,
         identity,
-      } as WorkerOptions;
+        workerDeploymentOptions: {
+          version,
+          useWorkerVersioning: true,
+          defaultVersioningBehavior:
+            config.workerOptions.workerDeploymentOptions?.defaultVersioningBehavior ?? 'PINNED',
+        },
+      };
 
       const worker = await deps.createWorker(workerOptions);
 
-      await worker.runUntil(
-        new Promise<void>((resolve) => {
-          setTimeout(resolve, workTimeMs);
-        })
-      );
+      await worker.runUntil(setTimeout(workTimeMs));
     } finally {
       for (const hook of config.shutdownHooks) {
         try {

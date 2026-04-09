@@ -4,6 +4,16 @@
   "description": "Temporal.io SDK AWS Lambda Worker",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./otel": {
+      "types": "./lib/otel.d.ts",
+      "default": "./lib/otel.js"
+    }
+  },
   "scripts": {},
   "keywords": [
     "temporal",
