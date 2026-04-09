@@ -22,7 +22,7 @@ export interface OtelOptions {
  * @example
  * ```ts
  * import { runWorker } from '@temporalio/lambda-worker';
- * import { applyDefaults } from '@temporalio/lambda-worker/lib/otel';
+ * import { applyDefaults } from '@temporalio/lambda-worker/otel';
  *
  * export const handler = runWorker(version, (config) => {
  *   applyDefaults(config);

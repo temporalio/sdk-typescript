@@ -14,7 +14,7 @@ import * as activities from './activities';
 
 export const handler = runWorker({ deploymentName: 'my-service', buildId: 'v1.0' }, (config) => {
   config.workerOptions.taskQueue = 'my-task-queue';
-  config.workerOptions.workflowBundle = require('./workflow-bundle.json');
+  config.workerOptions.workflowBundle = { code: require('./workflow-bundle.js') };
   config.workerOptions.activities = activities;
 });
 ```
@@ -58,10 +58,7 @@ Worker Deployment Versioning is always enabled. The default versioning behavior 
 change it, override `workerDeploymentOptions.defaultVersioningBehavior` in the configure callback:
 
 ```typescript
-const prev = config.workerOptions.workerDeploymentOptions!;
 config.workerOptions.workerDeploymentOptions = {
-  version: prev.version,
-  useWorkerVersioning: true,
   defaultVersioningBehavior: 'AUTO_UPGRADE',
 };
 ```
@@ -97,7 +94,7 @@ OpenTelemetry (ADOT):
 
 ```typescript
 import { runWorker } from '@temporalio/lambda-worker';
-import { applyDefaults } from '@temporalio/lambda-worker/lib/otel';
+import { applyDefaults } from '@temporalio/lambda-worker/otel';
 
 export const handler = runWorker({ deploymentName: 'my-service', buildId: 'v1.0' }, (config) => {
   applyDefaults(config);

@@ -1,4 +1,5 @@
 import type { Context } from 'aws-lambda';
+import type { VersioningBehavior } from '@temporalio/common';
 import type { WorkerOptions, NativeConnectionOptions, RuntimeOptions } from '@temporalio/worker';
 import type { LoadClientProfileOptions } from '@temporalio/envconfig';
 
@@ -23,9 +24,18 @@ export interface LambdaWorkerConfig {
    * to avoid bundling overhead on Lambda cold starts).
    *
    * The following fields are managed by settings elsewhere and will be overridden per-invocation:
-   * `connection`, `namespace`, `identity`, `workerDeploymentOptions`.
+   * `connection`, `namespace`, `identity`.
    */
-  workerOptions: Partial<WorkerOptions>;
+  workerOptions: Partial<Omit<WorkerOptions, 'connection' | 'namespace' | 'identity' | 'workerDeploymentOptions'>> & {
+    /**
+     * `version` and `useWorkerVersioning` are managed by `runWorker` and cannot be set here.
+     *
+     * @default { defaultVersioningBehavior: 'PINNED' }
+     */
+    workerDeploymentOptions?: {
+      defaultVersioningBehavior?: VersioningBehavior;
+    };
+  };
 
   /**
    * Connection options overrides, merged on top of values loaded via envconfig.

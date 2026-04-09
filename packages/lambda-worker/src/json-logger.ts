@@ -36,6 +36,9 @@ export class PowertoolsLoggerAdapter implements Logger {
       case 'ERROR':
         this.ptLogger.error(message, meta as Record<string, unknown>);
         break;
+      default:
+        level satisfies never;
+        break;
     }
   }
 

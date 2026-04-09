@@ -34,7 +34,7 @@ function makeTestDeps(overrides?: Partial<WorkerDeps>): WorkerDeps {
 
 // ---- Config and Defaults Tests ----
 
-test('workerDeploymentOptions defaults to PINNED', (t) => {
+test('workerDeploymentOptions defaults to PINNED in config', (t) => {
   let captured: LambdaWorkerConfig | undefined;
   _runWorkerInternal(
     TEST_VERSION,
@@ -47,64 +47,55 @@ test('workerDeploymentOptions defaults to PINNED', (t) => {
 
   const opts = captured!.workerOptions.workerDeploymentOptions;
   t.truthy(opts);
-  t.is(opts!.useWorkerVersioning, true);
   t.is(opts!.defaultVersioningBehavior, 'PINNED');
-  t.deepEqual(opts!.version, TEST_VERSION);
 });
 
-test('user can override defaultVersioningBehavior to AUTO_UPGRADE', (t) => {
-  let captured: LambdaWorkerConfig | undefined;
-  _runWorkerInternal(
+test('workerDeploymentOptions on final WorkerOptions includes version and useWorkerVersioning', async (t) => {
+  let capturedWorkerOpts: WorkerOptions | undefined;
+  const handler = _runWorkerInternal(
     TEST_VERSION,
     (config) => {
-      captured = config;
       config.workerOptions.taskQueue = 'q';
-      const prev = config.workerOptions.workerDeploymentOptions!;
+    },
+    makeTestDeps({
+      createWorker: async (opts) => {
+        capturedWorkerOpts = opts;
+        return { runUntil: async () => {} };
+      },
+    })
+  );
+
+  await handler({}, makeMockContext(60_000));
+  const opts = capturedWorkerOpts!.workerDeploymentOptions;
+  t.truthy(opts);
+  t.deepEqual(opts!.version, TEST_VERSION);
+  t.is(opts!.useWorkerVersioning, true);
+  t.is(opts!.defaultVersioningBehavior, 'PINNED');
+});
+
+test('user can override defaultVersioningBehavior to AUTO_UPGRADE', async (t) => {
+  let capturedWorkerOpts: WorkerOptions | undefined;
+  const handler = _runWorkerInternal(
+    TEST_VERSION,
+    (config) => {
+      config.workerOptions.taskQueue = 'q';
       config.workerOptions.workerDeploymentOptions = {
-        version: prev.version,
-        useWorkerVersioning: true,
         defaultVersioningBehavior: 'AUTO_UPGRADE',
       };
     },
-    makeTestDeps()
+    makeTestDeps({
+      createWorker: async (opts) => {
+        capturedWorkerOpts = opts;
+        return { runUntil: async () => {} };
+      },
+    })
   );
 
-  const opts = captured!.workerOptions.workerDeploymentOptions;
+  await handler({}, makeMockContext(60_000));
+  const opts = capturedWorkerOpts!.workerDeploymentOptions;
   t.is(opts!.defaultVersioningBehavior, 'AUTO_UPGRADE');
   t.is(opts!.useWorkerVersioning, true);
-});
-
-test('throws if workerDeploymentOptions is removed', (t) => {
-  t.throws(
-    () =>
-      _runWorkerInternal(
-        TEST_VERSION,
-        (config) => {
-          config.workerOptions.taskQueue = 'q';
-          delete config.workerOptions.workerDeploymentOptions;
-        },
-        makeTestDeps()
-      ),
-    { message: /workerDeploymentOptions must not be removed/ }
-  );
-});
-
-test('throws if useWorkerVersioning is set to false', (t) => {
-  t.throws(
-    () =>
-      _runWorkerInternal(
-        TEST_VERSION,
-        (config) => {
-          config.workerOptions.taskQueue = 'q';
-          config.workerOptions.workerDeploymentOptions = {
-            ...config.workerOptions.workerDeploymentOptions!,
-            useWorkerVersioning: false,
-          } as any;
-        },
-        makeTestDeps()
-      ),
-    { message: /useWorkerVersioning must not be set to false/ }
-  );
+  t.deepEqual(opts!.version, TEST_VERSION);
 });
 
 test('throws if taskQueue is not set', (t) => {
@@ -168,8 +159,7 @@ test('configure callback receives pre-populated config with defaults', (t) => {
 
   t.truthy(captured);
   t.is(captured!.workerOptions.maxConcurrentActivityTaskExecutions, 2);
-  t.deepEqual(captured!.workerOptions.workerDeploymentOptions!.version, TEST_VERSION);
-  t.is(captured!.workerOptions.workerDeploymentOptions!.useWorkerVersioning, true);
+  t.is(captured!.workerOptions.workerDeploymentOptions!.defaultVersioningBehavior, 'PINNED');
   t.deepEqual(captured!.shutdownHooks, []);
 });
 
