@@ -55,16 +55,62 @@
  *
  * #### An Activity that sends progress heartbeats and can be Cancelled
  *
- * <!--SNIPSTART typescript-activity-fake-progress-->
- * <!--SNIPEND-->
+ * ```ts
+ * import { activityInfo, log, sleep, CancelledFailure, heartbeat } from '@temporalio/activity';
+ *
+ * export async function fakeProgress(sleepIntervalMs = 1000): Promise<void> {
+ *   try {
+ *     // allow for resuming from heartbeat
+ *     const startingPoint = activityInfo().heartbeatDetails || 1;
+ *     log.info('Starting activity at progress', { startingPoint });
+ *     for (let progress = startingPoint; progress <= 100; ++progress) {
+ *       // simple utility to sleep in activity for given interval or throw if Activity is cancelled
+ *       // don't confuse with Workflow.sleep which is only used in Workflow functions!
+ *       log.info('Progress', { progress });
+ *       await sleep(sleepIntervalMs);
+ *       heartbeat(progress);
+ *     }
+ *   } catch (err) {
+ *     if (err instanceof CancelledFailure) {
+ *       log.warn('Fake progress activity cancelled', { message: err.message });
+ *       // Cleanup
+ *     }
+ *     throw err;
+ *   }
+ * }
+ * ```
  *
  * #### An Activity that makes a cancellable HTTP request
  *
  * It passes the `AbortSignal` to {@link https://github.com/node-fetch/node-fetch#api | `fetch`}: `fetch(url, { signal:
  * Context.current().cancellationSignal })`.
  *
- * <!--SNIPSTART typescript-activity-cancellable-fetch-->
- * <!--SNIPEND-->
+ * ```ts
+ * import fetch from 'node-fetch';
+ * import { cancellationSignal, heartbeat } from '@temporalio/activity';
+ * import type { AbortSignal as FetchAbortSignal } from 'node-fetch/externals';
+ *
+ * export async function cancellableFetch(url: string): Promise<Uint8Array> {
+ *   const response = await fetch(url, { signal: cancellationSignal() as FetchAbortSignal });
+ *   const contentLengthHeader = response.headers.get('Content-Length');
+ *   if (contentLengthHeader === null) {
+ *     throw new Error('expected Content-Length header to be set');
+ *   }
+ *   const contentLength = parseInt(contentLengthHeader);
+ *   let bytesRead = 0;
+ *   const chunks: Buffer[] = [];
+ *
+ *   for await (const chunk of response.body) {
+ *     if (!(chunk instanceof Buffer)) {
+ *       throw new TypeError('Expected Buffer');
+ *     }
+ *     bytesRead += chunk.length;
+ *     chunks.push(chunk);
+ *     heartbeat(bytesRead / contentLength);
+ *   }
+ *   return Buffer.concat(chunks);
+ * }
+ * ```
  *
  * @module
  */

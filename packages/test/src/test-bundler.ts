@@ -5,13 +5,14 @@
 import { unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import { join as pathJoin } from 'node:path';
-import test from 'ava';
+import test, { ExecutionContext } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { moduleMatches } from '@temporalio/worker/lib/workflow/bundler';
-import { bundleWorkflowCode, DefaultLogger, LogEntry } from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, LogEntry, WorkerOptions } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { issue516 } from './mocks/workflows-with-node-dependencies/issue-516';
+import { preloadSharedCounter } from './workflows/preload-shared-counter';
 import { successString } from './workflows';
 
 test('moduleMatches works', (t) => {
@@ -19,6 +20,24 @@ test('moduleMatches works', (t) => {
   t.true(moduleMatches('fs/lib/foo', ['fs']));
   t.false(moduleMatches('fs', ['foo']));
 });
+
+async function runPreloadSharedCounter(
+  t: ExecutionContext,
+  workerOptions: Pick<WorkerOptions, 'bundlerOptions' | 'workflowBundle' | 'workflowsPath'>
+): Promise<[number, number]> {
+  const taskQueue = `${t.title}-${uuid4()}`;
+  const client = new WorkflowClient();
+  const worker = await Worker.create({
+    taskQueue,
+    reuseV8Context: true,
+    ...workerOptions,
+  });
+  return await worker.runUntil(async () => {
+    const first = await client.execute(preloadSharedCounter, { taskQueue, workflowId: uuid4() });
+    const second = await client.execute(preloadSharedCounter, { taskQueue, workflowId: uuid4() });
+    return [first, second];
+  });
+}
 
 if (RUN_INTEGRATION_TESTS) {
   test('Worker can be created from bundle code', async (t) => {
@@ -108,6 +127,60 @@ if (RUN_INTEGRATION_TESTS) {
       {
         name: 'ValidationError',
         message: /Invalid configuration object./,
+      }
+    );
+  });
+
+  test('Workflow bundle can preload modules into the reusable V8 context', async (t) => {
+    const workflowBundle = await bundleWorkflowCode({
+      workflowsPath: require.resolve('./workflows/preload-shared-counter'),
+      preloadModules: [require.resolve('./workflows/preload-shared-counter-helper')],
+    });
+
+    t.deepEqual(await runPreloadSharedCounter(t, { workflowBundle }), [1, 2]);
+  });
+
+  test('Workflow bundle keeps module state isolated without preloadModules', async (t) => {
+    const workflowBundle = await bundleWorkflowCode({
+      workflowsPath: require.resolve('./workflows/preload-shared-counter'),
+    });
+
+    t.deepEqual(await runPreloadSharedCounter(t, { workflowBundle }), [1, 1]);
+  });
+
+  test('Workflow bundle treats an empty preloadModules list as a no-op', async (t) => {
+    const workflowBundle = await bundleWorkflowCode({
+      workflowsPath: require.resolve('./workflows/preload-shared-counter'),
+      preloadModules: [],
+    });
+
+    t.deepEqual(await runPreloadSharedCounter(t, { workflowBundle }), [1, 1]);
+  });
+
+  test('WorkerOptions.bundlerOptions.preloadModules works', async (t) => {
+    t.deepEqual(
+      await runPreloadSharedCounter(t, {
+        workflowsPath: require.resolve('./workflows/preload-shared-counter'),
+        bundlerOptions: {
+          preloadModules: [require.resolve('./workflows/preload-shared-counter-helper')],
+        },
+      }),
+      [1, 2]
+    );
+  });
+
+  test('An error is thrown when a preloaded module is also ignored', async (t) => {
+    const helperModule = require.resolve('./workflows/preload-shared-counter-helper');
+
+    await t.throwsAsync(
+      bundleWorkflowCode({
+        workflowsPath: require.resolve('./workflows/preload-shared-counter'),
+        ignoreModules: [helperModule],
+        preloadModules: [helperModule],
+      }),
+      {
+        instanceOf: Error,
+        message: /Cannot preload modules that are also ignored: .*preload-shared-counter-helper/,
       }
     );
   });
