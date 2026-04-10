@@ -172,3 +172,38 @@ test('No heartbeat is emitted with rogue activity', async (t) => {
   });
   t.deepEqual(heartbeatsSeen, [1]);
 });
+
+test('activity start heartbeat-details decode failure is encoded with activity serialization context', async (t) => {
+  const converterPath = require.resolve('./payload-converters/serialization-context-converter');
+
+  const worker = isolateFreeWorker({
+    namespace: 'worker-test',
+    taskQueue: 'unused',
+    dataConverter: {
+      payloadConverterPath: converterPath,
+      failureConverterPath: converterPath,
+    },
+    activities: {
+      async rapidHeartbeater() {
+        throw new Error('should not execute');
+      },
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const completion = await worker.native.runActivityTask({
+      taskToken: Buffer.from(uuid4()),
+      start: {
+        activityType: 'rapidHeartbeater',
+        activityId: 'act-1',
+        workflowExecution: { workflowId: 'wfid', runId: 'runid' },
+        heartbeatDetails: [{} as any],
+      },
+    });
+
+    t.is(
+      completion.result?.failed?.failure?.message,
+      'failure.encode.bound|activity.worker-test.wfid.act-1.false|Failed to parse heartbeat details for activity act-1: Unknown encoding: '
+    );
+  });
+});
