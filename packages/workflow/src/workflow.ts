@@ -33,11 +33,11 @@ import {
 } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
 import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { temporal } from '@temporalio/proto';
 import { deepMerge } from '@temporalio/common/lib/internal-workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
+import { composeInterceptors } from './interceptor-composition';
 import { UpdateScope } from './update-scope';
 import {
   ActivityInput,
@@ -68,6 +68,7 @@ import {
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
+import { uuid4FromRandom } from './random-helpers';
 import { untrackPromise } from './stack-helpers';
 import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 
@@ -1065,24 +1066,8 @@ export function continueAsNew<F extends Workflow>(...args: Parameters<F>): Promi
  * See the {@link https://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid | stackoverflow discussion}.
  */
 export function uuid4(): string {
-  // Return the hexadecimal text representation of number `n`, padded with zeroes to be of length `p`
-  const ho = (n: number, p: number) => n.toString(16).padStart(p, '0');
-  // Create a view backed by a 16-byte buffer
-  const view = new DataView(new ArrayBuffer(16));
-  // Fill buffer with random values
-  view.setUint32(0, (Math.random() * 0x100000000) >>> 0);
-  view.setUint32(4, (Math.random() * 0x100000000) >>> 0);
-  view.setUint32(8, (Math.random() * 0x100000000) >>> 0);
-  view.setUint32(12, (Math.random() * 0x100000000) >>> 0);
-  // Patch the 6th byte to reflect a version 4 UUID
-  view.setUint8(6, (view.getUint8(6) & 0xf) | 0x40);
-  // Patch the 8th byte to reflect a variant 1 UUID (version 4 UUIDs are)
-  view.setUint8(8, (view.getUint8(8) & 0x3f) | 0x80);
-  // Compile the canonical textual form from the array data
-  return `${ho(view.getUint32(0), 8)}-${ho(view.getUint16(4), 4)}-${ho(view.getUint16(6), 4)}-${ho(
-    view.getUint16(8),
-    4
-  )}-${ho(view.getUint32(10), 8)}${ho(view.getUint16(14), 4)}`;
+  const activator = maybeGetActivator();
+  return uuid4FromRandom(activator ? () => activator.currentRandom() : Math.random);
 }
 
 /**
