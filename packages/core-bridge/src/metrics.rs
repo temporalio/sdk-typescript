@@ -593,10 +593,10 @@ impl TryIntoJs for MetricKind {
     type Output = JsString;
     fn try_into_js<'cx>(self, cx: &mut impl Context<'cx>) -> JsResult<'cx, Self::Output> {
         Ok(match self {
-            MetricKind::Counter => cx.string("counter"),
-            MetricKind::Gauge => cx.string("gauge"),
-            MetricKind::Histogram => cx.string("histogram"),
-            MetricKind::UpDownCounter => cx.string("up_down_counter"),
+            Self::Counter => cx.string("counter"),
+            Self::Gauge => cx.string("gauge"),
+            Self::Histogram => cx.string("histogram"),
+            Self::UpDownCounter => cx.string("up_down_counter"),
         })
     }
 }
