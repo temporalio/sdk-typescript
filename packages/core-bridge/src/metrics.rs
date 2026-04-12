@@ -14,6 +14,7 @@ use temporalio_common::telemetry::metrics::{
     Histogram as CoreHistogram, HistogramF64 as CoreHistogramF64,
     MetricKeyValue as CoreMetricKeyValue, MetricParameters as CoreMetricParameters,
     MetricValue as CoreMetricValue, NewAttributes, TemporalMeter,
+    UpDownCounter as CoreUpDownCounter,
 };
 
 use bridge_macros::{TryIntoJs, js_function};
@@ -46,6 +47,8 @@ pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<
     )?;
     cx.export_function("setMetricGaugeValue", set_metric_gauge_value)?;
     cx.export_function("setMetricGaugeF64Value", set_metric_gauge_f64_value)?;
+    cx.export_function("newMetricUpDownCounter", new_metric_up_down_counter)?;
+    cx.export_function("addMetricUpDownCounterValue", add_metric_up_down_counter_value)?;
 
     Ok(())
 }
@@ -80,6 +83,12 @@ pub struct GaugeF64 {
     pub(crate) gauge: CoreGaugeF64,
 }
 impl MutableFinalize for GaugeF64 {}
+
+pub struct UpDownCounter {
+    pub(crate) meter: TemporalMeter,
+    pub(crate) counter: CoreUpDownCounter,
+}
+impl MutableFinalize for UpDownCounter {}
 
 #[derive(Debug, Deserialize)]
 pub struct MetricAttributes {
@@ -313,6 +322,49 @@ pub fn set_metric_gauge_f64_value(
     Ok(())
 }
 
+#[js_function]
+pub fn new_metric_up_down_counter(
+    runtime: OpaqueInboundHandle<Runtime>,
+    name: String,
+    unit: String,
+    description: String,
+) -> BridgeResult<OpaqueOutboundHandle<UpDownCounter>> {
+    let core_runtime = runtime.borrow()?.core_runtime.clone();
+    let meter = core_runtime
+        .telemetry()
+        .get_metric_meter()
+        .ok_or(BridgeError::UnexpectedError(
+            "Failed to get metric meter".into(),
+        ))?;
+
+    let counter = meter.up_down_counter(
+        CoreMetricParameters::builder()
+            .name(name)
+            .unit(unit)
+            .description(description)
+            .build(),
+    );
+
+    Ok(OpaqueOutboundHandle::new(UpDownCounter { meter, counter }))
+}
+
+#[js_function]
+#[allow(clippy::cast_possible_truncation)]
+pub fn add_metric_up_down_counter_value(
+    counter_handle: OpaqueInboundHandle<UpDownCounter>,
+    value: f64,
+    attributes: JsonString<MetricAttributes>,
+) -> BridgeResult<()> {
+    let counter_handle = counter_handle.borrow()?;
+
+    let attributes = counter_handle
+        .meter
+        .new_attributes(parse_metric_attributes(attributes.value));
+
+    counter_handle.counter.add(value as i64, &attributes);
+    Ok(())
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Buffered Metrics (aka lang-side metrics exporter)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -400,6 +452,7 @@ impl MetricsCallBuffer {
                     MetricUpdateVal::DeltaF64(v) => *v,
                     MetricUpdateVal::Value(v) => *v as f64,
                     MetricUpdateVal::ValueF64(v) => *v,
+                    MetricUpdateVal::SignedDelta(v) => *v as f64,
                 },
                 attributes: attributes
                     .get()
@@ -451,6 +504,7 @@ impl BufferedMetric {
             CoreMetricKind::Histogram => (MetricKind::Histogram, MetricValueType::Int),
             CoreMetricKind::HistogramF64 => (MetricKind::Histogram, MetricValueType::Float),
             CoreMetricKind::HistogramDuration => (MetricKind::Histogram, MetricValueType::Int),
+            CoreMetricKind::UpDownCounter => (MetricKind::UpDownCounter, MetricValueType::Int),
         };
 
         let description =
@@ -527,11 +581,24 @@ impl TryIntoJs for BufferedMetricAttributesRef {
     }
 }
 
-#[derive(TryIntoJs, Clone, Debug)]
+#[derive(Clone, Debug)]
 enum MetricKind {
     Counter,
     Gauge,
     Histogram,
+    UpDownCounter,
+}
+
+impl TryIntoJs for MetricKind {
+    type Output = JsString;
+    fn try_into_js<'cx>(self, cx: &mut impl Context<'cx>) -> JsResult<'cx, Self::Output> {
+        Ok(match self {
+            MetricKind::Counter => cx.string("counter"),
+            MetricKind::Gauge => cx.string("gauge"),
+            MetricKind::Histogram => cx.string("histogram"),
+            MetricKind::UpDownCounter => cx.string("up_down_counter"),
+        })
+    }
 }
 
 #[derive(TryIntoJs, Clone, Debug)]
