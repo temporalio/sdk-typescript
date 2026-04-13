@@ -68,9 +68,8 @@ export async function analyzeCode(prompt: string): Promise<string[]> {
 | Crash-safe heartbeat resume | ✓ (via `agenticSession`) | ✗ |
 | AI SDK provider abstraction | ✗ | ✓ |
 
-Use `@temporalio/ai-sdk` when you need the Vercel AI SDK's provider abstraction (multi-provider flexibility via AI SDK).
-Use `@temporalio/tool-registry` for direct Anthropic support, multi-provider
-flexibility, or crash-safe agentic sessions.
+Use `@temporalio/ai-sdk` when you are already using the Vercel AI SDK and want each model call to be a separately observable, retryable Temporal activity.
+Use `@temporalio/tool-registry` for direct Anthropic support, crash-safe sessions that survive server-side session expiry, or when you need the same implementation pattern across all six Temporal SDKs (Go, Java, Ruby, .NET have no framework-level integrations).
 
 ## Sandbox configuration
 

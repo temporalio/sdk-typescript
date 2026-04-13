@@ -175,6 +175,80 @@ describe('runToolLoop', () => {
   });
 });
 
+// ── is_error / handler error tests ────────────────────────────────────────────
+
+describe('AnthropicProvider handler errors', () => {
+  it('catches handler exception, sets is_error:true, does not crash', async () => {
+    const registry = new ToolRegistry();
+    registry.define({ name: 'boom', description: 'd', input_schema: {} }, () => {
+      throw new Error('intentional failure');
+    });
+
+    const client = makeAnthropicClient([
+      { content: [{ type: 'tool_use', id: 'c1', name: 'boom', input: {} }], stop_reason: 'tool_use' },
+      { content: [{ type: 'text', text: 'done' }], stop_reason: 'end_turn' },
+    ]);
+    const provider = new AnthropicProvider(registry, 'sys', { client });
+
+    const messages = [{ role: 'user', content: 'go' }];
+    // Must not throw even though handler errors.
+    await provider.runLoop(messages);
+
+    // messages: user, assistant(tool_use), user(tool_result), assistant(done)
+    assert.strictEqual(messages.length, 4);
+    const toolResultWrapper = messages[2] as Record<string, unknown>;
+    const toolResults = toolResultWrapper['content'] as Array<Record<string, unknown>>;
+    assert.strictEqual(toolResults[0]['type'], 'tool_result');
+    assert.strictEqual(toolResults[0]['is_error'], true);
+    assert.ok((toolResults[0]['content'] as string).includes('intentional failure'));
+  });
+
+  it('does not set is_error on successful handler', async () => {
+    const registry = new ToolRegistry();
+    registry.define({ name: 'ok', description: 'd', input_schema: {} }, () => 'result');
+
+    const client = makeAnthropicClient([
+      { content: [{ type: 'tool_use', id: 'c1', name: 'ok', input: {} }], stop_reason: 'tool_use' },
+      { content: [{ type: 'text', text: 'done' }], stop_reason: 'end_turn' },
+    ]);
+    const provider = new AnthropicProvider(registry, 'sys', { client });
+
+    const messages = [{ role: 'user', content: 'go' }];
+    await provider.runLoop(messages);
+
+    const toolResultWrapper = messages[2] as Record<string, unknown>;
+    const toolResults = toolResultWrapper['content'] as Array<Record<string, unknown>>;
+    assert.ok(!('is_error' in toolResults[0]), 'is_error should not be present on success');
+  });
+});
+
+describe('OpenAIProvider handler errors', () => {
+  it('catches handler exception, does not crash', async () => {
+    const registry = new ToolRegistry();
+    registry.define({ name: 'boom', description: 'd', input_schema: {} }, () => {
+      throw new Error('openai error test');
+    });
+
+    const client = makeOpenAIClient([
+      {
+        choices: [{
+          message: { content: null, tool_calls: [{ id: 'tc1', function: { name: 'boom', arguments: '{}' } }] },
+          finish_reason: 'tool_calls',
+        }],
+      },
+      { choices: [{ message: { content: 'done' }, finish_reason: 'stop' }] },
+    ]);
+    const provider = new OpenAIProvider(registry, 'sys', { client });
+
+    const messages = [{ role: 'user', content: 'go' }];
+    await provider.runLoop(messages);
+
+    // Tool result message should contain the error string.
+    const toolMsg = messages[2] as Record<string, unknown>;
+    assert.ok((toolMsg['content'] as string).includes('openai error test'));
+  });
+});
+
 // ── Integration tests (skipped unless RUN_INTEGRATION_TESTS is set) ────────────
 
 describe('integration', function () {

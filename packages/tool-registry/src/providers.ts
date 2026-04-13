@@ -95,11 +95,19 @@ export class AnthropicProvider {
       return true;
     }
 
-    const toolResults = toolCalls.map((call) => ({
-      type: 'tool_result',
-      tool_use_id: call['id'],
-      content: this._registry.dispatch(call['name'] as string, (call['input'] ?? {}) as Record<string, unknown>),
-    }));
+    const toolResults = toolCalls.map((call) => {
+      let content: string;
+      let isError = false;
+      try {
+        content = this._registry.dispatch(call['name'] as string, (call['input'] ?? {}) as Record<string, unknown>);
+      } catch (e) {
+        content = `error: ${e instanceof Error ? e.message : String(e)}`;
+        isError = true;
+      }
+      const result: Record<string, unknown> = { type: 'tool_result', tool_use_id: call['id'], content };
+      if (isError) result['is_error'] = true;
+      return result;
+    });
     messages.push({ role: 'user', content: toolResults });
     return false;
   }
@@ -184,7 +192,12 @@ export class OpenAIProvider {
 
     for (const tc of choice.message.tool_calls) {
       const args = JSON.parse(tc.function.arguments || '{}') as Record<string, unknown>;
-      const result = this._registry.dispatch(tc.function.name, args);
+      let result: string;
+      try {
+        result = this._registry.dispatch(tc.function.name, args);
+      } catch (e) {
+        result = `error: ${e instanceof Error ? e.message : String(e)}`;
+      }
       messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
     }
     return false;
