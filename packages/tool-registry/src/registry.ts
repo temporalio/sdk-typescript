@@ -33,8 +33,8 @@ export interface ToolDefinition {
   input_schema: Record<string, unknown>;
 }
 
-/** Handler function type: receives parsed tool input, returns a string result. */
-export type ToolHandler = (input: Record<string, unknown>) => string;
+/** Handler function type: receives parsed tool input, returns a string result or a Promise of one. */
+export type ToolHandler = (input: Record<string, unknown>) => string | Promise<string>;
 
 /** MCP-compatible tool descriptor (subset of mcp.Tool). */
 export interface McpToolDescriptor {
@@ -124,12 +124,14 @@ export class ToolRegistry {
   /**
    * Call the handler registered for `name` with `input`.
    *
+   * Supports both synchronous and asynchronous handlers.
+   *
    * @param name - Tool name as returned by the model.
    * @param input - Parsed tool input as a plain object.
-   * @returns String result from the handler.
+   * @returns Promise resolving to the string result from the handler.
    * @throws Error if no handler is registered for `name`.
    */
-  dispatch(name: string, input: Record<string, unknown>): string {
+  async dispatch(name: string, input: Record<string, unknown>): Promise<string> {
     const handler = this._handlers.get(name);
     if (handler === undefined) {
       throw new Error(`Unknown tool: ${JSON.stringify(name)}`);

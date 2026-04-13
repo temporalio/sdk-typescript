@@ -28,7 +28,7 @@ Tool definitions use [JSON Schema](https://json-schema.org/understanding-json-sc
 import { ToolRegistry, runToolLoop } from '@temporalio/tool-registry';
 
 export async function analyzeCode(prompt: string): Promise<string[]> {
-  const issues: string[] = [];
+  const results: string[] = [];
   const tools = new ToolRegistry();
 
   tools.define(
@@ -42,7 +42,7 @@ export async function analyzeCode(prompt: string): Promise<string[]> {
       },
     },
     (inp: Record<string, unknown>) => {
-      issues.push(inp['description'] as string);
+      results.push(inp['description'] as string);
       return 'recorded'; // this string is sent back to the LLM as the tool result
     }
   );
@@ -54,7 +54,7 @@ export async function analyzeCode(prompt: string): Promise<string[]> {
     tools,
   });
 
-  return issues;
+  return results;
 }
 ```
 
@@ -131,13 +131,13 @@ turn and restores it automatically on retry.
 
 ```typescript
 export async function longAnalysis(prompt: string): Promise<object[]> {
-  let issues: object[] = [];
+  let results: object[] = [];
   await agenticSession(async (session) => {
     const tools = new ToolRegistry();
     tools.define(
       { name: 'flag', description: '...', input_schema: { type: 'object' } },
       (inp: Record<string, unknown>) => {
-        session.issues.push(inp);
+        session.results.push(inp);
         return 'ok'; // this string is sent back to the LLM as the tool result
       }
     );
@@ -147,9 +147,9 @@ export async function longAnalysis(prompt: string): Promise<object[]> {
       system: '...',
       prompt,
     });
-    issues = session.issues; // capture after loop completes
+    results = session.results; // capture after loop completes
   });
-  return issues;
+  return results;
 }
 ```
 
@@ -192,25 +192,25 @@ incur billing — expect a few cents per full test run.
 
 ## Storing application results
 
-`session.issues` accumulates application-level results during the tool loop.
+`session.results` accumulates application-level results during the tool loop.
 Elements are serialized to JSON inside each heartbeat checkpoint — they must be
-plain maps/dicts with JSON-serializable values. A non-serializable value raises
-a non-retryable `ApplicationError` at heartbeat time rather than silently losing
+plain objects with JSON-serializable values. A non-serializable value raises
+a non-retryable `ApplicationFailure` at heartbeat time rather than silently losing
 data on the next retry.
 
 ### Storing typed results
 
-Convert your domain type to a plain dict at the tool-call site and back after
+Convert your domain type to a plain object at the tool-call site and back after
 the session:
 
 ```typescript
-interface Issue { type: string; file: string; }
+interface Finding { type: string; file: string; }
 
 // Inside tool handler:
-session.issues.push({ type: 'smell', file: 'foo.ts' } satisfies Issue);
+session.results.push({ type: 'smell', file: 'foo.ts' } satisfies Finding);
 
 // After session:
-const issues = session.issues as Issue[];
+const findings = session.results as Finding[];
 ```
 
 ## Per-turn LLM timeout
@@ -231,3 +231,17 @@ Recommended timeouts:
 |---|---|
 | Standard (Claude 3.x, GPT-4o) | 30 s |
 | Reasoning (o1, o3, extended thinking) | 300 s |
+
+### Activity-level timeout
+
+Set `scheduleToCloseTimeout` on the activity options to bound the entire conversation:
+
+```typescript
+await workflow.executeActivity(longAnalysis, prompt, {
+  scheduleToCloseTimeout: '10m',
+});
+```
+
+The per-turn client timeout and `scheduleToCloseTimeout` are complementary:
+- Per-turn timeout fires if one LLM call hangs (protects against a single stuck turn)
+- `scheduleToCloseTimeout` bounds the entire conversation including all retries (protects against runaway multi-turn loops)

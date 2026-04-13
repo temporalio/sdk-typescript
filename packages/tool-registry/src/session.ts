@@ -25,13 +25,13 @@
  * import { ToolRegistry, agenticSession } from '@temporalio/tool-registry';
  *
  * export async function analyze(prompt: string): Promise<object[]> {
- *   let issues: object[] = [];
+ *   let results: object[] = [];
  *   await agenticSession(async (session) => {
- *     issues = session.issues;
+ *     results = session.results;
  *     const tools = new ToolRegistry();
  *     tools.define(
  *       { name: 'flag', description: '...', input_schema: { ... } },
- *       (inp) => { session.issues.push(inp); return 'recorded'; }
+ *       (inp) => { session.results.push(inp); return 'recorded'; }
  *     );
  *     await session.runToolLoop({
  *       registry: tools,
@@ -40,7 +40,7 @@
  *       prompt,
  *     });
  *   });
- *   return issues;
+ *   return results;
  * }
  * ```
  */
@@ -52,7 +52,7 @@ import type { ToolRegistry } from './registry';
 interface CheckpointState {
   version?: number;
   messages: unknown[];
-  issues: unknown[];
+  results: unknown[];
 }
 
 /** Options for {@link AgenticSession.runToolLoop}. */
@@ -83,11 +83,11 @@ export class AgenticSession {
   /** Full conversation history in provider-neutral format. */
   messages: unknown[];
   /** Application-level results accumulated during the session. */
-  issues: unknown[];
+  results: unknown[];
 
   constructor(state: Partial<CheckpointState> = {}) {
     this.messages = state.messages ?? [];
-    this.issues = state.issues ?? [];
+    this.results = state.results ?? [];
   }
 
   /**
@@ -143,21 +143,21 @@ export class AgenticSession {
    * this JSON. {@link agenticSession} reads it on entry and restores
    * messages + issues.
    *
-   * @throws {ApplicationFailure} (non-retryable) If any issue is not JSON-serializable.
+   * @throws {ApplicationFailure} (non-retryable) If any result is not JSON-serializable.
    * @internal
    */
   _checkpoint(): void {
-    for (let i = 0; i < this.issues.length; i++) {
+    for (let i = 0; i < this.results.length; i++) {
       try {
-        JSON.stringify(this.issues[i]);
+        JSON.stringify(this.results[i]);
       } catch (e) {
         throw ApplicationFailure.nonRetryable(
-          `AgenticSession: issues[${i}] is not JSON-serializable: ${e}. ` +
+          `AgenticSession: results[${i}] is not JSON-serializable: ${e}. ` +
             'Store only plain objects with JSON-serializable values.',
         );
       }
     }
-    heartbeat(JSON.stringify({ version: 1, messages: this.messages, issues: this.issues }));
+    heartbeat(JSON.stringify({ version: 1, messages: this.messages, results: this.results }));
   }
 }
 
@@ -175,7 +175,7 @@ export class AgenticSession {
  * ```typescript
  * const result = await agenticSession(async (session) => {
  *   await session.runToolLoop({ registry, provider: 'anthropic', system, prompt });
- *   return session.issues;
+ *   return session.results;
  * });
  * ```
  */

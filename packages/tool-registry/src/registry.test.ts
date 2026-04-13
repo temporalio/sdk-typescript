@@ -7,18 +7,27 @@ import assert from 'assert';
 import { ToolRegistry } from './registry';
 
 describe('ToolRegistry', () => {
-  it('dispatches to the registered handler', () => {
+  it('dispatches to the registered handler', async () => {
     const registry = new ToolRegistry();
     registry.define(
       { name: 'greet', description: 'd', input_schema: {} },
       (inp) => `hello ${inp['name']}`
     );
-    assert.strictEqual(registry.dispatch('greet', { name: 'world' }), 'hello world');
+    assert.strictEqual(await registry.dispatch('greet', { name: 'world' }), 'hello world');
   });
 
-  it('throws for unknown tool names', () => {
+  it('rejects for unknown tool names', async () => {
     const registry = new ToolRegistry();
-    assert.throws(() => registry.dispatch('missing', {}), /Unknown tool/);
+    await assert.rejects(() => registry.dispatch('missing', {}), /Unknown tool/);
+  });
+
+  it('dispatches async handlers and awaits the result', async () => {
+    const registry = new ToolRegistry();
+    registry.define(
+      { name: 'async_greet', description: 'd', input_schema: {} },
+      async (inp) => `async hello ${inp['name']}`
+    );
+    assert.strictEqual(await registry.dispatch('async_greet', { name: 'world' }), 'async hello world');
   });
 
   it('exports definitions in OpenAI format', () => {
@@ -59,7 +68,7 @@ describe('ToolRegistry', () => {
     assert.strictEqual(result[1].function.name, 'beta');
   });
 
-  it('fromMcpTools wraps MCP tool descriptors', () => {
+  it('fromMcpTools wraps MCP tool descriptors', async () => {
     const mcpTools = [
       { name: 'search', description: 'Search', inputSchema: { type: 'object', properties: {} } },
       { name: 'read', description: 'Read', inputSchema: { type: 'object', properties: {} } },
@@ -68,6 +77,6 @@ describe('ToolRegistry', () => {
     const names = registry.toAnthropic().map((d) => d.name);
     assert.deepStrictEqual(names, ['search', 'read']);
     // No-op handlers return empty string
-    assert.strictEqual(registry.dispatch('search', {}), '');
+    assert.strictEqual(await registry.dispatch('search', {}), '');
   });
 });

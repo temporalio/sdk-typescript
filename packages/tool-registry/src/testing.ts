@@ -159,36 +159,36 @@ export class FakeToolRegistry extends ToolRegistry {
   /** All recorded dispatch calls as `[name, input]` tuples. */
   readonly calls: Array<[string, Record<string, unknown>]> = [];
 
-  dispatch(name: string, input: Record<string, unknown>): string {
+  async dispatch(name: string, input: Record<string, unknown>): Promise<string> {
     this.calls.push([name, input]);
     return super.dispatch(name, input);
   }
 }
 
 /**
- * A pre-canned session that returns fixed issues without LLM calls.
+ * A pre-canned session that returns fixed results without LLM calls.
  *
  * Use this to test code that calls {@link agenticSession} and inspects
- * `session.issues` without needing an API key or a running server.
+ * `session.results` without needing an API key or a running server.
  *
  * @example
  * ```typescript
  * const session = new MockAgenticSession([{ type: 'deprecated', symbol: 'old_fn' }]);
  * await session.runToolLoop({ registry, provider: 'anthropic', system: 's', prompt: 'p' });
- * assert.strictEqual(session.issues.length, 1);
+ * assert.strictEqual(session.results.length, 1);
  * ```
  */
 export class MockAgenticSession {
   messages: unknown[] = [];
-  issues: unknown[];
+  results: unknown[];
 
-  constructor(issues: unknown[] = []) {
-    this.issues = [...issues];
+  constructor(results: unknown[] = []) {
+    this.results = [...results];
   }
 
   /** No-op — does not call any LLM. */
   async runToolLoop(_opts: RunToolLoopOptions): Promise<void> {
-    // issues already set by constructor
+    // results already set by constructor
   }
 
   /** No-op — does not call heartbeat() in tests. */

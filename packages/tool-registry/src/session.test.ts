@@ -63,18 +63,18 @@ describe('AgenticSession', () => {
   it('initializes with empty messages and issues by default', () => {
     const session = new AgenticSession();
     assert.deepStrictEqual(session.messages, []);
-    assert.deepStrictEqual(session.issues, []);
+    assert.deepStrictEqual(session.results, []);
   });
 
   it('restores messages and issues from saved state', () => {
     const state = {
       messages: [{ role: 'user', content: 'analyze this' }],
-      issues: [{ type: 'missing', symbol: 'patched', description: 'removed' }],
+      results: [{ type: 'missing', symbol: 'patched', description: 'removed' }],
     };
     const session = new AgenticSession(state);
     assert.deepStrictEqual(session.messages, state.messages);
-    assert.strictEqual(session.issues.length, 1);
-    assert.strictEqual((session.issues[0] as Record<string, string>)['type'], 'missing');
+    assert.strictEqual(session.results.length, 1);
+    assert.strictEqual((session.results[0] as Record<string, string>)['type'], 'missing');
   });
 });
 
@@ -86,7 +86,7 @@ describe('AgenticSession._checkpoint', () => {
     try {
       const session = new AgenticSession({
         messages: [{ role: 'user', content: 'hi' }],
-        issues: [{ type: 'deprecated', symbol: 'old', description: 'use new' }],
+        results: [{ type: 'deprecated', symbol: 'old', description: 'use new' }],
       });
       session._checkpoint();
     } finally {
@@ -96,8 +96,8 @@ describe('AgenticSession._checkpoint', () => {
     assert.strictEqual(heartbeatCalls.length, 1);
     const payload = JSON.parse(heartbeatCalls[0]);
     assert.strictEqual(payload.messages.length, 1);
-    assert.strictEqual(payload.issues.length, 1);
-    assert.strictEqual(payload.issues[0].symbol, 'old');
+    assert.strictEqual(payload.results.length, 1);
+    assert.strictEqual(payload.results[0].symbol, 'old');
   });
 
   it('heartbeats valid empty JSON when state is empty', () => {
@@ -109,7 +109,7 @@ describe('AgenticSession._checkpoint', () => {
     }
 
     const payload = JSON.parse(heartbeatCalls[0]);
-    assert.deepStrictEqual(payload, { version: 1, messages: [], issues: [] });
+    assert.deepStrictEqual(payload, { version: 1, messages: [], results: [] });
   });
 });
 
@@ -220,7 +220,7 @@ describe('AgenticSession checkpoint round-trip', () => {
       ];
       const session = new AgenticSession({
         messages: [{ role: 'assistant', tool_calls: toolCallsInMemory }],
-        issues: [{ type: 'smell', file: 'foo.ts' }],
+        results: [{ type: 'smell', file: 'foo.ts' }],
       });
       session._checkpoint();
     } finally {
@@ -239,8 +239,8 @@ describe('AgenticSession checkpoint round-trip', () => {
       'my_tool'
     );
 
-    assert.strictEqual(restored.issues[0].type, 'smell');
-    assert.strictEqual(restored.issues[0].file, 'foo.ts');
+    assert.strictEqual(restored.results[0].type, 'smell');
+    assert.strictEqual(restored.results[0].file, 'foo.ts');
   });
 });
 
@@ -252,7 +252,7 @@ describe('agenticSession', () => {
     try {
       await agenticSession(async (session) => {
         assert.deepStrictEqual(session.messages, []);
-        assert.deepStrictEqual(session.issues, []);
+        assert.deepStrictEqual(session.results, []);
       });
     } finally {
       restore();
@@ -262,14 +262,14 @@ describe('agenticSession', () => {
   it('restores from JSON checkpoint in heartbeatDetails', async () => {
     const saved = JSON.stringify({
       messages: [{ role: 'user', content: 'test' }],
-      issues: [{ type: 'deprecated', symbol: 'old_api', description: 'use new_api' }],
+      results: [{ type: 'deprecated', symbol: 'old_api', description: 'use new_api' }],
     });
     const { restore } = mockActivity([saved]);
     try {
       await agenticSession(async (session) => {
         assert.strictEqual(session.messages.length, 1);
-        assert.strictEqual(session.issues.length, 1);
-        assert.strictEqual((session.issues[0] as Record<string, string>)['symbol'], 'old_api');
+        assert.strictEqual(session.results.length, 1);
+        assert.strictEqual((session.results[0] as Record<string, string>)['symbol'], 'old_api');
       });
     } finally {
       restore();
@@ -281,7 +281,7 @@ describe('agenticSession', () => {
     try {
       await agenticSession(async (session) => {
         assert.deepStrictEqual(session.messages, []);
-        assert.deepStrictEqual(session.issues, []);
+        assert.deepStrictEqual(session.results, []);
       });
     } finally {
       restore();

@@ -71,10 +71,10 @@ describe('FakeToolRegistry', () => {
     ]);
   });
 
-  it('still dispatches to the registered handler', () => {
+  it('still dispatches to the registered handler', async () => {
     const fake = new FakeToolRegistry();
     fake.define({ name: 'echo', description: 'd', input_schema: {} }, (inp) => inp['v'] as string);
-    assert.strictEqual(fake.dispatch('echo', { v: 'hello' }), 'hello');
+    assert.strictEqual(await fake.dispatch('echo', { v: 'hello' }), 'hello');
   });
 });
 
@@ -106,7 +106,7 @@ describe('CrashAfterTurns', () => {
 // ── MockAgenticSession ────────────────────────────────────────────────────────
 
 describe('MockAgenticSession', () => {
-  it('returns pre-canned issues without LLM calls', async () => {
+  it('returns pre-canned results without LLM calls', async () => {
     const session = new MockAgenticSession([{ type: 'deprecated', symbol: 'old_fn' }]);
     await session.runToolLoop({
       registry: new ToolRegistry(),
@@ -114,19 +114,19 @@ describe('MockAgenticSession', () => {
       system: 's',
       prompt: 'p',
     });
-    assert.strictEqual(session.issues.length, 1);
-    assert.strictEqual((session.issues[0] as Record<string, string>)['symbol'], 'old_fn');
+    assert.strictEqual(session.results.length, 1);
+    assert.strictEqual((session.results[0] as Record<string, string>)['symbol'], 'old_fn');
   });
 
-  it('starts empty when no issues provided', () => {
+  it('starts empty when no results provided', () => {
     const session = new MockAgenticSession();
-    assert.deepStrictEqual(session.issues, []);
+    assert.deepStrictEqual(session.results, []);
   });
 
-  it('does not mutate the input issues array', () => {
+  it('does not mutate the input results array', () => {
     const input = [{ v: 1 }];
     const session = new MockAgenticSession(input);
-    (session.issues as unknown[]).push({ v: 2 });
+    (session.results as unknown[]).push({ v: 2 });
     assert.strictEqual(input.length, 1);
   });
 });
