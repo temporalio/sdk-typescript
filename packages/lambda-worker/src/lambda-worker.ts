@@ -45,6 +45,8 @@ const defaultDeps: WorkerDeps = {
  * The handler connects to Temporal, creates a Worker, polls for tasks until the Lambda deadline
  * approaches, then gracefully shuts down and runs any registered shutdown hooks.
  *
+ * Calling this more than once will result in an error.
+ *
  * @param version - The worker deployment version. Worker versioning is always enabled.
  * @param configure - Callback to customize the pre-populated {@link LambdaWorkerConfig}.
  *   Mutate the config object directly (e.g., set `config.workerOptions.taskQueue`).
@@ -100,6 +102,8 @@ export function _runWorkerInternal(
   }
 
   const connectConfig = deps.loadConnectConfig(config.envConfigOptions);
+  config.connectionOptions = { ...connectConfig.connectionOptions };
+  config.namespace = connectConfig.namespace ?? 'default';
 
   configure(config);
 
@@ -138,21 +142,14 @@ export function _runWorkerInternal(
 
     const identity = `${context.awsRequestId}@${context.invokedFunctionArn}`;
 
-    // Merge connection options: envconfig base + user overrides
-    const connectionOptions: NativeConnectionOptions = {
-      ...connectConfig.connectionOptions,
-      ...config.connectionOptions,
-    };
-
-    const connection = await deps.connect(connectionOptions);
+    let connection;
     try {
-      // Build worker options: user config + managed fields
-      const namespace = config.namespace ?? connectConfig.namespace ?? 'default';
+      connection = await deps.connect(config.connectionOptions ?? {});
       const workerOptions: WorkerOptions = {
         ...config.workerOptions,
         taskQueue,
         connection: connection as NativeConnection,
-        namespace,
+        namespace: config.namespace,
         identity,
         workerDeploymentOptions: {
           version,
@@ -175,7 +172,9 @@ export function _runWorkerInternal(
       }
 
       try {
-        await connection.close();
+        if (connection) {
+          await connection.close();
+        }
       } catch (err) {
         logger.error('Failed to close Temporal connection', { error: err });
       }

@@ -95,11 +95,12 @@ OpenTelemetry (ADOT):
 ```typescript
 import { runWorker } from '@temporalio/lambda-worker';
 import { applyDefaults } from '@temporalio/lambda-worker/otel';
+import * as activities from './activities';
 
 export const handler = runWorker({ deploymentName: 'my-service', buildId: 'v1.0' }, (config) => {
   applyDefaults(config);
   config.workerOptions.taskQueue = 'my-task-queue';
-  config.workerOptions.workflowBundle = require('./workflow-bundle.json');
+  config.workerOptions.workflowBundle = { code: require('./workflow-bundle.js') };
   config.workerOptions.activities = activities;
 });
 ```

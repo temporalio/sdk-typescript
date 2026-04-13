@@ -574,13 +574,16 @@ test('shutdown hooks run even if worker creation fails', async (t) => {
 
 // ---- Connection Options Tests ----
 
-test('user connectionOptions merged on top of envconfig', async (t) => {
+test('connectionOptions pre-populated from envconfig', async (t) => {
   let capturedOpts: NativeConnectionOptions | undefined;
   const handler = _runWorkerInternal(
     TEST_VERSION,
     (config) => {
       config.workerOptions.taskQueue = 'q';
-      config.connectionOptions = { address: 'user-override:7233' };
+      // User sees envconfig values and can selectively override
+      t.is(config.connectionOptions!.address, 'envconfig:7233');
+      t.is(config.connectionOptions!.apiKey, 'from-env');
+      config.connectionOptions!.address = 'user-override:7233';
     },
     makeTestDeps({
       loadConnectConfig: () => ({

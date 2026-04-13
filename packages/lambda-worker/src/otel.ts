@@ -1,4 +1,4 @@
-import type { LambdaWorkerConfig, ShutdownHook } from './types';
+import type { LambdaWorkerConfig } from './types';
 
 /**
  * Options for the batteries-included OTel setup.
@@ -52,10 +52,9 @@ export function applyDefaults(config: LambdaWorkerConfig, options?: OtelOptions)
   const sdk = new NodeSDK({ resource, traceExporter });
   sdk.start();
 
-  const flushHook: ShutdownHook = async () => {
-    await sdk.shutdown();
-  };
-  config.shutdownHooks.push(flushHook);
+  config.shutdownHooks.push(async () => {
+    await traceExporter.forceFlush();
+  });
 }
 
 /**
@@ -63,20 +62,14 @@ export function applyDefaults(config: LambdaWorkerConfig, options?: OtelOptions)
  * Registers a flush shutdown hook on the config.
  *
  * @param config - The Lambda worker config to add the shutdown hook to.
- * @param tracerProvider - A TracerProvider with a `forceFlush` or `shutdown` method.
+ * @param tracerProvider - A TracerProvider with a `forceFlush` method.
  */
-export function applyTracing(
-  config: LambdaWorkerConfig,
-  tracerProvider: { forceFlush?: () => Promise<void>; shutdown?: () => Promise<void> }
-): void {
-  const flushHook: ShutdownHook = async () => {
-    if (typeof tracerProvider.shutdown === 'function') {
-      await tracerProvider.shutdown();
-    } else if (typeof tracerProvider.forceFlush === 'function') {
+export function applyTracing(config: LambdaWorkerConfig, tracerProvider: { forceFlush?: () => Promise<void> }): void {
+  config.shutdownHooks.push(async () => {
+    if (typeof tracerProvider.forceFlush === 'function') {
       await tracerProvider.forceFlush();
     }
-  };
-  config.shutdownHooks.push(flushHook);
+  });
 }
 
 function resolveServiceName(override?: string): string {
