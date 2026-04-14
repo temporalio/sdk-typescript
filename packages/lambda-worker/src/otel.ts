@@ -1,3 +1,7 @@
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
+import { Resource } from '@opentelemetry/resources';
+import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import type { LambdaWorkerConfig } from './types';
 
 /**
@@ -32,18 +36,8 @@ export interface OtelOptions {
  * ```
  */
 export function applyDefaults(config: LambdaWorkerConfig, options?: OtelOptions): void {
-  // Dynamic require to avoid failure when optional peer deps are not installed
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { NodeSDK } = require('@opentelemetry/sdk-node');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-grpc');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { Resource } = require('@opentelemetry/resources');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { ATTR_SERVICE_NAME } = require('@opentelemetry/semantic-conventions');
-
   const serviceName = resolveServiceName(options?.serviceName);
-  const resource = new Resource({ [ATTR_SERVICE_NAME]: serviceName });
+  const resource = new Resource({ [SEMRESATTRS_SERVICE_NAME]: serviceName });
 
   const traceExporter = new OTLPTraceExporter({
     url: options?.endpoint,

@@ -9,7 +9,7 @@ import {
   Worker,
   Runtime,
 } from '@temporalio/worker';
-import type { ClientConnectConfig, LoadClientProfileOptions } from '@temporalio/envconfig';
+import type { ClientConnectConfig } from '@temporalio/envconfig';
 import {
   LAMBDA_WORKER_DEFAULTS,
   DEFAULT_SHUTDOWN_DEADLINE_BUFFER_MS,
@@ -26,7 +26,7 @@ import type { LambdaWorkerConfig, LambdaHandler } from './types';
 export interface WorkerDeps {
   connect: (options: NativeConnectionOptions) => Promise<{ close(): Promise<void> }>;
   createWorker: (options: WorkerOptions) => Promise<{ runUntil(p: Promise<void>): Promise<void> }>;
-  loadConnectConfig: (options?: Partial<LoadClientProfileOptions>) => ClientConnectConfig;
+  loadConnectConfig: () => ClientConnectConfig;
   installRuntime: (options: RuntimeOptions) => void;
   getLogger: () => Logger;
 }
@@ -101,7 +101,7 @@ export function _runWorkerInternal(
     config.workerOptions.taskQueue = envTaskQueue;
   }
 
-  const connectConfig = deps.loadConnectConfig(config.envConfigOptions);
+  const connectConfig = deps.loadConnectConfig();
   config.connectionOptions = { ...connectConfig.connectionOptions };
   config.namespace = connectConfig.namespace ?? 'default';
 

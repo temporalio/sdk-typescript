@@ -1,7 +1,6 @@
 import type { Context } from 'aws-lambda';
 import type { VersioningBehavior } from '@temporalio/common';
 import type { WorkerOptions, NativeConnectionOptions, RuntimeOptions } from '@temporalio/worker';
-import type { LoadClientProfileOptions } from '@temporalio/envconfig';
 
 /**
  * A function called after the worker stops on each invocation.
@@ -71,12 +70,6 @@ export interface LambdaWorkerConfig {
    * Each hook's errors are caught and logged without preventing subsequent hooks.
    */
   shutdownHooks: ShutdownHook[];
-
-  /**
-   * Options passed through to envconfig's `loadClientConnectConfig`.
-   * Use this to override config file resolution or environment variable behavior.
-   */
-  envConfigOptions?: Partial<LoadClientProfileOptions>;
 }
 
 /**
