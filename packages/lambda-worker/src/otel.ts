@@ -48,8 +48,8 @@ export interface OtelOptions {
  * - `OPENTELEMETRY_COLLECTOR_CONFIG_URI=/var/task/otel-collector-config.yaml`
  *
  * **Important**: When pre-bundling Workflow code with `bundleWorkflowCode()`, you must
- * pass `makeOtelPlugins()` so Workflow interceptor modules are included in the bundle.
- * See {@link makeOtelPlugins}.
+ * pass `makeOtelPlugin()` so Workflow interceptor modules are included in the bundle.
+ * See {@link makeOtelPlugin}.
  *
  * @example
  * ```ts
@@ -80,31 +80,38 @@ export function applyDefaults(config: LambdaWorkerConfig, options?: OtelOptions)
 
   // Set up the OpenTelemetry plugin for Temporal SDK interceptors.
   // This traces Workflow, Activity, and Nexus calls.
-  const plugins = makeOtelPlugins(endpoint, options?.serviceName);
-  config.workerOptions.plugins = [...(config.workerOptions.plugins ?? []), ...plugins];
+  const { plugin, spanProcessor } = makeOtelPlugin(endpoint, options?.serviceName);
+  config.workerOptions.plugins = [...(config.workerOptions.plugins ?? []), plugin];
+
+  config.shutdownHooks.push(async () => {
+    await spanProcessor.forceFlush();
+  });
 }
 
 // TODO: Spans don't automatically get parented to the lambda invocation span, and it's not clear
 // how we'd make that work, but is worth doing in the future if possible.
 /**
- * Create the OpenTelemetry plugins array for use with `Worker.create()` and
- * `bundleWorkflowCode()`. When pre-bundling workflows, pass the returned plugins
- * to `bundleWorkflowCode({ plugins })` so workflow interceptor modules are included
- * in the bundle.
+ * Create the OpenTelemetry plugin for use with `Worker.create()` and
+ * `bundleWorkflowCode()`. When pre-bundling workflows, pass the returned plugin
+ * to `bundleWorkflowCode({ plugins: [plugin] })` so workflow interceptor modules
+ * are included in the bundle.
  *
  * @example
  * ```ts
  * import { bundleWorkflowCode } from '@temporalio/worker';
- * import { makeOtelPlugins } from '@temporalio/lambda-worker/otel';
+ * import { makeOtelPlugin } from '@temporalio/lambda-worker/otel';
  *
- * const plugins = makeOtelPlugins();
+ * const { plugin } = makeOtelPlugin();
  * const bundle = await bundleWorkflowCode({
  *   workflowsPath: require.resolve('./workflows'),
- *   plugins,
+ *   plugins: [plugin],
  * });
  * ```
  */
-export function makeOtelPlugins(endpoint?: string, serviceName?: string): [OpenTelemetryPlugin] {
+export function makeOtelPlugin(
+  endpoint?: string,
+  serviceName?: string
+): { plugin: OpenTelemetryPlugin; spanProcessor: SimpleSpanProcessor } {
   const resolvedEndpoint = endpoint ?? process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] ?? 'grpc://localhost:4317';
   const resolvedServiceName =
     serviceName ??
@@ -116,5 +123,5 @@ export function makeOtelPlugins(endpoint?: string, serviceName?: string): [OpenT
   const traceExporter = new OTLPTraceExporter({ url: resolvedEndpoint });
   const spanProcessor = new SimpleSpanProcessor(traceExporter);
 
-  return [new OpenTelemetryPlugin({ resource, spanProcessor })];
+  return { plugin: new OpenTelemetryPlugin({ resource, spanProcessor }), spanProcessor };
 }

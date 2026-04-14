@@ -112,16 +112,17 @@ export const handler = runWorker({ deploymentName: 'my-service', buildId: 'v1.0'
 });
 ```
 
-**Important**: When pre-bundling Workflow code with `bundleWorkflowCode()`, pass `makeOtelPlugins()`
+**Important**: When pre-bundling Workflow code with `bundleWorkflowCode()`, pass `makeOtelPlugin()`
 so that Workflow interceptor modules are included in the bundle:
 
 ```typescript
 import { bundleWorkflowCode } from '@temporalio/worker';
-import { makeOtelPlugins } from '@temporalio/lambda-worker/otel';
+import { makeOtelPlugin } from '@temporalio/lambda-worker/otel';
 
+const { plugin } = makeOtelPlugin();
 const { code } = await bundleWorkflowCode({
   workflowsPath: require.resolve('./workflows'),
-  plugins: makeOtelPlugins(),
+  plugins: [plugin],
 });
 ```
 
