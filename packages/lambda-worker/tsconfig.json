@@ -4,6 +4,11 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [{ "path": "../common" }, { "path": "../envconfig" }, { "path": "../worker" }],
+  "references": [
+    { "path": "../common" },
+    { "path": "../envconfig" },
+    { "path": "../interceptors-opentelemetry" },
+    { "path": "../worker" }
+  ],
   "include": ["./src/**/*.ts"]
 }

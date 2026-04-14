@@ -17,6 +17,7 @@ import {
   WARN_WORK_TIME_MS,
 } from './defaults';
 import { loadLambdaClientConnectConfig } from './config';
+import { PowertoolsLoggerAdapter } from './json-logger';
 import { makePowertoolsLogger } from './logger-factory';
 import type { LambdaWorkerConfig, LambdaHandler } from './types';
 
@@ -120,7 +121,13 @@ export function _runWorkerInternal(
 
   const shutdownDeadlineBufferMs = config.shutdownDeadlineBufferMs ?? DEFAULT_SHUTDOWN_DEADLINE_BUFFER_MS;
 
+  const runtimeLogger = config.runtimeOptions.logger;
+
   return async (_event: unknown, context: Context): Promise<void> => {
+    if (runtimeLogger instanceof PowertoolsLoggerAdapter) {
+      runtimeLogger.addContext(context);
+    }
+
     const logger = deps.getLogger();
     const remainingMs = context.getRemainingTimeInMillis();
     const workTimeMs = remainingMs - shutdownDeadlineBufferMs;

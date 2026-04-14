@@ -41,7 +41,8 @@
     "@temporalio/interceptors-opentelemetry": "workspace:*",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.52.0",
     "@opentelemetry/resources": "^1.25.1",
-    "@opentelemetry/sdk-trace-base": "^1.25.1"
+    "@opentelemetry/sdk-trace-base": "^1.25.1",
+    "@types/aws-lambda": "^8.10.145"
   },
   "peerDependenciesMeta": {
     "@aws-lambda-powertools/logger": {
@@ -57,6 +58,9 @@
       "optional": true
     },
     "@opentelemetry/sdk-trace-base": {
+      "optional": true
+    },
+    "@types/aws-lambda": {
       "optional": true
     }
   },

@@ -1,4 +1,5 @@
 import type { Logger as PowertoolsLogger } from '@aws-lambda-powertools/logger';
+import type { Context } from 'aws-lambda';
 import type { LogLevel, LogMetadata } from '@temporalio/common';
 import type { Logger } from '@temporalio/worker';
 
@@ -18,6 +19,10 @@ import type { Logger } from '@temporalio/worker';
  */
 export class PowertoolsLoggerAdapter implements Logger {
   constructor(private readonly ptLogger: PowertoolsLogger) {}
+
+  addContext(context: Context): void {
+    this.ptLogger.addContext(context);
+  }
 
   log(level: LogLevel, message: string, meta?: LogMetadata): void {
     switch (level) {
