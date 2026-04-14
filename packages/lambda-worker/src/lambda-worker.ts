@@ -103,7 +103,7 @@ export function _runWorkerInternal(
 
   const connectConfig = deps.loadConnectConfig();
   config.connectionOptions = { ...connectConfig.connectionOptions };
-  config.namespace = connectConfig.namespace ?? 'default';
+  config.namespace = connectConfig.namespace || 'default';
 
   configure(config);
 

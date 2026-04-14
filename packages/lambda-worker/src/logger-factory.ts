@@ -18,7 +18,10 @@ export function makePowertoolsLogger(): Logger | undefined {
         serviceName: process.env['AWS_LAMBDA_FUNCTION_NAME'] ?? 'temporal-lambda-worker',
       })
     );
-  } catch {
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'MODULE_NOT_FOUND') {
+      throw err;
+    }
     return undefined;
   }
 }
