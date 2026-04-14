@@ -89,8 +89,15 @@ lifecycle.
 
 ## Observability
 
-Metrics and tracing are opt-in. The `otel` module provides convenience helpers for AWS Distro for
-OpenTelemetry (ADOT):
+Metrics and tracing are opt-in. The `otel` module provides convenience helpers for
+[AWS Distro for OpenTelemetry (ADOT)](https://aws-otel.github.io/docs/getting-started/lambda).
+
+Call `applyDefaults(config)` in your configure callback to:
+
+- Register Temporal SDK interceptors (`@temporalio/interceptors-opentelemetry`) for tracing
+  Workflow, Activity, and Nexus calls.
+- Configure the Temporal Core SDK (Rust) to export its own metrics (task latencies, poll counts,
+  etc.) via OTLP to the collector.
 
 ```typescript
 import { runWorker } from '@temporalio/lambda-worker';
@@ -105,9 +112,46 @@ export const handler = runWorker({ deploymentName: 'my-service', buildId: 'v1.0'
 });
 ```
 
-You can also use `applyTracing` individually with a custom `TracerProvider`.
+**Important**: When pre-bundling Workflow code with `bundleWorkflowCode()`, pass `makeOtelPlugins()`
+so that Workflow interceptor modules are included in the bundle:
 
-If you use OTEL, you can use
-[ADOT](https://aws-otel.github.io/docs/getting-started/lambda/lambda-js) (the AWS Distro For
-OpenTelemetry) to automatically integrate with AWS observability functionality. Namely, you will
-want to add the Lambda layer in the aforementioned link. We'll handle setting up the SDK for you.
+```typescript
+import { bundleWorkflowCode } from '@temporalio/worker';
+import { makeOtelPlugins } from '@temporalio/lambda-worker/otel';
+
+const { code } = await bundleWorkflowCode({
+  workflowsPath: require.resolve('./workflows'),
+  plugins: makeOtelPlugins(),
+});
+```
+
+### AWS setup
+
+Attach two Lambda layers:
+
+1. **[ADOT JavaScript layer](https://aws-otel.github.io/docs/getting-started/lambda/lambda-js)** —
+   auto-instruments the handler and exports Node.js-side traces (Lambda invocation spans, HTTP
+   calls, etc.) to X-Ray.
+2. **[ADOT Collector layer](https://aws-otel.github.io/docs/getting-started/lambda)**
+   (`aws-otel-collector-amd64`) — runs the OTel Collector as a Lambda extension, receiving
+   Temporal Core SDK metrics and SDK trace spans via OTLP gRPC on `localhost:4317`, then
+   forwarding them to CloudWatch/X-Ray via a custom collector config.
+
+Set these environment variables:
+
+```
+AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument
+OPENTELEMETRY_COLLECTOR_CONFIG_URI=/var/task/otel-collector-config.yaml
+```
+
+`AWS_LAMBDA_EXEC_WRAPPER` enables the JS layer's auto-instrumentation.
+`OPENTELEMETRY_COLLECTOR_CONFIG_URI` points the collector at a custom config file bundled in
+your deployment package — use this to route metrics to CloudWatch EMF, traces to X-Ray, or any
+other supported exporter.
+
+Enable X-Ray active tracing on the Lambda function (required for traces to appear):
+
+```bash
+aws lambda update-function-configuration --function-name <function-name> \
+  --tracing-config Mode=Active
+```
