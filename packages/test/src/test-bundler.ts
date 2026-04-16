@@ -207,7 +207,7 @@ if (RUN_INTEGRATION_TESTS) {
     t.true(
       codeSizeKB < 600,
       `Bundle code size (${codeSizeKB.toFixed(0)} KB) exceeds 600 KB — ` +
-      `either @temporalio/proto was pulled in, or another unexpectedly large dependency was added`
+        `either @temporalio/proto was pulled in, or another unexpectedly large dependency was added`
     );
 
     // Parse the inline source map to enumerate bundled source files.
@@ -221,13 +221,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
 
     // Ensure there is no trace of @temporalio/proto in the bundle.
-    const protoSources = sources.filter(
-      (s) => s.includes('/packages/proto/') || s.includes('@temporalio/proto')
-    );
-    t.deepEqual(
-      protoSources,
-      [],
-      `@temporalio/proto must not appear in workflow bundle sources.}`
-    );
+    const protoSources = sources.filter((s) => s.includes('/packages/proto/') || s.includes('@temporalio/proto'));
+    t.deepEqual(protoSources, [], `@temporalio/proto must not appear in workflow bundle sources.}`);
   });
 }
