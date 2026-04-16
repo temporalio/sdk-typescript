@@ -234,7 +234,7 @@ export class ScheduleClient extends BaseClient {
       scheduleId: opts.scheduleId,
       schedule: {
         spec: encodeScheduleSpec(opts.spec),
-        action: await encodeScheduleAction(this.dataConverter, opts.action, headers),
+        action: await encodeScheduleAction(this.dataConverter, this.options.namespace, opts.action, headers),
         policies: encodeSchedulePolicies(opts.policies),
         state: encodeScheduleState(opts.state),
       },
@@ -298,7 +298,7 @@ export class ScheduleClient extends BaseClient {
       scheduleId,
       schedule: {
         spec: encodeScheduleSpec(opts.spec),
-        action: await encodeScheduleAction(this.dataConverter, opts.action, header),
+        action: await encodeScheduleAction(this.dataConverter, this.options.namespace, opts.action, header),
         policies: encodeSchedulePolicies(opts.policies),
         state: encodeScheduleState(opts.state),
       },
@@ -432,7 +432,11 @@ export class ScheduleClient extends BaseClient {
         return {
           scheduleId,
           spec: decodeScheduleSpec(raw.schedule.spec),
-          action: await decodeScheduleAction(this.client.dataConverter, raw.schedule.action),
+          action: await decodeScheduleAction(
+            this.client.dataConverter,
+            this.client.options.namespace,
+            raw.schedule.action
+          ),
           memo: await decodeMapFromPayloads(this.client.dataConverter, raw.memo?.fields),
           searchAttributes: decodeSearchAttributes(raw.searchAttributes?.indexedFields),
           typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes?.indexedFields),
