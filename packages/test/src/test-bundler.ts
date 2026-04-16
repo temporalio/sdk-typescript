@@ -184,4 +184,44 @@ if (RUN_INTEGRATION_TESTS) {
       }
     );
   });
+
+  // Regression test: workflow bundles must not include @temporalio/proto sources.
+  test('Workflow bundle does not include @temporalio/proto sources and fits within size limit', async (t) => {
+    const bundle = await bundleWorkflowCode({
+      workflowsPath: require.resolve('./workflows/workflow-with-standard-api-usage'),
+    });
+
+    // The bundle has an inline source map appended as a single-line comment; separate them.
+    const SOURCEMAP_LINE_PREFIX = '//# sourceMappingURL=data:application/json;charset=utf-8;base64,';
+    const smLineStart = bundle.code.lastIndexOf('\n' + SOURCEMAP_LINE_PREFIX);
+    t.not(smLineStart, -1, 'Bundle should contain an inline source map');
+    const codeOnly = bundle.code.slice(0, smLineStart);
+    const sourcemapBase64 = bundle.code.slice(smLineStart + 1 + SOURCEMAP_LINE_PREFIX.length).trimEnd();
+
+    // Check code size (excluding inline source map).
+    // As of April 2026, I get ~440 KB for the bundle excluding inlined source map.
+    // Some increase is expected over time as we'll continue adding more features to the SDK, but
+    // large sudden increases likely indicate we're importing in the bundle something we shouldn't.
+    const codeSizeKB = Buffer.byteLength(codeOnly, 'utf-8') / 1024;
+    t.log(`Bundle code size: ${codeSizeKB.toFixed(0)} KB`);
+    t.true(
+      codeSizeKB < 600,
+      `Bundle code size (${codeSizeKB.toFixed(0)} KB) exceeds 600 KB — ` +
+        `either @temporalio/proto was pulled in, or another unexpectedly large dependency was added`
+    );
+
+    // Parse the inline source map to enumerate bundled source files.
+    const sourceMap: { sources: string[] } = JSON.parse(Buffer.from(sourcemapBase64, 'base64').toString('utf-8'));
+    const sources = sourceMap.sources.slice().sort();
+
+    // Log the full list for manual review (visible in verbose mode or on test failure).
+    t.log(`\nSources included in bundle (${sources.length} files):`);
+    for (const source of sources) {
+      t.log(`  ${source}`);
+    }
+
+    // Ensure there is no trace of @temporalio/proto in the bundle.
+    const protoSources = sources.filter((s) => s.includes('/packages/proto/') || s.includes('@temporalio/proto'));
+    t.deepEqual(protoSources, [], `@temporalio/proto must not appear in workflow bundle sources.}`);
+  });
 }
