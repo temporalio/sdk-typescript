@@ -5,7 +5,7 @@
  */
 import { encodeVersioningBehavior, IllegalStateError, WorkflowFunctionWithOptions } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { coresdk } from '@temporalio/proto';
+import type { coresdk } from '@temporalio/proto';
 import type { WorkflowInterceptorsFactory } from './interceptors';
 import type { WorkflowCreateOptionsInternal } from './interfaces';
 import { Activator } from './internals';
