@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["mocha", "node"],
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["./src/**/*.ts"],
+  "exclude": []
+}

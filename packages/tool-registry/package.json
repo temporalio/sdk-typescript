@@ -1,0 +1,66 @@
+{
+  "name": "@temporalio/tool-registry",
+  "version": "1.15.0",
+  "description": "LLM tool-calling primitives for Temporal activities — define tools once, use with Anthropic or OpenAI",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "keywords": [
+    "temporal",
+    "workflow",
+    "llm",
+    "anthropic",
+    "openai",
+    "tool-use",
+    "agentic"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@temporalio/activity": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/plugin": "workspace:*"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sdk": ">=0.40.0",
+    "openai": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": {
+      "optional": true
+    },
+    "openai": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.40.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.10.8",
+    "mocha": "^10.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "test": "TS_NODE_PROJECT=tsconfig.test.json mocha --require ts-node/register --extension ts 'src/**/*.test.ts'"
+  },
+  "engines": {
+    "node": ">= 20.0.0"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "packages/tool-registry"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/tool-registry",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
+}
