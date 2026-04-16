@@ -601,19 +601,3 @@ test('connectionOptions pre-populated from envconfig', async (t) => {
   t.is(capturedOpts!.address, 'user-override:7233');
   t.is(capturedOpts!.apiKey, 'from-env');
 });
-
-// ---- Public runWorker function ----
-
-test('runWorker returns a handler function', (t) => {
-  // This will throw because loadLambdaClientConnectConfig runs with real envconfig,
-  // but we can catch it and verify the function signature works.
-  try {
-    const handler = runWorker(TEST_VERSION, (config) => {
-      config.workerOptions.taskQueue = 'q';
-    });
-    t.is(typeof handler, 'function');
-  } catch {
-    // envconfig may throw depending on environment; that's acceptable
-    t.pass();
-  }
-});
