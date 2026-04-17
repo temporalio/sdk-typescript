@@ -1,5 +1,5 @@
-import { temporal } from '@temporalio/proto';
-import { WorkflowOptions } from './workflow-options';
+import type { temporal } from '@temporalio/proto';
+import type { WorkflowOptions } from './workflow-options';
 
 /**
  * A symbol used to attach extra, SDK-internal options to the `WorkflowClient.start()` call.

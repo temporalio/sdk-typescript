@@ -1,5 +1,5 @@
 import v8 from 'node:v8';
-import vm from 'node:vm';
+import type vm from 'node:vm';
 import { AsyncLocalStorage as AsyncLocalStorageOriginal } from 'node:async_hooks';
 import assert from 'node:assert';
 import { URL, URLSearchParams } from 'node:url';
@@ -11,13 +11,13 @@ import { tsToMs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
 import type { StackTraceFileLocation } from '@temporalio/workflow';
 import { type SinkCall } from '@temporalio/workflow/lib/sinks';
-import * as internals from '@temporalio/workflow/lib/worker-interface';
-import { Activator } from '@temporalio/workflow/lib/internals';
+import type * as internals from '@temporalio/workflow/lib/worker-interface';
+import type { Activator } from '@temporalio/workflow/lib/internals';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import { UnhandledRejectionError } from '../errors';
 import { convertDeploymentVersion } from '../utils';
-import { Workflow } from './interface';
-import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
+import type { Workflow } from './interface';
+import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 
 // We need this import for the ambient global extensions
 import '@temporalio/workflow/lib/global-attributes'; // eslint-disable-line import/no-unassigned-import

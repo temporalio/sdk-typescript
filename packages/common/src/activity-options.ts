@@ -1,9 +1,9 @@
 import type { coresdk } from '@temporalio/proto';
-import { RetryPolicy } from './retry-policy';
-import { Duration } from './time';
-import { VersioningIntent } from './versioning-intent';
+import type { RetryPolicy } from './retry-policy';
+import type { Duration } from './time';
+import type { VersioningIntent } from './versioning-intent';
 import { makeProtoEnumConverters } from './internal-workflow';
-import { Priority } from './priority';
+import type { Priority } from './priority';
 
 // Note: The types defined in this file are here for legacy reasons. They should have been defined
 // in the 'workflow' package, instead of 'common'. They are now reexported from the 'workflow'

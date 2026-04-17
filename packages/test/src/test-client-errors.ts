@@ -1,14 +1,12 @@
-import anyTest, { TestFn } from 'ava';
-import {
-  ApplicationFailure,
-  Client,
-  NamespaceNotFoundError,
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
+import type {
   Next,
   TerminateWorkflowExecutionResponse,
-  ValueError,
   WorkflowClientInterceptor,
   WorkflowTerminateInput,
 } from '@temporalio/client';
+import { ApplicationFailure, Client, NamespaceNotFoundError, ValueError } from '@temporalio/client';
 import { TestWorkflowEnvironment } from './helpers';
 
 interface Context {

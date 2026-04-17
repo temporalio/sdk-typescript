@@ -1,9 +1,10 @@
-import { native } from '@temporalio/core-bridge';
-import { Logger, LogLevel } from '@temporalio/common';
-import { Duration, msToNumber } from '@temporalio/common/lib/time';
+import type { native } from '@temporalio/core-bridge';
+import type { Logger, LogLevel } from '@temporalio/common';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msToNumber } from '@temporalio/common/lib/time';
 import { DefaultLogger } from './logger';
 import { NativeLogCollector } from './runtime-logger';
-import { MetricsBuffer } from './runtime-metrics';
+import type { MetricsBuffer } from './runtime-metrics';
 
 /**
  * Options used to create a Temporal Runtime.

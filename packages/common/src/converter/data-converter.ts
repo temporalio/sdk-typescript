@@ -1,6 +1,8 @@
-import { DefaultFailureConverter, FailureConverter } from './failure-converter';
-import { PayloadCodec } from './payload-codec';
-import { defaultPayloadConverter, PayloadConverter } from './payload-converter';
+import type { FailureConverter } from './failure-converter';
+import { DefaultFailureConverter } from './failure-converter';
+import type { PayloadCodec } from './payload-codec';
+import type { PayloadConverter } from './payload-converter';
+import { defaultPayloadConverter } from './payload-converter';
 
 /**
  * When your data (arguments and return values) is sent over the wire and stored by Temporal Server, it is encoded in

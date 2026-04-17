@@ -10,7 +10,7 @@ import {
 } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { temporal } from '@temporalio/proto';
-import { LogEntry } from '@temporalio/worker';
+import type { LogEntry } from '@temporalio/worker';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { signalUpdateOrderingWorkflow } from './workflows/signal-update-ordering';
 import { signalsActivitiesTimersPromiseOrdering } from './workflows/signals-timers-activities-order';

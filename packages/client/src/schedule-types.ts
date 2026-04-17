@@ -1,8 +1,15 @@
-import { checkExtends, Replace } from '@temporalio/common/lib/type-helpers';
-import { Duration, SearchAttributes, Workflow, TypedSearchAttributes, SearchAttributePair } from '@temporalio/common';
+import type { Replace } from '@temporalio/common/lib/type-helpers';
+import { checkExtends } from '@temporalio/common/lib/type-helpers';
+import type {
+  Duration,
+  SearchAttributes,
+  Workflow,
+  TypedSearchAttributes,
+  SearchAttributePair,
+} from '@temporalio/common';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { temporal } from '@temporalio/proto';
-import { WorkflowStartOptions } from './workflow-options';
+import type { WorkflowStartOptions } from './workflow-options';
 
 /**
  * The specification of a Schedule to be created, as expected by {@link ScheduleClient.create}.

@@ -1,20 +1,20 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import events from 'node:events';
-import * as activity from '@temporalio/activity';
+import type * as activity from '@temporalio/activity';
+import type { ActivityFunction, Logger, MetricMeter } from '@temporalio/common';
 import {
-  ActivityFunction,
-  Logger,
   SdkComponent,
   defaultFailureConverter,
   defaultPayloadConverter,
-  MetricMeter,
   noopMetricMeter,
   ActivityCancellationDetails,
 } from '@temporalio/common';
 import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
-import { Client } from '@temporalio/client';
-import { ActivityInterceptorsFactory, DefaultLogger } from '@temporalio/worker';
-import { Activity, CancelReason } from '@temporalio/worker/lib/activity';
+import type { Client } from '@temporalio/client';
+import type { ActivityInterceptorsFactory } from '@temporalio/worker';
+import { DefaultLogger } from '@temporalio/worker';
+import type { CancelReason } from '@temporalio/worker/lib/activity';
+import { Activity } from '@temporalio/worker/lib/activity';
 
 export interface MockActivityEnvironmentOptions {
   interceptors?: ActivityInterceptorsFactory[];

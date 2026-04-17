@@ -4,16 +4,15 @@
  * @module
  */
 
-import {
+import type {
   ActivityOptions,
   Duration,
-  Headers,
   LocalActivityOptions,
   MetricTags,
-  Next,
   Timestamp,
   WorkflowExecution,
 } from '@temporalio/common';
+import { Headers, Next } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
 import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 import type { NexusOperationCancellationType } from './nexus';

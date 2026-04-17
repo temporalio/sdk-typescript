@@ -1,33 +1,35 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
-import {
+import type {
   BaseWorkflowHandle,
-  CancelledFailure,
-  compileRetryPolicy,
   HistoryAndWorkflowId,
   QueryDefinition,
-  RetryState,
   SignalDefinition,
   UpdateDefinition,
+  WithWorkflowArgs,
+  Workflow,
+  WorkflowResultType,
+  WorkflowIdConflictPolicy,
+} from '@temporalio/common';
+import {
+  CancelledFailure,
+  compileRetryPolicy,
+  RetryState,
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
-  WithWorkflowArgs,
-  Workflow,
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
-  WorkflowResultType,
   extractWorkflowType,
   encodeWorkflowIdReusePolicy,
   decodeRetryState,
   encodeWorkflowIdConflictPolicy,
-  WorkflowIdConflictPolicy,
   compilePriority,
 } from '@temporalio/common';
 import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { History } from '@temporalio/common/lib/proto-utils';
+import type { History } from '@temporalio/common/lib/proto-utils';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import {
   decodeArrayFromPayloads,
@@ -47,7 +49,7 @@ import {
   WorkflowUpdateRPCTimeoutOrCancelledError,
   isGrpcServiceError,
 } from './errors';
-import {
+import type {
   WorkflowCancelInput,
   WorkflowClientInterceptor,
   WorkflowClientInterceptors,
@@ -63,13 +65,11 @@ import {
   WorkflowStartUpdateWithStartOutput,
   WorkflowStartOutput,
 } from './interceptors';
-import {
+import type {
   CountWorkflowExecution,
   DescribeWorkflowExecutionResponse,
-  encodeQueryRejectCondition,
   GetWorkflowExecutionHistoryRequest,
   InternalConnectionLike,
-  InternalConnectionLikeSymbol,
   QueryRejectCondition,
   RequestCancelWorkflowExecutionResponse,
   StartWorkflowExecutionRequest,
@@ -79,24 +79,21 @@ import {
   WorkflowExecutionInfo,
   WorkflowService,
 } from './types';
-import {
-  compileWorkflowOptions,
+import { encodeQueryRejectCondition, InternalConnectionLikeSymbol } from './types';
+import type {
   WorkflowOptions,
   WorkflowSignalWithStartOptions,
   WorkflowStartOptions,
   WorkflowUpdateOptions,
 } from './workflow-options';
+import { compileWorkflowOptions } from './workflow-options';
 import { decodeCountWorkflowExecutionsResponse, executionInfoFromRaw, rethrowKnownErrorTypes } from './helpers';
-import {
-  BaseClient,
-  BaseClientOptions,
-  defaultBaseClientOptions,
-  LoadedWithDefaults,
-  WithDefaults,
-} from './base-client';
+import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
+import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
 import { WorkflowUpdateStage, encodeWorkflowUpdateStage } from './workflow-update-stage';
-import { InternalWorkflowStartOptionsSymbol, InternalWorkflowStartOptions } from './internal';
+import type { InternalWorkflowStartOptions } from './internal';
+import { InternalWorkflowStartOptionsSymbol } from './internal';
 import { adaptWorkflowClientInterceptor } from './interceptor-adapters';
 
 const UpdateWorkflowExecutionLifecycleStage = temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;

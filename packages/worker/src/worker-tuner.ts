@@ -1,6 +1,7 @@
-import { native } from '@temporalio/core-bridge';
-import { Duration, msToNumber } from '@temporalio/common/lib/time';
-import { Logger, WorkerDeploymentVersion } from '@temporalio/common';
+import type { native } from '@temporalio/core-bridge';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msToNumber } from '@temporalio/common/lib/time';
+import type { Logger, WorkerDeploymentVersion } from '@temporalio/common';
 
 /**
  * A worker tuner allows the customization of the performance characteristics of workers by

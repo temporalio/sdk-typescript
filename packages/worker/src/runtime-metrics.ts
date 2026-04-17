@@ -1,5 +1,4 @@
-import {
-  IllegalStateError,
+import type {
   Metric,
   MetricCounter,
   MetricGauge,
@@ -8,6 +7,7 @@ import {
   MetricTags,
   NumericMetricValueType,
 } from '@temporalio/common';
+import { IllegalStateError } from '@temporalio/common';
 import { native } from '@temporalio/core-bridge';
 import type { Runtime } from './runtime';
 

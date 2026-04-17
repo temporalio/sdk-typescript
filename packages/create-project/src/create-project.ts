@@ -7,13 +7,13 @@ import chalkTemplate from 'chalk-template';
 // eslint-disable-next-line import/no-named-as-default
 import prompts from 'prompts';
 
+import type { RepoInfo } from './helpers/samples.js';
 import {
   downloadAndExtractSample,
   downloadAndExtractRepo,
   getRepoInfo,
   hasSample,
   checkForPackageJson,
-  RepoInfo,
 } from './helpers/samples.js';
 import { makeDir } from './helpers/make-dir.js';
 import { tryGitInit } from './helpers/git.js';
