@@ -3,5 +3,5 @@ packages:
 
 ignoreScripts: true
 
-# Minimum release age, in minutes (2 weeks; security team request)
+# Minimum release age, in minutes (2 weeks)
 minimumReleaseAge: 20160
