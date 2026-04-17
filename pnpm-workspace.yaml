@@ -48,4 +48,4 @@ overrides:
   handlebars: '>=4.7.9'
 
 patchedDependencies:
-  protobufjs@7.5.4: patches/protobufjs@7.5.4.patch
+  protobufjs@7.5.5: patches/protobufjs@7.5.5.patch
