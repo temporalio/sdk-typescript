@@ -1,0 +1,86 @@
+{
+  "name": "@temporalio/lambda-worker",
+  "version": "1.15.0",
+  "description": "Temporal.io SDK AWS Lambda Worker",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./otel": {
+      "types": "./lib/otel.d.ts",
+      "default": "./lib/otel.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
+  "scripts": {},
+  "keywords": [
+    "temporal",
+    "aws",
+    "lambda",
+    "worker"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@temporalio/common": "workspace:*",
+    "@temporalio/envconfig": "workspace:*",
+    "@temporalio/worker": "workspace:*"
+  },
+  "devDependencies": {
+    "@aws-lambda-powertools/logger": "^2.0.0",
+    "@types/aws-lambda": "^8.10.145"
+  },
+  "peerDependencies": {
+    "@aws-lambda-powertools/logger": "^2.0.0",
+    "@temporalio/interceptors-opentelemetry": "workspace:*",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.52.0",
+    "@opentelemetry/resources": "^1.25.1",
+    "@opentelemetry/sdk-trace-base": "^1.25.1",
+    "@types/aws-lambda": "^8.10.145"
+  },
+  "peerDependenciesMeta": {
+    "@aws-lambda-powertools/logger": {
+      "optional": true
+    },
+    "@temporalio/interceptors-opentelemetry": {
+      "optional": true
+    },
+    "@opentelemetry/exporter-trace-otlp-grpc": {
+      "optional": true
+    },
+    "@opentelemetry/resources": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-trace-base": {
+      "optional": true
+    },
+    "@types/aws-lambda": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">= 20.0.0"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "packages/lambda-worker"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/lambda-worker",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
+}

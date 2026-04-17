@@ -11,6 +11,7 @@ export {
   ClientConfig,
   ClientConfigProfile,
   ClientConfigTLS,
+  ClientConnectConfig,
   LoadClientConfigOptions,
   LoadClientProfileOptions,
   ClientConfigFromTomlOptions,

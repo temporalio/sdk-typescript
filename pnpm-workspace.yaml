@@ -8,6 +8,7 @@ packages:
   - packages/create-project
   - packages/envconfig
   - packages/interceptors-opentelemetry
+  - packages/lambda-worker
   - packages/meta
   - packages/nexus
   - packages/nyc-test-coverage
@@ -45,3 +46,6 @@ overrides:
   'minimatch@>=7.0.0 <7.4.8': '>=7.4.8'
   serialize-javascript: '>=7.0.3'
   handlebars: '>=4.7.9'
+
+patchedDependencies:
+  protobufjs@7.5.5: patches/protobufjs@7.5.5.patch
