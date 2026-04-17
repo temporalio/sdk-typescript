@@ -22,8 +22,8 @@ packages:
 
 ignoreScripts: true
 
-# Minimum release age, in minutes (1 day)
-minimumReleaseAge: 1440
+# Minimum release age, in minutes (2 weeks; security team request)
+minimumReleaseAge: 20160
 
 # Allow depending on just published Temporal packages
 minimumReleaseAgeExclude:
