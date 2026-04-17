@@ -63,7 +63,7 @@
     "long": "^5.2.3",
     "nexus-rpc": "^0.0.2",
     "proto3-json-serializer": "^2.0.0",
-    "protobufjs": "^7.2.5",
+    "protobufjs": "^7.5.5",
     "protobufjs-cli": "^1.1.2",
     "rxjs": "7.8.1",
     "stack-utils": "^2.0.6",
