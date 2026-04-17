@@ -1475,7 +1475,7 @@ export class Worker {
       if (error instanceof UnexpectedError) {
         // Something went wrong in the workflow; we'll do our best to shut the Worker
         // down gracefully, but then we'll need to terminate the Worker ASAP.
-        logMessage = 'An unexpected error occured while processing Workflow Activation. Initiating Worker shutdown.';
+        logMessage = 'An unexpected error occurred while processing Workflow Activation. Initiating Worker shutdown.';
         this.unexpectedErrorSubject.error(error);
       }
 
