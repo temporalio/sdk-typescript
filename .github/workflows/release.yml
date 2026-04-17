@@ -59,33 +59,33 @@ jobs:
         shell: bash
     steps:
       - name: 'Checkout code'
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           submodules: recursive
 
       - name: 'Cache native index.node artifacts'
         id: cached-artifact
-        uses: actions/cache@v4
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: ./packages/core-bridge/releases
           key: corebridge-artifactcache-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
 
       - name: Install protoc
         if: steps.cached-artifact.outputs.cache-hit != 'true' && !matrix.container
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
         with:
           # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
           version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upgrade Rust to latest stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
 
       # FIXME: Setup volumes so that we can benefit from the cache in the Docker-build scenario.
       #        Or maybe just get rid of the cache entirely if it doesn't have sufficient benefits.
       - name: Rust Cargo and Build cache
         if: steps.cached-artifact.outputs.cache-hit != 'true' && !matrix.container
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: packages/core-bridge -> target
           prefix-key: corebridge-buildcache
@@ -128,7 +128,7 @@ jobs:
           objdump -T ./releases/${{ matrix.target }}/index.node |
               grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -V | tail -1
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: corebridge-native-${{ matrix.platform }}
           # Actual file will be named ${{ matrix.target }}/index.node
@@ -154,12 +154,12 @@ jobs:
         shell: bash
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           submodules: recursive
 
       - name: Download core-bridge native libraries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: ./packages/core-bridge/releases/tmp
 
@@ -184,7 +184,7 @@ jobs:
         run: pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir ./tmp/registry
 
       - name: Save Verdaccio repo artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: verdaccio-repo
           path: ./tmp/registry/storage
@@ -231,7 +231,7 @@ jobs:
       TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
     steps:
       - name: 'Checkout code'
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           # We don't need the core submodule here since won't build the project
           submodules: false
@@ -243,7 +243,7 @@ jobs:
           platform: ${{ matrix.platform }}
 
       - name: Restore Verdaccio repo artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: verdaccio-repo
           path: ./tmp/registry/storage
@@ -254,7 +254,7 @@ jobs:
 
       - name: Install Temporal CLI
         if: matrix.server == 'cli'
-        uses: temporalio/setup-temporal@v0
+        uses: temporalio/setup-temporal@1059a504f87e7fa2f385e3fa40d1aa7e62f1c6ca # v0
 
       - name: Run Temporal CLI
         if: matrix.server == 'cli'
