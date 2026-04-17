@@ -1,15 +1,17 @@
-import { ServiceError as GrpcServiceError, status as grpcStatus } from '@grpc/grpc-js';
-import { decodePriority, LoadedDataConverter, NamespaceNotFoundError } from '@temporalio/common';
+import type { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
+import { status as grpcStatus } from '@grpc/grpc-js';
+import type { LoadedDataConverter } from '@temporalio/common';
+import { decodePriority, NamespaceNotFoundError } from '@temporalio/common';
 import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
   searchAttributePayloadConverter,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
-import { Replace } from '@temporalio/common/lib/type-helpers';
+import type { Replace } from '@temporalio/common/lib/type-helpers';
 import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time';
 import { decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { temporal, google } from '@temporalio/proto';
-import {
+import type {
   CountWorkflowExecution,
   RawWorkflowExecutionInfo,
   WorkflowExecutionInfo,

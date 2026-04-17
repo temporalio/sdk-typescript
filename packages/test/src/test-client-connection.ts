@@ -4,7 +4,8 @@ import * as util from 'node:util';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import assert from 'node:assert';
-import test, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import test from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import {
@@ -17,7 +18,8 @@ import {
   makeGrpcRetryInterceptor,
 } from '@temporalio/client';
 import pkg from '@temporalio/client/lib/pkg';
-import { temporal, grpc as grpcProto } from '@temporalio/proto';
+import type { temporal } from '@temporalio/proto';
+import { grpc as grpcProto } from '@temporalio/proto';
 
 const workflowServicePackageDefinition = protoLoader.loadSync(
   path.resolve(

@@ -6,10 +6,12 @@ import test from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { Client, NamespaceNotFoundError, WorkflowNotFoundError } from '@temporalio/client';
-import { InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
-import { IllegalStateError, NativeConnection, NativeConnectionOptions, TransportError } from '@temporalio/worker';
+import type { InternalConnectionOptions } from '@temporalio/client/lib/connection';
+import { InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
+import type { NativeConnectionOptions } from '@temporalio/worker';
+import { IllegalStateError, NativeConnection, TransportError } from '@temporalio/worker';
 import { toNativeClientOptions } from '@temporalio/worker/lib/connection-options';
-import { temporal } from '@temporalio/proto';
+import type { temporal } from '@temporalio/proto';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 

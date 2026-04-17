@@ -1,6 +1,6 @@
 import worker_threads from 'node:worker_threads';
 import { temporal } from '@temporalio/proto';
-import { ReplayWorkerOptions } from '../worker-options';
+import type { ReplayWorkerOptions } from '../worker-options';
 import { Worker } from '../worker';
 import { Client } from './client';
 

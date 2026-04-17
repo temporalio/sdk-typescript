@@ -1,5 +1,5 @@
 import * as wf from '@temporalio/workflow';
-import { CustomLoggerSinks } from './log-sink-tester';
+import type { CustomLoggerSinks } from './log-sink-tester';
 import { unblockSignal } from './definitions';
 
 const { customLogger } = wf.proxySinks<CustomLoggerSinks>();

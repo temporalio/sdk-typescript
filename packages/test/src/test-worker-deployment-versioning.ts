@@ -5,13 +5,15 @@
  */
 import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
-import { ExecutionContext } from 'ava';
-import { Client, WorkflowHandleWithFirstExecutionRunId } from '@temporalio/client';
-import { toCanonicalString, WorkerDeploymentVersion } from '@temporalio/common';
+import type { ExecutionContext } from 'ava';
+import type { Client, WorkflowHandleWithFirstExecutionRunId } from '@temporalio/client';
+import type { WorkerDeploymentVersion } from '@temporalio/common';
+import { toCanonicalString } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
-import { WorkerOptions } from '@temporalio/worker';
+import type { WorkerOptions } from '@temporalio/worker';
 import { Worker } from './helpers';
-import { Context, helpers, makeTestFunction } from './helpers-integration';
+import type { Context } from './helpers-integration';
+import { helpers, makeTestFunction } from './helpers-integration';
 import { unblockSignal, versionQuery } from './workflows';
 
 type WorkerDeploymentOptions = NonNullable<WorkerOptions['workerDeploymentOptions']>;

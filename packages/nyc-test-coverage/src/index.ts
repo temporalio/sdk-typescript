@@ -1,7 +1,7 @@
 import path from 'node:path';
 import * as libCoverage from 'istanbul-lib-coverage';
-import { InjectedSinks, BundleOptions, WorkerOptions } from '@temporalio/worker';
-import { CoverageSinks } from './sinks';
+import type { InjectedSinks, BundleOptions, WorkerOptions } from '@temporalio/worker';
+import type { CoverageSinks } from './sinks';
 
 // Pull `webpack.Configuration` type without needing to import Webpack
 type WebpackConfigType = ReturnType<NonNullable<BundleOptions['webpackConfigHook']>>;

@@ -4,7 +4,7 @@
  *
  * @module
  */
-import { WorkflowInterceptorsFactory } from '@temporalio/workflow';
+import type { WorkflowInterceptorsFactory } from '@temporalio/workflow';
 import { notifyRunner } from './workflow-notifier';
 
 export const interceptors: WorkflowInterceptorsFactory = () => ({

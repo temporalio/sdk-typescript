@@ -1,13 +1,15 @@
 import assert from 'assert';
 import { randomUUID } from 'crypto';
-import { ExecutionContext } from 'ava';
+import type { ExecutionContext } from 'ava';
 import * as nexus from 'nexus-rpc';
 import { ApplicationFailure, NexusOperationFailure } from '@temporalio/common';
-import { WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
-import { History } from '@temporalio/common/lib/proto-utils';
+import type { WorkflowHandle } from '@temporalio/client';
+import { WorkflowFailedError } from '@temporalio/client';
+import type { History } from '@temporalio/common/lib/proto-utils';
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
-import { Context, helpers, makeTestFunction } from './helpers-integration';
+import type { Context } from './helpers-integration';
+import { helpers, makeTestFunction } from './helpers-integration';
 import { innermostHandlerError } from './helpers-nexus';
 import { waitUntil } from './helpers';
 

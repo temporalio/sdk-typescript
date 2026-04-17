@@ -5,7 +5,8 @@ import { coresdk } from '@temporalio/proto';
 import { ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
-import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import type { VMWorkflow } from '@temporalio/worker/lib/workflow/vm';
+import { VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
 import * as wf from '@temporalio/workflow';
 import { TypedSearchAttributes } from '@temporalio/common';
 
