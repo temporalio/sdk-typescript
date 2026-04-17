@@ -116,7 +116,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import {
+import type {
   Logger,
   Duration,
   LogLevel,
@@ -124,13 +124,13 @@ import {
   MetricMeter,
   Priority,
   ActivityCancellationDetails,
-  IllegalStateError,
   RetryPolicy,
 } from '@temporalio/common';
+import { IllegalStateError } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 
-import { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
-import { Client } from '@temporalio/client';
+import type { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
+import type { Client } from '@temporalio/client';
 
 export {
   ActivityFunction,

@@ -1,4 +1,4 @@
-import { temporal } from '@temporalio/proto';
+import type { temporal } from '@temporalio/proto';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 
 export const WorkflowUpdateStage = {

@@ -1,4 +1,4 @@
-import { native } from '@temporalio/core-bridge';
+import type { native } from '@temporalio/core-bridge';
 import {
   joinProtoHostPort,
   normalizeGrpcEndpointAddress,

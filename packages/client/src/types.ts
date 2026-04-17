@@ -2,7 +2,7 @@ import type * as grpc from '@grpc/grpc-js';
 import type { TypedSearchAttributes, SearchAttributes, SearchAttributeValue, Priority } from '@temporalio/common';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import * as proto from '@temporalio/proto';
-import { Replace } from '@temporalio/common/lib/type-helpers';
+import type { Replace } from '@temporalio/common/lib/type-helpers';
 import type { ConnectionPlugin } from './connection';
 
 export interface WorkflowExecution {

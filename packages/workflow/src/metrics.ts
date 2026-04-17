@@ -1,14 +1,15 @@
-import {
+import type {
   MetricCounter,
   MetricGauge,
   MetricHistogram,
   MetricMeter,
-  MetricMeterWithComposedTags,
   MetricTags,
   NumericMetricValueType,
 } from '@temporalio/common';
+import { MetricMeterWithComposedTags } from '@temporalio/common';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { proxySinks, Sink, Sinks } from './sinks';
+import type { Sink, Sinks } from './sinks';
+import { proxySinks } from './sinks';
 import { workflowInfo } from './workflow';
 import { assertInWorkflowContext } from './global-attributes';
 

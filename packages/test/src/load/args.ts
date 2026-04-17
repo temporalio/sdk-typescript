@@ -1,7 +1,7 @@
 /**
  */
 
-import arg from 'arg';
+import type arg from 'arg';
 
 /**
  * Simplified version of `arg.Spec`, required to construct typed options

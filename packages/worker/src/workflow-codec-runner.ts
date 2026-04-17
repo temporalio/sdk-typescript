@@ -1,11 +1,10 @@
-import { PayloadCodec } from '@temporalio/common';
+import type { PayloadCodec } from '@temporalio/common';
+import type { Decoded, Encoded } from '@temporalio/common/lib/internal-non-workflow';
 import {
-  Decoded,
   decodeOptional,
   decodeOptionalFailure,
   decodeOptionalMap,
   decodeOptionalSingle,
-  Encoded,
   encodeMap,
   encodeOptional,
   encodeOptionalFailure,

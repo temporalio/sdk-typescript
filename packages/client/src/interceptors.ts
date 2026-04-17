@@ -5,15 +5,15 @@
  */
 
 import { Headers, Next } from '@temporalio/common';
-import { temporal } from '@temporalio/proto';
-import { CompiledScheduleOptions } from './schedule-types';
-import {
+import type { temporal } from '@temporalio/proto';
+import type { CompiledScheduleOptions } from './schedule-types';
+import type {
   DescribeWorkflowExecutionResponse,
   RequestCancelWorkflowExecutionResponse,
   TerminateWorkflowExecutionResponse,
   WorkflowExecution,
 } from './types';
-import { CompiledWorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
+import type { CompiledWorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
 
 export { Headers, Next };
 

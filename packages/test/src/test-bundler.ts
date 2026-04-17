@@ -5,10 +5,12 @@
 import { unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import { join as pathJoin } from 'node:path';
-import test, { ExecutionContext } from 'ava';
+import type { ExecutionContext } from 'ava';
+import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { moduleMatches } from '@temporalio/worker/lib/workflow/bundler';
-import { bundleWorkflowCode, DefaultLogger, LogEntry, WorkerOptions } from '@temporalio/worker';
+import type { LogEntry, WorkerOptions } from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { issue516 } from './mocks/workflows-with-node-dependencies/issue-516';

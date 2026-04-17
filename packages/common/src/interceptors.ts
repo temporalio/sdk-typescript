@@ -1,5 +1,5 @@
-import { AnyFunc, OmitLastParam } from './type-helpers';
-import { Payload } from './interfaces';
+import type { AnyFunc, OmitLastParam } from './type-helpers';
+import type { Payload } from './interfaces';
 
 /**
  * Type of the next function for a given interceptor function

@@ -1,4 +1,5 @@
-import test, { ExecutionContext } from 'ava';
+import type { ExecutionContext } from 'ava';
+import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
 import { toPayloads } from '@temporalio/common';

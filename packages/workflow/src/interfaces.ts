@@ -1,5 +1,5 @@
 import type { RawSourceMap } from 'source-map';
-import {
+import type {
   RetryPolicy,
   CommonWorkflowOptions,
   HandlerUnfinishedPolicy,

@@ -1,20 +1,11 @@
-import {
+import type {
   ActivityFunction,
   ActivityOptions,
-  compileRetryPolicy,
-  compilePriority,
-  encodeActivityCancellationType,
-  encodeWorkflowIdReusePolicy,
-  extractWorkflowType,
-  HandlerUnfinishedPolicy,
   LocalActivityOptions,
-  mapToPayloads,
   QueryDefinition,
   SearchAttributes,
   SearchAttributeValue,
   SignalDefinition,
-  toPayloads,
-  TypedSearchAttributes,
   UntypedActivities,
   UpdateDefinition,
   WithWorkflowArgs,
@@ -24,6 +15,17 @@ import {
   WorkflowUpdateValidatorType,
   SearchAttributeUpdatePair,
   WorkflowDefinitionOptionsOrGetter,
+} from '@temporalio/common';
+import {
+  compileRetryPolicy,
+  compilePriority,
+  encodeActivityCancellationType,
+  encodeWorkflowIdReusePolicy,
+  extractWorkflowType,
+  HandlerUnfinishedPolicy,
+  mapToPayloads,
+  toPayloads,
+  TypedSearchAttributes,
   encodeInitialVersioningBehavior,
 } from '@temporalio/common';
 import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
@@ -32,14 +34,15 @@ import {
   searchAttributePayloadConverter,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
-import { Duration, msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { temporal } from '@temporalio/proto';
 import { deepMerge } from '@temporalio/common/lib/internal-workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { UpdateScope } from './update-scope';
-import {
+import type {
   ActivityInput,
   LocalActivityInput,
   SignalWorkflowInput,
@@ -47,11 +50,9 @@ import {
   TimerInput,
   TimerOptions,
 } from './interceptors';
-import {
-  ChildWorkflowCancellationType,
+import type {
   ChildWorkflowOptions,
   ChildWorkflowOptionsWithDefaults,
-  ContinueAsNew,
   ContinueAsNewOptions,
   DefaultSignalHandler,
   EnhancedStackTrace,
@@ -61,15 +62,19 @@ import {
   UpdateHandlerOptions,
   WorkflowInfo,
   UpdateInfo,
-  encodeChildWorkflowCancellationType,
-  encodeParentClosePolicy,
   DefaultUpdateHandler,
   DefaultQueryHandler,
+} from './interfaces';
+import {
+  ChildWorkflowCancellationType,
+  ContinueAsNew,
+  encodeChildWorkflowCancellationType,
+  encodeParentClosePolicy,
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
 import { untrackPromise } from './stack-helpers';
-import { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
+import type { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
