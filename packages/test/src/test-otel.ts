@@ -16,13 +16,8 @@ import { Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type * as workflowImportStub from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports';
 import type * as workflowImportImpl from '@temporalio/interceptors-opentelemetry/lib/workflow/workflow-imports-impl';
-import {
-  WorkflowClient,
-  WithStartWorkflowOperation,
-  WorkflowClientInterceptor,
-  Client,
-  Connection,
-} from '@temporalio/client';
+import type { WorkflowClientInterceptor } from '@temporalio/client';
+import { WorkflowClient, WithStartWorkflowOperation, Client, Connection } from '@temporalio/client';
 import { OpenTelemetryPlugin, OpenTelemetryWorkflowClientInterceptor } from '@temporalio/interceptors-opentelemetry';
 import {
   instrument,
@@ -30,32 +25,31 @@ import {
   NEXUS_SERVICE_ATTR_KEY,
   NEXUS_OPERATION_ATTR_KEY,
 } from '@temporalio/interceptors-opentelemetry/lib/instrumentation';
-import {
-  makeWorkflowExporter,
-  OpenTelemetryActivityInboundInterceptor,
-  OpenTelemetryActivityOutboundInterceptor,
+import type {
   OpenTelemetryNexusInboundInterceptor,
   OpenTelemetryNexusOutboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/worker';
 import {
+  makeWorkflowExporter,
+  OpenTelemetryActivityInboundInterceptor,
+  OpenTelemetryActivityOutboundInterceptor,
+} from '@temporalio/interceptors-opentelemetry/lib/worker';
+import type {
   OpenTelemetrySinks,
-  SpanName,
-  SPAN_DELIMITER,
   OpenTelemetryOutboundInterceptor,
   OpenTelemetryInboundInterceptor,
 } from '@temporalio/interceptors-opentelemetry/lib/workflow';
-import {
+import { SpanName, SPAN_DELIMITER } from '@temporalio/interceptors-opentelemetry/lib/workflow';
+import type {
   ActivityInboundCallsInterceptor,
   ActivityOutboundCallsInterceptor,
-  bundleWorkflowCode,
-  DefaultLogger,
   InjectedSinks,
   NexusInboundCallsInterceptor,
   NexusOutboundCallsInterceptor,
-  Runtime,
 } from '@temporalio/worker';
-import { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
-import { Info } from '@temporalio/activity';
+import { bundleWorkflowCode, DefaultLogger, Runtime } from '@temporalio/worker';
+import type { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
+import type { Info } from '@temporalio/activity';
 import * as activities from './activities';
 import { createActivities as createAsyncActivities } from './activities/async-completer';
 import { bundlerOptions, loadHistory, RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -518,7 +512,7 @@ if (RUN_INTEGRATION_TESTS) {
           tracer,
           spanName: `test-thrown-${String(thrown)}`,
           fn: () => {
-            throw thrown; // eslint-disable-line no-throw-literal
+            throw thrown;
           },
         });
         t.fail('expected instrumentSync to throw');

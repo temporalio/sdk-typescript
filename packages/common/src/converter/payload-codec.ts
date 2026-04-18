@@ -1,4 +1,4 @@
-import { Payload } from '../interfaces';
+import type { Payload } from '../interfaces';
 
 /**
  * `PayloadCodec` is an optional step that happens between the wire and the {@link PayloadConverter}:

@@ -1,5 +1,5 @@
-import { WorkflowHandle } from '@temporalio/client';
-import { QueryDefinition } from '@temporalio/common';
+import type { WorkflowHandle } from '@temporalio/client';
+import type { QueryDefinition } from '@temporalio/common';
 import { Context } from '@temporalio/activity';
 
 function getSchedulingWorkflowHandle(): WorkflowHandle {

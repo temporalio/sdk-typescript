@@ -1,9 +1,10 @@
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { AsyncCompletionClient } from './async-completion-client';
-import { BaseClient, BaseClientOptions, defaultBaseClientOptions, LoadedWithDefaults } from './base-client';
-import { ClientInterceptors } from './interceptors';
+import type { BaseClientOptions, LoadedWithDefaults } from './base-client';
+import { BaseClient, defaultBaseClientOptions } from './base-client';
+import type { ClientInterceptors } from './interceptors';
 import { ScheduleClient } from './schedule-client';
-import { QueryRejectCondition, WorkflowService } from './types';
+import type { QueryRejectCondition, WorkflowService } from './types';
 import { WorkflowClient } from './workflow-client';
 import { TaskQueueClient } from './task-queue-client';
 

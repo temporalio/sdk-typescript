@@ -1,13 +1,14 @@
 import { setTimeout as setTimeoutPromise } from 'timers/promises';
 import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
-import { ExecutionContext } from 'ava';
+import type { ExecutionContext } from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { Client, WorkflowClient, WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
+import type { WorkflowHandle } from '@temporalio/client';
+import { Client, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { CancelReason } from '@temporalio/worker/lib/activity';
+import type { CancelReason } from '@temporalio/worker/lib/activity';
 import * as workflow from '@temporalio/workflow';
 import {
   condition,
@@ -20,15 +21,14 @@ import {
   setHandler,
 } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
+import type { ActivityCancellationDetails, SearchAttributePair } from '@temporalio/common';
 import {
-  ActivityCancellationDetails,
   ActivityCancellationType,
   ApplicationFailure,
   defineSearchAttributeKey,
   encodingKeys,
   METADATA_ENCODING_KEY,
   RawValue,
-  SearchAttributePair,
   SearchAttributeType,
   TypedSearchAttributes,
   WorkflowExecutionAlreadyStartedError,
@@ -42,9 +42,11 @@ import { encode } from '@temporalio/common/lib/encoding';
 import { signalSchedulingWorkflow } from './activities/helpers';
 import { activityStartedSignal } from './workflows/definitions';
 import * as workflows from './workflows';
-import { Context, createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
+import type { Context } from './helpers-integration';
+import { createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
 import { overrideSdkInternalFlag } from './mock-internal-flags';
-import { ActivityState, heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
+import type { ActivityState } from './activities/heartbeat-cancellation-details';
+import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
 import { loadHistory, RUN_TIME_SKIPPING_TESTS, waitUntil } from './helpers';
 
 const test = makeTestFunction({

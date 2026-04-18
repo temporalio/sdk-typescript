@@ -1,27 +1,22 @@
 import { randomUUID } from 'crypto';
-import { ExecutionContext } from 'ava';
-import { ScheduleOptionsAction, WorkflowExecutionDescription } from '@temporalio/client';
-import {
-  TypedSearchAttributes,
-  SearchAttributes,
-  SearchAttributePair,
-  SearchAttributeType,
-  SearchAttributeUpdatePair,
-  defineSearchAttributeKey,
-} from '@temporalio/common';
+import type { ExecutionContext } from 'ava';
+import type { ScheduleOptionsAction, WorkflowExecutionDescription } from '@temporalio/client';
+import type { SearchAttributes, SearchAttributePair, SearchAttributeUpdatePair } from '@temporalio/common';
+import { TypedSearchAttributes, SearchAttributeType, defineSearchAttributeKey } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
+import type { WorkflowInfo } from '@temporalio/workflow';
 import {
   condition,
   defineQuery,
   defineSignal,
   setHandler,
   upsertSearchAttributes,
-  WorkflowInfo,
   workflowInfo,
 } from '@temporalio/workflow';
 import { encodeSearchAttributeIndexedValueType } from '@temporalio/common/lib/search-attributes';
 import { waitUntil } from './helpers';
-import { Context, helpers, makeTestFunction } from './helpers-integration';
+import type { Context } from './helpers-integration';
+import { helpers, makeTestFunction } from './helpers-integration';
 
 const test = makeTestFunction({
   workflowsPath: __filename,

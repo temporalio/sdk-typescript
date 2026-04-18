@@ -2,7 +2,8 @@ import { readFileSync } from 'fs';
 import arg from 'arg';
 import { Connection } from '@temporalio/client';
 import { createNamespace, waitOnNamespace } from '@temporalio/testing/lib/utils';
-import { SetupArgSpec, setupArgSpec, getRequired } from './args';
+import type { SetupArgSpec } from './args';
+import { setupArgSpec, getRequired } from './args';
 
 async function main() {
   const args = arg<SetupArgSpec>(setupArgSpec);

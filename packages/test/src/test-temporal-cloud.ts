@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import test from 'ava';
-import { Client, Connection, Metadata } from '@temporalio/client';
+import type { Metadata } from '@temporalio/client';
+import { Client, Connection } from '@temporalio/client';
 import { CloudOperationsClient, CloudOperationsConnection } from '@temporalio/cloud';
 import { NativeConnection, Worker } from '@temporalio/worker';
 import * as workflows from './workflows';
