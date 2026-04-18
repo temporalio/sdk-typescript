@@ -66,7 +66,7 @@ test.serial('Buffered Metrics - Exporting buffered metrics from Core works prope
     histogramFloat.record(0.99);
 
     // UpDownCounter (events 14-16)
-    const upDownCounter = meter.createUpDownCounter(
+    const upDownCounter = meter.createUpDownCounter!(
       'my-up-down-counter',
       'my-up-down-counter-unit',
       'my-up-down-counter-description'
@@ -147,7 +147,7 @@ test.serial('Buffered Metrics - Exporting buffered metrics from Core works prope
 
     t.deepEqual(updates[14].metric, {
       name: 'my-up-down-counter',
-      kind: 'up_down_counter',
+      kind: 'up-down-counter',
       valueType: 'int',
       unit: 'my-up-down-counter-unit',
       description: 'my-up-down-counter-description',

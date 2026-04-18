@@ -30,11 +30,6 @@ export class RuntimeMetricMeter implements MetricMeter {
     return new RuntimeMetricCounter(nativeMetric, name, unit, description);
   }
 
-  createUpDownCounter(name: string, unit: string = '', description: string = ''): MetricUpDownCounter {
-    const nativeMetric = native.newMetricUpDownCounter(this.runtime, name, unit, description);
-    return new RuntimeMetricUpDownCounter(nativeMetric, name, unit, description);
-  }
-
   createHistogram(
     name: string,
     valueType: NumericMetricValueType = 'int',
@@ -71,6 +66,11 @@ export class RuntimeMetricMeter implements MetricMeter {
     }
   }
 
+  createUpDownCounter(name: string, unit: string = '', description: string = ''): MetricUpDownCounter {
+    const nativeMetric = native.newMetricUpDownCounter(this.runtime, name, unit, description);
+    return new RuntimeMetricUpDownCounter(nativeMetric, name, unit, description);
+  }
+
   withTags(_extraTags: MetricTags): MetricMeter {
     // Tags composition is handled by a MetricMeterWithComposedTags wrapper over this one
     throw new Error('withTags is not supported directly on RuntimeMetricMeter');
@@ -102,7 +102,7 @@ class RuntimeMetricCounter implements MetricCounter {
 }
 
 class RuntimeMetricUpDownCounter implements MetricUpDownCounter {
-  public readonly kind = 'up_down_counter';
+  public readonly kind = 'up-down-counter';
   public readonly valueType = 'int';
 
   public constructor(

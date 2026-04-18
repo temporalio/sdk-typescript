@@ -113,7 +113,7 @@ export type NumericMetricValueType = 'int' | 'float';
  *
  * @experimental The Metric API is an experimental feature and may be subject to change.
  */
-export type MetricKind = 'counter' | 'histogram' | 'gauge' | 'up_down_counter';
+export type MetricKind = 'counter' | 'histogram' | 'gauge' | 'up-down-counter';
 
 /**
  * A metric that supports adding values as a counter.
@@ -211,7 +211,7 @@ export interface MetricUpDownCounter extends Metric {
    */
   withTags(tags: MetricTags): MetricUpDownCounter;
 
-  kind: 'up_down_counter';
+  kind: 'up-down-counter';
   valueType: 'int';
 }
 
@@ -288,7 +288,7 @@ class NoopMetricMeter implements MetricMeter {
       unit,
       description,
 
-      kind: 'up_down_counter',
+      kind: 'up-down-counter',
       valueType: 'int',
 
       add(_value, _extraTags) {},
@@ -378,6 +378,8 @@ export class MetricMeterWithComposedTags implements MetricMeter {
   }
 
   createUpDownCounter(name: string, unit?: string, description?: string): MetricUpDownCounter {
+    // FIXME: Remove this guard once up-down-counter support is complete on all MetricMeter
+    // implementations and `createUpDownCounter` is no longer optional on MetricMeter.
     if (!this.parentMeter.createUpDownCounter) {
       throw new Error('createUpDownCounter is not supported by the underlying meter');
     }
@@ -507,7 +509,7 @@ class MetricGaugeWithComposedTags implements MetricGauge {
  * @hidden
  */
 class MetricUpDownCounterWithComposedTags implements MetricUpDownCounter {
-  public readonly kind = 'up_down_counter';
+  public readonly kind = 'up-down-counter';
   public readonly valueType = 'int';
 
   constructor(

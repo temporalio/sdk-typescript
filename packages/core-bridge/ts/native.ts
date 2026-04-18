@@ -573,6 +573,6 @@ export interface BufferedMetric {
   valueType: BufferedMetricValueType;
 }
 
-export type BufferedMetricKind = 'counter' | 'histogram' | 'gauge' | 'up_down_counter';
+export type BufferedMetricKind = 'counter' | 'histogram' | 'gauge' | 'up-down-counter';
 
 export type BufferedMetricValueType = 'int' | 'float';

@@ -38,6 +38,7 @@ pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<
     cx.export_function("newMetricHistogramF64", new_metric_histogram_f64)?;
     cx.export_function("newMetricGauge", new_metric_gauge)?;
     cx.export_function("newMetricGaugeF64", new_metric_gauge_f64)?;
+    cx.export_function("newMetricUpDownCounter", new_metric_up_down_counter)?;
 
     cx.export_function("addMetricCounterValue", add_metric_counter_value)?;
     cx.export_function("recordMetricHistogramValue", record_metric_histogram_value)?;
@@ -47,7 +48,6 @@ pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<
     )?;
     cx.export_function("setMetricGaugeValue", set_metric_gauge_value)?;
     cx.export_function("setMetricGaugeF64Value", set_metric_gauge_f64_value)?;
-    cx.export_function("newMetricUpDownCounter", new_metric_up_down_counter)?;
     cx.export_function("addMetricUpDownCounterValue", add_metric_up_down_counter_value)?;
 
     Ok(())
@@ -581,24 +581,12 @@ impl TryIntoJs for BufferedMetricAttributesRef {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(TryIntoJs, Clone, Debug)]
 enum MetricKind {
     Counter,
     Gauge,
     Histogram,
     UpDownCounter,
-}
-
-impl TryIntoJs for MetricKind {
-    type Output = JsString;
-    fn try_into_js<'cx>(self, cx: &mut impl Context<'cx>) -> JsResult<'cx, Self::Output> {
-        Ok(match self {
-            Self::Counter => cx.string("counter"),
-            Self::Gauge => cx.string("gauge"),
-            Self::Histogram => cx.string("histogram"),
-            Self::UpDownCounter => cx.string("up_down_counter"),
-        })
-    }
 }
 
 #[derive(TryIntoJs, Clone, Debug)]
