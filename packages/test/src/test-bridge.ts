@@ -314,6 +314,8 @@ const GenericConfigs = {
       maxActivitiesPerSecond: null,
       shutdownGraceTime: 1000,
       plugins: [],
+      workflowFailureErrors: [],
+      workflowTypesToFailureErrors: {},
     } satisfies native.WorkerOptions,
   },
   ephemeralServer: {

@@ -245,6 +245,8 @@ export interface WorkerOptions {
   maxActivitiesPerSecond: Option<number>;
   shutdownGraceTime: number;
   plugins: string[];
+  workflowFailureErrors: WorkflowErrorType[];
+  workflowTypesToFailureErrors: Record<string, WorkflowErrorType[]>;
 }
 
 export type PollerBehavior =
@@ -271,6 +273,8 @@ export type WorkerDeploymentVersion = {
 };
 
 export type VersioningBehavior = { type: 'pinned' } | { type: 'auto-upgrade' };
+
+export type WorkflowErrorType = { type: 'nondeterminism' };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Worker Tuner
