@@ -38,8 +38,12 @@ peerDependencyRules:
 
 overrides:
   'minimatch@>=7.0.0 <7.4.8': '>=7.4.8'
-  serialize-javascript: '>=7.0.3'
+  serialize-javascript: '>=7.0.5'
   handlebars: '>=4.7.9'
+  # verdaccio pins lodash to exactly 4.17.21; force patched version
+  'lodash@<4.18.0': '>=4.18.0'
+  # express 4.21.2 pins path-to-regexp to exactly 0.1.12; force patched 0.1.x
+  'path-to-regexp@<0.1.13': '^0.1.13'
 
 patchedDependencies:
   protobufjs@7.5.5: patches/protobufjs@7.5.5.patch

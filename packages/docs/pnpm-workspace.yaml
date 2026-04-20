@@ -5,3 +5,12 @@ ignoreScripts: true
 
 # Minimum release age, in minutes (2 weeks)
 minimumReleaseAge: 20160
+
+overrides:
+  qs: ^6.14.1
+  # Bumped for https://github.com/advisories/GHSA-xxjr-mmjv-4gpg
+  'lodash': '>=4.18.1'
+  serialize-javascript: '>=7.0.5'
+  brace-expansion: '>=5.0.5'
+  # express 4.21.2 pins path-to-regexp to exactly 0.1.12; force patched 0.1.x
+  'path-to-regexp@<0.1.13': '^0.1.13'
