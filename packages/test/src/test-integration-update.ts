@@ -10,7 +10,7 @@ import {
 } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { temporal } from '@temporalio/proto';
-import { LogEntry } from '@temporalio/worker';
+import type { LogEntry } from '@temporalio/worker';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { signalUpdateOrderingWorkflow } from './workflows/signal-update-ordering';
 import { signalsActivitiesTimersPromiseOrdering } from './workflows/signals-timers-activities-order';
@@ -163,6 +163,36 @@ test('updateWithStart failure: invalid argument', async (t) => {
     const err = await t.throwsAsync(promise);
     t.true(isGrpcServiceError(err) && err.code === grpcStatus.INVALID_ARGUMENT);
     t.true(err?.message.startsWith('WorkflowId length exceeds limit.'));
+  }
+});
+
+// Regression test for https://github.com/temporalio/sdk-typescript/issues/1960
+// when executeUpdateWithStart fails at the transport level, workflowHandlePromise is
+// rejected. If the caller never awaits workflowHandle(), that rejection was unhandled,
+// causing Node 15+ to terminate the process.
+test('executeUpdateWithStart: no unhandledRejection when caller ignores workflowHandle', async (t) => {
+  const startOp = new WithStartWorkflowOperation(workflowWithUpdates, {
+    workflowId: randomUUID().repeat(77), // too long → INVALID_ARGUMENT before any response
+    taskQueue: 'does-not-exist',
+    workflowIdConflictPolicy: 'FAIL',
+  });
+
+  const unhandledRejections: unknown[] = [];
+  const onUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason);
+  process.on('unhandledRejection', onUnhandledRejection);
+  try {
+    // Intentionally do NOT await startOp.workflowHandle() — this is the failing scenario.
+    await t.throwsAsync(
+      t.context.env.client.workflow.executeUpdateWithStart(update, {
+        args: ['1'],
+        startWorkflowOperation: startOp,
+      })
+    );
+    // Flush the event loop so any pending unhandledRejection event would have fired.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    t.deepEqual(unhandledRejections, []);
+  } finally {
+    process.removeListener('unhandledRejection', onUnhandledRejection);
   }
 });
 

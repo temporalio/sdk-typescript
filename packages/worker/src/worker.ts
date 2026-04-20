@@ -4,49 +4,36 @@ import * as path from 'node:path';
 import * as vm from 'node:vm';
 import { EventEmitter, on } from 'node:events';
 import { setTimeout as setTimeoutCallback } from 'node:timers';
-import {
-  BehaviorSubject,
-  EMPTY,
-  from,
-  lastValueFrom,
-  merge,
-  MonoTypeOperatorFunction,
-  Observable,
-  OperatorFunction,
-  pipe,
-  race,
-  Subject,
-} from 'rxjs';
+import type { MonoTypeOperatorFunction, Observable, OperatorFunction } from 'rxjs';
+import { BehaviorSubject, EMPTY, from, lastValueFrom, merge, pipe, race, Subject } from 'rxjs';
 import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
 import type { RawSourceMap } from 'source-map';
 import * as nexus from 'nexus-rpc';
-import { Info as ActivityInfo } from '@temporalio/activity';
+import type { Info as ActivityInfo } from '@temporalio/activity';
+import type { LoadedDataConverter, Payload, MetricMeter } from '@temporalio/common';
 import {
   DataConverter,
   decompileRetryPolicy,
   defaultPayloadConverter,
   IllegalStateError,
-  LoadedDataConverter,
   SdkComponent,
-  Payload,
   ApplicationFailure,
   ensureApplicationFailure,
   TypedSearchAttributes,
   decodePriority,
   CancelledFailure,
-  MetricMeter,
   ActivityCancellationDetails,
 } from '@temporalio/common';
+import type { Decoded } from '@temporalio/common/lib/internal-non-workflow';
 import {
   decodeArrayFromPayloads,
-  Decoded,
   decodeFromPayloadsAtIndex,
   encodeErrorToFailure,
   encodeToPayload,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
+import type { Duration } from '@temporalio/common/lib/time';
 import {
-  Duration,
   msToNumber,
   optionalTsToDate,
   optionalTsToMs,
@@ -55,53 +42,51 @@ import {
   tsToMs,
 } from '@temporalio/common/lib/time';
 import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
-import { errorMessage, NonNullableObject, OmitFirstParam } from '@temporalio/common/lib/type-helpers';
+import type { NonNullableObject, OmitFirstParam } from '@temporalio/common/lib/type-helpers';
+import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
 import { native } from '@temporalio/core-bridge';
 import { Client } from '@temporalio/client';
-import { coresdk, temporal } from '@temporalio/proto';
+import type { temporal } from '@temporalio/proto';
+import { coresdk } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/lib/continue-as-new';
-import { Activity, CancelReason, activityLogAttributes } from './activity';
-import { extractNativeClient, extractReferenceHolders, InternalNativeConnection, NativeConnection } from './connection';
-import { ActivityExecuteInput } from './interceptors';
-import { Logger } from './logger';
+import type { CancelReason } from './activity';
+import { Activity, activityLogAttributes } from './activity';
+import type { NativeConnection } from './connection';
+import { extractNativeClient, extractReferenceHolders, InternalNativeConnection } from './connection';
+import type { ActivityExecuteInput } from './interceptors';
+import type { Logger } from './logger';
 import pkg from './pkg';
-import {
-  EvictionReason,
-  evictionReasonToReplayError,
-  RemoveFromCache,
-  ReplayHistoriesIterable,
-  ReplayResult,
-} from './replay';
-import { History, Runtime } from './runtime';
-import { CloseableGroupedObservable, closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
+import type { RemoveFromCache, ReplayHistoriesIterable, ReplayResult } from './replay';
+import { EvictionReason, evictionReasonToReplayError } from './replay';
+import type { History } from './runtime';
+import { Runtime } from './runtime';
+import type { CloseableGroupedObservable } from './rxutils';
+import { closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
 import {
   byteArrayToBuffer,
   convertDeploymentVersion,
   convertToParentWorkflowType,
   convertToRootWorkflowType,
 } from './utils';
-import {
+import type {
   CompiledWorkerOptions,
   CompiledWorkerOptionsWithBuildId,
-  compileWorkerOptions,
-  isCodeBundleOption,
-  isPathBundleOption,
   ReplayWorkerOptions,
-  toNativeWorkerOptions,
   WorkerOptions,
   WorkerPlugin,
   WorkflowBundle,
 } from './worker-options';
+import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeWorkerOptions } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
 import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
-import { Workflow, WorkflowCreator } from './workflow/interface';
+import type { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
-import { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
+import type { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
 import {
   CombinedWorkerRunError,
   GracefulShutdownPeriodExpiredError,
@@ -797,6 +782,7 @@ export class Worker {
         failureConverterPath: compiledOptions.dataConverter?.failureConverterPath,
         payloadConverterPath: compiledOptions.dataConverter?.payloadConverterPath,
         ignoreModules: compiledOptions.bundlerOptions?.ignoreModules,
+        preloadModules: compiledOptions.bundlerOptions?.preloadModules,
         webpackConfigHook: compiledOptions.bundlerOptions?.webpackConfigHook,
         plugins: compiledOptions.plugins,
       });
@@ -1275,7 +1261,8 @@ export class Worker {
               if (task.task == null) {
                 throw new IllegalStateError(`Got empty task for task variant with token: ${base64TaskToken}`);
               }
-              return await this.handleNexusRunTask(task.task, base64TaskToken, protobufEncodedTask);
+              const requestDeadline = task.requestDeadline != null ? tsToDate(task.requestDeadline) : undefined;
+              return await this.handleNexusRunTask(task.task, base64TaskToken, protobufEncodedTask, requestDeadline);
             }
             case 'cancelTask': {
               const nexusHandler = this.taskTokenToNexusHandler.get(base64TaskToken);
@@ -1305,7 +1292,8 @@ export class Worker {
   private async handleNexusRunTask(
     task: temporal.api.workflowservice.v1.IPollNexusTaskQueueResponse,
     base64TaskToken: string,
-    protobufEncodedTask: ArrayBuffer
+    protobufEncodedTask: ArrayBuffer,
+    requestDeadline: Date | undefined
   ) {
     const { taskToken } = task;
     if (taskToken == null) {
@@ -1320,7 +1308,7 @@ export class Worker {
         taskToken,
         this.options.namespace,
         this.options.taskQueue,
-        constructNexusOperationContext(task.request, abortController.signal),
+        constructNexusOperationContext(task.request, abortController.signal, requestDeadline),
         this.client!, // Must be defined if we are handling Nexus tasks.
         abortController,
         this.options.nexusServiceHandlers!, // Must be defined if we are handling Nexus tasks.
@@ -1347,7 +1335,7 @@ export class Worker {
         e instanceof nexus.HandlerError ? e : new nexus.HandlerError('INTERNAL', undefined, { cause: e });
       return {
         taskToken,
-        error: await handlerErrorToProto(this.options.loadedDataConverter, handlerError),
+        failure: await handlerErrorToProto(this.options.loadedDataConverter, handlerError),
       };
     }
   }
@@ -1472,7 +1460,7 @@ export class Worker {
       if (error instanceof UnexpectedError) {
         // Something went wrong in the workflow; we'll do our best to shut the Worker
         // down gracefully, but then we'll need to terminate the Worker ASAP.
-        logMessage = 'An unexpected error occured while processing Workflow Activation. Initiating Worker shutdown.';
+        logMessage = 'An unexpected error occurred while processing Workflow Activation. Initiating Worker shutdown.';
         this.unexpectedErrorSubject.error(error);
       }
 

@@ -1,6 +1,6 @@
-import * as otel from '@opentelemetry/api';
-import * as tracing from '@opentelemetry/sdk-trace-base';
-import { InstrumentationLibrary } from '@opentelemetry/core'; // eslint-disable @typescript-eslint/no-deprecated
+import type * as otel from '@opentelemetry/api';
+import type * as tracing from '@opentelemetry/sdk-trace-base';
+import type { InstrumentationLibrary } from '@opentelemetry/core'; // eslint-disable @typescript-eslint/no-deprecated
 import type { Sink, Sinks } from '@temporalio/workflow';
 
 /**
@@ -133,6 +133,14 @@ export enum SpanName {
    * Nexus operation is started
    */
   NEXUS_OPERATION_START = 'StartNexusOperation',
+  /**
+   * Nexus operation is executing
+   */
+  NEXUS_START_OPERATION_EXECUTE = 'RunStartNexusOperation',
+  /**
+   * Nexus operation cancel is executing
+   */
+  NEXUS_CANCEL_OPERATION_EXECUTE = 'RunCancelNexusOperation',
 }
 
 export const SPAN_DELIMITER = ':';

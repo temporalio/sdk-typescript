@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/cloud",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "description": "Temporal.io SDK — Temporal Cloud Client",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -21,7 +21,7 @@
     "abort-controller": "^3.0.0"
   },
   "devDependencies": {
-    "protobufjs": "^7.2.5"
+    "protobufjs": "^7.5.5"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

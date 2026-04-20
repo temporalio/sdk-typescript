@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/client",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "description": "Temporal.io SDK Client sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@types/uuid": "^9.0.7",
-    "protobufjs": "^7.2.5"
+    "protobufjs": "^7.5.5"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

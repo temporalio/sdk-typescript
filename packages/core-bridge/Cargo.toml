@@ -39,7 +39,9 @@ temporalio-sdk-core = { version = "*", path = "./sdk-core/crates/sdk-core", feat
   "ephemeral-server",
 ] }
 temporalio-client = { version = "*", path = "./sdk-core/crates/client" }
-temporalio-common = { version = "*", path = "./sdk-core/crates/common" }
+temporalio-common = { version = "*", path = "./sdk-core/crates/common", features = [
+  "otel",
+] }
 thiserror = "2"
 tokio = "1.13"
 tokio-stream = "0.1"

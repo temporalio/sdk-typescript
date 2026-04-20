@@ -1,28 +1,26 @@
 import { randomUUID } from 'node:crypto';
-import anyTest, { TestFn } from 'ava';
-import Long from 'long';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import * as nexus from 'nexus-rpc';
-import * as protoJsonSerializer from 'proto3-json-serializer';
+import { status as grpcStatus } from '@grpc/grpc-js';
 import * as temporalnexus from '@temporalio/nexus';
-import * as temporalclient from '@temporalio/client';
+import type * as temporalclient from '@temporalio/client';
 import * as root from '@temporalio/proto';
 import * as testing from '@temporalio/testing';
-import { DefaultLogger, LogEntry, Runtime, Worker } from '@temporalio/worker';
+import type { LogEntry } from '@temporalio/worker';
+import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
+import type { ProtoFailure } from '@temporalio/common';
 import {
   ApplicationFailure,
   CancelledFailure,
   defaultFailureConverter,
   defaultPayloadConverter,
-  SdkComponent,
+  defaultDataConverter,
 } from '@temporalio/common';
-import {
-  convertWorkflowEventLinkToNexusLink,
-  convertNexusLinkToWorkflowEventLink,
-} from '@temporalio/nexus/lib/link-converter';
-import { isBun, cleanStackTrace, compareStackTrace, getRandomPort } from './helpers';
+import { ServiceError } from '@temporalio/client';
+import { coerceToHandlerError, operationErrorToProto } from '@temporalio/worker/lib/nexus/conversions';
 
 export interface Context {
-  httpPort: number;
   taskQueue: string;
   endpoint: testing.NexusEndpointIdentifier;
   env: testing.TestWorkflowEnvironment;
@@ -39,15 +37,9 @@ test.before(async (t) => {
   });
 
   Runtime.install({ logger });
-  t.context.httpPort = await getRandomPort();
   t.context.env = await testing.TestWorkflowEnvironment.createLocal({
     server: {
       extraArgs: [
-        '--http-port',
-        `${t.context.httpPort}`,
-        // SDK tests use arbitrary callback URLs, permit that on the server.
-        '--dynamic-config-value',
-        'component.callbacks.allowedAddresses=[{"Pattern":"*","AllowInsecure":true}]',
         // TODO: remove this config when it becomes the default on the server.
         '--dynamic-config-value',
         'history.enableRequestIdRefLinks=true',
@@ -74,682 +66,6 @@ test.beforeEach(async (t) => {
 test.afterEach(async (t) => {
   const { env, endpoint } = t.context;
   await env.deleteNexusEndpoint(endpoint);
-});
-
-test('sync Operation Handler happy path', async (t) => {
-  const { env, taskQueue, httpPort, endpoint } = t.context;
-  const endpointId = endpoint.id;
-
-  const testServiceHandler = nexus.serviceHandler(
-    nexus.service('testService', {
-      testSyncOp: nexus.operation<string, string>(),
-    }),
-    {
-      async testSyncOp(ctx, input) {
-        // Testing headers normalization to lower case.
-        if (ctx.headers.Test !== 'true') {
-          throw new nexus.HandlerError('BAD_REQUEST', 'expected test header to be set to true');
-        }
-        // Echo links back to the caller.
-        ctx.outboundLinks.push(...ctx.inboundLinks);
-        return input;
-      },
-    }
-  );
-
-  const w = await Worker.create({
-    connection: env.nativeConnection,
-    namespace: env.namespace,
-    taskQueue,
-    nexusServices: [testServiceHandler],
-  });
-
-  await w.runUntil(async () => {
-    const res = await fetch(
-      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
-      {
-        method: 'POST',
-        body: JSON.stringify('hello'),
-        headers: {
-          'Content-Type': 'application/json',
-          Test: 'true',
-          'Nexus-Link': '<http://test/>; type="test"',
-        },
-      }
-    );
-    t.true(res.ok);
-    const output = await res.json();
-    t.is(output, 'hello');
-    t.is(res.headers.get('Nexus-Link'), '<http://test/>; type="test"');
-  });
-});
-
-test('Operation Handler cancellation', async (t) => {
-  const { env, taskQueue, httpPort, endpoint } = t.context;
-  const endpointId = endpoint.id;
-  let p: Promise<never> | undefined;
-
-  const w = await Worker.create({
-    connection: env.nativeConnection,
-    namespace: env.namespace,
-    taskQueue,
-    nexusServices: [
-      nexus.serviceHandler(
-        nexus.service('testService', {
-          testSyncOp: nexus.operation<void, void>(),
-        }),
-        {
-          async testSyncOp(ctx) {
-            p = new Promise((_, reject) => {
-              ctx.abortSignal.onabort = () => {
-                reject(ctx.abortSignal.reason);
-              };
-              // never resolve this promise.
-            });
-            return await p;
-          },
-        }
-      ),
-    ],
-  });
-
-  await w.runUntil(async () => {
-    const res = await fetch(
-      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
-      {
-        method: 'POST',
-        headers: {
-          'Request-Timeout': '2s',
-        },
-      }
-    );
-    t.is(res.status, 520 /* UPSTREAM_TIMEOUT */);
-    // Give time for the worker to actually process the timeout; otherwise the Operation
-    // may end up being cancelled because of the worker shutdown rather than the timeout.
-    await Promise.race([
-      p?.catch(() => undefined),
-      new Promise((resolve) => {
-        setTimeout(resolve, 2000).unref();
-      }),
-    ]);
-  });
-  t.truthy(p);
-  await t.throwsAsync(p!, { instanceOf: CancelledFailure, message: 'TIMED_OUT' });
-});
-
-test('async Operation Handler happy path', async (t) => {
-  const { env, taskQueue, httpPort, endpoint } = t.context;
-  const endpointId = endpoint.id;
-  const requestId = 'test-' + randomUUID();
-
-  const w = await Worker.create({
-    connection: env.nativeConnection,
-    namespace: env.namespace,
-    taskQueue,
-    nexusServices: [
-      nexus.serviceHandler(
-        nexus.service('testService', {
-          // Also test custom Operation name.
-          testAsyncOp: nexus.operation<string, string>({ name: 'async-op' }),
-        }),
-        {
-          testAsyncOp: {
-            async start(ctx, input): Promise<nexus.HandlerStartOperationResult<string>> {
-              if (input !== 'hello') {
-                throw new nexus.HandlerError('BAD_REQUEST', 'expected input to equal "hello"');
-              }
-              if (ctx.headers.test !== 'true') {
-                throw new nexus.HandlerError('BAD_REQUEST', 'expected test header to be set to true');
-              }
-              if (!ctx.requestId) {
-                throw new nexus.HandlerError('BAD_REQUEST', 'expected requestId to be set');
-              }
-              return nexus.HandlerStartOperationResult.async(ctx.requestId);
-            },
-            async cancel(ctx, token) {
-              if (ctx.headers.test !== 'true') {
-                throw new nexus.HandlerError('BAD_REQUEST', 'expected test header to be set to true');
-              }
-              if (token !== requestId) {
-                throw new nexus.HandlerError('BAD_REQUEST', 'expected token to equal original requestId');
-              }
-            },
-            async getInfo() {
-              throw new Error('not implemented');
-            },
-            async getResult() {
-              throw new Error('not implemented');
-            },
-          },
-        }
-      ),
-    ],
-  });
-
-  await w.runUntil(async () => {
-    let res = await fetch(`http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/async-op`, {
-      method: 'POST',
-      body: JSON.stringify('hello'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Nexus-Request-Id': requestId,
-        Test: 'true',
-      },
-    });
-    t.true(res.ok);
-    const output = (await res.json()) as { token: string; state: nexus.OperationState };
-
-    t.is(output.token, requestId);
-    t.is(output.state, 'running');
-
-    res = await fetch(
-      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/async-op/cancel`,
-      {
-        method: 'POST',
-        headers: {
-          'Nexus-Operation-Token': output.token,
-          Test: 'true',
-        },
-      }
-    );
-    t.true(res.ok);
-  });
-});
-
-test('start Operation Handler errors', async (t) => {
-  const { env, taskQueue, httpPort, endpoint } = t.context;
-  const endpointId = endpoint.id;
-
-  const w = await Worker.create({
-    connection: env.nativeConnection,
-    namespace: env.namespace,
-    taskQueue,
-    nexusServices: [
-      nexus.serviceHandler(
-        nexus.service('testService', {
-          op: nexus.operation<string, string>(),
-        }),
-        {
-          async op(_ctx, outcome) {
-            switch (outcome) {
-              case 'NonRetryableApplicationFailure':
-                throw ApplicationFailure.create({
-                  nonRetryable: true,
-                  message: 'deliberate failure',
-                  details: ['details'],
-                });
-              case 'NonRetryableInternalHandlerError':
-                throw new nexus.HandlerError('INTERNAL', 'deliberate error', { retryableOverride: false });
-              case 'OperationError':
-                throw new nexus.OperationError('failed', 'deliberate error');
-            }
-            throw new nexus.HandlerError('BAD_REQUEST', 'invalid outcome requested');
-          },
-        }
-      ),
-    ],
-  });
-
-  await w.runUntil(async () => {
-    {
-      const res = await fetch(`http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op`, {
-        method: 'POST',
-        body: JSON.stringify('NonRetryableApplicationFailure'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      t.is(res.status, 500);
-      const failure = (await res.json()) as any;
-      const failureType = (root as any).lookupType('temporal.api.failure.v1.Failure');
-      const temporalFailure = protoJsonSerializer.fromProto3JSON(failureType, failure.details);
-      const err = defaultFailureConverter.failureToError(temporalFailure as any, defaultPayloadConverter);
-      delete failure.details;
-
-      t.deepEqual(failure, {
-        message: 'deliberate failure',
-        metadata: {
-          type: 'temporal.api.failure.v1.Failure',
-        },
-      });
-      t.true(err instanceof ApplicationFailure);
-      t.is(err.message, '');
-      compareStackTrace(
-        t,
-        cleanStackTrace(err.stack!),
-        isBun
-          ? `ApplicationFailure: deliberate failure
-    at create (common/lib/failure.js)
-    at op (test/lib/test-nexus-handler.js)
-    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)`
-          : `ApplicationFailure: deliberate failure
-    at $CLASS.create (common/src/failure.ts)
-    at op (test/src/test-nexus-handler.ts)
-    at Object.start (nexus-rpc/src/handler/operation-handler.ts)`
-      );
-      t.deepEqual((err as ApplicationFailure).details, ['details']);
-      t.is((err as ApplicationFailure).failure?.source, 'TypeScriptSDK');
-    }
-    {
-      const res = await fetch(`http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op`, {
-        method: 'POST',
-        body: JSON.stringify('NonRetryableInternalHandlerError'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      t.is(res.status, 500);
-      t.is(res.headers.get('Nexus-Request-Retryable'), 'false');
-      const failure = (await res.json()) as any;
-      const failureType = (root as any).lookupType('temporal.api.failure.v1.Failure');
-      const temporalFailure = protoJsonSerializer.fromProto3JSON(failureType, failure.details);
-      const err = defaultFailureConverter.failureToError(temporalFailure as any, defaultPayloadConverter);
-      delete failure.details;
-      t.true(err instanceof Error);
-      t.is(err.message, '');
-      t.deepEqual(
-        cleanStackTrace(err.stack!),
-        isBun
-          ? `HandlerError: deliberate error
-    at op (test/lib/test-nexus-handler.js)
-    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)`
-          : `HandlerError: deliberate error
-    at op (test/src/test-nexus-handler.ts)
-    at Object.start (nexus-rpc/src/handler/operation-handler.ts)`
-      );
-    }
-    {
-      const res = await fetch(`http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op`, {
-        method: 'POST',
-        body: JSON.stringify('OperationError'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      t.is(res.status, 424 /* As defined in the nexus HTTP spec */);
-      const failure = (await res.json()) as any;
-      const failureType = (root as any).lookupType('temporal.api.failure.v1.Failure');
-      const temporalFailure = protoJsonSerializer.fromProto3JSON(failureType, failure.details);
-      const err = defaultFailureConverter.failureToError(temporalFailure as any, defaultPayloadConverter);
-      delete failure.details;
-      t.true(err instanceof Error);
-      t.is(err.message, '');
-      t.is(res.headers.get('nexus-operation-state'), 'failed');
-      compareStackTrace(
-        t,
-        cleanStackTrace(err.stack!),
-        isBun
-          ? `OperationError: deliberate error
-    at op (test/lib/test-nexus-handler.js)
-    at <anonymous> (nexus-rpc/lib/handler/operation-handler.js)`
-          : `OperationError: deliberate error
-    at op (test/src/test-nexus-handler.ts)
-    at Object.start (nexus-rpc/src/handler/operation-handler.ts)`
-      );
-    }
-    {
-      const res = await fetch(`http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op`, {
-        method: 'POST',
-        body: 'invalid',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      t.is(res.status, 400);
-      const { message } = (await res.json()) as { message: string };
-      // Exact error message varies between Node versions and runtimes.
-      t.regex(message, isBun ? /JSON Parse error:/ : /Unexpected token .* JSON/);
-    }
-  });
-});
-
-test('cancel Operation Handler errors', async (t) => {
-  const { env, taskQueue, httpPort, endpoint } = t.context;
-  const endpointId = endpoint.id;
-
-  const w = await Worker.create({
-    connection: env.nativeConnection,
-    namespace: env.namespace,
-    taskQueue,
-    nexusServices: [
-      nexus.serviceHandler(
-        nexus.service('testService', {
-          op: nexus.operation<void, void>(),
-        }),
-        {
-          op: {
-            async start() {
-              throw new Error('not implemented');
-            },
-            async cancel(ctx, _token) {
-              switch (ctx.headers.outcome) {
-                case 'NonRetryableApplicationFailure':
-                  throw ApplicationFailure.create({
-                    nonRetryable: true,
-                    message: 'deliberate failure',
-                    details: ['details'],
-                  });
-                case 'NonRetryableInternalHandlerError':
-                  throw new nexus.HandlerError('INTERNAL', 'deliberate error', { retryableOverride: false });
-              }
-              throw new nexus.HandlerError('BAD_REQUEST', 'invalid outcome requested');
-            },
-            async getInfo() {
-              throw new Error('not implemented');
-            },
-            async getResult() {
-              throw new Error('not implemented');
-            },
-          },
-        }
-      ),
-    ],
-  });
-
-  await w.runUntil(async () => {
-    {
-      const res = await fetch(
-        `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op/cancel`,
-        {
-          method: 'POST',
-          headers: {
-            'Nexus-Operation-Token': 'token',
-            Outcome: 'NonRetryableApplicationFailure',
-          },
-        }
-      );
-      t.is(res.status, 500);
-      const failure = (await res.json()) as any;
-      const failureType = (root as any).lookupType('temporal.api.failure.v1.Failure');
-      const temporalFailure = protoJsonSerializer.fromProto3JSON(failureType, failure.details);
-      const err = defaultFailureConverter.failureToError(temporalFailure as any, defaultPayloadConverter);
-      delete failure.details;
-
-      t.deepEqual(failure, {
-        message: 'deliberate failure',
-        metadata: {
-          type: 'temporal.api.failure.v1.Failure',
-        },
-      });
-      t.true(err instanceof ApplicationFailure);
-      t.is(err.message, '');
-      compareStackTrace(
-        t,
-        cleanStackTrace(err.stack!),
-        isBun
-          ? `ApplicationFailure: deliberate failure
-    at create (common/lib/failure.js)
-    at cancel (test/lib/test-nexus-handler.js)`
-          : `ApplicationFailure: deliberate failure
-    at $CLASS.create (common/src/failure.ts)
-    at Object.cancel (test/src/test-nexus-handler.ts)`
-      );
-      t.deepEqual((err as ApplicationFailure).details, ['details']);
-      t.is((err as ApplicationFailure).failure?.source, 'TypeScriptSDK');
-    }
-    {
-      const res = await fetch(
-        `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/op/cancel`,
-        {
-          method: 'POST',
-          headers: {
-            'Nexus-Operation-Token': 'token',
-            Outcome: 'NonRetryableInternalHandlerError',
-          },
-        }
-      );
-      t.is(res.status, 500);
-      t.is(res.headers.get('Nexus-Request-Retryable'), 'false');
-      const failure = (await res.json()) as any;
-      const failureType = (root as any).lookupType('temporal.api.failure.v1.Failure');
-      const temporalFailure = protoJsonSerializer.fromProto3JSON(failureType, failure.details);
-      const err = defaultFailureConverter.failureToError(temporalFailure as any, defaultPayloadConverter);
-      delete failure.details;
-      t.true(err instanceof Error);
-      t.is(err.message, '');
-      compareStackTrace(
-        t,
-        cleanStackTrace(err.stack!),
-        isBun
-          ? `HandlerError: deliberate error
-    at cancel (test/lib/test-nexus-handler.js)`
-          : `HandlerError: deliberate error
-    at Object.cancel (test/src/test-nexus-handler.ts)`
-      );
-    }
-  });
-});
-
-test('logger is available in handler context', async (t) => {
-  const { env, taskQueue, httpPort, endpoint, logEntries } = t.context;
-  const endpointId = endpoint.id;
-
-  const w = await Worker.create({
-    connection: env.nativeConnection,
-    namespace: env.namespace,
-    taskQueue,
-    nexusServices: [
-      nexus.serviceHandler(
-        nexus.service('testService', {
-          testSyncOp: nexus.operation<string, string>(),
-        }),
-        {
-          async testSyncOp(_ctx, input) {
-            temporalnexus.log.info('handler ran', { input });
-            return input;
-          },
-        }
-      ),
-    ],
-  });
-
-  await w.runUntil(async () => {
-    const res = await fetch(
-      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
-      {
-        method: 'POST',
-        body: JSON.stringify('hello'),
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
-    t.true(res.ok);
-    const output = await res.json();
-    t.is(output, 'hello');
-  });
-
-  const entries = logEntries.filter(({ meta }) => meta?.sdkComponent === SdkComponent.nexus);
-  t.is(entries.length, 1);
-  t.is(entries[0].message, 'handler ran');
-  t.deepEqual(entries[0].meta, {
-    sdkComponent: SdkComponent.nexus,
-    namespace: env.namespace ?? 'default',
-    service: 'testService',
-    operation: 'testSyncOp',
-    taskQueue,
-    input: 'hello',
-  });
-});
-
-test('getClient is available in handler context', async (t) => {
-  const { env, taskQueue, httpPort, endpoint } = t.context;
-  const endpointId = endpoint.id;
-
-  const w = await Worker.create({
-    connection: env.nativeConnection,
-    namespace: env.namespace,
-    taskQueue,
-    nexusServices: [
-      nexus.serviceHandler(
-        nexus.service('testService', {
-          testSyncOp: nexus.operation<void, boolean>(),
-        }),
-        {
-          async testSyncOp() {
-            const systemInfo = await temporalnexus
-              .getClient()
-              .connection.workflowService.getSystemInfo({ namespace: 'default' });
-            return systemInfo.capabilities?.nexus ?? false;
-          },
-        }
-      ),
-    ],
-  });
-
-  await w.runUntil(async () => {
-    const res = await fetch(
-      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
-      {
-        method: 'POST',
-      }
-    );
-    t.true(res.ok);
-    const output = await res.json();
-    t.is(output, true);
-  });
-});
-
-test('operationInfo is available in handler context', async (t) => {
-  const { env, taskQueue, httpPort, endpoint } = t.context;
-  const endpointId = endpoint.id;
-
-  const w = await Worker.create({
-    connection: env.nativeConnection,
-    namespace: env.namespace,
-    taskQueue,
-    nexusServices: [
-      nexus.serviceHandler(
-        nexus.service('testService', {
-          testSyncOp: nexus.operation<void, { namespace: string; taskQueue: string }>(),
-        }),
-        {
-          async testSyncOp() {
-            const info = temporalnexus.operationInfo();
-            return {
-              namespace: info.namespace,
-              taskQueue: info.taskQueue,
-            };
-          },
-        }
-      ),
-    ],
-  });
-
-  await w.runUntil(async () => {
-    const res = await fetch(
-      `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testSyncOp`,
-      {
-        method: 'POST',
-      }
-    );
-    t.true(res.ok);
-    const output = (await res.json()) as { namespace: string; taskQueue: string };
-    t.is(output.namespace, 'default');
-    t.is(output.taskQueue, taskQueue);
-  });
-});
-
-test('WorkflowRunOperationHandler attaches callback, link, and request ID', async (t) => {
-  const { env, taskQueue, httpPort, endpoint } = t.context;
-  const endpointId = endpoint.id;
-
-  const requestId1 = randomUUID();
-  const requestId2 = randomUUID();
-  const workflowId = t.title;
-
-  const w = await Worker.create({
-    connection: env.nativeConnection,
-    namespace: env.namespace,
-    taskQueue,
-    nexusServices: [
-      nexus.serviceHandler(
-        nexus.service('testService', {
-          testOp: nexus.operation<void, void>(),
-        }),
-        {
-          testOp: new temporalnexus.WorkflowRunOperationHandler<void, void>(async (ctx) => {
-            return await temporalnexus.startWorkflow(ctx, 'some-workflow', {
-              workflowId,
-              // To test attaching multiple callers to the same Operation.
-              workflowIdConflictPolicy: 'USE_EXISTING',
-            });
-          }),
-        }
-      ),
-    ],
-  });
-
-  const callbackURL = 'http://not-found';
-  const workflowLink = {
-    namespace: 'default',
-    workflowId: 'wid',
-    runId: 'runId',
-    eventRef: {
-      eventId: Long.fromNumber(5),
-      eventType: root.temporal.api.enums.v1.EventType.EVENT_TYPE_NEXUS_OPERATION_SCHEDULED,
-    },
-  };
-  const nexusLink = convertWorkflowEventLinkToNexusLink(workflowLink);
-
-  await w.runUntil(async () => {
-    const backlinks = [];
-    for (const requestId of [requestId1, requestId2]) {
-      const endpointUrl = new URL(
-        `http://127.0.0.1:${httpPort}/nexus/endpoints/${endpointId}/services/testService/testOp`
-      );
-      endpointUrl.searchParams.set('callback', callbackURL);
-      const res = await fetch(endpointUrl.toString(), {
-        method: 'POST',
-        body: JSON.stringify('hello'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Nexus-Request-Id': requestId,
-          'Nexus-Callback-Token': 'token',
-          'Nexus-Link': `<${nexusLink.url}>; type="${nexusLink.type}"`,
-        },
-      });
-      t.true(res.ok);
-      const output = (await res.json()) as { token: string; state: nexus.OperationState };
-      t.is(output.state, 'running');
-      console.log(res.headers.get('Nexus-Link'));
-      const m = /<([^>]+)>; type="([^"]+)"/.exec(res.headers.get('Nexus-Link') ?? '');
-      t.truthy(m);
-      const [_, url, type] = m!;
-      const backlink = convertNexusLinkToWorkflowEventLink({ url: new URL(url), type });
-      backlinks.push(backlink);
-    }
-
-    t.is(backlinks[0].eventRef?.eventType, root.temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED);
-    t.deepEqual(backlinks[0].eventRef?.eventId, Long.fromNumber(1));
-    t.is(backlinks[0].workflowId, workflowId);
-
-    console.log(backlinks[1]);
-    t.is(
-      backlinks[1].requestIdRef?.eventType,
-      root.temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_OPTIONS_UPDATED
-    );
-    t.deepEqual(backlinks[1].requestIdRef?.requestId, requestId2);
-    t.is(backlinks[1].workflowId, workflowId);
-  });
-
-  const description = await env.client.workflow.getHandle(workflowId).describe();
-  // Ensure that request IDs are propagated.
-  t.truthy(description.raw.workflowExtendedInfo?.requestIdInfos?.[requestId1]);
-  t.truthy(description.raw.workflowExtendedInfo?.requestIdInfos?.[requestId2]);
-
-  // Ensure that callbacks are attached.
-  t.is(description.raw.callbacks?.length, 2);
-  // Don't bother verifying the second callback.
-  const callback = description.raw.callbacks?.[0].callback;
-  t.is(callback?.nexus?.url, callbackURL);
-  t.deepEqual(callback?.nexus?.header, { token: 'token' });
-  t.is(callback?.links?.length, 1);
-  const actualLink = callback!.links![0]!.workflowEvent;
-
-  t.deepEqual(actualLink?.namespace, workflowLink.namespace);
-  t.deepEqual(actualLink?.workflowId, workflowLink.workflowId);
-  t.deepEqual(actualLink?.runId, workflowLink.runId);
-  t.deepEqual(actualLink?.eventRef?.eventType, workflowLink.eventRef.eventType);
-  t.deepEqual(actualLink?.eventRef?.eventId, workflowLink.eventRef.eventId);
 });
 
 test('WorkflowRunOperationHandler does not accept WorkflowHandle from WorkflowClient.start', async (t) => {
@@ -916,6 +232,224 @@ test('WorkflowRunOperationHandler infers correct output type from typed workflow
 
   // This test only checks for compile-time errors.
   t.pass();
+});
+
+test('HandlerError round-trips losslessly through failure converter via originalFailure', (t) => {
+  const RetryBehavior = root.temporal.api.enums.v1.NexusHandlerErrorRetryBehavior;
+  const cases: { name: string; failure: ProtoFailure }[] = [
+    {
+      name: 'simple HandlerError, no cause, NON_RETRYABLE',
+      failure: {
+        message: 'handler failed',
+        stackTrace: 'at handler (foo.ts:1:1)',
+        source: 'TypeScriptSDK',
+        nexusHandlerFailureInfo: {
+          type: 'INTERNAL',
+          retryBehavior: RetryBehavior.NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_NON_RETRYABLE,
+        },
+      },
+    },
+    {
+      name: 'HandlerError with ApplicationFailure cause',
+      failure: {
+        message: 'handler failed',
+        stackTrace: 'at handler (foo.ts:1:1)',
+        source: 'TypeScriptSDK',
+        nexusHandlerFailureInfo: {
+          type: 'NOT_FOUND',
+          retryBehavior: RetryBehavior.NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_RETRYABLE,
+        },
+        cause: {
+          message: 'app error',
+          stackTrace: 'at doWork (bar.ts:2:2)',
+          source: 'TypeScriptSDK',
+          applicationFailureInfo: {
+            type: 'MyError',
+            nonRetryable: true,
+          },
+        },
+      },
+    },
+    {
+      name: 'HandlerError with nested cause chain',
+      failure: {
+        message: 'handler failed',
+        stackTrace: '',
+        source: 'TypeScriptSDK',
+        nexusHandlerFailureInfo: {
+          type: 'INTERNAL',
+          retryBehavior: RetryBehavior.NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_NON_RETRYABLE,
+        },
+        cause: {
+          message: 'app error',
+          stackTrace: '',
+          source: 'TypeScriptSDK',
+          applicationFailureInfo: {
+            type: 'Wrapper',
+            nonRetryable: false,
+          },
+          cause: {
+            message: 'cancelled',
+            stackTrace: '',
+            source: 'TypeScriptSDK',
+            canceledFailureInfo: {},
+          },
+        },
+      },
+    },
+    {
+      name: 'HandlerError with unspecified retry behavior',
+      failure: {
+        message: 'unknown error',
+        stackTrace: '',
+        source: 'TypeScriptSDK',
+        nexusHandlerFailureInfo: {
+          type: 'UNAVAILABLE',
+          retryBehavior: RetryBehavior.NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_UNSPECIFIED,
+        },
+      },
+    },
+  ];
+
+  for (const { name, failure } of cases) {
+    const error = defaultFailureConverter.failureToError(failure, defaultPayloadConverter);
+    t.true(error instanceof nexus.HandlerError, `${name}: should produce HandlerError`);
+    const roundTripped = defaultFailureConverter.errorToFailure(error, defaultPayloadConverter);
+    t.deepEqual(roundTripped, failure, `${name}: round-tripped ProtoFailure should equal original`);
+  }
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// coerceToHandlerError unit tests
+
+function makeGrpcServiceError(code: number): ServiceError {
+  const grpcError = Object.assign(new Error(`gRPC error ${code}`), {
+    code,
+    details: 'test details',
+    metadata: {},
+  });
+  return new ServiceError(`ServiceError wrapping gRPC ${code}`, { cause: grpcError });
+}
+
+test('coerceToHandlerError maps gRPC status codes to expected HandlerError types', (t) => {
+  const cases: {
+    code: number;
+    name: string;
+    expectedType: nexus.HandlerErrorType;
+    expectedRetryableOverride?: boolean;
+  }[] = [
+    // Single-code cases
+    { code: grpcStatus.INVALID_ARGUMENT, name: 'INVALID_ARGUMENT', expectedType: 'BAD_REQUEST' },
+    { code: grpcStatus.NOT_FOUND, name: 'NOT_FOUND', expectedType: 'NOT_FOUND' },
+    { code: grpcStatus.RESOURCE_EXHAUSTED, name: 'RESOURCE_EXHAUSTED', expectedType: 'RESOURCE_EXHAUSTED' },
+    { code: grpcStatus.UNIMPLEMENTED, name: 'UNIMPLEMENTED', expectedType: 'NOT_IMPLEMENTED' },
+    { code: grpcStatus.DEADLINE_EXCEEDED, name: 'DEADLINE_EXCEEDED', expectedType: 'UPSTREAM_TIMEOUT' },
+    // Multi-code cases: non-retryable INTERNAL
+    {
+      code: grpcStatus.ALREADY_EXISTS,
+      name: 'ALREADY_EXISTS',
+      expectedType: 'INTERNAL',
+      expectedRetryableOverride: false,
+    },
+    {
+      code: grpcStatus.FAILED_PRECONDITION,
+      name: 'FAILED_PRECONDITION',
+      expectedType: 'INTERNAL',
+      expectedRetryableOverride: false,
+    },
+    { code: grpcStatus.OUT_OF_RANGE, name: 'OUT_OF_RANGE', expectedType: 'INTERNAL', expectedRetryableOverride: false },
+    // Multi-code cases: UNAVAILABLE
+    { code: grpcStatus.ABORTED, name: 'ABORTED', expectedType: 'UNAVAILABLE' },
+    { code: grpcStatus.UNAVAILABLE, name: 'UNAVAILABLE', expectedType: 'UNAVAILABLE' },
+    // Multi-code cases: retryable INTERNAL
+    { code: grpcStatus.CANCELLED, name: 'CANCELLED', expectedType: 'INTERNAL' },
+    { code: grpcStatus.DATA_LOSS, name: 'DATA_LOSS', expectedType: 'INTERNAL' },
+    { code: grpcStatus.INTERNAL, name: 'INTERNAL', expectedType: 'INTERNAL' },
+    { code: grpcStatus.UNKNOWN, name: 'UNKNOWN', expectedType: 'INTERNAL' },
+    { code: grpcStatus.UNAUTHENTICATED, name: 'UNAUTHENTICATED', expectedType: 'INTERNAL' },
+    { code: grpcStatus.PERMISSION_DENIED, name: 'PERMISSION_DENIED', expectedType: 'INTERNAL' },
+  ];
+
+  for (const { code, name, expectedType, expectedRetryableOverride } of cases) {
+    const result = coerceToHandlerError(makeGrpcServiceError(code));
+    t.is(result.type, expectedType, `${name}: expected type ${expectedType}, got ${result.type}`);
+    if (expectedRetryableOverride !== undefined) {
+      t.is(
+        result.retryableOverride,
+        expectedRetryableOverride,
+        `${name}: expected retryableOverride ${expectedRetryableOverride}`
+      );
+    }
+  }
+});
+
+test('coerceToHandlerError passes through HandlerError unchanged', (t) => {
+  const original = new nexus.HandlerError('BAD_REQUEST', 'test');
+  t.is(coerceToHandlerError(original), original);
+});
+
+test('coerceToHandlerError maps non-retryable ApplicationFailure to INTERNAL', (t) => {
+  const result = coerceToHandlerError(ApplicationFailure.create({ nonRetryable: true, message: 'fail' }));
+  t.is(result.type, 'INTERNAL');
+  t.is(result.retryableOverride, false);
+});
+
+test('coerceToHandlerError maps unknown errors to INTERNAL', (t) => {
+  t.is(coerceToHandlerError(new Error('something')).type, 'INTERNAL');
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// operationErrorToProto unit tests
+
+test('operationErrorToProto - failed state produces ApplicationFailure with cause chain', async (t) => {
+  const cause = ApplicationFailure.create({
+    message: 'root cause',
+    type: 'RootError',
+    nonRetryable: true,
+    details: ['detail1'],
+  });
+  const opErr = new nexus.OperationError('failed', 'operation failed', { cause });
+
+  const failure = await operationErrorToProto(defaultDataConverter, opErr);
+
+  // Top-level should be an ApplicationFailure with type 'OperationError'
+  t.truthy(failure.applicationFailureInfo);
+  t.is(failure.applicationFailureInfo?.type, 'OperationError');
+  t.is(failure.applicationFailureInfo?.nonRetryable, true);
+  t.is(failure.message, 'operation failed');
+
+  // Cause chain should preserve the original ApplicationFailure
+  t.truthy(failure.cause);
+  t.truthy(failure.cause?.applicationFailureInfo);
+  t.is(failure.cause?.message, 'root cause');
+  t.is(failure.cause?.applicationFailureInfo?.type, 'RootError');
+  t.is(failure.cause?.applicationFailureInfo?.nonRetryable, true);
+});
+
+test('operationErrorToProto - canceled state produces CancelledFailure with cause chain', async (t) => {
+  const cause = new CancelledFailure('inner cancel');
+  const opErr = new nexus.OperationError('canceled', 'operation canceled', { cause });
+
+  const failure = await operationErrorToProto(defaultDataConverter, opErr);
+
+  t.truthy(failure.canceledFailureInfo);
+  t.is(failure.message, 'operation canceled');
+
+  // Cause chain should preserve the CancelledFailure
+  t.truthy(failure.cause);
+  t.truthy(failure.cause?.canceledFailureInfo);
+  t.is(failure.cause?.message, 'inner cancel');
+});
+
+test('operationErrorToProto - failed state without cause produces standalone ApplicationFailure', async (t) => {
+  const opErr = new nexus.OperationError('failed', 'no cause');
+
+  const failure = await operationErrorToProto(defaultDataConverter, opErr);
+
+  t.truthy(failure.applicationFailureInfo);
+  t.is(failure.applicationFailureInfo?.type, 'OperationError');
+  t.is(failure.message, 'no cause');
+  t.falsy(failure.cause);
 });
 
 test('createNexusEndpoint and deleteNexusEndpoint', async (t) => {

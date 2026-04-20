@@ -4,7 +4,8 @@
  */
 import { v4 as uuid4 } from 'uuid';
 import asyncRetry from 'async-retry';
-import { Runtime, DefaultLogger, LogEntry, makeTelemetryFilterString, NativeConnection } from '@temporalio/worker';
+import type { LogEntry } from '@temporalio/worker';
+import { Runtime, DefaultLogger, makeTelemetryFilterString, NativeConnection } from '@temporalio/worker';
 import { Client, WorkflowClient } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';

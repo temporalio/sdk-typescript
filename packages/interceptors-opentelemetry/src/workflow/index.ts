@@ -27,6 +27,7 @@ import {
   instrumentSync,
   extractContextFromHeaders,
   headersWithContext,
+  nexusHeadersWithContext,
   UPDATE_ID_ATTR_KEY,
   NEXUS_SERVICE_ATTR_KEY,
   NEXUS_OPERATION_ATTR_KEY,
@@ -210,12 +211,13 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
 
     return await instrument({
       tracer: this.tracer,
-      spanName: `${SpanName.NEXUS_OPERATION_START}${SPAN_DELIMITER}${input.service}${SPAN_DELIMITER}${input.operation}`,
+      spanName: `${SpanName.NEXUS_OPERATION_START}${SPAN_DELIMITER}${input.service}/${input.operation}`,
       fn: async (span) => {
         span.setAttribute(NEXUS_SERVICE_ATTR_KEY, input.service);
         span.setAttribute(NEXUS_OPERATION_ATTR_KEY, input.operation);
         span.setAttribute(NEXUS_ENDPOINT_ATTR_KEY, input.endpoint);
-        return await next(input);
+        const headers = nexusHeadersWithContext(input.headers);
+        return await next({ ...input, headers });
       },
     });
   }

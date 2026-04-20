@@ -1,14 +1,17 @@
-import { SpanProcessor } from '@opentelemetry/sdk-trace-base';
-import { Resource } from '@opentelemetry/resources';
+import type { SpanProcessor } from '@opentelemetry/sdk-trace-base';
+import type { Resource } from '@opentelemetry/resources';
 import { SimplePlugin } from '@temporalio/plugin';
-import { InjectedSinks, ReplayWorkerOptions, WorkerOptions } from '@temporalio/worker';
-import { InterceptorOptions, OpenTelemetryWorkflowClientInterceptor } from './client';
+import type { InjectedSinks, ReplayWorkerOptions, WorkerOptions } from '@temporalio/worker';
+import type { InterceptorOptions } from './client';
+import { OpenTelemetryWorkflowClientInterceptor } from './client';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
   OpenTelemetryActivityOutboundInterceptor,
+  OpenTelemetryNexusInboundInterceptor,
+  OpenTelemetryNexusOutboundInterceptor,
 } from './worker';
-import { OpenTelemetrySinks } from './workflow';
+import type { OpenTelemetrySinks } from './workflow';
 
 /**
  * Configuration options for {@link OpenTelemetryPlugin}.
@@ -48,6 +51,12 @@ export class OpenTelemetryPlugin extends SimplePlugin {
           (ctx) => ({
             inbound: new OpenTelemetryActivityInboundInterceptor(ctx, interceptorOptions),
             outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
+          }),
+        ],
+        nexus: [
+          (ctx) => ({
+            inbound: new OpenTelemetryNexusInboundInterceptor(ctx, interceptorOptions),
+            outbound: new OpenTelemetryNexusOutboundInterceptor(ctx),
           }),
         ],
       },

@@ -6,7 +6,7 @@ import {
   tomlLoadClientConfig,
   tomlLoadClientConfigProfile,
 } from './envconfig-toml';
-import {
+import type {
   ClientConfig,
   ClientConfigFromTomlOptions,
   ClientConfigProfile,

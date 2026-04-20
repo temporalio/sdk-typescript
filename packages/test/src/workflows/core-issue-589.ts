@@ -1,5 +1,5 @@
 import * as wf from '@temporalio/workflow';
-import { CustomLoggerSinks } from './log-sink-tester';
+import type { CustomLoggerSinks } from './log-sink-tester';
 import { unblockSignal } from './definitions';
 
 const { customLogger } = wf.proxySinks<CustomLoggerSinks>();
@@ -14,7 +14,7 @@ export async function coreIssue589(): Promise<void> {
   wf.setHandler(unblockSignal, () => {
     unblocked = true;
   });
-  await wf.condition(() => unblocked, 10000);
+  await wf.condition(() => unblocked, 20000);
 
   customLogger.info(
     `Checkpoint, replaying: ${wf.workflowInfo().unsafe.isReplaying}, hl: ${wf.workflowInfo().historyLength}`

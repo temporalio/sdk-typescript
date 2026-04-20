@@ -8,6 +8,7 @@ packages:
   - packages/create-project
   - packages/envconfig
   - packages/interceptors-opentelemetry
+  - packages/lambda-worker
   - packages/meta
   - packages/nexus
   - packages/nyc-test-coverage
@@ -21,14 +22,13 @@ packages:
 
 ignoreScripts: true
 
-# Minimum release age, in minutes (1 day)
-minimumReleaseAge: 1440
+# Minimum release age, in minutes (2 weeks)
+minimumReleaseAge: 20160
 
 # Allow depending on just published Temporal packages
 minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
-  - handlebars
 
 peerDependencyRules:
   ignoreMissing:
@@ -37,11 +37,9 @@ peerDependencyRules:
     - quill-delta
 
 overrides:
-  # Can be removed once a release of `express` with an updated qs is cut
-  qs: ^6.14.1
-
-  jws@<3.2.3: '>=3.2.3'
-  tar: '>=7.5.10'
   'minimatch@>=7.0.0 <7.4.8': '>=7.4.8'
   serialize-javascript: '>=7.0.3'
   handlebars: '>=4.7.9'
+
+patchedDependencies:
+  protobufjs@7.5.5: patches/protobufjs@7.5.5.patch

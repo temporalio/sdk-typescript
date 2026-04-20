@@ -1,9 +1,10 @@
 import * as nexus from 'nexus-rpc';
-import { Workflow, WorkflowResultType } from '@temporalio/common';
-import { Replace } from '@temporalio/common/lib/type-helpers';
-import { WorkflowStartOptions as ClientWorkflowStartOptions } from '@temporalio/client';
+import type { Workflow, WorkflowResultType } from '@temporalio/common';
+import type { Replace } from '@temporalio/common/lib/type-helpers';
+import type { WorkflowStartOptions as ClientWorkflowStartOptions } from '@temporalio/client';
 import { type temporal } from '@temporalio/proto';
-import { InternalWorkflowStartOptionsSymbol, InternalWorkflowStartOptions } from '@temporalio/client/lib/internal';
+import type { InternalWorkflowStartOptions } from '@temporalio/client/lib/internal';
+import { InternalWorkflowStartOptionsSymbol } from '@temporalio/client/lib/internal';
 import { generateWorkflowRunOperationToken, loadWorkflowRunOperationToken } from './token';
 import { convertNexusLinkToWorkflowEventLink, convertWorkflowEventLinkToNexusLink } from './link-converter';
 import { getClient, getHandlerContext, log } from './context';
@@ -148,16 +149,6 @@ export class WorkflowRunOperationHandler<I, O> implements nexus.OperationHandler
     const { namespace } = getHandlerContext();
     const handle = await this.handler(ctx, input);
     return nexus.HandlerStartOperationResult.async(generateWorkflowRunOperationToken(namespace, handle.workflowId));
-  }
-
-  getInfo(_ctx: nexus.GetOperationInfoContext, _token: string): Promise<nexus.OperationInfo> {
-    // Not implemented in Temporal yet.
-    throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Method not implemented');
-  }
-
-  getResult(_ctx: nexus.GetOperationResultContext, _token: string): Promise<O> {
-    // Not implemented in Temporal yet.
-    throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Method not implemented');
   }
 
   async cancel(_ctx: nexus.CancelOperationContext, token: string): Promise<void> {

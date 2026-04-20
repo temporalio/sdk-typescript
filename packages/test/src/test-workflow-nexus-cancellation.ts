@@ -1,13 +1,16 @@
 import assert from 'assert';
 import { randomUUID } from 'crypto';
-import { ExecutionContext } from 'ava';
+import type { ExecutionContext } from 'ava';
 import * as nexus from 'nexus-rpc';
 import { ApplicationFailure, NexusOperationFailure } from '@temporalio/common';
-import { WorkflowFailedError, WorkflowHandle } from '@temporalio/client';
-import { History } from '@temporalio/common/lib/proto-utils';
+import type { WorkflowHandle } from '@temporalio/client';
+import { WorkflowFailedError } from '@temporalio/client';
+import type { History } from '@temporalio/common/lib/proto-utils';
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
-import { Context, helpers, makeTestFunction } from './helpers-integration';
+import type { Context } from './helpers-integration';
+import { helpers, makeTestFunction } from './helpers-integration';
+import { innermostHandlerError } from './helpers-nexus';
 import { waitUntil } from './helpers';
 
 const test = makeTestFunction({ workflowsPath: __filename });
@@ -74,9 +77,6 @@ function makeNexusServiceHandler() {
       cancel: async (_ctx, _token): Promise<void> => {
         throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Intentional failure');
       },
-      // FIXME: Update nexus-rpc dependency, then remove these two methods
-      getInfo: startWorkflow.getInfo.bind(startWorkflow),
-      getResult: startWorkflow.getResult.bind(startWorkflow),
     },
   });
 }
@@ -193,9 +193,9 @@ test('Workflow calling Nexus operation with cancellation type WAIT_CANCELLATION_
   assert(err instanceof WorkflowFailedError);
   assert(err.cause instanceof NexusOperationFailure);
   assert(err.cause.cause instanceof nexus.HandlerError);
-  assert(err.cause.cause.type, 'NOT_IMPLEMENTED');
-  assert(err.cause.cause.cause instanceof ApplicationFailure);
-  t.is(err.cause.cause.cause.message, 'Intentional failure');
+  const innerHandler = innermostHandlerError(err.cause.cause);
+  t.is(innerHandler.type, 'NOT_IMPLEMENTED');
+  t.regex(innerHandler.message, /Intentional failure/);
 });
 
 test('Workflow calling Nexus operation with cancellation type TRY_CANCEL properly cancels', async (t) => {

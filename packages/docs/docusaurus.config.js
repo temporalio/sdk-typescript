@@ -139,45 +139,6 @@ module.exports = {
         },
       },
     ],
-    ...(watch
-      ? []
-      : [
-          [
-            'docusaurus-plugin-snipsync',
-            {
-              origins: [
-                {
-                  pattern: '../*/src/**/*.ts',
-                  owner: 'temporalio',
-                  repo: 'sdk-typescript',
-                  ref: 'main',
-                },
-                {
-                  pattern: '../*/src/*.ts',
-                  owner: 'temporalio',
-                  repo: 'sdk-typescript',
-                  ref: 'main',
-                },
-                {
-                  pattern: '../create-project/samples/*.ts',
-                  owner: 'temporalio',
-                  repo: 'sdk-typescript',
-                  ref: 'main',
-                },
-                {
-                  owner: 'temporalio',
-                  repo: 'samples-typescript',
-                },
-              ],
-              targets: ['docs'],
-              features: {
-                enable_source_link: false,
-                enable_code_block: true,
-                allowed_target_extensions: ['.md'],
-              },
-            },
-          ],
-        ]),
   ],
   markdown: {
     format: 'md',

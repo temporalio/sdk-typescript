@@ -61,31 +61,31 @@ jobs:
         shell: bash
     steps:
       - name: 'Checkout code'
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           submodules: recursive
 
       - name: 'Cache index.node'
         id: cached-artifact
-        uses: actions/cache@v4
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: ./packages/core-bridge/releases
           key: corebridge-artifactcache-debug-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
 
       - name: Install protoc
         if: steps.cached-artifact.outputs.cache-hit != 'true'
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
         with:
           # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
           version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upgrade Rust to latest stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
 
       - name: Rust Cargo and Build cache
         if: steps.cached-artifact.outputs.cache-hit != 'true'
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: packages/core-bridge -> target
           prefix-key: corebridge-buildcache-debug
@@ -102,7 +102,7 @@ jobs:
           mkdir -p ./releases/${{ matrix.target }}
           cp target/${{ matrix.target }}/debug/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: corebridge-native-debug-${{ matrix.platform }}
           # Actual file will be named ${{ matrix.target }}/index.node
@@ -151,12 +151,12 @@ jobs:
         run: git config --global core.autocrlf false
 
       - name: 'Checkout code'
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           submodules: recursive
 
       - name: Download core-bridge native libraries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: corebridge-native-debug-${{ matrix.platform }}
           path: ./packages/core-bridge/releases
@@ -193,7 +193,7 @@ jobs:
         run: pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
 
       - name: Install Temporal CLI
-        uses: temporalio/setup-temporal@v0
+        uses: temporalio/setup-temporal@1059a504f87e7fa2f385e3fa40d1aa7e62f1c6ca # v0
 
       - name: Run Temporal CLI
         working-directory: ${{ runner.temp }}
@@ -281,7 +281,7 @@ jobs:
       # End samples
 
       - name: Upload Dev Server logs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         if: failure() || cancelled()
         with:
           name: integration-tests-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs

@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@temporalio/test",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "description": "Temporal.io SDK Tests",
   "scripts": {
     "build": "pnpm run \"/^build:.*/\"",
@@ -45,6 +45,7 @@
     "@temporalio/core-bridge": "workspace:*",
     "@temporalio/envconfig": "workspace:*",
     "@temporalio/interceptors-opentelemetry": "workspace:*",
+    "@temporalio/lambda-worker": "workspace:*",
     "@temporalio/nexus": "workspace:*",
     "@temporalio/nyc-test-coverage": "workspace:*",
     "@temporalio/plugin": "workspace:*",
@@ -60,9 +61,9 @@
     "glob": "^10.3.10",
     "istanbul-lib-coverage": "^3.2.2",
     "long": "^5.2.3",
-    "nexus-rpc": "^0.0.1",
+    "nexus-rpc": "^0.0.2",
     "proto3-json-serializer": "^2.0.0",
-    "protobufjs": "^7.2.5",
+    "protobufjs": "7.5.5",
     "protobufjs-cli": "^1.1.2",
     "rxjs": "7.8.1",
     "stack-utils": "^2.0.6",

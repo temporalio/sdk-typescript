@@ -1,4 +1,4 @@
-import { WorkflowClientInterceptor, WorkflowStartInput, WorkflowStartOutput } from './interceptors';
+import type { WorkflowClientInterceptor, WorkflowStartInput, WorkflowStartOutput } from './interceptors';
 
 export function adaptWorkflowClientInterceptor(i: WorkflowClientInterceptor): WorkflowClientInterceptor {
   return adaptLegacyStartInterceptor(i);

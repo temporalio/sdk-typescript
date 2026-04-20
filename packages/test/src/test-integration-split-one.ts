@@ -9,21 +9,20 @@ import {
   QueryNotRegisteredError,
   WorkflowFailedError,
 } from '@temporalio/client';
+import type { SearchAttributes, WorkflowExecution } from '@temporalio/common';
 import {
   ApplicationFailure,
   CancelledFailure,
   RetryState,
-  SearchAttributes,
   TerminatedFailure,
   TimeoutFailure,
   TimeoutType,
-  WorkflowExecution,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
 import { tsToMs } from '@temporalio/common/lib/time';
-import { InjectedSinks } from '@temporalio/worker';
+import type { InjectedSinks } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
-import { UnsafeWorkflowInfo, WorkflowInfo } from '@temporalio/workflow/lib/interfaces';
+import type { UnsafeWorkflowInfo, WorkflowInfo } from '@temporalio/workflow/lib/interfaces';
 
 import {
   CancellationScope,

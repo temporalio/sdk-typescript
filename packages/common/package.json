@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/common",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "description": "Common library for code that's used across the Client, Worker, and/or Workflow",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -15,11 +15,11 @@
     "@temporalio/proto": "workspace:*",
     "long": "^5.2.3",
     "ms": "3.0.0-canary.1",
-    "nexus-rpc": "^0.0.1",
+    "nexus-rpc": "^0.0.2",
     "proto3-json-serializer": "^2.0.0"
   },
   "devDependencies": {
-    "protobufjs": "^7.2.5"
+    "protobufjs": "^7.5.5"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

@@ -1,10 +1,12 @@
 import { randomUUID } from 'crypto';
 import * as nexus from 'nexus-rpc';
-import { NexusOperationFailure, Payload } from '@temporalio/common';
+import type { Payload } from '@temporalio/common';
+import { NexusOperationFailure } from '@temporalio/common';
 import { Client, WorkflowFailedError } from '@temporalio/client';
 import type { PayloadCodec } from '@temporalio/common/lib/converter/payload-codec';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
+import { innermostHandlerError } from './helpers-nexus';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -105,9 +107,12 @@ test('Nexus operation converter failure is not retried', async (t) => {
     t.true(err!.cause instanceof NexusOperationFailure);
     const nexusFailure = err!.cause as NexusOperationFailure;
     t.true(nexusFailure.cause instanceof nexus.HandlerError);
-    const handlerError = nexusFailure.cause as nexus.HandlerError;
-    t.is(handlerError.type, 'BAD_REQUEST');
-    t.false(handlerError.retryable);
-    // TODO: re-add message assertion once nexus failure message is stabilized
+    const outerHandler = nexusFailure.cause as nexus.HandlerError;
+    t.is(outerHandler.type, 'BAD_REQUEST');
+    t.false(outerHandler.retryable);
+    const handlerError = innermostHandlerError(outerHandler);
+    t.regex(handlerError.message, /Payload converter failed to decode Nexus operation input/);
+    const converterError = handlerError.cause as Error;
+    t.regex(converterError.message, /Intentional payload converter failure for testing/);
   });
 });

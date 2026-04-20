@@ -1,4 +1,4 @@
-import { Sinks } from '@temporalio/workflow';
+import type { Sinks } from '@temporalio/workflow';
 
 export interface CoverageSinks extends Sinks {
   coverage: {

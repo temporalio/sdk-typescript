@@ -1,5 +1,6 @@
-import { SearchAttributes, upsertSearchAttributes, workflowInfo, proxySinks } from '@temporalio/workflow';
-import { CustomLoggerSinks } from './log-sink-tester';
+import type { SearchAttributes } from '@temporalio/workflow';
+import { upsertSearchAttributes, workflowInfo, proxySinks } from '@temporalio/workflow';
+import type { CustomLoggerSinks } from './log-sink-tester';
 
 const { customLogger } = proxySinks<CustomLoggerSinks>();
 

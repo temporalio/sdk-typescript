@@ -1,5 +1,5 @@
 import { proxyActivities } from '@temporalio/workflow';
-import { NameAndArgs } from '../activities/default-and-defined';
+import type { NameAndArgs } from '../activities/default-and-defined';
 import type * as activities from '../activities/default-and-defined';
 
 const { definedActivity, nonExistentActivity } = proxyActivities<

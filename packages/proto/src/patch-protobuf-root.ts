@@ -1,4 +1,8 @@
-const ROOT_PROPS = [
+// Properties used internally by protobufjs on Namespace/ReflectionObject instances.
+// A protobuf package component that happens to share one of these names must not be
+// promoted to a direct property, or it would corrupt protobufjs's internal state.
+// (Such types are still reachable via root.lookup() or root.nested traversal.)
+const ROOT_PROPS = new Set([
   'options',
   'parsedOptions',
   'name',
@@ -8,7 +12,7 @@ const ROOT_PROPS = [
   'filename',
   'nested',
   '_nestedArray',
-];
+]);
 
 /**
  * Create a version of `root` with non-nested namespaces to match the generated types.
@@ -18,26 +22,55 @@ const ROOT_PROPS = [
  * @returns A new patched `root`
  */
 export function patchProtobufRoot<T extends Record<string, unknown>>(root: T): T {
-  return _patchProtobufRoot(root);
+  const patched = _patchProtobufRoot(root);
+
+  // Protobufjs >=7.5.2 added a fast-path cache in Namespace#lookup() that accesses
+  // `this.root._fullyQualifiedObjects`. The `root` accessor is defined as a non-enumerable
+  // getter on `ReflectionObject.prototype`, so it is not copied by `for...in` loops.
+  // When the patched root is imported via `import * as proto from '@temporalio/proto'`,
+  // TypeScript's `__importStar` helper wraps the CJS module in a plain object by iterating
+  // own enumerable properties with `for...in` + `hasOwnProperty`. Because `root` is
+  // non-enumerable, it is skipped, the wrapper's `root` is `undefined`, and any subsequent
+  // `this.root._fullyQualifiedObjects` access crashes.
+  // Defining `root` as an own **enumerable** getter ensures `__importStar` includes it in
+  // the wrapper, so that `wrapper.root` delegates back to the patched root (which has the
+  // proper `_fullyQualifiedObjects` map and full prototype chain).
+  if (!Object.getOwnPropertyDescriptor(patched, 'root')) {
+    Object.defineProperty(patched, 'root', {
+      get(this: any) {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        let ptr = this;
+        while (ptr.parent !== null) ptr = ptr.parent;
+        return ptr;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  }
+
+  return patched;
 }
 
 function _patchProtobufRoot<T extends Record<string, unknown>>(root: T, name?: string): T {
   const newRoot = new (root.constructor as any)(isNamespace(root) ? name : {});
   for (const key in root) {
+    // 'root' is a getter-only accessor defined on ReflectionObject.prototype. Trying to
+    // assign it as a plain property on a new Root/Namespace instance throws in strict mode.
+    // It is also safe to skip because each object correctly resolves its own root at runtime
+    // by traversing the parent chain. The top-level own enumerable getter is added separately
+    // by patchProtobufRoot() after recursion completes.
+    if (key === 'root') continue;
     newRoot[key] = root[key];
   }
 
   if (isRecord(root.nested)) {
     for (const typeOrNamespace in root.nested) {
-      const value = root.nested[typeOrNamespace];
-      if (ROOT_PROPS.includes(typeOrNamespace)) {
-        console.log(
-          `patchProtobufRoot warning: overriding property '${typeOrNamespace}' that is used by protobufjs with the '${typeOrNamespace}' protobuf ${
-            isNamespace(value) ? 'namespace' : 'type'
-          }. This may result in protobufjs not working property.`
-        );
-      }
+      // Skip names that protobufjs uses internally — overriding them would corrupt
+      // the namespace object's internal state. Types/namespaces with these names are
+      // still reachable via root.lookup() or by traversing root.nested manually.
+      if (ROOT_PROPS.has(typeOrNamespace)) continue;
 
+      const value = root.nested[typeOrNamespace];
       if (isNamespace(value)) {
         newRoot[typeOrNamespace] = _patchProtobufRoot(value, typeOrNamespace);
       } else if (isType(value)) {
