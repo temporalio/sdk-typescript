@@ -7,7 +7,7 @@ ignoreScripts: true
 minimumReleaseAge: 20160
 
 overrides:
-  qs: ^6.14.1
+  qs: '>=6.14.2'
   # Bumped for https://github.com/advisories/GHSA-xxjr-mmjv-4gpg
   'lodash': '>=4.18.1'
   serialize-javascript: '>=7.0.5'

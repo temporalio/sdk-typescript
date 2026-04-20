@@ -37,6 +37,12 @@ peerDependencyRules:
     - quill-delta
 
 overrides:
+  # verdaccio ^6.5.0 (from package.json) has no release older than 2 weeks;
+  # pin to an aged version until 6.5.x ages into the minimumReleaseAge window.
+  verdaccio: ^6.2.2
+  # express 4.21.2 pins qs to exactly 6.13.0; force patched version.
+  # Can be removed once verdaccio ships with a newer express (4.22.x uses ~6.14.0).
+  qs: '>=6.14.2'
   'minimatch@>=7.0.0 <7.4.8': '>=7.4.8'
   serialize-javascript: '>=7.0.5'
   handlebars: '>=4.7.9'
