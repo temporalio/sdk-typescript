@@ -531,6 +531,37 @@ export interface WorkerOptions {
   sinks?: InjectedSinks<any>;
 
   /**
+   * The types of errors that, if thrown by a Workflow function, a signal handler, or an update
+   * handler, will cause the Workflow Execution or the Update to fail instead of failing the
+   * Workflow Task (which would result in retrying the Workflow Task until it eventually succeeds).
+   * 
+   * This property expects a record of Workflow-type names to the list of error types that will
+   * cause that type of Workflow to fail. Uses the `'*'` key to specify a list of error types that
+   * applies to all Workflow types. This is a worker-level equivalent of
+   * {@link WorkflowDefinitionOptions.failureExceptionTypes}. Both settings are evaluated; an error
+   * matching either will cause Workflow failure.
+   * 
+   * Unlike {@link WorkflowDefinitionOptions.failureExceptionTypes}, this setting requires error
+   * types to be specified as string names, not actual class references, and consequently, doesn't
+   * support subclass matching via `instanceof`. It however allows failing the workflow execution
+   * on _non-determinism errors_, by including the `NondeterminismError` type to the list of error
+   * types, either globally (via the `'*'` key) or per-Workflow-type.
+   * 
+   * Passing the `'Error'` error type string here will result in failing the Workflow on any error,
+   * including non-determinism errors.
+
+   * Note that {@link TemporalFailure} subclasses (with the exception of {@link ApplicationFailure})
+   * and cancellation errors that bubbles out of the Workflow always fail the Workflow Execution,
+   * regardless of either this and the {@link WorkflowDefinitionOptions.failureExceptionTypes} settings.
+   * 
+   * @experimental
+   */
+  workflowFailureErrorTypes?: Record<
+    '*' | string,
+    ('NondeterminismError' | 'DeterminismViolationError' | 'Error' | (string & {}))[]
+  >;
+
+  /**
    * @deprecated SDK tracing is no longer supported. This option is ignored.
    */
   enableSDKTracing?: boolean;
@@ -1111,6 +1142,25 @@ function nexusServiceHandlersFromOptions(opts: WorkerOptions): Map<string, nexus
 export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): native.WorkerOptions {
   const enableWorkflows = opts.workflowBundle !== undefined || opts.workflowsPath !== undefined;
   const enableLocalActivities = enableWorkflows && opts.activities.size > 0;
+
+  const workflowFailureErrors: native.WorkflowErrorType[] = [];
+  const workflowTypesToFailureErrors: Record<string, native.WorkflowErrorType[]> = {};
+
+  for (const [k, v] of Object.entries(opts.workflowFailureErrorTypes ?? {})) {
+    const errorTypes: native.WorkflowErrorType[] = [];
+
+    // Core only cares about Non-Determinism Error; other error types are handled by lang side
+    if (v.includes('NondeterminismError') || v.includes('DeterminismViolationError') || v.includes('Error')) {
+      errorTypes.push({ type: 'nondeterminism' });
+    }
+
+    if (k === '*') {
+      workflowFailureErrors.push(...errorTypes);
+    } else {
+      workflowTypesToFailureErrors[k] = errorTypes;
+    }
+  }
+
   return {
     identity: opts.identity,
     buildId: opts.buildId, // eslint-disable-line @typescript-eslint/no-deprecated
@@ -1137,6 +1187,8 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
     plugins: opts.plugins?.map((p) => p.name) ?? [],
+    workflowFailureErrors,
+    workflowTypesToFailureErrors,
   };
 }
 

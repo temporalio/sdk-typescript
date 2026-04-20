@@ -1572,6 +1572,7 @@ export class Worker {
       randomnessSeed: randomnessSeed.toBytes(),
       now: tsToMs(activation.timestamp),
       showStackTraceSources: this.options.showStackTraceSources,
+      failureExceptionTypeNames: resolveFailureExceptionTypeNames(workflowType, this.options.workflowFailureErrorTypes),
     });
 
     this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
@@ -2256,4 +2257,24 @@ async function timeoutPromise<R>(promise: Promise<R>, timeout: number): Promise<
  */
 async function setTimeoutUnref(timeout: number): Promise<void> {
   return new Promise((resolve) => setTimeoutCallback(resolve, timeout).unref());
+}
+
+/**
+ * Resolves the list of failure exception type names applicable to a given workflow type,
+ * combining the wildcard `'*'` entry and any entry matching the specific workflow type.
+ *
+ * `NondeterminismError` is passed through as-is (the lang-side matching treats it as an alias
+ * for `DeterminismViolationError`). All other type names are passed through unchanged.
+ */
+function resolveFailureExceptionTypeNames(
+  workflowType: string,
+  workflowFailureErrorTypes: Record<string, string[]> | undefined
+): string[] | undefined {
+  if (!workflowFailureErrorTypes) return undefined;
+
+  const typeNames = new Set<string>();
+  for (const name of workflowFailureErrorTypes['*'] ?? []) typeNames.add(name);
+  for (const name of workflowFailureErrorTypes[workflowType] ?? []) typeNames.add(name);
+
+  return typeNames.size > 0 ? [...typeNames] : undefined;
 }

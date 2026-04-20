@@ -1728,7 +1728,10 @@ export function allHandlersFinished(): boolean {
  * @example
  * For example:
  * ```ts
- * setWorkflowOptions({ versioningBehavior: 'PINNED' }, myWorkflow);
+ * setWorkflowOptions({
+ *   versioningBehavior: 'PINNED',
+ *   failureExceptionTypes: [CustomWorkflowError]
+ * }, myWorkflow);
  * export async function myWorkflow(): Promise<string> {
  *   // Workflow code here
  *   return "hi";
@@ -1742,7 +1745,10 @@ export function allHandlersFinished(): boolean {
  *   // Workflow code here
  *   return "hi";
  * }
- * setWorkflowOptions({ versioningBehavior: 'PINNED' }, module.exports.default);
+ * setWorkflowOptions({
+ *   versioningBehavior: 'PINNED',
+ *   failureExceptionTypes: [CustomWorkflowError]
+ * }, module.exports.default);
  * ```
  *
  * @param options Options for the workflow defintion, or a function that returns options. If a

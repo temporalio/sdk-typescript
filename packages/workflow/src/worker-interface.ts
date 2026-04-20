@@ -91,6 +91,8 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
     if (isWorkflowFunctionWithOptions(activator.workflow)) {
       if (typeof activator.workflow.workflowDefinitionOptions === 'object') {
         activator.versioningBehavior = activator.workflow.workflowDefinitionOptions.versioningBehavior;
+        activator.workflowDefinitionFailureExceptionTypes =
+          activator.workflow.workflowDefinitionOptions.failureExceptionTypes;
       } else {
         activator.workflowDefinitionOptionsGetter = activator.workflow.workflowDefinitionOptions;
       }
