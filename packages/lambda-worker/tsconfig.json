@@ -7,7 +7,7 @@
   "references": [
     { "path": "../common" },
     { "path": "../envconfig" },
-    { "path": "../interceptors-opentelemetry" },
+    { "path": "../plugins/interceptors-opentelemetry" },
     { "path": "../worker" }
   ],
   "include": ["./src/**/*.ts"]

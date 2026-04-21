@@ -43,9 +43,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/temporalio/sdk-typescript.git",
-    "directory": "packages/interceptors-opentelemetry"
+    "directory": "packages/plugins/interceptors-opentelemetry"
   },
-  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/interceptors-opentelemetry",
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/plugins/interceptors-opentelemetry",
   "publishConfig": {
     "access": "public"
   },

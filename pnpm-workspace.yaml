@@ -1,18 +1,17 @@
 packages:
   - packages/activity
-  - packages/ai-sdk
   - packages/client
   - packages/cloud
   - packages/common
   - packages/core-bridge
   - packages/create-project
   - packages/envconfig
-  - packages/interceptors-opentelemetry
   - packages/lambda-worker
   - packages/meta
   - packages/nexus
   - packages/nyc-test-coverage
   - packages/plugin
+  - packages/plugins/*
   - packages/proto
   - packages/test
   - packages/testing

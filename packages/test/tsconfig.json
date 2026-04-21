@@ -27,7 +27,7 @@
       "path": "../envconfig"
     },
     {
-      "path": "../interceptors-opentelemetry"
+      "path": "../plugins/interceptors-opentelemetry"
     },
     {
       "path": "../lambda-worker"
@@ -51,7 +51,7 @@
       "path": "../nyc-test-coverage"
     },
     {
-      "path": "../ai-sdk"
+      "path": "../plugins/ai-sdk"
     }
   ],
   "include": ["./src/**/*.ts"]

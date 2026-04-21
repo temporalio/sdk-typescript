@@ -2,19 +2,21 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "paths": {
+      "@temporalio/ai-sdk": ["packages/plugins/ai-sdk/src"],
+      "@temporalio/interceptors-opentelemetry": ["packages/plugins/interceptors-opentelemetry/src"],
       "@temporalio/*": ["packages/*"]
     }
   },
   "files": [
     "./packages/activity/src/index.ts",
-    "./packages/ai-sdk/src/index.ts",
+    "./packages/plugins/ai-sdk/src/index.ts",
     "./packages/client/src/index.ts",
     "./packages/cloud/src/index.ts",
     "./packages/common/src/index.ts",
     "./packages/common/src/type-helpers.ts",
     "./packages/create-project/src/index.ts",
     "./packages/envconfig/src/index.ts",
-    "./packages/interceptors-opentelemetry/src/index.ts",
+    "./packages/plugins/interceptors-opentelemetry/src/index.ts",
     "./packages/nyc-test-coverage/src/index.ts",
     "./packages/meta/src/index.ts",
     "./packages/plugin/src/index.ts",

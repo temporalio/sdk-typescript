@@ -1,24 +1,24 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./lib",
     "rootDir": "./src"
   },
   "references": [
     {
-      "path": "../client"
+      "path": "../../client"
     },
     {
-      "path": "../common"
+      "path": "../../common"
     },
     {
-      "path": "../worker"
+      "path": "../../worker"
     },
     {
-      "path": "../workflow"
+      "path": "../../workflow"
     },
     {
-      "path": "../plugin"
+      "path": "../../plugin"
     }
   ],
   "include": ["./src/**/*.ts"]
