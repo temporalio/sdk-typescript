@@ -1,7 +1,7 @@
 {
   "name": "scripts",
   "private": true,
-  "version": "1.16.0",
+  "version": "1.16.1",
   "description": "Internal scripts for TS SDK repository",
   "scripts": {
     "build": "tsc --noEmit"
