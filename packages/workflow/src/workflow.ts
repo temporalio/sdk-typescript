@@ -1042,7 +1042,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
 }
 
 /**
- * {@link https://docs.temporal.io/concepts/what-is-continue-as-new/ | Continues-As-New} the current Workflow Execution
+ * {@link https://docs.temporal.io/workflow-execution/continue-as-new#continue-as-new | Continues-As-New} the current Workflow Execution
  * with default options.
  *
  * Shorthand for `makeContinueAsNewFunc<F>()(...args)`. (See: {@link makeContinueAsNewFunc}.)
