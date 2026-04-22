@@ -4,8 +4,17 @@
  * @module
  */
 
+import type { Duration, SearchAttributePair, TypedSearchAttributes } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
+import type { NexusOperationHandle } from './nexus-client';
+import type {
+  NexusOperationExecutionCount,
+  NexusOperationExecutionDescription,
+  NexusOperationExecution,
+  NexusOperationIdConflictPolicy,
+  NexusOperationIdReusePolicy,
+} from './nexus-types';
 import type { CompiledScheduleOptions } from './schedule-types';
 import type {
   DescribeWorkflowExecutionResponse,
@@ -238,13 +247,100 @@ export type CreateScheduleOutput = {
 };
 
 /**
+ * Implement any of these methods to intercept NexusClient outbound calls.
+ */
+export interface NexusClientInterceptor {
+  /** Intercept a call to {@link NexusServiceClient.startOperation}. */
+  startOperation?: (
+    input: StartNexusOperationInput,
+    next: Next<this, 'startOperation'>
+  ) => Promise<NexusOperationHandle<unknown>>;
+
+  /** Intercept {@link NexusOperationHandle.result}. */
+  getResult?: (input: GetNexusOperationResultInput, next: Next<this, 'getResult'>) => Promise<unknown>;
+
+  /** Intercept {@link NexusOperationHandle.describe}. */
+  describe?: (
+    input: DescribeNexusOperationInput,
+    next: Next<this, 'describe'>
+  ) => Promise<NexusOperationExecutionDescription>;
+
+  /** Intercept {@link NexusOperationHandle.cancel}. */
+  cancel?: (input: CancelNexusOperationInput, next: Next<this, 'cancel'>) => Promise<void>;
+
+  /** Intercept {@link NexusOperationHandle.terminate}. */
+  terminate?: (input: TerminateNexusOperationInput, next: Next<this, 'terminate'>) => Promise<void>;
+
+  /** Intercept {@link NexusClient.list}. */
+  list?: (input: ListNexusOperationsInput, next: Next<this, 'list'>) => AsyncIterable<NexusOperationExecution>;
+
+  /** Intercept {@link NexusClient.count}. */
+  count?: (input: CountNexusOperationsInput, next: Next<this, 'count'>) => Promise<NexusOperationExecutionCount>;
+}
+
+/** Input for {@link NexusClientInterceptor.startOperation}. */
+export interface StartNexusOperationInput {
+  readonly endpoint: string;
+  readonly service: string;
+  readonly operation: string;
+  readonly id: string;
+  readonly arg: unknown;
+  readonly scheduleToCloseTimeout?: Duration;
+  readonly summary?: string;
+  readonly idReusePolicy?: NexusOperationIdReusePolicy;
+  readonly idConflictPolicy?: NexusOperationIdConflictPolicy;
+  readonly searchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
+  readonly headers?: Record<string, string>;
+}
+
+/** Input for {@link NexusClientInterceptor.getResult}. */
+export interface GetNexusOperationResultInput {
+  readonly operationId: string;
+  readonly runId?: string;
+  /** Type hint for the deserialized result (used by interceptors/codecs). */
+  readonly resultType?: unknown;
+}
+
+/** Input for {@link NexusClientInterceptor.describe}. */
+export interface DescribeNexusOperationInput {
+  readonly operationId: string;
+  readonly runId?: string;
+  readonly longPollToken?: Uint8Array;
+}
+
+/** Input for {@link NexusClientInterceptor.cancel}. */
+export interface CancelNexusOperationInput {
+  readonly operationId: string;
+  readonly runId?: string;
+  readonly reason?: string;
+}
+
+/** Input for {@link NexusClientInterceptor.terminate}. */
+export interface TerminateNexusOperationInput {
+  readonly operationId: string;
+  readonly runId?: string;
+  readonly reason?: string;
+}
+
+/** Input for {@link NexusClientInterceptor.list}. */
+export interface ListNexusOperationsInput {
+  readonly query?: string;
+  readonly pageSize?: number;
+}
+
+/** Input for {@link NexusClientInterceptor.count}. */
+export interface CountNexusOperationsInput {
+  readonly query?: string;
+}
+
+/**
  * Interceptors for any high-level SDK client.
- *
- * NOTE: Currently only for {@link WorkflowClient} and {@link ScheduleClient}. More will be added later as needed.
  */
 export interface ClientInterceptors {
   // eslint-disable-next-line @typescript-eslint/no-deprecated
   workflow?: WorkflowClientInterceptors | WorkflowClientInterceptor[];
 
   schedule?: ScheduleClientInterceptor[];
+
+  nexus?: NexusClientInterceptor[];
 }

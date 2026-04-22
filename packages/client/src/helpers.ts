@@ -163,3 +163,24 @@ function getGrpcStatusDetails(err: GrpcServiceError): google.rpc.Status['details
   }
   return google.rpc.Status.decode(statusBuffer).details;
 }
+
+/**
+ * Try to extract the runId field from a gRPC ALREADY_EXISTS error's details containing
+ * NexusOperationExecutionAlreadyStartedFailure. Returns undefined if the error details
+ * do not include this failure type or cannot be decoded.
+ */
+export function extractNexusOperationAlreadyStartedRunId(err: GrpcServiceError): string | undefined {
+  try {
+    for (const entry of getGrpcStatusDetails(err) ?? []) {
+      if (!entry.type_url || !entry.value) continue;
+      const type = entry.type_url.replace(/^type.googleapis.com\//, '') as ErrorDetailsName;
+      if (type !== 'temporal.api.errordetails.v1.NexusOperationExecutionAlreadyStartedFailure') continue;
+
+      const details = temporal.api.errordetails.v1.NexusOperationExecutionAlreadyStartedFailure.decode(entry.value);
+      return details.runId;
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
