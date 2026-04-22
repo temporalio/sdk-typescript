@@ -13,7 +13,7 @@ import type { WorkflowFunctionWithOptions } from './workflow-definition-options'
  * See {@link WorkflowOptions.workflowIdConflictPolicy} for what happens when trying to start a
  * Workflow with the same ID as a *Running* Workflow.
  *
- * Concept: {@linkhttps://docs.temporal.io/workflow-execution/workflowid-runid#workflow-id-reuse-policy | Workflow Id Reuse Policy}
+ * Concept: {@link https://docs.temporal.io/workflow-execution/workflowid-runid#workflow-id-reuse-policy | Workflow Id Reuse Policy}
  *
  * *Note: It is not possible to have two actively running Workflows with the same ID.*
  *
