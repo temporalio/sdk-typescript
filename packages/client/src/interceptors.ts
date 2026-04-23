@@ -8,12 +8,16 @@ import { Headers, Next } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
 import type { CompiledScheduleOptions } from './schedule-types';
 import type {
+  ActivityDescription,
+  ActivityExecutionInfo,
+  CountActivityExecutions,
   DescribeWorkflowExecutionResponse,
   RequestCancelWorkflowExecutionResponse,
   TerminateWorkflowExecutionResponse,
   WorkflowExecution,
 } from './types';
 import type { CompiledWorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
+import type { ActivityHandle, ActivityOptions } from './activity-client';
 
 export { Headers, Next };
 
@@ -116,7 +120,7 @@ export interface WorkflowDescribeInput {
 }
 
 /**
- * Implement any of these methods to intercept WorkflowClient outbound calls
+ * Implement any of these methods to intercept {@link WorkflowClient} outbound calls
  */
 export interface WorkflowClientInterceptor {
   /**
@@ -185,7 +189,7 @@ export interface WorkflowClientInterceptor {
   describe?: (input: WorkflowDescribeInput, next: Next<this, 'describe'>) => Promise<DescribeWorkflowExecutionResponse>;
 }
 
-/** @deprecated: Use WorkflowClientInterceptor instead */
+/** @deprecated: Use {@link WorkflowClientInterceptor} instead */
 export type WorkflowClientCallsInterceptor = WorkflowClientInterceptor;
 
 /** @deprecated */
@@ -216,7 +220,7 @@ export interface WorkflowClientInterceptors {
 }
 
 /**
- * Implement any of these methods to intercept ScheduleClient outbound calls
+ * Implement any of these methods to intercept {@link ScheduleClient} outbound calls
  */
 export interface ScheduleClientInterceptor {
   /**
@@ -239,12 +243,107 @@ export type CreateScheduleOutput = {
 
 /**
  * Interceptors for any high-level SDK client.
- *
- * NOTE: Currently only for {@link WorkflowClient} and {@link ScheduleClient}. More will be added later as needed.
  */
 export interface ClientInterceptors {
   // eslint-disable-next-line @typescript-eslint/no-deprecated
   workflow?: WorkflowClientInterceptors | WorkflowClientInterceptor[];
-
   schedule?: ScheduleClientInterceptor[];
+  activity?: ActivityClientInterceptor[];
+}
+
+/**
+ * Implement any of these methods to intercept {@link ActivityClient} outbound calls
+ */
+export interface ActivityClientInterceptor {
+  /**
+   * Intercept a service call to startActivityExecution
+   */
+  start?: (input: ActivityStartInput, next: Next<this, 'start'>) => Promise<ActivityHandle>;
+  /**
+   * Intercept a service call to pollActivityExecution
+   */
+  getResult?: (input: ActivityGetResultInput, next: Next<this, 'getResult'>) => Promise<any>;
+  /**
+   * Intercept a service call to describeActivityExecution
+   */
+  describe?: (input: ActivityDescribeInput, next: Next<this, 'describe'>) => Promise<ActivityDescription>;
+  /**
+   * Intercept a service call to requestCancelActivityExecution
+   */
+  cancel?: (input: ActivityCancelInput, next: Next<this, 'cancel'>) => Promise<void>;
+  /**
+   * Intercept a service call to terminateActivityExecution
+   */
+  terminate?: (input: ActivityTerminateInput, next: Next<this, 'terminate'>) => Promise<void>;
+  /**
+   * Intercept a service call to listActivityExecutions
+   */
+  list?: (input: ActivityListInput, next: Next<this, 'list'>) => AsyncIterable<ActivityExecutionInfo>;
+  /**
+   * Intercept a service call to countActivityExecutions
+   */
+  count?: (input: ActivityCountInput, next: Next<this, 'count'>) => Promise<CountActivityExecutions>;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.start}
+ */
+export interface ActivityStartInput {
+  readonly activityType: string;
+  readonly options: ActivityOptions;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.getResult}
+ */
+export interface ActivityGetResultInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.describe}
+ */
+export interface ActivityDescribeInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.cancel}
+ */
+export interface ActivityCancelInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly reason: string;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.terminate}
+ */
+export interface ActivityTerminateInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly reason: string;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.list}
+ */
+export interface ActivityListInput {
+  readonly query: string;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.count}
+ */
+export interface ActivityCountInput {
+  readonly query: string;
+  readonly headers: Headers;
 }

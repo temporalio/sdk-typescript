@@ -97,4 +97,7 @@ export const defaultActivityInfo: activity.Info = {
   currentAttemptScheduledTimestampMs: 1,
   priority: undefined,
   retryPolicy: undefined,
+  namespace: 'test',
+  activityRunId: undefined,
+  inWorkflow: true,
 };

@@ -1,5 +1,12 @@
 import type * as grpc from '@grpc/grpc-js';
-import type { TypedSearchAttributes, SearchAttributes, SearchAttributeValue, Priority } from '@temporalio/common';
+import type {
+  TypedSearchAttributes,
+  SearchAttributes,
+  SearchAttributeValue,
+  Priority,
+  RetryPolicy,
+  WorkerDeploymentVersion,
+} from '@temporalio/common';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import * as proto from '@temporalio/proto';
 import type { Replace } from '@temporalio/common/lib/type-helpers';
@@ -212,4 +219,160 @@ export const [encodeQueryRejectCondition, decodeQueryRejectCondition] = makeProt
     UNSPECIFIED: 0,
   } as const,
   'QUERY_REJECT_CONDITION_'
+);
+
+/**
+ * Return type of {@link ActivityClient.count}
+ */
+export interface CountActivityExecutions {
+  readonly count: number;
+  readonly groups?: {
+    readonly count: number;
+    readonly groupValues?: any[];
+  }[];
+}
+
+export type RawActivityExecutionInfo = proto.temporal.api.activity.v1.IActivityExecutionInfo;
+export type RawActivityExecutionListInfo = proto.temporal.api.activity.v1.IActivityExecutionListInfo;
+
+/**
+ * Type of elements returned by {@link ActivityClient.list}
+ */
+export interface ActivityExecutionInfo {
+  rawListInfo?: RawActivityExecutionListInfo;
+  activityId: string;
+  activityRunId: string;
+  activityType: string;
+  scheduleTime?: Date;
+  closeTime?: Date;
+  status: ActivityExecutionStatus;
+  typedSearchAttributes: TypedSearchAttributes;
+  taskQueue: string;
+  executionDurationMs?: number;
+}
+
+/**
+ * Return type of {@link ActivityClient.describe}
+ */
+export interface ActivityDescription extends ActivityExecutionInfo {
+  rawInfo: RawActivityExecutionInfo;
+  runState?: PendingActivityState;
+  scheduleToCloseTimeoutMs?: number;
+  scheduleToStartTimeoutMs?: number;
+  startToCloseTimeoutMs?: number;
+  heartbeatTimeoutMs?: number;
+  retryPolicy: RetryPolicy;
+  lastHeartbeatTime?: Date;
+  lastStartedTime?: Date;
+  attempt: number;
+  expirationTime?: Date;
+  lastWorkerIdentity?: string;
+  currentRetryIntervalMs?: number;
+  lastAttemptCompleteTime?: Date;
+  nextAttemptScheduleTime?: Date;
+  lastDeploymentVersion?: WorkerDeploymentVersion;
+  priority: Priority;
+  canceledReason?: string;
+
+  getHeartbeatDetails<T = any>(): Promise<T | undefined>;
+  getLastFailure(): Promise<Error | undefined>;
+}
+
+export const ActivityIdReusePolicy = {
+  ALLOW_DUPLICATE: 'ALLOW_DUPLICATE',
+  ALLOW_DUPLICATE_FAILED_ONLY: 'ALLOW_DUPLICATE_FAILED_ONLY',
+  REJECT_DUPLICATE: 'REJECT_DUPLICATE',
+} as const;
+export type ActivityIdReusePolicy = (typeof ActivityIdReusePolicy)[keyof typeof ActivityIdReusePolicy];
+export const [encodeActivityIdReusePolicy, decodeActivityIdReusePolicy] = makeProtoEnumConverters<
+  proto.temporal.api.enums.v1.ActivityIdReusePolicy,
+  typeof proto.temporal.api.enums.v1.ActivityIdReusePolicy,
+  keyof typeof proto.temporal.api.enums.v1.ActivityIdReusePolicy,
+  typeof ActivityIdReusePolicy,
+  'ACTIVITY_ID_REUSE_POLICY_'
+>(
+  {
+    [ActivityIdReusePolicy.ALLOW_DUPLICATE]: 1,
+    [ActivityIdReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY]: 2,
+    [ActivityIdReusePolicy.REJECT_DUPLICATE]: 3,
+    UNSPECIFIED: 0,
+  } as const,
+  'ACTIVITY_ID_REUSE_POLICY_'
+);
+
+export const ActivityIdConflictPolicy = {
+  FAIL: 'FAIL',
+  USE_EXISTING: 'USE_EXISTING',
+} as const;
+export type ActivityIdConflictPolicy = (typeof ActivityIdConflictPolicy)[keyof typeof ActivityIdConflictPolicy];
+
+export const [encodeActivityIdConflictPolicy, decodeActivityIdConflictPolicy] = makeProtoEnumConverters<
+  proto.temporal.api.enums.v1.ActivityIdConflictPolicy,
+  typeof proto.temporal.api.enums.v1.ActivityIdConflictPolicy,
+  keyof typeof proto.temporal.api.enums.v1.ActivityIdConflictPolicy,
+  typeof ActivityIdConflictPolicy,
+  'ACTIVITY_ID_CONFLICT_POLICY_'
+>(
+  {
+    [ActivityIdConflictPolicy.FAIL]: 1,
+    [ActivityIdConflictPolicy.USE_EXISTING]: 2,
+    UNSPECIFIED: 0,
+  } as const,
+  'ACTIVITY_ID_CONFLICT_POLICY_'
+);
+
+export const ActivityExecutionStatus = {
+  RUNNING: 'RUNNING',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED',
+  CANCELED: 'CANCELED',
+  TERMINATED: 'TERMINATED',
+  TIMED_OUT: 'TIMED_OUT',
+} as const;
+export type ActivityExecutionStatus = (typeof ActivityExecutionStatus)[keyof typeof ActivityExecutionStatus];
+
+export const [encodeActivityExecutionStatus, decodeActivityExecutionStatus] = makeProtoEnumConverters<
+  proto.temporal.api.enums.v1.ActivityExecutionStatus,
+  typeof proto.temporal.api.enums.v1.ActivityExecutionStatus,
+  keyof typeof proto.temporal.api.enums.v1.ActivityExecutionStatus,
+  typeof ActivityExecutionStatus,
+  'ACTIVITY_EXECUTION_STATUS_'
+>(
+  {
+    [ActivityExecutionStatus.RUNNING]: 1,
+    [ActivityExecutionStatus.COMPLETED]: 2,
+    [ActivityExecutionStatus.FAILED]: 3,
+    [ActivityExecutionStatus.CANCELED]: 4,
+    [ActivityExecutionStatus.TERMINATED]: 5,
+    [ActivityExecutionStatus.TIMED_OUT]: 6,
+    UNSPECIFIED: 0,
+  } as const,
+  'ACTIVITY_EXECUTION_STATUS_'
+);
+
+export const PendingActivityState = {
+  SCHEDULED: 'SCHEDULED',
+  STARTED: 'STARTED',
+  CANCEL_REQUESTED: 'CANCEL_REQUESTED',
+  PAUSED: 'PAUSED',
+  PAUSE_REQUESTED: 'PAUSE_REQUESTED',
+} as const;
+export type PendingActivityState = (typeof PendingActivityState)[keyof typeof PendingActivityState];
+
+export const [encodePendingActivityState, decodePendingActivityState] = makeProtoEnumConverters<
+  proto.temporal.api.enums.v1.PendingActivityState,
+  typeof proto.temporal.api.enums.v1.PendingActivityState,
+  keyof typeof proto.temporal.api.enums.v1.PendingActivityState,
+  typeof PendingActivityState,
+  'PENDING_ACTIVITY_STATE_'
+>(
+  {
+    [PendingActivityState.SCHEDULED]: 1,
+    [PendingActivityState.STARTED]: 2,
+    [PendingActivityState.CANCEL_REQUESTED]: 3,
+    [PendingActivityState.PAUSED]: 4,
+    [PendingActivityState.PAUSE_REQUESTED]: 5,
+    UNSPECIFIED: 0,
+  } as const,
+  'PENDING_ACTIVITY_STATE_'
 );
