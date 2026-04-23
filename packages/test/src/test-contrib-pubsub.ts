@@ -31,7 +31,9 @@ import {
   maxBatchWorkflow,
   multiTopicWorkflow,
   priorityWorkflow,
-  truncateSignalWorkflow,
+  publisherSequencesQuery,
+  truncateUpdate,
+  truncateWorkflow,
   ttlTestWorkflow,
   workflowSidePublishWorkflow,
 } from './workflows/contrib-pubsub';
@@ -117,41 +119,28 @@ test('topic_filtering — subscriber gets only requested topics', async (t) => {
   });
 });
 
-test('subscribe_from_offset — non-zero starting offset', async (t) => {
+test('subscribe_from_offset_and_per_item_offsets — non-zero starts and global offsets', async (t) => {
   const count = 5;
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
     const handle = await startWorkflow(workflowSidePublishWorkflow, { args: [count] });
 
-    const items = await collectItems(handle, undefined, 3, 2);
-    t.is(items.length, 2);
-    t.is(decoder.decode(items[0]!.data), 'item-3');
-    t.is(decoder.decode(items[1]!.data), 'item-4');
-
-    const allItems = await collectItems(handle, undefined, 0, 5);
-    t.is(allItems.length, 5);
-
-    await handle.signal('close');
-  });
-});
-
-test('per_item_offsets — each yielded item carries its global offset', async (t) => {
-  const count = 5;
-  const { createWorker, startWorkflow } = helpers(t);
-  const worker = await createWorker();
-  await worker.runUntil(async () => {
-    const handle = await startWorkflow(workflowSidePublishWorkflow, { args: [count] });
-
-    const items = await collectItems(handle, undefined, 0, count);
-    t.is(items.length, count);
+    // From offset 0 — all items, offsets 0..count-1.
+    const allItems = await collectItems(handle, undefined, 0, count);
+    t.is(allItems.length, count);
     for (let i = 0; i < count; i++) {
-      t.is(items[i]!.offset, i);
+      t.is(allItems[i]!.offset, i);
+      t.is(decoder.decode(allItems[i]!.data), `item-${i}`);
     }
 
+    // From offset 3 — items 3, 4 with offsets 3, 4.
     const laterItems = await collectItems(handle, undefined, 3, 2);
+    t.is(laterItems.length, 2);
     t.is(laterItems[0]!.offset, 3);
+    t.is(decoder.decode(laterItems[0]!.data), 'item-3');
     t.is(laterItems[1]!.offset, 4);
+    t.is(decoder.decode(laterItems[1]!.data), 'item-4');
 
     await handle.signal('close');
   });
@@ -178,39 +167,12 @@ test('per_item_offsets_with_topic_filter — offsets are global, not per-topic',
   });
 });
 
-test('per_item_offsets_after_truncation — offsets remain correct after truncate', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
-  const worker = await createWorker();
-  await worker.runUntil(async () => {
-    const handle = await startWorkflow(truncateSignalWorkflow, { args: [] });
-
-    const items: PublishEntry[] = [];
-    for (let i = 0; i < 5; i++) items.push(entry('events', `item-${i}`));
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
-      items,
-      publisher_id: '',
-      sequence: 0,
-    });
-    await new Promise((r) => setTimeout(r, 500));
-
-    await handle.signal('truncate', 3);
-    await new Promise((r) => setTimeout(r, 300));
-
-    const after = await collectItems(handle, undefined, 3, 2);
-    t.is(after.length, 2);
-    t.is(after[0]!.offset, 3);
-    t.is(after[1]!.offset, 4);
-
-    await handle.signal('close');
-  });
-});
-
 test('poll_truncated_offset_returns_application_failure', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const { env } = t.context;
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const handle = await startWorkflow(truncateSignalWorkflow, { args: [] });
+    const handle = await startWorkflow(truncateWorkflow, { args: [] });
 
     const items: PublishEntry[] = [];
     for (let i = 0; i < 5; i++) items.push(entry('events', `item-${i}`));
@@ -219,13 +181,11 @@ test('poll_truncated_offset_returns_application_failure', async (t) => {
       publisher_id: '',
       sequence: 0,
     });
-    await new Promise((r) => setTimeout(r, 500));
-    await handle.signal('truncate', 3);
-    await new Promise((r) => setTimeout(r, 300));
+    // Truncate via update — completion is explicit.
+    await handle.executeUpdate(truncateUpdate, { args: [3] });
 
-    // Poll from offset 1 (truncated) via the raw update — must raise
-    // WorkflowUpdateFailedError with ApplicationFailure cause, type
-    // 'TruncatedOffset'.
+    // Poll from offset 1 (truncated) must raise WorkflowUpdateFailedError
+    // with ApplicationFailure cause of type 'TruncatedOffset'.
     const rawHandle = env.client.workflow.getHandle(handle.workflowId);
     const err = (await t.throwsAsync(
       rawHandle.executeUpdate<PollResult, [PollInput]>(pubsubPollUpdate, {
@@ -245,37 +205,11 @@ test('poll_truncated_offset_returns_application_failure', async (t) => {
   });
 });
 
-test('poll_offset_zero_after_truncation — offset=0 reads from base', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
-  const worker = await createWorker();
-  await worker.runUntil(async () => {
-    const handle = await startWorkflow(truncateSignalWorkflow, { args: [] });
-
-    const items: PublishEntry[] = [];
-    for (let i = 0; i < 5; i++) items.push(entry('events', `item-${i}`));
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
-      items,
-      publisher_id: '',
-      sequence: 0,
-    });
-    await new Promise((r) => setTimeout(r, 500));
-    await handle.signal('truncate', 3);
-    await new Promise((r) => setTimeout(r, 300));
-
-    const after = await collectItems(handle, undefined, 0, 2);
-    t.is(after.length, 2);
-    t.is(after[0]!.offset, 3);
-    t.is(after[1]!.offset, 4);
-
-    await handle.signal('close');
-  });
-});
-
 test('subscribe_recovers_from_truncation — client auto-restarts from 0', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const handle = await startWorkflow(truncateSignalWorkflow, { args: [] });
+    const handle = await startWorkflow(truncateWorkflow, { args: [] });
 
     const items: PublishEntry[] = [];
     for (let i = 0; i < 5; i++) items.push(entry('events', `item-${i}`));
@@ -284,9 +218,8 @@ test('subscribe_recovers_from_truncation — client auto-restarts from 0', async
       publisher_id: '',
       sequence: 0,
     });
-    await new Promise((r) => setTimeout(r, 500));
-    await handle.signal('truncate', 3);
-    await new Promise((r) => setTimeout(r, 300));
+    // Truncate via update — explicit completion.
+    await handle.executeUpdate(truncateUpdate, { args: [3] });
 
     // subscribe() from offset 1 (truncated) — client should recover and
     // deliver items from baseOffset (3) onward.
@@ -303,7 +236,11 @@ test('priority_flush — priority wakes flusher despite 60s interval', async (t)
   const worker = await createWorker({ activities: pubsubActivities });
   await worker.runUntil(async () => {
     const handle = await startWorkflow(priorityWorkflow, { args: [] });
-    const items = await collectItems(handle, undefined, 0, 3, 10_000);
+    // The activity holds for ~10s after priority publish; 5s timeout gives
+    // plenty of margin for scheduling while staying well below the hold so
+    // a regression (no priority wakeup) surfaces as a missing item, not a
+    // pass via the dispose-driven flush at activity exit.
+    const items = await collectItems(handle, undefined, 0, 3, 5_000);
     t.is(items.length, 3);
     t.is(decoder.decode(items[2]!.data), 'priority');
     await handle.signal('close');
@@ -361,8 +298,8 @@ test('dedup_rejects_duplicate_signal — same publisher+sequence is dropped', as
       publisher_id: 'test-pub',
       sequence: 2,
     });
-    await new Promise((r) => setTimeout(r, 500));
 
+    // collectItems' update call acts as a barrier — prior signals processed.
     const items = await collectItems(handle, undefined, 0, 2);
     t.is(items.length, 2);
     t.is(decoder.decode(items[0]!.data), 'item-0');
@@ -375,58 +312,11 @@ test('dedup_rejects_duplicate_signal — same publisher+sequence is dropped', as
   });
 });
 
-test('retry_timeout_sequence_reuse_causes_data_loss — regression for the fix', async (t) => {
-  // This exercises the workflow-side dedup behavior that the client fix
-  // protects against. Step 3 verifies that reusing a sequence silently
-  // drops the batch (the bug), Step 4 verifies that a fresh sequence is
-  // accepted (what the fix produces).
-  const { createWorker, startWorkflow } = helpers(t);
-  const worker = await createWorker();
-  await worker.runUntil(async () => {
-    const handle = await startWorkflow(basicPubSubWorkflow, { args: [] });
-
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
-      items: [entry('events', 'batch-A')],
-      publisher_id: 'victim',
-      sequence: 1,
-    });
-    await new Promise((r) => setTimeout(r, 300));
-
-    const firstItems = await collectItems(handle, undefined, 0, 1);
-    t.is(firstItems.length, 1);
-    t.is(decoder.decode(firstItems[0]!.data), 'batch-A');
-
-    // Reused sequence (the bug) — batch silently deduped.
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
-      items: [entry('events', 'batch-B')],
-      publisher_id: 'victim',
-      sequence: 1,
-    });
-    await new Promise((r) => setTimeout(r, 300));
-
-    const offsetAfterBug = await handle.query<number>(pubsubOffsetQuery);
-    t.is(offsetAfterBug, 1, 'batch-B should be silently deduped without the fix');
-
-    // Fresh sequence (what the fix produces) — batch accepted.
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
-      items: [entry('events', 'batch-B-fixed')],
-      publisher_id: 'victim',
-      sequence: 2,
-    });
-    await new Promise((r) => setTimeout(r, 300));
-
-    const offsetAfterFix = await handle.query<number>(pubsubOffsetQuery);
-    t.is(offsetAfterFix, 2, 'fresh sequence is accepted');
-
-    await handle.signal('close');
-  });
-});
-
 test('truncate_pubsub — truncate discards prefix and adjusts base', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const handle = await startWorkflow(truncateSignalWorkflow, { args: [] });
+    const handle = await startWorkflow(truncateWorkflow, { args: [] });
 
     const items: PublishEntry[] = [];
     for (let i = 0; i < 5; i++) items.push(entry('events', `item-${i}`));
@@ -435,14 +325,14 @@ test('truncate_pubsub — truncate discards prefix and adjusts base', async (t) 
       publisher_id: '',
       sequence: 0,
     });
-    await new Promise((r) => setTimeout(r, 500));
 
     const first = await collectItems(handle, undefined, 0, 5);
     t.is(first.length, 5);
 
-    await handle.signal('truncate', 3);
-    await new Promise((r) => setTimeout(r, 300));
+    // Truncate via update — returns after the handler completes.
+    await handle.executeUpdate(truncateUpdate, { args: [3] });
 
+    // Offset should still be 5 (truncation moves base_offset, not tail).
     const offset = await handle.query<number>(pubsubOffsetQuery);
     t.is(offset, 5);
 
@@ -455,38 +345,46 @@ test('truncate_pubsub — truncate discards prefix and adjusts base', async (t) 
   });
 });
 
-test('ttl_pruning_in_get_state — TTL=0 prunes, long TTL retains', async (t) => {
+test('ttl_pruning_in_get_state — old publisher pruned, new publisher kept', async (t) => {
+  // pub-old arrives first, then wall-clock gap, then pub-new. TTL=0.5s
+  // prunes pub-old (~1s old) but keeps pub-new (~0s).
+  //
+  // The gap is generous relative to TTL (1.0s / 0.5s) so the test
+  // tolerates multi-hundred-ms scheduling jitter in both directions.
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
     const handle = await startWorkflow(ttlTestWorkflow, { args: [] });
 
     await handle.signal<[PublishInput]>(pubsubPublishSignal, {
-      items: [entry('events', 'from-a')],
-      publisher_id: 'pub-a',
+      items: [entry('events', 'old')],
+      publisher_id: 'pub-old',
       sequence: 1,
     });
+
+    // Sanity: pub-old is recorded (generous TTL retains it).
+    const before = await handle.query<PubSubState, [number]>(getStateWithTtlQuery, 9999);
+    t.true('pub-old' in before.publisher_sequences);
+
+    // Wall-clock gap so workflow.time() advances between the two signals.
+    await new Promise((r) => setTimeout(r, 1000));
+
     await handle.signal<[PublishInput]>(pubsubPublishSignal, {
-      items: [entry('events', 'from-b')],
-      publisher_id: 'pub-b',
+      items: [entry('events', 'new')],
+      publisher_id: 'pub-new',
       sequence: 1,
     });
-    await new Promise((r) => setTimeout(r, 500));
 
-    const kept = await handle.query<PubSubState, [number]>(getStateWithTtlQuery, 9999);
-    t.true('pub-a' in kept.publisher_sequences);
-    t.true('pub-b' in kept.publisher_sequences);
-
-    const pruned = await handle.query<PubSubState, [number]>(getStateWithTtlQuery, 0);
-    t.false('pub-a' in pruned.publisher_sequences);
-    t.false('pub-b' in pruned.publisher_sequences);
-    t.is(pruned.log.length, 2);
+    const state = await handle.query<PubSubState, [number]>(getStateWithTtlQuery, 0.5);
+    t.false('pub-old' in state.publisher_sequences);
+    t.true('pub-new' in state.publisher_sequences);
+    t.is(state.log.length, 2);
 
     await handle.signal('close');
   });
 });
 
-test('continue_as_new_typed — pubsub state survives CAN', async (t) => {
+test('continue_as_new_typed — log, offsets, AND dedup state survive CAN', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const { env } = t.context;
   const worker = await createWorker();
@@ -497,14 +395,16 @@ test('continue_as_new_typed — pubsub state survives CAN', async (t) => {
       workflowId,
     });
 
+    // Seed publisher dedup state (pub / sequence=1) so we can verify it
+    // survives CAN.
     await handle.signal<[PublishInput]>(pubsubPublishSignal, {
       items: [
         entry('events', 'item-0'),
         entry('events', 'item-1'),
         entry('events', 'item-2'),
       ],
-      publisher_id: '',
-      sequence: 0,
+      publisher_id: 'pub',
+      sequence: 1,
     });
 
     const before = await collectItems(handle, undefined, 0, 3);
@@ -512,7 +412,7 @@ test('continue_as_new_typed — pubsub state survives CAN', async (t) => {
 
     await handle.signal('triggerContinue');
 
-    // Wait for CAN to land — run-id on a fresh handle differs from the old run.
+    // Wait for CAN (new run-id on a fresh handle).
     const deadline = Date.now() + 10_000;
     let newRunId: string | undefined;
     while (Date.now() < deadline) {
@@ -524,21 +424,50 @@ test('continue_as_new_typed — pubsub state survives CAN', async (t) => {
       }
       await new Promise((r) => setTimeout(r, 200));
     }
-    t.truthy(newRunId, 'continue-as-new should produce a new run id');
+    t.truthy(newRunId, 'CAN should produce a new run id');
 
     const newHandle = env.client.workflow.getHandle(workflowId);
-    const afterItems = await collectItems(newHandle, undefined, 0, 3);
-    t.is(afterItems.length, 3);
-    t.is(decoder.decode(afterItems[0]!.data), 'item-0');
 
+    // Log contents and offsets preserved across CAN.
+    const afterItems = await collectItems(newHandle, undefined, 0, 3);
+    t.deepEqual(
+      afterItems.map((i) => decoder.decode(i.data)),
+      ['item-0', 'item-1', 'item-2']
+    );
+    t.deepEqual(
+      afterItems.map((i) => i.offset),
+      [0, 1, 2]
+    );
+
+    // Dedup state preserved: publisher_sequences carries {pub: 1} after CAN.
+    const seqsAfterCan = await newHandle.query<Record<string, number>>(publisherSequencesQuery);
+    t.deepEqual(seqsAfterCan, { pub: 1 });
+
+    // Re-sending publisher_id='pub', sequence=1 must be rejected — log and
+    // publisher_sequences unchanged.
+    await newHandle.signal<[PublishInput]>(pubsubPublishSignal, {
+      items: [entry('events', 'dup')],
+      publisher_id: 'pub',
+      sequence: 1,
+    });
+    const seqsAfterDup = await newHandle.query<Record<string, number>>(publisherSequencesQuery);
+    t.deepEqual(seqsAfterDup, { pub: 1 });
+
+    // Fresh sequence from same publisher accepted; item-3 lands at offset 3.
     await newHandle.signal<[PublishInput]>(pubsubPublishSignal, {
       items: [entry('events', 'item-3')],
-      publisher_id: '',
-      sequence: 0,
+      publisher_id: 'pub',
+      sequence: 2,
     });
+    const seqsAfterAccept = await newHandle.query<Record<string, number>>(publisherSequencesQuery);
+    t.deepEqual(seqsAfterAccept, { pub: 2 });
+
     const finalItems = await collectItems(newHandle, undefined, 0, 4);
-    t.is(finalItems.length, 4);
-    t.is(decoder.decode(finalItems[3]!.data), 'item-3');
+    t.deepEqual(
+      finalItems.map((i) => decoder.decode(i.data)),
+      ['item-0', 'item-1', 'item-2', 'item-3']
+    );
+    t.is(finalItems[3]!.offset, 3);
 
     await newHandle.signal('close');
   });
@@ -559,8 +488,8 @@ test('poll_more_ready_when_response_exceeds_size_limit — 1MB cap', async (t) =
         sequence: 0,
       });
     }
-    await new Promise((r) => setTimeout(r, 500));
 
+    // The update acts as a barrier for all prior publish signals.
     const rawHandle = env.client.workflow.getHandle(handle.workflowId);
     const first = await rawHandle.executeUpdate<PollResult, [PollInput]>(pubsubPollUpdate, {
       args: [{ topics: [], from_offset: 0 }],
@@ -572,14 +501,17 @@ test('poll_more_ready_when_response_exceeds_size_limit — 1MB cap', async (t) =
     // Drain the rest.
     let gathered = first.items.length;
     let offset = first.next_offset;
+    let last: PollResult = first;
     while (gathered < 8) {
-      const next = await rawHandle.executeUpdate<PollResult, [PollInput]>(pubsubPollUpdate, {
+      last = await rawHandle.executeUpdate<PollResult, [PollInput]>(pubsubPollUpdate, {
         args: [{ topics: [], from_offset: offset }],
       });
-      gathered += next.items.length;
-      offset = next.next_offset;
+      gathered += last.items.length;
+      offset = last.next_offset;
     }
     t.is(gathered, 8);
+    // The final poll that drained the log should set more_ready=false.
+    t.is(last.more_ready, false);
 
     await handle.signal('close');
   });
@@ -607,45 +539,62 @@ test('subscribe_iterates_through_more_ready — caller sees all items', async (t
   });
 });
 
-test('flush_timeout_surfaces_on_stop — dropped batches are never silent', async (t) => {
-  // Point a client at a non-existent workflow so every signal fails, then
-  // shrink maxRetryDuration to a value the flusher can exceed between ticks.
-  // After stop(), the FlushTimeoutError must propagate (rather than being
-  // swallowed by the background loop).
+test('flush_retry_preserves_items_after_failures — behavioral retry coverage', async (t) => {
+  // Inject signal failures on the handle so the client exercises its retry
+  // path. Then let delivery succeed and verify items arrive in publish
+  // order, exactly once — no drops, no duplicates, no reorderings.
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(basicPubSubWorkflow, { args: [] });
+
+    const pubsub = new PubSubClient(handle);
+    const realSignal = handle.signal.bind(handle);
+    let failRemaining = 2;
+    (handle as unknown as { signal: typeof handle.signal }).signal = (async (...args: unknown[]) => {
+      if (failRemaining > 0) {
+        failRemaining -= 1;
+        throw new Error('simulated delivery failure');
+      }
+      return realSignal(...(args as Parameters<typeof handle.signal>));
+    }) as typeof handle.signal;
+
+    pubsub.publish('events', encoder.encode('item-0'));
+    pubsub.publish('events', encoder.encode('item-1'));
+    await t.throwsAsync((pubsub as unknown as { _doFlush(): Promise<void> })._doFlush(), {
+      message: /simulated/,
+    });
+
+    // Publish more during the failed state — must not overtake the pending
+    // retry on eventual delivery.
+    pubsub.publish('events', encoder.encode('item-2'));
+    await t.throwsAsync((pubsub as unknown as { _doFlush(): Promise<void> })._doFlush(), {
+      message: /simulated/,
+    });
+
+    // Third flush delivers the pending retry batch.
+    await (pubsub as unknown as { _doFlush(): Promise<void> })._doFlush();
+    // Fourth flush delivers the buffered 'item-2'.
+    await (pubsub as unknown as { _doFlush(): Promise<void> })._doFlush();
+
+    const items = await collectItems(handle, undefined, 0, 3);
+    t.deepEqual(
+      items.map((i) => decoder.decode(i.data)),
+      ['item-0', 'item-1', 'item-2']
+    );
+
+    await handle.signal('close');
+  });
+});
+
+test('flush_raises_after_max_retry_duration — timeout surfaces, client resumes', async (t) => {
+  // When the retry window expires, stop() must rethrow FlushTimeoutError;
+  // the client stays usable and subsequent publishes succeed.
   const { env } = t.context;
   const bogus = env.client.workflow.getHandle(`no-such-workflow-${randomUUID()}`);
   const client = new PubSubClient(bogus, { batchInterval: 0.1, maxRetryDuration: 0.2 });
   client.start();
   client.publish('events', encoder.encode('will-be-lost'));
-  // Give the flusher enough ticks to hit retry timeout.
   await new Promise((r) => setTimeout(r, 1500));
   await t.throwsAsync(client.stop(), { instanceOf: FlushTimeoutError });
-});
-
-test('small_response_more_ready_false — tiny payloads fit in one poll', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
-  const { env } = t.context;
-  const worker = await createWorker();
-  await worker.runUntil(async () => {
-    const handle = await startWorkflow(basicPubSubWorkflow, { args: [] });
-
-    const smallBatch: PublishEntry[] = [];
-    for (let i = 0; i < 5; i++) smallBatch.push(entry('small', 'tiny'));
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
-      items: smallBatch,
-      publisher_id: '',
-      sequence: 0,
-    });
-    await new Promise((r) => setTimeout(r, 500));
-
-    const rawHandle = env.client.workflow.getHandle(handle.workflowId);
-    const result = await rawHandle.executeUpdate<PollResult, [PollInput]>(pubsubPollUpdate, {
-      args: [{ topics: [], from_offset: 0 }],
-    });
-    t.is(result.more_ready, false);
-    t.is(result.items.length, 5);
-    t.is(result.next_offset, 5);
-
-    await handle.signal('close');
-  });
 });

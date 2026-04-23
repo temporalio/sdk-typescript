@@ -7,6 +7,7 @@ import {
   continueAsNew,
   defineQuery,
   defineSignal,
+  defineUpdate,
   proxyActivities,
   setHandler,
 } from '@temporalio/workflow';
@@ -21,8 +22,9 @@ const { publishItems, publishMultiTopic, publishWithPriority, publishBatchTest, 
 
 export const closeSignal = defineSignal('close');
 export const triggerContinueSignal = defineSignal('triggerContinue');
-export const truncateSignal = defineSignal<[number]>('truncate');
+export const truncateUpdate = defineUpdate<void, [number]>('truncate');
 export const getStateWithTtlQuery = defineQuery<PubSubState, [number]>('getStateWithTtl');
+export const publisherSequencesQuery = defineQuery<Record<string, number>>('publisherSequences');
 
 /** A minimal broker workflow — initializes pub/sub and waits for close. */
 export async function basicPubSubWorkflow(): Promise<void> {
@@ -71,14 +73,14 @@ export async function activityPublishWorkflow(count: number): Promise<void> {
   await condition(() => closed);
 }
 
-/** Workflow that accepts a truncate signal. */
-export async function truncateSignalWorkflow(): Promise<void> {
+/** Workflow that accepts a truncate update (explicit completion). */
+export async function truncateWorkflow(): Promise<void> {
   const pubsub = initPubSub();
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
   });
-  setHandler(truncateSignal, (upToOffset: number) => {
+  setHandler(truncateUpdate, (upToOffset: number) => {
     pubsub.truncate(upToOffset);
   });
   await condition(() => closed);
@@ -145,6 +147,9 @@ export async function continueAsNewTypedWorkflow(input: CANWorkflowInput): Promi
   setHandler(triggerContinueSignal, () => {
     shouldContinue = true;
   });
+  // Expose publisher_sequences for CAN dedup-survival test. Use a very
+  // large TTL so we read the current state without pruning.
+  setHandler(publisherSequencesQuery, () => pubsub.getState(Number.MAX_SAFE_INTEGER).publisher_sequences);
   await condition(() => shouldContinue || closed);
   if (closed) return;
   pubsub.drain();

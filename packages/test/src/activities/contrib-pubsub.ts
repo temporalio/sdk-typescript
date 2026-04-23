@@ -31,13 +31,20 @@ export async function publishMultiTopic(count: number): Promise<void> {
 }
 
 export async function publishWithPriority(): Promise<void> {
+  // Long batchInterval AND long post-publish hold ensure that only a
+  // working priority wakeup can deliver items before dispose flushes.
+  // The hold is deliberately much longer than the test's collect timeout
+  // so a regression (priority no-op) surfaces as a missing item rather
+  // than flaking on slow CI.
   await using client = PubSubClient.create(undefined, undefined, { batchInterval: 60.0 });
   client.start();
   client.publish('events', encoder.encode('normal-0'));
   client.publish('events', encoder.encode('normal-1'));
   client.publish('events', encoder.encode('priority'), true);
-  // Give the flusher time to wake and flush.
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  for (let i = 0; i < 100; i++) {
+    Context.current().heartbeat();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 }
 
 export async function publishBatchTest(count: number): Promise<void> {
