@@ -164,9 +164,18 @@ importers:
       '@ai-sdk/provider':
         specifier: ^3.0.0
         version: 3.0.0
+      '@temporalio/activity':
+        specifier: workspace:*
+        version: link:../activity
+      '@temporalio/client':
+        specifier: workspace:*
+        version: link:../client
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
+      '@temporalio/contrib-pubsub':
+        specifier: workspace:*
+        version: link:../contrib-pubsub
       '@temporalio/plugin':
         specifier: workspace:*
         version: link:../plugin
@@ -260,6 +269,9 @@ importers:
 
   packages/contrib-pubsub:
     dependencies:
+      '@temporalio/activity':
+        specifier: workspace:*
+        version: link:../activity
       '@temporalio/client':
         specifier: workspace:*
         version: link:../client
@@ -578,6 +590,9 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
+      '@temporalio/contrib-pubsub':
+        specifier: workspace:*
+        version: link:../contrib-pubsub
       '@temporalio/core-bridge':
         specifier: workspace:*
         version: link:../core-bridge
