@@ -9,13 +9,24 @@
  */
 
 import { condition, defineSignal, defineUpdate, defineQuery, setHandler } from '@temporalio/workflow';
-import type { PollInput, PollResult, PubSubItem, PubSubState, PublishInput, _WireItem } from './types';
-import { encodeData, decodeData } from './types';
+import { ApplicationFailure } from '@temporalio/common';
+import {
+  decodeData,
+  encodeData,
+  type PollInput,
+  type PollResult,
+  type PubSubItem,
+  type PubSubState,
+  type PublishInput,
+  type _WireItem,
+} from './types';
 
 // Fixed handler names for cross-language interop
 export const pubsubPublishSignal = defineSignal<[PublishInput]>('__pubsub_publish');
 export const pubsubPollUpdate = defineUpdate<PollResult, [PollInput]>('__pubsub_poll');
 export const pubsubOffsetQuery = defineQuery<number>('__pubsub_offset');
+
+const MAX_POLL_RESPONSE_BYTES = 1_000_000;
 
 /** Handle returned by initPubSub for interacting with pub/sub state. */
 export interface PubSubHandle {
@@ -51,7 +62,11 @@ export interface PubSubHandle {
 export function initPubSub(priorState?: PubSubState): PubSubHandle {
   // Decode wire items (base64) to in-memory items (Uint8Array)
   const log: PubSubItem[] = priorState?.log
-    ? priorState.log.map((item) => ({ topic: item.topic, data: decodeData(item.data) }))
+    ? priorState.log.map((item, i) => ({
+        topic: item.topic,
+        data: decodeData(item.data),
+        offset: (priorState.base_offset ?? 0) + i,
+      }))
     : [];
   let baseOffset: number = priorState?.base_offset ?? 0;
   const publisherSequences: Record<string, number> = priorState?.publisher_sequences
@@ -73,8 +88,11 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
       publisherLastSeen[input.publisher_id] = Date.now() / 1000; // seconds
     }
     for (const entry of input.items) {
-      // Decode base64 wire data to Uint8Array for in-memory storage
-      log.push({ topic: entry.topic, data: decodeData(entry.data) });
+      log.push({
+        topic: entry.topic,
+        data: decodeData(entry.data),
+        offset: baseOffset + log.length,
+      });
     }
   });
 
@@ -82,26 +100,59 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
   setHandler(
     pubsubPollUpdate,
     async (input: PollInput): Promise<PollResult> => {
-      const logOffset = input.from_offset - baseOffset;
+      let logOffset = input.from_offset - baseOffset;
       if (logOffset < 0) {
-        throw new Error(
-          `Requested offset ${input.from_offset} is before base offset ${baseOffset} (log has been truncated)`
-        );
+        if (input.from_offset === 0) {
+          // "From the beginning" — start at whatever is available.
+          logOffset = 0;
+        } else {
+          // Subscriber had a specific position that's been truncated.
+          // ApplicationFailure fails this update (client gets the error)
+          // without crashing the workflow task — avoids a poison pill
+          // during replay.
+          throw ApplicationFailure.create({
+            message:
+              `Requested offset ${input.from_offset} has been truncated. ` +
+              `Current base offset is ${baseOffset}.`,
+            type: 'TruncatedOffset',
+            nonRetryable: true,
+          });
+        }
       }
       await condition(() => log.length > logOffset || draining);
       const allNew = log.slice(logOffset);
-      const nextOffset = baseOffset + log.length;
-      let filtered: PubSubItem[];
-      if (input.topics.length > 0) {
-        const topicSet = new Set(input.topics);
-        filtered = allNew.filter((item) => topicSet.has(item.topic));
-      } else {
-        filtered = [...allNew];
+
+      // Build [globalOffset, item] candidates, filtering by topic if requested.
+      const topicSet = input.topics.length > 0 ? new Set(input.topics) : null;
+      const candidates: Array<[number, PubSubItem]> = [];
+      for (let i = 0; i < allNew.length; i++) {
+        const item = allNew[i]!;
+        if (topicSet !== null && !topicSet.has(item.topic)) continue;
+        candidates.push([baseOffset + logOffset + i, item]);
       }
-      // Encode Uint8Array to base64 for wire response
+
+      // Cap response size to ~1MB of estimated wire bytes.
+      const wireItems: _WireItem[] = [];
+      let size = 0;
+      let moreReady = false;
+      let nextOffset = baseOffset + log.length;
+      for (const [off, item] of candidates) {
+        const encoded = encodeData(item.data);
+        const itemSize = encoded.length + item.topic.length;
+        if (size + itemSize > MAX_POLL_RESPONSE_BYTES && wireItems.length > 0) {
+          // Resume from this item on the next poll.
+          nextOffset = off;
+          moreReady = true;
+          break;
+        }
+        size += itemSize;
+        wireItems.push({ topic: item.topic, data: encoded, offset: off });
+      }
+
       return {
-        items: filtered.map((item) => ({ topic: item.topic, data: encodeData(item.data) })),
+        items: wireItems,
         next_offset: nextOffset,
+        more_ready: moreReady,
       };
     },
     {
@@ -119,7 +170,7 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
 
   return {
     publish(topic: string, data: Uint8Array): void {
-      log.push({ topic, data });
+      log.push({ topic, data, offset: baseOffset + log.length });
     },
 
     drain(): void {
@@ -131,17 +182,20 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
       const activeSeqs: Record<string, number> = {};
       const activeSeen: Record<string, number> = {};
       for (const pid of Object.keys(publisherSequences)) {
-        const ts = publisherLastSeen[pid];
-        if (ts === undefined || now - ts < publisherTtl) {
+        // Missing timestamps are pruned (matches sdk-python). The signal
+        // handler always sets both maps together, so absence indicates a
+        // malformed snapshot rather than a supported upgrade path.
+        const ts = publisherLastSeen[pid] ?? 0;
+        if (now - ts < publisherTtl) {
           activeSeqs[pid] = publisherSequences[pid] ?? 0;
-          if (ts !== undefined) {
-            activeSeen[pid] = ts;
-          }
+          activeSeen[pid] = ts;
         }
       }
       return {
-        // Encode Uint8Array to base64 for serializable state
-        log: log.map((item) => ({ topic: item.topic, data: encodeData(item.data) })),
+        // Encode Uint8Array to base64 for serializable state.
+        // Per-item offset is re-derivable from base_offset + index on reload,
+        // so we leave it at 0 here.
+        log: log.map((item) => ({ topic: item.topic, data: encodeData(item.data), offset: 0 })),
         base_offset: baseOffset,
         publisher_sequences: activeSeqs,
         publisher_last_seen: activeSeen,

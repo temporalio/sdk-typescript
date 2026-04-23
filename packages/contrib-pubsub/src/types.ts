@@ -8,11 +8,17 @@
  * data field. User-facing types (PubSubItem) use Uint8Array.
  */
 
-/** A single item in the pub/sub log (user-facing). */
+/**
+ * A single item in the pub/sub log (user-facing).
+ *
+ * The `offset` field is populated by `subscribe()` from the item's position in
+ * the global log.
+ */
 export interface PubSubItem {
   topic: string;
   /** Opaque byte payload. */
   data: Uint8Array;
+  offset: number;
 }
 
 /** A single entry to publish via signal (wire type). */
@@ -22,11 +28,18 @@ export interface PublishEntry {
   data: string;
 }
 
-/** Wire representation of a PubSubItem (base64 data). */
+/**
+ * Wire representation of a PubSubItem (base64 data).
+ *
+ * The `offset` field is populated by the poll handler from the item's
+ * position in the global log. It is unused in the `getState()` snapshot
+ * (offsets there are re-derivable from `base_offset + index`).
+ */
 export interface _WireItem {
   topic: string;
   /** Base64-encoded byte payload. */
   data: string;
+  offset: number;
 }
 
 /** Signal payload: batch of entries to publish with dedup fields. */
@@ -42,10 +55,17 @@ export interface PollInput {
   from_offset: number;
 }
 
-/** Update response: items matching the poll request (wire type). */
+/**
+ * Update response: items matching the poll request (wire type).
+ *
+ * When `more_ready` is true, the response was truncated to stay within size
+ * limits and the subscriber should poll again immediately rather than applying
+ * a cooldown delay.
+ */
 export interface PollResult {
   items: _WireItem[];
   next_offset: number;
+  more_ready: boolean;
 }
 
 /** Serializable snapshot of pub/sub state for continue-as-new. */
@@ -54,7 +74,7 @@ export interface PubSubState {
   base_offset: number;
   publisher_sequences: Record<string, number>;
   /** Per-publisher last-seen timestamps for TTL pruning. */
-  publisher_last_seen?: Record<string, number>;
+  publisher_last_seen: Record<string, number>;
 }
 
 // --- Base64 helpers (no Buffer dependency for workflow sandbox compat) ---

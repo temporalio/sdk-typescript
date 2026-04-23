@@ -6,9 +6,18 @@
  */
 
 import { randomUUID } from 'crypto';
-import { Client, WorkflowHandle, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
-import type { PollInput, PollResult, PubSubItem, PublishEntry, PublishInput } from './types';
-import { encodeData, decodeData } from './types';
+import { Context as ActivityContext } from '@temporalio/activity';
+import { Client, WorkflowHandle, WorkflowUpdateFailedError, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
+import { ApplicationFailure } from '@temporalio/common';
+import {
+  decodeData,
+  encodeData,
+  type PollInput,
+  type PollResult,
+  type PubSubItem,
+  type PublishEntry,
+  type PublishInput,
+} from './types';
 
 /** Thrown when a flush retry exceeds maxRetryDuration. */
 export class FlushTimeoutError extends Error {
@@ -31,9 +40,47 @@ export interface PubSubClientOptions {
   maxRetryDuration?: number;
 }
 
+/**
+ * A resolvable event: multiple callers `await wait()` for the same promise,
+ * `set()` resolves it once, and `clear()` re-arms it for the next cycle.
+ */
+class ResolvableEvent {
+  private resolver: (() => void) | null = null;
+  private promise: Promise<void>;
+
+  constructor() {
+    this.promise = new Promise<void>((resolve) => {
+      this.resolver = resolve;
+    });
+  }
+
+  wait(): Promise<void> {
+    return this.promise;
+  }
+
+  set(): void {
+    if (this.resolver) {
+      const r = this.resolver;
+      this.resolver = null;
+      r();
+    }
+  }
+
+  clear(): void {
+    if (this.resolver !== null) return; // already armed
+    this.promise = new Promise<void>((resolve) => {
+      this.resolver = resolve;
+    });
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class PubSubClient {
   private handle: WorkflowHandle;
-  private readonly client: Client | undefined;
+  private client: Client | undefined;
   private readonly workflowId: string;
   private readonly batchInterval: number;
   private readonly maxBatchSize: number | undefined;
@@ -42,10 +89,14 @@ export class PubSubClient {
   private pending: PublishEntry[] | null = null;
   private pendingSeq = 0;
   private pendingStartedAt: number | null = null;
-  private flushTimer: ReturnType<typeof setInterval> | undefined;
-  private flushPromise: Promise<void> | undefined;
   private publisherId: string = randomUUID().replace(/-/g, '').slice(0, 16);
   private sequence = 0;
+
+  private readonly flushEvent = new ResolvableEvent();
+  private flusherTask: Promise<void> | undefined;
+  private flusherStopped = false;
+  private flusherError: Error | undefined;
+  private currentFlush: Promise<void> | null = null;
 
   constructor(handle: WorkflowHandle, options?: PubSubClientOptions) {
     this.handle = handle;
@@ -57,41 +108,121 @@ export class PubSubClient {
 
   /**
    * Create a PubSubClient from a Temporal client and workflow ID.
-   * Preferred constructor — enables continue-as-new following in subscribe().
+   *
+   * When called inside an activity, `client` and `workflowId` can be omitted —
+   * they are inferred from `Context.current()`.
+   *
+   * This is the preferred constructor; it enables continue-as-new following in
+   * `subscribe()`.
    */
-  static create(client: Client, workflowId: string, options?: PubSubClientOptions): PubSubClient {
-    const handle = client.workflow.getHandle(workflowId);
+  static create(
+    client?: Client,
+    workflowId?: string,
+    options?: PubSubClientOptions
+  ): PubSubClient {
+    let resolvedClient: Client;
+    let resolvedId: string;
+    if (client === undefined || workflowId === undefined) {
+      // Context.current() throws if not inside an activity — let that propagate
+      // with its native error so the caller sees the right message.
+      const ctx = ActivityContext.current();
+      resolvedClient = client ?? ctx.client;
+      resolvedId = workflowId ?? ctx.info.workflowExecution.workflowId;
+    } else {
+      resolvedClient = client;
+      resolvedId = workflowId;
+    }
+    const handle = resolvedClient.workflow.getHandle(resolvedId);
     const instance = new PubSubClient(handle, options);
-    (instance as unknown as { client: Client | undefined }).client = client;
+    instance.client = resolvedClient;
     return instance;
   }
 
-  /** Start the background flush timer. Call before publishing. */
+  /** Start the background flusher. Call before publishing. */
   start(): void {
-    if (this.flushTimer) return;
-    this.flushTimer = setInterval(() => {
-      void this._flush();
-    }, this.batchInterval * 1000);
+    if (this.flusherTask) return;
+    this.flusherStopped = false;
+    this.flusherTask = this.runFlusher();
   }
 
-  /** Stop the flush timer and flush remaining items. */
+  /** Stop the flusher and flush remaining items. */
   async stop(): Promise<void> {
-    if (this.flushTimer) {
-      clearInterval(this.flushTimer);
-      this.flushTimer = undefined;
+    if (!this.flusherTask) {
+      await this.flushOnce();
+      this.throwPendingFlusherError();
+      return;
     }
-    await this._flush();
+    this.flusherStopped = true;
+    this.flushEvent.set();
+    try {
+      await this.flusherTask;
+    } finally {
+      this.flusherTask = undefined;
+    }
+    // Final drain after the flusher exits.
+    await this.flushOnce();
+    this.throwPendingFlusherError();
+  }
+
+  private throwPendingFlusherError(): void {
+    if (this.flusherError) {
+      const err = this.flusherError;
+      this.flusherError = undefined;
+      throw err;
+    }
+  }
+
+  /** Dispose pattern: `await using client = PubSubClient.create(...)`. */
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.stop();
   }
 
   /**
    * Buffer a message for publishing.
    * @param data - Opaque byte payload.
-   * @param priority - If true, triggers immediate flush (fire-and-forget).
+   * @param priority - If true, wake the flusher to send immediately.
    */
   publish(topic: string, data: Uint8Array, priority = false): void {
     this.buffer.push({ topic, data: encodeData(data) });
     if (priority || (this.maxBatchSize !== undefined && this.buffer.length >= this.maxBatchSize)) {
-      void this._flush();
+      this.flushEvent.set();
+    }
+  }
+
+  private async runFlusher(): Promise<void> {
+    while (!this.flusherStopped) {
+      await Promise.race([this.flushEvent.wait(), sleep(this.batchInterval * 1000)]);
+      this.flushEvent.clear();
+      if (this.flusherStopped) break;
+      try {
+        await this.flushOnce();
+      } catch (err) {
+        if (err instanceof FlushTimeoutError) {
+          // Pending batch was dropped and can't be recovered. Stash the
+          // error and stop the loop; stop() will surface it so data loss
+          // is never silent.
+          this.flusherError = err;
+          break;
+        }
+        // Transient failures (network, signal rejection) leave `pending`
+        // set so the next tick retries with the same sequence.
+      }
+    }
+  }
+
+  /**
+   * Serialize concurrent flush calls through a single in-flight promise.
+   */
+  private async flushOnce(): Promise<void> {
+    while (this.currentFlush) {
+      await this.currentFlush;
+    }
+    const p = this._doFlush();
+    this.currentFlush = p;
+    try {
+      await p;
+    } finally {
+      if (this.currentFlush === p) this.currentFlush = null;
     }
   }
 
@@ -101,12 +232,7 @@ export class PubSubClient {
    * On failure, the pending batch and sequence are kept for retry.
    * Only advances the confirmed sequence on success.
    */
-  private async _flush(): Promise<void> {
-    // Simple serialization: wait for any in-progress flush
-    if (this.flushPromise) {
-      await this.flushPromise;
-    }
-
+  private async _doFlush(): Promise<void> {
     let batch: PublishEntry[];
     let seq: number;
 
@@ -116,12 +242,18 @@ export class PubSubClient {
         this.pendingStartedAt !== null &&
         (Date.now() - this.pendingStartedAt) / 1000 > this.maxRetryDuration
       ) {
+        // Advance confirmed sequence so the next batch gets a fresh sequence
+        // number. Without this, the next batch reuses pendingSeq, which the
+        // workflow may have already accepted — causing silent dedup (data
+        // loss). See `retry_timeout_sequence_reuse_causes_data_loss` test.
+        this.sequence = this.pendingSeq;
         this.pending = null;
         this.pendingSeq = 0;
         this.pendingStartedAt = null;
         throw new FlushTimeoutError(
           `Flush retry exceeded maxRetryDuration (${this.maxRetryDuration}s). ` +
-          'Pending batch dropped.'
+            'Pending batch dropped. If the signal was delivered, items are in the log. ' +
+            'If not, they are lost.'
         );
       }
       batch = this.pending;
@@ -138,26 +270,17 @@ export class PubSubClient {
       return;
     }
 
-    const doFlush = async (): Promise<void> => {
-      // On failure, the signal throws and pending stays set for retry.
-      // On success, we advance confirmed sequence and clear pending.
-      await this.handle.signal<[PublishInput]>('__pubsub_publish', {
-        items: batch,
-        publisher_id: this.publisherId,
-        sequence: seq,
-      });
-      this.sequence = seq;
-      this.pending = null;
-      this.pendingSeq = 0;
-      this.pendingStartedAt = null;
-    };
-
-    this.flushPromise = doFlush();
-    try {
-      await this.flushPromise;
-    } finally {
-      this.flushPromise = undefined;
-    }
+    // On failure, the signal throws and pending stays set for retry.
+    // On success, advance confirmed sequence and clear pending.
+    await this.handle.signal<[PublishInput]>('__pubsub_publish', {
+      items: batch,
+      publisher_id: this.publisherId,
+      sequence: seq,
+    });
+    this.sequence = seq;
+    this.pending = null;
+    this.pendingSeq = 0;
+    this.pendingStartedAt = null;
   }
 
   /**
@@ -179,6 +302,17 @@ export class PubSubClient {
           args: [{ topics: topics ?? [], from_offset: offset }],
         });
       } catch (err) {
+        if (err instanceof WorkflowUpdateFailedError) {
+          const cause = err.cause;
+          if (cause instanceof ApplicationFailure && cause.type === 'TruncatedOffset') {
+            // Subscriber fell behind truncation. Retry from offset 0 which
+            // the mixin treats as "from the beginning of whatever exists"
+            // (i.e., from baseOffset).
+            offset = 0;
+            continue;
+          }
+          throw err;
+        }
         if (err instanceof WorkflowUpdateRPCTimeoutOrCancelledError) {
           if (await this.followContinueAsNew()) {
             continue;
@@ -192,12 +326,13 @@ export class PubSubClient {
         yield {
           topic: wireItem.topic,
           data: decodeData(wireItem.data),
+          offset: wireItem.offset,
         };
       }
       offset = result.next_offset;
 
-      if (pollCooldown > 0) {
-        await new Promise((resolve) => setTimeout(resolve, pollCooldown * 1000));
+      if (!result.more_ready && pollCooldown > 0) {
+        await sleep(pollCooldown * 1000);
       }
     }
   }
