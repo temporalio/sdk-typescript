@@ -46,6 +46,7 @@
     "@temporalio/envconfig": "workspace:*",
     "@temporalio/interceptors-opentelemetry": "workspace:*",
     "@temporalio/nexus": "workspace:*",
+    "@temporalio/openai-agents": "workspace:*",
     "@temporalio/nyc-test-coverage": "workspace:*",
     "@temporalio/plugin": "workspace:*",
     "@temporalio/proto": "workspace:*",

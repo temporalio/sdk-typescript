@@ -49,6 +49,9 @@
     },
     {
       "path": "../ai-sdk"
+    },
+    {
+      "path": "../openai-agents"
     }
   ],
   "include": ["./src/**/*.ts"]
