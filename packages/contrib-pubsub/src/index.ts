@@ -29,7 +29,6 @@ export {
   encodePayloadWire,
   decodePayloadWire,
 } from './types';
-export { initPubSub, pubsubPublishSignal, pubsubPollUpdate, pubsubOffsetQuery } from './mixin';
-export type { PubSubHandle } from './mixin';
+export { PubSub, pubsubPublishSignal, pubsubPollUpdate, pubsubOffsetQuery } from './broker';
 export { PubSubClient, FlushTimeoutError } from './client';
 export type { PubSubClientOptions, SubscribeOptions } from './client';

@@ -11,10 +11,10 @@ import {
   proxyActivities,
   setHandler,
 } from '@temporalio/workflow';
-import { initPubSub, type PubSubState } from '@temporalio/contrib-pubsub';
+import { PubSub, type PubSubState } from '@temporalio/contrib-pubsub';
 import type * as activities from '../activities/contrib-pubsub';
 
-const { publishItems, publishMultiTopic, publishWithPriority, publishBatchTest, publishWithMaxBatch } =
+const { publishItems, publishMultiTopic, publishWithForceFlush, publishBatchTest, publishWithMaxBatch } =
   proxyActivities<typeof activities>({
     startToCloseTimeout: '30 seconds',
     heartbeatTimeout: '10 seconds',
@@ -28,7 +28,7 @@ export const publisherSequencesQuery = defineQuery<Record<string, number>>('publ
 
 /** A minimal broker workflow — initializes pub/sub and waits for close. */
 export async function basicPubSubWorkflow(): Promise<void> {
-  initPubSub();
+  new PubSub();
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
@@ -38,7 +38,7 @@ export async function basicPubSubWorkflow(): Promise<void> {
 
 /** Publishes `count` items directly from the workflow, then waits. */
 export async function workflowSidePublishWorkflow(count: number): Promise<void> {
-  const pubsub = initPubSub();
+  const pubsub = new PubSub();
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
@@ -52,7 +52,7 @@ export async function workflowSidePublishWorkflow(count: number): Promise<void> 
 
 /** Executes publishMultiTopic activity then waits. */
 export async function multiTopicWorkflow(count: number): Promise<void> {
-  initPubSub();
+  new PubSub();
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
@@ -63,7 +63,7 @@ export async function multiTopicWorkflow(count: number): Promise<void> {
 
 /** Executes publishItems activity then appends activity_done status. */
 export async function activityPublishWorkflow(count: number): Promise<void> {
-  const pubsub = initPubSub();
+  const pubsub = new PubSub();
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
@@ -75,7 +75,7 @@ export async function activityPublishWorkflow(count: number): Promise<void> {
 
 /** Workflow that accepts a truncate update (explicit completion). */
 export async function truncateWorkflow(): Promise<void> {
-  const pubsub = initPubSub();
+  const pubsub = new PubSub();
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
@@ -88,7 +88,7 @@ export async function truncateWorkflow(): Promise<void> {
 
 /** Workflow that exposes getState via query for TTL testing. */
 export async function ttlTestWorkflow(): Promise<void> {
-  const pubsub = initPubSub();
+  const pubsub = new PubSub();
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
@@ -97,20 +97,20 @@ export async function ttlTestWorkflow(): Promise<void> {
   await condition(() => closed);
 }
 
-/** Workflow that runs publishWithPriority activity. */
-export async function priorityWorkflow(): Promise<void> {
-  initPubSub();
+/** Workflow that runs publishWithForceFlush activity. */
+export async function forceFlushWorkflow(): Promise<void> {
+  new PubSub();
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
   });
-  await publishWithPriority();
+  await publishWithForceFlush();
   await condition(() => closed);
 }
 
 /** Workflow that runs publishBatchTest activity. */
 export async function flushOnExitWorkflow(count: number): Promise<void> {
-  initPubSub();
+  new PubSub();
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
@@ -121,7 +121,7 @@ export async function flushOnExitWorkflow(count: number): Promise<void> {
 
 /** Workflow that runs publishWithMaxBatch activity. */
 export async function maxBatchWorkflow(count: number): Promise<void> {
-  const pubsub = initPubSub();
+  const pubsub = new PubSub();
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
@@ -138,7 +138,7 @@ export interface CANWorkflowInput {
 
 /** CAN workflow using properly-typed pubsubState. */
 export async function continueAsNewTypedWorkflow(input: CANWorkflowInput): Promise<void> {
-  const pubsub = initPubSub(input.pubsubState);
+  const pubsub = new PubSub(input.pubsubState);
   let closed = false;
   let shouldContinue = false;
   setHandler(closeSignal, () => {

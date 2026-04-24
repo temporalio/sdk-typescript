@@ -30,7 +30,7 @@ import {
   getStateWithTtlQuery,
   maxBatchWorkflow,
   multiTopicWorkflow,
-  priorityWorkflow,
+  forceFlushWorkflow,
   publisherSequencesQuery,
   truncateUpdate,
   truncateWorkflow,
@@ -255,18 +255,18 @@ test('subscribe_recovers_from_truncation — client auto-restarts from 0', async
   });
 });
 
-test('priority_flush — priority wakes flusher despite 60s interval', async (t) => {
+test('force_flush — forceFlush wakes flusher despite 60s interval', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker({ activities: pubsubActivities });
   await worker.runUntil(async () => {
-    const handle = await startWorkflow(priorityWorkflow, { args: [] });
-    // The activity holds for ~10s after priority publish; 5s timeout gives
-    // plenty of margin for scheduling while staying well below the hold so
-    // a regression (no priority wakeup) surfaces as a missing item, not a
-    // pass via the dispose-driven flush at activity exit.
+    const handle = await startWorkflow(forceFlushWorkflow, { args: [] });
+    // The activity holds for ~10s after the forceFlush publish; 5s timeout
+    // gives plenty of margin for scheduling while staying well below the
+    // hold so a regression (no forceFlush wakeup) surfaces as a missing
+    // item, not a pass via the dispose-driven flush at activity exit.
     const items = await collectItems(handle, undefined, 0, 3, 5_000);
     t.is(items.length, 3);
-    t.is(payloadString(items[2]!.data), 'priority');
+    t.is(payloadString(items[2]!.data), 'force-flush');
     await handle.signal('close');
   });
 });

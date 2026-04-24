@@ -1,8 +1,8 @@
 /**
  * Test activities for @temporalio/contrib-pubsub.
  *
- * These activities use `PubSubClient.create()` with no arguments, relying on
- * the activity context to supply the client and workflow ID.
+ * These activities use `PubSubClient.fromActivity()` to target the
+ * current activity's parent workflow from the activity context.
  */
 
 import { Context } from '@temporalio/activity';
@@ -11,7 +11,7 @@ import { PubSubClient } from '@temporalio/contrib-pubsub';
 const encoder = new TextEncoder();
 
 export async function publishItems(count: number): Promise<void> {
-  await using client = PubSubClient.create(undefined, undefined, { batchInterval: 0.5 });
+  await using client = PubSubClient.fromActivity({ batchInterval: 0.5 });
   client.start();
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
@@ -21,7 +21,7 @@ export async function publishItems(count: number): Promise<void> {
 
 export async function publishMultiTopic(count: number): Promise<void> {
   const topics = ['a', 'b', 'c'];
-  await using client = PubSubClient.create(undefined, undefined, { batchInterval: 0.5 });
+  await using client = PubSubClient.fromActivity({ batchInterval: 0.5 });
   client.start();
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
@@ -30,17 +30,17 @@ export async function publishMultiTopic(count: number): Promise<void> {
   }
 }
 
-export async function publishWithPriority(): Promise<void> {
+export async function publishWithForceFlush(): Promise<void> {
   // Long batchInterval AND long post-publish hold ensure that only a
-  // working priority wakeup can deliver items before dispose flushes.
+  // working forceFlush wakeup can deliver items before dispose flushes.
   // The hold is deliberately much longer than the test's collect timeout
-  // so a regression (priority no-op) surfaces as a missing item rather
+  // so a regression (forceFlush no-op) surfaces as a missing item rather
   // than flaking on slow CI.
-  await using client = PubSubClient.create(undefined, undefined, { batchInterval: 60.0 });
+  await using client = PubSubClient.fromActivity({ batchInterval: 60.0 });
   client.start();
   client.publish('events', encoder.encode('normal-0'));
   client.publish('events', encoder.encode('normal-1'));
-  client.publish('events', encoder.encode('priority'), true);
+  client.publish('events', encoder.encode('force-flush'), true);
   for (let i = 0; i < 100; i++) {
     Context.current().heartbeat();
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -48,7 +48,7 @@ export async function publishWithPriority(): Promise<void> {
 }
 
 export async function publishBatchTest(count: number): Promise<void> {
-  await using client = PubSubClient.create(undefined, undefined, { batchInterval: 60.0 });
+  await using client = PubSubClient.fromActivity({ batchInterval: 60.0 });
   client.start();
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
@@ -58,7 +58,7 @@ export async function publishBatchTest(count: number): Promise<void> {
 }
 
 export async function publishWithMaxBatch(count: number): Promise<void> {
-  await using client = PubSubClient.create(undefined, undefined, {
+  await using client = PubSubClient.fromActivity({
     batchInterval: 60.0,
     maxBatchSize: 3,
   });

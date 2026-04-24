@@ -24,14 +24,14 @@ codec behavior is symmetric between workflow-side and client-side publishing.
 
 ### Workflow side
 
-Call `initPubSub()` at the start of your workflow function and use the returned
-handle to publish:
+Construct `new PubSub()` at the start of your workflow function and use the
+returned object to publish:
 
 ```typescript
-import { initPubSub } from '@temporalio/contrib-pubsub';
+import { PubSub } from '@temporalio/contrib-pubsub';
 
 export async function myWorkflow(input: MyInput): Promise<void> {
-  const pubsub = initPubSub();
+  const pubsub = new PubSub();
 
   pubsub.publish('status', { state: 'started' });
   await doWork();
@@ -39,23 +39,23 @@ export async function myWorkflow(input: MyInput): Promise<void> {
 }
 ```
 
-`initPubSub()` registers the `__pubsub_publish` signal, `__pubsub_poll` update,
-and `__pubsub_offset` query handlers on your workflow. Any value the default
-payload converter can serialize (JSON, `Uint8Array`, or a pre-built `Payload`)
-can be passed to `publish`.
+The `PubSub` constructor registers the `__pubsub_publish` signal,
+`__pubsub_poll` update, and `__pubsub_offset` query handlers on your workflow.
+Any value the default payload converter can serialize (JSON, `Uint8Array`, or
+a pre-built `Payload`) can be passed to `publish`.
 
 ### Activity side (publishing)
 
-Use `PubSubClient.create()` with `await using` for batched publishing. When
-called from within an activity, the client and workflow ID are inferred
-automatically from the activity context:
+Use `PubSubClient.fromActivity()` with `await using` for batched publishing
+from inside an activity. The client and workflow ID are pulled from the
+activity context:
 
 ```typescript
 import { Context } from '@temporalio/activity';
 import { PubSubClient } from '@temporalio/contrib-pubsub';
 
 export async function streamEvents(): Promise<void> {
-  await using client = PubSubClient.create(undefined, undefined, { batchInterval: 2.0 });
+  await using client = PubSubClient.fromActivity({ batchInterval: 2.0 });
   client.start();
 
   for await (const chunk of generateChunks()) {
@@ -66,7 +66,9 @@ export async function streamEvents(): Promise<void> {
 }
 ```
 
-If `await using` is not available, call `start()` and `await stop()` explicitly:
+Outside an activity (e.g., a starter or BFF), use `PubSubClient.create()`
+with an explicit client and workflow id. If `await using` is not available,
+call `start()` and `await stop()` explicitly:
 
 ```typescript
 const client = PubSubClient.create(temporalClient, workflowId);
@@ -78,7 +80,7 @@ try {
 }
 ```
 
-Use `priority = true` to trigger an immediate flush for latency-sensitive
+Use `forceFlush = true` to trigger an immediate flush for latency-sensitive
 events:
 
 ```typescript
@@ -119,7 +121,7 @@ boundaries:
 
 ```typescript
 import { continueAsNew, workflowInfo } from '@temporalio/workflow';
-import { initPubSub, type PubSubState } from '@temporalio/contrib-pubsub';
+import { PubSub, type PubSubState } from '@temporalio/contrib-pubsub';
 
 interface WorkflowInput {
   itemsProcessed: number;
@@ -128,7 +130,7 @@ interface WorkflowInput {
 
 export async function myWorkflow(input: WorkflowInput): Promise<void> {
   let itemsProcessed = input.itemsProcessed;
-  const pubsub = initPubSub(input.pubsubState);
+  const pubsub = new PubSub(input.pubsubState);
 
   // ... do work, updating itemsProcessed ...
 
@@ -149,7 +151,7 @@ chains.
 
 ## API Reference
 
-### `initPubSub(priorState?) -> PubSubHandle`
+### `new PubSub(priorState?)`
 
 | Method | Description |
 |---|---|
@@ -170,12 +172,13 @@ Handlers registered automatically:
 
 | Method | Description |
 |---|---|
-| `PubSubClient.create(client?, workflowId?, options?)` | Factory. Auto-detects activity context when `client` or `workflowId` is omitted. Enables CAN following in `subscribe()`; uses the `Client`'s configured payload converter. |
+| `PubSubClient.create(client, workflowId, options?)` | Factory for use outside an activity (starters, BFFs). Enables CAN following in `subscribe()`; uses the `Client`'s configured payload converter. |
+| `PubSubClient.fromActivity(options?)` | Factory for use from within an activity — pulls the client and parent workflow id from the activity context. |
 | `new PubSubClient(handle, options?)` | From a handle (no CAN following). |
 | `start()` | Start the background flusher. |
 | `stop()` | Stop the flusher and flush remaining items. |
 | `[Symbol.asyncDispose]()` | Supports `await using client = PubSubClient.create(...)`. |
-| `publish(topic, value, priority = false)` | Buffer a message. `value` may be any converter-compatible object or a pre-built `Payload`. |
+| `publish(topic, value, forceFlush = false)` | Buffer a message. `value` may be any converter-compatible object or a pre-built `Payload`. `forceFlush` wakes the flusher to send immediately. |
 | `subscribe(topics?, fromOffset = 0, { pollCooldown = 0.1 })` | Async generator yielding `PubSubItem` with `data: Payload`. Always follows CAN chains when created via `create()`. Recovers automatically from `TruncatedOffset` by restarting from the current base offset. |
 | `getOffset()` | Query current global offset. |
 
