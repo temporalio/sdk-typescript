@@ -6,20 +6,45 @@
  *
  * Call `initPubSub()` at the start of your workflow function. Use the returned
  * handle to publish, drain, and get state for continue-as-new.
+ *
+ * Both workflow-side and client-side `publish()` use the default payload
+ * converter for per-item `Payload` construction. The codec chain
+ * (encryption, PII-redaction, compression) is NOT applied per item on
+ * either side — it runs once at the envelope level when Temporal's SDK
+ * encodes the signal/update that carries the batch.
  */
 
-import { condition, defineSignal, defineUpdate, defineQuery, setHandler } from '@temporalio/workflow';
-import { ApplicationFailure } from '@temporalio/common';
+import { condition, defineSignal, defineUpdate, defineQuery, setHandler, defaultPayloadConverter } from '@temporalio/workflow';
+import { ApplicationFailure, type Payload } from '@temporalio/common';
 import {
-  decodeData,
-  encodeData,
+  decodePayloadWire,
+  encodePayloadProto,
+  encodePayloadWire,
+  encodeBase64,
   type PollInput,
   type PollResult,
-  type PubSubItem,
   type PubSubState,
   type PublishInput,
   type _WireItem,
 } from './types';
+
+const BINARY_PLAIN_ENCODING = new TextEncoder().encode('binary/plain');
+
+/**
+ * Cross-realm-safe Uint8Array check.
+ *
+ * The workflow sandbox gets its `TextEncoder` from `node:util`, which
+ * returns a `Uint8Array` tagged to the host realm — so `value instanceof
+ * Uint8Array` is false against the sandbox's own `Uint8Array` global.
+ * `Object.prototype.toString` crosses realm boundaries reliably.
+ */
+function isUint8ArrayLike(value: unknown): value is ArrayLike<number> {
+  return (
+    value != null &&
+    typeof value === 'object' &&
+    Object.prototype.toString.call(value) === '[object Uint8Array]'
+  );
+}
 
 // Fixed handler names for cross-language interop
 export const pubsubPublishSignal = defineSignal<[PublishInput]>('__pubsub_publish');
@@ -28,10 +53,39 @@ export const pubsubOffsetQuery = defineQuery<number>('__pubsub_offset');
 
 const MAX_POLL_RESPONSE_BYTES = 1_000_000;
 
+/** Approximate poll-response contribution of a single encoded payload. */
+function payloadWireSize(encoded: string, topic: string): number {
+  // `encoded` is already base64 (the on-wire representation).
+  return encoded.length + topic.length;
+}
+
+/** Internal log entry: stores decoded Payload for user-facing APIs. */
+interface InternalLogEntry {
+  topic: string;
+  payload: Payload;
+}
+
+/** Type guard for Payload — same logic as client.ts's isPayload. */
+function isPayload(value: unknown): value is Payload {
+  if (value === null || typeof value !== 'object') return false;
+  const v = value as { metadata?: unknown };
+  return (
+    'metadata' in v &&
+    v.metadata != null &&
+    typeof v.metadata === 'object' &&
+    !Array.isArray(v.metadata) &&
+    Object.values(v.metadata).every((x) => x instanceof Uint8Array)
+  );
+}
+
 /** Handle returned by initPubSub for interacting with pub/sub state. */
 export interface PubSubHandle {
-  /** Publish an item from within workflow code. Deterministic — just appends. */
-  publish(topic: string, data: Uint8Array): void;
+  /**
+   * Publish an item from within workflow code. Deterministic — just appends.
+   * `value` may be any value the default payload converter can handle, or
+   * a pre-built `Payload` for zero-copy.
+   */
+  publish(topic: string, value: unknown): void;
 
   /** Unblock all waiting poll handlers and reject new polls for CAN. */
   drain(): void;
@@ -60,12 +114,11 @@ export interface PubSubHandle {
  * @returns A handle for publishing, draining, and getting state.
  */
 export function initPubSub(priorState?: PubSubState): PubSubHandle {
-  // Decode wire items (base64) to in-memory items (Uint8Array)
-  const log: PubSubItem[] = priorState?.log
-    ? priorState.log.map((item, i) => ({
+  // Decode wire items (base64 of proto Payload) to in-memory Payload objects.
+  const log: InternalLogEntry[] = priorState?.log
+    ? priorState.log.map((item) => ({
         topic: item.topic,
-        data: decodeData(item.data),
-        offset: (priorState.base_offset ?? 0) + i,
+        payload: decodePayloadWire(item.data),
       }))
     : [];
   let baseOffset: number = priorState?.base_offset ?? 0;
@@ -77,7 +130,7 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
     : {};
   let draining = false;
 
-  // Signal handler: receive publications from external clients with dedup
+  // Signal handler: receive publications from external clients with dedup.
   setHandler(pubsubPublishSignal, (input: PublishInput) => {
     if (input.publisher_id) {
       const lastSeq = publisherSequences[input.publisher_id] ?? 0;
@@ -88,15 +141,11 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
       publisherLastSeen[input.publisher_id] = Date.now() / 1000; // seconds
     }
     for (const entry of input.items) {
-      log.push({
-        topic: entry.topic,
-        data: decodeData(entry.data),
-        offset: baseOffset + log.length,
-      });
+      log.push({ topic: entry.topic, payload: decodePayloadWire(entry.data) });
     }
   });
 
-  // Update handler: long-poll subscription
+  // Update handler: long-poll subscription.
   setHandler(
     pubsubPollUpdate,
     async (input: PollInput): Promise<PollResult> => {
@@ -122,13 +171,13 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
       await condition(() => log.length > logOffset || draining);
       const allNew = log.slice(logOffset);
 
-      // Build [globalOffset, item] candidates, filtering by topic if requested.
+      // Build [globalOffset, entry] candidates, filtering by topic if requested.
       const topicSet = input.topics.length > 0 ? new Set(input.topics) : null;
-      const candidates: Array<[number, PubSubItem]> = [];
+      const candidates: Array<[number, InternalLogEntry]> = [];
       for (let i = 0; i < allNew.length; i++) {
-        const item = allNew[i]!;
-        if (topicSet !== null && !topicSet.has(item.topic)) continue;
-        candidates.push([baseOffset + logOffset + i, item]);
+        const entry = allNew[i]!;
+        if (topicSet !== null && !topicSet.has(entry.topic)) continue;
+        candidates.push([baseOffset + logOffset + i, entry]);
       }
 
       // Cap response size to ~1MB of estimated wire bytes.
@@ -136,9 +185,9 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
       let size = 0;
       let moreReady = false;
       let nextOffset = baseOffset + log.length;
-      for (const [off, item] of candidates) {
-        const encoded = encodeData(item.data);
-        const itemSize = encoded.length + item.topic.length;
+      for (const [off, entry] of candidates) {
+        const encoded = encodeBase64(encodePayloadProto(entry.payload));
+        const itemSize = payloadWireSize(encoded, entry.topic);
         if (size + itemSize > MAX_POLL_RESPONSE_BYTES && wireItems.length > 0) {
           // Resume from this item on the next poll.
           nextOffset = off;
@@ -146,7 +195,7 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
           break;
         }
         size += itemSize;
-        wireItems.push({ topic: item.topic, data: encoded, offset: off });
+        wireItems.push({ topic: entry.topic, data: encoded, offset: off });
       }
 
       return {
@@ -156,7 +205,7 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
       };
     },
     {
-      // Validator: reject new polls when draining for continue-as-new
+      // Validator: reject new polls when draining for continue-as-new.
       validator(_input: PollInput): void {
         if (draining) {
           throw new Error('Workflow is draining for continue-as-new');
@@ -165,12 +214,28 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
     }
   );
 
-  // Query handler: current global offset
+  // Query handler: current global offset.
   setHandler(pubsubOffsetQuery, () => baseOffset + log.length);
 
   return {
-    publish(topic: string, data: Uint8Array): void {
-      log.push({ topic, data, offset: baseOffset + log.length });
+    publish(topic: string, value: unknown): void {
+      let payload: Payload;
+      if (isPayload(value)) {
+        payload = value;
+      } else if (isUint8ArrayLike(value)) {
+        // Bypass defaultPayloadConverter for cross-realm Uint8Arrays: the
+        // BinaryPayloadConverter uses `instanceof Uint8Array`, which fails
+        // against a Uint8Array produced by Node's built-in `TextEncoder`
+        // (host realm) when evaluated in the workflow sandbox. Construct
+        // the equivalent binary/plain Payload directly.
+        payload = {
+          metadata: { encoding: BINARY_PLAIN_ENCODING },
+          data: new Uint8Array(value),
+        };
+      } else {
+        payload = defaultPayloadConverter.toPayload(value);
+      }
+      log.push({ topic, payload });
     },
 
     drain(): void {
@@ -192,10 +257,13 @@ export function initPubSub(priorState?: PubSubState): PubSubHandle {
         }
       }
       return {
-        // Encode Uint8Array to base64 for serializable state.
         // Per-item offset is re-derivable from base_offset + index on reload,
         // so we leave it at 0 here.
-        log: log.map((item) => ({ topic: item.topic, data: encodeData(item.data), offset: 0 })),
+        log: log.map((entry) => ({
+          topic: entry.topic,
+          data: encodePayloadWire(entry.payload),
+          offset: 0,
+        })),
         base_offset: baseOffset,
         publisher_sequences: activeSeqs,
         publisher_last_seen: activeSeen,

@@ -5,7 +5,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import { ApplicationFailure } from '@temporalio/common';
+import { ApplicationFailure, defaultPayloadConverter, type Payload } from '@temporalio/common';
 import { WorkflowHandle, WorkflowUpdateFailedError } from '@temporalio/client';
 import {
   FlushTimeoutError,
@@ -16,7 +16,7 @@ import {
   type PubSubState,
   type PublishEntry,
   type PublishInput,
-  encodeData,
+  encodePayloadWire,
   pubsubOffsetQuery,
   pubsubPublishSignal,
   pubsubPollUpdate,
@@ -46,8 +46,32 @@ const test = makeTestFunction({
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
+/**
+ * Build a `PublishEntry` for a literal string.
+ *
+ * Mirrors what `PubSubClient` produces on the encode path: the default
+ * payload converter wraps the bytes into a `Payload`, which is then
+ * proto-serialized and base64-encoded for the wire.
+ */
 function entry(topic: string, data: string): PublishEntry {
-  return { topic, data: encodeData(encoder.encode(data)) };
+  const payload = defaultPayloadConverter.toPayload(encoder.encode(data));
+  return { topic, data: encodePayloadWire(payload) };
+}
+
+/** Extract the raw bytes from a `Payload` produced by the default converter. */
+function payloadBytes(payload: Payload): Uint8Array {
+  // defaultPayloadConverter maps Uint8Array to encoding=binary/plain, so
+  // `data` is already the raw bytes. For string/JSON payloads we fall back
+  // to the converter.
+  const encoding = payload.metadata?.['encoding'];
+  if (encoding && decoder.decode(encoding) === 'binary/plain') {
+    return payload.data ?? new Uint8Array(0);
+  }
+  return defaultPayloadConverter.fromPayload<Uint8Array>(payload);
+}
+
+function payloadString(payload: Payload): string {
+  return decoder.decode(payloadBytes(payload));
 }
 
 async function collectItems(
@@ -89,10 +113,10 @@ test('activity_publish_and_subscribe — activity publishes, client subscribes',
     t.is(items.length, count + 1);
     for (let i = 0; i < count; i++) {
       t.is(items[i]!.topic, 'events');
-      t.is(decoder.decode(items[i]!.data), `item-${i}`);
+      t.is(payloadString(items[i]!.data), `item-${i}`);
     }
     t.is(items[count]!.topic, 'status');
-    t.is(decoder.decode(items[count]!.data), 'activity_done');
+    t.is(payloadString(items[count]!.data), 'activity_done');
     await handle.signal('close');
   });
 });
@@ -131,16 +155,16 @@ test('subscribe_from_offset_and_per_item_offsets — non-zero starts and global 
     t.is(allItems.length, count);
     for (let i = 0; i < count; i++) {
       t.is(allItems[i]!.offset, i);
-      t.is(decoder.decode(allItems[i]!.data), `item-${i}`);
+      t.is(payloadString(allItems[i]!.data), `item-${i}`);
     }
 
     // From offset 3 — items 3, 4 with offsets 3, 4.
     const laterItems = await collectItems(handle, undefined, 3, 2);
     t.is(laterItems.length, 2);
     t.is(laterItems[0]!.offset, 3);
-    t.is(decoder.decode(laterItems[0]!.data), 'item-3');
+    t.is(payloadString(laterItems[0]!.data), 'item-3');
     t.is(laterItems[1]!.offset, 4);
-    t.is(decoder.decode(laterItems[1]!.data), 'item-4');
+    t.is(payloadString(laterItems[1]!.data), 'item-4');
 
     await handle.signal('close');
   });
@@ -242,7 +266,7 @@ test('priority_flush — priority wakes flusher despite 60s interval', async (t)
     // pass via the dispose-driven flush at activity exit.
     const items = await collectItems(handle, undefined, 0, 3, 5_000);
     t.is(items.length, 3);
-    t.is(decoder.decode(items[2]!.data), 'priority');
+    t.is(payloadString(items[2]!.data), 'priority');
     await handle.signal('close');
   });
 });
@@ -256,7 +280,7 @@ test('dispose_flushes_on_exit — await using drains buffer', async (t) => {
     const items = await collectItems(handle, undefined, 0, count, 15_000);
     t.is(items.length, count);
     for (let i = 0; i < count; i++) {
-      t.is(decoder.decode(items[i]!.data), `item-${i}`);
+      t.is(payloadString(items[i]!.data), `item-${i}`);
     }
     await handle.signal('close');
   });
@@ -271,7 +295,7 @@ test('max_batch_size — triggers flush without waiting for timer', async (t) =>
     const items = await collectItems(handle, undefined, 0, count + 1, 15_000);
     t.is(items.length, count + 1);
     for (let i = 0; i < count; i++) {
-      t.is(decoder.decode(items[i]!.data), `item-${i}`);
+      t.is(payloadString(items[i]!.data), `item-${i}`);
     }
     await handle.signal('close');
   });
@@ -302,8 +326,8 @@ test('dedup_rejects_duplicate_signal — same publisher+sequence is dropped', as
     // collectItems' update call acts as a barrier — prior signals processed.
     const items = await collectItems(handle, undefined, 0, 2);
     t.is(items.length, 2);
-    t.is(decoder.decode(items[0]!.data), 'item-0');
-    t.is(decoder.decode(items[1]!.data), 'item-1');
+    t.is(payloadString(items[0]!.data), 'item-0');
+    t.is(payloadString(items[1]!.data), 'item-1');
 
     const offset = await handle.query<number>(pubsubOffsetQuery);
     t.is(offset, 2);
@@ -338,8 +362,8 @@ test('truncate_pubsub — truncate discards prefix and adjusts base', async (t) 
 
     const after = await collectItems(handle, undefined, 3, 2);
     t.is(after.length, 2);
-    t.is(decoder.decode(after[0]!.data), 'item-3');
-    t.is(decoder.decode(after[1]!.data), 'item-4');
+    t.is(payloadString(after[0]!.data), 'item-3');
+    t.is(payloadString(after[1]!.data), 'item-4');
 
     await handle.signal('close');
   });
@@ -431,7 +455,7 @@ test('continue_as_new_typed — log, offsets, AND dedup state survive CAN', asyn
     // Log contents and offsets preserved across CAN.
     const afterItems = await collectItems(newHandle, undefined, 0, 3);
     t.deepEqual(
-      afterItems.map((i) => decoder.decode(i.data)),
+      afterItems.map((i) => payloadString(i.data)),
       ['item-0', 'item-1', 'item-2']
     );
     t.deepEqual(
@@ -464,7 +488,7 @@ test('continue_as_new_typed — log, offsets, AND dedup state survive CAN', asyn
 
     const finalItems = await collectItems(newHandle, undefined, 0, 4);
     t.deepEqual(
-      finalItems.map((i) => decoder.decode(i.data)),
+      finalItems.map((i) => payloadString(i.data)),
       ['item-0', 'item-1', 'item-2', 'item-3']
     );
     t.is(finalItems[3]!.offset, 3);
@@ -481,9 +505,10 @@ test('poll_more_ready_when_response_exceeds_size_limit — 1MB cap', async (t) =
     const handle = await startWorkflow(basicPubSubWorkflow, { args: [] });
 
     const chunk = new Uint8Array(200_000).fill('x'.charCodeAt(0));
+    const chunkPayload = defaultPayloadConverter.toPayload(chunk);
     for (let i = 0; i < 8; i++) {
       await handle.signal<[PublishInput]>(pubsubPublishSignal, {
-        items: [{ topic: 'big', data: encodeData(chunk) }],
+        items: [{ topic: 'big', data: encodePayloadWire(chunkPayload) }],
         publisher_id: '',
         sequence: 0,
       });
@@ -523,9 +548,10 @@ test('subscribe_iterates_through_more_ready — caller sees all items', async (t
   await worker.runUntil(async () => {
     const handle = await startWorkflow(basicPubSubWorkflow, { args: [] });
     const chunk = new Uint8Array(200_000).fill('x'.charCodeAt(0));
+    const chunkPayload = defaultPayloadConverter.toPayload(chunk);
     for (let i = 0; i < 8; i++) {
       await handle.signal<[PublishInput]>(pubsubPublishSignal, {
-        items: [{ topic: 'big', data: encodeData(chunk) }],
+        items: [{ topic: 'big', data: encodePayloadWire(chunkPayload) }],
         publisher_id: '',
         sequence: 0,
       });
@@ -533,7 +559,7 @@ test('subscribe_iterates_through_more_ready — caller sees all items', async (t
     const items = await collectItems(handle, undefined, 0, 8, 15_000);
     t.is(items.length, 8);
     for (const item of items) {
-      t.is(item.data.length, chunk.length);
+      t.is(payloadBytes(item.data).length, chunk.length);
     }
     await handle.signal('close');
   });
@@ -579,7 +605,7 @@ test('flush_retry_preserves_items_after_failures — behavioral retry coverage',
 
     const items = await collectItems(handle, undefined, 0, 3);
     t.deepEqual(
-      items.map((i) => decoder.decode(i.data)),
+      items.map((i) => payloadString(i.data)),
       ['item-0', 'item-1', 'item-2']
     );
 
@@ -598,3 +624,4 @@ test('flush_raises_after_max_retry_duration — timeout surfaces, client resumes
   await new Promise((r) => setTimeout(r, 1500));
   await t.throwsAsync(client.stop(), { instanceOf: FlushTimeoutError });
 });
+

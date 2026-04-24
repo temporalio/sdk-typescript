@@ -3,15 +3,28 @@
  *
  * Used by activities, starters, and any code with a workflow handle to publish
  * messages and subscribe to topics on a pub/sub workflow.
+ *
+ * Each published value is turned into a `Payload` via the client's payload
+ * converter. The codec chain (encryption, PII-redaction, compression) is
+ * NOT run per item — it runs once on the signal/update envelope that
+ * carries each batch. Running the codec per item would double-encrypt
+ * because the envelope path already covers the items. The per-item
+ * `Payload` still carries encoding metadata so consumers can decode
+ * with a payload converter.
  */
 
 import { randomUUID } from 'crypto';
 import { Context as ActivityContext } from '@temporalio/activity';
-import { Client, WorkflowHandle, WorkflowUpdateFailedError, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
-import { ApplicationFailure } from '@temporalio/common';
 import {
-  decodeData,
-  encodeData,
+  Client,
+  WorkflowHandle,
+  WorkflowUpdateFailedError,
+  WorkflowUpdateRPCTimeoutOrCancelledError,
+} from '@temporalio/client';
+import { ApplicationFailure, defaultPayloadConverter, type Payload, type PayloadConverter } from '@temporalio/common';
+import {
+  decodePayloadWire,
+  encodePayloadWire,
   type PollInput,
   type PollResult,
   type PubSubItem,
@@ -38,6 +51,14 @@ export interface PubSubClientOptions {
    * exactly-once delivery. Default: 600.
    */
   maxRetryDuration?: number;
+}
+
+export interface SubscribeOptions {
+  /**
+   * Minimum seconds between polls to avoid overwhelming the workflow when
+   * items arrive faster than the poll round-trip. Default: 0.1.
+   */
+  pollCooldown?: number;
 }
 
 /**
@@ -78,6 +99,22 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Type guard for a Payload (as opposed to an arbitrary user value). */
+function isPayload(value: unknown): value is Payload {
+  if (value === null || typeof value !== 'object') return false;
+  const v = value as { metadata?: unknown; data?: unknown };
+  // Metadata must exist (at minimum with an encoding key) to be a Payload.
+  return (
+    'metadata' in v &&
+    v.metadata != null &&
+    typeof v.metadata === 'object' &&
+    !Array.isArray(v.metadata) &&
+    // Distinguish from plain `{ metadata, data }` user objects by requiring
+    // that values in the metadata map look like Uint8Array instances.
+    Object.values(v.metadata).every((x) => x instanceof Uint8Array)
+  );
+}
+
 export class PubSubClient {
   private handle: WorkflowHandle;
   private client: Client | undefined;
@@ -85,7 +122,8 @@ export class PubSubClient {
   private readonly batchInterval: number;
   private readonly maxBatchSize: number | undefined;
   private readonly maxRetryDuration: number;
-  private buffer: PublishEntry[] = [];
+  private readonly payloadConverter: PayloadConverter;
+  private buffer: Array<{ topic: string; value: unknown }> = [];
   private pending: PublishEntry[] | null = null;
   private pendingSeq = 0;
   private pendingStartedAt: number | null = null;
@@ -104,6 +142,7 @@ export class PubSubClient {
     this.batchInterval = options?.batchInterval ?? 2.0;
     this.maxBatchSize = options?.maxBatchSize;
     this.maxRetryDuration = options?.maxRetryDuration ?? 600;
+    this.payloadConverter = defaultPayloadConverter;
   }
 
   /**
@@ -113,13 +152,10 @@ export class PubSubClient {
    * they are inferred from `Context.current()`.
    *
    * This is the preferred constructor; it enables continue-as-new following in
-   * `subscribe()`.
+   * `subscribe()` and uses the configured `Client`'s payload converter for
+   * per-item `Payload` construction.
    */
-  static create(
-    client?: Client,
-    workflowId?: string,
-    options?: PubSubClientOptions
-  ): PubSubClient {
+  static create(client?: Client, workflowId?: string, options?: PubSubClientOptions): PubSubClient {
     let resolvedClient: Client;
     let resolvedId: string;
     if (client === undefined || workflowId === undefined) {
@@ -135,6 +171,12 @@ export class PubSubClient {
     const handle = resolvedClient.workflow.getHandle(resolvedId);
     const instance = new PubSubClient(handle, options);
     instance.client = resolvedClient;
+    // Prefer the Client's configured converter so custom converters flow
+    // through; fall back to the default if unset.
+    const clientConverter = resolvedClient.options?.loadedDataConverter?.payloadConverter;
+    if (clientConverter) {
+      (instance as unknown as { payloadConverter: PayloadConverter }).payloadConverter = clientConverter;
+    }
     return instance;
   }
 
@@ -159,8 +201,12 @@ export class PubSubClient {
     } finally {
       this.flusherTask = undefined;
     }
-    // Final drain after the flusher exits.
-    await this.flushOnce();
+    // Final drain after the flusher exits. Repeat while either pending OR the
+    // producer buffer has items: a single flushOnce() processes either
+    // `pending` OR the buffer, not both.
+    while (this.pending !== null || this.buffer.length > 0) {
+      await this.flushOnce();
+    }
     this.throwPendingFlusherError();
   }
 
@@ -179,14 +225,28 @@ export class PubSubClient {
 
   /**
    * Buffer a message for publishing.
-   * @param data - Opaque byte payload.
+   *
+   * @param topic - Topic string.
+   * @param value - Any value the payload converter can handle, or a pre-built
+   *   `Payload` for zero-copy. The codec chain runs once on the signal
+   *   envelope, not per item.
    * @param priority - If true, wake the flusher to send immediately.
    */
-  publish(topic: string, data: Uint8Array, priority = false): void {
-    this.buffer.push({ topic, data: encodeData(data) });
+  publish(topic: string, value: unknown, priority = false): void {
+    this.buffer.push({ topic, value });
     if (priority || (this.maxBatchSize !== undefined && this.buffer.length >= this.maxBatchSize)) {
       this.flushEvent.set();
     }
+  }
+
+  private encodeBuffer(entries: Array<{ topic: string; value: unknown }>): PublishEntry[] {
+    const out: PublishEntry[] = new Array(entries.length);
+    for (let i = 0; i < entries.length; i++) {
+      const { topic, value } = entries[i]!;
+      const payload: Payload = isPayload(value) ? value : this.payloadConverter.toPayload(value);
+      out[i] = { topic, data: encodePayloadWire(payload) };
+    }
+    return out;
   }
 
   private async runFlusher(): Promise<void> {
@@ -210,9 +270,7 @@ export class PubSubClient {
     }
   }
 
-  /**
-   * Serialize concurrent flush calls through a single in-flight promise.
-   */
+  /** Serialize concurrent flush calls through a single in-flight promise. */
   private async flushOnce(): Promise<void> {
     while (this.currentFlush) {
       await this.currentFlush;
@@ -259,10 +317,12 @@ export class PubSubClient {
       batch = this.pending;
       seq = this.pendingSeq;
     } else if (this.buffer.length > 0) {
-      // New batch path
-      seq = this.sequence + 1;
-      batch = this.buffer;
+      // New batch path: encode at flush time so the payload converter is
+      // applied once per item.
+      const raw = this.buffer;
       this.buffer = [];
+      batch = this.encodeBuffer(raw);
+      seq = this.sequence + 1;
       this.pending = batch;
       this.pendingSeq = seq;
       this.pendingStartedAt = Date.now();
@@ -285,12 +345,17 @@ export class PubSubClient {
 
   /**
    * Async generator that polls for new items.
-   * Automatically follows continue-as-new chains when created via create().
+   *
+   * Yielded items carry `data: Payload`. Use a payload converter such as
+   * `defaultPayloadConverter.fromPayload<T>(item.data)` to decode.
+   *
+   * Automatically follows continue-as-new chains when created via
+   * {@link PubSubClient.create}.
    */
   async *subscribe(
     topics?: string[],
     fromOffset = 0,
-    options?: { pollCooldown?: number }
+    options?: SubscribeOptions
   ): AsyncGenerator<PubSubItem, void, unknown> {
     const pollCooldown = options?.pollCooldown ?? 0.1;
     let offset = fromOffset;
@@ -325,7 +390,7 @@ export class PubSubClient {
       for (const wireItem of result.items) {
         yield {
           topic: wireItem.topic,
-          data: decodeData(wireItem.data),
+          data: decodePayloadWire(wireItem.data),
           offset: wireItem.offset,
         };
       }

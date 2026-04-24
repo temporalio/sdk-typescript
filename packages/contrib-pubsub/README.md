@@ -14,6 +14,12 @@ such as activities, starters, and other workflows. Under the hood, publishing
 uses signals (fire-and-forget) while subscribing uses updates (long-poll). A
 configurable batching coalesces high-frequency events, improving efficiency.
 
+Payloads are Temporal `Payload`s carrying the encoding metadata needed for
+typed decode and cross-language interop. The codec chain (encryption,
+PII-redaction, compression) runs once on the signal/update envelope that
+carries each batch — **not** per item — so there is no double-encryption, and
+codec behavior is symmetric between workflow-side and client-side publishing.
+
 ## Quick Start
 
 ### Workflow side
@@ -27,14 +33,16 @@ import { initPubSub } from '@temporalio/contrib-pubsub';
 export async function myWorkflow(input: MyInput): Promise<void> {
   const pubsub = initPubSub();
 
-  pubsub.publish('status', new TextEncoder().encode('started'));
+  pubsub.publish('status', { state: 'started' });
   await doWork();
-  pubsub.publish('status', new TextEncoder().encode('done'));
+  pubsub.publish('status', { state: 'done' });
 }
 ```
 
 `initPubSub()` registers the `__pubsub_publish` signal, `__pubsub_poll` update,
-and `__pubsub_offset` query handlers on your workflow.
+and `__pubsub_offset` query handlers on your workflow. Any value the default
+payload converter can serialize (JSON, `Uint8Array`, or a pre-built `Payload`)
+can be passed to `publish`.
 
 ### Activity side (publishing)
 
@@ -82,14 +90,20 @@ client.publish('events', data, true);
 Use `PubSubClient.create()` and iterate `subscribe()`:
 
 ```typescript
+import { defaultPayloadConverter } from '@temporalio/common';
 import { PubSubClient } from '@temporalio/contrib-pubsub';
 
 const client = PubSubClient.create(temporalClient, workflowId);
 for await (const item of client.subscribe(['events'], 0)) {
-  console.log(item.topic, item.offset, new TextDecoder().decode(item.data));
-  if (isDone(item)) break;
+  // item.data is a Payload; decode with a payload converter
+  const value = defaultPayloadConverter.fromPayload<MyType>(item.data);
+  console.log(item.topic, item.offset, value);
+  if (isDone(value)) break;
 }
 ```
+
+`item.data` is a `Payload` carrying encoding metadata, so any converter-known
+value round-trips (`json/plain` for JSON, `binary/plain` for `Uint8Array`, etc.).
 
 ## Topics
 
@@ -139,7 +153,7 @@ chains.
 
 | Method | Description |
 |---|---|
-| `publish(topic, data)` | Append to the log from workflow code. |
+| `publish(topic, value)` | Append to the log from workflow code. Accepts any value the default payload converter handles, or a pre-built `Payload`. |
 | `getState(publisherTtl = 900)` | Snapshot for continue-as-new. Drops publisher dedup entries older than `publisherTtl` seconds. |
 | `drain()` | Unblock polls and reject new ones. |
 | `truncate(upToOffset)` | Discard log entries below the given offset. |
@@ -156,13 +170,13 @@ Handlers registered automatically:
 
 | Method | Description |
 |---|---|
-| `PubSubClient.create(client?, workflowId?, options?)` | Factory. Auto-detects activity context when `client` or `workflowId` is omitted. Enables CAN following in `subscribe()`. |
+| `PubSubClient.create(client?, workflowId?, options?)` | Factory. Auto-detects activity context when `client` or `workflowId` is omitted. Enables CAN following in `subscribe()`; uses the `Client`'s configured payload converter. |
 | `new PubSubClient(handle, options?)` | From a handle (no CAN following). |
 | `start()` | Start the background flusher. |
 | `stop()` | Stop the flusher and flush remaining items. |
 | `[Symbol.asyncDispose]()` | Supports `await using client = PubSubClient.create(...)`. |
-| `publish(topic, data, priority = false)` | Buffer a message. |
-| `subscribe(topics?, fromOffset = 0, { pollCooldown = 0.1 })` | Async generator. Always follows CAN chains when created via `create()`. Recovers automatically from `TruncatedOffset` by restarting from the current base offset. |
+| `publish(topic, value, priority = false)` | Buffer a message. `value` may be any converter-compatible object or a pre-built `Payload`. |
+| `subscribe(topics?, fromOffset = 0, { pollCooldown = 0.1 })` | Async generator yielding `PubSubItem` with `data: Payload`. Always follows CAN chains when created via `create()`. Recovers automatically from `TruncatedOffset` by restarting from the current base offset. |
 | `getOffset()` | Query current global offset. |
 
 ### `PubSubClientOptions`
@@ -182,7 +196,12 @@ handler names:
 2. **Subscribe**: update `__pubsub_poll` with `PollInput` -> `PollResult`
 3. **Offset**: query `__pubsub_offset` -> `number`
 
-The TypeScript API uses `Uint8Array` for payloads. Base64 encoding is used on
-the wire for cross-language compatibility. The wire protocol requires the
-default (JSON) data converter — custom converters will break cross-language
+Each `PublishEntry.data` / `_WireItem.data` is a base64-encoded
+`temporal.api.common.v1.Payload` protobuf (`Payload.SerializeToString()` in
+Python; equivalent `encodePayloadProto()` in this package). This keeps the
+envelope JSON-serializable while preserving `Payload.metadata` for codec and
+typed-decode paths. Cross-language clients can publish and subscribe by
+following the same base64-of-serialized-`Payload` shape. The envelope types
+(`PublishInput`, `PollResult`, `PubSubState`) require the default (JSON) data
+converter — custom converters on the envelope layer break cross-language
 interop.
