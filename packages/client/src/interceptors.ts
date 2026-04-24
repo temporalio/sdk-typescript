@@ -297,8 +297,6 @@ export interface StartNexusOperationInput {
 export interface GetNexusOperationResultInput {
   readonly operationId: string;
   readonly runId?: string;
-  /** Type hint for the deserialized result (used by interceptors/codecs). */
-  readonly resultType?: unknown;
 }
 
 /** Input for {@link NexusClientInterceptor.describe}. */
