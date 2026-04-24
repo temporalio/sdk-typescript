@@ -12,17 +12,12 @@ import type {
 } from '@ai-sdk/provider';
 import { asSchema, type Schema, type ToolExecutionOptions } from 'ai';
 import { ApplicationFailure } from '@temporalio/common';
-import type { Client } from '@temporalio/client';
 import { Context } from '@temporalio/activity';
 import { PubSubClient } from '@temporalio/contrib-pubsub';
 import type { McpClientFactories, McpClientFactory } from './mcp';
 
 const EVENTS_TOPIC = 'events';
 const encoder = new TextEncoder();
-
-function makeEvent(type: string, data: Record<string, unknown> = {}): Uint8Array {
-  return encoder.encode(JSON.stringify({ type, timestamp: new Date().toISOString(), data }));
-}
 
 /**
  * Arguments for invoking a language model activity.
@@ -73,29 +68,19 @@ export interface CallToolArgs {
 }
 
 /**
- * Options for creating activities with streaming support.
- */
-export interface CreateActivitiesOptions {
-  /** Temporal client, required for streaming (PubSubClient needs it). */
-  temporalClient?: Client;
-}
-
-/**
  * Creates Temporal activities for AI model invocation using the provided AI SDK provider.
  * These activities allow workflows to call AI models while maintaining Temporal's
  * execution guarantees and replay safety.
  *
  * @param provider The AI SDK provider to use for model invocations
  * @param mcpClientFactories A mapping of server names to functions to create mcp clients
- * @param options Additional options (e.g. temporalClient for streaming)
  * @returns An object containing the activity functions
  *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
 export function createActivities(
   provider: ProviderV3,
-  mcpClientFactories?: McpClientFactories,
-  options?: CreateActivitiesOptions
+  mcpClientFactories?: McpClientFactories
 ): object {
   let activities = {
     async invokeModel(args: InvokeModelArgs): Promise<InvokeModelResult> {
@@ -103,19 +88,17 @@ export function createActivities(
       return await model.doGenerate(args.options);
     },
 
+    /**
+     * Streaming-aware model activity.
+     *
+     * Calls `model.doStream()`, publishes each yielded AI SDK stream part
+     * as JSON to the pubsub side channel, and returns the assembled
+     * `LanguageModelV3GenerateResult`. Consumers receive native AI SDK
+     * stream-part types (text-delta, reasoning-delta, tool-input-delta,
+     * response-metadata, finish, ...); no normalization happens here.
+     */
     async invokeModelStreaming(args: InvokeModelArgs): Promise<InvokeModelResult> {
-      // Validate prerequisites before making the LLM call
-      const info = Context.current().info;
-      const workflowId = info.workflowExecution?.workflowId;
-      if (!workflowId || !options?.temporalClient) {
-        throw ApplicationFailure.nonRetryable(
-          'Streaming requires temporalClient in plugin options and activity must be called from a workflow.'
-        );
-      }
-
-      const pubsub = PubSubClient.create(options.temporalClient, workflowId, {
-        batchInterval: 0.1,
-      });
+      const pubsub = PubSubClient.fromActivity({ batchInterval: 0.1 });
       pubsub.start();
 
       const model = provider.languageModel(args.modelId);
@@ -134,8 +117,6 @@ export function createActivities(
       let currentReasoning = '';
 
       try {
-        pubsub.publish(EVENTS_TOPIC, makeEvent('LLM_CALL_START'), true);
-
         const reader = streamResult.stream.getReader();
         // eslint-disable-next-line no-constant-condition
         while (true) {
@@ -143,6 +124,11 @@ export function createActivities(
           if (done) break;
 
           Context.current().heartbeat();
+
+          // Publish the raw stream part as JSON so consumers can switch on
+          // the native AI SDK type. Accumulation below is for the final
+          // assembled result this activity returns.
+          pubsub.publish(EVENTS_TOPIC, encoder.encode(JSON.stringify(part)));
 
           switch (part.type) {
             case 'stream-start':
@@ -153,7 +139,6 @@ export function createActivities(
               break;
             case 'text-delta':
               currentText += part.delta;
-              pubsub.publish(EVENTS_TOPIC, makeEvent('TEXT_DELTA', { delta: part.delta }));
               break;
             case 'text-end':
               content.push({
@@ -161,15 +146,12 @@ export function createActivities(
                 text: currentText,
                 providerMetadata: part.providerMetadata,
               });
-              pubsub.publish(EVENTS_TOPIC, makeEvent('TEXT_COMPLETE', { text: currentText }), true);
               break;
             case 'reasoning-start':
               currentReasoning = '';
-              pubsub.publish(EVENTS_TOPIC, makeEvent('THINKING_START'));
               break;
             case 'reasoning-delta':
               currentReasoning += part.delta;
-              pubsub.publish(EVENTS_TOPIC, makeEvent('THINKING_DELTA', { delta: part.delta }));
               break;
             case 'reasoning-end':
               content.push({
@@ -177,23 +159,6 @@ export function createActivities(
                 text: currentReasoning,
                 providerMetadata: part.providerMetadata,
               });
-              pubsub.publish(
-                EVENTS_TOPIC,
-                makeEvent('THINKING_COMPLETE', { content: currentReasoning }),
-                true
-              );
-              break;
-            case 'tool-input-start':
-              pubsub.publish(
-                EVENTS_TOPIC,
-                makeEvent('TOOL_CALL_START', { tool_name: part.toolName })
-              );
-              break;
-            case 'tool-input-delta':
-              pubsub.publish(
-                EVENTS_TOPIC,
-                makeEvent('TOOL_INPUT_DELTA', { delta: part.delta })
-              );
               break;
             case 'response-metadata':
               responseMetadata = {
@@ -220,8 +185,6 @@ export function createActivities(
               break;
           }
         }
-
-        pubsub.publish(EVENTS_TOPIC, makeEvent('LLM_CALL_COMPLETE'), true);
       } finally {
         await pubsub.stop();
       }
