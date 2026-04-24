@@ -146,38 +146,40 @@ export class PubSubClient {
   }
 
   /**
-   * Create a PubSubClient from a Temporal client and workflow ID.
+   * Create a PubSubClient from an explicit Temporal client and workflow ID.
    *
-   * When called inside an activity, `client` and `workflowId` can be omitted —
-   * they are inferred from `Context.current()`.
+   * Use this when the caller has an explicit `Client` and `workflowId` in
+   * hand (starters, BFFs, other workflows' activities). For code running
+   * inside an activity that targets its own parent workflow, use
+   * {@link PubSubClient.fromActivity}.
    *
-   * This is the preferred constructor; it enables continue-as-new following in
-   * `subscribe()` and uses the configured `Client`'s payload converter for
-   * per-item `Payload` construction.
+   * A client created through this method follows continue-as-new chains in
+   * `subscribe()` and uses the client's payload converter for per-item
+   * `Payload` construction.
    */
-  static create(client?: Client, workflowId?: string, options?: PubSubClientOptions): PubSubClient {
-    let resolvedClient: Client;
-    let resolvedId: string;
-    if (client === undefined || workflowId === undefined) {
-      // Context.current() throws if not inside an activity — let that propagate
-      // with its native error so the caller sees the right message.
-      const ctx = ActivityContext.current();
-      resolvedClient = client ?? ctx.client;
-      resolvedId = workflowId ?? ctx.info.workflowExecution.workflowId;
-    } else {
-      resolvedClient = client;
-      resolvedId = workflowId;
-    }
-    const handle = resolvedClient.workflow.getHandle(resolvedId);
+  static create(client: Client, workflowId: string, options?: PubSubClientOptions): PubSubClient {
+    const handle = client.workflow.getHandle(workflowId);
     const instance = new PubSubClient(handle, options);
-    instance.client = resolvedClient;
+    instance.client = client;
     // Prefer the Client's configured converter so custom converters flow
     // through; fall back to the default if unset.
-    const clientConverter = resolvedClient.options?.loadedDataConverter?.payloadConverter;
+    const clientConverter = client.options?.loadedDataConverter?.payloadConverter;
     if (clientConverter) {
       (instance as unknown as { payloadConverter: PayloadConverter }).payloadConverter = clientConverter;
     }
     return instance;
+  }
+
+  /**
+   * Create a PubSubClient targeting the current activity's parent workflow.
+   *
+   * Must be called from within an activity. The Temporal client and
+   * parent workflow id are taken from the activity context.
+   */
+  static fromActivity(options?: PubSubClientOptions): PubSubClient {
+    const ctx = ActivityContext.current();
+    const workflowId = ctx.info.workflowExecution.workflowId;
+    return PubSubClient.create(ctx.client, workflowId, options);
   }
 
   /** Start the background flusher. Call before publishing. */
@@ -230,11 +232,12 @@ export class PubSubClient {
    * @param value - Any value the payload converter can handle, or a pre-built
    *   `Payload` for zero-copy. The codec chain runs once on the signal
    *   envelope, not per item.
-   * @param priority - If true, wake the flusher to send immediately.
+   * @param forceFlush - If true, wake the flusher to send immediately
+   *   (fire-and-forget — does not block the caller).
    */
-  publish(topic: string, value: unknown, priority = false): void {
+  publish(topic: string, value: unknown, forceFlush = false): void {
     this.buffer.push({ topic, value });
-    if (priority || (this.maxBatchSize !== undefined && this.buffer.length >= this.maxBatchSize)) {
+    if (forceFlush || (this.maxBatchSize !== undefined && this.buffer.length >= this.maxBatchSize)) {
       this.flushEvent.set();
     }
   }
