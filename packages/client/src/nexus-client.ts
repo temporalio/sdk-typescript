@@ -164,10 +164,7 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
   ): Promise<OperationOutputOf<T['operations'][K]>>;
 }
 
-type CachedOperationResult<T> =
-  | { kind: 'pending' }
-  | { kind: 'complete'; value: T }
-  | { kind: 'failed'; failure: NexusOperationFailureError };
+type CachedOperationResult<T> = { kind: 'pending' } | { kind: 'requested'; value: Promise<T> };
 
 /**
  * Client for standalone Nexus operations. Access via {@link Client.nexus}.
@@ -372,24 +369,15 @@ export class NexusClient extends BaseClient {
       async result(): Promise<O> {
         switch (cachedResult.kind) {
           case 'pending': {
-            try {
-              const result = await this.client._getNexusOperationResult({
-                operationId: this.operationId,
-                runId: this.runId,
-              });
-              cachedResult = { kind: 'complete', value: result as O };
-              return cachedResult.value;
-            } catch (err) {
-              if (err instanceof NexusOperationFailureError) {
-                cachedResult = { kind: 'failed', failure: err };
-              }
-              throw err;
-            }
+            const resultPromise = this.client._getNexusOperationResult({
+              operationId: this.operationId,
+              runId: this.runId,
+            }) as Promise<O>;
+            cachedResult = { kind: 'requested', value: resultPromise };
+            return await cachedResult.value;
           }
-          case 'complete':
-            return cachedResult.value;
-          case 'failed':
-            throw cachedResult.failure;
+          case 'requested':
+            return await cachedResult.value;
         }
       },
       async describe(options?: DescribeNexusOperationOptions): Promise<NexusOperationExecutionDescription> {
@@ -603,19 +591,27 @@ async function nexusOperationExecutionDescriptionFromProto(
   longPollToken: Uint8Array | undefined
 ): Promise<NexusOperationExecutionDescription> {
   let decodedMetadata:
-    | { state: 'resolved'; summary: string | undefined; details: string | undefined }
+    | { state: 'requested'; metadata: Promise<{ summary: string | undefined; details: string | undefined }> }
     | { state: 'pending' } = {
     state: 'pending',
   };
   const decodeMetadata = async () => {
     if (decodedMetadata.state === 'pending') {
+      const metadataPromise = Promise.all([
+        decodeOptionalSinglePayload(dataConverter, raw.userMetadata?.summary),
+        decodeOptionalSinglePayload(dataConverter, raw.userMetadata?.details),
+      ]).then(([summary, details]) => {
+        return {
+          summary: (summary ?? undefined) as string | undefined,
+          details: (details ?? undefined) as string | undefined,
+        };
+      });
       decodedMetadata = {
-        state: 'resolved',
-        summary: (await decodeOptionalSinglePayload(dataConverter, raw.userMetadata?.summary)) ?? undefined,
-        details: (await decodeOptionalSinglePayload(dataConverter, raw.userMetadata?.details)) ?? undefined,
+        state: 'requested',
+        metadata: metadataPromise,
       };
     }
-    return decodedMetadata;
+    return await decodedMetadata.metadata;
   };
   return {
     operationId: raw.operationId ?? '',
@@ -697,7 +693,7 @@ export class NexusOperationFailureError extends Error {
 
 /**
  * Thrown by {@link NexusServiceClient.startOperation} when the server returns ALREADY_EXISTS
- * because an operation with the given ID already exists (and the reuse/conflict policies disallow reuse.
+ * because an operation with the given ID already exists and the reuse/conflict policies disallow reuse.
  */
 @SymbolBasedInstanceOfError('NexusOperationAlreadyStartedError')
 export class NexusOperationAlreadyStartedError extends Error {
@@ -705,7 +701,7 @@ export class NexusOperationAlreadyStartedError extends Error {
     public readonly operationId: string,
     public readonly runId?: string
   ) {
-    super(`Nexus operation already started: operation_id=${operationId} run_id=${runId}`);
+    super(`Nexus operation already started: operationId=${operationId} ${runId ? `runId=${runId}` : ''}`);
   }
 }
 
@@ -718,6 +714,6 @@ export class NexusOperationNotFoundError extends Error {
     public readonly operationId: string,
     public readonly runId?: string
   ) {
-    super(`Nexus operation not found: operation_id=${operationId} run_id=${runId}`);
+    super(`Nexus operation not found: operationId=${operationId} ${runId ? `runId=${runId}` : ''}`);
   }
 }

@@ -101,17 +101,30 @@ test('start sync operation and get result', async (t) => {
 test('start async operation and poll result', async (t) => {
   const { createWorker, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
-  const { handler } = makeTestHandler();
+  const { handler, workflowStarted } = makeTestHandler();
   const worker = await createWorker({ nexusServices: [handler] });
 
   await worker.runUntil(async () => {
     const svc = t.context.env.client.nexus.createServiceClient({ endpoint: endpointName, service: testService });
-    const handle = await svc.startOperation(testService.operations.echo, 'async-hello', {
-      id: 'op-' + randomUUID(),
-      scheduleToCloseTimeout: '10s',
-    });
+    const id = randomUUID();
+    const handle = await svc.startOperation(
+      testService.operations.blockingAsync,
+      { echo: 'async-hello', wfId: id },
+      {
+        id: `op-${id}`,
+        scheduleToCloseTimeout: '10s',
+      }
+    );
+
+    // wait for workflow to start
+    await workflowStarted;
+
+    // unblock workflow
+    const wfHandle = t.context.env.client.workflow.getHandle(id);
+    await wfHandle.executeUpdate(unblockEcho);
+
     const result = await handle.result();
-    t.is(result.value, 'async-hello');
+    t.is(result, 'async-hello');
   });
 });
 
