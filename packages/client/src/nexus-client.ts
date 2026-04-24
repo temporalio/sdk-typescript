@@ -164,7 +164,7 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
   ): Promise<OperationOutputOf<T['operations'][K]>>;
 }
 
-type CachedOperationResult<T> = { kind: 'pending' } | { kind: 'requested'; value: Promise<T> };
+type CachedPromise<T> = { state: 'pending' } | { state: 'requested'; value: Promise<T> };
 
 /**
  * Client for standalone Nexus operations. Access via {@link Client.nexus}.
@@ -361,19 +361,19 @@ export class NexusClient extends BaseClient {
   }
 
   protected _createNexusOperationHandle<O>(opts: { operationId: string; runId?: string }): NexusOperationHandle<O> {
-    let cachedResult: CachedOperationResult<O> = { kind: 'pending' };
+    let cachedResult: CachedPromise<O> = { state: 'pending' };
     return {
       operationId: opts.operationId,
       runId: opts.runId,
       client: this,
       async result(): Promise<O> {
-        switch (cachedResult.kind) {
+        switch (cachedResult.state) {
           case 'pending': {
             const resultPromise = this.client._getNexusOperationResult({
               operationId: this.operationId,
               runId: this.runId,
             }) as Promise<O>;
-            cachedResult = { kind: 'requested', value: resultPromise };
+            cachedResult = { state: 'requested', value: resultPromise };
             return await cachedResult.value;
           }
           case 'requested':
@@ -590,9 +590,7 @@ async function nexusOperationExecutionDescriptionFromProto(
   dataConverter: LoadedDataConverter,
   longPollToken: Uint8Array | undefined
 ): Promise<NexusOperationExecutionDescription> {
-  let decodedMetadata:
-    | { state: 'requested'; metadata: Promise<{ summary: string | undefined; details: string | undefined }> }
-    | { state: 'pending' } = {
+  let decodedMetadata: CachedPromise<{ summary: string | undefined; details: string | undefined }> = {
     state: 'pending',
   };
   const decodeMetadata = async () => {
@@ -608,10 +606,10 @@ async function nexusOperationExecutionDescriptionFromProto(
       });
       decodedMetadata = {
         state: 'requested',
-        metadata: metadataPromise,
+        value: metadataPromise,
       };
     }
-    return await decodedMetadata.metadata;
+    return await decodedMetadata.value;
   };
   return {
     operationId: raw.operationId ?? '',
