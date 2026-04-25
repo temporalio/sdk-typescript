@@ -433,6 +433,31 @@ test('explicit_flush_barrier — flush() returns once items are confirmed', asyn
   });
 });
 
+test('subscribe_accepts_string_topic — single-string convenience', async (t) => {
+  // subscribe(topics='a') is equivalent to subscribe(topics=['a']).
+  const count = 9;
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({ activities: pubsubActivities });
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(multiTopicWorkflow, { args: [count] });
+
+    const client = new PubSubClient(handle);
+    const items: PubSubItem[] = [];
+    const gen = client.subscribe('a', 0, { pollCooldown: 0 });
+    for await (const item of gen) {
+      items.push(item);
+      if (items.length >= 3) {
+        await gen.return();
+        break;
+      }
+    }
+    t.is(items.length, 3);
+    t.true(items.every((it) => it.topic === 'a'));
+
+    await handle.signal('close');
+  });
+});
+
 test('ttl_pruning_in_get_state — old publisher pruned, new publisher kept', async (t) => {
   // pub-old arrives first, then wall-clock gap, then pub-new. TTL=0.5s
   // prunes pub-old (~1s old) but keeps pub-new (~0s).

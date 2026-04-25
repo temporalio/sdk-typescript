@@ -400,20 +400,25 @@ export class PubSubClient {
    *
    * Automatically follows continue-as-new chains when created via
    * {@link PubSubClient.create}.
+   *
+   * @param topics - Topic filter. A single topic name, an array of topic
+   *   names, or undefined. Undefined or an empty array means all topics.
    */
   async *subscribe(
-    topics?: string[],
+    topics?: string | string[],
     fromOffset = 0,
     options?: SubscribeOptions
   ): AsyncGenerator<PubSubItem, void, unknown> {
     const pollCooldown = options?.pollCooldown ?? 0.1;
+    const topicFilter: string[] =
+      topics === undefined ? [] : typeof topics === 'string' ? [topics] : topics;
     let offset = fromOffset;
 
     while (true) {
       let result: PollResult;
       try {
         result = await this.handle.executeUpdate<PollResult, [PollInput]>('__temporal_pubsub_poll', {
-          args: [{ topics: topics ?? [], from_offset: offset }],
+          args: [{ topics: topicFilter, from_offset: offset }],
         });
       } catch (err) {
         if (err instanceof WorkflowUpdateFailedError) {
