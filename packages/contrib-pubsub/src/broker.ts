@@ -51,9 +51,9 @@ function isUint8ArrayLike(value: unknown): value is ArrayLike<number> {
 }
 
 // Fixed handler names for cross-language interop
-export const pubsubPublishSignal = defineSignal<[PublishInput]>('__pubsub_publish');
-export const pubsubPollUpdate = defineUpdate<PollResult, [PollInput]>('__pubsub_poll');
-export const pubsubOffsetQuery = defineQuery<number>('__pubsub_offset');
+export const pubsubPublishSignal = defineSignal<[PublishInput]>('__temporal_pubsub_publish');
+export const pubsubPollUpdate = defineUpdate<PollResult, [PollInput]>('__temporal_pubsub_poll');
+export const pubsubOffsetQuery = defineQuery<number>('__temporal_pubsub_offset');
 
 const MAX_POLL_RESPONSE_BYTES = 1_000_000;
 
@@ -91,9 +91,9 @@ function isPayload(value: unknown): value is Payload {
  *
  * Registered handlers:
  *
- * - `__pubsub_publish` signal — external publish with dedup
- * - `__pubsub_poll` update — long-poll subscription
- * - `__pubsub_offset` query — current log length
+ * - `__temporal_pubsub_publish` signal — external publish with dedup
+ * - `__temporal_pubsub_poll` update — long-poll subscription
+ * - `__temporal_pubsub_offset` query — current log length
  *
  * For continue-as-new, thread a `PubSubState | undefined` field through
  * the workflow input and pass it as `priorState`.

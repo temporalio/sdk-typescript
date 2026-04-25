@@ -39,8 +39,8 @@ export async function myWorkflow(input: MyInput): Promise<void> {
 }
 ```
 
-The `PubSub` constructor registers the `__pubsub_publish` signal,
-`__pubsub_poll` update, and `__pubsub_offset` query handlers on your workflow.
+The `PubSub` constructor registers the `__temporal_pubsub_publish` signal,
+`__temporal_pubsub_poll` update, and `__temporal_pubsub_offset` query handlers on your workflow.
 Any value the default payload converter can serialize (JSON, `Uint8Array`, or
 a pre-built `Payload`) can be passed to `publish`.
 
@@ -164,9 +164,9 @@ Handlers registered automatically:
 
 | Kind | Name | Description |
 |---|---|---|
-| Signal | `__pubsub_publish` | Receive external publications. |
-| Update | `__pubsub_poll` | Long-poll subscription. |
-| Query | `__pubsub_offset` | Current global offset. |
+| Signal | `__temporal_pubsub_publish` | Receive external publications. |
+| Update | `__temporal_pubsub_poll` | Long-poll subscription. |
+| Query | `__temporal_pubsub_offset` | Current global offset. |
 
 ### `PubSubClient`
 
@@ -195,9 +195,9 @@ Handlers registered automatically:
 Any Temporal client can interact with a pub/sub workflow using these fixed
 handler names:
 
-1. **Publish**: signal `__pubsub_publish` with `PublishInput`
-2. **Subscribe**: update `__pubsub_poll` with `PollInput` -> `PollResult`
-3. **Offset**: query `__pubsub_offset` -> `number`
+1. **Publish**: signal `__temporal_pubsub_publish` with `PublishInput`
+2. **Subscribe**: update `__temporal_pubsub_poll` with `PollInput` -> `PollResult`
+3. **Offset**: query `__temporal_pubsub_offset` -> `number`
 
 Each `PublishEntry.data` / `_WireItem.data` is a base64-encoded
 `temporal.api.common.v1.Payload` protobuf (`Payload.SerializeToString()` in

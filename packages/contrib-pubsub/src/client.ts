@@ -335,7 +335,7 @@ export class PubSubClient {
 
     // On failure, the signal throws and pending stays set for retry.
     // On success, advance confirmed sequence and clear pending.
-    await this.handle.signal<[PublishInput]>('__pubsub_publish', {
+    await this.handle.signal<[PublishInput]>('__temporal_pubsub_publish', {
       items: batch,
       publisher_id: this.publisherId,
       sequence: seq,
@@ -366,7 +366,7 @@ export class PubSubClient {
     while (true) {
       let result: PollResult;
       try {
-        result = await this.handle.executeUpdate<PollResult, [PollInput]>('__pubsub_poll', {
+        result = await this.handle.executeUpdate<PollResult, [PollInput]>('__temporal_pubsub_poll', {
           args: [{ topics: topics ?? [], from_offset: offset }],
         });
       } catch (err) {
@@ -407,7 +407,7 @@ export class PubSubClient {
 
   /** Query the current global offset. */
   async getOffset(): Promise<number> {
-    return this.handle.query<number>('__pubsub_offset');
+    return this.handle.query<number>('__temporal_pubsub_offset');
   }
 
   /**
