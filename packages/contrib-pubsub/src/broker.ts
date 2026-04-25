@@ -205,14 +205,23 @@ export class PubSub {
    * Discard log entries before upToOffset.
    * After truncation, polls requesting an offset before the new base
    * will receive an error.
+   *
+   * Raises `ApplicationFailure` with type `'TruncateOutOfRange'` and
+   * `nonRetryable: true` when the requested offset is past the end of
+   * the log. Mirrors how `onPoll` reports `'TruncatedOffset'`: an update
+   * handler invoking `truncate` surfaces the error to the caller without
+   * failing the workflow task.
    */
   truncate(upToOffset: number): void {
     const logIndex = upToOffset - this.baseOffset;
     if (logIndex <= 0) return;
     if (logIndex > this.log.length) {
-      throw new Error(
-        `Cannot truncate to offset ${upToOffset}: only ${this.baseOffset + this.log.length} items exist`
-      );
+      throw ApplicationFailure.create({
+        message:
+          `Cannot truncate to offset ${upToOffset}: only ${this.baseOffset + this.log.length} items exist`,
+        type: 'TruncateOutOfRange',
+        nonRetryable: true,
+      });
     }
     this.log.splice(0, logIndex);
     this.baseOffset = upToOffset;

@@ -369,6 +369,38 @@ test('truncate_pubsub — truncate discards prefix and adjusts base', async (t) 
   });
 });
 
+test('truncate_past_end_raises_application_failure', async (t) => {
+  // truncate() with an offset past the end of the log surfaces as
+  // WorkflowUpdateFailedError with cause type 'TruncateOutOfRange'.
+  // The workflow task must not be poisoned: a follow-up poll still works.
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(truncateWorkflow, { args: [] });
+
+    const items: PublishEntry[] = [];
+    for (let i = 0; i < 2; i++) items.push(entry('events', `item-${i}`));
+    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+      items,
+      publisher_id: '',
+      sequence: 0,
+    });
+
+    // Only 2 items exist; asking to truncate to offset 5 is out of range.
+    const err = (await t.throwsAsync(handle.executeUpdate(truncateUpdate, { args: [5] }), {
+      instanceOf: WorkflowUpdateFailedError,
+    })) as WorkflowUpdateFailedError;
+    t.true(err.cause instanceof ApplicationFailure);
+    t.is((err.cause as ApplicationFailure).type, 'TruncateOutOfRange');
+
+    // Workflow task wasn't poisoned — a valid poll still completes.
+    const after = await collectItems(handle, undefined, 0, 2);
+    t.is(after.length, 2);
+
+    await handle.signal('close');
+  });
+});
+
 test('ttl_pruning_in_get_state — old publisher pruned, new publisher kept', async (t) => {
   // pub-old arrives first, then wall-clock gap, then pub-new. TTL=0.5s
   // prunes pub-old (~1s old) but keeps pub-new (~0s).
