@@ -401,6 +401,38 @@ test('truncate_past_end_raises_application_failure', async (t) => {
   });
 });
 
+test('explicit_flush_barrier — flush() returns once items are confirmed', async (t) => {
+  // flush() is a synchronization point. With a 60s batchInterval, a
+  // regression that silently relies on the background timer would hang
+  // (and miss the per-test timeout) rather than slow-pass.
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(basicPubSubWorkflow, { args: [] });
+
+    const pubsub = new PubSubClient(handle, { batchInterval: 60 });
+
+    // 1. Empty-buffer flush is a no-op (must not block).
+    t.is(await pubsub.getOffset(), 0);
+    await pubsub.flush();
+    t.is(await pubsub.getOffset(), 0);
+
+    // 2. Flush makes prior publishes visible without waiting on the
+    // 60s batch timer.
+    pubsub.publish('events', encoder.encode('a'));
+    pubsub.publish('events', encoder.encode('b'));
+    pubsub.publish('events', encoder.encode('c'));
+    await pubsub.flush();
+    t.is(await pubsub.getOffset(), 3);
+
+    // 3. Second flush with no new items is a no-op.
+    await pubsub.flush();
+    t.is(await pubsub.getOffset(), 3);
+
+    await handle.signal('close');
+  });
+});
+
 test('ttl_pruning_in_get_state — old publisher pruned, new publisher kept', async (t) => {
   // pub-old arrives first, then wall-clock gap, then pub-new. TTL=0.5s
   // prunes pub-old (~1s old) but keeps pub-new (~0s).

@@ -189,6 +189,52 @@ export class PubSubClient {
     this.flusherTask = this.runFlusher();
   }
 
+  /**
+   * Flush buffered (and pending) items and wait for server confirmation.
+   *
+   * Returns once the items buffered at call time have been signaled to
+   * the workflow and acknowledged by the server. Returns immediately if
+   * there is nothing to send.
+   *
+   * In addition to the declarative `forceFlush=true` on {@link publish}
+   * and to the automatic flush on {@link [Symbol.asyncDispose]}, use
+   * this when the caller needs proof that prior publications reached
+   * the server at a moment that does not naturally correspond to a
+   * specific event.
+   *
+   * Safe to call concurrently with `publish()` and with the background
+   * flusher: the in-flight serialization on `flushOnce` makes signal
+   * sends sequential. Items added concurrently after entry may
+   * piggyback on this flush or be deferred to a subsequent one.
+   *
+   * Throws {@link FlushTimeoutError} if a pending batch cannot be sent
+   * within `maxRetryDuration`. Also surfaces any deferred timeout from a
+   * prior background flusher failure: without that, `flush()` could
+   * return success against an empty buffer while an earlier batch had
+   * already been dropped, hiding data loss.
+   */
+  async flush(): Promise<void> {
+    this.throwPendingFlusherError();
+    // Snapshot the sequence number that the items present at entry will
+    // commit at. A concurrent producer that calls publish() during the
+    // awaits below adds to the buffer at a later sequence — those items
+    // belong to a future flush and must not extend this barrier.
+    if (this.pending === null && this.buffer.length === 0) {
+      return;
+    }
+    const baseSeq = this.pending !== null ? this.pendingSeq : this.sequence;
+    const targetSeq = this.buffer.length > 0 ? baseSeq + 1 : baseSeq;
+    // `sequence` only advances on a successful send, so reaching
+    // `targetSeq` proves the entry-time items were confirmed. A later
+    // batch (queued by a concurrent publisher and picked up by the
+    // background flusher) may leave `pending` non-null afterward — we
+    // do not wait on it.
+    while (this.sequence < targetSeq) {
+      await this.flushOnce();
+    }
+    this.throwPendingFlusherError();
+  }
+
   /** Stop the flusher and flush remaining items. */
   async stop(): Promise<void> {
     if (!this.flusherTask) {
