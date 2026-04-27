@@ -14,9 +14,16 @@
 export { OpenAIAgentsPlugin } from './worker/plugin';
 export type { OpenAIAgentsPluginOptions } from './worker/plugin';
 export { createModelActivity } from './worker/activities';
+export { toSerializedModelResponse } from './worker/activities';
 export { StatelessMCPServerProvider } from './worker/mcp-provider';
 export type { StatelessMCPServerFactory, MCPToolDefinition, MCPCallToolResult } from './worker/mcp-provider';
-export type { ActivityModelInput } from './common/activity-model-input';
+export {
+  WIRE_VERSION,
+  type SerializedModelRequest,
+  type SerializedModelResponse,
+  type InvokeModelActivityInput,
+  type JsonValue,
+} from './common/serialized-model';
 export type { ModelActivityParameters, ModelSummaryProvider, AgentInputItem } from './common/model-parameters';
 export { DEFAULT_MODEL_ACTIVITY_PARAMETERS } from './common/model-parameters';
 export { AgentsWorkflowError } from './common/errors';

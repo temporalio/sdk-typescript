@@ -10,3 +10,11 @@ export type { StatelessMcpServerOptions, TemporalMCPServer, MCPPromptDefinition 
 export { isInWorkflow, isReplaying, getWorkflowTracingConfig } from './workflow/tracing';
 // Re-export so workflow callers can instanceof-check
 export { AgentsWorkflowError } from './common/errors';
+export {
+  WIRE_VERSION,
+  type SerializedModelRequest,
+  type SerializedModelResponse,
+  type InvokeModelActivityInput,
+  type JsonValue,
+} from './common/serialized-model';
+export { toSerializedModelRequest } from './workflow/activity-backed-model';

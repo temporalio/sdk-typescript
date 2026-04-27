@@ -1,7 +1,7 @@
 /**
  * Test OpenAI Agents SDK integration with Temporal workflows
  */
-import { OpenAIAgentsPlugin, StatelessMCPServerProvider } from '@temporalio/openai-agents';
+import { OpenAIAgentsPlugin, StatelessMCPServerProvider, toSerializedModelResponse } from '@temporalio/openai-agents';
 import { WorkflowFailedError } from '@temporalio/client';
 import { temporal } from '@temporalio/proto';
 import {
@@ -45,6 +45,10 @@ import {
   timeoutErrorWorkflow,
   xShouldRetryWorkflow,
   plainErrorWorkflow,
+  wireRoundTripWorkflow,
+  wireStrippingCheckWorkflow,
+  wireVersionMismatchWorkflow,
+  wireRequestSnapshotWorkflow,
 } from './workflows/openai-agents';
 import { helpers, makeTestFunction } from './helpers-integration';
 import {
@@ -2283,4 +2287,160 @@ test('G6/F-C: Schema-invalid tool input is passed through without validation', a
       `calculateSum should be scheduled even with invalid input, got: ${activityTypes.join(', ')}`
     );
   });
+});
+
+// --- Wire contract tests ---
+
+test('Wire contract: prompt and tracing survive round trip through wire projection', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const provider = new RequestCapturingModelProvider();
+  const worker = await createWorker({
+    plugins: [new OpenAIAgentsPlugin({ modelProvider: provider })],
+  });
+
+  let result: Awaited<ReturnType<typeof wireRoundTripWorkflow>>;
+  await worker.runUntil(async () => {
+    result = await executeWorkflow(wireRoundTripWorkflow, {
+      args: ['Hello'],
+      workflowExecutionTimeout: '30 seconds',
+    });
+  });
+
+  // --- Request side (captured by activity-side model) ---
+  const req = provider.lastRequest as any;
+  t.truthy(req, 'Expected model to have received a request');
+
+  // Prompt field with nested structure should survive the wire
+  t.truthy(req?.prompt, 'Expected prompt field to survive round trip');
+  t.is(req?.prompt?.promptId, 'pt_round_trip', `Expected promptId 'pt_round_trip', got: ${req?.prompt?.promptId}`);
+  t.deepEqual(req?.prompt?.variables, { key: 'value', nested: { deep: true } });
+
+  // Tracing field should survive (default is false when tracing is disabled in workflow)
+  t.true('tracing' in req, 'Expected tracing field to be present in wire request');
+
+  // __wireVersion is stripped by fromSerializedModelRequest before reaching the model
+  t.false('__wireVersion' in req, '__wireVersion should be stripped before reaching the model');
+
+  // --- Response side (returned from activity to workflow) ---
+  t.is(result!.usageInputTokens, 10, `Expected usage.inputTokens=10, got: ${result!.usageInputTokens}`);
+  t.is(result!.usageOutputTokens, 8, `Expected usage.outputTokens=8, got: ${result!.usageOutputTokens}`);
+  t.is(result!.outputLength, 1, `Expected output array length=1, got: ${result!.outputLength}`);
+  t.false(result!.hasWireVersion, '__wireVersion should be stripped from response by fromSerializedModelResponse');
+});
+
+// Stripping is a structural guarantee: toSerializedModelRequest uses additive projection
+// (only copies listed fields), so unlisted fields like `signal` can never leak through.
+// This integration test verifies the end-to-end absence on the activity-side model request.
+test('Wire contract: signal is stripped from wire request', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const provider = new RequestCapturingModelProvider();
+  const worker = await createWorker({
+    plugins: [new OpenAIAgentsPlugin({ modelProvider: provider })],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(wireStrippingCheckWorkflow, {
+      args: ['Hello'],
+      workflowExecutionTimeout: '30 seconds',
+    });
+    t.is(result, 'captured');
+  });
+
+  const req = provider.lastRequest as any;
+  t.truthy(req, 'Expected model to have received a request');
+  t.false('signal' in req, 'signal should be stripped from wire request (AbortSignal is not serializable)');
+});
+
+test('Wire contract: version mismatch throws non-retryable WireVersionMismatch error', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    plugins: [
+      new OpenAIAgentsPlugin({
+        modelProvider: new FakeModelProvider([textResponse('Should not reach')]),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(wireVersionMismatchWorkflow, {
+      workflowExecutionTimeout: '30 seconds',
+    });
+
+    t.is(result.errorType, 'WireVersionMismatch', `Expected WireVersionMismatch error type, got: ${result.errorType}`);
+    t.true(
+      result.errorMessage.includes('wire version mismatch'),
+      `Expected descriptive message about version mismatch, got: ${result.errorMessage}`
+    );
+  });
+});
+
+test('Wire contract: SerializedModelRequest shape snapshot', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    plugins: [
+      new OpenAIAgentsPlugin({
+        modelProvider: new FakeModelProvider([textResponse('unused')]),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const actualKeys = await executeWorkflow(wireRequestSnapshotWorkflow, {
+      workflowExecutionTimeout: '30 seconds',
+    });
+
+    const expectedKeys = [
+      '__wireVersion',
+      'conversationId',
+      'handoffs',
+      'input',
+      'modelSettings',
+      'outputType',
+      'overridePromptModel',
+      'previousResponseId',
+      'prompt',
+      'systemInstructions',
+      'tools',
+      'toolsExplicitlyProvided',
+      'tracing',
+    ];
+    t.deepEqual(
+      actualKeys,
+      expectedKeys,
+      `SerializedModelRequest shape changed — bump WIRE_VERSION and update this snapshot. Got: ${actualKeys.join(', ')}`
+    );
+    t.true(actualKeys.includes('__wireVersion'), 'Wire version key must be present');
+    t.false(actualKeys.includes('signal'), 'signal must not be on wire (AbortSignal is not serializable)');
+  });
+});
+
+test('Wire contract: SerializedModelResponse shape snapshot', async (t) => {
+  const response = {
+    usage: {
+      requests: 1,
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+      inputTokensDetails: [],
+      outputTokensDetails: [],
+    },
+    output: [{ type: 'message', content: 'test' }],
+    responseId: 'resp_123',
+    providerData: { key: 'value' },
+  } as any;
+
+  const wire = toSerializedModelResponse(response);
+  const actualKeys = Object.keys(wire).sort();
+
+  const expectedKeys = ['__wireVersion', 'output', 'providerData', 'responseId', 'usage'];
+  t.deepEqual(
+    actualKeys,
+    expectedKeys,
+    `SerializedModelResponse shape changed — bump WIRE_VERSION and update this snapshot. Got: ${actualKeys.join(', ')}`
+  );
+  t.is(wire.__wireVersion, 1, 'Wire version should be 1');
 });

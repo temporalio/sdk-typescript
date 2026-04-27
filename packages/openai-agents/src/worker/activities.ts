@@ -1,7 +1,43 @@
-import type { ModelProvider, ModelResponse } from '@openai/agents-core';
+import type { ModelProvider, ModelRequest, ModelResponse } from '@openai/agents-core';
 import { ApplicationFailure } from '@temporalio/common';
 import { heartbeat, activityInfo } from '@temporalio/activity';
-import type { ActivityModelInput } from '../common/activity-model-input';
+import {
+  type InvokeModelActivityInput,
+  type JsonValue,
+  type SerializedModelRequest,
+  type SerializedModelResponse,
+  WIRE_VERSION,
+} from '../common/serialized-model';
+
+/** Projects an upstream ModelResponse to its JSON-serializable wire form. */
+export function toSerializedModelResponse(response: ModelResponse): SerializedModelResponse {
+  return {
+    __wireVersion: WIRE_VERSION,
+    usage: response.usage as unknown as JsonValue,
+    output: response.output as unknown as JsonValue[],
+    responseId: response.responseId,
+    providerData: response.providerData as Record<string, JsonValue> | undefined,
+  };
+}
+
+function fromSerializedModelRequest(wire: SerializedModelRequest): ModelRequest {
+  return {
+    systemInstructions: wire.systemInstructions,
+    input: wire.input,
+    modelSettings: wire.modelSettings,
+    tools: wire.tools,
+    toolsExplicitlyProvided: wire.toolsExplicitlyProvided,
+    outputType: wire.outputType,
+    handoffs: wire.handoffs,
+    prompt: wire.prompt,
+    previousResponseId: wire.previousResponseId,
+    conversationId: wire.conversationId,
+    tracing: wire.tracing,
+    overridePromptModel: wire.overridePromptModel,
+    // __wireVersion deliberately stripped — internal protocol field, not part of upstream ModelRequest.
+    // Type assertion: JsonValue wire fields are structurally compatible with their upstream types at runtime.
+  } as ModelRequest;
+}
 
 function getStatus(error: unknown): number | undefined {
   if (!error || typeof error !== 'object') return undefined;
@@ -77,31 +113,28 @@ function getRetryAfterMs(error: unknown): number | undefined {
   return undefined;
 }
 
-// NOTE: Temporal's default payload converter serializes via JSON.stringify.
-// Date objects become ISO strings, class instances become plain objects.
-// @openai/agents-core's ModelResponse uses plain JSON-safe types by default,
-// so this is typically not a concern. Custom ModelProviders that emit Dates
-// or class instances should pre-serialize them.
-
 /**
  * Creates the model activity functions to be registered with the Worker.
  * The returned activities use the provided ModelProvider to resolve models
  * and execute real LLM calls.
  */
 export function createModelActivity(modelProvider: ModelProvider): {
-  invokeModelActivity: (input: ActivityModelInput) => Promise<ModelResponse>;
+  invokeModelActivity: (input: InvokeModelActivityInput) => Promise<SerializedModelResponse>;
 } {
   return {
-    /**
-     * Activity that invokes a model. Called by ActivityBackedModel from workflow context.
-     * Handles auto-heartbeating for long-running LLM calls and classifies errors
-     * as retryable or non-retryable for Temporal's retry policy.
-     */
-    async invokeModelActivity(input: ActivityModelInput): Promise<ModelResponse> {
+    async invokeModelActivity(input: InvokeModelActivityInput): Promise<SerializedModelResponse> {
+      if (input.request.__wireVersion !== WIRE_VERSION) {
+        throw ApplicationFailure.nonRetryable(
+          `OpenAI Agents wire version mismatch: payload=${input.request.__wireVersion}, runtime=${WIRE_VERSION}. ` +
+            `Upgrade workers and clients together.`,
+          'WireVersionMismatch'
+        );
+      }
+      // Shape validation beyond version check is intentionally minimal —
+      // see CLEANUP.md "What this does NOT do" / "No Zod / runtime schema validation" rationale.
+
       const model = await Promise.resolve(modelProvider.getModel(input.modelName));
 
-      // Auto-heartbeat: send heartbeats at half the timeout interval
-      // to keep the activity alive during long LLM calls (30-60+ seconds)
       const info = activityInfo();
       let heartbeatTimer: ReturnType<typeof setTimeout> | undefined;
       let stopped = false;
@@ -122,7 +155,8 @@ export function createModelActivity(modelProvider: ModelProvider): {
       }
 
       try {
-        return await model.getResponse(input.request as any);
+        const response = await model.getResponse(fromSerializedModelRequest(input.request));
+        return toSerializedModelResponse(response);
       } catch (error) {
         const retryable = isRetryableError(error);
         const message = error instanceof Error ? error.message : String(error);

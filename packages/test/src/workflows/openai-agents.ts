@@ -2,10 +2,10 @@
 // eslint-disable-next-line import/no-unassigned-import
 import '@temporalio/openai-agents/lib/load-polyfills';
 
-import { Agent, handoff, tool } from '@openai/agents-core';
+import { Agent, handoff, tool, type ModelResponse } from '@openai/agents-core';
 import { z } from 'zod';
 import { webSearchTool } from '@openai/agents-openai';
-import { ApplicationFailure } from '@temporalio/workflow';
+import { ApplicationFailure, proxyActivities } from '@temporalio/workflow';
 import {
   activityAsTool,
   createTemporalRunner,
@@ -13,6 +13,7 @@ import {
   isInWorkflow,
   isReplaying,
   getWorkflowTracingConfig,
+  toSerializedModelRequest,
   type TemporalMCPServer,
 } from '@temporalio/openai-agents/lib/workflow';
 import type * as activities from '../activities/openai-agents';
@@ -934,4 +935,113 @@ export async function extendedModelParamsWorkflow(prompt: string): Promise<strin
   });
   const result = await runner.run(agent, prompt);
   return result.finalOutput ?? '';
+}
+
+// --- Wire contract tests ---
+
+/**
+ * Wire round-trip: verifies that populated Prompt-shaped and ModelTracing-shaped
+ * objects survive workflow→activity→workflow through the wire contract.
+ * Returns both the final output and response-side metadata for assertion.
+ */
+export async function wireRoundTripWorkflow(prompt: string): Promise<{
+  finalOutput: string;
+  usageInputTokens: number;
+  usageOutputTokens: number;
+  outputLength: number;
+  hasWireVersion: boolean;
+}> {
+  const agent = new Agent({
+    name: 'WireRoundTripAgent',
+    instructions: 'You are a helpful assistant.',
+    model: 'gpt-4o-mini',
+    prompt: {
+      promptId: 'pt_round_trip',
+      variables: { key: 'value', nested: { deep: true } },
+    },
+  } as any);
+
+  const runner = createTemporalRunner();
+  const result = await runner.run(agent, prompt);
+  const raw: ModelResponse | undefined = result.rawResponses[0];
+  return {
+    finalOutput: result.finalOutput ?? '',
+    usageInputTokens: raw?.usage?.inputTokens ?? -1,
+    usageOutputTokens: raw?.usage?.outputTokens ?? -1,
+    outputLength: Array.isArray(raw?.output) ? raw.output.length : -1,
+    hasWireVersion: '__wireVersion' in (raw ?? {}),
+  };
+}
+
+/**
+ * Wire stripping: verifies that signal and _internal are not present in the
+ * request received by the activity-side model.
+ */
+export async function wireStrippingCheckWorkflow(prompt: string): Promise<string> {
+  const agent = new Agent({
+    name: 'WireStrippingAgent',
+    instructions: 'You are a helpful assistant.',
+    model: 'gpt-4o-mini',
+  });
+
+  const runner = createTemporalRunner();
+  const result = await runner.run(agent, prompt);
+  return result.finalOutput ?? '';
+}
+
+/**
+ * Wire version mismatch: directly proxies the invokeModelActivity activity and
+ * calls it with __wireVersion: 999 to trigger the version check.
+ *
+ * True cross-version testing would require running two package versions simultaneously,
+ * which is impractical. This test verifies the activity-side guard responds correctly
+ * to a stale payload.
+ */
+export async function wireVersionMismatchWorkflow(): Promise<{ errorType: string; errorMessage: string }> {
+  const activities = proxyActivities<{
+    invokeModelActivity(input: unknown): Promise<unknown>;
+  }>({ startToCloseTimeout: '30s' });
+
+  try {
+    await activities.invokeModelActivity({
+      modelName: 'test-model',
+      request: {
+        __wireVersion: 999,
+        input: 'test',
+        modelSettings: {},
+        tools: [],
+        outputType: { type: 'text' },
+        handoffs: [],
+      },
+    });
+    return { errorType: 'none', errorMessage: 'no error' };
+  } catch (e: any) {
+    return {
+      errorType: e?.cause?.type ?? 'unknown',
+      errorMessage: e?.cause?.message ?? String(e),
+    };
+  }
+}
+
+// --- Wire shape snapshot workflow ---
+
+export async function wireRequestSnapshotWorkflow(): Promise<string[]> {
+  const request = {
+    systemInstructions: 'test instructions',
+    input: 'test input',
+    modelSettings: { temperature: 0.5 },
+    tools: [],
+    toolsExplicitlyProvided: true,
+    outputType: { type: 'text' },
+    handoffs: [],
+    prompt: { promptId: 'pt_test' },
+    previousResponseId: 'resp_123',
+    conversationId: 'conv_456',
+    tracing: false,
+    overridePromptModel: true,
+    signal: 'should-be-stripped',
+  } as any;
+
+  const wire = toSerializedModelRequest(request);
+  return Object.keys(wire).sort();
 }
