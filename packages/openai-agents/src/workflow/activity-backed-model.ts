@@ -1,40 +1,8 @@
-import type {
-  Agent,
-  Model,
-  ModelRequest,
-  ModelResponse,
-  ModelSettings,
-  SerializedHandoff,
-  SerializedOutputType,
-  SerializedTool,
-  StreamEvent,
-} from '@openai/agents-core';
+import type { Agent, Model, ModelRequest, ModelResponse, StreamEvent } from '@openai/agents-core';
 import { proxyActivities, proxyLocalActivities } from '@temporalio/workflow';
 import type { ActivityOptions, LocalActivityOptions } from '@temporalio/common';
-import type { ModelActivityParameters, ModelSummaryProvider } from './model-parameters';
-
-/**
- * Serializable subset of ModelRequest that can be sent to an activity.
- * Strips non-serializable fields like AbortSignal.
- */
-export interface ActivityModelInput {
-  modelName: string;
-  request: {
-    systemInstructions?: string;
-    input: unknown;
-    // Prompt and ModelTracing are not publicly exported from @openai/agents-core
-    prompt?: unknown;
-    previousResponseId?: string;
-    conversationId?: string;
-    modelSettings: ModelSettings;
-    tools: SerializedTool[];
-    toolsExplicitlyProvided?: boolean;
-    outputType: SerializedOutputType;
-    handoffs: SerializedHandoff[];
-    tracing: unknown;
-    overridePromptModel?: boolean;
-  };
-}
+import type { ModelActivityParameters, ModelSummaryProvider } from '../common/model-parameters';
+import type { ActivityModelInput } from '../common/activity-model-input';
 
 interface ModelActivities {
   invokeModelActivity(input: ActivityModelInput): Promise<ModelResponse>;
@@ -45,7 +13,7 @@ interface ModelActivities {
  * Replaces the agent's real model in workflow context, ensuring all LLM calls
  * go through the activity worker where real ModelProviders live.
  */
-export class TemporalModelStub implements Model {
+export class ActivityBackedModel implements Model {
   private readonly activities: ModelActivities;
   private readonly modelParams: ModelActivityParameters;
   private agent?: Agent<any, any>;

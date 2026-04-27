@@ -2,13 +2,13 @@ import type { Model, ModelProvider, ModelRequest, ModelResponse, StreamEvent } f
 
 /**
  * A Model that throws if called. Used as a safety net — all model resolution
- * should go through TemporalModelStub, so DummyModel should never be invoked.
+ * should go through ActivityBackedModel, so DummyModel should never be invoked.
  */
 class DummyModel implements Model {
   async getResponse(_request: ModelRequest): Promise<ModelResponse> {
     throw new Error(
       'DummyModel.getResponse should never be called. ' +
-        'All model calls should go through TemporalModelStub via activities. ' +
+        'All model calls should go through ActivityBackedModel via activities. ' +
         'If you see this error, an agent has a model that was not replaced by convertAgent().'
     );
   }

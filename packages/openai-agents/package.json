@@ -18,10 +18,10 @@
       "default": "./lib/workflow.js"
     },
     "./load-polyfills": {
-      "types": "./lib/load-polyfills.d.ts",
-      "import": "./lib/load-polyfills.js",
-      "require": "./lib/load-polyfills.js",
-      "default": "./lib/load-polyfills.js"
+      "types": "./lib/workflow/load-polyfills.d.ts",
+      "import": "./lib/workflow/load-polyfills.js",
+      "require": "./lib/workflow/load-polyfills.js",
+      "default": "./lib/workflow/load-polyfills.js"
     },
     "./lib/workflow": {
       "types": "./lib/workflow.d.ts",
@@ -30,10 +30,10 @@
       "default": "./lib/workflow.js"
     },
     "./lib/load-polyfills": {
-      "types": "./lib/load-polyfills.d.ts",
-      "import": "./lib/load-polyfills.js",
-      "require": "./lib/load-polyfills.js",
-      "default": "./lib/load-polyfills.js"
+      "types": "./lib/workflow/load-polyfills.d.ts",
+      "import": "./lib/workflow/load-polyfills.js",
+      "require": "./lib/workflow/load-polyfills.js",
+      "default": "./lib/workflow/load-polyfills.js"
     },
     "./lib/index": {
       "types": "./lib/index.d.ts",
@@ -42,16 +42,16 @@
       "default": "./lib/index.js"
     },
     "./testing": {
-      "types": "./lib/testing.d.ts",
-      "import": "./lib/testing.js",
-      "require": "./lib/testing.js",
-      "default": "./lib/testing.js"
+      "types": "./lib/worker/testing.d.ts",
+      "import": "./lib/worker/testing.js",
+      "require": "./lib/worker/testing.js",
+      "default": "./lib/worker/testing.js"
     },
     "./lib/testing": {
-      "types": "./lib/testing.d.ts",
-      "import": "./lib/testing.js",
-      "require": "./lib/testing.js",
-      "default": "./lib/testing.js"
+      "types": "./lib/worker/testing.d.ts",
+      "import": "./lib/worker/testing.js",
+      "require": "./lib/worker/testing.js",
+      "default": "./lib/worker/testing.js"
     }
   },
   "keywords": [

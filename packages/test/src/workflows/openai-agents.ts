@@ -19,7 +19,7 @@ import type * as activities from '../activities/openai-agents';
 
 /**
  * Basic workflow that creates an agent and runs it with a prompt.
- * The agent's model is automatically replaced with a TemporalModelStub
+ * The agent's model is automatically replaced with a ActivityBackedModel
  * by the runner, so LLM calls go through activities.
  */
 export async function basicAgentWorkflow(prompt: string): Promise<string> {
@@ -197,7 +197,7 @@ export async function rawFunctionToolWorkflow(question: string): Promise<string>
 
 /**
  * Workflow that passes runConfig.model as a string to override the agent's model.
- * The string model name should be wrapped with TemporalModelStub by the runner.
+ * The string model name should be wrapped with ActivityBackedModel by the runner.
  */
 export async function runConfigStringModelWorkflow(prompt: string): Promise<string> {
   const agent = new Agent({
@@ -305,7 +305,7 @@ export async function builtInToolAgentWorkflow(prompt: string): Promise<string> 
 /**
  * F1: Uses handoff(agent) wrapper (Handoff instance, not raw Agent in handoffs array).
  * If F1 regresses, the Handoff's inner agent won't get its model replaced with
- * TemporalModelStub, so its model call hits DummyModel and throws.
+ * ActivityBackedModel, so its model call hits DummyModel and throws.
  */
 export async function handoffInstanceWorkflow(question: string): Promise<string> {
   const weatherSpecialist = new Agent({
@@ -348,7 +348,7 @@ export async function cyclicHandoffWorkflow(prompt: string): Promise<string> {
 
 /**
  * F3: Agent with a prompt template. The prompt field on ModelRequest must
- * survive serialization through TemporalModelStub.
+ * survive serialization through ActivityBackedModel.
  * If the bug exists, prompt is stripped during destructuring and the model
  * never receives it.
  */
@@ -728,7 +728,7 @@ export async function handoffInstanceWithRawToolWorkflow(prompt: string): Promis
 /**
  * H5: Tests that convertAgent does not mutate the original Handoff object.
  * Creates a handoff, runs the workflow, then checks if the original handoff's
- * agent still has its original model (not a TemporalModelStub).
+ * agent still has its original model (not a ActivityBackedModel).
  */
 export async function handoffMutationCheckWorkflow(prompt: string): Promise<string> {
   const specialist = new Agent({

@@ -1,7 +1,7 @@
 import { Agent, Handoff, type Model } from '@openai/agents-core';
 import { ApplicationFailure, TemporalFailure } from '@temporalio/common';
-import { TemporalModelStub } from './model-stub';
-import type { ModelActivityParameters } from './model-parameters';
+import type { ModelActivityParameters } from '../common/model-parameters';
+import { ActivityBackedModel } from './activity-backed-model';
 
 export function unwrapTemporalFailure(error: unknown): TemporalFailure | undefined {
   const visited = new Set<unknown>();
@@ -23,7 +23,7 @@ export function unwrapTemporalFailure(error: unknown): TemporalFailure | undefin
 
 /**
  * Recursively convert an agent graph, replacing each agent's model
- * with a TemporalModelStub. Uses a seen map to handle circular handoff references.
+ * with an ActivityBackedModel. Uses a seen map to handle circular handoff references.
  */
 export function convertAgent(
   agent: Agent<any, any>,
@@ -45,11 +45,11 @@ export function convertAgent(
     });
   }
   const modelName = modelNameOverride ?? (typeof rawModel === 'string' ? rawModel : 'default');
-  const stub = new TemporalModelStub(modelName, modelParams);
+  const activityBackedModel = new ActivityBackedModel(modelName, modelParams);
   // Pre-clone agent: summary provider needs the original agent's instructions/name
-  stub.setAgent(agent);
+  activityBackedModel.setAgent(agent);
 
-  const converted = agent.clone({ model: stub as Model });
+  const converted = agent.clone({ model: activityBackedModel as Model });
   seen.set(agent, converted);
 
   const convertedHandoffs = ((agent as any).handoffs ?? []).map((h: Agent<any, any> | Handoff<any, any>) => {

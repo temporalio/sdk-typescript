@@ -11,25 +11,18 @@
 
 // Main entry — all public exports (plugin, activities, workflow utilities, testing namespace, errors)
 
-export { OpenAIAgentsPlugin, createOpenAIAgentsPlugin } from './plugin';
-export type { OpenAIAgentsPluginOptions } from './plugin';
-export { createModelActivity } from './activities';
-export type { ActivityModelInput } from './model-stub';
-export type { ModelActivityParameters, ModelSummaryProvider, AgentInputItem } from './model-parameters';
-export { DEFAULT_MODEL_ACTIVITY_PARAMETERS } from './model-parameters';
-export { ToolSerializationError } from './tools';
-export type { ActivityToolDefinition, ActivityAsToolOptions, JsonObjectSchema } from './tools';
-export { StatelessMCPServerProvider } from './mcp';
-export type {
-  StatelessMcpServerOptions,
-  StatelessMCPServerFactory,
-  TemporalMCPServer,
-  MCPToolDefinition,
-  MCPPromptDefinition,
-  MCPCallToolResult,
-} from './mcp';
-export { AgentsWorkflowError } from './errors';
+export { OpenAIAgentsPlugin } from './worker/plugin';
+export type { OpenAIAgentsPluginOptions } from './worker/plugin';
+export { createModelActivity } from './worker/activities';
+export { StatelessMCPServerProvider } from './worker/mcp-provider';
+export type { StatelessMCPServerFactory, MCPToolDefinition, MCPCallToolResult } from './worker/mcp-provider';
+export type { ActivityModelInput } from './common/activity-model-input';
+export type { ModelActivityParameters, ModelSummaryProvider, AgentInputItem } from './common/model-parameters';
+export { DEFAULT_MODEL_ACTIVITY_PARAMETERS } from './common/model-parameters';
+export { AgentsWorkflowError } from './common/errors';
+export { ToolSerializationError } from './workflow/tools';
+export type { ActivityToolDefinition, ActivityAsToolOptions, JsonObjectSchema } from './workflow/tools';
+export type { StatelessMcpServerOptions, TemporalMCPServer, MCPPromptDefinition } from './workflow/mcp-client';
+export { isInWorkflow, isReplaying, getWorkflowTracingConfig } from './workflow/tracing';
 
-export { isInWorkflow, isReplaying, getWorkflowTracingConfig } from './tracing';
-
-export * as testing from './testing';
+export * as testing from './worker/testing';

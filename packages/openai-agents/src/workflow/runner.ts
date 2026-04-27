@@ -1,8 +1,8 @@
 import { Agent, Handoff, Runner, type Model, type RunResult } from '@openai/agents-core';
 import { ApplicationFailure } from '@temporalio/common';
+import { DEFAULT_MODEL_ACTIVITY_PARAMETERS, type ModelActivityParameters } from '../common/model-parameters';
+import { AgentsWorkflowError } from '../common/errors';
 import { DummyModelProvider } from './dummy-model-provider';
-import { DEFAULT_MODEL_ACTIVITY_PARAMETERS, type ModelActivityParameters } from './model-parameters';
-import { AgentsWorkflowError } from './errors';
 import { TEMPORAL_ACTIVITY_TOOL_MARKER } from './tools';
 import { unwrapTemporalFailure, convertAgent } from './convert-agent';
 
@@ -28,7 +28,7 @@ export class TemporalOpenAIRunner {
 
   /**
    * Run an agent in workflow context. Model calls are delegated to activities
-   * via TemporalModelStub, while the agent loop runs durably in the workflow.
+   * via ActivityBackedModel, while the agent loop runs durably in the workflow.
    */
   async run<TAgent extends Agent<any, any>, TContext = undefined>(
     agent: TAgent,

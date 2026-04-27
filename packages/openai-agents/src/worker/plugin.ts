@@ -1,8 +1,7 @@
 import type { ModelProvider } from '@openai/agents-core';
 import { SimplePlugin } from '@temporalio/plugin';
 import { createModelActivity } from './activities';
-import type { ModelActivityParameters } from './model-parameters';
-import type { StatelessMCPServerProvider } from './mcp';
+import type { StatelessMCPServerProvider } from './mcp-provider';
 
 /**
  * Options for the OpenAI Agents plugin.
@@ -10,15 +9,13 @@ import type { StatelessMCPServerProvider } from './mcp';
 export interface OpenAIAgentsPluginOptions {
   /** The model provider to use for resolving model names to Model instances (e.g. OpenAIProvider) */
   modelProvider: ModelProvider;
-  /** Activity parameters for model invocation (timeouts, heartbeat, retry) */
-  modelParams?: ModelActivityParameters;
   /** Stateless MCP server providers whose activities will be auto-registered */
   mcpServerProviders?: StatelessMCPServerProvider[];
 }
 
 /**
  * A Temporal plugin that integrates the OpenAI Agents SDK for use in workflows.
- * Registers model invocation activities so that workflow-side TemporalModelStub
+ * Registers model invocation activities so that workflow-side ActivityBackedModel
  * can delegate LLM calls to the activity worker.
  */
 export class OpenAIAgentsPlugin extends SimplePlugin {
@@ -49,11 +46,4 @@ export class OpenAIAgentsPlugin extends SimplePlugin {
       activities: allActivities,
     });
   }
-}
-
-/**
- * Convenience factory for creating an OpenAIAgentsPlugin.
- */
-export function createOpenAIAgentsPlugin(options: OpenAIAgentsPluginOptions): OpenAIAgentsPlugin {
-  return new OpenAIAgentsPlugin(options);
 }

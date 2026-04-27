@@ -761,7 +761,7 @@ test('F2: Cyclic handoff graph terminates without stack overflow', async (t) => 
 });
 
 // T3 — F3: prompt field is forwarded to the activity
-test('F3: prompt field is forwarded through TemporalModelStub to the activity', async (t) => {
+test('F3: prompt field is forwarded through ActivityBackedModel to the activity', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const provider = new RequestCapturingModelProvider();

@@ -1,7 +1,7 @@
 import type { ModelProvider, ModelResponse } from '@openai/agents-core';
 import { ApplicationFailure } from '@temporalio/common';
 import { heartbeat, activityInfo } from '@temporalio/activity';
-import type { ActivityModelInput } from './model-stub';
+import type { ActivityModelInput } from '../common/activity-model-input';
 
 function getStatus(error: unknown): number | undefined {
   if (!error || typeof error !== 'object') return undefined;
@@ -93,7 +93,7 @@ export function createModelActivity(modelProvider: ModelProvider): {
 } {
   return {
     /**
-     * Activity that invokes a model. Called by TemporalModelStub from workflow context.
+     * Activity that invokes a model. Called by ActivityBackedModel from workflow context.
      * Handles auto-heartbeating for long-running LLM calls and classifies errors
      * as retryable or non-retryable for Temporal's retry policy.
      */
