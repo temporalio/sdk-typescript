@@ -64,6 +64,7 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
     "@temporalio/activity": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/plugin": "workspace:*",

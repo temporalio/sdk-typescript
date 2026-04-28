@@ -488,11 +488,14 @@ importers:
   packages/openai-agents:
     dependencies:
       '@openai/agents-core':
-        specifier: ^0.3.0
+        specifier: ~0.3.0
         version: 0.3.9(zod@3.25.76)
       '@openai/agents-openai':
-        specifier: ^0.3.0
+        specifier: ~0.3.0
         version: 0.3.9(zod@3.25.76)
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.0
       '@temporalio/activity':
         specifier: workspace:*
         version: link:../activity
@@ -567,10 +570,10 @@ importers:
         specifier: ^1.26.0
         version: 1.26.0(zod@3.25.76)
       '@openai/agents-core':
-        specifier: ^0.3.0
+        specifier: ~0.3.0
         version: 0.3.9(zod@3.25.76)
       '@openai/agents-openai':
-        specifier: ^0.3.0
+        specifier: ~0.3.0
         version: 0.3.9(zod@3.25.76)
       '@opentelemetry/api':
         specifier: ^1.9.0

@@ -2,7 +2,7 @@
 // eslint-disable-next-line import/no-unassigned-import
 import '@temporalio/openai-agents/lib/load-polyfills';
 
-import { Agent, handoff, tool, type ModelResponse } from '@openai/agents-core';
+import { Agent, handoff, tool, addTraceProcessor, type ModelResponse } from '@openai/agents-core';
 import { z } from 'zod';
 import { webSearchTool } from '@openai/agents-openai';
 import { ApplicationFailure, proxyActivities } from '@temporalio/workflow';
@@ -974,7 +974,7 @@ export async function wireRoundTripWorkflow(prompt: string): Promise<{
 }
 
 /**
- * Wire stripping: verifies that signal and _internal are not present in the
+ * Wire stripping: verifies that signal is not present in the
  * request received by the activity-side model.
  */
 export async function wireStrippingCheckWorkflow(prompt: string): Promise<string> {
@@ -1044,4 +1044,47 @@ export async function wireRequestSnapshotWorkflow(): Promise<string[]> {
 
   const wire = toSerializedModelRequest(request);
   return Object.keys(wire).sort();
+}
+
+// --- T1: Tracing span capture ---
+
+/**
+ * T1: Verifies that the OpenAI Agents SDK tracing path is active (not disabled)
+ * and that TemporalTracingProcessor receives trace/span events during an agent run.
+ * Uses addTraceProcessor to install a lightweight capture processor that records
+ * trace IDs and span types.
+ */
+export async function tracingSpanCaptureWorkflow(): Promise<{
+  traceIds: string[];
+  spanTypes: string[];
+}> {
+  const capture: { traceIds: string[]; spanTypes: string[] } = { traceIds: [], spanTypes: [] };
+
+  // TemporalOpenAIRunner constructor calls ensureTracingProcessorRegistered(),
+  // which uses setTraceProcessors([...]) on first invocation. We create the runner
+  // first so that call has already fired, then add our test processor on top.
+  const runner = createTemporalRunner();
+
+  addTraceProcessor({
+    async onTraceStart(trace: any) {
+      capture.traceIds.push(trace.traceId);
+    },
+    async onTraceEnd() {},
+    async onSpanStart(span: any) {
+      capture.spanTypes.push(span.spanData.type);
+    },
+    async onSpanEnd() {},
+    async shutdown() {},
+    async forceFlush() {},
+  });
+
+  const agent = new Agent({
+    name: 'TracingTestAgent',
+    instructions: 'You are a test agent.',
+    model: 'fake-model',
+  });
+
+  await runner.run(agent, 'Hello');
+
+  return capture;
 }

@@ -1,5 +1,6 @@
 import {
   Usage,
+  withGenerationSpan,
   type Agent,
   type Model,
   type ModelRequest,
@@ -97,32 +98,38 @@ export class ActivityBackedModel implements Model {
   }
 
   async getResponse(request: ModelRequest): Promise<ModelResponse> {
-    const wire = toSerializedModelRequest(request);
-    const input: InvokeModelActivityInput = {
-      modelName: this.modelName,
-      request: wire,
-    };
+    // Upstream model adapters emit a generation span inside getResponse().
+    // We mirror that here so the trace tree stays: agent → generation → activity.
+    return withGenerationSpan(async (span) => {
+      span.spanData.model = this.modelName;
 
-    const summaryOverride = this.modelParams.summaryOverride;
-    if (summaryOverride && typeof summaryOverride !== 'string') {
-      const provider = summaryOverride as ModelSummaryProvider;
-      const systemInstructions = request.systemInstructions;
-      const summary = provider.provide(this.agent, systemInstructions, request.input);
-      const activitiesWithOptions = this.activities as any;
-      if (typeof activitiesWithOptions.invokeModelActivity?.executeWithOptions !== 'function') {
-        throw new Error(
-          'ModelSummaryProvider requires executeWithOptions on the activity proxy, ' +
-            'but it is not available. Use a string summaryOverride instead, or ensure ' +
-            'the activity proxy supports per-call options.'
-        );
+      const wire = toSerializedModelRequest(request);
+      const input: InvokeModelActivityInput = {
+        modelName: this.modelName,
+        request: wire,
+      };
+
+      const summaryOverride = this.modelParams.summaryOverride;
+      if (summaryOverride && typeof summaryOverride !== 'string') {
+        const provider = summaryOverride as ModelSummaryProvider;
+        const systemInstructions = request.systemInstructions;
+        const summary = provider.provide(this.agent, systemInstructions, request.input);
+        const activitiesWithOptions = this.activities as any;
+        if (typeof activitiesWithOptions.invokeModelActivity?.executeWithOptions !== 'function') {
+          throw new Error(
+            'ModelSummaryProvider requires executeWithOptions on the activity proxy, ' +
+              'but it is not available. Use a string summaryOverride instead, or ensure ' +
+              'the activity proxy supports per-call options.'
+          );
+        }
+        const wireResponse = (await activitiesWithOptions.invokeModelActivity.executeWithOptions({ summary }, [
+          input,
+        ])) as SerializedModelResponse;
+        return fromSerializedModelResponse(wireResponse);
       }
-      const wireResponse = (await activitiesWithOptions.invokeModelActivity.executeWithOptions({ summary }, [
-        input,
-      ])) as SerializedModelResponse;
-      return fromSerializedModelResponse(wireResponse);
-    }
 
-    return fromSerializedModelResponse(await this.activities.invokeModelActivity(input));
+      return fromSerializedModelResponse(await this.activities.invokeModelActivity(input));
+    });
   }
 
   // eslint-disable-next-line require-yield

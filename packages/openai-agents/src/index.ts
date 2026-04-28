@@ -5,7 +5,6 @@
  * - StatefulMCPServerProvider — persistent MCP server connections across worker lifecycle
  * - nexusOperationAsTool — TS SDK lacks executeNexusOperation; add when available
  * - testing.AgentEnvironment / testing.ResponseBuilders — richer test harness beyond FakeModel
- * - Trace interceptor — bridge agent traces to Temporal OpenTelemetry spans
  * - workflowFailureExceptionTypes registration (TS SDK doesn't support)
  */
 
@@ -30,6 +29,12 @@ export { AgentsWorkflowError } from './common/errors';
 export { ToolSerializationError } from './workflow/tools';
 export type { ActivityToolDefinition, ActivityAsToolOptions, JsonObjectSchema } from './workflow/tools';
 export type { StatelessMcpServerOptions, TemporalMCPServer, MCPPromptDefinition } from './workflow/mcp-client';
-export { isInWorkflow, isReplaying, getWorkflowTracingConfig } from './workflow/tracing';
+export {
+  isInWorkflow,
+  isReplaying,
+  getWorkflowTracingConfig,
+  TemporalTracingProcessor,
+  ensureTracingProcessorRegistered,
+} from './workflow/tracing';
 
 export * as testing from './worker/testing';

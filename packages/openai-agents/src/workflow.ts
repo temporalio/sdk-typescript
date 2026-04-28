@@ -7,7 +7,13 @@ export { activityAsTool, ToolSerializationError } from './workflow/tools';
 export type { ActivityToolDefinition, ActivityAsToolOptions, JsonObjectSchema } from './workflow/tools';
 export { statelessMcpServer } from './workflow/mcp-client';
 export type { StatelessMcpServerOptions, TemporalMCPServer, MCPPromptDefinition } from './workflow/mcp-client';
-export { isInWorkflow, isReplaying, getWorkflowTracingConfig } from './workflow/tracing';
+export {
+  isInWorkflow,
+  isReplaying,
+  getWorkflowTracingConfig,
+  TemporalTracingProcessor,
+  ensureTracingProcessorRegistered,
+} from './workflow/tracing';
 // Re-export so workflow callers can instanceof-check
 export { AgentsWorkflowError } from './common/errors';
 export {

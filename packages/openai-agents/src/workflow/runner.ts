@@ -5,6 +5,7 @@ import { AgentsWorkflowError } from '../common/errors';
 import { DummyModelProvider } from './dummy-model-provider';
 import { TEMPORAL_ACTIVITY_TOOL_MARKER } from './tools';
 import { unwrapTemporalFailure, convertAgent } from './convert-agent';
+import { ensureTracingProcessorRegistered } from './tracing';
 
 export interface TemporalRunOptions<TContext = undefined> {
   context?: TContext;
@@ -24,6 +25,7 @@ export class TemporalOpenAIRunner {
 
   constructor(modelParams?: ModelActivityParameters) {
     this.modelParams = { ...DEFAULT_MODEL_ACTIVITY_PARAMETERS, ...modelParams };
+    ensureTracingProcessorRegistered();
   }
 
   /**
@@ -56,7 +58,6 @@ export class TemporalOpenAIRunner {
 
     const internalRunner = new Runner({
       modelProvider: new DummyModelProvider(),
-      tracingDisabled: true,
     });
 
     try {

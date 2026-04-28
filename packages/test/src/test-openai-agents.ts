@@ -49,6 +49,7 @@ import {
   wireStrippingCheckWorkflow,
   wireVersionMismatchWorkflow,
   wireRequestSnapshotWorkflow,
+  tracingSpanCaptureWorkflow,
 } from './workflows/openai-agents';
 import { helpers, makeTestFunction } from './helpers-integration';
 import {
@@ -1628,7 +1629,7 @@ test('F1b: Tracing utilities return correct values in workflow context', async (
 
     t.true(result.isInWf, 'isInWorkflow() should return true inside workflow');
     t.is(typeof result.isReplay, 'boolean', 'isReplaying() should return a boolean');
-    t.is(result.tracingConfig, 'disabled', 'getWorkflowTracingConfig() should return disabled in workflow');
+    t.is(result.tracingConfig, 'enabled', 'getWorkflowTracingConfig() should return enabled (tracing bridged to OTel)');
   });
 });
 
@@ -2443,4 +2444,31 @@ test('Wire contract: SerializedModelResponse shape snapshot', async (t) => {
     `SerializedModelResponse shape changed — bump WIRE_VERSION and update this snapshot. Got: ${actualKeys.join(', ')}`
   );
   t.is(wire.__wireVersion, 1, 'Wire version should be 1');
+});
+
+// --- T1: Tracing span capture ---
+
+test('T1: OpenAI Agents tracing path is active and produces trace/span events', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    plugins: [
+      new OpenAIAgentsPlugin({
+        modelProvider: new FakeModelProvider([textResponse('Traced response')]),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(tracingSpanCaptureWorkflow, {
+      workflowExecutionTimeout: '30 seconds',
+    });
+
+    t.true(result.traceIds.length > 0, 'Should capture at least one trace');
+    t.true(result.spanTypes.includes('agent'), 'Should have an agent span');
+    t.true(
+      result.spanTypes.includes('generation') || result.spanTypes.includes('response'),
+      'Should have a generation or response span'
+    );
+  });
 });
