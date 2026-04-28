@@ -6,7 +6,7 @@ import dedent from 'dedent';
 import { Connection, Client } from '@temporalio/client';
 import { encode } from '@temporalio/common/lib/encoding';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
-import type { ClientConfig, ClientConfigProfile, ConfigDataSource } from '@temporalio/envconfig';
+import type { ClientConfig, ClientConfigProfile, ConfigDataSource } from '../index';
 import { NativeConnection } from '@temporalio/worker';
 import {
   fromTomlConfig,

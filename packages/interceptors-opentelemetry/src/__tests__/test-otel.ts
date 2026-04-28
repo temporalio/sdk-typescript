@@ -19,16 +19,8 @@ import type * as workflowImportStub from '../workflow/workflow-imports';
 import type * as workflowImportImpl from '../workflow/workflow-imports-impl';
 import type { WorkflowClientInterceptor } from '@temporalio/client';
 import { WorkflowClient, WithStartWorkflowOperation, Client, Connection } from '@temporalio/client';
-import {
-  instrument,
-  instrumentSync,
-  NEXUS_SERVICE_ATTR_KEY,
-  NEXUS_OPERATION_ATTR_KEY,
-} from '../instrumentation';
-import type {
-  OpenTelemetryNexusInboundInterceptor,
-  OpenTelemetryNexusOutboundInterceptor,
-} from '../worker';
+import { instrument, instrumentSync, NEXUS_SERVICE_ATTR_KEY, NEXUS_OPERATION_ATTR_KEY } from '../instrumentation';
+import type { OpenTelemetryNexusInboundInterceptor, OpenTelemetryNexusOutboundInterceptor } from '../worker';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
@@ -332,7 +324,7 @@ if (RUN_INTEGRATION_TESTS) {
         const endpointIdentifier = await env.createNexusEndpoint(endpointName, taskQueue);
 
         const workflowBundle = await bundleWorkflowCode({
-          ...bundlerOptions,
+          ...createBaseBundlerOptions([require.resolve('./activities')]),
           workflowsPath: require.resolve('./workflows/nexus-caller-otel'),
           plugins: [plugin],
           logger: new DefaultLogger('WARN'),
@@ -550,8 +542,8 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(spans.length, cases.length);
 
     for (let i = 0; i < cases.length; i++) {
-      t.is(spans[i].status.code, SpanStatusCode.ERROR, `case ${i}: status code`);
-      t.is(spans[i].status.message, cases[i].expectedMessage, `case ${i}: message`);
+      t.is(spans[i]!.status.code, SpanStatusCode.ERROR, `case ${i}: status code`);
+      t.is(spans[i]!.status.message, cases[i]!.expectedMessage, `case ${i}: message`);
     }
   });
 
@@ -627,7 +619,7 @@ if (RUN_INTEGRATION_TESTS) {
         workflowId,
       });
       const info = await firstValueFrom(
-        infoSubject.pipe(filter((i) => i.workflowExecution?.workflowId === workflowId))
+        infoSubject.pipe(filter((i: Info) => i.workflowExecution?.workflowId === workflowId))
       );
       await client.activity.complete(info.taskToken, 'async-result');
       t.is(await handle.result(), 'async-result');
@@ -637,9 +629,9 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(activitySpans.length, 1);
 
     // CompleteAsyncError is control flow, not a real error
-    t.is(activitySpans[0].status.code, SpanStatusCode.OK);
+    t.is(activitySpans[0]!.status.code, SpanStatusCode.OK);
 
-    const exceptionEvents = activitySpans[0].events.filter((event) => event.name === 'exception');
+    const exceptionEvents = activitySpans[0]!.events.filter((event) => event.name === 'exception');
     t.is(exceptionEvents.length, 0);
   });
 
