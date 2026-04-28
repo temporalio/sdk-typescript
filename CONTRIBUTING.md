@@ -180,7 +180,7 @@ I personally use the following commands to find NPM packages that needs to be up
 interactively on each package of the repo, making it easy to select and apply packages to be updated.
 
 ```
-for i in ./package.json packages/*/package.json ; do
+for i in ./package.json packages/*/package.json contrib/*/package.json ; do
   (
     cd "${i%%package.json}"
     pwd
@@ -195,7 +195,7 @@ dependencies MUST be added on the actual packages that use them to ensure proper
 and YARN 2+ setups.
 
 ```
-for i in ./package.json packages/*/package.json ; do
+for i in ./package.json packages/*/package.json contrib/*/package.json ; do
   (
     cd "${i%%package.json}"
     pwd

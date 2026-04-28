@@ -1,13 +1,11 @@
 packages:
   - packages/activity
-  - packages/ai-sdk
   - packages/client
   - packages/cloud
   - packages/common
   - packages/core-bridge
   - packages/create-project
   - packages/envconfig
-  - packages/interceptors-opentelemetry
   - packages/lambda-worker
   - packages/meta
   - packages/nexus
@@ -19,6 +17,8 @@ packages:
   - packages/testing
   - packages/worker
   - packages/workflow
+  - contrib/ai-sdk
+  - contrib/interceptors-opentelemetry
   - scripts
 
 ignoreScripts: true

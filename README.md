@@ -105,7 +105,6 @@ This monorepo contains the following packages:
 | [`packages/testing/`](packages/testing/)                                       | [`@temporalio/testing`](https://www.npmjs.com/package/@temporalio/testing)                                       |
 | [`packages/common/`](packages/common/)                                         | [`@temporalio/common`](https://www.npmjs.com/package/@temporalio/common)                                         |
 | [`packages/proto/`](packages/proto/)                                           | [`@temporalio/proto`](https://www.npmjs.com/package/@temporalio/proto)                                           |
-| [`packages/interceptors-opentelemetry/`](packages/interceptors-opentelemetry/) | [`@temporalio/interceptors-opentelemetry`](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry) |
 | [`packages/test/`](packages/test/)                                             | SDK internal tests                                                                                               |
 | [`packages/create-project/`](packages/create-project/)                         | [`@temporalio/create`](https://www.npmjs.com/package/@temporalio/create-project)                                 |
 | [`packages/docs/`](packages/docs/)                                             | [API docs](https://typescript.temporal.io/)                                                                      |
@@ -114,6 +113,8 @@ This monorepo contains the following packages:
 | [`packages/nyc-test-coverage/`](packages/nyc-test-coverage/)                   | [`@temporalio/nyc-test-coverage`](https://www.npmjs.com/package/@temporalio/nyc-test-coverage)                   |
 | [`packages/plugin/`](packages/plugin/)                                         | [`@temporalio/plugin`](https://www.npmjs.com/package/@temporalio/plugin)                                         |
 | [`packages/nexus/`](packages/nexus/)                                           | [`@temporalio/nexus`](https://www.npmjs.com/package/@temporalio/nexus)                                           |
+| [`contrib/interceptors-opentelemetry/`](contrib/interceptors-opentelemetry/)   | [`@temporalio/interceptors-opentelemetry`](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry) |
+| [`contrib/ai-sdk/`](contrib/ai-sdk/)                                           | [`@temporalio/ai-sdk`](https://www.npmjs.com/package/@temporalio/ai-sdk)                                         |
 
 ## Contributing
 

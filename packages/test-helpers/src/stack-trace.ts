@@ -10,7 +10,7 @@ export function cleanOptionalStackTrace(stackTrace: string | undefined | null): 
  * Relativize paths and remove line and column numbers from stack trace.
  *
  * Note: The cwd parameter should be the path to the directory containing the test package
- * (e.g., packages/test, packages/ai-sdk, etc.)
+ * (e.g., packages/test, contrib/ai-sdk, etc.)
  */
 export function cleanStackTrace(ostack: string): string {
   // For some reason, a code snippet with carret on error location is sometime prepended before the actual stacktrace.

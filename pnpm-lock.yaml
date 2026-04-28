@@ -20,7 +20,7 @@ importers:
     dependencies:
       '@temporalio/ai-sdk':
         specifier: workspace:*
-        version: link:packages/ai-sdk
+        version: link:contrib/ai-sdk
       '@temporalio/client':
         specifier: workspace:*
         version: link:packages/client
@@ -38,7 +38,7 @@ importers:
         version: link:packages/envconfig
       '@temporalio/interceptors-opentelemetry':
         specifier: workspace:*
-        version: link:packages/interceptors-opentelemetry
+        version: link:contrib/interceptors-opentelemetry
       '@temporalio/nexus':
         specifier: workspace:*
         version: link:packages/nexus
@@ -152,29 +152,17 @@ importers:
         specifier: ^6.5.0
         version: 6.5.0(encoding@0.1.13)(typanion@3.14.0)
 
-  packages/activity:
-    dependencies:
-      '@temporalio/client':
-        specifier: workspace:*
-        version: link:../client
-      '@temporalio/common':
-        specifier: workspace:*
-        version: link:../common
-      abort-controller:
-        specifier: ^3.0.0
-        version: 3.0.0
-
-  packages/ai-sdk:
+  contrib/ai-sdk:
     dependencies:
       '@temporalio/common':
         specifier: workspace:*
-        version: link:../common
+        version: link:../../packages/common
       '@temporalio/plugin':
         specifier: workspace:*
-        version: link:../plugin
+        version: link:../../packages/plugin
       '@temporalio/workflow':
         specifier: workspace:*
-        version: link:../workflow
+        version: link:../../packages/workflow
       '@ungap/structured-clone':
         specifier: ^1.3.0
         version: 1.3.0
@@ -211,22 +199,22 @@ importers:
         version: 1.25.1
       '@temporalio/client':
         specifier: workspace:*
-        version: link:../client
+        version: link:../../packages/client
       '@temporalio/interceptors-opentelemetry':
         specifier: workspace:*
         version: link:../interceptors-opentelemetry
       '@temporalio/proto':
         specifier: workspace:*
-        version: link:../proto
+        version: link:../../packages/proto
       '@temporalio/test-helpers':
         specifier: workspace:*
-        version: link:../test-helpers
+        version: link:../../packages/test-helpers
       '@temporalio/testing':
         specifier: workspace:*
-        version: link:../testing
+        version: link:../../packages/testing
       '@temporalio/worker':
         specifier: workspace:*
-        version: link:../worker
+        version: link:../../packages/worker
       ai:
         specifier: ^6.0.0
         version: 6.0.2(zod@3.25.76)
@@ -239,6 +227,82 @@ importers:
       zod:
         specifier: ^3.25.76
         version: 3.25.76
+
+  contrib/interceptors-opentelemetry:
+    dependencies:
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.0
+      '@opentelemetry/core':
+        specifier: ^1.25.1
+        version: 1.25.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources':
+        specifier: ^1.25.1
+        version: 1.25.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-trace-base':
+        specifier: ^1.25.1
+        version: 1.25.1(@opentelemetry/api@1.9.0)
+      '@temporalio/plugin':
+        specifier: workspace:*
+        version: link:../../packages/plugin
+    devDependencies:
+      '@opentelemetry/exporter-trace-otlp-grpc':
+        specifier: ^0.52.1
+        version: 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-node':
+        specifier: ^0.52.1
+        version: 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/semantic-conventions':
+        specifier: ^1.25.1
+        version: 1.25.1
+      '@temporalio/activity':
+        specifier: workspace:*
+        version: link:../../packages/activity
+      '@temporalio/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../../packages/common
+      '@temporalio/proto':
+        specifier: workspace:*
+        version: link:../../packages/proto
+      '@temporalio/test-helpers':
+        specifier: workspace:*
+        version: link:../../packages/test-helpers
+      '@temporalio/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
+      '@temporalio/worker':
+        specifier: workspace:*
+        version: link:../../packages/worker
+      '@temporalio/workflow':
+        specifier: workspace:*
+        version: link:../../packages/workflow
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
+      nexus-rpc:
+        specifier: ^0.0.2
+        version: 0.0.2
+      rxjs:
+        specifier: 7.8.1
+        version: 7.8.1
+      uuid:
+        specifier: ^11.1.0
+        version: 11.1.0
+
+  packages/activity:
+    dependencies:
+      '@temporalio/client':
+        specifier: workspace:*
+        version: link:../client
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../common
+      abort-controller:
+        specifier: ^3.0.0
+        version: 3.0.0
 
   packages/client:
     dependencies:
@@ -417,70 +481,6 @@ importers:
         specifier: ^1.5.1
         version: 1.5.3
 
-  packages/interceptors-opentelemetry:
-    dependencies:
-      '@opentelemetry/api':
-        specifier: ^1.9.0
-        version: 1.9.0
-      '@opentelemetry/core':
-        specifier: ^1.25.1
-        version: 1.25.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/resources':
-        specifier: ^1.25.1
-        version: 1.25.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/sdk-trace-base':
-        specifier: ^1.25.1
-        version: 1.25.1(@opentelemetry/api@1.9.0)
-      '@temporalio/plugin':
-        specifier: workspace:*
-        version: link:../plugin
-    devDependencies:
-      '@opentelemetry/exporter-trace-otlp-grpc':
-        specifier: ^0.52.1
-        version: 0.52.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/sdk-node':
-        specifier: ^0.52.1
-        version: 0.52.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/semantic-conventions':
-        specifier: ^1.25.1
-        version: 1.25.1
-      '@temporalio/activity':
-        specifier: workspace:*
-        version: link:../activity
-      '@temporalio/client':
-        specifier: workspace:*
-        version: link:../client
-      '@temporalio/common':
-        specifier: workspace:*
-        version: link:../common
-      '@temporalio/proto':
-        specifier: workspace:*
-        version: link:../proto
-      '@temporalio/test-helpers':
-        specifier: workspace:*
-        version: link:../test-helpers
-      '@temporalio/testing':
-        specifier: workspace:*
-        version: link:../testing
-      '@temporalio/worker':
-        specifier: workspace:*
-        version: link:../worker
-      '@temporalio/workflow':
-        specifier: workspace:*
-        version: link:../workflow
-      ava:
-        specifier: ^5.3.1
-        version: 5.3.1
-      nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
-      rxjs:
-        specifier: 7.8.1
-        version: 7.8.1
-      uuid:
-        specifier: ^11.1.0
-        version: 11.1.0
-
   packages/lambda-worker:
     dependencies:
       '@opentelemetry/exporter-trace-otlp-grpc':
@@ -500,7 +500,7 @@ importers:
         version: link:../envconfig
       '@temporalio/interceptors-opentelemetry':
         specifier: workspace:*
-        version: link:../interceptors-opentelemetry
+        version: link:../../contrib/interceptors-opentelemetry
       '@temporalio/worker':
         specifier: workspace:*
         version: link:../worker
@@ -519,7 +519,7 @@ importers:
         version: link:../activity
       '@temporalio/ai-sdk':
         specifier: workspace:*
-        version: link:../ai-sdk
+        version: link:../../contrib/ai-sdk
       '@temporalio/client':
         specifier: workspace:*
         version: link:../client
@@ -531,7 +531,7 @@ importers:
         version: link:../envconfig
       '@temporalio/interceptors-opentelemetry':
         specifier: workspace:*
-        version: link:../interceptors-opentelemetry
+        version: link:../../contrib/interceptors-opentelemetry
       '@temporalio/nexus':
         specifier: workspace:*
         version: link:../nexus
@@ -649,24 +649,12 @@ importers:
 
   packages/test:
     dependencies:
-      '@ai-sdk/mcp':
-        specifier: ^1.0.0
-        version: 1.0.0(zod@3.25.76)
-      '@ai-sdk/openai':
-        specifier: ^3.0.0
-        version: 3.0.0(zod@3.25.76)
-      '@ai-sdk/provider':
-        specifier: ^3.0.0
-        version: 3.0.0
       '@grpc/grpc-js':
         specifier: ^1.12.4
         version: 1.12.4
       '@grpc/proto-loader':
         specifier: ^0.7.10
         version: 0.7.13
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.26.0
-        version: 1.26.0(zod@3.25.76)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -688,9 +676,6 @@ importers:
       '@temporalio/activity':
         specifier: workspace:*
         version: link:../activity
-      '@temporalio/ai-sdk':
-        specifier: workspace:*
-        version: link:../ai-sdk
       '@temporalio/client':
         specifier: workspace:*
         version: link:../client
@@ -708,7 +693,7 @@ importers:
         version: link:../envconfig
       '@temporalio/interceptors-opentelemetry':
         specifier: workspace:*
-        version: link:../interceptors-opentelemetry
+        version: link:../../contrib/interceptors-opentelemetry
       '@temporalio/lambda-worker':
         specifier: workspace:*
         version: link:../lambda-worker
@@ -736,9 +721,6 @@ importers:
       '@temporalio/workflow':
         specifier: workspace:*
         version: link:../workflow
-      ai:
-        specifier: ^6.0.0
-        version: 6.0.2(zod@3.25.76)
       arg:
         specifier: ^5.0.2
         version: 5.0.2
@@ -781,9 +763,6 @@ importers:
       uuid:
         specifier: ^11.1.0
         version: 11.1.0
-      zod:
-        specifier: ^3.25.76
-        version: 3.25.76
     devDependencies:
       '@types/async-retry':
         specifier: ^1.4.8
@@ -5727,8 +5706,8 @@ snapshots:
   '@modelcontextprotocol/sdk@1.26.0(zod@3.25.76)':
     dependencies:
       '@hono/node-server': 1.19.11(hono@4.12.5)
-      ajv: 8.17.1
-      ajv-formats: 3.0.1(ajv@8.17.1)
+      ajv: 8.18.0
+      ajv-formats: 3.0.1(ajv@8.18.0)
       content-type: 1.0.5
       cors: 2.8.6
       cross-spawn: 7.0.6
@@ -6626,9 +6605,9 @@ snapshots:
     optionalDependencies:
       ajv: 8.18.0
 
-  ajv-formats@3.0.1(ajv@8.17.1):
+  ajv-formats@3.0.1(ajv@8.18.0):
     optionalDependencies:
-      ajv: 8.17.1
+      ajv: 8.18.0
 
   ajv-keywords@5.1.0(ajv@8.18.0):
     dependencies:
@@ -7095,9 +7074,9 @@ snapshots:
       esutils: 2.0.3
       fast-diff: 1.3.0
       js-string-escape: 1.0.1
-      lodash: 4.17.21
+      lodash: 4.18.1
       md5-hex: 3.0.1
-      semver: 7.7.3
+      semver: 7.7.4
       well-known-symbols: 2.0.0
 
   content-disposition@0.5.4:
@@ -9499,11 +9478,11 @@ snapshots:
   temporalio@file:packages/meta:
     dependencies:
       '@temporalio/activity': link:packages/activity
-      '@temporalio/ai-sdk': link:packages/ai-sdk
+      '@temporalio/ai-sdk': link:contrib/ai-sdk
       '@temporalio/client': link:packages/client
       '@temporalio/common': link:packages/common
       '@temporalio/envconfig': link:packages/envconfig
-      '@temporalio/interceptors-opentelemetry': link:packages/interceptors-opentelemetry
+      '@temporalio/interceptors-opentelemetry': link:contrib/interceptors-opentelemetry
       '@temporalio/nexus': link:packages/nexus
       '@temporalio/plugin': link:packages/plugin
       '@temporalio/proto': link:packages/proto
