@@ -65,6 +65,15 @@ export interface TemporalRunOptions<TContext = undefined> {
   };
 }
 
+export interface TemporalOpenAIRunnerOptions extends ModelActivityOptions {
+  /**
+   * When `true`, emit OTel spans even during workflow replay. Defaults to `false`.
+   * Useful for debugging replay-divergence issues where trace output helps identify
+   * which spans differ between original execution and replay.
+   */
+  startSpansInReplay?: boolean;
+}
+
 /**
  * A Temporal-aware agent runner that delegates model calls to activities.
  *
@@ -74,9 +83,10 @@ export interface TemporalRunOptions<TContext = undefined> {
 export class TemporalOpenAIRunner {
   private readonly modelParams: ModelActivityOptions;
 
-  constructor(modelParams?: ModelActivityOptions) {
+  constructor(options?: TemporalOpenAIRunnerOptions) {
+    const { startSpansInReplay, ...modelParams } = options ?? {};
     this.modelParams = { ...DEFAULT_MODEL_ACTIVITY_OPTIONS, ...modelParams };
-    ensureTracingProcessorRegistered();
+    ensureTracingProcessorRegistered({ startSpansInReplay });
   }
 
   /**

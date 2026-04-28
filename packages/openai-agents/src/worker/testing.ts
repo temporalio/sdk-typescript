@@ -1,22 +1,44 @@
-import type { Model, ModelProvider, ModelRequest, ModelResponse, StreamEvent } from '@openai/agents-core';
+import {
+  Usage,
+  type AgentOutputItem,
+  type Model,
+  type ModelProvider,
+  type ModelRequest,
+  type ModelResponse,
+  type StreamEvent,
+} from '@openai/agents-core';
 
 export class FakeModel implements Model {
-  private responses: ModelResponse[];
-  private index = 0;
+  private getNext: () => ModelResponse;
 
-  constructor(responses: ModelResponse[]) {
-    this.responses = responses;
+  constructor(source: ModelResponse[] | Generator<ModelResponse>) {
+    if (Array.isArray(source)) {
+      let index = 0;
+      this.getNext = () => {
+        if (index >= source.length) {
+          throw new Error(
+            `FakeModel: no more canned responses (called ${index + 1} times, only ${source.length} responses provided)`
+          );
+        }
+        return source[index++]!;
+      };
+    } else {
+      let done = false;
+      const gen = source;
+      this.getNext = () => {
+        if (done) throw new Error('FakeModel: generator exhausted');
+        const result = gen.next();
+        if (result.done) {
+          done = true;
+          throw new Error('FakeModel: generator exhausted');
+        }
+        return result.value;
+      };
+    }
   }
 
   async getResponse(_request: ModelRequest): Promise<ModelResponse> {
-    if (this.index >= this.responses.length) {
-      throw new Error(
-        `FakeModel: no more canned responses (called ${this.index + 1} times, only ${
-          this.responses.length
-        } responses provided)`
-      );
-    }
-    return this.responses[this.index++]!;
+    return this.getNext();
   }
 
   // eslint-disable-next-line require-yield
@@ -25,37 +47,11 @@ export class FakeModel implements Model {
   }
 }
 
-export class GeneratorFakeModel implements Model {
-  private generator: Generator<ModelResponse>;
-  private done = false;
-
-  constructor(generator: Generator<ModelResponse>) {
-    this.generator = generator;
-  }
-
-  async getResponse(_request: ModelRequest): Promise<ModelResponse> {
-    if (this.done) {
-      throw new Error('GeneratorFakeModel: generator exhausted');
-    }
-    const result = this.generator.next();
-    if (result.done) {
-      this.done = true;
-      throw new Error('GeneratorFakeModel: generator exhausted');
-    }
-    return result.value;
-  }
-
-  // eslint-disable-next-line require-yield
-  async *getStreamedResponse(_request: ModelRequest): AsyncIterable<StreamEvent> {
-    throw new Error('Streaming not supported in GeneratorFakeModel');
-  }
-}
-
 export class FakeModelProvider implements ModelProvider {
   private model: FakeModel;
 
-  constructor(responses: ModelResponse[]) {
-    this.model = new FakeModel(responses);
+  constructor(source: ModelResponse[] | (() => Generator<ModelResponse>)) {
+    this.model = typeof source === 'function' ? new FakeModel(source()) : new FakeModel(source);
   }
 
   getModel(_name?: string): Model {
@@ -63,66 +59,39 @@ export class FakeModelProvider implements ModelProvider {
   }
 }
 
-export class GeneratorFakeModelProvider implements ModelProvider {
-  private model: GeneratorFakeModel;
-
-  constructor(generatorFactory: () => Generator<ModelResponse>) {
-    this.model = new GeneratorFakeModel(generatorFactory());
-  }
-
-  getModel(_name?: string): Model {
-    return this.model;
-  }
+function fakeUsage(outputTokens: number): Usage {
+  return new Usage({
+    requests: 1,
+    inputTokens: 10,
+    outputTokens,
+    totalTokens: 10 + outputTokens,
+  });
 }
 
 export function textResponse(text: string): ModelResponse {
-  return {
-    output: [
-      {
-        type: 'message',
-        id: 'msg_fake_001',
-        role: 'assistant',
-        content: [
-          {
-            type: 'output_text',
-            text,
-            annotations: [],
-          },
-        ],
-        status: 'completed',
-      },
-    ] as any,
-    usage: {
-      requests: 1,
-      inputTokens: 10,
-      outputTokens: text.length,
-      totalTokens: 10 + text.length,
-      inputTokensDetails: [],
-      outputTokensDetails: [],
-    } as any,
-  };
+  const output: AgentOutputItem[] = [
+    {
+      type: 'message',
+      id: 'msg_fake_001',
+      role: 'assistant',
+      content: [{ type: 'output_text', text }],
+      status: 'completed',
+    },
+  ];
+  return { output, usage: fakeUsage(text.length) };
 }
 
 export function toolCallResponse(toolName: string, args: Record<string, unknown>): ModelResponse {
-  return {
-    output: [
-      {
-        type: 'function_call',
-        name: toolName,
-        arguments: JSON.stringify(args),
-        callId: `call_fake_${toolName}`,
-        status: 'completed',
-      },
-    ] as any,
-    usage: {
-      requests: 1,
-      inputTokens: 10,
-      outputTokens: 20,
-      totalTokens: 30,
-      inputTokensDetails: [],
-      outputTokensDetails: [],
-    } as any,
-  };
+  const output: AgentOutputItem[] = [
+    {
+      type: 'function_call',
+      name: toolName,
+      arguments: JSON.stringify(args),
+      callId: `call_fake_${toolName}`,
+      status: 'completed',
+    },
+  ];
+  return { output, usage: fakeUsage(20) };
 }
 
 export function handoffResponse(handoffToolName: string, args: Record<string, unknown> = {}): ModelResponse {
@@ -130,21 +99,19 @@ export function handoffResponse(handoffToolName: string, args: Record<string, un
 }
 
 export function multiToolCallResponse(calls: Array<{ name: string; args: Record<string, unknown> }>): ModelResponse {
-  return {
-    output: calls.map((c) => ({
-      type: 'function_call',
-      name: c.name,
-      arguments: JSON.stringify(c.args),
-      callId: `call_fake_${c.name}`,
-      status: 'completed',
-    })) as any,
-    usage: {
-      requests: 1,
-      inputTokens: 10,
-      outputTokens: 20,
-      totalTokens: 30,
-      inputTokensDetails: [],
-      outputTokensDetails: [],
-    } as any,
-  };
+  const output: AgentOutputItem[] = calls.map((c) => ({
+    type: 'function_call' as const,
+    name: c.name,
+    arguments: JSON.stringify(c.args),
+    callId: `call_fake_${c.name}`,
+    status: 'completed' as const,
+  }));
+  return { output, usage: fakeUsage(20) };
 }
+
+export const ResponseBuilders = {
+  text: textResponse,
+  toolCall: toolCallResponse,
+  handoff: handoffResponse,
+  multiToolCall: multiToolCallResponse,
+};

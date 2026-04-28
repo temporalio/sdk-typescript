@@ -1,5 +1,6 @@
 import type { ModelProvider } from '@openai/agents-core';
 import { SimplePlugin } from '@temporalio/plugin';
+import type { ModelActivityOptions } from '../common/model-activity-options';
 import { createModelActivity } from './activities';
 import type { StatelessMCPServerProvider } from './mcp-provider';
 
@@ -11,6 +12,15 @@ export interface OpenAIAgentsPluginOptions {
   modelProvider: ModelProvider;
   /** Stateless MCP server providers whose activities will be auto-registered */
   mcpServerProviders?: StatelessMCPServerProvider[];
+  /**
+   * Default model activity options (timeouts, retry, task queue, etc.).
+   *
+   * Config surface only — users must still pass `modelParams` to
+   * `new TemporalOpenAIRunner(options)` in workflow code because the plugin
+   * runs worker-side and cannot inject config into the V8 workflow sandbox.
+   * Future versions may auto-propagate via workflow interceptors.
+   */
+  modelParams?: ModelActivityOptions;
 }
 
 /**

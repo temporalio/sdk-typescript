@@ -4,7 +4,7 @@
  * Deferred (not in this package):
  * - StatefulMCPServerProvider — persistent MCP server connections across worker lifecycle
  * - nexusOperationAsTool — TS SDK lacks executeNexusOperation; add when available
- * - testing.AgentEnvironment / testing.ResponseBuilders — richer test harness beyond FakeModel
+ * - testing.AgentEnvironment — richer test harness beyond FakeModel
  * - workflowFailureExceptionTypes registration (TS SDK doesn't support)
  */
 
@@ -33,5 +33,7 @@ export {
   TemporalTracingProcessor,
   ensureTracingProcessorRegistered,
 } from './workflow/tracing';
+export type { TemporalTracingProcessorOptions } from './workflow/tracing';
+export type { TemporalOpenAIRunnerOptions } from './workflow/runner';
 
 export * as testing from './worker/testing';

@@ -2,7 +2,7 @@
 // that runs inside the V8 sandbox.
 
 export { TemporalOpenAIRunner } from './workflow/runner';
-export type { TemporalRunOptions } from './workflow/runner';
+export type { TemporalRunOptions, TemporalOpenAIRunnerOptions } from './workflow/runner';
 export { activityAsTool, ToolSerializationError } from './workflow/tools';
 export type { ActivityToolDefinition, ActivityAsToolOptions, JsonObjectSchema } from './workflow/tools';
 export { statelessMcpServer } from './workflow/mcp-client';
@@ -13,6 +13,7 @@ export {
   TemporalTracingProcessor,
   ensureTracingProcessorRegistered,
 } from './workflow/tracing';
+export type { TemporalTracingProcessorOptions } from './workflow/tracing';
 export {
   WIRE_VERSION,
   type SerializedModelRequest,

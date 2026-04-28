@@ -106,6 +106,15 @@ interface SpanEntry {
   context: otel.Context;
 }
 
+export interface TemporalTracingProcessorOptions {
+  /**
+   * When `true`, emit OTel spans even during workflow replay. Defaults to `false`.
+   * Useful for debugging replay-divergence issues where trace output helps identify
+   * which spans differ between original execution and replay.
+   */
+  startSpansInReplay?: boolean;
+}
+
 /**
  * Bridges OpenAI Agents SDK trace events to OpenTelemetry spans.
  *
@@ -118,18 +127,23 @@ interface SpanEntry {
  * PRNG). Upstream `@openai/agents-core` calls `crypto.randomUUID()` internally for
  * ID generation, so IDs are automatically replay-safe without a custom TraceProvider.
  *
- * Activity spans from interceptors-opentelemetry appear as siblings of generation
- * spans, not children. Proper nesting would require pushing OTel context before the
- * activity call — deferred to a follow-up.
+ * Activity spans nest correctly under generation spans when
+ * `@temporalio/interceptors-opentelemetry` is configured (recommended). The OTel
+ * outbound interceptor injects the active span context into activity headers, and the
+ * inbound interceptor extracts it so the activity span becomes a child of the
+ * generation span. Without `interceptors-opentelemetry`, activity spans appear at
+ * the workflow level rather than nested.
  */
 export class TemporalTracingProcessor implements TracingProcessor {
   private readonly tracer: otel.Tracer;
+  private readonly startSpansInReplay: boolean;
   // Outer key: workflowId, inner key: spanId or traceId.
   // Scoped per-workflow so concurrent workflows on the same worker don't share state.
   private readonly spans = new Map<string, Map<string, SpanEntry>>();
 
-  constructor() {
+  constructor(options?: TemporalTracingProcessorOptions) {
     this.tracer = otel.trace.getTracer(TRACER_NAME);
+    this.startSpansInReplay = options?.startSpansInReplay ?? false;
   }
 
   private getWorkflowSpans(): Map<string, SpanEntry> {
@@ -154,8 +168,12 @@ export class TemporalTracingProcessor implements TracingProcessor {
     if (inner.size === 0) this.spans.delete(wfId);
   }
 
+  private shouldSkip(): boolean {
+    return !this.startSpansInReplay && isReplaying();
+  }
+
   async onTraceStart(trace: Trace): Promise<void> {
-    if (isReplaying()) return;
+    if (this.shouldSkip()) return;
 
     const parentCtx = otel.context.active();
     const attrs: otel.Attributes = { 'openai.agents.trace_id': trace.traceId };
@@ -168,7 +186,7 @@ export class TemporalTracingProcessor implements TracingProcessor {
   }
 
   async onTraceEnd(trace: Trace): Promise<void> {
-    if (isReplaying()) return;
+    if (this.shouldSkip()) return;
 
     const entry = this.getSpanEntry(trace.traceId);
     if (!entry) return;
@@ -178,7 +196,7 @@ export class TemporalTracingProcessor implements TracingProcessor {
   }
 
   async onSpanStart(span: Span<SpanData>): Promise<void> {
-    if (isReplaying()) return;
+    if (this.shouldSkip()) return;
 
     const data = span.spanData;
     const name = spanNameFromData(data);
@@ -198,7 +216,7 @@ export class TemporalTracingProcessor implements TracingProcessor {
   }
 
   async onSpanEnd(span: Span<SpanData>): Promise<void> {
-    if (isReplaying()) return;
+    if (this.shouldSkip()) return;
 
     const entry = this.getSpanEntry(span.spanId);
     if (!entry) return;
@@ -252,11 +270,12 @@ export class TemporalTracingProcessor implements TracingProcessor {
  * exporter is auto-registered — so there is no network-I/O risk from keeping
  * pre-existing processors.
  *
- * Idempotent — safe to call multiple times per isolate.
+ * Idempotent — safe to call multiple times per isolate. Options from the first
+ * call win; subsequent calls are no-ops regardless of options passed.
  */
-export function ensureTracingProcessorRegistered(): void {
+export function ensureTracingProcessorRegistered(options?: TemporalTracingProcessorOptions): void {
   if ((globalThis as any)[REGISTERED_KEY]) return;
   (globalThis as any)[REGISTERED_KEY] = true;
   setTracingDisabled(false);
-  addTraceProcessor(new TemporalTracingProcessor());
+  addTraceProcessor(new TemporalTracingProcessor(options));
 }

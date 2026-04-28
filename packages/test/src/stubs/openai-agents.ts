@@ -1,12 +1,18 @@
-import type { Model, ModelProvider, ModelRequest, ModelResponse, StreamEvent } from '@openai/agents-core';
+import {
+  Usage,
+  type AgentOutputItem,
+  type Model,
+  type ModelProvider,
+  type ModelRequest,
+  type ModelResponse,
+  type StreamEvent,
+} from '@openai/agents-core';
 import { textResponse as _textResponse } from '@temporalio/openai-agents/lib/testing';
 
 // Re-export public testing utilities from the package
 export {
   FakeModel,
   FakeModelProvider,
-  GeneratorFakeModel,
-  GeneratorFakeModelProvider,
   textResponse,
   toolCallResponse,
   handoffResponse,
@@ -66,24 +72,18 @@ export class RequestCapturingModel implements Model {
 
   async getResponse(request: ModelRequest): Promise<ModelResponse> {
     this.lastRequest = request;
+    const output: AgentOutputItem[] = [
+      {
+        type: 'message',
+        id: 'msg_capture',
+        role: 'assistant',
+        content: [{ type: 'output_text', text: 'captured' }],
+        status: 'completed',
+      },
+    ];
     return {
-      output: [
-        {
-          type: 'message',
-          id: 'msg_capture',
-          role: 'assistant',
-          content: [{ type: 'output_text', text: 'captured', annotations: [] }],
-          status: 'completed',
-        },
-      ] as any,
-      usage: {
-        requests: 1,
-        inputTokens: 10,
-        outputTokens: 8,
-        totalTokens: 18,
-        inputTokensDetails: [],
-        outputTokensDetails: [],
-      } as any,
+      output,
+      usage: new Usage({ requests: 1, inputTokens: 10, outputTokens: 8, totalTokens: 18 }),
     };
   }
 

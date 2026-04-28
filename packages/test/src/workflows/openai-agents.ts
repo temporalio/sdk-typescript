@@ -5,7 +5,7 @@ import '@temporalio/openai-agents/lib/load-polyfills';
 import { Agent, handoff, tool, addTraceProcessor, type ModelResponse } from '@openai/agents-core';
 import { z } from 'zod';
 import { webSearchTool } from '@openai/agents-openai';
-import { ApplicationFailure, proxyActivities } from '@temporalio/workflow';
+import { ApplicationFailure, proxyActivities, workflowInfo } from '@temporalio/workflow';
 import {
   activityAsTool,
   TemporalOpenAIRunner,
@@ -1217,4 +1217,43 @@ export async function handoffCloneSnapshotWorkflow(): Promise<{
     onInvokeHandoffReplaced: clone.onInvokeHandoff !== handoffObj.onInvokeHandoff,
     prototypeMatch: Object.getPrototypeOf(clone) === Object.getPrototypeOf(handoffObj),
   };
+}
+
+// --- T3: Concurrent-workflow tracing isolation test ---
+
+export async function concurrentTracingIsolationWorkflow(): Promise<{
+  traceIds: string[];
+  spanTypes: string[];
+  workflowId: string;
+}> {
+  const capture: { traceIds: string[]; spanTypes: string[]; workflowId: string } = {
+    traceIds: [],
+    spanTypes: [],
+    workflowId: workflowInfo().workflowId,
+  };
+
+  const runner = new TemporalOpenAIRunner();
+
+  addTraceProcessor({
+    async onTraceStart(trace: any) {
+      capture.traceIds.push(trace.traceId);
+    },
+    async onTraceEnd() {},
+    async onSpanStart(span: any) {
+      capture.spanTypes.push(span.spanData.type);
+    },
+    async onSpanEnd() {},
+    async shutdown() {},
+    async forceFlush() {},
+  });
+
+  const agent = new Agent({
+    name: 'IsolationTestAgent',
+    instructions: 'You are a test agent for isolation testing.',
+    model: 'fake-model',
+  });
+
+  await runner.run(agent, 'Hello');
+
+  return capture;
 }

@@ -52,11 +52,11 @@ import {
   tracingSpanCaptureWorkflow,
   replaySafetyWorkflow,
   handoffCloneSnapshotWorkflow,
+  concurrentTracingIsolationWorkflow,
 } from './workflows/openai-agents';
 import { helpers, makeTestFunction } from './helpers-integration';
 import {
   FakeModelProvider,
-  GeneratorFakeModelProvider,
   ErrorModelProvider,
   RequestCapturingModelProvider,
   ModelNameCapturingModelProvider,
@@ -106,7 +106,7 @@ test('Agent can use tools backed by Temporal activities', async (t) => {
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new GeneratorFakeModelProvider(() => toolWorkflowGenerator()),
+        modelProvider: new FakeModelProvider(() => toolWorkflowGenerator()),
       }),
     ],
     activities: {
@@ -159,7 +159,7 @@ test('Agent can hand off to other agents', async (t) => {
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new GeneratorFakeModelProvider(() => handoffWorkflowGenerator()),
+        modelProvider: new FakeModelProvider(() => handoffWorkflowGenerator()),
       }),
     ],
   });
@@ -315,7 +315,7 @@ test('Agent with multiple tools', async (t) => {
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new GeneratorFakeModelProvider(() => multiToolGenerator()),
+        modelProvider: new FakeModelProvider(() => multiToolGenerator()),
       }),
     ],
     activities: {
@@ -609,7 +609,7 @@ test('Stateless MCP server delegates listTools and callTool to activities', asyn
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new GeneratorFakeModelProvider(() => mcpToolWorkflowGenerator()),
+        modelProvider: new FakeModelProvider(() => mcpToolWorkflowGenerator()),
       }),
     ],
     activities: {
@@ -718,7 +718,7 @@ test('F1: Handoff-instance handoff reaches target agent via model activity', asy
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new GeneratorFakeModelProvider(() => handoffInstanceGenerator()),
+        modelProvider: new FakeModelProvider(() => handoffInstanceGenerator()),
       }),
     ],
   });
@@ -1363,7 +1363,7 @@ test('E3/F20: FunctionTool from tool() factory runs inline in workflow', async (
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new GeneratorFakeModelProvider(() => inlineToolGenerator()),
+        modelProvider: new FakeModelProvider(() => inlineToolGenerator()),
       }),
     ],
   });
@@ -1456,7 +1456,7 @@ test('F2: factoryArgument is passed through to MCP activities', async (t) => {
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new GeneratorFakeModelProvider(() => mcpFactoryArgGenerator()),
+        modelProvider: new FakeModelProvider(() => mcpFactoryArgGenerator()),
       }),
     ],
     activities: {
@@ -1520,7 +1520,7 @@ test('F2: StatelessMCPServerProvider registers activities via plugin', async (t)
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new GeneratorFakeModelProvider(() => mcpProviderGenerator()),
+        modelProvider: new FakeModelProvider(() => mcpProviderGenerator()),
         mcpServerProviders: [mcpProvider],
       }),
     ],
@@ -1658,12 +1658,16 @@ test('F1a: Testing namespace exports are importable', async (t) => {
 
   t.truthy(testing.FakeModel, 'FakeModel should be exported');
   t.truthy(testing.FakeModelProvider, 'FakeModelProvider should be exported');
-  t.truthy(testing.GeneratorFakeModel, 'GeneratorFakeModel should be exported');
-  t.truthy(testing.GeneratorFakeModelProvider, 'GeneratorFakeModelProvider should be exported');
+  t.truthy(testing.FakeModel, 'FakeModel should be exported (also covers former GeneratorFakeModel)');
+  t.truthy(
+    testing.FakeModelProvider,
+    'FakeModelProvider should be exported (also covers former GeneratorFakeModelProvider)'
+  );
   t.truthy(testing.textResponse, 'textResponse should be exported');
   t.truthy(testing.toolCallResponse, 'toolCallResponse should be exported');
   t.truthy(testing.handoffResponse, 'handoffResponse should be exported');
   t.truthy(testing.multiToolCallResponse, 'multiToolCallResponse should be exported');
+  t.truthy(testing.ResponseBuilders, 'ResponseBuilders namespace should be exported');
 
   // Verify they work
   const response = testing.textResponse('test');
@@ -1730,7 +1734,7 @@ test('G3/F32: Parallel tool calls in one model response', async (t) => {
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new GeneratorFakeModelProvider(() => parallelToolCallGenerator()),
+        modelProvider: new FakeModelProvider(() => parallelToolCallGenerator()),
       }),
     ],
     activities: {
@@ -1789,7 +1793,7 @@ test('G5/F34: Workflow replay succeeds without determinism errors', async (t) =>
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new GeneratorFakeModelProvider(() => toolWorkflowGenerator()),
+        modelProvider: new FakeModelProvider(() => toolWorkflowGenerator()),
       }),
     ],
     activities: {
@@ -1923,7 +1927,7 @@ test('H5: convertAgent does not mutate original Handoff objects', async (t) => {
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new GeneratorFakeModelProvider(() => handoffMutationGenerator()),
+        modelProvider: new FakeModelProvider(() => handoffMutationGenerator()),
       }),
     ],
   });
@@ -2173,7 +2177,7 @@ test('NEW-1: Handoff onHandoff callback is preserved through convertAgent', asyn
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new GeneratorFakeModelProvider(() => handoffCallbackGenerator()),
+        modelProvider: new FakeModelProvider(() => handoffCallbackGenerator()),
       }),
     ],
   });
@@ -2249,7 +2253,7 @@ test('G6/F-C: Schema-invalid tool input is passed through without validation', a
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new GeneratorFakeModelProvider(() => schemaInvalidToolInputGenerator()),
+        modelProvider: new FakeModelProvider(() => schemaInvalidToolInputGenerator()),
       }),
     ],
     activities: {
@@ -2581,5 +2585,51 @@ test('CLEANUP-6: Handoff clone preserves all public fields through convertAgent'
     t.true(result.agentReplaced, 'Handoff clone agent should be replaced with converted agent');
     t.true(result.onInvokeHandoffReplaced, 'Handoff clone onInvokeHandoff should be replaced with wrapper');
     t.true(result.prototypeMatch, 'Handoff clone prototype should match original');
+  });
+});
+
+// --- T3: Concurrent-workflow tracing isolation test ---
+
+test('T3: Concurrent workflows on same worker have isolated trace spans', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    plugins: [
+      new OpenAIAgentsPlugin({
+        modelProvider: new FakeModelProvider([
+          textResponse('Isolated response 1'),
+          textResponse('Isolated response 2'),
+        ]),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const [result1, result2] = await Promise.all([
+      executeWorkflow(concurrentTracingIsolationWorkflow, {
+        workflowId: 'isolation-wf-1',
+        workflowExecutionTimeout: '30 seconds',
+      }),
+      executeWorkflow(concurrentTracingIsolationWorkflow, {
+        workflowId: 'isolation-wf-2',
+        workflowExecutionTimeout: '30 seconds',
+      }),
+    ]);
+
+    // Each workflow reports its own ID
+    t.is(result1.workflowId, 'isolation-wf-1');
+    t.is(result2.workflowId, 'isolation-wf-2');
+
+    // Both workflows captured traces
+    t.true(result1.traceIds.length > 0, 'Workflow 1 should capture at least one trace');
+    t.true(result2.traceIds.length > 0, 'Workflow 2 should capture at least one trace');
+
+    // Both workflows captured spans
+    t.true(result1.spanTypes.includes('agent'), 'Workflow 1 should have an agent span');
+    t.true(result2.spanTypes.includes('agent'), 'Workflow 2 should have an agent span');
+
+    // No cross-pollination: trace IDs should be disjoint between the two workflows
+    const sharedTraces = result1.traceIds.filter((id) => result2.traceIds.includes(id));
+    t.is(sharedTraces.length, 0, 'No shared trace IDs between concurrent workflows');
   });
 });
