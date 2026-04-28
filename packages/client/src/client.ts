@@ -3,6 +3,7 @@ import { AsyncCompletionClient } from './async-completion-client';
 import type { BaseClientOptions, LoadedWithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import type { ClientInterceptors } from './interceptors';
+import { NexusClient } from './nexus-client';
 import { ScheduleClient } from './schedule-client';
 import type { QueryRejectCondition, WorkflowService } from './types';
 import { WorkflowClient } from './workflow-client';
@@ -62,6 +63,12 @@ export class Client extends BaseClient {
    * @experimental The Worker Versioning API is still being designed. Major changes are expected.
    */
   public readonly taskQueue: TaskQueueClient;
+  /**
+   * Nexus sub-client - use to start and interact with standalone Nexus operations.
+   *
+   * @experimental Standalone Nexus operations are a new API and susceptible to change.
+   */
+  public readonly nexus: NexusClient;
 
   constructor(options?: ClientOptions) {
     options = options ?? {};
@@ -108,6 +115,13 @@ export class Client extends BaseClient {
       dataConverter: this.dataConverter,
     });
 
+    this.nexus = new NexusClient({
+      ...commonOptions,
+      connection: this.connection,
+      dataConverter: this.dataConverter,
+      interceptors: interceptors?.nexus,
+    });
+
     this.options = {
       ...defaultBaseClientOptions(),
       ...filterNullAndUndefined(commonOptions),
@@ -115,6 +129,7 @@ export class Client extends BaseClient {
       interceptors: {
         workflow: this.workflow.options.interceptors,
         schedule: this.schedule.options.interceptors,
+        nexus: this.nexus.options.interceptors,
       },
       workflow: {
         queryRejectCondition: this.workflow.options.queryRejectCondition,
