@@ -136,7 +136,7 @@ export interface CANWorkflowInput {
   pubsubState?: PubSubState;
 }
 
-/** CAN workflow using properly-typed pubsubState. */
+/** CAN workflow using properly-typed pubsubState (explicit recipe). */
 export async function continueAsNewTypedWorkflow(input: CANWorkflowInput): Promise<void> {
   const pubsub = new PubSub(input.pubsubState);
   let closed = false;
@@ -156,4 +156,22 @@ export async function continueAsNewTypedWorkflow(input: CANWorkflowInput): Promi
   await continueAsNew<typeof continueAsNewTypedWorkflow>({
     pubsubState: pubsub.getState(),
   });
+}
+
+/** CAN workflow that uses the packaged `PubSub.continueAsNew` helper. */
+export async function continueAsNewHelperWorkflow(input: CANWorkflowInput): Promise<void> {
+  const pubsub = new PubSub(input.pubsubState);
+  let closed = false;
+  let shouldContinue = false;
+  setHandler(closeSignal, () => {
+    closed = true;
+  });
+  setHandler(triggerContinueSignal, () => {
+    shouldContinue = true;
+  });
+  await condition(() => shouldContinue || closed);
+  if (closed) return;
+  await pubsub.continueAsNew<typeof continueAsNewHelperWorkflow>((state) => [
+    { pubsubState: state },
+  ]);
 }

@@ -25,6 +25,7 @@ import { helpers, makeTestFunction } from './helpers-integration';
 import {
   activityPublishWorkflow,
   basicPubSubWorkflow,
+  continueAsNewHelperWorkflow,
   continueAsNewTypedWorkflow,
   flushOnExitWorkflow,
   getStateWithTtlQuery,
@@ -581,6 +582,56 @@ test('continue_as_new_typed — log, offsets, AND dedup state survive CAN', asyn
       ['item-0', 'item-1', 'item-2', 'item-3']
     );
     t.is(finalItems[3]!.offset, 3);
+
+    await newHandle.signal('close');
+  });
+});
+
+test('continue_as_new_helper — log and offsets survive CAN via PubSub.continueAsNew', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const { env } = t.context;
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const workflowId = `pubsub-can-helper-${randomUUID()}`;
+    const handle = await startWorkflow(continueAsNewHelperWorkflow, {
+      args: [{}],
+      workflowId,
+    });
+
+    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+      items: [entry('events', 'item-0'), entry('events', 'item-1')],
+      publisher_id: 'pub',
+      sequence: 1,
+    });
+
+    const before = await collectItems(handle, undefined, 0, 2);
+    t.is(before.length, 2);
+
+    await handle.signal('triggerContinue');
+
+    const deadline = Date.now() + 10_000;
+    let newRunId: string | undefined;
+    while (Date.now() < deadline) {
+      const fresh = env.client.workflow.getHandle(workflowId);
+      const desc = await fresh.describe();
+      if (desc.runId !== handle.firstExecutionRunId) {
+        newRunId = desc.runId;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    t.truthy(newRunId, 'CAN should produce a new run id');
+
+    const newHandle = env.client.workflow.getHandle(workflowId);
+    const afterItems = await collectItems(newHandle, undefined, 0, 2);
+    t.deepEqual(
+      afterItems.map((i) => payloadString(i.data)),
+      ['item-0', 'item-1']
+    );
+    t.deepEqual(
+      afterItems.map((i) => i.offset),
+      [0, 1]
+    );
 
     await newHandle.signal('close');
   });

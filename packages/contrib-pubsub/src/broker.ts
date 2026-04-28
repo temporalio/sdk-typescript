@@ -18,8 +18,17 @@
  * carries the batch.
  */
 
-import { condition, defineSignal, defineUpdate, defineQuery, setHandler, defaultPayloadConverter } from '@temporalio/workflow';
-import { ApplicationFailure, type Payload } from '@temporalio/common';
+import {
+  allHandlersFinished,
+  condition,
+  continueAsNew as workflowContinueAsNew,
+  defineSignal,
+  defineUpdate,
+  defineQuery,
+  setHandler,
+  defaultPayloadConverter,
+} from '@temporalio/workflow';
+import { ApplicationFailure, type Payload, type Workflow } from '@temporalio/common';
 import {
   decodePayloadWire,
   encodePayloadProto,
@@ -199,6 +208,41 @@ export class PubSub {
       publisher_sequences: activeSeqs,
       publisher_last_seen: activeSeen,
     };
+  }
+
+  /**
+   * Drain, wait for in-flight handlers, then `continueAsNew` with built args.
+   *
+   * Replaces the recipe `drain()` → `condition(allHandlersFinished)` →
+   * `continueAsNew(...)` for the common case where the only thing that
+   * varies across CAN boundaries is the workflow's own arguments.
+   *
+   * `buildArgs` is invoked *after* drain stabilizes, with the post-drain
+   * `PubSubState` as its single argument, and must return the positional
+   * argument tuple for the new run.
+   *
+   * @example
+   * ```typescript
+   * await pubsub.continueAsNew<typeof myWorkflow>((state) => [{
+   *   itemsProcessed,
+   *   pubsubState: state,
+   * }]);
+   * ```
+   *
+   * @param buildArgs Receives the post-drain pub/sub state and returns the
+   *   positional args for the new run.
+   * @param options.publisherTtl Forwarded to `getState`.
+   *
+   * Does not return; `continueAsNew` rejects with an internal exception
+   * that the SDK uses to close the run.
+   */
+  async continueAsNew<F extends Workflow>(
+    buildArgs: (state: PubSubState) => Parameters<F>,
+    options?: { publisherTtl?: number },
+  ): Promise<never> {
+    this.drain();
+    await condition(allHandlersFinished);
+    return workflowContinueAsNew<F>(...buildArgs(this.getState(options?.publisherTtl)));
   }
 
   /**
