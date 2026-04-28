@@ -633,7 +633,7 @@ mod config {
                 .client_name(self.client_name)
                 .client_version(self.client_version)
                 .maybe_tls_options(self.tls.map(Into::into))
-                .maybe_http_connect_proxy(http_connect_proxy)
+                .maybe_http_connect_proxy(http_connect_proxy.clone())
                 // DNS load balancing is mutually exclusive with HTTP CONNECT proxy in sdk-core.
                 // Disable it when a proxy is configured; otherwise use the default.
                 .dns_load_balancing(if http_connect_proxy.is_some() {
