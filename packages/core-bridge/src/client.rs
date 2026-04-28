@@ -627,12 +627,20 @@ mod config {
             metrics_meter: Option<TemporalMeter>,
         ) -> ConnectionOptions {
             let (ascii_headers, bin_headers) = partition_headers(self.headers);
+            let http_connect_proxy = self.http_connect_proxy.map(Into::into);
 
             ConnectionOptions::new(self.target_url)
                 .client_name(self.client_name)
                 .client_version(self.client_version)
                 .maybe_tls_options(self.tls.map(Into::into))
-                .maybe_http_connect_proxy(self.http_connect_proxy.map(Into::into))
+                .maybe_http_connect_proxy(http_connect_proxy)
+                // DNS load balancing is mutually exclusive with HTTP CONNECT proxy in sdk-core.
+                // Disable it when a proxy is configured; otherwise use the default.
+                .dns_load_balancing(if http_connect_proxy.is_some() {
+                    None
+                } else {
+                    Some(temporalio_client::DnsLoadBalancingOptions::default())
+                })
                 .maybe_headers(ascii_headers)
                 .maybe_binary_headers(bin_headers)
                 .maybe_api_key(self.api_key)
