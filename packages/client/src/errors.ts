@@ -2,6 +2,8 @@ import type { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
 import { status } from '@grpc/grpc-js';
 import type { RetryState } from '@temporalio/common';
 import { isError, isRecord, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { AsyncCompletionClient, AsyncCompletionClientOptions } from './async-completion-client';
+import type { ActivityClientInterceptor } from './interceptors';
 
 /**
  * Generic Error class for errors coming from the service
@@ -75,6 +77,56 @@ export class WorkflowContinuedAsNewError extends Error {
   public constructor(
     message: string,
     public readonly newExecutionRunId: string
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Thrown when the requested Activity could not be found.
+ */
+@SymbolBasedInstanceOfError('ActivityNotFoundError')
+export class ActivityNotFoundError extends Error {}
+
+/**
+ * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat
+ * an Activity for any reason apart from {@link ActivityNotFoundError}.
+ */
+@SymbolBasedInstanceOfError('ActivityCompletionError')
+export class ActivityCompletionError extends Error {}
+
+/**
+ * Thrown by {@link AsyncCompletionClient.heartbeat} when the Workflow has
+ * requested to cancel the reporting Activity.
+ */
+@SymbolBasedInstanceOfError('ActivityCancelledError')
+export class ActivityCancelledError extends Error {}
+
+/**
+ * Thrown by {@link AsyncCompletionClient.heartbeat} when the reporting Activity
+ * has been paused.
+ */
+@SymbolBasedInstanceOfError('ActivityPausedError')
+export class ActivityPausedError extends Error {}
+
+/**
+ * Thrown by {@link AsyncCompletionClient.heartbeat} when the reporting Activity
+ * has been reset.
+ */
+@SymbolBasedInstanceOfError('ActivityResetError')
+export class ActivityResetError extends Error {}
+
+/**
+ * Thrown by the {@link ActivityClient} while waiting on Activity execution result if execution completes with failure.
+ * The failure is stored in the `cause` property.
+ */
+@SymbolBasedInstanceOfError('ActivityExecutionFailedError')
+export class ActivityExecutionFailedError extends Error {
+  constructor(
+    message: string,
+    public readonly cause: Error | undefined,
+    public readonly activityId: string,
+    public readonly runId?: string
   ) {
     super(message);
   }

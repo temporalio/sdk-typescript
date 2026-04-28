@@ -254,7 +254,7 @@ export interface ActivityExecutionInfo {
 /**
  * Return type of {@link ActivityClient.describe}
  */
-export interface ActivityDescription extends ActivityExecutionInfo {
+export interface ActivityExecutionDescription extends ActivityExecutionInfo {
   rawInfo: RawActivityExecutionInfo;
   runState?: PendingActivityState;
   scheduleToCloseTimeoutMs?: number;

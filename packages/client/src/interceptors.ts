@@ -8,7 +8,7 @@ import { Headers, Next } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
 import type { CompiledScheduleOptions } from './schedule-types';
 import type {
-  ActivityDescription,
+  ActivityExecutionDescription,
   ActivityExecutionInfo,
   CountActivityExecutions,
   DescribeWorkflowExecutionResponse,
@@ -266,7 +266,7 @@ export interface ActivityClientInterceptor {
   /**
    * Intercept a service call to describeActivityExecution
    */
-  describe?: (input: ActivityDescribeInput, next: Next<this, 'describe'>) => Promise<ActivityDescription>;
+  describe?: (input: ActivityDescribeInput, next: Next<this, 'describe'>) => Promise<ActivityExecutionDescription>;
   /**
    * Intercept a service call to requestCancelActivityExecution
    */

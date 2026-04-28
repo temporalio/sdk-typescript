@@ -17,7 +17,6 @@ import {
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import {
   decodeTypedSearchAttributes,
@@ -45,7 +44,7 @@ import type {
 import type { AsyncCompletionClientOptions } from './async-completion-client';
 import { AsyncCompletionClient } from './async-completion-client';
 import type {
-  ActivityDescription,
+  ActivityExecutionDescription,
   ActivityExecutionInfo,
   ActivityIdConflictPolicy,
   ActivityIdReusePolicy,
@@ -58,29 +57,7 @@ import {
   encodeActivityIdReusePolicy,
 } from './types';
 import { rethrowKnownErrorTypes } from './helpers';
-import { isGrpcServiceError, ServiceError } from './errors';
-
-/**
- * Thrown when an Activity with the given ID is not known to Temporal Server.
- */
-@SymbolBasedInstanceOfError('ActivityNotFoundError')
-export class ActivityNotFoundError extends Error {}
-
-/**
- * Thrown by the client while waiting on Activity execution result if execution completes with failure.
- * The failure is stored in the `cause` property.
- */
-@SymbolBasedInstanceOfError('ActivityExecutionFailedError')
-export class ActivityExecutionFailedError extends Error {
-  constructor(
-    message: string,
-    public readonly cause: Error | undefined,
-    public readonly activityId: string,
-    public readonly runId?: string
-  ) {
-    super(message);
-  }
-}
+import { isGrpcServiceError, ServiceError, ActivityNotFoundError, ActivityExecutionFailedError } from './errors';
 
 /**
  * Options used to configure {@link ActivityClient}
@@ -151,7 +128,7 @@ export class ActivityClient extends AsyncCompletionClient {
    *
    * Note 2: if `runID` is not set when calling `getHandle`, then `runId` property of the returned handle will always
    * remain unset, even after method calls are performed. To get the run ID of the targeted activity execution, call
-   * {@link ActivityHandle.describe} and read the `activityRunId` field of the returned {@link ActivityDescription}.
+   * {@link ActivityHandle.describe} and read the `activityRunId` field of the returned {@link ActivityExecutionDescription}.
    *
    * @param activityId ID of the Activity.
    * @param runId Optional run ID of the specific Activity execution.
@@ -209,7 +186,7 @@ export class ActivityClient extends AsyncCompletionClient {
         });
       },
 
-      async describe(): Promise<ActivityDescription> {
+      async describe(): Promise<ActivityExecutionDescription> {
         return await this.client.interceptedHandlers.describe({
           activityId: this.activityId,
           activityRunId: this.runId ?? '',
@@ -322,7 +299,7 @@ export class ActivityClient extends AsyncCompletionClient {
     }
   }
 
-  protected async describeHandler(input: ActivityDescribeInput): Promise<ActivityDescription> {
+  protected async describeHandler(input: ActivityDescribeInput): Promise<ActivityExecutionDescription> {
     if (!input.activityId) {
       throw new TypeError('activityId is required');
     }
@@ -452,7 +429,7 @@ export interface ActivityHandle<O = any> {
   /**
    * Returns information about the Activity execution.
    */
-  describe(): Promise<ActivityDescription>;
+  describe(): Promise<ActivityExecutionDescription>;
   /**
    * Requests cancellation of the Activity execution. Note that cancellations are cooperative and not guaranteed to happen.
    */
@@ -563,7 +540,7 @@ function buildActivityExecutionInfo(info: temporal.api.activity.v1.IActivityExec
 function buildActivityDescription(
   info: temporal.api.activity.v1.IActivityExecutionInfo,
   dataConverter: LoadedDataConverter
-): ActivityDescription {
+): ActivityExecutionDescription {
   const getHeartbeatDetails: <T>() => Promise<T | undefined> = async <T>() => {
     const payloads = info.heartbeatDetails?.payloads;
     if (payloads && payloads.length > 0) {
@@ -587,7 +564,7 @@ function buildActivityDescription(
     heartbeatTimeoutMs: optionalTsToMs(info.heartbeatTimeout),
     retryPolicy: decompileRetryPolicy(info.retryPolicy)!,
     lastHeartbeatTime: optionalTsToDate(info.lastHeartbeatTime),
-    lastStartedTime: optionalTsToDate(info.scheduleTime),
+    lastStartedTime: optionalTsToDate(info.lastStartedTime),
     attempt: info.attempt!,
     expirationTime: optionalTsToDate(info.expirationTime),
     lastWorkerIdentity: info.lastWorkerIdentity || undefined,

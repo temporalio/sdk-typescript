@@ -2219,7 +2219,7 @@ async function extractActivityInfo(
     priority: decodePriority(start.priority),
     retryPolicy: decompileRetryPolicy(start.retryPolicy),
     namespace: start.workflowNamespace,
-    activityRunId: !inWorkflow ? start.activityId : undefined,
+    activityRunId: !inWorkflow ? start.runId : undefined,
     inWorkflow,
   };
 }

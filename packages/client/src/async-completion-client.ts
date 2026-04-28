@@ -2,47 +2,14 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import { ensureTemporalFailure } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayloads } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
-import { isGrpcServiceError } from './errors';
+import {
+  isGrpcServiceError, ActivityNotFoundError, ActivityCompletionError, ActivityCancelledError,
+  ActivityResetError, ActivityPausedError,
+} from './errors';
 import type { WorkflowService } from './types';
 import { rethrowKnownErrorTypes } from './helpers';
-
-/**
- * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat an Activity that does not exist in the
- * system.
- */
-@SymbolBasedInstanceOfError('ActivityNotFoundError')
-export class ActivityNotFoundError extends Error {}
-
-/**
- * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat
- * an Activity for any reason apart from {@link ActivityNotFoundError}.
- */
-@SymbolBasedInstanceOfError('ActivityCompletionError')
-export class ActivityCompletionError extends Error {}
-
-/**
- * Thrown by {@link AsyncCompletionClient.heartbeat} when the Workflow has
- * requested to cancel the reporting Activity.
- */
-@SymbolBasedInstanceOfError('ActivityCancelledError')
-export class ActivityCancelledError extends Error {}
-
-/**
- * Thrown by {@link AsyncCompletionClient.heartbeat} when the reporting Activity
- * has been paused.
- */
-@SymbolBasedInstanceOfError('ActivityPausedError')
-export class ActivityPausedError extends Error {}
-
-/**
- * Thrown by {@link AsyncCompletionClient.heartbeat} when the reporting Activity
- * has been reset.
- */
-@SymbolBasedInstanceOfError('ActivityResetError')
-export class ActivityResetError extends Error {}
 
 /**
  * Options used to configure {@link AsyncCompletionClient}
