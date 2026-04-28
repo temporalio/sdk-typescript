@@ -23,6 +23,8 @@ export interface SerializedModelRequest {
   prompt?: JsonValue;
   previousResponseId?: string;
   conversationId?: string;
+  // tracing is ModelTracing (boolean | 'enabled_without_data') — an enablement flag, not trace context.
+  // OTel span context for activity-under-generation nesting is tracked separately (see TemporalTracingProcessor).
   tracing: JsonValue;
   overridePromptModel?: boolean;
   // Excluded by design (must stay in this comment for future contributors):
@@ -35,7 +37,15 @@ export interface SerializedModelResponse {
   usage: JsonValue;
   output: JsonValue[];
   responseId?: string;
-  /** Upstream type is `Record<string, any>`; non-JSON values may be coerced (Date → ISO string) by Temporal's JSON codec. */
+  /**
+   * Provider-specific metadata. Upstream type is `Record<string, any>`.
+   *
+   * **Coercion warning:** Temporal's JSON codec serializes this field as-is. Non-JSON-primitive
+   * values (Date, Map, Set, class instances) will be silently coerced — e.g., Date becomes an
+   * ISO 8601 string. Code consuming this field on the workflow side will receive the coerced
+   * form, not the original type. If your model provider populates providerData with non-JSON
+   * types, handle the coerced representation explicitly.
+   */
   providerData?: Record<string, JsonValue>;
   // All upstream ModelResponse fields are present, with types narrowed to JSON-safe equivalents (Usage → JsonValue, etc.).
 }

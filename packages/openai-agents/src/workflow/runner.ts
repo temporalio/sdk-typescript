@@ -1,6 +1,6 @@
 import { Agent, Handoff, Runner, type Model, type RunResult } from '@openai/agents-core';
 import { ApplicationFailure } from '@temporalio/common';
-import { DEFAULT_MODEL_ACTIVITY_PARAMETERS, type ModelActivityParameters } from '../common/model-parameters';
+import { DEFAULT_MODEL_ACTIVITY_OPTIONS, type ModelActivityOptions } from '../common/model-activity-options';
 import { AgentsWorkflowError } from '../common/errors';
 import { DummyModelProvider } from './dummy-model-provider';
 import { TEMPORAL_ACTIVITY_TOOL_MARKER } from './tools';
@@ -18,13 +18,12 @@ export interface TemporalRunOptions<TContext = undefined> {
 
 /**
  * A Temporal-aware agent runner that delegates model calls to activities.
- * Use `createTemporalRunner()` to create an instance.
  */
 export class TemporalOpenAIRunner {
-  private readonly modelParams: ModelActivityParameters;
+  private readonly modelParams: ModelActivityOptions;
 
-  constructor(modelParams?: ModelActivityParameters) {
-    this.modelParams = { ...DEFAULT_MODEL_ACTIVITY_PARAMETERS, ...modelParams };
+  constructor(modelParams?: ModelActivityOptions) {
+    this.modelParams = { ...DEFAULT_MODEL_ACTIVITY_OPTIONS, ...modelParams };
     ensureTracingProcessorRegistered();
   }
 
@@ -142,14 +141,4 @@ export class TemporalOpenAIRunner {
       }
     }
   }
-}
-
-/**
- * Create a Temporal-aware agent runner for use in workflows.
- * Model calls are automatically delegated to activities.
- *
- * @param modelParams - Activity parameters for model invocation (timeouts, heartbeat, retry)
- */
-export function createTemporalRunner(modelParams?: ModelActivityParameters): TemporalOpenAIRunner {
-  return new TemporalOpenAIRunner(modelParams);
 }

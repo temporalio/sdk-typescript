@@ -1,6 +1,6 @@
 import { Agent, Handoff, type Model } from '@openai/agents-core';
 import { ApplicationFailure, TemporalFailure } from '@temporalio/common';
-import type { ModelActivityParameters } from '../common/model-parameters';
+import type { ModelActivityOptions } from '../common/model-activity-options';
 import { ActivityBackedModel } from './activity-backed-model';
 
 export function unwrapTemporalFailure(error: unknown): TemporalFailure | undefined {
@@ -27,7 +27,7 @@ export function unwrapTemporalFailure(error: unknown): TemporalFailure | undefin
  */
 export function convertAgent(
   agent: Agent<any, any>,
-  modelParams: ModelActivityParameters,
+  modelParams: ModelActivityOptions,
   seen?: Map<Agent<any, any>, Agent<any, any>>,
   modelNameOverride?: string
 ): Agent<any, any> {

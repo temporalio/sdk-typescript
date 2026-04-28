@@ -11,7 +11,7 @@ export interface ModelSummaryProvider {
   ): string;
 }
 
-export interface ModelActivityParameters {
+export interface ModelActivityOptions {
   taskQueue?: string;
   scheduleToCloseTimeout?: Duration;
   scheduleToStartTimeout?: Duration;
@@ -24,7 +24,7 @@ export interface ModelActivityParameters {
   priority?: Priority;
 }
 
-export const DEFAULT_MODEL_ACTIVITY_PARAMETERS: ModelActivityParameters = {
+export const DEFAULT_MODEL_ACTIVITY_OPTIONS: ModelActivityOptions = {
   startToCloseTimeout: '60s',
   useLocalActivity: false,
 };

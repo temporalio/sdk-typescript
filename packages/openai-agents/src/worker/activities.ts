@@ -13,7 +13,11 @@ import {
 export function toSerializedModelResponse(response: ModelResponse): SerializedModelResponse {
   return {
     __wireVersion: WIRE_VERSION,
+    // Usage is a class with an add() method, but all its data properties are JSON-safe primitives,
+    // arrays, or records. The double-cast is needed because TypeScript can't narrow a class to JsonValue.
     usage: response.usage as unknown as JsonValue,
+    // AgentOutputItem[] items are Zod-inferred plain objects (no class instances, no methods).
+    // JSON round-trip preserves them losslessly. Double-cast needed for the same TS reason.
     output: response.output as unknown as JsonValue[],
     responseId: response.responseId,
     providerData: response.providerData as Record<string, JsonValue> | undefined,
@@ -130,8 +134,10 @@ export function createModelActivity(modelProvider: ModelProvider): {
           'WireVersionMismatch'
         );
       }
-      // Shape validation beyond version check is intentionally minimal —
-      // see CLEANUP.md "What this does NOT do" / "No Zod / runtime schema validation" rationale.
+      // Shape validation beyond version check is intentionally minimal: no Zod or runtime schema
+      // validation. The wire version literal + structural projection in toSerializedModelRequest
+      // cover the actual risks (version skew and field leakage). Adding a runtime validator would
+      // introduce a dependency with no concrete safety gain — upstream types are JSON-safe by design.
 
       const model = await Promise.resolve(modelProvider.getModel(input.modelName));
 

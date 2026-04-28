@@ -2446,6 +2446,68 @@ test('Wire contract: SerializedModelResponse shape snapshot', async (t) => {
   t.is(wire.__wireVersion, 1, 'Wire version should be 1');
 });
 
+// Upstream-drift detection: verifies that all fields we project onto the wire are JSON-safe.
+// If upstream changes a field type from a JSON-safe primitive to a class/Date/Map, this test
+// fails, signaling that WIRE_VERSION needs a bump and the projection needs updating.
+test('Wire contract: upstream ModelRequest fields survive JSON round-trip (drift detection)', async (t) => {
+  const sampleRequest = {
+    systemInstructions: 'You are a helpful assistant.',
+    input: [{ role: 'user', content: [{ type: 'input_text', text: 'Hello' }], providerData: {} }],
+    modelSettings: { temperature: 0.7, maxTokens: 100, topP: 0.9 },
+    tools: [{ type: 'function', name: 'get_weather', parameters: { type: 'object', properties: {} }, strict: true }],
+    toolsExplicitlyProvided: true,
+    outputType: { type: 'text' },
+    handoffs: [{ toolName: 'transfer_to_agent', toolDescription: 'Transfer', strictJsonSchema: true }],
+    prompt: { promptId: 'pt_drift', version: 'v1', variables: { city: 'NYC' } },
+    previousResponseId: 'resp_prev_001',
+    conversationId: 'conv_drift_001',
+    tracing: false,
+    overridePromptModel: false,
+  };
+
+  const roundTripped = JSON.parse(JSON.stringify(sampleRequest));
+  t.deepEqual(
+    roundTripped,
+    sampleRequest,
+    'All upstream ModelRequest field values must survive JSON round-trip. ' +
+      'If this fails, upstream introduced a non-JSON-safe field — bump WIRE_VERSION and update the projection.'
+  );
+});
+
+test('Wire contract: upstream ModelResponse fields survive JSON round-trip (drift detection)', async (t) => {
+  const sampleResponse = {
+    usage: {
+      requests: 1,
+      inputTokens: 42,
+      outputTokens: 15,
+      totalTokens: 57,
+      inputTokensDetails: [{ cachedTokens: 10 }],
+      outputTokensDetails: [{ reasoningTokens: 5 }],
+    },
+    output: [
+      {
+        type: 'message',
+        role: 'assistant',
+        status: 'completed',
+        content: [{ type: 'output_text', text: 'Hello!' }],
+        id: 'msg_drift_001',
+        providerData: { model: 'gpt-4o' },
+      },
+    ],
+    responseId: 'resp_drift_001',
+    providerData: { model: 'gpt-4o', latencyMs: 150 },
+  } as any;
+
+  const wire = toSerializedModelResponse(sampleResponse);
+  const roundTripped = JSON.parse(JSON.stringify(wire));
+  t.deepEqual(
+    roundTripped,
+    wire,
+    'All SerializedModelResponse field values must survive JSON round-trip. ' +
+      'If this fails, upstream introduced a non-JSON-safe field — bump WIRE_VERSION and update the projection.'
+  );
+});
+
 // --- T1: Tracing span capture ---
 
 test('T1: OpenAI Agents tracing path is active and produces trace/span events', async (t) => {

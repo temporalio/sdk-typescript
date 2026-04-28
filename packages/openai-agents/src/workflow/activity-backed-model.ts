@@ -9,7 +9,7 @@ import {
 } from '@openai/agents-core';
 import { proxyActivities, proxyLocalActivities } from '@temporalio/workflow';
 import type { ActivityOptions, LocalActivityOptions } from '@temporalio/common';
-import type { ModelActivityParameters, ModelSummaryProvider } from '../common/model-parameters';
+import type { ModelActivityOptions, ModelSummaryProvider } from '../common/model-activity-options';
 import {
   type InvokeModelActivityInput,
   type JsonValue,
@@ -22,29 +22,34 @@ export function toSerializedModelRequest(request: ModelRequest): SerializedModel
   return {
     __wireVersion: WIRE_VERSION,
     systemInstructions: request.systemInstructions,
+    // input is string | AgentInputItem[] — both are Zod-inferred plain objects, JSON-safe.
     input: request.input as JsonValue,
     modelSettings: request.modelSettings,
     tools: request.tools,
     toolsExplicitlyProvided: request.toolsExplicitlyProvided,
     outputType: request.outputType,
     handoffs: request.handoffs,
+    // Prompt is { promptId, version?, variables? } — plain object, JSON-safe.
     prompt: request.prompt as JsonValue | undefined,
     previousResponseId: request.previousResponseId,
     conversationId: request.conversationId,
+    // ModelTracing is boolean | 'enabled_without_data' — already a JSON primitive.
     tracing: request.tracing as JsonValue,
     overridePromptModel: request.overridePromptModel,
-    // signal: structurally absent from SerializedModelRequest
   };
 }
 
 function fromSerializedModelResponse(wire: SerializedModelResponse): ModelResponse {
+  // Usage is the only class instance in ModelResponse that needs reconstruction. Its add() method
+  // is used by the Runner to accumulate token counts across turns. All AgentOutputItem variants in
+  // output[] are Zod-inferred plain objects — they survive JSON round-trip without reconstruction.
   return {
     usage: new Usage(wire.usage as Record<string, unknown>),
     output: wire.output,
     responseId: wire.responseId,
     providerData: wire.providerData,
-    // __wireVersion deliberately stripped — internal protocol field, not part of upstream ModelResponse.
-    // Type assertion: JsonValue wire fields are structurally compatible with their upstream types at runtime.
+    // Cast: __wireVersion stripped (protocol-only). Remaining fields are structurally compatible
+    // with ModelResponse at runtime — Usage is reconstructed above, output items are plain objects.
   } as ModelResponse;
 }
 
@@ -59,12 +64,12 @@ interface ModelActivities {
  */
 export class ActivityBackedModel implements Model {
   private readonly activities: ModelActivities;
-  private readonly modelParams: ModelActivityParameters;
+  private readonly modelParams: ModelActivityOptions;
   private agent?: Agent<any, any>;
 
   constructor(
     private readonly modelName: string,
-    modelParams: ModelActivityParameters
+    modelParams: ModelActivityOptions
   ) {
     this.modelParams = modelParams;
 

@@ -1,7 +1,7 @@
 // Workflow-safe exports — these can be imported from workflow code
 // that runs inside the V8 sandbox.
 
-export { createTemporalRunner, TemporalOpenAIRunner } from './workflow/runner';
+export { TemporalOpenAIRunner } from './workflow/runner';
 export type { TemporalRunOptions } from './workflow/runner';
 export { activityAsTool, ToolSerializationError } from './workflow/tools';
 export type { ActivityToolDefinition, ActivityAsToolOptions, JsonObjectSchema } from './workflow/tools';

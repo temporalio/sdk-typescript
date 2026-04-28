@@ -8,7 +8,7 @@ import { webSearchTool } from '@openai/agents-openai';
 import { ApplicationFailure, proxyActivities } from '@temporalio/workflow';
 import {
   activityAsTool,
-  createTemporalRunner,
+  TemporalOpenAIRunner,
   statelessMcpServer,
   isInWorkflow,
   isReplaying,
@@ -30,7 +30,7 @@ export async function basicAgentWorkflow(prompt: string): Promise<string> {
     model: 'gpt-4o-mini',
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt);
   return result.finalOutput ?? '';
 }
@@ -63,7 +63,7 @@ export async function toolAgentWorkflow(prompt: string): Promise<string> {
     tools: [weatherTool],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt, { maxTurns: 5 });
   return result.finalOutput ?? '';
 }
@@ -85,7 +85,7 @@ export async function handoffAgentWorkflow(question: string): Promise<string> {
     handoffs: [weatherSpecialist],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(triageAgent, question, { maxTurns: 10 });
   return result.finalOutput ?? '';
 }
@@ -102,7 +102,7 @@ export async function maxTurnsAgentWorkflow(
     instructions: 'You are a helpful assistant.',
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt, { maxTurns });
   return { output: result.finalOutput ?? '', turnCount: result.rawResponses.length };
 }
@@ -147,7 +147,7 @@ export async function multiToolAgentWorkflow(prompt: string): Promise<string> {
     tools: [weatherTool, sumTool],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt, { maxTurns: 10 });
   return result.finalOutput ?? '';
 }
@@ -171,7 +171,7 @@ export async function contextAgentWorkflow(prompt: string, userId: string): Prom
     preferences: { language: 'en' },
   };
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt, { context });
   return result.finalOutput ?? '';
 }
@@ -191,7 +191,7 @@ export async function rawFunctionToolWorkflow(question: string): Promise<string>
     tools: [rawFunction as any],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, question);
   return result.finalOutput ?? '';
 }
@@ -206,7 +206,7 @@ export async function runConfigStringModelWorkflow(prompt: string): Promise<stri
     instructions: 'You are a helpful assistant.',
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt, { runConfig: { model: 'gpt-4o-mini' } });
   return result.finalOutput ?? '';
 }
@@ -222,7 +222,7 @@ export async function localActivityAgentWorkflow(prompt: string): Promise<string
     model: 'gpt-4o-mini',
   });
 
-  const runner = createTemporalRunner({ useLocalActivity: true, startToCloseTimeout: '60s' });
+  const runner = new TemporalOpenAIRunner({ useLocalActivity: true, startToCloseTimeout: '60s' });
   const result = await runner.run(agent, prompt);
   return result.finalOutput ?? '';
 }
@@ -239,7 +239,7 @@ export async function retryableModelWorkflow(prompt: string): Promise<string> {
     model: 'gpt-4o-mini',
   });
 
-  const runner = createTemporalRunner({
+  const runner = new TemporalOpenAIRunner({
     startToCloseTimeout: '10s',
     retryPolicy: { maximumAttempts: 3, initialInterval: '100ms' },
   });
@@ -260,7 +260,7 @@ export async function agentsWorkflowErrorWorkflow(prompt: string): Promise<strin
     },
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt);
   return result.finalOutput ?? '';
 }
@@ -279,7 +279,7 @@ export async function mcpAgentWorkflow(prompt: string): Promise<string> {
     mcpServers: [mcpServer],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt, { maxTurns: 5 });
   return result.finalOutput ?? '';
 }
@@ -296,7 +296,7 @@ export async function builtInToolAgentWorkflow(prompt: string): Promise<string> 
     tools: [webSearchTool()],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt);
   return result.finalOutput ?? '';
 }
@@ -321,7 +321,7 @@ export async function handoffInstanceWorkflow(question: string): Promise<string>
     handoffs: [handoff(weatherSpecialist)],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(triageAgent, question, { maxTurns: 5 });
   return result.finalOutput ?? '';
 }
@@ -342,7 +342,7 @@ export async function cyclicHandoffWorkflow(prompt: string): Promise<string> {
   (agentA as any).handoffs = [agentB];
   (agentB as any).handoffs = [agentA];
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agentA, prompt);
   return result.finalOutput ?? '';
 }
@@ -363,7 +363,7 @@ export async function promptFieldWorkflow(prompt: string): Promise<string> {
     },
   } as any);
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt);
   return result.finalOutput ?? '';
 }
@@ -380,7 +380,7 @@ export async function nonStringModelWorkflow(prompt: string): Promise<string> {
     model: {} as any,
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt);
   return result.finalOutput ?? '';
 }
@@ -407,7 +407,7 @@ export async function wrappedTemporalFailureWorkflow(prompt: string): Promise<st
     },
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt);
   return result.finalOutput ?? '';
 }
@@ -424,7 +424,7 @@ export async function agentsWorkflowErrorClassCheckWorkflow(prompt: string): Pro
     },
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   try {
     await runner.run(agent, prompt);
     return 'no-error';
@@ -502,7 +502,7 @@ export async function dateInResponseWorkflow(prompt: string): Promise<{
     instructions: 'You are a helpful assistant.',
     model: 'gpt-4o-mini',
   });
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt);
   const raw = result.rawResponses[0] as any;
   const dateField = raw?.createdAt;
@@ -523,7 +523,7 @@ export async function runStreamedWorkflow(prompt: string): Promise<string> {
     model: 'gpt-4o-mini',
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const stream = await (runner as any).runStreamed(agent, prompt);
   let output = '';
   for await (const event of stream) {
@@ -560,7 +560,7 @@ export async function directToolFactoryWorkflow(prompt: string): Promise<string>
     tools: [unsafeTool],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt);
   return result.finalOutput ?? '';
 }
@@ -599,7 +599,7 @@ export async function mcpFactoryArgWorkflow(prompt: string): Promise<string> {
     mcpServers: [mcpServer],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt, { maxTurns: 5 });
   return result.finalOutput ?? '';
 }
@@ -618,7 +618,7 @@ export async function mcpProviderWorkflow(prompt: string): Promise<string> {
     mcpServers: [mcpServer],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt, { maxTurns: 5 });
   return result.finalOutput ?? '';
 }
@@ -635,7 +635,7 @@ export async function summaryOverrideStringWorkflow(prompt: string): Promise<str
     model: 'gpt-4o-mini',
   });
 
-  const runner = createTemporalRunner({
+  const runner = new TemporalOpenAIRunner({
     summaryOverride: 'Custom model summary',
   });
   const result = await runner.run(agent, prompt);
@@ -674,7 +674,7 @@ export async function runConfigModelOverrideCheckWorkflow(prompt: string): Promi
     model: 'original-model',
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt, { runConfig: { model: 'override-model' } });
   return result.finalOutput ?? '';
 }
@@ -698,7 +698,7 @@ export async function handoffWithRawToolWorkflow(prompt: string): Promise<string
     handoffs: [specialist],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(triageAgent, prompt);
   return result.finalOutput ?? '';
 }
@@ -719,7 +719,7 @@ export async function handoffInstanceWithRawToolWorkflow(prompt: string): Promis
     handoffs: [handoff(specialist)],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(triageAgent, prompt);
   return result.finalOutput ?? '';
 }
@@ -747,7 +747,7 @@ export async function handoffMutationCheckWorkflow(prompt: string): Promise<stri
     handoffs: [handoffObj],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(triageAgent, prompt);
 
   const afterAgentModel = typeof (handoffObj.agent as any).model;
@@ -792,7 +792,7 @@ export async function handoffOnHandoffCallbackWorkflow(prompt: string): Promise<
     handoffs: [handoffObj],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(triageAgent, prompt, { maxTurns: 5 });
 
   return {
@@ -821,7 +821,7 @@ export async function handoffIsEnabledFalseWorkflow(prompt: string): Promise<str
     handoffs: [handoffObj],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(triageAgent, prompt, { maxTurns: 3 });
   return result.finalOutput ?? '';
 }
@@ -853,7 +853,7 @@ export async function handoffWithCustomSchemaWorkflow(prompt: string): Promise<s
     handoffs: [handoffObj],
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(triageAgent, prompt, { maxTurns: 3 });
   return result.finalOutput ?? '';
 }
@@ -870,7 +870,7 @@ export async function timeoutErrorWorkflow(prompt: string): Promise<string> {
     model: 'gpt-4o-mini',
   });
 
-  const runner = createTemporalRunner({
+  const runner = new TemporalOpenAIRunner({
     startToCloseTimeout: '10s',
     retryPolicy: { maximumAttempts: 1 },
   });
@@ -888,7 +888,7 @@ export async function xShouldRetryWorkflow(prompt: string): Promise<string> {
     model: 'gpt-4o-mini',
   });
 
-  const runner = createTemporalRunner({
+  const runner = new TemporalOpenAIRunner({
     startToCloseTimeout: '10s',
     retryPolicy: { maximumAttempts: 1 },
   });
@@ -909,7 +909,7 @@ export async function plainErrorWorkflow(prompt: string): Promise<string> {
     model: 'gpt-4o-mini',
   });
 
-  const runner = createTemporalRunner({
+  const runner = new TemporalOpenAIRunner({
     startToCloseTimeout: '10s',
     retryPolicy: { maximumAttempts: 3, initialInterval: '100ms' },
   });
@@ -930,7 +930,7 @@ export async function extendedModelParamsWorkflow(prompt: string): Promise<strin
     model: 'gpt-4o-mini',
   });
 
-  const runner = createTemporalRunner({
+  const runner = new TemporalOpenAIRunner({
     priority: { priorityKey: 1 },
   });
   const result = await runner.run(agent, prompt);
@@ -961,7 +961,7 @@ export async function wireRoundTripWorkflow(prompt: string): Promise<{
     },
   } as any);
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt);
   const raw: ModelResponse | undefined = result.rawResponses[0];
   return {
@@ -984,7 +984,7 @@ export async function wireStrippingCheckWorkflow(prompt: string): Promise<string
     model: 'gpt-4o-mini',
   });
 
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt);
   return result.finalOutput ?? '';
 }
@@ -1063,7 +1063,7 @@ export async function tracingSpanCaptureWorkflow(): Promise<{
   // TemporalOpenAIRunner constructor calls ensureTracingProcessorRegistered(),
   // which uses setTraceProcessors([...]) on first invocation. We create the runner
   // first so that call has already fired, then add our test processor on top.
-  const runner = createTemporalRunner();
+  const runner = new TemporalOpenAIRunner();
 
   addTraceProcessor({
     async onTraceStart(trace: any) {
