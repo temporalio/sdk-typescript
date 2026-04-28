@@ -23,6 +23,7 @@ import {
   decodePriority,
   CancelledFailure,
   ActivityCancellationDetails,
+  convertDeploymentVersion,
 } from '@temporalio/common';
 import type { Decoded } from '@temporalio/common/lib/internal-non-workflow';
 import {
@@ -65,12 +66,7 @@ import type { History } from './runtime';
 import { Runtime } from './runtime';
 import type { CloseableGroupedObservable } from './rxutils';
 import { closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
-import {
-  byteArrayToBuffer,
-  convertDeploymentVersion,
-  convertToParentWorkflowType,
-  convertToRootWorkflowType,
-} from './utils';
+import { byteArrayToBuffer, convertToParentWorkflowType, convertToRootWorkflowType } from './utils';
 import type {
   CompiledWorkerOptions,
   CompiledWorkerOptionsWithBuildId,

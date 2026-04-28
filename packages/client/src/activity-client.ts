@@ -1,4 +1,5 @@
 import { status } from '@grpc/grpc-js';
+import { v4 as uuid4 } from 'uuid';
 import type {
   LoadedDataConverter,
   Next,
@@ -7,7 +8,13 @@ import type {
   SearchAttributePair,
   TypedSearchAttributes,
 } from '@temporalio/common';
-import { compilePriority, compileRetryPolicy, decodePriority, decompileRetryPolicy } from '@temporalio/common';
+import {
+  compilePriority,
+  compileRetryPolicy,
+  convertDeploymentVersion,
+  decodePriority,
+  decompileRetryPolicy,
+} from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
@@ -17,7 +24,6 @@ import {
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
-import { convertDeploymentVersion } from '@temporalio/worker/lib/utils';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -25,7 +31,6 @@ import {
   encodeToPayloads,
   encodeUserMetadata,
 } from '@temporalio/common/lib/internal-non-workflow';
-import { uuid4 } from '@temporalio/workflow';
 import type { temporal } from '@temporalio/proto';
 import type {
   ActivityCancelInput,
