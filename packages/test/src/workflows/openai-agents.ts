@@ -182,7 +182,7 @@ export async function contextAgentWorkflow(prompt: string, userId: string): Prom
 
 /**
  * Workflow that passes a raw function as a tool instead of using activityAsTool().
- * The runner should reject this with a clear error.
+ * convertAgent should reject this with a clear error.
  */
 export async function rawFunctionToolWorkflow(question: string): Promise<string> {
   const rawFunction = async ({ location }: { location: string }) => {
@@ -424,8 +424,9 @@ export async function wrappedTemporalFailureWorkflow(prompt: string): Promise<st
 }
 
 /**
- * C1/F7: Catches the runner's error INSIDE the workflow to verify that
- * AgentsWorkflowError is instantiated in the error's cause chain.
+ * C1/F7: Catches the runner's error INSIDE the workflow to inspect the
+ * error shape. The runner throws ApplicationFailure with the original
+ * error as cause (no intermediate AgentsWorkflowError wrapper).
  */
 export async function agentsWorkflowErrorClassCheckWorkflow(prompt: string): Promise<string> {
   const agent = new Agent({
@@ -525,8 +526,9 @@ export async function dateInResponseWorkflow(prompt: string): Promise<{
 }
 
 /**
- * C3/F27: Calls runner.runStreamed() which should throw a clear
- * "Streaming is not supported" error in Temporal workflows.
+ * C3/F27: Calls runner.runStreamed() which no longer exists on TemporalOpenAIRunner.
+ * The method was removed — TS catches this at compile time. This workflow exercises
+ * the runtime path (via `as any`) to verify it still fails cleanly.
  */
 export async function runStreamedWorkflow(prompt: string): Promise<string> {
   const agent = new Agent({
@@ -546,13 +548,13 @@ export async function runStreamedWorkflow(prompt: string): Promise<string> {
 
 /**
  * E3/F20: Uses tool() from agents-core directly instead of activityAsTool().
- * The runner should reject this with a helpful error because the tool's invoke
- * callback would run in the workflow sandbox and crash on I/O.
+ * Deterministic tool() products run inline in the workflow — no activity overhead.
+ * The tool's execute callback must be deterministic (no I/O, no randomness).
  */
 export async function directToolFactoryWorkflow(prompt: string): Promise<string> {
-  const unsafeTool = tool({
-    name: 'unsafeTool',
-    description: 'A tool created via tool() factory — not wrapped with activityAsTool',
+  const inlineTool = tool({
+    name: 'inlineTool',
+    description: 'A deterministic tool that runs inline in the workflow',
     parameters: {
       type: 'object' as const,
       properties: {
@@ -561,15 +563,16 @@ export async function directToolFactoryWorkflow(prompt: string): Promise<string>
       required: ['input'] as const,
       additionalProperties: false as const,
     },
-    execute: async (_ctx, _args) => {
-      return 'this should never run';
+    execute: async (_ctx, args) => {
+      return `processed: ${(args as any).input}`;
     },
   });
 
   const agent = new Agent({
     name: 'DirectToolAgent',
     instructions: 'Test agent with direct tool() factory tool.',
-    tools: [unsafeTool],
+    model: 'fake-model',
+    tools: [inlineTool],
   });
 
   const runner = new TemporalOpenAIRunner();
@@ -689,22 +692,24 @@ export async function runConfigModelOverrideCheckWorkflow(prompt: string): Promi
   return result.finalOutput ?? '';
 }
 
-// --- H2: validateTools recursion into handoffs ---
+// --- H2: convertAgent recursion into handoffs ---
 
 /**
  * H2: Handoff agent has a raw function tool that should be rejected.
- * If validateTools doesn't recurse, the raw tool on the handoff agent is missed.
+ * If convertAgent doesn't recurse, the raw tool on the handoff agent is missed.
  */
 export async function handoffWithRawToolWorkflow(prompt: string): Promise<string> {
   const specialist = new Agent({
     name: 'SpecialistWithRawTool',
     instructions: 'You are a specialist.',
+    model: 'fake-model',
     tools: [(() => 'raw result') as any],
   });
 
   const triageAgent = new Agent({
     name: 'TriageAgent',
     instructions: 'Route to specialists.',
+    model: 'fake-model',
     handoffs: [specialist],
   });
 
@@ -720,12 +725,14 @@ export async function handoffInstanceWithRawToolWorkflow(prompt: string): Promis
   const specialist = new Agent({
     name: 'SpecialistWithRawTool',
     instructions: 'You are a specialist.',
+    model: 'fake-model',
     tools: [(() => 'raw result') as any],
   });
 
   const triageAgent = new Agent({
     name: 'TriageAgent',
     instructions: 'Route to specialists.',
+    model: 'fake-model',
     handoffs: [handoff(specialist)],
   });
 

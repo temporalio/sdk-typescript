@@ -20,8 +20,9 @@ import { ActivityBackedModel } from './activity-backed-model';
 import { getAgentInternals } from './agent-internals';
 
 /**
- * Recursively convert an agent graph, replacing each agent's model
- * with an ActivityBackedModel. Uses a seen map to handle circular handoff references.
+ * Recursively convert an agent graph: validate tools, replace each agent's model
+ * with an ActivityBackedModel, and clone handoffs. Single-pass traversal using
+ * a seen map to handle circular handoff references.
  */
 export function convertAgent(
   agent: Agent<any, any>,
@@ -33,12 +34,43 @@ export function convertAgent(
   if (seen.has(agent)) return seen.get(agent)!;
 
   const internals = getAgentInternals(agent);
+
+  // --- Tool validation ---
+  // Accepted tool types (alphabetical):
+  //   activityAsTool() products (type: 'function', TEMPORAL_ACTIVITY_TOOL_MARKER) — runs as Temporal activity
+  //   ApplyPatch (local I/O) — passes validation but will fail in sandbox
+  //   Code interpreter (hosted) — runs on OpenAI servers
+  //   Computer (local I/O) — passes validation but will fail in sandbox
+  //   File search (hosted) — runs on OpenAI servers
+  //   Image generation (hosted) — runs on OpenAI servers
+  //   MCP tools (hosted) — runs on OpenAI servers
+  //   Shell (local I/O) — passes validation but will fail in sandbox
+  //   tool() factory products (type: 'function') — runs inline in workflow; user must ensure determinism
+  //   Web search (hosted) — runs on OpenAI servers
+  //
+  // Rejected:
+  //   Raw functions (typeof === 'function') — authoring mistake; use tool() or activityAsTool()
+  const tools: unknown[] = internals.tools ?? [];
+  for (const t of tools) {
+    if (typeof t === 'function') {
+      throw ApplicationFailure.create({
+        message:
+          `Agent '${agent.name}': Provided tool is a raw function, not a tool object. ` +
+          'Did you mean to use tool() or activityAsTool()?',
+        type: 'AgentsWorkflowError',
+        nonRetryable: true,
+      });
+    }
+  }
+
+  // --- Convert model ---
   const rawModel = internals.model;
   if (rawModel !== undefined && rawModel !== null && typeof rawModel !== 'string') {
     throw ApplicationFailure.create({
       message:
         `Agent '${agent.name}' has a Model object instead of a string model name. ` +
-        'In Temporal workflows, use string model names (resolved by ModelProvider on the activity side).',
+        'In Temporal workflows, all models must be specified as strings — use ' +
+        'runConfig.model to override, or declare a string model on the agent.',
       type: 'AgentsWorkflowError',
       nonRetryable: true,
     });

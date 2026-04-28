@@ -1,23 +1,75 @@
-import { Agent, Handoff, Runner, type Model, type RunResult } from '@openai/agents-core';
+import {
+  Agent,
+  Runner,
+  type AgentOutputType,
+  type CallModelInputFilter,
+  type HandoffInputData,
+  type InputGuardrail,
+  type ModelSettings,
+  type OutputGuardrail,
+  type RunResult,
+  type Session,
+  type SessionInputCallback,
+  type TracingConfig,
+} from '@openai/agents-core';
 import { ApplicationFailure } from '@temporalio/common';
 import { DEFAULT_MODEL_ACTIVITY_OPTIONS, type ModelActivityOptions } from '../common/model-activity-options';
-import { AgentsWorkflowError, unwrapTemporalFailure } from '../common/errors';
+import { unwrapTemporalFailure } from '../common/errors';
 import { DummyModelProvider } from './dummy-model-provider';
-import { TEMPORAL_ACTIVITY_TOOL_MARKER } from './tools';
 import { convertAgent } from './convert-agent';
 import { ensureTracingProcessorRegistered } from './tracing';
 
 export interface TemporalRunOptions<TContext = undefined> {
+  /** Run context passed to agents and tools */
   context?: TContext;
+  /** Maximum agent loop turns before aborting */
   maxTurns?: number;
+  /** Previous OpenAI response ID for conversation continuity */
   previousResponseId?: string;
+  /** OpenAI conversation ID for multi-turn persistence */
+  conversationId?: string;
+  /** Session state for conversation memory */
+  session?: Session;
+  /** Customize how session history merges with current turn input */
+  sessionInputCallback?: SessionInputCallback;
+  /** Edit system instructions or input items just before calling the model */
+  callModelInputFilter?: CallModelInputFilter;
+  /** Per-run tracing config override */
+  tracing?: TracingConfig;
+  // signal intentionally omitted — use Temporal CancellationScope for workflow cancellation
+
+  /** Runner-level config overrides */
   runConfig?: {
-    model?: string | Model;
+    /** Model name override (string only — Model objects can't cross the workflow/activity boundary) */
+    model?: string;
+    /** Global model settings (temperature, topP, etc.). Non-null values override agent-specific settings. */
+    modelSettings?: ModelSettings;
+    /** Global handoff input filter. Agent-level inputFilter takes precedence. */
+    handoffInputFilter?: (input: HandoffInputData) => HandoffInputData;
+    /** Input guardrails run inline in the workflow — callbacks must be deterministic */
+    inputGuardrails?: InputGuardrail[];
+    /** Output guardrails run inline in the workflow — callbacks must be deterministic */
+    outputGuardrails?: OutputGuardrail<AgentOutputType<unknown>>[];
+    /** Disable tracing for this run */
+    tracingDisabled?: boolean;
+    /** Include sensitive data (tool I/O, LLM outputs) in trace spans */
+    traceIncludeSensitiveData?: boolean;
+    /** Logical name for the run, used in tracing */
+    workflowName?: string;
+    /** Custom trace ID */
+    traceId?: string;
+    /** Grouping ID for linking traces (e.g., chat thread ID) */
+    groupId?: string;
+    /** Additional metadata attached to the trace */
+    traceMetadata?: Record<string, string>;
   };
 }
 
 /**
  * A Temporal-aware agent runner that delegates model calls to activities.
+ *
+ * Streaming is not supported in Temporal workflows because activities are
+ * request-response. Use run() for all agent invocations.
  */
 export class TemporalOpenAIRunner {
   private readonly modelParams: ModelActivityOptions;
@@ -36,27 +88,13 @@ export class TemporalOpenAIRunner {
     input: string,
     options?: TemporalRunOptions<TContext>
   ): Promise<RunResult<any, TAgent>> {
-    this.validateTools(agent);
+    const { model: modelOverride, ...runnerConfigOverrides } = options?.runConfig ?? {};
 
-    let modelNameOverride: string | undefined;
-    if (options?.runConfig?.model !== undefined) {
-      if (typeof options.runConfig.model === 'string') {
-        modelNameOverride = options.runConfig.model;
-      } else {
-        throw ApplicationFailure.create({
-          message:
-            'RunConfig.model must be a string in Temporal workflows. ' +
-            'Model objects cannot be serialized across the workflow/activity boundary.',
-          type: 'AgentsWorkflowError',
-          nonRetryable: true,
-        });
-      }
-    }
-
-    const converted = convertAgent(agent, this.modelParams, undefined, modelNameOverride);
+    const converted = convertAgent(agent, this.modelParams, undefined, modelOverride);
 
     const internalRunner = new Runner({
       modelProvider: new DummyModelProvider(),
+      ...runnerConfigOverrides,
     });
 
     try {
@@ -64,81 +102,24 @@ export class TemporalOpenAIRunner {
         maxTurns: options?.maxTurns,
         context: options?.context,
         previousResponseId: options?.previousResponseId,
+        conversationId: options?.conversationId,
+        session: options?.session,
+        sessionInputCallback: options?.sessionInputCallback,
+        callModelInputFilter: options?.callModelInputFilter,
+        tracing: options?.tracing,
       })) as RunResult<any, TAgent>;
     } catch (error) {
       const temporalFailure = unwrapTemporalFailure(error);
       if (temporalFailure) throw temporalFailure;
       if (error instanceof Error) {
-        const wrapped = new AgentsWorkflowError(`Agent workflow failed: ${error.message}`, { cause: error });
         throw ApplicationFailure.create({
-          message: wrapped.message,
+          message: `Agent workflow failed: ${error.message}`,
           type: 'AgentsWorkflowError',
           nonRetryable: true,
-          cause: wrapped,
+          cause: error,
         });
       }
       throw error;
-    }
-  }
-
-  /**
-   * Streaming is not supported in Temporal workflows because activities are
-   * request-response. Call this and it throws immediately with a clear message.
-   * Use run() for non-streaming agent invocations.
-   */
-  runStreamed<TAgent extends Agent<any, any>, TContext = undefined>(
-    _agent: TAgent,
-    _input: string,
-    _options?: TemporalRunOptions<TContext>
-  ): never {
-    throw ApplicationFailure.create({
-      message: 'Streaming is not supported in Temporal workflows. Use run() instead.',
-      type: 'AgentsWorkflowError',
-      nonRetryable: true,
-    });
-  }
-
-  private validateTools(agent: Agent<any, any>, visited?: Set<Agent<any, any>>): void {
-    visited = visited ?? new Set();
-    if (visited.has(agent)) return;
-    visited.add(agent);
-
-    const tools: unknown[] = (agent as any).tools ?? [];
-    for (const t of tools) {
-      if (typeof t === 'function') {
-        throw ApplicationFailure.create({
-          message:
-            `Agent '${agent.name}': Provided tool is not a tool type. ` +
-            'If using an activity, make sure to wrap it with activityAsTool.',
-          type: 'AgentsWorkflowError',
-          nonRetryable: true,
-        });
-      }
-      if (
-        t &&
-        typeof t === 'object' &&
-        (t as any).type === 'function' &&
-        typeof (t as any).invoke === 'function' &&
-        !(t as any)[TEMPORAL_ACTIVITY_TOOL_MARKER]
-      ) {
-        throw ApplicationFailure.create({
-          message:
-            `Agent '${agent.name}': Function tool was not created via activityAsTool. ` +
-            'User-defined tools must be wrapped with activityAsTool() because ' +
-            'raw tool invocations run in the workflow sandbox and cannot perform I/O.',
-          type: 'AgentsWorkflowError',
-          nonRetryable: true,
-        });
-      }
-    }
-
-    const handoffs: unknown[] = (agent as any).handoffs ?? [];
-    for (const h of handoffs) {
-      if (h instanceof Handoff) {
-        this.validateTools(h.agent, visited);
-      } else if (h instanceof Agent) {
-        this.validateTools(h as Agent<any, any>, visited);
-      }
     }
   }
 }

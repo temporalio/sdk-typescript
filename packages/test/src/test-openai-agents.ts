@@ -580,8 +580,8 @@ test('AgentsWorkflowError wraps non-Temporal errors', async (t) => {
     });
 
     t.truthy(err, 'Expected WorkflowFailedError');
-    // Error chain: err.cause = ApplicationFailure, err.cause.cause = AgentsWorkflowError wrapper,
-    // err.cause.cause.cause = original Error. Check err.cause which stringifies the full chain.
+    // Error chain: err.cause = ApplicationFailure(type='AgentsWorkflowError'),
+    // err.cause.cause = original Error. No intermediate AgentsWorkflowError wrapper.
     const wrappedMessage = String(err!.cause);
     t.true(
       wrappedMessage.includes('Agent workflow failed'),
@@ -977,8 +977,8 @@ test('F13: TemporalFailure in Error.cause is unwrapped and re-thrown', async (t)
 
 // --- Error wrapping + streaming ---
 
-// C1 — F7: AgentsWorkflowError class is instantiated by the runner and appears
-// on the serialized failure via the cause chain.
+// C1 — F7: AgentsWorkflowError type tag is set on the ApplicationFailure created
+// by the runner, and appears on the serialized failure via the cause chain.
 test('C1/F7: AgentsWorkflowError type is preserved in serialized failure', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
 
@@ -1008,9 +1008,9 @@ test('C1/F7: AgentsWorkflowError type is preserved in serialized failure', async
   });
 });
 
-// C1/F7: Verify AgentsWorkflowError is actually instantiated inside the workflow.
+// C1/F7: Verify runner wraps errors as ApplicationFailure with original error as cause.
 // The workflow catches the runner's error and inspects e.cause.name.
-test('C1/F7: Runner wraps error with AgentsWorkflowError (in-workflow check)', async (t) => {
+test('C1/F7: Runner wraps error as ApplicationFailure with original Error cause', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
 
   const worker = await createWorker({
@@ -1031,14 +1031,14 @@ test('C1/F7: Runner wraps error with AgentsWorkflowError (in-workflow check)', a
     const info = JSON.parse(result);
     t.is(
       info.causeName,
-      'AgentsWorkflowError',
-      `Expected runner to throw with AgentsWorkflowError cause, got causeName=${info.causeName}`
+      'Error',
+      `Expected runner to throw with original Error as cause, got causeName=${info.causeName}`
     );
   });
 });
 
-// C3 — F27: runner.runStreamed() throws a clear not-supported error.
-test('C3/F27: runStreamed throws clear not-supported error', async (t) => {
+// C3 — F27: runStreamed() method was removed — calling it via `as any` fails at runtime.
+test('C3/F27: runStreamed call fails (method removed)', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
 
   const worker = await createWorker({
@@ -1058,13 +1058,7 @@ test('C3/F27: runStreamed throws clear not-supported error', async (t) => {
     const err = await t.throwsAsync(handle.result(), {
       instanceOf: WorkflowFailedError,
     });
-    t.truthy(err);
-
-    const fullMessage = String(err!.cause?.cause ?? err!.cause ?? err);
-    t.true(
-      fullMessage.includes('Streaming is not supported') || fullMessage.includes('streaming is not supported'),
-      `Expected error to mention 'Streaming is not supported', got: ${fullMessage}`
-    );
+    t.truthy(err, 'Expected WorkflowFailedError when calling removed runStreamed()');
   });
 });
 
@@ -1357,31 +1351,30 @@ test('D7/F16: Date in ModelResponse is coerced to string by Temporal serializati
 
 // --- Tool validation ---
 
-// E3/F20: tool() from agents-core directly (not activityAsTool) should be rejected
-test('E3/F20: FunctionTool from tool() factory is rejected with helpful error', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
+// E3/F20: tool() from agents-core runs inline in workflow (permissive — matches Python)
+function* inlineToolGenerator() {
+  yield toolCallResponse('inlineTool', { input: 'hello' });
+  yield textResponse('Tool said: processed: hello');
+}
+
+test('E3/F20: FunctionTool from tool() factory runs inline in workflow', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
-        modelProvider: new FakeModelProvider([textResponse('Should not reach here')]),
+        modelProvider: new GeneratorFakeModelProvider(() => inlineToolGenerator()),
       }),
     ],
   });
 
   await worker.runUntil(async () => {
-    const handle = await startWorkflow(directToolFactoryWorkflow, {
+    const result = await executeWorkflow(directToolFactoryWorkflow, {
       args: ['Hello'],
       workflowExecutionTimeout: '30 seconds',
     });
 
-    const err = await t.throwsAsync(handle.result(), {
-      instanceOf: WorkflowFailedError,
-    });
-
-    t.truthy(err, 'Expected WorkflowFailedError');
-    const fullMessage = String(err!.cause?.cause ?? err!.cause ?? err);
-    t.true(fullMessage.includes('activityAsTool'), `Expected error to mention activityAsTool, got: ${fullMessage}`);
+    t.is(result, 'Tool said: processed: hello');
   });
 });
 
@@ -1855,9 +1848,9 @@ test('H1: runConfig.model string override uses override model name in activity',
   );
 });
 
-// --- H2: validateTools recurses into handoff agents ---
+// --- H2: convertAgent catches raw function tools on handoff agents ---
 
-test('H2: validateTools catches raw function tool on handoff agent (Agent handoff)', async (t) => {
+test('H2: convertAgent catches raw function tool on handoff agent (Agent handoff)', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
 
   const worker = await createWorker({
@@ -1881,13 +1874,13 @@ test('H2: validateTools catches raw function tool on handoff agent (Agent handof
     t.truthy(err, 'Expected WorkflowFailedError for raw tool on handoff agent');
     const fullMessage = String(err!.cause?.cause ?? err!.cause ?? err);
     t.true(
-      fullMessage.includes('activityAsTool') || fullMessage.includes('not a tool type'),
-      `Expected error about activityAsTool for handoff agent's raw tool, got: ${fullMessage}`
+      fullMessage.includes('raw function') || fullMessage.includes('not a tool'),
+      `Expected error about raw function tool on handoff agent, got: ${fullMessage}`
     );
   });
 });
 
-test('H2: validateTools catches raw function tool on handoff() instance agent', async (t) => {
+test('H2: convertAgent catches raw function tool on handoff() instance agent', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
 
   const worker = await createWorker({
@@ -1911,8 +1904,8 @@ test('H2: validateTools catches raw function tool on handoff() instance agent', 
     t.truthy(err, 'Expected WorkflowFailedError for raw tool on handoff() agent');
     const fullMessage = String(err!.cause?.cause ?? err!.cause ?? err);
     t.true(
-      fullMessage.includes('activityAsTool') || fullMessage.includes('not a tool type'),
-      `Expected error about activityAsTool, got: ${fullMessage}`
+      fullMessage.includes('raw function') || fullMessage.includes('not a tool'),
+      `Expected error about raw function tool, got: ${fullMessage}`
     );
   });
 });

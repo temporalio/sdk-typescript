@@ -1,9 +1,9 @@
 import type { Agent } from '@openai/agents-core';
 
 /**
- * Centralizes the most common access pattern for upstream's typed-but-opaque
- * Agent generic. Additional raw casts exist in runner.ts (to be migrated in
- * the runner.ts hardening batch).
+ * Centralizes all access to upstream's typed-but-opaque Agent generic fields.
+ * Used by both convertAgent (tool validation + model conversion) and any future
+ * code that needs to inspect agent internals without casting inline.
  */
 export function getAgentInternals(agent: Agent<any, any>): {
   model?: unknown;

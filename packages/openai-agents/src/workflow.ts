@@ -13,8 +13,6 @@ export {
   TemporalTracingProcessor,
   ensureTracingProcessorRegistered,
 } from './workflow/tracing';
-// Re-export so workflow callers can instanceof-check
-export { AgentsWorkflowError } from './common/errors';
 export {
   WIRE_VERSION,
   type SerializedModelRequest,

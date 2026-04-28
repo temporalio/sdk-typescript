@@ -24,7 +24,6 @@ export {
 } from './common/serialized-model';
 export type { ModelActivityOptions, ModelSummaryProvider, AgentInputItem } from './common/model-activity-options';
 export { DEFAULT_MODEL_ACTIVITY_OPTIONS } from './common/model-activity-options';
-export { AgentsWorkflowError } from './common/errors';
 export { ToolSerializationError } from './workflow/tools';
 export type { ActivityToolDefinition, ActivityAsToolOptions, JsonObjectSchema } from './workflow/tools';
 export type { StatelessMcpServerOptions, TemporalMCPServer, MCPPromptDefinition } from './workflow/mcp-client';
