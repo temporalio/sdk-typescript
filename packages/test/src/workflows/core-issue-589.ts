@@ -4,7 +4,7 @@ import { unblockSignal } from './definitions';
 
 const { customLogger } = wf.proxySinks<CustomLoggerSinks>();
 
-// Demo for https://github.com/temporalio/sdk-core/issues/589
+// Demo for https://github.com/temporalio/sdk-rust/issues/589
 export async function coreIssue589(): Promise<void> {
   wf.setHandler(wf.defineQuery('q'), () => {
     return 'not important';
