@@ -55,7 +55,7 @@ import { Context } from '@temporalio/activity';
 import { PubSubClient } from '@temporalio/contrib-pubsub';
 
 export async function streamEvents(): Promise<void> {
-  await using client = PubSubClient.fromActivity({ batchInterval: 2.0 });
+  await using client = PubSubClient.fromActivity({ batchInterval: '2 seconds' });
   client.start();
 
   for await (const chunk of generateChunks()) {
@@ -177,7 +177,7 @@ if (workflowInfo().continueAsNewSuggested) {
 | Method | Description |
 |---|---|
 | `publish(topic, value)` | Append to the log from workflow code. Accepts any value the default payload converter handles, or a pre-built `Payload`. |
-| `getState(publisherTtl = 900)` | Snapshot for continue-as-new. Drops publisher dedup entries older than `publisherTtl` seconds. |
+| `getState(publisherTtl?)` | Snapshot for continue-as-new. Drops publisher dedup entries older than `publisherTtl` (`Duration`, default `'15 minutes'`). |
 | `drain()` | Unblock polls and reject new ones. |
 | `continueAsNew<F>(buildArgs, options?)` | Async. Drain, wait for handlers, then `continueAsNew` with `buildArgs(postDrainState)`. Use the explicit recipe with `makeContinueAsNewFunc` to pass other CAN options. |
 | `truncate(upToOffset)` | Discard log entries below the given offset. |
@@ -201,16 +201,16 @@ Handlers registered automatically:
 | `stop()` | Stop the flusher and flush remaining items. |
 | `[Symbol.asyncDispose]()` | Supports `await using client = PubSubClient.create(...)`. |
 | `publish(topic, value, forceFlush = false)` | Buffer a message. `value` may be any converter-compatible object or a pre-built `Payload`. `forceFlush` wakes the flusher to send immediately. |
-| `subscribe(topics?, fromOffset = 0, { pollCooldown = 0.1 })` | Async generator yielding `PubSubItem` with `data: Payload`. Always follows CAN chains when created via `create()`. Recovers automatically from `TruncatedOffset` by restarting from the current base offset. |
+| `subscribe(topics?, fromOffset = 0, { pollCooldown = '100 milliseconds' })` | Async generator yielding `PubSubItem` with `data: Payload`. `pollCooldown` is a `Duration`. Always follows CAN chains when created via `create()`. Recovers automatically from `TruncatedOffset` by restarting from the current base offset. |
 | `getOffset()` | Query current global offset. |
 
 ### `PubSubClientOptions`
 
 | Option | Default | Description |
 |---|---|---|
-| `batchInterval` | `2.0` | Seconds between automatic flushes. |
+| `batchInterval` | `'2 seconds'` | Interval between automatic flushes (`Duration`). |
 | `maxBatchSize` | `undefined` | Auto-flush when buffer reaches this size. |
-| `maxRetryDuration` | `600` | Seconds to retry a failed flush before `FlushTimeoutError`. Must be less than the workflow's `publisherTtl` to preserve exactly-once delivery. |
+| `maxRetryDuration` | `'10 minutes'` | Time to retry a failed flush before `FlushTimeoutError` (`Duration`). Must be less than the workflow's `publisherTtl` to preserve exactly-once delivery. |
 
 ## Cross-Language Protocol
 

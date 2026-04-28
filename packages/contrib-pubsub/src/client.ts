@@ -22,6 +22,7 @@ import {
   WorkflowUpdateRPCTimeoutOrCancelledError,
 } from '@temporalio/client';
 import { ApplicationFailure, defaultPayloadConverter, type Payload, type PayloadConverter } from '@temporalio/common';
+import { Duration, msToNumber } from '@temporalio/common/lib/time';
 import {
   decodePayloadWire,
   encodePayloadWire,
@@ -41,24 +42,24 @@ export class FlushTimeoutError extends Error {
 }
 
 export interface PubSubClientOptions {
-  /** Seconds between automatic flushes. Default: 2.0 */
-  batchInterval?: number;
+  /** Interval between automatic flushes. Default: 2 seconds. */
+  batchInterval?: Duration;
   /** Auto-flush when buffer reaches this size. */
   maxBatchSize?: number;
   /**
-   * Maximum seconds to retry a failed flush before throwing.
-   * Must be less than the workflow's publisherTtl (default 900s) to preserve
-   * exactly-once delivery. Default: 600.
+   * Maximum time to retry a failed flush before throwing. Must be less
+   * than the workflow's `publisherTtl` (default 15 minutes) to preserve
+   * exactly-once delivery. Default: 10 minutes.
    */
-  maxRetryDuration?: number;
+  maxRetryDuration?: Duration;
 }
 
 export interface SubscribeOptions {
   /**
-   * Minimum seconds between polls to avoid overwhelming the workflow when
-   * items arrive faster than the poll round-trip. Default: 0.1.
+   * Minimum interval between polls to avoid overwhelming the workflow
+   * when items arrive faster than the poll round-trip. Default: 100ms.
    */
-  pollCooldown?: number;
+  pollCooldown?: Duration;
 }
 
 /**
@@ -119,9 +120,9 @@ export class PubSubClient {
   private handle: WorkflowHandle;
   private client: Client | undefined;
   private readonly workflowId: string;
-  private readonly batchInterval: number;
+  private readonly batchIntervalMs: number;
   private readonly maxBatchSize: number | undefined;
-  private readonly maxRetryDuration: number;
+  private readonly maxRetryDurationMs: number;
   private readonly payloadConverter: PayloadConverter;
   private buffer: Array<{ topic: string; value: unknown }> = [];
   private pending: PublishEntry[] | null = null;
@@ -139,9 +140,9 @@ export class PubSubClient {
   constructor(handle: WorkflowHandle, options?: PubSubClientOptions) {
     this.handle = handle;
     this.workflowId = handle.workflowId;
-    this.batchInterval = options?.batchInterval ?? 2.0;
+    this.batchIntervalMs = msToNumber(options?.batchInterval ?? '2 seconds');
     this.maxBatchSize = options?.maxBatchSize;
-    this.maxRetryDuration = options?.maxRetryDuration ?? 600;
+    this.maxRetryDurationMs = msToNumber(options?.maxRetryDuration ?? '10 minutes');
     this.payloadConverter = defaultPayloadConverter;
   }
 
@@ -300,7 +301,7 @@ export class PubSubClient {
 
   private async runFlusher(): Promise<void> {
     while (!this.flusherStopped) {
-      await Promise.race([this.flushEvent.wait(), sleep(this.batchInterval * 1000)]);
+      await Promise.race([this.flushEvent.wait(), sleep(this.batchIntervalMs)]);
       this.flushEvent.clear();
       if (this.flusherStopped) break;
       try {
@@ -347,7 +348,7 @@ export class PubSubClient {
       // Retry path: check max_retry_duration
       if (
         this.pendingStartedAt !== null &&
-        (Date.now() - this.pendingStartedAt) / 1000 > this.maxRetryDuration
+        Date.now() - this.pendingStartedAt > this.maxRetryDurationMs
       ) {
         // Advance confirmed sequence so the next batch gets a fresh sequence
         // number. Without this, the next batch reuses pendingSeq, which the
@@ -358,7 +359,7 @@ export class PubSubClient {
         this.pendingSeq = 0;
         this.pendingStartedAt = null;
         throw new FlushTimeoutError(
-          `Flush retry exceeded maxRetryDuration (${this.maxRetryDuration}s). ` +
+          `Flush retry exceeded maxRetryDuration (${this.maxRetryDurationMs}ms). ` +
             'Pending batch dropped. If the signal was delivered, items are in the log. ' +
             'If not, they are lost.'
         );
@@ -409,7 +410,7 @@ export class PubSubClient {
     fromOffset = 0,
     options?: SubscribeOptions
   ): AsyncGenerator<PubSubItem, void, unknown> {
-    const pollCooldown = options?.pollCooldown ?? 0.1;
+    const pollCooldownMs = msToNumber(options?.pollCooldown ?? '100 milliseconds');
     const topicFilter: string[] =
       topics === undefined ? [] : typeof topics === 'string' ? [topics] : topics;
     let offset = fromOffset;
@@ -450,8 +451,8 @@ export class PubSubClient {
       }
       offset = result.next_offset;
 
-      if (!result.more_ready && pollCooldown > 0) {
-        await sleep(pollCooldown * 1000);
+      if (!result.more_ready && pollCooldownMs > 0) {
+        await sleep(pollCooldownMs);
       }
     }
   }

@@ -98,7 +98,7 @@ export function createActivities(
      * response-metadata, finish, ...); no normalization happens here.
      */
     async invokeModelStreaming(args: InvokeModelArgs): Promise<InvokeModelResult> {
-      const pubsub = PubSubClient.fromActivity({ batchInterval: 0.1 });
+      const pubsub = PubSubClient.fromActivity({ batchInterval: '100 milliseconds' });
       pubsub.start();
 
       const model = provider.languageModel(args.modelId);

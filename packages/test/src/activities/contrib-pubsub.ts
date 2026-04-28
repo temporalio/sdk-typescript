@@ -11,7 +11,7 @@ import { PubSubClient } from '@temporalio/contrib-pubsub';
 const encoder = new TextEncoder();
 
 export async function publishItems(count: number): Promise<void> {
-  await using client = PubSubClient.fromActivity({ batchInterval: 0.5 });
+  await using client = PubSubClient.fromActivity({ batchInterval: '500 milliseconds' });
   client.start();
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
@@ -21,7 +21,7 @@ export async function publishItems(count: number): Promise<void> {
 
 export async function publishMultiTopic(count: number): Promise<void> {
   const topics = ['a', 'b', 'c'];
-  await using client = PubSubClient.fromActivity({ batchInterval: 0.5 });
+  await using client = PubSubClient.fromActivity({ batchInterval: '500 milliseconds' });
   client.start();
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
@@ -36,7 +36,7 @@ export async function publishWithForceFlush(): Promise<void> {
   // The hold is deliberately much longer than the test's collect timeout
   // so a regression (forceFlush no-op) surfaces as a missing item rather
   // than flaking on slow CI.
-  await using client = PubSubClient.fromActivity({ batchInterval: 60.0 });
+  await using client = PubSubClient.fromActivity({ batchInterval: '60 seconds' });
   client.start();
   client.publish('events', encoder.encode('normal-0'));
   client.publish('events', encoder.encode('normal-1'));
@@ -48,7 +48,7 @@ export async function publishWithForceFlush(): Promise<void> {
 }
 
 export async function publishBatchTest(count: number): Promise<void> {
-  await using client = PubSubClient.fromActivity({ batchInterval: 60.0 });
+  await using client = PubSubClient.fromActivity({ batchInterval: '60 seconds' });
   client.start();
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
@@ -59,7 +59,7 @@ export async function publishBatchTest(count: number): Promise<void> {
 
 export async function publishWithMaxBatch(count: number): Promise<void> {
   await using client = PubSubClient.fromActivity({
-    batchInterval: 60.0,
+    batchInterval: '60 seconds',
     maxBatchSize: 3,
   });
   client.start();

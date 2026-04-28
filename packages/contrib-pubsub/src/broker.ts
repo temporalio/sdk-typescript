@@ -29,6 +29,7 @@ import {
   defaultPayloadConverter,
 } from '@temporalio/workflow';
 import { ApplicationFailure, type Payload, type Workflow } from '@temporalio/common';
+import { Duration, msToNumber } from '@temporalio/common/lib/time';
 import {
   decodePayloadWire,
   encodePayloadProto,
@@ -180,9 +181,11 @@ export class PubSub {
 
   /**
    * Return a serializable snapshot of pub/sub state for continue-as-new.
-   * Prunes publisher dedup entries older than publisherTtl seconds.
+   * Prunes publisher dedup entries older than `publisherTtl`. Defaults
+   * to 15 minutes.
    */
-  getState(publisherTtl = 900): PubSubState {
+  getState(publisherTtl: Duration = '15 minutes'): PubSubState {
+    const ttlSeconds = msToNumber(publisherTtl) / 1000;
     const now = Date.now() / 1000;
     const activeSeqs: Record<string, number> = {};
     const activeSeen: Record<string, number> = {};
@@ -191,7 +194,7 @@ export class PubSub {
       // handler always sets both maps together, so absence indicates a
       // malformed snapshot rather than a supported upgrade path.
       const ts = this.publisherLastSeen[pid] ?? 0;
-      if (now - ts < publisherTtl) {
+      if (now - ts < ttlSeconds) {
         activeSeqs[pid] = this.publisherSequences[pid] ?? 0;
         activeSeen[pid] = ts;
       }
@@ -238,7 +241,7 @@ export class PubSub {
    */
   async continueAsNew<F extends Workflow>(
     buildArgs: (state: PubSubState) => Parameters<F>,
-    options?: { publisherTtl?: number },
+    options?: { publisherTtl?: Duration },
   ): Promise<never> {
     this.drain();
     await condition(allHandlersFinished);

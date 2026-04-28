@@ -411,7 +411,7 @@ test('explicit_flush_barrier — flush() returns once items are confirmed', asyn
   await worker.runUntil(async () => {
     const handle = await startWorkflow(basicPubSubWorkflow, { args: [] });
 
-    const pubsub = new PubSubClient(handle, { batchInterval: 60 });
+    const pubsub = new PubSubClient(handle, { batchInterval: '60 seconds' });
 
     // 1. Empty-buffer flush is a no-op (must not block).
     t.is(await pubsub.getOffset(), 0);
@@ -477,7 +477,8 @@ test('ttl_pruning_in_get_state — old publisher pruned, new publisher kept', as
     });
 
     // Sanity: pub-old is recorded (generous TTL retains it).
-    const before = await handle.query<PubSubState, [number]>(getStateWithTtlQuery, 9999);
+    // Generous TTL: 9999 seconds, expressed in ms.
+    const before = await handle.query<PubSubState, [number]>(getStateWithTtlQuery, 9999_000);
     t.true('pub-old' in before.publisher_sequences);
 
     // Wall-clock gap so workflow.time() advances between the two signals.
@@ -489,7 +490,8 @@ test('ttl_pruning_in_get_state — old publisher pruned, new publisher kept', as
       sequence: 1,
     });
 
-    const state = await handle.query<PubSubState, [number]>(getStateWithTtlQuery, 0.5);
+    // 500 ms TTL: pub-old (~1s old) is pruned, pub-new (~0s old) is kept.
+    const state = await handle.query<PubSubState, [number]>(getStateWithTtlQuery, 500);
     t.false('pub-old' in state.publisher_sequences);
     t.true('pub-new' in state.publisher_sequences);
     t.is(state.log.length, 2);
@@ -758,7 +760,10 @@ test('flush_raises_after_max_retry_duration — timeout surfaces, client resumes
   // the client stays usable and subsequent publishes succeed.
   const { env } = t.context;
   const bogus = env.client.workflow.getHandle(`no-such-workflow-${randomUUID()}`);
-  const client = new PubSubClient(bogus, { batchInterval: 0.1, maxRetryDuration: 0.2 });
+  const client = new PubSubClient(bogus, {
+    batchInterval: '100 milliseconds',
+    maxRetryDuration: '200 milliseconds',
+  });
   client.start();
   client.publish('events', encoder.encode('will-be-lost'));
   await new Promise((r) => setTimeout(r, 1500));
