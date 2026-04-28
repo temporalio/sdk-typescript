@@ -10,7 +10,6 @@ export type { StatelessMcpServerOptions, TemporalMCPServer, MCPPromptDefinition 
 export {
   isInWorkflow,
   isReplaying,
-  getWorkflowTracingConfig,
   TemporalTracingProcessor,
   ensureTracingProcessorRegistered,
 } from './workflow/tracing';

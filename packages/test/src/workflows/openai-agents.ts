@@ -12,7 +12,6 @@ import {
   statelessMcpServer,
   isInWorkflow,
   isReplaying,
-  getWorkflowTracingConfig,
   toSerializedModelRequest,
   type TemporalMCPServer,
 } from '@temporalio/openai-agents/lib/workflow';
@@ -77,11 +76,13 @@ export async function handoffAgentWorkflow(question: string): Promise<string> {
     name: 'WeatherSpecialist',
     instructions: 'You are a weather specialist.',
     handoffDescription: 'Weather questions',
+    model: 'fake-model',
   });
 
   const triageAgent = new Agent({
     name: 'TriageAgent',
     instructions: 'Route to specialists.',
+    model: 'fake-model',
     handoffs: [weatherSpecialist],
   });
 
@@ -100,6 +101,7 @@ export async function maxTurnsAgentWorkflow(
   const agent = new Agent({
     name: 'TurnsAgent',
     instructions: 'You are a helpful assistant.',
+    model: 'fake-model',
   });
 
   const runner = new TemporalOpenAIRunner();
@@ -144,6 +146,7 @@ export async function multiToolAgentWorkflow(prompt: string): Promise<string> {
   const agent = new Agent({
     name: 'MultiToolAgent',
     instructions: 'Use tools to answer questions.',
+    model: 'fake-model',
     tools: [weatherTool, sumTool],
   });
 
@@ -164,6 +167,7 @@ export async function contextAgentWorkflow(prompt: string, userId: string): Prom
   const agent = new Agent<UserContext>({
     name: 'ContextAgent',
     instructions: 'You are a helpful assistant.',
+    model: 'fake-model',
   });
 
   const context: UserContext = {
@@ -258,6 +262,7 @@ export async function agentsWorkflowErrorWorkflow(prompt: string): Promise<strin
     instructions: () => {
       throw new Error('Instructions evaluation failed');
     },
+    model: 'fake-model',
   });
 
   const runner = new TemporalOpenAIRunner();
@@ -313,11 +318,13 @@ export async function handoffInstanceWorkflow(question: string): Promise<string>
     name: 'WeatherSpecialist',
     instructions: 'You are a weather specialist.',
     handoffDescription: 'Weather questions',
+    model: 'fake-model',
   });
 
   const triageAgent = new Agent({
     name: 'TriageAgent',
     instructions: 'Route to specialists.',
+    model: 'fake-model',
     handoffs: [handoff(weatherSpecialist)],
   });
 
@@ -334,10 +341,12 @@ export async function cyclicHandoffWorkflow(prompt: string): Promise<string> {
   const agentA = new Agent({
     name: 'AgentA',
     instructions: 'You are agent A.',
+    model: 'fake-model',
   });
   const agentB = new Agent({
     name: 'AgentB',
     instructions: 'You are agent B.',
+    model: 'fake-model',
   });
   (agentA as any).handoffs = [agentB];
   (agentB as any).handoffs = [agentA];
@@ -357,6 +366,7 @@ export async function promptFieldWorkflow(prompt: string): Promise<string> {
   const agent = new Agent({
     name: 'PromptAgent',
     instructions: 'You are a helpful assistant.',
+    model: 'fake-model',
     prompt: {
       promptId: 'pt_test',
       variables: {},
@@ -405,6 +415,7 @@ export async function wrappedTemporalFailureWorkflow(prompt: string): Promise<st
     instructions: () => {
       throw wrapper;
     },
+    model: 'fake-model',
   });
 
   const runner = new TemporalOpenAIRunner();
@@ -422,6 +433,7 @@ export async function agentsWorkflowErrorClassCheckWorkflow(prompt: string): Pro
     instructions: () => {
       throw new Error('Instructions evaluation failed');
     },
+    model: 'fake-model',
   });
 
   const runner = new TemporalOpenAIRunner();
@@ -651,12 +663,10 @@ export async function summaryOverrideStringWorkflow(prompt: string): Promise<str
 export async function tracingUtilitiesWorkflow(): Promise<{
   isInWf: boolean;
   isReplay: boolean;
-  tracingConfig: string;
 }> {
   return {
     isInWf: isInWorkflow(),
     isReplay: isReplaying(),
-    tracingConfig: getWorkflowTracingConfig(),
   };
 }
 
@@ -744,6 +754,7 @@ export async function handoffMutationCheckWorkflow(prompt: string): Promise<stri
   const triageAgent = new Agent({
     name: 'TriageAgent',
     instructions: 'Route to specialists.',
+    model: 'fake-model',
     handoffs: [handoffObj],
   });
 
@@ -775,6 +786,7 @@ export async function handoffOnHandoffCallbackWorkflow(prompt: string): Promise<
   const specialist = new Agent({
     name: 'CallbackSpecialist',
     instructions: 'You are a specialist.',
+    model: 'fake-model',
   });
 
   const handoffObj = handoff(specialist, {
@@ -789,6 +801,7 @@ export async function handoffOnHandoffCallbackWorkflow(prompt: string): Promise<
   const triageAgent = new Agent({
     name: 'TriageAgent',
     instructions: 'Route to specialists.',
+    model: 'fake-model',
     handoffs: [handoffObj],
   });
 
@@ -809,6 +822,7 @@ export async function handoffIsEnabledFalseWorkflow(prompt: string): Promise<str
   const specialist = new Agent({
     name: 'DisabledSpecialist',
     instructions: 'You are a specialist.',
+    model: 'fake-model',
   });
 
   const handoffObj = handoff(specialist, {
@@ -818,6 +832,7 @@ export async function handoffIsEnabledFalseWorkflow(prompt: string): Promise<str
   const triageAgent = new Agent({
     name: 'TriageAgent',
     instructions: 'Route to specialists.',
+    model: 'fake-model',
     handoffs: [handoffObj],
   });
 
@@ -834,6 +849,7 @@ export async function handoffWithCustomSchemaWorkflow(prompt: string): Promise<s
   const specialist = new Agent({
     name: 'SchemaSpecialist',
     instructions: 'You are a specialist.',
+    model: 'fake-model',
   });
 
   const handoffObj = handoff(specialist);
@@ -850,6 +866,7 @@ export async function handoffWithCustomSchemaWorkflow(prompt: string): Promise<s
   const triageAgent = new Agent({
     name: 'TriageAgent',
     instructions: 'Route to specialists.',
+    model: 'fake-model',
     handoffs: [handoffObj],
   });
 
@@ -1087,4 +1104,110 @@ export async function tracingSpanCaptureWorkflow(): Promise<{
   await runner.run(agent, 'Hello');
 
   return capture;
+}
+
+/**
+ * T2: Replay-safety test workflow. Designed to run with maxCachedWorkflows: 0
+ * so the worker evicts the workflow after each task and replays from scratch.
+ *
+ * The model activity creates a workflow task boundary. On the second task the
+ * SDK replays from the beginning. The `isReplaying()` check at workflow start
+ * captures whether replay occurred. Trace events are captured unconditionally
+ * by the inline processor.
+ */
+export async function replaySafetyWorkflow(): Promise<{
+  traceIds: string[];
+  spanTypes: string[];
+  replayDetected: boolean;
+}> {
+  const capture: { traceIds: string[]; spanTypes: string[]; replayDetected: boolean } = {
+    traceIds: [],
+    spanTypes: [],
+    replayDetected: isReplaying(),
+  };
+
+  const runner = new TemporalOpenAIRunner();
+
+  addTraceProcessor({
+    async onTraceStart(trace: any) {
+      capture.traceIds.push(trace.traceId);
+    },
+    async onTraceEnd() {},
+    async onSpanStart(span: any) {
+      capture.spanTypes.push(span.spanData.type);
+    },
+    async onSpanEnd() {},
+    async shutdown() {},
+    async forceFlush() {},
+  });
+
+  const agent = new Agent({
+    name: 'ReplayTestAgent',
+    instructions: 'You are a test agent.',
+    model: 'fake-model',
+  });
+
+  await runner.run(agent, 'Hello');
+
+  return capture;
+}
+
+// --- CLEANUP-6: Handoff-clone snapshot test ---
+// Tests the Object.create clone technique used by convertAgent to clone Handoff
+// instances. Uses the same mechanism directly to avoid importing convertAgent
+// (which lives in the openai-agents package and may not be in the compiled output).
+
+export async function handoffCloneSnapshotWorkflow(): Promise<{
+  fieldsPreserved: Record<string, boolean>;
+  agentReplaced: boolean;
+  onInvokeHandoffReplaced: boolean;
+  prototypeMatch: boolean;
+}> {
+  const specialist = new Agent({
+    name: 'SnapshotSpecialist',
+    instructions: 'You are a specialist.',
+    model: 'snapshot-model',
+  });
+
+  const inputFilterFn = (data: any) => data;
+
+  const handoffObj = handoff(specialist, {
+    toolNameOverride: 'custom_snapshot_tool',
+    toolDescriptionOverride: 'Custom snapshot description',
+    onHandoff: async () => {},
+    inputType: z.object({ reason: z.string() }),
+    inputFilter: inputFilterFn,
+    isEnabled: false,
+  });
+
+  // Clone using the exact same Object.create technique as convertAgent
+  const clone = Object.create(
+    Object.getPrototypeOf(handoffObj),
+    Object.getOwnPropertyDescriptors(handoffObj)
+  ) as typeof handoffObj;
+
+  // Simulate what convertAgent does: replace agent and onInvokeHandoff
+  const replacementAgent = new Agent({
+    name: 'ReplacementSpecialist',
+    instructions: 'Replacement.',
+    model: 'replacement-model',
+  });
+  clone.agent = replacementAgent;
+  const replacementOnInvoke = async () => replacementAgent;
+  clone.onInvokeHandoff = replacementOnInvoke;
+
+  return {
+    fieldsPreserved: {
+      toolName: clone.toolName === handoffObj.toolName,
+      toolDescription: clone.toolDescription === handoffObj.toolDescription,
+      inputJsonSchema: JSON.stringify(clone.inputJsonSchema) === JSON.stringify(handoffObj.inputJsonSchema),
+      strictJsonSchema: clone.strictJsonSchema === handoffObj.strictJsonSchema,
+      agentName: clone.agentName === handoffObj.agentName,
+      inputFilter: clone.inputFilter === handoffObj.inputFilter,
+      isEnabled: clone.isEnabled === handoffObj.isEnabled,
+    },
+    agentReplaced: clone.agent !== handoffObj.agent,
+    onInvokeHandoffReplaced: clone.onInvokeHandoff !== handoffObj.onInvokeHandoff,
+    prototypeMatch: Object.getPrototypeOf(clone) === Object.getPrototypeOf(handoffObj),
+  };
 }

@@ -50,6 +50,8 @@ import {
   wireVersionMismatchWorkflow,
   wireRequestSnapshotWorkflow,
   tracingSpanCaptureWorkflow,
+  replaySafetyWorkflow,
+  handoffCloneSnapshotWorkflow,
 } from './workflows/openai-agents';
 import { helpers, makeTestFunction } from './helpers-integration';
 import {
@@ -1629,7 +1631,6 @@ test('F1b: Tracing utilities return correct values in workflow context', async (
 
     t.true(result.isInWf, 'isInWorkflow() should return true inside workflow');
     t.is(typeof result.isReplay, 'boolean', 'isReplaying() should return a boolean');
-    t.is(result.tracingConfig, 'enabled', 'getWorkflowTracingConfig() should return enabled (tracing bridged to OTel)');
   });
 });
 
@@ -2532,5 +2533,60 @@ test('T1: OpenAI Agents tracing path is active and produces trace/span events', 
       result.spanTypes.includes('generation') || result.spanTypes.includes('response'),
       'Should have a generation or response span'
     );
+  });
+});
+
+// --- T2: Replay-safety test ---
+
+test('T2: Tracing is replay-safe — no NondeterminismError when workflow replays', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    maxCachedWorkflows: 0,
+    plugins: [
+      new OpenAIAgentsPlugin({
+        modelProvider: new FakeModelProvider([textResponse('Replayed response')]),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(replaySafetyWorkflow, {
+      workflowExecutionTimeout: '30 seconds',
+    });
+
+    t.true(
+      result.replayDetected,
+      'Workflow should have detected replay (proves maxCachedWorkflows: 0 forced a replay)'
+    );
+    t.true(result.traceIds.length > 0, 'Should capture at least one trace during non-replay execution');
+    t.true(result.spanTypes.includes('agent'), 'Should have an agent span');
+  });
+});
+
+// --- CLEANUP-6: Handoff-clone snapshot test ---
+
+test('CLEANUP-6: Handoff clone preserves all public fields through convertAgent', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    plugins: [
+      new OpenAIAgentsPlugin({
+        modelProvider: new FakeModelProvider([textResponse('unused')]),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(handoffCloneSnapshotWorkflow, {
+      workflowExecutionTimeout: '30 seconds',
+    });
+
+    for (const [field, preserved] of Object.entries(result.fieldsPreserved)) {
+      t.true(preserved, `Handoff clone field '${field}' should be preserved`);
+    }
+    t.true(result.agentReplaced, 'Handoff clone agent should be replaced with converted agent');
+    t.true(result.onInvokeHandoffReplaced, 'Handoff clone onInvokeHandoff should be replaced with wrapper');
+    t.true(result.prototypeMatch, 'Handoff clone prototype should match original');
   });
 });

@@ -1,10 +1,10 @@
 import { Agent, Handoff, Runner, type Model, type RunResult } from '@openai/agents-core';
 import { ApplicationFailure } from '@temporalio/common';
 import { DEFAULT_MODEL_ACTIVITY_OPTIONS, type ModelActivityOptions } from '../common/model-activity-options';
-import { AgentsWorkflowError } from '../common/errors';
+import { AgentsWorkflowError, unwrapTemporalFailure } from '../common/errors';
 import { DummyModelProvider } from './dummy-model-provider';
 import { TEMPORAL_ACTIVITY_TOOL_MARKER } from './tools';
-import { unwrapTemporalFailure, convertAgent } from './convert-agent';
+import { convertAgent } from './convert-agent';
 import { ensureTracingProcessorRegistered } from './tracing';
 
 export interface TemporalRunOptions<TContext = undefined> {

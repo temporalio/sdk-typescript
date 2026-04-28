@@ -20,10 +20,6 @@ export function isReplaying(): boolean {
   return workflowInfo().unsafe.isReplaying;
 }
 
-export function getWorkflowTracingConfig(): 'disabled' | 'enabled' {
-  return 'enabled';
-}
-
 // --- OTel bridge: maps OpenAI Agents SDK trace events to OTel spans ---
 
 const TRACER_NAME = '@temporalio/openai-agents';
@@ -117,16 +113,45 @@ interface SpanEntry {
  * tracer provider in the workflow sandbox. Without a registered provider,
  * otel.trace.getTracer() returns a no-op tracer and spans are silently discarded.
  *
+ * Deterministic trace/span IDs are provided by the `crypto.randomUUID` polyfill in
+ * `load-polyfills.ts`, which delegates to Temporal's `uuid4()` (per-workflow seeded
+ * PRNG). Upstream `@openai/agents-core` calls `crypto.randomUUID()` internally for
+ * ID generation, so IDs are automatically replay-safe without a custom TraceProvider.
+ *
  * Activity spans from interceptors-opentelemetry appear as siblings of generation
  * spans, not children. Proper nesting would require pushing OTel context before the
  * activity call — deferred to a follow-up.
  */
 export class TemporalTracingProcessor implements TracingProcessor {
   private readonly tracer: otel.Tracer;
-  private readonly spans = new Map<string, SpanEntry>();
+  // Outer key: workflowId, inner key: spanId or traceId.
+  // Scoped per-workflow so concurrent workflows on the same worker don't share state.
+  private readonly spans = new Map<string, Map<string, SpanEntry>>();
 
   constructor() {
     this.tracer = otel.trace.getTracer(TRACER_NAME);
+  }
+
+  private getWorkflowSpans(): Map<string, SpanEntry> {
+    const wfId = workflowInfo().workflowId;
+    let inner = this.spans.get(wfId);
+    if (!inner) {
+      inner = new Map();
+      this.spans.set(wfId, inner);
+    }
+    return inner;
+  }
+
+  private getSpanEntry(id: string): SpanEntry | undefined {
+    return this.spans.get(workflowInfo().workflowId)?.get(id);
+  }
+
+  private deleteSpanEntry(id: string): void {
+    const wfId = workflowInfo().workflowId;
+    const inner = this.spans.get(wfId);
+    if (!inner) return;
+    inner.delete(id);
+    if (inner.size === 0) this.spans.delete(wfId);
   }
 
   async onTraceStart(trace: Trace): Promise<void> {
@@ -139,15 +164,17 @@ export class TemporalTracingProcessor implements TracingProcessor {
 
     const span = this.tracer.startSpan('openai.agents.run', { attributes: attrs }, parentCtx);
     const ctx = otel.trace.setSpan(parentCtx, span);
-    this.spans.set(trace.traceId, { span, context: ctx });
+    this.getWorkflowSpans().set(trace.traceId, { span, context: ctx });
   }
 
   async onTraceEnd(trace: Trace): Promise<void> {
-    const entry = this.spans.get(trace.traceId);
+    if (isReplaying()) return;
+
+    const entry = this.getSpanEntry(trace.traceId);
     if (!entry) return;
     entry.span.setStatus({ code: otel.SpanStatusCode.OK });
     entry.span.end();
-    this.spans.delete(trace.traceId);
+    this.deleteSpanEntry(trace.traceId);
   }
 
   async onSpanStart(span: Span<SpanData>): Promise<void> {
@@ -158,7 +185,7 @@ export class TemporalTracingProcessor implements TracingProcessor {
     const attrs = staticAttributesFromSpanData(data);
 
     let parentCtx: otel.Context;
-    const parentEntry = span.parentId ? this.spans.get(span.parentId) : this.spans.get(span.traceId);
+    const parentEntry = span.parentId ? this.getSpanEntry(span.parentId) : this.getSpanEntry(span.traceId);
     if (parentEntry) {
       parentCtx = parentEntry.context;
     } else {
@@ -167,11 +194,13 @@ export class TemporalTracingProcessor implements TracingProcessor {
 
     const otelSpan = this.tracer.startSpan(name, { attributes: attrs }, parentCtx);
     const ctx = otel.trace.setSpan(parentCtx, otelSpan);
-    this.spans.set(span.spanId, { span: otelSpan, context: ctx });
+    this.getWorkflowSpans().set(span.spanId, { span: otelSpan, context: ctx });
   }
 
   async onSpanEnd(span: Span<SpanData>): Promise<void> {
-    const entry = this.spans.get(span.spanId);
+    if (isReplaying()) return;
+
+    const entry = this.getSpanEntry(span.spanId);
     if (!entry) return;
 
     const dynAttrs = dynamicAttributesFromSpanData(span.spanData);
@@ -187,12 +216,14 @@ export class TemporalTracingProcessor implements TracingProcessor {
     }
 
     entry.span.end();
-    this.spans.delete(span.spanId);
+    this.deleteSpanEntry(span.spanId);
   }
 
   async shutdown(): Promise<void> {
-    for (const [, entry] of this.spans) {
-      entry.span.end();
+    for (const [, inner] of this.spans) {
+      for (const [, entry] of inner) {
+        entry.span.end();
+      }
     }
     this.spans.clear();
   }
@@ -204,8 +235,16 @@ export class TemporalTracingProcessor implements TracingProcessor {
 
 /**
  * Appends a {@link TemporalTracingProcessor} to the OpenAI Agents SDK's
- * processor list and enables tracing (overrides the upstream default that
- * disables tracing when `NODE_ENV=test` or in browser-like environments).
+ * global processor list and enables tracing.
+ *
+ * **Side effect**: mutates the upstream `@openai/agents-core` global
+ * `TraceProvider` (stored on `globalThis` via a well-known Symbol). A single
+ * {@link TemporalTracingProcessor} instance is shared across all workflows in
+ * the V8 isolate; per-workflow isolation is handled internally by the processor's
+ * workflow-scoped span Map.
+ *
+ * Called automatically by the {@link TemporalOpenAIRunner} constructor — users
+ * do not need to call this unless they need tracing without a runner instance.
  *
  * Uses `addTraceProcessor` rather than `setTraceProcessors` so that any
  * processors registered by user code before runner construction are preserved.
