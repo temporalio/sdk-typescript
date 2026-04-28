@@ -36,9 +36,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/temporalio/sdk-typescript.git",
-    "directory": "packages/ai-sdk"
+    "directory": "packages/plugins/ai-sdk"
   },
-  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/ai-sdk",
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/plugins/ai-sdk",
   "publishConfig": {
     "access": "public"
   },
