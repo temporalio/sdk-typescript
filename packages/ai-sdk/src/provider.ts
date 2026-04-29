@@ -1,3 +1,4 @@
+import { ReadableStream, type ReadableStreamDefaultController } from 'node:stream/web';
 import type {
   EmbeddingModelV3,
   EmbeddingModelV3CallOptions,
