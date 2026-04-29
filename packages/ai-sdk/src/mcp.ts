@@ -44,7 +44,7 @@ export class TemporalMCPClient {
         toolName,
         {
           description: toolResult.description,
-          execute: async (input, options) => {
+          execute: async (input: unknown, options: unknown) => {
             const activities = workflow.proxyActivities({
               summary: toolName,
               startToCloseTimeout: '10 minutes',
