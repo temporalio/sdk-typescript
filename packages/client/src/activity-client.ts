@@ -143,7 +143,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    * Creates an Activity handle from ID and optionally from run ID. If `runId` is not set, the handle will refer to the
    * newest Activity run with the given Activity ID.
    *
-   * Note 1: this function always succeeds. If the provided ID is invalid, the error will only be thrown when calling
+   * Note 1: this function always succeeds. If the provided ID is invalid, an error will only be thrown when calling
    * the handle's methods.
    *
    * Note 2: if `runID` is not set when calling `getHandle`, then `runId` property of the returned handle will always
@@ -273,7 +273,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     input: ActivityStartInput
   ): Promise<temporal.api.workflowservice.v1.IStartActivityExecutionRequest> {
     const searchAttributes = input.options.typedSearchAttributes
-      ? encodeUnifiedSearchAttributes(undefined, input.options.typedSearchAttributes)
+      ? { indexedFields: encodeUnifiedSearchAttributes(undefined, input.options.typedSearchAttributes) }
       : undefined;
 
     return {
@@ -291,7 +291,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       input: { payloads: await encodeToPayloads(this.dataConverter, ...(input.options.args || [])) },
       idReusePolicy: encodeActivityIdReusePolicy(input.options.idReusePolicy),
       idConflictPolicy: encodeActivityIdConflictPolicy(input.options.idConflictPolicy),
-      searchAttributes: { indexedFields: searchAttributes },
+      searchAttributes,
       header: input.headers,
       userMetadata: await encodeUserMetadata(this.dataConverter, input.options.summary, undefined),
       priority: input.options.priority ? compilePriority(input.options.priority) : undefined,
@@ -427,7 +427,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         })),
       };
     } catch (err) {
-      this.rethrowGrpcError(err, 'Failed to request activity cancellation');
+      this.rethrowGrpcError(err, 'Failed to count activities');
     }
   }
 
@@ -498,6 +498,9 @@ export interface ActivityOptions {
    * If set, specifies maximum time between successful heartbeats.
    */
   heartbeatTimeout?: Duration;
+  /**
+   * Controls how Activity is retried. If not set, the server will assign default retry policy.
+   */
   retry?: RetryPolicy;
   /**
    * Is set, specifies total time the activity is allowed to run, including retries.

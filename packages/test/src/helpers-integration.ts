@@ -36,6 +36,10 @@ export interface Context {
 const defaultDynamicConfigOptions = [
   'system.enableActivityEagerExecution=true',
   'history.enableRequestIdRefLinks=true',
+  'frontend.activityAPIsEnabled=true',
+  'activity.enableStandalone=true',
+  'history.enableChasm=true',
+  'history.enableTransitionHistory=true',
 ];
 
 function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }, runtimeOpts?: Partial<RuntimeOptions>) {
