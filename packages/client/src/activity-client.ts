@@ -1,4 +1,4 @@
-import { status } from '@grpc/grpc-js';
+import { status as grpcStatus } from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
 import type {
   ActivityFunction,
@@ -31,7 +31,7 @@ import {
   encodeToPayloads,
   encodeUserMetadata,
 } from '@temporalio/common/lib/internal-non-workflow';
-import type { temporal } from '@temporalio/proto';
+import { temporal } from '@temporalio/proto';
 import type { Replace } from '@temporalio/common/lib/type-helpers';
 import type {
   ActivityCancelInput,
@@ -58,8 +58,15 @@ import {
   encodeActivityIdConflictPolicy,
   encodeActivityIdReusePolicy,
 } from './types';
-import { rethrowKnownErrorTypes } from './helpers';
-import { isGrpcServiceError, ServiceError, ActivityNotFoundError, ActivityExecutionFailedError } from './errors';
+import type { ErrorDetailsName } from './helpers';
+import { rethrowKnownErrorTypes, trimGrpcTypeUrl, getGrpcStatusDetails } from './helpers';
+import {
+  isGrpcServiceError,
+  ServiceError,
+  ActivityNotFoundError,
+  ActivityExecutionFailedError,
+  ActivityExecutionAlreadyStartedError,
+} from './errors';
 
 /**
  * Options used to configure {@link ActivityClient}
@@ -241,6 +248,23 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       );
       return this.createHandle(input.options.id, resp.runId);
     } catch (err) {
+      if (isGrpcServiceError(err) && err.code === grpcStatus.ALREADY_EXISTS) {
+        for (const entry of getGrpcStatusDetails(err) ?? []) {
+          if (!entry.type_url || !entry.value) continue;
+          if (
+            (trimGrpcTypeUrl(entry.type_url) as ErrorDetailsName) ===
+            'temporal.api.errordetails.v1.ActivityExecutionAlreadyStartedFailure'
+          ) {
+            const details = temporal.api.errordetails.v1.ActivityExecutionAlreadyStartedFailure.decode(entry.value);
+            throw new ActivityExecutionAlreadyStartedError(
+              'Activity execution already started',
+              input.options.id,
+              details.runId
+            );
+          }
+        }
+      }
+
       this.rethrowGrpcError(err, 'Failed to start activity');
     }
   }
@@ -410,7 +434,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
   protected rethrowGrpcError(err: unknown, fallbackMessage: string): never {
     if (isGrpcServiceError(err)) {
       rethrowKnownErrorTypes(err);
-      if (err.code === status.NOT_FOUND) {
+      if (err.code === grpcStatus.NOT_FOUND) {
         throw new ActivityNotFoundError(err.details ?? 'Activity not found');
       }
       throw new ServiceError(fallbackMessage, { cause: err });

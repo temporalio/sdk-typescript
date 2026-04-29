@@ -2,7 +2,13 @@ import { v4 as uuid4 } from 'uuid';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import type { ActivityHandle, TypedActivityClient } from '@temporalio/client';
-import { ActivityExecutionFailedError, Client, Connection, TerminatedFailure } from '@temporalio/client';
+import {
+  ActivityExecutionAlreadyStartedError,
+  ActivityExecutionFailedError,
+  Client,
+  Connection,
+  TerminatedFailure,
+} from '@temporalio/client';
 import type { Duration } from '@temporalio/common';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import type { ActivityOptions } from '@temporalio/client/lib/activity-client';
@@ -103,9 +109,8 @@ if (RUN_INTEGRATION_TESTS) {
       args: [true, 'failure'],
     });
     const err = await t.throwsAsync(() => handle.result(), { instanceOf: ActivityExecutionFailedError });
-    t.truthy(err);
-    t.assert(err!.cause instanceof ApplicationFailure);
-    t.is(err!.cause!.message, 'failure');
+    t.assert(err?.cause instanceof ApplicationFailure);
+    t.is(err?.cause?.message, 'failure');
   });
 
   test('Execute activity - success', async (t) => {
@@ -254,7 +259,9 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(description.status, 'TERMINATED');
   });
 
-  async function runThreeActivities(client: Client) {
+  test('Count and list activities', async (t) => {
+    const { client } = t.context;
+
     const firstAndSecondActivityId = uuid4();
     const firstHandle = await client.activity.start('echo', {
       ...defaultOptions,
@@ -278,20 +285,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     await thirdHandle.result();
 
-    return {
-      firstAndSecondActivityId,
-      thirdActivityId,
-      firstRunId: firstHandle.runId,
-      secondRunId: secondHandle.runId,
-      thirdRunId: thirdHandle.runId,
-    };
-  }
-
-  test('Count and list activities', async (t) => {
-    const { client } = t.context;
-
-    const ids = await runThreeActivities(client);
-    const query = `ActivityId='${ids.firstAndSecondActivityId}' OR ActivityId='${ids.thirdActivityId}'`;
+    const query = `ActivityId='${firstAndSecondActivityId}' OR ActivityId='${thirdActivityId}'`;
 
     // Visibility has update delay, repeating query until the activity count is as expected
     await waitUntil(async () => {
@@ -300,9 +294,9 @@ if (RUN_INTEGRATION_TESTS) {
     }, 10000);
 
     const isListed = {
-      [ids.firstAndSecondActivityId + ids.firstRunId]: false,
-      [ids.firstAndSecondActivityId + ids.secondRunId]: false,
-      [ids.thirdActivityId + ids.thirdRunId]: false,
+      [firstAndSecondActivityId + firstHandle.runId]: false,
+      [firstAndSecondActivityId + secondHandle.runId]: false,
+      [thirdActivityId + thirdHandle.runId]: false,
     };
 
     for await (const info of client.activity.list(query)) {
@@ -327,6 +321,46 @@ if (RUN_INTEGRATION_TESTS) {
         id: uuid4(),
       })
     );
+  });
+
+  test('Throws ActivityExecutionAlreadyExistsError on ID conflict', async (t) => {
+    const { client } = t.context;
+    const activityId = uuid4();
+    const options: ActivityOptions = {
+      ...defaultOptions,
+      id: activityId,
+      args: [{}],
+      idConflictPolicy: 'FAIL',
+    };
+
+    const handle = await client.activity.start('heartbeatCancellationDetailsActivity', options);
+    const err = await t.throwsAsync(() => client.activity.start('heartbeatCancellationDetailsActivity', options), {
+      instanceOf: ActivityExecutionAlreadyStartedError,
+    });
+    t.is(err?.activityId, activityId);
+    t.is(err?.runId, handle.runId);
+
+    // stop the activity
+    await handle.cancel('test cleanup');
+  });
+
+  test('Throws ActivityExecutionAlreadyExistsError on ID reuse', async (t) => {
+    const { client } = t.context;
+    const activityId = uuid4();
+    const options: ActivityOptions = {
+      ...defaultOptions,
+      id: activityId,
+      args: [{}],
+      idReusePolicy: 'REJECT_DUPLICATE',
+    };
+
+    const handle = await client.activity.start('echo', options);
+    await handle.result();
+    const err = await t.throwsAsync(() => client.activity.start('echo', options), {
+      instanceOf: ActivityExecutionAlreadyStartedError,
+    });
+    t.is(err?.activityId, activityId);
+    t.is(err?.runId, handle.runId);
   });
 
   test('Typed client - start activity', async (t) => {
@@ -358,27 +392,26 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     const _ = async (client: TypedActivityClient<ActivityInterface>) => {
-      // eslint-disable @typescript-eslint/no-unused-vars
       {
         // OK
-        let handle: ActivityHandle<void> = await client.start('noArgsReturnsVoid', { ...options });
-        let result: void = await handle.result();
-        handle = await client.start('noArgsReturnsVoid', { ...options });
-        handle = await client.start('noArgsReturnsVoid', { ...options, args: undefined });
-        handle = await client.start('noArgsReturnsVoid', { ...options, args: [] });
-        result = await client.execute('noArgsReturnsVoid', { ...options });
-        result = await client.execute('noArgsReturnsVoid', { ...options, args: undefined });
-        result = await client.execute('noArgsReturnsVoid', { ...options, args: [] });
+        let _handle: ActivityHandle<void> = await client.start('noArgsReturnsVoid', { ...options });
+        let _result: void = await _handle.result();
+        _handle = await client.start('noArgsReturnsVoid', { ...options });
+        _handle = await client.start('noArgsReturnsVoid', { ...options, args: undefined });
+        _handle = await client.start('noArgsReturnsVoid', { ...options, args: [] });
+        _result = await client.execute('noArgsReturnsVoid', { ...options });
+        _result = await client.execute('noArgsReturnsVoid', { ...options, args: undefined });
+        _result = await client.execute('noArgsReturnsVoid', { ...options, args: [] });
       }
       {
-        const handle: ActivityHandle<void> = await client.start('noArgsReturnsVoid', {
+        const _handle: ActivityHandle<void> = await client.start('noArgsReturnsVoid', {
           ...options,
           args: [
             // @ts-expect-error TS2322
             1,
           ],
         });
-        const result: void = await client.execute('noArgsReturnsVoid', {
+        const _result: void = await client.execute('noArgsReturnsVoid', {
           ...options,
           args: [
             // @ts-expect-error TS2322
@@ -388,101 +421,101 @@ if (RUN_INTEGRATION_TESTS) {
       }
       {
         const // @ts-expect-error TS2322
-          handle // end error
+          _handle // end error
           : ActivityHandle<number> = await client.start('noArgsReturnsVoid', { ...options });
 
         const // @ts-expect-error TS2322
-          result // end error
+          _result // end error
           : number = await client.execute('noArgsReturnsVoid', { ...options });
       }
       {
         // OK
-        let handle: ActivityHandle<number> = await client.start('noArgsReturnsNumber', { ...options });
-        let result: number = await handle.result();
-        handle = await client.start('noArgsReturnsNumber', { ...options });
-        handle = await client.start('noArgsReturnsNumber', { ...options, args: undefined });
-        handle = await client.start('noArgsReturnsNumber', { ...options, args: [] });
-        result = await client.execute('noArgsReturnsNumber', { ...options });
-        result = await client.execute('noArgsReturnsNumber', { ...options, args: undefined });
-        result = await client.execute('noArgsReturnsNumber', { ...options, args: [] });
+        let _handle: ActivityHandle<number> = await client.start('noArgsReturnsNumber', { ...options });
+        let _result: number = await _handle.result();
+        _handle = await client.start('noArgsReturnsNumber', { ...options });
+        _handle = await client.start('noArgsReturnsNumber', { ...options, args: undefined });
+        _handle = await client.start('noArgsReturnsNumber', { ...options, args: [] });
+        _result = await client.execute('noArgsReturnsNumber', { ...options });
+        _result = await client.execute('noArgsReturnsNumber', { ...options, args: undefined });
+        _result = await client.execute('noArgsReturnsNumber', { ...options, args: [] });
       }
       {
         const // @ts-expect-error TS2322
-          handle // end error
+          _handle // end error
           : ActivityHandle<void> = await client.start('noArgsReturnsNumber', { ...options });
 
         const // @ts-expect-error TS2322
-          result // end error
+          _result // end error
           : void = await client.execute('noArgsReturnsNumber', { ...options });
       }
       {
         const // @ts-expect-error TS2322
-          handle // end error
+          _handle // end error
           : ActivityHandle<string> = await client.start('noArgsReturnsNumber', { ...options });
 
         const // @ts-expect-error TS2322
-          result // end error
+          _result // end error
           : string = await client.execute('noArgsReturnsNumber', { ...options });
       }
       {
         // OK
-        const handle: ActivityHandle<number> = await client.start('numberArgReturnsNumber', { ...options, args: [1] });
-        let result: number = await handle.result();
-        result = await client.execute('numberArgReturnsNumber', { ...options, args: [1] });
+        const _handle: ActivityHandle<number> = await client.start('numberArgReturnsNumber', { ...options, args: [1] });
+        let _result: number = await _handle.result();
+        _result = await client.execute('numberArgReturnsNumber', { ...options, args: [1] });
       }
       {
-        let handle: ActivityHandle<number> = await client.start('numberArgReturnsNumber', {
+        let _handle: ActivityHandle<number> = await client.start('numberArgReturnsNumber', {
           ...options,
           args: [
             // @ts-expect-error TS2322
             'a',
           ],
         });
-        handle = await client.start('numberArgReturnsNumber', {
+        _handle = await client.start('numberArgReturnsNumber', {
           ...options,
           // @ts-expect-error TS2322
           args: [1, 2],
         });
-        handle = await client.start('numberArgReturnsNumber', {
+        _handle = await client.start('numberArgReturnsNumber', {
           ...options,
           // @ts-expect-error TS2322
           args: [],
         });
-        handle = await client.start('numberArgReturnsNumber', {
+        _handle = await client.start('numberArgReturnsNumber', {
           ...options,
           // @ts-expect-error TS2322
           args: undefined,
         });
-        handle = await client.start(
+        _handle = await client.start(
           'numberArgReturnsNumber',
           // @ts-expect-error TS2322
           {
             ...options,
           }
         );
-        let result: number = await client.execute('numberArgReturnsNumber', {
+        let _result: number = await client.execute('numberArgReturnsNumber', {
           ...options,
           args: [
             // @ts-expect-error TS2322
             'a',
           ],
         });
-        result = await client.execute('numberArgReturnsNumber', {
+        _result = await client.execute('numberArgReturnsNumber', {
           ...options,
           // @ts-expect-error TS2322
           args: [1, 2],
         });
-        result = await client.execute('numberArgReturnsNumber', {
+        _result = await client.execute('numberArgReturnsNumber', {
           ...options,
           // @ts-expect-error TS2322
           args: [],
         });
-        result = await client.execute('numberArgReturnsNumber', {
+        _result = await client.execute('numberArgReturnsNumber', {
           ...options,
           // @ts-expect-error TS2322
           args: undefined,
         });
-        result = await client.execute(
+        _result = await client.execute(
           'numberArgReturnsNumber',
           // @ts-expect-error TS2322
           {
@@ -492,15 +525,15 @@ if (RUN_INTEGRATION_TESTS) {
       }
       {
         // OK
-        const handle: ActivityHandle<void> = await client.start('stringAndNumberArgsReturnsVoid', {
+        const _handle: ActivityHandle<void> = await client.start('stringAndNumberArgsReturnsVoid', {
           ...options,
           args: ['a', 1],
         });
-        let result: void = await handle.result();
-        result = await client.execute('stringAndNumberArgsReturnsVoid', { ...options, args: ['a', 1] });
+        let _result: void = await _handle.result();
+        _result = await client.execute('stringAndNumberArgsReturnsVoid', { ...options, args: ['a', 1] });
       }
       {
-        let handle: ActivityHandle<void> = await client.start('stringAndNumberArgsReturnsVoid', {
+        let _handle: ActivityHandle<void> = await client.start('stringAndNumberArgsReturnsVoid', {
           ...options,
           args: [
             'a',
@@ -508,7 +541,7 @@ if (RUN_INTEGRATION_TESTS) {
             'b',
           ],
         });
-        handle = await client.start('stringAndNumberArgsReturnsVoid', {
+        _handle = await client.start('stringAndNumberArgsReturnsVoid', {
           ...options,
           args: [
             // @ts-expect-error TS2322
@@ -517,7 +550,7 @@ if (RUN_INTEGRATION_TESTS) {
             2,
           ],
         });
-        handle = await client.start('stringAndNumberArgsReturnsVoid', {
+        _handle = await client.start('stringAndNumberArgsReturnsVoid', {
           ...options,
           args: [
             // @ts-expect-error TS2322
@@ -526,7 +559,7 @@ if (RUN_INTEGRATION_TESTS) {
             'a',
           ],
         });
-        let result: void = await client.execute('stringAndNumberArgsReturnsVoid', {
+        let _result: void = await client.execute('stringAndNumberArgsReturnsVoid', {
           ...options,
           args: [
             'a',
@@ -534,7 +567,7 @@ if (RUN_INTEGRATION_TESTS) {
             'b',
           ],
         });
-        result = await client.execute('stringAndNumberArgsReturnsVoid', {
+        _result = await client.execute('stringAndNumberArgsReturnsVoid', {
           ...options,
           args: [
             // @ts-expect-error TS2322
@@ -543,7 +576,7 @@ if (RUN_INTEGRATION_TESTS) {
             2,
           ],
         });
-        result = await client.execute('stringAndNumberArgsReturnsVoid', {
+        _result = await client.execute('stringAndNumberArgsReturnsVoid', {
           ...options,
           args: [
             // @ts-expect-error TS2322
@@ -553,7 +586,6 @@ if (RUN_INTEGRATION_TESTS) {
           ],
         });
       }
-      // eslint-enable @typescript-eslint/no-unused-vars
     };
 
     t.pass();

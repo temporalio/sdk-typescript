@@ -131,6 +131,28 @@ export class ActivityExecutionFailedError extends Error {
 }
 
 /**
+ * Thrown when starting an Activity failed because another Activity with the same ID already exists and reusing the ID
+ * is not allowed under chosen ID reuse policy and ID conflict policy. See {@link ActivityOptions.idReusePolicy} and
+ * {@link ActivityOptions.idConflictPolicy}.
+ */
+@SymbolBasedInstanceOfError('ActivityExecutionAlreadyStartedError')
+export class ActivityExecutionAlreadyStartedError extends Error {
+  constructor(
+    message: string,
+    /**
+     * ID of the Activity that failed to start.
+     */
+    public readonly activityId: string,
+    /**
+     * Run ID of the existing Activity execution with the same Activity ID.
+     */
+    public readonly runId: string
+  ) {
+    super(message);
+  }
+}
+
+/**
  * Returns true if the provided error is a {@link GrpcServiceError}.
  */
 export function isGrpcServiceError(err: unknown): err is GrpcServiceError {
