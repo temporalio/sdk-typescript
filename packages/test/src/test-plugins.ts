@@ -246,3 +246,73 @@ test('SimplePlugin with activities merges them correctly', async (t) => {
   t.truthy(worker.options.activities.has('existingActivity'));
   t.truthy(worker.options.activities.has('pluginActivity'));
 });
+
+export class AsyncExamplePlugin implements WorkerPlugin, BundlerPlugin {
+  readonly name: string = 'async-example-plugin';
+
+  constructor() {}
+
+  async configureWorker(config: WorkerOptions): Promise<WorkerOptions> {
+    console.log('AsyncExamplePlugin: Configuring worker');
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    config.taskQueue = 'plugin-task-queue' + randomUUID();
+    return config;
+  }
+
+  configureBundler(config: BundleOptions): BundleOptions {
+    console.log('AsyncExamplePlugin: Configuring bundler');
+    config.workflowsPath = require.resolve('./workflows/plugins');
+    return config;
+  }
+}
+
+test('Basic plugin with async hooks', async (t) => {
+  const { connection } = t.context.testEnv;
+  const client = new Client({ connection });
+
+  const plugin = new AsyncExamplePlugin();
+  const bundle = await bundleWorkflowCode({
+    workflowsPath: 'replaced',
+    plugins: [plugin],
+  });
+
+  const worker = await Worker.create({
+    workflowBundle: bundle,
+    connection: t.context.testEnv.nativeConnection,
+    taskQueue: 'will be overridden',
+    plugins: [plugin],
+  });
+
+  await worker.runUntil(async () => {
+    t.true(worker.options.taskQueue.startsWith('plugin-task-queue'));
+    const result = await client.workflow.execute(helloWorkflow, {
+      taskQueue: worker.options.taskQueue,
+      workflowExecutionTimeout: '30 seconds',
+      workflowId: randomUUID(),
+    });
+
+    t.is(result, 'Hello');
+  });
+});
+
+test('Bundler plugins are passed from worker with async hooks', async (t) => {
+  const { connection } = t.context.testEnv;
+  const client = new Client({ connection });
+
+  const worker = await Worker.create({
+    workflowsPath: 'replaced',
+    connection: t.context.testEnv.nativeConnection,
+    taskQueue: 'will be overridden',
+    plugins: [new AsyncExamplePlugin()],
+  });
+  await worker.runUntil(async () => {
+    t.true(worker.options.taskQueue.startsWith('plugin-task-queue'));
+    const result = await client.workflow.execute(helloWorkflow, {
+      taskQueue: worker.options.taskQueue,
+      workflowExecutionTimeout: '30 seconds',
+      workflowId: randomUUID(),
+    });
+
+    t.is(result, 'Hello');
+  });
+});

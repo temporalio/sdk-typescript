@@ -493,7 +493,7 @@ export class Worker {
     options.plugins = (options.plugins ?? []).concat(options.connection?.plugins ?? []);
     for (const plugin of options.plugins) {
       if (plugin.configureWorker !== undefined) {
-        options = plugin.configureWorker(options);
+        options = await plugin.configureWorker(options);
       }
     }
     if (!options.taskQueue) {
@@ -697,7 +697,7 @@ export class Worker {
     const plugins = options.plugins ?? [];
     for (const plugin of plugins) {
       if (plugin.configureReplayWorker !== undefined) {
-        options = plugin.configureReplayWorker(options);
+        options = await plugin.configureReplayWorker(options);
       }
     }
     const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
