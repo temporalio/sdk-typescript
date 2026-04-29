@@ -5,8 +5,12 @@ import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import {
-  isGrpcServiceError, ActivityNotFoundError, ActivityCompletionError, ActivityCancelledError,
-  ActivityResetError, ActivityPausedError,
+  isGrpcServiceError,
+  ActivityNotFoundError,
+  ActivityCompletionError,
+  ActivityCancelledError,
+  ActivityResetError,
+  ActivityPausedError,
 } from './errors';
 import type { WorkflowService } from './types';
 import { rethrowKnownErrorTypes } from './helpers';

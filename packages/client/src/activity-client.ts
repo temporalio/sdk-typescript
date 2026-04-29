@@ -1,6 +1,7 @@
 import { status } from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
 import type {
+  ActivityFunction,
   LoadedDataConverter,
   Next,
   Priority,
@@ -31,6 +32,7 @@ import {
   encodeUserMetadata,
 } from '@temporalio/common/lib/internal-non-workflow';
 import type { temporal } from '@temporalio/proto';
+import type { Replace } from '@temporalio/common/lib/type-helpers';
 import type {
   ActivityCancelInput,
   ActivityClientInterceptor,
@@ -73,7 +75,7 @@ export interface ActivityClientOptions extends AsyncCompletionClientOptions {
  * Typically this client should not be instantiated directly, instead create the high level {@link Client} and use
  * {@link Client.activity} to interact with Activities.
  */
-export class ActivityClient extends AsyncCompletionClient {
+export class ActivityClient extends AsyncCompletionClient implements TypedActivityClient<any> {
   private readonly interceptedHandlers: {
     [K in keyof Required<ActivityClientInterceptor>]: Next<ActivityClientInterceptor, K>;
   };
@@ -94,13 +96,24 @@ export class ActivityClient extends AsyncCompletionClient {
   }
 
   /**
+   * Returns this client as a {@link TypedActivityClient}. It enables strong type checking of Activity name, arguments
+   * and result based on the provided Activity interface. Note that no new client object is created - this method only
+   * affects type annotations.
+   * @template T Activity interface to use for type checking. The returned client can only start activities present in
+   * this interface.
+   */
+  typedClient<T>(): TypedActivityClient<T> {
+    return this;
+  }
+
+  /**
    * Starts new Standalone Activity execution.
    *
    * @param activity Name of the activity to start.
    * @param options Options controlling the start and execution of the activity.
    * @returns Handle to the started activity. The handle's `runId` property will be set to the started run.
    */
-  async start<O = any>(activity: string, options: ActivityOptions): Promise<ActivityHandle<O>> {
+  async start<R = any>(activity: string, options: ActivityOptions): Promise<ActivityHandle<R>> {
     return this.interceptedHandlers.start({
       activityType: activity,
       options,
@@ -114,7 +127,7 @@ export class ActivityClient extends AsyncCompletionClient {
    * @param options Options controlling the activity execution.
    * @returns Result of the activity.
    */
-  async execute<O = any>(activity: string, options: ActivityOptions): Promise<O> {
+  async execute<R = any>(activity: string, options: ActivityOptions): Promise<R> {
     const handle = await this.start(activity, options);
     return handle.result();
   }
@@ -134,7 +147,7 @@ export class ActivityClient extends AsyncCompletionClient {
    * @param runId Optional run ID of the specific Activity execution.
    * @returns Handle to the specified activity execution.
    */
-  getHandle<O = any>(activityId: string, runId?: string): ActivityHandle<O> {
+  getHandle<R = any>(activityId: string, runId?: string): ActivityHandle<R> {
     return this.createHandle(activityId, runId);
   }
 
@@ -168,7 +181,7 @@ export class ActivityClient extends AsyncCompletionClient {
     });
   }
 
-  protected createHandle<O>(activityId: string, runId?: string): ActivityHandle<O> {
+  protected createHandle<R>(activityId: string, runId?: string): ActivityHandle<R> {
     if (!activityId) {
       throw new TypeError('activityId is required');
     }
@@ -178,7 +191,7 @@ export class ActivityClient extends AsyncCompletionClient {
       activityId,
       runId,
 
-      async result(): Promise<O> {
+      async result(): Promise<R> {
         return await this.client.interceptedHandlers.getResult({
           activityId: this.activityId,
           activityRunId: this.runId ?? '',
@@ -409,8 +422,9 @@ export class ActivityClient extends AsyncCompletionClient {
 /**
  * Handle that can be used to perform operations on the associated Activity.
  * Can be obtained by calling {@link ActivityClient.start} or {@link ActivityClient.getHandle}.
+ * @template R Result type of the activity. Use {@link ActivityClient.typedClient} to start activities in a type-safe way.
  */
-export interface ActivityHandle<O = any> {
+export interface ActivityHandle<R = any> {
   /**
    * ID of the Activity this handle refers to.
    */
@@ -425,7 +439,7 @@ export interface ActivityHandle<O = any> {
    * If the activity was not successful, throws {@link ActivityExecutionFailedError}. The activity failure is stored in
    * the `cause` field.
    */
-  result(): Promise<O>;
+  result(): Promise<R>;
   /**
    * Returns information about the Activity execution.
    */
@@ -455,7 +469,7 @@ export interface ActivityOptions {
   /**
    * Input arguments to pass to the activity.
    */
-  args?: any[];
+  args?: any[] | Readonly<any[]>;
   /**
    * If set, specifies maximum time between successful heartbeats.
    */
@@ -579,3 +593,76 @@ function buildActivityDescription(
     getLastFailure,
   };
 }
+
+/**
+ * Sub-interface of {@link ActivityClient} that provides a strongly-typed interface for executing Activities.
+ * Argument types in the provided options must match the argument types of the specified Activity as defined in provided
+ * interface
+ * @template T Activity interface
+ */
+export interface TypedActivityClient<T> {
+  start<N extends ActivityName<T>>(
+    activity: N,
+    options: ActivityOptionsFor<T, N>
+  ): Promise<ActivityHandle<ActivityResult<T, N>>>;
+
+  execute<N extends ActivityName<T>>(activity: N, options: ActivityOptionsFor<T, N>): Promise<ActivityResult<T, N>>;
+}
+
+/**
+ * Utility type to support strong typing in {@link TypedActivityClient}.
+ * Contains names of activities extracted from the specified activity interface.
+ * @template T Activity interface
+ */
+export type ActivityName<T> = {
+  [N in keyof T & string]: T[N] extends ActivityFunction<any, any> ? N : never;
+}[keyof T & string];
+
+/**
+ * Utility type to support strong typing in {@link TypedActivityClient}.
+ * Extracts argument types of an activity.
+ * @template T Activity interface
+ * @template N Activity name
+ */
+export type ActivityArgs<T, N extends ActivityName<T>> = T[N] extends ActivityFunction<infer P, any> ? P : never;
+
+/**
+ * Utility type to support strong typing in {@link TypedActivityClient}.
+ * Extracts result type of an activity.
+ * @template T Activity interface
+ * @template N Activity name
+ */
+export type ActivityResult<T, N extends ActivityName<T>> = T[N] extends ActivityFunction<any, infer R> ? R : never;
+
+/**
+ * Utility type to support strong typing in {@link TypedActivityClient}.
+ * Represents {@link ActivityOptions} with strongly typed arguments.
+ * @template Args Types of activity arguments as an array type.
+ */
+export type ActivityOptionsWithArgs<Args extends any[]> = Args extends [any, ...any]
+  ? Replace<
+      ActivityOptions,
+      {
+        /**
+         * Arguments to pass to the Activity
+         */
+        args: Args | Readonly<Args>;
+      }
+    >
+  : Replace<
+      ActivityOptions,
+      {
+        /**
+         * Arguments to pass to the Activity
+         */
+        args?: Args | Readonly<Args>;
+      }
+    >;
+
+/**
+ * Utility type to support strong typing in {@link TypedActivityClient}.
+ * Represents {@link ActivityOptions} with strongly typed arguments matching specified Activity in specified interface.
+ * @template T Activity interface
+ * @template N Activity name
+ */
+export type ActivityOptionsFor<T, N extends ActivityName<T>> = ActivityOptionsWithArgs<ActivityArgs<T, N>>;

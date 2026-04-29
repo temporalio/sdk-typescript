@@ -2,8 +2,6 @@ import type { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
 import { status } from '@grpc/grpc-js';
 import type { RetryState } from '@temporalio/common';
 import { isError, isRecord, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
-import { AsyncCompletionClient, AsyncCompletionClientOptions } from './async-completion-client';
-import type { ActivityClientInterceptor } from './interceptors';
 
 /**
  * Generic Error class for errors coming from the service
