@@ -42,7 +42,7 @@
     "@temporalio/client": "workspace:*",
     "@temporalio/cloud": "workspace:*",
     "@temporalio/common": "workspace:*",
-    "@temporalio/contrib-pubsub": "workspace:*",
+    "@temporalio/contrib-workflow-stream": "workspace:*",
     "@temporalio/core-bridge": "workspace:*",
     "@temporalio/envconfig": "workspace:*",
     "@temporalio/interceptors-opentelemetry": "workspace:*",

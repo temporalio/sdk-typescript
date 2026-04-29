@@ -1,17 +1,17 @@
 /**
- * Workflow-side pub/sub broker.
+ * Workflow-side stream object for Workflow Streams.
  *
- * Instantiate `PubSub` once at the start of your workflow function; the
- * constructor registers the pub/sub signal, update, and query handlers on
+ * Instantiate `WorkflowStream` once at the start of your workflow function; the
+ * constructor registers the workflow stream signal, update, and query handlers on
  * the current workflow via `setHandler`.
  *
  * For workflows that support continue-as-new, include a
- * `PubSubState | undefined` field on the workflow input and pass it as
+ * `WorkflowStreamState | undefined` field on the workflow input and pass it as
  * `priorState` — it is `undefined` on fresh starts and carries
  * accumulated state on continue-as-new.
  *
- * Both workflow-side `PubSub.publish` and client-side
- * `PubSubClient.publish` use the default payload converter for per-item
+ * Both workflow-side `WorkflowStream.publish` and client-side
+ * `WorkflowStreamClient.publish` use the default payload converter for per-item
  * `Payload` construction. The codec chain (encryption, PII-redaction,
  * compression) is NOT applied per item on either side — it runs once at
  * the envelope level when Temporal's SDK encodes the signal/update that
@@ -37,9 +37,9 @@ import {
   encodeBase64,
   type PollInput,
   type PollResult,
-  type PubSubState,
+  type WorkflowStreamState,
   type PublishInput,
-  type _WireItem,
+  type _WorkflowStreamWireItem,
 } from './types';
 
 const BINARY_PLAIN_ENCODING = new TextEncoder().encode('binary/plain');
@@ -61,9 +61,9 @@ function isUint8ArrayLike(value: unknown): value is ArrayLike<number> {
 }
 
 // Fixed handler names for cross-language interop
-export const pubsubPublishSignal = defineSignal<[PublishInput]>('__temporal_pubsub_publish');
-export const pubsubPollUpdate = defineUpdate<PollResult, [PollInput]>('__temporal_pubsub_poll');
-export const pubsubOffsetQuery = defineQuery<number>('__temporal_pubsub_offset');
+export const workflowStreamPublishSignal = defineSignal<[PublishInput]>('__temporal_workflow_stream_publish');
+export const workflowStreamPollUpdate = defineUpdate<PollResult, [PollInput]>('__temporal_workflow_stream_poll');
+export const workflowStreamOffsetQuery = defineQuery<number>('__temporal_workflow_stream_offset');
 
 const MAX_POLL_RESPONSE_BYTES = 1_000_000;
 
@@ -93,35 +93,35 @@ function isPayload(value: unknown): value is Payload {
 }
 
 /**
- * Workflow-side pub/sub broker.
+ * Workflow-side stream object — append-only log with publish/poll handlers.
  *
  * Construct once at the start of your workflow function; the constructor
- * registers the pub/sub signal, update, and query handlers on the current
+ * registers the workflow stream signal, update, and query handlers on the current
  * workflow.
  *
  * Registered handlers:
  *
- * - `__temporal_pubsub_publish` signal — external publish with dedup
- * - `__temporal_pubsub_poll` update — long-poll subscription
- * - `__temporal_pubsub_offset` query — current log length
+ * - `__temporal_workflow_stream_publish` signal — external publish with dedup
+ * - `__temporal_workflow_stream_poll` update — long-poll subscription
+ * - `__temporal_workflow_stream_offset` query — current log length
  *
- * For continue-as-new, thread a `PubSubState | undefined` field through
+ * For continue-as-new, thread a `WorkflowStreamState | undefined` field through
  * the workflow input and pass it as `priorState`.
  */
-export class PubSub {
+export class WorkflowStream {
   private log: InternalLogEntry[];
   private baseOffset: number;
   private readonly publisherSequences: Record<string, number>;
   private readonly publisherLastSeen: Record<string, number>;
   private draining = false;
 
-  constructor(priorState?: PubSubState) {
-    // Note: sdk-python guards against a second `PubSub(...)` call on the
+  constructor(priorState?: WorkflowStreamState) {
+    // Note: sdk-python guards against a second `WorkflowStream(...)` call on the
     // same workflow by checking `workflow.get_signal_handler(...)`. The
     // TypeScript workflow runtime does not expose that inspection API,
     // and `reuseV8Context` shares module-level state across workflow
     // executions — so a naive module-level flag would either fire
-    // spuriously or miss real duplicates. Constructing `PubSub` twice in
+    // spuriously or miss real duplicates. Constructing `WorkflowStream` twice in
     // the same workflow silently replaces the handlers; users should
     // construct once at the top of the workflow function.
     this.log = priorState?.log
@@ -138,15 +138,15 @@ export class PubSub {
       ? { ...priorState.publisher_last_seen }
       : {};
 
-    setHandler(pubsubPublishSignal, (input: PublishInput) => this.onPublish(input));
-    setHandler(pubsubPollUpdate, (input: PollInput) => this.onPoll(input), {
+    setHandler(workflowStreamPublishSignal, (input: PublishInput) => this.onPublish(input));
+    setHandler(workflowStreamPollUpdate, (input: PollInput) => this.onPoll(input), {
       validator: (_input: PollInput) => {
         if (this.draining) {
           throw new Error('Workflow is draining for continue-as-new');
         }
       },
     });
-    setHandler(pubsubOffsetQuery, () => this.baseOffset + this.log.length);
+    setHandler(workflowStreamOffsetQuery, () => this.baseOffset + this.log.length);
   }
 
   /**
@@ -180,11 +180,11 @@ export class PubSub {
   }
 
   /**
-   * Return a serializable snapshot of pub/sub state for continue-as-new.
+   * Return a serializable snapshot of workflow stream state for continue-as-new.
    * Prunes publisher dedup entries older than `publisherTtl`. Defaults
    * to 15 minutes.
    */
-  getState(publisherTtl: Duration = '15 minutes'): PubSubState {
+  getState(publisherTtl: Duration = '15 minutes'): WorkflowStreamState {
     const ttlSeconds = msToNumber(publisherTtl) / 1000;
     const now = Date.now() / 1000;
     const activeSeqs: Record<string, number> = {};
@@ -221,18 +221,18 @@ export class PubSub {
    * varies across CAN boundaries is the workflow's own arguments.
    *
    * `buildArgs` is invoked *after* drain stabilizes, with the post-drain
-   * `PubSubState` as its single argument, and must return the positional
+   * `WorkflowStreamState` as its single argument, and must return the positional
    * argument tuple for the new run.
    *
    * @example
    * ```typescript
-   * await pubsub.continueAsNew<typeof myWorkflow>((state) => [{
+   * await stream.continueAsNew<typeof myWorkflow>((state) => [{
    *   itemsProcessed,
-   *   pubsubState: state,
+   *   streamState: state,
    * }]);
    * ```
    *
-   * @param buildArgs Receives the post-drain pub/sub state and returns the
+   * @param buildArgs Receives the post-drain workflow stream state and returns the
    *   positional args for the new run.
    * @param options.publisherTtl Forwarded to `getState`.
    *
@@ -240,7 +240,7 @@ export class PubSub {
    * that the SDK uses to close the run.
    */
   async continueAsNew<F extends Workflow>(
-    buildArgs: (state: PubSubState) => Parameters<F>,
+    buildArgs: (state: WorkflowStreamState) => Parameters<F>,
     options?: { publisherTtl?: Duration },
   ): Promise<never> {
     this.drain();
@@ -321,7 +321,7 @@ export class PubSub {
     }
 
     // Cap response size to ~1MB of estimated wire bytes.
-    const wireItems: _WireItem[] = [];
+    const wireItems: _WorkflowStreamWireItem[] = [];
     let size = 0;
     let moreReady = false;
     let nextOffset = this.baseOffset + this.log.length;

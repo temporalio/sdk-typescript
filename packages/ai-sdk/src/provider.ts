@@ -31,8 +31,8 @@ export interface TemporalProviderOptions {
   languageModel?: ActivityOptions & {
     /**
      * When true, model calls use the streaming LLM endpoint and publish
-     * token events via PubSubClient. The workflow receives a complete result;
-     * real-time streaming happens via pubsub as a side channel.
+     * token events via WorkflowStreamClient. The workflow receives a complete result;
+     * real-time streaming happens via stream as a side channel.
      */
     streaming?: boolean;
   };
@@ -92,7 +92,7 @@ export class TemporalLanguageModel implements LanguageModelV3 {
       );
     }
 
-    // Call the streaming activity, which publishes tokens via pubsub
+    // Call the streaming activity, which publishes tokens via stream
     // and returns the accumulated result.
     const activities = workflow.proxyActivities({
       startToCloseTimeout: '10 minutes',
@@ -104,7 +104,7 @@ export class TemporalLanguageModel implements LanguageModelV3 {
     }
 
     // Wrap the accumulated result as a ReadableStream that replays the content.
-    // Real-time token streaming already happened via pubsub in the activity.
+    // Real-time token streaming already happened via stream in the activity.
     const stream = new ReadableStream({
       start(controller: ReadableStreamDefaultController) {
         controller.enqueue({ type: 'stream-start', warnings: result.warnings ?? [] });

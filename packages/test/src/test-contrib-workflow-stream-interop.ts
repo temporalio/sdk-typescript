@@ -1,11 +1,11 @@
 /**
- * Wire-format interop tests for @temporalio/contrib-pubsub.
+ * Wire-format interop tests for @temporalio/contrib-workflow-stream.
  *
  * These tests pin the exact byte layout produced by the TypeScript
  * implementation so it stays compatible with the Python SDK, which
  * uses `temporalio.api.common.v1.Payload` serialized via protobuf.
  *
- * Unlike `test-contrib-pubsub.ts`, these don't need a Temporal server —
+ * Unlike `test-contrib-workflow-stream.ts`, these don't need a Temporal server —
  * they are pure encode/decode unit tests.
  */
 
@@ -18,7 +18,7 @@ import {
   encodeBase64,
   encodePayloadProto,
   encodePayloadWire,
-} from '@temporalio/contrib-pubsub';
+} from '@temporalio/contrib-workflow-stream';
 
 const test = anyTest as TestFn;
 const encoder = new TextEncoder();

@@ -1,7 +1,7 @@
 /**
- * E2E integration tests for @temporalio/contrib-pubsub.
+ * E2E integration tests for @temporalio/contrib-workflow-stream.
  *
- * Ported from sdk-python tests/contrib/pubsub/test_pubsub.py.
+ * Ported from sdk-python tests/contrib/stream/test_stream.py.
  */
 
 import { randomUUID } from 'crypto';
@@ -9,22 +9,22 @@ import { ApplicationFailure, defaultPayloadConverter, type Payload } from '@temp
 import { WorkflowHandle, WorkflowUpdateFailedError } from '@temporalio/client';
 import {
   FlushTimeoutError,
-  PubSubClient,
+  WorkflowStreamClient,
   type PollInput,
   type PollResult,
-  type PubSubItem,
-  type PubSubState,
+  type WorkflowStreamItem,
+  type WorkflowStreamState,
   type PublishEntry,
   type PublishInput,
   encodePayloadWire,
-  pubsubOffsetQuery,
-  pubsubPublishSignal,
-  pubsubPollUpdate,
-} from '@temporalio/contrib-pubsub';
+  workflowStreamOffsetQuery,
+  workflowStreamPublishSignal,
+  workflowStreamPollUpdate,
+} from '@temporalio/contrib-workflow-stream';
 import { helpers, makeTestFunction } from './helpers-integration';
 import {
   activityPublishWorkflow,
-  basicPubSubWorkflow,
+  basicWorkflowStreamWorkflow,
   continueAsNewHelperWorkflow,
   continueAsNewTypedWorkflow,
   flushOnExitWorkflow,
@@ -37,11 +37,11 @@ import {
   truncateWorkflow,
   ttlTestWorkflow,
   workflowSidePublishWorkflow,
-} from './workflows/contrib-pubsub';
-import * as pubsubActivities from './activities/contrib-pubsub';
+} from './workflows/contrib-workflow-stream';
+import * as streamActivities from './activities/contrib-workflow-stream';
 
 const test = makeTestFunction({
-  workflowsPath: require.resolve('./workflows/contrib-pubsub'),
+  workflowsPath: require.resolve('./workflows/contrib-workflow-stream'),
 });
 
 const encoder = new TextEncoder();
@@ -50,7 +50,7 @@ const decoder = new TextDecoder();
 /**
  * Build a `PublishEntry` for a literal string.
  *
- * Mirrors what `PubSubClient` produces on the encode path: the default
+ * Mirrors what `WorkflowStreamClient` produces on the encode path: the default
  * payload converter wraps the bytes into a `Payload`, which is then
  * proto-serialized and base64-encoded for the wire.
  */
@@ -81,9 +81,9 @@ async function collectItems(
   fromOffset: number,
   expectedCount: number,
   timeoutMs = 15_000
-): Promise<PubSubItem[]> {
-  const client = new PubSubClient(handle);
-  const items: PubSubItem[] = [];
+): Promise<WorkflowStreamItem[]> {
+  const client = new WorkflowStreamClient(handle);
+  const items: WorkflowStreamItem[] = [];
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -107,7 +107,7 @@ async function collectItems(
 test('activity_publish_and_subscribe — activity publishes, client subscribes', async (t) => {
   const count = 10;
   const { createWorker, startWorkflow } = helpers(t);
-  const worker = await createWorker({ activities: pubsubActivities });
+  const worker = await createWorker({ activities: streamActivities });
   await worker.runUntil(async () => {
     const handle = await startWorkflow(activityPublishWorkflow, { args: [count] });
     const items = await collectItems(handle, undefined, 0, count + 1);
@@ -125,7 +125,7 @@ test('activity_publish_and_subscribe — activity publishes, client subscribes',
 test('topic_filtering — subscriber gets only requested topics', async (t) => {
   const count = 9;
   const { createWorker, startWorkflow } = helpers(t);
-  const worker = await createWorker({ activities: pubsubActivities });
+  const worker = await createWorker({ activities: streamActivities });
   await worker.runUntil(async () => {
     const handle = await startWorkflow(multiTopicWorkflow, { args: [count] });
 
@@ -174,7 +174,7 @@ test('subscribe_from_offset_and_per_item_offsets — non-zero starts and global 
 test('per_item_offsets_with_topic_filter — offsets are global, not per-topic', async (t) => {
   const count = 9;
   const { createWorker, startWorkflow } = helpers(t);
-  const worker = await createWorker({ activities: pubsubActivities });
+  const worker = await createWorker({ activities: streamActivities });
   await worker.runUntil(async () => {
     const handle = await startWorkflow(multiTopicWorkflow, { args: [count] });
 
@@ -201,7 +201,7 @@ test('poll_truncated_offset_returns_application_failure', async (t) => {
 
     const items: PublishEntry[] = [];
     for (let i = 0; i < 5; i++) items.push(entry('events', `item-${i}`));
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+    await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
       items,
       publisher_id: '',
       sequence: 0,
@@ -213,7 +213,7 @@ test('poll_truncated_offset_returns_application_failure', async (t) => {
     // with ApplicationFailure cause of type 'TruncatedOffset'.
     const rawHandle = env.client.workflow.getHandle(handle.workflowId);
     const err = (await t.throwsAsync(
-      rawHandle.executeUpdate<PollResult, [PollInput]>(pubsubPollUpdate, {
+      rawHandle.executeUpdate<PollResult, [PollInput]>(workflowStreamPollUpdate, {
         args: [{ topics: [], from_offset: 1 }],
       }),
       { instanceOf: WorkflowUpdateFailedError }
@@ -238,7 +238,7 @@ test('subscribe_recovers_from_truncation — client auto-restarts from 0', async
 
     const items: PublishEntry[] = [];
     for (let i = 0; i < 5; i++) items.push(entry('events', `item-${i}`));
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+    await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
       items,
       publisher_id: '',
       sequence: 0,
@@ -258,7 +258,7 @@ test('subscribe_recovers_from_truncation — client auto-restarts from 0', async
 
 test('force_flush — forceFlush wakes flusher despite 60s interval', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
-  const worker = await createWorker({ activities: pubsubActivities });
+  const worker = await createWorker({ activities: streamActivities });
   await worker.runUntil(async () => {
     const handle = await startWorkflow(forceFlushWorkflow, { args: [] });
     // The activity holds for ~10s after the forceFlush publish; 5s timeout
@@ -275,7 +275,7 @@ test('force_flush — forceFlush wakes flusher despite 60s interval', async (t) 
 test('dispose_flushes_on_exit — await using drains buffer', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const count = 5;
-  const worker = await createWorker({ activities: pubsubActivities });
+  const worker = await createWorker({ activities: streamActivities });
   await worker.runUntil(async () => {
     const handle = await startWorkflow(flushOnExitWorkflow, { args: [count] });
     const items = await collectItems(handle, undefined, 0, count, 15_000);
@@ -290,7 +290,7 @@ test('dispose_flushes_on_exit — await using drains buffer', async (t) => {
 test('max_batch_size — triggers flush without waiting for timer', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const count = 7;
-  const worker = await createWorker({ activities: pubsubActivities });
+  const worker = await createWorker({ activities: streamActivities });
   await worker.runUntil(async () => {
     const handle = await startWorkflow(maxBatchWorkflow, { args: [count] });
     const items = await collectItems(handle, undefined, 0, count + 1, 15_000);
@@ -306,19 +306,19 @@ test('dedup_rejects_duplicate_signal — same publisher+sequence is dropped', as
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const handle = await startWorkflow(basicPubSubWorkflow, { args: [] });
+    const handle = await startWorkflow(basicWorkflowStreamWorkflow, { args: [] });
 
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+    await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
       items: [entry('events', 'item-0')],
       publisher_id: 'test-pub',
       sequence: 1,
     });
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+    await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
       items: [entry('events', 'duplicate')],
       publisher_id: 'test-pub',
       sequence: 1,
     });
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+    await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
       items: [entry('events', 'item-1')],
       publisher_id: 'test-pub',
       sequence: 2,
@@ -330,14 +330,14 @@ test('dedup_rejects_duplicate_signal — same publisher+sequence is dropped', as
     t.is(payloadString(items[0]!.data), 'item-0');
     t.is(payloadString(items[1]!.data), 'item-1');
 
-    const offset = await handle.query<number>(pubsubOffsetQuery);
+    const offset = await handle.query<number>(workflowStreamOffsetQuery);
     t.is(offset, 2);
 
     await handle.signal('close');
   });
 });
 
-test('truncate_pubsub — truncate discards prefix and adjusts base', async (t) => {
+test('truncate_stream — truncate discards prefix and adjusts base', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -345,7 +345,7 @@ test('truncate_pubsub — truncate discards prefix and adjusts base', async (t) 
 
     const items: PublishEntry[] = [];
     for (let i = 0; i < 5; i++) items.push(entry('events', `item-${i}`));
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+    await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
       items,
       publisher_id: '',
       sequence: 0,
@@ -358,7 +358,7 @@ test('truncate_pubsub — truncate discards prefix and adjusts base', async (t) 
     await handle.executeUpdate(truncateUpdate, { args: [3] });
 
     // Offset should still be 5 (truncation moves base_offset, not tail).
-    const offset = await handle.query<number>(pubsubOffsetQuery);
+    const offset = await handle.query<number>(workflowStreamOffsetQuery);
     t.is(offset, 5);
 
     const after = await collectItems(handle, undefined, 3, 2);
@@ -381,7 +381,7 @@ test('truncate_past_end_raises_application_failure', async (t) => {
 
     const items: PublishEntry[] = [];
     for (let i = 0; i < 2; i++) items.push(entry('events', `item-${i}`));
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+    await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
       items,
       publisher_id: '',
       sequence: 0,
@@ -409,26 +409,26 @@ test('explicit_flush_barrier — flush() returns once items are confirmed', asyn
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const handle = await startWorkflow(basicPubSubWorkflow, { args: [] });
+    const handle = await startWorkflow(basicWorkflowStreamWorkflow, { args: [] });
 
-    const pubsub = new PubSubClient(handle, { batchInterval: '60 seconds' });
+    const stream = new WorkflowStreamClient(handle, { batchInterval: '60 seconds' });
 
     // 1. Empty-buffer flush is a no-op (must not block).
-    t.is(await pubsub.getOffset(), 0);
-    await pubsub.flush();
-    t.is(await pubsub.getOffset(), 0);
+    t.is(await stream.getOffset(), 0);
+    await stream.flush();
+    t.is(await stream.getOffset(), 0);
 
     // 2. Flush makes prior publishes visible without waiting on the
     // 60s batch timer.
-    pubsub.publish('events', encoder.encode('a'));
-    pubsub.publish('events', encoder.encode('b'));
-    pubsub.publish('events', encoder.encode('c'));
-    await pubsub.flush();
-    t.is(await pubsub.getOffset(), 3);
+    stream.publish('events', encoder.encode('a'));
+    stream.publish('events', encoder.encode('b'));
+    stream.publish('events', encoder.encode('c'));
+    await stream.flush();
+    t.is(await stream.getOffset(), 3);
 
     // 3. Second flush with no new items is a no-op.
-    await pubsub.flush();
-    t.is(await pubsub.getOffset(), 3);
+    await stream.flush();
+    t.is(await stream.getOffset(), 3);
 
     await handle.signal('close');
   });
@@ -438,12 +438,12 @@ test('subscribe_accepts_string_topic — single-string convenience', async (t) =
   // subscribe(topics='a') is equivalent to subscribe(topics=['a']).
   const count = 9;
   const { createWorker, startWorkflow } = helpers(t);
-  const worker = await createWorker({ activities: pubsubActivities });
+  const worker = await createWorker({ activities: streamActivities });
   await worker.runUntil(async () => {
     const handle = await startWorkflow(multiTopicWorkflow, { args: [count] });
 
-    const client = new PubSubClient(handle);
-    const items: PubSubItem[] = [];
+    const client = new WorkflowStreamClient(handle);
+    const items: WorkflowStreamItem[] = [];
     const gen = client.subscribe('a', 0, { pollCooldown: 0 });
     for await (const item of gen) {
       items.push(item);
@@ -470,7 +470,7 @@ test('ttl_pruning_in_get_state — old publisher pruned, new publisher kept', as
   await worker.runUntil(async () => {
     const handle = await startWorkflow(ttlTestWorkflow, { args: [] });
 
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+    await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
       items: [entry('events', 'old')],
       publisher_id: 'pub-old',
       sequence: 1,
@@ -478,20 +478,20 @@ test('ttl_pruning_in_get_state — old publisher pruned, new publisher kept', as
 
     // Sanity: pub-old is recorded (generous TTL retains it).
     // Generous TTL: 9999 seconds, expressed in ms.
-    const before = await handle.query<PubSubState, [number]>(getStateWithTtlQuery, 9999_000);
+    const before = await handle.query<WorkflowStreamState, [number]>(getStateWithTtlQuery, 9999_000);
     t.true('pub-old' in before.publisher_sequences);
 
     // Wall-clock gap so workflow.time() advances between the two signals.
     await new Promise((r) => setTimeout(r, 1000));
 
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+    await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
       items: [entry('events', 'new')],
       publisher_id: 'pub-new',
       sequence: 1,
     });
 
     // 500 ms TTL: pub-old (~1s old) is pruned, pub-new (~0s old) is kept.
-    const state = await handle.query<PubSubState, [number]>(getStateWithTtlQuery, 500);
+    const state = await handle.query<WorkflowStreamState, [number]>(getStateWithTtlQuery, 500);
     t.false('pub-old' in state.publisher_sequences);
     t.true('pub-new' in state.publisher_sequences);
     t.is(state.log.length, 2);
@@ -505,7 +505,7 @@ test('continue_as_new_typed — log, offsets, AND dedup state survive CAN', asyn
   const { env } = t.context;
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const workflowId = `pubsub-can-${randomUUID()}`;
+    const workflowId = `stream-can-${randomUUID()}`;
     const handle = await startWorkflow(continueAsNewTypedWorkflow, {
       args: [{}],
       workflowId,
@@ -513,7 +513,7 @@ test('continue_as_new_typed — log, offsets, AND dedup state survive CAN', asyn
 
     // Seed publisher dedup state (pub / sequence=1) so we can verify it
     // survives CAN.
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+    await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
       items: [
         entry('events', 'item-0'),
         entry('events', 'item-1'),
@@ -561,7 +561,7 @@ test('continue_as_new_typed — log, offsets, AND dedup state survive CAN', asyn
 
     // Re-sending publisher_id='pub', sequence=1 must be rejected — log and
     // publisher_sequences unchanged.
-    await newHandle.signal<[PublishInput]>(pubsubPublishSignal, {
+    await newHandle.signal<[PublishInput]>(workflowStreamPublishSignal, {
       items: [entry('events', 'dup')],
       publisher_id: 'pub',
       sequence: 1,
@@ -570,7 +570,7 @@ test('continue_as_new_typed — log, offsets, AND dedup state survive CAN', asyn
     t.deepEqual(seqsAfterDup, { pub: 1 });
 
     // Fresh sequence from same publisher accepted; item-3 lands at offset 3.
-    await newHandle.signal<[PublishInput]>(pubsubPublishSignal, {
+    await newHandle.signal<[PublishInput]>(workflowStreamPublishSignal, {
       items: [entry('events', 'item-3')],
       publisher_id: 'pub',
       sequence: 2,
@@ -589,18 +589,18 @@ test('continue_as_new_typed — log, offsets, AND dedup state survive CAN', asyn
   });
 });
 
-test('continue_as_new_helper — log and offsets survive CAN via PubSub.continueAsNew', async (t) => {
+test('continue_as_new_helper — log and offsets survive CAN via WorkflowStream.continueAsNew', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const { env } = t.context;
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const workflowId = `pubsub-can-helper-${randomUUID()}`;
+    const workflowId = `stream-can-helper-${randomUUID()}`;
     const handle = await startWorkflow(continueAsNewHelperWorkflow, {
       args: [{}],
       workflowId,
     });
 
-    await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+    await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
       items: [entry('events', 'item-0'), entry('events', 'item-1')],
       publisher_id: 'pub',
       sequence: 1,
@@ -644,12 +644,12 @@ test('poll_more_ready_when_response_exceeds_size_limit — 1MB cap', async (t) =
   const { env } = t.context;
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const handle = await startWorkflow(basicPubSubWorkflow, { args: [] });
+    const handle = await startWorkflow(basicWorkflowStreamWorkflow, { args: [] });
 
     const chunk = new Uint8Array(200_000).fill('x'.charCodeAt(0));
     const chunkPayload = defaultPayloadConverter.toPayload(chunk);
     for (let i = 0; i < 8; i++) {
-      await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+      await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
         items: [{ topic: 'big', data: encodePayloadWire(chunkPayload) }],
         publisher_id: '',
         sequence: 0,
@@ -658,7 +658,7 @@ test('poll_more_ready_when_response_exceeds_size_limit — 1MB cap', async (t) =
 
     // The update acts as a barrier for all prior publish signals.
     const rawHandle = env.client.workflow.getHandle(handle.workflowId);
-    const first = await rawHandle.executeUpdate<PollResult, [PollInput]>(pubsubPollUpdate, {
+    const first = await rawHandle.executeUpdate<PollResult, [PollInput]>(workflowStreamPollUpdate, {
       args: [{ topics: [], from_offset: 0 }],
     });
     t.is(first.more_ready, true);
@@ -670,7 +670,7 @@ test('poll_more_ready_when_response_exceeds_size_limit — 1MB cap', async (t) =
     let offset = first.next_offset;
     let last: PollResult = first;
     while (gathered < 8) {
-      last = await rawHandle.executeUpdate<PollResult, [PollInput]>(pubsubPollUpdate, {
+      last = await rawHandle.executeUpdate<PollResult, [PollInput]>(workflowStreamPollUpdate, {
         args: [{ topics: [], from_offset: offset }],
       });
       gathered += last.items.length;
@@ -688,11 +688,11 @@ test('subscribe_iterates_through_more_ready — caller sees all items', async (t
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const handle = await startWorkflow(basicPubSubWorkflow, { args: [] });
+    const handle = await startWorkflow(basicWorkflowStreamWorkflow, { args: [] });
     const chunk = new Uint8Array(200_000).fill('x'.charCodeAt(0));
     const chunkPayload = defaultPayloadConverter.toPayload(chunk);
     for (let i = 0; i < 8; i++) {
-      await handle.signal<[PublishInput]>(pubsubPublishSignal, {
+      await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
         items: [{ topic: 'big', data: encodePayloadWire(chunkPayload) }],
         publisher_id: '',
         sequence: 0,
@@ -714,9 +714,9 @@ test('flush_retry_preserves_items_after_failures — behavioral retry coverage',
   const { createWorker, startWorkflow } = helpers(t);
   const worker = await createWorker();
   await worker.runUntil(async () => {
-    const handle = await startWorkflow(basicPubSubWorkflow, { args: [] });
+    const handle = await startWorkflow(basicWorkflowStreamWorkflow, { args: [] });
 
-    const pubsub = new PubSubClient(handle);
+    const stream = new WorkflowStreamClient(handle);
     const realSignal = handle.signal.bind(handle);
     let failRemaining = 2;
     (handle as unknown as { signal: typeof handle.signal }).signal = (async (...args: unknown[]) => {
@@ -727,23 +727,23 @@ test('flush_retry_preserves_items_after_failures — behavioral retry coverage',
       return realSignal(...(args as Parameters<typeof handle.signal>));
     }) as typeof handle.signal;
 
-    pubsub.publish('events', encoder.encode('item-0'));
-    pubsub.publish('events', encoder.encode('item-1'));
-    await t.throwsAsync((pubsub as unknown as { _doFlush(): Promise<void> })._doFlush(), {
+    stream.publish('events', encoder.encode('item-0'));
+    stream.publish('events', encoder.encode('item-1'));
+    await t.throwsAsync((stream as unknown as { _doFlush(): Promise<void> })._doFlush(), {
       message: /simulated/,
     });
 
     // Publish more during the failed state — must not overtake the pending
     // retry on eventual delivery.
-    pubsub.publish('events', encoder.encode('item-2'));
-    await t.throwsAsync((pubsub as unknown as { _doFlush(): Promise<void> })._doFlush(), {
+    stream.publish('events', encoder.encode('item-2'));
+    await t.throwsAsync((stream as unknown as { _doFlush(): Promise<void> })._doFlush(), {
       message: /simulated/,
     });
 
     // Third flush delivers the pending retry batch.
-    await (pubsub as unknown as { _doFlush(): Promise<void> })._doFlush();
+    await (stream as unknown as { _doFlush(): Promise<void> })._doFlush();
     // Fourth flush delivers the buffered 'item-2'.
-    await (pubsub as unknown as { _doFlush(): Promise<void> })._doFlush();
+    await (stream as unknown as { _doFlush(): Promise<void> })._doFlush();
 
     const items = await collectItems(handle, undefined, 0, 3);
     t.deepEqual(
@@ -760,7 +760,7 @@ test('flush_raises_after_max_retry_duration — timeout surfaces, client resumes
   // the client stays usable and subsequent publishes succeed.
   const { env } = t.context;
   const bogus = env.client.workflow.getHandle(`no-such-workflow-${randomUUID()}`);
-  const client = new PubSubClient(bogus, {
+  const client = new WorkflowStreamClient(bogus, {
     batchInterval: '100 milliseconds',
     maxRetryDuration: '200 milliseconds',
   });

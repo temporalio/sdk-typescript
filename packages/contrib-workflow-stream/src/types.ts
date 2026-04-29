@@ -1,11 +1,11 @@
 /**
- * Shared data types for the pub/sub contrib module.
+ * Shared data types for the workflow stream contrib module.
  *
- * User-facing `data` fields on {@link PubSubItem} are Temporal
+ * User-facing `data` fields on {@link WorkflowStreamItem} are Temporal
  * {@link Payload}s so that per-item metadata (encoding, messageType)
  * round-trips to consumers. See README §"Cross-Language Protocol".
  *
- * The wire representation (`PublishEntry`, `_WireItem`) uses
+ * The wire representation (`PublishEntry`, `_WorkflowStreamWireItem`) uses
  * base64-encoded `Payload` protobuf bytes because the default JSON
  * converter cannot serialize a `Payload` object embedded inside a
  * plain (non-top-level) field. Using a base64 proto bytes string
@@ -21,7 +21,7 @@
 import type { Payload } from '@temporalio/common';
 
 /**
- * A single item in the pub/sub log (user-facing).
+ * A single item in the workflow stream log (user-facing).
  *
  * `data` is a raw {@link Payload}; use a {@link PayloadConverter}
  * (e.g. `defaultPayloadConverter.fromPayload<T>(item.data)`) to
@@ -30,7 +30,7 @@ import type { Payload } from '@temporalio/common';
  * The `offset` field is populated by the poll handler from the item's
  * position in the global log.
  */
-export interface PubSubItem {
+export interface WorkflowStreamItem {
   topic: string;
   data: Payload;
   offset: number;
@@ -44,13 +44,13 @@ export interface PublishEntry {
 }
 
 /**
- * Wire representation of a PubSubItem (base64 of serialized Payload).
+ * Wire representation of a WorkflowStreamItem (base64 of serialized Payload).
  *
  * The `offset` field is populated by the poll handler from the item's
  * position in the global log. It is unused in the `getState()` snapshot
  * (offsets there are re-derivable from `base_offset + index`).
  */
-export interface _WireItem {
+export interface _WorkflowStreamWireItem {
   topic: string;
   /** Base64-encoded Payload protobuf bytes. */
   data: string;
@@ -78,14 +78,14 @@ export interface PollInput {
  * a cooldown delay.
  */
 export interface PollResult {
-  items: _WireItem[];
+  items: _WorkflowStreamWireItem[];
   next_offset: number;
   more_ready: boolean;
 }
 
-/** Serializable snapshot of pub/sub state for continue-as-new. */
-export interface PubSubState {
-  log: _WireItem[];
+/** Serializable snapshot of workflow stream state for continue-as-new. */
+export interface WorkflowStreamState {
+  log: _WorkflowStreamWireItem[];
   base_offset: number;
   publisher_sequences: Record<string, number>;
   /** Per-publisher last-seen timestamps (seconds) for TTL pruning. */
@@ -260,7 +260,7 @@ export function decodePayloadProto(bytes: Uint8Array): Payload {
   return { metadata, data };
 }
 
-/** Convenience: encode a Payload to the base64 wire format used by pubsub. */
+/** Convenience: encode a Payload to the base64 wire format used by stream. */
 export function encodePayloadWire(payload: Payload): string {
   return encodeBase64(encodePayloadProto(payload));
 }

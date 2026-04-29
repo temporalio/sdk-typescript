@@ -13,7 +13,7 @@ import type {
 import { asSchema, type Schema, type ToolExecutionOptions } from 'ai';
 import { ApplicationFailure } from '@temporalio/common';
 import { Context } from '@temporalio/activity';
-import { PubSubClient } from '@temporalio/contrib-pubsub';
+import { WorkflowStreamClient } from '@temporalio/contrib-workflow-stream';
 import type { McpClientFactories, McpClientFactory } from './mcp';
 
 const EVENTS_TOPIC = 'events';
@@ -92,14 +92,14 @@ export function createActivities(
      * Streaming-aware model activity.
      *
      * Calls `model.doStream()`, publishes each yielded AI SDK stream part
-     * as JSON to the pubsub side channel, and returns the assembled
+     * as JSON to the stream side channel, and returns the assembled
      * `LanguageModelV3GenerateResult`. Consumers receive native AI SDK
      * stream-part types (text-delta, reasoning-delta, tool-input-delta,
      * response-metadata, finish, ...); no normalization happens here.
      */
     async invokeModelStreaming(args: InvokeModelArgs): Promise<InvokeModelResult> {
-      const pubsub = PubSubClient.fromActivity({ batchInterval: '100 milliseconds' });
-      pubsub.start();
+      const stream = WorkflowStreamClient.fromActivity({ batchInterval: '100 milliseconds' });
+      stream.start();
 
       const model = provider.languageModel(args.modelId);
       const streamResult = await model.doStream(args.options);
@@ -128,7 +128,7 @@ export function createActivities(
           // Publish the raw stream part as JSON so consumers can switch on
           // the native AI SDK type. Accumulation below is for the final
           // assembled result this activity returns.
-          pubsub.publish(EVENTS_TOPIC, encoder.encode(JSON.stringify(part)));
+          stream.publish(EVENTS_TOPIC, encoder.encode(JSON.stringify(part)));
 
           switch (part.type) {
             case 'stream-start':
@@ -186,7 +186,7 @@ export function createActivities(
           }
         }
       } finally {
-        await pubsub.stop();
+        await stream.stop();
       }
 
       return {

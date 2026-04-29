@@ -1,8 +1,8 @@
 /**
- * External-side pub/sub client.
+ * External-side workflow stream client.
  *
  * Used by activities, starters, and any code with a workflow handle to publish
- * messages and subscribe to topics on a pub/sub workflow.
+ * messages and subscribe to topics on a workflow stream workflow.
  *
  * Each published value is turned into a `Payload` via the client's payload
  * converter. The codec chain (encryption, PII-redaction, compression) is
@@ -28,7 +28,7 @@ import {
   encodePayloadWire,
   type PollInput,
   type PollResult,
-  type PubSubItem,
+  type WorkflowStreamItem,
   type PublishEntry,
   type PublishInput,
 } from './types';
@@ -41,7 +41,7 @@ export class FlushTimeoutError extends Error {
   }
 }
 
-export interface PubSubClientOptions {
+export interface WorkflowStreamClientOptions {
   /** Interval between automatic flushes. Default: 2 seconds. */
   batchInterval?: Duration;
   /** Auto-flush when buffer reaches this size. */
@@ -116,7 +116,7 @@ function isPayload(value: unknown): value is Payload {
   );
 }
 
-export class PubSubClient {
+export class WorkflowStreamClient {
   private handle: WorkflowHandle;
   private client: Client | undefined;
   private readonly workflowId: string;
@@ -137,7 +137,7 @@ export class PubSubClient {
   private flusherError: Error | undefined;
   private currentFlush: Promise<void> | null = null;
 
-  constructor(handle: WorkflowHandle, options?: PubSubClientOptions) {
+  constructor(handle: WorkflowHandle, options?: WorkflowStreamClientOptions) {
     this.handle = handle;
     this.workflowId = handle.workflowId;
     this.batchIntervalMs = msToNumber(options?.batchInterval ?? '2 seconds');
@@ -147,20 +147,20 @@ export class PubSubClient {
   }
 
   /**
-   * Create a PubSubClient from an explicit Temporal client and workflow ID.
+   * Create a WorkflowStreamClient from an explicit Temporal client and workflow ID.
    *
    * Use this when the caller has an explicit `Client` and `workflowId` in
    * hand (starters, BFFs, other workflows' activities). For code running
    * inside an activity that targets its own parent workflow, use
-   * {@link PubSubClient.fromActivity}.
+   * {@link WorkflowStreamClient.fromActivity}.
    *
    * A client created through this method follows continue-as-new chains in
    * `subscribe()` and uses the client's payload converter for per-item
    * `Payload` construction.
    */
-  static create(client: Client, workflowId: string, options?: PubSubClientOptions): PubSubClient {
+  static create(client: Client, workflowId: string, options?: WorkflowStreamClientOptions): WorkflowStreamClient {
     const handle = client.workflow.getHandle(workflowId);
-    const instance = new PubSubClient(handle, options);
+    const instance = new WorkflowStreamClient(handle, options);
     instance.client = client;
     // Prefer the Client's configured converter so custom converters flow
     // through; fall back to the default if unset.
@@ -172,15 +172,15 @@ export class PubSubClient {
   }
 
   /**
-   * Create a PubSubClient targeting the current activity's parent workflow.
+   * Create a WorkflowStreamClient targeting the current activity's parent workflow.
    *
    * Must be called from within an activity. The Temporal client and
    * parent workflow id are taken from the activity context.
    */
-  static fromActivity(options?: PubSubClientOptions): PubSubClient {
+  static fromActivity(options?: WorkflowStreamClientOptions): WorkflowStreamClient {
     const ctx = ActivityContext.current();
     const workflowId = ctx.info.workflowExecution.workflowId;
-    return PubSubClient.create(ctx.client, workflowId, options);
+    return WorkflowStreamClient.create(ctx.client, workflowId, options);
   }
 
   /** Start the background flusher. Call before publishing. */
@@ -267,7 +267,7 @@ export class PubSubClient {
     }
   }
 
-  /** Dispose pattern: `await using client = PubSubClient.create(...)`. */
+  /** Dispose pattern: `await using client = WorkflowStreamClient.create(...)`. */
   async [Symbol.asyncDispose](): Promise<void> {
     await this.stop();
   }
@@ -382,7 +382,7 @@ export class PubSubClient {
 
     // On failure, the signal throws and pending stays set for retry.
     // On success, advance confirmed sequence and clear pending.
-    await this.handle.signal<[PublishInput]>('__temporal_pubsub_publish', {
+    await this.handle.signal<[PublishInput]>('__temporal_workflow_stream_publish', {
       items: batch,
       publisher_id: this.publisherId,
       sequence: seq,
@@ -400,7 +400,7 @@ export class PubSubClient {
    * `defaultPayloadConverter.fromPayload<T>(item.data)` to decode.
    *
    * Automatically follows continue-as-new chains when created via
-   * {@link PubSubClient.create}.
+   * {@link WorkflowStreamClient.create}.
    *
    * @param topics - Topic filter. A single topic name, an array of topic
    *   names, or undefined. Undefined or an empty array means all topics.
@@ -409,7 +409,7 @@ export class PubSubClient {
     topics?: string | string[],
     fromOffset = 0,
     options?: SubscribeOptions
-  ): AsyncGenerator<PubSubItem, void, unknown> {
+  ): AsyncGenerator<WorkflowStreamItem, void, unknown> {
     const pollCooldownMs = msToNumber(options?.pollCooldown ?? '100 milliseconds');
     const topicFilter: string[] =
       topics === undefined ? [] : typeof topics === 'string' ? [topics] : topics;
@@ -418,7 +418,7 @@ export class PubSubClient {
     while (true) {
       let result: PollResult;
       try {
-        result = await this.handle.executeUpdate<PollResult, [PollInput]>('__temporal_pubsub_poll', {
+        result = await this.handle.executeUpdate<PollResult, [PollInput]>('__temporal_workflow_stream_poll', {
           args: [{ topics: topicFilter, from_offset: offset }],
         });
       } catch (err) {
@@ -459,7 +459,7 @@ export class PubSubClient {
 
   /** Query the current global offset. */
   async getOffset(): Promise<number> {
-    return this.handle.query<number>('__temporal_pubsub_offset');
+    return this.handle.query<number>('__temporal_workflow_stream_offset');
   }
 
   /**

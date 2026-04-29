@@ -1,7 +1,7 @@
 {
-  "name": "@temporalio/contrib-pubsub",
+  "name": "@temporalio/contrib-workflow-stream",
   "version": "1.15.0",
-  "description": "Temporal.io SDK Pub/Sub contrib module",
+  "description": "Temporal.io SDK Workflow Streams contrib module",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
@@ -9,7 +9,7 @@
   },
   "keywords": [
     "temporal",
-    "pubsub",
+    "stream",
     "streaming"
   ],
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",

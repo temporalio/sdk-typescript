@@ -173,9 +173,9 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
-      '@temporalio/contrib-pubsub':
+      '@temporalio/contrib-workflow-stream':
         specifier: workspace:*
-        version: link:../contrib-pubsub
+        version: link:../contrib-workflow-stream
       '@temporalio/plugin':
         specifier: workspace:*
         version: link:../plugin
@@ -267,7 +267,7 @@ importers:
         specifier: ^7.2.5
         version: 7.5.1
 
-  packages/contrib-pubsub:
+  packages/contrib-workflow-stream:
     dependencies:
       '@temporalio/activity':
         specifier: workspace:*
@@ -590,9 +590,9 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
-      '@temporalio/contrib-pubsub':
+      '@temporalio/contrib-workflow-stream':
         specifier: workspace:*
-        version: link:../contrib-pubsub
+        version: link:../contrib-workflow-stream
       '@temporalio/core-bridge':
         specifier: workspace:*
         version: link:../core-bridge
