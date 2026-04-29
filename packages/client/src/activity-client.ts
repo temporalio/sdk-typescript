@@ -292,7 +292,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       idReusePolicy: encodeActivityIdReusePolicy(input.options.idReusePolicy),
       idConflictPolicy: encodeActivityIdConflictPolicy(input.options.idConflictPolicy),
       searchAttributes,
-      header: input.headers,
+      header: { fields: input.headers },
       userMetadata: await encodeUserMetadata(this.dataConverter, input.options.summary, undefined),
       priority: input.options.priority ? compilePriority(input.options.priority) : undefined,
     };
