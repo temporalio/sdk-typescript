@@ -14,7 +14,7 @@
  * calls' ``T`` parameters are erased and not compared.
  */
 
-import { defaultPayloadConverter, type Payload } from '@temporalio/common';
+import type { Payload, PayloadConverter } from '@temporalio/common';
 import type { SubscribeOptions, WorkflowStreamClient } from './client';
 import type { WorkflowStream } from './stream';
 import type { WorkflowStreamItem } from './types';
@@ -57,7 +57,9 @@ export class TopicHandle<T = unknown> {
 
   /**
    * Async iterator over items on this topic, decoded as ``T`` via the
-   * default payload converter.
+   * client's configured payload converter (custom converter on the
+   * underlying {@link WorkflowStreamClient.create | Client} flows
+   * through; otherwise the default).
    *
    * For raw {@link Payload} access, or any other decode path that
    * differs from the handle's bound ``T``, call
@@ -72,10 +74,11 @@ export class TopicHandle<T = unknown> {
     fromOffset = 0,
     options?: SubscribeOptions,
   ): AsyncGenerator<WorkflowStreamItem<T>, void, unknown> {
+    const converter = (this.client as unknown as { payloadConverter: PayloadConverter }).payloadConverter;
     for await (const raw of this.client.subscribe(this.name, fromOffset, options)) {
       yield {
         topic: raw.topic,
-        data: defaultPayloadConverter.fromPayload<T>(raw.data),
+        data: converter.fromPayload<T>(raw.data),
         offset: raw.offset,
       };
     }
