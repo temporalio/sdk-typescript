@@ -267,10 +267,14 @@ export interface Info {
    * ID of the current run of this activity. Can be used to differentiate between different activity executions that
    * share the same ID. Activities started by a Workflow don't have activity run ID - instead, they can be identified by
    * workflow ID and workflow run ID; see {@link workflowExecution}
+   *
+   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   readonly activityRunId?: string;
   /**
    * Whether this activity was started by a workflow
+   *
+   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   readonly inWorkflow: boolean;
 }

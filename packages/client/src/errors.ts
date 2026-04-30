@@ -117,6 +117,8 @@ export class ActivityResetError extends Error {}
 /**
  * Thrown by the {@link ActivityClient} while waiting on Activity execution result if execution completes with failure.
  * The failure is stored in the `cause` property.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 @SymbolBasedInstanceOfError('ActivityExecutionFailedError')
 export class ActivityExecutionFailedError extends Error {
@@ -134,6 +136,8 @@ export class ActivityExecutionFailedError extends Error {
  * Thrown when starting an Activity failed because another Activity with the same ID already exists and reusing the ID
  * is not allowed under chosen ID reuse policy and ID conflict policy. See {@link ActivityOptions.idReusePolicy} and
  * {@link ActivityOptions.idConflictPolicy}.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 @SymbolBasedInstanceOfError('ActivityExecutionAlreadyStartedError')
 export class ActivityExecutionAlreadyStartedError extends Error {

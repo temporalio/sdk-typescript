@@ -70,6 +70,8 @@ import {
 
 /**
  * Options used to configure {@link ActivityClient}
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityClientOptions extends AsyncCompletionClientOptions {
   interceptors?: ActivityClientInterceptor[];
@@ -108,6 +110,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    * affects type annotations.
    * @template T Activity interface to use for type checking. The returned client can only start activities present in
    * this interface.
+   *
+   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   typed<T>(): TypedActivityClient<T> {
     return this;
@@ -119,6 +123,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    * @param activity Name of the activity to start.
    * @param options Options controlling the start and execution of the activity.
    * @returns Handle to the started activity. The handle's `runId` property will be set to the started run.
+   *
+   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   async start<R = any>(activity: string, options: ActivityOptions): Promise<ActivityHandle<R>> {
     return this.interceptedHandlers.start({
@@ -133,6 +139,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    * @param activity Name of the activity to start.
    * @param options Options controlling the activity execution.
    * @returns Result of the activity.
+   *
+   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   async execute<R = any>(activity: string, options: ActivityOptions): Promise<R> {
     const handle = await this.start(activity, options);
@@ -153,6 +161,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    * @param activityId ID of the Activity.
    * @param runId Optional run ID of the specific Activity execution.
    * @returns Handle to the specified activity execution.
+   *
+   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   getHandle<R = any>(activityId: string, runId?: string): ActivityHandle<R> {
     return this.createHandle(activityId, runId);
@@ -165,6 +175,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    *
    * More info on the concept of "visibility" and the query syntax on the Temporal documentation site:
    * https://docs.temporal.io/visibility
+   *
+   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   list(query: string): AsyncIterable<ActivityExecutionInfo> {
     return this.interceptedHandlers.list({
@@ -180,6 +192,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    *
    * More info on the concept of "visibility" and the query syntax on the Temporal documentation site:
    * https://docs.temporal.io/visibility
+   *
+   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   async count(query: string): Promise<CountActivityExecutions> {
     return await this.interceptedHandlers.count({
@@ -447,6 +461,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
  * Handle that can be used to perform operations on the associated Activity.
  * Can be obtained by calling {@link ActivityClient.start} or {@link ActivityClient.getHandle}.
  * @template R Result type of the activity. Use {@link ActivityClient.typed} to start activities in a type-safe way.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityHandle<R = any> {
   /**
@@ -480,6 +496,8 @@ export interface ActivityHandle<R = any> {
 
 /**
  * Options used by {@link ActivityClient.start}.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityOptions {
   /**
@@ -626,6 +644,8 @@ function buildActivityDescription(
  * Argument types in the provided options must match the argument types of the specified Activity as defined in provided
  * interface
  * @template T Activity interface
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface TypedActivityClient<T> {
   start<N extends ActivityName<T>>(
@@ -640,6 +660,8 @@ export interface TypedActivityClient<T> {
  * Utility type to support strong typing in {@link TypedActivityClient}.
  * Contains names of activities extracted from the specified activity interface.
  * @template T Activity interface
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityName<T> = {
   [N in keyof T & string]: T[N] extends ActivityFunction<any, any> ? N : never;
@@ -650,6 +672,8 @@ export type ActivityName<T> = {
  * Extracts argument types of an activity.
  * @template T Activity interface
  * @template N Activity name
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityArgs<T, N extends ActivityName<T>> = T[N] extends ActivityFunction<infer P, any> ? P : never;
 
@@ -658,6 +682,8 @@ export type ActivityArgs<T, N extends ActivityName<T>> = T[N] extends ActivityFu
  * Extracts result type of an activity.
  * @template T Activity interface
  * @template N Activity name
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityResult<T, N extends ActivityName<T>> = T[N] extends ActivityFunction<any, infer R> ? R : never;
 
@@ -665,6 +691,8 @@ export type ActivityResult<T, N extends ActivityName<T>> = T[N] extends Activity
  * Utility type to support strong typing in {@link TypedActivityClient}.
  * Represents {@link ActivityOptions} with strongly typed arguments.
  * @template Args Types of activity arguments as an array type.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityOptionsWithArgs<Args extends any[]> = Args extends [any, ...any]
   ? Replace<
@@ -691,5 +719,7 @@ export type ActivityOptionsWithArgs<Args extends any[]> = Args extends [any, ...
  * Represents {@link ActivityOptions} with strongly typed arguments matching specified Activity in specified interface.
  * @template T Activity interface
  * @template N Activity name
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityOptionsFor<T, N extends ActivityName<T>> = ActivityOptionsWithArgs<ActivityArgs<T, N>>;

@@ -422,12 +422,12 @@ if (RUN_INTEGRATION_TESTS) {
     const handle = await client.start('waitForSignal', {
       ...defaultOptions,
       id: activityId,
-      scheduleToCloseTimeout: '5s'
+      scheduleToCloseTimeout: '5s',
     });
     const abortController = new AbortController();
     const resultPromise = client.withAbortSignal(abortController.signal, () => handle.result());
     setTimeout(() => abortController.abort(), LONG_POLL_TIMEOUT_MS * 0.25);
-    const err = await t.throwsAsync(() => resultPromise, { instanceOf: ServiceError, });
+    const err = await t.throwsAsync(() => resultPromise, { instanceOf: ServiceError });
     t.assert(isGrpcCancelledError(err));
     t.context.activitySignalSubject.next(activityId);
   });
