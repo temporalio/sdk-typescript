@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/lambda-worker",
-  "version": "1.15.0",
+  "version": "1.17.0",
   "description": "Temporal.io SDK AWS Lambda Worker",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
