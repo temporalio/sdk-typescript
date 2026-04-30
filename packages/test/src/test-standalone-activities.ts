@@ -118,6 +118,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test.after.always(async (t) => {
     t.context.worker.shutdown();
+    await t.context.env.teardown();
     await t.context.runPromise;
   });
 
