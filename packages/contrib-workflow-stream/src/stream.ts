@@ -175,7 +175,7 @@ export class WorkflowStream {
   }
 
   /** Unblock all waiting poll handlers and reject new polls for CAN. */
-  drain(): void {
+  detachPollers(): void {
     this.draining = true;
   }
 
@@ -216,11 +216,11 @@ export class WorkflowStream {
   /**
    * Drain, wait for in-flight handlers, then `continueAsNew` with built args.
    *
-   * Replaces the recipe `drain()` → `condition(allHandlersFinished)` →
+   * Replaces the recipe `detachPollers()` → `condition(allHandlersFinished)` →
    * `continueAsNew(...)` for the common case where the only thing that
    * varies across CAN boundaries is the workflow's own arguments.
    *
-   * `buildArgs` is invoked *after* drain stabilizes, with the post-drain
+   * `buildArgs` is invoked *after* pollers detach, with the resulting
    * `WorkflowStreamState` as its single argument, and must return the positional
    * argument tuple for the new run.
    *
@@ -232,7 +232,7 @@ export class WorkflowStream {
    * }]);
    * ```
    *
-   * @param buildArgs Receives the post-drain workflow stream state and returns the
+   * @param buildArgs Receives the post-detach workflow stream state and returns the
    *   positional args for the new run.
    * @param options.publisherTtl Forwarded to `getState`.
    *
@@ -243,7 +243,7 @@ export class WorkflowStream {
     buildArgs: (state: WorkflowStreamState) => Parameters<F>,
     options?: { publisherTtl?: Duration },
   ): Promise<never> {
-    this.drain();
+    this.detachPollers();
     await condition(allHandlersFinished);
     return workflowContinueAsNew<F>(...buildArgs(this.getState(options?.publisherTtl)));
   }

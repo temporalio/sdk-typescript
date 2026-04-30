@@ -149,11 +149,11 @@ export async function myWorkflow(input: WorkflowInput): Promise<void> {
 }
 ```
 
-`WorkflowStream.continueAsNew(buildArgs)` drains waiting subscribers, waits for
+`WorkflowStream.continueAsNew(buildArgs)` detaches waiting pollers, waits for
 in-flight handlers to finish, then calls `continueAsNew` with the args
-returned by `buildArgs(postDrainState)`. The lambda receives the
-post-drain `WorkflowStreamState` as its only argument so the snapshot is
-guaranteed to happen *after* drain. Subscribers created via
+returned by `buildArgs(state)`. The lambda receives the post-detach
+`WorkflowStreamState` as its only argument so the snapshot is guaranteed
+to happen *after* pollers detach. Subscribers created via
 `WorkflowStreamClient.create()` automatically follow continue-as-new chains.
 
 If you need to pass other CAN options (search attributes, memo,
@@ -164,7 +164,7 @@ non-default `taskQueue`, etc.), fall back to the explicit recipe with
 import { condition, allHandlersFinished, makeContinueAsNewFunc } from '@temporalio/workflow';
 
 if (workflowInfo().continueAsNewSuggested) {
-  stream.drain();
+  stream.detachPollers();
   await condition(allHandlersFinished);
   const continueWithOptions = makeContinueAsNewFunc<typeof myWorkflow>({
     taskQueue: 'other-tq',
@@ -184,8 +184,8 @@ if (workflowInfo().continueAsNewSuggested) {
 |---|---|
 | `publish(topic, value)` | Append to the log from workflow code. Accepts any value the default payload converter handles, or a pre-built `Payload`. |
 | `getState(publisherTtl?)` | Snapshot for continue-as-new. Drops publisher dedup entries older than `publisherTtl` (`Duration`, default `'15 minutes'`). |
-| `drain()` | Unblock polls and reject new ones. |
-| `continueAsNew<F>(buildArgs, options?)` | Async. Drain, wait for handlers, then `continueAsNew` with `buildArgs(postDrainState)`. Use the explicit recipe with `makeContinueAsNewFunc` to pass other CAN options. |
+| `detachPollers()` | Unblock polls and reject new ones. |
+| `continueAsNew<F>(buildArgs, options?)` | Async. Detach pollers, wait for handlers, then `continueAsNew` with `buildArgs(state)`. Use the explicit recipe with `makeContinueAsNewFunc` to pass other CAN options. |
 | `truncate(upToOffset)` | Discard log entries below the given offset. |
 
 Handlers registered automatically:

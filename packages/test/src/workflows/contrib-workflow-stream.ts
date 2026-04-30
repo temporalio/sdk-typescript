@@ -152,7 +152,7 @@ export async function continueAsNewTypedWorkflow(input: CANWorkflowInput): Promi
   setHandler(publisherSequencesQuery, () => stream.getState(Number.MAX_SAFE_INTEGER).publisher_sequences);
   await condition(() => shouldContinue || closed);
   if (closed) return;
-  stream.drain();
+  stream.detachPollers();
   await continueAsNew<typeof continueAsNewTypedWorkflow>({
     streamState: stream.getState(),
   });
