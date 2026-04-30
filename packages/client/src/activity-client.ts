@@ -109,7 +109,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    * @template T Activity interface to use for type checking. The returned client can only start activities present in
    * this interface.
    */
-  typedClient<T>(): TypedActivityClient<T> {
+  typed<T>(): TypedActivityClient<T> {
     return this;
   }
 
@@ -446,7 +446,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
 /**
  * Handle that can be used to perform operations on the associated Activity.
  * Can be obtained by calling {@link ActivityClient.start} or {@link ActivityClient.getHandle}.
- * @template R Result type of the activity. Use {@link ActivityClient.typedClient} to start activities in a type-safe way.
+ * @template R Result type of the activity. Use {@link ActivityClient.typed} to start activities in a type-safe way.
  */
 export interface ActivityHandle<R = any> {
   /**
