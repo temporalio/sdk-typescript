@@ -1,12 +1,11 @@
-import {
+import type {
   Payload,
   PayloadConverter,
   FailureConverter,
   ProtoFailure,
-  defaultPayloadConverter,
-  defaultFailureConverter,
   SerializationContext,
 } from '@temporalio/common';
+import { defaultPayloadConverter, defaultFailureConverter } from '@temporalio/common';
 
 export interface ContextTrace<T> {
   label: T;
@@ -48,73 +47,40 @@ function ctxToTraceStr(context: SerializationContext): string {
 }
 
 export class FreePayloadConverter implements PayloadConverter {
-  withContext(context: SerializationContext): PayloadConverter {
-    return new BoundPayloadConverter(context);
-  }
-
-  toPayload<T>(value: T): Payload {
+  toPayload<T>(value: T, context?: SerializationContext): Payload {
     if (isContextTrace(value)) {
-      value.trace.push(`payload.encode.free|${value.label}`);
+      value.trace.push(
+        context ? `payload.encode.bound|${value.label}|${ctxToTraceStr(context)}` : `payload.encode.free|${value.label}`
+      );
     }
-    return defaultPayloadConverter.toPayload(value);
+    return defaultPayloadConverter.toPayload(value, context);
   }
 
-  fromPayload<T>(payload: Payload): T {
-    const value = defaultPayloadConverter.fromPayload(payload);
+  fromPayload<T>(payload: Payload, context?: SerializationContext): T {
+    const value = defaultPayloadConverter.fromPayload(payload, context);
     if (isContextTrace(value)) {
-      value.trace.push(`payload.decode.free|${value.label}`);
-    }
-    return value as T;
-  }
-}
-
-class BoundPayloadConverter implements PayloadConverter {
-  constructor(private readonly context: SerializationContext) {}
-
-  toPayload<T>(value: T): Payload {
-    if (isContextTrace(value)) {
-      value.trace.push(`payload.encode.bound|${value.label}|${ctxToTraceStr(this.context)}`);
-    }
-    return defaultPayloadConverter.toPayload(value);
-  }
-
-  fromPayload<T>(payload: Payload): T {
-    const value = defaultPayloadConverter.fromPayload(payload);
-    if (isContextTrace(value)) {
-      value.trace.push(`payload.decode.bound|${value.label}|${ctxToTraceStr(this.context)}`);
+      value.trace.push(
+        context ? `payload.decode.bound|${value.label}|${ctxToTraceStr(context)}` : `payload.decode.free|${value.label}`
+      );
     }
     return value as T;
   }
 }
 
 export class FreeFailureConverter implements FailureConverter {
-  errorToFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
-    const failure = defaultFailureConverter.errorToFailure(err, payloadConverter);
+  errorToFailure(err: unknown, payloadConverter: PayloadConverter, context?: SerializationContext): ProtoFailure {
+    const failure = defaultFailureConverter.errorToFailure(err, payloadConverter, context);
     const existing = failure.message ?? '';
-    failure.message = `failure.encode.free|${existing}`;
+    failure.message = context
+      ? `failure.encode.bound|${ctxToTraceStr(context)}|${existing}`
+      : `failure.encode.free|${existing}`;
     return failure;
   }
-  failureToError(err: ProtoFailure, payloadConverter: PayloadConverter): Error {
-    const error = defaultFailureConverter.failureToError(err, payloadConverter);
-    error.message = `failure.decode.free|${error.message}`;
-    return error;
-  }
-  withContext?(context: SerializationContext): FailureConverter {
-    return new BoundFailureConverter(context);
-  }
-}
-
-class BoundFailureConverter implements FailureConverter {
-  constructor(private readonly context: SerializationContext) {}
-  errorToFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
-    const failure = defaultFailureConverter.errorToFailure(err, payloadConverter);
-    const existing = failure.message ?? '';
-    failure.message = `failure.encode.bound|${ctxToTraceStr(this.context)}|${existing}`;
-    return failure;
-  }
-  failureToError(err: ProtoFailure, payloadConverter: PayloadConverter): Error {
-    const error = defaultFailureConverter.failureToError(err, payloadConverter);
-    error.message = `failure.decode.bound|${ctxToTraceStr(this.context)}|${error.message}`;
+  failureToError(err: ProtoFailure, payloadConverter: PayloadConverter, context?: SerializationContext): Error {
+    const error = defaultFailureConverter.failureToError(err, payloadConverter, context);
+    error.message = context
+      ? `failure.decode.bound|${ctxToTraceStr(context)}|${error.message}`
+      : `failure.decode.free|${error.message}`;
     return error;
   }
 }

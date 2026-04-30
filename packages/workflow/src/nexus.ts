@@ -191,6 +191,11 @@ function startNexusOperationNextHandler({
   headers,
 }: StartNexusOperationInput): Promise<StartNexusOperationOutput> {
   const activator = getActivator();
+  const context = {
+    type: 'workflow' as const,
+    namespace: activator.info.namespace,
+    workflowId: activator.info.workflowId,
+  };
 
   return new Promise<StartNexusOperationOutput>((resolve, reject) => {
     const scope = CancellationScope.current();
@@ -223,13 +228,13 @@ function startNexusOperationNextHandler({
         service,
         operation,
         nexusHeader: headers,
-        input: activator.payloadConverter.toPayload(input),
+        input: activator.payloadConverter.toPayload(input, context),
         scheduleToCloseTimeout: msOptionalToTs(options?.scheduleToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options?.scheduleToStartTimeout),
         startToCloseTimeout: msOptionalToTs(options?.startToCloseTimeout),
         cancellationType: encodeNexusOperationCancellationType(options?.cancellationType),
       },
-      userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined),
+      userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context),
     });
 
     activator.completions.nexusOperationStart.set(seq, {

@@ -68,6 +68,14 @@ export async function wfContextWithRemoteActivity(inputTrace: Trace): Promise<Tr
   return workflowOutput(fromActivity);
 }
 
+export async function wfContextWithExplicitActivityId(inputTrace: Trace): Promise<Trace> {
+  const fromActivity = await echoTrace.executeWithOptions({ activityId: 'explicit-activity-id' }, [
+    activityInput(inputTrace),
+    'activity-output',
+  ]);
+  return workflowOutput(fromActivity);
+}
+
 export async function wfContextWithHeartbeatDetails(inputTrace: Trace): Promise<Trace> {
   const fromHeartbeat = await heartbeatTrace(activityInput(inputTrace), 'activity-heartbeat-details');
   return workflowOutput(fromHeartbeat);
@@ -205,7 +213,7 @@ export async function wfLocalActivityFailureContext(): Promise<string> {
   }
 }
 
-// TODO: add cases for describe (static metadata - summary/details) and list (memo)
+// TODO: add cases for describe static metadata (summary/details)
 
 // Trace labelling helpers
 export const workflowOutput = (trace: Trace): Trace => withLabel(trace, 'wf-output');

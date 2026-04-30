@@ -1,9 +1,5 @@
-import type { LoadedDataConverter } from './data-converter';
-import type { FailureConverter } from './failure-converter';
-import type { PayloadConverter } from './payload-converter';
-
 /**
- * Context for payloads owned by a workflow.
+ * Context provided to data converters for payloads owned by a workflow.
  *
  * This is used when converting payloads sent to or received from a workflow.
  * If a workflow interacts with a child workflow or an external workflow, this
@@ -21,7 +17,7 @@ export interface WorkflowSerializationContext {
 }
 
 /**
- * Context for payloads owned by an activity.
+ * Context provided to data converters for payloads owned by an activity.
  *
  * This is used when converting activity arguments, results, heartbeat details,
  * and activity-related failures.
@@ -36,8 +32,10 @@ export interface ActivitySerializationContext {
   /**
    * Activity ID of the activity that owns the payload.
    *
-   * This may be omitted when context is supplied manually and the caller does
-   * not know the activity ID.
+   * Workflow-side scheduling contexts use the explicit
+   * ActivityOptions.activityId when supplied, otherwise they use the same
+   * generated fallback ID sent to the Temporal service. Runtime activity
+   * contexts use the activity ID supplied by ActivityInfo or activity task data.
    */
   activityId?: string;
   /** Workflow ID of the workflow that scheduled the activity, when known. */
@@ -58,50 +56,3 @@ export interface ActivitySerializationContext {
  * @experimental Serialization context is an experimental feature and may change.
  */
 export type SerializationContext = WorkflowSerializationContext | ActivitySerializationContext;
-
-/**
- * Return a payload converter bound to `context` if the converter supports context binding.
- */
-export function withPayloadConverterContext(
-  converter: PayloadConverter,
-  context: SerializationContext
-): PayloadConverter {
-  return converter.withContext?.(context) ?? converter;
-}
-
-/**
- * Return a failure converter bound to `context` if the converter supports context binding.
- */
-export function withFailureConverterContext(
-  converter: FailureConverter,
-  context: SerializationContext
-): FailureConverter {
-  return converter.withContext?.(context) ?? converter;
-}
-
-/**
- * Return a loaded data converter with its payload and failure converters bound to `context`.
- *
- * Internal helper for non-workflow code paths. Workflow-isolate code should bind the individual
- * payload or failure converter directly to avoid pulling unnecessary code into the workflow bundle.
- *
- * NOTE: this does *not* bind `context` to payload codecs
- */
-// ts-prune-ignore-next
-export function withSerializationContext(
-  converter: LoadedDataConverter,
-  context: SerializationContext
-): LoadedDataConverter {
-  const payloadConverter = withPayloadConverterContext(converter.payloadConverter, context);
-  const failureConverter = withFailureConverterContext(converter.failureConverter, context);
-
-  if (payloadConverter === converter.payloadConverter && failureConverter === converter.failureConverter) {
-    return converter;
-  }
-
-  return {
-    payloadConverter,
-    failureConverter,
-    payloadCodecs: converter.payloadCodecs,
-  };
-}

@@ -1,5 +1,6 @@
 import { activityInfo, heartbeat } from '@temporalio/activity';
-import { ContextTrace, withLabel } from '../payload-converters/serialization-context-converter';
+import type { ContextTrace } from '../payload-converters/serialization-context-converter';
+import { withLabel } from '../payload-converters/serialization-context-converter';
 
 export async function echoTrace<T>(inputTrace: ContextTrace<string>, value: T): Promise<ContextTrace<T>> {
   return withLabel(inputTrace, value);

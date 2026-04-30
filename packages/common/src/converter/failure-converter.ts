@@ -25,7 +25,7 @@ import { isError } from '../type-helpers';
 import { msOptionalToTs } from '../time';
 import { encode } from '../encoding';
 import type { PayloadConverter } from './payload-converter';
-import { arrayFromPayloads, fromPayloadsAtIndex, toPayloads } from './payload-converter';
+import { arrayFromPayloads, fromPayloadsAtIndex, toPayloadsWithContext } from './payload-converter';
 import type { SerializationContext } from './serialization-context';
 
 // Can't import proto enums into the workflow sandbox, use this helper type and enum converter instead.
@@ -103,25 +103,14 @@ export interface FailureConverter {
   /**
    * Converts a caught error to a Failure proto message.
    */
-  errorToFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure;
+  errorToFailure(err: unknown, payloadConverter: PayloadConverter, context?: SerializationContext): ProtoFailure;
 
   /**
    * Converts a Failure proto message to a JS Error object.
    *
    * The returned error must be an instance of `TemporalFailure`.
    */
-  failureToError(err: ProtoFailure, payloadConverter: PayloadConverter): Error;
-
-  /**
-   * Optionally return a converter bound to the current serialization context.
-   *
-   * The SDK may call this for individual failure conversion operations across
-   * different workflows and activities. Implementations should treat this as
-   * side-effect free and may return `this` when no rebinding is needed.
-   *
-   * @experimental Serialization context is an experimental feature and may change.
-   */
-  withContext?(context: SerializationContext): FailureConverter;
+  failureToError(err: ProtoFailure, payloadConverter: PayloadConverter, context?: SerializationContext): Error;
 }
 
 /**
@@ -166,14 +155,18 @@ export class DefaultFailureConverter implements FailureConverter {
    *
    * Does not set common properties, that is done in {@link failureToError}.
    */
-  failureToErrorInner(failure: ProtoFailure, payloadConverter: PayloadConverter): Error {
+  failureToErrorInner(
+    failure: ProtoFailure,
+    payloadConverter: PayloadConverter,
+    context?: SerializationContext
+  ): Error {
     if (failure.applicationFailureInfo) {
       return new ApplicationFailure(
         failure.message ?? undefined,
         failure.applicationFailureInfo.type,
         Boolean(failure.applicationFailureInfo.nonRetryable),
-        arrayFromPayloads(payloadConverter, failure.applicationFailureInfo.details?.payloads),
-        this.optionalFailureToOptionalError(failure.cause, payloadConverter),
+        arrayFromPayloads(payloadConverter, failure.applicationFailureInfo.details?.payloads, context),
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter, context),
         undefined,
         decodeApplicationFailureCategory(failure.applicationFailureInfo.category)
       );
@@ -182,27 +175,27 @@ export class DefaultFailureConverter implements FailureConverter {
       return new ServerFailure(
         failure.message ?? undefined,
         Boolean(failure.serverFailureInfo.nonRetryable),
-        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter, context)
       );
     }
     if (failure.timeoutFailureInfo) {
       return new TimeoutFailure(
         failure.message ?? undefined,
-        fromPayloadsAtIndex(payloadConverter, 0, failure.timeoutFailureInfo.lastHeartbeatDetails?.payloads),
+        fromPayloadsAtIndex(payloadConverter, 0, failure.timeoutFailureInfo.lastHeartbeatDetails?.payloads, context),
         decodeTimeoutType(failure.timeoutFailureInfo.timeoutType)
       );
     }
     if (failure.terminatedFailureInfo) {
       return new TerminatedFailure(
         failure.message ?? undefined,
-        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter, context)
       );
     }
     if (failure.canceledFailureInfo) {
       return new CancelledFailure(
         failure.message ?? undefined,
-        arrayFromPayloads(payloadConverter, failure.canceledFailureInfo.details?.payloads),
-        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
+        arrayFromPayloads(payloadConverter, failure.canceledFailureInfo.details?.payloads, context),
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter, context)
       );
     }
     if (failure.resetWorkflowFailureInfo) {
@@ -210,8 +203,8 @@ export class DefaultFailureConverter implements FailureConverter {
         failure.message ?? undefined,
         'ResetWorkflow',
         false,
-        arrayFromPayloads(payloadConverter, failure.resetWorkflowFailureInfo.lastHeartbeatDetails?.payloads),
-        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
+        arrayFromPayloads(payloadConverter, failure.resetWorkflowFailureInfo.lastHeartbeatDetails?.payloads, context),
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter, context)
       );
     }
     if (failure.childWorkflowExecutionFailureInfo) {
@@ -224,7 +217,7 @@ export class DefaultFailureConverter implements FailureConverter {
         workflowExecution,
         workflowType.name,
         decodeRetryState(retryState),
-        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter, context)
       );
     }
     if (failure.activityFailureInfo) {
@@ -237,7 +230,7 @@ export class DefaultFailureConverter implements FailureConverter {
         failure.activityFailureInfo.activityId ?? undefined,
         decodeRetryState(failure.activityFailureInfo.retryState),
         failure.activityFailureInfo.identity ?? undefined,
-        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter, context)
       );
     }
     if (failure.nexusHandlerFailureInfo) {
@@ -258,7 +251,7 @@ export class DefaultFailureConverter implements FailureConverter {
         : 'UNKNOWN';
 
       return new nexus.HandlerError(resolvedType, failure.message ?? 'Nexus handler error', {
-        cause: this.optionalFailureToOptionalError(failure.cause, payloadConverter),
+        cause: this.optionalFailureToOptionalError(failure.cause, payloadConverter, context),
         retryableOverride,
         rawErrorType,
         originalFailure: this.temporalFailureToNexusFailure(failure),
@@ -274,18 +267,18 @@ export class DefaultFailureConverter implements FailureConverter {
         failure.nexusOperationExecutionFailureInfo.service ?? '',
         failure.nexusOperationExecutionFailureInfo.operation ?? '',
         failure.nexusOperationExecutionFailureInfo.operationToken ?? undefined,
-        this.optionalFailureToOptionalError(failure.cause, payloadConverter)
+        this.optionalFailureToOptionalError(failure.cause, payloadConverter, context)
       );
     }
     return new TemporalFailure(
       failure.message ?? undefined,
-      this.optionalFailureToOptionalError(failure.cause, payloadConverter)
+      this.optionalFailureToOptionalError(failure.cause, payloadConverter, context)
     );
   }
 
-  failureToError(failure: ProtoFailure, payloadConverter: PayloadConverter): Error {
+  failureToError(failure: ProtoFailure, payloadConverter: PayloadConverter, context?: SerializationContext): Error {
     if (failure.encodedAttributes) {
-      const attrs = payloadConverter.fromPayload<DefaultEncodedFailureAttributes>(failure.encodedAttributes);
+      const attrs = payloadConverter.fromPayload<DefaultEncodedFailureAttributes>(failure.encodedAttributes, context);
       // Don't apply encodedAttributes unless they conform to an expected schema
       if (typeof attrs === 'object' && attrs !== null) {
         const { message, stack_trace } = attrs;
@@ -299,7 +292,7 @@ export class DefaultFailureConverter implements FailureConverter {
         }
       }
     }
-    const err = this.failureToErrorInner(failure, payloadConverter);
+    const err = this.failureToErrorInner(failure, payloadConverter, context);
     err.stack = failure.stackTrace ?? '';
     if (err instanceof TemporalFailure) {
       err.failure = failure;
@@ -307,24 +300,24 @@ export class DefaultFailureConverter implements FailureConverter {
     return err;
   }
 
-  errorToFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
-    const failure = this.errorToFailureInner(err, payloadConverter);
+  errorToFailure(err: unknown, payloadConverter: PayloadConverter, context?: SerializationContext): ProtoFailure {
+    const failure = this.errorToFailureInner(err, payloadConverter, context);
     if (this.options.encodeCommonAttributes) {
       const { message, stackTrace } = failure;
       failure.message = 'Encoded failure';
       failure.stackTrace = '';
-      failure.encodedAttributes = payloadConverter.toPayload({ message, stack_trace: stackTrace });
+      failure.encodedAttributes = payloadConverter.toPayload({ message, stack_trace: stackTrace }, context);
     }
     return failure;
   }
 
-  errorToFailureInner(err: unknown, payloadConverter: PayloadConverter): ProtoFailure {
+  errorToFailureInner(err: unknown, payloadConverter: PayloadConverter, context?: SerializationContext): ProtoFailure {
     if (err instanceof TemporalFailure || err instanceof nexus.HandlerError) {
       if (err instanceof TemporalFailure && err.failure) return err.failure;
       const base = {
         message: err.message,
         stackTrace: cutoffStackTrace(err.stack),
-        cause: this.optionalErrorToOptionalFailure(err.cause, payloadConverter),
+        cause: this.optionalErrorToOptionalFailure(err.cause, payloadConverter, context),
         source: FAILURE_SOURCE,
       };
 
@@ -357,7 +350,7 @@ export class DefaultFailureConverter implements FailureConverter {
             nonRetryable: err.nonRetryable,
             details:
               err.details && err.details.length
-                ? { payloads: toPayloads(payloadConverter, ...err.details) }
+                ? { payloads: toPayloadsWithContext(payloadConverter, context, err.details) }
                 : undefined,
             nextRetryDelay: msOptionalToTs(err.nextRetryDelay),
             category: encodeApplicationFailureCategory(err.category),
@@ -370,7 +363,7 @@ export class DefaultFailureConverter implements FailureConverter {
           canceledFailureInfo: {
             details:
               err.details && err.details.length
-                ? { payloads: toPayloads(payloadConverter, ...err.details) }
+                ? { payloads: toPayloadsWithContext(payloadConverter, context, err.details) }
                 : undefined,
           },
         };
@@ -381,7 +374,7 @@ export class DefaultFailureConverter implements FailureConverter {
           timeoutFailureInfo: {
             timeoutType: encodeTimeoutType(err.timeoutType),
             lastHeartbeatDetails: err.lastHeartbeatDetails
-              ? { payloads: toPayloads(payloadConverter, err.lastHeartbeatDetails) }
+              ? { payloads: toPayloadsWithContext(payloadConverter, context, [err.lastHeartbeatDetails]) }
               : undefined,
           },
         };
@@ -446,7 +439,7 @@ export class DefaultFailureConverter implements FailureConverter {
         ...base,
         message: String(err.message ?? ''),
         stackTrace: cutoffStackTrace(err.stack),
-        cause: this.optionalErrorToOptionalFailure((err as any).cause, payloadConverter),
+        cause: this.optionalErrorToOptionalFailure((err as any).cause, payloadConverter, context),
       };
     }
 
@@ -473,16 +466,21 @@ export class DefaultFailureConverter implements FailureConverter {
    */
   optionalFailureToOptionalError(
     failure: ProtoFailure | undefined | null,
-    payloadConverter: PayloadConverter
+    payloadConverter: PayloadConverter,
+    context?: SerializationContext
   ): Error | undefined {
-    return failure ? this.failureToError(failure, payloadConverter) : undefined;
+    return failure ? this.failureToError(failure, payloadConverter, context) : undefined;
   }
 
   /**
    * Converts an error to a Failure proto message if defined or returns undefined
    */
-  optionalErrorToOptionalFailure(err: unknown, payloadConverter: PayloadConverter): ProtoFailure | undefined {
-    return err ? this.errorToFailure(err, payloadConverter) : undefined;
+  optionalErrorToOptionalFailure(
+    err: unknown,
+    payloadConverter: PayloadConverter,
+    context?: SerializationContext
+  ): ProtoFailure | undefined {
+    return err ? this.errorToFailure(err, payloadConverter, context) : undefined;
   }
 
   private nexusFailureToTemporalFailure(failure: nexus.Failure, retryable: boolean): ProtoFailure {

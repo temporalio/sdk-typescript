@@ -3,12 +3,13 @@ import { Client, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode } from '@temporalio/worker';
 import { decodeOptionalSinglePayload } from '@temporalio/common/lib/internal-non-workflow';
-import { bundlerOptions, TestWorkflowEnvironment } from './helpers';
+import type { TestWorkflowEnvironment } from './helpers';
+import { bundlerOptions } from './helpers';
+import type { Context } from './helpers-integration';
 import {
   makeConfigurableEnvironmentTestFn,
   configurableHelpers,
   createTestWorkflowEnvironment,
-  Context,
 } from './helpers-integration';
 import {
   currentWorkflowContext,
@@ -17,6 +18,7 @@ import {
   unblockSignal,
   messagePassingContexts,
   wfContextWithRemoteActivity,
+  wfContextWithExplicitActivityId,
   wfContextWithHeartbeatDetails,
   wfContextWithLocalActivity,
   wfContextWithContinueAsNew,
@@ -145,6 +147,32 @@ test('activity carries serialization context', async (t) => {
   const act = activityCtx(workflowId);
   await worker.runUntil(async () => {
     const handle = await client.workflow.start(wfContextWithRemoteActivity, {
+      args: [makeContextTrace('wf-input')],
+      workflowId,
+      taskQueue: h.taskQueue,
+    });
+    const wfTrace = await handle.result();
+    t.deepEqual(wfTrace, {
+      label: 'wf-output',
+      trace: [
+        ...encdec('wf-input', wf),
+        ...encdec('activity-input', act),
+        ...encdec('activity-output', act),
+        ...encdec('wf-output', wf),
+      ],
+    });
+  });
+});
+
+test('activity with explicit id carries serialization context', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ dataConverter, activities: { echoTrace } });
+  const workflowId = `wf-id-${randomUUID()}`;
+  const wf = workflowCtx(workflowId);
+  const act = activityCtx(workflowId, 'explicit-activity-id');
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(wfContextWithExplicitActivityId, {
       args: [makeContextTrace('wf-input')],
       workflowId,
       taskQueue: h.taskQueue,
@@ -367,6 +395,43 @@ test('workflow upsertMemo carries workflow context on encode', async (t) => {
       label: 'wf-output',
       trace: [...encdec('wf-input', wf), enc('memo-upsert', wf), ...encdec('wf-output', wf)],
     });
+  });
+});
+
+test('workflow memo decode carries workflow context in describe and list', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ dataConverter });
+  const workflowId = `wf-id-${randomUUID()}`;
+  const wf = workflowCtx(workflowId);
+  const expectedMemo = {
+    label: 'memo-upsert',
+    trace: [...encdec('wf-input', wf), ...encdec('memo-upsert', wf)],
+  };
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(wfContextWithUpsertMemo, {
+      args: [makeContextTrace('wf-input')],
+      workflowId,
+      taskQueue: h.taskQueue,
+    });
+
+    await handle.result();
+
+    const description = await handle.describe();
+    t.deepEqual(description.memo?.probe, expectedMemo);
+
+    let listedMemo: unknown;
+    for (let attempt = 0; attempt < 20 && listedMemo === undefined; ++attempt) {
+      for await (const info of client.workflow.list({ query: `WorkflowId = '${workflowId}'` })) {
+        if (info.workflowId === workflowId) {
+          listedMemo = info.memo?.probe;
+          break;
+        }
+      }
+      if (listedMemo === undefined) await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    t.deepEqual(listedMemo, expectedMemo);
   });
 });
 

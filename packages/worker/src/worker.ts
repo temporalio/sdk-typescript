@@ -10,9 +10,8 @@ import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, t
 import type { RawSourceMap } from 'source-map';
 import * as nexus from 'nexus-rpc';
 import type { Info as ActivityInfo } from '@temporalio/activity';
-import type { LoadedDataConverter, Payload, MetricMeter } from '@temporalio/common';
+import type { LoadedDataConverter, Payload, MetricMeter, ActivitySerializationContext } from '@temporalio/common';
 import {
-  ActivitySerializationContext,
   DataConverter,
   decompileRetryPolicy,
   defaultPayloadConverter,
@@ -33,7 +32,6 @@ import {
   encodeErrorToFailure,
   encodeToPayload,
 } from '@temporalio/common/lib/internal-non-workflow';
-import { withSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import type { Duration } from '@temporalio/common/lib/time';
 import {
@@ -1052,10 +1050,8 @@ export class Worker {
                 case 'start': {
                   let info: ActivityInfo | undefined = undefined;
                   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
-                  const loadedDataConverter = withSerializationContext(
-                    this.options.loadedDataConverter,
-                    activitySerializationContextFromTaskStart(start, this.options.namespace)
-                  );
+                  const context = activitySerializationContextFromTaskStart(start, this.options.namespace);
+                  const loadedDataConverter = this.options.loadedDataConverter;
                   try {
                     if (activity !== undefined) {
                       throw new IllegalStateError(
@@ -1066,7 +1062,8 @@ export class Worker {
                       task,
                       loadedDataConverter,
                       this.options.namespace,
-                      this.options.taskQueue
+                      this.options.taskQueue,
+                      context
                     );
 
                     const { activityType } = info;
@@ -1083,7 +1080,7 @@ export class Worker {
                     }
                     let args: unknown[];
                     try {
-                      args = await decodeArrayFromPayloads(loadedDataConverter, task.start?.input);
+                      args = await decodeArrayFromPayloads(loadedDataConverter, task.start?.input, context);
                     } catch (err) {
                       throw ApplicationFailure.fromError(err, {
                         message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(err)}`,
@@ -1102,6 +1099,7 @@ export class Worker {
                       info,
                       fn,
                       loadedDataConverter,
+                      context,
                       (details) =>
                         this.activityHeartbeatSubject.next({
                           type: 'heartbeat',
@@ -1137,7 +1135,7 @@ export class Worker {
                       type: 'result',
                       result: {
                         failed: {
-                          failure: await encodeErrorToFailure(loadedDataConverter, error),
+                          failure: await encodeErrorToFailure(loadedDataConverter, error, context),
                         },
                       },
                     };
@@ -1749,15 +1747,10 @@ export class Worker {
           takeWhile((out): out is HeartbeatSendRequest => out.type !== 'close'),
           mergeMap(async ({ heartbeat: { base64TaskToken, taskToken, details, onError, info } }) => {
             let payload: Payload;
+            const context = activitySerializationContextFromInfo(info);
             try {
               try {
-                payload = await encodeToPayload(
-                  withSerializationContext(
-                    this.options.loadedDataConverter,
-                    activitySerializationContextFromInfo(info)
-                  ),
-                  details
-                );
+                payload = await encodeToPayload(this.options.loadedDataConverter, details, context);
               } catch (error: any) {
                 this.logger.warn('Failed to encode heartbeat details, cancelling Activity', {
                   error,
@@ -2196,7 +2189,9 @@ function extractSourceMap(code: string): [string, string] {
 async function extractActivityInfo(
   task: coresdk.activity_task.ActivityTask,
   dataConverter: LoadedDataConverter,
-  taskQueue: string
+  taskQueue: string,
+  activityNamespace: string,
+  context: ActivitySerializationContext
 ): Promise<ActivityInfo> {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
@@ -2204,7 +2199,7 @@ async function extractActivityInfo(
   const activityId = start.activityId;
   let heartbeatDetails = undefined;
   try {
-    heartbeatDetails = await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails);
+    heartbeatDetails = await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails, context);
   } catch (e) {
     throw ApplicationFailure.fromError(e, {
       message: `Failed to parse heartbeat details for activity ${activityId}: ${errorMessage(e)}`,
@@ -2247,7 +2242,7 @@ function activitySerializationContextFromInfo(info: ActivityInfo): ActivitySeria
     type: 'activity',
     namespace: info.activityNamespace,
     activityId: info.activityId,
-    workflowId: info.workflowExecution.workflowId,
+    workflowId: info.workflowExecution?.workflowId,
     isLocal: info.isLocal,
   };
 }
