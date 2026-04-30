@@ -2,17 +2,13 @@ import { v4 as uuid4 } from 'uuid';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import * as rxjs from 'rxjs';
-import {
-  ActivityHandle,
-  TypedActivityClient,
-  ActivityOptions,
-  ServiceError,
-  isGrpcCancelledError,
-} from '@temporalio/client';
+import type { ActivityHandle, TypedActivityClient, ActivityOptions } from '@temporalio/client';
 import {
   ActivityExecutionAlreadyStartedError,
   ActivityExecutionFailedError,
+  ServiceError,
   TerminatedFailure,
+  isGrpcCancelledError,
 } from '@temporalio/client';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import { activityInfo, heartbeat } from '@temporalio/activity';
