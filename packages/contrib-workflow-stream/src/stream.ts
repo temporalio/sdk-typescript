@@ -41,6 +41,7 @@ import {
   type PublishInput,
   type _WorkflowStreamWireItem,
 } from './types';
+import { WorkflowTopicHandle } from './topic-handle';
 
 const BINARY_PLAIN_ENCODING = new TextEncoder().encode('binary/plain');
 
@@ -114,6 +115,7 @@ export class WorkflowStream {
   private readonly publisherSequences: Record<string, number>;
   private readonly publisherLastSeen: Record<string, number>;
   private draining = false;
+  private readonly topicHandles = new Map<string, WorkflowTopicHandle<unknown>>();
 
   constructor(priorState?: WorkflowStreamState) {
     // Note: sdk-python guards against a second `WorkflowStream(...)` call on the
@@ -150,11 +152,24 @@ export class WorkflowStream {
   }
 
   /**
-   * Publish an item from within workflow code. Deterministic — just appends.
-   * `value` may be any value the default payload converter can handle, or
-   * a pre-built `Payload` for zero-copy.
+   * Get a typed handle for publishing to ``name``.
+   *
+   * Repeated calls with the same name return the same handle instance.
+   * The type parameter ``T`` is purely a compile-time annotation — see
+   * the module note in {@link TopicHandle} for the difference from
+   * sdk-python's runtime type-uniformity check.
    */
-  publish(topic: string, value: unknown): void {
+  topic<T = unknown>(name: string): WorkflowTopicHandle<T> {
+    let handle = this.topicHandles.get(name);
+    if (handle === undefined) {
+      handle = new WorkflowTopicHandle<T>(this, name);
+      this.topicHandles.set(name, handle as WorkflowTopicHandle<unknown>);
+    }
+    return handle as WorkflowTopicHandle<T>;
+  }
+
+  /** @internal Used by {@link WorkflowTopicHandle.publish}. */
+  _publishToTopic(topic: string, value: unknown): void {
     let payload: Payload;
     if (isPayload(value)) {
       payload = value;

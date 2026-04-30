@@ -39,13 +39,14 @@ export async function basicWorkflowStreamWorkflow(): Promise<void> {
 /** Publishes `count` items directly from the workflow, then waits. */
 export async function workflowSidePublishWorkflow(count: number): Promise<void> {
   const stream = new WorkflowStream();
+  const events = stream.topic('events');
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
   });
   const encoder = new TextEncoder();
   for (let i = 0; i < count; i++) {
-    stream.publish('events', encoder.encode(`item-${i}`));
+    events.publish(encoder.encode(`item-${i}`));
   }
   await condition(() => closed);
 }
@@ -64,12 +65,13 @@ export async function multiTopicWorkflow(count: number): Promise<void> {
 /** Executes publishItems activity then appends activity_done status. */
 export async function activityPublishWorkflow(count: number): Promise<void> {
   const stream = new WorkflowStream();
+  const status = stream.topic('status');
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
   });
   await publishItems(count);
-  stream.publish('status', new TextEncoder().encode('activity_done'));
+  status.publish(new TextEncoder().encode('activity_done'));
   await condition(() => closed);
 }
 
@@ -122,12 +124,13 @@ export async function flushOnExitWorkflow(count: number): Promise<void> {
 /** Workflow that runs publishWithMaxBatch activity. */
 export async function maxBatchWorkflow(count: number): Promise<void> {
   const stream = new WorkflowStream();
+  const status = stream.topic('status');
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
   });
   await publishWithMaxBatch(count);
-  stream.publish('status', new TextEncoder().encode('activity_done'));
+  status.publish(new TextEncoder().encode('activity_done'));
   await condition(() => closed);
 }
 

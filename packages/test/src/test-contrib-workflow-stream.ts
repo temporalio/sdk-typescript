@@ -420,9 +420,10 @@ test('explicit_flush_barrier — flush() returns once items are confirmed', asyn
 
     // 2. Flush makes prior publishes visible without waiting on the
     // 60s batch timer.
-    stream.publish('events', encoder.encode('a'));
-    stream.publish('events', encoder.encode('b'));
-    stream.publish('events', encoder.encode('c'));
+    const events = stream.topic('events');
+    events.publish(encoder.encode('a'));
+    events.publish(encoder.encode('b'));
+    events.publish(encoder.encode('c'));
     await stream.flush();
     t.is(await stream.getOffset(), 3);
 
@@ -727,15 +728,16 @@ test('flush_retry_preserves_items_after_failures — behavioral retry coverage',
       return realSignal(...(args as Parameters<typeof handle.signal>));
     }) as typeof handle.signal;
 
-    stream.publish('events', encoder.encode('item-0'));
-    stream.publish('events', encoder.encode('item-1'));
+    const events = stream.topic('events');
+    events.publish(encoder.encode('item-0'));
+    events.publish(encoder.encode('item-1'));
     await t.throwsAsync((stream as unknown as { _doFlush(): Promise<void> })._doFlush(), {
       message: /simulated/,
     });
 
     // Publish more during the failed state — must not overtake the pending
     // retry on eventual delivery.
-    stream.publish('events', encoder.encode('item-2'));
+    events.publish(encoder.encode('item-2'));
     await t.throwsAsync((stream as unknown as { _doFlush(): Promise<void> })._doFlush(), {
       message: /simulated/,
     });
@@ -765,7 +767,7 @@ test('flush_raises_after_max_retry_duration — timeout surfaces, client resumes
     maxRetryDuration: '200 milliseconds',
   });
   client.start();
-  client.publish('events', encoder.encode('will-be-lost'));
+  client.topic('events').publish(encoder.encode('will-be-lost'));
   await new Promise((r) => setTimeout(r, 1500));
   await t.throwsAsync(client.stop(), { instanceOf: FlushTimeoutError });
 });

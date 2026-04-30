@@ -13,20 +13,22 @@ const encoder = new TextEncoder();
 export async function publishItems(count: number): Promise<void> {
   await using client = WorkflowStreamClient.fromActivity({ batchInterval: '500 milliseconds' });
   client.start();
+  const events = client.topic('events');
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
-    client.publish('events', encoder.encode(`item-${i}`));
+    events.publish(encoder.encode(`item-${i}`));
   }
 }
 
 export async function publishMultiTopic(count: number): Promise<void> {
-  const topics = ['a', 'b', 'c'];
+  const topicNames = ['a', 'b', 'c'];
   await using client = WorkflowStreamClient.fromActivity({ batchInterval: '500 milliseconds' });
   client.start();
+  const handles = topicNames.map((name) => client.topic(name));
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
-    const topic = topics[i % topics.length]!;
-    client.publish(topic, encoder.encode(`${topic}-${i}`));
+    const idx = i % handles.length;
+    handles[idx]!.publish(encoder.encode(`${topicNames[idx]}-${i}`));
   }
 }
 
@@ -38,9 +40,10 @@ export async function publishWithForceFlush(): Promise<void> {
   // than flaking on slow CI.
   await using client = WorkflowStreamClient.fromActivity({ batchInterval: '60 seconds' });
   client.start();
-  client.publish('events', encoder.encode('normal-0'));
-  client.publish('events', encoder.encode('normal-1'));
-  client.publish('events', encoder.encode('force-flush'), true);
+  const events = client.topic('events');
+  events.publish(encoder.encode('normal-0'));
+  events.publish(encoder.encode('normal-1'));
+  events.publish(encoder.encode('force-flush'), { forceFlush: true });
   for (let i = 0; i < 100; i++) {
     Context.current().heartbeat();
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -50,9 +53,10 @@ export async function publishWithForceFlush(): Promise<void> {
 export async function publishBatchTest(count: number): Promise<void> {
   await using client = WorkflowStreamClient.fromActivity({ batchInterval: '60 seconds' });
   client.start();
+  const events = client.topic('events');
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
-    client.publish('events', encoder.encode(`item-${i}`));
+    events.publish(encoder.encode(`item-${i}`));
   }
   // Long batchInterval — only the dispose-driven drain will flush.
 }
@@ -63,9 +67,10 @@ export async function publishWithMaxBatch(count: number): Promise<void> {
     maxBatchSize: 3,
   });
   client.start();
+  const events = client.topic('events');
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
-    client.publish('events', encoder.encode(`item-${i}`));
+    events.publish(encoder.encode(`item-${i}`));
   }
   // Long batchInterval — maxBatchSize and dispose-driven drain handle flushing.
 }

@@ -23,16 +23,19 @@ import type { Payload } from '@temporalio/common';
 /**
  * A single item in the workflow stream log (user-facing).
  *
- * `data` is a raw {@link Payload}; use a {@link PayloadConverter}
- * (e.g. `defaultPayloadConverter.fromPayload<T>(item.data)`) to
- * decode it to a typed value.
+ * Generic on the decoded ``data`` type ``T``. Default ``T = Payload``
+ * matches what {@link WorkflowStreamClient.subscribe} yields — the raw
+ * payload, with ``metadata.encoding`` available for downstream decode.
+ * Subscribing through a {@link TopicHandle} narrows ``T`` to the
+ * handle's bound type, with the default payload converter applied per
+ * item.
  *
- * The `offset` field is populated by the poll handler from the item's
+ * The ``offset`` field is populated by the poll handler from the item's
  * position in the global log.
  */
-export interface WorkflowStreamItem {
+export interface WorkflowStreamItem<T = Payload> {
   topic: string;
-  data: Payload;
+  data: T;
   offset: number;
 }
 

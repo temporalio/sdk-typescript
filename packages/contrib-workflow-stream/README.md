@@ -30,31 +30,43 @@ codec behavior is symmetric between workflow-side and client-side publishing.
 
 ### Workflow side
 
-Construct `new WorkflowStream()` at the start of your workflow function and use the
-returned object to publish:
+Construct `new WorkflowStream()` at the start of your workflow function, then
+get a typed handle for each topic via `stream.topic<T>(name)` and call
+`publish` on the handle:
 
 ```typescript
 import { WorkflowStream } from '@temporalio/contrib-workflow-stream';
 
+interface StatusEvent {
+  state: 'started' | 'done';
+}
+
 export async function myWorkflow(input: MyInput): Promise<void> {
   const stream = new WorkflowStream();
+  const status = stream.topic<StatusEvent>('status');
 
-  stream.publish('status', { state: 'started' });
+  status.publish({ state: 'started' });
   await doWork();
-  stream.publish('status', { state: 'done' });
+  status.publish({ state: 'done' });
 }
 ```
 
 The `WorkflowStream` constructor registers the `__temporal_workflow_stream_publish` signal,
 `__temporal_workflow_stream_poll` update, and `__temporal_workflow_stream_offset` query handlers on your workflow.
 Any value the default payload converter can serialize (JSON, `Uint8Array`, or
-a pre-built `Payload`) can be passed to `publish`.
+a pre-built `Payload`) can be passed to `publish`. The type parameter `T` is
+purely a compile-time annotation — TypeScript has no runtime type
+representation, so per-topic type uniformity isn't enforced at runtime
+(unlike sdk-python). Repeated calls to `stream.topic('foo')` return the same
+handle instance, so a stale `T` annotation can't introduce a duplicate
+publisher.
 
 ### Activity side (publishing)
 
 Use `WorkflowStreamClient.fromActivity()` with `await using` for batched publishing
 from inside an activity. The client and workflow ID are pulled from the
-activity context:
+activity context. Bind a topic handle on the client and publish through it,
+the same way as on the workflow side:
 
 ```typescript
 import { Context } from '@temporalio/activity';
@@ -63,9 +75,10 @@ import { WorkflowStreamClient } from '@temporalio/contrib-workflow-stream';
 export async function streamEvents(): Promise<void> {
   await using client = WorkflowStreamClient.fromActivity({ batchInterval: '2 seconds' });
   client.start();
+  const events = client.topic<Chunk>('events');
 
   for await (const chunk of generateChunks()) {
-    client.publish('events', chunk);
+    events.publish(chunk);
     Context.current().heartbeat();
   }
   // Buffer is flushed automatically on scope exit.
@@ -80,38 +93,41 @@ call `start()` and `await stop()` explicitly:
 const client = WorkflowStreamClient.create(temporalClient, workflowId);
 client.start();
 try {
-  client.publish('events', data);
+  const events = client.topic<Chunk>('events');
+  events.publish(data);
 } finally {
   await client.stop();
 }
 ```
 
-Use `forceFlush = true` to trigger an immediate flush for latency-sensitive
+Use `forceFlush: true` to trigger an immediate flush for latency-sensitive
 events:
 
 ```typescript
-client.publish('events', data, true);
+events.publish(data, { forceFlush: true });
 ```
 
 ### Subscribing
 
-Use `WorkflowStreamClient.create()` and iterate `subscribe()`:
+Subscribe via the topic handle to get items decoded as `T`:
 
 ```typescript
-import { defaultPayloadConverter } from '@temporalio/common';
 import { WorkflowStreamClient } from '@temporalio/contrib-workflow-stream';
 
 const client = WorkflowStreamClient.create(temporalClient, workflowId);
-for await (const item of client.subscribe(['events'], 0)) {
-  // item.data is a Payload; decode with a payload converter
-  const value = defaultPayloadConverter.fromPayload<MyType>(item.data);
-  console.log(item.topic, item.offset, value);
-  if (isDone(value)) break;
+const events = client.topic<MyType>('events');
+for await (const item of events.subscribe(0)) {
+  // item.data is decoded to MyType via the default payload converter.
+  console.log(item.topic, item.offset, item.data);
+  if (isDone(item.data)) break;
 }
 ```
 
-`item.data` is a `Payload` carrying encoding metadata, so any converter-known
-value round-trips (`json/plain` for JSON, `binary/plain` for `Uint8Array`, etc.).
+For raw `Payload` access — multi-topic subscriptions whose payload types
+differ, or fine-grained control over decoding — call
+`WorkflowStreamClient.subscribe(topics?, fromOffset?)` directly. The yielded
+items have `data: Payload` carrying encoding metadata; decode with
+`defaultPayloadConverter.fromPayload<T>(item.data)` per-topic.
 
 ## Topics
 
@@ -182,7 +198,7 @@ if (workflowInfo().continueAsNewSuggested) {
 
 | Method | Description |
 |---|---|
-| `publish(topic, value)` | Append to the log from workflow code. Accepts any value the default payload converter handles, or a pre-built `Payload`. |
+| `topic<T>(name)` | Get a typed `WorkflowTopicHandle<T>` for publishing. Repeated calls with the same name return the same handle. |
 | `getState(publisherTtl?)` | Snapshot for continue-as-new. Drops publisher dedup entries older than `publisherTtl` (`Duration`, default `'15 minutes'`). |
 | `detachPollers()` | Unblock polls and reject new ones. |
 | `continueAsNew<F>(buildArgs, options?)` | Async. Detach pollers, wait for handlers, then `continueAsNew` with `buildArgs(state)`. Use the explicit recipe with `makeContinueAsNewFunc` to pass other CAN options. |
@@ -206,9 +222,18 @@ Handlers registered automatically:
 | `start()` | Start the background flusher. |
 | `stop()` | Stop the flusher and flush remaining items. |
 | `[Symbol.asyncDispose]()` | Supports `await using client = WorkflowStreamClient.create(...)`. |
-| `publish(topic, value, forceFlush = false)` | Buffer a message. `value` may be any converter-compatible object or a pre-built `Payload`. `forceFlush` wakes the flusher to send immediately. |
-| `subscribe(topics?, fromOffset = 0, { pollCooldown = '100 milliseconds' })` | Async generator yielding `WorkflowStreamItem` with `data: Payload`. `pollCooldown` is a `Duration`. Always follows CAN chains when created via `create()`. Recovers automatically from `TruncatedOffset` by restarting from the current base offset. |
+| `topic<T>(name)` | Get a typed `TopicHandle<T>` for publishing and subscribing. Repeated calls with the same name return the same handle. |
+| `subscribe(topics?, fromOffset = 0, { pollCooldown = '100 milliseconds' })` | Raw async generator yielding `WorkflowStreamItem<Payload>` — the multi-topic / decode-yourself path. `pollCooldown` is a `Duration`. Always follows CAN chains when created via `create()`. Recovers automatically from `TruncatedOffset` by restarting from the current base offset. |
 | `getOffset()` | Query current global offset. |
+
+### `TopicHandle<T>` / `WorkflowTopicHandle<T>`
+
+| Method | Description |
+|---|---|
+| `name` | Topic name this handle is bound to. |
+| `publish(value, options?)` (client-side) | Buffer `value` for publishing on this topic. `options.forceFlush = true` wakes the flusher to send immediately. |
+| `publish(value)` (workflow-side) | Append `value` to the log from workflow code. |
+| `subscribe(fromOffset?, options?)` (client-side) | Async generator yielding `WorkflowStreamItem<T>` with `data` decoded to `T` via the default payload converter. |
 
 ### `WorkflowStreamClientOptions`
 

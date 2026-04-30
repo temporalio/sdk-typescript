@@ -32,6 +32,7 @@ import {
   type PublishEntry,
   type PublishInput,
 } from './types';
+import { TopicHandle } from './topic-handle';
 
 /** Thrown when a flush retry exceeds maxRetryDuration. */
 export class FlushTimeoutError extends Error {
@@ -136,6 +137,7 @@ export class WorkflowStreamClient {
   private flusherStopped = false;
   private flusherError: Error | undefined;
   private currentFlush: Promise<void> | null = null;
+  private readonly topicHandles = new Map<string, TopicHandle<unknown>>();
 
   constructor(handle: WorkflowHandle, options?: WorkflowStreamClientOptions) {
     this.handle = handle;
@@ -273,16 +275,24 @@ export class WorkflowStreamClient {
   }
 
   /**
-   * Buffer a message for publishing.
+   * Get a typed handle for publishing to and subscribing from ``name``.
    *
-   * @param topic - Topic string.
-   * @param value - Any value the payload converter can handle, or a pre-built
-   *   `Payload` for zero-copy. The codec chain runs once on the signal
-   *   envelope, not per item.
-   * @param forceFlush - If true, wake the flusher to send immediately
-   *   (fire-and-forget — does not block the caller).
+   * Repeated calls with the same name return the same handle instance.
+   * The type parameter ``T`` is purely a compile-time annotation — see
+   * the module note in {@link TopicHandle} for the difference from
+   * sdk-python's runtime type-uniformity check.
    */
-  publish(topic: string, value: unknown, forceFlush = false): void {
+  topic<T = unknown>(name: string): TopicHandle<T> {
+    let handle = this.topicHandles.get(name);
+    if (handle === undefined) {
+      handle = new TopicHandle<T>(this, name);
+      this.topicHandles.set(name, handle as TopicHandle<unknown>);
+    }
+    return handle as TopicHandle<T>;
+  }
+
+  /** @internal Used by {@link TopicHandle.publish}. */
+  _publishToTopic(topic: string, value: unknown, forceFlush: boolean): void {
     this.buffer.push({ topic, value });
     if (forceFlush || (this.maxBatchSize !== undefined && this.buffer.length >= this.maxBatchSize)) {
       this.flushEvent.set();

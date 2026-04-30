@@ -100,6 +100,7 @@ export function createActivities(
     async invokeModelStreaming(args: InvokeModelArgs): Promise<InvokeModelResult> {
       const stream = WorkflowStreamClient.fromActivity({ batchInterval: '100 milliseconds' });
       stream.start();
+      const events = stream.topic(EVENTS_TOPIC);
 
       const model = provider.languageModel(args.modelId);
       const streamResult = await model.doStream(args.options);
@@ -128,7 +129,7 @@ export function createActivities(
           // Publish the raw stream part as JSON so consumers can switch on
           // the native AI SDK type. Accumulation below is for the final
           // assembled result this activity returns.
-          stream.publish(EVENTS_TOPIC, encoder.encode(JSON.stringify(part)));
+          events.publish(encoder.encode(JSON.stringify(part)));
 
           switch (part.type) {
             case 'stream-start':
