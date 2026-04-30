@@ -13,7 +13,7 @@ import type { WorkflowFunctionWithOptions } from './workflow-definition-options'
  * See {@link WorkflowOptions.workflowIdConflictPolicy} for what happens when trying to start a
  * Workflow with the same ID as a *Running* Workflow.
  *
- * Concept: {@link https://docs.temporal.io/concepts/what-is-a-workflow-id-reuse-policy/ | Workflow Id Reuse Policy}
+ * Concept: {@link https://docs.temporal.io/workflow-execution/workflowid-runid#workflow-id-reuse-policy | Workflow Id Reuse Policy}
  *
  * *Note: It is not possible to have two actively running Workflows with the same ID.*
  *
@@ -150,7 +150,7 @@ export interface BaseWorkflowOptions {
    * Controls how a Workflow Execution is retried.
    *
    * By default, Workflow Executions are not retried. Do not override this behavior unless you know what you're doing.
-   * {@link https://docs.temporal.io/concepts/what-is-a-retry-policy/ | More information}.
+   * {@link https://docs.temporal.io/encyclopedia/retry-policies | More information}.
    */
   retry?: RetryPolicy;
 

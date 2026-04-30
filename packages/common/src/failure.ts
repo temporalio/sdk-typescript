@@ -184,7 +184,7 @@ export class ServerFailure extends TemporalFailure {
  * - `details` are set to null
  * - stack trace is copied from the original error
  *
- * When an {@link https://docs.temporal.io/concepts/what-is-an-activity-execution | Activity Execution} fails, the
+ * When an {@link https://docs.temporal.io/activity-execution#activity-execution | Activity Execution} fails, the
  * `ApplicationFailure` from the last Activity Task will be the `cause` of the {@link ActivityFailure} thrown in the
  * Workflow.
  */
