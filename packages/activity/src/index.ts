@@ -153,11 +153,17 @@ export const asyncLocalStorage: AsyncLocalStorage<Context> = (globalThis as any)
  * Holds information about the current Activity Execution. Retrieved inside an Activity with `Context.current().info`.
  */
 export interface Info {
+  /**
+   * Task token associated with this activity execution. Can be used for asynchronous completion
+   */
   readonly taskToken: Uint8Array;
   /**
-   * Base64 encoded `taskToken`
+   * Base64 encoded {@link taskToken}
    */
   readonly base64TaskToken: string;
+  /**
+   * ID of this activity
+   */
   readonly activityId: string;
   /**
    * Exposed Activity function name
@@ -165,6 +171,8 @@ export interface Info {
   readonly activityType: string;
   /**
    * The namespace this Activity is running in
+   *
+   * @deprecated Use {@link namespace} instead
    */
   readonly activityNamespace: string;
   /**
@@ -176,20 +184,22 @@ export interface Info {
    */
   readonly isLocal: boolean;
   /**
-   * Information about the Workflow that scheduled the Activity
+   * Information about the Workflow that scheduled the Activity. Not set if the activity was not started by a Workflow
    */
-  readonly workflowExecution: {
+  readonly workflowExecution?: {
     readonly workflowId: string;
     readonly runId: string;
   };
   /**
-   * The namespace of the Workflow that scheduled this Activity
+   * The namespace of the Workflow that scheduled this Activity. Not set if the activity was not started by a Workflow
+   *
+   * @deprecated Use {@link namespace} instead
    */
-  readonly workflowNamespace: string;
+  readonly workflowNamespace?: string;
   /**
-   * The module name of the Workflow that scheduled this Activity
+   * The module name of the Workflow that scheduled this Activity. Not set if the activity was not started by a Workflow
    */
-  readonly workflowType: string;
+  readonly workflowType?: string;
   /**
    * Timestamp for when this Activity was first scheduled.
    * For retries, this will have the timestamp of the first attempt.
@@ -249,6 +259,24 @@ export interface Info {
    * version), but it may still be defined server-side.
    */
   readonly retryPolicy?: RetryPolicy;
+  /**
+   * The namespace this Activity is running in
+   */
+  readonly namespace: string;
+  /**
+   * ID of the current run of this activity. Can be used to differentiate between different activity executions that
+   * share the same ID. Activities started by a Workflow don't have activity run ID - instead, they can be identified by
+   * workflow ID and workflow run ID; see {@link workflowExecution}
+   *
+   * @experimental Standalone Activities are experimental. APIs may be subject to change.
+   */
+  readonly activityRunId?: string;
+  /**
+   * Whether this activity was started by a workflow
+   *
+   * @experimental Standalone Activities are experimental. APIs may be subject to change.
+   */
+  readonly inWorkflow: boolean;
 }
 
 /**

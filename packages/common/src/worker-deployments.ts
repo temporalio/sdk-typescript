@@ -1,4 +1,4 @@
-import type { temporal } from '@temporalio/proto';
+import type { coresdk, temporal } from '@temporalio/proto';
 import { makeProtoEnumConverters } from './internal-workflow';
 
 /**
@@ -98,3 +98,19 @@ export const [encodeInitialVersioningBehavior, decodeInitialVersioningBehavior] 
   } as const,
   'CONTINUE_AS_NEW_VERSIONING_BEHAVIOR_'
 );
+
+/**
+ * @internal
+ */
+export function convertDeploymentVersion(
+  v: coresdk.common.IWorkerDeploymentVersion | null | undefined
+): WorkerDeploymentVersion | undefined {
+  if (!v || !v.buildId) {
+    return undefined;
+  }
+
+  return {
+    buildId: v.buildId,
+    deploymentName: v.deploymentName ?? '',
+  };
+}

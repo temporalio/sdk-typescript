@@ -1,5 +1,4 @@
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
-import { AsyncCompletionClient } from './async-completion-client';
 import type { BaseClientOptions, LoadedWithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import type { ClientInterceptors } from './interceptors';
@@ -7,6 +6,7 @@ import { ScheduleClient } from './schedule-client';
 import type { QueryRejectCondition, WorkflowService } from './types';
 import { WorkflowClient } from './workflow-client';
 import { TaskQueueClient } from './task-queue-client';
+import { ActivityClient } from './activity-client';
 
 export interface ClientOptions extends BaseClientOptions {
   /**
@@ -49,9 +49,9 @@ export class Client extends BaseClient {
    */
   public readonly workflow: WorkflowClient;
   /**
-   * (Async) Activity completion sub-client - use to manually manage Activities
+   * Activity sub-client - use to start and interact with Activities and to perform asynchronous Activity completion
    */
-  public readonly activity: AsyncCompletionClient;
+  public readonly activity: ActivityClient;
   /**
    * Schedule sub-client - use to start and interact with Schedules
    */
@@ -89,10 +89,11 @@ export class Client extends BaseClient {
       queryRejectCondition: workflow?.queryRejectCondition,
     });
 
-    this.activity = new AsyncCompletionClient({
+    this.activity = new ActivityClient({
       ...commonOptions,
       connection: this.connection,
       dataConverter: this.dataConverter,
+      interceptors: interceptors?.activity,
     });
 
     this.schedule = new ScheduleClient({

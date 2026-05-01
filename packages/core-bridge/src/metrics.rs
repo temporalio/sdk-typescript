@@ -48,7 +48,10 @@ pub fn init(cx: &mut neon::prelude::ModuleContext) -> neon::prelude::NeonResult<
     )?;
     cx.export_function("setMetricGaugeValue", set_metric_gauge_value)?;
     cx.export_function("setMetricGaugeF64Value", set_metric_gauge_f64_value)?;
-    cx.export_function("addMetricUpDownCounterValue", add_metric_up_down_counter_value)?;
+    cx.export_function(
+        "addMetricUpDownCounterValue",
+        add_metric_up_down_counter_value,
+    )?;
 
     Ok(())
 }

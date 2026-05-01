@@ -5,7 +5,7 @@ import assert from 'node:assert';
 import { URL, URLSearchParams } from 'node:url';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
-import { cutoffStackTrace, IllegalStateError } from '@temporalio/common';
+import { cutoffStackTrace, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
 import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/lib/continue-as-new';
 import { tsToMs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
@@ -15,7 +15,6 @@ import type * as internals from '@temporalio/workflow/lib/worker-interface';
 import type { Activator } from '@temporalio/workflow/lib/internals';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import { UnhandledRejectionError } from '../errors';
-import { convertDeploymentVersion } from '../utils';
 import type { Workflow } from './interface';
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 
