@@ -1211,7 +1211,7 @@ export interface WorkerPlugin {
    * the worker configuration before the worker is fully initialized. Plugins
    * can add activities, workflows, interceptors, or change other settings.
    */
-  configureWorker?(options: WorkerOptions): WorkerOptions;
+  configureWorker?(options: WorkerOptions): WorkerOptions | Promise<WorkerOptions>;
 
   /**
    * Hook called when creating a replay worker to allow modification of configuration.
@@ -1220,7 +1220,7 @@ export interface WorkerPlugin {
    * the worker configuration before the worker is fully initialized. Plugins
    * can add workflows, interceptors, or change other settings.
    */
-  configureReplayWorker?(options: ReplayWorkerOptions): ReplayWorkerOptions;
+  configureReplayWorker?(options: ReplayWorkerOptions): ReplayWorkerOptions | Promise<ReplayWorkerOptions>;
 
   /**
    * Hook called when running a worker.
