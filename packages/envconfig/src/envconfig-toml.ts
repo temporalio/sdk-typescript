@@ -181,9 +181,9 @@ function strictValidateTomlStructure(parsed: TomlTable): void {
 
 function getFallbackConfigData(envProvider: Record<string, string | undefined>): string | undefined {
   // configSource was not set - fallback to TEMPORAL_CONFIG_FILE, then the default file path
-  let filePath = envProvider['TEMPORAL_CONFIG_FILE'];
+  const filePath = envProvider['TEMPORAL_CONFIG_FILE'] ?? getDefaultConfigFilePath(envProvider);
   if (filePath === undefined) {
-    filePath = getDefaultConfigFilePath();
+    return undefined;
   }
   return readFileSync(filePath, { encoding: 'utf-8' });
 }
@@ -294,43 +294,46 @@ function envVarToBool(envVar?: string): boolean | undefined {
 const DEFAULT_CONFIG_FILE_PROFILE = 'default';
 const DEFAULT_CONFIG_FILE = 'temporal.toml';
 
-function getDefaultConfigFilePath(): string {
-  const configDir = getUserConfigDir();
+function getDefaultConfigFilePath(envProvider: Record<string, string | undefined>): string | undefined {
+  const configDir = getUserConfigDir(envProvider);
+  if (configDir === undefined) {
+    return undefined;
+  }
   const configPath = path.join(configDir, 'temporalio', DEFAULT_CONFIG_FILE);
   return configPath;
 }
 
-function getUserConfigDir(): string {
+function getUserConfigDir(envProvider: Record<string, string | undefined>): string | undefined {
   const platform = os.platform();
 
   switch (platform) {
     case 'win32': {
-      const dir = process.env.APPDATA;
+      const dir = envProvider['APPDATA'];
       if (!dir) {
-        throw new Error('%AppData% is not defined');
+        return undefined;
       }
       return dir;
     }
 
     case 'darwin': {
-      const dir = process.env.HOME;
+      const dir = envProvider['HOME'];
       if (!dir) {
-        throw new Error('$HOME is not defined');
+        return undefined;
       }
       return path.join(dir, 'Library', 'Application Support');
     }
 
     default: {
       // Unix/Linux
-      let dir = process.env.XDG_CONFIG_HOME;
+      let dir = envProvider['XDG_CONFIG_HOME'];
       if (!dir) {
-        const home = process.env.HOME;
+        const home = envProvider['HOME'];
         if (!home) {
-          throw new Error('neither $XDG_CONFIG_HOME nor $HOME are defined');
+          return undefined;
         }
         dir = path.join(home, '.config');
       } else if (!path.isAbsolute(dir)) {
-        throw new Error('path in $XDG_CONFIG_HOME is relative');
+        return undefined;
       }
       return dir;
     }
