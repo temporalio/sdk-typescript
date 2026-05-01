@@ -269,6 +269,22 @@ export class Activator implements ActivationHandler {
   public workflowTaskError: unknown;
 
   /**
+   * Error type _names_ (from {@link WorkerOptions.workflowFailureErrorTypes}) that
+   * should cause Workflow Execution failure rather than WFT failure.
+   *
+   * Set at workflow creation time from the worker options.
+   */
+  public failureExceptionTypeNames: string[] = [];
+
+  /**
+   * Error _types_ (from {@link WorkflowDefinitionOptions.failureExceptionTypes})
+   * that should cause Workflow Execution failure rather than WFT failure.
+   *
+   * Set in `worker-interface.ts` after the workflow definition options are read.
+   */
+  public workflowDefinitionFailureExceptionTypes: Array<new (...args: any[]) => Error> | undefined = undefined;
+
+  /**
    * Set to true when running synchronous code (e.g. while processing activation jobs and when calling
    * `tryUnblockConditions()`). While this flag is set, it is safe to let errors bubble up.
    */
@@ -472,6 +488,7 @@ export class Activator implements ActivationHandler {
     randomnessSeed,
     registeredActivityNames,
     stackTracesEnabled,
+    failureExceptionTypeNames,
   }: WorkflowCreateOptionsInternal) {
     this.getTimeOfDay = getTimeOfDay;
     this.info = info;
@@ -481,6 +498,7 @@ export class Activator implements ActivationHandler {
     this.random = alea(randomnessSeed);
     this.registeredActivityNames = registeredActivityNames;
     this.stackTracesEnabled = stackTracesEnabled;
+    this.failureExceptionTypeNames = failureExceptionTypeNames ?? [];
   }
 
   /**
@@ -582,8 +600,10 @@ export class Activator implements ActivationHandler {
           ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter)
           : undefined,
     }));
-    if (this.workflowDefinitionOptionsGetter) {
-      this.versioningBehavior = this.workflowDefinitionOptionsGetter().versioningBehavior;
+    const workflowDefinitionOpts = this.workflowDefinitionOptionsGetter?.();
+    if (workflowDefinitionOpts) {
+      this.versioningBehavior = workflowDefinitionOpts.versioningBehavior;
+      this.workflowDefinitionFailureExceptionTypes = workflowDefinitionOpts.failureExceptionTypes;
     }
   }
 
@@ -1171,7 +1191,7 @@ export class Activator implements ActivationHandler {
       this.pushCommand({ cancelWorkflowExecution: {} }, true);
     } else if (error instanceof ContinueAsNew) {
       this.pushCommand({ continueAsNewWorkflowExecution: error.command }, true);
-    } else if (error instanceof TemporalFailure) {
+    } else if (error instanceof TemporalFailure || this.isConfiguredFailureException(error)) {
       // Fail the workflow. We do not want to issue unfinishedHandlers warnings. To achieve that, we
       // mark all handlers as completed now.
       this.inProgressSignals.clear();
@@ -1179,7 +1199,7 @@ export class Activator implements ActivationHandler {
       this.pushCommand(
         {
           failWorkflowExecution: {
-            failure: this.errorToFailure(error),
+            failure: this.errorToFailure(ensureTemporalFailure(error)),
           },
         },
         true
@@ -1187,6 +1207,42 @@ export class Activator implements ActivationHandler {
     } else {
       this.recordWorkflowTaskError(error);
     }
+  }
+
+  /**
+   * Returns true if the given error matches any of the configured failure exception types
+   * (from {@link WorkerOptions.workflowFailureErrorTypes} or
+   * {@link WorkflowDefinitionOptions.failureExceptionTypes}).
+   */
+  private isConfiguredFailureException(error: unknown): boolean {
+    // Check class references from WorkflowDefinitionOptions (instanceof-based, supports subclasses)
+    if (this.workflowDefinitionFailureExceptionTypes) {
+      // We guarantee that including Error in the list will catch _any_ error.
+      if (this.workflowDefinitionFailureExceptionTypes.includes(Error)) return true;
+
+      for (const errorType of this.workflowDefinitionFailureExceptionTypes) {
+        if (error instanceof errorType) return true;
+      }
+    }
+
+    // Check class name strings from WorkerOptions (prototype-chain-based)
+    if (this.failureExceptionTypeNames.length > 0) {
+      // We guarantee that including 'Error' in the list will catch _any_ error.
+      if (this.failureExceptionTypeNames.includes('Error')) return true;
+
+      if (typeof error === 'object' && error !== null) {
+        let ctor = (error as any).constructor;
+        while (ctor != null && ctor !== Function.prototype) {
+          const name = (ctor as any).name as string | undefined;
+          if (name) {
+            if (this.failureExceptionTypeNames.includes(name)) return true;
+          }
+          ctor = Object.getPrototypeOf(ctor);
+        }
+      }
+    }
+
+    return false;
   }
 
   recordWorkflowTaskError(error: unknown): void {
