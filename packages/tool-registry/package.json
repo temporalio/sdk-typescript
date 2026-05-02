@@ -42,6 +42,7 @@
   },
   "scripts": {
     "build": "tsc --build",
+    "prepare": "tsc --build",
     "test": "TS_NODE_PROJECT=tsconfig.test.json mocha --require ts-node/register --extension ts 'src/**/*.test.ts'"
   },
   "engines": {
