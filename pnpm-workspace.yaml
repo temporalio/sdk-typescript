@@ -11,6 +11,7 @@ packages:
   - packages/lambda-worker
   - packages/meta
   - packages/nexus
+  - packages/openai-agents
   - packages/nyc-test-coverage
   - packages/plugin
   - packages/proto
