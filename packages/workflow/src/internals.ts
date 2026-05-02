@@ -628,7 +628,8 @@ export class Activator implements ActivationHandler {
   public resolveChildWorkflowExecutionStart(
     activation: coresdk.workflow_activation.IResolveChildWorkflowExecutionStart
   ): void {
-    const { resolve, reject } = this.consumeCompletion('childWorkflowStart', getSeq(activation));
+    const seq = getSeq(activation);
+    const { resolve, reject } = this.consumeCompletion('childWorkflowStart', seq);
     if (activation.succeeded) {
       if (!activation.succeeded.runId) {
         throw new TypeError('Got ResolveChildWorkflowExecutionStart with no runId');
@@ -648,11 +649,13 @@ export class Activator implements ActivationHandler {
           activation.failed.workflowType
         )
       );
+      this.completions.childWorkflowComplete.delete(seq);
     } else if (activation.cancelled) {
       if (!activation.cancelled.failure) {
         throw new TypeError('Got no failure in cancelled variant');
       }
       reject(this.failureToError(activation.cancelled.failure));
+      this.completions.childWorkflowComplete.delete(seq);
     } else {
       throw new TypeError('Got ResolveChildWorkflowExecutionStart with no status');
     }
