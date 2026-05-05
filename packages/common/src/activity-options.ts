@@ -77,7 +77,7 @@ export const [encodeActivityCancellationType, decodeActivityCancellationType] = 
 );
 
 /**
- * Options for remote activity invocation
+ * Options for non-local activity invocation inside a workflow
  */
 export interface ActivityOptions {
   /**

@@ -604,6 +604,69 @@ test('ContinueAsNew with version upgrade', async (t) => {
   await worker2Promise;
 });
 
+test('ContinueAsNew with ramping version', async (t) => {
+  const taskQueue = 'can-ramping-version-' + randomUUID();
+  const deploymentName = 'deployment-can-ramping-' + randomUUID();
+  const { client, nativeConnection } = t.context.env;
+  const { createNativeConnection } = helpers(t);
+
+  const v1 = { buildId: '1.0', deploymentName };
+  const v2 = { buildId: '2.0', deploymentName };
+
+  const worker1 = await Worker.create({
+    workflowsPath: require.resolve('./deployment-versioning-can-v1'),
+    taskQueue,
+    workerDeploymentOptions: {
+      useWorkerVersioning: true,
+      version: v1,
+      defaultVersioningBehavior: 'PINNED',
+    },
+    connection: nativeConnection,
+  });
+  const worker1Promise = worker1.run();
+  worker1Promise.catch((err) => t.fail('Worker 1.0 error: ' + err));
+
+  const worker2Connection = await createNativeConnection();
+  t.teardown(() => worker2Connection.close());
+  const worker2 = await Worker.create({
+    workflowsPath: require.resolve('./deployment-versioning-can-v2'),
+    taskQueue,
+    workerDeploymentOptions: {
+      useWorkerVersioning: true,
+      version: v2,
+      defaultVersioningBehavior: 'PINNED',
+    },
+    connection: worker2Connection,
+  });
+  const worker2Promise = worker2.run();
+  worker2Promise.catch((err) => t.fail('Worker 2.0 error: ' + err));
+
+  const describeResp1 = await waitUntilWorkerDeploymentVisible(client, v1);
+  const setResp1 = await setCurrentDeploymentVersion(client, describeResp1.conflictToken, v1);
+  await waitForRoutingConfigPropagation(client, deploymentName, v1.buildId);
+
+  const handle = await client.workflow.start('continueAsNewWithRampingVersion', {
+    args: [0],
+    taskQueue,
+    workflowId: 'can-ramping-version-' + randomUUID(),
+  });
+  await waitForWorkflowRunningOnVersion(client, handle, v1.buildId);
+
+  await waitUntilWorkerDeploymentVisible(client, v2);
+  await setRampingVersion(client, setResp1.conflictToken, v2, 0);
+  await waitForRoutingConfigPropagation(client, deploymentName, v1.buildId, v2.buildId);
+
+  await handle.signal(unblockSignal);
+
+  const result = await handle.result();
+  t.is(result, 'v2.0');
+
+  worker1.shutdown();
+  worker2.shutdown();
+  await worker1Promise;
+  await worker2Promise;
+});
+
 ///////////////////////////////
 
 /**

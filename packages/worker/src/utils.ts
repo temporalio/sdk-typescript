@@ -1,4 +1,3 @@
-import type { WorkerDeploymentVersion } from '@temporalio/common';
 import type { coresdk, temporal } from '@temporalio/proto';
 import type { ParentWorkflowInfo, RootWorkflowInfo } from '@temporalio/workflow';
 
@@ -23,19 +22,6 @@ export function convertToParentWorkflowType(
     workflowId: parent.workflowId,
     runId: parent.runId,
     namespace: parent.namespace,
-  };
-}
-
-export function convertDeploymentVersion(
-  v: coresdk.common.IWorkerDeploymentVersion | null | undefined
-): WorkerDeploymentVersion | undefined {
-  if (!v || !v.buildId) {
-    return undefined;
-  }
-
-  return {
-    buildId: v.buildId,
-    deploymentName: v.deploymentName ?? '',
   };
 }
 

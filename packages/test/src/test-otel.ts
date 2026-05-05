@@ -601,7 +601,9 @@ if (RUN_INTEGRATION_TESTS) {
         taskQueue,
         workflowId,
       });
-      const info = await firstValueFrom(infoSubject.pipe(filter((i) => i.workflowExecution.workflowId === workflowId)));
+      const info = await firstValueFrom(
+        infoSubject.pipe(filter((i) => i.workflowExecution?.workflowId === workflowId))
+      );
       await client.activity.complete(info.taskToken, 'async-result');
       t.is(await handle.result(), 'async-result');
     });

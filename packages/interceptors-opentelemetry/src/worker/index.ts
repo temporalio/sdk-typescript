@@ -63,9 +63,11 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
       tracer: this.tracer,
       spanName,
       fn: (span) => {
-        span.setAttribute(WORKFLOW_ID_ATTR_KEY, this.ctx.info.workflowExecution.workflowId);
-        span.setAttribute(RUN_ID_ATTR_KEY, this.ctx.info.workflowExecution.runId);
         span.setAttribute(ACTIVITY_ID_ATTR_KEY, this.ctx.info.activityId);
+        if (this.ctx.info.inWorkflow) {
+          span.setAttribute(WORKFLOW_ID_ATTR_KEY, this.ctx.info.workflowExecution!.workflowId);
+          span.setAttribute(RUN_ID_ATTR_KEY, this.ctx.info.workflowExecution!.runId);
+        }
         return next(input);
       },
       context,

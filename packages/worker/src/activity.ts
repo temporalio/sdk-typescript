@@ -118,7 +118,7 @@ export class Activity {
 
   protected getMetricTags(): MetricTags {
     const baseTags = {
-      namespace: this.info.workflowNamespace,
+      namespace: this.info.namespace,
       taskQueue: this.info.taskQueue,
       activityType: this.info.activityType,
     };
@@ -260,16 +260,23 @@ export class Activity {
  * Returns a map of attributes to be set on log messages for a given Activity
  */
 export function activityLogAttributes(info: Info): Record<string, unknown> {
-  return {
+  const attrs: Record<string, any> = {
     isLocal: info.isLocal,
     attempt: info.attempt,
-    namespace: info.workflowNamespace,
+    namespace: info.namespace,
     taskToken: info.base64TaskToken,
-    workflowId: info.workflowExecution.workflowId,
-    workflowRunId: info.workflowExecution.runId,
-    workflowType: info.workflowType,
     activityId: info.activityId,
     activityType: info.activityType,
     taskQueue: info.taskQueue,
   };
+
+  if (info.inWorkflow) {
+    attrs.workflowId = info.workflowExecution!.workflowId;
+    attrs.workflowRunId = info.workflowExecution!.runId;
+    attrs.workflowType = info.workflowType;
+  } else {
+    attrs.activityRunId = info.activityRunId;
+  }
+
+  return attrs;
 }

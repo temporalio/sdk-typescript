@@ -2,47 +2,18 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import { ensureTemporalFailure } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayloads } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
-import { isGrpcServiceError } from './errors';
+import {
+  isGrpcServiceError,
+  ActivityNotFoundError,
+  ActivityCompletionError,
+  ActivityCancelledError,
+  ActivityResetError,
+  ActivityPausedError,
+} from './errors';
 import type { WorkflowService } from './types';
 import { rethrowKnownErrorTypes } from './helpers';
-
-/**
- * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat an Activity that does not exist in the
- * system.
- */
-@SymbolBasedInstanceOfError('ActivityNotFoundError')
-export class ActivityNotFoundError extends Error {}
-
-/**
- * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat
- * an Activity for any reason apart from {@link ActivityNotFoundError}.
- */
-@SymbolBasedInstanceOfError('ActivityCompletionError')
-export class ActivityCompletionError extends Error {}
-
-/**
- * Thrown by {@link AsyncCompletionClient.heartbeat} when the Workflow has
- * requested to cancel the reporting Activity.
- */
-@SymbolBasedInstanceOfError('ActivityCancelledError')
-export class ActivityCancelledError extends Error {}
-
-/**
- * Thrown by {@link AsyncCompletionClient.heartbeat} when the reporting Activity
- * has been paused.
- */
-@SymbolBasedInstanceOfError('ActivityPausedError')
-export class ActivityPausedError extends Error {}
-
-/**
- * Thrown by {@link AsyncCompletionClient.heartbeat} when the reporting Activity
- * has been reset.
- */
-@SymbolBasedInstanceOfError('ActivityResetError')
-export class ActivityResetError extends Error {}
 
 /**
  * Options used to configure {@link AsyncCompletionClient}
@@ -56,15 +27,31 @@ function defaultAsyncCompletionClientOptions(): WithDefaults<AsyncCompletionClie
 }
 
 /**
- * A mostly unique Activity identifier including its scheduling workflow's ID
- * and an optional runId.
+ * A mostly unique Activity identifier. If {@link workflowId} is set, it refers to a Workflow Activity.
+ * If {@link workflowId} is unset, it refers to a Standalone Activity. In both cases, it can optionally contain
+ * {@link runId}.
  *
- * Activity IDs may be reused in a single Workflow run as long as a previous
- * Activity with the same ID has completed already.
+ * Activity IDs may be reused in a single Workflow run as long as a previous Activity with the same ID has completed
+ * already. Standalone Activity IDs may be reused if `idReusePolicy` is set in Activity options when starting a new
+ * Activity, but a combination of Activity ID and Activity run ID is unique.
  */
 export interface FullActivityId {
-  workflowId: string;
+  /**
+   * ID of the Workflow that started the Activity. Unset for Standalone Activities.
+   */
+  workflowId?: string;
+  /**
+   * If {@link workflowId} is set, this optionally specifies the Workflow run ID in order to differentiate between
+   * Workflow runs with the same Workflow ID. If {@link workflowId} is unset, this optionally specifies the
+   * Activity run ID in order to differentiate between Standalone Activity runs with the same Activity ID.
+   *
+   * If {@link runId} is unset, then the {@link FullActivityId} object refers to the latest run of the Workflow or
+   * the Standalone Activity with the specified ID.
+   */
   runId?: string;
+  /**
+   * ID of the Activity.
+   */
   activityId: string;
 }
 
