@@ -21,7 +21,13 @@ import {
   WorkflowUpdateFailedError,
   WorkflowUpdateRPCTimeoutOrCancelledError,
 } from '@temporalio/client';
-import { ApplicationFailure, defaultPayloadConverter, type Payload, type PayloadConverter } from '@temporalio/common';
+import {
+  ApplicationFailure,
+  defaultPayloadConverter,
+  WorkflowNotFoundError,
+  type Payload,
+  type PayloadConverter,
+} from '@temporalio/common';
 import { Duration, msToNumber } from '@temporalio/common/lib/time';
 import {
   decodePayloadWire,
@@ -181,8 +187,16 @@ export class WorkflowStreamClient {
    */
   static fromActivity(options?: WorkflowStreamClientOptions): WorkflowStreamClient {
     const ctx = ActivityContext.current();
-    const workflowId = ctx.info.workflowExecution.workflowId;
-    return WorkflowStreamClient.create(ctx.client, workflowId, options);
+    const workflowExecution = ctx.info.workflowExecution;
+    if (workflowExecution === undefined) {
+      throw new Error(
+        'fromActivity requires an activity scheduled by a workflow; this ' +
+          'activity has no parent workflow. From a standalone activity, use ' +
+          'WorkflowStreamClient.create(client, workflowId) with the target ' +
+          'workflow id passed in explicitly.'
+      );
+    }
+    return WorkflowStreamClient.create(ctx.client, workflowExecution.workflowId, options);
   }
 
   /** Start the background flusher. Call before publishing. */
@@ -441,6 +455,14 @@ export class WorkflowStreamClient {
             offset = 0;
             continue;
           }
+          if (cause instanceof ApplicationFailure && cause.type === 'AcceptedUpdateCompletedWorkflow') {
+            // Workflow returned (or continued-as-new) before this poll's
+            // update completed. Either follow the chain or exit cleanly.
+            if (await this.followContinueAsNew()) {
+              continue;
+            }
+            return;
+          }
           throw err;
         }
         if (err instanceof WorkflowUpdateRPCTimeoutOrCancelledError) {
@@ -448,6 +470,18 @@ export class WorkflowStreamClient {
             continue;
           }
           return;
+        }
+        if (err instanceof WorkflowNotFoundError) {
+          // Workflow may have completed between polls. subscribe() exits
+          // cleanly on terminal status so callers don't have to wrap the
+          // iterator in error handling for the normal end-of-stream case.
+          if (await this.followContinueAsNew()) {
+            continue;
+          }
+          if (await this.isInTerminalState()) {
+            return;
+          }
+          throw err;
         }
         throw err;
       }
@@ -488,5 +522,26 @@ export class WorkflowStreamClient {
       return false;
     }
     return false;
+  }
+
+  /**
+   * Return true if the workflow has reached a terminal state. Used by
+   * `subscribe()` to distinguish "workflow finished — stream is done" from
+   * "wrong workflow id" when a poll surfaces `WorkflowNotFoundError`.
+   */
+  private async isInTerminalState(): Promise<boolean> {
+    try {
+      const desc = await this.handle.describe();
+      const name = desc.status.name;
+      return (
+        name === 'COMPLETED' ||
+        name === 'FAILED' ||
+        name === 'CANCELLED' ||
+        name === 'TERMINATED' ||
+        name === 'TIMED_OUT'
+      );
+    } catch {
+      return false;
+    }
   }
 }
