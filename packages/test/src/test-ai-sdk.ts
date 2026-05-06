@@ -51,7 +51,7 @@ import {
 } from './workflows/ai-sdk';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { getWeather } from './activities/ai-sdk';
-import { Worker } from './helpers';
+import { bundlerOptions, Worker } from './helpers';
 import EventType = temporal.api.enums.v1.EventType;
 
 const remoteTests = ['1', 't', 'true'].includes((process.env.AI_SDK_REMOTE_TESTS ?? 'false').toLowerCase());
@@ -451,6 +451,7 @@ test('Telemetry', async (t) => {
       ],
       taskQueue: 'test-ai-telemetry',
       workflowsPath: require.resolve('./workflows/ai-sdk'),
+      bundlerOptions,
 
       interceptors: {
         client: {

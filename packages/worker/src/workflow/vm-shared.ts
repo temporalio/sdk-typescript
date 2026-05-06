@@ -3,6 +3,13 @@ import type vm from 'node:vm';
 import { AsyncLocalStorage as AsyncLocalStorageOriginal } from 'node:async_hooks';
 import assert from 'node:assert';
 import { URL, URLSearchParams } from 'node:url';
+import {
+  ByteLengthQueuingStrategy,
+  CountQueuingStrategy,
+  ReadableStream,
+  TransformStream,
+  WritableStream,
+} from 'node:stream/web';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
@@ -102,6 +109,11 @@ export function injectGlobals(context: vm.Context): void {
     TextEncoder,
     TextDecoder,
     AbortController,
+    ReadableStream,
+    WritableStream,
+    TransformStream,
+    ByteLengthQueuingStrategy,
+    CountQueuingStrategy,
   };
   for (const [k, v] of Object.entries(globals)) {
     Object.defineProperty(sandboxGlobalThis, k, { value: v, writable: false, enumerable: true, configurable: false });

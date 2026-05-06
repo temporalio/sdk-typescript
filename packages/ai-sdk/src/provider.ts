@@ -1,4 +1,7 @@
-import { ReadableStream, type ReadableStreamDefaultController } from 'node:stream/web';
+// `ReadableStream` is a sandbox global; type-only import keeps `node:stream/web`
+// out of the workflow bundle (es2023 lib has no DOM types).
+import type { ReadableStreamDefaultController } from 'node:stream/web';
+declare const ReadableStream: typeof import('node:stream/web').ReadableStream;
 import type {
   EmbeddingModelV3,
   EmbeddingModelV3CallOptions,

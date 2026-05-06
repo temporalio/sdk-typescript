@@ -247,6 +247,11 @@ exports.importInterceptors = function importInterceptors() {
           /[\\/](?:@temporalio|packages)[\\/]interceptors-opentelemetry[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
           './workflow-imports-impl.js'
         ),
+        // Strip the `node:` URI scheme so imports like `node:stream/web` route
+        // through the same alias map as the bare form.
+        new NormalModuleReplacementPlugin(/^node:/, (resource) => {
+          resource.request = resource.request.replace(/^node:/, '');
+        }),
       ],
       externals: captureProblematicModules,
       module: {
