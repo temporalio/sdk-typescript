@@ -420,8 +420,12 @@ export class WorkflowStreamClient {
   /**
    * Async generator that polls for new items.
    *
-   * Yielded items carry `data: Payload`. Use a payload converter such as
-   * `defaultPayloadConverter.fromPayload<T>(item.data)` to decode.
+   * Default — yields items with `data: Payload` (no decode). Use a payload
+   * converter such as `defaultPayloadConverter.fromPayload<T>(item.data)`
+   * to decode at the call site.
+   *
+   * With `resultType: true` — each item is decoded via the client's
+   * configured payload converter and yielded as the generic `T`.
    *
    * Automatically follows continue-as-new chains when created via
    * {@link WorkflowStreamClient.create}.
@@ -429,11 +433,21 @@ export class WorkflowStreamClient {
    * @param topics - Topic filter. A single topic name, an array of topic
    *   names, or undefined. Undefined or an empty array means all topics.
    */
-  async *subscribe(
+  subscribe(
+    topics?: string | string[],
+    fromOffset?: number,
+    options?: SubscribeOptions
+  ): AsyncGenerator<WorkflowStreamItem<Payload>, void, unknown>;
+  subscribe<T>(
+    topics: string | string[] | undefined,
+    fromOffset: number,
+    options: SubscribeOptions & { resultType: true }
+  ): AsyncGenerator<WorkflowStreamItem<T>, void, unknown>;
+  async *subscribe<T = Payload>(
     topics?: string | string[],
     fromOffset = 0,
-    options?: SubscribeOptions
-  ): AsyncGenerator<WorkflowStreamItem, void, unknown> {
+    options?: SubscribeOptions & { resultType?: boolean }
+  ): AsyncGenerator<WorkflowStreamItem<T>, void, unknown> {
     const pollCooldownMs = msToNumber(options?.pollCooldown ?? '100 milliseconds');
     const topicFilter: string[] =
       topics === undefined ? [] : typeof topics === 'string' ? [topics] : topics;
@@ -486,10 +500,12 @@ export class WorkflowStreamClient {
         throw err;
       }
 
+      const decode = options?.resultType === true;
       for (const wireItem of result.items) {
+        const payload = decodePayloadWire(wireItem.data);
         yield {
           topic: wireItem.topic,
-          data: decodePayloadWire(wireItem.data),
+          data: (decode ? this.payloadConverter.fromPayload<T>(payload) : (payload as unknown as T)),
           offset: wireItem.offset,
         };
       }

@@ -14,7 +14,7 @@
  * calls' ``T`` parameters are erased and not compared.
  */
 
-import type { Payload, PayloadConverter } from '@temporalio/common';
+import type { Payload } from '@temporalio/common';
 import type { SubscribeOptions, WorkflowStreamClient } from './client';
 import type { WorkflowStream } from './stream';
 import type { WorkflowStreamItem } from './types';
@@ -70,18 +70,11 @@ export class TopicHandle<T = unknown> {
    * @param options.pollCooldown Minimum interval between polls when
    *   there are no new items. Default 100ms.
    */
-  async *subscribe(
-    fromOffset = 0,
+  subscribe(
+    fromOffset?: number,
     options?: SubscribeOptions,
   ): AsyncGenerator<WorkflowStreamItem<T>, void, unknown> {
-    const converter = (this.client as unknown as { payloadConverter: PayloadConverter }).payloadConverter;
-    for await (const raw of this.client.subscribe(this.name, fromOffset, options)) {
-      yield {
-        topic: raw.topic,
-        data: converter.fromPayload<T>(raw.data),
-        offset: raw.offset,
-      };
-    }
+    return this.client.subscribe<T>(this.name, fromOffset ?? 0, { ...options, resultType: true });
   }
 }
 
