@@ -1,5 +1,5 @@
 import type { temporal } from '@temporalio/proto';
-import { Payload } from '../interfaces';
+import type { Payload } from '../interfaces';
 import {
   arrayFromPayloads,
   convertOptionalToPayload,
@@ -7,11 +7,11 @@ import {
   toPayloads,
 } from '../converter/payload-converter';
 import { PayloadConverterError } from '../errors';
-import { PayloadCodec } from '../converter/payload-codec';
-import { ProtoFailure } from '../failure';
-import { LoadedDataConverter } from '../converter/data-converter';
-import { UserMetadata } from '../user-metadata';
-import { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
+import type { PayloadCodec } from '../converter/payload-codec';
+import type { ProtoFailure } from '../failure';
+import type { LoadedDataConverter } from '../converter/data-converter';
+import type { UserMetadata } from '../user-metadata';
+import type { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
 
 /**
  * Decode through each codec, starting with the last codec.

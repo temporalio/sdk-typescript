@@ -1,5 +1,6 @@
 import Long from 'long';
-import ms, { StringValue } from 'ms';
+import type { StringValue } from 'ms';
+import ms from 'ms';
 import type { google } from '@temporalio/proto';
 import { ValueError } from './errors';
 

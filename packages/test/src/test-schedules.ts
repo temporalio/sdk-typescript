@@ -1,24 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import anyTest, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import asyncRetry from 'async-retry';
-import {
-  defaultPayloadConverter,
+import type {
   CalendarSpec,
   CalendarSpecDescription,
-  Client,
-  Connection,
   ScheduleHandle,
   ScheduleSummary,
   ScheduleUpdateOptions,
   ScheduleDescription,
 } from '@temporalio/client';
+import { defaultPayloadConverter, Client, Connection } from '@temporalio/client';
 import { msToNumber } from '@temporalio/common/lib/time';
-import {
-  SearchAttributeType,
-  SearchAttributes,
-  TypedSearchAttributes,
-  defineSearchAttributeKey,
-} from '@temporalio/common';
+import type { SearchAttributes } from '@temporalio/common';
+import { SearchAttributeType, TypedSearchAttributes, defineSearchAttributeKey } from '@temporalio/common';
 import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS, waitUntil } from './helpers';
 import { defaultSAKeys } from './helpers-integration';
 

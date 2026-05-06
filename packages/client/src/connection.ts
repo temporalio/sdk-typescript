@@ -1,18 +1,17 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as grpc from '@grpc/grpc-js';
 import type * as proto from 'protobufjs';
-import {
-  normalizeTlsConfig,
-  TLSConfig,
-  normalizeGrpcEndpointAddress,
-} from '@temporalio/common/lib/internal-non-workflow';
+import type { TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
+import { normalizeTlsConfig, normalizeGrpcEndpointAddress } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
-import { Duration, msOptionalToNumber } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msOptionalToNumber } from '@temporalio/common/lib/time';
 import { type temporal } from '@temporalio/proto';
 import { isGrpcServiceError, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
 import pkg from './pkg';
-import { CallContext, HealthService, Metadata, OperatorService, TestService, WorkflowService } from './types';
+import type { CallContext, Metadata } from './types';
+import { HealthService, OperatorService, TestService, WorkflowService } from './types';
 
 /**
  * The default Temporal Server's TCP port for public gRPC connections.

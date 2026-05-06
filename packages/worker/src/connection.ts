@@ -1,21 +1,20 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import * as grpc from '@grpc/grpc-js';
-import * as proto from 'protobufjs';
+import type * as grpc from '@grpc/grpc-js';
+import type * as proto from 'protobufjs';
 import { IllegalStateError } from '@temporalio/common';
 import { native } from '@temporalio/core-bridge';
+import type { ConnectionLike, Metadata, CallContext } from '@temporalio/client';
 import {
-  ConnectionLike,
-  Metadata,
-  CallContext,
   WorkflowService,
   OperatorService,
   HealthService,
   TestService,
   InternalConnectionLikeSymbol,
 } from '@temporalio/client';
-import { InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
+import type { InternalConnectionOptions } from '@temporalio/client/lib/connection';
+import { InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
 import { TransportError } from './errors';
-import { NativeConnectionOptions } from './connection-options';
+import type { NativeConnectionOptions } from './connection-options';
 import { Runtime } from './runtime';
 
 /**

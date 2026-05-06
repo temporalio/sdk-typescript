@@ -1,8 +1,9 @@
-import { Macro, ErrorConstructor } from 'ava';
+import type { Macro, ErrorConstructor } from 'ava';
 import { CancellationScope, sleep } from '@temporalio/workflow';
 import { WorkflowFailedError } from '@temporalio/client';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
-import { makeTestFunction, Context, helpers } from './helpers-integration';
+import type { Context } from './helpers-integration';
+import { makeTestFunction, helpers } from './helpers-integration';
 
 const test = makeTestFunction({
   workflowsPath: __filename,

@@ -1,5 +1,5 @@
 import { ValueError } from '../errors';
-import { Exact, RemovePrefix, UnionToIntersection } from '../type-helpers';
+import type { Exact, RemovePrefix, UnionToIntersection } from '../type-helpers';
 
 /**
  * Create encoding and decoding functions to convert between the numeric `enum` types produced by our

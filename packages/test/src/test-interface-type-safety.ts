@@ -1,16 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import test from 'ava';
-import {
-  defineSignal,
-  defineQuery,
-  ExternalWorkflowHandle,
-  ChildWorkflowHandle,
-  Workflow,
-  defineUpdate,
-  ChildWorkflowOptions,
-} from '@temporalio/workflow';
-import { WorkflowHandle, WorkflowUpdateStage } from '@temporalio/client';
+import type { ExternalWorkflowHandle, ChildWorkflowHandle, Workflow, ChildWorkflowOptions } from '@temporalio/workflow';
+import { defineSignal, defineQuery, defineUpdate } from '@temporalio/workflow';
+import type { WorkflowHandle } from '@temporalio/client';
+import { WorkflowUpdateStage } from '@temporalio/client';
 
 test('SignalDefinition Name type safety', (t) => {
   // @ts-expect-error Assert expect a type error when generic and concrete names do not match

@@ -6,7 +6,7 @@ import { Subject, firstValueFrom, skip } from 'rxjs';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { NativeConnection } from '@temporalio/worker';
-import { temporal } from '@temporalio/proto';
+import type { temporal } from '@temporalio/proto';
 import { Worker } from './helpers';
 
 const workflowServicePackageDefinition = protoLoader.loadSync(

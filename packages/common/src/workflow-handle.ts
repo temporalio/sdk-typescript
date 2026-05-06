@@ -1,4 +1,4 @@
-import { Workflow, WorkflowResultType, SignalDefinition } from './interfaces';
+import type { Workflow, WorkflowResultType, SignalDefinition } from './interfaces';
 
 /**
  * Base WorkflowHandle interface, extended in workflow and client libs.

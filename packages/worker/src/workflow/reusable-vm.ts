@@ -1,9 +1,9 @@
 import vm from 'node:vm';
-import * as internals from '@temporalio/workflow/lib/worker-interface';
+import type * as internals from '@temporalio/workflow/lib/worker-interface';
 import { IllegalStateError } from '@temporalio/common';
 import { native } from '@temporalio/core-bridge';
-import { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
-import { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
+import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
+import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import { BaseVMWorkflow, globalHandlers, injectGlobals, setUnhandledRejectionHandler } from './vm-shared';
 import { isBun } from './bun';
 
@@ -12,6 +12,7 @@ interface BagHolder {
 }
 
 const callIntoVmScript = new vm.Script(`__TEMPORAL_CALL_INTO_SCOPE()`);
+const preloadModulesScript = new vm.Script(`__TEMPORAL__.preloadModules?.()`);
 
 function generateNodeCallIntoScopeScript(): string {
   return `{
@@ -176,6 +177,11 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     this.injectGlobals(this._context);
 
     script.runInContext(this.context);
+    // Preload selected modules before any workflow activator exists so they land in the shared cache.
+    preloadModulesScript.runInContext(this.context, {
+      timeout: isolateExecutionTimeoutMs,
+      displayErrors: true,
+    });
 
     // The V8 context is really composed of two distinct objects: the 'this._context' object on the outside, and another
     // internal object to which we only have access from the inside, which defines the built-in global properties.

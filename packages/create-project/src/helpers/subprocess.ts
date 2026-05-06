@@ -1,5 +1,6 @@
 // https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options
-import { ChildProcess, spawn as origSpawn, SpawnOptions } from 'child_process';
+import type { ChildProcess, SpawnOptions } from 'child_process';
+import { spawn as origSpawn } from 'child_process';
 
 export class ChildProcessError extends Error {
   public readonly name = 'ChildProcessError';

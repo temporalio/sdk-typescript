@@ -14,7 +14,7 @@
  * @module
  */
 
-import { Sinks, Sink, SinkFunction, WorkflowInfo } from '@temporalio/workflow';
+import type { Sinks, Sink, SinkFunction, WorkflowInfo } from '@temporalio/workflow';
 
 /**
  * Registration of a {@link SinkFunction}, including per-sink-function options.

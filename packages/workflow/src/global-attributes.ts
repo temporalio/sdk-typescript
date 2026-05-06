@@ -14,6 +14,7 @@ declare global {
 
   var __TEMPORAL__: {
     api: typeof import('./worker-interface.ts');
+    preloadModules?: () => void;
     importWorkflows: () => Record<string, Workflow>;
     importInterceptors: () => [{ interceptors: WorkflowInterceptorsFactory }];
   };

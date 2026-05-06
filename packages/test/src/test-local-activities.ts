@@ -1,26 +1,15 @@
 import { randomUUID } from 'crypto';
 import { firstValueFrom, Subject } from 'rxjs';
-import { ExecutionContext, TestFn } from 'ava';
+import type { ExecutionContext, TestFn } from 'ava';
 import { Context as ActivityContext } from '@temporalio/activity';
-import {
-  ApplicationFailure,
-  defaultPayloadConverter,
-  WorkflowFailedError,
-  WorkflowHandle,
-  WorkflowStartOptions,
-} from '@temporalio/client';
-import { LocalActivityOptions, RetryPolicy } from '@temporalio/common';
+import type { WorkflowHandle, WorkflowStartOptions } from '@temporalio/client';
+import { ApplicationFailure, defaultPayloadConverter, WorkflowFailedError } from '@temporalio/client';
+import type { LocalActivityOptions, RetryPolicy } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
 import { workflowInterceptorModules } from '@temporalio/testing';
-import {
-  bundleWorkflowCode,
-  DefaultLogger,
-  LogLevel,
-  Runtime,
-  WorkflowBundle,
-  WorkerOptions,
-} from '@temporalio/worker';
+import type { LogLevel, WorkflowBundle, WorkerOptions } from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, Runtime } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
 import { test as anyTest, bundlerOptions, Worker, TestWorkflowEnvironment } from './helpers';
 

@@ -4,7 +4,7 @@ import * as nexus from 'nexus-rpc';
 import * as root from '@temporalio/proto';
 import { ApplicationFailure, CancelledFailure, NexusOperationFailure, SdkComponent } from '@temporalio/common';
 import { WorkflowFailedError } from '@temporalio/client';
-import { LogEntry } from '@temporalio/worker';
+import type { LogEntry } from '@temporalio/worker';
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';

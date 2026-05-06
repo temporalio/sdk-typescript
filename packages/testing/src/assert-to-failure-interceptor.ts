@@ -1,5 +1,6 @@
 import assert from 'assert';
-import { ApplicationFailure, WorkflowInterceptors } from '@temporalio/workflow';
+import type { WorkflowInterceptors } from '@temporalio/workflow';
+import { ApplicationFailure } from '@temporalio/workflow';
 
 /**
  * Simple interceptor that transforms {@link assert.AssertionError} into non retryable failures.

@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { msToNumber } from '@temporalio/common/lib/time';
 import * as workflows from '../workflows';
-import { Spec, AllInOneArgSpec } from './args';
+import type { Spec, AllInOneArgSpec } from './args';
 
 export type EvaluatedArgs<T extends Spec> = {
   [K in keyof T]?: ReturnType<T[K]>;

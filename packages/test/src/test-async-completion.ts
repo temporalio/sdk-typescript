@@ -1,5 +1,7 @@
-import anyTest, { TestFn, ExecutionContext } from 'ava';
-import { Observable, Subject, firstValueFrom } from 'rxjs';
+import type { TestFn, ExecutionContext } from 'ava';
+import anyTest from 'ava';
+import type { Observable } from 'rxjs';
+import { Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { v4 as uuid4 } from 'uuid';
 import {
@@ -9,7 +11,7 @@ import {
   WorkflowFailedError,
   Connection,
 } from '@temporalio/client';
-import { Info } from '@temporalio/activity';
+import type { Info } from '@temporalio/activity';
 import { rootCause } from '@temporalio/common';
 import { isCancellation } from '@temporalio/workflow';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -60,9 +62,9 @@ async function makeNotFoundTaskToken(conn: Connection, namespace: string): Promi
 const taskQueue = 'async-activity-completion';
 const test = anyTest as TestFn<Context>;
 
-async function activityStarted(t: ExecutionContext<Context>, workflowId: string): Promise<Info> {
+async function activityStarted(t: ExecutionContext<Context>, id: string): Promise<Info> {
   return await firstValueFrom(
-    t.context.activityStarted$.pipe(filter((info) => info.workflowExecution.workflowId === workflowId))
+    t.context.activityStarted$.pipe(filter((info) => (info.workflowExecution?.workflowId || info.activityId) === id))
   );
 }
 
@@ -282,5 +284,41 @@ if (RUN_INTEGRATION_TESTS) {
         instanceOf: ActivityNotFoundError,
       }
     );
+  });
+
+  test('Standalone activity can complete asynchronously', async (t) => {
+    const { client } = t.context;
+    const activityId = uuid4();
+    const handle = await client.activity.start('completeAsync', {
+      args: [false],
+      id: activityId,
+      taskQueue,
+      scheduleToCloseTimeout: '1 minute',
+      retry: {
+        maximumAttempts: 1,
+      },
+    });
+
+    const info = await activityStarted(t, activityId);
+    await client.activity.complete(info.taskToken, 'success');
+    t.is(await handle.result(), 'success');
+  });
+
+  test('Standalone activity can complete asynchronously by ID', async (t) => {
+    const { client } = t.context;
+    const activityId = uuid4();
+    const handle = await client.activity.start('completeAsync', {
+      args: [false],
+      id: activityId,
+      taskQueue,
+      scheduleToCloseTimeout: '1 minutes',
+      retry: {
+        maximumAttempts: 1,
+      },
+    });
+
+    const info = await activityStarted(t, activityId);
+    await client.activity.complete({ activityId, runId: info.activityRunId }, 'success');
+    t.is(await handle.result(), 'success');
   });
 }

@@ -3,21 +3,24 @@ import * as net from 'net';
 import path from 'path';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
-import ava, { TestFn, ExecutionContext } from 'ava';
+import type { TestFn, ExecutionContext } from 'ava';
+import ava from 'ava';
 import StackUtils from 'stack-utils';
 import { v4 as uuid4 } from 'uuid';
-import { Client, Connection } from '@temporalio/client';
-import { Payload, PayloadCodec } from '@temporalio/common';
+import type { Connection } from '@temporalio/client';
+import { Client } from '@temporalio/client';
+import type { Payload, PayloadCodec } from '@temporalio/common';
 import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 import * as iface from '@temporalio/proto';
-import {
+import type {
   ExistingServerTestWorkflowEnvironmentOptions,
   LocalTestWorkflowEnvironmentOptions,
-  TestWorkflowEnvironment as RealTestWorkflowEnvironment,
   TimeSkippingTestWorkflowEnvironmentOptions,
 } from '@temporalio/testing';
+import { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@temporalio/testing';
 import * as worker from '@temporalio/worker';
-import { Worker as RealWorker, WorkerOptions } from '@temporalio/worker';
+import type { WorkerOptions } from '@temporalio/worker';
+import { Worker as RealWorker } from '@temporalio/worker';
 import { inWorkflowContext } from '@temporalio/workflow';
 
 export function u8(s: string): Uint8Array {

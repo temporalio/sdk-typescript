@@ -2,10 +2,12 @@
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { Connection, WorkflowClient } from '@temporalio/client';
-import { DefaultLogger, InjectedSinks, Runtime, WorkerOptions, LogEntry, NativeConnection } from '@temporalio/worker';
-import { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
-import { UnsafeWorkflowInfo } from '@temporalio/workflow/lib/interfaces';
-import { SdkComponent, TypedSearchAttributes } from '@temporalio/common';
+import type { InjectedSinks, WorkerOptions, LogEntry } from '@temporalio/worker';
+import { DefaultLogger, Runtime, NativeConnection } from '@temporalio/worker';
+import type { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
+import type { UnsafeWorkflowInfo } from '@temporalio/workflow/lib/interfaces';
+import type { TypedSearchAttributes } from '@temporalio/common';
+import { SdkComponent } from '@temporalio/common';
 import { RUN_INTEGRATION_TESTS, Worker, registerDefaultCustomSearchAttributes } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';

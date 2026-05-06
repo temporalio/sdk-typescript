@@ -474,6 +474,10 @@ export interface MetricGaugeF64 {
   type: 'metric-gauge-f64';
 }
 
+export interface MetricUpDownCounter {
+  type: 'metric-up-down-counter';
+}
+
 export type MetricAttributes = Record<string, string | number | boolean>;
 
 export declare function newMetricCounter(
@@ -506,6 +510,13 @@ export declare function newMetricGaugeF64(
   description: string
 ): MetricGaugeF64;
 
+export declare function newMetricUpDownCounter(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): MetricUpDownCounter;
+
 export declare function addMetricCounterValue(
   counter: MetricCounter,
   value: number,
@@ -536,6 +547,12 @@ export declare function setMetricGaugeF64Value(
   attrs: JsonString<MetricAttributes>
 ): void;
 
+export declare function addMetricUpDownCounterValue(
+  counter: MetricUpDownCounter,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Buffered Metrics
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -556,6 +573,6 @@ export interface BufferedMetric {
   valueType: BufferedMetricValueType;
 }
 
-export type BufferedMetricKind = 'counter' | 'histogram' | 'gauge';
+export type BufferedMetricKind = 'counter' | 'histogram' | 'gauge' | 'up-down-counter';
 
 export type BufferedMetricValueType = 'int' | 'float';

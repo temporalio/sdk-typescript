@@ -1,7 +1,8 @@
-import * as nexus from 'nexus-rpc';
-import { Context as ActivityContext } from '@temporalio/activity';
-import { ClientInterceptors } from '@temporalio/client';
-import { Headers, MetricTags, Next } from '@temporalio/common';
+import type * as nexus from 'nexus-rpc';
+import type { Context as ActivityContext } from '@temporalio/activity';
+import type { ClientInterceptors } from '@temporalio/client';
+import type { MetricTags } from '@temporalio/common';
+import { Headers, Next } from '@temporalio/common';
 
 export { Next, Headers };
 

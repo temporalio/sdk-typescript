@@ -1,4 +1,5 @@
-import { Payload, PayloadConverter, ValueError } from '@temporalio/common';
+import type { Payload, PayloadConverter } from '@temporalio/common';
+import { ValueError } from '@temporalio/common';
 import { decode } from '@temporalio/common/lib/encoding';
 
 class TestPayloadConverter implements PayloadConverter {

@@ -1,19 +1,21 @@
 import { randomUUID } from 'node:crypto';
-import anyTest, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import * as nexus from 'nexus-rpc';
 import { status as grpcStatus } from '@grpc/grpc-js';
 import * as temporalnexus from '@temporalio/nexus';
-import * as temporalclient from '@temporalio/client';
+import type * as temporalclient from '@temporalio/client';
 import * as root from '@temporalio/proto';
 import * as testing from '@temporalio/testing';
-import { DefaultLogger, LogEntry, Runtime, Worker } from '@temporalio/worker';
+import type { LogEntry } from '@temporalio/worker';
+import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
+import type { ProtoFailure } from '@temporalio/common';
 import {
   ApplicationFailure,
   CancelledFailure,
   defaultFailureConverter,
   defaultPayloadConverter,
   defaultDataConverter,
-  ProtoFailure,
 } from '@temporalio/common';
 import { ServiceError } from '@temporalio/client';
 import { coerceToHandlerError, operationErrorToProto } from '@temporalio/worker/lib/nexus/conversions';

@@ -4,11 +4,13 @@ import arg from 'arg';
 import pidusage from 'pidusage';
 import * as grpc from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
-import { interval, range, Observable, OperatorFunction, ReplaySubject, pipe, lastValueFrom } from 'rxjs';
+import type { Observable, OperatorFunction } from 'rxjs';
+import { interval, range, ReplaySubject, pipe, lastValueFrom } from 'rxjs';
 import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
 import { Connection, ServiceError, WorkflowClient, isGrpcServiceError } from '@temporalio/client';
 import { toMB } from '@temporalio/worker/lib/utils';
-import { StarterArgSpec, starterArgSpec, getRequired } from './args';
+import type { StarterArgSpec } from './args';
+import { starterArgSpec, getRequired } from './args';
 
 const ACCEPTABLE_QUERY_ERROR_CODES = [grpc.status.NOT_FOUND, grpc.status.DEADLINE_EXCEEDED];
 

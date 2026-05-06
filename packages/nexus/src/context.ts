@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Logger, LogLevel, LogMetadata, MetricMeter } from '@temporalio/common';
-import { Client } from '@temporalio/client';
+import type { Logger, LogLevel, LogMetadata, MetricMeter } from '@temporalio/common';
+import type { Client } from '@temporalio/client';
 
 // Context Storage /////////////////////////////////////////////////////////////////////////////////
 

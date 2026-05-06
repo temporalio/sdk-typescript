@@ -1,6 +1,6 @@
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
-import { Payload } from '../interfaces';
+import type { Payload } from '../interfaces';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
 /**

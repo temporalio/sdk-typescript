@@ -2,13 +2,13 @@ import * as protoJsonSerializer from 'proto3-json-serializer';
 import type { Message, Namespace, Root, Type } from 'protobufjs';
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
-import { Payload } from '../interfaces';
+import type { Payload } from '../interfaces';
 import { errorMessage, hasOwnProperties, hasOwnProperty, isRecord } from '../type-helpers';
+import type { PayloadConverterWithEncoding } from './payload-converter';
 import {
   BinaryPayloadConverter,
   CompositePayloadConverter,
   JsonPayloadConverter,
-  PayloadConverterWithEncoding,
   UndefinedPayloadConverter,
 } from './payload-converter';
 

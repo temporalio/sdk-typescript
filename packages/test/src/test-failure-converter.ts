@@ -1,13 +1,8 @@
 import { randomUUID } from 'crypto';
-import {
-  DefaultFailureConverter,
-  ApplicationFailure,
-  DataConverter,
-  DefaultEncodedFailureAttributes,
-  TemporalFailure,
-} from '@temporalio/common';
+import type { DataConverter, DefaultEncodedFailureAttributes } from '@temporalio/common';
+import { DefaultFailureConverter, ApplicationFailure, TemporalFailure } from '@temporalio/common';
 import { proxyActivities } from '@temporalio/workflow';
-import { WorkflowFailedError } from '@temporalio/client';
+import type { WorkflowFailedError } from '@temporalio/client';
 import { decodeFromPayloadsAtIndex } from '@temporalio/common/lib/internal-non-workflow';
 import { test, bundlerOptions, ByteSkewerPayloadCodec, Worker, TestWorkflowEnvironment } from './helpers';
 

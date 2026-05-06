@@ -5,18 +5,11 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import arg from 'arg';
-import {
-  DefaultLogger,
-  LogEntry,
-  LogLevel,
-  NativeConnection,
-  Runtime,
-  TelemetryOptions,
-  Worker,
-  makeTelemetryFilterString,
-} from '@temporalio/worker';
+import type { LogEntry, LogLevel, TelemetryOptions } from '@temporalio/worker';
+import { DefaultLogger, NativeConnection, Runtime, Worker, makeTelemetryFilterString } from '@temporalio/worker';
 import * as activities from '../activities';
-import { getRequired, WorkerArgSpec, workerArgSpec } from './args';
+import type { WorkerArgSpec } from './args';
+import { getRequired, workerArgSpec } from './args';
 
 /**
  * Optionally start the opentelemetry node SDK

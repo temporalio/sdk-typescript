@@ -1,5 +1,5 @@
 import * as workflow from '@temporalio/workflow';
-import * as activities from '../activities';
+import type * as activities from '../activities';
 
 const { throwMaybeBenign } = workflow.proxyActivities<typeof activities>({
   startToCloseTimeout: '5s',

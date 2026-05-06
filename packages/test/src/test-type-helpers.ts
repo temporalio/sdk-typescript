@@ -1,5 +1,6 @@
 import vm from 'vm';
-import anyTest, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 
 interface Context {

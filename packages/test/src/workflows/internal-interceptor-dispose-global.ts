@@ -1,4 +1,4 @@
-import { WorkflowInterceptors } from '@temporalio/workflow';
+import type { WorkflowInterceptors } from '@temporalio/workflow';
 
 const getOuterGlobal = globalThis.constructor.constructor;
 

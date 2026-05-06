@@ -1,6 +1,7 @@
 import arg from 'arg';
 import * as nexus from 'nexus-rpc';
-import { Worker, Runtime, DefaultLogger, LogLevel, makeTelemetryFilterString } from '@temporalio/worker';
+import type { LogLevel } from '@temporalio/worker';
+import { Worker, Runtime, DefaultLogger, makeTelemetryFilterString } from '@temporalio/worker';
 import * as activities from './activities';
 
 async function main() {

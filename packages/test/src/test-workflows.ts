@@ -1,14 +1,15 @@
 import path from 'node:path';
-import vm from 'node:vm';
-import anyTest, { ExecutionContext, TestFn } from 'ava';
+import type vm from 'node:vm';
+import type { ExecutionContext, TestFn } from 'ava';
+import anyTest from 'ava';
 import dedent from 'dedent';
 import Long from 'long';
+import type { Payload } from '@temporalio/common';
 import {
   ApplicationFailure,
   defaultFailureConverter,
   defaultPayloadConverter,
   SdkComponent,
-  Payload,
   toPayloads,
   TypedSearchAttributes,
 } from '@temporalio/common';
@@ -16,13 +17,16 @@ import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk, temporal } from '@temporalio/proto';
 import { LogTimestamp } from '@temporalio/worker';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
-import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
-import { SdkFlag, SdkFlags } from '@temporalio/workflow/lib/flags';
-import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
+import type { VMWorkflow } from '@temporalio/worker/lib/workflow/vm';
+import { VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import type { SdkFlag } from '@temporalio/workflow/lib/flags';
+import { SdkFlags } from '@temporalio/workflow/lib/flags';
+import type { ReusableVMWorkflow } from '@temporalio/worker/lib/workflow/reusable-vm';
+import { ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
 import { isBun, cleanStackTrace, compareStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
-import { ProcessedSignal } from './workflows';
+import type { ProcessedSignal } from './workflows';
 
 export interface Context {
   workflow: VMWorkflow | ReusableVMWorkflow;
@@ -138,7 +142,7 @@ async function activate(t: ExecutionContext<Context>, activation: coresdk.workfl
 
   // Core guarantees the following jobs ordering:
   //   initWf -> patches -> update random seed -> signals+update -> others -> Resolve LA
-  // reference: github.com/temporalio/sdk-core/blob/a8150d5c7c3fc1bfd5a941fd315abff1556cd9dc/core/src/worker/workflow/mod.rs#L1363-L1378
+  // reference: github.com/temporalio/sdk-rust/blob/a8150d5c7c3fc1bfd5a941fd315abff1556cd9dc/core/src/worker/workflow/mod.rs#L1363-L1378
   // Tests are likely to fail if we artifically make an activation that does not follow that order
   const jobs: coresdk.workflow_activation.IWorkflowActivationJob[] = activation.jobs ?? [];
   function getPriority(job: coresdk.workflow_activation.IWorkflowActivationJob) {

@@ -1,5 +1,6 @@
 import type { temporal } from '@temporalio/proto';
-import { convertOptionalToPayload, PayloadConverter } from './converter/payload-converter';
+import type { PayloadConverter } from './converter/payload-converter';
+import { convertOptionalToPayload } from './converter/payload-converter';
 
 /**
  * User metadata that can be attached to workflow commands.

@@ -1,11 +1,14 @@
-import { WorkflowHandle } from '@temporalio/client';
-import { QueryDefinition } from '@temporalio/common';
+import type { WorkflowHandle } from '@temporalio/client';
+import type { QueryDefinition } from '@temporalio/common';
 import { Context } from '@temporalio/activity';
 
 function getSchedulingWorkflowHandle(): WorkflowHandle {
   const { info, client } = Context.current();
+  if (!info.inWorkflow) {
+    throw new Error('Not in workflow');
+  }
   const { workflowExecution } = info;
-  return client.workflow.getHandle(workflowExecution.workflowId, workflowExecution.runId);
+  return client.workflow.getHandle(workflowExecution!.workflowId, workflowExecution!.runId);
 }
 
 export async function signalSchedulingWorkflow(signalName: string): Promise<void> {

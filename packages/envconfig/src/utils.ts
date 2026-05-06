@@ -1,8 +1,9 @@
 import { readFileSync } from 'fs';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { encode, decode } from '@temporalio/common/lib/encoding';
-import { ClientConfigProfile, ClientConfigTLS, ClientConfig, ConfigDataSource } from './types';
-import { normalizeGrpcMetaKey, TomlClientConfig, TomlClientConfigProfile, TomlClientConfigTLS } from './envconfig-toml';
+import type { ClientConfigProfile, ClientConfigTLS, ClientConfig, ConfigDataSource } from './types';
+import type { TomlClientConfig, TomlClientConfigProfile, TomlClientConfigTLS } from './envconfig-toml';
+import { normalizeGrpcMetaKey } from './envconfig-toml';
 
 /**
  * Loads configuration data from a {@link ConfigDataSource} and returns it as a Uint8Array.

@@ -133,7 +133,7 @@ if ('promiseHooks' in v8 && !isBun) {
           {
             file_path: '/packages/workflow/src/trigger.ts',
             function_name: 'Trigger.then',
-            line: 47,
+            line: 62,
             column: 24,
             internal_code: false,
           },

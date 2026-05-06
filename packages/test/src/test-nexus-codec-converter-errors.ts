@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import * as nexus from 'nexus-rpc';
-import { NexusOperationFailure, Payload } from '@temporalio/common';
+import type { Payload } from '@temporalio/common';
+import { NexusOperationFailure } from '@temporalio/common';
 import { Client, WorkflowFailedError } from '@temporalio/client';
 import type { PayloadCodec } from '@temporalio/common/lib/converter/payload-codec';
 import * as workflow from '@temporalio/workflow';

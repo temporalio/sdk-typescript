@@ -48,7 +48,7 @@ fn derive_tryintojs_enum_as_string(input: &DeriveInput, data: &syn::DataEnum) ->
 
     let variant_conversions = data.variants.iter().map(|v| {
         let variant_ident = &v.ident;
-        let js_discriminant = variant_ident.to_string().to_case(Case::Camel);
+        let js_discriminant = variant_ident.to_string().to_case(Case::Kebab);
         quote! {
             #enum_ident::#variant_ident => cx.string(#js_discriminant)
         }
@@ -76,7 +76,7 @@ fn derive_tryintojs_enum_as_objects(input: &DeriveInput, data: &syn::DataEnum) -
 
     let variant_conversions = data.variants.iter().map(|v| {
         let variant_ident = &v.ident;
-        let js_discriminant = variant_ident.to_string().to_case(Case::Camel);
+        let js_discriminant = variant_ident.to_string().to_case(Case::Kebab);
 
         match &v.fields {
             syn::Fields::Unit => {

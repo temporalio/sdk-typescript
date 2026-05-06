@@ -1,15 +1,17 @@
-import { ServiceError as GrpcServiceError, status as grpcStatus } from '@grpc/grpc-js';
-import { decodePriority, LoadedDataConverter, NamespaceNotFoundError } from '@temporalio/common';
+import type { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
+import { status as grpcStatus } from '@grpc/grpc-js';
+import type { LoadedDataConverter } from '@temporalio/common';
+import { decodePriority, NamespaceNotFoundError } from '@temporalio/common';
 import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
   searchAttributePayloadConverter,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
-import { Replace } from '@temporalio/common/lib/type-helpers';
+import type { Replace } from '@temporalio/common/lib/type-helpers';
 import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time';
 import { decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { temporal, google } from '@temporalio/proto';
-import {
+import type {
   CountWorkflowExecution,
   RawWorkflowExecutionInfo,
   WorkflowExecutionInfo,
@@ -106,8 +108,8 @@ export function decodeCountWorkflowExecutionsResponse(
   };
 }
 
-type ErrorDetailsName = `temporal.api.errordetails.v1.${keyof typeof temporal.api.errordetails.v1}`;
-type FailureName = `temporal.api.failure.v1.${keyof typeof temporal.api.failure.v1}`;
+export type ErrorDetailsName = `temporal.api.errordetails.v1.${keyof typeof temporal.api.errordetails.v1}`;
+export type FailureName = `temporal.api.failure.v1.${keyof typeof temporal.api.failure.v1}`;
 
 /**
  * If the error type can be determined based on embedded grpc error details,
@@ -121,7 +123,7 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
   // We really don't expect multiple error details, but this really is an array, so just in case...
   for (const entry of getGrpcStatusDetails(err) ?? []) {
     if (!entry.type_url || !entry.value) continue;
-    const type = entry.type_url.replace(/^type.googleapis.com\//, '') as ErrorDetailsName;
+    const type = trimGrpcTypeUrl(entry.type_url) as ErrorDetailsName;
 
     switch (type) {
       case 'temporal.api.errordetails.v1.NamespaceNotFoundFailure': {
@@ -137,7 +139,7 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
         const { statuses } = temporal.api.errordetails.v1.MultiOperationExecutionFailure.decode(entry.value);
         for (const status of statuses) {
           const detail = status.details?.[0];
-          const statusType = detail?.type_url?.replace(/^type.googleapis.com\//, '') as FailureName | undefined;
+          const statusType = trimGrpcTypeUrl(detail?.type_url) as FailureName | '';
           if (
             statusType === 'temporal.api.failure.v1.MultiOperationExecutionAborted' ||
             status.code === grpcStatus.OK
@@ -154,10 +156,14 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
   }
 }
 
-function getGrpcStatusDetails(err: GrpcServiceError): google.rpc.Status['details'] | undefined {
+export function getGrpcStatusDetails(err: GrpcServiceError): google.rpc.Status['details'] | undefined {
   const statusBuffer = err.metadata.get('grpc-status-details-bin')?.[0];
   if (!statusBuffer || typeof statusBuffer === 'string') {
     return undefined;
   }
   return google.rpc.Status.decode(statusBuffer).details;
+}
+
+export function trimGrpcTypeUrl(type_url: string | null | undefined): string {
+  return type_url?.replace(/^type.googleapis.com\//, '') || '';
 }

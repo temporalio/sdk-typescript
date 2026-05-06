@@ -1,6 +1,6 @@
 /** Not a workflow, just interceptors */
 
-import { WorkflowInterceptors } from '@temporalio/workflow';
+import type { WorkflowInterceptors } from '@temporalio/workflow';
 import {
   OpenTelemetryInboundInterceptor,
   OpenTelemetryOutboundInterceptor,

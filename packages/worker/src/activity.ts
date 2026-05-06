@@ -1,28 +1,32 @@
 import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
-import { asyncLocalStorage, CompleteAsyncError, Context, Info } from '@temporalio/activity';
-import {
+import type { Info } from '@temporalio/activity';
+import { asyncLocalStorage, CompleteAsyncError, Context } from '@temporalio/activity';
+import type {
   ActivityCancellationDetails,
   ActivityFunction,
+  LoadedDataConverter,
+  MetricMeter,
+  MetricTags,
+} from '@temporalio/common';
+import {
   ApplicationFailure,
   ApplicationFailureCategory,
   CancelledFailure,
   ensureApplicationFailure,
   FAILURE_SOURCE,
   IllegalStateError,
-  LoadedDataConverter,
-  MetricMeter,
-  MetricTags,
   SdkComponent,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
-import { Logger, LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
+import type { Logger } from '@temporalio/common/lib/logger';
+import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
 import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
-import { Client } from '@temporalio/client';
-import { coresdk } from '@temporalio/proto';
-import { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
-import {
+import type { Client } from '@temporalio/client';
+import type { coresdk } from '@temporalio/proto';
+import type { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
+import type {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
   ActivityInterceptorsFactory,
@@ -114,7 +118,7 @@ export class Activity {
 
   protected getMetricTags(): MetricTags {
     const baseTags = {
-      namespace: this.info.workflowNamespace,
+      namespace: this.info.namespace,
       taskQueue: this.info.taskQueue,
       activityType: this.info.activityType,
     };
@@ -256,16 +260,23 @@ export class Activity {
  * Returns a map of attributes to be set on log messages for a given Activity
  */
 export function activityLogAttributes(info: Info): Record<string, unknown> {
-  return {
+  const attrs: Record<string, any> = {
     isLocal: info.isLocal,
     attempt: info.attempt,
-    namespace: info.workflowNamespace,
+    namespace: info.namespace,
     taskToken: info.base64TaskToken,
-    workflowId: info.workflowExecution.workflowId,
-    workflowRunId: info.workflowExecution.runId,
-    workflowType: info.workflowType,
     activityId: info.activityId,
     activityType: info.activityType,
     taskQueue: info.taskQueue,
   };
+
+  if (info.inWorkflow) {
+    attrs.workflowId = info.workflowExecution!.workflowId;
+    attrs.workflowRunId = info.workflowExecution!.runId;
+    attrs.workflowType = info.workflowType;
+  } else {
+    attrs.activityRunId = info.activityRunId;
+  }
+
+  return attrs;
 }

@@ -1,4 +1,5 @@
-import { GroupedObservable, ObservableInput, OperatorFunction, pipe, Subject } from 'rxjs';
+import type { GroupedObservable, ObservableInput, OperatorFunction } from 'rxjs';
+import { pipe, Subject } from 'rxjs';
 import { groupBy, map, mergeScan, scan } from 'rxjs/operators';
 
 interface StateAndOptionalOutput<T, O> {

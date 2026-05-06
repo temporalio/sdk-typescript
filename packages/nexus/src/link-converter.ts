@@ -1,5 +1,5 @@
 import Long from 'long';
-import { Link as NexusLink } from 'nexus-rpc';
+import type { Link as NexusLink } from 'nexus-rpc';
 import { temporal } from '@temporalio/proto';
 
 const { EventType } = temporal.api.enums.v1;

@@ -1,6 +1,7 @@
-import * as tracing from '@opentelemetry/sdk-trace-base';
-import { ExportResult, ExportResultCode } from '@opentelemetry/core';
-import { OpenTelemetrySinks, SerializableSpan, SerializableSpanContext } from './definitions';
+import type * as tracing from '@opentelemetry/sdk-trace-base';
+import type { ExportResult } from '@opentelemetry/core';
+import { ExportResultCode } from '@opentelemetry/core';
+import type { OpenTelemetrySinks, SerializableSpan, SerializableSpanContext } from './definitions';
 import { proxySinks } from './workflow-imports';
 
 export class SpanExporter implements tracing.SpanExporter {

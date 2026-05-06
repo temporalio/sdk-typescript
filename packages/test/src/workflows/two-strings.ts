@@ -1,4 +1,5 @@
-import { proxyActivities, proxySinks, Sinks } from '@temporalio/workflow';
+import type { Sinks } from '@temporalio/workflow';
+import { proxyActivities, proxySinks } from '@temporalio/workflow';
 import type { createConcatActivity } from '../activities/create-concat-activity';
 
 export interface LogSinks extends Sinks {

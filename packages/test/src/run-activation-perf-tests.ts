@@ -5,7 +5,8 @@ import { coresdk } from '@temporalio/proto';
 import { ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
-import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import type { VMWorkflow } from '@temporalio/worker/lib/workflow/vm';
+import { VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
 import * as wf from '@temporalio/workflow';
 import { TypedSearchAttributes } from '@temporalio/common';
 
@@ -103,7 +104,7 @@ if (!wf.inWorkflowContext()) {
     async function activate(workflow: VMWorkflow, activation: coresdk.workflow_activation.IWorkflowActivation) {
       // Core guarantees the following jobs ordering:
       //   initWf -> patches -> update random seed -> signals+update -> others -> Resolve LA
-      // reference: github.com/temporalio/sdk-core/blob/a8150d5c7c3fc1bfd5a941fd315abff1556cd9dc/core/src/worker/workflow/mod.rs#L1363-L1378
+      // reference: github.com/temporalio/sdk-rust/blob/a8150d5c7c3fc1bfd5a941fd315abff1556cd9dc/core/src/worker/workflow/mod.rs#L1363-L1378
       // Tests are likely to fail if we artifically make an activation that does not follow that order
       const jobs: coresdk.workflow_activation.IWorkflowActivationJob[] = activation.jobs ?? [];
       function getPriority(job: coresdk.workflow_activation.IWorkflowActivationJob) {

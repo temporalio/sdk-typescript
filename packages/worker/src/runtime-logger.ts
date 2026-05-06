@@ -1,7 +1,8 @@
 import { Heap } from 'heap-js';
 import { SdkComponent } from '@temporalio/common';
-import { native } from '@temporalio/core-bridge';
-import { DefaultLogger, FlushableLogger, LogEntry, Logger, LogTimestamp } from './logger';
+import type { native } from '@temporalio/core-bridge';
+import type { FlushableLogger, LogEntry, Logger } from './logger';
+import { DefaultLogger, LogTimestamp } from './logger';
 
 /**
  * A log collector that accepts log entries either through the TS `Logger` interface (e.g. used by

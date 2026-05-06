@@ -10,16 +10,33 @@
  * `clearTimeout` with deterministic versions so these are also usable but have a limitation that they don't play well
  * with {@link https://docs.temporal.io/typescript/cancellation-scopes | cancellation scopes}.
  *
- * <!--SNIPSTART typescript-sleep-workflow-->
- * <!--SNIPEND-->
+ * ```ts
+ * import { sleep } from '@temporalio/workflow';
+ *
+ * export async function sleeper(ms = 100): Promise<void> {
+ *   await sleep(ms);
+ *   console.log('slept');
+ * }
+ * ```
  *
  * ### Activities
  *
  * To schedule Activities, use {@link proxyActivities} to obtain an Activity function and call.
  *
- * <!--SNIPSTART typescript-schedule-activity-workflow-->
- * <!--SNIPEND-->
+ * ```ts
+ * import { proxyActivities } from '@temporalio/workflow';
+ * import type * as activities from './activities';
  *
+ * const { sendEmail } = proxyActivities<typeof activities>({
+ *   startToCloseTimeout: '1 minute',
+ * });
+
+export async function sampleWorkflow(): Promise<string> {
+  await sendEmail("to@example.com","Hello, Temporal!");
+}
+
+ * ```
+ * 
  * ### Updates, Signals and Queries
  *
  * Use {@link setHandler} to set handlers for Updates, Signals, and Queries.
@@ -34,8 +51,24 @@
  *
  * #### Implementation
  *
- * <!--SNIPSTART typescript-workflow-update-signal-query-example-->
- * <!--SNIPEND-->
+ * ```ts
+ * export const incrementSignal = wf.defineSignal<[number]>('increment');
+ * export const getValueQuery = wf.defineQuery<number>('getValue');
+ * export const incrementAndGetValueUpdate = wf.defineUpdate<number, [number]>('incrementAndGetValue');
+ *
+ * export async function counterWorkflow(initialValue: number): Promise<void> {
+ *   let count = initialValue;
+ *   wf.setHandler(incrementSignal, (arg: number) => {
+ *     count += arg;
+ *   });
+ *   wf.setHandler(getValueQuery, () => count);
+ *   wf.setHandler(incrementAndGetValueUpdate, (arg: number): number => {
+ *     count += arg;
+ *     return count;
+ *   });
+ *   await wf.condition(() => false);
+ * }
+ * ```
  *
  * ### More
  *

@@ -29,15 +29,16 @@ import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
 import { AiSdkPlugin, createActivities } from '@temporalio/ai-sdk';
 import { temporal } from '@temporalio/proto';
 import { WorkflowClient } from '@temporalio/client';
+import type { OpenTelemetrySinks } from '@temporalio/interceptors-opentelemetry';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
   OpenTelemetryActivityOutboundInterceptor,
-  OpenTelemetrySinks,
   OpenTelemetryWorkflowClientCallsInterceptor,
   OpenTelemetryWorkflowClientInterceptor,
 } from '@temporalio/interceptors-opentelemetry';
-import { InjectedSinks, Runtime } from '@temporalio/worker';
+import type { InjectedSinks } from '@temporalio/worker';
+import { Runtime } from '@temporalio/worker';
 import {
   embeddingWorkflow,
   generateObjectWorkflow,
@@ -439,7 +440,7 @@ test('Telemetry', async (t) => {
     });
     await otel.start();
     const sinks: InjectedSinks<OpenTelemetrySinks> = {
-      exporter: makeWorkflowExporter(traceExporter, staticResource), // eslint-disable-line @typescript-eslint/no-deprecated
+      exporter: makeWorkflowExporter(traceExporter, staticResource),
     };
 
     const worker = await Worker.create({
