@@ -154,7 +154,7 @@ rm -rf ./example "$TMP_DIR"
 chore(samples): upgrade commander module
 ```
 
-The `scope` options are listed in [commitlint.config.js](https://github.com/temporalio/sdk-typescript/blob/main/commitlint.config.js).
+The `scope` options are listed in [commitlint.config.js](./commitlint.config.js).
 
 ## Updating and pruning dependencies
 
