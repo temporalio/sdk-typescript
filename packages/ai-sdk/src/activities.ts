@@ -14,9 +14,9 @@ import { asSchema, type Schema, type ToolExecutionOptions } from 'ai';
 import { ApplicationFailure } from '@temporalio/common';
 import { Context } from '@temporalio/activity';
 import { WorkflowStreamClient } from '@temporalio/contrib-workflow-stream';
+import type { Duration } from '@temporalio/common/lib/time';
 import type { McpClientFactories, McpClientFactory } from './mcp';
 
-const EVENTS_TOPIC = 'events';
 const encoder = new TextEncoder();
 
 /**
@@ -25,6 +25,16 @@ const encoder = new TextEncoder();
 export interface InvokeModelArgs {
   modelId: string;
   options: LanguageModelV3CallOptions;
+}
+
+/**
+ * Arguments for invoking a streaming language model activity.
+ */
+export interface InvokeModelStreamingArgs extends InvokeModelArgs {
+  modelId: string;
+  options: LanguageModelV3CallOptions;
+  streamingTopic: string;
+  streamingBatchInterval?: Duration;
 }
 
 /**
@@ -97,10 +107,12 @@ export function createActivities(
      * stream-part types (text-delta, reasoning-delta, tool-input-delta,
      * response-metadata, finish, ...); no normalization happens here.
      */
-    async invokeModelStreaming(args: InvokeModelArgs): Promise<InvokeModelResult> {
-      const stream = WorkflowStreamClient.fromActivity({ batchInterval: '100 milliseconds' });
+    async invokeModelStreaming(args: InvokeModelStreamingArgs): Promise<InvokeModelResult> {
+      const stream = WorkflowStreamClient.fromActivity({
+        batchInterval: args.streamingBatchInterval ?? '100 milliseconds',
+      });
       stream.start();
-      const events = stream.topic(EVENTS_TOPIC);
+      const events = stream.topic(args.streamingTopic);
 
       const model = provider.languageModel(args.modelId);
       const streamResult = await model.doStream(args.options);

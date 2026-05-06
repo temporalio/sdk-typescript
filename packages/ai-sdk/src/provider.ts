@@ -17,6 +17,7 @@ import type {
 import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
 import { ApplicationFailure } from '@temporalio/common';
+import type { Duration } from '@temporalio/common/lib/time';
 
 /**
  * Options for configuring the TemporalProvider with per-model activity settings.
@@ -33,12 +34,21 @@ export interface TemporalProviderOptions {
    * Merged with default options, with these taking precedence.
    */
   languageModel?: ActivityOptions & {
+
     /**
-     * When true, model calls use the streaming LLM endpoint and publish
-     * token events via WorkflowStreamClient. The workflow receives a complete result;
-     * real-time streaming happens via stream as a side channel.
+     * Topic name on the workflow's stream that streaming model calls publish
+     * raw stream parts to. When set, `doStream` is enabled and routes through
+     * the streaming activity; when unset, `doStream` throws. Pick a unique
+     * name per concurrent streaming call to keep event streams separable.
      */
-    streaming?: boolean;
+    streamingTopic?: string;
+
+    /**
+     * Batch interval for the per-activity `WorkflowStreamClient` that
+     * publishes stream parts back to the workflow. Lower values reduce
+     * latency at the cost of more signal traffic. Defaults to 100ms.
+     */
+    streamingBatchInterval?: Duration;
   };
 
   /**
@@ -57,13 +67,15 @@ export interface TemporalProviderOptions {
 export class TemporalLanguageModel implements LanguageModelV3 {
   readonly specificationVersion = 'v3';
   readonly provider = 'temporal';
-  private streaming: boolean;
+  private readonly streamingTopic: string | undefined;
+  private readonly streamingBatchInterval: Duration | undefined;
 
   constructor(
     readonly modelId: string,
-    readonly options?: ActivityOptions & { streaming?: boolean }
+    readonly options?: ActivityOptions & { streamingTopic?: string; streamingBatchInterval?: Duration }
   ) {
-    this.streaming = options?.streaming ?? false;
+    this.streamingTopic = options?.streamingTopic;
+    this.streamingBatchInterval = options?.streamingBatchInterval;
   }
 
   get supportedUrls(): Record<string, RegExp[]> {
@@ -90,9 +102,9 @@ export class TemporalLanguageModel implements LanguageModelV3 {
   }
 
   async doStream(options: LanguageModelV3CallOptions): Promise<LanguageModelV3StreamResult> {
-    if (!this.streaming) {
+    if (this.streamingTopic === undefined) {
       throw ApplicationFailure.nonRetryable(
-        'Streaming not enabled. Set streaming: true in languageModel provider options.'
+        'Streaming not enabled. Set streamingTopic in languageModel provider options.'
       );
     }
 
@@ -102,7 +114,12 @@ export class TemporalLanguageModel implements LanguageModelV3 {
       startToCloseTimeout: '10 minutes',
       ...this.options,
     });
-    const result = await activities.invokeModelStreaming!({ modelId: this.modelId, options });
+    const result = await activities.invokeModelStreaming!({
+      modelId: this.modelId,
+      options,
+      streamingTopic: this.streamingTopic,
+      streamingBatchInterval: this.streamingBatchInterval,
+    });
     if (result === undefined) {
       throw ApplicationFailure.nonRetryable('Received undefined response from streaming model activity.');
     }
@@ -200,11 +217,9 @@ export class TemporalProvider implements ProviderV3 {
   }
 
   languageModel(modelId: string): LanguageModelV3 {
-    const { streaming, ...languageModelOptions } = this.options?.languageModel ?? {};
     return new TemporalLanguageModel(modelId, {
       ...this.options?.default,
-      ...languageModelOptions,
-      streaming,
+      ...this.options?.languageModel,
     });
   }
 
