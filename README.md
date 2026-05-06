@@ -90,51 +90,7 @@ consider extending support to more environments as their respective compatibilit
 
 ## SDK Development
 
-### Prerequisites
-
-To build the Temporal TypeScript SDK from source, you will need to have:
-
-- [Node.js](https://nodejs.org/) (usage of a version manager, such as [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md), is recommended)
-- [Rust](https://www.rust-lang.org/) (i.e. `cargo` on the `PATH`)
-- [Protobuf Compiler](https://protobuf.dev/) (i.e. `protoc` on the `PATH`)
-- This repository, cloned recursively
-
-To run tests locally, you will need:
-
-- A Temporal Server instance accessible from `127.0.0.1:7233` (e.g. using the [Temporal CLI](https://docs.temporal.io/cli/temporal-cli#run-a-local-temporal-server))
-
-### Building
-
-With all prerequisites in place, run the following commands from the root of the repository:
-
-```sh
-pnpm install
-pnpm build
-```
-
-Run `pnpm rebuild` to delete all generated files and rerun build.
-
-Refer to our [contributing guide](CONTRIBUTING.md) for details on other build
-procedures, as well as hints on resolving frequent build time issues.
-
-### Testing
-
-To run the SDK's regular test suite, execute the following command from the root of the repository:
-
-```sh
-pnpm test
-```
-
-Refer to our [contributing guide](CONTRIBUTING.md) for details on other testing procedures.
-
-### Code Formatting and Linting
-
-To format and lint the code, execute the following commands from the root of the repository:
-
-```sh
-pnpm format
-pnpm lint
-```
+Refer to our [contributing guide](CONTRIBUTING.md) for details on build and testing procedures.
 
 ### Repository Structure
 
