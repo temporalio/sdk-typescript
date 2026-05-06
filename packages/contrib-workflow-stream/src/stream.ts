@@ -89,7 +89,7 @@ function isPayload(value: unknown): value is Payload {
     v.metadata != null &&
     typeof v.metadata === 'object' &&
     !Array.isArray(v.metadata) &&
-    Object.values(v.metadata).every((x) => x instanceof Uint8Array)
+    Object.values(v.metadata).every((x) => isUint8ArrayLike(x))
   );
 }
 
