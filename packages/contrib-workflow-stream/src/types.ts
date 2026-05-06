@@ -116,9 +116,15 @@ export function encodeBase64(data: Uint8Array): string {
   return result;
 }
 
-/** Decode standard base64 to bytes. */
+/** Decode standard base64 to bytes. Throws TypeError on malformed input. */
 export function decodeBase64(data: string): Uint8Array {
   const clean = data.replace(/=+$/, '');
+  if (data.length - clean.length > 2) {
+    throw new TypeError(`Invalid base64 input: too many '=' padding characters`);
+  }
+  if (clean.length % 4 === 1) {
+    throw new TypeError(`Invalid base64 input: length ${data.length} is not valid`);
+  }
   const len = (clean.length * 3) >> 2;
   const out = new Uint8Array(len);
   let j = 0;
@@ -127,6 +133,9 @@ export function decodeBase64(data: string): Uint8Array {
     const b = i + 1 < clean.length ? B64.indexOf(clean.charAt(i + 1)) : 0;
     const c = i + 2 < clean.length ? B64.indexOf(clean.charAt(i + 2)) : 0;
     const d = i + 3 < clean.length ? B64.indexOf(clean.charAt(i + 3)) : 0;
+    if (a < 0 || b < 0 || c < 0 || d < 0) {
+      throw new TypeError(`Invalid base64 input: non-alphabet character at offset ${i}`);
+    }
     out[j++] = (a << 2) | (b >> 4);
     if (j < len) out[j++] = ((b << 4) | (c >> 2)) & 0xff;
     if (j < len) out[j++] = ((c << 6) | d) & 0xff;
