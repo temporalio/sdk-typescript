@@ -763,8 +763,14 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing query activation attributes');
     }
 
-    // If query has __temporal_ prefix but no handler exists, throw error
-    if (queryType.startsWith(TEMPORAL_RESERVED_PREFIX) && !this.queryHandlers.has(queryType)) {
+    // Reject __temporal_-prefixed queries that would otherwise be routed to the
+    // user's default handler. A specific registered handler (e.g. from a
+    // contrib package) is allowed through.
+    if (
+      queryType.startsWith(TEMPORAL_RESERVED_PREFIX) &&
+      !this.queryHandlers.has(queryType) &&
+      this.defaultQueryHandler !== undefined
+    ) {
       throw new TypeError(`Cannot use query name: '${queryType}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`);
     }
 
@@ -798,8 +804,15 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing activation update protocolInstanceId');
     }
 
-    // If update has __temporal_ prefix but no handler exists, throw error
-    if (name.startsWith(TEMPORAL_RESERVED_PREFIX) && !this.updateHandlers.get(name)) {
+    // Reject __temporal_-prefixed updates that would otherwise be routed to the
+    // user's default handler. A specific registered handler (e.g. from a
+    // contrib package) is allowed through, and unregistered names without a
+    // default handler fall through to the buffer-then-reject path below.
+    if (
+      name.startsWith(TEMPORAL_RESERVED_PREFIX) &&
+      !this.updateHandlers.has(name) &&
+      this.defaultUpdateHandler !== undefined
+    ) {
       throw new TypeError(`Cannot use update name: '${name}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`);
     }
 
@@ -975,8 +988,15 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing activation signalName');
     }
 
-    // If signal has __temporal_ prefix but no handler exists, throw error
-    if (signalName.startsWith(TEMPORAL_RESERVED_PREFIX) && !this.signalHandlers.has(signalName)) {
+    // Reject __temporal_-prefixed signals that would otherwise be routed to the
+    // user's default handler. A specific registered handler (e.g. from a
+    // contrib package) is allowed through, and unregistered names without a
+    // default handler fall through to the buffer-then-reject path below.
+    if (
+      signalName.startsWith(TEMPORAL_RESERVED_PREFIX) &&
+      !this.signalHandlers.has(signalName) &&
+      this.defaultSignalHandler !== undefined
+    ) {
       throw new TypeError(
         `Cannot use signal name: '${signalName}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`
       );

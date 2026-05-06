@@ -3,6 +3,17 @@ export const STACK_TRACE_QUERY_NAME = '__stack_trace';
 export const ENHANCED_STACK_TRACE_QUERY_NAME = '__enhanced_stack_trace';
 
 /**
+ * Wire identifiers used by first-party SDK contrib packages. These
+ * bypass the {@link TEMPORAL_RESERVED_PREFIX} check at registration time.
+ */
+const INTERNAL_HANDLER_NAME_ALLOWLIST: ReadonlySet<string> = new Set([
+  // @temporalio/contrib-workflow-stream
+  '__temporal_workflow_stream_publish',
+  '__temporal_workflow_stream_poll',
+  '__temporal_workflow_stream_offset',
+]);
+
+/**
  * Valid entity types that can be checked for reserved name violations
  */
 export type ReservedNameEntityType = 'query' | 'signal' | 'update' | 'activity' | 'task queue' | 'sink' | 'workflow';
@@ -16,7 +27,7 @@ export type ReservedNameEntityType = 'query' | 'signal' | 'update' | 'activity' 
  * @param name The name to check against reserved prefixes/names
  */
 export function throwIfReservedName(type: ReservedNameEntityType, name: string): void {
-  if (name.startsWith(TEMPORAL_RESERVED_PREFIX)) {
+  if (name.startsWith(TEMPORAL_RESERVED_PREFIX) && !INTERNAL_HANDLER_NAME_ALLOWLIST.has(name)) {
     throw new TypeError(`Cannot use ${type} name: '${name}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`);
   }
 
