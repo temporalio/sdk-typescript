@@ -182,12 +182,15 @@ function writeTagLenBytes(buf: number[], tag: number, bytes: Uint8Array): void {
   for (let i = 0; i < bytes.length; i++) buf.push(bytes[i]!);
 }
 
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
 function utf8Encode(s: string): Uint8Array {
-  return new TextEncoder().encode(s);
+  return textEncoder.encode(s);
 }
 
 function utf8Decode(b: Uint8Array): string {
-  return new TextDecoder().decode(b);
+  return textDecoder.decode(b);
 }
 
 /** Encode a Payload to its protobuf binary representation. */
