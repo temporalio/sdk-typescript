@@ -222,7 +222,7 @@ importers:
         specifier: ^9.0.7
         version: 9.0.8
       protobufjs:
-        specifier: ^7.5.5
+        specifier: 7.5.5
         version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
 
   packages/cloud:
@@ -244,7 +244,7 @@ importers:
         version: 3.0.0
     devDependencies:
       protobufjs:
-        specifier: ^7.5.5
+        specifier: 7.5.5
         version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
 
   packages/common:
@@ -266,7 +266,7 @@ importers:
         version: 2.0.0
     devDependencies:
       protobufjs:
-        specifier: ^7.5.5
+        specifier: 7.5.5
         version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
 
   packages/contrib-workflow-stream:
@@ -808,7 +808,7 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       protobufjs:
-        specifier: ^7.5.5
+        specifier: 7.5.5
         version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
       rxjs:
         specifier: ^7.8.1
