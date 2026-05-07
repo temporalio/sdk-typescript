@@ -20,6 +20,9 @@
     "@temporalio/common": "workspace:*",
     "@temporalio/workflow": "workspace:*"
   },
+  "devDependencies": {
+    "@temporalio/proto": "workspace:*"
+  },
   "engines": {
     "node": ">= 20.0.0"
   },

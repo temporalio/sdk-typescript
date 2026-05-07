@@ -283,6 +283,10 @@ importers:
       '@temporalio/workflow':
         specifier: workspace:*
         version: link:../workflow
+    devDependencies:
+      '@temporalio/proto':
+        specifier: workspace:*
+        version: link:../proto
 
   packages/core-bridge:
     dependencies:
