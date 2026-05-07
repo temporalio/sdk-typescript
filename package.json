@@ -96,6 +96,9 @@
     }
   },
   "pnpm": {
+    "overrides": {
+      "protobufjs": "7.5.5"
+    },
     "patchedDependencies": {
       "protobufjs@7.5.5": "patches/protobufjs@7.5.5.patch"
     }
