@@ -108,7 +108,7 @@ export function createActivities(
      * response-metadata, finish, ...); no normalization happens here.
      */
     async invokeModelStreaming(args: InvokeModelStreamingArgs): Promise<InvokeModelResult> {
-      const stream = WorkflowStreamClient.fromActivity({
+      await using stream = WorkflowStreamClient.fromActivity({
         batchInterval: args.streamingBatchInterval ?? '100 milliseconds',
       });
       stream.start();
@@ -129,77 +129,73 @@ export function createActivities(
       let currentText = '';
       let currentReasoning = '';
 
-      try {
-        const reader = streamResult.stream.getReader();
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
-          const { done, value: part } = await reader.read();
-          if (done) break;
+      const reader = streamResult.stream.getReader();
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value: part } = await reader.read();
+        if (done) break;
 
-          Context.current().heartbeat();
+        Context.current().heartbeat();
 
-          // Publish the raw stream part as JSON so consumers can switch on
-          // the native AI SDK type. Accumulation below is for the final
-          // assembled result this activity returns.
-          events.publish(encoder.encode(JSON.stringify(part)));
+        // Publish the raw stream part as JSON so consumers can switch on
+        // the native AI SDK type. Accumulation below is for the final
+        // assembled result this activity returns.
+        events.publish(encoder.encode(JSON.stringify(part)));
 
-          switch (part.type) {
-            case 'stream-start':
-              warnings.push(...part.warnings);
-              break;
-            case 'text-start':
-              currentText = '';
-              break;
-            case 'text-delta':
-              currentText += part.delta;
-              break;
-            case 'text-end':
-              content.push({
-                type: 'text',
-                text: currentText,
-                providerMetadata: part.providerMetadata,
-              });
-              break;
-            case 'reasoning-start':
-              currentReasoning = '';
-              break;
-            case 'reasoning-delta':
-              currentReasoning += part.delta;
-              break;
-            case 'reasoning-end':
-              content.push({
-                type: 'reasoning',
-                text: currentReasoning,
-                providerMetadata: part.providerMetadata,
-              });
-              break;
-            case 'response-metadata':
-              responseMetadata = {
-                id: part.id,
-                timestamp: part.timestamp,
-                modelId: part.modelId,
-              };
-              break;
-            case 'finish':
-              finishReason = part.finishReason;
-              usage = part.usage;
-              break;
-            default:
-              // tool-call, tool-result, file, source — collect as content
-              if (
-                'type' in part &&
-                (part.type === 'tool-call' ||
-                  part.type === 'tool-result' ||
-                  part.type === 'file' ||
-                  part.type === 'source')
-              ) {
-                content.push(part as LanguageModelV3Content);
-              }
-              break;
-          }
+        switch (part.type) {
+          case 'stream-start':
+            warnings.push(...part.warnings);
+            break;
+          case 'text-start':
+            currentText = '';
+            break;
+          case 'text-delta':
+            currentText += part.delta;
+            break;
+          case 'text-end':
+            content.push({
+              type: 'text',
+              text: currentText,
+              providerMetadata: part.providerMetadata,
+            });
+            break;
+          case 'reasoning-start':
+            currentReasoning = '';
+            break;
+          case 'reasoning-delta':
+            currentReasoning += part.delta;
+            break;
+          case 'reasoning-end':
+            content.push({
+              type: 'reasoning',
+              text: currentReasoning,
+              providerMetadata: part.providerMetadata,
+            });
+            break;
+          case 'response-metadata':
+            responseMetadata = {
+              id: part.id,
+              timestamp: part.timestamp,
+              modelId: part.modelId,
+            };
+            break;
+          case 'finish':
+            finishReason = part.finishReason;
+            usage = part.usage;
+            break;
+          default:
+            // tool-call, tool-result, file, source — collect as content
+            if (
+              'type' in part &&
+              (part.type === 'tool-call' ||
+                part.type === 'tool-result' ||
+                part.type === 'file' ||
+                part.type === 'source')
+            ) {
+              content.push(part as LanguageModelV3Content);
+            }
+            break;
         }
-      } finally {
-        await stream.stop();
       }
 
       return {
