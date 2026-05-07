@@ -54,7 +54,7 @@ export interface OperationInfo {
    * Nexus Endpoint this Operation was routed through.
    * Only available with server version 1.30.0 or later.
    */
-  readonly endpoint?: string;
+  readonly endpoint: string;
 }
 
 // Basic APIs //////////////////////////////////////////////////////////////////////////////////////
