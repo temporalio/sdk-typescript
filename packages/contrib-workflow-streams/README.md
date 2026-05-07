@@ -51,8 +51,8 @@ export async function myWorkflow(input: MyInput): Promise<void> {
 }
 ```
 
-The `WorkflowStream` constructor registers the `__temporal_workflow_streams_publish` signal,
-`__temporal_workflow_streams_poll` update, and `__temporal_workflow_streams_offset` query handlers on your workflow.
+The `WorkflowStream` constructor registers the `__temporal_workflow_stream_publish` signal,
+`__temporal_workflow_stream_poll` update, and `__temporal_workflow_stream_offset` query handlers on your workflow.
 Any value the default payload converter can serialize (JSON, `Uint8Array`, or
 a pre-built `Payload`) can be passed to `publish`. The type parameter `T` is
 purely a compile-time annotation — TypeScript has no runtime type
@@ -208,11 +208,11 @@ if (workflowInfo().continueAsNewSuggested) {
 
 Handlers registered automatically:
 
-| Kind   | Name                                  | Description                    |
-| ------ | ------------------------------------- | ------------------------------ |
-| Signal | `__temporal_workflow_streams_publish` | Receive external publications. |
-| Update | `__temporal_workflow_streams_poll`    | Long-poll subscription.        |
-| Query  | `__temporal_workflow_streams_offset`  | Current global offset.         |
+| Kind   | Name                                 | Description                    |
+| ------ | ------------------------------------ | ------------------------------ |
+| Signal | `__temporal_workflow_stream_publish` | Receive external publications. |
+| Update | `__temporal_workflow_stream_poll`    | Long-poll subscription.        |
+| Query  | `__temporal_workflow_stream_offset`  | Current global offset.         |
 
 ### `WorkflowStreamClient`
 
@@ -250,9 +250,9 @@ Handlers registered automatically:
 Any Temporal client can interact with a workflow stream workflow using these fixed
 handler names:
 
-1. **Publish**: signal `__temporal_workflow_streams_publish` with `PublishInput`
-2. **Subscribe**: update `__temporal_workflow_streams_poll` with `PollInput` -> `PollResult`
-3. **Offset**: query `__temporal_workflow_streams_offset` -> `number`
+1. **Publish**: signal `__temporal_workflow_stream_publish` with `PublishInput`
+2. **Subscribe**: update `__temporal_workflow_stream_poll` with `PollInput` -> `PollResult`
+3. **Offset**: query `__temporal_workflow_stream_offset` -> `number`
 
 Each `PublishEntry.data` / `_WorkflowStreamWireItem.data` is a base64-encoded
 `temporal.api.common.v1.Payload` protobuf (`Payload.SerializeToString()` in

@@ -400,7 +400,7 @@ export class WorkflowStreamClient {
 
     // On failure, the signal throws and pending stays set for retry.
     // On success, advance confirmed sequence and clear pending.
-    await this.handle.signal<[PublishInput]>('__temporal_workflow_streams_publish', {
+    await this.handle.signal<[PublishInput]>('__temporal_workflow_stream_publish', {
       items: batch,
       publisher_id: this.publisherId,
       sequence: seq,
@@ -449,7 +449,7 @@ export class WorkflowStreamClient {
     while (true) {
       let result: PollResult;
       try {
-        result = await this.handle.executeUpdate<PollResult, [PollInput]>('__temporal_workflow_streams_poll', {
+        result = await this.handle.executeUpdate<PollResult, [PollInput]>('__temporal_workflow_stream_poll', {
           args: [{ topics: topicFilter, from_offset: offset }],
         });
       } catch (err) {
@@ -512,7 +512,7 @@ export class WorkflowStreamClient {
 
   /** Query the current global offset. */
   async getOffset(): Promise<number> {
-    return this.handle.query<number>('__temporal_workflow_streams_offset');
+    return this.handle.query<number>('__temporal_workflow_stream_offset');
   }
 
   /**
