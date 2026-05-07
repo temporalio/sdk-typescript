@@ -35,7 +35,7 @@ get a typed handle for each topic via `stream.topic<T>(name)` and call
 `publish` on the handle:
 
 ```typescript
-import { WorkflowStream } from '@temporalio/contrib-workflow-stream';
+import { WorkflowStream } from '@temporalio/contrib-workflow-streams';
 
 interface StatusEvent {
   state: 'started' | 'done';
@@ -51,8 +51,8 @@ export async function myWorkflow(input: MyInput): Promise<void> {
 }
 ```
 
-The `WorkflowStream` constructor registers the `__temporal_workflow_stream_publish` signal,
-`__temporal_workflow_stream_poll` update, and `__temporal_workflow_stream_offset` query handlers on your workflow.
+The `WorkflowStream` constructor registers the `__temporal_workflow_streams_publish` signal,
+`__temporal_workflow_streams_poll` update, and `__temporal_workflow_streams_offset` query handlers on your workflow.
 Any value the default payload converter can serialize (JSON, `Uint8Array`, or
 a pre-built `Payload`) can be passed to `publish`. The type parameter `T` is
 purely a compile-time annotation — TypeScript has no runtime type
@@ -70,7 +70,7 @@ the same way as on the workflow side:
 
 ```typescript
 import { Context } from '@temporalio/activity';
-import { WorkflowStreamClient } from '@temporalio/contrib-workflow-stream';
+import { WorkflowStreamClient } from '@temporalio/contrib-workflow-streams';
 
 export async function streamEvents(): Promise<void> {
   await using client = WorkflowStreamClient.fromActivity({ batchInterval: '2 seconds' });
@@ -112,7 +112,7 @@ events.publish(data, { forceFlush: true });
 Subscribe via the topic handle to get items decoded as `T`:
 
 ```typescript
-import { WorkflowStreamClient } from '@temporalio/contrib-workflow-stream';
+import { WorkflowStreamClient } from '@temporalio/contrib-workflow-streams';
 
 const client = WorkflowStreamClient.create(temporalClient, workflowId);
 const events = client.topic<MyType>('events');
@@ -143,7 +143,7 @@ boundaries:
 
 ```typescript
 import { continueAsNew, workflowInfo } from '@temporalio/workflow';
-import { WorkflowStream, type WorkflowStreamState } from '@temporalio/contrib-workflow-stream';
+import { WorkflowStream, type WorkflowStreamState } from '@temporalio/contrib-workflow-streams';
 
 interface WorkflowInput {
   itemsProcessed: number;
@@ -210,9 +210,9 @@ Handlers registered automatically:
 
 | Kind   | Name                                 | Description                    |
 | ------ | ------------------------------------ | ------------------------------ |
-| Signal | `__temporal_workflow_stream_publish` | Receive external publications. |
-| Update | `__temporal_workflow_stream_poll`    | Long-poll subscription.        |
-| Query  | `__temporal_workflow_stream_offset`  | Current global offset.         |
+| Signal | `__temporal_workflow_streams_publish` | Receive external publications. |
+| Update | `__temporal_workflow_streams_poll`    | Long-poll subscription.        |
+| Query  | `__temporal_workflow_streams_offset`  | Current global offset.         |
 
 ### `WorkflowStreamClient`
 
@@ -250,9 +250,9 @@ Handlers registered automatically:
 Any Temporal client can interact with a workflow stream workflow using these fixed
 handler names:
 
-1. **Publish**: signal `__temporal_workflow_stream_publish` with `PublishInput`
-2. **Subscribe**: update `__temporal_workflow_stream_poll` with `PollInput` -> `PollResult`
-3. **Offset**: query `__temporal_workflow_stream_offset` -> `number`
+1. **Publish**: signal `__temporal_workflow_streams_publish` with `PublishInput`
+2. **Subscribe**: update `__temporal_workflow_streams_poll` with `PollInput` -> `PollResult`
+3. **Offset**: query `__temporal_workflow_streams_offset` -> `number`
 
 Each `PublishEntry.data` / `_WorkflowStreamWireItem.data` is a base64-encoded
 `temporal.api.common.v1.Payload` protobuf (`Payload.SerializeToString()` in

@@ -1,5 +1,5 @@
 /**
- * Test workflows for @temporalio/contrib-workflow-stream.
+ * Test workflows for @temporalio/contrib-workflow-streams.
  */
 
 import {
@@ -11,8 +11,8 @@ import {
   proxyActivities,
   setHandler,
 } from '@temporalio/workflow';
-import { WorkflowStream, type WorkflowStreamState } from '@temporalio/contrib-workflow-stream';
-import type * as activities from '../activities/contrib-workflow-stream';
+import { WorkflowStream, type WorkflowStreamState } from '@temporalio/contrib-workflow-streams';
+import type * as activities from '../activities/contrib-workflow-streams';
 
 const { publishItems, publishMultiTopic, publishWithForceFlush, publishBatchTest, publishWithMaxBatch } =
   proxyActivities<typeof activities>({

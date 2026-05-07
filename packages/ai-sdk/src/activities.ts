@@ -13,7 +13,7 @@ import type {
 import { asSchema, type Schema, type ToolExecutionOptions } from 'ai';
 import { ApplicationFailure } from '@temporalio/common';
 import { Context } from '@temporalio/activity';
-import { WorkflowStreamClient } from '@temporalio/contrib-workflow-stream';
+import { WorkflowStreamClient } from '@temporalio/contrib-workflow-streams';
 import type { Duration } from '@temporalio/common/lib/time';
 import type { McpClientFactories, McpClientFactory } from './mcp';
 

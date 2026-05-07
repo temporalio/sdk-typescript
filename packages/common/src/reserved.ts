@@ -7,10 +7,10 @@ export const ENHANCED_STACK_TRACE_QUERY_NAME = '__enhanced_stack_trace';
  * bypass the {@link TEMPORAL_RESERVED_PREFIX} check at registration time.
  */
 const INTERNAL_HANDLER_NAME_ALLOWLIST: ReadonlySet<string> = new Set([
-  // @temporalio/contrib-workflow-stream
-  '__temporal_workflow_stream_publish',
-  '__temporal_workflow_stream_poll',
-  '__temporal_workflow_stream_offset',
+  // @temporalio/contrib-workflow-streams
+  '__temporal_workflow_streams_publish',
+  '__temporal_workflow_streams_poll',
+  '__temporal_workflow_streams_offset',
 ]);
 
 /**

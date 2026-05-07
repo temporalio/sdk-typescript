@@ -1,5 +1,5 @@
 /**
- * E2E integration tests for @temporalio/contrib-workflow-stream.
+ * E2E integration tests for @temporalio/contrib-workflow-streams.
  *
  * Ported from sdk-python tests/contrib/stream/test_stream.py.
  */
@@ -21,7 +21,7 @@ import {
   workflowStreamOffsetQuery,
   workflowStreamPublishSignal,
   workflowStreamPollUpdate,
-} from '@temporalio/contrib-workflow-stream';
+} from '@temporalio/contrib-workflow-streams';
 import { helpers, makeTestFunction } from './helpers-integration';
 import {
   activityPublishWorkflow,
@@ -38,11 +38,11 @@ import {
   truncateWorkflow,
   ttlTestWorkflow,
   workflowSidePublishWorkflow,
-} from './workflows/contrib-workflow-stream';
-import * as streamActivities from './activities/contrib-workflow-stream';
+} from './workflows/contrib-workflow-streams';
+import * as streamActivities from './activities/contrib-workflow-streams';
 
 const test = makeTestFunction({
-  workflowsPath: require.resolve('./workflows/contrib-workflow-stream'),
+  workflowsPath: require.resolve('./workflows/contrib-workflow-streams'),
 });
 
 const encoder = new TextEncoder();

@@ -1,5 +1,5 @@
 {
-  "name": "@temporalio/contrib-workflow-stream",
+  "name": "@temporalio/contrib-workflow-streams",
   "version": "1.17.0",
   "description": "Temporal.io SDK Workflow Streams contrib module",
   "main": "lib/index.js",

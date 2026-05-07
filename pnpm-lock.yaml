@@ -175,9 +175,9 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
-      '@temporalio/contrib-workflow-stream':
+      '@temporalio/contrib-workflow-streams':
         specifier: workspace:*
-        version: link:../contrib-workflow-stream
+        version: link:../contrib-workflow-streams
       '@temporalio/plugin':
         specifier: workspace:*
         version: link:../plugin
@@ -269,7 +269,7 @@ importers:
         specifier: ^7.5.5
         version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
 
-  packages/contrib-workflow-stream:
+  packages/contrib-workflow-streams:
     dependencies:
       '@temporalio/activity':
         specifier: workspace:*
@@ -626,9 +626,9 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
-      '@temporalio/contrib-workflow-stream':
+      '@temporalio/contrib-workflow-streams':
         specifier: workspace:*
-        version: link:../contrib-workflow-stream
+        version: link:../contrib-workflow-streams
       '@temporalio/core-bridge':
         specifier: workspace:*
         version: link:../core-bridge

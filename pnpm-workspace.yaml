@@ -18,7 +18,7 @@ packages:
   - packages/testing
   - packages/worker
   - packages/workflow
-  - packages/contrib-workflow-stream
+  - packages/contrib-workflow-streams
   - scripts
 
 ignoreScripts: true
