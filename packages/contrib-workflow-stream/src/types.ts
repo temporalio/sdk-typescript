@@ -246,10 +246,7 @@ export function decodePayloadProto(bytes: Uint8Array): Payload {
           const ifn = itag >>> 3;
           const iwt = itag & 0x07;
           if (iwt !== 2) {
-            // skip — only length-delim fields are expected here
-            const skipLen = readVarint(chunk, p2);
-            p2.i += skipLen;
-            continue;
+            throw new Error(`unsupported wire type ${iwt} in Payload metadata entry`);
           }
           const ilen = readVarint(chunk, p2);
           const ival = chunk.subarray(p2.i, p2.i + ilen);
