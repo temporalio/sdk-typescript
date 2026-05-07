@@ -30,7 +30,12 @@ export {
   encodePayloadWire,
   decodePayloadWire,
 } from './types';
-export { WorkflowStream, workflowStreamPublishSignal, workflowStreamPollUpdate, workflowStreamOffsetQuery } from './stream';
+export {
+  WorkflowStream,
+  workflowStreamPublishSignal,
+  workflowStreamPollUpdate,
+  workflowStreamOffsetQuery,
+} from './stream';
 export { WorkflowStreamClient, FlushTimeoutError } from './client';
 export type { WorkflowStreamClientOptions, SubscribeOptions } from './client';
 export { TopicHandle, WorkflowTopicHandle } from './topic-handle';

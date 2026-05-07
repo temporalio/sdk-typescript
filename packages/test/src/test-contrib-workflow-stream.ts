@@ -6,7 +6,8 @@
 
 import { randomUUID } from 'crypto';
 import { ApplicationFailure, defaultPayloadConverter, type Payload } from '@temporalio/common';
-import { WorkflowHandle, WorkflowUpdateFailedError } from '@temporalio/client';
+import type { WorkflowHandle } from '@temporalio/client';
+import { WorkflowUpdateFailedError } from '@temporalio/client';
 import {
   FlushTimeoutError,
   WorkflowStreamClient,
@@ -515,11 +516,7 @@ test('continue_as_new_typed — log, offsets, AND dedup state survive CAN', asyn
     // Seed publisher dedup state (pub / sequence=1) so we can verify it
     // survives CAN.
     await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
-      items: [
-        entry('events', 'item-0'),
-        entry('events', 'item-1'),
-        entry('events', 'item-2'),
-      ],
+      items: [entry('events', 'item-0'), entry('events', 'item-1'), entry('events', 'item-2')],
       publisher_id: 'pub',
       sequence: 1,
     });
@@ -771,4 +768,3 @@ test('flush_raises_after_max_retry_duration — timeout surfaces, client resumes
   await new Promise((r) => setTimeout(r, 1500));
   await t.throwsAsync(client.stop(), { instanceOf: FlushTimeoutError });
 });
-

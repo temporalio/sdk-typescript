@@ -9,7 +9,8 @@
  * they are pure encode/decode unit tests.
  */
 
-import anyTest, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import { defaultPayloadConverter, type Payload } from '@temporalio/common';
 import {
   decodeBase64,

@@ -29,7 +29,8 @@ import {
   defaultPayloadConverter,
 } from '@temporalio/workflow';
 import { ApplicationFailure, type Payload, type Workflow } from '@temporalio/common';
-import { Duration, msToNumber } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msToNumber } from '@temporalio/common/lib/time';
 import {
   decodePayloadWire,
   encodePayloadProto,
@@ -54,11 +55,7 @@ const BINARY_PLAIN_ENCODING = new TextEncoder().encode('binary/plain');
  * `Object.prototype.toString` crosses realm boundaries reliably.
  */
 function isUint8ArrayLike(value: unknown): value is ArrayLike<number> {
-  return (
-    value != null &&
-    typeof value === 'object' &&
-    Object.prototype.toString.call(value) === '[object Uint8Array]'
-  );
+  return value != null && typeof value === 'object' && Object.prototype.toString.call(value) === '[object Uint8Array]';
 }
 
 // Fixed handler names for cross-language interop
@@ -133,12 +130,8 @@ export class WorkflowStream {
         }))
       : [];
     this.baseOffset = priorState?.base_offset ?? 0;
-    this.publisherSequences = priorState?.publisher_sequences
-      ? { ...priorState.publisher_sequences }
-      : {};
-    this.publisherLastSeen = priorState?.publisher_last_seen
-      ? { ...priorState.publisher_last_seen }
-      : {};
+    this.publisherSequences = priorState?.publisher_sequences ? { ...priorState.publisher_sequences } : {};
+    this.publisherLastSeen = priorState?.publisher_last_seen ? { ...priorState.publisher_last_seen } : {};
 
     setHandler(workflowStreamPublishSignal, (input: PublishInput) => this.onPublish(input));
     setHandler(workflowStreamPollUpdate, (input: PollInput) => this.onPoll(input), {
@@ -256,7 +249,7 @@ export class WorkflowStream {
    */
   async continueAsNew<F extends Workflow>(
     buildArgs: (state: WorkflowStreamState) => Parameters<F>,
-    options?: { publisherTtl?: Duration },
+    options?: { publisherTtl?: Duration }
   ): Promise<never> {
     this.detachPollers();
     await condition(allHandlersFinished);
@@ -279,8 +272,7 @@ export class WorkflowStream {
     if (logIndex <= 0) return;
     if (logIndex > this.log.length) {
       throw ApplicationFailure.create({
-        message:
-          `Cannot truncate to offset ${upToOffset}: only ${this.baseOffset + this.log.length} items exist`,
+        message: `Cannot truncate to offset ${upToOffset}: only ${this.baseOffset + this.log.length} items exist`,
         type: 'TruncateOutOfRange',
         nonRetryable: true,
       });
@@ -316,8 +308,7 @@ export class WorkflowStream {
         // during replay.
         throw ApplicationFailure.create({
           message:
-            `Requested offset ${input.from_offset} has been truncated. ` +
-            `Current base offset is ${this.baseOffset}.`,
+            `Requested offset ${input.from_offset} has been truncated. ` + `Current base offset is ${this.baseOffset}.`,
           type: 'TruncatedOffset',
           nonRetryable: true,
         });

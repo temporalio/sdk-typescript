@@ -15,12 +15,8 @@
 
 import { randomUUID } from 'crypto';
 import { Context as ActivityContext } from '@temporalio/activity';
-import {
-  Client,
-  WorkflowHandle,
-  WorkflowUpdateFailedError,
-  WorkflowUpdateRPCTimeoutOrCancelledError,
-} from '@temporalio/client';
+import type { Client, WorkflowHandle } from '@temporalio/client';
+import { WorkflowUpdateFailedError, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
 import {
   ApplicationFailure,
   defaultPayloadConverter,
@@ -28,7 +24,8 @@ import {
   type Payload,
   type PayloadConverter,
 } from '@temporalio/common';
-import { Duration, msToNumber } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msToNumber } from '@temporalio/common/lib/time';
 import {
   decodePayloadWire,
   encodePayloadWire,
@@ -370,10 +367,7 @@ export class WorkflowStreamClient {
 
     if (this.pending !== null) {
       // Retry path: check max_retry_duration
-      if (
-        this.pendingStartedAt !== null &&
-        Date.now() - this.pendingStartedAt > this.maxRetryDurationMs
-      ) {
+      if (this.pendingStartedAt !== null && Date.now() - this.pendingStartedAt > this.maxRetryDurationMs) {
         // Advance confirmed sequence so the next batch gets a fresh sequence
         // number. Without this, the next batch reuses pendingSeq, which the
         // workflow may have already accepted — causing silent dedup (data
@@ -449,8 +443,7 @@ export class WorkflowStreamClient {
     options?: SubscribeOptions & { resultType?: boolean }
   ): AsyncGenerator<WorkflowStreamItem<T>, void, unknown> {
     const pollCooldownMs = msToNumber(options?.pollCooldown ?? '100 milliseconds');
-    const topicFilter: string[] =
-      topics === undefined ? [] : typeof topics === 'string' ? [topics] : topics;
+    const topicFilter: string[] = topics === undefined ? [] : typeof topics === 'string' ? [topics] : topics;
     let offset = fromOffset;
 
     while (true) {
@@ -505,7 +498,7 @@ export class WorkflowStreamClient {
         const payload = decodePayloadWire(wireItem.data);
         yield {
           topic: wireItem.topic,
-          data: (decode ? this.payloadConverter.fromPayload<T>(payload) : (payload as unknown as T)),
+          data: decode ? this.payloadConverter.fromPayload<T>(payload) : (payload as unknown as T),
           offset: wireItem.offset,
         };
       }

@@ -174,7 +174,5 @@ export async function continueAsNewHelperWorkflow(input: CANWorkflowInput): Prom
   });
   await condition(() => shouldContinue || closed);
   if (closed) return;
-  await stream.continueAsNew<typeof continueAsNewHelperWorkflow>((state) => [
-    { streamState: state },
-  ]);
+  await stream.continueAsNew<typeof continueAsNewHelperWorkflow>((state) => [{ streamState: state }]);
 }

@@ -88,10 +88,7 @@ export interface CallToolArgs {
  *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
-export function createActivities(
-  provider: ProviderV3,
-  mcpClientFactories?: McpClientFactories
-): object {
+export function createActivities(provider: ProviderV3, mcpClientFactories?: McpClientFactories): object {
   let activities = {
     async invokeModel(args: InvokeModelArgs): Promise<InvokeModelResult> {
       const model = provider.languageModel(args.modelId);
@@ -130,7 +127,7 @@ export function createActivities(
       let currentReasoning = '';
 
       const reader = streamResult.stream.getReader();
-      // eslint-disable-next-line no-constant-condition
+
       while (true) {
         const { done, value: part } = await reader.read();
         if (done) break;
@@ -204,9 +201,7 @@ export function createActivities(
         usage,
         warnings,
         request: streamResult.request,
-        response: responseMetadata
-          ? { ...responseMetadata, ...streamResult.response }
-          : streamResult.response,
+        response: responseMetadata ? { ...responseMetadata, ...streamResult.response } : streamResult.response,
       } as InvokeModelResult;
     },
 

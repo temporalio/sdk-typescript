@@ -1,7 +1,4 @@
-// `ReadableStream` is a sandbox global; type-only import keeps `node:stream/web`
-// out of the workflow bundle (es2023 lib has no DOM types).
 import type { ReadableStreamDefaultController } from 'node:stream/web';
-declare const ReadableStream: typeof import('node:stream/web').ReadableStream;
 import type {
   EmbeddingModelV3,
   EmbeddingModelV3CallOptions,
@@ -19,6 +16,10 @@ import type { ActivityOptions } from '@temporalio/workflow';
 import { ApplicationFailure } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 
+// `ReadableStream` is a sandbox global; type-only import keeps `node:stream/web`
+// out of the workflow bundle (es2023 lib has no DOM types).
+declare const ReadableStream: typeof import('node:stream/web').ReadableStream;
+
 /**
  * Options for configuring the TemporalProvider with per-model activity settings.
  */
@@ -34,7 +35,6 @@ export interface TemporalProviderOptions {
    * Merged with default options, with these taking precedence.
    */
   languageModel?: ActivityOptions & {
-
     /**
      * Topic name on the workflow's stream that streaming model calls publish
      * raw stream parts to. When set, `doStream` is enabled and routes through

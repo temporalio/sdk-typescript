@@ -32,7 +32,7 @@ export class TopicHandle<T = unknown> {
   /** @internal */
   constructor(
     private readonly client: WorkflowStreamClient,
-    public readonly name: string,
+    public readonly name: string
   ) {}
 
   /**
@@ -51,8 +51,9 @@ export class TopicHandle<T = unknown> {
   publish(value: T | Payload, options?: { forceFlush?: boolean }): void {
     // Cast through `unknown` so the internal publisher accepts the value;
     // the per-handle T is compile-time only.
-    (this.client as unknown as { _publishToTopic(name: string, value: unknown, forceFlush: boolean): void })
-      ._publishToTopic(this.name, value, options?.forceFlush ?? false);
+    (
+      this.client as unknown as { _publishToTopic(name: string, value: unknown, forceFlush: boolean): void }
+    )._publishToTopic(this.name, value, options?.forceFlush ?? false);
   }
 
   /**
@@ -70,10 +71,7 @@ export class TopicHandle<T = unknown> {
    * @param options.pollCooldown Minimum interval between polls when
    *   there are no new items. Default 100ms.
    */
-  subscribe(
-    fromOffset?: number,
-    options?: SubscribeOptions,
-  ): AsyncGenerator<WorkflowStreamItem<T>, void, unknown> {
+  subscribe(fromOffset?: number, options?: SubscribeOptions): AsyncGenerator<WorkflowStreamItem<T>, void, unknown> {
     return this.client.subscribe<T>(this.name, fromOffset ?? 0, { ...options, resultType: true });
   }
 }
@@ -90,7 +88,7 @@ export class WorkflowTopicHandle<T = unknown> {
   /** @internal */
   constructor(
     private readonly stream: WorkflowStream,
-    public readonly name: string,
+    public readonly name: string
   ) {}
 
   /**
@@ -101,7 +99,9 @@ export class WorkflowTopicHandle<T = unknown> {
    *   conversion, regardless of the handle's bound type.
    */
   publish(value: T | Payload): void {
-    (this.stream as unknown as { _publishToTopic(name: string, value: unknown): void })
-      ._publishToTopic(this.name, value);
+    (this.stream as unknown as { _publishToTopic(name: string, value: unknown): void })._publishToTopic(
+      this.name,
+      value
+    );
   }
 }
