@@ -208,8 +208,8 @@ if (workflowInfo().continueAsNewSuggested) {
 
 Handlers registered automatically:
 
-| Kind   | Name                                 | Description                    |
-| ------ | ------------------------------------ | ------------------------------ |
+| Kind   | Name                                  | Description                    |
+| ------ | ------------------------------------- | ------------------------------ |
 | Signal | `__temporal_workflow_streams_publish` | Receive external publications. |
 | Update | `__temporal_workflow_streams_poll`    | Long-poll subscription.        |
 | Query  | `__temporal_workflow_streams_offset`  | Current global offset.         |
