@@ -1,3 +1,4 @@
+import type { ExternalStorage } from './extstore';
 import type { FailureConverter } from './failure-converter';
 import { DefaultFailureConverter } from './failure-converter';
 import type { PayloadCodec } from './payload-codec';
@@ -51,6 +52,16 @@ export interface DataConverter {
    * you'd do `payloadCodecs: [compressionCodec, encryptionCodec]`.
    */
   payloadCodecs?: PayloadCodec[];
+
+  /**
+   * Optional External Storage configuration. When set, payloads above
+   * {@link ExternalStorage.payloadSizeThreshold} are offloaded to the
+   * configured storage driver(s) and replaced with a small reference
+   * payload on the wire. See `@temporalio/common/lib/converter/extstore`.
+   *
+   * @experimental
+   */
+  externalStorage?: ExternalStorage;
 }
 
 /**
@@ -60,6 +71,7 @@ export interface LoadedDataConverter {
   payloadConverter: PayloadConverter;
   failureConverter: FailureConverter;
   payloadCodecs: PayloadCodec[];
+  externalStorage?: ExternalStorage;
 }
 
 /**
