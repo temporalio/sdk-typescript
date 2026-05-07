@@ -9,7 +9,6 @@
     { "path": "../activity" },
     { "path": "../client" },
     { "path": "../common" },
-    { "path": "../proto" },
     { "path": "../workflow" }
   ],
   "include": ["./src/**/*.ts"]
