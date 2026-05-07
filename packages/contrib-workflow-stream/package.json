@@ -18,10 +18,8 @@
     "@temporalio/activity": "workspace:*",
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
+    "@temporalio/proto": "workspace:*",
     "@temporalio/workflow": "workspace:*"
-  },
-  "devDependencies": {
-    "@temporalio/proto": "workspace:*"
   },
   "engines": {
     "node": ">= 20.0.0"
