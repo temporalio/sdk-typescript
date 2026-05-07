@@ -5,5 +5,11 @@
     "rootDir": "./src",
     "skipLibCheck": true
   },
+  "references": [
+    { "path": "../activity" },
+    { "path": "../client" },
+    { "path": "../common" },
+    { "path": "../workflow" }
+  ],
   "include": ["./src/**/*.ts"]
 }
