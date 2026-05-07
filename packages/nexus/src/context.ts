@@ -31,6 +31,7 @@ export interface HandlerContext {
   client: Client;
   namespace: string;
   taskQueue: string;
+  endpoint: string;
 }
 
 /**
@@ -48,6 +49,12 @@ export interface OperationInfo {
    * Task Queue this Nexus Operation is executing on
    */
   readonly taskQueue: string;
+
+  /**
+   * Nexus Endpoint this Operation was routed through.
+   * Only available with server version 1.30.0 or later.
+   */
+  readonly endpoint?: string;
 }
 
 // Basic APIs //////////////////////////////////////////////////////////////////////////////////////
@@ -131,5 +138,6 @@ export function operationInfo(): OperationInfo {
   return {
     namespace: ctx.namespace,
     taskQueue: ctx.taskQueue,
+    endpoint: ctx.endpoint,
   };
 }
