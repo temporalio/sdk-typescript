@@ -17,7 +17,6 @@ export class StorageDriverClaim {
 
 /**
  * Identity of the workflow that produced the payload being stored.
- * Matches `StorageDriverWorkflowInfo` in the Python and Go SDKs.
  *
  * @experimental
  */
@@ -33,7 +32,6 @@ export interface StorageDriverWorkflowInfo {
  * Identity of the activity that produced the payload being stored.
  * Used for standalone activities; workflow-bound activities use a
  * {@link StorageDriverWorkflowInfo} that names their parent workflow.
- * Matches `StorageDriverActivityInfo` in the Python and Go SDKs.
  *
  * @experimental
  */
@@ -46,9 +44,7 @@ export interface StorageDriverActivityInfo {
 }
 
 /**
- * The entity that produced a payload — discriminated by `kind`. Matches
- * Go's `StorageDriverTargetInfo` marker interface; Python carries an
- * inline union with no separate name.
+ * The entity that produced a payload — discriminated by `kind`.
  *
  * @experimental
  */
@@ -117,8 +113,7 @@ export type StorageDriverSelector = (
 // ============================================================================
 
 /**
- * Default {@link ExternalStorage.payloadSizeThreshold}: 256 KiB. Matches
- * Python and Go.
+ * Default {@link ExternalStorage.payloadSizeThreshold}: 256 KiB.
  *
  * @experimental
  */
