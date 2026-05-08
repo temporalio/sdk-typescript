@@ -360,6 +360,14 @@ test('Load profiles from non-existent file', (t) => {
   t.deepEqual(conf.profiles, {});
 });
 
+test('Load default config with missing user config dir', (t) => {
+  const conf = loadClientConfig({ overrideEnvVars: {} });
+  t.deepEqual(conf, { profiles: {} });
+
+  const profile = loadClientConfigProfile({ overrideEnvVars: {} });
+  t.deepEqual(profile, {});
+});
+
 test('Load all profiles with overridden file path', (t) => {
   withTempFile(TOML_CONFIG_BASE, (filepath) => {
     const conf = loadClientConfig({ overrideEnvVars: { TEMPORAL_CONFIG_FILE: filepath } });
