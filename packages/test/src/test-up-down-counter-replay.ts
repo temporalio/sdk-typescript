@@ -141,3 +141,31 @@ test('full lifecycle: emit, evict, re-emit reaches steady state', (t) => {
   const sum = meter.recorded.reduce((acc, r) => acc + r.value, 0);
   t.is(sum, 1);
 });
+
+test('Counter sink applies values to the underlying meter', (t) => {
+  const counterAdds: RecordedAdd[] = [];
+
+  class FakeCounter {
+    public readonly kind = 'counter' as const;
+    public readonly valueType = 'int' as const;
+    constructor(public readonly name: string, public readonly unit?: string, public readonly description?: string) {}
+    add(value: number, tags: MetricTags = {}) { counterAdds.push({ name: this.name, value, tags }); }
+    withTags(): any { throw new Error('unused'); }
+  }
+
+  const meter: MetricMeter = {
+    createCounter: (name, unit, description) => new FakeCounter(name, unit, description),
+    createHistogram: () => { throw new Error('unused'); },
+    createGauge: () => { throw new Error('unused'); },
+    createUpDownCounter: () => { throw new Error('unused'); },
+    withTags: () => { throw new Error('unused'); },
+  };
+
+  const tracker = new WorkflowMetricsTracker(meter);
+  const sinks = tracker.getInjectedSinks();
+  sinks.__temporal_metrics.addMetricCounterValue.fn(
+    { runId: 'r' } as any, 'requests', undefined, undefined, 3, { region: 'us' }
+  );
+  t.deepEqual(counterAdds, [{ name: 'requests', value: 3, tags: { region: 'us' } }]);
+  t.is(sinks.__temporal_metrics.addMetricCounterValue.callDuringReplay, false);
+});
