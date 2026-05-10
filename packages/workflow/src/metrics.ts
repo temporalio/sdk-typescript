@@ -176,6 +176,14 @@ export interface WorkflowMetricMeter extends Sink {
     value: number,
     attrs: MetricTags
   ): void;
+
+  addMetricUpDownCounterValue(
+    metricName: string,
+    unit: string | undefined,
+    description: string | undefined,
+    netValue: number,
+    attrs: MetricTags
+  ): void;
 }
 
 /**

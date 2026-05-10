@@ -68,6 +68,15 @@ export function initMetricSink(metricMeter: MetricMeter): InjectedSinks<MetricSi
         },
         callDuringReplay: false,
       },
+      addMetricUpDownCounterValue: {
+        // UpDownCounter handling is implemented by `WorkflowMetricsTracker`. This stub satisfies
+        // the `WorkflowMetricMeter` sink interface for the legacy `initMetricSink` path; later
+        // tasks replace `initMetricSink` with the tracker entirely.
+        fn() {
+          /* no-op */
+        },
+        callDuringReplay: false,
+      },
     },
   };
 }
