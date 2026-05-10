@@ -60,8 +60,18 @@ export class WorkflowMetricsTracker {
     };
   }
 
-  notifyWorkflowEvicted(_runId: string): void {
-    throw new Error('not yet implemented');
+  notifyWorkflowEvicted(runId: string): void {
+    const prefix = `${runId} `;
+    for (const [key, contribution] of this.perWorkflowUpDownCounters) {
+      if (!key.startsWith(prefix)) continue;
+      if (contribution.netValue !== 0) {
+        this.getUpDownCounter(contribution.metricName, contribution.unit, contribution.description).add(
+          -contribution.netValue,
+          contribution.tags
+        );
+      }
+      this.perWorkflowUpDownCounters.delete(key);
+    }
   }
 
   private getUpDownCounter(
