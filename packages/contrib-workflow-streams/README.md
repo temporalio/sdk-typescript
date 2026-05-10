@@ -100,7 +100,7 @@ published before the call has been signaled and acknowledged by the server:
 
 ```typescript
 events.publish(phase1Data);
-await client.flush();   // phase 1 is durable on the workflow side
+await client.flush(); // phase 1 is durable on the workflow side
 events.publish(phase2Data);
 ```
 
