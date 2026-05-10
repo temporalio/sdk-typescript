@@ -196,13 +196,6 @@ export class WorkflowStreamClient {
     return WorkflowStreamClient.create(ctx.client, workflowExecution.workflowId, options);
   }
 
-  /** Start the background flusher. Call before publishing. */
-  start(): void {
-    if (this.flusherTask) return;
-    this.flusherStopped = false;
-    this.flusherTask = this.runFlusher();
-  }
-
   /**
    * Flush buffered (and pending) items and wait for server confirmation.
    *
@@ -249,9 +242,26 @@ export class WorkflowStreamClient {
     this.throwPendingFlusherError();
   }
 
-  /** Stop the flusher and flush remaining items. */
-  async stop(): Promise<void> {
+  private throwPendingFlusherError(): void {
+    if (this.flusherError) {
+      const err = this.flusherError;
+      this.flusherError = undefined;
+      throw err;
+    }
+  }
+
+  /**
+   * Dispose pattern: stop the flusher and drain remaining items.
+   *
+   * Use via `await using client = WorkflowStreamClient.create(...)` so the
+   * scope exit guarantees a final drain. For tests or call sites that
+   * cannot use `await using`, invoke this method directly:
+   * `await client[Symbol.asyncDispose]()`.
+   */
+  async [Symbol.asyncDispose](): Promise<void> {
     if (!this.flusherTask) {
+      // Lazy-start path was never triggered (no publish, or only flush()
+      // was used). A single flushOnce() drains anything left in the buffer.
       await this.flushOnce();
       this.throwPendingFlusherError();
       return;
@@ -270,19 +280,6 @@ export class WorkflowStreamClient {
       await this.flushOnce();
     }
     this.throwPendingFlusherError();
-  }
-
-  private throwPendingFlusherError(): void {
-    if (this.flusherError) {
-      const err = this.flusherError;
-      this.flusherError = undefined;
-      throw err;
-    }
-  }
-
-  /** Dispose pattern: `await using client = WorkflowStreamClient.create(...)`. */
-  async [Symbol.asyncDispose](): Promise<void> {
-    await this.stop();
   }
 
   /**
@@ -304,6 +301,13 @@ export class WorkflowStreamClient {
 
   /** @internal Used by {@link TopicHandle.publish}. */
   _publishToTopic(topic: string, value: unknown, forceFlush: boolean): void {
+    // Lazy-start the background flusher on first publish. Skipped if dispose
+    // already ran, so a publish-after-dispose surfaces as a buffered item that
+    // never flushes (which the next dispose would catch) rather than silently
+    // resurrecting the flusher.
+    if (this.flusherTask === undefined && !this.flusherStopped) {
+      this.flusherTask = this.runFlusher();
+    }
     this.buffer.push({ topic, value });
     if (forceFlush || (this.maxBatchSize !== undefined && this.buffer.length >= this.maxBatchSize)) {
       this.flushEvent.set();

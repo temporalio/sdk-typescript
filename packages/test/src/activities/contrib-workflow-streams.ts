@@ -12,7 +12,6 @@ const encoder = new TextEncoder();
 
 export async function publishItems(count: number): Promise<void> {
   await using client = WorkflowStreamClient.fromActivity({ batchInterval: '500 milliseconds' });
-  client.start();
   const events = client.topic('events');
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
@@ -23,7 +22,6 @@ export async function publishItems(count: number): Promise<void> {
 export async function publishMultiTopic(count: number): Promise<void> {
   const topicNames = ['a', 'b', 'c'];
   await using client = WorkflowStreamClient.fromActivity({ batchInterval: '500 milliseconds' });
-  client.start();
   const handles = topicNames.map((name) => client.topic(name));
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
@@ -39,7 +37,6 @@ export async function publishWithForceFlush(): Promise<void> {
   // so a regression (forceFlush no-op) surfaces as a missing item rather
   // than flaking on slow CI.
   await using client = WorkflowStreamClient.fromActivity({ batchInterval: '60 seconds' });
-  client.start();
   const events = client.topic('events');
   events.publish(encoder.encode('normal-0'));
   events.publish(encoder.encode('normal-1'));
@@ -52,7 +49,6 @@ export async function publishWithForceFlush(): Promise<void> {
 
 export async function publishBatchTest(count: number): Promise<void> {
   await using client = WorkflowStreamClient.fromActivity({ batchInterval: '60 seconds' });
-  client.start();
   const events = client.topic('events');
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
@@ -66,7 +62,6 @@ export async function publishWithMaxBatch(count: number): Promise<void> {
     batchInterval: '60 seconds',
     maxBatchSize: 3,
   });
-  client.start();
   const events = client.topic('events');
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();

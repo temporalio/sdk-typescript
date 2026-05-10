@@ -108,7 +108,6 @@ export function createActivities(provider: ProviderV3, mcpClientFactories?: McpC
       await using stream = WorkflowStreamClient.fromActivity({
         batchInterval: args.streamingBatchInterval ?? '100 milliseconds',
       });
-      stream.start();
       const events = stream.topic(args.streamingTopic);
 
       const model = provider.languageModel(args.modelId);

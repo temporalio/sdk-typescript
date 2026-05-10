@@ -763,8 +763,7 @@ test('flush_raises_after_max_retry_duration — timeout surfaces, client resumes
     batchInterval: '100 milliseconds',
     maxRetryDuration: '200 milliseconds',
   });
-  client.start();
   client.topic('events').publish(encoder.encode('will-be-lost'));
   await new Promise((r) => setTimeout(r, 1500));
-  await t.throwsAsync(client.stop(), { instanceOf: FlushTimeoutError });
+  await t.throwsAsync(client[Symbol.asyncDispose](), { instanceOf: FlushTimeoutError });
 });

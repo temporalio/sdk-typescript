@@ -74,7 +74,6 @@ import { WorkflowStreamClient } from '@temporalio/contrib-workflow-streams';
 
 export async function streamEvents(): Promise<void> {
   await using client = WorkflowStreamClient.fromActivity({ batchInterval: '2 seconds' });
-  client.start();
   const events = client.topic<Chunk>('events');
 
   for await (const chunk of generateChunks()) {
@@ -85,26 +84,24 @@ export async function streamEvents(): Promise<void> {
 }
 ```
 
-Outside an activity (e.g., a starter or BFF), use `WorkflowStreamClient.create()`
-with an explicit client and workflow id. If `await using` is not available,
-call `start()` and `await stop()` explicitly:
-
-```typescript
-const client = WorkflowStreamClient.create(temporalClient, workflowId);
-client.start();
-try {
-  const events = client.topic<Chunk>('events');
-  events.publish(data);
-} finally {
-  await client.stop();
-}
-```
+The background flusher starts on the first `publish()` and stops on scope
+exit (`await using`). Outside an activity (e.g., a starter or BFF), use
+`WorkflowStreamClient.create(temporalClient, workflowId)` the same way.
 
 Use `forceFlush: true` to trigger an immediate flush for latency-sensitive
 events:
 
 ```typescript
 events.publish(data, { forceFlush: true });
+```
+
+Use `await client.flush()` as an explicit barrier — returns once everything
+published before the call has been signaled and acknowledged by the server:
+
+```typescript
+events.publish(phase1Data);
+await client.flush();   // phase 1 is durable on the workflow side
+events.publish(phase2Data);
 ```
 
 ### Subscribing
@@ -221,9 +218,8 @@ Handlers registered automatically:
 | `WorkflowStreamClient.create(client, workflowId, options?)`                 | Factory for use outside an activity (starters, BFFs). Enables CAN following in `subscribe()`; uses the `Client`'s configured payload converter.                                                                                                                                       |
 | `WorkflowStreamClient.fromActivity(options?)`                               | Factory for use from within an activity — pulls the client and parent workflow id from the activity context.                                                                                                                                                                          |
 | `new WorkflowStreamClient(handle, options?)`                                | From a handle (no CAN following).                                                                                                                                                                                                                                                     |
-| `start()`                                                                   | Start the background flusher.                                                                                                                                                                                                                                                         |
-| `stop()`                                                                    | Stop the flusher and flush remaining items.                                                                                                                                                                                                                                           |
-| `[Symbol.asyncDispose]()`                                                   | Supports `await using client = WorkflowStreamClient.create(...)`.                                                                                                                                                                                                                     |
+| `flush()`                                                                   | Barrier: returns once everything published before the call is acknowledged by the server. Empty-buffer call is a no-op.                                                                                                                                                               |
+| `[Symbol.asyncDispose]()`                                                   | Stop the flusher and drain remaining items. Triggered automatically by `await using`.                                                                                                                                                                                                 |
 | `topic<T>(name)`                                                            | Get a typed `TopicHandle<T>` for publishing and subscribing. Repeated calls with the same name return the same handle.                                                                                                                                                                |
 | `subscribe(topics?, fromOffset = 0, { pollCooldown = '100 milliseconds' })` | Raw async generator yielding `WorkflowStreamItem<Payload>` — the multi-topic / decode-yourself path. `pollCooldown` is a `Duration`. Always follows CAN chains when created via `create()`. Recovers automatically from `TruncatedOffset` by restarting from the current base offset. |
 | `getOffset()`                                                               | Query current global offset.                                                                                                                                                                                                                                                          |
