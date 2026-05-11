@@ -15,26 +15,8 @@ import * as nexus from 'nexus-rpc';
 import { v4 as uuid4 } from 'uuid';
 import { Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type * as workflowImportStub from '../workflow/workflow-imports';
-import type * as workflowImportImpl from '../workflow/workflow-imports-impl';
 import type { WorkflowClientInterceptor } from '@temporalio/client';
 import { WorkflowClient, WithStartWorkflowOperation, Client, Connection } from '@temporalio/client';
-import { instrument, instrumentSync, NEXUS_SERVICE_ATTR_KEY, NEXUS_OPERATION_ATTR_KEY } from '../instrumentation';
-import type { OpenTelemetryNexusInboundInterceptor, OpenTelemetryNexusOutboundInterceptor } from '../worker';
-import {
-  makeWorkflowExporter,
-  OpenTelemetryActivityInboundInterceptor,
-  OpenTelemetryActivityOutboundInterceptor,
-} from '../worker';
-import type {
-  OpenTelemetrySinks,
-  OpenTelemetryOutboundInterceptor,
-  OpenTelemetryInboundInterceptor,
-} from '../workflow';
-import { SpanName, SPAN_DELIMITER } from '../workflow';
-import { OpenTelemetryWorkflowClientInterceptor } from '../client';
-import { OpenTelemetryPlugin } from '..';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
 import type {
   ActivityInboundCallsInterceptor,
   ActivityOutboundCallsInterceptor,
@@ -50,9 +32,26 @@ import {
   RUN_INTEGRATION_TESTS,
   loadHistory as loadHistoryBase,
   createBaseBundlerOptions,
-  createTestWorkflowBundle,
+  createTestWorkflowBundle as createTestWorkflowBundleBase,
   createTestWorkflowEnvironment,
 } from '@temporalio/test-helpers';
+import type * as workflowImportStub from '../workflow/workflow-imports';
+import type * as workflowImportImpl from '../workflow/workflow-imports-impl';
+import { instrument, instrumentSync, NEXUS_SERVICE_ATTR_KEY, NEXUS_OPERATION_ATTR_KEY } from '../instrumentation';
+import type { OpenTelemetryNexusInboundInterceptor, OpenTelemetryNexusOutboundInterceptor } from '../worker';
+import {
+  makeWorkflowExporter,
+  OpenTelemetryActivityInboundInterceptor,
+  OpenTelemetryActivityOutboundInterceptor,
+} from '../worker';
+import type {
+  OpenTelemetrySinks,
+  OpenTelemetryOutboundInterceptor,
+  OpenTelemetryInboundInterceptor,
+} from '../workflow';
+import { SpanName, SPAN_DELIMITER } from '../workflow';
+import { OpenTelemetryWorkflowClientInterceptor } from '../client';
+import { OpenTelemetryPlugin } from '..';
 import * as activities from './activities';
 import { createActivities as createAsyncActivities } from './activities/async-completer';
 import * as workflows from './workflows';
@@ -62,12 +61,12 @@ async function loadHistory(fname: string) {
   return loadHistoryBase(fpath);
 }
 
-async function createOtelTestWorkflowBundle(opts: {
+async function createTestWorkflowBundle(opts: {
   workflowsPath: string;
   workflowInterceptorModules?: string[];
   plugins?: BundlerPlugin[];
 }) {
-  return createTestWorkflowBundle({
+  return createTestWorkflowBundleBase({
     ...opts,
     additionalIgnoreModules: [require.resolve('./activities')],
   });
@@ -619,7 +618,7 @@ if (RUN_INTEGRATION_TESTS) {
         workflowId,
       });
       const info = await firstValueFrom(
-        infoSubject.pipe(filter((i: Info) => i.workflowExecution?.workflowId === workflowId))
+        infoSubject.pipe(filter((i) => i.workflowExecution?.workflowId === workflowId))
       );
       await client.activity.complete(info.taskToken, 'async-result');
       t.is(await handle.result(), 'async-result');
@@ -651,7 +650,7 @@ if (RUN_INTEGRATION_TESTS) {
       spanProcessor: new SimpleSpanProcessor(traceExporter),
     });
     const worker = await Worker.create({
-      workflowBundle: await createOtelTestWorkflowBundle({
+      workflowBundle: await createTestWorkflowBundle({
         workflowsPath: require.resolve('./workflows'),
         plugins: [plugin],
       }),
@@ -951,7 +950,7 @@ test('Can replay otel history from 1.11.3', async (t) => {
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
       {
-        workflowBundle: await createOtelTestWorkflowBundle({
+        workflowBundle: await createTestWorkflowBundle({
           workflowsPath: require.resolve('./workflows/signal-start-otel'),
           workflowInterceptorModules: [require.resolve('./workflows/signal-start-otel')],
         }),
@@ -974,7 +973,7 @@ test('Can replay otel history from 1.13.1', async (t) => {
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
       {
-        workflowBundle: await createOtelTestWorkflowBundle({
+        workflowBundle: await createTestWorkflowBundle({
           workflowsPath: require.resolve('./workflows/signal-start-otel'),
           workflowInterceptorModules: [require.resolve('./workflows/signal-start-otel')],
         }),
@@ -998,7 +997,7 @@ test('Can replay smorgasbord from 1.13.1', async (t) => {
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
       {
-        workflowBundle: await createOtelTestWorkflowBundle({
+        workflowBundle: await createTestWorkflowBundle({
           workflowsPath: require.resolve('./workflows'),
           workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
         }),
@@ -1021,7 +1020,7 @@ test('Can replay signal workflow from 1.13.1', async (t) => {
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
       {
-        workflowBundle: await createOtelTestWorkflowBundle({
+        workflowBundle: await createTestWorkflowBundle({
           workflowsPath: require.resolve('./workflows/signal-workflow'),
           workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
         }),
@@ -1044,7 +1043,7 @@ test('Can replay smorgasbord from 1.13.2', async (t) => {
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
       {
-        workflowBundle: await createOtelTestWorkflowBundle({
+        workflowBundle: await createTestWorkflowBundle({
           workflowsPath: require.resolve('./workflows'),
           workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
         }),

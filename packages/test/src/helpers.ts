@@ -2,7 +2,8 @@ import path from 'path';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
 import { v4 as uuid4 } from 'uuid';
-import { Client, Connection } from '@temporalio/client';
+import type { Connection } from '@temporalio/client';
+import { Client } from '@temporalio/client';
 import * as iface from '@temporalio/proto';
 import {
   createBaseBundlerOptions,

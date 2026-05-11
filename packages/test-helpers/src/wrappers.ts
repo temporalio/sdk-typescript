@@ -1,11 +1,13 @@
-import {
+import type {
   ExistingServerTestWorkflowEnvironmentOptions,
   LocalTestWorkflowEnvironmentOptions,
-  TestWorkflowEnvironment as RealTestWorkflowEnvironment,
-  TimeSkippingTestWorkflowEnvironmentOptions,
+  TimeSkippingTestWorkflowEnvironmentOptions} from '@temporalio/testing';
+import {
+  TestWorkflowEnvironment as RealTestWorkflowEnvironment
 } from '@temporalio/testing';
 import * as worker from '@temporalio/worker';
-import { Worker as RealWorker, WorkerOptions } from '@temporalio/worker';
+import type { WorkerOptions } from '@temporalio/worker';
+import { Worker as RealWorker } from '@temporalio/worker';
 import { inWorkflowContext } from '@temporalio/workflow';
 import { REUSE_V8_CONTEXT, TESTS_CLI_VERSION, TESTS_TIME_SKIPPING_SERVER_VERSION } from './flags';
 

@@ -1,4 +1,5 @@
-import ava, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import ava from 'ava';
 import { inWorkflowContext } from '@temporalio/workflow';
 
 function noopTest(): void {

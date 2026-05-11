@@ -1,10 +1,11 @@
 import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
-import { WorkflowHandleWithFirstExecutionRunId, WorkflowStartOptions } from '@temporalio/client';
+import type { WorkflowHandleWithFirstExecutionRunId, WorkflowStartOptions } from '@temporalio/client';
 import type { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@temporalio/testing';
-import { WorkerOptions, WorkflowBundle } from '@temporalio/worker';
-import * as workflow from '@temporalio/workflow';
-import { Worker, TestWorkflowEnvironment } from './wrappers';
+import type { WorkerOptions, WorkflowBundle } from '@temporalio/worker';
+import type * as workflow from '@temporalio/workflow';
+import type { TestWorkflowEnvironment } from './wrappers';
+import { Worker } from './wrappers';
 
 export const isBun = typeof (globalThis as any).Bun !== 'undefined';
 /** Union type for all supported test environment types */

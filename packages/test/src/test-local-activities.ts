@@ -1,14 +1,16 @@
 import { firstValueFrom, Subject } from 'rxjs';
-import { TestFn } from 'ava';
+import type { TestFn } from 'ava';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { ApplicationFailure, defaultPayloadConverter, WorkflowFailedError } from '@temporalio/client';
-import { LocalActivityOptions, RetryPolicy } from '@temporalio/common';
+import type { LocalActivityOptions, RetryPolicy } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
 import { workflowInterceptorModules } from '@temporalio/testing';
-import { bundleWorkflowCode, DefaultLogger, LogLevel, Runtime } from '@temporalio/worker';
+import type { LogLevel} from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, Runtime } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
-import { test as anyTest, Worker, TestWorkflowEnvironment, BaseContext, helpers } from '@temporalio/test-helpers';
+import type { BaseContext} from '@temporalio/test-helpers';
+import { test as anyTest, Worker, TestWorkflowEnvironment, helpers } from '@temporalio/test-helpers';
 import { bundlerOptions } from './helpers';
 
 const test = anyTest as TestFn<BaseContext>;

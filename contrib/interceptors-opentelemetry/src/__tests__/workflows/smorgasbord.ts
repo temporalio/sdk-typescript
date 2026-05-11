@@ -14,7 +14,7 @@ import {
   continueAsNew,
   proxyLocalActivities,
 } from '@temporalio/workflow';
-import * as activities from '../activities';
+import type * as activities from '../activities';
 import { signalTarget } from './signal-target';
 import { activityStartedSignal, unblockSignal } from './definitions';
 

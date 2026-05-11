@@ -1,4 +1,4 @@
-import { Payload, PayloadCodec } from '@temporalio/common';
+import type { Payload, PayloadCodec } from '@temporalio/common';
 
 /**
  * A PayloadCodec used for testing purposes, skews the bytes in the payload data by 1

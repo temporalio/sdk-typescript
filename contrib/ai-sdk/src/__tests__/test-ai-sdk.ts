@@ -17,7 +17,7 @@ import type {
   TranscriptionModelV3,
 } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
-import { TestFn } from 'ava';
+import type { TestFn } from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
@@ -40,7 +40,8 @@ import {
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode, DefaultLogger, Runtime } from '@temporalio/worker';
 import type { InjectedSinks } from '@temporalio/worker';
-import { test as anyTest, BaseContext, helpers, Worker, TestWorkflowEnvironment } from '@temporalio/test-helpers';
+import type { BaseContext} from '@temporalio/test-helpers';
+import { test as anyTest, helpers, Worker, TestWorkflowEnvironment } from '@temporalio/test-helpers';
 import { AiSdkPlugin, createActivities } from '..';
 import {
   embeddingWorkflow,
