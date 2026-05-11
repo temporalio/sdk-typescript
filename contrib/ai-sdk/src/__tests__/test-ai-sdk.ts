@@ -40,7 +40,7 @@ import {
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode, DefaultLogger, Runtime } from '@temporalio/worker';
 import type { InjectedSinks } from '@temporalio/worker';
-import type { BaseContext} from '@temporalio/test-helpers';
+import type { BaseContext } from '@temporalio/test-helpers';
 import { test as anyTest, helpers, Worker, TestWorkflowEnvironment } from '@temporalio/test-helpers';
 import { AiSdkPlugin, createActivities } from '..';
 import {

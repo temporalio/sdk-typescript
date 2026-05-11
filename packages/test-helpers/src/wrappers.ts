@@ -1,10 +1,9 @@
 import type {
   ExistingServerTestWorkflowEnvironmentOptions,
   LocalTestWorkflowEnvironmentOptions,
-  TimeSkippingTestWorkflowEnvironmentOptions} from '@temporalio/testing';
-import {
-  TestWorkflowEnvironment as RealTestWorkflowEnvironment
+  TimeSkippingTestWorkflowEnvironmentOptions,
 } from '@temporalio/testing';
+import { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@temporalio/testing';
 import * as worker from '@temporalio/worker';
 import type { WorkerOptions } from '@temporalio/worker';
 import { Worker as RealWorker } from '@temporalio/worker';

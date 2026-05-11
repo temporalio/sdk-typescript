@@ -6,10 +6,10 @@ import type { LocalActivityOptions, RetryPolicy } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
 import { workflowInterceptorModules } from '@temporalio/testing';
-import type { LogLevel} from '@temporalio/worker';
+import type { LogLevel } from '@temporalio/worker';
 import { bundleWorkflowCode, DefaultLogger, Runtime } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
-import type { BaseContext} from '@temporalio/test-helpers';
+import type { BaseContext } from '@temporalio/test-helpers';
 import { test as anyTest, Worker, TestWorkflowEnvironment, helpers } from '@temporalio/test-helpers';
 import { bundlerOptions } from './helpers';
 
