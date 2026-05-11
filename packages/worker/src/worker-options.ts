@@ -6,7 +6,6 @@ import type {
   ActivityFunction,
   DataConverter,
   LoadedDataConverter,
-  MetricMeter,
   VersioningBehavior,
   WorkerDeploymentVersion,
 } from '@temporalio/common';
@@ -22,7 +21,7 @@ import type { NativeConnection } from './connection';
 import type { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
 import type { Logger } from './logger';
 import { initLoggerSink } from './workflow/logger';
-import { initMetricSink } from './workflow/metrics';
+import type { WorkflowMetricsTracker } from './workflow/metrics-tracker';
 import { Runtime } from './runtime';
 import type { InjectedSinks } from './sinks';
 import { MiB } from './utils';
@@ -920,7 +919,7 @@ export type CompiledWorkerOptionsWithBuildId = CompiledWorkerOptions & {
 function addDefaultWorkerOptions(
   options: WorkerOptions,
   logger: Logger,
-  metricMeter: MetricMeter
+  metricsTracker: WorkflowMetricsTracker
 ): WorkerOptionsWithDefaults {
   const {
     buildId,
@@ -1045,7 +1044,7 @@ function addDefaultWorkerOptions(
     nonStickyToStickyPollRatio: nonStickyToStickyPollRatio ?? 0.2,
     sinks: {
       ...initLoggerSink(logger),
-      ...initMetricSink(metricMeter),
+      ...metricsTracker.getInjectedSinks(),
       // Fix deprecated registration of the 'defaultWorkerLogger' sink
       ...(sinks?.defaultWorkerLogger ? { __temporal_logger: sinks.defaultWorkerLogger } : {}),
       ...sinks,
@@ -1059,7 +1058,7 @@ function addDefaultWorkerOptions(
 export function compileWorkerOptions(
   rawOpts: WorkerOptions,
   logger: Logger,
-  metricMeter: MetricMeter
+  metricsTracker: WorkflowMetricsTracker
 ): CompiledWorkerOptions {
   // Validate sink names to ensure they don't use reserved prefixes/names
   if (rawOpts.sinks) {
@@ -1068,7 +1067,7 @@ export function compileWorkerOptions(
     }
   }
 
-  const opts = addDefaultWorkerOptions(rawOpts, logger, metricMeter);
+  const opts = addDefaultWorkerOptions(rawOpts, logger, metricsTracker);
   if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
     logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
     opts.maxCachedWorkflows = 2;
