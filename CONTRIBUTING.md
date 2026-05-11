@@ -8,7 +8,6 @@
 - [Maintenance](#maintenance)
 - [Getting started](#getting-started)
   - [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
-  - [SDK Structure](#sdk-structure)
   - [Environment setup](#environment-setup)
 - [Development](#development)
   - [Testing](#testing)
@@ -16,8 +15,7 @@
       - [Integration tests](#integration-tests)
     - [test-npm-init](#test-npm-init)
   - [Style Guide](#style-guide)
-- [Publishing](#publishing)
-- [Updating published packages](#updating-published-packages)
+- [Updating and pruning dependencies](#updating-and-pruning-dependencies)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -47,9 +45,9 @@ for SDK development. For easier testing during development, you may want to use
 a version manager, such as [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
 
 1. To run tests, you will need access to a local Temporal server, e.g. using the
-   [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server).
+   [Temporal CLI's integrated dev server](https://docs.temporal.io/cli).
 2. Install the [Rust toolchain](https://rustup.rs/).
-3. Install [Protocol Buffers](https://github.com/protocolbuffers/protobuf/releases/).
+3. Install [Protocol Buffers](https://protobuf.dev/installation/).
 4. Clone the [sdk-typescript](https://github.com/temporalio/sdk-typescript) repo:
 
    ```sh
@@ -84,33 +82,33 @@ corepack enable
 You should now be able to build:
 
 ```sh
-pnpm run build
+pnpm build
 ```
 
 If building fails, resetting your environment may help:
 
 ```
-pnpm run clean -y
+pnpm clean
 pnpm install --frozen-lockfile
 ```
 
 If `pnpm install` fails in `@temporalio/core-bridge` on the command `pnpm tsx ./scripts/build.ts`, you may
 need to do `rustup update`.
 
-To update to the latest version of the Core SDK, run `git submodule update` followed by `pnpm run build` to recompile.
+To update to the latest version of the Core SDK, run `git submodule update` followed by `pnpm build` to recompile.
 
 ## Development
 
 After your environment is set up, you can run these commands:
 
-- `pnpm run build` compiles protobuf definitions, Rust bridge, C++ isolate extension, and Typescript.
+- `pnpm build` compiles protobuf definitions, Rust bridge, C++ isolate extension, and Typescript.
 - `pnpm run rebuild` deletes all generated files in the project and reruns build.
-- `pnpm run build:watch` watches filesystem for changes and incrementally compiles Typescript on change.
-- `pnpm run test` runs the test suite.
-- `pnpm run test:watch` runs the test suite on each change to Typescript files.
-- `pnpm run format` formats code with prettier.
-- `pnpm run lint` verifies code style with prettier and ES lint.
-- `pnpm run commitlint` validates [commit messages](#style-guide).
+- `pnpm build:watch` watches filesystem for changes and incrementally compiles Typescript on change.
+- `pnpm test` runs the test suite. Tests assume you have a [Temporal server running locally](https://docs.temporal.io/cli#start-dev-server).
+- `pnpm test:watch` runs the test suite on each change to Typescript files.
+- `pnpm format` formats code with prettier.
+- `pnpm lint` verifies code style with prettier and ES lint.
+- `pnpm commitlint` validates [commit messages](#style-guide).
 
 ### Testing
 
@@ -157,7 +155,7 @@ rm -rf ./example "$TMP_DIR"
 chore(samples): upgrade commander module
 ```
 
-The `scope` options are listed in [commitlint.config.js](https://github.com/temporalio/sdk-typescript/blob/main/commitlint.config.js).
+The `scope` options are listed in [commitlint.config.js](./commitlint.config.js).
 
 ## Updating and pruning dependencies
 
