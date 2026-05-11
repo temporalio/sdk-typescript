@@ -34,14 +34,6 @@ import {
   TestWorkflowEnvironment,
 } from '@temporalio/test-helpers';
 
-const defaultDynamicConfigOptions = [
-  'system.enableActivityEagerExecution=true',
-  'history.enableRequestIdRefLinks=true',
-  'frontend.activityAPIsEnabled=true',
-  'activity.enableStandalone=true',
-  'history.enableChasm=true',
-  'history.enableTransitionHistory=true',
-];
 export { defaultSAKeys, createLocalTestEnvironment };
 
 /**

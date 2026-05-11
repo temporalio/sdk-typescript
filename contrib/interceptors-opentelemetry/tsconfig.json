@@ -10,6 +10,7 @@
     { "path": "../../packages/common" },
     { "path": "../../packages/plugin" },
     { "path": "../../packages/proto" },
+    { "path": "../../packages/test-helpers" },
     { "path": "../../packages/testing" },
     { "path": "../../packages/worker" },
     { "path": "../../packages/workflow" }
