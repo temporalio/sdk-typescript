@@ -89,6 +89,13 @@ test('Custom Metrics - Bridge supports works properly (no tags)', async (t) => {
   await assertMetricReported(t, /my_float_histogram_bucket{le="0.05"} 1/);
   await assertMetricReported(t, /my_float_histogram_bucket{le="0.1"} 2/);
   await assertMetricReported(t, /my_float_histogram_bucket{le="1"} 3/);
+
+  // UpDownCounter
+  const upDown = meter.createUpDownCounter!('my-up-down-counter', 'my-up-down-counter-unit', 'my-up-down-counter-description');
+  upDown.add(1);
+  upDown.add(5);
+  upDown.add(-3); // 1 + 5 - 3 = 3
+  await assertMetricReported(t, /my_up_down_counter 3/);
 });
 
 /**
@@ -127,6 +134,11 @@ test('Custom Metrics - Tags composition works properly', async (t) => {
     t,
     /my_float_histogram_bucket{labelA="value-a",labelB="true",labelC="123",labelD="123.456",le="0.5"} 1/
   );
+
+  // UpDownCounter
+  const upDown = meter.createUpDownCounter!('my-up-down-counter', 'my-up-down-counter-unit', 'my-up-down-counter-description');
+  upDown.add(2, { labelA: 'value-a', labelB: true, labelC: 123, labelD: 123.456 });
+  await assertMetricReported(t, /my_up_down_counter{labelA="value-a",labelB="true",labelC="123",labelD="123.456"} 2/);
 });
 
 export async function metricWorksWorkflow(): Promise<void> {
