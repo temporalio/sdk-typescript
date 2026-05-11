@@ -13,7 +13,7 @@
   - [Working with Individual Packages](#working-with-individual-packages)
   - [Testing](#testing)
     - [Testing local changes to core](#testing-local-changes-to-core)
-    - [Integration tests](#integration-tests)
+      - [Integration tests](#integration-tests)
     - [test-npm-init](#test-npm-init)
   - [Style Guide](#style-guide)
 - [Updating and pruning dependencies](#updating-and-pruning-dependencies)
@@ -68,9 +68,9 @@ a version manager, such as [fnm](https://github.com/Schniz/fnm) or [nvm](https:/
 6. Install `pnpm`
    TS SDK uses PNPM to manage dependencies. Corepack is the recommend way to install `pnpm` and is included in Node 14+
 
-   ```sh
-   corepack enable
-   ```
+```sh
+corepack enable
+```
 
 7. Install the dependencies:
 
@@ -89,7 +89,7 @@ pnpm build
 If building fails, resetting your environment may help:
 
 ```
-pnpm run clean
+pnpm clean
 pnpm install --frozen-lockfile
 ```
 
@@ -132,7 +132,7 @@ The `...` suffix includes all dependencies of the specified package.
 Create a `.cargo/config.toml` file and override the path to sdk-core and/or sdk-core-protos as
 described [here](https://doc.rust-lang.org/cargo/reference/overriding-dependencies.html#paths-overrides)
 
-#### Integration tests
+##### Integration tests
 
 In order to run integration tests:
 
