@@ -3,7 +3,7 @@ import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
 import { create, createRegistry, toBinary, toJson } from '@bufbuild/protobuf';
 import { anyPack, anyUnpack, AnySchema } from '@bufbuild/protobuf/wkt';
-import { WorkflowClient } from '@temporalio/client';
+import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import {
   BinaryPayloadConverter,
   defaultPayloadConverter,
@@ -316,6 +316,22 @@ test('protobufjs can decode a protobuf-es-produced JSON payload', (t) => {
   t.is(decoded.age, 1);
 });
 
+test('protobufjs rejects a protobuf-es payload with messageType metadata stripped', (t) => {
+  // Symmetry with the es-side "throws detailed errors on fromPayload" test:
+  // a malformed payload (missing metadata.messageType) surfaces as ValueError
+  // on the pbjs side too, no matter who produced it.
+  const esMsg = create(ProtoActivityInputSchema, { name: 'Proto', age: 1 });
+  const payload = esBinary.toPayload(esMsg)!;
+  const stripped = {
+    metadata: { [METADATA_ENCODING_KEY]: payload.metadata![METADATA_ENCODING_KEY] },
+    data: payload.data,
+  };
+  t.throws(() => pbjsBinary.fromPayload(stripped), {
+    instanceOf: ValueError,
+    message: /metadata\.messageType/,
+  });
+});
+
 test('bytes-field payloads match across runtimes', (t) => {
   const esMsg = create(BinaryMessageSchema, { data: encode('abc') });
   const pbjsMsg = pbjsRoot.BinaryMessage.create({ data: encode('abc') });
@@ -499,6 +515,19 @@ test('JSON round-trip of google.protobuf.Any without registry knowledge of the i
   });
 });
 
+test('JSON encoding of google.protobuf.Any with no registry at all surfaces the registry error', (t) => {
+  // When the converter has *no* registry, the failure mode is the standard
+  // "without registry" PayloadConverterError from getSchemaOrThrow — not a
+  // leaked error from inside toJson. Pins that contract for the Any case.
+  const noRegistry = new ProtobufEsJsonPayloadConverter();
+  const inner = create(ProtoActivityInputSchema, { name: 'Proto', age: 1 });
+  const packed = anyPack(ProtoActivityInputSchema, inner);
+  t.throws(() => noRegistry.toPayload(packed), {
+    instanceOf: PayloadConverterError,
+    message: /without `registry`/,
+  });
+});
+
 test('plain object with $typeName but no registry match surfaces as PayloadConverterError', (t) => {
   // The cheap structural check (presence of `$typeName: string`) is the only
   // brand a protobuf-es message exposes at runtime. A user JSON value that
@@ -648,6 +677,37 @@ if (RUN_INTEGRATION_TESTS) {
       // Final result is the most-recent setInputSignal value (sentSignal).
       t.is(final.name, 'Signal');
       t.is(final.age, 7);
+    });
+  });
+
+  test.serial('Worker surfaces finishSignal-before-setInputSignal as workflow failure', async (t) => {
+    const dataConverter = {
+      payloadConverterPath: require.resolve('./payload-converters/proto-es-payload-converter'),
+    };
+    const taskQueue = `${__filename}/${t.title}`;
+
+    const worker = await Worker.create({
+      ...defaultOptions,
+      workflowsPath: require.resolve('./workflows/protobufs-es-signals-queries-updates'),
+      taskQueue,
+      dataConverter,
+    });
+
+    const client = new WorkflowClient({ dataConverter });
+
+    await worker.runUntil(async () => {
+      const handle = await client.start(protobufEsSignalsQueriesUpdates, {
+        args: [],
+        workflowId: uuid4(),
+        taskQueue,
+      });
+      // Skip the usual setInputSignal — the workflow's contract is that
+      // finishing without input is a nonRetryable ApplicationFailure.
+      await handle.signal(finishSignal);
+      const err = (await t.throwsAsync(handle.result(), {
+        instanceOf: WorkflowFailedError,
+      })) as WorkflowFailedError;
+      t.regex(String(err.cause), /finishSignal received before setInputSignal/);
     });
   });
 }

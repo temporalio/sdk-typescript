@@ -1,5 +1,12 @@
 import { create } from '@bufbuild/protobuf';
-import { condition, defineQuery, defineSignal, defineUpdate, setHandler } from '@temporalio/workflow';
+import {
+  ApplicationFailure,
+  condition,
+  defineQuery,
+  defineSignal,
+  defineUpdate,
+  setHandler,
+} from '@temporalio/workflow';
 import {
   ProtoActivityResultSchema,
   type ProtoActivityInput,
@@ -27,6 +34,9 @@ export async function protobufEsSignalsQueriesUpdates(): Promise<ProtoActivityIn
   });
 
   await condition(() => done);
-  if (!lastInput) throw new Error('finishSignal received before setInputSignal');
+  // Use ApplicationFailure so the workflow fails terminally — a plain `Error`
+  // would fail the workflow task and retry forever instead of surfacing the
+  // contract violation.
+  if (!lastInput) throw ApplicationFailure.nonRetryable('finishSignal received before setInputSignal');
   return lastInput;
 }
