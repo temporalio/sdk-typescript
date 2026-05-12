@@ -2,16 +2,16 @@ import {
   createRegistry,
   fromBinary,
   fromJson,
+  isMessage,
   toBinary,
   toJson,
   type DescMessage,
-  type MessageShape,
   type Registry,
 } from '@bufbuild/protobuf';
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import type { Payload } from '../interfaces';
-import { hasOwnProperty, isRecord } from '../type-helpers';
+import { isRecord } from '../type-helpers';
 import type { PayloadConverterWithEncoding } from './payload-converter';
 import {
   BinaryPayloadConverter,
@@ -99,11 +99,11 @@ export class ProtobufEsBinaryPayloadConverter extends ProtobufEsPayloadConverter
   }
 
   public toPayload(value: unknown): Payload | undefined {
-    if (!isProtobufEsMessage(value)) return undefined;
+    if (!isMessage(value)) return undefined;
     const schema = this.getSchemaOrThrow(value.$typeName);
     return this.constructPayload({
       messageTypeName: value.$typeName,
-      message: toBinary(schema, value as MessageShape<DescMessage>),
+      message: toBinary(schema, value),
     });
   }
 
@@ -133,13 +133,13 @@ export class ProtobufEsJsonPayloadConverter extends ProtobufEsPayloadConverter {
   }
 
   public toPayload(value: unknown): Payload | undefined {
-    if (!isProtobufEsMessage(value)) return undefined;
+    if (!isMessage(value)) return undefined;
     const schema = this.getSchemaOrThrow(value.$typeName);
     // Forward the registry so `google.protobuf.Any` and extension fields can
     // resolve their embedded types during proto3 JSON serialization.
     return this.constructPayload({
       messageTypeName: value.$typeName,
-      message: encode(JSON.stringify(toJson(schema, value as MessageShape<DescMessage>, { registry: this.registry }))),
+      message: encode(JSON.stringify(toJson(schema, value, { registry: this.registry }))),
     });
   }
 
@@ -147,20 +147,6 @@ export class ProtobufEsJsonPayloadConverter extends ProtobufEsPayloadConverter {
     const { schema, data } = this.validatePayload(content);
     return fromJson(schema, JSON.parse(decode(data)), { registry: this.registry }) as T;
   }
-}
-
-/**
- * `@bufbuild/protobuf` v2 messages share a shape: a `$typeName` string. That is enough to
- * recognize one without needing the schema in hand.
- *
- * Caveat: any plain JS object with `$typeName: string` will match here. The composite
- * converter will then look up the type in the registry; if the schema is missing it
- * surfaces as `PayloadConverterError` rather than silently falling through to the JSON
- * converter. If your application uses `$typeName` as a regular field on JSON-serialized
- * data, either rename the field or order this converter after `JsonPayloadConverter`.
- */
-function isProtobufEsMessage(value: unknown): value is { $typeName: string } {
-  return isRecord(value) && hasOwnProperty(value, '$typeName') && typeof value.$typeName === 'string';
 }
 
 function isRegistry(x: unknown): x is Registry {
