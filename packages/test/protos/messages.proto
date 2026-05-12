@@ -12,3 +12,34 @@ message ProtoActivityResult {
 message BinaryMessage {
   bytes data = 1;
 }
+
+message Wrapper {
+  ProtoActivityInput inner = 1;
+  string label = 2;
+}
+
+message OneofMessage {
+  oneof choice {
+    string text = 1;
+    int32 number = 2;
+    ProtoActivityInput nested = 3;
+  }
+}
+
+message MapMessage {
+  map<string, string> entries = 1;
+  map<string, int32> counts = 2;
+}
+
+enum Color {
+  COLOR_UNSPECIFIED = 0;
+  COLOR_RED = 1;
+  COLOR_GREEN = 2;
+  COLOR_BLUE = 3;
+}
+
+// Exercises int64 (encoded as string in proto3 JSON) and an enum.
+message NumbersAndEnum {
+  int64 big = 1;
+  Color color = 2;
+}

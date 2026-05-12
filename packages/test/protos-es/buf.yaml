@@ -1,0 +1,14 @@
+version: v2
+# Share .proto source with the protobufjs codegen pipeline under ../protos —
+# both toolchains read identical fixtures.
+modules:
+  - path: ../protos
+lint:
+  use:
+    - STANDARD
+  except:
+    - PACKAGE_DIRECTORY_MATCH
+    - PACKAGE_VERSION_SUFFIX
+breaking:
+  use:
+    - FILE
