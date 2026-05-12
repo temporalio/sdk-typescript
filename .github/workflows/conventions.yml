@@ -51,4 +51,6 @@ jobs:
         run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
 
       - run: pnpm run lint:check
+        env:
+          NODE_OPTIONS: '--max-old-space-size=8192'
       - run: pnpm run lint:prune

@@ -18,6 +18,9 @@
   },
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
+  "scripts": {
+    "build": "tsc --build"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/temporalio/sdk-typescript.git"
