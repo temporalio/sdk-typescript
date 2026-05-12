@@ -599,9 +599,10 @@ if (RUN_INTEGRATION_TESTS) {
         workflowId: uuid4(),
         taskQueue,
       });
-      // protobuf-es messages carry a non-enumerable $typeName which deepEqual
-      // ignores when one side lacks it after cross-realm transfer; assert the
-      // observable fields explicitly so we get a clear failure.
+      // Assert observable fields directly rather than `deepEqual` the whole
+      // message: the cross-realm value lacks the prototype identity that
+      // `deepEqual` would compare, and explicit field checks give a sharper
+      // failure if the round-trip drifts.
       t.true((result as EsBinaryMessageType).data instanceof Uint8Array);
       t.deepEqual((result as EsBinaryMessageType).data, binaryInstance.data);
     });

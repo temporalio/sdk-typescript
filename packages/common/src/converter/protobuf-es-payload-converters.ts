@@ -109,8 +109,10 @@ export class ProtobufEsBinaryPayloadConverter extends ProtobufEsPayloadConverter
 
   public fromPayload<T>(content: Payload): T {
     const { schema, data } = this.validatePayload(content);
-    // Re-wrap with Uint8Array from this realm so cross-realm `instanceof` checks
-    // inside @bufbuild/protobuf keep working through the workflow sandbox.
+    // Re-wrap with a Uint8Array from this realm so `instanceof Uint8Array`
+    // checks inside @bufbuild/protobuf keep working through the workflow
+    // sandbox. The JSON path doesn't need this — `decode()` hands the bytes to
+    // `TextDecoder`, which accepts any cross-realm `BufferSource` structurally.
     const localData = new Uint8Array(data.buffer, data.byteOffset, data.length);
     return fromBinary(schema, localData) as T;
   }
@@ -170,6 +172,14 @@ export interface DefaultPayloadConverterWithProtobufsEsOptions {
  *
  * Mirrors the order used by other Temporal SDKs:
  * https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28
+ *
+ * Caveat: protobuf-es messages are recognized structurally via `$typeName: string` (the
+ * upstream `isMessage` brand). Because the protobuf converters sit ahead of
+ * `JsonPayloadConverter` in the chain, any plain JS object with a `$typeName: string`
+ * property will be claimed here and then fail registry lookup with `PayloadConverterError`
+ * rather than falling through to JSON. If your application JSON-serializes values that
+ * happen to carry a `$typeName` string field, rename the field on those values or compose
+ * your own converter chain that places `JsonPayloadConverter` first.
  */
 export class DefaultPayloadConverterWithProtobufsEs extends CompositePayloadConverter {
   constructor({ registry }: DefaultPayloadConverterWithProtobufsEsOptions) {
