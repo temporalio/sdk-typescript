@@ -521,9 +521,11 @@ test('plain object with $typeName but no registry match surfaces as PayloadConve
 // -----------------------------------------------------------------------------
 
 if (RUN_INTEGRATION_TESTS) {
-  // This test runs FIRST in the integration block because `Runtime.install`
-  // must be called before any Worker is instantiated.
-  test('Worker surfaces missing-schema-in-registry as a workflow task failure', async (t) => {
+  // `test.serial` so the three integration tests run in declaration order;
+  // `Runtime.install` below must execute before any Worker is constructed,
+  // which would otherwise instantiate the default Runtime and lock the install
+  // out with "already instantiated".
+  test.serial('Worker surfaces missing-schema-in-registry as a workflow task failure', async (t) => {
     let markErrorThrown: () => void;
     const expectedErrorWasThrown = new Promise<void>((resolve) => {
       markErrorThrown = resolve;
@@ -575,7 +577,7 @@ if (RUN_INTEGRATION_TESTS) {
     t.pass();
   });
 
-  test('Worker round-trips a protobuf-es BinaryMessage through the sandbox', async (t) => {
+  test.serial('Worker round-trips a protobuf-es BinaryMessage through the sandbox', async (t) => {
     const binaryInstance = create(BinaryMessageSchema, { data: encode('abc') });
     const dataConverter = {
       payloadConverterPath: require.resolve('./payload-converters/proto-es-payload-converter'),
@@ -605,7 +607,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
   });
 
-  test('Worker round-trips protobuf-es messages through signal, query, and update', async (t) => {
+  test.serial('Worker round-trips protobuf-es messages through signal, query, and update', async (t) => {
     const dataConverter = {
       payloadConverterPath: require.resolve('./payload-converters/proto-es-payload-converter'),
     };
