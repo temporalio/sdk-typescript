@@ -30,15 +30,12 @@ export type ProtobufEsRegistryInput = Registry | readonly DescMessage[];
 
 abstract class ProtobufEsPayloadConverter implements PayloadConverterWithEncoding {
   protected readonly registry: Registry | undefined;
-  private readonly encodedEncodingType: Uint8Array;
   public abstract encodingType: string;
 
   public abstract toPayload<T>(value: T): Payload | undefined;
   public abstract fromPayload<T>(payload: Payload): T;
 
-  constructor(encodingType: string, registryOrSchemas?: ProtobufEsRegistryInput) {
-    this.encodedEncodingType = encode(encodingType);
-
+  constructor(registryOrSchemas?: ProtobufEsRegistryInput) {
     if (registryOrSchemas === undefined) return;
 
     if (Array.isArray(registryOrSchemas)) {
@@ -77,7 +74,7 @@ abstract class ProtobufEsPayloadConverter implements PayloadConverterWithEncodin
   protected constructPayload({ messageTypeName, message }: { messageTypeName: string; message: Uint8Array }): Payload {
     return {
       metadata: {
-        [METADATA_ENCODING_KEY]: this.encodedEncodingType,
+        [METADATA_ENCODING_KEY]: encode(this.encodingType),
         [METADATA_MESSAGE_TYPE_KEY]: encode(messageTypeName),
       },
       data: message,
@@ -95,7 +92,7 @@ export class ProtobufEsBinaryPayloadConverter extends ProtobufEsPayloadConverter
   public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF;
 
   constructor(registryOrSchemas?: ProtobufEsRegistryInput) {
-    super(encodingTypes.METADATA_ENCODING_PROTOBUF, registryOrSchemas);
+    super(registryOrSchemas);
   }
 
   public toPayload(value: unknown): Payload | undefined {
@@ -123,15 +120,15 @@ export class ProtobufEsBinaryPayloadConverter extends ProtobufEsPayloadConverter
  * (proto3 JSON mapping).
  *
  * Produces canonical proto3 JSON that {@link ProtobufJsonPayloadConverter} can also read
- * (and vice versa). Exact JSON byte equality across the two runtimes is not guaranteed
- * for every message — field ordering or trailing-zero formatting may differ — but the
- * structural content is identical.
+ * (and vice versa) for supported overlapping proto3 features. Exact JSON byte equality
+ * across the two runtimes is not guaranteed for every message — field ordering, default
+ * value emission, and numeric representation can differ.
  */
 export class ProtobufEsJsonPayloadConverter extends ProtobufEsPayloadConverter {
   public encodingType = encodingTypes.METADATA_ENCODING_PROTOBUF_JSON;
 
   constructor(registryOrSchemas?: ProtobufEsRegistryInput) {
-    super(encodingTypes.METADATA_ENCODING_PROTOBUF_JSON, registryOrSchemas);
+    super(registryOrSchemas);
   }
 
   public toPayload(value: unknown): Payload | undefined {
@@ -173,13 +170,13 @@ export interface DefaultPayloadConverterWithProtobufsEsOptions {
  * Mirrors the order used by other Temporal SDKs:
  * https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28
  *
- * Caveat: protobuf-es messages are recognized structurally via `$typeName: string` (the
- * upstream `isMessage` brand). Because the protobuf converters sit ahead of
- * `JsonPayloadConverter` in the chain, any plain JS object with a `$typeName: string`
- * property will be claimed here and then fail registry lookup with `PayloadConverterError`
- * rather than falling through to JSON. If your application JSON-serializes values that
- * happen to carry a `$typeName` string field, rename the field on those values or compose
- * your own converter chain that places `JsonPayloadConverter` first.
+ * Caveat: protobuf-es messages are recognized structurally via `$typeName: string`, which
+ * is the upstream `isMessage` check. Because the protobuf converters sit ahead of
+ * `JsonPayloadConverter` in the chain, a plain JS object with a `$typeName` string matching
+ * a registered schema will be serialized as that protobuf type. An unregistered `$typeName`
+ * fails registry lookup with `PayloadConverterError`. If your application JSON-serializes
+ * values that happen to carry a `$typeName` string field, rename the field on those values
+ * or compose your own converter chain that places `JsonPayloadConverter` first.
  */
 export class DefaultPayloadConverterWithProtobufsEs extends CompositePayloadConverter {
   constructor({ registry }: DefaultPayloadConverterWithProtobufsEsOptions) {

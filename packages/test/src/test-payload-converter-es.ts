@@ -46,6 +46,7 @@ import {
   WrapperSchema,
 } from './protos-es-gen/messages_pb';
 import { ProtoActivityInputSchema as NamespacedProtoActivityInputSchema } from './protos-es-gen/namespaced-messages_pb';
+import { UpperMessageSchema } from './protos-es-gen/uppercase_pb';
 
 const registry = createRegistry(
   ProtoActivityInputSchema,
@@ -55,6 +56,7 @@ const registry = createRegistry(
   MapMessageSchema,
   NumbersAndEnumSchema,
   NamespacedProtoActivityInputSchema,
+  UpperMessageSchema,
   AnySchema
 );
 
@@ -68,6 +70,37 @@ test('ProtobufEsBinaryPayloadConverter converts from an instance', (t) => {
     },
     data: toBinary(ProtoActivityInputSchema, instance),
   });
+});
+
+test('ProtobufEsBinaryPayloadConverter uses fully-qualified message type metadata', (t) => {
+  const instance = create(NamespacedProtoActivityInputSchema, { name: 'Proto', age: 1 });
+  const converter = new ProtobufEsBinaryPayloadConverter(registry);
+  const payload = converter.toPayload(instance)!;
+
+  t.deepEqual(payload.metadata, {
+    [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
+    [METADATA_MESSAGE_TYPE_KEY]: encode('foo.bar.ProtoActivityInput'),
+  });
+  t.deepEqual(converter.fromPayload(payload), instance);
+});
+
+test('ProtobufEsPayloadConverter returns fresh metadata bytes for each payload', (t) => {
+  const instance = create(ProtoActivityInputSchema, { name: 'Proto', age: 1 });
+  const binary = new ProtobufEsBinaryPayloadConverter(registry);
+  const json = new ProtobufEsJsonPayloadConverter(registry);
+
+  for (const converter of [binary, json]) {
+    const first = converter.toPayload(instance)!;
+    const second = converter.toPayload(instance)!;
+
+    t.not(first.metadata![METADATA_ENCODING_KEY], second.metadata![METADATA_ENCODING_KEY]);
+
+    first.metadata![METADATA_ENCODING_KEY][0] = 0;
+    t.deepEqual(
+      converter.toPayload(instance)!.metadata![METADATA_ENCODING_KEY],
+      second.metadata![METADATA_ENCODING_KEY]
+    );
+  }
 });
 
 test('ProtobufEsBinaryPayloadConverter accepts a schema array in lieu of a registry', (t) => {
@@ -188,6 +221,13 @@ test('ProtobufEsJsonPayloadConverter round-trips an instance', (t) => {
   t.deepEqual(converter.fromPayload(converter.toPayload(instance)!), instance);
 });
 
+test('ProtobufEsJsonPayloadConverter accepts a schema array in lieu of a registry', (t) => {
+  const instance = create(NamespacedProtoActivityInputSchema, { name: 'Proto', age: 1 });
+  const converter = new ProtobufEsJsonPayloadConverter([NamespacedProtoActivityInputSchema]);
+  const payload = converter.toPayload(instance);
+  t.deepEqual(converter.fromPayload(payload!), instance);
+});
+
 test('ProtobufEsJsonPayloadConverter handles bytes fields as base64', (t) => {
   // bytes are emitted as base64 strings in proto3 JSON
   const instance = create(BinaryMessageSchema, { data: encode('abc') });
@@ -228,6 +268,14 @@ test('DefaultPayloadConverterWithProtobufsEs accepts an array of schemas', (t) =
   const instance = create(ProtoActivityInputSchema, { name: 'Proto', age: 1 });
   const payload = composite.toPayload(instance);
   t.deepEqual(composite.fromPayload(payload), instance);
+});
+
+test('DefaultPayloadConverterWithProtobufsEs decodes protobuf payloads by encoding', (t) => {
+  const composite = new DefaultPayloadConverterWithProtobufsEs({ registry });
+  const instance = create(ProtoActivityInputSchema, { name: 'Proto', age: 1 });
+
+  t.deepEqual(composite.fromPayload(new ProtobufEsBinaryPayloadConverter(registry).toPayload(instance)!), instance);
+  t.deepEqual(composite.fromPayload(new ProtobufEsJsonPayloadConverter(registry).toPayload(instance)!), instance);
 });
 
 test('defaultPayloadConverter has no idea what to do with a protobuf-es payload', (t) => {
@@ -287,33 +335,29 @@ test('JSON payloads from protobuf-es and protobufjs are byte-identical', (t) => 
 test('protobuf-es can decode a protobufjs-produced binary payload', (t) => {
   const pbjsMsg = pbjsRoot.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   const payload = pbjsBinary.toPayload(pbjsMsg)!;
-  const decoded = esBinary.fromPayload<{ name: string; age: number }>(payload);
-  t.is(decoded.name, 'Proto');
-  t.is(decoded.age, 1);
+  const decoded = esBinary.fromPayload(payload);
+  t.deepEqual(decoded, create(ProtoActivityInputSchema, { name: 'Proto', age: 1 }));
 });
 
 test('protobufjs can decode a protobuf-es-produced binary payload', (t) => {
   const esMsg = create(ProtoActivityInputSchema, { name: 'Proto', age: 1 });
   const payload = esBinary.toPayload(esMsg)!;
-  const decoded = pbjsBinary.fromPayload<{ name: string; age: number }>(payload);
-  t.is(decoded.name, 'Proto');
-  t.is(decoded.age, 1);
+  const decoded = pbjsBinary.fromPayload(payload);
+  t.deepEqual(decoded, pbjsRoot.ProtoActivityInput.create({ name: 'Proto', age: 1 }));
 });
 
 test('protobuf-es can decode a protobufjs-produced JSON payload', (t) => {
   const pbjsMsg = pbjsRoot.foo.bar.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   const payload = pbjsJson.toPayload(pbjsMsg)!;
-  const decoded = esJson.fromPayload<{ name: string; age: number }>(payload);
-  t.is(decoded.name, 'Proto');
-  t.is(decoded.age, 1);
+  const decoded = esJson.fromPayload(payload);
+  t.deepEqual(decoded, create(NamespacedProtoActivityInputSchema, { name: 'Proto', age: 1 }));
 });
 
 test('protobufjs can decode a protobuf-es-produced JSON payload', (t) => {
   const esMsg = create(NamespacedProtoActivityInputSchema, { name: 'Proto', age: 1 });
   const payload = esJson.toPayload(esMsg)!;
-  const decoded = pbjsJson.fromPayload<{ name: string; age: number }>(payload);
-  t.is(decoded.name, 'Proto');
-  t.is(decoded.age, 1);
+  const decoded = pbjsJson.fromPayload(payload);
+  t.deepEqual(decoded, pbjsRoot.foo.bar.ProtoActivityInput.create({ name: 'Proto', age: 1 }));
 });
 
 test('protobufjs rejects a protobuf-es payload with messageType metadata stripped', (t) => {
@@ -338,6 +382,19 @@ test('bytes-field payloads match across runtimes', (t) => {
 
   t.deepEqual(asBytes(esBinary.toPayload(esMsg)!.data), asBytes(pbjsBinary.toPayload(pbjsMsg)!.data));
   t.deepEqual(asBytes(esJson.toPayload(esMsg)!.data), asBytes(pbjsJson.toPayload(pbjsMsg)!.data));
+});
+
+test('uppercase package names round-trip with fully-qualified metadata', (t) => {
+  const esMsg = create(UpperMessageSchema, { name: 'Proto' });
+  const pbjsMsg = pbjsRoot.Uppercase.UpperMessage.create({ name: 'Proto' });
+  const payload = esBinary.toPayload(esMsg)!;
+
+  t.deepEqual(payload.metadata, {
+    [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF,
+    [METADATA_MESSAGE_TYPE_KEY]: encode('Uppercase.UpperMessage'),
+  });
+  t.deepEqual(asBytes(payload.data), asBytes(pbjsBinary.toPayload(pbjsMsg)!.data));
+  t.deepEqual(esBinary.fromPayload(payload), esMsg);
 });
 
 // -----------------------------------------------------------------------------
