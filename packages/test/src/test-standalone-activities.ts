@@ -4,6 +4,7 @@ import anyTest from 'ava';
 import * as rxjs from 'rxjs';
 import type { ActivityHandle, TypedActivityClient, ActivityOptions } from '@temporalio/client';
 import {
+  ActivityExecutionStatus,
   ActivityExecutionAlreadyStartedError,
   ActivityExecutionFailedError,
   ServiceError,
@@ -64,6 +65,7 @@ interface ActivityInterface {
 }
 
 const taskQueue = 'standalone-activities';
+const startDelayTestCliVersion = 'v1.7.1-standalone-nexus-operations';
 const defaultOptions: Omit<ActivityOptions, 'id' | 'args'> = {
   taskQueue,
   scheduleToCloseTimeout: '1 minute',
@@ -118,8 +120,8 @@ if (RUN_INTEGRATION_TESTS) {
 
   test.after.always(async (t) => {
     t.context.worker.shutdown();
-    await t.context.env.teardown();
     await t.context.runPromise;
+    await t.context.env.teardown();
   });
 
   test('Get activity result - success', async (t) => {
@@ -173,6 +175,49 @@ if (RUN_INTEGRATION_TESTS) {
     );
     t.assert(err?.cause instanceof ApplicationFailure);
     t.is(err?.cause?.message, 'failure');
+  });
+
+  test('Start activity with start delay', async (t) => {
+    const env = await createLocalTestEnvironment({
+      server: {
+        executable: {
+          type: 'cached-download',
+          version: startDelayTestCliVersion,
+        },
+        extraArgs: ['--dynamic-config-value', 'activity.startDelayEnabled=true'],
+      },
+    });
+
+    try {
+      const startDelayTaskQueue = `${taskQueue}-${uuid4()}`;
+      const worker = await Worker.create({
+        activities: { echo },
+        taskQueue: startDelayTaskQueue,
+        connection: env.nativeConnection,
+      });
+
+      await worker.runUntil(async () => {
+        const activityId = uuid4();
+        const startDelayMs = 2000;
+        const handle = await env.client.activity.start('echo', {
+          ...defaultOptions,
+          id: activityId,
+          taskQueue: startDelayTaskQueue,
+          args: ['hello'],
+          startDelay: startDelayMs,
+        });
+
+        t.is(await handle.result(), 'hello');
+
+        const description = await handle.describe();
+        t.is(description.status, ActivityExecutionStatus.COMPLETED);
+        t.truthy(description.scheduleTime);
+        t.truthy(description.lastStartedTime);
+        t.true(description.lastStartedTime!.getTime() - description.scheduleTime!.getTime() >= startDelayMs - 500);
+      });
+    } finally {
+      await env.teardown();
+    }
   });
 
   test('Describe activity from start handle', async (t) => {
