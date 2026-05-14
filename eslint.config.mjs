@@ -6,17 +6,20 @@ import prettierConfig from 'eslint-config-prettier';
 export default tseslint.config(
   { ignores: ['**/node_modules/**', '**/lib/**', '**/*.js', '**/*.mjs', '**/*.cjs'] },
   {
-    files: ['packages/*/src/**/*.ts'],
+    files: ['packages/*/src/**/*.ts', 'contrib/*/src/**/*.ts'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended, prettierConfig],
     plugins: { import: importPlugin },
     languageOptions: {
-      parserOptions: { project: ['./packages/*/tsconfig.json'] },
+      parserOptions: { project: ['./packages/*/tsconfig.json', './contrib/*/tsconfig.json'] },
     },
     settings: {
       'import/parsers': { '@typescript-eslint/parser': ['.ts'] },
       'import/resolver': {
         // Resolve types under `<root>@types` even for packages without source code, like `@types/unist`
-        typescript: { alwaysTryTypes: true, project: ['packages/*/tsconfig.json'] },
+        typescript: {
+          alwaysTryTypes: true,
+          project: ['packages/*/tsconfig.json', 'contrib/*/tsconfig.json'],
+        },
       },
       'import/internal-regex': '^@temporalio/',
     },

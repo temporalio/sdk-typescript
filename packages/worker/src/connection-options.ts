@@ -1,4 +1,6 @@
 import type { native } from '@temporalio/core-bridge';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msToNumber } from '@temporalio/common/lib/time';
 import {
   joinProtoHostPort,
   normalizeGrpcEndpointAddress,
@@ -12,6 +14,16 @@ import pkg from './pkg';
 import type { NativeConnectionPlugin } from './connection';
 
 export { TLSConfig, ProxyConfig };
+
+/**
+ * DNS load balancing configuration.
+ */
+export interface DNSLoadBalancingConfig {
+  /**
+   * How often Core should re-resolve DNS records for the target host.
+   */
+  resolutionInterval: Duration;
+}
 
 /**
  * The default Temporal Server's TCP port for public gRPC connections.
@@ -40,6 +52,17 @@ export interface NativeConnectionOptions {
    * Proxying configuration.
    */
   proxy?: ProxyConfig;
+
+  /**
+   * DNS load balancing configuration.
+   *
+   * When set, Core periodically re-resolves the target host's DNS records and
+   * round-robins requests across the resolved addresses.
+   *
+   * Disabled by default. If {@link proxy} is also set, Core DNS load balancing
+   * is disabled because the two options are mutually exclusive.
+   */
+  dnsLoadBalancingConfig?: DNSLoadBalancingConfig | null;
 
   /**
    * Optional mapping of gRPC metadata (HTTP headers) to send with each request to the server.
@@ -109,6 +132,12 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
     };
   }
 
+  const dnsLoadBalancingConfig: native.DnsLoadBalancingConfig | null = options.dnsLoadBalancingConfig
+    ? {
+        resolutionIntervalMillis: msToNumber(options.dnsLoadBalancingConfig.resolutionInterval),
+      }
+    : null;
+
   if (options?.apiKey && options.metadata?.['Authorization']) {
     throw new TypeError(
       'Both `apiKey` option and `Authorization` header were provided. Only one makes sense to use at a time.'
@@ -133,6 +162,7 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
     clientVersion: pkg.version,
     tls,
     httpConnectProxy,
+    dnsLoadBalancingConfig,
     headers,
     apiKey: options.apiKey ?? null,
     disableErrorCodeMetricTags: options.disableErrorCodeMetricTags ?? false,

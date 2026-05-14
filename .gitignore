@@ -9,6 +9,7 @@ packages/testing/test-server*
 packages/testing/generated-protos/
 packages/core-bridge/releases
 packages/*/package-lock.json
+contrib/*/package-lock.json
 /sdk-node.iml
 *~
 .claude/settings.local.json

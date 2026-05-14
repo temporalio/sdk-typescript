@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@temporalio/test",
-  "version": "1.17.0",
+  "version": "1.17.1",
   "description": "Temporal.io SDK Tests",
   "scripts": {
     "build": "pnpm run \"/^build:.*/\"",
@@ -25,12 +25,8 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@ai-sdk/mcp": "^1.0.0",
-    "@ai-sdk/openai": "^3.0.0",
-    "@ai-sdk/provider": "^3.0.0",
     "@grpc/grpc-js": "^1.12.4",
     "@grpc/proto-loader": "^0.7.10",
-    "@modelcontextprotocol/sdk": "^1.26.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/core": "^1.25.1",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.52.1",
@@ -38,7 +34,6 @@
     "@opentelemetry/sdk-trace-base": "^1.25.1",
     "@opentelemetry/semantic-conventions": "^1.25.1",
     "@temporalio/activity": "workspace:*",
-    "@temporalio/ai-sdk": "workspace:*",
     "@temporalio/client": "workspace:*",
     "@temporalio/cloud": "workspace:*",
     "@temporalio/common": "workspace:*",
@@ -50,10 +45,10 @@
     "@temporalio/nyc-test-coverage": "workspace:*",
     "@temporalio/plugin": "workspace:*",
     "@temporalio/proto": "workspace:*",
+    "@temporalio/test-helpers": "workspace:*",
     "@temporalio/testing": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "@temporalio/workflow": "workspace:*",
-    "ai": "^6.0.0",
     "arg": "^5.0.2",
     "async-retry": "^1.3.3",
     "ava": "^5.3.1",
@@ -67,8 +62,7 @@
     "protobufjs-cli": "^1.1.2",
     "rxjs": "7.8.1",
     "stack-utils": "^2.0.6",
-    "uuid": "^11.1.0",
-    "zod": "^3.25.76"
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/async-retry": "^1.4.8",
