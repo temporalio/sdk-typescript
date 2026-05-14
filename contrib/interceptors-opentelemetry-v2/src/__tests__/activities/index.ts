@@ -25,7 +25,7 @@ export async function fakeProgress(sleepIntervalMs = 1000, numIters = 100): Prom
 async function signalSchedulingWorkflow(signalName: string): Promise<void> {
   const { info, client } = Context.current();
   const { workflowExecution } = info;
-  const handle = client.workflow.getHandle(workflowExecution.workflowId, workflowExecution.runId);
+  const handle = client.workflow.getHandle(workflowExecution!.workflowId, workflowExecution!.runId);
   await handle.signal(signalName);
 }
 

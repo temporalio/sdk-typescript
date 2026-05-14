@@ -5,7 +5,7 @@ import { Context } from '@temporalio/activity';
 function getSchedulingWorkflowHandle(): WorkflowHandle {
   const { info, client } = Context.current();
   const { workflowExecution } = info;
-  return client.workflow.getHandle(workflowExecution.workflowId, workflowExecution.runId);
+  return client.workflow.getHandle(workflowExecution!.workflowId, workflowExecution!.runId);
 }
 
 export async function signalSchedulingWorkflow(signalName: string): Promise<void> {
