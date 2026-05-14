@@ -17,7 +17,7 @@ import type { TestWorkflowEnvironment } from './helpers';
 import { RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
 import { echo, throwAnError } from './activities';
 import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
-import { createLocalTestEnvironment } from './helpers-integration';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -65,7 +65,6 @@ interface ActivityInterface {
 }
 
 const taskQueue = 'standalone-activities';
-const startDelayTestCliVersion = 'v1.7.1-standalone-nexus-operations';
 const defaultOptions: Omit<ActivityOptions, 'id' | 'args'> = {
   taskQueue,
   scheduleToCloseTimeout: '1 minute',
@@ -80,9 +79,14 @@ async function waitForValue<T>(subject: rxjs.Subject<T>, value: T) {
 
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
-    const env = await createLocalTestEnvironment({
+    const env = await createTestWorkflowEnvironment({
       server: {
-        extraArgs: ['--dynamic-config-value', `activity.longPollTimeout="${LONG_POLL_TIMEOUT_MS}ms"`],
+        extraArgs: [
+          '--dynamic-config-value',
+          `activity.longPollTimeout="${LONG_POLL_TIMEOUT_MS}ms"`,
+          '--dynamic-config-value',
+          'activity.startDelayEnabled=true',
+        ],
       },
     });
 
@@ -178,46 +182,23 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Start activity with start delay', async (t) => {
-    const env = await createLocalTestEnvironment({
-      server: {
-        executable: {
-          type: 'cached-download',
-          version: startDelayTestCliVersion,
-        },
-        extraArgs: ['--dynamic-config-value', 'activity.startDelayEnabled=true'],
-      },
+    const client = t.context.env.client.activity;
+    const activityId = uuid4();
+    const startDelayMs = 2000;
+    const handle = await client.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+      startDelay: startDelayMs,
     });
 
-    try {
-      const startDelayTaskQueue = `${taskQueue}-${uuid4()}`;
-      const worker = await Worker.create({
-        activities: { echo },
-        taskQueue: startDelayTaskQueue,
-        connection: env.nativeConnection,
-      });
+    t.is(await handle.result(), 'hello');
 
-      await worker.runUntil(async () => {
-        const activityId = uuid4();
-        const startDelayMs = 2000;
-        const handle = await env.client.activity.start('echo', {
-          ...defaultOptions,
-          id: activityId,
-          taskQueue: startDelayTaskQueue,
-          args: ['hello'],
-          startDelay: startDelayMs,
-        });
-
-        t.is(await handle.result(), 'hello');
-
-        const description = await handle.describe();
-        t.is(description.status, ActivityExecutionStatus.COMPLETED);
-        t.truthy(description.scheduleTime);
-        t.truthy(description.lastStartedTime);
-        t.true(description.lastStartedTime!.getTime() - description.scheduleTime!.getTime() >= startDelayMs - 500);
-      });
-    } finally {
-      await env.teardown();
-    }
+    const description = await handle.describe();
+    t.is(description.status, ActivityExecutionStatus.COMPLETED);
+    t.truthy(description.scheduleTime);
+    t.truthy(description.lastStartedTime);
+    t.true(description.lastStartedTime!.getTime() - description.scheduleTime!.getTime() >= startDelayMs - 500);
   });
 
   test('Describe activity from start handle', async (t) => {

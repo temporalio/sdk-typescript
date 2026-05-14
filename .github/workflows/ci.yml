@@ -188,6 +188,8 @@ jobs:
 
       - name: Install Temporal CLI
         uses: temporalio/setup-temporal@1059a504f87e7fa2f385e3fa40d1aa7e62f1c6ca # v0
+        with:
+          version: ${{ env.TESTS_CLI_VERSION }}
 
       - name: Run Temporal CLI
         working-directory: ${{ runner.temp }}
@@ -201,6 +203,8 @@ jobs:
             --dynamic-config-value history.enableRequestIdRefLinks=true \
             --dynamic-config-value frontend.activityAPIsEnabled=true \
             --dynamic-config-value activity.enableStandalone=true \
+            --dynamic-config-value activity.startDelayEnabled=true \
+            --dynamic-config-value 'activity.longPollTimeout="5000ms"' \
             --dynamic-config-value history.enableChasm=true \
             --dynamic-config-value history.enableTransitionHistory=true &
 
@@ -210,6 +214,7 @@ jobs:
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
+          TEMPORAL_SERVICE_ADDRESS: localhost:7233
 
           # For Temporal Cloud + mTLS tests
           TEMPORAL_CLOUD_MTLS_TEST_TARGET_HOST: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
@@ -234,6 +239,7 @@ jobs:
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
+          TEMPORAL_SERVICE_ADDRESS: localhost:7233
 
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
