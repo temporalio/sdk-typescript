@@ -6,6 +6,7 @@ sdk-core
 lib
 .docusaurus
 packages/*/CHANGELOG.md
+contrib/*/CHANGELOG.md
 packages/docs/docs/api
 typedoc-sidebar.js
 pnpm-lock.yaml
