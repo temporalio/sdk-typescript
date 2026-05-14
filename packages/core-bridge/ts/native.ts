@@ -135,6 +135,7 @@ export interface ClientOptions {
   clientVersion: string;
   tls: Option<TlsOptions>;
   httpConnectProxy: Option<HttpConnectProxy>;
+  dnsLoadBalancingConfig: Option<DnsLoadBalancingConfig>;
   headers: Option<Record<string, MetadataValue>>;
   apiKey: Option<string>;
   disableErrorCodeMetricTags: boolean;
@@ -162,6 +163,10 @@ export interface HttpConnectProxy {
 export interface HttpConnectProxyBasicAuth {
   username: string;
   password: string;
+}
+
+export interface DnsLoadBalancingConfig {
+  resolutionIntervalMillis: number;
 }
 
 export interface RpcCall {

@@ -493,3 +493,20 @@ test('NativeConnection: TLS can be explicitly disabled even when apiKey is provi
   t.true(options.targetUrl.startsWith('http://'), 'targetUrl should use http when tls: false');
   t.is(options.tls, null, 'TLS config should be null when tls: false');
 });
+
+test('NativeConnection: DNS load balancing is disabled by default', (t) => {
+  const options = toNativeClientOptions({});
+  t.is(options.dnsLoadBalancingConfig, null);
+});
+
+test('NativeConnection: DNS load balancing can be explicitly disabled', (t) => {
+  const options = toNativeClientOptions({ dnsLoadBalancingConfig: null });
+  t.is(options.dnsLoadBalancingConfig, null);
+});
+
+test('NativeConnection: DNS load balancing config is converted to native milliseconds', (t) => {
+  const options = toNativeClientOptions({
+    dnsLoadBalancingConfig: { resolutionInterval: '5s' },
+  });
+  t.deepEqual(options.dnsLoadBalancingConfig, { resolutionIntervalMillis: 5000 });
+});
