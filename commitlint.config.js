@@ -1,7 +1,6 @@
 module.exports = {
   extends: ['@commitlint/config-conventional'],
   rules: {
-    'subject-case': [2, 'always'],
     'scope-enum': [
       2,
       'always',

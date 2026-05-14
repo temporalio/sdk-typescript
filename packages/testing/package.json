@@ -11,6 +11,15 @@
   ],
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
+  "scripts": {
+    "build": "tsc --build",
+    "test": "ava ./lib/__tests__/test-*.js"
+  },
+  "ava": {
+    "timeout": "60s",
+    "concurrency": 1,
+    "workerThreads": false
+  },
   "dependencies": {
     "@temporalio/activity": "workspace:*",
     "@temporalio/client": "workspace:*",
@@ -20,6 +29,10 @@
     "@temporalio/worker": "workspace:*",
     "@temporalio/workflow": "workspace:*",
     "abort-controller": "^3.0.0"
+  },
+  "devDependencies": {
+    "ava": "^5.3.1",
+    "uuid": "^11.1.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -35,7 +48,9 @@
   },
   "files": [
     "lib",
-    "src"
+    "src",
+    "!src/__tests__",
+    "!lib/__tests__"
   ],
   "publishConfig": {
     "access": "public"
