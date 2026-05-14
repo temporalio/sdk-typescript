@@ -587,13 +587,15 @@ where
 
 mod config {
     use std::collections::HashMap;
+    use std::time::Duration;
 
     use temporalio_client::{
-        ClientTlsOptions as CoreClientTlsOptions, ConnectionOptions, HttpConnectProxyOptions,
-        TlsOptions as CoreTlsOptions,
+        ClientTlsOptions as CoreClientTlsOptions, ConnectionOptions, DnsLoadBalancingOptions,
+        HttpConnectProxyOptions, TlsOptions as CoreTlsOptions,
     };
     use temporalio_common::telemetry::metrics::TemporalMeter;
     use temporalio_sdk_core::Url;
+    use tracing::warn;
 
     use bridge_macros::TryFromJs;
 
@@ -606,6 +608,7 @@ mod config {
         client_version: String,
         tls: Option<TlsOptions>,
         http_connect_proxy: Option<HttpConnectProxy>,
+        dns_load_balancing_config: Option<DnsLoadBalancingConfig>,
         headers: Option<HashMap<String, MetadataValue>>,
         api_key: Option<String>,
         disable_error_code_metric_tags: bool,
@@ -637,26 +640,37 @@ mod config {
         password: String,
     }
 
+    #[derive(Debug, Clone, TryFromJs)]
+    struct DnsLoadBalancingConfig {
+        resolution_interval_millis: u64,
+    }
+
     impl ClientOptions {
         pub(super) fn into_connection_options(
             self,
             metrics_meter: Option<TemporalMeter>,
         ) -> ConnectionOptions {
             let (ascii_headers, bin_headers) = partition_headers(self.headers);
+            let has_http_connect_proxy = self.http_connect_proxy.is_some();
+            // Core rejects DNS load balancing alongside an HTTP CONNECT proxy, so
+            // suppress DNS LB whenever a proxy is configured to keep the
+            // pre-existing behavior even if a caller leaves the default.
+            let dns_load_balancing = if has_http_connect_proxy {
+                if self.dns_load_balancing_config.is_some() {
+                    warn!("Disabling DNS load balancing because http_connect_proxy is set");
+                }
+                None
+            } else {
+                self.dns_load_balancing_config.map(Into::into)
+            };
             let http_connect_proxy = self.http_connect_proxy.map(Into::into);
 
             ConnectionOptions::new(self.target_url)
                 .client_name(self.client_name)
                 .client_version(self.client_version)
                 .maybe_tls_options(self.tls.map(Into::into))
-                .maybe_http_connect_proxy(http_connect_proxy.clone())
-                // DNS load balancing is mutually exclusive with HTTP CONNECT proxy in sdk-core.
-                // Disable it when a proxy is configured; otherwise use the default.
-                .dns_load_balancing(if http_connect_proxy.is_some() {
-                    None
-                } else {
-                    Some(temporalio_client::DnsLoadBalancingOptions::default())
-                })
+                .maybe_http_connect_proxy(http_connect_proxy)
+                .dns_load_balancing(dns_load_balancing)
                 .maybe_headers(ascii_headers)
                 .maybe_binary_headers(bin_headers)
                 .maybe_api_key(self.api_key)
@@ -690,6 +704,14 @@ mod config {
                 target_addr: val.target_host,
                 basic_auth: val.basic_auth.map(|auth| (auth.username, auth.password)),
             }
+        }
+    }
+
+    impl From<DnsLoadBalancingConfig> for DnsLoadBalancingOptions {
+        fn from(val: DnsLoadBalancingConfig) -> Self {
+            let mut opts = Self::default();
+            opts.resolution_interval = Duration::from_millis(val.resolution_interval_millis);
+            opts
         }
     }
 
