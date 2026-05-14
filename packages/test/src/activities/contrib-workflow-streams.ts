@@ -1,12 +1,12 @@
 /**
- * Test activities for @temporalio/contrib-workflow-streams.
+ * Test activities for @temporalio/workflow-streams.
  *
  * These activities use `WorkflowStreamClient.fromActivity()` to target the
  * current activity's parent workflow from the activity context.
  */
 
 import { Context } from '@temporalio/activity';
-import { WorkflowStreamClient } from '@temporalio/contrib-workflow-streams';
+import { WorkflowStreamClient } from '@temporalio/workflow-streams';
 
 const encoder = new TextEncoder();
 

@@ -1,5 +1,5 @@
 /**
- * E2E integration tests for @temporalio/contrib-workflow-streams.
+ * E2E integration tests for @temporalio/workflow-streams.
  *
  * Ported from sdk-python tests/contrib/stream/test_stream.py.
  */
@@ -21,7 +21,7 @@ import {
   workflowStreamOffsetQuery,
   workflowStreamPublishSignal,
   workflowStreamPollUpdate,
-} from '@temporalio/contrib-workflow-streams';
+} from '@temporalio/workflow-streams';
 import { helpers, makeTestFunction } from './helpers-integration';
 import {
   activityPublishWorkflow,

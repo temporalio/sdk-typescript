@@ -1,5 +1,5 @@
 /**
- * Wire-format interop tests for @temporalio/contrib-workflow-streams.
+ * Wire-format interop tests for @temporalio/workflow-streams.
  *
  * These tests pin the exact byte layout produced by the TypeScript
  * implementation so it stays compatible with the Python SDK, which
@@ -19,7 +19,7 @@ import {
   encodeBase64,
   encodePayloadProto,
   encodePayloadWire,
-} from '@temporalio/contrib-workflow-streams';
+} from '@temporalio/workflow-streams';
 
 const test = anyTest as TestFn;
 const encoder = new TextEncoder();

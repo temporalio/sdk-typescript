@@ -17,9 +17,9 @@ packages:
   - packages/testing
   - packages/worker
   - packages/workflow
-  - packages/contrib-workflow-streams
   - contrib/ai-sdk
   - contrib/interceptors-opentelemetry
+  - contrib/workflow-streams
   - scripts
 
 ignoreScripts: true

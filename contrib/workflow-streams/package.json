@@ -1,5 +1,5 @@
 {
-  "name": "@temporalio/contrib-workflow-streams",
+  "name": "@temporalio/workflow-streams",
   "version": "1.17.0",
   "description": "Temporal.io SDK Workflow Streams contrib module",
   "main": "lib/index.js",
@@ -24,6 +24,15 @@
   "engines": {
     "node": ">= 20.0.0"
   },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "contrib/workflow-streams"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/contrib/workflow-streams",
   "publishConfig": {
     "access": "public"
   },

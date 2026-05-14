@@ -35,7 +35,7 @@ get a typed handle for each topic via `stream.topic<T>(name)` and call
 `publish` on the handle:
 
 ```typescript
-import { WorkflowStream } from '@temporalio/contrib-workflow-streams';
+import { WorkflowStream } from '@temporalio/workflow-streams';
 
 interface StatusEvent {
   state: 'started' | 'done';
@@ -70,7 +70,7 @@ the same way as on the workflow side:
 
 ```typescript
 import { Context } from '@temporalio/activity';
-import { WorkflowStreamClient } from '@temporalio/contrib-workflow-streams';
+import { WorkflowStreamClient } from '@temporalio/workflow-streams';
 
 export async function streamEvents(): Promise<void> {
   await using client = WorkflowStreamClient.fromActivity({ batchInterval: '2 seconds' });
@@ -109,7 +109,7 @@ events.publish(phase2Data);
 Subscribe via the topic handle to get items decoded as `T`:
 
 ```typescript
-import { WorkflowStreamClient } from '@temporalio/contrib-workflow-streams';
+import { WorkflowStreamClient } from '@temporalio/workflow-streams';
 
 const client = WorkflowStreamClient.create(temporalClient, workflowId);
 const events = client.topic<MyType>('events');
@@ -140,7 +140,7 @@ boundaries:
 
 ```typescript
 import { continueAsNew, workflowInfo } from '@temporalio/workflow';
-import { WorkflowStream, type WorkflowStreamState } from '@temporalio/contrib-workflow-streams';
+import { WorkflowStream, type WorkflowStreamState } from '@temporalio/workflow-streams';
 
 interface WorkflowInput {
   itemsProcessed: number;

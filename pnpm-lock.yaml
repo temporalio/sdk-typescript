@@ -161,15 +161,15 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../../packages/common
-      '@temporalio/contrib-workflow-streams':
-        specifier: workspace:*
-        version: link:../../packages/contrib-workflow-streams
       '@temporalio/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
       '@temporalio/workflow':
         specifier: workspace:*
         version: link:../../packages/workflow
+      '@temporalio/workflow-streams':
+        specifier: workspace:*
+        version: link:../workflow-streams
       '@ungap/structured-clone':
         specifier: ^1.3.0
         version: 1.3.0
@@ -293,6 +293,24 @@ importers:
         specifier: ^11.1.0
         version: 11.1.0
 
+  contrib/workflow-streams:
+    dependencies:
+      '@temporalio/activity':
+        specifier: workspace:*
+        version: link:../../packages/activity
+      '@temporalio/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../../packages/common
+      '@temporalio/proto':
+        specifier: workspace:*
+        version: link:../../packages/proto
+      '@temporalio/workflow':
+        specifier: workspace:*
+        version: link:../../packages/workflow
+
   packages/activity:
     dependencies:
       '@temporalio/client':
@@ -379,24 +397,6 @@ importers:
       protobufjs:
         specifier: ^7.5.5
         version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
-
-  packages/contrib-workflow-streams:
-    dependencies:
-      '@temporalio/activity':
-        specifier: workspace:*
-        version: link:../activity
-      '@temporalio/client':
-        specifier: workspace:*
-        version: link:../client
-      '@temporalio/common':
-        specifier: workspace:*
-        version: link:../common
-      '@temporalio/proto':
-        specifier: workspace:*
-        version: link:../proto
-      '@temporalio/workflow':
-        specifier: workspace:*
-        version: link:../workflow
 
   packages/core-bridge:
     dependencies:
@@ -704,9 +704,6 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
-      '@temporalio/contrib-workflow-streams':
-        specifier: workspace:*
-        version: link:../contrib-workflow-streams
       '@temporalio/core-bridge':
         specifier: workspace:*
         version: link:../core-bridge
@@ -743,6 +740,9 @@ importers:
       '@temporalio/workflow':
         specifier: workspace:*
         version: link:../workflow
+      '@temporalio/workflow-streams':
+        specifier: workspace:*
+        version: link:../../contrib/workflow-streams
       arg:
         specifier: ^5.0.2
         version: 5.0.2

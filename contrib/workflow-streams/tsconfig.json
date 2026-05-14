@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./lib",
+    "rootDir": "./src",
+    "skipLibCheck": true
+  },
+  "references": [
+    { "path": "../../packages/activity" },
+    { "path": "../../packages/client" },
+    { "path": "../../packages/common" },
+    { "path": "../../packages/proto" },
+    { "path": "../../packages/workflow" }
+  ],
+  "include": ["./src/**/*.ts"]
+}
