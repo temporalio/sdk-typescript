@@ -321,6 +321,9 @@ importers:
       long:
         specifier: ^5.2.3
         version: 5.2.3
+      nexus-rpc:
+        specifier: ^0.0.2
+        version: 0.0.2
       uuid:
         specifier: ^11.1.0
         version: 11.1.0
