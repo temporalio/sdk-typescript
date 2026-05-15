@@ -18,7 +18,7 @@ import {
   type TestWorkflowEnvironment,
 } from '@temporalio/test-helpers';
 
-export interface Context extends BaseContext<TestWorkflowEnvironment> {}
+export type Context = BaseContext<TestWorkflowEnvironment>;
 
 export interface TestFunctionOptions {
   workflowsPath: string;

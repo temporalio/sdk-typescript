@@ -32,13 +32,7 @@ import { ApplicationFailure, type Payload, type Workflow } from '@temporalio/com
 import type { Duration } from '@temporalio/common/lib/time';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { decodePayloadWire, encodePayloadProto, encodePayloadWire, encodeBase64 } from './codec';
-import type {
-  PollInput,
-  PollResult,
-  WorkflowStreamState,
-  PublishInput,
-  WorkflowStreamWireItem,
-} from './types';
+import type { PollInput, PollResult, WorkflowStreamState, PublishInput, WorkflowStreamWireItem } from './types';
 import { WorkflowTopicHandle } from './topic-handle';
 
 const BINARY_PLAIN_ENCODING = new TextEncoder().encode('binary/plain');
