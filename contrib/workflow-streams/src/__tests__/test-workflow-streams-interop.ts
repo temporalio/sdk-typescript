@@ -5,7 +5,7 @@
  * implementation so it stays compatible with the Python SDK, which
  * uses `temporalio.api.common.v1.Payload` serialized via protobuf.
  *
- * Unlike `test-contrib-workflow-streams.ts`, these don't need a Temporal server —
+ * Unlike `test-workflow-streams.ts`, these don't need a Temporal server —
  * they are pure encode/decode unit tests.
  */
 
@@ -19,7 +19,7 @@ import {
   encodeBase64,
   encodePayloadProto,
   encodePayloadWire,
-} from '@temporalio/workflow-streams';
+} from '..';
 
 const test = anyTest as TestFn;
 const encoder = new TextEncoder();

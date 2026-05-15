@@ -250,7 +250,7 @@ handler names:
 2. **Subscribe**: update `__temporal_workflow_stream_poll` with `PollInput` -> `PollResult`
 3. **Offset**: query `__temporal_workflow_stream_offset` -> `number`
 
-Each `PublishEntry.data` / `_WorkflowStreamWireItem.data` is a base64-encoded
+Each `PublishEntry.data` / `WorkflowStreamWireItem.data` is a base64-encoded
 `temporal.api.common.v1.Payload` protobuf (`Payload.SerializeToString()` in
 Python; equivalent `encodePayloadProto()` in this package). This keeps the
 envelope JSON-serializable while preserving `Payload.metadata` for codec and

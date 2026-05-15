@@ -11,8 +11,8 @@ import {
   proxyActivities,
   setHandler,
 } from '@temporalio/workflow';
-import { WorkflowStream, type WorkflowStreamState } from '@temporalio/workflow-streams';
-import type * as activities from '../activities/contrib-workflow-streams';
+import { WorkflowStream, type WorkflowStreamState } from '../..';
+import type * as activities from '../activities/workflow-streams';
 
 const { publishItems, publishMultiTopic, publishWithForceFlush, publishBatchTest, publishWithMaxBatch } =
   proxyActivities<typeof activities>({

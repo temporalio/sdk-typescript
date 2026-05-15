@@ -49,7 +49,6 @@
     "@temporalio/testing": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "@temporalio/workflow": "workspace:*",
-    "@temporalio/workflow-streams": "workspace:*",
     "arg": "^5.0.2",
     "async-retry": "^1.3.3",
     "ava": "^5.3.1",

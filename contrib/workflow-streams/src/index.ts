@@ -29,7 +29,7 @@ export {
   decodePayloadProto,
   encodePayloadWire,
   decodePayloadWire,
-} from './types';
+} from './codec';
 export {
   WorkflowStream,
   workflowStreamPublishSignal,

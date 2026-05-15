@@ -31,16 +31,13 @@ import {
 import { ApplicationFailure, type Payload, type Workflow } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msToNumber } from '@temporalio/common/lib/time';
-import {
-  decodePayloadWire,
-  encodePayloadProto,
-  encodePayloadWire,
-  encodeBase64,
-  type PollInput,
-  type PollResult,
-  type WorkflowStreamState,
-  type PublishInput,
-  type _WorkflowStreamWireItem,
+import { decodePayloadWire, encodePayloadProto, encodePayloadWire, encodeBase64 } from './codec';
+import type {
+  PollInput,
+  PollResult,
+  WorkflowStreamState,
+  PublishInput,
+  WorkflowStreamWireItem,
 } from './types';
 import { WorkflowTopicHandle } from './topic-handle';
 
@@ -327,7 +324,7 @@ export class WorkflowStream {
     }
 
     // Cap response size to ~1MB of estimated wire bytes.
-    const wireItems: _WorkflowStreamWireItem[] = [];
+    const wireItems: WorkflowStreamWireItem[] = [];
     let size = 0;
     let moreReady = false;
     let nextOffset = this.baseOffset + this.log.length;

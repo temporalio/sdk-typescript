@@ -312,6 +312,19 @@ importers:
       '@temporalio/workflow':
         specifier: workspace:*
         version: link:../../packages/workflow
+    devDependencies:
+      '@temporalio/test-helpers':
+        specifier: workspace:*
+        version: link:../../packages/test-helpers
+      '@temporalio/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
+      '@temporalio/worker':
+        specifier: workspace:*
+        version: link:../../packages/worker
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
 
   packages/activity:
     dependencies:
@@ -742,9 +755,6 @@ importers:
       '@temporalio/workflow':
         specifier: workspace:*
         version: link:../workflow
-      '@temporalio/workflow-streams':
-        specifier: workspace:*
-        version: link:../../contrib/workflow-streams
       arg:
         specifier: ^5.0.2
         version: 5.0.2

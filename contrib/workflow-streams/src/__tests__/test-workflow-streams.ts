@@ -21,7 +21,7 @@ import {
   workflowStreamOffsetQuery,
   workflowStreamPublishSignal,
   workflowStreamPollUpdate,
-} from '@temporalio/workflow-streams';
+} from '..';
 import { helpers, makeTestFunction } from './helpers-integration';
 import {
   activityPublishWorkflow,
@@ -38,11 +38,11 @@ import {
   truncateWorkflow,
   ttlTestWorkflow,
   workflowSidePublishWorkflow,
-} from './workflows/contrib-workflow-streams';
-import * as streamActivities from './activities/contrib-workflow-streams';
+} from './workflows/workflow-streams';
+import * as streamActivities from './activities/workflow-streams';
 
 const test = makeTestFunction({
-  workflowsPath: require.resolve('./workflows/contrib-workflow-streams'),
+  workflowsPath: require.resolve('./workflows/workflow-streams'),
 });
 
 const encoder = new TextEncoder();

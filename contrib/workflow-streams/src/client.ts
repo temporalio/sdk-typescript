@@ -26,15 +26,8 @@ import {
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msToNumber } from '@temporalio/common/lib/time';
-import {
-  decodePayloadWire,
-  encodePayloadWire,
-  type PollInput,
-  type PollResult,
-  type WorkflowStreamItem,
-  type PublishEntry,
-  type PublishInput,
-} from './types';
+import { decodePayloadWire, encodePayloadWire } from './codec';
+import type { PollInput, PollResult, WorkflowStreamItem, PublishEntry, PublishInput } from './types';
 import { TopicHandle } from './topic-handle';
 
 /** Thrown when a flush retry exceeds maxRetryDuration. */

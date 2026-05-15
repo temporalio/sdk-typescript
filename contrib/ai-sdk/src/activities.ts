@@ -188,7 +188,7 @@ export function createActivities(provider: ProviderV3, mcpClientFactories?: McpC
                 part.type === 'file' ||
                 part.type === 'source')
             ) {
-              content.push(part as LanguageModelV3Content);
+              content.push(part);
             }
             break;
         }
@@ -201,7 +201,7 @@ export function createActivities(provider: ProviderV3, mcpClientFactories?: McpC
         warnings,
         request: streamResult.request,
         response: responseMetadata ? { ...responseMetadata, ...streamResult.response } : streamResult.response,
-      } as InvokeModelResult;
+      };
     },
 
     async invokeEmbeddingModel(args: InvokeEmbeddingModelArgs): Promise<InvokeEmbeddingModelResult> {
