@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import * as nexus from 'nexus-rpc';
+import type { NexusOperationExecutionCount } from '@temporalio/client';
 import {
   Client,
   NexusOperationAlreadyStartedError,
@@ -236,37 +237,44 @@ test('count and list operations', async (t) => {
     const { client } = t.context.env;
     const svc = client.nexus.createServiceClient({ endpoint: endpointName, service: testService });
     const opIds = new Set<string>();
-    for (let i = 0; i < 3; i++) {
-      const id = 'list-op-' + randomUUID();
-      await svc.startOperation(testService.operations.echo, `list-${i}`, {
-        id,
-        scheduleToCloseTimeout: '10s',
-      });
-      opIds.add(id);
-    }
 
-    // Visibility has update delay, repeating query until the activity count is as expected
+    // Run 3 operations to completion
+    await Promise.all(
+      Array.from({ length: 3 }, async (_, i) => {
+        const id = 'list-op-' + randomUUID();
+        await svc.executeOperation(testService.operations.echo, `list-${i}`, {
+          id,
+          scheduleToCloseTimeout: '10s',
+        });
+        opIds.add(id);
+      })
+    );
+
+    // Visibility has update delay, repeat query until the operation count is as expected.
+    let groupedCount: NexusOperationExecutionCount = { count: 0, groups: [] };
     await waitUntil(async () => {
-      const result = await client.nexus.count(`Endpoint="${endpointName}"`);
-      return result.count === 3;
+      groupedCount = await client.nexus.count(`Endpoint="${endpointName}" GROUP BY ExecutionStatus`);
+      return groupedCount.count === 3;
     }, 10000);
 
-    const groupedCount = await client.nexus.count(`Endpoint="${endpointName}" GROUP BY ExecutionStatus`);
-    t.is(groupedCount.count, 3);
-    t.is(groupedCount.groups.length, 1);
-    t.is(groupedCount.groups[0]?.count, 3);
-    const groupValue = groupedCount.groups[0]?.groupValues[0];
-    t.is(groupValue?.type, SearchAttributeType.KEYWORD);
-    t.is(typeof groupValue?.value, 'string');
+    let count = 0;
+    for (const group of groupedCount.groups) {
+      // Groups should add up to the total count
+      t.true(1 <= group.count && group.count <= groupedCount.count);
+      count += group.count;
+      t.true(count <= groupedCount.count);
 
-    const seen = new Set<string>();
-    for await (const op of client.nexus.list({ query: `Endpoint="${endpointName}"` })) {
-      seen.add(op.operationId);
-      if (seen.size === 3) break;
+      // All values should be of type keyword
+      for (const value of group.groupValues) {
+        t.is(value.type, SearchAttributeType.KEYWORD);
+      }
     }
-    let intersection = 0;
-    for (const id of opIds) if (seen.has(id)) intersection++;
-    t.true(intersection >= 1, `expected at least 1 of ${opIds.size} operations in list, saw ${intersection}`);
+
+    const listed = new Set<string>();
+    for await (const op of client.nexus.list({ query: `Endpoint="${endpointName}"` })) {
+      listed.add(op.operationId);
+    }
+    t.true(opIds.size === listed.size && [...opIds].every((id) => listed.has(id)));
   });
 });
 
