@@ -53,11 +53,13 @@ function workflowStatusCodeToNameInternal(
 export async function executionInfoFromRaw<T>(
   raw: RawWorkflowExecutionInfo,
   dataConverter: LoadedDataConverter,
-  rawDataToEmbed: T
+  rawDataToEmbed: T,
+  namespace: string
 ): Promise<Replace<WorkflowExecutionInfo, { raw: T }>> {
+  const workflowId = raw.execution!.workflowId!;
   return {
     type: raw.type!.name!,
-    workflowId: raw.execution!.workflowId!,
+    workflowId,
     runId: raw.execution!.runId!,
     taskQueue: raw.taskQueue!,
     status: {
@@ -72,7 +74,11 @@ export async function executionInfoFromRaw<T>(
     startTime: requiredTsToDate(raw.startTime, 'startTime'),
     executionTime: optionalTsToDate(raw.executionTime),
     closeTime: optionalTsToDate(raw.closeTime),
-    memo: await decodeMapFromPayloads(dataConverter, raw.memo?.fields),
+    memo: await decodeMapFromPayloads(dataConverter, raw.memo?.fields, {
+      type: 'workflow',
+      namespace,
+      workflowId,
+    }),
     searchAttributes: decodeSearchAttributes(raw.searchAttributes?.indexedFields),
     typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes?.indexedFields),
     parentExecution: raw.parentExecution
