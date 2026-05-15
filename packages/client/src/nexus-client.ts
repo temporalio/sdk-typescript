@@ -78,7 +78,7 @@ function defaultNexusClientOptions(): WithDefaults<NexusClientOptions> {
  *
  * @experimental Nexus Standalone Operations are experimental.
  */
-export interface NexusOperationHandle<O = any> {
+export interface NexusOperationHandle<O = unknown> {
   readonly operationId: string;
   readonly runId?: string;
   readonly client: NexusClient;
@@ -258,7 +258,7 @@ export class NexusClient extends BaseClient {
         operationName = operation.name;
       }
 
-      return await this.startNexusOperation({
+      const handle = await this.startNexusOperation({
         endpoint,
         service: service.name,
         operation: operationName,
@@ -273,6 +273,10 @@ export class NexusClient extends BaseClient {
         searchAttributes: options.searchAttributes,
         headers: options.headers,
       });
+
+      // The interceptor layer returns NexusOperationHandle<unknown>, so reapply
+      // the output type here to match the OperationDefinition contract.
+      return handle as NexusOperationHandle<OperationOutput<T, Op>>;
     };
 
     const executeOperation = async <Op extends OperationReference<T>>(
@@ -300,7 +304,7 @@ export class NexusClient extends BaseClient {
    *
    * @experimental Nexus Standalone Operations are experimental.
    */
-  public getHandle<T = unknown>(
+  public getHandle<T>(
     operationId: string,
     options?: GetNexusOperationHandleOptions
   ): NexusOperationHandle<NexusOperationHandleResult<T>>;
@@ -370,7 +374,7 @@ export class NexusClient extends BaseClient {
     await terminate(input);
   }
 
-  protected async startNexusOperationHandler<O>(input: StartNexusOperationInput): Promise<NexusOperationHandle<O>> {
+  protected async startNexusOperationHandler(input: StartNexusOperationInput): Promise<NexusOperationHandle> {
     const inputPayload = await encodeToPayload(this.dataConverter, input.arg);
     const searchAttributes =
       input.searchAttributes != null
