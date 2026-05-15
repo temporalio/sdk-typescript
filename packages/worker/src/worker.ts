@@ -600,9 +600,13 @@ export class Worker {
     workflowId?: string
   ): Promise<void> {
     const validated = this.validateHistory(history);
-    const result = await this.runReplayHistories(options, [
-      { history: validated, workflowId: workflowId ?? 'fake' },
-    ]).next();
+    const replay = this.runReplayHistories(options, [{ history: validated, workflowId: workflowId ?? 'fake' }]);
+    let result: IteratorResult<ReplayResult>;
+    try {
+      result = await replay.next();
+    } finally {
+      await replay.return?.();
+    }
     if (result.done) throw new IllegalStateError('Expected at least one replay result');
     if (result.value.error) throw result.value.error;
   }
