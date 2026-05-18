@@ -80,35 +80,6 @@ function makeClient(env: TestWorkflowEnvironment): Client {
   });
 }
 
-// Helper to assert workflow serialization context in trace string
-function workflowCtx(workflowId: string): string {
-  return `workflow.default.${workflowId}`;
-}
-// Helper to assert activity serialization context in trace string
-function activityCtx(workflowId: string, activityId = '1', isLocal = false): string {
-  return `activity.default.${workflowId}.${activityId}.${isLocal}`;
-}
-
-// Helper to assert payload encoding in trace string
-function enc(label: string, ctx: string): string {
-  return `payload.encode.bound|${label}|${ctx}`;
-}
-// Helper to assert payload decoding in trace string
-function dec(label: string, ctx: string): string {
-  return `payload.decode.bound|${label}|${ctx}`;
-}
-// Helper to assert paired payload encode/decode operations in trace strings
-function encdec(label: string, ctx: string): string[] {
-  return [enc(label, ctx), dec(label, ctx)];
-}
-
-function roundTripTrace(label: string, ctx: string) {
-  return {
-    label,
-    trace: [enc(label, ctx), dec(label, ctx)],
-  };
-}
-
 test('workflow start/result payloads carry workflow context', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
