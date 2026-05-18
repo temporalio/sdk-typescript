@@ -19,6 +19,14 @@ export function makeContextTrace<T>(label: T): ContextTrace<T> {
   };
 }
 
+
+export function roundTripTrace(label: string, ctx: string) {
+  return {
+    label,
+    trace: [enc(label, ctx), dec(label, ctx)],
+  };
+}
+
 export function withLabel<T>(existing: ContextTrace<unknown>, label: T): ContextTrace<T> {
   return { label, trace: existing.trace };
 }

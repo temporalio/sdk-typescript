@@ -46,6 +46,7 @@ import {
   enc,
   encdec,
   makeContextTrace,
+  roundTripTrace,
   workflowCtx,
 } from './payload-converters/serialization-context-converter';
 import { echoTrace, heartbeatTrace } from './activities/serialization-context';
