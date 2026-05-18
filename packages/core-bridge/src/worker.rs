@@ -339,6 +339,12 @@ pub fn worker_complete_nexus_task(
 #[js_function]
 pub fn worker_initiate_shutdown(worker: OpaqueInboundHandle<Worker>) -> BridgeResult<()> {
     let worker_ref = worker.borrow()?;
+
+    // Core worker shutdown now spawns a Tokio task, so this sync Neon binding must
+    // enter Core's Tokio runtime before initiating shutdown.
+    let runtime = worker_ref.core_runtime.clone();
+    enter_sync!(runtime);
+
     worker_ref.core_worker.initiate_shutdown();
     Ok(())
 }
