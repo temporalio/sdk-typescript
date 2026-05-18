@@ -1,5 +1,6 @@
 import type {
   Payload,
+  PayloadCodec,
   PayloadConverter,
   FailureConverter,
   ProtoFailure,
@@ -46,6 +47,22 @@ function ctxToTraceStr(context: SerializationContext): string {
   return parts.join('.');
 }
 
+function tracePayload(
+  payload: Payload,
+  operation: 'codec.encode' | 'codec.decode',
+  context?: SerializationContext
+): Payload {
+  const value = defaultPayloadConverter.fromPayload(payload, context);
+  if (!isContextTrace(value)) {
+    return payload;
+  }
+
+  value.trace.push(
+    context ? `${operation}.bound|${value.label}|${ctxToTraceStr(context)}` : `${operation}.free|${value.label}`
+  );
+  return defaultPayloadConverter.toPayload(value, context);
+}
+
 export class FreePayloadConverter implements PayloadConverter {
   toPayload<T>(value: T, context?: SerializationContext): Payload {
     if (isContextTrace(value)) {
@@ -87,3 +104,13 @@ export class FreeFailureConverter implements FailureConverter {
 
 export const payloadConverter = new FreePayloadConverter();
 export const failureConverter = new FreeFailureConverter();
+
+export class FreePayloadCodec implements PayloadCodec {
+  async encode(payloads: Payload[], context?: SerializationContext): Promise<Payload[]> {
+    return payloads.map((payload) => tracePayload(payload, 'codec.encode', context));
+  }
+
+  async decode(payloads: Payload[], context?: SerializationContext): Promise<Payload[]> {
+    return payloads.map((payload) => tracePayload(payload, 'codec.decode', context));
+  }
+}

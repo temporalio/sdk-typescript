@@ -10,7 +10,13 @@ import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, t
 import type { RawSourceMap } from 'source-map';
 import * as nexus from 'nexus-rpc';
 import type { Info as ActivityInfo } from '@temporalio/activity';
-import type { LoadedDataConverter, Payload, MetricMeter, ActivitySerializationContext } from '@temporalio/common';
+import type {
+  LoadedDataConverter,
+  Payload,
+  MetricMeter,
+  ActivitySerializationContext,
+  WorkflowSerializationContext,
+} from '@temporalio/common';
 import {
   DataConverter,
   decompileRetryPolicy,
@@ -164,6 +170,7 @@ interface NativeWorkerConstructor {
 interface WorkflowWithLogAttributes {
   workflow: Workflow;
   logAttributes: Record<string, unknown>;
+  workflowCodecRunner: WorkflowCodecRunner;
 }
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
@@ -479,8 +486,6 @@ export class Worker {
     message: 'Shutting down',
     reason: EvictionReason.FATAL,
   };
-  protected readonly workflowCodecRunner: WorkflowCodecRunner;
-
   /**
    * Create a new Worker.
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
@@ -810,9 +815,7 @@ export class Worker {
     protected readonly plugins: WorkerPlugin[],
     protected _connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
-  ) {
-    this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodecs);
-  }
+  ) {}
 
   /**
    * An Observable which emits each time the number of in flight activations changes
@@ -1424,7 +1427,9 @@ export class Worker {
         return { state: undefined, output: { close, completion } };
       }
 
-      const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
+      const workflowCodecRunner =
+        workflow?.workflowCodecRunner ?? this.createWorkflowCodecRunnerFromActivation(activation);
+      const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
 
       if (workflow === undefined) {
         const initWorkflowDetails = decodedActivation.jobs[0]?.initializeWorkflow;
@@ -1433,13 +1438,13 @@ export class Worker {
             'Received workflow activation for an untracked workflow with no init workflow job'
           );
 
-        workflow = await this.createWorkflow(decodedActivation, initWorkflowDetails);
+        workflow = await this.createWorkflow(decodedActivation, initWorkflowDetails, workflowCodecRunner);
       }
 
       let isFatalError = false;
       try {
         const unencodedCompletion = await workflow.workflow.activate(decodedActivation);
-        const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
+        const completion = await workflowCodecRunner.encodeCompletion(unencodedCompletion);
 
         return { state: workflow, output: { close, completion } };
       } catch (err) {
@@ -1491,7 +1496,8 @@ export class Worker {
 
   protected async createWorkflow(
     activation: Decoded<coresdk.workflow_activation.WorkflowActivation>,
-    initWorkflowJob: Decoded<coresdk.workflow_activation.IInitializeWorkflow>
+    initWorkflowJob: Decoded<coresdk.workflow_activation.IInitializeWorkflow>,
+    workflowCodecRunner: WorkflowCodecRunner
   ): Promise<WorkflowWithLogAttributes> {
     const workflowCreator = this.workflowCreator!;
     if (
@@ -1580,7 +1586,16 @@ export class Worker {
     });
 
     this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
-    return { workflow, logAttributes };
+    return { workflow, logAttributes, workflowCodecRunner };
+  }
+
+  protected createWorkflowCodecRunnerFromActivation(
+    activation: coresdk.workflow_activation.IWorkflowActivation
+  ): WorkflowCodecRunner {
+    return new WorkflowCodecRunner(
+      this.options.loadedDataConverter.payloadCodecs,
+      workflowSerializationContextFromActivation(activation, this.options.namespace)
+    );
   }
 
   /**
@@ -2249,6 +2264,25 @@ function activitySerializationContextFromInfo(info: ActivityInfo): ActivitySeria
     workflowId: info.workflowExecution?.workflowId,
     isLocal: info.isLocal,
   };
+}
+
+function workflowSerializationContextFromId(workflowId: string, namespace: string): WorkflowSerializationContext {
+  return {
+    type: 'workflow',
+    namespace,
+    workflowId,
+  };
+}
+
+function workflowSerializationContextFromActivation(
+  activation: coresdk.workflow_activation.IWorkflowActivation,
+  namespace: string
+): WorkflowSerializationContext {
+  const workflowId = activation.jobs?.find((job) => job.initializeWorkflow)?.initializeWorkflow?.workflowId;
+  if (workflowId == null) {
+    throw new IllegalStateError('Received workflow activation for an untracked workflow with no init workflow job');
+  }
+  return workflowSerializationContextFromId(workflowId, namespace);
 }
 
 function activitySerializationContextFromTaskStart(
