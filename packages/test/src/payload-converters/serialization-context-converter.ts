@@ -23,6 +23,26 @@ export function withLabel<T>(existing: ContextTrace<unknown>, label: T): Context
   return { label, trace: existing.trace };
 }
 
+export function workflowCtx(workflowId: string): string {
+  return `workflow.default.${workflowId}`;
+}
+
+export function activityCtx(workflowId: string, activityId = '1', isLocal = false): string {
+  return `activity.default.${workflowId}.${activityId}.${isLocal}`;
+}
+
+export function enc(label: string, ctx: string): string {
+  return `payload.encode.bound|${label}|${ctx}`;
+}
+
+export function dec(label: string, ctx: string): string {
+  return `payload.decode.bound|${label}|${ctx}`;
+}
+
+export function encdec(label: string, ctx: string): string[] {
+  return [enc(label, ctx), dec(label, ctx)];
+}
+
 function isContextTrace(maybeTrace: unknown): maybeTrace is ContextTrace<unknown> {
   return (
     typeof maybeTrace === 'object' &&

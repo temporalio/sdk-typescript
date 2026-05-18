@@ -1,4 +1,8 @@
 import { randomUUID } from 'crypto';
+import type { Observable } from 'rxjs';
+import { Subject, firstValueFrom } from 'rxjs';
+import { filter } from 'rxjs/operators';
+import type { Info } from '@temporalio/activity';
 import { Client, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode } from '@temporalio/worker';
@@ -20,6 +24,7 @@ import {
   wfContextWithRemoteActivity,
   wfContextWithExplicitActivityId,
   wfContextWithHeartbeatDetails,
+  serializationContextAsyncCompletionWorkflow,
   wfContextWithLocalActivity,
   wfContextWithContinueAsNew,
   wfContextWithChildWorkflow,
@@ -34,8 +39,16 @@ import {
   wfExternalSignalSuccessContext,
   wfLocalActivityFailureContext,
 } from './workflows/serialization-context';
-import { makeContextTrace } from './payload-converters/serialization-context-converter';
+import {
+  activityCtx,
+  dec,
+  enc,
+  encdec,
+  makeContextTrace,
+  workflowCtx,
+} from './payload-converters/serialization-context-converter';
 import { echoTrace, heartbeatTrace } from './activities/serialization-context';
+import { createActivities } from './activities/async-completer';
 import { throwAnError } from './activities';
 
 const converterPath = require.resolve('./payload-converters/serialization-context-converter');
@@ -64,28 +77,6 @@ function makeClient(env: TestWorkflowEnvironment): Client {
     namespace: env.client.options.namespace,
     dataConverter,
   });
-}
-
-// Helper to assert workflow serialization context in trace string
-function workflowCtx(workflowId: string): string {
-  return `workflow.default.${workflowId}`;
-}
-// Helper to assert activity serialization context in trace string
-function activityCtx(workflowId: string, activityId = '1', isLocal = false): string {
-  return `activity.default.${workflowId}.${activityId}.${isLocal}`;
-}
-
-// Helper to assert payload encoding in trace string
-function enc(label: string, ctx: string): string {
-  return `payload.encode.bound|${label}|${ctx}`;
-}
-// Helper to assert payload decoding in trace string
-function dec(label: string, ctx: string): string {
-  return `payload.decode.bound|${label}|${ctx}`;
-}
-// Helper to assert paired payload encode/decode operations in trace strings
-function encdec(label: string, ctx: string): string[] {
-  return [enc(label, ctx), dec(label, ctx)];
 }
 
 test('workflow start/result payloads carry workflow context', async (t) => {
@@ -185,6 +176,87 @@ test('activity with explicit id carries serialization context', async (t) => {
         ...encdec('activity-input', act),
         ...encdec('activity-output', act),
         ...encdec('wf-output', wf),
+      ],
+    });
+  });
+});
+
+test('async completion uses inferred activity context for by-ID completion', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const infoSubject = new Subject<Info>();
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({
+    dataConverter,
+    activities: createActivities(infoSubject),
+  });
+
+  async function activityStarted(workflowId: string): Promise<Info> {
+    return await firstValueFrom(
+      (infoSubject as Observable<Info>).pipe(filter((info) => info.workflowExecution?.workflowId === workflowId))
+    );
+  }
+
+  await worker.runUntil(async () => {
+    const workflowId = `async-by-id-${randomUUID()}`;
+    const handle = await client.workflow.start(serializationContextAsyncCompletionWorkflow, {
+      workflowId,
+      taskQueue: h.taskQueue,
+    });
+    const info = await activityStarted(workflowId);
+
+    await client.activity.complete({ workflowId, activityId: info.activityId }, makeContextTrace('async-by-id'));
+
+    t.deepEqual(await handle.result(), {
+      label: 'async-by-id',
+      trace: [
+        enc('async-by-id', activityCtx(workflowId, info.activityId)),
+        dec('async-by-id', activityCtx(workflowId, info.activityId)),
+        ...encdec('async-by-id', workflowCtx(workflowId)),
+      ],
+    });
+  });
+});
+
+test('async completion task token uses explicit activity serialization context', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const infoSubject = new Subject<Info>();
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({
+    dataConverter,
+    activities: createActivities(infoSubject),
+  });
+  const namespace = client.options.namespace;
+
+  async function activityStarted(workflowId: string): Promise<Info> {
+    return await firstValueFrom(
+      (infoSubject as Observable<Info>).pipe(filter((info) => info.workflowExecution?.workflowId === workflowId))
+    );
+  }
+
+  await worker.runUntil(async () => {
+    const workflowId = `async-explicit-token-${randomUUID()}`;
+    const handle = await client.workflow.start(serializationContextAsyncCompletionWorkflow, {
+      workflowId,
+      taskQueue: h.taskQueue,
+    });
+    const info = await activityStarted(workflowId);
+
+    await client.activity.complete(info.taskToken, makeContextTrace('async-explicit-token'), {
+      serializationContext: {
+        type: 'activity',
+        namespace,
+        workflowId,
+        activityId: info.activityId,
+        isLocal: false,
+      },
+    });
+
+    t.deepEqual(await handle.result(), {
+      label: 'async-explicit-token',
+      trace: [
+        enc('async-explicit-token', activityCtx(workflowId, info.activityId)),
+        dec('async-explicit-token', activityCtx(workflowId, info.activityId)),
+        ...encdec('async-explicit-token', workflowCtx(workflowId)),
       ],
     });
   });
