@@ -4,6 +4,7 @@ import type { Observable } from 'rxjs';
 import { Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { v4 as uuid4 } from 'uuid';
+import type { ConnectionLike } from '@temporalio/client';
 import {
   ActivityCancelledError,
   Client,
@@ -12,8 +13,9 @@ import {
   Connection,
 } from '@temporalio/client';
 import type { Info } from '@temporalio/activity';
-import type { ActivitySerializationContext, Payload } from '@temporalio/common';
+import type { ActivitySerializationContext } from '@temporalio/common';
 import { ApplicationFailure, defaultPayloadConverter, fromPayloadsAtIndex, rootCause } from '@temporalio/common';
+import type { temporal } from '@temporalio/proto';
 import { isCancellation } from '@temporalio/workflow';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { runAnAsyncActivity } from './workflows';
@@ -65,6 +67,17 @@ async function makeNotFoundTaskToken(conn: Connection, namespace: string): Promi
 const taskQueue = 'async-activity-completion';
 const test = anyTest as TestFn<Context>;
 const TASK_TOKEN = new Uint8Array([1]);
+const dataConverter = {
+  payloadConverterPath: require.resolve('./payload-converters/serialization-context-converter'),
+  failureConverterPath: require.resolve('./payload-converters/serialization-context-converter'),
+};
+
+type FailedRequest = temporal.api.workflowservice.v1.IRespondActivityTaskFailedRequest;
+type FailedByIdRequest = temporal.api.workflowservice.v1.IRespondActivityTaskFailedByIdRequest;
+type CanceledRequest = temporal.api.workflowservice.v1.IRespondActivityTaskCanceledRequest;
+type CanceledByIdRequest = temporal.api.workflowservice.v1.IRespondActivityTaskCanceledByIdRequest;
+type HeartbeatRequest = temporal.api.workflowservice.v1.IRecordActivityTaskHeartbeatRequest;
+type HeartbeatByIdRequest = temporal.api.workflowservice.v1.IRecordActivityTaskHeartbeatByIdRequest;
 
 async function activityStarted(t: ExecutionContext<Context>, id: string): Promise<Info> {
   return await firstValueFrom(
@@ -86,82 +99,51 @@ function activitySerializationContext(
   };
 }
 
-interface PayloadsContainer {
-  payloads?: Payload[] | null;
-}
-
-interface FailureRequest {
-  failure: {
-    message?: string | null;
-    applicationFailureInfo?: {
-      details?: PayloadsContainer | null;
-    } | null;
-  };
-}
-
-interface DetailsRequest {
-  details?: PayloadsContainer | null;
-}
-
-function record<T>(requests: T[], response?: unknown): (request: T) => Promise<unknown> {
-  return async (request) => {
-    requests.push(request);
-    return response;
-  };
-}
-
 function makeTestClient() {
-  const recorded = {
-    respondActivityTaskFailed: [] as FailureRequest[],
-    respondActivityTaskFailedById: [] as FailureRequest[],
-    respondActivityTaskCanceled: [] as DetailsRequest[],
-    respondActivityTaskCanceledById: [] as DetailsRequest[],
-    recordActivityTaskHeartbeat: [] as DetailsRequest[],
-    recordActivityTaskHeartbeatById: [] as DetailsRequest[],
-  };
+  const recorded: {
+    respondActivityTaskFailed?: FailedRequest;
+    respondActivityTaskFailedById?: FailedByIdRequest;
+    respondActivityTaskCanceled?: CanceledRequest;
+    respondActivityTaskCanceledById?: CanceledByIdRequest;
+    recordActivityTaskHeartbeat?: HeartbeatRequest;
+    recordActivityTaskHeartbeatById?: HeartbeatByIdRequest;
+  } = {};
 
   const workflowService = {
-    respondActivityTaskFailed: record(recorded.respondActivityTaskFailed),
-    respondActivityTaskFailedById: record(recorded.respondActivityTaskFailedById),
-    respondActivityTaskCanceled: record(recorded.respondActivityTaskCanceled),
-    respondActivityTaskCanceledById: record(recorded.respondActivityTaskCanceledById),
-    recordActivityTaskHeartbeat: record(recorded.recordActivityTaskHeartbeat, {}),
-    recordActivityTaskHeartbeatById: record(recorded.recordActivityTaskHeartbeatById, {}),
+    respondActivityTaskFailed: async (request: FailedRequest) => {
+      recorded.respondActivityTaskFailed = request;
+    },
+    respondActivityTaskFailedById: async (request: FailedByIdRequest) => {
+      recorded.respondActivityTaskFailedById = request;
+    },
+    respondActivityTaskCanceled: async (request: CanceledRequest) => {
+      recorded.respondActivityTaskCanceled = request;
+    },
+    respondActivityTaskCanceledById: async (request: CanceledByIdRequest) => {
+      recorded.respondActivityTaskCanceledById = request;
+    },
+    recordActivityTaskHeartbeat: async (request: HeartbeatRequest) => {
+      recorded.recordActivityTaskHeartbeat = request;
+      return {};
+    },
+    recordActivityTaskHeartbeatById: async (request: HeartbeatByIdRequest) => {
+      recorded.recordActivityTaskHeartbeatById = request;
+      return {};
+    },
   };
 
   const connection = {
     workflowService,
     plugins: [],
-    close: async () => undefined,
-    ensureConnected: async () => undefined,
-    withDeadline: async <T>(_deadline: number | Date, fn: () => Promise<T>): Promise<T> => await fn(),
-    withMetadata: async <T>(_metadata: Record<string, unknown>, fn: () => Promise<T>): Promise<T> => await fn(),
-    withAbortSignal: async <T>(_abortSignal: AbortSignal, fn: () => Promise<T>): Promise<T> => await fn(),
-  } as unknown as Connection;
+  } as unknown as ConnectionLike;
 
   return {
     client: new Client({
       connection,
-      dataConverter: {
-        payloadConverterPath: require.resolve('./payload-converters/serialization-context-converter'),
-        failureConverterPath: require.resolve('./payload-converters/serialization-context-converter'),
-      },
+      dataConverter,
     }),
     recorded,
   };
-}
-
-function expectEncodedWith(
-  t: ExecutionContext<Context>,
-  payloads: Payload[] | null | undefined,
-  label: string,
-  ctx: string
-): void {
-  t.truthy(payloads, 'encoded payloads must be present');
-  t.deepEqual(fromPayloadsAtIndex<ContextTrace<string>>(defaultPayloadConverter, 0, payloads), {
-    label,
-    trace: [enc(label, ctx)],
-  });
 }
 
 test('AsyncCompletionClient fail by full ID infers activity context', async (t) => {
@@ -173,10 +155,13 @@ test('AsyncCompletionClient fail by full ID infers activity context', async (t) 
     ApplicationFailure.nonRetryable('boom', 'Error', makeContextTrace('detail'))
   );
 
-  t.is(recorded.respondActivityTaskFailedById.length, 1);
-  const request = recorded.respondActivityTaskFailedById[0]!;
-  expectEncodedWith(t, request.failure.applicationFailureInfo?.details?.payloads, 'detail', ctx);
-  t.is(request.failure.message, `failure.encode.bound|${ctx}|boom`);
+  const failure = recorded.respondActivityTaskFailedById?.failure;
+  const payloads = failure?.applicationFailureInfo?.details?.payloads;
+  t.deepEqual(fromPayloadsAtIndex<ContextTrace<string>>(defaultPayloadConverter, 0, payloads), {
+    label: 'detail',
+    trace: [enc('detail', ctx)],
+  });
+  t.is(failure?.message, `failure.encode.bound|${ctx}|boom`);
 });
 
 test('AsyncCompletionClient fail with task token uses explicit activity context', async (t) => {
@@ -187,10 +172,13 @@ test('AsyncCompletionClient fail with task token uses explicit activity context'
     serializationContext: activitySerializationContext(client.options.namespace, 'wf1', 'act1'),
   });
 
-  t.is(recorded.respondActivityTaskFailed.length, 1);
-  const request = recorded.respondActivityTaskFailed[0]!;
-  expectEncodedWith(t, request.failure.applicationFailureInfo?.details?.payloads, 'detail', ctx);
-  t.is(request.failure.message, `failure.encode.bound|${ctx}|boom`);
+  const failure = recorded.respondActivityTaskFailed?.failure;
+  const payloads = failure?.applicationFailureInfo?.details?.payloads;
+  t.deepEqual(fromPayloadsAtIndex<ContextTrace<string>>(defaultPayloadConverter, 0, payloads), {
+    label: 'detail',
+    trace: [enc('detail', ctx)],
+  });
+  t.is(failure?.message, `failure.encode.bound|${ctx}|boom`);
 });
 
 test('AsyncCompletionClient reportCancellation by full ID infers activity context', async (t) => {
@@ -199,9 +187,11 @@ test('AsyncCompletionClient reportCancellation by full ID infers activity contex
 
   await client.activity.reportCancellation({ workflowId: 'wf1', activityId: 'act1' }, makeContextTrace('details'));
 
-  t.is(recorded.respondActivityTaskCanceledById.length, 1);
-  const request = recorded.respondActivityTaskCanceledById[0]!;
-  expectEncodedWith(t, request.details?.payloads, 'details', ctx);
+  const payloads = recorded.respondActivityTaskCanceledById?.details?.payloads;
+  t.deepEqual(fromPayloadsAtIndex<ContextTrace<string>>(defaultPayloadConverter, 0, payloads), {
+    label: 'details',
+    trace: [enc('details', ctx)],
+  });
 });
 
 test('AsyncCompletionClient reportCancellation with task token uses explicit activity context', async (t) => {
@@ -212,9 +202,11 @@ test('AsyncCompletionClient reportCancellation with task token uses explicit act
     serializationContext: activitySerializationContext(client.options.namespace, 'wf1', 'act1'),
   });
 
-  t.is(recorded.respondActivityTaskCanceled.length, 1);
-  const request = recorded.respondActivityTaskCanceled[0]!;
-  expectEncodedWith(t, request.details?.payloads, 'details', ctx);
+  const payloads = recorded.respondActivityTaskCanceled?.details?.payloads;
+  t.deepEqual(fromPayloadsAtIndex<ContextTrace<string>>(defaultPayloadConverter, 0, payloads), {
+    label: 'details',
+    trace: [enc('details', ctx)],
+  });
 });
 
 test('AsyncCompletionClient heartbeat by full ID infers activity context', async (t) => {
@@ -223,9 +215,11 @@ test('AsyncCompletionClient heartbeat by full ID infers activity context', async
 
   await client.activity.heartbeat({ workflowId: 'wf1', activityId: 'act1' }, makeContextTrace('details'));
 
-  t.is(recorded.recordActivityTaskHeartbeatById.length, 1);
-  const request = recorded.recordActivityTaskHeartbeatById[0]!;
-  expectEncodedWith(t, request.details?.payloads, 'details', ctx);
+  const payloads = recorded.recordActivityTaskHeartbeatById?.details?.payloads;
+  t.deepEqual(fromPayloadsAtIndex<ContextTrace<string>>(defaultPayloadConverter, 0, payloads), {
+    label: 'details',
+    trace: [enc('details', ctx)],
+  });
 });
 
 test('AsyncCompletionClient heartbeat with task token uses explicit activity context', async (t) => {
@@ -236,9 +230,11 @@ test('AsyncCompletionClient heartbeat with task token uses explicit activity con
     serializationContext: activitySerializationContext(client.options.namespace, 'wf1', 'act1'),
   });
 
-  t.is(recorded.recordActivityTaskHeartbeat.length, 1);
-  const request = recorded.recordActivityTaskHeartbeat[0]!;
-  expectEncodedWith(t, request.details?.payloads, 'details', ctx);
+  const payloads = recorded.recordActivityTaskHeartbeat?.details?.payloads;
+  t.deepEqual(fromPayloadsAtIndex<ContextTrace<string>>(defaultPayloadConverter, 0, payloads), {
+    label: 'details',
+    trace: [enc('details', ctx)],
+  });
 });
 
 if (RUN_INTEGRATION_TESTS) {
