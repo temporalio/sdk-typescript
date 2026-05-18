@@ -58,16 +58,8 @@ function activityCtx(workflowId: string, activityId = '1', isLocal = false): str
   return `activity.default.${workflowId}.${activityId}.${isLocal}`;
 }
 
-function codecEnc(label: string, ctx: string): string {
-  return `codec.encode.bound|${label}|${ctx}`;
-}
-
-function codecDec(label: string, ctx: string): string {
-  return `codec.decode.bound|${label}|${ctx}`;
-}
-
-function codecEncDec(label: string, ctx: string): string[] {
-  return [codecEnc(label, ctx), codecDec(label, ctx)];
+function codecRoundTrip(label: string, ctx: string): string[] {
+  return [`codec.encode.bound|${label}|${ctx}`, `codec.decode.bound|${label}|${ctx}`];
 }
 
 test('workflow start/result codec path carries workflow context', async (t) => {
@@ -86,7 +78,7 @@ test('workflow start/result codec path carries workflow context', async (t) => {
     const wfTrace = await handle.result();
     t.deepEqual(wfTrace, {
       label: 'wf-output',
-      trace: [...codecEncDec('wf-input', wf), ...codecEncDec('wf-output', wf)],
+      trace: [...codecRoundTrip('wf-input', wf), ...codecRoundTrip('wf-output', wf)],
     });
   });
 });
@@ -111,15 +103,15 @@ test('query, signal, and update codec paths carry workflow context', async (t) =
 
     t.deepEqual(queryTrace, {
       label: 'query-output',
-      trace: [...codecEncDec('query-input', wf), ...codecEncDec('query-output', wf)],
+      trace: [...codecRoundTrip('query-input', wf), ...codecRoundTrip('query-output', wf)],
     });
     t.deepEqual(updateTrace, {
       label: 'update-output',
-      trace: [...codecEncDec('update-input', wf), ...codecEncDec('update-output', wf)],
+      trace: [...codecRoundTrip('update-input', wf), ...codecRoundTrip('update-output', wf)],
     });
     t.deepEqual(signalTrace, {
       label: 'signal-received',
-      trace: [...codecEncDec('signal-input', wf), ...codecEncDec('signal-received', wf)],
+      trace: [...codecRoundTrip('signal-input', wf), ...codecRoundTrip('signal-received', wf)],
     });
   });
 });
@@ -142,10 +134,10 @@ test('remote activity codec path carries activity context', async (t) => {
     t.deepEqual(wfTrace, {
       label: 'wf-output',
       trace: [
-        ...codecEncDec('wf-input', wf),
-        ...codecEncDec('activity-input', act),
-        ...codecEncDec('activity-output', act),
-        ...codecEncDec('wf-output', wf),
+        ...codecRoundTrip('wf-input', wf),
+        ...codecRoundTrip('activity-input', act),
+        ...codecRoundTrip('activity-output', act),
+        ...codecRoundTrip('wf-output', wf),
       ],
     });
   });
@@ -169,11 +161,11 @@ test('activity heartbeat codec path carries activity context', async (t) => {
     t.deepEqual(wfTrace, {
       label: 'wf-output',
       trace: [
-        ...codecEncDec('wf-input', wf),
-        ...codecEncDec('activity-input', act),
-        ...codecEncDec('activity-heartbeat-details', act),
-        ...codecEncDec('activity-heartbeat-details', act),
-        ...codecEncDec('wf-output', wf),
+        ...codecRoundTrip('wf-input', wf),
+        ...codecRoundTrip('activity-input', act),
+        ...codecRoundTrip('activity-heartbeat-details', act),
+        ...codecRoundTrip('activity-heartbeat-details', act),
+        ...codecRoundTrip('wf-output', wf),
       ],
     });
   });
@@ -197,10 +189,10 @@ test('local activity codec path carries local-activity context', async (t) => {
     t.deepEqual(wfTrace, {
       label: 'wf-output',
       trace: [
-        ...codecEncDec('wf-input', wf),
-        ...codecEncDec('local-activity-input', localAct),
-        ...codecEncDec('local-activity-output', localAct),
-        ...codecEncDec('wf-output', wf),
+        ...codecRoundTrip('wf-input', wf),
+        ...codecRoundTrip('local-activity-input', localAct),
+        ...codecRoundTrip('local-activity-output', localAct),
+        ...codecRoundTrip('wf-output', wf),
       ],
     });
   });
@@ -225,10 +217,10 @@ test('child workflow codec path carries target workflow context', async (t) => {
     t.deepEqual(await childHandle.result(), {
       label: 'parent-wf-output',
       trace: [
-        ...codecEncDec('parent-wf-input', wf),
-        ...codecEncDec('child-wf-input', childWf),
-        ...codecEncDec('child-wf-output', childWf),
-        ...codecEncDec('parent-wf-output', wf),
+        ...codecRoundTrip('parent-wf-input', wf),
+        ...codecRoundTrip('child-wf-input', childWf),
+        ...codecRoundTrip('child-wf-output', childWf),
+        ...codecRoundTrip('parent-wf-output', wf),
       ],
     });
   });
@@ -252,7 +244,7 @@ test('memo codec path carries workflow context', async (t) => {
 
     t.deepEqual(desc.memo?.probe, {
       label: 'memo-upsert',
-      trace: [...codecEncDec('wf-input', memoWf), ...codecEncDec('memo-upsert', memoWf)],
+      trace: [...codecRoundTrip('wf-input', memoWf), ...codecRoundTrip('memo-upsert', memoWf)],
     });
   });
 });

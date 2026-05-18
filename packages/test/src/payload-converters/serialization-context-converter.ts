@@ -34,7 +34,7 @@ function isContextTrace(maybeTrace: unknown): maybeTrace is ContextTrace<unknown
   );
 }
 
-function ctxToTraceStr(context: SerializationContext): string {
+export function contextToTraceString(context: SerializationContext): string {
   const parts = [context.type, context.namespace];
 
   if (context.workflowId) parts.push(context.workflowId);
@@ -58,7 +58,7 @@ function tracePayload(
   }
 
   value.trace.push(
-    context ? `${operation}.bound|${value.label}|${ctxToTraceStr(context)}` : `${operation}.free|${value.label}`
+    context ? `${operation}.bound|${value.label}|${contextToTraceString(context)}` : `${operation}.free|${value.label}`
   );
   return defaultPayloadConverter.toPayload(value, context);
 }
@@ -67,7 +67,9 @@ export class FreePayloadConverter implements PayloadConverter {
   toPayload<T>(value: T, context?: SerializationContext): Payload {
     if (isContextTrace(value)) {
       value.trace.push(
-        context ? `payload.encode.bound|${value.label}|${ctxToTraceStr(context)}` : `payload.encode.free|${value.label}`
+        context
+          ? `payload.encode.bound|${value.label}|${contextToTraceString(context)}`
+          : `payload.encode.free|${value.label}`
       );
     }
     return defaultPayloadConverter.toPayload(value, context);
@@ -77,7 +79,9 @@ export class FreePayloadConverter implements PayloadConverter {
     const value = defaultPayloadConverter.fromPayload(payload, context);
     if (isContextTrace(value)) {
       value.trace.push(
-        context ? `payload.decode.bound|${value.label}|${ctxToTraceStr(context)}` : `payload.decode.free|${value.label}`
+        context
+          ? `payload.decode.bound|${value.label}|${contextToTraceString(context)}`
+          : `payload.decode.free|${value.label}`
       );
     }
     return value as T;
@@ -89,14 +93,14 @@ export class FreeFailureConverter implements FailureConverter {
     const failure = defaultFailureConverter.errorToFailure(err, payloadConverter, context);
     const existing = failure.message ?? '';
     failure.message = context
-      ? `failure.encode.bound|${ctxToTraceStr(context)}|${existing}`
+      ? `failure.encode.bound|${contextToTraceString(context)}|${existing}`
       : `failure.encode.free|${existing}`;
     return failure;
   }
   failureToError(err: ProtoFailure, payloadConverter: PayloadConverter, context?: SerializationContext): Error {
     const error = defaultFailureConverter.failureToError(err, payloadConverter, context);
     error.message = context
-      ? `failure.decode.bound|${ctxToTraceStr(context)}|${error.message}`
+      ? `failure.decode.bound|${contextToTraceString(context)}|${error.message}`
       : `failure.decode.free|${error.message}`;
     return error;
   }

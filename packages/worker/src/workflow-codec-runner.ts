@@ -24,7 +24,7 @@ import { coresdk } from '@temporalio/proto';
  * Helper class for decoding Workflow activations and encoding Workflow completions.
  */
 export class WorkflowCodecRunner {
-  protected readonly pendingCompletionContexts = {
+  private readonly pendingCompletionContexts = {
     activity: new Map<number, ActivitySerializationContext>(),
     childWorkflowStart: new Map<number, WorkflowSerializationContext>(),
     childWorkflowComplete: new Map<number, WorkflowSerializationContext>(),
@@ -33,11 +33,11 @@ export class WorkflowCodecRunner {
   };
 
   constructor(
-    protected readonly codecs: PayloadCodec[],
-    public readonly workflowContext: WorkflowSerializationContext
+    private readonly codecs: PayloadCodec[],
+    private readonly workflowContext: WorkflowSerializationContext
   ) {}
 
-  protected consumeContext<TContext extends SerializationContext>(
+  private consumeContext<TContext extends SerializationContext>(
     map: Map<number, TContext>,
     seq: number | null | undefined
   ): TContext | undefined {
@@ -49,7 +49,7 @@ export class WorkflowCodecRunner {
     return context;
   }
 
-  protected activityContext(
+  private activityContext(
     command: coresdk.workflow_commands.IScheduleActivity | coresdk.workflow_commands.IScheduleLocalActivity,
     isLocal: boolean
   ): ActivitySerializationContext {
@@ -62,7 +62,7 @@ export class WorkflowCodecRunner {
     };
   }
 
-  protected childWorkflowContext(
+  private childWorkflowContext(
     command: coresdk.workflow_commands.IStartChildWorkflowExecution
   ): WorkflowSerializationContext | undefined {
     if (command.workflowId == null) return undefined;
@@ -73,7 +73,7 @@ export class WorkflowCodecRunner {
     };
   }
 
-  protected externalWorkflowContext(
+  private externalWorkflowContext(
     command:
       | coresdk.workflow_commands.ISignalExternalWorkflowExecution
       | coresdk.workflow_commands.IRequestCancelExternalWorkflowExecution
@@ -88,7 +88,7 @@ export class WorkflowCodecRunner {
     };
   }
 
-  protected async encodeUserMetadata(
+  private async encodeUserMetadata(
     context: SerializationContext,
     userMetadata: coresdk.workflow_commands.IWorkflowCommand['userMetadata']
   ): Promise<Encoded<NonNullable<coresdk.workflow_commands.IWorkflowCommand['userMetadata']>> | undefined> {
