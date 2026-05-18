@@ -122,8 +122,8 @@ export function createActivities(provider: ProviderV3, mcpClientFactories?: McpC
       const warnings: SharedV3Warning[] = [];
       let responseMetadata: Record<string, unknown> | undefined;
 
-      let currentText = '';
-      let currentReasoning = '';
+      const textBlocks = new Map<string, string>();
+      const reasoningBlocks = new Map<string, string>();
 
       const reader = streamResult.stream.getReader();
 
@@ -143,30 +143,32 @@ export function createActivities(provider: ProviderV3, mcpClientFactories?: McpC
             warnings.push(...part.warnings);
             break;
           case 'text-start':
-            currentText = '';
+            textBlocks.set(part.id, '');
             break;
           case 'text-delta':
-            currentText += part.delta;
+            textBlocks.set(part.id, (textBlocks.get(part.id) ?? '') + part.delta);
             break;
           case 'text-end':
             content.push({
               type: 'text',
-              text: currentText,
+              text: textBlocks.get(part.id) ?? '',
               providerMetadata: part.providerMetadata,
             });
+            textBlocks.delete(part.id);
             break;
           case 'reasoning-start':
-            currentReasoning = '';
+            reasoningBlocks.set(part.id, '');
             break;
           case 'reasoning-delta':
-            currentReasoning += part.delta;
+            reasoningBlocks.set(part.id, (reasoningBlocks.get(part.id) ?? '') + part.delta);
             break;
           case 'reasoning-end':
             content.push({
               type: 'reasoning',
-              text: currentReasoning,
+              text: reasoningBlocks.get(part.id) ?? '',
               providerMetadata: part.providerMetadata,
             });
+            reasoningBlocks.delete(part.id);
             break;
           case 'response-metadata':
             responseMetadata = {
