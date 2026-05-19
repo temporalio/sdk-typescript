@@ -352,11 +352,6 @@ export type NexusOperationExecutionDescription = Replace<
    */
   readonly cancellationInfo: NexusOperationExecutionCancellationInfo | undefined;
 
-  /**
-   * Token for follow-on long-poll requests. None if the operation is complete.
-   */
-  readonly longPollToken: Uint8Array | undefined;
-
   staticSummary: () => Promise<string | undefined>;
   staticDetails: () => Promise<string | undefined>;
 };
@@ -460,10 +455,4 @@ export interface GetNexusOperationHandleOptions {
 /**
  * Options for {@link NexusOperationHandle.describe}
  */
-export interface DescribeNexusOperationOptions {
-  /**
-   *  Token from a previous describe response.
-   *  If provided, the request will long-poll until the Nexus Operation state changes.
-   */
-  longPollToken?: Uint8Array;
-}
+export interface DescribeNexusOperationOptions {}

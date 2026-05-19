@@ -454,7 +454,6 @@ export class NexusClient extends BaseClient {
         return await this.client.describeNexusOperation({
           operationId: this.operationId,
           runId: this.runId,
-          longPollToken: options?.longPollToken,
         });
       },
       async cancel(reason?: string): Promise<void> {
@@ -508,7 +507,6 @@ export class NexusClient extends BaseClient {
       namespace: this.options.namespace,
       operationId: input.operationId,
       runId: input.runId ?? '',
-      longPollToken: input.longPollToken,
     };
     let res: temporal.api.workflowservice.v1.IDescribeNexusOperationExecutionResponse;
     try {
@@ -519,11 +517,7 @@ export class NexusClient extends BaseClient {
     if (!res.info) {
       throw new ServiceError('Received invalid Nexus operation description from server: missing info');
     }
-    return await nexusOperationExecutionDescriptionFromProto(
-      res.info,
-      this.dataConverter,
-      normalizeLongPollToken(res.longPollToken)
-    );
+    return await nexusOperationExecutionDescriptionFromProto(res.info, this.dataConverter);
   }
 
   protected async cancelHandler(input: CancelNexusOperationInput): Promise<void> {
@@ -626,8 +620,7 @@ async function cancellationInfoFromProto(
 
 async function nexusOperationExecutionDescriptionFromProto(
   raw: RawNexusOperationExecutionInfo,
-  dataConverter: LoadedDataConverter,
-  longPollToken: Uint8Array | undefined
+  dataConverter: LoadedDataConverter
 ): Promise<NexusOperationExecutionDescription> {
   let decodedMetadata:
     | { state: 'pending' }
@@ -680,7 +673,6 @@ async function nexusOperationExecutionDescriptionFromProto(
     stateTransitionCount: raw.stateTransitionCount?.toNumber() ?? 0,
     searchAttributes: decodeTypedSearchAttributes(raw.searchAttributes?.indexedFields),
     identity: raw.identity ?? '',
-    longPollToken,
     raw,
     staticDetails: async () => (await decodeMetadata()).details,
     staticSummary: async () => (await decodeMetadata()).summary,
@@ -714,10 +706,6 @@ function nexusCountFromProto(
       groupValues: (group.groupValues ?? []).map(decodeCountGroupValue),
     })),
   };
-}
-
-function normalizeLongPollToken(token: Uint8Array | null | undefined): Uint8Array | undefined {
-  return token != null && token.length > 0 ? token : undefined;
 }
 
 function decodeCountGroupValue(value: temporal.api.common.v1.IPayload): TypedSearchAttributeValue<SearchAttributeType> {
