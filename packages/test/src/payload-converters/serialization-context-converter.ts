@@ -1,5 +1,6 @@
 import type {
   Payload,
+  PayloadCodec,
   PayloadConverter,
   FailureConverter,
   ProtoFailure,
@@ -60,7 +61,7 @@ function isContextTrace(maybeTrace: unknown): maybeTrace is ContextTrace<unknown
   );
 }
 
-function ctxToTraceStr(context: SerializationContext): string {
+export function contextToTraceString(context: SerializationContext): string {
   const parts = [context.type, context.namespace];
 
   if (context.workflowId) parts.push(context.workflowId);
@@ -73,11 +74,29 @@ function ctxToTraceStr(context: SerializationContext): string {
   return parts.join('.');
 }
 
+function tracePayload(
+  payload: Payload,
+  operation: 'codec.encode' | 'codec.decode',
+  context?: SerializationContext
+): Payload {
+  const value = defaultPayloadConverter.fromPayload(payload, context);
+  if (!isContextTrace(value)) {
+    return payload;
+  }
+
+  value.trace.push(
+    context ? `${operation}.bound|${value.label}|${contextToTraceString(context)}` : `${operation}.free|${value.label}`
+  );
+  return defaultPayloadConverter.toPayload(value, context);
+}
+
 export class FreePayloadConverter implements PayloadConverter {
   toPayload<T>(value: T, context?: SerializationContext): Payload {
     if (isContextTrace(value)) {
       value.trace.push(
-        context ? `payload.encode.bound|${value.label}|${ctxToTraceStr(context)}` : `payload.encode.free|${value.label}`
+        context
+          ? `payload.encode.bound|${value.label}|${contextToTraceString(context)}`
+          : `payload.encode.free|${value.label}`
       );
     }
     return defaultPayloadConverter.toPayload(value, context);
@@ -87,7 +106,9 @@ export class FreePayloadConverter implements PayloadConverter {
     const value = defaultPayloadConverter.fromPayload(payload, context);
     if (isContextTrace(value)) {
       value.trace.push(
-        context ? `payload.decode.bound|${value.label}|${ctxToTraceStr(context)}` : `payload.decode.free|${value.label}`
+        context
+          ? `payload.decode.bound|${value.label}|${contextToTraceString(context)}`
+          : `payload.decode.free|${value.label}`
       );
     }
     return value as T;
@@ -99,14 +120,14 @@ export class FreeFailureConverter implements FailureConverter {
     const failure = defaultFailureConverter.errorToFailure(err, payloadConverter, context);
     const existing = failure.message ?? '';
     failure.message = context
-      ? `failure.encode.bound|${ctxToTraceStr(context)}|${existing}`
+      ? `failure.encode.bound|${contextToTraceString(context)}|${existing}`
       : `failure.encode.free|${existing}`;
     return failure;
   }
   failureToError(err: ProtoFailure, payloadConverter: PayloadConverter, context?: SerializationContext): Error {
     const error = defaultFailureConverter.failureToError(err, payloadConverter, context);
     error.message = context
-      ? `failure.decode.bound|${ctxToTraceStr(context)}|${error.message}`
+      ? `failure.decode.bound|${contextToTraceString(context)}|${error.message}`
       : `failure.decode.free|${error.message}`;
     return error;
   }
@@ -114,3 +135,13 @@ export class FreeFailureConverter implements FailureConverter {
 
 export const payloadConverter = new FreePayloadConverter();
 export const failureConverter = new FreeFailureConverter();
+
+export class FreePayloadCodec implements PayloadCodec {
+  async encode(payloads: Payload[], context?: SerializationContext): Promise<Payload[]> {
+    return payloads.map((payload) => tracePayload(payload, 'codec.encode', context));
+  }
+
+  async decode(payloads: Payload[], context?: SerializationContext): Promise<Payload[]> {
+    return payloads.map((payload) => tracePayload(payload, 'codec.decode', context));
+  }
+}
