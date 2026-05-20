@@ -455,4 +455,5 @@ export interface GetNexusOperationHandleOptions {
 /**
  * Options for {@link NexusOperationHandle.describe}
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface DescribeNexusOperationOptions {}
