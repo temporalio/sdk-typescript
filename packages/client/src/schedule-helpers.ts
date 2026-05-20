@@ -1,5 +1,5 @@
 import Long from 'long';
-import type { LoadedDataConverter } from '@temporalio/common';
+import type { LoadedDataConverter, WorkflowSerializationContext } from '@temporalio/common';
 import {
   compilePriority,
   compileRetryPolicy,
@@ -18,7 +18,7 @@ import {
   decodeArrayFromPayloads,
   decodeMapFromPayloads,
   encodeMapToPayloads,
-  encodeToPayloads,
+  encodeToPayloadsWithContext,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
 import {
@@ -243,18 +243,28 @@ export function encodeScheduleSpec(spec: ScheduleSpec): temporal.api.schedule.v1
   };
 }
 
+function workflowSerializationContext(namespace: string, workflowId: string): WorkflowSerializationContext {
+  return {
+    type: 'workflow',
+    namespace,
+    workflowId,
+  };
+}
+
 export async function encodeScheduleAction(
   dataConverter: LoadedDataConverter,
+  namespace: string,
   action: CompiledScheduleAction,
   headers: Headers
 ): Promise<temporal.api.schedule.v1.IScheduleAction> {
+  const context = workflowSerializationContext(namespace, action.workflowId);
   return {
     startWorkflow: {
       workflowId: action.workflowId,
       workflowType: {
         name: action.workflowType,
       },
-      input: { payloads: await encodeToPayloads(dataConverter, ...action.args) },
+      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, action.args) },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: action.taskQueue,
@@ -263,7 +273,7 @@ export async function encodeScheduleAction(
       workflowRunTimeout: msOptionalToTs(action.workflowRunTimeout),
       workflowTaskTimeout: msOptionalToTs(action.workflowTaskTimeout),
       retryPolicy: action.retry ? compileRetryPolicy(action.retry) : undefined,
-      memo: action.memo ? { fields: await encodeMapToPayloads(dataConverter, action.memo) } : undefined,
+      memo: action.memo ? { fields: await encodeMapToPayloads(dataConverter, action.memo, context) } : undefined,
       searchAttributes:
         action.searchAttributes || action.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
           ? {
@@ -271,7 +281,7 @@ export async function encodeScheduleAction(
             }
           : undefined,
       header: { fields: headers },
-      userMetadata: await encodeUserMetadata(dataConverter, action.staticSummary, action.staticDetails),
+      userMetadata: await encodeUserMetadata(dataConverter, action.staticSummary, action.staticDetails, context),
       priority: action.priority ? compilePriority(action.priority) : undefined,
     },
   };
@@ -319,10 +329,16 @@ export function decodeScheduleSpec(pb: temporal.api.schedule.v1.IScheduleSpec): 
 
 export async function decodeScheduleAction(
   dataConverter: LoadedDataConverter,
+  namespace: string,
   pb: temporal.api.schedule.v1.IScheduleAction
 ): Promise<ScheduleDescriptionAction> {
   if (pb.startWorkflow) {
-    const { staticSummary, staticDetails } = await decodeUserMetadata(dataConverter, pb.startWorkflow?.userMetadata);
+    const context = workflowSerializationContext(namespace, pb.startWorkflow.workflowId!);
+    const { staticSummary, staticDetails } = await decodeUserMetadata(
+      dataConverter,
+      pb.startWorkflow?.userMetadata,
+      context
+    );
     return {
       type: 'startWorkflow',
 
@@ -331,8 +347,8 @@ export async function decodeScheduleAction(
       workflowType: pb.startWorkflow.workflowType!.name!,
 
       taskQueue: pb.startWorkflow.taskQueue!.name!,
-      args: await decodeArrayFromPayloads(dataConverter, pb.startWorkflow.input?.payloads),
-      memo: await decodeMapFromPayloads(dataConverter, pb.startWorkflow.memo?.fields),
+      args: await decodeArrayFromPayloads(dataConverter, pb.startWorkflow.input?.payloads, context),
+      memo: await decodeMapFromPayloads(dataConverter, pb.startWorkflow.memo?.fields, context),
       retry: decompileRetryPolicy(pb.startWorkflow.retryPolicy),
       searchAttributes: decodeSearchAttributes(pb.startWorkflow.searchAttributes?.indexedFields),
       typedSearchAttributes: decodeTypedSearchAttributes(pb.startWorkflow.searchAttributes?.indexedFields),

@@ -264,9 +264,19 @@ async fn client_invoke_workflow_service(
         "CountActivityExecutions" => rpc_call!(connection, call, count_activity_executions),
         "CountSchedules" => rpc_call!(connection, call, count_schedules),
         "CountWorkflowExecutions" => rpc_call!(connection, call, count_workflow_executions),
+        "CountNexusOperationExecutions" => {
+            rpc_call!(connection, call, count_nexus_operation_executions)
+        }
         "CreateSchedule" => rpc_call!(connection, call, create_schedule),
+        "CreateWorkerDeployment" => rpc_call!(connection, call, create_worker_deployment),
+        "CreateWorkerDeploymentVersion" => {
+            rpc_call!(connection, call, create_worker_deployment_version)
+        }
         "CreateWorkflowRule" => rpc_call!(connection, call, create_workflow_rule),
         "DeleteActivityExecution" => rpc_call!(connection, call, delete_activity_execution),
+        "DeleteNexusOperationExecution" => {
+            rpc_call!(connection, call, delete_nexus_operation_execution)
+        }
         "DeleteSchedule" => rpc_call!(connection, call, delete_schedule),
         "DeleteWorkerDeployment" => rpc_call!(connection, call, delete_worker_deployment),
         "DeleteWorkerDeploymentVersion" => {
@@ -277,6 +287,9 @@ async fn client_invoke_workflow_service(
         "DescribeBatchOperation" => rpc_call!(connection, call, describe_batch_operation),
         "DescribeActivityExecution" => rpc_call!(connection, call, describe_activity_execution),
         "DescribeDeployment" => rpc_call!(connection, call, describe_deployment),
+        "DescribeNexusOperationExecution" => {
+            rpc_call!(connection, call, describe_nexus_operation_execution)
+        }
         "DescribeWorker" => rpc_call!(connection, call, describe_worker),
         "DeprecateNamespace" => rpc_call!(connection, call, deprecate_namespace),
         "DescribeNamespace" => rpc_call!(connection, call, describe_namespace),
@@ -316,6 +329,9 @@ async fn client_invoke_workflow_service(
         }
         "ListDeployments" => rpc_call!(connection, call, list_deployments),
         "ListNamespaces" => rpc_call!(connection, call, list_namespaces),
+        "ListNexusOperationExecutions" => {
+            rpc_call!(connection, call, list_nexus_operation_executions)
+        }
         "ListOpenWorkflowExecutions" => rpc_call!(connection, call, list_open_workflow_executions),
         "ListScheduleMatchingTimes" => rpc_call!(connection, call, list_schedule_matching_times),
         "ListSchedules" => rpc_call!(connection, call, list_schedules),
@@ -329,6 +345,9 @@ async fn client_invoke_workflow_service(
         "PauseWorkflowExecution" => rpc_call!(connection, call, pause_workflow_execution),
         "PollActivityExecution" => rpc_call!(connection, call, poll_activity_execution),
         "PollActivityTaskQueue" => rpc_call!(connection, call, poll_activity_task_queue),
+        "PollNexusOperationExecution" => {
+            rpc_call!(connection, call, poll_nexus_operation_execution)
+        }
         "PollNexusTaskQueue" => rpc_call!(connection, call, poll_nexus_task_queue),
         "PollWorkflowExecutionUpdate" => {
             rpc_call!(connection, call, poll_workflow_execution_update)
@@ -345,6 +364,9 @@ async fn client_invoke_workflow_service(
         "RegisterNamespace" => rpc_call!(connection, call, register_namespace),
         "RequestCancelActivityExecution" => {
             rpc_call!(connection, call, request_cancel_activity_execution)
+        }
+        "RequestCancelNexusOperationExecution" => {
+            rpc_call!(connection, call, request_cancel_nexus_operation_execution)
         }
         "RequestCancelWorkflowExecution" => {
             rpc_call!(connection, call, request_cancel_workflow_execution)
@@ -392,8 +414,14 @@ async fn client_invoke_workflow_service(
         "StartActivityExecution" => rpc_call!(connection, call, start_activity_execution),
         "StartWorkflowExecution" => rpc_call!(connection, call, start_workflow_execution),
         "StartBatchOperation" => rpc_call!(connection, call, start_batch_operation),
+        "StartNexusOperationExecution" => {
+            rpc_call!(connection, call, start_nexus_operation_execution)
+        }
         "StopBatchOperation" => rpc_call!(connection, call, stop_batch_operation),
         "TerminateActivityExecution" => rpc_call!(connection, call, terminate_activity_execution),
+        "TerminateNexusOperationExecution" => {
+            rpc_call!(connection, call, terminate_nexus_operation_execution)
+        }
         "TerminateWorkflowExecution" => rpc_call!(connection, call, terminate_workflow_execution),
         "TriggerWorkflowRule" => rpc_call!(connection, call, trigger_workflow_rule),
         "UnpauseActivity" => rpc_call!(connection, call, unpause_activity),
@@ -402,6 +430,11 @@ async fn client_invoke_workflow_service(
         "UpdateNamespace" => rpc_call!(connection, call, update_namespace),
         "UpdateSchedule" => rpc_call!(connection, call, update_schedule),
         "UpdateWorkerConfig" => rpc_call!(connection, call, update_worker_config),
+        "UpdateWorkerDeploymentVersionComputeConfig" => rpc_call!(
+            connection,
+            call,
+            update_worker_deployment_version_compute_config
+        ),
         "UpdateWorkerDeploymentVersionMetadata" => {
             rpc_call!(connection, call, update_worker_deployment_version_metadata)
         }
@@ -415,6 +448,13 @@ async fn client_invoke_workflow_service(
         }
         "UpdateWorkerVersioningRules" => {
             rpc_call!(connection, call, update_worker_versioning_rules)
+        }
+        "ValidateWorkerDeploymentVersionComputeConfig" => {
+            rpc_call!(
+                connection,
+                call,
+                validate_worker_deployment_version_compute_config
+            )
         }
         _ => Err(BridgeError::TypeError {
             field: None,
@@ -571,13 +611,15 @@ where
 
 mod config {
     use std::collections::HashMap;
+    use std::time::Duration;
 
     use temporalio_client::{
-        ClientTlsOptions as CoreClientTlsOptions, ConnectionOptions, HttpConnectProxyOptions,
-        TlsOptions as CoreTlsOptions,
+        ClientTlsOptions as CoreClientTlsOptions, ConnectionOptions, DnsLoadBalancingOptions,
+        HttpConnectProxyOptions, TlsOptions as CoreTlsOptions,
     };
     use temporalio_common::telemetry::metrics::TemporalMeter;
     use temporalio_sdk_core::Url;
+    use tracing::warn;
 
     use bridge_macros::TryFromJs;
 
@@ -590,6 +632,7 @@ mod config {
         client_version: String,
         tls: Option<TlsOptions>,
         http_connect_proxy: Option<HttpConnectProxy>,
+        dns_load_balancing_config: Option<DnsLoadBalancingConfig>,
         headers: Option<HashMap<String, MetadataValue>>,
         api_key: Option<String>,
         disable_error_code_metric_tags: bool,
@@ -621,18 +664,37 @@ mod config {
         password: String,
     }
 
+    #[derive(Debug, Clone, TryFromJs)]
+    struct DnsLoadBalancingConfig {
+        resolution_interval_millis: u64,
+    }
+
     impl ClientOptions {
         pub(super) fn into_connection_options(
             self,
             metrics_meter: Option<TemporalMeter>,
         ) -> ConnectionOptions {
             let (ascii_headers, bin_headers) = partition_headers(self.headers);
+            let has_http_connect_proxy = self.http_connect_proxy.is_some();
+            // Core rejects DNS load balancing alongside an HTTP CONNECT proxy, so
+            // suppress DNS LB whenever a proxy is configured to keep the
+            // pre-existing behavior even if a caller leaves the default.
+            let dns_load_balancing = if has_http_connect_proxy {
+                if self.dns_load_balancing_config.is_some() {
+                    warn!("Disabling DNS load balancing because http_connect_proxy is set");
+                }
+                None
+            } else {
+                self.dns_load_balancing_config.map(Into::into)
+            };
+            let http_connect_proxy = self.http_connect_proxy.map(Into::into);
 
             ConnectionOptions::new(self.target_url)
                 .client_name(self.client_name)
                 .client_version(self.client_version)
                 .maybe_tls_options(self.tls.map(Into::into))
-                .maybe_http_connect_proxy(self.http_connect_proxy.map(Into::into))
+                .maybe_http_connect_proxy(http_connect_proxy)
+                .dns_load_balancing(dns_load_balancing)
                 .maybe_headers(ascii_headers)
                 .maybe_binary_headers(bin_headers)
                 .maybe_api_key(self.api_key)
@@ -666,6 +728,14 @@ mod config {
                 target_addr: val.target_host,
                 basic_auth: val.basic_auth.map(|auth| (auth.username, auth.password)),
             }
+        }
+    }
+
+    impl From<DnsLoadBalancingConfig> for DnsLoadBalancingOptions {
+        fn from(val: DnsLoadBalancingConfig) -> Self {
+            let mut opts = Self::default();
+            opts.resolution_interval = Duration::from_millis(val.resolution_interval_millis);
+            opts
         }
     }
 

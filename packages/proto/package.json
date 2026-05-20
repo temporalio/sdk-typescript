@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/proto",
-  "version": "1.16.0",
+  "version": "1.17.2",
   "description": "Temporal.io SDK compiled protobuf definitions",
   "main": "protos/index.js",
   "types": "protos/index.d.ts",
@@ -10,7 +10,9 @@
     "lib/"
   ],
   "scripts": {
-    "build": "tsx ./scripts/compile-proto.ts"
+    "build": "pnpm run \"/^build:.*/\"",
+    "build:ts": "tsc --build",
+    "build:protos": "tsx ./scripts/compile-proto.ts"
   },
   "keywords": [
     "temporal",

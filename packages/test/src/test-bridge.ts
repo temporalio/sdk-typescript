@@ -251,6 +251,7 @@ const GenericConfigs = {
       clientVersion: '1.0.0',
       tls: null,
       httpConnectProxy: null,
+      dnsLoadBalancingConfig: null,
       headers: null,
       apiKey: null,
       disableErrorCodeMetricTags: false,

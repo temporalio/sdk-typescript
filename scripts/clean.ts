@@ -5,35 +5,38 @@ import arg from 'arg';
 import { parse as parseJson5 } from 'json5';
 
 const packagesPath = resolve(__dirname, '../packages');
+const contribPath = resolve(__dirname, '../contrib');
 
 function cleanTsGeneratedFiles() {
-  for (const pkg of readdirSync(packagesPath)) {
-    const packagePath = resolve(packagesPath, pkg);
+  for (const root of [packagesPath, contribPath]) {
+    for (const pkg of readdirSync(root)) {
+      const packagePath = resolve(root, pkg);
 
-    let files;
-    try {
-      files = readdirSync(packagePath);
-    } catch (e: unknown) {
-      // Skip over non-directory files like .DS_Store
-      if ((e as NodeJS.ErrnoException)?.code === 'ENOTDIR') {
-        continue;
-      } else {
-        throw e;
+      let files;
+      try {
+        files = readdirSync(packagePath);
+      } catch (e: unknown) {
+        // Skip over non-directory files like .DS_Store
+        if ((e as NodeJS.ErrnoException)?.code === 'ENOTDIR') {
+          continue;
+        } else {
+          throw e;
+        }
       }
-    }
 
-    for (const file of files) {
-      if (/^tsconfig(.*).json$/.test(file)) {
-        const filePath = resolve(packagePath, file);
-        const tsconfig = parseJson5(readFileSync(filePath, 'utf8'));
-        const { outDir } = tsconfig.compilerOptions;
-        if (outDir) {
-          const outPath = resolve(packagePath, outDir);
-          console.log(`Removing ${outPath}`);
-          rmSync(outPath, { recursive: true, force: true });
-          const buildInfoPath = filePath.replace(/json$/, 'tsbuildinfo');
-          console.log(`Removing ${buildInfoPath}`);
-          rmSync(buildInfoPath, { recursive: true, force: true });
+      for (const file of files) {
+        if (/^tsconfig(.*).json$/.test(file)) {
+          const filePath = resolve(packagePath, file);
+          const tsconfig = parseJson5(readFileSync(filePath, 'utf8'));
+          const { outDir } = tsconfig.compilerOptions;
+          if (outDir) {
+            const outPath = resolve(packagePath, outDir);
+            console.log(`Removing ${outPath}`);
+            rmSync(outPath, { recursive: true, force: true });
+            const buildInfoPath = filePath.replace(/json$/, 'tsbuildinfo');
+            console.log(`Removing ${buildInfoPath}`);
+            rmSync(buildInfoPath, { recursive: true, force: true });
+          }
         }
       }
     }

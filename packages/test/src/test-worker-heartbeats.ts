@@ -3,8 +3,11 @@ import { firstValueFrom, Subject } from 'rxjs';
 import { v4 as uuid4 } from 'uuid';
 import type { coresdk } from '@temporalio/proto';
 import { Context } from '@temporalio/activity';
+import type { PayloadCodec } from '@temporalio/common';
+import { defaultPayloadConverter } from '@temporalio/common';
 import type { Worker } from './mock-native-worker';
 import { isolateFreeWorker } from './mock-native-worker';
+import { contextToTraceString, makeContextTrace } from './payload-converters/serialization-context-converter';
 
 async function runActivity(worker: Worker, callback?: (completion: coresdk.ActivityTaskCompletion) => void) {
   const taskToken = Buffer.from(uuid4());
@@ -172,4 +175,86 @@ test('No heartbeat is emitted with rogue activity', async (t) => {
     cx?.heartbeat(2);
   });
   t.deepEqual(heartbeatsSeen, [1]);
+});
+
+test('activity start heartbeat-details decode failure is encoded with activity serialization context', async (t) => {
+  const converterPath = require.resolve('./payload-converters/serialization-context-converter');
+
+  const worker = isolateFreeWorker({
+    namespace: 'worker-test',
+    taskQueue: 'unused',
+    dataConverter: {
+      payloadConverterPath: converterPath,
+      failureConverterPath: converterPath,
+    },
+    activities: {
+      async rapidHeartbeater() {
+        throw new Error('should not execute');
+      },
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const completion = await worker.native.runActivityTask({
+      taskToken: Buffer.from(uuid4()),
+      start: {
+        activityType: 'rapidHeartbeater',
+        activityId: 'act-1',
+        workflowExecution: { workflowId: 'wfid', runId: 'runid' },
+        heartbeatDetails: [{} as any],
+      },
+    });
+
+    t.is(
+      completion.result?.failed?.failure?.message,
+      'failure.encode.bound|activity.worker-test.wfid.act-1.false|Failed to parse heartbeat details for activity act-1: Unknown encoding: '
+    );
+  });
+});
+
+test('activity start heartbeat-details codec decode failure is encoded with activity serialization context', async (t) => {
+  const heartbeatDetailsFailingCodec: PayloadCodec = {
+    async encode(payloads) {
+      return payloads;
+    },
+
+    async decode(payloads, context) {
+      const value = defaultPayloadConverter.fromPayload<{ label?: string }>(payloads[0]!);
+      if (value.label === 'heartbeat-details') {
+        const ctx = context ? contextToTraceString(context) : 'free';
+        throw new Error(`codec.decode.bound|${ctx}|heartbeat-details`);
+      }
+      return payloads;
+    },
+  };
+
+  const worker = isolateFreeWorker({
+    namespace: 'worker-test',
+    taskQueue: 'unused',
+    dataConverter: {
+      payloadCodecs: [heartbeatDetailsFailingCodec],
+    },
+    activities: {
+      async rapidHeartbeater() {
+        throw new Error('should not execute');
+      },
+    },
+  });
+
+  await worker.runUntil(async () => {
+    const completion = await worker.native.runActivityTask({
+      taskToken: Buffer.from(uuid4()),
+      start: {
+        activityType: 'rapidHeartbeater',
+        activityId: 'act-1',
+        workflowExecution: { workflowId: 'wfid', runId: 'runid' },
+        heartbeatDetails: [defaultPayloadConverter.toPayload(makeContextTrace('heartbeat-details'))],
+      },
+    });
+
+    t.is(
+      completion.result?.failed?.failure?.message,
+      'Failed to parse heartbeat details for activity act-1: codec.decode.bound|activity.worker-test.wfid.act-1.false|heartbeat-details'
+    );
+  });
 });

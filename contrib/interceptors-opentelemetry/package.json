@@ -1,0 +1,78 @@
+{
+  "name": "@temporalio/interceptors-opentelemetry",
+  "version": "1.17.2",
+  "description": "Temporal.io SDK interceptors bundle for tracing with opentelemetry",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "test": "ava ./lib/__tests__/test-*.js"
+  },
+  "keywords": [
+    "temporal",
+    "workflow",
+    "interceptors",
+    "opentelemetry"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "^1.25.1",
+    "@opentelemetry/resources": "^1.25.1",
+    "@opentelemetry/sdk-trace-base": "^1.25.1",
+    "@temporalio/plugin": "workspace:*"
+  },
+  "devDependencies": {
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.52.1",
+    "@opentelemetry/sdk-node": "^0.52.1",
+    "@opentelemetry/semantic-conventions": "^1.25.1",
+    "@temporalio/activity": "workspace:*",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/proto": "workspace:*",
+    "@temporalio/test-helpers": "workspace:*",
+    "@temporalio/testing": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "@temporalio/workflow": "workspace:*",
+    "ava": "^5.3.1",
+    "nexus-rpc": "^0.0.2",
+    "rxjs": "7.8.1",
+    "uuid": "^11.1.0"
+  },
+  "peerDependencies": {
+    "@temporalio/common": "workspace:*",
+    "@temporalio/workflow": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@temporalio/workflow": {
+      "optional": true
+    }
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "contrib/interceptors-opentelemetry"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/contrib/interceptors-opentelemetry",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">= 20.0.0"
+  },
+  "files": [
+    "src",
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
+  ],
+  "ava": {
+    "timeout": "120s",
+    "concurrency": 1,
+    "workerThreads": false
+  }
+}

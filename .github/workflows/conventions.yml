@@ -40,6 +40,7 @@ jobs:
       - name: Rust Cargo and Build cache
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
+          cache-bin: false
           workspaces: packages/core-bridge -> target
           prefix-key: corebridge-buildcache
           shared-key: linux-x64
@@ -51,4 +52,6 @@ jobs:
         run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
 
       - run: pnpm run lint:check
+        env:
+          NODE_OPTIONS: '--max-old-space-size=8192'
       - run: pnpm run lint:prune

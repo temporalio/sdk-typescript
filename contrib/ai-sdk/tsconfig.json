@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./lib",
+    "rootDir": "./src"
+  },
+  "references": [
+    { "path": "../../packages/plugin" },
+    { "path": "../../packages/workflow" },
+    { "path": "../../packages/client" },
+    { "path": "../../packages/proto" },
+    { "path": "../../packages/test-helpers" },
+    { "path": "../../packages/testing" },
+    { "path": "../../packages/worker" },
+    { "path": "../interceptors-opentelemetry" }
+  ],
+  "include": ["./src/**/*.ts"]
+}

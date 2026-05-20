@@ -1,10 +1,8 @@
-import { randomUUID } from 'crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
 import type { ErrorConstructor, ExecutionContext, TestFn } from 'ava';
-import type { WorkflowHandle, WorkflowHandleWithFirstExecutionRunId, WorkflowStartOptions } from '@temporalio/client';
+import type { WorkflowHandle } from '@temporalio/client';
 import { isGrpcServiceError, WorkflowFailedError, WorkflowUpdateFailedError } from '@temporalio/client';
 import type { LocalTestWorkflowEnvironmentOptions, NexusEndpointIdentifier } from '@temporalio/testing';
-import { workflowInterceptorModules as defaultWorkflowInterceptorModules } from '@temporalio/testing';
 import type {
   BundlerPlugin,
   LogEntry,
@@ -12,31 +10,38 @@ import type {
   NativeConnectionOptions,
   ReplayWorkerOptions,
   RuntimeOptions,
-  WorkerOptions,
   WorkflowBundle,
-  WorkflowBundleWithSourceMap,
 } from '@temporalio/worker';
-import {
-  DefaultLogger,
-  NativeConnection,
-  Runtime,
-  bundleWorkflowCode,
-  makeTelemetryFilterString,
-} from '@temporalio/worker';
+import { DefaultLogger, NativeConnection, Runtime, makeTelemetryFilterString } from '@temporalio/worker';
 import type * as workflow from '@temporalio/workflow';
 import type { temporal } from '@temporalio/proto';
-import { defineSearchAttributeKey, SearchAttributeType } from '@temporalio/common/lib/search-attributes';
-import { Worker, TestWorkflowEnvironment, test as anyTest, bundlerOptions } from './helpers';
 
-export interface Context {
-  env: TestWorkflowEnvironment;
-  workflowBundle: WorkflowBundle;
-}
+// Import from test-helpers
+import type {
+  BaseContext,
+  BaseHelpers,
+  TestWorkflowBundleOptions as BaseTestWorkflowBundleOptions,
+  TestWorkflowEnvironment,
+} from '@temporalio/test-helpers';
+import {
+  helpers as baseHelpers,
+  defaultTaskQueueTransform,
+  createTestWorkflowBundle as createTestWorkflowBundleBase,
+  createTestWorkflowEnvironment as createTestWorkflowEnvironmentBase,
+  createLocalTestEnvironment,
+  defaultSAKeys,
+  test as anyTest,
+  Worker,
+} from '@temporalio/test-helpers';
 
-const defaultDynamicConfigOptions = [
-  'system.enableActivityEagerExecution=true',
-  'history.enableRequestIdRefLinks=true',
-];
+export { defaultSAKeys, createLocalTestEnvironment };
+
+/**
+ * Context interface for integration tests.
+ * Extends BaseContext with TestWorkflowEnvironment.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface Context extends BaseContext<TestWorkflowEnvironment> {}
 
 function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }, runtimeOpts?: Partial<RuntimeOptions>) {
   const logger = recordedLogs
@@ -61,48 +66,21 @@ function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }, runti
   });
 }
 
-export interface HelperTestBundleOptions {
+export interface HelperTestBundleOptions extends BaseTestWorkflowBundleOptions {
   workflowsPath: string;
   workflowInterceptorModules?: string[];
   plugins?: BundlerPlugin[];
 }
 
-export async function createTestWorkflowBundle({
-  workflowsPath,
-  workflowInterceptorModules,
-  plugins,
-}: HelperTestBundleOptions): Promise<WorkflowBundleWithSourceMap> {
-  return await bundleWorkflowCode({
-    ...bundlerOptions,
-    workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(workflowInterceptorModules ?? [])],
-    workflowsPath,
-    logger: new DefaultLogger('WARN'),
-    plugins: plugins ?? [],
-  });
-}
-
-export const defaultSAKeys = {
-  CustomIntField: defineSearchAttributeKey('CustomIntField', SearchAttributeType.INT),
-  CustomBoolField: defineSearchAttributeKey('CustomBoolField', SearchAttributeType.BOOL),
-  CustomKeywordField: defineSearchAttributeKey('CustomKeywordField', SearchAttributeType.KEYWORD),
-  CustomTextField: defineSearchAttributeKey('CustomTextField', SearchAttributeType.TEXT),
-  CustomDatetimeField: defineSearchAttributeKey('CustomDatetimeField', SearchAttributeType.DATETIME),
-  CustomDoubleField: defineSearchAttributeKey('CustomDoubleField', SearchAttributeType.DOUBLE),
-};
-
-export async function createLocalTestEnvironment(
-  opts?: LocalTestWorkflowEnvironmentOptions
-): Promise<TestWorkflowEnvironment> {
-  return await TestWorkflowEnvironment.createLocal({
-    ...(opts || {}), // Use provided options or default to an empty object
-    server: {
-      searchAttributes: Object.values(defaultSAKeys),
-      ...(opts?.server || {}), // Use provided server options or default to an empty object
-      extraArgs: [
-        ...defaultDynamicConfigOptions.flatMap((opt) => ['--dynamic-config-value', opt]),
-        ...(opts?.server?.extraArgs ?? []),
-      ],
-    },
+/**
+ * Create a test workflow bundle with the package-specific bundler options.
+ */
+export async function createTestWorkflowBundle(
+  opts: HelperTestBundleOptions
+): ReturnType<typeof createTestWorkflowBundleBase> {
+  return createTestWorkflowBundleBase({
+    ...opts,
+    additionalIgnoreModules: [require.resolve('./activities'), require.resolve('./mock-native-worker')],
   });
 }
 
@@ -125,7 +103,7 @@ export function makeConfigurableEnvironmentTestFn<T>(opts: {
   return test;
 }
 
-export interface TestFunctionOptions<C extends Context> {
+export interface TestFunctionOptions<C extends Context = Context> {
   workflowsPath: string;
   workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
   workflowInterceptorModules?: string[];
@@ -137,8 +115,8 @@ export function makeTestFunction<C extends Context = Context>(opts: TestFunction
   return makeConfigurableEnvironmentTestFn<C>({
     recordedLogs: opts.recordedLogs,
     runtimeOpts: opts.runtimeOpts,
-    createTestContext: makeDefaultTestContextFunction(opts),
-    teardown: async (c: C) => {
+    createTestContext: makeDefaultTestContextFunction(opts) as (t: ExecutionContext) => Promise<C>,
+    teardown: async (c: Context) => {
       if (c.env) {
         await c.env.teardown();
       }
@@ -146,8 +124,8 @@ export function makeTestFunction<C extends Context = Context>(opts: TestFunction
   });
 }
 
-export function makeDefaultTestContextFunction<C extends Context = Context>(opts: TestFunctionOptions<C>) {
-  return async (_t: ExecutionContext): Promise<C> => {
+export function makeDefaultTestContextFunction(opts: TestFunctionOptions): (t: ExecutionContext) => Promise<Context> {
+  return async (_t: ExecutionContext): Promise<Context> => {
     const env = await createTestWorkflowEnvironment(opts.workflowEnvironmentOpts);
     return {
       workflowBundle: await createTestWorkflowBundle({
@@ -155,39 +133,22 @@ export function makeDefaultTestContextFunction<C extends Context = Context>(opts
         workflowInterceptorModules: opts.workflowInterceptorModules,
       }),
       env,
-    } as unknown as C;
+    };
   };
 }
 
 export async function createTestWorkflowEnvironment(
   opts?: LocalTestWorkflowEnvironmentOptions
 ): Promise<TestWorkflowEnvironment> {
-  let env: TestWorkflowEnvironment;
-  if (process.env.TEMPORAL_SERVICE_ADDRESS) {
-    env = await TestWorkflowEnvironment.createFromExistingServer({
-      address: process.env.TEMPORAL_SERVICE_ADDRESS,
-    });
-  } else {
-    env = await createLocalTestEnvironment(opts);
-  }
-  return env;
+  return createTestWorkflowEnvironmentBase(opts);
 }
 
-export interface Helpers {
-  taskQueue: string;
-  createWorker(opts?: Partial<WorkerOptions>): Promise<Worker>;
+/**
+ * Extended helpers interface with additional test utilities specific to the test package.
+ */
+export interface Helpers extends BaseHelpers {
   createNativeConnection(opts?: Partial<NativeConnectionOptions>): Promise<NativeConnection>;
   runReplayHistory(opts: Partial<ReplayWorkerOptions>, history: temporal.api.history.v1.IHistory): Promise<void>;
-  executeWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<workflow.WorkflowResultType<T>>;
-  executeWorkflow<T extends workflow.Workflow>(
-    fn: T,
-    opts: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
-  ): Promise<workflow.WorkflowResultType<T>>;
-  startWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
-  startWorkflow<T extends workflow.Workflow>(
-    fn: T,
-    opts: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
-  ): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
   assertWorkflowUpdateFailed(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
   assertWorkflowFailedError(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
   updateHasBeenAdmitted(handle: WorkflowHandle<workflow.Workflow>, updateId: string): Promise<boolean>;
@@ -196,27 +157,19 @@ export interface Helpers {
   ): Promise<{ endpointName: string; endpointIdentifier: NexusEndpointIdentifier }>;
 }
 
-export function configurableHelpers<T>(
-  t: ExecutionContext<T>,
-  workflowBundle: WorkflowBundle,
-  testEnv: TestWorkflowEnvironment
-): Helpers {
-  const taskQueue = t.title
-    .toLowerCase()
-    .replaceAll(/[ _()'-]+/g, '-')
-    .replace(/^[-]?(.+?)[-]?$/, '$1');
+/**
+ * Create extended helpers with package-specific functionality.
+ * @param t - The test execution context
+ * @param env - Optional environment override (defaults to t.context.env)
+ */
+export function helpers(t: ExecutionContext<Context>, env?: TestWorkflowEnvironment): Helpers {
+  const testEnv = env ?? t.context.env;
+  const { workflowBundle } = t.context;
+  const base = baseHelpers(t, testEnv);
+  const taskQueue = defaultTaskQueueTransform(t.title);
 
   return {
-    taskQueue,
-    async createWorker(opts?: Partial<WorkerOptions>): Promise<Worker> {
-      return await Worker.create({
-        connection: testEnv.nativeConnection,
-        workflowBundle,
-        taskQueue,
-        showStackTraceSources: true,
-        ...opts,
-      });
-    },
+    ...base,
     async createNativeConnection(opts?: Partial<NativeConnectionOptions>): Promise<NativeConnection> {
       return await NativeConnection.connect({ address: testEnv.address, ...opts });
     },
@@ -231,26 +184,6 @@ export function configurableHelpers<T>(
         },
         history
       );
-    },
-    async executeWorkflow(
-      fn: workflow.Workflow,
-      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
-    ): Promise<any> {
-      return await testEnv.client.workflow.execute(fn, {
-        taskQueue,
-        workflowId: randomUUID(),
-        ...opts,
-      });
-    },
-    async startWorkflow(
-      fn: workflow.Workflow,
-      opts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> & Partial<Pick<WorkflowStartOptions, 'workflowId'>>
-    ): Promise<WorkflowHandleWithFirstExecutionRunId<workflow.Workflow>> {
-      return await testEnv.client.workflow.start(fn, {
-        taskQueue,
-        workflowId: randomUUID(),
-        ...opts,
-      });
     },
     async assertWorkflowUpdateFailed(
       p: Promise<any>,
@@ -317,6 +250,14 @@ export function configurableHelpers<T>(
   };
 }
 
-export function helpers(t: ExecutionContext<Context>, testEnv: TestWorkflowEnvironment = t.context.env): Helpers {
-  return configurableHelpers(t, t.context.workflowBundle, testEnv);
+/**
+ * Create helpers with explicit workflowBundle and env parameters.
+ * Use this for tests with non-standard context structures (e.g., multiple environments).
+ */
+export function configurableHelpers<T>(
+  t: ExecutionContext<T>,
+  workflowBundle: WorkflowBundle,
+  testEnv: TestWorkflowEnvironment
+): BaseHelpers {
+  return baseHelpers({ title: t.title, context: { env: testEnv, workflowBundle } } as ExecutionContext<Context>);
 }
