@@ -1,5 +1,5 @@
 import test from 'ava';
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import { UnexpectedError, Worker } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';

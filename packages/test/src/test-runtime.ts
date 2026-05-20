@@ -2,7 +2,7 @@
  * Test the lifecycle of the Runtime singleton.
  * Tests run serially because Runtime is a singleton.
  */
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
 import type { LogEntry } from '@temporalio/worker';
 import { Runtime, DefaultLogger, makeTelemetryFilterString, NativeConnection } from '@temporalio/worker';

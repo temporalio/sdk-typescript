@@ -1,6 +1,6 @@
 import * as process from 'process';
 import type { TestFn } from 'ava';
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import { WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import type { WorkflowBundleWithSourceMap } from '@temporalio/worker';

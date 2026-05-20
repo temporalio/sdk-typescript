@@ -28,11 +28,11 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@temporalio/common": "workspace:*",
     "@temporalio/envconfig": "workspace:*",
     "@temporalio/worker": "workspace:*"
   },
   "devDependencies": {
+    "@temporalio/common": "workspace:*",
     "@aws-lambda-powertools/logger": "^2.0.0",
     "@types/aws-lambda": "^8.10.145"
   },

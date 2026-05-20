@@ -1,5 +1,5 @@
 import test from 'ava';
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import { Client } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';

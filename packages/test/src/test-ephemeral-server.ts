@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import type { WorkflowBundle } from '@temporalio/worker';
 import { bundleWorkflowCode } from '@temporalio/worker';
 import { Connection } from '@temporalio/client';

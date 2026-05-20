@@ -1,6 +1,6 @@
 import type { TestFn, ExecutionContext } from 'ava';
 import anyTest from 'ava';
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import type { InjectedSinks, LogEntry, LogLevel, LoggerSinks } from '@temporalio/worker';
 import { DefaultLogger, Runtime, defaultSinks } from '@temporalio/worker';
 import type { WorkflowInfo } from '@temporalio/workflow';

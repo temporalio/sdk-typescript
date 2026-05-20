@@ -28,8 +28,6 @@
     "heap-js": "^2.6.0",
     "memfs": "^4.6.0",
     "nexus-rpc": "^0.0.2",
-    "proto3-json-serializer": "^2.0.0",
-    "protobufjs": "^7.5.5",
     "rxjs": "^7.8.1",
     "source-map": "^0.7.4",
     "source-map-loader": "^4.0.2",
@@ -39,7 +37,8 @@
     "webpack": "^5.104.1"
   },
   "devDependencies": {
-    "@types/supports-color": "^8.1.3"
+    "@types/supports-color": "^8.1.3",
+    "protobufjs": "^7.5.5"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

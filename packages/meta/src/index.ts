@@ -12,3 +12,5 @@ export * as testing from '@temporalio/testing';
 export * as opentelemetry from '@temporalio/interceptors-opentelemetry';
 export * as envconfig from '@temporalio/envconfig';
 export * as plugin from '@temporalio/plugin';
+export * as cloud from '@temporalio/cloud';
+export * as aisdk from '@temporalio/ai-sdk';

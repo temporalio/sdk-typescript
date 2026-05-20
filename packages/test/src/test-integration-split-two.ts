@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import asyncRetry from 'async-retry';
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import * as iface from '@temporalio/proto';
 import { WorkflowContinuedAsNewError, WorkflowFailedError } from '@temporalio/client';
 import type { Payload } from '@temporalio/common';
@@ -855,8 +855,8 @@ test.serial('User metadata on workflow, timer, activity, child', configMacro, as
 
   const worker = await createWorkerWithDefaults(t, {
     activities: {
-      async activityWithSummary() {},
-      async localActivityWithSummary() {},
+      async activityWithSummary() { },
+      async localActivityWithSummary() { },
     },
   });
 

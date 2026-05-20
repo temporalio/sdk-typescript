@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import test from 'ava';
 import { Runtime, Worker } from '@temporalio/worker';
 import { getRandomPort, TestWorkflowEnvironment } from './helpers';

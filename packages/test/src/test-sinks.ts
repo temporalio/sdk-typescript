@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import type { InjectedSinks, WorkerOptions, LogEntry } from '@temporalio/worker';
 import { DefaultLogger, Runtime, NativeConnection } from '@temporalio/worker';

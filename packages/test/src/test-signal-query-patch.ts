@@ -1,4 +1,4 @@
-import crypto from 'node:crypto';
+import crypto from 'crypto';
 import test from 'ava';
 import * as wf from '@temporalio/workflow';
 import { Worker, TestWorkflowEnvironment } from './helpers';

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import * as rxjs from 'rxjs';
@@ -488,11 +488,11 @@ if (RUN_INTEGRATION_TESTS) {
       {
         const // @ts-expect-error TS2322
           _handle // end error
-          : ActivityHandle<number> = await client.start('noArgsReturnsVoid', { ...options });
+            : ActivityHandle<number> = await client.start('noArgsReturnsVoid', { ...options });
 
         const // @ts-expect-error TS2322
           _result // end error
-          : number = await client.execute('noArgsReturnsVoid', { ...options });
+            : number = await client.execute('noArgsReturnsVoid', { ...options });
       }
       {
         // OK
@@ -508,20 +508,20 @@ if (RUN_INTEGRATION_TESTS) {
       {
         const // @ts-expect-error TS2322
           _handle // end error
-          : ActivityHandle<void> = await client.start('noArgsReturnsNumber', { ...options });
+            : ActivityHandle<void> = await client.start('noArgsReturnsNumber', { ...options });
 
         const // @ts-expect-error TS2322
           _result // end error
-          : void = await client.execute('noArgsReturnsNumber', { ...options });
+            : void = await client.execute('noArgsReturnsNumber', { ...options });
       }
       {
         const // @ts-expect-error TS2322
           _handle // end error
-          : ActivityHandle<string> = await client.start('noArgsReturnsNumber', { ...options });
+            : ActivityHandle<string> = await client.start('noArgsReturnsNumber', { ...options });
 
         const // @ts-expect-error TS2322
           _result // end error
-          : string = await client.execute('noArgsReturnsNumber', { ...options });
+            : string = await client.execute('noArgsReturnsNumber', { ...options });
       }
       {
         // OK

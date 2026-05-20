@@ -17,58 +17,6 @@ patchedDependencies:
 importers:
 
   .:
-    dependencies:
-      '@temporalio/ai-sdk':
-        specifier: workspace:*
-        version: link:contrib/ai-sdk
-      '@temporalio/client':
-        specifier: workspace:*
-        version: link:packages/client
-      '@temporalio/cloud':
-        specifier: workspace:*
-        version: link:packages/cloud
-      '@temporalio/common':
-        specifier: workspace:*
-        version: link:packages/common
-      '@temporalio/create':
-        specifier: workspace:*
-        version: link:packages/create-project
-      '@temporalio/envconfig':
-        specifier: workspace:*
-        version: link:packages/envconfig
-      '@temporalio/interceptors-opentelemetry':
-        specifier: workspace:*
-        version: link:contrib/interceptors-opentelemetry
-      '@temporalio/nexus':
-        specifier: workspace:*
-        version: link:packages/nexus
-      '@temporalio/nyc-test-coverage':
-        specifier: workspace:*
-        version: link:packages/nyc-test-coverage
-      '@temporalio/plugin':
-        specifier: workspace:*
-        version: link:packages/plugin
-      '@temporalio/proto':
-        specifier: workspace:*
-        version: link:packages/proto
-      '@temporalio/test':
-        specifier: workspace:*
-        version: link:packages/test
-      '@temporalio/testing':
-        specifier: workspace:*
-        version: link:packages/testing
-      '@temporalio/worker':
-        specifier: workspace:*
-        version: link:packages/worker
-      '@temporalio/workflow':
-        specifier: workspace:*
-        version: link:packages/workflow
-      nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
-      temporalio:
-        specifier: file:packages/meta
-        version: file:packages/meta
     devDependencies:
       '@commitlint/cli':
         specifier: ^20.0.0
@@ -79,33 +27,15 @@ importers:
       '@eslint/js':
         specifier: ^9.26.0
         version: 9.39.2
-      '@opentelemetry/api':
-        specifier: ^1.9.0
-        version: 1.9.0
-      '@opentelemetry/core':
-        specifier: ^1.25.1
-        version: 1.25.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/sdk-node':
-        specifier: ^0.52.1
-        version: 0.52.1(@opentelemetry/api@1.9.0)
       '@tsconfig/node20':
         specifier: ^20.1.4
         version: 20.1.9
       '@types/fs-extra':
         specifier: ^11.0.4
         version: 11.0.4
-      '@types/ms':
-        specifier: ^0.7.34
-        version: 0.7.34
       '@types/node':
         specifier: ^20.10.8
         version: 20.10.8
-      '@types/stack-utils':
-        specifier: ^2.0.3
-        version: 2.0.3
-      '@types/supports-color':
-        specifier: ^8.1.3
-        version: 8.1.3
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.10.0
         version: 8.13.0(@typescript-eslint/parser@8.13.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.6.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.6.3)
@@ -233,9 +163,6 @@ importers:
       '@opentelemetry/core':
         specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/resources':
-        specifier: ^1.25.1
-        version: 1.25.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base':
         specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.9.0)
@@ -246,6 +173,9 @@ importers:
       '@opentelemetry/exporter-trace-otlp-grpc':
         specifier: ^0.52.1
         version: 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources':
+        specifier: ^1.25.1
+        version: 1.25.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-node':
         specifier: ^0.52.1
         version: 0.52.1(@opentelemetry/api@1.9.0)
@@ -288,12 +218,13 @@ importers:
 
   packages/activity:
     dependencies:
-      '@temporalio/client':
-        specifier: workspace:*
-        version: link:../client
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
+    devDependencies:
+      '@temporalio/client':
+        specifier: workspace:*
+        version: link:../client
 
   packages/client:
     dependencies:
@@ -416,18 +347,12 @@ importers:
       '@types/async-retry':
         specifier: ^1.4.8
         version: 1.4.8
-      '@types/cross-spawn':
-        specifier: ^6.0.6
-        version: 6.0.6
       '@types/got':
         specifier: ^9.6.12
         version: 9.6.12
       '@types/prompts':
         specifier: 2.4.9
         version: 2.4.9
-      '@types/tar':
-        specifier: ^6.1.10
-        version: 6.1.10
       '@types/validate-npm-package-name':
         specifier: ^4.0.2
         version: 4.0.2
@@ -471,9 +396,6 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.9.0)
-      '@temporalio/common':
-        specifier: workspace:*
-        version: link:../common
       '@temporalio/envconfig':
         specifier: workspace:*
         version: link:../envconfig
@@ -487,6 +409,9 @@ importers:
       '@aws-lambda-powertools/logger':
         specifier: ^2.0.0
         version: 2.32.0
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../common
       '@types/aws-lambda':
         specifier: ^8.10.145
         version: 8.10.161
@@ -502,6 +427,9 @@ importers:
       '@temporalio/client':
         specifier: workspace:*
         version: link:../client
+      '@temporalio/cloud':
+        specifier: workspace:*
+        version: link:../cloud
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
@@ -535,9 +463,6 @@ importers:
       '@temporalio/client':
         specifier: workspace:*
         version: link:../client
-      '@temporalio/common':
-        specifier: workspace:*
-        version: link:../common
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
@@ -548,6 +473,9 @@ importers:
         specifier: ^0.0.2
         version: 0.0.2
     devDependencies:
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../common
       ava:
         specifier: ^5.3.1
         version: 5.3.1
@@ -721,12 +649,15 @@ importers:
       long:
         specifier: ^5.2.3
         version: 5.2.3
+      ms:
+        specifier: 3.0.0-canary.1
+        version: 3.0.0-canary.1
       nexus-rpc:
         specifier: ^0.0.2
         version: 0.0.2
-      proto3-json-serializer:
-        specifier: ^2.0.0
-        version: 2.0.0
+      pidusage:
+        specifier: ^3.0.2
+        version: 3.0.2
       protobufjs:
         specifier: 7.5.5
         version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
@@ -736,9 +667,6 @@ importers:
       rxjs:
         specifier: 7.8.1
         version: 7.8.1
-      stack-utils:
-        specifier: ^2.0.6
-        version: 2.0.6
     devDependencies:
       '@types/async-retry':
         specifier: ^1.4.8
@@ -749,27 +677,15 @@ importers:
       '@types/istanbul-lib-coverage':
         specifier: ^2.0.6
         version: 2.0.6
-      '@types/ms':
-        specifier: ^0.7.34
-        version: 0.7.34
-      '@types/node-fetch':
-        specifier: ^2.6.10
-        version: 2.6.10
       '@types/pidusage':
         specifier: ^2.0.5
         version: 2.0.5
       fs-extra:
         specifier: ^11.2.0
         version: 11.2.0
-      pidusage:
-        specifier: ^3.0.2
-        version: 3.0.2
 
   packages/test-helpers:
     dependencies:
-      '@temporalio/client':
-        specifier: workspace:*
-        version: link:../client
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
@@ -792,15 +708,15 @@ importers:
         specifier: ^2.0.6
         version: 2.0.6
     devDependencies:
+      '@temporalio/client':
+        specifier: workspace:*
+        version: link:../client
       '@types/stack-utils':
         specifier: ^2.0.3
         version: 2.0.3
 
   packages/testing:
     dependencies:
-      '@temporalio/activity':
-        specifier: workspace:*
-        version: link:../activity
       '@temporalio/client':
         specifier: workspace:*
         version: link:../client
@@ -810,9 +726,6 @@ importers:
       '@temporalio/core-bridge':
         specifier: workspace:*
         version: link:../core-bridge
-      '@temporalio/proto':
-        specifier: workspace:*
-        version: link:../proto
       '@temporalio/worker':
         specifier: workspace:*
         version: link:../worker
@@ -820,6 +733,12 @@ importers:
         specifier: workspace:*
         version: link:../workflow
     devDependencies:
+      '@temporalio/activity':
+        specifier: workspace:*
+        version: link:../activity
+      '@temporalio/proto':
+        specifier: workspace:*
+        version: link:../proto
       ava:
         specifier: ^5.3.1
         version: 5.3.1
@@ -862,12 +781,6 @@ importers:
       nexus-rpc:
         specifier: ^0.0.2
         version: 0.0.2
-      proto3-json-serializer:
-        specifier: ^2.0.0
-        version: 2.0.0
-      protobufjs:
-        specifier: ^7.5.5
-        version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
       rxjs:
         specifier: ^7.8.1
         version: 7.8.1
@@ -893,22 +806,25 @@ importers:
       '@types/supports-color':
         specifier: ^8.1.3
         version: 8.1.3
+      protobufjs:
+        specifier: ^7.5.5
+        version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
 
   packages/workflow:
     dependencies:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
+    devDependencies:
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
-      nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
-    devDependencies:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      nexus-rpc:
+        specifier: ^0.0.2
+        version: 0.0.2
       source-map:
         specifier: ^0.7.4
         version: 0.7.4
@@ -1723,9 +1639,6 @@ packages:
   '@types/convert-source-map@2.0.3':
     resolution: {integrity: sha512-ag0BfJLZf6CQz8VIuRIEYQ5Ggwk/82uvTQf27RcpyDNbY0Vw49LIPqAxk5tqYfrCs9xDaIMvl4aj7ZopnYL8bA==}
 
-  '@types/cross-spawn@6.0.6':
-    resolution: {integrity: sha512-fXRhhUkG4H3TQk5dBhQ7m/JDdSNHKwR2BBia62lhwEIq9xGiQKLxd6LymNhn47SjXhsUEPmxi+PKw2OkW4LLjA==}
-
   '@types/eslint-scope@3.7.7':
     resolution: {integrity: sha512-MzMFlSLBqNF2gcHWO0G1vP/YQyfvrxZ0bF+u7mzUdZ1/xK4A4sru+nraZz5i3iEIk1l1uyicaDVTB4QbbEkAYg==}
 
@@ -1768,12 +1681,6 @@ packages:
   '@types/mdurl@1.0.5':
     resolution: {integrity: sha512-6L6VymKTzYSrEf4Nev4Xa1LCHKrlTlYCBMTlQKFuddo1CvQcE52I0mwfOJayueUC7MJuXOeHTcIU683lzd0cUA==}
 
-  '@types/ms@0.7.34':
-    resolution: {integrity: sha512-nG96G3Wp6acyAgJqGasjODb+acrI7KltPiRxzHPXnP3NgI28bpQDRv53olbqGXbfcgF5aiiHmO3xpwEpS5Ld9g==}
-
-  '@types/node-fetch@2.6.10':
-    resolution: {integrity: sha512-PPpPK6F9ALFTn59Ka3BaL+qGuipRfxNE8qVgkp0bVixeiR2c2/L+IVOiBdu9JhhT22sWnQEp6YyHGI2b2+CMcA==}
-
   '@types/node@20.10.8':
     resolution: {integrity: sha512-f8nQs3cLxbAFc00vEU59yf9UyGUftkPaLGfvbVOIDdx2i1b8epBqj2aNGyP19fiyXWvlmZ7qC1XLjAzw/OKIeA==}
 
@@ -1800,9 +1707,6 @@ packages:
 
   '@types/supports-color@8.1.3':
     resolution: {integrity: sha512-Hy6UMpxhE3j1tLpl27exp1XqHD7n8chAiNPzWfz16LPZoMMoSc4dzLl6w9qijkEb/r5O1ozdu1CWGA2L83ZeZg==}
-
-  '@types/tar@6.1.10':
-    resolution: {integrity: sha512-60ZO+W0tRKJ3ggdzJKp75xKVlNogKYMqGvr2bMH/+k3T0BagfYTnbmVDFMJB1BFttz6yRgP5MDGP27eh7brrqw==}
 
   '@types/tough-cookie@4.0.5':
     resolution: {integrity: sha512-/Ad8+nIOV7Rl++6f1BdKxFSMgmoqEoYbHRpPcx3JEfv8VRsQe9Z4mCXeJBzxs7mbHY/XOZZuXlRNfhpVPbs6ZA==}
@@ -3984,10 +3888,6 @@ packages:
   minimist@1.2.8:
     resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
 
-  minipass@4.2.8:
-    resolution: {integrity: sha512-fNzuVyifolSLFL4NzpF+wEF4qrgqaaKX0haXPQEdQ7NKAN+WecoKMHV09YcuL/DHxrUsYQOK3MiuDf7Ip2OXfQ==}
-    engines: {node: '>=8'}
-
   minipass@7.1.2:
     resolution: {integrity: sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==}
     engines: {node: '>=16 || 14 >=14.17'}
@@ -4752,9 +4652,6 @@ packages:
   temp-dir@3.0.0:
     resolution: {integrity: sha512-nHc6S/bwIilKHNRgK/3jlhDoIHcp45YgyiwcAk46Tr0LfEqGBVpmiAyuiuxeVE44m3mXnEeVhaipLOEWmH+Njw==}
     engines: {node: '>=14.16'}
-
-  temporalio@file:packages/meta:
-    resolution: {directory: packages/meta, type: directory}
 
   terser-webpack-plugin@5.3.16:
     resolution: {integrity: sha512-h9oBFCWrq78NyWWVcSwZarJkZ01c2AyGrzs1crmHZO3QUg9D61Wu4NPjBy69n7JqylFF5y+CsUZYmYEIZ3mR+Q==}
@@ -5972,10 +5869,6 @@ snapshots:
 
   '@types/convert-source-map@2.0.3': {}
 
-  '@types/cross-spawn@6.0.6':
-    dependencies:
-      '@types/node': 20.10.8
-
   '@types/eslint-scope@3.7.7':
     dependencies:
       '@types/eslint': 9.6.1
@@ -6026,13 +5919,6 @@ snapshots:
 
   '@types/mdurl@1.0.5': {}
 
-  '@types/ms@0.7.34': {}
-
-  '@types/node-fetch@2.6.10':
-    dependencies:
-      '@types/node': 20.10.8
-      form-data: 4.0.4
-
   '@types/node@20.10.8':
     dependencies:
       undici-types: 5.26.5
@@ -6057,11 +5943,6 @@ snapshots:
   '@types/stack-utils@2.0.3': {}
 
   '@types/supports-color@8.1.3': {}
-
-  '@types/tar@6.1.10':
-    dependencies:
-      '@types/node': 20.10.8
-      minipass: 4.2.8
 
   '@types/tough-cookie@4.0.5': {}
 
@@ -8599,8 +8480,6 @@ snapshots:
 
   minimist@1.2.8: {}
 
-  minipass@4.2.8: {}
-
   minipass@7.1.2: {}
 
   minizlib@3.1.0:
@@ -9432,21 +9311,6 @@ snapshots:
       yallist: 5.0.0
 
   temp-dir@3.0.0: {}
-
-  temporalio@file:packages/meta:
-    dependencies:
-      '@temporalio/activity': link:packages/activity
-      '@temporalio/ai-sdk': link:contrib/ai-sdk
-      '@temporalio/client': link:packages/client
-      '@temporalio/common': link:packages/common
-      '@temporalio/envconfig': link:packages/envconfig
-      '@temporalio/interceptors-opentelemetry': link:contrib/interceptors-opentelemetry
-      '@temporalio/nexus': link:packages/nexus
-      '@temporalio/plugin': link:packages/plugin
-      '@temporalio/proto': link:packages/proto
-      '@temporalio/testing': link:packages/testing
-      '@temporalio/worker': link:packages/worker
-      '@temporalio/workflow': link:packages/workflow
 
   terser-webpack-plugin@5.3.16(@swc/core@1.3.102)(webpack@5.105.1(@swc/core@1.3.102)):
     dependencies:

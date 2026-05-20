@@ -21,15 +21,15 @@
     "concurrency": 1,
     "workerThreads": false
   },
-  "devDependencies": {
-    "ava": "^5.3.1"
-  },
   "dependencies": {
     "@temporalio/client": "workspace:*",
-    "@temporalio/common": "workspace:*",
     "@temporalio/proto": "workspace:*",
     "long": "^5.2.3",
     "nexus-rpc": "^0.0.2"
+  },
+  "devDependencies": {
+    "@temporalio/common": "workspace:*",
+    "ava": "^5.3.1"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

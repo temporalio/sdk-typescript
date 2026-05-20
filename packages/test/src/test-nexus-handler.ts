@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import * as nexus from 'nexus-rpc';
@@ -338,37 +338,37 @@ test('coerceToHandlerError maps gRPC status codes to expected HandlerError types
     expectedType: nexus.HandlerErrorType;
     expectedRetryableOverride?: boolean;
   }[] = [
-    // Single-code cases
-    { code: grpcStatus.INVALID_ARGUMENT, name: 'INVALID_ARGUMENT', expectedType: 'BAD_REQUEST' },
-    { code: grpcStatus.NOT_FOUND, name: 'NOT_FOUND', expectedType: 'NOT_FOUND' },
-    { code: grpcStatus.RESOURCE_EXHAUSTED, name: 'RESOURCE_EXHAUSTED', expectedType: 'RESOURCE_EXHAUSTED' },
-    { code: grpcStatus.UNIMPLEMENTED, name: 'UNIMPLEMENTED', expectedType: 'NOT_IMPLEMENTED' },
-    { code: grpcStatus.DEADLINE_EXCEEDED, name: 'DEADLINE_EXCEEDED', expectedType: 'UPSTREAM_TIMEOUT' },
-    // Multi-code cases: non-retryable INTERNAL
-    {
-      code: grpcStatus.ALREADY_EXISTS,
-      name: 'ALREADY_EXISTS',
-      expectedType: 'INTERNAL',
-      expectedRetryableOverride: false,
-    },
-    {
-      code: grpcStatus.FAILED_PRECONDITION,
-      name: 'FAILED_PRECONDITION',
-      expectedType: 'INTERNAL',
-      expectedRetryableOverride: false,
-    },
-    { code: grpcStatus.OUT_OF_RANGE, name: 'OUT_OF_RANGE', expectedType: 'INTERNAL', expectedRetryableOverride: false },
-    // Multi-code cases: UNAVAILABLE
-    { code: grpcStatus.ABORTED, name: 'ABORTED', expectedType: 'UNAVAILABLE' },
-    { code: grpcStatus.UNAVAILABLE, name: 'UNAVAILABLE', expectedType: 'UNAVAILABLE' },
-    // Multi-code cases: retryable INTERNAL
-    { code: grpcStatus.CANCELLED, name: 'CANCELLED', expectedType: 'INTERNAL' },
-    { code: grpcStatus.DATA_LOSS, name: 'DATA_LOSS', expectedType: 'INTERNAL' },
-    { code: grpcStatus.INTERNAL, name: 'INTERNAL', expectedType: 'INTERNAL' },
-    { code: grpcStatus.UNKNOWN, name: 'UNKNOWN', expectedType: 'INTERNAL' },
-    { code: grpcStatus.UNAUTHENTICATED, name: 'UNAUTHENTICATED', expectedType: 'INTERNAL' },
-    { code: grpcStatus.PERMISSION_DENIED, name: 'PERMISSION_DENIED', expectedType: 'INTERNAL' },
-  ];
+      // Single-code cases
+      { code: grpcStatus.INVALID_ARGUMENT, name: 'INVALID_ARGUMENT', expectedType: 'BAD_REQUEST' },
+      { code: grpcStatus.NOT_FOUND, name: 'NOT_FOUND', expectedType: 'NOT_FOUND' },
+      { code: grpcStatus.RESOURCE_EXHAUSTED, name: 'RESOURCE_EXHAUSTED', expectedType: 'RESOURCE_EXHAUSTED' },
+      { code: grpcStatus.UNIMPLEMENTED, name: 'UNIMPLEMENTED', expectedType: 'NOT_IMPLEMENTED' },
+      { code: grpcStatus.DEADLINE_EXCEEDED, name: 'DEADLINE_EXCEEDED', expectedType: 'UPSTREAM_TIMEOUT' },
+      // Multi-code cases: non-retryable INTERNAL
+      {
+        code: grpcStatus.ALREADY_EXISTS,
+        name: 'ALREADY_EXISTS',
+        expectedType: 'INTERNAL',
+        expectedRetryableOverride: false,
+      },
+      {
+        code: grpcStatus.FAILED_PRECONDITION,
+        name: 'FAILED_PRECONDITION',
+        expectedType: 'INTERNAL',
+        expectedRetryableOverride: false,
+      },
+      { code: grpcStatus.OUT_OF_RANGE, name: 'OUT_OF_RANGE', expectedType: 'INTERNAL', expectedRetryableOverride: false },
+      // Multi-code cases: UNAVAILABLE
+      { code: grpcStatus.ABORTED, name: 'ABORTED', expectedType: 'UNAVAILABLE' },
+      { code: grpcStatus.UNAVAILABLE, name: 'UNAVAILABLE', expectedType: 'UNAVAILABLE' },
+      // Multi-code cases: retryable INTERNAL
+      { code: grpcStatus.CANCELLED, name: 'CANCELLED', expectedType: 'INTERNAL' },
+      { code: grpcStatus.DATA_LOSS, name: 'DATA_LOSS', expectedType: 'INTERNAL' },
+      { code: grpcStatus.INTERNAL, name: 'INTERNAL', expectedType: 'INTERNAL' },
+      { code: grpcStatus.UNKNOWN, name: 'UNKNOWN', expectedType: 'INTERNAL' },
+      { code: grpcStatus.UNAUTHENTICATED, name: 'UNAUTHENTICATED', expectedType: 'INTERNAL' },
+      { code: grpcStatus.PERMISSION_DENIED, name: 'PERMISSION_DENIED', expectedType: 'INTERNAL' },
+    ];
 
   for (const { code, name, expectedType, expectedRetryableOverride } of cases) {
     const result = coerceToHandlerError(makeGrpcServiceError(code));

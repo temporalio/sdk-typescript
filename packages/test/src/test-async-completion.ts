@@ -3,7 +3,7 @@ import anyTest from 'ava';
 import type { Observable } from 'rxjs';
 import { Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import type { ConnectionLike } from '@temporalio/client';
 import {
   ActivityCancelledError,
@@ -390,7 +390,7 @@ if (RUN_INTEGRATION_TESTS) {
     const info = await activityStarted(t, workflowId);
     await t.throwsAsync(
       async () => {
-        for (;;) {
+        for (; ;) {
           await client.activity.heartbeat(info.taskToken, 'details');
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
@@ -418,7 +418,7 @@ if (RUN_INTEGRATION_TESTS) {
     const info = await activityStarted(t, workflowId);
     await t.throwsAsync(
       async () => {
-        for (;;) {
+        for (; ;) {
           await client.activity.heartbeat({ workflowId, activityId: info.activityId }, 'details');
           await new Promise((resolve) => setTimeout(resolve, 100));
         }

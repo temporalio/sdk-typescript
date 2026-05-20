@@ -16,8 +16,10 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*"
+  },
+  "devDependencies": {
+    "@temporalio/client": "workspace:*"
   },
   "engines": {
     "node": ">= 20.0.0"

@@ -18,7 +18,7 @@ import type {
 } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
 import type { TestFn } from 'ava';
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { ExportResultCode } from '@opentelemetry/core';
