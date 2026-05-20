@@ -10,7 +10,9 @@ overrides:
   handlebars: '>=4.7.9'
 
 patchedDependencies:
-  protobufjs@7.5.5: 0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1
+  protobufjs@7.5.5:
+    hash: 0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1
+    path: patches/protobufjs@7.5.5.patch
 
 importers:
 
