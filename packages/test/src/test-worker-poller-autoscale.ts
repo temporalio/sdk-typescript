@@ -1,4 +1,4 @@
-import { v4 as uuid } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import test from 'ava';
 import { Runtime, Worker } from '@temporalio/worker';
 import { getRandomPort, TestWorkflowEnvironment } from './helpers';
@@ -19,7 +19,7 @@ test.serial('Can run autoscaling polling worker', async (t) => {
   const localEnv = await TestWorkflowEnvironment.createLocal();
 
   try {
-    const taskQueue = `autoscale-pollers-${uuid()}`;
+    const taskQueue = `autoscale-pollers-${randomUUID()}`;
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),
       activities,
@@ -66,7 +66,7 @@ test.serial('Can run autoscaling polling worker', async (t) => {
       .map(async (_) => {
         const handle = await localEnv.client.workflow.start(workflows.waitOnSignalThenActivity, {
           taskQueue,
-          workflowId: `resource-based-${uuid()}`,
+          workflowId: `resource-based-${randomUUID()}`,
         });
         await handle.signal('my-signal', 'finish');
         return handle.result();

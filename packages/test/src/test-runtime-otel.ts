@@ -1,7 +1,7 @@
 import * as http from 'http';
 import * as http2 from 'http2';
 import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { WorkflowClient } from '@temporalio/client';
 import { Runtime } from '@temporalio/worker';
 import { TestWorkflowEnvironment, Worker } from './helpers';
@@ -135,7 +135,7 @@ test.serial('Exporting OTEL metrics from Core works', async (t) => {
         await worker.runUntil(async () => {
           await client.execute(workflows.successString, {
             taskQueue: 'test-otel',
-            workflowId: uuid4(),
+            workflowId: randomUUID(),
           });
           const req = await Promise.race([
             capturedRequest,
@@ -188,7 +188,7 @@ test.serial('Exporting OTEL metrics using OTLP/HTTP from Core works', async (t) 
         await worker.runUntil(async () => {
           await client.execute(workflows.successString, {
             taskQueue: 'test-otel',
-            workflowId: uuid4(),
+            workflowId: randomUUID(),
           });
           const req = await Promise.race([
             capturedRequest,

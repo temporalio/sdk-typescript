@@ -18,7 +18,7 @@ import type {
 } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
 import type { TestFn } from 'ava';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { ExportResultCode } from '@opentelemetry/core';
@@ -487,7 +487,7 @@ test('Telemetry', async (t) => {
     await worker.runUntil(async () => {
       await client.execute(telemetryWorkflow, {
         taskQueue: 'test-ai-telemetry',
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         args: ['Tell me about recursion'],
       });
     });

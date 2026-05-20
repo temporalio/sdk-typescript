@@ -61,8 +61,7 @@
     "protobufjs": "7.5.5",
     "protobufjs-cli": "^1.1.2",
     "rxjs": "7.8.1",
-    "stack-utils": "^2.0.6",
-    "uuid": "^11.1.0"
+    "stack-utils": "^2.0.6"
   },
   "devDependencies": {
     "@types/async-retry": "^1.4.8",

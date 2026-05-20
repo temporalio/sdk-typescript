@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import type { WorkflowBundle } from '@temporalio/worker';
 import { bundleWorkflowCode } from '@temporalio/worker';
 import { Connection } from '@temporalio/client';
@@ -42,7 +42,7 @@ async function runSimpleWorkflow(t: ExecutionContext<Context>, testEnv: TestWork
     });
     await worker.runUntil(
       client.workflow.execute('successString', {
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         taskQueue,
       })
     );
@@ -74,7 +74,7 @@ test.todo('TestEnvironment sets up dev server with custom log level');
 test.todo('TestEnvironment sets up dev server with custom namespace, IP and UI');
 
 test('TestEnvironment sets up dev server with db filename', async (t) => {
-  const dbFilename = `temporal-db-${uuid4()}.sqlite`;
+  const dbFilename = `temporal-db-${randomUUID()}.sqlite`;
   try {
     const testEnv = await TestWorkflowEnvironment.createLocal({
       server: {

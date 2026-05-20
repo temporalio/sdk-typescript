@@ -1,5 +1,5 @@
 import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { WorkflowClient } from '@temporalio/client';
 import type { Payload, PayloadCodec } from '@temporalio/common';
 import { decode } from '@temporalio/common/lib/encoding';
@@ -61,7 +61,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         taskQueue,
       });
 
@@ -94,7 +94,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         taskQueue,
       });
 
@@ -128,7 +128,7 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new WorkflowClient({ dataConverter });
     await worker.runUntil(async () => {
       await client.execute(twoStringsActivity, {
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         taskQueue,
       });
     });
@@ -161,7 +161,7 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new WorkflowClient({ dataConverter });
     await worker.runUntil(async () => {
       await client.execute(twoStringsActivity, {
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         taskQueue,
       });
     });
@@ -208,7 +208,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         taskQueue,
       });
 
@@ -257,7 +257,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         taskQueue,
       });
 

@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import asyncRetry from 'async-retry';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import * as iface from '@temporalio/proto';
 import { WorkflowContinuedAsNewError, WorkflowFailedError } from '@temporalio/client';
 import type { Payload } from '@temporalio/common';
@@ -329,7 +329,7 @@ test.serial('signalWithStart works as intended and returns correct runId', confi
   const client = env.client;
   const originalWorkflowHandle = await client.workflow.signalWithStart(workflows.interruptableWorkflow, {
     taskQueue,
-    workflowId: uuid4(),
+    workflowId: randomUUID(),
     signal: workflows.interruptSignal,
     signalArgs: ['interrupted from signalWithStart'],
   });
@@ -607,7 +607,7 @@ test.serial(
     const client = env.client;
     const handleFromThrowerStart = await client.workflow.signalWithStart(workflows.throwAsync, {
       taskQueue,
-      workflowId: uuid4(),
+      workflowId: randomUUID(),
       signal: 'unblock',
     });
     const handleFromGet = client.workflow.getHandle(handleFromThrowerStart.workflowId);
@@ -968,7 +968,7 @@ test('Activity Context exposes Client connection', configMacro, async (t, config
       foo: async () => {
         const { client } = Context.current();
         return await client.workflow.execute(activityContextExposesClientConnectionChildWorkflow, {
-          workflowId: uuid4(),
+          workflowId: randomUUID(),
           taskQueue,
           args: ['not intercepted'],
         });

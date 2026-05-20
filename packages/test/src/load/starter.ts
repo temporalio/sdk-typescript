@@ -3,7 +3,7 @@ import fs, { readFileSync } from 'node:fs';
 import arg from 'arg';
 import pidusage from 'pidusage';
 import * as grpc from '@grpc/grpc-js';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import type { Observable, OperatorFunction } from 'rxjs';
 import { interval, range, ReplaySubject, pipe, lastValueFrom } from 'rxjs';
 import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
@@ -15,7 +15,7 @@ import { starterArgSpec, getRequired } from './args';
 const ACCEPTABLE_QUERY_ERROR_CODES = [grpc.status.NOT_FOUND, grpc.status.DEADLINE_EXCEEDED];
 
 async function runWorkflow({ client, workflowName, taskQueue, queryingOptions }: RunWorkflowOptions) {
-  const handle = await client.start(workflowName, { args: [], taskQueue, workflowId: uuid4() });
+  const handle = await client.start(workflowName, { args: [], taskQueue, workflowId: randomUUID() });
 
   let wfRunning = true;
   const wfDoneProm = handle.result().finally(() => (wfRunning = false));

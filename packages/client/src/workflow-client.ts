@@ -1,5 +1,5 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import type {
   BaseWorkflowHandle,
   HistoryAndWorkflowId,
@@ -993,7 +993,7 @@ export class WorkflowClient extends BaseClient {
   ): Promise<temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest> {
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(input.workflowExecution.workflowId!);
-    const updateId = input.options?.updateId ?? uuid4();
+    const updateId = input.options?.updateId ?? randomUUID();
     return {
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
@@ -1215,7 +1215,7 @@ export class WorkflowClient extends BaseClient {
       identity: this.options.identity,
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
-      requestId: uuid4(),
+      requestId: randomUUID(),
       // control is unused,
       signalName: input.signalName,
       header: { fields: input.headers },
@@ -1241,7 +1241,7 @@ export class WorkflowClient extends BaseClient {
     const req: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest = {
       namespace: this.options.namespace,
       identity,
-      requestId: uuid4(),
+      requestId: randomUUID(),
       workflowId: options.workflowId,
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(options.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(options.workflowIdConflictPolicy),
@@ -1334,7 +1334,7 @@ export class WorkflowClient extends BaseClient {
     return {
       namespace,
       identity,
-      requestId: internalOptions?.requestId ?? uuid4(),
+      requestId: internalOptions?.requestId ?? randomUUID(),
       workflowId: opts.workflowId,
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(opts.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(opts.workflowIdConflictPolicy),
@@ -1402,7 +1402,7 @@ export class WorkflowClient extends BaseClient {
       return await this.workflowService.requestCancelWorkflowExecution({
         namespace: this.options.namespace,
         identity: this.options.identity,
-        requestId: uuid4(),
+        requestId: randomUUID(),
         workflowExecution: input.workflowExecution,
         firstExecutionRunId: input.firstExecutionRunId,
       });

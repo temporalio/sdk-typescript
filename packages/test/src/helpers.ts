@@ -1,7 +1,7 @@
 import path from 'path';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import type { Connection } from '@temporalio/client';
 import { Client } from '@temporalio/client';
 import * as iface from '@temporalio/proto';
@@ -79,7 +79,7 @@ export async function registerDefaultCustomSearchAttributes(connection: Connecti
         // will actually never execute (ie. no worker is listing to that queue and workflow type
         // doesn't exist). It will just end up being terminated because of a timeout.
         const handle = await client.start('wait-for-default-custom-search-attributes', {
-          workflowId: uuid4(),
+          workflowId: randomUUID(),
           taskQueue: 'no_one_cares_pointless_queue',
           workflowExecutionTimeout: 1000,
           searchAttributes: { CustomIntField: [1] },

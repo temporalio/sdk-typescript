@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import asyncRetry from 'async-retry';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import dedent from 'dedent';
 import * as iface from '@temporalio/proto';
 import {
@@ -64,7 +64,7 @@ test.serial('Workflow not found results in task retry', configMacro, async (t, c
   const client = env.client;
   const handle = await client.workflow.start('not-found', {
     taskQueue,
-    workflowId: uuid4(),
+    workflowId: randomUUID(),
   });
 
   await worker.runUntil(async () => {

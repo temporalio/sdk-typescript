@@ -1,5 +1,5 @@
 import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { WorkflowClient } from '@temporalio/client';
 import { Runtime } from '@temporalio/worker';
 import { Worker, getRandomPort, TestWorkflowEnvironment } from './helpers';
@@ -52,7 +52,7 @@ test.serial('Exporting Prometheus metrics from Core works', async (t) => {
     await worker.runUntil(async () => {
       await client.execute(workflows.successString, {
         taskQueue: 'test-prometheus',
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
       });
       const resp = await fetch(`http://127.0.0.1:${port}/metrics`);
       // We're not concerned about exact details here, just that the metrics are present
@@ -96,7 +96,7 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
     await worker.runUntil(async () => {
       await localEnv.client.workflow.execute(workflows.successString, {
         taskQueue: 'test-prometheus',
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
       });
 
       const resp = await fetch(`http://127.0.0.1:${port}/metrics`);

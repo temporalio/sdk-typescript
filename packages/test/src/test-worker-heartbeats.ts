@@ -1,6 +1,6 @@
 import test from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import type { coresdk } from '@temporalio/proto';
 import { Context } from '@temporalio/activity';
 import type { PayloadCodec } from '@temporalio/common';
@@ -10,7 +10,7 @@ import { isolateFreeWorker } from './mock-native-worker';
 import { contextToTraceString, makeContextTrace } from './payload-converters/serialization-context-converter';
 
 async function runActivity(worker: Worker, callback?: (completion: coresdk.ActivityTaskCompletion) => void) {
-  const taskToken = Buffer.from(uuid4());
+  const taskToken = Buffer.from(randomUUID());
   await worker.runUntil(async () => {
     const completion = await worker.native.runActivityTask({
       taskToken,
@@ -196,7 +196,7 @@ test('activity start heartbeat-details decode failure is encoded with activity s
 
   await worker.runUntil(async () => {
     const completion = await worker.native.runActivityTask({
-      taskToken: Buffer.from(uuid4()),
+      taskToken: Buffer.from(randomUUID()),
       start: {
         activityType: 'rapidHeartbeater',
         activityId: 'act-1',
@@ -243,7 +243,7 @@ test('activity start heartbeat-details codec decode failure is encoded with acti
 
   await worker.runUntil(async () => {
     const completion = await worker.native.runActivityTask({
-      taskToken: Buffer.from(uuid4()),
+      taskToken: Buffer.from(randomUUID()),
       start: {
         activityType: 'rapidHeartbeater',
         activityId: 'act-1',

@@ -1,6 +1,6 @@
 import * as process from 'process';
 import type { TestFn } from 'ava';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import type { WorkflowBundleWithSourceMap } from '@temporalio/worker';
@@ -47,7 +47,7 @@ testTimeSkipping.serial(
     });
     await worker.runUntil(
       client.workflow.execute(sleep, {
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         taskQueue: 'test',
         args: [1_000_000],
       })
@@ -70,7 +70,7 @@ testTimeSkipping.serial('TestEnvironment can toggle between normal and skipped t
 
     const t0 = process.hrtime.bigint();
     await client.workflow.execute(sleep, {
-      workflowId: uuid4(),
+      workflowId: randomUUID(),
       taskQueue: 'test',
       args: [wfSleepDuration],
     });
@@ -98,7 +98,7 @@ testTimeSkipping.serial('TestEnvironment sleep can be used to delay activity com
 
   const run = async (expectedWinner: 'timer' | 'activity') => {
     const winner = await client.workflow.execute(raceActivityAndTimer, {
-      workflowId: uuid4(),
+      workflowId: randomUUID(),
       taskQueue: 'test',
       args: [expectedWinner],
     });
@@ -122,7 +122,7 @@ testTimeSkipping.serial('TestEnvironment sleep can be used to delay sending a si
 
   await worker.runUntil(async () => {
     const handle = await client.workflow.start(waitOnSignalWithTimeout, {
-      workflowId: uuid4(),
+      workflowId: randomUUID(),
       taskQueue: 'test',
     });
     await sleep(1_000_000); // Time is skipped
@@ -144,7 +144,7 @@ testTimeSkipping.serial('Workflow code can run assertions', async (t) => {
   const err: WorkflowFailedError | undefined = await t.throwsAsync(
     worker.runUntil(
       client.workflow.execute(assertFromWorkflow, {
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         taskQueue: 'test',
         args: [6],
       })
@@ -163,10 +163,10 @@ testTimeSkipping.serial('ABNADONED child timer can be fast-forwarded', async (t)
     workflowBundle: t.context.bundle,
   });
 
-  const childWorkflowId = uuid4();
+  const childWorkflowId = randomUUID();
   await worker.runUntil(async () => {
     await client.workflow.execute(asyncChildStarter, {
-      workflowId: uuid4(),
+      workflowId: randomUUID(),
       taskQueue: 'test',
       args: [childWorkflowId],
     });

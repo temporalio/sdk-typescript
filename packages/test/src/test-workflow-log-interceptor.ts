@@ -1,6 +1,6 @@
 import type { TestFn, ExecutionContext } from 'ava';
 import anyTest from 'ava';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import type { InjectedSinks, LogEntry, LogLevel, LoggerSinks } from '@temporalio/worker';
 import { DefaultLogger, Runtime, defaultSinks } from '@temporalio/worker';
 import type { WorkflowInfo } from '@temporalio/workflow';
@@ -31,7 +31,7 @@ test.before(async (t) => {
 });
 
 test.beforeEach(async (t) => {
-  t.context.taskQueue = uuid4();
+  t.context.taskQueue = randomUUID();
 });
 
 test.after.always(async (t) => {
@@ -57,7 +57,7 @@ async function withWorker(
 
 test('Workflow Worker logs when workflow completes', async (t) => {
   const { client } = t.context.testEnv;
-  const workflowId = uuid4();
+  const workflowId = randomUUID();
   const [startLog, endLog] = await withWorker(
     t,
     client.workflow.execute(workflows.successString, { workflowId, taskQueue: t.context.taskQueue }),
@@ -76,7 +76,7 @@ test('Workflow Worker logs when workflow completes', async (t) => {
 
 test('Workflow Worker logs when workflow continues as new', async (t) => {
   const { client } = t.context.testEnv;
-  const workflowId = uuid4();
+  const workflowId = randomUUID();
   const [_, endLog] = await withWorker(
     t,
     t.throwsAsync(
@@ -95,7 +95,7 @@ test('Workflow Worker logs when workflow continues as new', async (t) => {
 
 test('Workflow Worker logs warning when workflow fails', async (t) => {
   const { client } = t.context.testEnv;
-  const workflowId = uuid4();
+  const workflowId = randomUUID();
   const [_, endLog] = await withWorker(
     t,
     t.throwsAsync(
@@ -113,7 +113,7 @@ test('Workflow Worker logs warning when workflow fails', async (t) => {
 
 test('(Legacy) defaultSinks(logger) can be used to customize where logs are sent', async (t) => {
   const { client } = t.context.testEnv;
-  const workflowId = uuid4();
+  const workflowId = randomUUID();
   const { nativeConnection } = t.context.testEnv;
   const logs = Array<LogEntry>();
   const logger = new DefaultLogger('DEBUG', (entry) => logs.push(entry));
@@ -142,7 +142,7 @@ test('(Legacy) defaultSinks(logger) can be used to customize where logs are sent
 
 test('(Legacy) Can register defaultWorkerLogger sink to customize where logs are sent', async (t) => {
   const { client } = t.context.testEnv;
-  const workflowId = uuid4();
+  const workflowId = randomUUID();
   const { nativeConnection } = t.context.testEnv;
   const logs = Array<LogEntry>();
   const fn = (level: LogLevel, _info: WorkflowInfo, message: string, attrs?: Record<string, unknown>) => {
@@ -181,7 +181,7 @@ test('(Legacy) Can register defaultWorkerLogger sink to customize where logs are
 
 test('(Legacy) Can explicitly call defaultWorkerLogger sink to emit logs', async (t) => {
   const { client } = t.context.testEnv;
-  const workflowId = uuid4();
+  const workflowId = randomUUID();
   const [_, midLog] = await withWorker(
     t,
     client.workflow.execute(workflows.useDepreatedLoggerSinkWorkflow, { workflowId, taskQueue: t.context.taskQueue }),

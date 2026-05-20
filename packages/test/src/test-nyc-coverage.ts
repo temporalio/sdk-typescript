@@ -1,5 +1,5 @@
 import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import * as libCoverage from 'istanbul-lib-coverage';
 import { bundleWorkflowCode, Worker } from '@temporalio/worker';
 import { Client, WorkflowClient } from '@temporalio/client';
@@ -18,7 +18,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const workflowCoverage = new WorkflowCoverage();
 
-    const taskQueue = `${t.title}-${uuid4()}`;
+    const taskQueue = `${t.title}-${randomUUID()}`;
     const worker = await Worker.create(
       workflowCoverage.augmentWorkerOptions({
         taskQueue,
@@ -26,7 +26,7 @@ if (RUN_INTEGRATION_TESTS) {
       })
     );
     const client = new Client();
-    await worker.runUntil(client.workflow.execute(successString, { taskQueue, workflowId: uuid4() }));
+    await worker.runUntil(client.workflow.execute(successString, { taskQueue, workflowId: randomUUID() }));
 
     workflowCoverage.mergeIntoGlobalCoverage();
     const coverageMap = libCoverage.createCoverageMap(global.__coverage__);
@@ -49,7 +49,7 @@ if (RUN_INTEGRATION_TESTS) {
     (global as any).__coverage__ = {};
 
     const workflowCoverageWorker = new WorkflowCoverage();
-    const taskQueue = `${t.title}-${uuid4()}`;
+    const taskQueue = `${t.title}-${randomUUID()}`;
     const worker = await Worker.create(
       workflowCoverageWorker.augmentWorkerOptionsWithBundle({
         taskQueue,
@@ -57,7 +57,7 @@ if (RUN_INTEGRATION_TESTS) {
       })
     );
     const client = new Client();
-    await worker.runUntil(client.workflow.execute(successString, { taskQueue, workflowId: uuid4() }));
+    await worker.runUntil(client.workflow.execute(successString, { taskQueue, workflowId: randomUUID() }));
 
     workflowCoverageBundler.mergeIntoGlobalCoverage();
     workflowCoverageWorker.mergeIntoGlobalCoverage();
@@ -76,7 +76,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const workflowCoverage = new WorkflowCoverage();
 
-    const taskQueue = `${t.title}-${uuid4()}`;
+    const taskQueue = `${t.title}-${randomUUID()}`;
     const worker = await Worker.create(
       workflowCoverage.augmentWorkerOptions({
         taskQueue,
@@ -84,7 +84,7 @@ if (RUN_INTEGRATION_TESTS) {
       })
     );
     const client = new WorkflowClient();
-    await worker.runUntil(client.execute(successString, { taskQueue, workflowId: uuid4() }));
+    await worker.runUntil(client.execute(successString, { taskQueue, workflowId: randomUUID() }));
 
     workflowCoverage.mergeIntoGlobalCoverage();
     const coverageMap = libCoverage.createCoverageMap(global.__coverage__);

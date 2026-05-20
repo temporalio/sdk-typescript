@@ -221,9 +221,6 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
-      uuid:
-        specifier: ^11.1.0
-        version: 11.1.0
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -288,9 +285,6 @@ importers:
       rxjs:
         specifier: 7.8.1
         version: 7.8.1
-      uuid:
-        specifier: ^11.1.0
-        version: 11.1.0
 
   packages/activity:
     dependencies:
@@ -321,13 +315,7 @@ importers:
       long:
         specifier: ^5.2.3
         version: 5.2.3
-      uuid:
-        specifier: ^11.1.0
-        version: 11.1.0
     devDependencies:
-      '@types/uuid':
-        specifier: ^9.0.7
-        version: 9.0.8
       protobufjs:
         specifier: ^7.5.5
         version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
@@ -760,9 +748,6 @@ importers:
       stack-utils:
         specifier: ^2.0.6
         version: 2.0.6
-      uuid:
-        specifier: ^11.1.0
-        version: 11.1.0
     devDependencies:
       '@types/async-retry':
         specifier: ^1.4.8
@@ -850,9 +835,6 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
-      uuid:
-        specifier: ^11.1.0
-        version: 11.1.0
 
   packages/worker:
     dependencies:
@@ -1839,9 +1821,6 @@ packages:
 
   '@types/tough-cookie@4.0.5':
     resolution: {integrity: sha512-/Ad8+nIOV7Rl++6f1BdKxFSMgmoqEoYbHRpPcx3JEfv8VRsQe9Z4mCXeJBzxs7mbHY/XOZZuXlRNfhpVPbs6ZA==}
-
-  '@types/uuid@9.0.8':
-    resolution: {integrity: sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA==}
 
   '@types/validate-npm-package-name@4.0.2':
     resolution: {integrity: sha512-lrpDziQipxCEeK5kWxvljWYhUvOiB2A9izZd9B2AFarYAkqZshb4lPbRs7zKEic6eGtH8V/2qJW+dPp9OtF6bw==}
@@ -5029,10 +5008,6 @@ packages:
     resolution: {integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==}
     engines: {node: '>= 0.4.0'}
 
-  uuid@11.1.0:
-    resolution: {integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==}
-    hasBin: true
-
   uuid@8.3.2:
     resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
     hasBin: true
@@ -6104,8 +6079,6 @@ snapshots:
       minipass: 4.2.8
 
   '@types/tough-cookie@4.0.5': {}
-
-  '@types/uuid@9.0.8': {}
 
   '@types/validate-npm-package-name@4.0.2': {}
 
@@ -9744,8 +9717,6 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
-
-  uuid@11.1.0: {}
 
   uuid@8.3.2: {}
 
