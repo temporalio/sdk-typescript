@@ -117,44 +117,6 @@ export interface NexusOperationHandle<O = unknown> {
 }
 
 /**
- * A reference to an operation in a Nexus service.
- *
- * Operations may be referenced either by their property key in the service
- * definition, or by passing the operation definition object itself.
- */
-type OperationReference<T extends nexus.ServiceDefinition> =
-  | nexus.OperationKey<T['operations']>
-  | T['operations'][nexus.OperationKey<T['operations']>];
-
-/**
- * Input type for an operation reference within a Nexus service.
- *
- * If the reference is an operation property key, the operation is first resolved
- * through the service definition. If the reference is an operation definition,
- * its input type is used directly.
- */
-type OperationInput<
-  T extends nexus.ServiceDefinition,
-  Op extends OperationReference<T>,
-> = Op extends nexus.OperationKey<T['operations']>
-  ? nexus.OperationInput<T['operations'][Op]>
-  : nexus.OperationInput<Op>;
-
-/**
- * Output type for an operation reference within a Nexus service.
- *
- * If the reference is an operation property key, the operation is first resolved
- * through the service definition. If the reference is an operation definition,
- * its output type is used directly.
- */
-type OperationOutput<
-  T extends nexus.ServiceDefinition,
-  Op extends OperationReference<T>,
-> = Op extends nexus.OperationKey<T['operations']>
-  ? nexus.OperationOutput<T['operations'][Op]>
-  : nexus.OperationOutput<Op>;
-
-/**
  * Resolves the result type carried by a Nexus operation handle type hint.
  *
  * A NexusOperationHandle cannot infer a result type from an operation ID alone,
@@ -182,11 +144,16 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
    *
    * @experimental Nexus Standalone Operations are experimental.
    */
-  startOperation<Op extends OperationReference<T>>(
+  startOperation<Op extends T['operations'][keyof T['operations']]>(
     operation: Op,
-    input: OperationInput<T, Op>,
+    input: nexus.OperationInput<Op>,
     options: StartNexusOperationOptions
-  ): Promise<NexusOperationHandle<OperationOutput<T, Op>>>;
+  ): Promise<NexusOperationHandle<nexus.OperationOutput<Op>>>;
+  startOperation<K extends nexus.OperationKey<T['operations']>>(
+    op: K,
+    input: nexus.OperationInput<T['operations'][K]>,
+    options: StartNexusOperationOptions
+  ): Promise<NexusOperationHandle<nexus.OperationOutput<T['operations'][K]>>>;
 
   /**
    * Start a Nexus operation and wait for its result.
@@ -195,11 +162,17 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
    *
    * @experimental Nexus Standalone Operations are experimental.
    */
-  executeOperation<Op extends OperationReference<T>>(
+  executeOperation<Op extends T['operations'][keyof T['operations']]>(
     operation: Op,
-    input: OperationInput<T, Op>,
+    input: nexus.OperationInput<Op>,
     options: StartNexusOperationOptions
-  ): Promise<OperationOutput<T, Op>>;
+  ): Promise<nexus.OperationOutput<Op>>;
+
+  executeOperation<K extends nexus.OperationKey<T['operations']>>(
+    op: K,
+    input: nexus.OperationInput<T['operations'][K]>,
+    options: StartNexusOperationOptions
+  ): Promise<nexus.OperationOutput<T['operations'][K]>>;
 }
 
 /**
@@ -236,6 +209,24 @@ export class NexusClient extends BaseClient {
     service: T;
   }): NexusServiceClient<T> {
     const { endpoint, service } = options;
+
+    type OperationReference<T extends nexus.ServiceDefinition> =
+      | nexus.OperationKey<T['operations']>
+      | T['operations'][nexus.OperationKey<T['operations']>];
+
+    type OperationInput<
+      T extends nexus.ServiceDefinition,
+      Op extends OperationReference<T>,
+    > = Op extends nexus.OperationKey<T['operations']>
+      ? nexus.OperationInput<T['operations'][Op]>
+      : nexus.OperationInput<Op>;
+
+    type OperationOutput<
+      T extends nexus.ServiceDefinition,
+      Op extends OperationReference<T>,
+    > = Op extends nexus.OperationKey<T['operations']>
+      ? nexus.OperationOutput<T['operations'][Op]>
+      : nexus.OperationOutput<Op>;
 
     const startOperation = async <Op extends OperationReference<T>>(
       operation: Op,
@@ -409,9 +400,6 @@ export class NexusClient extends BaseClient {
     try {
       res = await this.connection.workflowService.startNexusOperationExecution(req);
     } catch (err: unknown) {
-      if (isGrpcServiceError(err) && err.code === grpcStatus.ALREADY_EXISTS) {
-        throw new NexusOperationAlreadyStartedError(input.id, extractNexusOperationAlreadyStartedRunId(err));
-      }
       this.rethrowGrpcError(err, 'Failed to start Nexus operation', input.id);
     }
     return this.createNexusOperationHandle({
@@ -589,6 +577,10 @@ export class NexusClient extends BaseClient {
   protected rethrowGrpcError(err: unknown, fallbackMessage: string, operationId?: string, runId?: string): never {
     if (isGrpcServiceError(err)) {
       rethrowKnownErrorTypes(err);
+
+      if (err.code === grpcStatus.ALREADY_EXISTS && operationId != null) {
+        throw new NexusOperationAlreadyStartedError(operationId, extractNexusOperationAlreadyStartedRunId(err));
+      }
 
       if (err.code === grpcStatus.NOT_FOUND && operationId != null) {
         throw new NexusOperationNotFoundError(operationId, runId);

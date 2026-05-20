@@ -236,7 +236,7 @@ test('count and list operations', async (t) => {
   await worker.runUntil(async () => {
     const { client } = t.context.env;
     const svc = client.nexus.createServiceClient({ endpoint: endpointName, service: testService });
-    const opIds = new Set<string>();
+    const opIds: string[] = [];
 
     // Run 3 operations to completion
     await Promise.all(
@@ -246,7 +246,7 @@ test('count and list operations', async (t) => {
           id,
           scheduleToCloseTimeout: '10s',
         });
-        opIds.add(id);
+        opIds.push(id);
       })
     );
 
@@ -257,24 +257,27 @@ test('count and list operations', async (t) => {
       return groupedCount.count === 3;
     }, 10000);
 
-    let count = 0;
+    let groupTotal = 0;
     for (const group of groupedCount.groups) {
       // Groups should add up to the total count
       t.true(1 <= group.count && group.count <= groupedCount.count);
-      count += group.count;
-      t.true(count <= groupedCount.count);
+      groupTotal += group.count;
+      t.true(groupTotal <= groupedCount.count);
 
       // All values should be of type keyword
       for (const value of group.groupValues) {
         t.is(value.type, SearchAttributeType.KEYWORD);
       }
     }
+    t.is(groupTotal, groupedCount.count);
 
-    const listed = new Set<string>();
+    const listed: string[] = [];
     for await (const op of client.nexus.list({ query: `Endpoint="${endpointName}"` })) {
-      listed.add(op.operationId);
+      listed.push(op.operationId);
     }
-    t.true(opIds.size === listed.size && [...opIds].every((id) => listed.has(id)));
+    opIds.sort();
+    listed.sort();
+    t.deepEqual(listed, opIds);
   });
 });
 

@@ -34,6 +34,7 @@ test('executeOperation with operation definition infers output type', async (t) 
       { id: 'op-1', scheduleToCloseTimeout: '10s' }
     );
   }
+
   t.pass();
 });
 
@@ -66,21 +67,13 @@ test('startOperation + handle.result() preserves type', async (t) => {
       { id: 'op-1', scheduleToCloseTimeout: '10s' }
     );
     const _handleOutput: MyOutput = await _handle.result();
-  }
-  t.pass();
-});
 
-test('Different operation in the same service infers different types', async (t) => {
-  async function _assertion() {
-    const nexusClient = client.nexus.createServiceClient({
-      endpoint: 'my-endpoint',
-      service: myService,
-    });
-
-    const _numberOutput: number = await nexusClient.executeOperation(myService.operations.myOtherOp, 'input-string', {
-      id: 'op-1',
-      scheduleToCloseTimeout: '10s',
-    });
+    const _handleByKey: NexusOperationHandle<MyOutput> = await nexusClient.startOperation(
+      'mySyncOp',
+      { value: 'hello' },
+      { id: 'op-1', scheduleToCloseTimeout: '10s' }
+    );
+    const _handleByKeyOutput: MyOutput = await _handleByKey.result();
   }
   t.pass();
 });
@@ -116,6 +109,12 @@ test('executeOperation with wrong input type produces type error', async (t) => 
       id: 'op-1',
       scheduleToCloseTimeout: '10s',
     });
+
+    // @ts-expect-error - input must be MyInput, not string
+    await nexusClient.executeOperation('mySyncOp', 'wrong-input-type', {
+      id: 'op-1',
+      scheduleToCloseTimeout: '10s',
+    });
   }
   t.pass();
 });
@@ -129,6 +128,12 @@ test('startOperation with wrong input type produces type error', async (t) => {
 
     // @ts-expect-error - input must be MyInput, not string
     await nexusClient.startOperation(myService.operations.mySyncOp, 'wrong-input-type', {
+      id: 'op-1',
+      scheduleToCloseTimeout: '10s',
+    });
+
+    // @ts-expect-error - input must be MyInput, not string
+    await nexusClient.startOperation('mySyncOp', 'wrong-input-type', {
       id: 'op-1',
       scheduleToCloseTimeout: '10s',
     });
@@ -165,6 +170,32 @@ test('Mismatched result type on handle produces type error', async (t) => {
       { value: 'hello' },
       { id: 'op-1', scheduleToCloseTimeout: '10s' }
     );
+
+    // @ts-expect-error - Type 'NexusOperationHandle<MyOutput>' not assignable to 'NexusOperationHandle<string>'
+    const _badHandleByKey: NexusOperationHandle<string> = await nexusClient.startOperation(
+      'mySyncOp',
+      { value: 'hello' },
+      { id: 'op-1', scheduleToCloseTimeout: '10s' }
+    );
+  }
+  t.pass();
+});
+
+test('Union of operation output types produces type error', async (t) => {
+  async function _assertion(op: 'mySyncOp' | typeof myService.operations.myOtherOp) {
+    const nexusClient = client.nexus.createServiceClient({
+      endpoint: 'my-endpoint',
+      service: myService,
+    });
+
+    // This currently compiles, but it would call mySyncOp with a string if
+    // op resolves to 'mySyncOp'.
+
+    // @ts-expect-error - No overload matches this call
+    const _output: MyOutput | number = await nexusClient.executeOperation(op, 'string-only-input', {
+      id: 'op-1',
+      scheduleToCloseTimeout: '10s',
+    });
   }
   t.pass();
 });
@@ -182,6 +213,13 @@ test('Mismatched output type on execute produces type error', async (t) => {
       { value: 'hello' },
       { id: 'op-1', scheduleToCloseTimeout: '10s' }
     );
+
+    // @ts-expect-error - Type 'MyOutput' not assignable to 'string'
+    const _badOutputByKey: string = await nexusClient.executeOperation(
+      'mySyncOp',
+      { value: 'hello' },
+      { id: 'op-1', scheduleToCloseTimeout: '10s' }
+    );
   }
   t.pass();
 });
@@ -193,14 +231,17 @@ test('Missing required id option produces type error', async (t) => {
       service: myService,
     });
 
+    // @ts-expect-error - id is required
     await nexusClient.executeOperation(
       myService.operations.mySyncOp,
       { value: 'hello' },
-      // @ts-expect-error - id is required
       {
         scheduleToCloseTimeout: '10s',
       }
     );
+
+    // @ts-expect-error - id is required
+    await nexusClient.executeOperation('mySyncOp', { value: 'hello' }, { scheduleToCloseTimeout: '10s' });
   }
   t.pass();
 });
