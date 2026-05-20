@@ -1332,6 +1332,23 @@ export class WorkflowClient extends BaseClient {
       );
     }
 
+    // Server currently only supports workflow_event and batch_job
+    // link types. This filter should be removed or adapted as
+    // server-side support comes online.
+    // See https://github.com/temporalio/temporal/issues/10345
+    if (internalOptions?.links != null) {
+      internalOptions.links = internalOptions.links.filter(
+        (link) => link.workflowEvent != null || link.batchJob != null
+      );
+    }
+    if (internalOptions?.completionCallbacks != null) {
+      internalOptions.completionCallbacks?.forEach((cb) => {
+        if (cb.links != null) {
+          cb.links = cb.links.filter((link) => link.workflowEvent != null || link.batchJob != null);
+        }
+      });
+    }
+
     return {
       namespace,
       identity,
