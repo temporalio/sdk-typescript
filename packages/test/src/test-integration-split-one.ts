@@ -632,20 +632,19 @@ test.serial('WorkflowHandle.describe result is wrapped', configMacro, async (t, 
   t.deepEqual(execution.type, 'argsAndReturn');
   t.deepEqual(execution.memo, { note: 'foo' });
   t.true(execution.startTime instanceof Date);
-  t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']); // eslint-disable-line @typescript-eslint/no-deprecated
-  t.deepEqual(execution.searchAttributes!.CustomIntField, [1]); // eslint-disable-line @typescript-eslint/no-deprecated
-  t.deepEqual(execution.searchAttributes!.CustomDatetimeField, [date]); // eslint-disable-line @typescript-eslint/no-deprecated
-  const binSum = execution.searchAttributes!.BinaryChecksums as string[]; // eslint-disable-line @typescript-eslint/no-deprecated
+  t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']);
+  t.deepEqual(execution.searchAttributes!.CustomIntField, [1]);
+  t.deepEqual(execution.searchAttributes!.CustomDatetimeField, [date]);
+  const binSum = execution.searchAttributes!.BinaryChecksums as string[];
   if (binSum != null) {
     t.regex(binSum[0], /@temporalio\/worker@/);
   } else {
-    t.deepEqual(execution.searchAttributes!.BuildIds, ['unversioned', `unversioned:${worker.options.buildId}`]); // eslint-disable-line @typescript-eslint/no-deprecated
+    t.deepEqual(execution.searchAttributes!.BuildIds, ['unversioned', `unversioned:${worker.options.buildId}`]);
   }
 });
 
-// eslint-disable-next-line @typescript-eslint/no-deprecated
 export async function returnSearchAttributes(): Promise<SearchAttributes | undefined> {
-  const sa = workflowInfo().searchAttributes!; // eslint-disable-line @typescript-eslint/no-deprecated
+  const sa = workflowInfo().searchAttributes!;
   const datetime = (sa.CustomDatetimeField as Array<Date>)[0];
   return {
     ...sa,
@@ -705,7 +704,7 @@ test.serial('Workflow can upsert Search Attributes', configMacro, async (t, conf
     CustomDatetimeField: [date.toISOString()],
     CustomDoubleField: [3.14],
   });
-  const { searchAttributes } = await handle.describe(); // eslint-disable-line @typescript-eslint/no-deprecated
+  const { searchAttributes } = await handle.describe();
   const { BinaryChecksums, BuildIds, ...rest } = searchAttributes;
   t.deepEqual(rest, {
     CustomBoolField: [true],
@@ -767,7 +766,7 @@ test.serial('Workflow can read WorkflowInfo', configMacro, async (t, config) => 
     historySize: res.historySize,
     startTime: res.startTime,
     runStartTime: res.runStartTime,
-    currentBuildId: res.currentBuildId, // eslint-disable-line @typescript-eslint/no-deprecated
+    currentBuildId: res.currentBuildId,
     currentDeploymentVersion: res.currentDeploymentVersion,
     // unsafe.now is a function, so doesn't make it through serialization, but .now is required, so we need to cast
     unsafe: { isReplaying: false, isReplayingHistoryEvents: false } as UnsafeWorkflowInfo,

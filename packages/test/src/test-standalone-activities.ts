@@ -11,7 +11,7 @@ import {
   isGrpcCancelledError,
 } from '@temporalio/client';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
-import { activityInfo, heartbeat } from '@temporalio/activity';
+import { activityInfo } from '@temporalio/activity';
 import type { TestWorkflowEnvironment } from './helpers';
 import { RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
 import { echo, throwAnError } from './activities';

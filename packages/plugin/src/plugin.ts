@@ -267,7 +267,6 @@ function resolveWorkerInterceptors(
 }
 
 function modernWorkflowInterceptors(
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
   interceptors: WorkflowClientInterceptors | WorkflowClientInterceptor[] | undefined
 ): WorkflowClientInterceptor[] | undefined {
   if (interceptors === undefined || Array.isArray(interceptors)) {

@@ -4,7 +4,6 @@ import type { CustomLoggerSinks } from './log-sink-tester';
 
 const { customLogger } = proxySinks<CustomLoggerSinks>();
 
-// eslint-disable-next-line @typescript-eslint/no-deprecated
 export async function upsertAndReadSearchAttributes(msSinceEpoch: number): Promise<SearchAttributes | undefined> {
   customLogger.info('Before upsert');
   upsertSearchAttributes({
@@ -19,5 +18,5 @@ export async function upsertAndReadSearchAttributes(msSinceEpoch: number): Promi
     CustomDoubleField: [3.14],
   });
   customLogger.info('After upsert');
-  return workflowInfo().searchAttributes; // eslint-disable-line @typescript-eslint/no-deprecated
+  return workflowInfo().searchAttributes;
 }

@@ -243,7 +243,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         headers,
         cancellationType: encodeActivityCancellationType(options.cancellationType),
         doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
-        versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line @typescript-eslint/no-deprecated
+        versioningIntent: versioningIntentToProto(options.versioningIntent),
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined, context),
@@ -446,11 +446,11 @@ function startChildWorkflowExecutionNextHandler({
         parentClosePolicy: encodeParentClosePolicy(options.parentClosePolicy),
         cronSchedule: options.cronSchedule,
         searchAttributes:
-          options.searchAttributes || options.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
-            ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) } // eslint-disable-line @typescript-eslint/no-deprecated
+          options.searchAttributes || options.typedSearchAttributes
+            ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) }
             : undefined,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
-        versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line @typescript-eslint/no-deprecated
+        versioningIntent: versioningIntentToProto(options.versioningIntent),
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
       userMetadata: userMetadataToPayload(
@@ -1077,12 +1077,12 @@ export function makeContinueAsNewFunc<F extends Workflow>(
         taskQueue: options.taskQueue,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
         searchAttributes:
-          options.searchAttributes || options.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
-            ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) } // eslint-disable-line @typescript-eslint/no-deprecated
+          options.searchAttributes || options.typedSearchAttributes
+            ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) }
             : undefined,
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
-        versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line @typescript-eslint/no-deprecated
+        versioningIntent: versioningIntentToProto(options.versioningIntent),
         initialVersioningBehavior: encodeInitialVersioningBehavior(options.initialVersioningBehavior),
       });
     });
@@ -1569,7 +1569,6 @@ export function setDefaultQueryHandler(handler: DefaultQueryHandler | undefined)
  * If using SearchAttributeUpdatePair[] (preferred), set a value to null to remove the search attribute.
  * If using SearchAttributes (deprecated), set a value to undefined or an empty list to remove the search attribute.
  */
-// eslint-disable-next-line @typescript-eslint/no-deprecated
 export function upsertSearchAttributes(searchAttributes: SearchAttributes | SearchAttributeUpdatePair[]): void {
   const activator = assertInWorkflowContext(
     'Workflow.upsertSearchAttributes(...) may only be used from a Workflow Execution.'
@@ -1591,7 +1590,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
 
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
       // Create a copy of the current state.
-      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes }; // eslint-disable-line @typescript-eslint/no-deprecated
+      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes };
       for (const pair of searchAttributes) {
         if (pair.value == null) {
           // If the value is null, remove the search attribute.
@@ -1600,7 +1599,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
         } else {
           newSearchAttributes[pair.key.name] = Array.isArray(pair.value)
             ? pair.value
-            : ([pair.value] as SearchAttributeValue); // eslint-disable-line @typescript-eslint/no-deprecated
+            : ([pair.value] as SearchAttributeValue);
         }
       }
       return {
@@ -1623,7 +1622,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
       // Create a new copy of the current state.
       let typedSearchAttributes = info.typedSearchAttributes.updateCopy([]);
-      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes }; // eslint-disable-line @typescript-eslint/no-deprecated
+      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes };
 
       // Upsert legacy search attributes into typedSearchAttributes.
       for (const [k, v] of Object.entries(searchAttributes)) {

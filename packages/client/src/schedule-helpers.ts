@@ -275,9 +275,9 @@ export async function encodeScheduleAction(
       retryPolicy: action.retry ? compileRetryPolicy(action.retry) : undefined,
       memo: action.memo ? { fields: await encodeMapToPayloads(dataConverter, action.memo, context) } : undefined,
       searchAttributes:
-        action.searchAttributes || action.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
+        action.searchAttributes || action.typedSearchAttributes
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(action.searchAttributes, action.typedSearchAttributes), // eslint-disable-line @typescript-eslint/no-deprecated
+              indexedFields: encodeUnifiedSearchAttributes(action.searchAttributes, action.typedSearchAttributes),
             }
           : undefined,
       header: { fields: headers },
