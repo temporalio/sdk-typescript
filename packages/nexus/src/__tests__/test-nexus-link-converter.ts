@@ -188,8 +188,8 @@ test('throws on invalid URL scheme', (t) => {
     url: new URL('http://example.com'),
     type: WORKFLOW_EVENT_TYPE,
   };
-  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink as any), { instanceOf: TypeError });
-  t.throws(() => convertNexusLinkToTemporalLink(fakeLink as any), { instanceOf: TypeError });
+  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink), { instanceOf: TypeError });
+  t.throws(() => convertNexusLinkToTemporalLink(fakeLink), { instanceOf: TypeError });
 });
 
 test('throws on invalid URL path', (t) => {
@@ -197,7 +197,7 @@ test('throws on invalid URL path', (t) => {
     url: new URL('temporal:///badpath'),
     type: WORKFLOW_EVENT_TYPE,
   };
-  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink as any), { instanceOf: TypeError });
+  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink), { instanceOf: TypeError });
 });
 
 test('throws on invalid nexus operation URL path', (t) => {
@@ -205,11 +205,11 @@ test('throws on invalid nexus operation URL path', (t) => {
     url: new URL('temporal:///namespaces/ns/workflows/wid/rid/history'),
     type: NEXUS_OPERATION_TYPE,
   };
-  t.throws(() => convertNexusLinkToTemporalLink(fakeLink as any), { instanceOf: TypeError });
+  t.throws(() => convertNexusLinkToTemporalLink(fakeLink), { instanceOf: TypeError });
 });
 
 test('throws on invalid Temporal link variant', (t) => {
-  t.throws(() => convertTemporalLinkToNexusLink({} as any), { instanceOf: TypeError });
+  t.throws(() => convertTemporalLinkToNexusLink({}), { instanceOf: TypeError });
 });
 
 test('throws on unknown Nexus link type', (t) => {
@@ -217,7 +217,7 @@ test('throws on unknown Nexus link type', (t) => {
     url: new URL('temporal:///namespaces/ns/nexus-operations/op-123'),
     type: 'temporal.api.common.v1.Link.Unknown',
   };
-  t.throws(() => convertNexusLinkToTemporalLink(fakeLink as any), { instanceOf: TypeError });
+  t.throws(() => convertNexusLinkToTemporalLink(fakeLink), { instanceOf: TypeError });
 });
 
 test('throws on unknown reference type', (t) => {
@@ -226,7 +226,7 @@ test('throws on unknown reference type', (t) => {
     url,
     type: WORKFLOW_EVENT_TYPE,
   };
-  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink as any), { instanceOf: TypeError });
+  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink), { instanceOf: TypeError });
 });
 
 test('throws on missing eventType in eventRef', (t) => {
@@ -235,7 +235,7 @@ test('throws on missing eventType in eventRef', (t) => {
     url,
     type: WORKFLOW_EVENT_TYPE,
   };
-  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink as any), { message: /Missing eventType parameter/ });
+  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink), { message: /Missing eventType parameter/ });
 });
 
 test('throws on unknown eventType in eventRef', (t) => {
@@ -246,7 +246,7 @@ test('throws on unknown eventType in eventRef', (t) => {
     url,
     type: WORKFLOW_EVENT_TYPE,
   };
-  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink as any), { message: /Unknown eventType parameter/ });
+  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink), { message: /Unknown eventType parameter/ });
 });
 
 test('throws on missing eventType in requestIdRef', (t) => {
@@ -257,7 +257,7 @@ test('throws on missing eventType in requestIdRef', (t) => {
     url,
     type: WORKFLOW_EVENT_TYPE,
   };
-  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink as any), { message: /Missing eventType parameter/ });
+  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink), { message: /Missing eventType parameter/ });
 });
 
 test('throws on unknown eventType in requestIdRef', (t) => {
@@ -268,5 +268,5 @@ test('throws on unknown eventType in requestIdRef', (t) => {
     url,
     type: WORKFLOW_EVENT_TYPE,
   };
-  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink as any), { message: /Unknown eventType parameter/ });
+  t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink), { message: /Unknown eventType parameter/ });
 });

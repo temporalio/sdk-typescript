@@ -630,12 +630,12 @@ async function nexusOperationExecutionDescriptionFromProto(
   const decodeMetadata = async () => {
     if (decodedMetadata.state === 'pending') {
       const metadataPromise = Promise.all([
-        decodeOptionalSinglePayload(dataConverter, raw.userMetadata?.summary),
-        decodeOptionalSinglePayload(dataConverter, raw.userMetadata?.details),
+        decodeOptionalSinglePayload<string>(dataConverter, raw.userMetadata?.summary),
+        decodeOptionalSinglePayload<string>(dataConverter, raw.userMetadata?.details),
       ]).then(([summary, details]) => {
         return {
-          summary: (summary ?? undefined) as string | undefined,
-          details: (details ?? undefined) as string | undefined,
+          summary: summary ?? undefined,
+          details: details ?? undefined,
         };
       });
       decodedMetadata = {

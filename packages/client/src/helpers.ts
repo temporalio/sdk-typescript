@@ -179,7 +179,7 @@ export function extractNexusOperationAlreadyStartedRunId(err: GrpcServiceError):
   try {
     for (const entry of getGrpcStatusDetails(err) ?? []) {
       if (!entry.type_url || !entry.value) continue;
-      const type = entry.type_url.replace(/^type.googleapis.com\//, '') as ErrorDetailsName;
+      const type = entry.type_url.replace(/^type.googleapis.com\//, '');
       if (type !== 'temporal.api.errordetails.v1.NexusOperationExecutionAlreadyStartedFailure') continue;
 
       const details = temporal.api.errordetails.v1.NexusOperationExecutionAlreadyStartedFailure.decode(entry.value);

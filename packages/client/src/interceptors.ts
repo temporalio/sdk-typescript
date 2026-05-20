@@ -311,7 +311,6 @@ export interface GetNexusOperationResultInput {
 export interface DescribeNexusOperationInput {
   readonly operationId: string;
   readonly runId?: string;
-  readonly longPollToken?: Uint8Array;
 }
 
 /** Input for {@link NexusClientInterceptor.cancel}. */
