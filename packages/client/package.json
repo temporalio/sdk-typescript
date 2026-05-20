@@ -18,7 +18,6 @@
     "@grpc/grpc-js": "^1.12.4",
     "@temporalio/common": "workspace:*",
     "@temporalio/proto": "workspace:*",
-    "abort-controller": "^3.0.0",
     "long": "^5.2.3"
   },
   "devDependencies": {

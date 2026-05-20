@@ -1,4 +1,3 @@
-import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import { EventEmitter, on, once } from 'node:events';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 

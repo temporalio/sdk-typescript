@@ -25,7 +25,6 @@
     "@temporalio/nexus": "workspace:*",
     "@temporalio/proto": "workspace:*",
     "@temporalio/workflow": "workspace:*",
-    "abort-controller": "^3.0.0",
     "heap-js": "^2.6.0",
     "memfs": "^4.6.0",
     "nexus-rpc": "^0.0.2",

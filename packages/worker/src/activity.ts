@@ -1,4 +1,3 @@
-import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import type { Info } from '@temporalio/activity';
 import { asyncLocalStorage, CompleteAsyncError, Context } from '@temporalio/activity';
 import type {

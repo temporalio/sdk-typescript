@@ -17,8 +17,7 @@
   },
   "dependencies": {
     "@temporalio/client": "workspace:*",
-    "@temporalio/common": "workspace:*",
-    "abort-controller": "^3.0.0"
+    "@temporalio/common": "workspace:*"
   },
   "engines": {
     "node": ">= 20.0.0"

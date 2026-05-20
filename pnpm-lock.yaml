@@ -294,9 +294,6 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
-      abort-controller:
-        specifier: ^3.0.0
-        version: 3.0.0
 
   packages/client:
     dependencies:
@@ -309,9 +306,6 @@ importers:
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
-      abort-controller:
-        specifier: ^3.0.0
-        version: 3.0.0
       long:
         specifier: ^5.2.3
         version: 5.2.3
@@ -334,9 +328,6 @@ importers:
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
-      abort-controller:
-        specifier: ^3.0.0
-        version: 3.0.0
     devDependencies:
       protobufjs:
         specifier: ^7.5.5
@@ -828,9 +819,6 @@ importers:
       '@temporalio/workflow':
         specifier: workspace:*
         version: link:../workflow
-      abort-controller:
-        specifier: ^3.0.0
-        version: 3.0.0
     devDependencies:
       ava:
         specifier: ^5.3.1
@@ -865,9 +853,6 @@ importers:
       '@temporalio/workflow':
         specifier: workspace:*
         version: link:../workflow
-      abort-controller:
-        specifier: ^3.0.0
-        version: 3.0.0
       heap-js:
         specifier: ^2.6.0
         version: 2.6.0
