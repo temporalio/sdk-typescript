@@ -214,7 +214,6 @@ jobs:
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
-          TEMPORAL_SERVICE_ADDRESS: localhost:7233
 
           # For Temporal Cloud + mTLS tests
           TEMPORAL_CLOUD_MTLS_TEST_TARGET_HOST: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
@@ -239,7 +238,6 @@ jobs:
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
-          TEMPORAL_SERVICE_ADDRESS: localhost:7233
 
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
