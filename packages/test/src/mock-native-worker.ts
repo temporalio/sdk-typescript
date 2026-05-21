@@ -63,7 +63,7 @@ export class MockNativeWorker implements NativeWorkerLike {
   }
 
   public initiateShutdown(): void {
-    const shutdownErrorPromise = Promise.reject(new ShutdownError('Core is shut down'));
+    const shutdownErrorPromise = Promise.reject(new ShutdownError('Core is shut down')); // eslint-disable-line @typescript-eslint/no-deprecated
     shutdownErrorPromise.catch(() => {
       /* avoid unhandled rejection */
     });

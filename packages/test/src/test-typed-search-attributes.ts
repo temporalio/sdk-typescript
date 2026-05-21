@@ -31,7 +31,6 @@ const test = makeTestFunction({
 const date = new Date();
 const secondDate = new Date(date.getTime() + 1000);
 
-// eslint-disable-next-line @typescript-eslint/no-deprecated
 const untypedAttrsInput: SearchAttributes = {
   untyped_single_string: ['one'],
   untyped_single_int: [1],
@@ -67,7 +66,6 @@ const typedAttrsListInput: SearchAttributePair[] = [
 const typedAttrsObjInput = new TypedSearchAttributes(typedAttrsListInput);
 
 // The corresponding untyped search attributes from typedSearchAttributesList.
-// eslint-disable-next-line @typescript-eslint/no-deprecated
 const untypedFromTypedInput: SearchAttributes = {
   typed_text: ['typed_text'],
   typed_keyword: ['typed_keyword'],
@@ -168,11 +166,11 @@ test('does not allow non-integer values for integer search attributes', async (t
 interface TestInputSearchAttributes {
   name: string;
   input: {
-    searchAttributes?: SearchAttributes; // eslint-disable-line @typescript-eslint/no-deprecated
+    searchAttributes?: SearchAttributes;
     typedSearchAttributes?: TypedSearchAttributes | SearchAttributePair[];
   };
   expected: {
-    searchAttributes?: SearchAttributes; // eslint-disable-line @typescript-eslint/no-deprecated
+    searchAttributes?: SearchAttributes;
     typedSearchAttributes?: TypedSearchAttributes;
   };
 }
@@ -252,7 +250,7 @@ test('creating schedules with various input search attributes', async (t) => {
         ...input,
       });
       const desc = await handle.describe();
-      t.deepEqual(desc.searchAttributes, expected.searchAttributes, name); // eslint-disable-line @typescript-eslint/no-deprecated
+      t.deepEqual(desc.searchAttributes, expected.searchAttributes, name);
       t.deepEqual(desc.typedSearchAttributes, expected.typedSearchAttributes, name);
     })
   );
@@ -260,7 +258,7 @@ test('creating schedules with various input search attributes', async (t) => {
 
 export const getWorkflowInfo = defineQuery<WorkflowInfo>('getWorkflowInfo');
 export const mutateSearchAttributes =
-  defineSignal<[SearchAttributes | SearchAttributeUpdatePair[]]>('mutateSearchAttributes'); // eslint-disable-line @typescript-eslint/no-deprecated
+  defineSignal<[SearchAttributes | SearchAttributeUpdatePair[]]>('mutateSearchAttributes');
 export const complete = defineSignal('complete');
 
 export async function changeSearchAttributes(): Promise<void> {
@@ -291,7 +289,6 @@ test('upsert works with various search attribute mutations', async (t) => {
     assertWorkflowDescSearchAttributes(t, desc, untypedFromTypedInput, typedAttrsListInput);
 
     // Update search attributes with untyped input.
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
     const untypedUpdateAttrs: SearchAttributes = {
       typed_text: ['new_value'],
       typed_keyword: ['new_keyword'],
@@ -399,12 +396,12 @@ test('upsert works with various search attribute mutations', async (t) => {
 function assertWorkflowInfoSearchAttributes(
   t: ExecutionContext<Context>,
   res: WorkflowInfo,
-  searchAttributes: SearchAttributes, // eslint-disable-line @typescript-eslint/no-deprecated
+  searchAttributes: SearchAttributes,
   searchAttrPairs: SearchAttributePair[]
 ) {
   // Check initial search attributes are present.
   // Response from query serializes datetime attributes to strings so we serialize our expected responses.
-  t.deepEqual(res.searchAttributes, normalizeSearchAttrs(searchAttributes)); // eslint-disable-line @typescript-eslint/no-deprecated
+  t.deepEqual(res.searchAttributes, normalizeSearchAttrs(searchAttributes));
   // This casting is necessary because res.typedSearchAttributes has actually been serialized by its toJSON method
   // (returning an array of SearchAttributePair), but is not reflected in its type definition.
   assertMatchingSearchAttributePairs(t, res.typedSearchAttributes as unknown as SearchAttributePair[], searchAttrPairs);
@@ -413,20 +410,19 @@ function assertWorkflowInfoSearchAttributes(
 function assertWorkflowDescSearchAttributes(
   t: ExecutionContext<Context>,
   desc: WorkflowExecutionDescription,
-  searchAttributes: SearchAttributes, // eslint-disable-line @typescript-eslint/no-deprecated
+  searchAttributes: SearchAttributes,
   searchAttrPairs: SearchAttributePair[]
 ) {
   // Check that all search attributes are present in the workflow description's search attributes.
-  t.like(desc.searchAttributes, searchAttributes); // eslint-disable-line @typescript-eslint/no-deprecated
+  t.like(desc.searchAttributes, searchAttributes);
   const descOmittingBuildIds = desc.typedSearchAttributes
     .updateCopy([{ key: defineSearchAttributeKey('BuildIds', SearchAttributeType.KEYWORD_LIST), value: null }])
     .getAll();
   assertMatchingSearchAttributePairs(t, descOmittingBuildIds, searchAttrPairs);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-deprecated
 function normalizeSearchAttrs(attrs: SearchAttributes): SearchAttributes {
-  const res: SearchAttributes = {}; // eslint-disable-line @typescript-eslint/no-deprecated
+  const res: SearchAttributes = {};
   for (const [key, value] of Object.entries(attrs)) {
     if (Array.isArray(value) && value.length === 1 && value[0] instanceof Date) {
       res[key] = [value[0].toISOString()];

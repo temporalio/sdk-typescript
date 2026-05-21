@@ -168,7 +168,7 @@ interface WorkflowWithLogAttributes {
 }
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
-  const bid = options.buildId; // eslint-disable-line @typescript-eslint/no-deprecated
+  const bid = options.buildId;
   if (bid != null) {
     return options as CompiledWorkerOptionsWithBuildId;
   }
@@ -2255,7 +2255,7 @@ async function extractActivityInfo(
 function activitySerializationContextFromInfo(info: ActivityInfo): ActivitySerializationContext {
   return {
     type: 'activity',
-    namespace: info.activityNamespace,
+    namespace: info.activityNamespace, // eslint-disable-line @typescript-eslint/no-deprecated
     activityId: info.activityId,
     workflowId: info.workflowExecution?.workflowId,
     isLocal: info.isLocal,

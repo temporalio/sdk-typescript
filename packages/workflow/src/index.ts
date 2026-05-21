@@ -93,8 +93,8 @@ export {
   PayloadConverter,
   RetryPolicy,
   rootCause,
-  SearchAttributes, // eslint-disable-line @typescript-eslint/no-deprecated
-  SearchAttributeValue, // eslint-disable-line @typescript-eslint/no-deprecated
+  SearchAttributes,
+  SearchAttributeValue,
   ServerFailure,
   TemporalFailure,
   TerminatedFailure,
