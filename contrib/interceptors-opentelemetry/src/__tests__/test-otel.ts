@@ -730,7 +730,7 @@ if (RUN_INTEGRATION_TESTS) {
       const sinks: InjectedSinks<OpenTelemetrySinks> = {
         exporter: useSpanProcessor
           ? makeWorkflowExporter(new TestSpanProcessor(traceExporter), resource)
-          : makeWorkflowExporter(traceExporter, resource),
+          : makeWorkflowExporter(traceExporter, resource), // eslint-disable-line @typescript-eslint/no-deprecated
       };
 
       const worker = await Worker.create({
