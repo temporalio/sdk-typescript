@@ -183,7 +183,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Start activity with start delay', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const startDelayMs = 2000;
     const handle = await client.start('echo', {
       ...defaultOptions,
