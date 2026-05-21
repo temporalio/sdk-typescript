@@ -294,7 +294,6 @@ export interface WorkflowClientOptions extends BaseClientOptions {
    *
    * Useful for injecting auth headers and tracing Workflow executions
    */
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
   interceptors?: WorkflowClientInterceptors | WorkflowClientInterceptor[];
 
   /**
@@ -1261,9 +1260,9 @@ export class WorkflowClient extends BaseClient {
       retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
       memo: options.memo ? { fields: await encodeMapToPayloads(dataConverter, options.memo, context) } : undefined,
       searchAttributes:
-        options.searchAttributes || options.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
+        options.searchAttributes || options.typedSearchAttributes
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes), // eslint-disable-line @typescript-eslint/no-deprecated
+              indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes),
             }
           : undefined,
       cronSchedule: options.cronSchedule,
@@ -1352,9 +1351,9 @@ export class WorkflowClient extends BaseClient {
       retryPolicy: opts.retry ? compileRetryPolicy(opts.retry) : undefined,
       memo: opts.memo ? { fields: await encodeMapToPayloads(dataConverter, opts.memo, context) } : undefined,
       searchAttributes:
-        opts.searchAttributes || opts.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
+        opts.searchAttributes || opts.typedSearchAttributes
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes), // eslint-disable-line @typescript-eslint/no-deprecated
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes),
             }
           : undefined,
       cronSchedule: opts.cronSchedule,

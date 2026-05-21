@@ -1,6 +1,6 @@
 import test from 'ava';
 import type { WorkerOptions, NativeConnectionOptions } from '@temporalio/worker';
-import { runWorker, type LambdaWorkerConfig } from '@temporalio/lambda-worker';
+import type { LambdaWorkerConfig } from '@temporalio/lambda-worker';
 import { type WorkerDeps, _runWorkerInternal } from '@temporalio/lambda-worker/lib/lambda-worker';
 import { LAMBDA_WORKER_DEFAULTS } from '@temporalio/lambda-worker/lib/defaults';
 

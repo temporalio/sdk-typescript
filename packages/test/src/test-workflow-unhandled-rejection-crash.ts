@@ -19,7 +19,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     try {
       await t.throwsAsync(worker.run(), {
-        instanceOf: UnexpectedError,
+        instanceOf: UnexpectedError, // eslint-disable-line @typescript-eslint/no-deprecated
         message:
           `Workflow Worker Thread exited prematurely: ${isBun ? 'Error' : 'UnhandledRejectionError'}: ` +
           "Unhandled Promise rejection for unknown Workflow Run id='undefined': " +

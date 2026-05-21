@@ -2,9 +2,9 @@ import type { temporal } from '@temporalio/proto';
 import { makeProtoEnumConverters } from './internal-workflow';
 
 /** @deprecated: Use {@link TypedSearchAttributes} instead */
-export type SearchAttributeValueOrReadonly = SearchAttributeValue | Readonly<SearchAttributeValue> | undefined; // eslint-disable-line @typescript-eslint/no-deprecated
+export type SearchAttributeValueOrReadonly = SearchAttributeValue | Readonly<SearchAttributeValue> | undefined;
 /** @deprecated: Use {@link TypedSearchAttributes} instead */
-export type SearchAttributes = Record<string, SearchAttributeValueOrReadonly>; // eslint-disable-line @typescript-eslint/no-deprecated
+export type SearchAttributes = Record<string, SearchAttributeValueOrReadonly>;
 /** @deprecated: Use {@link TypedSearchAttributes} instead */
 export type SearchAttributeValue = string[] | number[] | boolean[] | Date[];
 
@@ -212,7 +212,7 @@ export class TypedSearchAttributes {
 
   static getKeyFromUntyped(
     key: string,
-    value: SearchAttributeValueOrReadonly // eslint-disable-line @typescript-eslint/no-deprecated
+    value: SearchAttributeValueOrReadonly
   ): SearchAttributeKey<SearchAttributeType> | undefined {
     if (value == null) {
       return;
