@@ -40,6 +40,10 @@ jobs:
             container: quay.io/pypa/manylinux_2_24_aarch64
             out-file: libtemporal_sdk_typescript_bridge.so
             protobuf-url: https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-aarch_64.zip
+          - platform: macos-x64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
           - platform: macos-arm
             runner: macos-14
             target: aarch64-apple-darwin
@@ -193,7 +197,7 @@ jobs:
       fail-fast: false
       matrix:
         node: [20, 22, 24] # Min and max officially supported Node versions + next max
-        platform: [linux-x64, linux-arm, macos-arm, windows-x64]
+        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
         sample: [hello-world, fetch-esm, hello-world-mtls]
         server: [cli, cloud]
         exclude:
@@ -215,6 +219,8 @@ jobs:
             runner: ubuntu-latest
           - platform: linux-arm
             runner: ubuntu-24.04-arm64-2-core
+          - platform: macos-x64
+            runner: macos-15-intel
           - platform: macos-arm
             runner: macos-14
           - platform: windows-x64
