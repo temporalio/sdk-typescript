@@ -3,7 +3,11 @@ import Long from 'long';
 import { decode, encode } from '../encoding';
 import { ValueError } from '../errors';
 import type { Payload } from '../interfaces';
+import type { SerializationContext } from './serialization-context';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, METADATA_MESSAGE_TYPE_KEY } from './types';
+
+const ExternalStorageReferenceProto = temporal.api.sdk.v1.ExternalStorageReference;
+const PayloadProto = temporal.api.common.v1.Payload;
 
 /**
  * Reference returned from {@link StorageDriver.store}. `claimData` is an
@@ -16,59 +20,15 @@ export class StorageDriverClaim {
 }
 
 /**
- * Identity of the workflow that produced the payload being stored.
- *
- * @experimental
- */
-export interface StorageDriverWorkflowInfo {
-  readonly kind: 'workflow';
-  readonly namespace: string;
-  readonly workflowId?: string;
-  readonly runId?: string;
-  readonly workflowType?: string;
-}
-
-/**
- * Identity of the activity that produced the payload being stored.
- * Used for standalone activities; workflow-bound activities use a
- * {@link StorageDriverWorkflowInfo} that names their parent workflow.
- *
- * @experimental
- */
-export interface StorageDriverActivityInfo {
-  readonly kind: 'activity';
-  readonly namespace: string;
-  readonly activityId?: string;
-  readonly runId?: string;
-  readonly activityType?: string;
-}
-
-/**
- * The entity that produced a payload — discriminated by `kind`.
- *
- * @experimental
- */
-export type StorageDriverTargetInfo = StorageDriverWorkflowInfo | StorageDriverActivityInfo;
-
-/**
  * Context handed to {@link StorageDriver.store} (and to the selector).
  *
  * @experimental
  */
 export interface StorageDriverStoreContext {
-  /**
-   * Aborts the in-flight store operation. The SDK populates this for
-   * every batch and aborts siblings on first error. May be undefined
-   * when a driver is invoked outside the SDK's pipeline (e.g. by tests
-   * driving the driver directly).
-   */
+  /** Aborts the in-flight operation; siblings are cancelled on first error. */
   abortSignal?: AbortSignal;
-  /**
-   * Identity of the workflow / activity that produced the payloads.
-   * May be absent for client paths where identity isn't known at the
-   * call site.
-   */
-  target?: StorageDriverTargetInfo;
+  /** Identity of the workflow / activity that produced the payloads. */
+  target?: SerializationContext;
 }
 
 /**
@@ -120,9 +80,11 @@ export type StorageDriverSelector = (
 export const DEFAULT_PAYLOAD_SIZE_THRESHOLD = 256 * 1024;
 
 /**
- * Mounted on {@link DataConverter.externalStorage}. Holds the registered
- * drivers, an optional selector, and the size threshold above which
- * payloads are eligible for offloading.
+ * Configuration for external storage. Holds the registered drivers, an
+ * optional selector, and the size threshold above which payloads are
+ * eligible for offloading.
+ *
+ * Mounted on {@link DataConverter.externalStorage}.
  *
  * @experimental
  */
@@ -185,58 +147,30 @@ export class ExternalStorage {
 // Wire format
 // ============================================================================
 
-/**
- * `metadata.messageType` value identifying a reference payload.
- *
- * @internal
- */
+/** @internal */
 export const EXTSTORE_REFERENCE_MESSAGE_TYPE = 'temporal.api.sdk.v1.ExternalStorageReference';
 
-/**
- * `metadata.encoding` value for reference payloads.
- *
- * @internal
- */
+/** @internal */
 export const EXTSTORE_REFERENCE_ENCODING = encodingTypes.METADATA_ENCODING_PROTOBUF_JSON;
 
-/**
- * Legacy `metadata.encoding` value used by pre-1.0 prereleases. Read
- * only and never written by current implementations. Eventually will be
- * phased out.
- *
- * @internal
- */
+/** Pre-1.0 reference encoding. Read-only — never written by current implementations. @internal */
 export const LEGACY_EXTSTORE_REFERENCE_ENCODING = 'json/external-storage-reference';
 
 const EXTSTORE_REFERENCE_MESSAGE_TYPE_BYTES = encode(EXTSTORE_REFERENCE_MESSAGE_TYPE);
 
-/**
- * Returns true if the payload is a v1 or legacy External Storage reference.
- * 
- * @internal
- */
+/** True if the payload is a v1 or legacy External Storage reference. @internal */
 export function isReferencePayload(payload: Payload): boolean {
   if (payload.externalPayloads && payload.externalPayloads.length > 0) {
     return true;
   }
   const encodingValue = readMetadataString(payload, METADATA_ENCODING_KEY);
   if (encodingValue === EXTSTORE_REFERENCE_ENCODING) {
-    const messageType = readMetadataString(payload, METADATA_MESSAGE_TYPE_KEY);
-    if (messageType === EXTSTORE_REFERENCE_MESSAGE_TYPE) {
-      return true;
-    }
-  } 
-  if (encodingValue === LEGACY_EXTSTORE_REFERENCE_ENCODING) {
-    return true;
+    return readMetadataString(payload, METADATA_MESSAGE_TYPE_KEY) === EXTSTORE_REFERENCE_MESSAGE_TYPE;
   }
-  return false;
+  return encodingValue === LEGACY_EXTSTORE_REFERENCE_ENCODING;
 }
 
-/**
- * Parsed contents of a reference payload. `sizeBytes` is `0` for legacy payloads.
- *
- * @internal
- */
+/** Parsed contents of a reference payload. `sizeBytes` is `0` for legacy payloads. @internal */
 export interface DecodedReferencePayload {
   driverName: string;
   claimData: Record<string, string>;
@@ -244,10 +178,9 @@ export interface DecodedReferencePayload {
 }
 
 /**
- * Decode a reference payload (v1 proto encoding or legacy JSON
- * encoding). Throws {@link ValueError} if the payload is not a
- * reference or is malformed; callers should gate on
- * {@link isReferencePayload} first.
+ * Decode a reference payload (v1 proto encoding or legacy JSON encoding). Throws
+ * {@link ValueError} if the payload is not a reference or is malformed; callers
+ * should gate on {@link isReferencePayload} first.
  *
  * @internal
  */
@@ -275,25 +208,28 @@ export function decodeReferencePayload(payload: Payload): DecodedReferencePayloa
     throw new ValueError('Reference payload is missing data');
   }
 
-  let parsed: { driverName?: unknown; claimData?: unknown };
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(decode(payload.data)) as typeof parsed;
+    parsed = JSON.parse(decode(payload.data));
   } catch (err) {
     throw new ValueError(`Reference payload data is not valid JSON: ${(err as Error).message}`);
   }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new ValueError('Reference payload data must be a JSON object');
+  }
 
+  const ref = ExternalStorageReferenceProto.fromObject(parsed as Record<string, unknown>);
+  if (!ref.driverName) {
+    throw new ValueError("Reference payload field 'driverName' must be a non-empty string");
+  }
   return {
-    driverName: assertNonEmptyString(parsed.driverName, 'driverName'),
-    claimData: assertStringMap(parsed.claimData ?? {}, 'claimData'),
+    driverName: ref.driverName,
+    claimData: { ...ref.claimData },
     sizeBytes: readSizeBytes(payload),
   };
 }
 
-/**
- * Encode a reference payload in the v1 wire format.
- *
- * @internal
- */
+/** Encode a reference payload in the v1 wire format. @internal */
 export function encodeReferencePayload({
   driverName,
   claim,
@@ -303,17 +239,15 @@ export function encodeReferencePayload({
   claim: StorageDriverClaim;
   sizeBytes: number;
 }): Payload {
-  const protoJson = JSON.stringify({ driverName, claimData: claim.claimData });
+  const ref = ExternalStorageReferenceProto.create({ driverName, claimData: claim.claimData });
   return {
     metadata: {
       [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF_JSON,
       [METADATA_MESSAGE_TYPE_KEY]: EXTSTORE_REFERENCE_MESSAGE_TYPE_BYTES,
     },
-    data: encode(protoJson),
+    data: encode(JSON.stringify(ref.toJSON())),
     externalPayloads: [
-      temporal.api.common.v1.Payload.ExternalPayloadDetails.create({
-        sizeBytes: Long.fromNumber(sizeBytes),
-      }),
+      PayloadProto.ExternalPayloadDetails.create({ sizeBytes: Long.fromNumber(sizeBytes) }),
     ],
   };
 }
@@ -348,7 +282,6 @@ function decodeLegacyReferencePayload(payload: Payload): DecodedReferencePayload
   return {
     driverName: assertNonEmptyString(parsed.driver_name, 'driver_name'),
     claimData: assertStringMap(parsed.driver_claim?.claim_data ?? {}, 'driver_claim.claim_data'),
-    // Legacy payloads do not record size
     sizeBytes: 0,
   };
 }

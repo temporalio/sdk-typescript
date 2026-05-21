@@ -12,7 +12,17 @@ import type { ProtoFailure } from '../failure';
 import type { LoadedDataConverter } from '../converter/data-converter';
 import type { UserMetadata } from '../user-metadata';
 import type { SerializationContext } from '../converter/serialization-context';
-import type { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
+import type {
+  DecodedPayload,
+  DecodedProtoFailure,
+  EncodedPayload,
+  EncodedProtoFailure,
+  ReplaceNested,
+} from './codec-types';
+import { runExternalRetrieve, runExternalStore } from './external-storage-runner';
+
+/** A `ProtoFailure` whose nested {@link Payload} fields all have type `P`. */
+type FailureWithPayloads<P extends Payload> = ReplaceNested<ProtoFailure, Payload, P>;
 
 /**
  * Decode through each codec, starting with the last codec.
@@ -106,10 +116,12 @@ export async function decodeOptionalSinglePayload<T>(
   payload?: Payload | null | undefined,
   context?: SerializationContext
 ): Promise<T | null | undefined> {
-  const { payloadConverter, payloadCodecs } = dataConverter;
-  const decoded = await decodeOptionalSingle(payloadCodecs, payload, context);
-  if (decoded == null) return decoded;
-  return payloadConverter.fromPayload(decoded, context);
+  if (payload == null) return payload;
+  const { payloadConverter, payloadCodecs, externalStorage } = dataConverter;
+  const [retrievedPayload] = await runExternalRetrieve({ externalStorage, payloads: [payload] });
+  const decodedPayload = await decodeOptionalSingle(payloadCodecs, retrievedPayload, context);
+  if (decodedPayload == null) return decodedPayload;
+  return payloadConverter.fromPayload(decodedPayload, context);
 }
 
 /**
@@ -120,8 +132,10 @@ export async function encodeToPayload(
   value: unknown,
   context?: SerializationContext
 ): Promise<Payload> {
-  const { payloadConverter, payloadCodecs } = converter;
-  return await encodeSingle(payloadCodecs, payloadConverter.toPayload(value, context), context);
+  const { payloadConverter, payloadCodecs, externalStorage } = converter;
+  const encodedPayload = await encodeSingle(payloadCodecs, payloadConverter.toPayload(value, context), context);
+  const [storedPayload] = await runExternalStore({ externalStorage, context, payloads: [encodedPayload] });
+  return storedPayload!;
 }
 
 /**
@@ -132,8 +146,9 @@ export async function decodeArrayFromPayloads(
   payloads?: Payload[] | null,
   context?: SerializationContext
 ): Promise<unknown[]> {
-  const { payloadConverter, payloadCodecs } = converter;
-  return arrayFromPayloads(payloadConverter, await decodeOptional(payloadCodecs, payloads, context), context);
+  const { payloadConverter, payloadCodecs, externalStorage } = converter;
+  const retrievedPayloads = payloads != null ? await runExternalRetrieve({ externalStorage, payloads }) : payloads;
+  return arrayFromPayloads(payloadConverter, await decodeOptional(payloadCodecs, retrievedPayloads, context), context);
 }
 
 /**
@@ -145,27 +160,32 @@ export async function decodeFromPayloadsAtIndex<T>(
   payloads?: Payload[] | null,
   context?: SerializationContext
 ): Promise<T> {
-  const { payloadConverter, payloadCodecs } = converter;
+  const { payloadConverter, payloadCodecs, externalStorage } = converter;
+  const retrievedPayloads = payloads != null ? await runExternalRetrieve({ externalStorage, payloads }) : payloads;
   return await fromPayloadsAtIndex(
     payloadConverter,
     index,
-    await decodeOptional(payloadCodecs, payloads, context),
+    await decodeOptional(payloadCodecs, retrievedPayloads, context),
     context
   );
 }
 
 /**
- * Run {@link decodeFailure} and then return {@link failureToError}.
+ * Run extstore retrieve and codec decode over every payload field of a
+ * {@link ProtoFailure}, then convert the result to an {@link Error}.
  */
 export async function decodeOptionalFailureToOptionalError(
   converter: LoadedDataConverter,
   failure: ProtoFailure | undefined | null,
   context?: SerializationContext
 ): Promise<Error | undefined> {
-  const { failureConverter, payloadConverter, payloadCodecs } = converter;
-  return failure
-    ? failureConverter.failureToError(await decodeFailure(payloadCodecs, failure, context), payloadConverter, context)
-    : undefined;
+  if (!failure) return undefined;
+  const { failureConverter, payloadConverter, payloadCodecs, externalStorage } = converter;
+  const decoded = await transformFailurePayloads(failure, async (payloads) => {
+    const retrieved = await runExternalRetrieve({ externalStorage, payloads });
+    return decode(payloadCodecs, retrieved, context);
+  });
+  return failureConverter.failureToError(decoded, payloadConverter, context);
 }
 
 export async function decodeOptionalMap(
@@ -197,12 +217,14 @@ export async function encodeToPayloadsWithContext(
   context: SerializationContext | undefined,
   values: unknown[]
 ): Promise<Payload[] | undefined> {
-  const { payloadConverter, payloadCodecs } = converter;
+  const { payloadConverter, payloadCodecs, externalStorage } = converter;
   if (values.length === 0) {
     return undefined;
   }
   const payloads = toPayloadsWithContext(payloadConverter, context, values);
-  return payloads ? await encode(payloadCodecs, payloads, context) : undefined;
+  if (!payloads) return undefined;
+  const encoded = await encode(payloadCodecs, payloads, context);
+  return await runExternalStore({ externalStorage, context, payloads: encoded });
 }
 
 /**
@@ -214,11 +236,12 @@ export async function decodeMapFromPayloads<K extends string>(
   context?: SerializationContext
 ): Promise<Record<K, unknown> | undefined> {
   if (!map) return undefined;
-  const { payloadConverter, payloadCodecs } = converter;
+  const { payloadConverter, payloadCodecs, externalStorage } = converter;
   return Object.fromEntries(
     await Promise.all(
       Object.entries(map).map(async ([k, payload]): Promise<[K, unknown]> => {
-        const [decodedPayload] = await decode(payloadCodecs, [payload as Payload], context);
+        const [retrieved] = await runExternalRetrieve({ externalStorage, payloads: [payload as Payload] });
+        const [decodedPayload] = await decode(payloadCodecs, [retrieved!], context);
         const value = payloadConverter.fromPayload(decodedPayload!, context);
         return [k as K, value];
       })
@@ -251,151 +274,59 @@ export async function encodeMapToPayloads<K extends string>(
   map: Record<K, unknown>,
   context?: SerializationContext
 ): Promise<Record<K, Payload>> {
-  const { payloadConverter, payloadCodecs } = converter;
+  const { payloadConverter, payloadCodecs, externalStorage } = converter;
   return Object.fromEntries(
     await Promise.all(
       Object.entries(map).map(async ([k, v]): Promise<[K, Payload]> => {
         const payload = payloadConverter.toPayload(v, context);
         if (payload === undefined) throw new PayloadConverterError(`Failed to encode entry: ${k}: ${v}`);
         const [encodedPayload] = await encode(payloadCodecs, [payload], context);
-        return [k as K, encodedPayload!];
+        const [storedPayload] = await runExternalStore({ externalStorage, context, payloads: [encodedPayload!] });
+        return [k as K, storedPayload!];
       })
     )
   ) as Record<K, Payload>;
 }
 
 /**
- * Run {@link errorToFailure} on `error`, and then {@link encodeFailure}.
+ * Convert `error` to a {@link ProtoFailure}, then run codec encode + extstore
+ * store over every payload.
  */
 export async function encodeErrorToFailure(
   dataConverter: LoadedDataConverter,
   error: unknown,
   context?: SerializationContext
 ): Promise<ProtoFailure> {
-  const { failureConverter, payloadConverter, payloadCodecs } = dataConverter;
-  return await encodeFailure(payloadCodecs, failureConverter.errorToFailure(error, payloadConverter, context), context);
+  const { failureConverter, payloadConverter, payloadCodecs, externalStorage } = dataConverter;
+  const raw = failureConverter.errorToFailure(error, payloadConverter, context);
+  return await transformFailurePayloads(raw, async (payloads) => {
+    const encoded = await encode(payloadCodecs, payloads, context);
+    return runExternalStore({ externalStorage, context, payloads: encoded });
+  });
 }
 
 /**
- * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
+ * Return a new {@link ProtoFailure} with `codec.encode()` run on all the
+ * {@link Payload}s.
  */
 export async function encodeFailure(
   codecs: PayloadCodec[],
   failure: ProtoFailure,
   context?: SerializationContext
 ): Promise<EncodedProtoFailure> {
-  return {
-    ...failure,
-    encodedAttributes: failure.encodedAttributes
-      ? (await encode(codecs, [failure.encodedAttributes], context))[0]
-      : undefined,
-    cause: failure.cause ? await encodeFailure(codecs, failure.cause, context) : null,
-    applicationFailureInfo: failure.applicationFailureInfo
-      ? {
-          ...failure.applicationFailureInfo,
-          details: failure.applicationFailureInfo.details
-            ? {
-                payloads: await encode(codecs, failure.applicationFailureInfo.details.payloads ?? [], context),
-              }
-            : undefined,
-        }
-      : undefined,
-    timeoutFailureInfo: failure.timeoutFailureInfo
-      ? {
-          ...failure.timeoutFailureInfo,
-          lastHeartbeatDetails: failure.timeoutFailureInfo.lastHeartbeatDetails
-            ? {
-                payloads: await encode(codecs, failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? [], context),
-              }
-            : undefined,
-        }
-      : undefined,
-    canceledFailureInfo: failure.canceledFailureInfo
-      ? {
-          ...failure.canceledFailureInfo,
-          details: failure.canceledFailureInfo.details
-            ? {
-                payloads: await encode(codecs, failure.canceledFailureInfo.details.payloads ?? [], context),
-              }
-            : undefined,
-        }
-      : undefined,
-    resetWorkflowFailureInfo: failure.resetWorkflowFailureInfo
-      ? {
-          ...failure.resetWorkflowFailureInfo,
-          lastHeartbeatDetails: failure.resetWorkflowFailureInfo.lastHeartbeatDetails
-            ? {
-                payloads: await encode(
-                  codecs,
-                  failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? [],
-                  context
-                ),
-              }
-            : undefined,
-        }
-      : undefined,
-  };
+  return await transformFailurePayloads(failure, (payloads) => encode(codecs, payloads, context));
 }
 
 /**
- * Return a new {@link ProtoFailure} with `codec.decode()` run on all the {@link Payload}s.
+ * Return a new {@link ProtoFailure} with `codec.decode()` run on all the
+ * {@link Payload}s.
  */
 export async function decodeFailure(
   codecs: PayloadCodec[],
   failure: ProtoFailure,
   context?: SerializationContext
 ): Promise<DecodedProtoFailure> {
-  return {
-    ...failure,
-    encodedAttributes: failure.encodedAttributes
-      ? (await decode(codecs, [failure.encodedAttributes], context))[0]
-      : undefined,
-    cause: failure.cause ? await decodeFailure(codecs, failure.cause, context) : null,
-    applicationFailureInfo: failure.applicationFailureInfo
-      ? {
-          ...failure.applicationFailureInfo,
-          details: failure.applicationFailureInfo.details
-            ? {
-                payloads: await decode(codecs, failure.applicationFailureInfo.details.payloads ?? [], context),
-              }
-            : undefined,
-        }
-      : undefined,
-    timeoutFailureInfo: failure.timeoutFailureInfo
-      ? {
-          ...failure.timeoutFailureInfo,
-          lastHeartbeatDetails: failure.timeoutFailureInfo.lastHeartbeatDetails
-            ? {
-                payloads: await decode(codecs, failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? [], context),
-              }
-            : undefined,
-        }
-      : undefined,
-    canceledFailureInfo: failure.canceledFailureInfo
-      ? {
-          ...failure.canceledFailureInfo,
-          details: failure.canceledFailureInfo.details
-            ? {
-                payloads: await decode(codecs, failure.canceledFailureInfo.details.payloads ?? [], context),
-              }
-            : undefined,
-        }
-      : undefined,
-    resetWorkflowFailureInfo: failure.resetWorkflowFailureInfo
-      ? {
-          ...failure.resetWorkflowFailureInfo,
-          lastHeartbeatDetails: failure.resetWorkflowFailureInfo.lastHeartbeatDetails
-            ? {
-                payloads: await decode(
-                  codecs,
-                  failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? [],
-                  context
-                ),
-              }
-            : undefined,
-        }
-      : undefined,
-  };
+  return await transformFailurePayloads(failure, (payloads) => decode(codecs, payloads, context));
 }
 
 /**
@@ -461,20 +392,23 @@ export async function encodeUserMetadata(
 ): Promise<temporal.api.sdk.v1.IUserMetadata | undefined> {
   if (staticSummary == null && staticDetails == null) return undefined;
 
-  const { payloadConverter, payloadCodecs } = dataConverter;
-  const summary = await encodeOptionalSingle(
+  const { payloadConverter, payloadCodecs, externalStorage } = dataConverter;
+  const encodedSummary = await encodeOptionalSingle(
     payloadCodecs,
     convertOptionalToPayload(payloadConverter, staticSummary, context),
     context
   );
-  const details = await encodeOptionalSingle(
+  const encodedDetails = await encodeOptionalSingle(
     payloadCodecs,
     convertOptionalToPayload(payloadConverter, staticDetails, context),
     context
   );
 
-  if (summary == null && details == null) return undefined;
+  if (encodedSummary == null && encodedDetails == null) return undefined;
 
+  const store = async (p: Payload | null | undefined) =>
+    p != null ? (await runExternalStore({ externalStorage, context, payloads: [p] }))[0] : undefined;
+  const [summary, details] = await Promise.all([store(encodedSummary), store(encodedDetails)]);
   return { summary, details };
 }
 
@@ -492,4 +426,57 @@ export async function decodeUserMetadata(
     (await decodeOptionalSinglePayload<string>(dataConverter, metadata.details, context)) ?? undefined;
 
   return { staticSummary, staticDetails };
+}
+
+/**
+ * Walk every payload field of a {@link ProtoFailure} and apply a `transform`.
+ */
+async function transformFailurePayloads<P extends Payload>(
+  failure: ProtoFailure,
+  transform: (payloads: Payload[]) => Promise<P[]>
+): Promise<FailureWithPayloads<P>> {
+  const transformAttributes = async (p: Payload | null | undefined): Promise<P | undefined> => {
+    if (!p) return undefined;
+    return (await transform([p]))[0];
+  };
+
+  const result = {
+    ...failure,
+    encodedAttributes: await transformAttributes(failure.encodedAttributes),
+    cause: failure.cause ? await transformFailurePayloads(failure.cause, transform) : null,
+    applicationFailureInfo: failure.applicationFailureInfo
+      ? {
+          ...failure.applicationFailureInfo,
+          details: failure.applicationFailureInfo.details
+            ? { payloads: await transform(failure.applicationFailureInfo.details.payloads ?? []) }
+            : undefined,
+        }
+      : undefined,
+    timeoutFailureInfo: failure.timeoutFailureInfo
+      ? {
+          ...failure.timeoutFailureInfo,
+          lastHeartbeatDetails: failure.timeoutFailureInfo.lastHeartbeatDetails
+            ? { payloads: await transform(failure.timeoutFailureInfo.lastHeartbeatDetails.payloads ?? []) }
+            : undefined,
+        }
+      : undefined,
+    canceledFailureInfo: failure.canceledFailureInfo
+      ? {
+          ...failure.canceledFailureInfo,
+          details: failure.canceledFailureInfo.details
+            ? { payloads: await transform(failure.canceledFailureInfo.details.payloads ?? []) }
+            : undefined,
+        }
+      : undefined,
+    resetWorkflowFailureInfo: failure.resetWorkflowFailureInfo
+      ? {
+          ...failure.resetWorkflowFailureInfo,
+          lastHeartbeatDetails: failure.resetWorkflowFailureInfo.lastHeartbeatDetails
+            ? { payloads: await transform(failure.resetWorkflowFailureInfo.lastHeartbeatDetails.payloads ?? []) }
+            : undefined,
+        }
+      : undefined,
+  };
+  
+  return result as FailureWithPayloads<P>;
 }

@@ -2,6 +2,7 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import { v4 as uuid4 } from 'uuid';
 import type {
   ActivityFunction,
+  ActivitySerializationContext,
   LoadedDataConverter,
   Next,
   Priority,
@@ -28,7 +29,7 @@ import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
   decodeOptionalFailureToOptionalError,
-  encodeToPayloads,
+  encodeToPayloadsWithContext,
   encodeUserMetadata,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
@@ -290,6 +291,13 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       ? { indexedFields: encodeUnifiedSearchAttributes(undefined, input.options.typedSearchAttributes) }
       : undefined;
 
+    const context: ActivitySerializationContext = {
+      type: 'activity',
+      namespace: this.options.namespace,
+      activityId: input.options.id,
+      isLocal: false,
+    };
+
     return {
       namespace: this.options.namespace,
       identity: this.options.identity,
@@ -302,12 +310,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       startToCloseTimeout: msOptionalToTs(input.options.startToCloseTimeout),
       heartbeatTimeout: msOptionalToTs(input.options.heartbeatTimeout),
       retryPolicy: input.options.retry ? compileRetryPolicy(input.options.retry) : undefined,
-      input: { payloads: await encodeToPayloads(this.dataConverter, ...(input.options.args || [])) },
+      input: {
+        payloads: await encodeToPayloadsWithContext(this.dataConverter, context, [...(input.options.args ?? [])]),
+      },
       idReusePolicy: encodeActivityIdReusePolicy(input.options.idReusePolicy),
       idConflictPolicy: encodeActivityIdConflictPolicy(input.options.idConflictPolicy),
       searchAttributes,
       header: { fields: input.headers },
-      userMetadata: await encodeUserMetadata(this.dataConverter, input.options.summary, undefined),
+      userMetadata: await encodeUserMetadata(this.dataConverter, input.options.summary, undefined, context),
       priority: input.options.priority ? compilePriority(input.options.priority) : undefined,
     };
   }

@@ -17,9 +17,6 @@ export type {
   StorageDriverSelector,
   StorageDriverStoreContext,
   StorageDriverRetrieveContext,
-  StorageDriverTargetInfo,
-  StorageDriverWorkflowInfo,
-  StorageDriverActivityInfo,
 } from './converter/extstore';
 export * from './converter/failure-converter';
 export * from './converter/payload-codec';
