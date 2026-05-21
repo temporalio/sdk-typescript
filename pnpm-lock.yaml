@@ -10,9 +10,9 @@ overrides:
   handlebars: '>=4.7.9'
 
 patchedDependencies:
-  protobufjs@7.5.5:
-    hash: 0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1
-    path: patches/protobufjs@7.5.5.patch
+  protobufjs@7.5.8:
+    hash: e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b
+    path: patches/protobufjs@7.5.8.patch
 
 importers:
 
@@ -242,8 +242,8 @@ importers:
         version: 5.2.3
     devDependencies:
       protobufjs:
-        specifier: ^7.5.5
-        version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
+        specifier: ^7.5.8
+        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
 
   packages/cloud:
     dependencies:
@@ -261,8 +261,8 @@ importers:
         version: link:../proto
     devDependencies:
       protobufjs:
-        specifier: ^7.5.5
-        version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
+        specifier: ^7.5.8
+        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
 
   packages/common:
     dependencies:
@@ -286,8 +286,8 @@ importers:
         specifier: ^5.3.1
         version: 5.3.1
       protobufjs:
-        specifier: ^7.5.5
-        version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
+        specifier: ^7.5.8
+        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
 
   packages/core-bridge:
     dependencies:
@@ -544,15 +544,15 @@ importers:
         specifier: ^5.2.3
         version: 5.2.3
       protobufjs:
-        specifier: 7.5.5
-        version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
+        specifier: 7.5.8
+        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
     devDependencies:
       glob:
         specifier: ^10.3.10
         version: 10.5.0
       protobufjs-cli:
-        specifier: ^1.1.2
-        version: 1.1.3(protobufjs@7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1))
+        specifier: ^1.2.2
+        version: 1.2.2(protobufjs@7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b))
 
   packages/test:
     dependencies:
@@ -659,11 +659,11 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       protobufjs:
-        specifier: 7.5.5
-        version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
+        specifier: 7.5.8
+        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
       protobufjs-cli:
-        specifier: ^1.1.2
-        version: 1.1.3(protobufjs@7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1))
+        specifier: ^1.2.2
+        version: 1.2.2(protobufjs@7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b))
       rxjs:
         specifier: 7.8.1
         version: 7.8.1
@@ -807,8 +807,8 @@ importers:
         specifier: ^8.1.3
         version: 8.1.3
       protobufjs:
-        specifier: ^7.5.5
-        version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
+        specifier: ^7.5.8
+        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
 
   packages/workflow:
     dependencies:
@@ -1488,8 +1488,8 @@ packages:
   '@protobufjs/base64@1.1.2':
     resolution: {integrity: sha512-AZkcAA5vnN/v4PDqKyMR5lx7hZttPDgClv83E//FMNhR2TMcLUhfRUBHCmSl0oi9zMgDDqRUJkSxO3wm85+XLg==}
 
-  '@protobufjs/codegen@2.0.4':
-    resolution: {integrity: sha512-YyFaikqM5sH0ziFZCN3xDC7zeGaB/d0IUb9CATugHWbd1FRFwWwt4ld4OYMPWu5a3Xe01mGAULCdqhMlPl29Jg==}
+  '@protobufjs/codegen@2.0.5':
+    resolution: {integrity: sha512-zgXFLzW3Ap33e6d0Wlj4MGIm6Ce8O89n/apUaGNB/jx+hw+ruWEp7EwGUshdLKVRCxZW12fp9r40E1mQrf/34g==}
 
   '@protobufjs/eventemitter@1.1.0':
     resolution: {integrity: sha512-j9ednRT81vYJ9OfVuXG6ERSTdEL1xVsNgqpkxMsbIabzSo3goCjDIveeGv5d03om39ML71RdmrGNjG5SReBP/Q==}
@@ -1500,8 +1500,8 @@ packages:
   '@protobufjs/float@1.0.2':
     resolution: {integrity: sha512-Ddb+kVXlXst9d+R9PfTIxh1EdNkgoRe5tOX6t01f1lYWOvJnSPDBlG241QLzcyPdoNTsblLUdujGSE4RzrTZGQ==}
 
-  '@protobufjs/inquire@1.1.0':
-    resolution: {integrity: sha512-kdSefcPdruJiFMVSbn801t4vFK7KB/5gd2fYvrxhuJYg8ILrmn9SKSX2tZdV6V+ksulWqS7aXjBcRXl3wHoD9Q==}
+  '@protobufjs/inquire@1.1.1':
+    resolution: {integrity: sha512-mnzgDV26ueAvk7rsbt9L7bE0SuAoqyuys/sMMrmVcN5x9VsxpcG3rqAUSgDyLp0UZlmNfIbQ4fHfCtreVBk8Ew==}
 
   '@protobufjs/path@1.1.2':
     resolution: {integrity: sha512-6JOcJ5Tm08dOHAbdR3GrvP+yUUfkjG5ePsHYczMFLq3ZmMkAD98cDgcT2iA1lJ9NVwFd4tH/iSSoe44YWkltEA==}
@@ -1509,8 +1509,8 @@ packages:
   '@protobufjs/pool@1.1.0':
     resolution: {integrity: sha512-0kELaGSIDBKvcgS4zkjz1PeddatrjYcmMWOlAuAPwAeccUrPHdUqo/J6LiymHHEiJT5NrF1UVwxY14f+fy4WQw==}
 
-  '@protobufjs/utf8@1.1.0':
-    resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
+  '@protobufjs/utf8@1.1.1':
+    resolution: {integrity: sha512-oOAWABowe8EAbMyWKM0tYDKi8Yaox52D+HWZhAIJqQXbqe0xI/GV7FhLWqlEKreMkfDjshR5FKgi3mnle0h6Eg==}
 
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
@@ -2009,11 +2009,6 @@ packages:
   acorn-walk@8.3.1:
     resolution: {integrity: sha512-TgUZgYvqZprrl7YldZNoa9OciCAyZR+Ejm9eXzKCmjsF5IKp/wgQ7Z/ZpjpGTIUPwrHQIcYeI8qDh4PsEwxMbw==}
     engines: {node: '>=0.4.0'}
-
-  acorn@8.11.3:
-    resolution: {integrity: sha512-Y9rRfJG5jcKOE0CLisYbojUjIrIEE7AGMzA/Sm4BslANhbS+cDMpgBdcPT91oJ7OuJ9hYJBx59RjbhxVnrF8Xg==}
-    engines: {node: '>=0.4.0'}
-    hasBin: true
 
   acorn@8.15.0:
     resolution: {integrity: sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==}
@@ -4208,15 +4203,15 @@ packages:
     resolution: {integrity: sha512-FB/YaNrpiPkyQNSNPilpn8qn0KdEfkgmJ9JP93PQyF/U4bAiXY5BiUdDhiDO4S48uSQ6AesklgVlrKiqZPzegw==}
     engines: {node: '>=14.0.0'}
 
-  protobufjs-cli@1.1.3:
-    resolution: {integrity: sha512-MqD10lqF+FMsOayFiNOdOGNlXc4iKDCf0ZQPkPR+gizYh9gqUeGTWulABUCdI+N67w5RfJ6xhgX4J8pa8qmMXQ==}
+  protobufjs-cli@1.2.2:
+    resolution: {integrity: sha512-gc27fy6Om+92g4UxqOs9ECTc3Xy7zXsnBSFR0dCSEvIRG8cn3eU8x+CcN8ouBB3EjIBVnEOeQb0iVKC4lnBoKA==}
     engines: {node: '>=12.0.0'}
     hasBin: true
     peerDependencies:
-      protobufjs: ^7.0.0
+      protobufjs: '>=7.5.6 <8'
 
-  protobufjs@7.5.5:
-    resolution: {integrity: sha512-3wY1AxV+VBNW8Yypfd1yQY9pXnqTAN+KwQxL8iYm3/BjKYMNg4i0owhEe26PWDOMaIrzeeF98Lqd5NGz4omiIg==}
+  protobufjs@7.5.8:
+    resolution: {integrity: sha512-dvpCIeLPbXZS/Ete7yLaO7RenOdken2NHKykBXbsaGxZT0UTltcarBciw+A78SRQs9iMAAVpsYA+l8b1hTePIA==}
     engines: {node: '>=12.0.0'}
 
   proxy-addr@2.0.7:
@@ -4830,11 +4825,6 @@ packages:
 
   uc.micro@1.0.6:
     resolution: {integrity: sha512-8Y75pvTYkLJW2hWQHXxoqRgV7qb9B+9vFEtidML+7koHUFapnVJAZ6cKs+Qjz5Aw3aZWHMC6u0wJE3At+nSGwA==}
-
-  uglify-js@3.17.4:
-    resolution: {integrity: sha512-T9q82TJI9e/C1TAxYvfb16xO120tMVFZrGA3f9/P4424DNu6ypK103y0GPFVa17yotwSyZW5iYXgjYHkGrJW/g==}
-    engines: {node: '>=0.8.0'}
-    hasBin: true
 
   uglify-js@3.19.3:
     resolution: {integrity: sha512-v3Xu+yuwBXisp6QYTcH4UbH+xYJXqnq2m/LtQVWKWzYc1iehYnLixoQDN9FH6/j9/oybfd6W9Ghwkl8+UMKTKQ==}
@@ -5494,7 +5484,7 @@ snapshots:
     dependencies:
       lodash.camelcase: 4.3.0
       long: 5.2.3
-      protobufjs: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
+      protobufjs: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
       yargs: 17.7.2
 
   '@hono/node-server@1.19.11(hono@4.12.5)':
@@ -5558,7 +5548,7 @@ snapshots:
 
   '@jsdoc/salty@0.2.7':
     dependencies:
-      lodash: 4.17.21
+      lodash: 4.18.1
 
   '@modelcontextprotocol/sdk@1.26.0(zod@3.25.76)':
     dependencies:
@@ -5680,7 +5670,7 @@ snapshots:
       '@opentelemetry/sdk-logs': 0.52.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-metrics': 1.25.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 1.25.1(@opentelemetry/api@1.9.0)
-      protobufjs: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
+      protobufjs: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
 
   '@opentelemetry/propagator-b3@1.25.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5759,24 +5749,24 @@ snapshots:
 
   '@protobufjs/base64@1.1.2': {}
 
-  '@protobufjs/codegen@2.0.4': {}
+  '@protobufjs/codegen@2.0.5': {}
 
   '@protobufjs/eventemitter@1.1.0': {}
 
   '@protobufjs/fetch@1.1.0':
     dependencies:
       '@protobufjs/aspromise': 1.1.2
-      '@protobufjs/inquire': 1.1.0
+      '@protobufjs/inquire': 1.1.1
 
   '@protobufjs/float@1.0.2': {}
 
-  '@protobufjs/inquire@1.1.0': {}
+  '@protobufjs/inquire@1.1.1': {}
 
   '@protobufjs/path@1.1.2': {}
 
   '@protobufjs/pool@1.1.0': {}
 
-  '@protobufjs/utf8@1.1.0': {}
+  '@protobufjs/utf8@1.1.1': {}
 
   '@rtsao/scc@1.1.0': {}
 
@@ -6407,17 +6397,11 @@ snapshots:
     dependencies:
       acorn: 8.15.0
 
-  acorn-jsx@5.3.2(acorn@8.11.3):
-    dependencies:
-      acorn: 8.11.3
-
   acorn-jsx@5.3.2(acorn@8.15.0):
     dependencies:
       acorn: 8.15.0
 
   acorn-walk@8.3.1: {}
-
-  acorn@8.11.3: {}
 
   acorn@8.15.0: {}
 
@@ -6792,7 +6776,7 @@ snapshots:
 
   catharsis@0.9.0:
     dependencies:
-      lodash: 4.17.21
+      lodash: 4.18.1
 
   cbor@8.1.0:
     dependencies:
@@ -7423,8 +7407,8 @@ snapshots:
 
   espree@9.6.1:
     dependencies:
-      acorn: 8.11.3
-      acorn-jsx: 5.3.2(acorn@8.11.3)
+      acorn: 8.15.0
+      acorn-jsx: 5.3.2(acorn@8.15.0)
       eslint-visitor-keys: 3.4.3
 
   esprima@4.0.1: {}
@@ -8752,9 +8736,9 @@ snapshots:
 
   proto3-json-serializer@2.0.0:
     dependencies:
-      protobufjs: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
+      protobufjs: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
 
-  protobufjs-cli@1.1.3(protobufjs@7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)):
+  protobufjs-cli@1.2.2(protobufjs@7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)):
     dependencies:
       chalk: 4.1.2
       escodegen: 1.14.3
@@ -8763,23 +8747,23 @@ snapshots:
       glob: 8.1.0
       jsdoc: 4.0.2
       minimist: 1.2.8
-      protobufjs: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
-      semver: 7.7.2
+      protobufjs: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
+      semver: 7.7.4
       tmp: 0.2.5
-      uglify-js: 3.17.4
+      uglify-js: 3.19.3
 
-  protobufjs@7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1):
+  protobufjs@7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b):
     dependencies:
       '@protobufjs/aspromise': 1.1.2
       '@protobufjs/base64': 1.1.2
-      '@protobufjs/codegen': 2.0.4
+      '@protobufjs/codegen': 2.0.5
       '@protobufjs/eventemitter': 1.1.0
       '@protobufjs/fetch': 1.1.0
       '@protobufjs/float': 1.0.2
-      '@protobufjs/inquire': 1.1.0
+      '@protobufjs/inquire': 1.1.1
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
-      '@protobufjs/utf8': 1.1.0
+      '@protobufjs/utf8': 1.1.1
       '@types/node': 20.10.8
       long: 5.2.3
 
@@ -8916,7 +8900,7 @@ snapshots:
 
   requizzle@0.2.4:
     dependencies:
-      lodash: 4.17.21
+      lodash: 4.18.1
 
   resolve-alpn@1.2.1: {}
 
@@ -9516,10 +9500,7 @@ snapshots:
 
   uc.micro@1.0.6: {}
 
-  uglify-js@3.17.4: {}
-
-  uglify-js@3.19.3:
-    optional: true
+  uglify-js@3.19.3: {}
 
   unbox-primitive@1.1.0:
     dependencies:

@@ -23,11 +23,11 @@
   "license": "MIT",
   "dependencies": {
     "long": "^5.2.3",
-    "protobufjs": "7.5.5"
+    "protobufjs": "7.5.8"
   },
   "devDependencies": {
     "glob": "^10.3.10",
-    "protobufjs-cli": "^1.1.2"
+    "protobufjs-cli": "^1.2.2"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
