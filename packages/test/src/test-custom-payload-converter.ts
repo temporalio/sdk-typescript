@@ -1,6 +1,6 @@
+import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
 import { toPayloads } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
@@ -41,7 +41,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(async () => {
       const result = await client.execute(protobufWorkflow, {
         args: [messageInstance],
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         taskQueue,
       });
 
@@ -63,7 +63,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.throwsAsync(
         client.execute(workflows.successString, {
           taskQueue: 'test',
-          workflowId: uuid4(),
+          workflowId: randomUUID(),
         }),
         {
           instanceOf: Error,
@@ -138,7 +138,7 @@ test('Worker with proto data converter runs an activity and reports completion',
   });
 
   await worker.runUntil(async () => {
-    const taskToken = Buffer.from(uuid4());
+    const taskToken = Buffer.from(randomUUID());
     const completion = await worker.native.runActivityTask({
       taskToken,
       start: {

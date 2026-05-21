@@ -1,5 +1,5 @@
+import { randomUUID } from 'crypto';
 import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
@@ -13,7 +13,7 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new WorkflowClient();
     const result = await worker.runUntil(
       client.execute(successString, {
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         taskQueue: 'only-workflows',
       })
     );

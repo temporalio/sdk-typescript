@@ -56,23 +56,19 @@
     "glob": "^10.3.10",
     "istanbul-lib-coverage": "^3.2.2",
     "long": "^5.2.3",
+    "ms": "3.0.0-canary.1",
     "nexus-rpc": "^0.0.2",
-    "proto3-json-serializer": "^2.0.0",
-    "protobufjs": "7.5.5",
-    "protobufjs-cli": "^1.1.2",
-    "rxjs": "7.8.1",
-    "stack-utils": "^2.0.6",
-    "uuid": "^11.1.0"
+    "pidusage": "^3.0.2",
+    "protobufjs": "7.5.8",
+    "protobufjs-cli": "^1.2.2",
+    "rxjs": "7.8.1"
   },
   "devDependencies": {
     "@types/async-retry": "^1.4.8",
     "@types/fs-extra": "^11.0.4",
     "@types/istanbul-lib-coverage": "^2.0.6",
-    "@types/ms": "^0.7.34",
-    "@types/node-fetch": "^2.6.10",
     "@types/pidusage": "^2.0.5",
-    "fs-extra": "^11.2.0",
-    "pidusage": "^3.0.2"
+    "fs-extra": "^11.2.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

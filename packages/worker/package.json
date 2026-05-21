@@ -25,19 +25,17 @@
     "@temporalio/nexus": "workspace:*",
     "@temporalio/proto": "workspace:*",
     "@temporalio/workflow": "workspace:*",
-    "abort-controller": "^3.0.0",
     "heap-js": "^2.6.0",
     "memfs": "^4.6.0",
     "nexus-rpc": "^0.0.2",
-    "proto3-json-serializer": "^2.0.0",
-    "protobufjs": "^7.5.5",
+    "protobufjs": "^7.5.8",
     "rxjs": "^7.8.1",
     "source-map": "^0.7.4",
-    "source-map-loader": "^4.0.2",
+    "source-map-loader": "^5.0.0",
     "supports-color": "^8.1.1",
     "swc-loader": "^0.2.3",
     "unionfs": "^4.5.1",
-    "webpack": "^5.104.1"
+    "webpack": "^5.106.2"
   },
   "devDependencies": {
     "@types/supports-color": "^8.1.3"

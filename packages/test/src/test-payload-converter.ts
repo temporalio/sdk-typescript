@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
+import { randomUUID } from 'crypto';
 import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient } from '@temporalio/client';
 import {
   BinaryPayloadConverter,
@@ -218,7 +218,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const handle = await client.start(protobufWorkflow, {
       args: [messageInstance],
-      workflowId: uuid4(),
+      workflowId: randomUUID(),
       taskQueue,
     });
 
@@ -249,7 +249,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(async () => {
       const result = await client.execute(echoBinaryProtobuf, {
         args: [binaryInstance],
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         taskQueue,
       });
       t.deepEqual(result, binaryInstance);

@@ -3,6 +3,7 @@
  */
 import * as http2 from 'http2';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 import * as otelApi from '@opentelemetry/api';
 import { SpanStatusCode, createTraceState } from '@opentelemetry/api';
 import { ExportResultCode } from '@opentelemetry/core';
@@ -12,7 +13,6 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import * as nexus from 'nexus-rpc';
-import { v4 as uuid4 } from 'uuid';
 import { Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { WorkflowClientInterceptor } from '@temporalio/client';
@@ -178,7 +178,7 @@ if (RUN_INTEGRATION_TESTS) {
         plugins: [plugin],
       });
       await worker.runUntil(
-        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: uuid4() })
+        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: randomUUID() })
       );
       await otel.shutdown();
       const originalSpan = spans.find(({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}smorgasbord`);
@@ -318,7 +318,7 @@ if (RUN_INTEGRATION_TESTS) {
 
       const env = await createTestWorkflowEnvironment();
       try {
-        const taskQueue = `test-otel-nexus-${uuid4()}`;
+        const taskQueue = `test-otel-nexus-${randomUUID()}`;
         const endpointName = taskQueue.replaceAll('_', '-');
         const endpointIdentifier = await env.createNexusEndpoint(endpointName, taskQueue);
 
@@ -349,7 +349,7 @@ if (RUN_INTEGRATION_TESTS) {
         const res = await worker.runUntil(
           env.client.workflow.execute(workflows.otelNexusCancelCaller, {
             taskQueue,
-            workflowId: uuid4(),
+            workflowId: randomUUID(),
             args: [endpointName, 'asyncOp', 'hello'],
           })
         );
@@ -460,7 +460,9 @@ if (RUN_INTEGRATION_TESTS) {
       const client = new WorkflowClient({
         interceptors: [new OpenTelemetryWorkflowClientInterceptor()],
       });
-      await worker.runUntil(client.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: uuid4() }));
+      await worker.runUntil(
+        client.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: randomUUID() })
+      );
       // Allow some time to ensure spans are flushed out to collector
       await new Promise<void>((resolve) => setTimeout(resolve, 5000));
       t.pass();
@@ -571,7 +573,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(
       client.execute(workflows.throwMaybeBenignErr, {
         taskQueue: 'test-otel-benign-err',
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         retry: { maximumAttempts: 3 },
       })
     );
@@ -610,7 +612,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const connection = await Connection.connect();
     const client = new Client({ connection });
-    const workflowId = uuid4();
+    const workflowId = randomUUID();
 
     await worker.runUntil(async () => {
       const handle = await client.workflow.start(workflows.runAnAsyncActivity, {
@@ -662,7 +664,7 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new WorkflowClient();
 
     const startWorkflowOperation = new WithStartWorkflowOperation(workflows.updateStartOtel, {
-      workflowId: uuid4(),
+      workflowId: randomUUID(),
       taskQueue: 'test-otel-update-start',
       workflowIdConflictPolicy: 'FAIL',
     });
@@ -748,7 +750,7 @@ if (RUN_INTEGRATION_TESTS) {
       });
 
       const client = new WorkflowClient();
-      await worker.runUntil(client.execute(workflows.successString, { taskQueue, workflowId: uuid4() }));
+      await worker.runUntil(client.execute(workflows.successString, { taskQueue, workflowId: randomUUID() }));
 
       t.deepEqual(spans[0]!.resource.attributes, {
         [SEMRESATTRS_SERVICE_NAME]: serviceName,
@@ -809,7 +811,7 @@ if (RUN_INTEGRATION_TESTS) {
         plugins: [plugin],
       });
       await worker.runUntil(
-        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel-prebundled', workflowId: uuid4() })
+        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel-prebundled', workflowId: randomUUID() })
       );
       await provider.shutdown();
 
@@ -919,7 +921,7 @@ if (RUN_INTEGRATION_TESTS) {
         await otelApi.context.with(contextWithTraceState, async () => {
           await client.execute(workflows.successString, {
             taskQueue: 'test-otel-tracestate',
-            workflowId: uuid4(),
+            workflowId: randomUUID(),
           });
         });
 

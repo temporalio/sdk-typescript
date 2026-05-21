@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import test from 'ava';
 import type { Metadata } from '@temporalio/client';
 import { Client, Connection } from '@temporalio/client';
