@@ -6,6 +6,7 @@
     "@temporalio/activity": "workspace:*",
     "@temporalio/ai-sdk": "workspace:*",
     "@temporalio/client": "workspace:*",
+    "@temporalio/cloud": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/envconfig": "workspace:*",
     "@temporalio/interceptors-opentelemetry": "workspace:*",

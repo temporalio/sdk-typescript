@@ -574,7 +574,7 @@ export type ActivityFunctionWithOptions<T extends ActivityFunction> = T & {
    * provided options.
    *
    * @param options ActivityOptions
-   * @param args: list of arguments
+   * @param args list of arguments
    * @returns return value of the activity
    *
    * @experimental executeWithOptions is a new method to provide call-site options and is subject to change
@@ -595,7 +595,7 @@ export type LocalActivityFunctionWithOptions<T extends ActivityFunction> = T & {
    * provided options.
    *
    * @param options LocalActivityOptions
-   * @param args: list of arguments
+   * @param args list of arguments
    * @returns return value of the activity
    *
    * @experimental executeWithOptions is a new method to provide call-site options and is subject to change

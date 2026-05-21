@@ -1,5 +1,5 @@
+import { randomUUID } from 'node:crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { v4 as uuid4 } from 'uuid';
 import type { Workflow } from '@temporalio/common';
 import {
   decodeSearchAttributes,
@@ -224,7 +224,7 @@ export class ScheduleClient extends BaseClient {
     const req: temporal.api.workflowservice.v1.ICreateScheduleRequest = {
       namespace: this.options.namespace,
       identity,
-      requestId: uuid4(),
+      requestId: randomUUID(),
       scheduleId: opts.scheduleId,
       schedule: {
         spec: encodeScheduleSpec(opts.spec),
@@ -297,7 +297,7 @@ export class ScheduleClient extends BaseClient {
         state: encodeScheduleState(opts.state),
       },
       identity: this.options.identity,
-      requestId: uuid4(),
+      requestId: randomUUID(),
       searchAttributes:
         opts.searchAttributes || opts.typedSearchAttributes
           ? {
@@ -324,7 +324,7 @@ export class ScheduleClient extends BaseClient {
         namespace: this.options.namespace,
         scheduleId,
         identity: this.options.identity,
-        requestId: uuid4(),
+        requestId: randomUUID(),
         patch,
       });
     } catch (err: any) {

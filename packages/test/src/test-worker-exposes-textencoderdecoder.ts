@@ -1,5 +1,5 @@
+import { randomUUID } from 'crypto';
 import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
 import { Client } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
@@ -13,7 +13,7 @@ if (RUN_INTEGRATION_TESTS) {
       client.workflow.execute(textEncoderDecoder, {
         args: ['a string that will be encoded and decoded'],
         taskQueue: 'test-worker-exposes-textencoderdecoder',
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         workflowExecutionTimeout: '5s',
       })
     );
@@ -27,7 +27,7 @@ if (RUN_INTEGRATION_TESTS) {
       client.workflow.execute(textEncoderDecoderFromImport, {
         args: ['a string that will be encoded and decoded'],
         taskQueue: 'test-worker-exposes-textencoderdecoder',
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         workflowExecutionTimeout: '5s',
       })
     );

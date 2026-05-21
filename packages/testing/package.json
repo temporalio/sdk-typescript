@@ -27,12 +27,10 @@
     "@temporalio/core-bridge": "workspace:*",
     "@temporalio/proto": "workspace:*",
     "@temporalio/worker": "workspace:*",
-    "@temporalio/workflow": "workspace:*",
-    "abort-controller": "^3.0.0"
+    "@temporalio/workflow": "workspace:*"
   },
   "devDependencies": {
-    "ava": "^5.3.1",
-    "uuid": "^11.1.0"
+    "ava": "^5.3.1"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

@@ -5,9 +5,9 @@
 import { unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import { join as pathJoin } from 'node:path';
+import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
 import { moduleMatches } from '@temporalio/worker/lib/workflow/bundler';
 import type { LogEntry, WorkerOptions } from '@temporalio/worker';
 import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
@@ -27,7 +27,7 @@ async function runPreloadSharedCounter(
   t: ExecutionContext,
   workerOptions: Pick<WorkerOptions, 'bundlerOptions' | 'workflowBundle' | 'workflowsPath'>
 ): Promise<[number, number]> {
-  const taskQueue = `${t.title}-${uuid4()}`;
+  const taskQueue = `${t.title}-${randomUUID()}`;
   const client = new WorkflowClient();
   const worker = await Worker.create({
     taskQueue,
@@ -35,15 +35,15 @@ async function runPreloadSharedCounter(
     ...workerOptions,
   });
   return await worker.runUntil(async () => {
-    const first = await client.execute(preloadSharedCounter, { taskQueue, workflowId: uuid4() });
-    const second = await client.execute(preloadSharedCounter, { taskQueue, workflowId: uuid4() });
+    const first = await client.execute(preloadSharedCounter, { taskQueue, workflowId: randomUUID() });
+    const second = await client.execute(preloadSharedCounter, { taskQueue, workflowId: randomUUID() });
     return [first, second];
   });
 }
 
 if (RUN_INTEGRATION_TESTS) {
   test('Worker can be created from bundle code', async (t) => {
-    const taskQueue = `${t.title}-${uuid4()}`;
+    const taskQueue = `${t.title}-${randomUUID()}`;
     const workflowBundle = await bundleWorkflowCode({
       workflowsPath: require.resolve('./workflows'),
     });
@@ -52,16 +52,16 @@ if (RUN_INTEGRATION_TESTS) {
       workflowBundle,
     });
     const client = new WorkflowClient();
-    await worker.runUntil(client.execute(successString, { taskQueue, workflowId: uuid4() }));
+    await worker.runUntil(client.execute(successString, { taskQueue, workflowId: randomUUID() }));
     t.pass();
   });
 
   test('Worker can be created from bundle path', async (t) => {
-    const taskQueue = `${t.title}-${uuid4()}`;
+    const taskQueue = `${t.title}-${randomUUID()}`;
     const { code } = await bundleWorkflowCode({
       workflowsPath: require.resolve('./workflows'),
     });
-    const uid = uuid4();
+    const uid = randomUUID();
     const codePath = pathJoin(os.tmpdir(), `workflow-bundle-${uid}.js`);
     await writeFile(codePath, code);
     const workflowBundle = { codePath };
@@ -71,7 +71,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const client = new WorkflowClient();
     try {
-      await worker.runUntil(client.execute(successString, { taskQueue, workflowId: uuid4() }));
+      await worker.runUntil(client.execute(successString, { taskQueue, workflowId: randomUUID() }));
     } finally {
       await unlink(codePath);
     }
@@ -79,7 +79,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Workflow bundle can be created from code using ignoreModules', async (t) => {
-    const taskQueue = `${t.title}-${uuid4()}`;
+    const taskQueue = `${t.title}-${randomUUID()}`;
     const workflowBundle = await bundleWorkflowCode({
       workflowsPath: require.resolve('./mocks/workflows-with-node-dependencies/issue-516'),
       ignoreModules: ['dns'],
@@ -89,7 +89,7 @@ if (RUN_INTEGRATION_TESTS) {
       workflowBundle,
     });
     const client = new WorkflowClient();
-    await worker.runUntil(client.execute(issue516, { taskQueue, workflowId: uuid4() }));
+    await worker.runUntil(client.execute(issue516, { taskQueue, workflowId: randomUUID() }));
     t.pass();
   });
 
@@ -113,7 +113,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('WorkerOptions.bundlerOptions.webpackConfigHook works', async (t) => {
-    const taskQueue = `${t.title}-${uuid4()}`;
+    const taskQueue = `${t.title}-${randomUUID()}`;
     await t.throwsAsync(
       Worker.create({
         taskQueue,
