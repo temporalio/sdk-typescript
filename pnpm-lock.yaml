@@ -163,6 +163,9 @@ importers:
       '@opentelemetry/core':
         specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources':
+        specifier: ^1.25.1
+        version: 1.25.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base':
         specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.9.0)
@@ -173,9 +176,6 @@ importers:
       '@opentelemetry/exporter-trace-otlp-grpc':
         specifier: ^0.52.1
         version: 0.52.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/resources':
-        specifier: ^1.25.1
-        version: 1.25.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-node':
         specifier: ^0.52.1
         version: 0.52.1(@opentelemetry/api@1.9.0)
@@ -218,13 +218,12 @@ importers:
 
   packages/activity:
     dependencies:
-      '@temporalio/common':
-        specifier: workspace:*
-        version: link:../common
-    devDependencies:
       '@temporalio/client':
         specifier: workspace:*
         version: link:../client
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../common
 
   packages/client:
     dependencies:
@@ -396,6 +395,9 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.9.0)
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../common
       '@temporalio/envconfig':
         specifier: workspace:*
         version: link:../envconfig
@@ -409,9 +411,6 @@ importers:
       '@aws-lambda-powertools/logger':
         specifier: ^2.0.0
         version: 2.32.0
-      '@temporalio/common':
-        specifier: workspace:*
-        version: link:../common
       '@types/aws-lambda':
         specifier: ^8.10.145
         version: 8.10.161
@@ -463,6 +462,9 @@ importers:
       '@temporalio/client':
         specifier: workspace:*
         version: link:../client
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../common
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
@@ -473,9 +475,6 @@ importers:
         specifier: ^0.0.2
         version: 0.0.2
     devDependencies:
-      '@temporalio/common':
-        specifier: workspace:*
-        version: link:../common
       ava:
         specifier: ^5.3.1
         version: 5.3.1
@@ -717,6 +716,9 @@ importers:
 
   packages/testing:
     dependencies:
+      '@temporalio/activity':
+        specifier: workspace:*
+        version: link:../activity
       '@temporalio/client':
         specifier: workspace:*
         version: link:../client
@@ -726,6 +728,9 @@ importers:
       '@temporalio/core-bridge':
         specifier: workspace:*
         version: link:../core-bridge
+      '@temporalio/proto':
+        specifier: workspace:*
+        version: link:../proto
       '@temporalio/worker':
         specifier: workspace:*
         version: link:../worker
@@ -733,12 +738,6 @@ importers:
         specifier: workspace:*
         version: link:../workflow
     devDependencies:
-      '@temporalio/activity':
-        specifier: workspace:*
-        version: link:../activity
-      '@temporalio/proto':
-        specifier: workspace:*
-        version: link:../proto
       ava:
         specifier: ^5.3.1
         version: 5.3.1
@@ -781,6 +780,9 @@ importers:
       nexus-rpc:
         specifier: ^0.0.2
         version: 0.0.2
+      protobufjs:
+        specifier: ^7.5.8
+        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
       rxjs:
         specifier: ^7.8.1
         version: 7.8.1
@@ -806,28 +808,25 @@ importers:
       '@types/supports-color':
         specifier: ^8.1.3
         version: 8.1.3
-      protobufjs:
-        specifier: ^7.5.8
-        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
 
   packages/workflow:
     dependencies:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
-    devDependencies:
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
-      ava:
-        specifier: ^5.3.1
-        version: 5.3.1
       nexus-rpc:
         specifier: ^0.0.2
         version: 0.0.2
       source-map:
         specifier: ^0.7.4
         version: 0.7.4
+    devDependencies:
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
 
   scripts: {}
 

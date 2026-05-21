@@ -21,15 +21,15 @@
     "workerThreads": false
   },
   "dependencies": {
+    "@temporalio/activity": "workspace:*",
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/core-bridge": "workspace:*",
+    "@temporalio/proto": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "@temporalio/workflow": "workspace:*"
   },
   "devDependencies": {
-    "@temporalio/activity": "workspace:*",
-    "@temporalio/proto": "workspace:*",
     "ava": "^5.3.1"
   },
   "bugs": {

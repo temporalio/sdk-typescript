@@ -19,12 +19,12 @@
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/core": "^1.25.1",
+    "@opentelemetry/resources": "^1.25.1",
     "@opentelemetry/sdk-trace-base": "^1.25.1",
     "@temporalio/plugin": "workspace:*"
   },
   "devDependencies": {
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.52.1",
-    "@opentelemetry/resources": "^1.25.1",
     "@opentelemetry/sdk-node": "^0.52.1",
     "@opentelemetry/semantic-conventions": "^1.25.1",
     "@temporalio/activity": "workspace:*",
