@@ -55,15 +55,15 @@ export async function* mapAsyncIterable<A, B>(
 
   const emitter = new EventEmitter();
   const controller = new AbortController();
-  const emitterEventsIterable: AsyncIterable<[B]> = on(emitter, 'result', { signal: controller.signal });
+  const emitterEventsIterable = on(emitter, 'result', { signal: controller.signal }) as AsyncIterable<[B]>;
   const emitterError: Promise<unknown[]> = once(emitter, 'error');
 
   const bufferLimitSemaphore =
     typeof bufferLimit === 'number'
       ? (() => {
-          const releaseEvents: AsyncIterator<void> = toAsyncIterator(
+          const releaseEvents = toAsyncIterator(
             on(emitter, 'released', { signal: controller.signal })
-          );
+          ) as AsyncIterator<void>;
           let value = bufferLimit + concurrency;
 
           return {
