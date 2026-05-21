@@ -1,4 +1,3 @@
-import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import events from 'node:events';
 import type * as activity from '@temporalio/activity';
 import type { ActivityFunction, Logger, MetricMeter } from '@temporalio/common';

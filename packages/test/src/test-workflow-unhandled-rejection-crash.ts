@@ -1,5 +1,5 @@
+import { randomUUID } from 'crypto';
 import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
 import { UnexpectedError, Worker } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
@@ -9,11 +9,11 @@ import { throwUnhandledRejection } from './workflows';
 if (RUN_INTEGRATION_TESTS) {
   test('Worker crashes if workflow throws unhandled rejection that cannot be associated with a workflow run', async (t) => {
     // To debug Workflows with this worker run the test with `ava debug` and add breakpoints to your Workflows
-    const taskQueue = `unhandled-rejection-crash-${uuid4()}`;
+    const taskQueue = `unhandled-rejection-crash-${randomUUID()}`;
     const worker = await Worker.create({ ...defaultOptions, taskQueue });
     const client = new WorkflowClient();
     const handle = await client.start(throwUnhandledRejection, {
-      workflowId: uuid4(),
+      workflowId: randomUUID(),
       taskQueue,
       args: [{ crashWorker: true }],
     });
