@@ -147,18 +147,18 @@ export class ExternalStorage {
 // Wire format
 // ============================================================================
 
-/** @internal */
+/** @internal @experimental */
 export const EXTSTORE_REFERENCE_MESSAGE_TYPE = 'temporal.api.sdk.v1.ExternalStorageReference';
 
-/** @internal */
+/** @internal @experimental */
 export const EXTSTORE_REFERENCE_ENCODING = encodingTypes.METADATA_ENCODING_PROTOBUF_JSON;
 
-/** Pre-1.0 reference encoding. Read-only — never written by current implementations. @internal */
+/** Pre-1.0 reference encoding. Read-only — never written by current implementations. @internal @experimental */
 export const LEGACY_EXTSTORE_REFERENCE_ENCODING = 'json/external-storage-reference';
 
 const EXTSTORE_REFERENCE_MESSAGE_TYPE_BYTES = encode(EXTSTORE_REFERENCE_MESSAGE_TYPE);
 
-/** True if the payload is a v1 or legacy External Storage reference. @internal */
+/** True if the payload is a v1 or legacy External Storage reference. @internal @experimental */
 export function isReferencePayload(payload: Payload): boolean {
   if (payload.externalPayloads && payload.externalPayloads.length > 0) {
     return true;
@@ -170,7 +170,7 @@ export function isReferencePayload(payload: Payload): boolean {
   return encodingValue === LEGACY_EXTSTORE_REFERENCE_ENCODING;
 }
 
-/** Parsed contents of a reference payload. `sizeBytes` is `0` for legacy payloads. @internal */
+/** Parsed contents of a reference payload. `sizeBytes` is `0` for legacy payloads. @internal @experimental */
 export interface DecodedReferencePayload {
   driverName: string;
   claimData: Record<string, string>;
@@ -183,6 +183,7 @@ export interface DecodedReferencePayload {
  * should gate on {@link isReferencePayload} first.
  *
  * @internal
+ * @experimental
  */
 export function decodeReferencePayload(payload: Payload): DecodedReferencePayload {
   const encodingValue = readMetadataString(payload, METADATA_ENCODING_KEY);
@@ -229,7 +230,7 @@ export function decodeReferencePayload(payload: Payload): DecodedReferencePayloa
   };
 }
 
-/** Encode a reference payload in the v1 wire format. @internal */
+/** Encode a reference payload in the v1 wire format. @internal @experimental */
 export function encodeReferencePayload({
   driverName,
   claim,

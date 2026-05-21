@@ -56,21 +56,14 @@ export async function* mapAsyncIterable<A, B>(
 
   const emitter = new EventEmitter();
   const controller = new AbortController();
-  // `on()` is typed as `AsyncIterableIterator<any[]>` (each yield is the args
-  // array of a single emit). We emit one arg per event, so the runtime yield
-  // is a one-tuple; cast through `unknown` to express that.
-  const emitterEventsIterable = on(emitter, 'result', {
-    signal: controller.signal,
-  }) as unknown as AsyncIterable<[B]>;
+  const emitterEventsIterable = on(emitter, 'result', { signal: controller.signal }) as AsyncIterable<[B]>;
   const emitterError: Promise<unknown[]> = once(emitter, 'error');
 
   const bufferLimitSemaphore =
     typeof bufferLimit === 'number'
       ? (() => {
-          // Same cast rationale as `emitterEventsIterable` above — `released` is
-          // emitted with no args, so each yield is effectively `void`.
-          const releaseEvents: AsyncIterator<void> = toAsyncIterator(
-            on(emitter, 'released', { signal: controller.signal }) as unknown as AsyncIterable<void>
+          const releaseEvents: AsyncIterator<[]> = toAsyncIterator(
+            on(emitter, 'released', { signal: controller.signal }) as AsyncIterable<[]>
           );
           let value = bufferLimit + concurrency;
 

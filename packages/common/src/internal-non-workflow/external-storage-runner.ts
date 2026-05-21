@@ -28,6 +28,7 @@ import type { Payload } from '../interfaces';
 
 const PayloadProto = temporal.api.common.v1.Payload;
 
+/** @internal @experimental */
 export interface ExternalStoreOptions {
   /** When `undefined` the runner is a no-op (payloads pass through unchanged). */
   externalStorage?: ExternalStorage;
@@ -41,6 +42,7 @@ export interface ExternalStoreOptions {
   abortSignal?: AbortSignal;
 }
 
+/** @internal @experimental */
 export interface ExternalRetrieveOptions {
   /** When `undefined` and any reference payload is encountered, the runner raises `TMPRL1105`. */
   externalStorage?: ExternalStorage;
@@ -50,6 +52,9 @@ export interface ExternalRetrieveOptions {
 
 /**
  * Replace each payload above the configured size threshold with a reference payload.
+ *
+ * @internal
+ * @experimental
  */
 export async function runExternalStore({
   externalStorage,
@@ -142,6 +147,9 @@ export async function runExternalStore({
 /**
  * Replace each reference payload in `payloads` with the payload bytes returned by the
  * named driver. Non-reference payloads are passed through unchanged. Order is preserved.
+ *
+ * @internal
+ * @experimental
  */
 export async function runExternalRetrieve({
   externalStorage,
@@ -215,8 +223,6 @@ export async function runExternalRetrieve({
     }
     for (const [j, retrievedPayload] of retrieved.entries()) {
       const item = group.items[j]!;
-      // Generic size-only integrity check, skipped for legacy references that pre-date
-      // size_bytes. The S3 driver layers a stronger SHA-256 check on top.
       if (item.expectedSize > 0) {
         const actual = payloadProtoSize(retrievedPayload);
         if (actual !== item.expectedSize) {
