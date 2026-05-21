@@ -279,30 +279,23 @@ function decodeLegacyReferencePayload(payload: Payload): DecodedReferencePayload
   } catch (err) {
     throw new ValueError(`Legacy reference payload data is not valid JSON: ${(err as Error).message}`);
   }
-  return {
-    driverName: assertNonEmptyString(parsed.driver_name, 'driver_name'),
-    claimData: assertStringMap(parsed.driver_claim?.claim_data ?? {}, 'driver_claim.claim_data'),
-    sizeBytes: 0,
-  };
-}
 
-function assertNonEmptyString(value: unknown, fieldName: string): string {
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new ValueError(`Reference payload field '${fieldName}' must be a non-empty string`);
+  const driverName = parsed.driver_name;
+  if (typeof driverName !== 'string' || driverName.length === 0) {
+    throw new ValueError("Legacy reference payload field 'driver_name' must be a non-empty string");
   }
-  return value;
-}
 
-function assertStringMap(value: unknown, fieldName: string): Record<string, string> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new ValueError(`Reference payload field '${fieldName}' must be an object`);
+  const rawClaimData = parsed.driver_claim?.claim_data ?? {};
+  if (typeof rawClaimData !== 'object' || rawClaimData === null || Array.isArray(rawClaimData)) {
+    throw new ValueError("Legacy reference payload field 'driver_claim.claim_data' must be an object");
   }
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(value)) {
+  const claimData: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rawClaimData)) {
     if (typeof v !== 'string') {
-      throw new ValueError(`Reference payload field '${fieldName}.${k}' must be a string`);
+      throw new ValueError(`Legacy reference payload field 'driver_claim.claim_data.${k}' must be a string`);
     }
-    out[k] = v;
+    claimData[k] = v;
   }
-  return out;
+
+  return { driverName, claimData, sizeBytes: 0 };
 }
