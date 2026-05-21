@@ -14,6 +14,7 @@ packages/proto/protos/root.d.ts
 packages/proto/protos/json-module.js
 packages/test/protos/root.d.ts
 packages/test/protos/json-module.js
+packages/test/src/protos-es-gen
 packages/testing/generated-protos/*
 packages/testing/proto/*
 

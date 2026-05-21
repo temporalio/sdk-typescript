@@ -1,0 +1,12 @@
+version: v2
+# Output is committed under packages/test/src/protos-es-gen so that tsc --build
+# (rootDir = src) compiles the generated files into lib/ alongside test sources.
+# Shares .proto sources with the protobufjs codegen pipeline (../protos).
+inputs:
+  - directory: ../protos
+plugins:
+  - local: protoc-gen-es
+    out: ../src/protos-es-gen
+    opt:
+      - target=ts
+      - import_extension=none

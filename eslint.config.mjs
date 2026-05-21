@@ -4,7 +4,16 @@ import importPlugin from 'eslint-plugin-import';
 import prettierConfig from 'eslint-config-prettier';
 
 export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/lib/**', '**/*.js', '**/*.mjs', '**/*.cjs'] },
+  {
+    ignores: [
+      '**/node_modules/**',
+      '**/lib/**',
+      '**/*.js',
+      '**/*.mjs',
+      '**/*.cjs',
+      'packages/test/src/protos-es-gen/**',
+    ],
+  },
   {
     files: ['packages/*/src/**/*.ts', 'contrib/*/src/**/*.ts'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended, prettierConfig],
