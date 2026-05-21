@@ -1335,18 +1335,14 @@ export class WorkflowClient extends BaseClient {
     // link types. This filter should be removed or adapted as
     // server-side support comes online.
     // See https://github.com/temporalio/temporal/issues/10345
-    if (internalOptions?.links != null) {
-      internalOptions.links = internalOptions.links.filter(
-        (link) => link.workflowEvent != null || link.batchJob != null
-      );
-    }
-    if (internalOptions?.completionCallbacks != null) {
-      internalOptions.completionCallbacks?.forEach((cb) => {
-        if (cb.links != null) {
-          cb.links = cb.links.filter((link) => link.workflowEvent != null || link.batchJob != null);
-        }
-      });
-    }
+    let links = internalOptions?.links?.filter((link) => link.workflowEvent != null || link.batchJob != null);
+
+    let completionCallbacks = internalOptions?.completionCallbacks?.map((cb) => {
+      let links = cb?.links?.filter((link) => link.workflowEvent != null || link.batchJob != null);
+      return { ...cb, links };
+    });
+
+    const resolvedInternalOptions = { ...(internalOptions ?? {}), links, completionCallbacks };
 
     return {
       namespace,
@@ -1379,7 +1375,7 @@ export class WorkflowClient extends BaseClient {
       priority: opts.priority ? compilePriority(opts.priority) : undefined,
       versioningOverride: opts.versioningOverride ?? undefined,
       requestEagerExecution: opts.requestEagerStart,
-      ...filterNullAndUndefined(internalOptions ?? {}),
+      ...filterNullAndUndefined(resolvedInternalOptions),
     };
   }
 

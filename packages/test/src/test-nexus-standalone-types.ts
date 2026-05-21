@@ -188,9 +188,6 @@ test('Union of operation output types produces type error', async (t) => {
       service: myService,
     });
 
-    // This currently compiles, but it would call mySyncOp with a string if
-    // op resolves to 'mySyncOp'.
-
     // @ts-expect-error - No overload matches this call
     const _output: MyOutput | number = await nexusClient.executeOperation(op, 'string-only-input', {
       id: 'op-1',
