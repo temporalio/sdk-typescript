@@ -936,7 +936,7 @@ test('inbound cancelOperation interceptor can modify input', async (t) => {
             return input;
           },
           asyncOp: {
-            async start(_ctx, input) {
+            async start(_ctx, _input) {
               return nexus.HandlerStartOperationResult.async('original-token');
             },
             async cancel(_ctx, token) {

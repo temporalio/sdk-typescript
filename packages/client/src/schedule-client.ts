@@ -234,9 +234,9 @@ export class ScheduleClient extends BaseClient {
       },
       memo: opts.memo ? { fields: await encodeMapToPayloads(this.dataConverter, opts.memo) } : undefined,
       searchAttributes:
-        opts.searchAttributes || opts.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
+        opts.searchAttributes || opts.typedSearchAttributes
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes), // eslint-disable-line @typescript-eslint/no-deprecated
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes),
             }
           : undefined,
       initialPatch: {
@@ -299,9 +299,9 @@ export class ScheduleClient extends BaseClient {
       identity: this.options.identity,
       requestId: uuid4(),
       searchAttributes:
-        opts.searchAttributes || opts.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
+        opts.searchAttributes || opts.typedSearchAttributes
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes), // eslint-disable-line @typescript-eslint/no-deprecated
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes),
             }
           : undefined,
     };

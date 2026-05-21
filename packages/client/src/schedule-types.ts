@@ -80,7 +80,7 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
    *
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes?: SearchAttributes; // eslint-disable-line @typescript-eslint/no-deprecated
+  searchAttributes?: SearchAttributes;
 
   /**
    * Additional indexed information attached to the Schedule. More info:
@@ -199,7 +199,7 @@ export interface ScheduleSummary {
    *
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes?: SearchAttributes; // eslint-disable-line @typescript-eslint/no-deprecated
+  searchAttributes?: SearchAttributes;
 
   /**
    * Additional indexed information attached to the Schedule. More info:
@@ -321,7 +321,7 @@ export type ScheduleDescription = {
    *
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes: SearchAttributes; // eslint-disable-line @typescript-eslint/no-deprecated
+  searchAttributes: SearchAttributes;
 
   /**
    * Additional indexed information attached to the Schedule. More info:

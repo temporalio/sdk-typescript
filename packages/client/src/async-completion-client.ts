@@ -1,6 +1,7 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
+import type { ActivitySerializationContext } from '@temporalio/common';
 import { ensureTemporalFailure } from '@temporalio/common';
-import { encodeErrorToFailure, encodeToPayloads } from '@temporalio/common/lib/internal-non-workflow';
+import { encodeErrorToFailure, encodeToPayloadsWithContext } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
@@ -24,6 +25,20 @@ export type LoadedAsyncCompletionClientOptions = LoadedWithDefaults<AsyncComplet
 
 function defaultAsyncCompletionClientOptions(): WithDefaults<AsyncCompletionClientOptions> {
   return defaultBaseClientOptions();
+}
+
+/**
+ * Options for async Activity completion, failure, cancellation, and heartbeat operations.
+ */
+export interface AsyncCompletionOperationOptions {
+  /**
+   * Serialization context to use when converting payloads and failures for task-token operations.
+   *
+   * By-ID operations infer their Activity serialization context from the supplied IDs.
+   *
+   * @experimental Serialization context is an experimental feature and may change.
+   */
+  serializationContext?: ActivitySerializationContext;
 }
 
 /**
@@ -55,6 +70,19 @@ export interface FullActivityId {
   activityId: string;
 }
 
+function activityContextFromFullActivityId(
+  namespace: string,
+  fullActivityId: FullActivityId
+): ActivitySerializationContext {
+  return {
+    type: 'activity',
+    namespace,
+    workflowId: fullActivityId.workflowId,
+    activityId: fullActivityId.activityId,
+    isLocal: false,
+  };
+}
+
 /**
  * A client for asynchronous completion and heartbeating of Activities.
  *
@@ -83,6 +111,15 @@ export class AsyncCompletionClient extends BaseClient {
     return this.connection.workflowService;
   }
 
+  protected serializationContextFor(
+    taskTokenOrFullActivityId: Uint8Array | FullActivityId,
+    options?: AsyncCompletionOperationOptions
+  ): ActivitySerializationContext | undefined {
+    return taskTokenOrFullActivityId instanceof Uint8Array
+      ? options?.serializationContext
+      : activityContextFromFullActivityId(this.options.namespace, taskTokenOrFullActivityId);
+  }
+
   /**
    * Transforms grpc errors into well defined TS errors.
    */
@@ -102,14 +139,22 @@ export class AsyncCompletionClient extends BaseClient {
   /**
    * Complete an Activity by task token
    */
-  async complete(taskToken: Uint8Array, result: unknown): Promise<void>;
+  async complete(taskToken: Uint8Array, result: unknown, options?: AsyncCompletionOperationOptions): Promise<void>;
   /**
    * Complete an Activity by full ID
    */
   async complete(fullActivityId: FullActivityId, result: unknown): Promise<void>;
 
-  async complete(taskTokenOrFullActivityId: Uint8Array | FullActivityId, result: unknown): Promise<void> {
-    const payloads = await encodeToPayloads(this.dataConverter, result);
+  async complete(
+    taskTokenOrFullActivityId: Uint8Array | FullActivityId,
+    result: unknown,
+    options?: AsyncCompletionOperationOptions
+  ): Promise<void> {
+    const payloads = await encodeToPayloadsWithContext(
+      this.dataConverter,
+      this.serializationContextFor(taskTokenOrFullActivityId, options),
+      [result]
+    );
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
         await this.workflowService.respondActivityTaskCompleted({
@@ -134,14 +179,22 @@ export class AsyncCompletionClient extends BaseClient {
   /**
    * Fail an Activity by task token
    */
-  async fail(taskToken: Uint8Array, err: unknown): Promise<void>;
+  async fail(taskToken: Uint8Array, err: unknown, options?: AsyncCompletionOperationOptions): Promise<void>;
   /**
    * Fail an Activity by full ID
    */
   async fail(fullActivityId: FullActivityId, err: unknown): Promise<void>;
 
-  async fail(taskTokenOrFullActivityId: Uint8Array | FullActivityId, err: unknown): Promise<void> {
-    const failure = await encodeErrorToFailure(this.dataConverter, ensureTemporalFailure(err));
+  async fail(
+    taskTokenOrFullActivityId: Uint8Array | FullActivityId,
+    err: unknown,
+    options?: AsyncCompletionOperationOptions
+  ): Promise<void> {
+    const failure = await encodeErrorToFailure(
+      this.dataConverter,
+      ensureTemporalFailure(err),
+      this.serializationContextFor(taskTokenOrFullActivityId, options)
+    );
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
         await this.workflowService.respondActivityTaskFailed({
@@ -166,14 +219,26 @@ export class AsyncCompletionClient extends BaseClient {
   /**
    * Report Activity cancellation by task token
    */
-  reportCancellation(taskToken: Uint8Array, details?: unknown): Promise<void>;
+  reportCancellation(
+    taskToken: Uint8Array,
+    details?: unknown,
+    options?: AsyncCompletionOperationOptions
+  ): Promise<void>;
   /**
    * Report Activity cancellation by full ID
    */
   reportCancellation(fullActivityId: FullActivityId, details?: unknown): Promise<void>;
 
-  async reportCancellation(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
-    const payloads = await encodeToPayloads(this.dataConverter, details);
+  async reportCancellation(
+    taskTokenOrFullActivityId: Uint8Array | FullActivityId,
+    details?: unknown,
+    options?: AsyncCompletionOperationOptions
+  ): Promise<void> {
+    const payloads = await encodeToPayloadsWithContext(
+      this.dataConverter,
+      this.serializationContextFor(taskTokenOrFullActivityId, options),
+      [details]
+    );
     try {
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
         await this.workflowService.respondActivityTaskCanceled({
@@ -198,14 +263,22 @@ export class AsyncCompletionClient extends BaseClient {
   /**
    * Send Activity heartbeat by task token
    */
-  heartbeat(taskToken: Uint8Array, details?: unknown): Promise<void>;
+  heartbeat(taskToken: Uint8Array, details?: unknown, options?: AsyncCompletionOperationOptions): Promise<void>;
   /**
    * Send Activity heartbeat by full ID
    */
   heartbeat(fullActivityId: FullActivityId, details?: unknown): Promise<void>;
 
-  async heartbeat(taskTokenOrFullActivityId: Uint8Array | FullActivityId, details?: unknown): Promise<void> {
-    const payloads = await encodeToPayloads(this.dataConverter, details);
+  async heartbeat(
+    taskTokenOrFullActivityId: Uint8Array | FullActivityId,
+    details?: unknown,
+    options?: AsyncCompletionOperationOptions
+  ): Promise<void> {
+    const payloads = await encodeToPayloadsWithContext(
+      this.dataConverter,
+      this.serializationContextFor(taskTokenOrFullActivityId, options),
+      [details]
+    );
     let cancelRequested = false;
     let paused = false;
     let reset = false;
