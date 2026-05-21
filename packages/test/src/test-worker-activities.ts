@@ -1,7 +1,7 @@
+import { randomUUID } from 'crypto';
 import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import dedent from 'dedent';
-import { randomUUID } from 'crypto';
 import { TemporalFailure, defaultPayloadConverter, toPayloads, ApplicationFailure } from '@temporalio/common';
 import { coresdk, google } from '@temporalio/proto';
 import { msToTs } from '@temporalio/common/lib/time';
@@ -243,7 +243,7 @@ test('Worker fails activity with proper message if activity info contains null S
   const worker = isolateFreeWorker({
     ...defaultOptions,
     activities: {
-      async dummy(): Promise<void> { },
+      async dummy(): Promise<void> {},
     },
   });
   t.context.worker = worker;
@@ -270,7 +270,7 @@ test('Worker fails activity task if interceptor factory throws', async (t) => {
   const worker = isolateFreeWorker({
     ...defaultOptions,
     activities: {
-      async dummy(): Promise<void> { },
+      async dummy(): Promise<void> {},
     },
     interceptors: {
       activity: [

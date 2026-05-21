@@ -5,9 +5,9 @@
 import { unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import { join as pathJoin } from 'node:path';
+import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import test from 'ava';
-import { randomUUID } from 'crypto';
 import { moduleMatches } from '@temporalio/worker/lib/workflow/bundler';
 import type { LogEntry, WorkerOptions } from '@temporalio/worker';
 import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
@@ -209,7 +209,7 @@ if (RUN_INTEGRATION_TESTS) {
     t.true(
       codeSizeKB < 600,
       `Bundle code size (${codeSizeKB.toFixed(0)} KB) exceeds 600 KB — ` +
-      `either @temporalio/proto was pulled in, or another unexpectedly large dependency was added`
+        `either @temporalio/proto was pulled in, or another unexpectedly large dependency was added`
     );
 
     // Parse the inline source map to enumerate bundled source files.

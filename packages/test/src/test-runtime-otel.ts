@@ -1,7 +1,7 @@
 import * as http from 'http';
 import * as http2 from 'http2';
-import test from 'ava';
 import { randomUUID } from 'crypto';
+import test from 'ava';
 import { WorkflowClient } from '@temporalio/client';
 import { Runtime } from '@temporalio/worker';
 import { TestWorkflowEnvironment, Worker } from './helpers';

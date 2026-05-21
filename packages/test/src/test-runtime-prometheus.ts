@@ -1,5 +1,5 @@
-import test from 'ava';
 import { randomUUID } from 'crypto';
+import test from 'ava';
 import { WorkflowClient } from '@temporalio/client';
 import { Runtime } from '@temporalio/worker';
 import { Worker, getRandomPort, TestWorkflowEnvironment } from './helpers';
@@ -106,8 +106,8 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
       t.assert(
         text.includes(
           'temporal_workflow_task_execution_latency_seconds_bucket{namespace="default",' +
-          'service_name="temporal-core-sdk",task_queue="test-prometheus",' +
-          'workflow_type="successString",my_tag="my_value",le="31415"}'
+            'service_name="temporal-core-sdk",task_queue="test-prometheus",' +
+            'workflow_type="successString",my_tag="my_value",le="31415"}'
         ),
         `Actual: \n-------\n${text}\n-------`
       );

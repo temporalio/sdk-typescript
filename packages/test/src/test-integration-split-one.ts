@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
-import asyncRetry from 'async-retry';
 import { randomUUID } from 'crypto';
+import asyncRetry from 'async-retry';
 import dedent from 'dedent';
 import * as iface from '@temporalio/proto';
 import {
@@ -724,8 +724,8 @@ test.serial('Workflow can upsert Search Attributes', configMacro, async (t, conf
   }
   t.true(
     typeof checksum === 'string' &&
-    checksum.includes(`@temporalio/worker@${pkg.version}+`) &&
-    /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
+      checksum.includes(`@temporalio/worker@${pkg.version}+`) &&
+      /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
   );
 });
 

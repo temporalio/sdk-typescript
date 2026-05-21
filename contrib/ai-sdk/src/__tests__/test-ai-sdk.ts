@@ -1,6 +1,7 @@
 /**
  * Test AI SDK integration with Temporal workflows
  */
+import { randomUUID } from 'crypto';
 import type {
   EmbeddingModelV3,
   EmbeddingModelV3CallOptions,
@@ -18,7 +19,6 @@ import type {
 } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
 import type { TestFn } from 'ava';
-import { randomUUID } from 'crypto';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { ExportResultCode } from '@opentelemetry/core';

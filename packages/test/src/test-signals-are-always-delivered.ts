@@ -6,8 +6,8 @@
  *
  * @module
  */
-import test from 'ava';
 import { randomUUID } from 'crypto';
+import test from 'ava';
 import { WorkflowClient } from '@temporalio/client';
 import type { InjectedSinks } from '@temporalio/worker';
 import { DefaultLogger, Runtime } from '@temporalio/worker';

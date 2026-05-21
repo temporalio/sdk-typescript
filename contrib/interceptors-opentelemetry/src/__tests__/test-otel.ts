@@ -3,6 +3,7 @@
  */
 import * as http2 from 'http2';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 import * as otelApi from '@opentelemetry/api';
 import { SpanStatusCode, createTraceState } from '@opentelemetry/api';
 import { ExportResultCode } from '@opentelemetry/core';
@@ -12,7 +13,6 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import * as nexus from 'nexus-rpc';
-import { randomUUID } from 'crypto';
 import { Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { WorkflowClientInterceptor } from '@temporalio/client';
@@ -305,7 +305,7 @@ if (RUN_INTEGRATION_TESTS) {
           spans.push(...spans_);
           resultCallback({ code: ExportResultCode.SUCCESS });
         },
-        async shutdown() { },
+        async shutdown() {},
       };
 
       const otel = new OtelSdkContext({ resource: staticResource, traceExporter });
@@ -340,7 +340,7 @@ if (RUN_INTEGRATION_TESTS) {
                 async start(ctx, _input): Promise<nexus.HandlerStartOperationResult<string>> {
                   return nexus.HandlerStartOperationResult.async(ctx.requestId!);
                 },
-                async cancel(_ctx, _token): Promise<void> { },
+                async cancel(_ctx, _token): Promise<void> {},
               },
             }),
           ],
@@ -460,7 +460,9 @@ if (RUN_INTEGRATION_TESTS) {
       const client = new WorkflowClient({
         interceptors: [new OpenTelemetryWorkflowClientInterceptor()],
       });
-      await worker.runUntil(client.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: randomUUID() }));
+      await worker.runUntil(
+        client.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: randomUUID() })
+      );
       // Allow some time to ensure spans are flushed out to collector
       await new Promise<void>((resolve) => setTimeout(resolve, 5000));
       t.pass();
@@ -642,7 +644,7 @@ if (RUN_INTEGRATION_TESTS) {
       export(_spans, resultCallback) {
         resultCallback({ code: ExportResultCode.SUCCESS });
       },
-      async shutdown() { },
+      async shutdown() {},
     };
 
     const plugin = new OpenTelemetryPlugin({
@@ -688,73 +690,74 @@ if (RUN_INTEGRATION_TESTS) {
   // - Using SpanExporter directly: async attributes are not awaited
   // - Using SpanProcessor: async attributes are awaited before export
   for (const useSpanProcessor of [false, true]) {
-    test(`makeWorkflowExporter with ${useSpanProcessor ? 'SpanProcessor does' : 'SpanExporter does not'
-      } await async resource attributes`, async (t) => {
-        const taskQueue = `test-otel-async-${useSpanProcessor ? 'processor' : 'exporter'}`;
-        const serviceName = `ts-test-otel-async-attributes`;
+    test(`makeWorkflowExporter with ${
+      useSpanProcessor ? 'SpanProcessor does' : 'SpanExporter does not'
+    } await async resource attributes`, async (t) => {
+      const taskQueue = `test-otel-async-${useSpanProcessor ? 'processor' : 'exporter'}`;
+      const serviceName = `ts-test-otel-async-attributes`;
 
-        // Create a promise for async attributes that we control.
-        // If not using a span processor it will never resolve.
-        let resolveAsyncAttrs: (attrs: opentelemetry.resources.ResourceAttributes) => void;
-        const asyncAttributesPromise = new Promise<opentelemetry.resources.ResourceAttributes>((resolve) => {
-          resolveAsyncAttrs = resolve;
-        });
-
-        const resource = new opentelemetry.resources.Resource(
-          { [SEMRESATTRS_SERVICE_NAME]: serviceName },
-          asyncAttributesPromise
-        );
-
-        const spans: opentelemetry.tracing.ReadableSpan[] = [];
-        const traceExporter: opentelemetry.tracing.SpanExporter = {
-          export(spans_, resultCallback) {
-            spans.push(...spans_);
-            resultCallback({ code: ExportResultCode.SUCCESS });
-          },
-          async shutdown() { },
-        };
-
-        // Custom SpanProcessor that resolves async resource attributes after the first onEnd is called.
-        // SpanProcessors are expected to wait on async resource attributes to settle before exporting the span.
-        class TestSpanProcessor extends SimpleSpanProcessor {
-          override onEnd(span: opentelemetry.tracing.ReadableSpan): void {
-            super.onEnd(span);
-            // Resolve async attributes so waitForAsyncAttributes can complete
-            resolveAsyncAttrs({ 'async.attr': 'resolved' });
-          }
-        }
-
-        const sinks: InjectedSinks<OpenTelemetrySinks> = {
-          exporter: useSpanProcessor
-            ? makeWorkflowExporter(new TestSpanProcessor(traceExporter), resource)
-            : makeWorkflowExporter(traceExporter, resource),
-        };
-
-        const worker = await Worker.create({
-          workflowsPath: require.resolve('./workflows'),
-          activities,
-          taskQueue,
-          interceptors: {
-            workflowModules: [require.resolve('./workflows/otel-interceptors')],
-            activity: [
-              (ctx) => ({
-                inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
-                outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
-              }),
-            ],
-          },
-          sinks,
-        });
-
-        const client = new WorkflowClient();
-        await worker.runUntil(client.execute(workflows.successString, { taskQueue, workflowId: randomUUID() }));
-
-        t.deepEqual(spans[0]!.resource.attributes, {
-          [SEMRESATTRS_SERVICE_NAME]: serviceName,
-          // If not using a span processor, then we do not expect the async attr to be present
-          ...(useSpanProcessor ? { 'async.attr': 'resolved' } : {}),
-        });
+      // Create a promise for async attributes that we control.
+      // If not using a span processor it will never resolve.
+      let resolveAsyncAttrs: (attrs: opentelemetry.resources.ResourceAttributes) => void;
+      const asyncAttributesPromise = new Promise<opentelemetry.resources.ResourceAttributes>((resolve) => {
+        resolveAsyncAttrs = resolve;
       });
+
+      const resource = new opentelemetry.resources.Resource(
+        { [SEMRESATTRS_SERVICE_NAME]: serviceName },
+        asyncAttributesPromise
+      );
+
+      const spans: opentelemetry.tracing.ReadableSpan[] = [];
+      const traceExporter: opentelemetry.tracing.SpanExporter = {
+        export(spans_, resultCallback) {
+          spans.push(...spans_);
+          resultCallback({ code: ExportResultCode.SUCCESS });
+        },
+        async shutdown() {},
+      };
+
+      // Custom SpanProcessor that resolves async resource attributes after the first onEnd is called.
+      // SpanProcessors are expected to wait on async resource attributes to settle before exporting the span.
+      class TestSpanProcessor extends SimpleSpanProcessor {
+        override onEnd(span: opentelemetry.tracing.ReadableSpan): void {
+          super.onEnd(span);
+          // Resolve async attributes so waitForAsyncAttributes can complete
+          resolveAsyncAttrs({ 'async.attr': 'resolved' });
+        }
+      }
+
+      const sinks: InjectedSinks<OpenTelemetrySinks> = {
+        exporter: useSpanProcessor
+          ? makeWorkflowExporter(new TestSpanProcessor(traceExporter), resource)
+          : makeWorkflowExporter(traceExporter, resource),
+      };
+
+      const worker = await Worker.create({
+        workflowsPath: require.resolve('./workflows'),
+        activities,
+        taskQueue,
+        interceptors: {
+          workflowModules: [require.resolve('./workflows/otel-interceptors')],
+          activity: [
+            (ctx) => ({
+              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
+              outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
+            }),
+          ],
+        },
+        sinks,
+      });
+
+      const client = new WorkflowClient();
+      await worker.runUntil(client.execute(workflows.successString, { taskQueue, workflowId: randomUUID() }));
+
+      t.deepEqual(spans[0]!.resource.attributes, {
+        [SEMRESATTRS_SERVICE_NAME]: serviceName,
+        // If not using a span processor, then we do not expect the async attr to be present
+        ...(useSpanProcessor ? { 'async.attr': 'resolved' } : {}),
+      });
+    });
   }
 
   test.serial('OpenTelemetryPlugin works with prebundled workflow code', async (t) => {

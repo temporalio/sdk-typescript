@@ -1,5 +1,5 @@
-import test from 'ava';
 import { randomUUID } from 'crypto';
+import test from 'ava';
 import * as libCoverage from 'istanbul-lib-coverage';
 import { bundleWorkflowCode, Worker } from '@temporalio/worker';
 import { Client, WorkflowClient } from '@temporalio/client';

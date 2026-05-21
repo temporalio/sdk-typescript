@@ -1,7 +1,7 @@
 import path from 'path';
+import { randomUUID } from 'crypto';
 import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
-import { randomUUID } from 'crypto';
 import type { Connection } from '@temporalio/client';
 import { Client } from '@temporalio/client';
 import * as iface from '@temporalio/proto';

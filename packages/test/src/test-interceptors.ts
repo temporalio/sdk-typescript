@@ -5,9 +5,9 @@
  * @module
  */
 
+import { randomUUID } from 'crypto';
 import test from 'ava';
 import dedent from 'dedent';
-import { randomUUID } from 'crypto';
 import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { ApplicationFailure, TerminatedFailure } from '@temporalio/common';
 import { DefaultLogger, Runtime } from '@temporalio/worker';

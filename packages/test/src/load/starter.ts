@@ -1,9 +1,9 @@
 import os from 'node:os';
 import fs, { readFileSync } from 'node:fs';
+import { randomUUID } from 'crypto';
 import arg from 'arg';
 import pidusage from 'pidusage';
 import * as grpc from '@grpc/grpc-js';
-import { randomUUID } from 'crypto';
 import type { Observable, OperatorFunction } from 'rxjs';
 import { interval, range, ReplaySubject, pipe, lastValueFrom } from 'rxjs';
 import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
@@ -53,11 +53,11 @@ async function runWorkflow({ client, workflowName, taskQueue, queryingOptions }:
 }
 
 class NumberOfWorkflows {
-  constructor(readonly num: number = 0) { }
+  constructor(readonly num: number = 0) {}
 }
 
 class UntilSecondsElapsed {
-  constructor(readonly seconds: number = 0) { }
+  constructor(readonly seconds: number = 0) {}
 }
 
 interface QueryingOptions {
@@ -209,13 +209,13 @@ async function main() {
   const tlsConfig =
     clientCertPath && clientKeyPath
       ? {
-        tls: {
-          clientCertPair: {
-            crt: readFileSync(clientCertPath),
-            key: readFileSync(clientKeyPath),
+          tls: {
+            clientCertPair: {
+              crt: readFileSync(clientCertPath),
+              key: readFileSync(clientKeyPath),
+            },
           },
-        },
-      }
+        }
       : {};
 
   const connection = await Connection.connect({ address: serverAddress, ...tlsConfig });

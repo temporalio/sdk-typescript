@@ -1,5 +1,5 @@
-import { status as grpcStatus } from '@grpc/grpc-js';
 import { randomUUID } from 'node:crypto';
+import { status as grpcStatus } from '@grpc/grpc-js';
 import type {
   ActivityFunction,
   LoadedDataConverter,

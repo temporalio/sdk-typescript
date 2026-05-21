@@ -1,6 +1,6 @@
+import { randomUUID } from 'crypto';
 import test from 'ava';
 import { firstValueFrom, Subject } from 'rxjs';
-import { randomUUID } from 'crypto';
 import type { coresdk } from '@temporalio/proto';
 import { Context } from '@temporalio/activity';
 import type { PayloadCodec } from '@temporalio/common';

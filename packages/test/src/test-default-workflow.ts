@@ -1,8 +1,8 @@
 /**
  * Test usage of a default workflow handler
  */
-import test from 'ava';
 import { randomUUID } from 'crypto';
+import test from 'ava';
 import { TestWorkflowEnvironment, Worker } from './helpers';
 import { existing } from './workflows/default-workflow-function';
 
