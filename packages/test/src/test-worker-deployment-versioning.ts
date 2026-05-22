@@ -712,20 +712,20 @@ test('Worker with deployment options and useWorkerVersioning false can run workf
 });
 
 test('WorkerDeploymentOptions with useWorkerVersioning true requires defaultVersioningBehavior', (t) => {
-  const valid: WorkerDeploymentOptions = {
+  const _valid: WorkerDeploymentOptions = {
     version: { buildId: '1.0', deploymentName: 'my-deployment' },
     useWorkerVersioning: true,
     defaultVersioningBehavior: 'AUTO_UPGRADE',
   };
 
-  const validPinned: WorkerDeploymentOptions = {
+  const _validPinned: WorkerDeploymentOptions = {
     version: { buildId: '1.0', deploymentName: 'my-deployment' },
     useWorkerVersioning: true,
     defaultVersioningBehavior: 'PINNED',
   };
 
   // @ts-expect-error defaultVersioningBehavior is required when useWorkerVersioning is true
-  const missingBehavior: WorkerDeploymentOptions = {
+  const _missingBehavior: WorkerDeploymentOptions = {
     version: { buildId: '1.0', deploymentName: 'my-deployment' },
     useWorkerVersioning: true,
   };
@@ -739,7 +739,7 @@ test('WorkerDeploymentOptions with useWorkerVersioning false does not allow defa
     useWorkerVersioning: false,
   };
 
-  const invalidWithBehavior: WorkerDeploymentOptions = {
+  const _invalidWithBehavior: WorkerDeploymentOptions = {
     version: { buildId: '1.0', deploymentName: 'my-deployment' },
     useWorkerVersioning: false,
     // @ts-expect-error defaultVersioningBehavior must not be specified when useWorkerVersioning is false

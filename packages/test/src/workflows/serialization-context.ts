@@ -25,10 +25,11 @@ import { withLabel, type ContextTrace } from '../payload-converters/serializatio
 
 export type Trace = ContextTrace<string>;
 
-export const { echoTrace, throwAnError, heartbeatTrace } = wf.proxyActivities<{
+export const { echoTrace, throwAnError, heartbeatTrace, completeAsync } = wf.proxyActivities<{
   echoTrace(input: Trace, label: string): Promise<Trace>;
   throwAnError(useApplicationFailure: boolean, message: string): Promise<void>;
   heartbeatTrace(input: Trace, label: string): Promise<Trace>;
+  completeAsync(): Promise<Trace>;
 }>({
   startToCloseTimeout: '10s',
   heartbeatTimeout: '1s',
@@ -79,6 +80,10 @@ export async function wfContextWithExplicitActivityId(inputTrace: Trace): Promis
 export async function wfContextWithHeartbeatDetails(inputTrace: Trace): Promise<Trace> {
   const fromHeartbeat = await heartbeatTrace(activityInput(inputTrace), 'activity-heartbeat-details');
   return workflowOutput(fromHeartbeat);
+}
+
+export async function serializationContextAsyncCompletionWorkflow(): Promise<Trace> {
+  return await completeAsync();
 }
 
 export async function wfContextWithLocalActivity(inputTrace: Trace): Promise<Trace> {

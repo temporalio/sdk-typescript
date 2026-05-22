@@ -35,7 +35,6 @@ export async function logSinkTester(): Promise<void> {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-deprecated
 const { defaultWorkerLogger } = wf.proxySinks<wf.LoggerSinks>();
 
 export async function useDepreatedLoggerSinkWorkflow(): Promise<void> {
