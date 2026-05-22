@@ -1,5 +1,5 @@
 /**
- * Workflow-side stream object for Workflow Streams.
+ * Workflow-side entrypoint for `@temporalio/workflow-streams`.
  *
  * Instantiate `WorkflowStream` once at the start of your workflow function; the
  * constructor registers the workflow stream signal, update, and query handlers on
@@ -16,6 +16,14 @@
  * compression) is NOT applied per item on either side — it runs once at
  * the envelope level when Temporal's SDK encodes the signal/update that
  * carries the batch.
+ *
+ * This entrypoint exports only the workflow-safe surface so that it can be
+ * pulled into a workflow bundle. The client-side surface lives at
+ * `@temporalio/workflow-streams/lib/client` and pulls in `crypto`,
+ * `@temporalio/activity`, and `@temporalio/client` — none of which can be
+ * resolved in the workflow sandbox.
+ *
+ * @module
  */
 
 import {
@@ -34,6 +42,24 @@ import { msToNumber } from '@temporalio/common/lib/time';
 import { decodePayloadWire, encodePayloadProto, encodePayloadWire, encodeBase64 } from './codec';
 import type { PollInput, PollResult, WorkflowStreamState, PublishInput, WorkflowStreamWireItem } from './types';
 import { WorkflowTopicHandle } from './topic-handle';
+
+export type {
+  WorkflowStreamItem,
+  PublishEntry,
+  PublishInput,
+  PollInput,
+  PollResult,
+  WorkflowStreamState,
+} from './types';
+export {
+  encodeBase64,
+  decodeBase64,
+  encodePayloadProto,
+  decodePayloadProto,
+  encodePayloadWire,
+  decodePayloadWire,
+} from './codec';
+export { WorkflowTopicHandle } from './topic-handle';
 
 const BINARY_PLAIN_ENCODING = new TextEncoder().encode('binary/plain');
 

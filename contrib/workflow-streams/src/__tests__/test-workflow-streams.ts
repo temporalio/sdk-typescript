@@ -14,14 +14,16 @@ import {
   type PollInput,
   type PollResult,
   type WorkflowStreamItem,
-  type WorkflowStreamState,
   type PublishEntry,
   type PublishInput,
+} from '../client';
+import {
+  type WorkflowStreamState,
   encodePayloadWire,
   workflowStreamOffsetQuery,
   workflowStreamPublishSignal,
   workflowStreamPollUpdate,
-} from '..';
+} from '../workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 import {
   activityPublishWorkflow,

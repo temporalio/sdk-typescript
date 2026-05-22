@@ -2,8 +2,6 @@
   "name": "@temporalio/workflow-streams",
   "version": "1.17.0",
   "description": "Temporal.io SDK Workflow Streams contrib module",
-  "main": "lib/index.js",
-  "types": "./lib/index.d.ts",
   "scripts": {
     "build": "tsc --build",
     "test": "ava ./lib/__tests__/test-*.js"

@@ -16,7 +16,7 @@
 
 import type { Payload } from '@temporalio/common';
 import type { SubscribeOptions, WorkflowStreamClient } from './client';
-import type { WorkflowStream } from './stream';
+import type { WorkflowStream } from './workflow';
 import type { WorkflowStreamItem } from './types';
 
 /**

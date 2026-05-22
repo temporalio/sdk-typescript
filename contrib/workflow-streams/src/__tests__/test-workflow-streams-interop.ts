@@ -19,7 +19,7 @@ import {
   encodeBase64,
   encodePayloadProto,
   encodePayloadWire,
-} from '..';
+} from '../workflow';
 
 const test = anyTest as TestFn;
 const encoder = new TextEncoder();

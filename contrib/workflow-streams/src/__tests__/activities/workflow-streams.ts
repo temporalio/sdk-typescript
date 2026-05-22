@@ -6,7 +6,7 @@
  */
 
 import { Context } from '@temporalio/activity';
-import { WorkflowStreamClient } from '../..';
+import { WorkflowStreamClient } from '../../client';
 
 const encoder = new TextEncoder();
 
