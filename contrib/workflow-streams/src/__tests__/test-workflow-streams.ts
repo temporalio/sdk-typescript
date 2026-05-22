@@ -28,6 +28,7 @@ import { helpers, makeTestFunction } from './helpers-integration';
 import {
   activityPublishWorkflow,
   basicWorkflowStreamWorkflow,
+  binaryPublishWorkflow,
   continueAsNewHelperWorkflow,
   continueAsNewTypedWorkflow,
   flushOnExitWorkflow,
@@ -62,20 +63,20 @@ function entry(topic: string, data: string): PublishEntry {
   return { topic, data: encodePayloadWire(payload) };
 }
 
-/** Extract the raw bytes from a `Payload` produced by the default converter. */
+/** Extract the raw bytes from a binary/plain `Payload`. */
 function payloadBytes(payload: Payload): Uint8Array {
-  // defaultPayloadConverter maps Uint8Array to encoding=binary/plain, so
-  // `data` is already the raw bytes. For string/JSON payloads we fall back
-  // to the converter.
-  const encoding = payload.metadata?.['encoding'];
-  if (encoding && decoder.decode(encoding) === 'binary/plain') {
-    return payload.data ?? new Uint8Array(0);
-  }
-  return defaultPayloadConverter.fromPayload<Uint8Array>(payload);
+  return payload.data ?? new Uint8Array(0);
 }
 
 function payloadString(payload: Payload): string {
-  return decoder.decode(payloadBytes(payload));
+  // defaultPayloadConverter maps Uint8Array to encoding=binary/plain (raw
+  // bytes in `data`) and strings to encoding=json/plain. Handle both so
+  // tests can mix the two publish paths.
+  const encoding = payload.metadata?.['encoding'];
+  if (encoding && decoder.decode(encoding) === 'binary/plain') {
+    return decoder.decode(payloadBytes(payload));
+  }
+  return defaultPayloadConverter.fromPayload<string>(payload);
 }
 
 async function collectItems(
@@ -121,6 +122,23 @@ test('activity_publish_and_subscribe — activity publishes, client subscribes',
     }
     t.is(items[count]!.topic, 'status');
     t.is(payloadString(items[count]!.data), 'activity_done');
+    await handle.signal('close');
+  });
+});
+
+test('binary_publish — Uint8Array publishes round-trip as binary/plain', async (t) => {
+  const count = 5;
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({ activities: streamActivities });
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(binaryPublishWorkflow, { args: [count] });
+    const items = await collectItems(handle, undefined, 0, count);
+    t.is(items.length, count);
+    for (let i = 0; i < count; i++) {
+      const encoding = items[i]!.data.metadata?.['encoding'];
+      t.is(encoding && decoder.decode(encoding), 'binary/plain');
+      t.deepEqual(payloadBytes(items[i]!.data), encoder.encode(`item-${i}`));
+    }
     await handle.signal('close');
   });
 });

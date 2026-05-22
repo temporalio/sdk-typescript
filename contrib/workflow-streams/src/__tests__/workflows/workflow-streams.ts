@@ -14,11 +14,17 @@ import {
 import { WorkflowStream, type WorkflowStreamState } from '../../workflow';
 import type * as activities from '../activities/workflow-streams';
 
-const { publishItems, publishMultiTopic, publishWithForceFlush, publishBatchTest, publishWithMaxBatch } =
-  proxyActivities<typeof activities>({
-    startToCloseTimeout: '30 seconds',
-    heartbeatTimeout: '10 seconds',
-  });
+const {
+  publishItems,
+  publishBinaryItems,
+  publishMultiTopic,
+  publishWithForceFlush,
+  publishBatchTest,
+  publishWithMaxBatch,
+} = proxyActivities<typeof activities>({
+  startToCloseTimeout: '30 seconds',
+  heartbeatTimeout: '10 seconds',
+});
 
 export const closeSignal = defineSignal('close');
 export const triggerContinueSignal = defineSignal('triggerContinue');
@@ -39,14 +45,13 @@ export async function basicWorkflowStreamWorkflow(): Promise<void> {
 /** Publishes `count` items directly from the workflow, then waits. */
 export async function workflowSidePublishWorkflow(count: number): Promise<void> {
   const stream = new WorkflowStream();
-  const events = stream.topic('events');
+  const events = stream.topic<string>('events');
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
   });
-  const encoder = new TextEncoder();
   for (let i = 0; i < count; i++) {
-    events.publish(encoder.encode(`item-${i}`));
+    events.publish(`item-${i}`);
   }
   await condition(() => closed);
 }
@@ -65,13 +70,24 @@ export async function multiTopicWorkflow(count: number): Promise<void> {
 /** Executes publishItems activity then appends activity_done status. */
 export async function activityPublishWorkflow(count: number): Promise<void> {
   const stream = new WorkflowStream();
-  const status = stream.topic('status');
+  const status = stream.topic<string>('status');
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
   });
   await publishItems(count);
-  status.publish(new TextEncoder().encode('activity_done'));
+  status.publish('activity_done');
+  await condition(() => closed);
+}
+
+/** Executes publishBinaryItems activity then waits — exercises the Uint8Array publish path. */
+export async function binaryPublishWorkflow(count: number): Promise<void> {
+  new WorkflowStream();
+  let closed = false;
+  setHandler(closeSignal, () => {
+    closed = true;
+  });
+  await publishBinaryItems(count);
   await condition(() => closed);
 }
 
@@ -124,13 +140,13 @@ export async function flushOnExitWorkflow(count: number): Promise<void> {
 /** Workflow that runs publishWithMaxBatch activity. */
 export async function maxBatchWorkflow(count: number): Promise<void> {
   const stream = new WorkflowStream();
-  const status = stream.topic('status');
+  const status = stream.topic<string>('status');
   let closed = false;
   setHandler(closeSignal, () => {
     closed = true;
   });
   await publishWithMaxBatch(count);
-  status.publish(new TextEncoder().encode('activity_done'));
+  status.publish('activity_done');
   await condition(() => closed);
 }
 

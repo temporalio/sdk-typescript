@@ -53,13 +53,10 @@ export async function myWorkflow(input: MyInput): Promise<void> {
 
 The `WorkflowStream` constructor registers the `__temporal_workflow_stream_publish` signal,
 `__temporal_workflow_stream_poll` update, and `__temporal_workflow_stream_offset` query handlers on your workflow.
-Any value the default payload converter can serialize (JSON, `Uint8Array`, or
-a pre-built `Payload`) can be passed to `publish`. The type parameter `T` is
-purely a compile-time annotation — TypeScript has no runtime type
-representation, so per-topic type uniformity isn't enforced at runtime
-(unlike sdk-python). Repeated calls to `stream.topic('foo')` return the same
-handle instance, so a stale `T` annotation can't introduce a duplicate
-publisher.
+Any value the default payload converter can serialize or
+a pre-built `Payload` can be passed to `publish`. The type parameter `T` is
+only a compile-time annotation. Repeated calls to `stream.topic('foo')` return the same
+handle instance. The type parameter `T` is a compile-time annotation and doesn't affect handle identity.
 
 ### Activity side (publishing)
 
