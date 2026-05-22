@@ -2,7 +2,7 @@
  * Bundling test for `@temporalio/workflow-streams`.
  *
  * Runs the real `bundleWorkflowCode` walker (no `ignoreModules` allowlist) against
- * a workflow file that imports from `@temporalio/workflow-streams/lib/workflow`.
+ * a workflow file that imports from `@temporalio/workflow-streams/workflow`.
  * The workflow entrypoint must not transitively reach `crypto`, `@temporalio/activity`,
  * or `@temporalio/client`, otherwise the workflow sandbox check fails.
  */

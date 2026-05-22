@@ -19,7 +19,7 @@
  *
  * This entrypoint exports only the workflow-safe surface so that it can be
  * pulled into a workflow bundle. The client-side surface lives at
- * `@temporalio/workflow-streams/lib/client` and pulls in `crypto`,
+ * `@temporalio/workflow-streams/client` and pulls in `crypto`,
  * `@temporalio/activity`, and `@temporalio/client` — none of which can be
  * resolved in the workflow sandbox.
  *

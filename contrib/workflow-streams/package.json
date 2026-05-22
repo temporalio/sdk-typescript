@@ -2,6 +2,23 @@
   "name": "@temporalio/workflow-streams",
   "version": "1.17.0",
   "description": "Temporal.io SDK Workflow Streams contrib module",
+  "exports": {
+    "./workflow": {
+      "types": "./lib/workflow.d.ts",
+      "default": "./lib/workflow.js"
+    },
+    "./client": {
+      "types": "./lib/client.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "workflow": ["./lib/workflow.d.ts"],
+      "client": ["./lib/client.d.ts"]
+    }
+  },
   "scripts": {
     "build": "tsc --build",
     "test": "ava ./lib/__tests__/test-*.js"
