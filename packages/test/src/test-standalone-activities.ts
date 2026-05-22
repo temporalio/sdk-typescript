@@ -4,6 +4,7 @@ import anyTest from 'ava';
 import * as rxjs from 'rxjs';
 import type { ActivityHandle, TypedActivityClient, ActivityOptions } from '@temporalio/client';
 import {
+  ActivityExecutionStatus,
   ActivityExecutionAlreadyStartedError,
   ActivityExecutionFailedError,
   ServiceError,
@@ -16,7 +17,7 @@ import type { TestWorkflowEnvironment } from './helpers';
 import { RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
 import { echo, throwAnError } from './activities';
 import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
-import { createLocalTestEnvironment } from './helpers-integration';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -78,9 +79,14 @@ async function waitForValue<T>(subject: rxjs.Subject<T>, value: T) {
 
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
-    const env = await createLocalTestEnvironment({
+    const env = await createTestWorkflowEnvironment({
       server: {
-        extraArgs: ['--dynamic-config-value', `activity.longPollTimeout="${LONG_POLL_TIMEOUT_MS}ms"`],
+        extraArgs: [
+          '--dynamic-config-value',
+          `activity.longPollTimeout="${LONG_POLL_TIMEOUT_MS}ms"`,
+          '--dynamic-config-value',
+          'activity.startDelayEnabled=true',
+        ],
       },
     });
 
@@ -118,8 +124,8 @@ if (RUN_INTEGRATION_TESTS) {
 
   test.after.always(async (t) => {
     t.context.worker.shutdown();
-    await t.context.env.teardown();
     await t.context.runPromise;
+    await t.context.env.teardown();
   });
 
   test('Get activity result - success', async (t) => {
@@ -173,6 +179,26 @@ if (RUN_INTEGRATION_TESTS) {
     );
     t.assert(err?.cause instanceof ApplicationFailure);
     t.is(err?.cause?.message, 'failure');
+  });
+
+  test('Start activity with start delay', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const startDelayMs = 2000;
+    const handle = await client.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+      startDelay: startDelayMs,
+    });
+
+    t.is(await handle.result(), 'hello');
+
+    const description = await handle.describe();
+    t.is(description.status, ActivityExecutionStatus.COMPLETED);
+    t.truthy(description.scheduleTime);
+    t.truthy(description.lastStartedTime);
+    t.true(description.lastStartedTime!.getTime() - description.scheduleTime!.getTime() >= startDelayMs - 500);
   });
 
   test('Describe activity from start handle', async (t) => {

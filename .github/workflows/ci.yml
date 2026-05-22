@@ -187,7 +187,9 @@ jobs:
         run: pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
 
       - name: Install Temporal CLI
-        uses: temporalio/setup-temporal@1059a504f87e7fa2f385e3fa40d1aa7e62f1c6ca # v0
+        uses: temporalio/setup-temporal@8bde337644eaaa6644b8b527d9a8406c2207de5b # v0
+        with:
+          version: ${{ env.TESTS_CLI_VERSION }}
 
       - name: Run Temporal CLI
         working-directory: ${{ runner.temp }}
@@ -201,6 +203,8 @@ jobs:
             --dynamic-config-value history.enableRequestIdRefLinks=true \
             --dynamic-config-value frontend.activityAPIsEnabled=true \
             --dynamic-config-value activity.enableStandalone=true \
+            --dynamic-config-value activity.startDelayEnabled=true \
+            --dynamic-config-value 'activity.longPollTimeout="5000ms"' \
             --dynamic-config-value history.enableChasm=true \
             --dynamic-config-value history.enableTransitionHistory=true &
 
