@@ -16,7 +16,6 @@
 
 import type { Payload } from '@temporalio/common';
 import type { SubscribeOptions, WorkflowStreamClient } from './client';
-import type { WorkflowStream } from './workflow';
 import type { WorkflowStreamItem } from './types';
 
 /**
@@ -32,7 +31,8 @@ export class TopicHandle<T = unknown> {
   /** @internal */
   constructor(
     private readonly client: WorkflowStreamClient,
-    public readonly name: string
+    public readonly name: string,
+    private readonly publishFn: (topic: string, value: unknown, forceFlush: boolean) => void
   ) {}
 
   /**
@@ -49,7 +49,7 @@ export class TopicHandle<T = unknown> {
    *   immediately (fire-and-forget — does not block the caller).
    */
   publish(value: T | Payload, options?: { forceFlush?: boolean }): void {
-    this.client._publishToTopic(this.name, value, options?.forceFlush ?? false);
+    this.publishFn(this.name, value, options?.forceFlush ?? false);
   }
 
   /**
@@ -83,8 +83,8 @@ export class TopicHandle<T = unknown> {
 export class WorkflowTopicHandle<T = unknown> {
   /** @internal */
   constructor(
-    private readonly stream: WorkflowStream,
-    public readonly name: string
+    public readonly name: string,
+    private readonly publishFn: (topic: string, value: unknown) => void
   ) {}
 
   /**
@@ -95,6 +95,6 @@ export class WorkflowTopicHandle<T = unknown> {
    *   conversion, regardless of the handle's bound type.
    */
   publish(value: T | Payload): void {
-    this.stream._publishToTopic(this.name, value);
+    this.publishFn(this.name, value);
   }
 }

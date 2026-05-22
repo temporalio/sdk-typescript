@@ -172,14 +172,13 @@ export class WorkflowStream {
   topic<T = unknown>(name: string): WorkflowTopicHandle<T> {
     let handle = this.topicHandles.get(name);
     if (handle === undefined) {
-      handle = new WorkflowTopicHandle<T>(this, name);
+      handle = new WorkflowTopicHandle<T>(name, (topic, value) => this.publishToTopic(topic, value));
       this.topicHandles.set(name, handle as WorkflowTopicHandle<unknown>);
     }
     return handle as WorkflowTopicHandle<T>;
   }
 
-  /** @internal Used by {@link WorkflowTopicHandle.publish}. */
-  _publishToTopic(topic: string, value: unknown): void {
+  private publishToTopic(topic: string, value: unknown): void {
     let payload: Payload;
     if (isPayload(value)) {
       payload = value;

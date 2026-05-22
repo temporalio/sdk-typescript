@@ -286,14 +286,15 @@ export class WorkflowStreamClient {
   topic<T = unknown>(name: string): TopicHandle<T> {
     let handle = this.topicHandles.get(name);
     if (handle === undefined) {
-      handle = new TopicHandle<T>(this, name);
+      handle = new TopicHandle<T>(this, name, (topic, value, forceFlush) =>
+        this.publishToTopic(topic, value, forceFlush)
+      );
       this.topicHandles.set(name, handle as TopicHandle<unknown>);
     }
     return handle as TopicHandle<T>;
   }
 
-  /** @internal Used by {@link TopicHandle.publish}. */
-  _publishToTopic(topic: string, value: unknown, forceFlush: boolean): void {
+  private publishToTopic(topic: string, value: unknown, forceFlush: boolean): void {
     // Lazy-start the background flusher on first publish. Skipped if dispose
     // already ran, so a publish-after-dispose surfaces as a buffered item that
     // never flushes (which the next dispose would catch) rather than silently
