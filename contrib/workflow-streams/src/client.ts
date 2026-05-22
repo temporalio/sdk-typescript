@@ -553,10 +553,4 @@ export class WorkflowStreamClient {
 }
 
 export { TopicHandle } from './topic-handle';
-export type {
-  WorkflowStreamItem,
-  PublishEntry,
-  PublishInput,
-  PollInput,
-  PollResult,
-} from './types';
+export type { WorkflowStreamItem, PublishEntry, PublishInput, PollInput, PollResult } from './types';
