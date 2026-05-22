@@ -1,17 +1,19 @@
 import type { RawSourceMap } from 'source-map';
 import type {
+  ActivitySerializationContext,
   FailureConverter,
   PayloadConverter,
+  ProtoFailure,
   Workflow,
+  WorkflowFunctionWithOptions,
   WorkflowQueryAnnotatedType,
   WorkflowSignalAnnotatedType,
   WorkflowUpdateAnnotatedType,
-  ProtoFailure,
   WorkflowUpdateType,
   WorkflowUpdateValidatorType,
-  WorkflowFunctionWithOptions,
   VersioningBehavior,
   WorkflowDefinitionOptions,
+  WorkflowSerializationContext,
 } from '@temporalio/common';
 import {
   defaultFailureConverter,
@@ -106,9 +108,10 @@ export interface PromiseStackStore {
   promiseToStack: Map<Promise<unknown>, Stack>;
 }
 
-export interface Completion<Success> {
+export interface Completion<Success, Context = never> {
   resolve(val: Success): void;
   reject(reason: Error): void;
+  context?: Context;
 }
 
 export interface Condition {
@@ -168,13 +171,13 @@ export class Activator implements ActivationHandler {
    */
   readonly completions = {
     timer: new Map<number, Completion<void>>(),
-    activity: new Map<number, Completion<unknown>>(),
+    activity: new Map<number, Completion<unknown, ActivitySerializationContext>>(),
     nexusOperationStart: new Map<number, Completion<StartNexusOperationOutput>>(),
     nexusOperationComplete: new Map<number, Completion<unknown>>(),
-    childWorkflowStart: new Map<number, Completion<string>>(),
-    childWorkflowComplete: new Map<number, Completion<unknown>>(),
-    signalWorkflow: new Map<number, Completion<void>>(),
-    cancelWorkflow: new Map<number, Completion<void>>(),
+    childWorkflowStart: new Map<number, Completion<string, WorkflowSerializationContext>>(),
+    childWorkflowComplete: new Map<number, Completion<unknown, WorkflowSerializationContext>>(),
+    signalWorkflow: new Map<number, Completion<void, WorkflowSerializationContext>>(),
+    cancelWorkflow: new Map<number, Completion<void, WorkflowSerializationContext>>(),
   };
 
   /**
@@ -267,6 +270,22 @@ export class Activator implements ActivationHandler {
    * the first captured error is preserved).
    */
   public workflowTaskError: unknown;
+
+  /**
+   * Error type _names_ (from {@link WorkerOptions.workflowFailureErrorTypes}) that
+   * should cause Workflow Execution failure rather than WFT failure.
+   *
+   * Set at workflow creation time from the worker options.
+   */
+  public failureExceptionTypeNames: string[] = [];
+
+  /**
+   * Error _types_ (from {@link WorkflowDefinitionOptions.failureExceptionTypes})
+   * that should cause Workflow Execution failure rather than WFT failure.
+   *
+   * Set in `worker-interface.ts` after the workflow definition options are read.
+   */
+  public workflowDefinitionFailureExceptionTypes: Array<new (...args: any[]) => Error> | undefined = undefined;
 
   /**
    * Set to true when running synchronous code (e.g. while processing activation jobs and when calling
@@ -472,6 +491,7 @@ export class Activator implements ActivationHandler {
     randomnessSeed,
     registeredActivityNames,
     stackTracesEnabled,
+    failureExceptionTypeNames,
   }: WorkflowCreateOptionsInternal) {
     this.getTimeOfDay = getTimeOfDay;
     this.info = info;
@@ -481,6 +501,7 @@ export class Activator implements ActivationHandler {
     this.random = alea(randomnessSeed);
     this.registeredActivityNames = registeredActivityNames;
     this.stackTracesEnabled = stackTracesEnabled;
+    this.failureExceptionTypeNames = failureExceptionTypeNames ?? [];
   }
 
   /**
@@ -554,12 +575,13 @@ export class Activator implements ActivationHandler {
 
   public startWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
     const execute = composeInterceptors(this.interceptors.inbound, 'execute', this.startWorkflowNextHandler.bind(this));
+    const context = this.workflowSerializationContext();
 
     untrackPromise(
       executeWithLifecycleLogging(() =>
         execute({
           headers: activation.headers ?? {},
-          args: arrayFromPayloads(this.payloadConverter, activation.arguments),
+          args: arrayFromPayloads(this.payloadConverter, activation.arguments, context),
         })
       ).then(this.completeWorkflow.bind(this), this.handleWorkflowFailure.bind(this))
     );
@@ -567,6 +589,7 @@ export class Activator implements ActivationHandler {
 
   public initializeWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
     const { continuedFailure, lastCompletionResult, memo, searchAttributes } = activation;
+    const context = this.workflowSerializationContext();
 
     // Most things related to initialization have already been handled in the constructor
     this.mutateWorkflowInfo((info) => ({
@@ -575,15 +598,17 @@ export class Activator implements ActivationHandler {
       searchAttributes: decodeSearchAttributes(searchAttributes?.indexedFields),
       typedSearchAttributes: decodeTypedSearchAttributes(searchAttributes?.indexedFields),
 
-      memo: mapFromPayloads(this.payloadConverter, memo?.fields),
-      lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads),
+      memo: mapFromPayloads(this.payloadConverter, memo?.fields, context),
+      lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads, context),
       lastFailure:
         continuedFailure != null
-          ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter)
+          ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter, context)
           : undefined,
     }));
-    if (this.workflowDefinitionOptionsGetter) {
-      this.versioningBehavior = this.workflowDefinitionOptionsGetter().versioningBehavior;
+    const workflowDefinitionOpts = this.workflowDefinitionOptionsGetter?.();
+    if (workflowDefinitionOpts) {
+      this.versioningBehavior = workflowDefinitionOpts.versioningBehavior;
+      this.workflowDefinitionFailureExceptionTypes = workflowDefinitionOpts.failureExceptionTypes;
     }
   }
 
@@ -603,23 +628,23 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new TypeError('Got ResolveActivity activation with no result');
     }
-    const { resolve, reject } = this.consumeCompletion('activity', getSeq(activation));
+    const { resolve, reject, context } = this.consumeCompletion('activity', getSeq(activation));
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? this.payloadConverter.fromPayload(completed.result) : undefined;
+      const result = completed.result ? this.payloadConverter.fromPayload(completed.result, context) : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
       if (failure == null) {
         throw new TypeError('Got failed result with no failure attribute');
       }
-      reject(this.failureToError(failure));
+      reject(this.failureConverter.failureToError(failure, this.payloadConverter, context));
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
       if (failure == null) {
         throw new TypeError('Got cancelled result with no failure attribute');
       }
-      reject(this.failureToError(failure));
+      reject(this.failureConverter.failureToError(failure, this.payloadConverter, context));
     } else if (activation.result.backoff) {
       reject(new LocalActivityDoBackoff(activation.result.backoff));
     }
@@ -628,7 +653,7 @@ export class Activator implements ActivationHandler {
   public resolveChildWorkflowExecutionStart(
     activation: coresdk.workflow_activation.IResolveChildWorkflowExecutionStart
   ): void {
-    const { resolve, reject } = this.consumeCompletion('childWorkflowStart', getSeq(activation));
+    const { resolve, reject, context } = this.consumeCompletion('childWorkflowStart', getSeq(activation));
     if (activation.succeeded) {
       if (!activation.succeeded.runId) {
         throw new TypeError('Got ResolveChildWorkflowExecutionStart with no runId');
@@ -652,7 +677,7 @@ export class Activator implements ActivationHandler {
       if (!activation.cancelled.failure) {
         throw new TypeError('Got no failure in cancelled variant');
       }
-      reject(this.failureToError(activation.cancelled.failure));
+      reject(this.failureConverter.failureToError(activation.cancelled.failure, this.payloadConverter, context));
     } else {
       throw new TypeError('Got ResolveChildWorkflowExecutionStart with no status');
     }
@@ -662,23 +687,23 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new TypeError('Got ResolveChildWorkflowExecution activation with no result');
     }
-    const { resolve, reject } = this.consumeCompletion('childWorkflowComplete', getSeq(activation));
+    const { resolve, reject, context } = this.consumeCompletion('childWorkflowComplete', getSeq(activation));
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? this.payloadConverter.fromPayload(completed.result) : undefined;
+      const result = completed.result ? this.payloadConverter.fromPayload(completed.result, context) : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
       if (failure == null) {
         throw new TypeError('Got failed result with no failure attribute');
       }
-      reject(this.failureToError(failure));
+      reject(this.failureConverter.failureToError(failure, this.payloadConverter, context));
     } else if (activation.result.cancelled) {
       const { failure } = activation.result.cancelled;
       if (failure == null) {
         throw new TypeError('Got cancelled result with no failure attribute');
       }
-      reject(this.failureToError(failure));
+      reject(this.failureConverter.failureToError(failure, this.payloadConverter, context));
     }
   }
 
@@ -704,9 +729,10 @@ export class Activator implements ActivationHandler {
 
   public resolveNexusOperation(activation: coresdk.workflow_activation.IResolveNexusOperation): void {
     const seq = getSeq(activation);
+    const context = this.workflowSerializationContext();
 
     if (activation.result?.completed) {
-      const result = this.payloadConverter.fromPayload(activation.result.completed);
+      const result = this.payloadConverter.fromPayload(activation.result.completed, context);
 
       // It is possible for ResolveNexusOperation to be received without a prior ResolveNexusOperationStart,
       // e.g. because the handler completed the Operation synchronously.
@@ -779,9 +805,10 @@ export class Activator implements ActivationHandler {
       queryType === ENHANCED_STACK_TRACE_QUERY_NAME;
     const interceptors = isInternalQuery ? [] : this.interceptors.inbound;
     const execute = composeInterceptors(interceptors, 'handleQuery', this.queryWorkflowNextHandler.bind(this));
+    const context = this.workflowSerializationContext();
     execute({
       queryName: queryType,
-      args: arrayFromPayloads(this.payloadConverter, activation.arguments),
+      args: arrayFromPayloads(this.payloadConverter, activation.arguments, context),
       queryId,
       headers: headers ?? {},
     }).then(
@@ -831,12 +858,15 @@ export class Activator implements ActivationHandler {
       return;
     }
 
-    const makeInput = (): UpdateInput => ({
-      updateId,
-      args: arrayFromPayloads(this.payloadConverter, activation.input),
-      name,
-      headers: headers ?? {},
-    });
+    const makeInput = (): UpdateInput => {
+      const context = this.workflowSerializationContext();
+      return {
+        updateId,
+        args: arrayFromPayloads(this.payloadConverter, activation.input, context),
+        name,
+        headers: headers ?? {},
+      };
+    };
 
     // The implementation below is responsible for upholding, and constrained
     // by, the following contract:
@@ -1007,8 +1037,9 @@ export class Activator implements ActivationHandler {
     const signalExecutionNum = this.signalHandlerExecutionSeq++;
     this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
     const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
+    const context = this.workflowSerializationContext();
     execute({
-      args: arrayFromPayloads(this.payloadConverter, activation.input),
+      args: arrayFromPayloads(this.payloadConverter, activation.input, context),
       signalName,
       headers: headers ?? {},
     })
@@ -1033,9 +1064,9 @@ export class Activator implements ActivationHandler {
   }
 
   public resolveSignalExternalWorkflow(activation: coresdk.workflow_activation.IResolveSignalExternalWorkflow): void {
-    const { resolve, reject } = this.consumeCompletion('signalWorkflow', getSeq(activation));
+    const { resolve, reject, context } = this.consumeCompletion('signalWorkflow', getSeq(activation));
     if (activation.failure) {
-      reject(this.failureToError(activation.failure));
+      reject(this.failureConverter.failureToError(activation.failure, this.payloadConverter, context));
     } else {
       resolve(undefined);
     }
@@ -1044,9 +1075,9 @@ export class Activator implements ActivationHandler {
   public resolveRequestCancelExternalWorkflow(
     activation: coresdk.workflow_activation.IResolveRequestCancelExternalWorkflow
   ): void {
-    const { resolve, reject } = this.consumeCompletion('cancelWorkflow', getSeq(activation));
+    const { resolve, reject, context } = this.consumeCompletion('cancelWorkflow', getSeq(activation));
     if (activation.failure) {
-      reject(this.failureToError(activation.failure));
+      reject(this.failureConverter.failureToError(activation.failure, this.payloadConverter, context));
     } else {
       resolve(undefined);
     }
@@ -1171,7 +1202,7 @@ export class Activator implements ActivationHandler {
       this.pushCommand({ cancelWorkflowExecution: {} }, true);
     } else if (error instanceof ContinueAsNew) {
       this.pushCommand({ continueAsNewWorkflowExecution: error.command }, true);
-    } else if (error instanceof TemporalFailure) {
+    } else if (error instanceof TemporalFailure || this.isConfiguredFailureException(error)) {
       // Fail the workflow. We do not want to issue unfinishedHandlers warnings. To achieve that, we
       // mark all handlers as completed now.
       this.inProgressSignals.clear();
@@ -1179,7 +1210,7 @@ export class Activator implements ActivationHandler {
       this.pushCommand(
         {
           failWorkflowExecution: {
-            failure: this.errorToFailure(error),
+            failure: this.errorToFailure(ensureTemporalFailure(error)),
           },
         },
         true
@@ -1187,6 +1218,42 @@ export class Activator implements ActivationHandler {
     } else {
       this.recordWorkflowTaskError(error);
     }
+  }
+
+  /**
+   * Returns true if the given error matches any of the configured failure exception types
+   * (from {@link WorkerOptions.workflowFailureErrorTypes} or
+   * {@link WorkflowDefinitionOptions.failureExceptionTypes}).
+   */
+  private isConfiguredFailureException(error: unknown): boolean {
+    // Check class references from WorkflowDefinitionOptions (instanceof-based, supports subclasses)
+    if (this.workflowDefinitionFailureExceptionTypes) {
+      // We guarantee that including Error in the list will catch _any_ error.
+      if (this.workflowDefinitionFailureExceptionTypes.includes(Error)) return true;
+
+      for (const errorType of this.workflowDefinitionFailureExceptionTypes) {
+        if (error instanceof errorType) return true;
+      }
+    }
+
+    // Check class name strings from WorkerOptions (prototype-chain-based)
+    if (this.failureExceptionTypeNames.length > 0) {
+      // We guarantee that including 'Error' in the list will catch _any_ error.
+      if (this.failureExceptionTypeNames.includes('Error')) return true;
+
+      if (typeof error === 'object' && error !== null) {
+        let ctor = (error as any).constructor;
+        while (ctor != null && ctor !== Function.prototype) {
+          const name = (ctor as any).name as string | undefined;
+          if (name) {
+            if (this.failureExceptionTypeNames.includes(name)) return true;
+          }
+          ctor = Object.getPrototypeOf(ctor);
+        }
+      }
+    }
+
+    return false;
   }
 
   recordWorkflowTaskError(error: unknown): void {
@@ -1208,8 +1275,9 @@ export class Activator implements ActivationHandler {
   }
 
   private completeQuery(queryId: string, result: unknown): void {
+    const context = this.workflowSerializationContext();
     this.pushCommand({
-      respondToQuery: { queryId, succeeded: { response: this.payloadConverter.toPayload(result) } },
+      respondToQuery: { queryId, succeeded: { response: this.payloadConverter.toPayload(result, context) } },
     });
   }
 
@@ -1227,8 +1295,9 @@ export class Activator implements ActivationHandler {
   }
 
   private completeUpdate(protocolInstanceId: string, result: unknown): void {
+    const context = this.workflowSerializationContext();
     this.pushCommand({
-      updateResponse: { protocolInstanceId, completed: this.payloadConverter.toPayload(result) },
+      updateResponse: { protocolInstanceId, completed: this.payloadConverter.toPayload(result, context) },
     });
   }
 
@@ -1266,10 +1335,11 @@ export class Activator implements ActivationHandler {
   }
 
   private completeWorkflow(result: unknown): void {
+    const context = this.workflowSerializationContext();
     this.pushCommand(
       {
         completeWorkflowExecution: {
-          result: this.payloadConverter.toPayload(result),
+          result: this.payloadConverter.toPayload(result, context),
         },
       },
       true
@@ -1277,11 +1347,21 @@ export class Activator implements ActivationHandler {
   }
 
   errorToFailure(err: unknown): ProtoFailure {
-    return this.failureConverter.errorToFailure(err, this.payloadConverter);
+    const context = this.workflowSerializationContext();
+    return this.failureConverter.errorToFailure(err, this.payloadConverter, context);
   }
 
   failureToError(failure: ProtoFailure): Error {
-    return this.failureConverter.failureToError(failure, this.payloadConverter);
+    const context = this.workflowSerializationContext();
+    return this.failureConverter.failureToError(failure, this.payloadConverter, context);
+  }
+
+  private workflowSerializationContext(): WorkflowSerializationContext {
+    return {
+      type: 'workflow',
+      namespace: this.info.namespace,
+      workflowId: this.info.workflowId,
+    };
   }
 }
 

@@ -493,7 +493,7 @@ impl MutableFinalize for HistoryForReplayTunnelHandle {}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 mod config {
-    use std::collections::HashSet;
+    use std::collections::{HashMap, HashSet};
     use std::{sync::Arc, time::Duration};
     use temporalio_common::protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior;
     use temporalio_common::protos::temporal::api::worker::v1::PluginInfo;
@@ -505,7 +505,8 @@ mod config {
         ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
         PollerBehavior as CorePollerBehavior, ResourceBasedSlotsOptions, ResourceSlotOptions,
         SlotKind, SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptions,
-        WorkerConfig, WorkerVersioningStrategy, WorkflowSlotKind,
+        WorkerConfig, WorkerVersioningStrategy, WorkflowErrorType as CoreWorkflowErrorType,
+        WorkflowSlotKind,
     };
 
     use super::custom_slot_supplier::CustomSlotSupplierOptions;
@@ -538,6 +539,8 @@ mod config {
         max_task_queue_activities_per_second: Option<f64>,
         shutdown_grace_time: Option<Duration>,
         plugins: Vec<String>,
+        workflow_failure_errors: HashSet<WorkflowErrorType>,
+        workflow_types_to_failure_errors: HashMap<String, HashSet<WorkflowErrorType>>,
     }
 
     #[derive(TryFromJs)]
@@ -635,6 +638,10 @@ mod config {
                         })
                         .collect::<HashSet<_>>(),
                 )
+                .workflow_failure_errors(into_core_workflow_error_set(self.workflow_failure_errors))
+                .workflow_types_to_failure_errors(into_core_workflow_error_map_of_sets(
+                    self.workflow_types_to_failure_errors,
+                ))
                 .build()
                 .map_err(|err| BridgeError::TypeError {
                     message: format!("Failed to convert WorkerOptions to CoreWorkerConfig: {err}"),
@@ -708,6 +715,33 @@ mod config {
                 VersioningBehavior::AutoUpgrade => Self::AutoUpgrade,
             }
         }
+    }
+
+    #[derive(TryFromJs, Hash, Eq, PartialEq)]
+    pub enum WorkflowErrorType {
+        Nondeterminism,
+    }
+
+    impl From<WorkflowErrorType> for CoreWorkflowErrorType {
+        fn from(val: WorkflowErrorType) -> Self {
+            match val {
+                WorkflowErrorType::Nondeterminism => Self::Nondeterminism,
+            }
+        }
+    }
+
+    fn into_core_workflow_error_set(
+        val: HashSet<WorkflowErrorType>,
+    ) -> HashSet<CoreWorkflowErrorType> {
+        val.into_iter().map(Into::into).collect()
+    }
+
+    fn into_core_workflow_error_map_of_sets(
+        val: HashMap<String, HashSet<WorkflowErrorType>>,
+    ) -> HashMap<String, HashSet<CoreWorkflowErrorType>> {
+        val.into_iter()
+            .map(|(k, v)| (k, into_core_workflow_error_set(v)))
+            .collect()
     }
 
     #[derive(TryFromJs)]

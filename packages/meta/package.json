@@ -6,6 +6,7 @@
     "@temporalio/activity": "workspace:*",
     "@temporalio/ai-sdk": "workspace:*",
     "@temporalio/client": "workspace:*",
+    "@temporalio/cloud": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/envconfig": "workspace:*",
     "@temporalio/interceptors-opentelemetry": "workspace:*",
@@ -18,6 +19,9 @@
   },
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
+  "scripts": {
+    "build": "tsc --build"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/temporalio/sdk-typescript.git"
@@ -38,5 +42,5 @@
     "src",
     "lib"
   ],
-  "version": "1.17.1"
+  "version": "1.17.2"
 }

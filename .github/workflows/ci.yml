@@ -22,7 +22,7 @@ env:
   IS_MAIN_OR_RELEASE: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.event_name != 'pull_request' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) }}
 
   # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
-  # TESTS_CLI_VERSION: 'v1.7.0'
+  TESTS_CLI_VERSION: 'v1.7.1-standalone-nexus-operations'
   # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
@@ -42,10 +42,6 @@ jobs:
             runner: ubuntu-24.04-arm64-2-core
             target: aarch64-unknown-linux-gnu
             out-file: libtemporal_sdk_typescript_bridge.so
-          - platform: macos-x64
-            runner: macos-15-intel
-            target: x86_64-apple-darwin
-            out-file: libtemporal_sdk_typescript_bridge.dylib
           - platform: macos-arm
             runner: macos-14
             target: aarch64-apple-darwin
@@ -67,7 +63,7 @@ jobs:
 
       - name: 'Cache index.node'
         id: cached-artifact
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ./packages/core-bridge/releases
           key: corebridge-artifactcache-debug-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
@@ -87,6 +83,7 @@ jobs:
         if: steps.cached-artifact.outputs.cache-hit != 'true'
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
+          cache-bin: false
           workspaces: packages/core-bridge -> target
           prefix-key: corebridge-buildcache-debug
           shared-key: ${{ matrix.platform }}
@@ -102,7 +99,7 @@ jobs:
           mkdir -p ./releases/${{ matrix.target }}
           cp target/${{ matrix.target }}/debug/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
 
-      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: corebridge-native-debug-${{ matrix.platform }}
           # Actual file will be named ${{ matrix.target }}/index.node
@@ -118,7 +115,7 @@ jobs:
       fail-fast: false
       matrix:
         node: [20, 24, bun] # Min and max officially supported Node versions + Bun
-        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
+        platform: [linux-x64, linux-arm, macos-arm, windows-x64]
         include:
           - platform: linux-x64
             runner: ubuntu-latest
@@ -126,9 +123,6 @@ jobs:
             reuse-v8-context: false
           - platform: linux-arm
             runner: ubuntu-24.04-arm64-2-core
-            reuse-v8-context: true
-          - platform: macos-x64
-            runner: macos-15-intel
             reuse-v8-context: true
           - platform: macos-arm
             runner: macos-14
@@ -287,7 +281,7 @@ jobs:
       # End samples
 
       - name: Upload Dev Server logs
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure() || cancelled()
         with:
           name: integration-tests-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs

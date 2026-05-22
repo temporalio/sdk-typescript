@@ -6,17 +6,20 @@ import prettierConfig from 'eslint-config-prettier';
 export default tseslint.config(
   { ignores: ['**/node_modules/**', '**/lib/**', '**/*.js', '**/*.mjs', '**/*.cjs'] },
   {
-    files: ['packages/*/src/**/*.ts'],
+    files: ['packages/*/src/**/*.ts', 'contrib/*/src/**/*.ts'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended, prettierConfig],
     plugins: { import: importPlugin },
     languageOptions: {
-      parserOptions: { project: ['./packages/*/tsconfig.json'] },
+      parserOptions: { project: ['./packages/*/tsconfig.json', './contrib/*/tsconfig.json'] },
     },
     settings: {
       'import/parsers': { '@typescript-eslint/parser': ['.ts'] },
       'import/resolver': {
         // Resolve types under `<root>@types` even for packages without source code, like `@types/unist`
-        typescript: { alwaysTryTypes: true, project: ['packages/*/tsconfig.json'] },
+        typescript: {
+          alwaysTryTypes: true,
+          project: ['packages/*/tsconfig.json', 'contrib/*/tsconfig.json'],
+        },
       },
       'import/internal-regex': '^@temporalio/',
     },
@@ -25,8 +28,86 @@ export default tseslint.config(
       'no-duplicate-imports': ['error', { allowSeparateTypeImports: true }],
       'object-shorthand': ['error', 'always'],
       'no-restricted-imports': ['error', { patterns: ['@temporalio/*/src/*'] }],
-      // TypeScript rules
-      '@typescript-eslint/no-deprecated': 'warn',
+      '@typescript-eslint/no-deprecated': [
+        'warn',
+        {
+          allow: [
+            // Untyped Search Attributes
+            {
+              from: 'file',
+              name: [
+                'SearchAttributes',
+                'searchAttributes',
+                'searchAttributeValue',
+                'SearchAttributeValue',
+                'SearchAttributeValueOrReadonly',
+              ],
+            },
+
+            // Worker Versioning v2
+            {
+              from: 'file',
+              name: [
+                'AddNewCompatibleVersion',
+                'AddNewIdInNewDefaultSet',
+                'BaseReachabilityOptions',
+                'buildId',
+                'BuildIdNotFoundError',
+                'BuildIdOperation',
+                'BuildIdReachability',
+                'BuildIdVersionSet',
+                'currentBuildId',
+                'getBuildIdCompatability',
+                'getReachability',
+                'LoadedTaskQueueClientOptions',
+                'MergeSets',
+                'PromoteBuildIdWithinSet',
+                'PromoteSetByBuildId',
+                'ReachabilityOptions',
+                'ReachabilityResponse',
+                'ReachabilityType',
+                'ReachabilityTypeResponse',
+                'TaskQueueClient',
+                'TaskQueueClientOptions',
+                'UnversionedBuildId',
+                'updateBuildIdCompatibility',
+                'useVersioning',
+                'versioningIntent',
+                'VersioningIntent',
+                'versioningIntentToProto',
+                'VersioningIntentString',
+                'workerBuildId',
+                'WorkerBuildIdVersionSets',
+              ],
+            },
+
+            // Activity Inbound Calls Interceptors and Workflow Client Calls Interceptor
+            {
+              from: 'file',
+              name: [
+                'activityInbound',
+                'ActivityInboundCallsInterceptorFactory',
+                'WorkflowClientInterceptors',
+                'WorkflowClientCallsInterceptor',
+                'WorkflowClientCallsInterceptorFactory',
+                'WorkflowClientCallsInterceptorFactoryInput',
+              ],
+            },
+
+            // Legacy Log Interceptors / Sinks
+            {
+              from: 'file',
+              name: [
+                'ActivityInboundLogInterceptor',
+                'defaultSinks',
+                'defaultWorkerLogger',
+                'LoggerSinks',
+                'WorkflowLogInterceptor',
+              ],
+            },
+          ],
+        },
+      ],
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/explicit-module-boundary-types': 'error',

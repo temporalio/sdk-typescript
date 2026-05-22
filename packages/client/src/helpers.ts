@@ -53,11 +53,13 @@ function workflowStatusCodeToNameInternal(
 export async function executionInfoFromRaw<T>(
   raw: RawWorkflowExecutionInfo,
   dataConverter: LoadedDataConverter,
-  rawDataToEmbed: T
+  rawDataToEmbed: T,
+  namespace: string
 ): Promise<Replace<WorkflowExecutionInfo, { raw: T }>> {
+  const workflowId = raw.execution!.workflowId!;
   return {
     type: raw.type!.name!,
-    workflowId: raw.execution!.workflowId!,
+    workflowId,
     runId: raw.execution!.runId!,
     taskQueue: raw.taskQueue!,
     status: {
@@ -72,7 +74,11 @@ export async function executionInfoFromRaw<T>(
     startTime: requiredTsToDate(raw.startTime, 'startTime'),
     executionTime: optionalTsToDate(raw.executionTime),
     closeTime: optionalTsToDate(raw.closeTime),
-    memo: await decodeMapFromPayloads(dataConverter, raw.memo?.fields),
+    memo: await decodeMapFromPayloads(dataConverter, raw.memo?.fields, {
+      type: 'workflow',
+      namespace,
+      workflowId,
+    }),
     searchAttributes: decodeSearchAttributes(raw.searchAttributes?.indexedFields),
     typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes?.indexedFields),
     parentExecution: raw.parentExecution
@@ -162,6 +168,27 @@ export function getGrpcStatusDetails(err: GrpcServiceError): google.rpc.Status['
     return undefined;
   }
   return google.rpc.Status.decode(statusBuffer).details;
+}
+
+/**
+ * Try to extract the runId field from a gRPC ALREADY_EXISTS error's details containing
+ * NexusOperationExecutionAlreadyStartedFailure. Returns undefined if the error details
+ * do not include this failure type or cannot be decoded.
+ */
+export function extractNexusOperationAlreadyStartedRunId(err: GrpcServiceError): string | undefined {
+  try {
+    for (const entry of getGrpcStatusDetails(err) ?? []) {
+      if (!entry.type_url || !entry.value) continue;
+      const type = entry.type_url.replace(/^type.googleapis.com\//, '');
+      if (type !== 'temporal.api.errordetails.v1.NexusOperationExecutionAlreadyStartedFailure') continue;
+
+      const details = temporal.api.errordetails.v1.NexusOperationExecutionAlreadyStartedFailure.decode(entry.value);
+      return details.runId;
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
 }
 
 export function trimGrpcTypeUrl(type_url: string | null | undefined): string {

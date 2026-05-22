@@ -10,6 +10,7 @@
   - [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
   - [Environment setup](#environment-setup)
 - [Development](#development)
+  - [Working with Individual Packages](#working-with-individual-packages)
   - [Testing](#testing)
     - [Testing local changes to core](#testing-local-changes-to-core)
       - [Integration tests](#integration-tests)
@@ -110,6 +111,20 @@ After your environment is set up, you can run these commands:
 - `pnpm lint` verifies code style with prettier and ES lint.
 - `pnpm commitlint` validates [commit messages](#style-guide).
 
+### Working with Individual Packages
+
+You can build or test a single package using pnpm's filter flag:
+
+```sh
+# Build a single package and all its dependencies explicitly
+pnpm -F @temporalio/worker... run build
+
+# Run tests for a single package
+pnpm -F @temporalio/common run test
+```
+
+The `...` suffix includes all dependencies of the specified package.
+
 ### Testing
 
 #### Testing local changes to core
@@ -165,7 +180,7 @@ I personally use the following commands to find NPM packages that needs to be up
 interactively on each package of the repo, making it easy to select and apply packages to be updated.
 
 ```
-for i in ./package.json packages/*/package.json ; do
+for i in ./package.json packages/*/package.json contrib/*/package.json ; do
   (
     cd "${i%%package.json}"
     pwd
@@ -180,7 +195,7 @@ dependencies MUST be added on the actual packages that use them to ensure proper
 and YARN 2+ setups.
 
 ```
-for i in ./package.json packages/*/package.json ; do
+for i in ./package.json packages/*/package.json contrib/*/package.json ; do
   (
     cd "${i%%package.json}"
     pwd

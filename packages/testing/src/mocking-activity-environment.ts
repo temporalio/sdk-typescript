@@ -1,4 +1,3 @@
-import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import events from 'node:events';
 import type * as activity from '@temporalio/activity';
 import type { ActivityFunction, Logger, MetricMeter } from '@temporalio/common';
@@ -45,10 +44,18 @@ export class MockActivityEnvironment extends events.EventEmitter {
       payloadCodecs: [],
       failureConverter: defaultFailureConverter,
     };
+    const activityInfo = { ...defaultActivityInfo, ...info };
     this.activity = new Activity(
-      { ...defaultActivityInfo, ...info },
+      activityInfo,
       undefined,
       loadedDataConverter,
+      {
+        type: 'activity',
+        namespace: activityInfo.activityNamespace, // eslint-disable-line @typescript-eslint/no-deprecated
+        activityId: activityInfo.activityId,
+        workflowId: activityInfo.workflowExecution?.workflowId,
+        isLocal: activityInfo.isLocal,
+      },
       heartbeatCallback,
       opts?.client,
       LoggerWithComposedMetadata.compose(opts?.logger ?? new DefaultLogger(), { sdkComponent: SdkComponent.worker }),

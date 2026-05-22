@@ -42,7 +42,7 @@ const getClientService = nexus.service('getClientTestService', {
 });
 
 const operationInfoService = nexus.service('operationInfoTestService', {
-  operationInfoOp: nexus.operation<void, { namespace: string; taskQueue: string }>(),
+  operationInfoOp: nexus.operation<void, { namespace: string; taskQueue: string; endpoint: string }>(),
 });
 
 const cancelErrorService = nexus.service('cancelErrorService', {
@@ -111,7 +111,9 @@ export async function getClientCaller(endpoint: string): Promise<boolean> {
   return await client.executeOperation('getClientOp', undefined);
 }
 
-export async function operationInfoCaller(endpoint: string): Promise<{ namespace: string; taskQueue: string }> {
+export async function operationInfoCaller(
+  endpoint: string
+): Promise<{ namespace: string; taskQueue: string; endpoint: string }> {
   const client = workflow.createNexusServiceClient({ endpoint, service: operationInfoService });
   return await client.executeOperation('operationInfoOp', undefined);
 }
@@ -624,6 +626,7 @@ test('operationInfo is available in handler context - caller workflow', async (t
           return {
             namespace: info.namespace,
             taskQueue: info.taskQueue,
+            endpoint: info.endpoint,
           };
         },
       }),
@@ -636,6 +639,7 @@ test('operationInfo is available in handler context - caller workflow', async (t
     });
     t.is(result.namespace, 'default');
     t.is(result.taskQueue, h.taskQueue);
+    t.is(result.endpoint, endpointName);
   });
 });
 
@@ -932,7 +936,7 @@ test('inbound cancelOperation interceptor can modify input', async (t) => {
             return input;
           },
           asyncOp: {
-            async start(_ctx, input) {
+            async start(_ctx, _input) {
               return nexus.HandlerStartOperationResult.async('original-token');
             },
             async cancel(_ctx, token) {

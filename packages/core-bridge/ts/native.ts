@@ -135,6 +135,7 @@ export interface ClientOptions {
   clientVersion: string;
   tls: Option<TlsOptions>;
   httpConnectProxy: Option<HttpConnectProxy>;
+  dnsLoadBalancingConfig: Option<DnsLoadBalancingConfig>;
   headers: Option<Record<string, MetadataValue>>;
   apiKey: Option<string>;
   disableErrorCodeMetricTags: boolean;
@@ -162,6 +163,10 @@ export interface HttpConnectProxy {
 export interface HttpConnectProxyBasicAuth {
   username: string;
   password: string;
+}
+
+export interface DnsLoadBalancingConfig {
+  resolutionIntervalMillis: number;
 }
 
 export interface RpcCall {
@@ -240,6 +245,8 @@ export interface WorkerOptions {
   maxActivitiesPerSecond: Option<number>;
   shutdownGraceTime: number;
   plugins: string[];
+  workflowFailureErrors: WorkflowErrorType[];
+  workflowTypesToFailureErrors: Record<string, WorkflowErrorType[]>;
 }
 
 export type PollerBehavior =
@@ -266,6 +273,8 @@ export type WorkerDeploymentVersion = {
 };
 
 export type VersioningBehavior = { type: 'pinned' } | { type: 'auto-upgrade' };
+
+export type WorkflowErrorType = { type: 'nondeterminism' };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Worker Tuner

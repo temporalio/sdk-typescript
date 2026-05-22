@@ -1,5 +1,5 @@
+import { randomUUID } from 'node:crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { v4 as uuid4 } from 'uuid';
 import type { Workflow } from '@temporalio/common';
 import {
   decodeSearchAttributes,
@@ -224,19 +224,19 @@ export class ScheduleClient extends BaseClient {
     const req: temporal.api.workflowservice.v1.ICreateScheduleRequest = {
       namespace: this.options.namespace,
       identity,
-      requestId: uuid4(),
+      requestId: randomUUID(),
       scheduleId: opts.scheduleId,
       schedule: {
         spec: encodeScheduleSpec(opts.spec),
-        action: await encodeScheduleAction(this.dataConverter, opts.action, headers),
+        action: await encodeScheduleAction(this.dataConverter, this.options.namespace, opts.action, headers),
         policies: encodeSchedulePolicies(opts.policies),
         state: encodeScheduleState(opts.state),
       },
       memo: opts.memo ? { fields: await encodeMapToPayloads(this.dataConverter, opts.memo) } : undefined,
       searchAttributes:
-        opts.searchAttributes || opts.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
+        opts.searchAttributes || opts.typedSearchAttributes
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes), // eslint-disable-line @typescript-eslint/no-deprecated
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes),
             }
           : undefined,
       initialPatch: {
@@ -292,16 +292,16 @@ export class ScheduleClient extends BaseClient {
       scheduleId,
       schedule: {
         spec: encodeScheduleSpec(opts.spec),
-        action: await encodeScheduleAction(this.dataConverter, opts.action, header),
+        action: await encodeScheduleAction(this.dataConverter, this.options.namespace, opts.action, header),
         policies: encodeSchedulePolicies(opts.policies),
         state: encodeScheduleState(opts.state),
       },
       identity: this.options.identity,
-      requestId: uuid4(),
+      requestId: randomUUID(),
       searchAttributes:
-        opts.searchAttributes || opts.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
+        opts.searchAttributes || opts.typedSearchAttributes
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes), // eslint-disable-line @typescript-eslint/no-deprecated
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes),
             }
           : undefined,
     };
@@ -324,7 +324,7 @@ export class ScheduleClient extends BaseClient {
         namespace: this.options.namespace,
         scheduleId,
         identity: this.options.identity,
-        requestId: uuid4(),
+        requestId: randomUUID(),
         patch,
       });
     } catch (err: any) {
@@ -426,7 +426,11 @@ export class ScheduleClient extends BaseClient {
         return {
           scheduleId,
           spec: decodeScheduleSpec(raw.schedule.spec),
-          action: await decodeScheduleAction(this.client.dataConverter, raw.schedule.action),
+          action: await decodeScheduleAction(
+            this.client.dataConverter,
+            this.client.options.namespace,
+            raw.schedule.action
+          ),
           memo: await decodeMapFromPayloads(this.client.dataConverter, raw.memo?.fields),
           searchAttributes: decodeSearchAttributes(raw.searchAttributes?.indexedFields),
           typedSearchAttributes: decodeTypedSearchAttributes(raw.searchAttributes?.indexedFields),

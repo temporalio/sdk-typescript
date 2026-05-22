@@ -531,6 +531,37 @@ export interface WorkerOptions {
   sinks?: InjectedSinks<any>;
 
   /**
+   * The types of errors that, if thrown by a Workflow function, a signal handler, or an update
+   * handler, will cause the Workflow Execution or the Update to fail instead of failing the
+   * Workflow Task (which would result in retrying the Workflow Task until it eventually succeeds).
+   * 
+   * This property expects a record of Workflow-type names to the list of error types that will
+   * cause that type of Workflow to fail. Uses the `'*'` key to specify a list of error types that
+   * applies to all Workflow types. This is a worker-level equivalent of
+   * {@link WorkflowDefinitionOptions.failureExceptionTypes}. Both settings are evaluated; an error
+   * matching either will cause Workflow failure.
+   * 
+   * Unlike {@link WorkflowDefinitionOptions.failureExceptionTypes}, this setting requires error
+   * types to be specified as string names, not actual class references, and consequently, doesn't
+   * support subclass matching via `instanceof`. It however allows failing the workflow execution
+   * on _non-determinism errors_, by including the `NondeterminismError` type to the list of error
+   * types, either globally (via the `'*'` key) or per-Workflow-type.
+   * 
+   * Passing the `'Error'` error type string here will result in failing the Workflow on any error,
+   * including non-determinism errors.
+
+   * Note that {@link TemporalFailure} subclasses (with the exception of {@link ApplicationFailure})
+   * and cancellation errors that bubbles out of the Workflow always fail the Workflow Execution,
+   * regardless of either this and the {@link WorkflowDefinitionOptions.failureExceptionTypes} settings.
+   * 
+   * @experimental
+   */
+  workflowFailureErrorTypes?: Record<
+    '*' | (string & {}),
+    ('NondeterminismError' | 'DeterminismViolationError' | 'Error' | (string & {}))[]
+  >;
+
+  /**
    * @deprecated SDK tracing is no longer supported. This option is ignored.
    */
   enableSDKTracing?: boolean;
@@ -765,7 +796,6 @@ export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt i
  * @deprecated Calling `defaultSink()` is no longer required. To configure a custom logger, set the
  *             {@link Runtime.logger} property instead.
  */
-// eslint-disable-next-line @typescript-eslint/no-deprecated
 export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
   // initLoggerSink() returns a sink that complies to the new LoggerSinksInternal API (ie. named __temporal_logger), but
   // code that is still calling defaultSinks() expects return type to match the deprecated LoggerSinks API. Silently
@@ -775,12 +805,11 @@ export function defaultSinks(logger?: Logger): InjectedSinks<LoggerSinks> {
   // If no logger was provided, the legacy behavior was to _lazily_ set the sink's logger to the Runtime's logger.
   // This was required because we may call defaultSinks() before the Runtime is initialized. We preserve that behavior
   // here by silently not initializing the sink if no logger is provided.
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
   if (!logger) return {} as InjectedSinks<LoggerSinks>;
 
   // Register the logger sink with its historical name
   const { __temporal_logger: defaultWorkerLogger } = initLoggerSink(logger);
-  return { defaultWorkerLogger } satisfies InjectedSinks<LoggerSinks>; // eslint-disable-line @typescript-eslint/no-deprecated
+  return { defaultWorkerLogger } satisfies InjectedSinks<LoggerSinks>;
 }
 
 /**
@@ -798,12 +827,7 @@ export function appendDefaultInterceptors(
   if (!logger || logger === Runtime.instance().logger) return interceptors;
 
   return {
-    activityInbound: [
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      (ctx) => new ActivityInboundLogInterceptor(ctx, logger),
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      ...(interceptors.activityInbound ?? []),
-    ],
+    activityInbound: [(ctx) => new ActivityInboundLogInterceptor(ctx, logger), ...(interceptors.activityInbound ?? [])],
     activity: interceptors.activity,
     workflowModules: interceptors.workflowModules,
   };
@@ -812,7 +836,7 @@ export function appendDefaultInterceptors(
 function compileWorkerInterceptors({
   client,
   activity,
-  activityInbound, // eslint-disable-line @typescript-eslint/no-deprecated
+  activityInbound,
   nexus,
   workflowModules,
 }: Required<WorkerInterceptors>): CompiledWorkerInterceptors {
@@ -899,8 +923,8 @@ function addDefaultWorkerOptions(
   metricMeter: MetricMeter
 ): WorkerOptionsWithDefaults {
   const {
-    buildId, // eslint-disable-line @typescript-eslint/no-deprecated
-    useVersioning, // eslint-disable-line @typescript-eslint/no-deprecated
+    buildId,
+    useVersioning,
     maxCachedWorkflows,
     showStackTraceSources,
     namespace,
@@ -1015,7 +1039,6 @@ function addDefaultWorkerOptions(
       },
       activity: interceptors?.activity ?? [],
       nexus: interceptors?.nexus ?? [],
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
       activityInbound: interceptors?.activityInbound ?? [],
       workflowModules: interceptors?.workflowModules ?? [],
     },
@@ -1111,10 +1134,29 @@ function nexusServiceHandlersFromOptions(opts: WorkerOptions): Map<string, nexus
 export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): native.WorkerOptions {
   const enableWorkflows = opts.workflowBundle !== undefined || opts.workflowsPath !== undefined;
   const enableLocalActivities = enableWorkflows && opts.activities.size > 0;
+
+  const workflowFailureErrors: native.WorkflowErrorType[] = [];
+  const workflowTypesToFailureErrors: Record<string, native.WorkflowErrorType[]> = {};
+
+  for (const [k, v] of Object.entries(opts.workflowFailureErrorTypes ?? {})) {
+    const errorTypes: native.WorkflowErrorType[] = [];
+
+    // Core only cares about Non-Determinism Error; other error types are handled by lang side
+    if (v.includes('NondeterminismError') || v.includes('DeterminismViolationError') || v.includes('Error')) {
+      errorTypes.push({ type: 'nondeterminism' });
+    }
+
+    if (k === '*') {
+      workflowFailureErrors.push(...errorTypes);
+    } else {
+      workflowTypesToFailureErrors[k] = errorTypes;
+    }
+  }
+
   return {
     identity: opts.identity,
-    buildId: opts.buildId, // eslint-disable-line @typescript-eslint/no-deprecated
-    useVersioning: opts.useVersioning, // eslint-disable-line @typescript-eslint/no-deprecated
+    buildId: opts.buildId,
+    useVersioning: opts.useVersioning,
     workerDeploymentOptions: toNativeDeploymentOptions(opts.workerDeploymentOptions),
     taskQueue: opts.taskQueue,
     namespace: opts.namespace,
@@ -1137,6 +1179,8 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
     plugins: opts.plugins?.map((p) => p.name) ?? [],
+    workflowFailureErrors,
+    workflowTypesToFailureErrors,
   };
 }
 

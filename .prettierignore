@@ -6,6 +6,7 @@ sdk-core
 lib
 .docusaurus
 packages/*/CHANGELOG.md
+contrib/*/CHANGELOG.md
 packages/docs/docs/api
 typedoc-sidebar.js
 pnpm-lock.yaml
@@ -15,6 +16,7 @@ packages/test/protos/root.d.ts
 packages/test/protos/json-module.js
 packages/testing/generated-protos/*
 packages/testing/proto/*
+.github/dependabot.yml
 
 # Ignored since it fails Windows CI
 packages/create-project/cli.js

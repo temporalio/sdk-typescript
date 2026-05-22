@@ -1,6 +1,7 @@
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import type { Payload } from '../interfaces';
+import type { SerializationContext } from './serialization-context';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
 /**
@@ -19,12 +20,12 @@ export interface PayloadConverter {
    *
    * Should throw {@link ValueError} if unable to convert.
    */
-  toPayload<T>(value: T): Payload;
+  toPayload<T>(value: T, context?: SerializationContext): Payload;
 
   /**
    * Converts a {@link Payload} back to a value.
    */
-  fromPayload<T>(payload: Payload): T;
+  fromPayload<T>(payload: Payload, context?: SerializationContext): T;
 }
 
 /**
@@ -37,11 +38,24 @@ export interface PayloadConverter {
  *     reason.
  */
 export function toPayloads(converter: PayloadConverter, ...values: unknown[]): Payload[] | undefined {
+  return toPayloadsWithContext(converter, undefined, values);
+}
+
+/**
+ * Implements conversion of a list of values with an optional serialization context.
+ *
+ * @hidden
+ */
+export function toPayloadsWithContext(
+  converter: PayloadConverter,
+  context: SerializationContext | undefined,
+  values: unknown[]
+): Payload[] | undefined {
   if (values.length === 0) {
     return undefined;
   }
 
-  return values.map((value) => converter.toPayload(value));
+  return values.map((value) => converter.toPayload(value, context));
 }
 
 /**
@@ -49,11 +63,12 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
  */
 export function convertOptionalToPayload(
   payloadConverter: PayloadConverter,
-  value: unknown
+  value: unknown,
+  context?: SerializationContext
 ): Payload | null | undefined {
   if (value == null) return value;
 
-  return payloadConverter.toPayload(value);
+  return payloadConverter.toPayload(value, context);
 }
 
 /**
@@ -63,10 +78,11 @@ export function convertOptionalToPayload(
  */
 export function mapToPayloads<K extends string, T = any>(
   converter: PayloadConverter,
-  map: Record<K, T>
+  map: Record<K, T>,
+  context?: SerializationContext
 ): Record<K, Payload> {
   return Object.fromEntries(
-    Object.entries(map).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v)])
+    Object.entries(map).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v, context)])
   ) as Record<K, Payload>;
 }
 
@@ -81,7 +97,12 @@ export function mapToPayloads<K extends string, T = any>(
  * @throws {@link PayloadConverterError} if conversion of the data passed as parameter failed for any
  *     reason.
  */
-export function fromPayloadsAtIndex<T>(converter: PayloadConverter, index: number, payloads?: Payload[] | null): T {
+export function fromPayloadsAtIndex<T>(
+  converter: PayloadConverter,
+  index: number,
+  payloads?: Payload[] | null,
+  context?: SerializationContext
+): T {
   // To make adding arguments a backwards compatible change
   if (payloads === undefined || payloads === null || index >= payloads.length) {
     return undefined as any;
@@ -90,27 +111,32 @@ export function fromPayloadsAtIndex<T>(converter: PayloadConverter, index: numbe
   if (!payload) {
     return undefined as any;
   }
-  return converter.fromPayload(payload);
+  return converter.fromPayload(payload, context);
 }
 
 /**
  * Run {@link PayloadConverter.fromPayload} on each value in the array.
  */
-export function arrayFromPayloads(converter: PayloadConverter, payloads?: Payload[] | null): unknown[] {
+export function arrayFromPayloads(
+  converter: PayloadConverter,
+  payloads?: Payload[] | null,
+  context?: SerializationContext
+): unknown[] {
   if (!payloads) {
     return [];
   }
-  return payloads.map((payload: Payload) => converter.fromPayload(payload));
+  return payloads.map((payload: Payload) => converter.fromPayload(payload, context));
 }
 
 export function mapFromPayloads<K extends string, T = unknown>(
   converter: PayloadConverter,
-  map?: Record<K, Payload> | null | undefined
+  map?: Record<K, Payload> | null | undefined,
+  context?: SerializationContext
 ): Record<K, T> | undefined {
   if (map == null) return undefined;
   return Object.fromEntries(
     Object.entries(map).map(([k, payload]): [K, unknown] => {
-      const value = converter.fromPayload(payload as Payload);
+      const value = converter.fromPayload(payload as Payload, context);
       return [k as K, value];
     })
   ) as Record<K, T>;
@@ -126,8 +152,8 @@ export class RawValue<T = unknown> {
   private readonly _payload: Payload;
   private readonly [rawPayloadTypeBrand]: T = undefined as T;
 
-  constructor(value: T, payloadConverter: PayloadConverter = defaultPayloadConverter) {
-    this._payload = payloadConverter.toPayload(value);
+  constructor(value: T, payloadConverter: PayloadConverter = defaultPayloadConverter, context?: SerializationContext) {
+    this._payload = payloadConverter.toPayload(value, context);
   }
 
   static fromPayload(p: Payload): RawValue {
@@ -146,12 +172,12 @@ export interface PayloadConverterWithEncoding {
    * @param value The value to convert. Example values include the Workflow args sent from the Client and the values returned by a Workflow or Activity.
    * @returns The {@link Payload}, or `undefined` if unable to convert.
    */
-  toPayload<T>(value: T): Payload | undefined;
+  toPayload<T>(value: T, context?: SerializationContext): Payload | undefined;
 
   /**
    * Converts a {@link Payload} back to a value.
    */
-  fromPayload<T>(payload: Payload): T;
+  fromPayload<T>(payload: Payload, context?: SerializationContext): T;
 
   readonly encodingType: string;
 }
@@ -181,12 +207,12 @@ export class CompositePayloadConverter implements PayloadConverter {
    * Tries to run `.toPayload(value)` on each converter in the order provided at construction.
    * Returns the first successful result, throws {@link ValueError} if there is no converter that can handle the value.
    */
-  public toPayload<T>(value: T): Payload {
+  public toPayload<T>(value: T, context?: SerializationContext): Payload {
     if (value instanceof RawValue) {
       return value.payload;
     }
     for (const converter of this.converters) {
-      const result = converter.toPayload(value);
+      const result = converter.toPayload(value, context);
       if (result !== undefined) {
         return result;
       }
@@ -198,7 +224,7 @@ export class CompositePayloadConverter implements PayloadConverter {
   /**
    * Run {@link PayloadConverterWithEncoding.fromPayload} based on the `encoding` metadata of the {@link Payload}.
    */
-  public fromPayload<T>(payload: Payload): T {
+  public fromPayload<T>(payload: Payload, context?: SerializationContext): T {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');
     }
@@ -208,7 +234,7 @@ export class CompositePayloadConverter implements PayloadConverter {
     if (converter === undefined) {
       throw new ValueError(`Unknown encoding: ${encoding}`);
     }
-    return converter.fromPayload(payload);
+    return converter.fromPayload(payload, context);
   }
 }
 

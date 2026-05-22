@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/activity",
-  "version": "1.17.1",
+  "version": "1.17.2",
   "description": "Temporal.io SDK Activity sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -12,10 +12,12 @@
   ],
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
+  "scripts": {
+    "build": "tsc --build"
+  },
   "dependencies": {
     "@temporalio/client": "workspace:*",
-    "@temporalio/common": "workspace:*",
-    "abort-controller": "^3.0.0"
+    "@temporalio/common": "workspace:*"
   },
   "engines": {
     "node": ">= 20.0.0"
