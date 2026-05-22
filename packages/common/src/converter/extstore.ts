@@ -152,17 +152,19 @@ export class ExternalStorage {
 // ============================================================================
 
 /** @internal @experimental */
-export const EXTSTORE_REFERENCE_MESSAGE_TYPE = 'temporal.api.sdk.v1.ExternalStorageReference';
+const EXTSTORE_REFERENCE_MESSAGE_TYPE = 'temporal.api.sdk.v1.ExternalStorageReference';
 
 /** @internal @experimental */
-export const EXTSTORE_REFERENCE_ENCODING = encodingTypes.METADATA_ENCODING_PROTOBUF_JSON;
-
-/** Pre-1.0 reference encoding. Read-only — never written by current implementations. @internal @experimental */
-export const LEGACY_EXTSTORE_REFERENCE_ENCODING = 'json/external-storage-reference';
+const EXTSTORE_REFERENCE_ENCODING = encodingTypes.METADATA_ENCODING_PROTOBUF_JSON;
 
 const EXTSTORE_REFERENCE_MESSAGE_TYPE_BYTES = encode(EXTSTORE_REFERENCE_MESSAGE_TYPE);
 
-/** True if the payload is a v1 or legacy External Storage reference. @internal @experimental */
+/** 
+ * True if the payload is a External Storage reference:
+ * temporal.api.sdk.v1.ExternalStorageReference
+ * 
+ * @internal @experimental 
+ * */
 export function isReferencePayload(payload: Payload): boolean {
   if (payload.externalPayloads && payload.externalPayloads.length > 0) {
     return true;
@@ -171,7 +173,7 @@ export function isReferencePayload(payload: Payload): boolean {
   if (encodingValue === EXTSTORE_REFERENCE_ENCODING) {
     return readMetadataString(payload, METADATA_MESSAGE_TYPE_KEY) === EXTSTORE_REFERENCE_MESSAGE_TYPE;
   }
-  return encodingValue === LEGACY_EXTSTORE_REFERENCE_ENCODING;
+  return false;
 }
 
 /** Parsed contents of a reference payload. `sizeBytes` is `0` for legacy payloads. @internal @experimental */
@@ -192,13 +194,9 @@ export interface DecodedReferencePayload {
 export function decodeReferencePayload(payload: Payload): DecodedReferencePayload {
   const encodingValue = readMetadataString(payload, METADATA_ENCODING_KEY);
 
-  if (encodingValue === LEGACY_EXTSTORE_REFERENCE_ENCODING) {
-    return decodeLegacyReferencePayload(payload);
-  }
-
   if (encodingValue !== EXTSTORE_REFERENCE_ENCODING) {
     throw new ValueError(
-      `Reference payload has unexpected encoding '${encodingValue ?? '<missing>'}'; expected '${EXTSTORE_REFERENCE_ENCODING}' or '${LEGACY_EXTSTORE_REFERENCE_ENCODING}'`
+      `Reference payload has unexpected encoding '${encodingValue ?? '<missing>'}'; expected '${EXTSTORE_REFERENCE_ENCODING}'`
     );
   }
 
@@ -271,36 +269,4 @@ function readSizeBytes(payload: Payload): number {
   const details = payload.externalPayloads?.[0];
   if (!details?.sizeBytes) return 0;
   return Long.isLong(details.sizeBytes) ? details.sizeBytes.toNumber() : Number(details.sizeBytes);
-}
-
-function decodeLegacyReferencePayload(payload: Payload): DecodedReferencePayload {
-  if (!payload.data) {
-    throw new ValueError('Legacy reference payload is missing data');
-  }
-  // Legacy shape: { driver_name, driver_claim: { claim_data } }.
-  let parsed: { driver_name?: unknown; driver_claim?: { claim_data?: unknown } };
-  try {
-    parsed = JSON.parse(decode(payload.data)) as typeof parsed;
-  } catch (err) {
-    throw new ValueError(`Legacy reference payload data is not valid JSON: ${(err as Error).message}`);
-  }
-
-  const driverName = parsed.driver_name;
-  if (typeof driverName !== 'string' || driverName.length === 0) {
-    throw new ValueError("Legacy reference payload field 'driver_name' must be a non-empty string");
-  }
-
-  const rawClaimData = parsed.driver_claim?.claim_data ?? {};
-  if (typeof rawClaimData !== 'object' || rawClaimData === null || Array.isArray(rawClaimData)) {
-    throw new ValueError("Legacy reference payload field 'driver_claim.claim_data' must be an object");
-  }
-  const claimData: Record<string, string> = {};
-  for (const [k, v] of Object.entries(rawClaimData)) {
-    if (typeof v !== 'string') {
-      throw new ValueError(`Legacy reference payload field 'driver_claim.claim_data.${k}' must be a string`);
-    }
-    claimData[k] = v;
-  }
-
-  return { driverName, claimData, sizeBytes: 0 };
 }

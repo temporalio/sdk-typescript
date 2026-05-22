@@ -14,10 +14,7 @@ import {
   runExternalRetrieve,
   runExternalStore,
 } from '@temporalio/common/lib/internal-non-workflow/external-storage-runner';
-import {
-  LEGACY_EXTSTORE_REFERENCE_ENCODING,
-  isReferencePayload,
-} from '@temporalio/common/lib/converter/extstore';
+import { isReferencePayload } from '@temporalio/common/lib/converter/extstore';
 import { encode } from '@temporalio/common/lib/encoding';
 import { METADATA_ENCODING_KEY } from '@temporalio/common/lib/converter/types';
 import { makeFakeDriver } from './extstore-fake-driver';
@@ -237,19 +234,3 @@ test('runExternalRetrieve raises TMPRL1110 when retrieved bytes do not match the
   });
 });
 
-test('runExternalRetrieve reads legacy-encoded references but never produces them', async (t) => {
-  // Stub legacy payload — pre-1.0 wire format with no size_bytes recorded.
-  const originalPayload = makePayload(8);
-  const legacyPayload: Payload = {
-    metadata: { [METADATA_ENCODING_KEY]: encode(LEGACY_EXTSTORE_REFERENCE_ENCODING) },
-    data: encode(JSON.stringify({ driver_name: 's3', driver_claim: { claim_data: { k: 'v' } } })),
-  };
-  const driver = makeFakeDriver({ name: 's3', onRetrieve: () => [originalPayload] });
-  const externalStorage = new ExternalStorage({ drivers: [driver] });
-
-  const retrievedPayloads = await runExternalRetrieve({ externalStorage, payloads: [legacyPayload] });
-
-  t.deepEqual(retrievedPayloads, [originalPayload]);
-  t.is(driver.retrieveCalls.length, 1);
-  t.deepEqual(driver.retrieveCalls[0]!.claims[0]!.claimData, { k: 'v' });
-});
