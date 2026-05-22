@@ -20,6 +20,47 @@ export class StorageDriverClaim {
 }
 
 /**
+ * Workflow identity information passed to a storage driver.
+ *
+ * @experimental
+ */
+export interface StorageDriverWorkflowInfo {
+  readonly kind: 'workflow';
+  /** The namespace of the workflow execution. */
+  readonly namespace: string;
+  /** The workflow ID. */
+  readonly id?: string;
+  /** The workflow run ID, if available. */
+  readonly runId?: string;
+  /** The workflow type name, if available. */
+  readonly type?: string;
+}
+
+/**
+ * Activity identity information passed to a storage driver.
+ *
+ * @experimental
+ */
+export interface StorageDriverActivityInfo {
+  readonly kind: 'activity';
+  /** The namespace of the activity execution. */
+  readonly namespace: string;
+  /** The activity ID. */
+  readonly id?: string;
+  /** The activity run ID (only for standalone activities). */
+  readonly runId?: string;
+  /** The activity type name, if available. */
+  readonly type?: string;
+}
+
+/**
+ * Identity of the workflow or activity that produced the payloads being stored.
+ *
+ * @experimental
+ */
+export type StorageDriverTarget = StorageDriverWorkflowInfo | StorageDriverActivityInfo;
+
+/**
  * Context handed to {@link StorageDriver.store} (and to the selector).
  *
  * @experimental
@@ -28,7 +69,7 @@ export interface StorageDriverStoreContext {
   /** Aborts the in-flight operation; siblings are cancelled on first error. */
   abortSignal?: AbortSignal;
   /** Identity of the workflow / activity that produced the payloads. */
-  target?: SerializationContext;
+  target?: StorageDriverTarget;
 }
 
 /**
@@ -67,6 +108,21 @@ export type StorageDriverSelector = (
   context: StorageDriverStoreContext,
   payload: Payload
 ) => StorageDriver | null;
+
+/**
+ * Build a {@link StorageDriverTarget} from a codec-layer {@link SerializationContext}.
+ * Bridges the codec pipeline (which threads `SerializationContext`) into the storage
+ * driver API (which expects the narrower, extstore-specific target shape).
+ *
+ * @internal
+ * @experimental
+ */
+export function storageTargetFromContext(ctx: SerializationContext | undefined): StorageDriverTarget | undefined {
+  if (!ctx) return undefined;
+  return ctx.type === 'workflow'
+    ? { kind: 'workflow', namespace: ctx.namespace, id: ctx.workflowId }
+    : { kind: 'activity', namespace: ctx.namespace, id: ctx.activityId };
+}
 
 // ============================================================================
 // Configuration

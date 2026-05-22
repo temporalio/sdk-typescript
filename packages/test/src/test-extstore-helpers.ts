@@ -39,7 +39,11 @@ test('encodeToPayloadsWithContext threads identity into StorageDriverStoreContex
   const payloads = await encodeToPayloadsWithContext(converter, context, ['hello', { v: 42 }]);
   t.is(payloads!.length, 2);
   t.is(driver.storeCalls.length, 1);
-  t.deepEqual(driver.storeCalls[0]!.context.target, context);
+  t.deepEqual(driver.storeCalls[0]!.context.target, {
+    kind: 'workflow',
+    namespace: 'ns',
+    id: 'wf-1',
+  });
 
   const decoded = await decodeArrayFromPayloads(converter, payloads!);
   t.deepEqual(decoded, ['hello', { v: 42 }]);

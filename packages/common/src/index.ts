@@ -14,9 +14,12 @@ export * from './converter/data-converter';
 export { DEFAULT_PAYLOAD_SIZE_THRESHOLD, ExternalStorage, StorageDriverClaim } from './converter/extstore';
 export type {
   StorageDriver,
+  StorageDriverActivityInfo,
+  StorageDriverRetrieveContext,
   StorageDriverSelector,
   StorageDriverStoreContext,
-  StorageDriverRetrieveContext,
+  StorageDriverTarget,
+  StorageDriverWorkflowInfo,
 } from './converter/extstore';
 export * from './converter/failure-converter';
 export * from './converter/payload-codec';

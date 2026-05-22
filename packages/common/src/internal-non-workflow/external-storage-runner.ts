@@ -11,11 +11,11 @@ import {
   StorageDriverClaim,
   StorageDriverRetrieveContext,
   StorageDriverStoreContext,
+  StorageDriverTarget,
   decodeReferencePayload,
   encodeReferencePayload,
   isReferencePayload,
 } from '../converter/extstore';
-import type { SerializationContext } from '../converter/serialization-context';
 import {
   ExternalStorageDriverArityMismatchError,
   ExternalStorageDriverNotFoundError,
@@ -34,7 +34,7 @@ export interface ExternalStoreOptions {
   externalStorage?: ExternalStorage;
 
   /** Identity forwarded to the selector and each driver via `StorageDriverStoreContext.target`. */
-  context?: SerializationContext;
+  target?: StorageDriverTarget;
 
   payloads: Payload[];
 
@@ -58,7 +58,7 @@ export interface ExternalRetrieveOptions {
  */
 export async function runExternalStore({
   externalStorage,
-  context,
+  target,
   payloads,
   abortSignal,
 }: ExternalStoreOptions): Promise<Payload[]> {
@@ -73,7 +73,7 @@ export async function runExternalStore({
     ? AbortSignal.any([batchController.signal, abortSignal])
     : batchController.signal;
 
-  const storeCtx: StorageDriverStoreContext = { abortSignal: batchSignal, target: context };
+  const storeCtx: StorageDriverStoreContext = { abortSignal: batchSignal, target };
 
   interface StoreItem {
     index: number;

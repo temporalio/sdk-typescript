@@ -20,6 +20,7 @@ import type {
   ReplaceNested,
 } from './codec-types';
 import { runExternalRetrieve, runExternalStore } from './external-storage-runner';
+import { storageTargetFromContext } from '../converter/extstore';
 
 /** A `ProtoFailure` whose nested {@link Payload} fields all have type `P`. */
 type FailureWithPayloads<P extends Payload> = ReplaceNested<ProtoFailure, Payload, P>;
@@ -134,7 +135,7 @@ export async function encodeToPayload(
 ): Promise<Payload> {
   const { payloadConverter, payloadCodecs, externalStorage } = converter;
   const encodedPayload = await encodeSingle(payloadCodecs, payloadConverter.toPayload(value, context), context);
-  const [storedPayload] = await runExternalStore({ externalStorage, context, payloads: [encodedPayload] });
+  const [storedPayload] = await runExternalStore({ externalStorage, target: storageTargetFromContext(context), payloads: [encodedPayload] });
   return storedPayload!;
 }
 
@@ -224,7 +225,7 @@ export async function encodeToPayloadsWithContext(
   const payloads = toPayloadsWithContext(payloadConverter, context, values);
   if (!payloads) return undefined;
   const encoded = await encode(payloadCodecs, payloads, context);
-  return await runExternalStore({ externalStorage, context, payloads: encoded });
+  return await runExternalStore({ externalStorage, target: storageTargetFromContext(context), payloads: encoded });
 }
 
 /**
@@ -281,7 +282,7 @@ export async function encodeMapToPayloads<K extends string>(
         const payload = payloadConverter.toPayload(v, context);
         if (payload === undefined) throw new PayloadConverterError(`Failed to encode entry: ${k}: ${v}`);
         const [encodedPayload] = await encode(payloadCodecs, [payload], context);
-        const [storedPayload] = await runExternalStore({ externalStorage, context, payloads: [encodedPayload!] });
+        const [storedPayload] = await runExternalStore({ externalStorage, target: storageTargetFromContext(context), payloads: [encodedPayload!] });
         return [k as K, storedPayload!];
       })
     )
@@ -301,7 +302,7 @@ export async function encodeErrorToFailure(
   const raw = failureConverter.errorToFailure(error, payloadConverter, context);
   return await transformFailurePayloads(raw, async (payloads) => {
     const encoded = await encode(payloadCodecs, payloads, context);
-    return runExternalStore({ externalStorage, context, payloads: encoded });
+    return runExternalStore({ externalStorage, target: storageTargetFromContext(context), payloads: encoded });
   });
 }
 
@@ -407,7 +408,7 @@ export async function encodeUserMetadata(
   if (encodedSummary == null && encodedDetails == null) return undefined;
 
   const store = async (p: Payload | null | undefined) =>
-    p != null ? (await runExternalStore({ externalStorage, context, payloads: [p] }))[0] : undefined;
+    p != null ? (await runExternalStore({ externalStorage, target: storageTargetFromContext(context), payloads: [p] }))[0] : undefined;
   const [summary, details] = await Promise.all([store(encodedSummary), store(encodedDetails)]);
   return { summary, details };
 }
