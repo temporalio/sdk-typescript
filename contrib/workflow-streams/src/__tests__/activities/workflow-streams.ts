@@ -1,7 +1,7 @@
 /**
  * Test activities for @temporalio/workflow-streams.
  *
- * These activities use `WorkflowStreamClient.fromActivity()` to target the
+ * These activities use `WorkflowStreamClient.fromWithinActivity()` to target the
  * current activity's parent workflow from the activity context.
  */
 
@@ -11,7 +11,7 @@ import { WorkflowStreamClient } from '../../client';
 const encoder = new TextEncoder();
 
 export async function publishItems(count: number): Promise<void> {
-  await using client = WorkflowStreamClient.fromActivity({ batchInterval: '500 milliseconds' });
+  await using client = WorkflowStreamClient.fromWithinActivity({ batchInterval: '500 milliseconds' });
   const events = client.topic('events');
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
@@ -21,7 +21,7 @@ export async function publishItems(count: number): Promise<void> {
 
 export async function publishMultiTopic(count: number): Promise<void> {
   const topicNames = ['a', 'b', 'c'];
-  await using client = WorkflowStreamClient.fromActivity({ batchInterval: '500 milliseconds' });
+  await using client = WorkflowStreamClient.fromWithinActivity({ batchInterval: '500 milliseconds' });
   const handles = topicNames.map((name) => client.topic(name));
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
@@ -36,7 +36,7 @@ export async function publishWithForceFlush(): Promise<void> {
   // The hold is deliberately much longer than the test's collect timeout
   // so a regression (forceFlush no-op) surfaces as a missing item rather
   // than flaking on slow CI.
-  await using client = WorkflowStreamClient.fromActivity({ batchInterval: '60 seconds' });
+  await using client = WorkflowStreamClient.fromWithinActivity({ batchInterval: '60 seconds' });
   const events = client.topic('events');
   events.publish(encoder.encode('normal-0'));
   events.publish(encoder.encode('normal-1'));
@@ -48,7 +48,7 @@ export async function publishWithForceFlush(): Promise<void> {
 }
 
 export async function publishBatchTest(count: number): Promise<void> {
-  await using client = WorkflowStreamClient.fromActivity({ batchInterval: '60 seconds' });
+  await using client = WorkflowStreamClient.fromWithinActivity({ batchInterval: '60 seconds' });
   const events = client.topic('events');
   for (let i = 0; i < count; i++) {
     Context.current().heartbeat();
@@ -58,7 +58,7 @@ export async function publishBatchTest(count: number): Promise<void> {
 }
 
 export async function publishWithMaxBatch(count: number): Promise<void> {
-  await using client = WorkflowStreamClient.fromActivity({
+  await using client = WorkflowStreamClient.fromWithinActivity({
     batchInterval: '60 seconds',
     maxBatchSize: 3,
   });

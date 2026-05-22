@@ -49,11 +49,7 @@ export class TopicHandle<T = unknown> {
    *   immediately (fire-and-forget — does not block the caller).
    */
   publish(value: T | Payload, options?: { forceFlush?: boolean }): void {
-    // Cast through `unknown` so the internal publisher accepts the value;
-    // the per-handle T is compile-time only.
-    (
-      this.client as unknown as { _publishToTopic(name: string, value: unknown, forceFlush: boolean): void }
-    )._publishToTopic(this.name, value, options?.forceFlush ?? false);
+    this.client._publishToTopic(this.name, value, options?.forceFlush ?? false);
   }
 
   /**
@@ -99,9 +95,6 @@ export class WorkflowTopicHandle<T = unknown> {
    *   conversion, regardless of the handle's bound type.
    */
   publish(value: T | Payload): void {
-    (this.stream as unknown as { _publishToTopic(name: string, value: unknown): void })._publishToTopic(
-      this.name,
-      value
-    );
+    this.stream._publishToTopic(this.name, value);
   }
 }

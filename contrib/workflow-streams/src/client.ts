@@ -150,7 +150,7 @@ export class WorkflowStreamClient {
    * Use this when the caller has an explicit `Client` and `workflowId` in
    * hand (starters, BFFs, other workflows' activities). For code running
    * inside an activity that targets its own parent workflow, use
-   * {@link WorkflowStreamClient.fromActivity}.
+   * {@link WorkflowStreamClient.fromWithinActivity}.
    *
    * A client created through this method follows continue-as-new chains in
    * `subscribe()` and uses the client's payload converter for per-item
@@ -175,12 +175,12 @@ export class WorkflowStreamClient {
    * Must be called from within an activity. The Temporal client and
    * parent workflow id are taken from the activity context.
    */
-  static fromActivity(options?: WorkflowStreamClientOptions): WorkflowStreamClient {
+  static fromWithinActivity(options?: WorkflowStreamClientOptions): WorkflowStreamClient {
     const ctx = ActivityContext.current();
     const workflowExecution = ctx.info.workflowExecution;
     if (workflowExecution === undefined) {
       throw new Error(
-        'fromActivity requires an activity scheduled by a workflow; this ' +
+        'fromWithinActivity requires an activity scheduled by a workflow; this ' +
           'activity has no parent workflow. From a standalone activity, use ' +
           'WorkflowStreamClient.create(client, workflowId) with the target ' +
           'workflow id passed in explicitly.'

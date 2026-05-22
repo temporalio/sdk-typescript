@@ -63,7 +63,7 @@ publisher.
 
 ### Activity side (publishing)
 
-Use `WorkflowStreamClient.fromActivity()` with `await using` for batched publishing
+Use `WorkflowStreamClient.fromWithinActivity()` with `await using` for batched publishing
 from inside an activity. The client and workflow ID are pulled from the
 activity context. Bind a topic handle on the client and publish through it,
 the same way as on the workflow side:
@@ -73,7 +73,7 @@ import { Context } from '@temporalio/activity';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 
 export async function streamEvents(): Promise<void> {
-  await using client = WorkflowStreamClient.fromActivity({ batchInterval: '2 seconds' });
+  await using client = WorkflowStreamClient.fromWithinActivity({ batchInterval: '2 seconds' });
   const events = client.topic<Chunk>('events');
 
   for await (const chunk of generateChunks()) {
@@ -120,8 +120,7 @@ for await (const item of events.subscribe(0)) {
 }
 ```
 
-For raw `Payload` access — multi-topic subscriptions whose payload types
-differ, or fine-grained control over decoding — call
+For raw `Payload` access call
 `WorkflowStreamClient.subscribe(topics?, fromOffset?)` directly. The yielded
 items have `data: Payload` carrying encoding metadata; decode with
 `defaultPayloadConverter.fromPayload<T>(item.data)` per-topic.
@@ -139,7 +138,7 @@ Carry both your application state and workflow stream state across continue-as-n
 boundaries:
 
 ```typescript
-import { continueAsNew, workflowInfo } from '@temporalio/workflow';
+import { workflowInfo } from '@temporalio/workflow';
 import { WorkflowStream, type WorkflowStreamState } from '@temporalio/workflow-streams/workflow';
 
 interface WorkflowInput {
@@ -190,56 +189,6 @@ if (workflowInfo().continueAsNewSuggested) {
   });
 }
 ```
-
-## API Reference
-
-### `new WorkflowStream(priorState?)`
-
-| Method                                  | Description                                                                                                                                                             |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `topic<T>(name)`                        | Get a typed `WorkflowTopicHandle<T>` for publishing. Repeated calls with the same name return the same handle.                                                          |
-| `getState(publisherTtl?)`               | Snapshot for continue-as-new. Drops publisher dedup entries older than `publisherTtl` (`Duration`, default `'15 minutes'`).                                             |
-| `detachPollers()`                       | Unblock polls and reject new ones.                                                                                                                                      |
-| `continueAsNew<F>(buildArgs, options?)` | Async. Detach pollers, wait for handlers, then `continueAsNew` with `buildArgs(state)`. Use the explicit recipe with `makeContinueAsNewFunc` to pass other CAN options. |
-| `truncate(upToOffset)`                  | Discard log entries below the given offset.                                                                                                                             |
-
-Handlers registered automatically:
-
-| Kind   | Name                                 | Description                    |
-| ------ | ------------------------------------ | ------------------------------ |
-| Signal | `__temporal_workflow_stream_publish` | Receive external publications. |
-| Update | `__temporal_workflow_stream_poll`    | Long-poll subscription.        |
-| Query  | `__temporal_workflow_stream_offset`  | Current global offset.         |
-
-### `WorkflowStreamClient`
-
-| Method                                                                      | Description                                                                                                                                                                                                                                                                           |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `WorkflowStreamClient.create(client, workflowId, options?)`                 | Factory for use outside an activity (starters, BFFs). Enables CAN following in `subscribe()`; uses the `Client`'s configured payload converter.                                                                                                                                       |
-| `WorkflowStreamClient.fromActivity(options?)`                               | Factory for use from within an activity — pulls the client and parent workflow id from the activity context.                                                                                                                                                                          |
-| `new WorkflowStreamClient(handle, options?)`                                | From a handle (no CAN following).                                                                                                                                                                                                                                                     |
-| `flush()`                                                                   | Barrier: returns once everything published before the call is acknowledged by the server. Empty-buffer call is a no-op.                                                                                                                                                               |
-| `[Symbol.asyncDispose]()`                                                   | Stop the flusher and drain remaining items. Triggered automatically by `await using`.                                                                                                                                                                                                 |
-| `topic<T>(name)`                                                            | Get a typed `TopicHandle<T>` for publishing and subscribing. Repeated calls with the same name return the same handle.                                                                                                                                                                |
-| `subscribe(topics?, fromOffset = 0, { pollCooldown = '100 milliseconds' })` | Raw async generator yielding `WorkflowStreamItem<Payload>` — the multi-topic / decode-yourself path. `pollCooldown` is a `Duration`. Always follows CAN chains when created via `create()`. Recovers automatically from `TruncatedOffset` by restarting from the current base offset. |
-| `getOffset()`                                                               | Query current global offset.                                                                                                                                                                                                                                                          |
-
-### `TopicHandle<T>` / `WorkflowTopicHandle<T>`
-
-| Method                                           | Description                                                                                                     |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `name`                                           | Topic name this handle is bound to.                                                                             |
-| `publish(value, options?)` (client-side)         | Buffer `value` for publishing on this topic. `options.forceFlush = true` wakes the flusher to send immediately. |
-| `publish(value)` (workflow-side)                 | Append `value` to the log from workflow code.                                                                   |
-| `subscribe(fromOffset?, options?)` (client-side) | Async generator yielding `WorkflowStreamItem<T>` with `data` decoded to `T` via the default payload converter.  |
-
-### `WorkflowStreamClientOptions`
-
-| Option             | Default        | Description                                                                                                                                              |
-| ------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `batchInterval`    | `'2 seconds'`  | Interval between automatic flushes (`Duration`).                                                                                                         |
-| `maxBatchSize`     | `undefined`    | Auto-flush when buffer reaches this size.                                                                                                                |
-| `maxRetryDuration` | `'10 minutes'` | Time to retry a failed flush before `FlushTimeoutError` (`Duration`). Must be less than the workflow's `publisherTtl` to preserve exactly-once delivery. |
 
 ## Cross-Language Protocol
 

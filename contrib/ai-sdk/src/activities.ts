@@ -105,7 +105,7 @@ export function createActivities(provider: ProviderV3, mcpClientFactories?: McpC
      * response-metadata, finish, ...); no normalization happens here.
      */
     async invokeModelStreaming(args: InvokeModelStreamingArgs): Promise<InvokeModelResult> {
-      await using stream = WorkflowStreamClient.fromActivity({
+      await using stream = WorkflowStreamClient.fromWithinActivity({
         batchInterval: args.streamingBatchInterval ?? '100 milliseconds',
       });
       const events = stream.topic(args.streamingTopic);
