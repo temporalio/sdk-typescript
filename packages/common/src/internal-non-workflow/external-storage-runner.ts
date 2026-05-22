@@ -64,7 +64,7 @@ export async function runExternalStore({
 }: ExternalStoreOptions): Promise<Payload[]> {
   if (payloads.length === 0 || externalStorage === undefined) return payloads;
 
-  const { drivers, driverSelector, driversByName, payloadSizeThreshold } = externalStorage;
+  const { drivers, driverSelector, payloadSizeThreshold } = externalStorage;
   const fallbackDriver: StorageDriver | undefined =
     drivers.length === 1 && driverSelector === undefined ? drivers[0] : undefined;
 
@@ -97,7 +97,7 @@ export async function runExternalStore({
     }
 
     if (selected === null) continue;
-    if (driversByName.get(selected.name) !== selected) {
+    if (externalStorage.getDriver(selected.name) !== selected) {
       throw new ExternalStorageSelectorInvalidDriverError(
         `Driver '${selected.name}' returned by driverSelector is not registered in ExternalStorage.drivers`,
         selected.name
@@ -165,8 +165,6 @@ export async function runExternalRetrieve({
     );
   }
 
-  const { driversByName } = externalStorage;
-
   const batchController = new AbortController();
   const batchSignal = abortSignal
     ? AbortSignal.any([batchController.signal, abortSignal])
@@ -185,7 +183,7 @@ export async function runExternalRetrieve({
   for (const [i, payload] of payloads.entries()) {
     if (!isReferencePayload(payload)) continue;
     const decoded = decodeReferencePayload(payload);
-    const driver = driversByName.get(decoded.driverName);
+    const driver = externalStorage.getDriver(decoded.driverName);
     if (driver === undefined) {
       throw new ExternalStorageDriverNotFoundError(
         `No driver registered with name '${decoded.driverName}'`,

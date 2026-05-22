@@ -92,8 +92,7 @@ export class ExternalStorage {
   readonly drivers: StorageDriver[];
   readonly driverSelector?: StorageDriverSelector;
   readonly payloadSizeThreshold: number;
-  /** Built at construction; used by the retrieve path and by selector validation. */
-  readonly driversByName: ReadonlyMap<string, StorageDriver>;
+  private readonly driversByName: ReadonlyMap<string, StorageDriver>;
 
   constructor({
     drivers,
@@ -140,6 +139,11 @@ export class ExternalStorage {
     this.driverSelector = driverSelector;
     this.payloadSizeThreshold = payloadSizeThreshold;
     this.driversByName = driversByName;
+  }
+
+  /** Look up a registered driver by name. Returns `undefined` if no driver with that name is registered. */
+  getDriver(name: string): StorageDriver | undefined {
+    return this.driversByName.get(name);
   }
 }
 

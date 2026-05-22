@@ -30,7 +30,7 @@ test('ExternalStorage with one driver and no selector is valid', (t) => {
   t.is(config.drivers[0], driver);
   t.is(config.driverSelector, undefined);
   t.is(config.payloadSizeThreshold, DEFAULT_PAYLOAD_SIZE_THRESHOLD);
-  t.is(config.driversByName.get('only'), driver);
+  t.is(config.getDriver('only'), driver);
 });
 
 test('ExternalStorage rejects an empty driver list', (t) => {
@@ -59,8 +59,8 @@ test('ExternalStorage with multiple drivers and a selector is valid', (t) => {
     driverSelector: () => a,
   });
   t.is(config.drivers.length, 2);
-  t.is(config.driversByName.get('a'), a);
-  t.is(config.driversByName.get('b'), b);
+  t.is(config.getDriver('a'), a);
+  t.is(config.getDriver('b'), b);
 });
 
 test('ExternalStorage accepts payloadSizeThreshold = 0', (t) => {
