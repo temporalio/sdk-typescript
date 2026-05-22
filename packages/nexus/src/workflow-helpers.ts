@@ -6,7 +6,12 @@ import { type temporal } from '@temporalio/proto';
 import type { InternalWorkflowStartOptions } from '@temporalio/client/lib/internal';
 import { InternalWorkflowStartOptionsSymbol } from '@temporalio/client/lib/internal';
 import { generateWorkflowRunOperationToken, loadWorkflowRunOperationToken } from './token';
-import { convertNexusLinkToWorkflowEventLink, convertWorkflowEventLinkToNexusLink } from './link-converter';
+import {
+  convertNexusLinkToTemporalLink,
+  convertNexusLinkToWorkflowEventLink,
+  convertTemporalLinkToNexusLink,
+  convertWorkflowEventLinkToNexusLink,
+} from './link-converter';
 import { getClient, getHandlerContext, log } from './context';
 
 declare const isNexusWorkflowHandle: unique symbol;
@@ -77,9 +82,7 @@ export async function startWorkflow<T extends Workflow>(
   if (ctx.inboundLinks?.length > 0) {
     for (const l of ctx.inboundLinks) {
       try {
-        links.push({
-          workflowEvent: convertNexusLinkToWorkflowEventLink(l),
-        });
+        links.push(convertNexusLinkToTemporalLink(l));
       } catch (error) {
         log.warn('failed to convert Nexus link to Workflow event link', { error });
       }
@@ -113,11 +116,11 @@ export async function startWorkflow<T extends Workflow>(
   };
 
   const handle = await client.workflow.start(workflowTypeOrFunc, startOptions);
-  if (internalOptions.backLink?.workflowEvent != null) {
+  if (internalOptions.backLink != null) {
     try {
-      ctx.outboundLinks.push(convertWorkflowEventLinkToNexusLink(internalOptions.backLink.workflowEvent));
+      ctx.outboundLinks.push(convertTemporalLinkToNexusLink(internalOptions.backLink));
     } catch (error) {
-      log.warn('failed to convert Workflow event link to Nexus link', { error });
+      log.warn('failed to convert temporal link to Nexus link', { error });
     }
   }
 
