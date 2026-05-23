@@ -7,7 +7,7 @@ import {
   decompileRetryPolicy,
   extractWorkflowType,
 } from '@temporalio/common';
-import { encodeUserMetadata, decodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
+import { encodeUserMetadata, decodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/data-pipeline-helpers';
 import {
   encodeUnifiedSearchAttributes,
   decodeSearchAttributes,

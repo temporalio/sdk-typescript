@@ -6,6 +6,7 @@
 export * from './codec-helpers';
 export * from './codec-types';
 export * from './data-converter-helpers';
+export * from './data-pipeline-helpers';
 export * from './external-storage-runner';
 export * from './parse-host-uri';
 export * from './proxy-config';
