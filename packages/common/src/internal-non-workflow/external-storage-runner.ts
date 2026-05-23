@@ -242,7 +242,7 @@ export async function runExternalRetrieve({
 // ============================================================================
 
 function payloadProtoSize(payload: Payload): number {
-  return PayloadProto.encode(payload).finish().length;
+  return PayloadProto.encode(payload).len;
 }
 
 /** Invoke a driver call, wrapping non-Temporal errors as `ExternalStorageDriverOperationFailedError`. */
