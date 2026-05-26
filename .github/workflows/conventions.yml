@@ -53,5 +53,7 @@ jobs:
 
       - run: pnpm run lint:check
         env:
-          NODE_OPTIONS: '--max-old-space-size=8192'
+          NODE_OPTIONS: --max-old-space-size=8192
       - run: pnpm run lint:prune
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192

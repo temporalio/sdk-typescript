@@ -41,7 +41,13 @@ import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode, DefaultLogger, Runtime } from '@temporalio/worker';
 import type { InjectedSinks } from '@temporalio/worker';
 import type { BaseContext } from '@temporalio/test-helpers';
-import { test as anyTest, helpers, Worker, TestWorkflowEnvironment } from '@temporalio/test-helpers';
+import {
+  test as anyTest,
+  createBaseBundlerOptions,
+  helpers,
+  Worker,
+  TestWorkflowEnvironment,
+} from '@temporalio/test-helpers';
 import { AiSdkPlugin, createActivities } from '..';
 import {
   embeddingWorkflow,
@@ -234,6 +240,7 @@ const test = anyTest as TestFn<BaseContext>;
 test.before(async (t) => {
   const env = await TestWorkflowEnvironment.createLocal();
   const workflowBundle = await bundleWorkflowCode({
+    ...createBaseBundlerOptions(),
     workflowsPath: require.resolve('./workflows/ai-sdk'),
     workflowInterceptorModules,
     logger: new DefaultLogger('WARN'),
@@ -465,6 +472,7 @@ test('Telemetry', async (t) => {
       ],
       taskQueue: 'test-ai-telemetry',
       workflowsPath: require.resolve('./workflows/ai-sdk'),
+      bundlerOptions: createBaseBundlerOptions(),
 
       interceptors: {
         client: {

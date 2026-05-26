@@ -51,6 +51,7 @@ jobs:
         run: pnpm run docs
         env:
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Publish production docs
         if: ${{ inputs.publish_target == 'prod' }}

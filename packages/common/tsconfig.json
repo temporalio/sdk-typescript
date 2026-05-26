@@ -4,5 +4,6 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
+  "references": [{ "path": "../proto" }],
   "include": ["./src/**/*.ts"]
 }

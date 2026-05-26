@@ -1,14 +1,23 @@
 import type {
   LanguageModelV3CallOptions,
+  LanguageModelV3Content,
+  LanguageModelV3FinishReason,
   LanguageModelV3GenerateResult,
+  LanguageModelV3Usage,
   EmbeddingModelV3Result,
   SharedV3ProviderOptions,
   SharedV3Headers,
+  SharedV3Warning,
   ProviderV3,
 } from '@ai-sdk/provider';
 import { asSchema, type Schema, type ToolExecutionOptions } from 'ai';
 import { ApplicationFailure } from '@temporalio/common';
+import { Context } from '@temporalio/activity';
+import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
+import type { Duration } from '@temporalio/common/lib/time';
 import type { McpClientFactories, McpClientFactory } from './mcp';
+
+const encoder = new TextEncoder();
 
 /**
  * Arguments for invoking a language model activity.
@@ -16,6 +25,16 @@ import type { McpClientFactories, McpClientFactory } from './mcp';
 export interface InvokeModelArgs {
   modelId: string;
   options: LanguageModelV3CallOptions;
+}
+
+/**
+ * Arguments for invoking a streaming language model activity.
+ */
+export interface InvokeModelStreamingArgs extends InvokeModelArgs {
+  modelId: string;
+  options: LanguageModelV3CallOptions;
+  streamingTopic: string;
+  streamingBatchInterval?: Duration;
 }
 
 /**
@@ -75,6 +94,118 @@ export function createActivities(provider: ProviderV3, mcpClientFactories?: McpC
       const model = provider.languageModel(args.modelId);
       return await model.doGenerate(args.options);
     },
+
+    /**
+     * Streaming-aware model activity.
+     *
+     * Calls `model.doStream()`, publishes each yielded AI SDK stream part
+     * as JSON to the stream side channel, and returns the assembled
+     * `LanguageModelV3GenerateResult`. Consumers receive native AI SDK
+     * stream-part types (text-delta, reasoning-delta, tool-input-delta,
+     * response-metadata, finish, ...); no normalization happens here.
+     */
+    async invokeModelStreaming(args: InvokeModelStreamingArgs): Promise<InvokeModelResult> {
+      await using stream = WorkflowStreamClient.fromWithinActivity({
+        batchInterval: args.streamingBatchInterval ?? '100 milliseconds',
+      });
+      const events = stream.topic(args.streamingTopic);
+
+      const model = provider.languageModel(args.modelId);
+      const streamResult = await model.doStream(args.options);
+
+      const content: LanguageModelV3Content[] = [];
+      let finishReason: LanguageModelV3FinishReason = { unified: 'other', raw: undefined };
+      let usage: LanguageModelV3Usage = {
+        inputTokens: { total: undefined, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+        outputTokens: { total: undefined, text: undefined, reasoning: undefined },
+      };
+      const warnings: SharedV3Warning[] = [];
+      let responseMetadata: Record<string, unknown> | undefined;
+
+      const textBlocks = new Map<string, string>();
+      const reasoningBlocks = new Map<string, string>();
+
+      const reader = streamResult.stream.getReader();
+
+      while (true) {
+        const { done, value: part } = await reader.read();
+        if (done) break;
+
+        Context.current().heartbeat();
+
+        // Publish the raw stream part as JSON so consumers can switch on
+        // the native AI SDK type. Accumulation below is for the final
+        // assembled result this activity returns.
+        events.publish(encoder.encode(JSON.stringify(part)));
+
+        switch (part.type) {
+          case 'stream-start':
+            warnings.push(...part.warnings);
+            break;
+          case 'text-start':
+            textBlocks.set(part.id, '');
+            break;
+          case 'text-delta':
+            textBlocks.set(part.id, (textBlocks.get(part.id) ?? '') + part.delta);
+            break;
+          case 'text-end':
+            content.push({
+              type: 'text',
+              text: textBlocks.get(part.id) ?? '',
+              providerMetadata: part.providerMetadata,
+            });
+            textBlocks.delete(part.id);
+            break;
+          case 'reasoning-start':
+            reasoningBlocks.set(part.id, '');
+            break;
+          case 'reasoning-delta':
+            reasoningBlocks.set(part.id, (reasoningBlocks.get(part.id) ?? '') + part.delta);
+            break;
+          case 'reasoning-end':
+            content.push({
+              type: 'reasoning',
+              text: reasoningBlocks.get(part.id) ?? '',
+              providerMetadata: part.providerMetadata,
+            });
+            reasoningBlocks.delete(part.id);
+            break;
+          case 'response-metadata':
+            responseMetadata = {
+              id: part.id,
+              timestamp: part.timestamp,
+              modelId: part.modelId,
+            };
+            break;
+          case 'finish':
+            finishReason = part.finishReason;
+            usage = part.usage;
+            break;
+          default:
+            // tool-call, tool-result, file, source — collect as content
+            if (
+              'type' in part &&
+              (part.type === 'tool-call' ||
+                part.type === 'tool-result' ||
+                part.type === 'file' ||
+                part.type === 'source')
+            ) {
+              content.push(part);
+            }
+            break;
+        }
+      }
+
+      return {
+        content,
+        finishReason,
+        usage,
+        warnings,
+        request: streamResult.request,
+        response: responseMetadata ? { ...responseMetadata, ...streamResult.response } : streamResult.response,
+      };
+    },
+
     async invokeEmbeddingModel(args: InvokeEmbeddingModelArgs): Promise<InvokeEmbeddingModelResult> {
       const model = provider.embeddingModel(args.modelId);
       return await model.doEmbed({
