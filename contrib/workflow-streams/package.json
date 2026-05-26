@@ -15,8 +15,12 @@
   },
   "typesVersions": {
     "*": {
-      "workflow": ["./lib/workflow.d.ts"],
-      "client": ["./lib/client.d.ts"]
+      "workflow": [
+        "./lib/workflow.d.ts"
+      ],
+      "client": [
+        "./lib/client.d.ts"
+      ]
     }
   },
   "scripts": {
