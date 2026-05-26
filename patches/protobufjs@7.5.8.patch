@@ -1,8 +1,8 @@
 diff --git a/src/parse.js b/src/parse.js
-index 9c3cc27539f2cd555a1306fea0dfa0ef88eb8cc0..4317be0104461c876298579a5218c27a2e5ac474 100644
+index 966f17046167769be5a2d8ec674b084baddae5f9..3513e074a91c9201d8cf5b77d1175341e590e6e1 100644
 --- a/src/parse.js
 +++ b/src/parse.js
-@@ -722,8 +722,12 @@ function parse(source, root, options) {
+@@ -726,8 +726,12 @@ function parse(source, root, options) {
                      var lastValue;
                      if (skip("[", true)) {
                          do {

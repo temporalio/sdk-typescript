@@ -646,6 +646,7 @@ export interface WorkflowCreateOptions {
   randomnessSeed: number[];
   now: number;
   showStackTraceSources: boolean;
+  failureExceptionTypeNames?: string[];
 }
 
 export interface WorkflowCreateOptionsInternal extends WorkflowCreateOptions {

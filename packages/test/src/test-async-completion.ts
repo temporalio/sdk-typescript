@@ -1,9 +1,9 @@
+import { randomUUID } from 'crypto';
 import type { TestFn, ExecutionContext } from 'ava';
 import anyTest from 'ava';
 import type { Observable } from 'rxjs';
 import { Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { v4 as uuid4 } from 'uuid';
 import type { ConnectionLike } from '@temporalio/client';
 import {
   ActivityCancelledError,
@@ -268,7 +268,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Activity can complete asynchronously', async (t) => {
     const { client } = t.context;
-    const workflowId = uuid4();
+    const workflowId = randomUUID();
     const handle = await client.workflow.start(runAnAsyncActivity, {
       workflowId,
       taskQueue,
@@ -281,7 +281,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Activity can complete asynchronously by ID', async (t) => {
     const { client } = t.context;
-    const workflowId = uuid4();
+    const workflowId = randomUUID();
     const handle = await client.workflow.start(runAnAsyncActivity, {
       workflowId,
       taskQueue,
@@ -299,14 +299,14 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Non existing activity async completion by ID throws meaningful message', async (t) => {
-    await t.throwsAsync(t.context.client.activity.complete({ workflowId: uuid4(), activityId: '1' }, 'success'), {
+    await t.throwsAsync(t.context.client.activity.complete({ workflowId: randomUUID(), activityId: '1' }, 'success'), {
       instanceOf: ActivityNotFoundError,
     });
   });
 
   test('Activity can fail asynchronously', async (t) => {
     const { client } = t.context;
-    const workflowId = uuid4();
+    const workflowId = randomUUID();
     const handle = await client.workflow.start(runAnAsyncActivity, {
       workflowId,
       taskQueue,
@@ -322,7 +322,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Activity can fail asynchronously by ID', async (t) => {
     const { client } = t.context;
-    const workflowId = uuid4();
+    const workflowId = randomUUID();
     const handle = await client.workflow.start(runAnAsyncActivity, {
       workflowId,
       taskQueue,
@@ -346,7 +346,7 @@ if (RUN_INTEGRATION_TESTS) {
     await t.throwsAsync(
       t.context.client.activity.fail(
         {
-          workflowId: uuid4(),
+          workflowId: randomUUID(),
           activityId: '1',
         },
         new Error('failure')
@@ -367,7 +367,7 @@ if (RUN_INTEGRATION_TESTS) {
     await t.throwsAsync(
       t.context.client.activity.reportCancellation(
         {
-          workflowId: uuid4(),
+          workflowId: randomUUID(),
           activityId: '1',
         },
         'cancelled'
@@ -380,7 +380,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Activity can heartbeat and get cancelled with AsyncCompletionClient', async (t) => {
     const { client } = t.context;
-    const workflowId = uuid4();
+    const workflowId = randomUUID();
     const handle = await client.workflow.start(runAnAsyncActivity, {
       workflowId,
       taskQueue,
@@ -408,7 +408,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Activity can heartbeat and get cancelled by ID with AsyncCompletionClient', async (t) => {
     const { client } = t.context;
-    const workflowId = uuid4();
+    const workflowId = randomUUID();
     const handle = await client.workflow.start(runAnAsyncActivity, {
       workflowId,
       taskQueue,
@@ -444,7 +444,7 @@ if (RUN_INTEGRATION_TESTS) {
     await t.throwsAsync(
       t.context.client.activity.heartbeat(
         {
-          workflowId: uuid4(),
+          workflowId: randomUUID(),
           activityId: '1',
         },
         'details'
@@ -457,7 +457,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Standalone activity can complete asynchronously', async (t) => {
     const { client } = t.context;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const handle = await client.activity.start('completeAsync', {
       args: [false],
       id: activityId,
@@ -475,7 +475,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Standalone activity can complete asynchronously by ID', async (t) => {
     const { client } = t.context;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const handle = await client.activity.start('completeAsync', {
       args: [false],
       id: activityId,

@@ -1,4 +1,3 @@
-import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import type { Duration, SearchAttributeType } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import type { native } from '@temporalio/core-bridge';

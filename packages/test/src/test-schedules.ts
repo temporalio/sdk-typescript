@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import asyncRetry from 'async-retry';

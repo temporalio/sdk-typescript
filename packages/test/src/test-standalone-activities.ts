@@ -1,9 +1,10 @@
-import { v4 as uuid4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import * as rxjs from 'rxjs';
 import type { ActivityHandle, TypedActivityClient, ActivityOptions } from '@temporalio/client';
 import {
+  ActivityExecutionStatus,
   ActivityExecutionAlreadyStartedError,
   ActivityExecutionFailedError,
   ServiceError,
@@ -16,7 +17,7 @@ import type { TestWorkflowEnvironment } from './helpers';
 import { RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
 import { echo, throwAnError } from './activities';
 import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
-import { createLocalTestEnvironment } from './helpers-integration';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -78,9 +79,14 @@ async function waitForValue<T>(subject: rxjs.Subject<T>, value: T) {
 
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
-    const env = await createLocalTestEnvironment({
+    const env = await createTestWorkflowEnvironment({
       server: {
-        extraArgs: ['--dynamic-config-value', `activity.longPollTimeout="${LONG_POLL_TIMEOUT_MS}ms"`],
+        extraArgs: [
+          '--dynamic-config-value',
+          `activity.longPollTimeout="${LONG_POLL_TIMEOUT_MS}ms"`,
+          '--dynamic-config-value',
+          'activity.startDelayEnabled=true',
+        ],
       },
     });
 
@@ -118,13 +124,13 @@ if (RUN_INTEGRATION_TESTS) {
 
   test.after.always(async (t) => {
     t.context.worker.shutdown();
-    await t.context.env.teardown();
     await t.context.runPromise;
+    await t.context.env.teardown();
   });
 
   test('Get activity result - success', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const handle = await client.start('echo', {
       ...defaultOptions,
       id: activityId,
@@ -137,7 +143,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Get activity result - failure', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const handle = await client.start('throwAnError', {
       ...defaultOptions,
       id: activityId,
@@ -150,7 +156,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Execute activity - success', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const result = await client.execute('echo', {
       ...defaultOptions,
       id: activityId,
@@ -161,7 +167,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Execute activity - failure', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const err = await t.throwsAsync(
       () =>
         client.execute('throwAnError', {
@@ -175,9 +181,29 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(err?.cause?.message, 'failure');
   });
 
+  test('Start activity with start delay', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const startDelayMs = 2000;
+    const handle = await client.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+      startDelay: startDelayMs,
+    });
+
+    t.is(await handle.result(), 'hello');
+
+    const description = await handle.describe();
+    t.is(description.status, ActivityExecutionStatus.COMPLETED);
+    t.truthy(description.scheduleTime);
+    t.truthy(description.lastStartedTime);
+    t.true(description.lastStartedTime!.getTime() - description.scheduleTime!.getTime() >= startDelayMs - 500);
+  });
+
   test('Describe activity from start handle', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const handle = await client.start('echo', {
       ...defaultOptions,
       id: activityId,
@@ -198,7 +224,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Describe activity from ID handle', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
 
     const firstHandle = await client.start('echo', {
       ...defaultOptions,
@@ -229,7 +255,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Describe activity from ID and run ID handle', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
 
     const firstHandle = await client.start('echo', {
       ...defaultOptions,
@@ -260,7 +286,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Cancel activity', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const handle = await client.start('heartbeatCancellationDetailsActivity', {
       ...defaultOptions,
       id: activityId,
@@ -278,7 +304,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Terminate activity', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const handle = await client.start('heartbeatCancellationDetailsActivity', {
       ...defaultOptions,
       id: activityId,
@@ -297,7 +323,7 @@ if (RUN_INTEGRATION_TESTS) {
   test('Count and list activities', async (t) => {
     const client = t.context.env.client.activity;
 
-    const firstAndSecondActivityId = uuid4();
+    const firstAndSecondActivityId = randomUUID();
     const firstHandle = await client.start('echo', {
       ...defaultOptions,
       id: firstAndSecondActivityId,
@@ -312,7 +338,7 @@ if (RUN_INTEGRATION_TESTS) {
     });
     await secondHandle.result();
 
-    const thirdActivityId = uuid4();
+    const thirdActivityId = randomUUID();
     const thirdHandle = await client.start('echo', {
       ...defaultOptions,
       id: thirdActivityId,
@@ -353,14 +379,14 @@ if (RUN_INTEGRATION_TESTS) {
     await t.notThrowsAsync(() =>
       client.execute('verifyStandaloneActivityInfo', {
         ...defaultOptions,
-        id: uuid4(),
+        id: randomUUID(),
       })
     );
   });
 
   test('Throws ActivityExecutionAlreadyExistsError on ID conflict', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const options: ActivityOptions = {
       ...defaultOptions,
       id: activityId,
@@ -383,7 +409,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Throws ActivityExecutionAlreadyExistsError on ID reuse', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const options: ActivityOptions = {
       ...defaultOptions,
       id: activityId,
@@ -402,7 +428,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Wait for result longer than server long poll timeout', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const handle = await client.start('waitForSignal', {
       ...defaultOptions,
       id: activityId,
@@ -415,7 +441,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Cancel waiting for result', async (t) => {
     const client = t.context.env.client.activity;
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const handle = await client.start('waitForSignal', {
       ...defaultOptions,
       id: activityId,
@@ -431,7 +457,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Typed client - start activity', async (t) => {
     const client = t.context.env.client.activity.typed<typeof activities>();
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const handle = await client.start('echo', {
       ...defaultOptions,
       id: activityId,
@@ -442,7 +468,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Typed client - execute activity', async (t) => {
     const client = t.context.env.client.activity.typed<typeof activities>();
-    const activityId = uuid4();
+    const activityId = randomUUID();
     const result = await client.execute('echo', {
       ...defaultOptions,
       id: activityId,
