@@ -19,6 +19,7 @@ packages:
   - packages/workflow
   - contrib/ai-sdk
   - contrib/interceptors-opentelemetry
+  - contrib/strands
   - contrib/workflow-streams
   - scripts
 
@@ -31,6 +32,7 @@ minimumReleaseAge: 20160
 minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
+  - '@strands-agents/sdk'
 
 peerDependencyRules:
   ignoreMissing:
