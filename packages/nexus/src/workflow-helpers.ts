@@ -1,17 +1,18 @@
 import * as nexus from 'nexus-rpc';
 import type { Workflow, WorkflowResultType } from '@temporalio/common';
 import type { Replace } from '@temporalio/common/lib/type-helpers';
-import type { WorkflowStartOptions as ClientWorkflowStartOptions } from '@temporalio/client';
+import type { Client, WorkflowStartOptions as ClientWorkflowStartOptions } from '@temporalio/client';
 import { type temporal } from '@temporalio/proto';
 import type { InternalWorkflowStartOptions } from '@temporalio/client/lib/internal';
 import { InternalWorkflowStartOptionsSymbol } from '@temporalio/client/lib/internal';
-import { generateWorkflowRunOperationToken, loadWorkflowRunOperationToken } from './token';
+import { convertNexusLinkToTemporalLink, convertTemporalLinkToNexusLink } from './link-converter';
 import {
-  convertNexusLinkToTemporalLink,
-  convertNexusLinkToWorkflowEventLink,
-  convertTemporalLinkToNexusLink,
-  convertWorkflowEventLinkToNexusLink,
-} from './link-converter';
+  assertWorkflowRunOperationToken,
+  generateWorkflowRunOperationToken,
+  loadOperationToken,
+  loadWorkflowRunOperationToken,
+  OperationTokenType,
+} from './token';
 import { getClient, getHandlerContext, log } from './context';
 
 declare const isNexusWorkflowHandle: unique symbol;
@@ -157,5 +158,176 @@ export class WorkflowRunOperationHandler<I, O> implements nexus.OperationHandler
   async cancel(_ctx: nexus.CancelOperationContext, token: string): Promise<void> {
     const decoded = loadWorkflowRunOperationToken(token);
     await getClient().workflow.getHandle(decoded.wid).cancel();
+  }
+}
+
+/**
+ * Module-private brand and conversion key for {@link TemporalOperationResult}. Doubles as the
+ * type-level brand (so external code can't satisfy the interface) and the runtime accessor
+ * (since the symbol is in scope inside this module).
+ */
+const toHandlerResult: unique symbol = Symbol.for('__temporal_nexus_TemporalOperationResult_toHandlerResult__');
+
+/**
+ * A result produced by a {@link TemporalOperationHandler}. Construct via
+ * {@link TemporalOperationResult.sync} or {@link TemporalOperationResult.async}.
+
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface TemporalOperationResult<T> {
+  readonly [toHandlerResult]: () => nexus.HandlerStartOperationResult<T>;
+}
+
+export const TemporalOperationResult = {
+  sync<T>(value: T): TemporalOperationResult<T> {
+    return {
+      [toHandlerResult](): nexus.HandlerStartOperationResult<T> {
+        return nexus.HandlerStartOperationResult.sync(value);
+      },
+    };
+  },
+
+  async(token: string): TemporalOperationResult<never> {
+    return {
+      [toHandlerResult](): nexus.HandlerStartOperationResult<never> {
+        return nexus.HandlerStartOperationResult.async(token);
+      },
+    };
+  },
+};
+
+/**
+ * A Nexus-aware Temporal Client for use inside {@link TemporalOperationHandler} implementations.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface TemporalNexusClient {
+  /**
+   * The Temporal Client for the active Nexus Operation.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  readonly client: Client;
+
+  /**
+   * Starts a workflow run as the asynchronous backing operation for the current Nexus Operation.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  startWorkflow<T extends Workflow>(
+    workflowTypeOrFunc: string | T,
+    workflowOptions: WorkflowStartOptions<T>
+  ): Promise<TemporalOperationResult<WorkflowResultType<T>>>;
+}
+
+class TemporalNexusClientImpl implements TemporalNexusClient {
+  private asyncOperationStarted = false;
+
+  constructor(private readonly startOperationContext: nexus.StartOperationContext) {}
+
+  /**
+   * The Temporal Client for the active Nexus Operation.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  public get client(): Client {
+    return getClient();
+  }
+
+  /**
+   * Starts a workflow run as the asynchronous backing operation for the current Nexus Operation.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  public async startWorkflow<T extends Workflow>(
+    workflowTypeOrFunc: string | T,
+    workflowOptions: WorkflowStartOptions<T>
+  ): Promise<TemporalOperationResult<WorkflowResultType<T>>> {
+    return await this.withAsyncOperationStartReservation(async () => {
+      const handle = await startWorkflow(this.startOperationContext, workflowTypeOrFunc, workflowOptions);
+      const { namespace } = getHandlerContext();
+      return TemporalOperationResult.async(generateWorkflowRunOperationToken(namespace, handle.workflowId));
+    });
+  }
+
+  private async withAsyncOperationStartReservation<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.asyncOperationStarted) {
+      throw new nexus.HandlerError(
+        'BAD_REQUEST',
+        'Only one async operation can be started per operation handler invocation. Use TemporalNexusClient.client for additional workflow interactions'
+      );
+    }
+
+    this.asyncOperationStarted = true;
+    try {
+      return await fn();
+    } catch (err) {
+      this.asyncOperationStarted = false;
+      throw err;
+    }
+  }
+}
+
+/**
+ * A handler function for the {@link TemporalOperationHandler} constructor.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export type TemporalOperationStartHandler<I, O> = (
+  ctx: nexus.StartOperationContext,
+  client: TemporalNexusClient,
+  input: I
+) => Promise<TemporalOperationResult<O>>;
+
+/**
+ * A Nexus Operation implementation for operations that interact with Temporal.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I, O> {
+  constructor(readonly handler: TemporalOperationStartHandler<I, O>) {}
+
+  async start(ctx: nexus.StartOperationContext, input: I): Promise<nexus.HandlerStartOperationResult<O>> {
+    const result = await this.handler(ctx, new TemporalNexusClientImpl(ctx), input);
+    return result[toHandlerResult]();
+  }
+
+  async cancel(_ctx: nexus.CancelOperationContext, token: string): Promise<void> {
+    const { namespace } = getHandlerContext();
+    let opToken;
+    try {
+      opToken = loadOperationToken(token);
+    } catch (err) {
+      throw new nexus.HandlerError(nexus.HandlerErrorType.BAD_REQUEST, 'invalid operation token', { cause: err });
+    }
+
+    if (opToken.ns !== namespace) {
+      throw new nexus.HandlerError(
+        nexus.HandlerErrorType.BAD_REQUEST,
+        `Client namespace ${namespace} does not match operation token namespace ${opToken.ns}`
+      );
+    }
+    switch (opToken.t) {
+      case OperationTokenType.WORKFLOW_RUN:
+        assertWorkflowRunOperationToken(opToken);
+        await this.cancelWorkflowRun(_ctx, opToken.wid);
+        return;
+      default:
+        throw new nexus.HandlerError(
+          nexus.HandlerErrorType.BAD_REQUEST,
+          `Unsupported operation token type: ${opToken.t}`
+        );
+    }
+  }
+
+  /**
+   * Cancel the workflow backing this Nexus Operation.
+   *
+   * Override this method to customize workflow cancellation behavior.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  protected async cancelWorkflowRun(_ctx: nexus.CancelOperationContext, workflowId: string): Promise<void> {
+    await getClient().workflow.getHandle(workflowId).cancel();
   }
 }
