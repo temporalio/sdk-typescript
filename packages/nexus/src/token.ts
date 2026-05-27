@@ -28,10 +28,6 @@ export interface OperationToken {
   wid?: string;
 }
 
-/**
- * @internal
- * @hidden
- */
 export interface WorkflowRunOperationToken extends OperationToken {
   t: typeof OperationTokenType.WORKFLOW_RUN;
   wid: string;

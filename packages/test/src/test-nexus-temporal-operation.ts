@@ -94,14 +94,9 @@ export async function temporalRetryAfterFailedStartOpCaller(endpoint: string, wo
 
 export async function temporalDefaultCancelWorkflowCaller(endpoint: string, targetWorkflowId: string): Promise<void> {
   const client = workflow.createNexusServiceClient({ endpoint, service: temporalCancelOpService });
-  try {
-    await client.executeOperation('blockingOp', targetWorkflowId, {
-      cancellationType: 'WAIT_CANCELLATION_COMPLETED',
-    });
-  } catch (err) {
-    if (workflow.isCancellation(err)) return;
-    throw err;
-  }
+  await client.executeOperation('blockingOp', targetWorkflowId, {
+    cancellationType: 'WAIT_CANCELLATION_COMPLETED',
+  });
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -209,8 +204,6 @@ test('TemporalOperationHandler cancel delegates to overridable cancelWorkflow', 
     await waitUntil(async () => (await operation.describe()).status === NexusOperationExecutionStatus.CANCELED, 4000);
     await waitUntil(async () => (await workflowHandle.describe()).status.name === 'CANCELLED', 4000);
 
-    t.is((await operation.describe()).status, NexusOperationExecutionStatus.CANCELED);
-    t.is((await workflowHandle.describe()).status.name, 'CANCELLED');
     t.true(customCancelCalled);
   });
 });
@@ -218,7 +211,7 @@ test('TemporalOperationHandler cancel delegates to overridable cancelWorkflow', 
 test('TemporalOperationHandler cancel rejects invalid operation token type', async (t) => {
   class CustomCancelHandler extends temporalnexus.TemporalOperationHandler<void, void> {
     async cancelWorkflowRun(_ctx: nexus.CancelOperationContext, _workflowId: string): Promise<void> {
-      throw new Error('cancelWorkflow should not be called');
+      throw new Error('cancelWorkflowRun should not be called');
     }
   }
 
@@ -349,7 +342,9 @@ test('TemporalOperationHandler allows retry after failed async start', async (t)
                 args: [workflowId],
               });
             }
-            throw new nexus.HandlerError('INTERNAL', 'Expected first workflow start to fail');
+            throw new nexus.HandlerError('INTERNAL', 'Expected first workflow start to fail', {
+              retryableOverride: false,
+            });
           }
         ),
       }),
@@ -371,7 +366,7 @@ test('TemporalOperationHandler allows retry after failed async start', async (t)
   });
 });
 
-test('TemporalOperationHandler default cancelWorkflow cancels backing workflow', async (t) => {
+test('TemporalOperationHandler default cancelWorkflowRun cancels backing workflow', async (t) => {
   const { createWorker, startWorkflow, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
   const targetWorkflowId = randomUUID();
@@ -402,9 +397,8 @@ test('TemporalOperationHandler default cancelWorkflow cancels backing workflow',
     t.is((await targetHandle.describe()).status.name, 'RUNNING');
 
     await callerHandle.cancel();
-    await callerHandle.result();
 
+    await waitUntil(async () => (await callerHandle.describe()).status.name === 'CANCELLED', 4000);
     await waitUntil(async () => (await targetHandle.describe()).status.name === 'CANCELLED', 4000);
-    t.is((await targetHandle.describe()).status.name, 'CANCELLED');
   });
 });

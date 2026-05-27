@@ -187,9 +187,9 @@ export const TemporalOperationResult = {
     };
   },
 
-  async(token: string): TemporalOperationResult<never> {
+  async<T = unknown>(token: string): TemporalOperationResult<T> {
     return {
-      [toHandlerResult](): nexus.HandlerStartOperationResult<never> {
+      [toHandlerResult](): nexus.HandlerStartOperationResult<T> {
         return nexus.HandlerStartOperationResult.async(token);
       },
     };
@@ -292,7 +292,7 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
     return result[toHandlerResult]();
   }
 
-  async cancel(_ctx: nexus.CancelOperationContext, token: string): Promise<void> {
+  async cancel(ctx: nexus.CancelOperationContext, token: string): Promise<void> {
     const { namespace } = getHandlerContext();
     let opToken;
     try {
@@ -310,7 +310,7 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
     switch (opToken.t) {
       case OperationTokenType.WORKFLOW_RUN:
         assertWorkflowRunOperationToken(opToken);
-        await this.cancelWorkflowRun(_ctx, opToken.wid);
+        await this.cancelWorkflowRun(ctx, opToken.wid);
         return;
       default:
         throw new nexus.HandlerError(
