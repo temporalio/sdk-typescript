@@ -1,5 +1,5 @@
 {
-  "name": "@temporalio/strands",
+  "name": "@temporalio/strands-agents",
   "version": "1.17.2",
   "description": "Temporal Strands Agents integration package",
   "main": "lib/index.js",

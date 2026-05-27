@@ -7,7 +7,7 @@ This Temporal [Plugin](https://docs.temporal.io/develop/plugins-guide) allows yo
 ## Installation
 
 ```sh
-npm install @temporalio/strands @strands-agents/sdk
+npm install @temporalio/strands-agents @strands-agents/sdk
 ```
 
 ## Quickstart
@@ -16,7 +16,7 @@ npm install @temporalio/strands @strands-agents/sdk
 
 ```ts
 import { proxyActivities, defineWorkflow } from '@temporalio/workflow';
-import { TemporalAgent } from '@temporalio/strands';
+import { TemporalAgent } from '@temporalio/strands-agents';
 
 export async function myWorkflow(prompt: string): Promise<string> {
   const agent = new TemporalAgent({
@@ -31,7 +31,7 @@ export async function myWorkflow(prompt: string): Promise<string> {
 
 ```ts
 import { Worker, NativeConnection } from '@temporalio/worker';
-import { StrandsPlugin } from '@temporalio/strands';
+import { StrandsPlugin } from '@temporalio/strands-agents';
 
 const connection = await NativeConnection.connect({ address: 'localhost:7233' });
 const worker = await Worker.create({
@@ -65,7 +65,7 @@ console.log(result);
 ```ts
 import { BedrockModel } from '@strands-agents/sdk/models/bedrock';
 import { AnthropicModel } from '@strands-agents/sdk/models/anthropic';
-import { TemporalAgent, StrandsPlugin } from '@temporalio/strands';
+import { TemporalAgent, StrandsPlugin } from '@temporalio/strands-agents';
 
 // workflow
 export async function multiModelWorkflow(prompt: string): Promise<string> {
@@ -165,7 +165,7 @@ export async function fetchUser(userId: string): Promise<{ name: string }> {
 }
 
 // workflow.ts
-import { workflow as strandsWorkflow, TemporalAgent } from '@temporalio/strands';
+import { workflow as strandsWorkflow, TemporalAgent } from '@temporalio/strands-agents';
 import { z } from 'zod';
 
 export async function toolsWorkflow(prompt: string) {
@@ -203,7 +203,7 @@ export async function persistToolCall(toolName: string): Promise<void> {
 }
 
 // workflow.ts
-import { workflow as strandsWorkflow } from '@temporalio/strands';
+import { workflow as strandsWorkflow } from '@temporalio/strands-agents';
 import { AfterToolCallEvent } from '@strands-agents/sdk';
 
 const auditCallback = strandsWorkflow.activityAsHook<AfterToolCallEvent, string>(
@@ -237,7 +237,7 @@ const client = new Client({ /* ... */, plugins: [new StrandsPlugin({ models })] 
 
 ```ts
 import { McpClient } from '@strands-agents/sdk';
-import { TemporalMCPClient } from '@temporalio/strands';
+import { TemporalMCPClient } from '@temporalio/strands-agents';
 
 // workflow
 export async function mcpWorkflow(prompt: string) {
