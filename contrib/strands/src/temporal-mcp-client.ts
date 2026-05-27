@@ -1,6 +1,7 @@
 import { McpClient } from '@strands-agents/sdk';
 import type { JSONValue } from '@strands-agents/sdk';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
 import { activityInfo, Context as ActivityContext } from '@temporalio/activity';
 
@@ -65,15 +66,12 @@ export interface TemporalMCPClientOptions {
  * This handle only carries the server name (which selects the registered
  * factory) and the per-call activity options.
  *
- * Construct once at module level and pass to
- * `TemporalAgent({ tools: [...] })` inside the workflow. Multiple handles
- * may reference the same server name with different activity options.
- *
  * Extends {@link McpClient} so it can be passed directly in an
  * {@link AgentConfig.tools | Agent.tools} array (Strands' `flattenTools`
  * dispatches on `instanceof McpClient`). `connect()` and `disconnect()`
- * are no-ops; `listTools()` and `callTool()` dispatch to per-server
- * Temporal activities registered by {@link StrandsPlugin}.
+ * are no-ops; `listTools()` returns lightweight {@link TemporalMCPTool}
+ * wrappers whose `stream()` dispatches to the per-server `{server}-callTool`
+ * activity registered by {@link StrandsPlugin}.
  */
 export class TemporalMCPClient extends McpClient {
   private readonly server: string;
@@ -93,38 +91,23 @@ export class TemporalMCPClient extends McpClient {
     // No-op.
   }
 
+  // The base `McpClient.listTools` returns `Promise<McpTool[]>`, but `McpTool`
+  // isn't re-exported from `@strands-agents/sdk`'s public index. The cast to
+  // `never[]` keeps the override compatible; the agent only uses
+  // `name`/`toolSpec`/`stream` on each tool, all of which
+  // {@link TemporalMCPTool} provides.
   override async listTools(): Promise<never[]> {
     // Imported lazily to avoid a circular module cycle with TemporalMCPTool.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { TemporalMCPTool } = require('./temporal-mcp-tool') as typeof import('./temporal-mcp-tool');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const workflow = require('@temporalio/workflow') as typeof import('@temporalio/workflow');
     const activities = workflow.proxyActivities<{
       [key: string]: (args: { server: string }) => Promise<McpToolInfo[]>;
     }>({
       startToCloseTimeout: '10 minutes',
       ...this.activityOptions,
     });
-    const activityName = listToolsActivityName(this.server);
-    const infos = await activities[activityName]!({ server: this.server });
-    // Strands' Agent stores listTools() results as Tool[]; TemporalMCPTool extends
-    // Tool. Cast widens the return so we don't have to import the unexported
-    // McpTool concrete class from Strands.
+    const infos = await activities[listToolsActivityName(this.server)]!({ server: this.server });
     return infos.map((info) => new TemporalMCPTool(this.server, info, this.activityOptions)) as never[];
-  }
-
-  override async callTool(
-    _tool: { name: string },
-    _args: JSONValue,
-    _options?: { signal?: AbortSignal }
-  ): Promise<JSONValue> {
-    // Unused: TemporalMCPTool dispatches the {server}-callTool activity directly
-    // in its `stream()`. We never call back into the McpClient.callTool path,
-    // so this override exists only to short-circuit the base class's connect
-    // attempt in case some other Strands code path reaches it.
-    throw new Error(
-      'TemporalMCPClient.callTool should not be called directly; use TemporalMCPTool.stream() instead.'
-    );
   }
 }
 
@@ -158,9 +141,9 @@ export function buildListToolsActivity(server: string): (input: { server: string
 export function buildCallToolActivity(
   server: string,
   factory: () => McpClient
-): (input: { toolName: string; args: unknown }) => Promise<JSONValue> {
+): (input: CallToolInput) => Promise<JSONValue> {
   const name = callToolActivityName(server);
-  const fn = async (input: { toolName: string; args: unknown }): Promise<JSONValue> => {
+  const fn = async (input: CallToolInput): Promise<JSONValue> => {
     ActivityContext.current().log.debug(`Calling MCP tool ${input.toolName} on server ${server}`, {
       activityId: activityInfo().activityId,
     });
@@ -172,7 +155,7 @@ export function buildCallToolActivity(
       if (tool === undefined) {
         throw new Error(`MCP tool '${input.toolName}' not found on server '${server}'`);
       }
-      return await client.callTool(tool, input.args as JSONValue);
+      return await client.callTool(tool, input.args);
     } finally {
       await client.disconnect();
     }

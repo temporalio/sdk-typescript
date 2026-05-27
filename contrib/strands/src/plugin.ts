@@ -1,5 +1,6 @@
 import type { McpClient} from '@strands-agents/sdk';
 import { BedrockModel, type Model } from '@strands-agents/sdk';
+import type { BundleOptions } from '@temporalio/worker';
 import { SimplePlugin } from '@temporalio/plugin';
 import { ModelActivity } from './model-activity';
 import {
@@ -88,5 +89,56 @@ export class StrandsPlugin extends SimplePlugin {
         failureConverterPath: require.resolve('./failure-converter'),
       },
     });
+  }
+
+  /**
+   * Extend the bundler config so workflow code can bundle `@strands-agents/sdk`:
+   *
+   * - Ignore `fs` (statically imported by the SDK's `vended-plugins` and
+   *   `vended-tools` modules, which are reachable from the index but
+   *   unreachable from workflow code).
+   *
+   * - Replace the dynamic-imported MCP transport helpers
+   *   (`@modelcontextprotocol/sdk/client/stdio.js`/`sse.js` and their `node:*`
+   *   dependencies) with an empty module. They live in `mcp-config.js`'s
+   *   server-only code paths.
+   *
+   * - Inline async chunks so the bundle stays a single file — webpack's
+   *   default JSONP chunk loader references `self`/`document`, neither of
+   *   which exists in the workflow VM.
+   */
+  override configureBundler(options: BundleOptions): BundleOptions {
+    const base = super.configureBundler(options);
+    const prevHook = base.webpackConfigHook;
+    const ignoreModules = [...(base.ignoreModules ?? []), 'fs'];
+    return {
+      ...base,
+      ignoreModules,
+      webpackConfigHook: (config) => {
+        (config.output ??= {}).asyncChunks = false;
+        (config.optimization ??= {}).splitChunks = false;
+
+        // Reach webpack via the constructor of an existing plugin instance —
+        // the strands plugin doesn't list webpack as a direct dependency.
+        const existing = (config.plugins ?? [])[0] as
+          | { constructor: new (regex: RegExp, replacement: (data: { request: string }) => void) => unknown }
+          | undefined;
+        if (existing) {
+          const NormalModuleReplacementPlugin = existing.constructor;
+          const empty = require.resolve('./empty-module');
+          const ignorePattern =
+            /^(?:node:(?:fs\/promises|os|path|process|stream)|@modelcontextprotocol\/sdk\/client\/(?:stdio|sse)\.js)$/;
+          // Cast through `unknown` because the strands plugin doesn't list
+          // webpack as a dependency and therefore lacks its types.
+          config.plugins = (config.plugins ?? []).concat(
+            new NormalModuleReplacementPlugin(ignorePattern, (data: { request: string }) => {
+              data.request = empty;
+            }) as unknown as never
+          );
+        }
+
+        return prevHook ? prevHook(config) : config;
+      },
+    };
   }
 }

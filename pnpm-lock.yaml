@@ -251,10 +251,10 @@ importers:
     devDependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.2
-        version: 1.26.0(zod@3.25.76)
+        version: 1.26.0(zod@4.4.3)
       '@strands-agents/sdk':
         specifier: ^1.3.0
-        version: 1.3.0(@ai-sdk/provider@3.0.0)(@modelcontextprotocol/sdk@1.26.0(zod@3.25.76))(@opentelemetry/api@1.9.0)(@smithy/types@4.14.1)(express@5.2.1)(zod@3.25.76)
+        version: 1.3.0(@ai-sdk/provider@3.0.0)(@modelcontextprotocol/sdk@1.26.0(zod@4.4.3))(@opentelemetry/api@1.9.0)(@smithy/types@4.14.1)(express@5.2.1)(zod@4.4.3)
       '@temporalio/client':
         specifier: workspace:*
         version: link:../../packages/client
@@ -274,8 +274,8 @@ importers:
         specifier: ^5.3.1
         version: 5.3.1
       zod:
-        specifier: ^3.25.76
-        version: 3.25.76
+        specifier: ^4.1.12
+        version: 4.4.3
 
   contrib/workflow-streams:
     dependencies:
@@ -5547,6 +5547,9 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+
 snapshots:
 
   '@aashutoshrathi/word-wrap@1.2.6': {}
@@ -6504,6 +6507,28 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@modelcontextprotocol/sdk@1.26.0(zod@4.4.3)':
+    dependencies:
+      '@hono/node-server': 1.19.11(hono@4.12.5)
+      ajv: 8.18.0
+      ajv-formats: 3.0.1(ajv@8.18.0)
+      content-type: 1.0.5
+      cors: 2.8.6
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.0.6
+      express: 5.2.1
+      express-rate-limit: 8.3.0(express@5.2.1)
+      hono: 4.12.5
+      jose: 6.1.3
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 4.4.3
+      zod-to-json-schema: 3.25.1(zod@4.4.3)
+    transitivePeerDependencies:
+      - supports-color
+
   '@nodable/entities@2.1.0': {}
 
   '@nodelib/fs.scandir@2.1.5':
@@ -6938,15 +6963,15 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@strands-agents/sdk@1.3.0(@ai-sdk/provider@3.0.0)(@modelcontextprotocol/sdk@1.26.0(zod@3.25.76))(@opentelemetry/api@1.9.0)(@smithy/types@4.14.1)(express@5.2.1)(zod@3.25.76)':
+  '@strands-agents/sdk@1.3.0(@ai-sdk/provider@3.0.0)(@modelcontextprotocol/sdk@1.26.0(zod@4.4.3))(@opentelemetry/api@1.9.0)(@smithy/types@4.14.1)(express@5.2.1)(zod@4.4.3)':
     dependencies:
       '@aws-sdk/client-bedrock-runtime': 3.1045.0
-      '@modelcontextprotocol/sdk': 1.26.0(zod@3.25.76)
+      '@modelcontextprotocol/sdk': 1.26.0(zod@4.4.3)
       '@opentelemetry/api': 1.9.0
       '@types/json-schema': 7.0.15
       uuid: 14.0.0
       yaml: 2.9.0
-      zod: 3.25.76
+      zod: 4.4.3
     optionalDependencies:
       '@ai-sdk/provider': 3.0.0
       '@smithy/types': 4.14.1
@@ -11001,4 +11026,10 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
+  zod-to-json-schema@3.25.1(zod@4.4.3):
+    dependencies:
+      zod: 4.4.3
+
   zod@3.25.76: {}
+
+  zod@4.4.3: {}

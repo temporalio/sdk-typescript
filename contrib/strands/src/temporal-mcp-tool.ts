@@ -1,13 +1,20 @@
 import { JsonBlock, TextBlock, Tool, ToolResultBlock } from '@strands-agents/sdk';
-import type { ToolContext, ToolSpec, ToolStreamGenerator } from '@strands-agents/sdk';
+import type { JSONValue, ToolContext, ToolSpec, ToolStreamGenerator } from '@strands-agents/sdk';
 import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
-import type { McpToolInfo } from './temporal-mcp-client';
+import type { CallToolInput, McpToolInfo } from './temporal-mcp-client';
 import { callToolActivityName } from './temporal-mcp-client';
 
 /**
- * Workflow-side stub for a single MCP tool. Each call dispatches to the
- * per-server `{server}-callTool` activity built by {@link StrandsPlugin}.
+ * Workflow-side stub for a single MCP tool. Each invocation dispatches the
+ * per-server `{server}-callTool` activity built by {@link StrandsPlugin}, then
+ * maps the raw MCP result (`{ content: [...], isError }`) into Strands
+ * content blocks.
+ *
+ * Text items map to {@link TextBlock}; everything else falls back to
+ * {@link JsonBlock}. Richer mappings (images, embedded resources) would
+ * require `McpTool`, which is bundled in `@strands-agents/sdk` but not
+ * re-exported from its public index.
  */
 export class TemporalMCPTool extends Tool {
   readonly name: string;
@@ -33,7 +40,7 @@ export class TemporalMCPTool extends Tool {
   async *stream(toolContext: ToolContext): ToolStreamGenerator {
     const { toolUseId, input } = toolContext.toolUse;
     const activities = workflow.proxyActivities<{
-      [key: string]: (input: { toolName: string; args: unknown }) => Promise<unknown>;
+      [key: string]: (input: CallToolInput) => Promise<JSONValue>;
     }>({
       summary: this.name,
       startToCloseTimeout: '10 minutes',

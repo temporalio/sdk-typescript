@@ -10,6 +10,7 @@ export {
   type McpToolInfo,
   type CallToolInput,
 } from './temporal-mcp-client';
+export { TemporalMCPTool } from './temporal-mcp-tool';
 export {
   TemporalActivityTool,
   type ActivityAsToolOptions,
