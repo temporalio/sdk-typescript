@@ -35,7 +35,10 @@ test('decode Operation token errors', (t) => {
 
 test('decode workflow run Operation token errors', (t) => {
   const invalidTypeToken = base64URLEncodeNoPadding('{"t":2,"ns":"ns"}');
-  t.throws(() => loadOperationToken(invalidTypeToken), {
+  t.throws(() => loadWorkflowRunOperationToken(invalidTypeToken), {
+    // This currently fails on unknown token type as there are no other existing token types.
+    // When new token types are added this regex will need to be updated to
+    //  /invalid workflow token type: 2/
     message: /invalid operation token: unknown token type: 2/,
   });
 
