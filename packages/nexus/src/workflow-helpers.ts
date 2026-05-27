@@ -280,15 +280,30 @@ export type TemporalOperationStartHandler<I, O> = (
 ) => Promise<TemporalOperationResult<O>>;
 
 /**
+ * Options for customizing a {@link TemporalOperationHandler}.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface TemporalOperationHandlerOptions {
+  cancelWorkflowRun?: (ctx: nexus.CancelOperationContext, client: Client, workflowId: string) => Promise<void>;
+}
+
+/**
  * A Nexus Operation implementation for operations that interact with Temporal.
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
 export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I, O> {
-  constructor(readonly handler: TemporalOperationStartHandler<I, O>) {}
+  private readonly startHandler: TemporalOperationStartHandler<I, O>;
+  private readonly cancelWorkflowRunHandler: NonNullable<TemporalOperationHandlerOptions['cancelWorkflowRun']>;
+
+  constructor(options: { start: TemporalOperationStartHandler<I, O> } & TemporalOperationHandlerOptions) {
+    this.startHandler = options.start;
+    this.cancelWorkflowRunHandler = options.cancelWorkflowRun ?? defaultCancelWorkflowRun;
+  }
 
   async start(ctx: nexus.StartOperationContext, input: I): Promise<nexus.HandlerStartOperationResult<O>> {
-    const result = await this.handler(ctx, new TemporalNexusClientImpl(ctx), input);
+    const result = await this.startHandler(ctx, new TemporalNexusClientImpl(ctx), input);
     return result[toHandlerResult]();
   }
 
@@ -309,8 +324,14 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
     }
     switch (opToken.t) {
       case OperationTokenType.WORKFLOW_RUN:
-        assertWorkflowRunOperationToken(opToken);
-        await this.cancelWorkflowRun(ctx, opToken.wid);
+        try {
+          assertWorkflowRunOperationToken(opToken);
+        } catch (err) {
+          throw new nexus.HandlerError(nexus.HandlerErrorType.BAD_REQUEST, 'invalid workflow run operation token', {
+            cause: err,
+          });
+        }
+        await this.cancelWorkflowRunHandler(ctx, getClient(), opToken.wid);
         return;
       default:
         throw new nexus.HandlerError(
@@ -319,15 +340,8 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
         );
     }
   }
+}
 
-  /**
-   * Cancel the workflow backing this Nexus Operation.
-   *
-   * Override this method to customize workflow cancellation behavior.
-   *
-   * @experimental Nexus support in Temporal SDK is experimental.
-   */
-  protected async cancelWorkflowRun(_ctx: nexus.CancelOperationContext, workflowId: string): Promise<void> {
-    await getClient().workflow.getHandle(workflowId).cancel();
-  }
+async function defaultCancelWorkflowRun(_ctx: nexus.CancelOperationContext, client: Client, workflowId: string) {
+  await client.workflow.getHandle(workflowId).cancel();
 }

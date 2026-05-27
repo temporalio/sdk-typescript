@@ -1,6 +1,5 @@
 /**
- * OperationTokenType is used to identify the type of Operation token.
- * Currently, we only have one type of Operation token: WorkflowRun.
+ * Serializable token identifying a Nexus operation target.
  *
  * @internal
  * @hidden
@@ -28,11 +27,24 @@ export interface OperationToken {
   wid?: string;
 }
 
+/**
+ * An OperationToken that identifies a WorkflowRun operation.
+ *
+ * @internal
+ * @hidden
+ */
 export interface WorkflowRunOperationToken extends OperationToken {
   t: typeof OperationTokenType.WORKFLOW_RUN;
   wid: string;
 }
 
+/**
+ * OperationTokenType is used to identify the type of Operation token.
+ * Currently, we only have one type of Operation token: WorkflowRun.
+ *
+ * @internal
+ * @hidden
+ */
 export type OperationTokenType = (typeof OperationTokenType)[keyof typeof OperationTokenType];
 
 /**

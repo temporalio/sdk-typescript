@@ -49,8 +49,10 @@ type TemporalOpServiceHandlers = nexus.ServiceHandlerFor<typeof temporalOpServic
 type TemporalCancelOpServiceHandlers = nexus.ServiceHandlerFor<typeof temporalCancelOpService.operations>;
 
 function unusedTemporalOperationHandler<I, O>(): nexus.OperationHandler<I, O> {
-  return new temporalnexus.TemporalOperationHandler<I, O>(async () => {
-    throw new nexus.HandlerError('NOT_IMPLEMENTED', 'not used by this test');
+  return new temporalnexus.TemporalOperationHandler<I, O>({
+    async start() {
+      throw new nexus.HandlerError('NOT_IMPLEMENTED', 'not used by this test');
+    },
   });
 }
 
@@ -114,67 +116,68 @@ export async function blockingTargetWorkflow(): Promise<void> {
 // Tests
 
 test('TemporalOperationHandler infers correct output type from typed workflow function', async (t) => {
-  const _stringOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler(
-    async (_ctx, client, input: string) => {
+  const _stringOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler({
+    async start(_ctx, client, input: string) {
       return await client.startWorkflow(echoWorkflow, {
         args: [input],
         workflowId: 'test',
       });
-    }
-  );
+    },
+  });
 
   // @ts-expect-error - Output type should be string, not number
-  const _mismatchedOp: nexus.OperationHandler<string, number> = new temporalnexus.TemporalOperationHandler(
-    async (_ctx, client, input: string) => {
+  const _mismatchedOp: nexus.OperationHandler<string, number> = new temporalnexus.TemporalOperationHandler({
+    async start(_ctx, client, input: string) {
       return await client.startWorkflow(echoWorkflow, {
         args: [input],
         workflowId: 'test',
       });
-    }
-  );
+    },
+  });
 
-  const _syncOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler(
-    async (_ctx, _client, input: string) => {
+  const _syncOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler({
+    async start(_ctx, _client, input: string) {
       return temporalnexus.TemporalOperationResult.sync(input);
-    }
-  );
+    },
+  });
 
   const _explicitStringOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler<
     string,
     string
-  >(async (_ctx, client, input) => {
-    return await client.startWorkflow(echoWorkflow, {
-      args: [input],
-      workflowId: 'test',
-    });
+  >({
+    async start(_ctx, client, input) {
+      return await client.startWorkflow(echoWorkflow, {
+        args: [input],
+        workflowId: 'test',
+      });
+    },
   });
 
   // This test only checks for compile-time errors.
   t.pass();
 });
 
-test('TemporalOperationHandler cancel delegates to overridable cancelWorkflow', async (t) => {
+test('TemporalOperationHandler cancel delegates to provided cancelWorkflowRun handler', async (t) => {
   const { createWorker, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
   const workflowId = randomUUID();
 
   let customCancelCalled = false;
 
-  class CustomCancelHandler extends temporalnexus.TemporalOperationHandler<string, void> {
-    async cancelWorkflowRun(_ctx: nexus.CancelOperationContext, workflowId: string): Promise<void> {
-      const handle = temporalnexus.getClient().workflow.getHandle(workflowId);
-      await handle.cancel();
-      customCancelCalled = true;
-    }
-  }
-
   const worker = await createWorker({
     nexusServices: [
       makeTemporalCancelOpServiceHandler({
-        blockingOp: new CustomCancelHandler(async (_ctx, client, workflowId) => {
-          return await client.startWorkflow(blockingTargetWorkflow, {
-            workflowId,
-          });
+        blockingOp: new temporalnexus.TemporalOperationHandler({
+          async start(_ctx, client, workflowId) {
+            return await client.startWorkflow(blockingTargetWorkflow, {
+              workflowId,
+            });
+          },
+          async cancelWorkflowRun(_ctx, client, workflowId) {
+            const handle = client.workflow.getHandle(workflowId);
+            await handle.cancel();
+            customCancelCalled = true;
+          },
         }),
       }),
     ],
@@ -208,14 +211,16 @@ test('TemporalOperationHandler cancel delegates to overridable cancelWorkflow', 
   });
 });
 
-test('TemporalOperationHandler cancel rejects invalid operation token type', async (t) => {
-  class CustomCancelHandler extends temporalnexus.TemporalOperationHandler<void, void> {
-    async cancelWorkflowRun(_ctx: nexus.CancelOperationContext, _workflowId: string): Promise<void> {
-      throw new Error('cancelWorkflowRun should not be called');
-    }
-  }
+test('TemporalOperationHandler.cancel rejects invalid operation token type before invoking cancellation hooks', async (t) => {
+  const handler = new temporalnexus.TemporalOperationHandler({
+    async start(_ctx, _client, _input) {
+      return temporalnexus.TemporalOperationResult.sync(undefined);
+    },
 
-  const handler = new CustomCancelHandler(async () => temporalnexus.TemporalOperationResult.sync(undefined));
+    async cancelWorkflowRun(_ctx, _client, _workflowId) {
+      throw new Error('cancelWorkflowRun should not be called');
+    },
+  });
   const token = base64URLEncodeNoPadding(JSON.stringify({ t: 2, ns: 'test-namespace' }));
 
   const err = await asyncLocalStorage.run(
@@ -252,14 +257,18 @@ test('TemporalOperationHandler async and sync happy paths - caller workflow', as
   const worker = await createWorker({
     nexusServices: [
       makeTemporalOpServiceHandler({
-        asyncOp: new temporalnexus.TemporalOperationHandler<string, string>(async (_ctx, client, input) => {
-          return await client.startWorkflow(echoWorkflow, {
-            workflowId: randomUUID(),
-            args: [input],
-          });
+        asyncOp: new temporalnexus.TemporalOperationHandler<string, string>({
+          async start(_ctx, client, input) {
+            return await client.startWorkflow(echoWorkflow, {
+              workflowId: randomUUID(),
+              args: [input],
+            });
+          },
         }),
-        syncOp: new temporalnexus.TemporalOperationHandler<string, string>(async (_ctx, _client, input) => {
-          return temporalnexus.TemporalOperationResult.sync(input);
+        syncOp: new temporalnexus.TemporalOperationHandler<string, string>({
+          async start(_ctx, _client, input) {
+            return temporalnexus.TemporalOperationResult.sync(input);
+          },
         }),
       }),
     ],
@@ -285,16 +294,18 @@ test('TemporalOperationHandler rejects multiple async starts', async (t) => {
   const worker = await createWorker({
     nexusServices: [
       makeTemporalOpServiceHandler({
-        doubleStartOp: new temporalnexus.TemporalOperationHandler<string, void>(async (_ctx, client, input) => {
-          await client.startWorkflow(echoWorkflow, {
-            workflowId: randomUUID(),
-            args: [input],
-          });
-          await client.startWorkflow(echoWorkflow, {
-            workflowId: randomUUID(),
-            args: [input],
-          });
-          throw new nexus.HandlerError('INTERNAL', 'expected previous error to be thrown');
+        doubleStartOp: new temporalnexus.TemporalOperationHandler<string, void>({
+          async start(_ctx, client, input) {
+            await client.startWorkflow(echoWorkflow, {
+              workflowId: randomUUID(),
+              args: [input],
+            });
+            await client.startWorkflow(echoWorkflow, {
+              workflowId: randomUUID(),
+              args: [input],
+            });
+            throw new nexus.HandlerError('INTERNAL', 'expected previous error to be thrown');
+          },
         }),
       }),
     ],
@@ -326,8 +337,8 @@ test('TemporalOperationHandler allows retry after failed async start', async (t)
   const worker = await createWorker({
     nexusServices: [
       makeTemporalOpServiceHandler({
-        retryAfterFailedStartOp: new temporalnexus.TemporalOperationHandler<string, string>(
-          async (_ctx, client, workflowId) => {
+        retryAfterFailedStartOp: new temporalnexus.TemporalOperationHandler<string, string>({
+          async start(_ctx, client, workflowId) {
             try {
               await client.startWorkflow(blockingTargetWorkflow, {
                 workflowId,
@@ -345,8 +356,8 @@ test('TemporalOperationHandler allows retry after failed async start', async (t)
             throw new nexus.HandlerError('INTERNAL', 'Expected first workflow start to fail', {
               retryableOverride: false,
             });
-          }
-        ),
+          },
+        }),
       }),
     ],
   });
@@ -374,10 +385,12 @@ test('TemporalOperationHandler default cancelWorkflowRun cancels backing workflo
   const worker = await createWorker({
     nexusServices: [
       makeTemporalCancelOpServiceHandler({
-        blockingOp: new temporalnexus.TemporalOperationHandler<string, void>(async (_ctx, client, workflowId) => {
-          return await client.startWorkflow(blockingTargetWorkflow, {
-            workflowId,
-          });
+        blockingOp: new temporalnexus.TemporalOperationHandler<string, void>({
+          async start(_ctx, client, workflowId) {
+            return await client.startWorkflow(blockingTargetWorkflow, {
+              workflowId,
+            });
+          },
         }),
       }),
     ],

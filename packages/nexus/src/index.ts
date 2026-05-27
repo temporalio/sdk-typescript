@@ -15,6 +15,7 @@ export {
 
 export {
   startWorkflow,
+  type TemporalOperationHandlerOptions,
   TemporalOperationHandler,
   TemporalOperationResult,
   type TemporalNexusClient,
