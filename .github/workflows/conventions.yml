@@ -47,7 +47,7 @@ jobs:
           env-vars: ''
           save-if: false
 
-      # eslint-import-resolver-typescript requires packages to be built
+      # The oxlint import-rule bridge resolves built package entry points.
       - name: Compile all non-rust code
         run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
 

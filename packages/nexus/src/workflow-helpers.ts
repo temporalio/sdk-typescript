@@ -6,12 +6,7 @@ import { type temporal } from '@temporalio/proto';
 import type { InternalWorkflowStartOptions } from '@temporalio/client/lib/internal';
 import { InternalWorkflowStartOptionsSymbol } from '@temporalio/client/lib/internal';
 import { generateWorkflowRunOperationToken, loadWorkflowRunOperationToken } from './token';
-import {
-  convertNexusLinkToTemporalLink,
-  convertNexusLinkToWorkflowEventLink,
-  convertTemporalLinkToNexusLink,
-  convertWorkflowEventLinkToNexusLink,
-} from './link-converter';
+import { convertNexusLinkToTemporalLink, convertTemporalLinkToNexusLink } from './link-converter';
 import { getClient, getHandlerContext, log } from './context';
 
 declare const isNexusWorkflowHandle: unique symbol;

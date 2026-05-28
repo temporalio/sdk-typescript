@@ -163,6 +163,7 @@ test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if a logger i
 test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if class is extended', async (t) => {
   class CustomActivityInboundLogInterceptor extends ActivityInboundLogInterceptor {
     protected logAttributes(): Record<string, unknown> {
+      // oxlint-disable-next-line typescript/no-deprecated -- this test intentionally exercises the legacy interceptor.
       const { namespace: _, ...rest } = super.logAttributes();
       return {
         ...rest,

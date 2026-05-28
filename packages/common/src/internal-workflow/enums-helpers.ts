@@ -116,7 +116,7 @@ export function makeProtoEnumConverters<
   ProtoEnumValue extends number,
   ProtoEnum extends { [k in ProtoEnumKey]: ProtoEnumValue },
   ProtoEnumKey extends `${Prefix}${string}`,
-  StringEnumTypeActual extends Exact<StringEnumType, StringEnumTypeActual>,
+  _StringEnumTypeActual extends Exact<StringEnumType, _StringEnumTypeActual>,
   Prefix extends string,
   //
   // Parameters after this point will be inferred; they're not meant not to be specified by developers

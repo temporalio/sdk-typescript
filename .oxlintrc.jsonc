@@ -1,0 +1,242 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "options": {
+    "typeAware": true,
+    "respectEslintDisableDirectives": true,
+    "reportUnusedDisableDirectives": "off"
+  },
+  "plugins": ["typescript", "import"],
+  // Bridge import rules that are not available natively in the oxlint version allowed by the release-age policy.
+  "jsPlugins": [{ "name": "import-js", "specifier": "eslint-plugin-import" }],
+  "categories": {
+    "correctness": "off",
+    "suspicious": "off",
+    "pedantic": "off",
+    "perf": "off",
+    "style": "off",
+    "restriction": "off",
+    "nursery": "off"
+  },
+  "ignorePatterns": ["**/node_modules/**", "**/lib/**", "**/*.js", "**/*.mjs", "**/*.cjs"],
+  "settings": {
+    "import/parsers": { "@typescript-eslint/parser": [".ts"] },
+    "import/resolver": {
+      "typescript": {
+        "alwaysTryTypes": true,
+        "project": ["packages/*/tsconfig.json", "contrib/*/tsconfig.json"]
+      }
+    },
+    "import/internal-regex": "^@temporalio/"
+  },
+  "overrides": [
+    {
+      "files": ["packages/common/src/encoding.ts"],
+      "rules": {
+        "no-fallthrough": "off"
+      }
+    },
+    {
+      "files": [
+        "packages/test/src/payload-converters/payload-converter-no-export.ts",
+        "packages/worker/src/workflow/module-overrides/*.ts"
+      ],
+      "rules": {
+        "import/unambiguous": "off"
+      }
+    }
+  ],
+  "rules": {
+    "for-direction": "error",
+    "no-async-promise-executor": "error",
+    "no-case-declarations": "error",
+    "no-compare-neg-zero": "error",
+    "no-cond-assign": ["error", "except-parens"],
+    "no-constant-binary-expression": "error",
+    "no-constant-condition": ["error", { "checkLoops": "allExceptWhileTrue" }],
+    "no-control-regex": "error",
+    "no-debugger": "error",
+    "no-delete-var": "error",
+    "no-dupe-else-if": "error",
+    "no-duplicate-case": "error",
+    "no-empty": ["error", { "allowEmptyCatch": false }],
+    "no-empty-character-class": "error",
+    "no-empty-pattern": ["error", { "allowObjectPatternsAsParameters": false }],
+    "no-empty-static-block": "error",
+    "no-ex-assign": "error",
+    "no-extra-boolean-cast": "error",
+    "no-fallthrough": "error",
+    "no-global-assign": "error",
+    "no-invalid-regexp": "error",
+    "no-irregular-whitespace": [
+      "error",
+      {
+        "skipComments": false,
+        "skipJSXText": false,
+        "skipRegExps": false,
+        "skipStrings": true,
+        "skipTemplates": false
+      }
+    ],
+    "no-loss-of-precision": "error",
+    "no-misleading-character-class": "error",
+    "no-nonoctal-decimal-escape": "error",
+    "no-prototype-builtins": "error",
+    "no-regex-spaces": "error",
+    "no-self-assign": ["error", { "props": true }],
+    "no-shadow-restricted-names": "error",
+    "no-sparse-arrays": "error",
+    "no-unsafe-finally": "error",
+    "no-unsafe-optional-chaining": "error",
+    "no-unused-labels": "error",
+    "no-unused-private-class-members": "error",
+    "no-useless-backreference": "error",
+    "no-useless-catch": "error",
+    "no-useless-escape": "error",
+    "require-yield": "error",
+    "use-isnan": "error",
+    "valid-typeof": "error",
+    "no-var": "error",
+    "prefer-const": ["error", { "destructuring": "any", "ignoreReadBeforeAssign": false }],
+    "prefer-rest-params": "error",
+    "prefer-spread": "error",
+
+    "eqeqeq": ["error", "always", { "null": "ignore" }],
+    "no-duplicate-imports": ["error", { "allowSeparateTypeImports": true }],
+    "object-shorthand": ["error", "always"],
+    "no-restricted-imports": ["error", { "patterns": ["@temporalio/*/src/*"] }],
+
+    "typescript/ban-ts-comment": "error",
+    "no-array-constructor": "error",
+    "typescript/no-duplicate-enum-values": "error",
+    "typescript/no-empty-object-type": "error",
+    "typescript/no-explicit-any": "off",
+    "typescript/no-extra-non-null-assertion": "error",
+    "typescript/no-misused-new": "error",
+    "typescript/no-namespace": "error",
+    "typescript/no-non-null-asserted-optional-chain": "error",
+    "typescript/no-require-imports": "error",
+    "typescript/no-this-alias": "error",
+    "typescript/no-unnecessary-type-constraint": "error",
+    "typescript/no-unsafe-declaration-merging": "error",
+    "typescript/no-unsafe-function-type": "error",
+    "no-unused-expressions": [
+      "error",
+      { "allowShortCircuit": false, "allowTaggedTemplates": false, "allowTernary": false }
+    ],
+    "no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ],
+    "typescript/no-wrapper-object-types": "error",
+    "typescript/prefer-as-const": "error",
+    "typescript/prefer-namespace-keyword": "error",
+    "typescript/triple-slash-reference": "error",
+    "typescript/no-deprecated": [
+      "warn",
+      {
+        "allow": [
+          {
+            "from": "file",
+            "name": [
+              "SearchAttributes",
+              "searchAttributes",
+              "searchAttributeValue",
+              "SearchAttributeValue",
+              "SearchAttributeValueOrReadonly"
+            ]
+          },
+          {
+            "from": "file",
+            "name": [
+              "AddNewCompatibleVersion",
+              "AddNewIdInNewDefaultSet",
+              "BaseReachabilityOptions",
+              "buildId",
+              "BuildIdNotFoundError",
+              "BuildIdOperation",
+              "BuildIdReachability",
+              "BuildIdVersionSet",
+              "currentBuildId",
+              "getBuildIdCompatability",
+              "getReachability",
+              "LoadedTaskQueueClientOptions",
+              "MergeSets",
+              "PromoteBuildIdWithinSet",
+              "PromoteSetByBuildId",
+              "ReachabilityOptions",
+              "ReachabilityResponse",
+              "ReachabilityType",
+              "ReachabilityTypeResponse",
+              "TaskQueueClient",
+              "TaskQueueClientOptions",
+              "UnversionedBuildId",
+              "updateBuildIdCompatibility",
+              "useVersioning",
+              "versioningIntent",
+              "VersioningIntent",
+              "versioningIntentToProto",
+              "VersioningIntentString",
+              "workerBuildId",
+              "WorkerBuildIdVersionSets"
+            ]
+          },
+          {
+            "from": "file",
+            "name": [
+              "activityInbound",
+              "ActivityInboundCallsInterceptorFactory",
+              "WorkflowClientInterceptors",
+              "WorkflowClientCallsInterceptor",
+              "WorkflowClientCallsInterceptorFactory",
+              "WorkflowClientCallsInterceptorFactoryInput"
+            ]
+          },
+          {
+            "from": "file",
+            "name": [
+              "ActivityInboundLogInterceptor",
+              "defaultSinks",
+              "defaultWorkerLogger",
+              "LoggerSinks",
+              "WorkflowLogInterceptor"
+            ]
+          }
+        ]
+      }
+    ],
+    "typescript/no-floating-promises": "error",
+    "typescript/explicit-module-boundary-types": "error",
+    "typescript/consistent-type-imports": [
+      "error",
+      {
+        "prefer": "type-imports",
+        "fixStyle": "separate-type-imports",
+        "disallowTypeAnnotations": false
+      }
+    ],
+
+    "import-js/no-unresolved": ["error", { "ignore": ["^__temporal_"] }],
+    "import/named": "off",
+    "import/default": "error",
+    "import/namespace": "error",
+    "import/no-absolute-path": "error",
+    "import/no-self-import": "error",
+    "import/no-cycle": "error",
+    "import-js/no-useless-path-segments": "error",
+    "import-js/no-relative-packages": "error",
+    "import-js/export": "error",
+    "import/no-named-as-default": "error",
+    "import-js/no-extraneous-dependencies": "error",
+    "import/no-mutable-exports": "error",
+    "import/unambiguous": "error",
+    "import/first": "error",
+    "import-js/order": ["error", { "groups": ["builtin", "external", "internal", "parent", "sibling", "index"] }],
+    "import-js/newline-after-import": "error",
+    "import/no-unassigned-import": "error",
+    "import/no-named-default": "error"
+  }
+}
