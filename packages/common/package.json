@@ -14,7 +14,7 @@
   "dependencies": {
     "@temporalio/proto": "workspace:*",
     "long": "^5.2.3",
-    "ms": "3.0.0-canary.1",
+    "ms": "3.0.0-canary.202508261828",
     "nexus-rpc": "^0.0.2",
     "proto3-json-serializer": "^2.0.0"
   },

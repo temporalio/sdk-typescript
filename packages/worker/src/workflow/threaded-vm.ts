@@ -120,7 +120,11 @@ export class WorkerThreadClient {
       this.activeWorkflowCount--;
     }
     // Transfer ownership of activation buffer for zero-copy transfer
-    if (request.input.type === 'activate-workflow' && request.input.activation instanceof Uint8Array) {
+    if (
+      request.input.type === 'activate-workflow' &&
+      request.input.activation instanceof Uint8Array &&
+      request.input.activation.buffer instanceof ArrayBuffer
+    ) {
       this.workerThread.postMessage(request, [request.input.activation.buffer]);
     } else {
       this.workerThread.postMessage(request);

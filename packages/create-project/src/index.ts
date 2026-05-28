@@ -5,7 +5,8 @@ import dedent from 'dedent';
 import { Command } from 'commander';
 // eslint-disable-next-line import/no-named-as-default
 import prompts from 'prompts';
-import checkForUpdate from 'update-check';
+import updateCheck from 'update-check';
+import type { Config as UpdateCheckConfig, Result as UpdateCheckResult } from 'update-check';
 
 import { createApp } from './create-project.js';
 import { validateNpmName } from './helpers/validate-pkg.js';
@@ -177,6 +178,12 @@ async function start(): Promise<void> {
   });
 }
 
+// update-check is CommonJS (`module.exports = function`). Node exposes that as the ESM default export, but
+// the package's .d.ts models a transpiled default export shape, so TypeScript sees a namespace instead.
+const checkForUpdate = updateCheck as unknown as (
+  pkg: object,
+  config?: UpdateCheckConfig
+) => Promise<UpdateCheckResult | null>;
 const update = checkForUpdate(packageJson).catch(() => null);
 
 async function notifyUpdate(): Promise<void> {

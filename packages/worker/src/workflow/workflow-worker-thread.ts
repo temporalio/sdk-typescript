@@ -129,7 +129,12 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
  */
 function postResponse(response: WorkerThreadResponse): void {
   const completion = response.result.type === 'ok' ? response.result.output : undefined;
-  if (isBun && completion?.type === 'activation-completion' && completion.completion instanceof Uint8Array) {
+  if (
+    isBun &&
+    completion?.type === 'activation-completion' &&
+    completion.completion instanceof Uint8Array &&
+    completion.completion.buffer instanceof ArrayBuffer
+  ) {
     const buffer = completion.completion.buffer;
     const cloned = structuredClone(response, { transfer: [buffer] });
     parentPort.postMessage(cloned);

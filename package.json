@@ -45,8 +45,8 @@
     "@tsconfig/node20": "^20.1.4",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^20.19.39",
-    "@typescript-eslint/eslint-plugin": "^8.10.0",
-    "@typescript-eslint/parser": "^8.10.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.3",
+    "@typescript-eslint/parser": "^8.59.3",
     "arg": "^5.0.2",
     "eslint": "^9.26.0",
     "eslint-config-prettier": "^9.1.0",
@@ -57,8 +57,8 @@
     "prettier": "^3.1.1",
     "ts-prune": "^0.10.3",
     "tsx": "^4.20.6",
-    "typescript": "^5.6.3",
-    "typescript-eslint": "^8.10.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.3",
     "verdaccio": "^6.5.0"
   },
   "engines": {

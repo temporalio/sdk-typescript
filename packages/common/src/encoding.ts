@@ -209,7 +209,7 @@ export class TextEncoder {
     const encodedString = inputString === void 0 ? '' : '' + inputString,
       len = encodedString.length | 0;
     let result = new Uint8Array(((len << 1) + 8) | 0);
-    let tmpResult: Uint8Array;
+    let tmpResult: typeof result;
     let i = 0,
       pos = 0,
       point = 0,
