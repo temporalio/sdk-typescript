@@ -3,9 +3,8 @@
  *
  * @module
  */
-import type { WorkflowFunctionWithOptions, WorkflowFunctionWithOptions } from '@temporalio/common';
+import type { WorkflowFunctionWithOptions } from '@temporalio/common';
 import { encodeVersioningBehavior, IllegalStateError } from '@temporalio/common';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { coresdk } from '@temporalio/proto';
 import type { WorkflowInterceptorsFactory } from './interceptors';
 import type { WorkflowCreateOptionsInternal } from './interfaces';
