@@ -2,7 +2,7 @@ import type { temporal } from '@temporalio/proto';
 import { makeProtoEnumConverters } from './internal-workflow';
 
 /** @deprecated: Use {@link TypedSearchAttributes} instead */
-export type SearchAttributeValueOrReadonly = SearchAttributeValue | Readonly<SearchAttributeValue> | undefined;
+export type SearchAttributeValueOrReadonly = Readonly<SearchAttributeValue> | undefined;
 /** @deprecated: Use {@link TypedSearchAttributes} instead */
 export type SearchAttributes = Record<string, SearchAttributeValueOrReadonly>;
 /** @deprecated: Use {@link TypedSearchAttributes} instead */

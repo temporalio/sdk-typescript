@@ -512,7 +512,7 @@ export interface ActivityOptions {
   /**
    * Input arguments to pass to the activity.
    */
-  args?: any[] | Readonly<any[]>;
+  args?: Readonly<any[]>;
   /**
    * If set, specifies maximum time between successful heartbeats.
    */
@@ -709,7 +709,7 @@ export type ActivityOptionsWithArgs<Args extends any[]> = Args extends [any, ...
         /**
          * Arguments to pass to the Activity
          */
-        args: Args | Readonly<Args>;
+        args: Readonly<Args>;
       }
     >
   : Replace<
@@ -718,7 +718,7 @@ export type ActivityOptionsWithArgs<Args extends any[]> = Args extends [any, ...
         /**
          * Arguments to pass to the Activity
          */
-        args?: Args | Readonly<Args>;
+        args?: Readonly<Args>;
       }
     >;
 

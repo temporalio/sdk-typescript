@@ -220,13 +220,13 @@ export type WithWorkflowArgs<W extends Workflow, T> = T &
         /**
          * Arguments to pass to the Workflow
          */
-        args: Parameters<W> | Readonly<Parameters<W>>;
+        args: Readonly<Parameters<W>>;
       }
     : {
         /**
          * Arguments to pass to the Workflow
          */
-        args?: Parameters<W> | Readonly<Parameters<W>>;
+        args?: Readonly<Parameters<W>>;
       });
 
 export interface WorkflowDurationOptions {
