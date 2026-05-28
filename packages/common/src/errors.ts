@@ -73,3 +73,124 @@ export class NamespaceNotFoundError extends Error {
  */
 @SymbolBasedInstanceOfError('CompleteAsyncError')
 export class CompleteAsyncError extends Error {}
+
+/// -----------------------------------------------------------------------
+/// External Storage Errors (draft)
+///
+/// Gathering concensus on how to move forward with consistent diagnostic/error codes.
+/// These are subject to change. 
+/// -----------------------------------------------------------------------
+
+/**
+ * Thrown when an inbound payload is detected as an external-storage reference
+ * but the worker/client has no `ExternalStorage` configured to resolve it.
+ *
+ * Code: `TMPRL-SDK-00001`
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('ExternalStorageNotConfiguredError')
+export class ExternalStorageNotConfiguredError extends Error {
+  constructor(message: string) {
+    super(`[TMPRL-SDK-00001] ${message}`);
+  }
+}
+
+/**
+ * Thrown when an inbound reference payload names a driver that is not
+ * registered with the configured `ExternalStorage`.
+ *
+ * Code: `TMPRL-SDK-00002`
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('ExternalStorageDriverNotFoundError')
+export class ExternalStorageDriverNotFoundError extends Error {
+  constructor(
+    message: string,
+    public readonly driverName: string
+  ) {
+    super(`[TMPRL-SDK-00002] ${message}`);
+  }
+}
+
+/**
+ * Thrown when a driver's `store()` or `retrieve()` raises. Wraps the
+ * underlying error in `cause` (network, auth, rate-limit, S3 5xx, etc).
+ *
+ * Code: `TMPRL-SDK-00003`
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('ExternalStorageDriverOperationFailedError')
+export class ExternalStorageDriverOperationFailedError extends Error {
+  constructor(
+    message: string,
+    public readonly driverName: string,
+    public readonly operation: 'store' | 'retrieve',
+    public readonly cause: unknown
+  ) {
+    super(`[TMPRL-SDK-00003] ${message}`);
+  }
+}
+
+/**
+ * Thrown when a driver returns a different number of claims/payloads than
+ * it was given (e.g. 5 payloads in, 4 claims out). Indicates a driver bug.
+ * No retries should be attempted.
+ *
+ * Code: `TMPRL-SDK-00004`
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('ExternalStorageDriverArityMismatchError')
+export class ExternalStorageDriverArityMismatchError extends Error {
+  constructor(
+    message: string,
+    public readonly driverName: string,
+    public readonly operation: 'store' | 'retrieve',
+    public readonly expected: number,
+    public readonly actual: number
+  ) {
+    super(`[TMPRL-SDK-00004] ${message}`);
+  }
+}
+
+/**
+ * Thrown when a `StorageDriverSelector` returns a driver that is not in
+ * the configured drivers list. User error in selector implementation.
+ * No retries should be attempted.
+ *
+ * Code: `TMPRL-SDK-00005`
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('ExternalStorageSelectorInvalidDriverError')
+export class ExternalStorageSelectorInvalidDriverError extends Error {
+  constructor(
+    message: string,
+    public readonly driverName: string
+  ) {
+    super(`[TMPRL-SDK-00005] ${message}`);
+  }
+}
+
+/**
+ * Thrown when retrieved bytes fail integrity verification (e.g. SHA-256
+ * mismatch in the S3 driver, or recorded `size_bytes` does not match the
+ * size of the retrieved payload). Possible data corruption or tampering. 
+ * No retries should be attempted.
+ *
+ * Code: `TMPRL-SDK-00006`
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('ExternalStorageIntegrityCheckFailedError')
+export class ExternalStorageIntegrityCheckFailedError extends Error {
+  constructor(
+    message: string,
+    public readonly driverName: string
+  ) {
+    super(`[TMPRL-SDK-00006] ${message}`);
+  }
+}
