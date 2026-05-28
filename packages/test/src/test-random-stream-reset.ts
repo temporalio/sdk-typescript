@@ -86,7 +86,16 @@ test.serial('named random streams are reseeded after workflow reset', async (t) 
   }
 
   t.deepEqual(c, a);
-  t.notDeepEqual(b, a);
-  t.notDeepEqual(d, c);
-  t.notDeepEqual(d, b);
+
+  t.not(b.random, a.random);
+  t.not(b.uuid, a.uuid);
+  t.not(b.childWorkflowId, a.childWorkflowId);
+
+  t.not(d.random, c.random);
+  t.not(d.uuid, c.uuid);
+  t.not(d.childWorkflowId, c.childWorkflowId);
+
+  t.not(d.random, b.random);
+  t.not(d.uuid, b.uuid);
+  t.not(d.childWorkflowId, b.childWorkflowId);
 });
