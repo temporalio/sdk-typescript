@@ -77,7 +77,7 @@ export const [encodeActivityCancellationType, decodeActivityCancellationType] = 
 );
 
 /**
- * Options for remote activity invocation
+ * Options for non-local activity invocation inside a workflow
  */
 export interface ActivityOptions {
   /**
@@ -178,7 +178,7 @@ export interface ActivityOptions {
    *
    * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
-  versioningIntent?: VersioningIntent; // eslint-disable-line @typescript-eslint/no-deprecated
+  versioningIntent?: VersioningIntent;
 
   /**
    * A fixed, single-line summary for this workflow execution that may appear in the UI/CLI.

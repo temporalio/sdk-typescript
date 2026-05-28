@@ -1,4 +1,3 @@
-import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import type { AsyncCompletionClient, ClientPlugin, ConnectionPlugin, WorkflowClient } from '@temporalio/client';
 import { Client, Connection } from '@temporalio/client';
 import type { ConnectionOptions, InternalConnectionOptions } from '@temporalio/client/lib/connection';

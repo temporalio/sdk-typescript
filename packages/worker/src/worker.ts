@@ -10,7 +10,7 @@ import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, t
 import type { RawSourceMap } from 'source-map';
 import * as nexus from 'nexus-rpc';
 import type { Info as ActivityInfo } from '@temporalio/activity';
-import type { LoadedDataConverter, Payload, MetricMeter } from '@temporalio/common';
+import type { LoadedDataConverter, Payload, MetricMeter, ActivitySerializationContext } from '@temporalio/common';
 import {
   DataConverter,
   decompileRetryPolicy,
@@ -23,6 +23,7 @@ import {
   decodePriority,
   CancelledFailure,
   ActivityCancellationDetails,
+  convertDeploymentVersion,
 } from '@temporalio/common';
 import type { Decoded } from '@temporalio/common/lib/internal-non-workflow';
 import {
@@ -65,12 +66,7 @@ import type { History } from './runtime';
 import { Runtime } from './runtime';
 import type { CloseableGroupedObservable } from './rxutils';
 import { closeableGroupBy, mapWithState, mergeMapWithState } from './rxutils';
-import {
-  byteArrayToBuffer,
-  convertDeploymentVersion,
-  convertToParentWorkflowType,
-  convertToRootWorkflowType,
-} from './utils';
+import { byteArrayToBuffer, convertToParentWorkflowType, convertToRootWorkflowType } from './utils';
 import type {
   CompiledWorkerOptions,
   CompiledWorkerOptionsWithBuildId,
@@ -168,10 +164,11 @@ interface NativeWorkerConstructor {
 interface WorkflowWithLogAttributes {
   workflow: Workflow;
   logAttributes: Record<string, unknown>;
+  workflowCodecRunner: WorkflowCodecRunner;
 }
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
-  const bid = options.buildId; // eslint-disable-line @typescript-eslint/no-deprecated
+  const bid = options.buildId;
   if (bid != null) {
     return options as CompiledWorkerOptionsWithBuildId;
   }
@@ -483,8 +480,6 @@ export class Worker {
     message: 'Shutting down',
     reason: EvictionReason.FATAL,
   };
-  protected readonly workflowCodecRunner: WorkflowCodecRunner;
-
   /**
    * Create a new Worker.
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
@@ -493,7 +488,7 @@ export class Worker {
     options.plugins = (options.plugins ?? []).concat(options.connection?.plugins ?? []);
     for (const plugin of options.plugins) {
       if (plugin.configureWorker !== undefined) {
-        options = plugin.configureWorker(options);
+        options = await plugin.configureWorker(options);
       }
     }
     if (!options.taskQueue) {
@@ -604,9 +599,13 @@ export class Worker {
     workflowId?: string
   ): Promise<void> {
     const validated = this.validateHistory(history);
-    const result = await this.runReplayHistories(options, [
-      { history: validated, workflowId: workflowId ?? 'fake' },
-    ]).next();
+    const replay = this.runReplayHistories(options, [{ history: validated, workflowId: workflowId ?? 'fake' }]);
+    let result: IteratorResult<ReplayResult>;
+    try {
+      result = await replay.next();
+    } finally {
+      await replay.return?.();
+    }
     if (result.done) throw new IllegalStateError('Expected at least one replay result');
     if (result.value.error) throw result.value.error;
   }
@@ -697,7 +696,7 @@ export class Worker {
     const plugins = options.plugins ?? [];
     for (const plugin of plugins) {
       if (plugin.configureReplayWorker !== undefined) {
-        options = plugin.configureReplayWorker(options);
+        options = await plugin.configureReplayWorker(options);
       }
     }
     const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
@@ -810,9 +809,7 @@ export class Worker {
     protected readonly plugins: WorkerPlugin[],
     protected _connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
-  ) {
-    this.workflowCodecRunner = new WorkflowCodecRunner(options.loadedDataConverter.payloadCodecs);
-  }
+  ) {}
 
   /**
    * An Observable which emits each time the number of in flight activations changes
@@ -1053,6 +1050,9 @@ export class Worker {
               switch (variant) {
                 case 'start': {
                   let info: ActivityInfo | undefined = undefined;
+                  const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
+                  const context = activitySerializationContextFromTaskStart(start, this.options.namespace);
+                  const loadedDataConverter = this.options.loadedDataConverter;
                   try {
                     if (activity !== undefined) {
                       throw new IllegalStateError(
@@ -1061,9 +1061,10 @@ export class Worker {
                     }
                     info = await extractActivityInfo(
                       task,
-                      this.options.loadedDataConverter,
+                      loadedDataConverter,
                       this.options.namespace,
-                      this.options.taskQueue
+                      this.options.taskQueue,
+                      context
                     );
 
                     const { activityType } = info;
@@ -1080,7 +1081,7 @@ export class Worker {
                     }
                     let args: unknown[];
                     try {
-                      args = await decodeArrayFromPayloads(this.options.loadedDataConverter, task.start?.input);
+                      args = await decodeArrayFromPayloads(loadedDataConverter, task.start?.input, context);
                     } catch (err) {
                       throw ApplicationFailure.fromError(err, {
                         message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(err)}`,
@@ -1098,7 +1099,8 @@ export class Worker {
                     activity = new Activity(
                       info,
                       fn,
-                      this.options.loadedDataConverter,
+                      loadedDataConverter,
+                      context,
                       (details) =>
                         this.activityHeartbeatSubject.next({
                           type: 'heartbeat',
@@ -1134,7 +1136,7 @@ export class Worker {
                       type: 'result',
                       result: {
                         failed: {
-                          failure: await encodeErrorToFailure(this.options.loadedDataConverter, error),
+                          failure: await encodeErrorToFailure(loadedDataConverter, error, context),
                         },
                       },
                     };
@@ -1419,7 +1421,20 @@ export class Worker {
         return { state: undefined, output: { close, completion } };
       }
 
-      const decodedActivation = await this.workflowCodecRunner.decodeActivation(activation);
+      let workflowCodecRunner = workflow?.workflowCodecRunner;
+      if (workflowCodecRunner == null) {
+        const workflowId = activation.jobs?.find((job) => job.initializeWorkflow)?.initializeWorkflow?.workflowId;
+        if (workflowId == null)
+          throw new IllegalStateError(
+            'Received workflow activation for an untracked workflow with no init workflow job'
+          );
+        workflowCodecRunner = new WorkflowCodecRunner(this.options.loadedDataConverter.payloadCodecs, {
+          type: 'workflow',
+          namespace: this.options.namespace,
+          workflowId,
+        });
+      }
+      const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
 
       if (workflow === undefined) {
         const initWorkflowDetails = decodedActivation.jobs[0]?.initializeWorkflow;
@@ -1428,13 +1443,13 @@ export class Worker {
             'Received workflow activation for an untracked workflow with no init workflow job'
           );
 
-        workflow = await this.createWorkflow(decodedActivation, initWorkflowDetails);
+        workflow = await this.createWorkflow(decodedActivation, initWorkflowDetails, workflowCodecRunner);
       }
 
       let isFatalError = false;
       try {
         const unencodedCompletion = await workflow.workflow.activate(decodedActivation);
-        const completion = await this.workflowCodecRunner.encodeCompletion(unencodedCompletion);
+        const completion = await workflowCodecRunner.encodeCompletion(unencodedCompletion);
 
         return { state: workflow, output: { close, completion } };
       } catch (err) {
@@ -1486,7 +1501,8 @@ export class Worker {
 
   protected async createWorkflow(
     activation: Decoded<coresdk.workflow_activation.WorkflowActivation>,
-    initWorkflowJob: Decoded<coresdk.workflow_activation.IInitializeWorkflow>
+    initWorkflowJob: Decoded<coresdk.workflow_activation.IInitializeWorkflow>,
+    workflowCodecRunner: WorkflowCodecRunner
   ): Promise<WorkflowWithLogAttributes> {
     const workflowCreator = this.workflowCreator!;
     if (
@@ -1572,10 +1588,11 @@ export class Worker {
       randomnessSeed: randomnessSeed.toBytes(),
       now: tsToMs(activation.timestamp),
       showStackTraceSources: this.options.showStackTraceSources,
+      failureExceptionTypeNames: resolveFailureExceptionTypeNames(workflowType, this.options.workflowFailureErrorTypes),
     });
 
     this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
-    return { workflow, logAttributes };
+    return { workflow, logAttributes, workflowCodecRunner };
   }
 
   /**
@@ -1746,9 +1763,10 @@ export class Worker {
           takeWhile((out): out is HeartbeatSendRequest => out.type !== 'close'),
           mergeMap(async ({ heartbeat: { base64TaskToken, taskToken, details, onError, info } }) => {
             let payload: Payload;
+            const context = activitySerializationContextFromInfo(info);
             try {
               try {
-                payload = await encodeToPayload(this.options.loadedDataConverter, details);
+                payload = await encodeToPayload(this.options.loadedDataConverter, details, context);
               } catch (error: any) {
                 this.logger.warn('Failed to encode heartbeat details, cancelling Activity', {
                   error,
@@ -2187,8 +2205,9 @@ function extractSourceMap(code: string): [string, string] {
 async function extractActivityInfo(
   task: coresdk.activity_task.ActivityTask,
   dataConverter: LoadedDataConverter,
+  taskQueue: string,
   activityNamespace: string,
-  taskQueue: string
+  context: ActivitySerializationContext
 ): Promise<ActivityInfo> {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
@@ -2196,26 +2215,29 @@ async function extractActivityInfo(
   const activityId = start.activityId;
   let heartbeatDetails = undefined;
   try {
-    heartbeatDetails = await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails);
+    heartbeatDetails = await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails, context);
   } catch (e) {
     throw ApplicationFailure.fromError(e, {
       message: `Failed to parse heartbeat details for activity ${activityId}: ${errorMessage(e)}`,
     });
   }
+  const inWorkflow = !!start.workflowExecution?.workflowId;
   return {
     taskToken,
     taskQueue,
     base64TaskToken: formatTaskToken(taskToken),
     activityId,
-    workflowExecution: start.workflowExecution as NonNullableObject<temporal.api.common.v1.WorkflowExecution>,
+    workflowExecution: inWorkflow
+      ? (start.workflowExecution as NonNullableObject<temporal.api.common.v1.WorkflowExecution>)
+      : undefined,
     attempt: start.attempt,
     isLocal: start.isLocal,
     activityType: start.activityType,
-    workflowType: start.workflowType,
+    workflowType: inWorkflow ? start.workflowType : undefined,
     heartbeatTimeoutMs: optionalTsToMs(start.heartbeatTimeout),
     heartbeatDetails,
-    activityNamespace,
-    workflowNamespace: start.workflowNamespace,
+    activityNamespace: start.workflowNamespace,
+    workflowNamespace: inWorkflow ? start.workflowNamespace : undefined,
     scheduledTimestampMs: requiredTsToMs(start.scheduledTime, 'scheduledTime'),
     startToCloseTimeoutMs: requiredTsToMs(start.startToCloseTimeout, 'startToCloseTimeout'),
     scheduleToCloseTimeoutMs: requiredTsToMs(start.scheduleToCloseTimeout, 'scheduleToCloseTimeout'),
@@ -2225,6 +2247,32 @@ async function extractActivityInfo(
     ),
     priority: decodePriority(start.priority),
     retryPolicy: decompileRetryPolicy(start.retryPolicy),
+    namespace: start.workflowNamespace,
+    activityRunId: !inWorkflow ? start.runId : undefined,
+    inWorkflow,
+  };
+}
+
+function activitySerializationContextFromInfo(info: ActivityInfo): ActivitySerializationContext {
+  return {
+    type: 'activity',
+    namespace: info.activityNamespace, // eslint-disable-line @typescript-eslint/no-deprecated
+    activityId: info.activityId,
+    workflowId: info.workflowExecution?.workflowId,
+    isLocal: info.isLocal,
+  };
+}
+
+function activitySerializationContextFromTaskStart(
+  start: NonNullableObject<coresdk.activity_task.IStart>,
+  activityNamespace: string
+): ActivitySerializationContext {
+  return {
+    type: 'activity',
+    namespace: activityNamespace,
+    activityId: start.activityId || undefined,
+    workflowId: start.workflowExecution?.workflowId ?? undefined,
+    isLocal: start.isLocal,
   };
 }
 
@@ -2256,4 +2304,24 @@ async function timeoutPromise<R>(promise: Promise<R>, timeout: number): Promise<
  */
 async function setTimeoutUnref(timeout: number): Promise<void> {
   return new Promise((resolve) => setTimeoutCallback(resolve, timeout).unref());
+}
+
+/**
+ * Resolves the list of failure exception type names applicable to a given workflow type,
+ * combining the wildcard `'*'` entry and any entry matching the specific workflow type.
+ *
+ * `NondeterminismError` is passed through as-is (the lang-side matching treats it as an alias
+ * for `DeterminismViolationError`). All other type names are passed through unchanged.
+ */
+function resolveFailureExceptionTypeNames(
+  workflowType: string,
+  workflowFailureErrorTypes: Record<string, string[]> | undefined
+): string[] | undefined {
+  if (!workflowFailureErrorTypes) return undefined;
+
+  const typeNames = new Set<string>();
+  for (const name of workflowFailureErrorTypes['*'] ?? []) typeNames.add(name);
+  for (const name of workflowFailureErrorTypes[workflowType] ?? []) typeNames.add(name);
+
+  return typeNames.size > 0 ? [...typeNames] : undefined;
 }

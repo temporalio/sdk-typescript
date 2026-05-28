@@ -81,6 +81,82 @@ export class WorkflowContinuedAsNewError extends Error {
 }
 
 /**
+ * Thrown when the requested Activity could not be found.
+ */
+@SymbolBasedInstanceOfError('ActivityNotFoundError')
+export class ActivityNotFoundError extends Error {}
+
+/**
+ * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat
+ * an Activity for any reason apart from {@link ActivityNotFoundError}.
+ */
+@SymbolBasedInstanceOfError('ActivityCompletionError')
+export class ActivityCompletionError extends Error {}
+
+/**
+ * Thrown by {@link AsyncCompletionClient.heartbeat} when the Workflow has
+ * requested to cancel the reporting Activity.
+ */
+@SymbolBasedInstanceOfError('ActivityCancelledError')
+export class ActivityCancelledError extends Error {}
+
+/**
+ * Thrown by {@link AsyncCompletionClient.heartbeat} when the reporting Activity
+ * has been paused.
+ */
+@SymbolBasedInstanceOfError('ActivityPausedError')
+export class ActivityPausedError extends Error {}
+
+/**
+ * Thrown by {@link AsyncCompletionClient.heartbeat} when the reporting Activity
+ * has been reset.
+ */
+@SymbolBasedInstanceOfError('ActivityResetError')
+export class ActivityResetError extends Error {}
+
+/**
+ * Thrown by the {@link ActivityClient} while waiting on Activity execution result if execution completes with failure.
+ * The failure is stored in the `cause` property.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+@SymbolBasedInstanceOfError('ActivityExecutionFailedError')
+export class ActivityExecutionFailedError extends Error {
+  constructor(
+    message: string,
+    public readonly cause: Error | undefined,
+    public readonly activityId: string,
+    public readonly runId?: string
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Thrown when starting an Activity failed because another Activity with the same ID already exists and reusing the ID
+ * is not allowed under chosen ID reuse policy and ID conflict policy. See {@link ActivityOptions.idReusePolicy} and
+ * {@link ActivityOptions.idConflictPolicy}.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+@SymbolBasedInstanceOfError('ActivityExecutionAlreadyStartedError')
+export class ActivityExecutionAlreadyStartedError extends Error {
+  constructor(
+    message: string,
+    /**
+     * ID of the Activity that failed to start.
+     */
+    public readonly activityId: string,
+    /**
+     * Run ID of the existing Activity execution with the same Activity ID.
+     */
+    public readonly runId: string
+  ) {
+    super(message);
+  }
+}
+
+/**
  * Returns true if the provided error is a {@link GrpcServiceError}.
  */
 export function isGrpcServiceError(err: unknown): err is GrpcServiceError {

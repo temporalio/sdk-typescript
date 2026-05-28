@@ -1,4 +1,12 @@
-import { setWorkflowOptions, workflowInfo, sleep, makeContinueAsNewFunc } from '@temporalio/workflow';
+import {
+  condition,
+  setHandler,
+  setWorkflowOptions,
+  workflowInfo,
+  sleep,
+  makeContinueAsNewFunc,
+} from '@temporalio/workflow';
+import { unblockSignal } from '../workflows';
 
 setWorkflowOptions({ versioningBehavior: 'PINNED' }, continueAsNewWithVersionUpgrade);
 export async function continueAsNewWithVersionUpgrade(attempt: number): Promise<string> {
@@ -16,4 +24,20 @@ export async function continueAsNewWithVersionUpgrade(attempt: number): Promise<
       await canWithAutoUpgrade(attempt + 1);
     }
   }
+}
+
+setWorkflowOptions({ versioningBehavior: 'PINNED' }, continueAsNewWithRampingVersion);
+export async function continueAsNewWithRampingVersion(attempt: number): Promise<string> {
+  if (attempt > 0) {
+    return 'v1.0';
+  }
+
+  let shouldContinue = false;
+  setHandler(unblockSignal, () => void (shouldContinue = true));
+  await condition(() => shouldContinue);
+
+  const canWithRampingVersion = makeContinueAsNewFunc<typeof continueAsNewWithRampingVersion>({
+    initialVersioningBehavior: 'USE_RAMPING_VERSION',
+  });
+  return await canWithRampingVersion(attempt + 1);
 }

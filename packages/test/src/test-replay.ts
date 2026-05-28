@@ -60,6 +60,28 @@ test('cancel-fake-progress-replay from JSON', async (t) => {
   t.pass();
 });
 
+test('runReplayHistory closes replay iterator after first result', async (t) => {
+  const hist = { events: [{ eventId: 1 }] };
+  let iteratorClosed = false;
+
+  class TestWorker extends Worker {
+    public static override async *runReplayHistories(): AsyncIterableIterator<{
+      workflowId: string;
+      runId: string;
+    }> {
+      try {
+        yield { workflowId: 'fake', runId: 'run' };
+      } finally {
+        iteratorClosed = true;
+      }
+    }
+  }
+
+  await TestWorker.runReplayHistory({ workflowBundle: t.context.bundle }, hist);
+
+  t.true(iteratorClosed);
+});
+
 test('cancel-fake-progress-replay-nondeterministic', async (t) => {
   const hist = await loadHistory('cancel_fake_progress_history.bin');
   // Manually alter the workflow type to point to different workflow code

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import util from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -86,7 +86,7 @@ test('NativeConnection.connect() throws meaningful error when passed invalid cli
 if (RUN_INTEGRATION_TESTS) {
   test('NativeConnection errors have detail', async (t) => {
     await t.throwsAsync(() => NativeConnection.connect({ address: '127.0.0.1:1' }), {
-      instanceOf: TransportError,
+      instanceOf: TransportError, // eslint-disable-line @typescript-eslint/no-deprecated
       message: /.*Connection[ ]?refused.*/i,
     });
   });
@@ -492,4 +492,21 @@ test('NativeConnection: TLS can be explicitly disabled even when apiKey is provi
   // When TLS is explicitly disabled, targetUrl should use http://
   t.true(options.targetUrl.startsWith('http://'), 'targetUrl should use http when tls: false');
   t.is(options.tls, null, 'TLS config should be null when tls: false');
+});
+
+test('NativeConnection: DNS load balancing is disabled by default', (t) => {
+  const options = toNativeClientOptions({});
+  t.is(options.dnsLoadBalancingConfig, null);
+});
+
+test('NativeConnection: DNS load balancing can be explicitly disabled', (t) => {
+  const options = toNativeClientOptions({ dnsLoadBalancingConfig: null });
+  t.is(options.dnsLoadBalancingConfig, null);
+});
+
+test('NativeConnection: DNS load balancing config is converted to native milliseconds', (t) => {
+  const options = toNativeClientOptions({
+    dnsLoadBalancingConfig: { resolutionInterval: '5s' },
+  });
+  t.deepEqual(options.dnsLoadBalancingConfig, { resolutionIntervalMillis: 5000 });
 });

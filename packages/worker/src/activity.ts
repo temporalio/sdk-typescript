@@ -1,9 +1,9 @@
-import 'abort-controller/polyfill'; // eslint-disable-line import/no-unassigned-import
 import type { Info } from '@temporalio/activity';
 import { asyncLocalStorage, CompleteAsyncError, Context } from '@temporalio/activity';
 import type {
   ActivityCancellationDetails,
   ActivityFunction,
+  ActivitySerializationContext,
   LoadedDataConverter,
   MetricMeter,
   MetricTags,
@@ -69,6 +69,7 @@ export class Activity {
     public readonly info: Info,
     public readonly fn: ActivityFunction<any[], any> | undefined,
     public readonly dataConverter: LoadedDataConverter,
+    public readonly serializationContext: ActivitySerializationContext,
     public readonly heartbeatCallback: Context['heartbeat'],
     private readonly _client: Client | undefined, // May be undefined in the case of MockActivityEnvironment
     workerLogger: Logger,
@@ -118,7 +119,7 @@ export class Activity {
 
   protected getMetricTags(): MetricTags {
     const baseTags = {
-      namespace: this.info.workflowNamespace,
+      namespace: this.info.namespace,
       taskQueue: this.info.taskQueue,
       activityType: this.info.activityType,
     };
@@ -194,7 +195,7 @@ export class Activity {
       try {
         if (this.fn === undefined) throw new IllegalStateError('Activity function is not defined');
         const result = await this.executeWithClient(this.fn, input);
-        return { completed: { result: await encodeToPayload(this.dataConverter, result) } };
+        return { completed: { result: await encodeToPayload(this.dataConverter, result, this.serializationContext) } };
       } catch (err) {
         if (err instanceof CompleteAsyncError) {
           return { willCompleteAsync: {} };
@@ -206,7 +207,8 @@ export class Activity {
             failed: {
               failure: await encodeErrorToFailure(
                 this.dataConverter,
-                ApplicationFailure.retryable(this.cancelReason, 'CancelledFailure')
+                ApplicationFailure.retryable(this.cancelReason, 'CancelledFailure'),
+                this.serializationContext
               ),
             },
           };
@@ -219,7 +221,8 @@ export class Activity {
                 failed: {
                   failure: await encodeErrorToFailure(
                     this.dataConverter,
-                    new ApplicationFailure('Activity reset', 'ActivityReset')
+                    new ApplicationFailure('Activity reset', 'ActivityReset'),
+                    this.serializationContext
                   ),
                 },
               };
@@ -228,12 +231,13 @@ export class Activity {
                 failed: {
                   failure: await encodeErrorToFailure(
                     this.dataConverter,
-                    new ApplicationFailure('Activity paused', 'ActivityPause')
+                    new ApplicationFailure('Activity paused', 'ActivityPause'),
+                    this.serializationContext
                   ),
                 },
               };
             } else {
-              const failure = await encodeErrorToFailure(this.dataConverter, err);
+              const failure = await encodeErrorToFailure(this.dataConverter, err, this.serializationContext);
               failure.stackTrace = undefined;
               return { cancelled: { failure } };
             }
@@ -243,7 +247,11 @@ export class Activity {
         }
         return {
           failed: {
-            failure: await encodeErrorToFailure(this.dataConverter, ensureApplicationFailure(err)),
+            failure: await encodeErrorToFailure(
+              this.dataConverter,
+              ensureApplicationFailure(err),
+              this.serializationContext
+            ),
           },
         };
       }
@@ -260,16 +268,23 @@ export class Activity {
  * Returns a map of attributes to be set on log messages for a given Activity
  */
 export function activityLogAttributes(info: Info): Record<string, unknown> {
-  return {
+  const attrs: Record<string, any> = {
     isLocal: info.isLocal,
     attempt: info.attempt,
-    namespace: info.workflowNamespace,
+    namespace: info.namespace,
     taskToken: info.base64TaskToken,
-    workflowId: info.workflowExecution.workflowId,
-    workflowRunId: info.workflowExecution.runId,
-    workflowType: info.workflowType,
     activityId: info.activityId,
     activityType: info.activityType,
     taskQueue: info.taskQueue,
   };
+
+  if (info.inWorkflow) {
+    attrs.workflowId = info.workflowExecution!.workflowId;
+    attrs.workflowRunId = info.workflowExecution!.runId;
+    attrs.workflowType = info.workflowType;
+  } else {
+    attrs.activityRunId = info.activityRunId;
+  }
+
+  return attrs;
 }

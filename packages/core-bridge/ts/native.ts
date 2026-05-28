@@ -135,6 +135,7 @@ export interface ClientOptions {
   clientVersion: string;
   tls: Option<TlsOptions>;
   httpConnectProxy: Option<HttpConnectProxy>;
+  dnsLoadBalancingConfig: Option<DnsLoadBalancingConfig>;
   headers: Option<Record<string, MetadataValue>>;
   apiKey: Option<string>;
   disableErrorCodeMetricTags: boolean;
@@ -162,6 +163,10 @@ export interface HttpConnectProxy {
 export interface HttpConnectProxyBasicAuth {
   username: string;
   password: string;
+}
+
+export interface DnsLoadBalancingConfig {
+  resolutionIntervalMillis: number;
 }
 
 export interface RpcCall {
@@ -240,6 +245,8 @@ export interface WorkerOptions {
   maxActivitiesPerSecond: Option<number>;
   shutdownGraceTime: number;
   plugins: string[];
+  workflowFailureErrors: WorkflowErrorType[];
+  workflowTypesToFailureErrors: Record<string, WorkflowErrorType[]>;
 }
 
 export type PollerBehavior =
@@ -266,6 +273,8 @@ export type WorkerDeploymentVersion = {
 };
 
 export type VersioningBehavior = { type: 'pinned' } | { type: 'auto-upgrade' };
+
+export type WorkflowErrorType = { type: 'nondeterminism' };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Worker Tuner
@@ -474,6 +483,10 @@ export interface MetricGaugeF64 {
   type: 'metric-gauge-f64';
 }
 
+export interface MetricUpDownCounter {
+  type: 'metric-up-down-counter';
+}
+
 export type MetricAttributes = Record<string, string | number | boolean>;
 
 export declare function newMetricCounter(
@@ -506,6 +519,13 @@ export declare function newMetricGaugeF64(
   description: string
 ): MetricGaugeF64;
 
+export declare function newMetricUpDownCounter(
+  runtime: Runtime,
+  name: string,
+  unit: string,
+  description: string
+): MetricUpDownCounter;
+
 export declare function addMetricCounterValue(
   counter: MetricCounter,
   value: number,
@@ -536,6 +556,12 @@ export declare function setMetricGaugeF64Value(
   attrs: JsonString<MetricAttributes>
 ): void;
 
+export declare function addMetricUpDownCounterValue(
+  counter: MetricUpDownCounter,
+  value: number,
+  attrs: JsonString<MetricAttributes>
+): void;
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Buffered Metrics
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -556,6 +582,6 @@ export interface BufferedMetric {
   valueType: BufferedMetricValueType;
 }
 
-export type BufferedMetricKind = 'counter' | 'histogram' | 'gauge';
+export type BufferedMetricKind = 'counter' | 'histogram' | 'gauge' | 'up-down-counter';
 
 export type BufferedMetricValueType = 'int' | 'float';

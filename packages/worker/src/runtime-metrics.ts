@@ -5,6 +5,7 @@ import type {
   MetricHistogram,
   MetricMeter,
   MetricTags,
+  MetricUpDownCounter,
   NumericMetricValueType,
 } from '@temporalio/common';
 import { IllegalStateError } from '@temporalio/common';
@@ -65,6 +66,11 @@ export class RuntimeMetricMeter implements MetricMeter {
     }
   }
 
+  createUpDownCounter(name: string, unit: string = '', description: string = ''): MetricUpDownCounter {
+    const nativeMetric = native.newMetricUpDownCounter(this.runtime, name, unit, description);
+    return new RuntimeMetricUpDownCounter(nativeMetric, name, unit, description);
+  }
+
   withTags(_extraTags: MetricTags): MetricMeter {
     // Tags composition is handled by a MetricMeterWithComposedTags wrapper over this one
     throw new Error('withTags is not supported directly on RuntimeMetricMeter');
@@ -92,6 +98,27 @@ class RuntimeMetricCounter implements MetricCounter {
   withTags(_tags: MetricTags): MetricCounter {
     // Tags composition is handled by a MetricMeterWithComposedTags wrapper over this one
     throw new Error('withTags is not supported directly on RuntimeMetricCounter');
+  }
+}
+
+class RuntimeMetricUpDownCounter implements MetricUpDownCounter {
+  public readonly kind = 'up-down-counter';
+  public readonly valueType = 'int';
+
+  public constructor(
+    private readonly native: native.MetricUpDownCounter,
+    public readonly name: string,
+    public readonly unit: string,
+    public readonly description: string
+  ) {}
+
+  add(value: number, tags: MetricTags = {}): void {
+    native.addMetricUpDownCounterValue(this.native, value, JSON.stringify(tags));
+  }
+
+  withTags(_tags: MetricTags): MetricUpDownCounter {
+    // Tags composition is handled by a MetricMeterWithComposedTags wrapper over this one
+    throw new Error('withTags is not supported directly on RuntimeMetricUpDownCounter');
   }
 }
 

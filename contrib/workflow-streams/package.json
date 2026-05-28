@@ -1,0 +1,76 @@
+{
+  "name": "@temporalio/workflow-streams",
+  "version": "1.17.0",
+  "description": "Temporal.io SDK Workflow Streams contrib module",
+  "exports": {
+    "./workflow": {
+      "types": "./lib/workflow.d.ts",
+      "default": "./lib/workflow.js"
+    },
+    "./client": {
+      "types": "./lib/client.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "workflow": [
+        "./lib/workflow.d.ts"
+      ],
+      "client": [
+        "./lib/client.d.ts"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "test": "ava ./lib/__tests__/test-*.js"
+  },
+  "ava": {
+    "timeout": "120s",
+    "concurrency": 1,
+    "workerThreads": false
+  },
+  "keywords": [
+    "temporal",
+    "stream",
+    "streaming"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@temporalio/activity": "workspace:*",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/proto": "workspace:*",
+    "@temporalio/workflow": "workspace:*"
+  },
+  "devDependencies": {
+    "@temporalio/test-helpers": "workspace:*",
+    "@temporalio/testing": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "ava": "^5.3.1"
+  },
+  "engines": {
+    "node": ">= 20.0.0"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "contrib/workflow-streams"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/contrib/workflow-streams",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
+  ]
+}

@@ -82,6 +82,7 @@ jobs:
       - name: Rust Cargo and Build cache
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
+          cache-bin: false
           workspaces: packages/core-bridge -> target
           prefix-key: corebridge-buildcache
           shared-key: linux-intel
@@ -114,13 +115,13 @@ jobs:
       - run: for f in $TEMPORAL_TESTING_LOG_DIR/*.log; do tail -20000 $f > $TEMPORAL_TESTING_LOG_DIR/tails/$(basename $f); done
         if: always()
 
-      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: worker-logs-${{ inputs.reuse-v8-context && 'reuse-v8' || 'no-reuse-v8' }}
           path: ${{ env.TEMPORAL_TESTING_LOG_DIR }}/tails
 
-      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: worker-mem-logs-${{ inputs.reuse-v8-context && 'reuse-v8' || 'no-reuse-v8' }}

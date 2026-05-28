@@ -4,16 +4,29 @@
  * @module
  */
 
+import type { Duration, SearchAttributePair, TypedSearchAttributes } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
+import type { NexusOperationHandle } from './nexus-client';
+import type {
+  NexusOperationExecutionCount,
+  NexusOperationExecutionDescription,
+  NexusOperationExecution,
+  NexusOperationIdConflictPolicy,
+  NexusOperationIdReusePolicy,
+} from './nexus-types';
 import type { CompiledScheduleOptions } from './schedule-types';
 import type {
+  ActivityExecutionDescription,
+  ActivityExecutionInfo,
+  CountActivityExecutions,
   DescribeWorkflowExecutionResponse,
   RequestCancelWorkflowExecutionResponse,
   TerminateWorkflowExecutionResponse,
   WorkflowExecution,
 } from './types';
 import type { CompiledWorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
+import type { ActivityHandle, ActivityOptions } from './activity-client';
 
 export { Headers, Next };
 
@@ -116,7 +129,9 @@ export interface WorkflowDescribeInput {
 }
 
 /**
- * Implement any of these methods to intercept WorkflowClient outbound calls
+ * Implement any of these methods to intercept {@link WorkflowClient} outbound calls
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface WorkflowClientInterceptor {
   /**
@@ -185,7 +200,7 @@ export interface WorkflowClientInterceptor {
   describe?: (input: WorkflowDescribeInput, next: Next<this, 'describe'>) => Promise<DescribeWorkflowExecutionResponse>;
 }
 
-/** @deprecated: Use WorkflowClientInterceptor instead */
+/** @deprecated: Use {@link WorkflowClientInterceptor} instead */
 export type WorkflowClientCallsInterceptor = WorkflowClientInterceptor;
 
 /** @deprecated */
@@ -200,7 +215,6 @@ export interface WorkflowClientCallsInterceptorFactoryInput {
  * @deprecated: Please define interceptors directly, without factory
  */
 export interface WorkflowClientCallsInterceptorFactory {
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
   (input: WorkflowClientCallsInterceptorFactoryInput): WorkflowClientCallsInterceptor;
 }
 
@@ -211,12 +225,11 @@ export interface WorkflowClientCallsInterceptorFactory {
  */
 export interface WorkflowClientInterceptors {
   /** @deprecated */
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
   calls?: WorkflowClientCallsInterceptorFactory[];
 }
 
 /**
- * Implement any of these methods to intercept ScheduleClient outbound calls
+ * Implement any of these methods to intercept {@link ScheduleClient} outbound calls
  */
 export interface ScheduleClientInterceptor {
   /**
@@ -238,13 +251,211 @@ export type CreateScheduleOutput = {
 };
 
 /**
+ * Implement any of these methods to intercept NexusClient outbound calls.
+ */
+export interface NexusClientInterceptor {
+  /** Intercept a call to {@link NexusServiceClient.startOperation}. */
+  startOperation?: (
+    input: StartNexusOperationInput,
+    next: Next<this, 'startOperation'>
+  ) => Promise<NexusOperationHandle>;
+
+  /** Intercept {@link NexusOperationHandle.result}. */
+  getResult?: (input: GetNexusOperationResultInput, next: Next<this, 'getResult'>) => Promise<unknown>;
+
+  /** Intercept {@link NexusOperationHandle.describe}. */
+  describe?: (
+    input: DescribeNexusOperationInput,
+    next: Next<this, 'describe'>
+  ) => Promise<NexusOperationExecutionDescription>;
+
+  /** Intercept {@link NexusOperationHandle.cancel}. */
+  cancel?: (input: CancelNexusOperationInput, next: Next<this, 'cancel'>) => Promise<void>;
+
+  /** Intercept {@link NexusOperationHandle.terminate}. */
+  terminate?: (input: TerminateNexusOperationInput, next: Next<this, 'terminate'>) => Promise<void>;
+
+  /** Intercept {@link NexusClient.list}. */
+  list?: (input: ListNexusOperationsInput, next: Next<this, 'list'>) => AsyncIterable<NexusOperationExecution>;
+
+  /** Intercept {@link NexusClient.count}. */
+  count?: (input: CountNexusOperationsInput, next: Next<this, 'count'>) => Promise<NexusOperationExecutionCount>;
+}
+
+/** Input for {@link NexusClientInterceptor.startOperation}. */
+export interface StartNexusOperationInput {
+  readonly endpoint: string;
+  readonly service: string;
+  readonly operation: string;
+  readonly id: string;
+  readonly arg: unknown;
+  readonly scheduleToCloseTimeout?: Duration;
+  readonly scheduleToStartTimeout?: Duration;
+  readonly startToCloseTimeout?: Duration;
+  readonly summary?: string;
+  readonly idReusePolicy?: NexusOperationIdReusePolicy;
+  readonly idConflictPolicy?: NexusOperationIdConflictPolicy;
+  readonly searchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
+  readonly headers?: Record<string, string>;
+}
+
+/** Input for {@link NexusClientInterceptor.getResult}. */
+export interface GetNexusOperationResultInput {
+  readonly operationId: string;
+  readonly runId?: string;
+}
+
+/** Input for {@link NexusClientInterceptor.describe}. */
+export interface DescribeNexusOperationInput {
+  readonly operationId: string;
+  readonly runId?: string;
+}
+
+/** Input for {@link NexusClientInterceptor.cancel}. */
+export interface CancelNexusOperationInput {
+  readonly operationId: string;
+  readonly runId?: string;
+  readonly reason?: string;
+}
+
+/** Input for {@link NexusClientInterceptor.terminate}. */
+export interface TerminateNexusOperationInput {
+  readonly operationId: string;
+  readonly runId?: string;
+  readonly reason?: string;
+}
+
+/** Input for {@link NexusClientInterceptor.list}. */
+export interface ListNexusOperationsInput {
+  readonly query?: string;
+  readonly pageSize?: number;
+}
+
+/** Input for {@link NexusClientInterceptor.count}. */
+export interface CountNexusOperationsInput {
+  readonly query?: string;
+}
+
+/**
  * Interceptors for any high-level SDK client.
- *
- * NOTE: Currently only for {@link WorkflowClient} and {@link ScheduleClient}. More will be added later as needed.
  */
 export interface ClientInterceptors {
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
   workflow?: WorkflowClientInterceptors | WorkflowClientInterceptor[];
-
   schedule?: ScheduleClientInterceptor[];
+
+  nexus?: NexusClientInterceptor[];
+  activity?: ActivityClientInterceptor[];
+}
+
+/**
+ * Implement any of these methods to intercept {@link ActivityClient} outbound calls
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityClientInterceptor {
+  /**
+   * Intercept a service call to startActivityExecution
+   */
+  start?: (input: ActivityStartInput, next: Next<this, 'start'>) => Promise<ActivityHandle>;
+  /**
+   * Intercept a service call to pollActivityExecution
+   */
+  getResult?: (input: ActivityGetResultInput, next: Next<this, 'getResult'>) => Promise<any>;
+  /**
+   * Intercept a service call to describeActivityExecution
+   */
+  describe?: (input: ActivityDescribeInput, next: Next<this, 'describe'>) => Promise<ActivityExecutionDescription>;
+  /**
+   * Intercept a service call to requestCancelActivityExecution
+   */
+  cancel?: (input: ActivityCancelInput, next: Next<this, 'cancel'>) => Promise<void>;
+  /**
+   * Intercept a service call to terminateActivityExecution
+   */
+  terminate?: (input: ActivityTerminateInput, next: Next<this, 'terminate'>) => Promise<void>;
+  /**
+   * Intercept a service call to listActivityExecutions
+   */
+  list?: (input: ActivityListInput, next: Next<this, 'list'>) => AsyncIterable<ActivityExecutionInfo>;
+  /**
+   * Intercept a service call to countActivityExecutions
+   */
+  count?: (input: ActivityCountInput, next: Next<this, 'count'>) => Promise<CountActivityExecutions>;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.start}
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityStartInput {
+  readonly activityType: string;
+  readonly options: ActivityOptions;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.getResult}
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityGetResultInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.describe}
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityDescribeInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.cancel}
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityCancelInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly reason: string;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.terminate}
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityTerminateInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly reason: string;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.list}
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityListInput {
+  readonly query: string;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.count}
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityCountInput {
+  readonly query: string;
+  readonly headers: Headers;
 }

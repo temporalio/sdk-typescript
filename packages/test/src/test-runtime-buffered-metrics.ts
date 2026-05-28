@@ -65,12 +65,22 @@ test.serial('Buffered Metrics - Exporting buffered metrics from Core works prope
     histogramFloat.record(0.07);
     histogramFloat.record(0.99);
 
+    // UpDownCounter (events 14-16)
+    const upDownCounter = meter.createUpDownCounter!(
+      'my-up-down-counter',
+      'my-up-down-counter-unit',
+      'my-up-down-counter-description'
+    );
+    upDownCounter.add(1);
+    upDownCounter.add(5);
+    upDownCounter.add(-3);
+
     const updatesIterator = buffer.retrieveUpdates();
 
     // Metric events may include other metrics emitted by Core, which would be too
     // flaky to test here. Hence we filter out all metrics that do not start with 'my-'.
     const updates = Array.from(updatesIterator).filter((update) => update.metric.name.startsWith('my-'));
-    t.is(updates.length, 14);
+    t.is(updates.length, 17);
 
     t.deepEqual(updates[0].metric, {
       name: 'my-counter',
@@ -134,6 +144,19 @@ test.serial('Buffered Metrics - Exporting buffered metrics from Core works prope
     t.is(updates[12].value, 0.07);
     t.is(updates[13].metric, updates[11].metric);
     t.is(updates[13].value, 0.99);
+
+    t.deepEqual(updates[14].metric, {
+      name: 'my-up-down-counter',
+      kind: 'up-down-counter',
+      valueType: 'int',
+      unit: 'my-up-down-counter-unit',
+      description: 'my-up-down-counter-description',
+    });
+    t.is(updates[14].value, 1);
+    t.is(updates[15].metric, updates[14].metric);
+    t.is(updates[15].value, 5);
+    t.is(updates[16].metric, updates[14].metric);
+    t.is(updates[16].value, -3);
   } finally {
     await runtime.shutdown();
   }

@@ -54,6 +54,7 @@ export * from '@temporalio/common/lib/errors';
 export * from '@temporalio/common/lib/interfaces';
 export * from '@temporalio/common/lib/workflow-handle';
 export * from './async-completion-client';
+export * from './activity-client';
 export * from './client';
 export {
   Connection,
@@ -71,6 +72,8 @@ export * from './workflow-options';
 export * from './schedule-types';
 export * from './schedule-client';
 export * from './task-queue-client';
+export * from './nexus-types';
+export * from './nexus-client';
 export { WorkflowUpdateStage } from './workflow-update-stage';
 export {
   WorkerBuildIdVersionSets,

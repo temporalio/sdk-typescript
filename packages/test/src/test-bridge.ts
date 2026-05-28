@@ -251,6 +251,7 @@ const GenericConfigs = {
       clientVersion: '1.0.0',
       tls: null,
       httpConnectProxy: null,
+      dnsLoadBalancingConfig: null,
       headers: null,
       apiKey: null,
       disableErrorCodeMetricTags: false,
@@ -313,6 +314,8 @@ const GenericConfigs = {
       maxActivitiesPerSecond: null,
       shutdownGraceTime: 1000,
       plugins: [],
+      workflowFailureErrors: [],
+      workflowTypesToFailureErrors: {},
     } satisfies native.WorkerOptions,
   },
   ephemeralServer: {

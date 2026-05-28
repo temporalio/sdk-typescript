@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
+import { randomUUID } from 'crypto';
 import test from 'ava';
-import { v4 as uuid4 } from 'uuid';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import type { InjectedSinks, WorkerOptions, LogEntry } from '@temporalio/worker';
 import { DefaultLogger, Runtime, NativeConnection } from '@temporalio/worker';
@@ -102,13 +102,13 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const client = new WorkflowClient();
     const wf = await worker.runUntil(async () => {
-      const wf = await client.start(workflows.sinksWorkflow, { taskQueue, workflowId: uuid4() });
+      const wf = await client.start(workflows.sinksWorkflow, { taskQueue, workflowId: randomUUID() });
       await wf.result();
       return wf;
     });
 
     // Capture volatile values that are hard to predict
-    const { historySize, startTime, runStartTime, currentBuildId, currentDeploymentVersion } = recordedCalls[0].info; // eslint-disable-line @typescript-eslint/no-deprecated
+    const { historySize, startTime, runStartTime, currentBuildId, currentDeploymentVersion } = recordedCalls[0].info;
     t.true(historySize > 300);
 
     const info: WorkflowInfo = {
@@ -225,7 +225,7 @@ if (RUN_INTEGRATION_TESTS) {
       maxCachedWorkflows: 0,
       maxConcurrentWorkflowTaskExecutions: 2,
     });
-    await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId: uuid4() }));
+    await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId: randomUUID() }));
 
     t.deepEqual(recordedMessages, [
       {
@@ -268,7 +268,7 @@ if (RUN_INTEGRATION_TESTS) {
       maxConcurrentWorkflowTaskExecutions: 2,
     });
     const client = new WorkflowClient();
-    await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId: uuid4() }));
+    await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId: randomUUID() }));
 
     // Note that task may be replayed more than once and record the first messages multiple times.
     t.deepEqual(recordedMessages.slice(0, 2), [
@@ -313,7 +313,7 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       sinks,
     });
-    const workflowId = uuid4();
+    const workflowId = randomUUID();
     await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId }));
     const history = await client.getHandle(workflowId).fetchHistory();
 
@@ -358,7 +358,7 @@ if (RUN_INTEGRATION_TESTS) {
       sinks,
     });
     const client = new WorkflowClient();
-    const workflowId = uuid4();
+    const workflowId = randomUUID();
     await worker.runUntil(async () => {
       await client.execute(workflows.logSinkTester, { taskQueue, workflowId });
     });
@@ -394,14 +394,14 @@ if (RUN_INTEGRATION_TESTS) {
   test('Sink functions contains upserted search attributes', async (t) => {
     const taskQueue = `${__filename}-${t.title}`;
 
-    const recordedMessages = Array<{ message: string; searchAttributes: SearchAttributes }>(); // eslint-disable-line @typescript-eslint/no-deprecated
+    const recordedMessages = Array<{ message: string; searchAttributes: SearchAttributes }>();
     const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
       customLogger: {
         info: {
           fn: async (info, message) => {
             recordedMessages.push({
               message,
-              searchAttributes: info.searchAttributes, // eslint-disable-line @typescript-eslint/no-deprecated
+              searchAttributes: info.searchAttributes,
             });
           },
           callDuringReplay: false,
@@ -420,7 +420,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(
       client.execute(workflows.upsertAndReadSearchAttributes, {
         taskQueue,
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         args: [date.getTime()],
       })
     );
@@ -471,7 +471,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(
       client.execute(workflows.upsertAndReadMemo, {
         taskQueue,
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         memo: {
           note1: 'aaa',
           note2: 'bbb',
@@ -527,7 +527,7 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     const client = new WorkflowClient();
-    const handle = await client.start(workflows.coreIssue589, { taskQueue, workflowId: uuid4() });
+    const handle = await client.start(workflows.coreIssue589, { taskQueue, workflowId: randomUUID() });
 
     const workerOptions: WorkerOptions = {
       ...defaultOptions,
@@ -578,7 +578,7 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     const client = new WorkflowClient();
-    const handle = await client.start(workflows.queryAndValidatorLogging, { taskQueue, workflowId: uuid4() });
+    const handle = await client.start(workflows.queryAndValidatorLogging, { taskQueue, workflowId: randomUUID() });
 
     const worker = await Worker.create({
       ...defaultOptions,

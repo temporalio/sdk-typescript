@@ -273,6 +273,7 @@ export class NexusHandler {
           client: this.client,
           namespace: this.namespace,
           taskQueue: this.taskQueue,
+          endpoint: task.request?.endpoint ?? '',
           log: LoggerWithComposedMetadata.compose(this.logger, { sdkComponent: SdkComponent.nexus }),
           metrics: this.metricMeter,
         },

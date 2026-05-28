@@ -12,18 +12,20 @@ export async function heartbeatCancellationDetailsActivity(
   state: ActivityState
 ): Promise<ActivityCancellationDetails | undefined> {
   const info = activity.activityInfo();
+  if (!info.inWorkflow && (state.pause || state.unpause || state.reset)) {
+    throw activity.ApplicationFailure.nonRetryable('Standalone activity pause and reset are not supported', 'Error');
+  }
   // Exit early if we've already run this activity.
   if (info.attempt > 1) {
     return activity.cancellationDetails();
   }
-
   // Otherwise, either pause or reset this activity (or both).
   const client = activity.getClient();
   const req = {
     namespace: client.options.namespace,
     execution: {
-      workflowId: info.workflowExecution.workflowId,
-      runId: info.workflowExecution.runId,
+      workflowId: info.workflowExecution?.workflowId,
+      runId: info.workflowExecution?.runId,
     },
     id: info.activityId,
   };

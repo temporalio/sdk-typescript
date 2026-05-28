@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
+import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
-import { v4 as uuid4 } from 'uuid';
 import * as iface from '@temporalio/proto';
 import { WorkflowContinuedAsNewError, WorkflowFailedError } from '@temporalio/client';
 import type { Payload } from '@temporalio/common';
@@ -118,7 +118,7 @@ test.serial('WorkflowOptions are passed correctly', configMacro, async (t, confi
     ),
     [3]
   );
-  t.deepEqual(execution.searchAttributes!.CustomIntField, [3]); // eslint-disable-line @typescript-eslint/no-deprecated
+  t.deepEqual(execution.searchAttributes!.CustomIntField, [3]);
   t.is(execution.raw.executionConfig?.taskQueue?.name, 'diff-task-queue');
   t.is(
     execution.raw.executionConfig?.taskQueue?.kind,
@@ -246,8 +246,8 @@ test.serial('continue-as-new-to-same-workflow keeps memo and search attributes',
     const execution = await handle.describe();
     t.not(execution.runId, handle.firstExecutionRunId);
     t.deepEqual(execution.memo, { note: 'foo' });
-    t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']); // eslint-disable-line @typescript-eslint/no-deprecated
-    t.deepEqual(execution.searchAttributes!.CustomIntField, [1]); // eslint-disable-line @typescript-eslint/no-deprecated
+    t.deepEqual(execution.searchAttributes!.CustomKeywordField, ['test-value']);
+    t.deepEqual(execution.searchAttributes!.CustomIntField, [1]);
   });
 });
 
@@ -275,8 +275,8 @@ test.serial(
       t.is(info.type, 'sleeper');
       t.not(info.runId, handle.firstExecutionRunId);
       t.deepEqual(info.memo, { note: 'foo' });
-      t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value']); // eslint-disable-line @typescript-eslint/no-deprecated
-      t.deepEqual(info.searchAttributes!.CustomIntField, [1]); // eslint-disable-line @typescript-eslint/no-deprecated
+      t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value']);
+      t.deepEqual(info.searchAttributes!.CustomIntField, [1]);
     });
   }
 );
@@ -316,8 +316,8 @@ test.serial(
       t.is(info.type, 'sleeper');
       t.not(info.runId, handle.firstExecutionRunId);
       t.deepEqual(info.memo, { note: 'bar' });
-      t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value-2']); // eslint-disable-line @typescript-eslint/no-deprecated
-      t.deepEqual(info.searchAttributes!.CustomIntField, [3]); // eslint-disable-line @typescript-eslint/no-deprecated
+      t.deepEqual(info.searchAttributes!.CustomKeywordField, ['test-value-2']);
+      t.deepEqual(info.searchAttributes!.CustomIntField, [3]);
     });
   }
 );
@@ -329,7 +329,7 @@ test.serial('signalWithStart works as intended and returns correct runId', confi
   const client = env.client;
   const originalWorkflowHandle = await client.workflow.signalWithStart(workflows.interruptableWorkflow, {
     taskQueue,
-    workflowId: uuid4(),
+    workflowId: randomUUID(),
     signal: workflows.interruptSignal,
     signalArgs: ['interrupted from signalWithStart'],
   });
@@ -607,7 +607,7 @@ test.serial(
     const client = env.client;
     const handleFromThrowerStart = await client.workflow.signalWithStart(workflows.throwAsync, {
       taskQueue,
-      workflowId: uuid4(),
+      workflowId: randomUUID(),
       signal: 'unblock',
     });
     const handleFromGet = client.workflow.getHandle(handleFromThrowerStart.workflowId);
@@ -968,7 +968,7 @@ test('Activity Context exposes Client connection', configMacro, async (t, config
       foo: async () => {
         const { client } = Context.current();
         return await client.workflow.execute(activityContextExposesClientConnectionChildWorkflow, {
-          workflowId: uuid4(),
+          workflowId: randomUUID(),
           taskQueue,
           args: ['not intercepted'],
         });

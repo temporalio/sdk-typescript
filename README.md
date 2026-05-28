@@ -90,74 +90,31 @@ consider extending support to more environments as their respective compatibilit
 
 ## SDK Development
 
-### Prerequisites
-
-To build the Temporal TypeScript SDK from source, you will need to have:
-
-- [Node.js](https://nodejs.org/) (usage of a version manager, such as [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md), is recommended)
-- [Rust](https://www.rust-lang.org/) (i.e. `cargo` on the `PATH`)
-- [Protobuf Compiler](https://protobuf.dev/) (i.e. `protoc` on the `PATH`)
-- This repository, cloned recursively
-
-To run tests locally, you will need:
-
-- A Temporal Server instance accessible from `127.0.0.1:7233` (e.g. using the [Temporal CLI](https://docs.temporal.io/cli/temporal-cli#run-a-local-temporal-server))
-
-### Building
-
-With all prerequisites in place, run the following commands from the root of the repository:
-
-```sh
-pnpm install
-pnpm build
-```
-
-Run `pnpm rebuild` to delete all generated files and rerun build.
-
-Refer to our [contributing guide](CONTRIBUTING.md) for details on other build
-procedures, as well as hints on resolving frequent build time issues.
-
-### Testing
-
-To run the SDK's regular test suite, execute the following command from the root of the repository:
-
-```sh
-pnpm test
-```
-
-Refer to our [contributing guide](CONTRIBUTING.md) for details on other testing procedures.
-
-### Code Formatting and Linting
-
-To format and lint the code, execute the following commands from the root of the repository:
-
-```sh
-pnpm format
-pnpm lint
-```
+Refer to our [contributing guide](CONTRIBUTING.md) for details on build and testing procedures.
 
 ### Repository Structure
 
 This monorepo contains the following packages:
 
-| Subfolder                                                                      | Package                                                                                                          |
-| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| [`packages/client/`](packages/client/)                                         | [`@temporalio/client`](https://www.npmjs.com/package/@temporalio/client)                                         |
-| [`packages/worker/`](packages/worker/)                                         | [`@temporalio/worker`](https://www.npmjs.com/package/@temporalio/worker)                                         |
-| [`packages/workflow/`](packages/workflow/)                                     | [`@temporalio/workflow`](https://www.npmjs.com/package/@temporalio/workflow)                                     |
-| [`packages/activity/`](packages/activity/)                                     | [`@temporalio/activity`](https://www.npmjs.com/package/@temporalio/activity)                                     |
-| [`packages/testing/`](packages/testing/)                                       | [`@temporalio/testing`](https://www.npmjs.com/package/@temporalio/testing)                                       |
-| [`packages/common/`](packages/common/)                                         | [`@temporalio/common`](https://www.npmjs.com/package/@temporalio/common)                                         |
-| [`packages/proto/`](packages/proto/)                                           | [`@temporalio/proto`](https://www.npmjs.com/package/@temporalio/proto)                                           |
-| [`packages/interceptors-opentelemetry/`](packages/interceptors-opentelemetry/) | [`@temporalio/interceptors-opentelemetry`](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry) |
-| [`packages/test/`](packages/test/)                                             | SDK internal tests                                                                                               |
-| [`packages/create-project/`](packages/create-project/)                         | [`@temporalio/create`](https://www.npmjs.com/package/@temporalio/create-project)                                 |
-| [`packages/docs/`](packages/docs/)                                             | [API docs](https://typescript.temporal.io/)                                                                      |
-| [`packages/core-bridge/`](packages/core-bridge/)                               | [`@temporalio/core-bridge`](https://www.npmjs.com/package/@temporalio/proto)                                     |
-| [`packages/envconfig/`](packages/envconfig/)                                   | [`@temporalio/envconfig`](https://www.npmjs.com/package/@temporalio/envconfig)                                   |
-| [`packages/nyc-test-coverage/`](packages/nyc-test-coverage/)                   | [`@temporalio/nyc-test-coverage`](https://www.npmjs.com/package/@temporalio/nyc-test-coverage)                   |
-| [`packages/plugin/`](packages/plugin/)                                         | [`@temporalio/plugin`](https://www.npmjs.com/package/@temporalio/plugin)                                         |
-| [`packages/nexus/`](packages/nexus/)                                           | [`@temporalio/nexus`](https://www.npmjs.com/package/@temporalio/nexus)                                           |
+| Subfolder                                                                    | Package                                                                                                          |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [`packages/client/`](packages/client/)                                       | [`@temporalio/client`](https://www.npmjs.com/package/@temporalio/client)                                         |
+| [`packages/worker/`](packages/worker/)                                       | [`@temporalio/worker`](https://www.npmjs.com/package/@temporalio/worker)                                         |
+| [`packages/workflow/`](packages/workflow/)                                   | [`@temporalio/workflow`](https://www.npmjs.com/package/@temporalio/workflow)                                     |
+| [`packages/activity/`](packages/activity/)                                   | [`@temporalio/activity`](https://www.npmjs.com/package/@temporalio/activity)                                     |
+| [`packages/testing/`](packages/testing/)                                     | [`@temporalio/testing`](https://www.npmjs.com/package/@temporalio/testing)                                       |
+| [`packages/common/`](packages/common/)                                       | [`@temporalio/common`](https://www.npmjs.com/package/@temporalio/common)                                         |
+| [`packages/proto/`](packages/proto/)                                         | [`@temporalio/proto`](https://www.npmjs.com/package/@temporalio/proto)                                           |
+| [`packages/test/`](packages/test/)                                           | SDK internal tests                                                                                               |
+| [`packages/create-project/`](packages/create-project/)                       | [`@temporalio/create`](https://www.npmjs.com/package/@temporalio/create-project)                                 |
+| [`packages/docs/`](packages/docs/)                                           | [API docs](https://typescript.temporal.io/)                                                                      |
+| [`packages/core-bridge/`](packages/core-bridge/)                             | [`@temporalio/core-bridge`](https://www.npmjs.com/package/@temporalio/proto)                                     |
+| [`packages/envconfig/`](packages/envconfig/)                                 | [`@temporalio/envconfig`](https://www.npmjs.com/package/@temporalio/envconfig)                                   |
+| [`packages/nyc-test-coverage/`](packages/nyc-test-coverage/)                 | [`@temporalio/nyc-test-coverage`](https://www.npmjs.com/package/@temporalio/nyc-test-coverage)                   |
+| [`packages/plugin/`](packages/plugin/)                                       | [`@temporalio/plugin`](https://www.npmjs.com/package/@temporalio/plugin)                                         |
+| [`packages/nexus/`](packages/nexus/)                                         | [`@temporalio/nexus`](https://www.npmjs.com/package/@temporalio/nexus)                                           |
+| [`contrib/interceptors-opentelemetry/`](contrib/interceptors-opentelemetry/) | [`@temporalio/interceptors-opentelemetry`](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry) |
+| [`contrib/ai-sdk/`](contrib/ai-sdk/)                                         | [`@temporalio/ai-sdk`](https://www.npmjs.com/package/@temporalio/ai-sdk)                                         |
 
 ## Contributing
 

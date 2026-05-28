@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/nexus",
-  "version": "1.16.0",
+  "version": "1.17.2",
   "description": "Temporal.io SDK Nexus sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -12,12 +12,24 @@
   ],
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
+  "scripts": {
+    "build": "tsc --build",
+    "test": "ava ./lib/__tests__/test-*.js"
+  },
+  "ava": {
+    "timeout": "60s",
+    "concurrency": 1,
+    "workerThreads": false
+  },
   "dependencies": {
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/proto": "workspace:*",
     "long": "^5.2.3",
     "nexus-rpc": "^0.0.2"
+  },
+  "devDependencies": {
+    "ava": "^5.3.1"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -36,6 +48,8 @@
   },
   "files": [
     "src",
-    "lib"
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
   ]
 }

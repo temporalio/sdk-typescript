@@ -1,13 +1,11 @@
 packages:
   - packages/activity
-  - packages/ai-sdk
   - packages/client
   - packages/cloud
   - packages/common
   - packages/core-bridge
   - packages/create-project
   - packages/envconfig
-  - packages/interceptors-opentelemetry
   - packages/lambda-worker
   - packages/meta
   - packages/nexus
@@ -15,9 +13,13 @@ packages:
   - packages/plugin
   - packages/proto
   - packages/test
+  - packages/test-helpers
   - packages/testing
   - packages/worker
   - packages/workflow
+  - contrib/ai-sdk
+  - contrib/interceptors-opentelemetry
+  - contrib/workflow-streams
   - scripts
 
 ignoreScripts: true
@@ -42,4 +44,4 @@ overrides:
   handlebars: '>=4.7.9'
 
 patchedDependencies:
-  protobufjs@7.5.5: patches/protobufjs@7.5.5.patch
+  protobufjs@7.5.8: patches/protobufjs@7.5.8.patch
