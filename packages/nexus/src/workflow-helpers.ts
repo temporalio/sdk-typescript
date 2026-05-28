@@ -168,11 +168,9 @@ export class WorkflowRunOperationHandler<I, O> implements nexus.OperationHandler
 }
 
 /**
- * Module-private brand and conversion key for {@link TemporalOperationResult}. Doubles as the
- * type-level brand (so external code can't satisfy the interface) and the runtime accessor
- * (since the symbol is in scope inside this module).
+ * Module-private brand and payload key for {@link TemporalOperationResult}.
  */
-const toHandlerResult: unique symbol = Symbol.for('__temporal_nexus_TemporalOperationResult_toHandlerResult__');
+const operationResult: unique symbol = Symbol('temporal_nexus_TemporalOperationResult');
 
 /**
  * A result produced by a {@link TemporalOperationHandler}. Construct via
@@ -181,23 +179,19 @@ const toHandlerResult: unique symbol = Symbol.for('__temporal_nexus_TemporalOper
  * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface TemporalOperationResult<T> {
-  readonly [toHandlerResult]: () => nexus.HandlerStartOperationResult<T>;
+  readonly [operationResult]: nexus.HandlerStartOperationResult<T>;
 }
 
 export const TemporalOperationResult = {
   sync<T>(value: T): TemporalOperationResult<T> {
     return {
-      [toHandlerResult](): nexus.HandlerStartOperationResult<T> {
-        return nexus.HandlerStartOperationResult.sync(value);
-      },
+      [operationResult]: nexus.HandlerStartOperationResult.sync(value),
     };
   },
 
   async<T = unknown>(token: string): TemporalOperationResult<T> {
     return {
-      [toHandlerResult](): nexus.HandlerStartOperationResult<T> {
-        return nexus.HandlerStartOperationResult.async(token);
-      },
+      [operationResult]: nexus.HandlerStartOperationResult.async(token),
     };
   },
 };
@@ -229,7 +223,7 @@ export interface TemporalNexusClient {
 class TemporalNexusClientImpl implements TemporalNexusClient {
   private asyncOperationStarted = false;
 
-  constructor(private readonly startOperationContext: nexus.StartOperationContext) {}
+  constructor(private readonly startOperationContext: TemporalNexusStartOperationContext) {}
 
   /**
    * The Temporal Client for the active Nexus Operation.
@@ -323,11 +317,10 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
 
   async start(ctx: nexus.StartOperationContext, input: I): Promise<nexus.HandlerStartOperationResult<O>> {
     const result = await this.startHandler(ctx, new TemporalNexusClientImpl(ctx), input);
-    return result[toHandlerResult]();
+    return result[operationResult];
   }
 
   async cancel(ctx: nexus.CancelOperationContext, token: string): Promise<void> {
-    const { namespace } = getHandlerContext();
     let opToken;
     try {
       opToken = loadOperationToken(token);
@@ -335,12 +328,6 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
       throw new nexus.HandlerError(nexus.HandlerErrorType.BAD_REQUEST, 'invalid operation token', { cause: err });
     }
 
-    if (opToken.ns !== namespace) {
-      throw new nexus.HandlerError(
-        nexus.HandlerErrorType.BAD_REQUEST,
-        `Client namespace ${namespace} does not match operation token namespace ${opToken.ns}`
-      );
-    }
     switch (opToken.t) {
       case OperationTokenType.WORKFLOW_RUN:
         try {
