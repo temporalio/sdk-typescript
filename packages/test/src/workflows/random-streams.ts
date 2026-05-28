@@ -1,4 +1,23 @@
-import { sleep, uuid4, workflowRandom } from '@temporalio/workflow';
+import {
+  condition,
+  defineQuery,
+  defineSignal,
+  getRandomStream,
+  setHandler,
+  sleep,
+  startChild,
+  uuid4,
+  workflowRandom,
+} from '@temporalio/workflow';
+
+export interface RandomStreamResetCapture {
+  random: number;
+  uuid: string;
+  childWorkflowId: string;
+}
+
+export const randomStreamResetCapturesQuery = defineQuery<RandomStreamResetCapture[]>('randomStreamResetCaptures');
+export const randomStreamResetUnblockSignal = defineSignal('randomStreamResetUnblock');
 
 async function logWorkflowRandomAcrossActivation(): Promise<void> {
   console.log('workflow', Math.random());
@@ -96,4 +115,29 @@ export async function randomStreamPluginCachedStreamSingleActivation(): Promise<
 
 export async function randomStreamPluginCachedStreamAcrossActivations(): Promise<void> {
   await sleep(1);
+}
+
+export async function randomStreamResetChild(): Promise<void> {}
+
+async function captureRandomStreamResetValues(): Promise<RandomStreamResetCapture> {
+  const stream = getRandomStream('@temporalio/test/random-streams/reset');
+  const random = stream.random();
+  const uuid = stream.uuid4();
+  const child = await startChild(randomStreamResetChild);
+  return { random, uuid, childWorkflowId: child.workflowId };
+}
+
+export async function randomStreamResetWorkflow(): Promise<RandomStreamResetCapture[]> {
+  const captures: RandomStreamResetCapture[] = [];
+  let unblocked = false;
+
+  setHandler(randomStreamResetCapturesQuery, () => captures);
+  setHandler(randomStreamResetUnblockSignal, () => void (unblocked = true));
+
+  captures.push(await captureRandomStreamResetValues());
+  await sleep(1);
+  captures.push(await captureRandomStreamResetValues());
+  await condition(() => unblocked);
+
+  return captures;
 }

@@ -13,6 +13,8 @@ import { fillWithRandom, uuid4FromRandom } from './random-helpers';
  *
  * The primary use case is workflow plugins and interceptors that need private,
  * replay-stable entropy without perturbing user workflow randomness.
+ *
+ * @experimental This API may be removed or changed in the future.
  */
 export interface WorkflowRandomStream {
   /**
@@ -105,6 +107,8 @@ class DefaultWorkflowRandomStream implements WorkflowRandomStream {
  * when no named override is active. It can be useful for plugin/interceptor code
  * that wants an explicit handle to the main workflow random stream, including from
  * inside a temporary named scope established by another `WorkflowRandomStream`.
+ *
+ * @experimental This API may be removed or changed in the future.
  */
 export const workflowRandom: WorkflowRandomStream = new DefaultWorkflowRandomStream();
 
@@ -120,6 +124,8 @@ export const workflowRandom: WorkflowRandomStream = new DefaultWorkflowRandomStr
  * need their own deterministic entropy. Use stable package- or module-style
  * names so the stream identity remains replay-safe, then keep the returned
  * `WorkflowRandomStream` around and call its methods directly.
+ *
+ * @experimental This API may be removed or changed in the future.
  */
 export function getRandomStream(name: string): WorkflowRandomStream {
   const activator = assertInWorkflowContext('Workflow.getRandomStream(...) may only be used from workflow context.');

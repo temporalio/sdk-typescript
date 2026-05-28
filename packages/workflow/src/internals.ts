@@ -42,10 +42,11 @@ import {
   ENHANCED_STACK_TRACE_QUERY_NAME,
 } from '@temporalio/common/lib/reserved';
 import type { RNG } from './alea';
-import { alea, deriveAleaSeed } from './alea';
+import { alea } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
 import { composeInterceptors } from './interceptor-composition';
 import { AsyncLocalStorage, UpdateScope } from './update-scope';
+import { deriveAleaSeed } from './random-stream-seed';
 import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
 import type {
   QueryInput,
@@ -554,7 +555,7 @@ export class Activator implements ActivationHandler {
 
   public bindCurrentRandom<T extends (...args: any[]) => any>(fn: T): T {
     const randomSource = this.currentRandomStorage?.getStore();
-    return ((...args: Parameters<T>) => this.withRandomSource(randomSource, () => fn(...args))) as unknown as T;
+    return ((...args: Parameters<T>) => this.withRandomSource(randomSource, () => fn(...args))) as T;
   }
 
   public currentRandom(): number {
