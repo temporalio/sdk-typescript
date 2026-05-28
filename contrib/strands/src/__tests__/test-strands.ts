@@ -1,9 +1,8 @@
 import type { TestFn } from 'ava';
-import { McpClient, Model } from '@strands-agents/sdk';
+import { McpClient, Message, Model, TextBlock } from '@strands-agents/sdk';
 import type {
   BaseModelConfig,
   JSONValue,
-  Message,
   ModelStreamEvent,
   StreamOptions,
   Tool,
@@ -23,6 +22,7 @@ import { auditLog, auditTool, deleteState, deleteThing, getWeather } from './act
 import {
   activityToolAgent,
   approveSignal,
+  defaultModelAgent,
   helloAgent,
   hooksAgent,
   interruptAgent,
@@ -179,6 +179,72 @@ test('TemporalAgent dispatches model.stream() through invokeModel activity', asy
     });
     t.is(result, 'hello from stub');
   });
+});
+
+test('TemporalAgent without `model:` resolves to the single registered factory', async (t) => {
+  // Fix for the case where the caller registered exactly one model factory
+  // but omitted `model:` on the agent. Previously this raised inside
+  // ModelActivity.getModel because `defaultName` was only set on the
+  // implicit-Bedrock branch; now the plugin uses the single key as default.
+  t.timeout(60_000);
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    plugins: [
+      new StrandsPlugin({
+        models: { onlyModel: () => new StubModel([textTurn('reply from default')]) },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(defaultModelAgent, {
+      args: ['hi'],
+      workflowExecutionTimeout: '30 seconds',
+    });
+    t.is(result, 'reply from default');
+  });
+});
+
+test('invokeModel reconstructs Message instances from wire data', async (t) => {
+  // Strands content-block and Message classes have lossy `toJSON()` methods.
+  // After Temporal's default payload converter serializes activity input,
+  // the receiving side sees plain Bedrock-shape objects without the `type`
+  // discriminator. ModelActivity must call `Message.fromMessageData` so the
+  // user's `Model.stream` receives real Strands types.
+  t.timeout(60_000);
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  // Capture what arrives at stream() so the assertion runs even though the
+  // model lives on the worker — record into a module-level sink that's also
+  // reachable from the assertion below.
+  let receivedFirstMessage: unknown;
+  let firstBlockIsTextBlock = false;
+  class AssertingStub extends StubModel {
+    override async *stream(messages: Message[], options?: StreamOptions): AsyncIterable<ModelStreamEvent> {
+      if (receivedFirstMessage === undefined) {
+        receivedFirstMessage = messages[0];
+        const first = messages[0];
+        firstBlockIsTextBlock = first instanceof Message && first.content[0] instanceof TextBlock;
+      }
+      yield* super.stream(messages, options);
+    }
+  }
+
+  const worker = await createWorker({
+    plugins: [
+      new StrandsPlugin({
+        models: { test: () => new AssertingStub([textTurn('ok')]) },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    await executeWorkflow(helloAgent, { args: ['say hi'] });
+  });
+
+  t.true(receivedFirstMessage instanceof Message, 'expected first message to be a Message instance');
+  t.true(firstBlockIsTextBlock, 'expected first content block to be a TextBlock instance');
 });
 
 test('activityAsTool dispatches a registered activity from the agent loop', async (t) => {

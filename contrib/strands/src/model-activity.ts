@@ -1,7 +1,34 @@
-import type { Message, Model, ModelStreamEvent } from '@strands-agents/sdk';
+import { Message } from '@strands-agents/sdk';
+import type { Model, ModelStreamEvent } from '@strands-agents/sdk';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 import type { Duration } from '@temporalio/common/lib/time';
 import { autoHeartbeat } from './heartbeat';
+
+/**
+ * Reconstruct Strands `Message` instances from the wire data the workflow
+ * payload converter delivered.
+ *
+ * Strands content-block and `Message` classes override `toJSON()` to project
+ * themselves into Bedrock-style wire data (e.g. `TextBlock` → `{ text }`,
+ * `ToolUseBlock` → `{ toolUse: {...} }`). Temporal's default payload
+ * converter serializes activity input via `JSON.stringify`, which calls
+ * those `toJSON`s, dropping the `type` discriminator and reshaping every
+ * block. The receiving side sees plain Bedrock-shape objects that don't
+ * match what `BedrockModel._formatContentBlock` (or any other Strands
+ * `Model.stream` implementation) expects.
+ *
+ * `Message.fromMessageData` knows how to rebuild a `Message` and its blocks
+ * from that wire shape via `contentBlockFromData`, so call it once on every
+ * incoming message before handing them to the user-supplied `Model`.
+ */
+function rebuildMessages(messages: unknown): Message[] {
+  if (!Array.isArray(messages)) {
+    return [];
+  }
+  return messages.map((m) =>
+    m instanceof Message ? m : Message.fromMessageData(m as Parameters<typeof Message.fromMessageData>[0])
+  );
+}
 
 /**
  * Input for the `invokeModel` activity. Mirrors `Model.stream(messages, options)`
@@ -70,8 +97,9 @@ export class ModelActivity {
 
   async invokeModel(input: InvokeModelInput): Promise<ModelStreamEvent[]> {
     const model = this.getModel(input.modelName);
+    const messages = rebuildMessages(input.messages);
     const events: ModelStreamEvent[] = [];
-    for await (const event of model.stream(input.messages as Message[], input.options as never)) {
+    for await (const event of model.stream(messages, input.options as never)) {
       events.push(event);
     }
     return events;
@@ -79,13 +107,14 @@ export class ModelActivity {
 
   async invokeModelStreaming(input: InvokeModelStreamingInput): Promise<ModelStreamEvent[]> {
     const model = this.getModel(input.modelName);
+    const messages = rebuildMessages(input.messages);
     const stream = WorkflowStreamClient.fromWithinActivity({
       batchInterval: input.streamingBatchInterval,
     });
     const topic = stream.topic(input.streamingTopic);
     const events: ModelStreamEvent[] = [];
     try {
-      for await (const event of model.stream(input.messages as Message[], input.options as never)) {
+      for await (const event of model.stream(messages, input.options as never)) {
         events.push(event);
         topic.publish(event);
       }

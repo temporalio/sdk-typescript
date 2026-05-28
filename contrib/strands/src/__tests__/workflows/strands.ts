@@ -17,6 +17,17 @@ export async function helloAgent(prompt: string): Promise<string> {
   return result.toString();
 }
 
+/**
+ * Same as {@link helloAgent} but omits `model:` so the plugin's single-factory
+ * default kicks in. Exercises the fallback that picks the only registered
+ * factory's key as the implicit default.
+ */
+export async function defaultModelAgent(prompt: string): Promise<string> {
+  const agent = new TemporalAgent({ printer: false });
+  const result = await agent.invoke(prompt);
+  return result.toString();
+}
+
 export async function activityToolAgent(prompt: string): Promise<string> {
   const agent = new TemporalAgent({
     model: 'test',

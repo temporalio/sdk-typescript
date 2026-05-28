@@ -1,14 +1,9 @@
-import type { McpClient} from '@strands-agents/sdk';
+import type { McpClient } from '@strands-agents/sdk';
 import { BedrockModel, type Model } from '@strands-agents/sdk';
 import type { BundleOptions } from '@temporalio/worker';
 import { SimplePlugin } from '@temporalio/plugin';
 import { ModelActivity } from './model-activity';
-import {
-  buildCallToolActivity,
-  buildListToolsActivity,
-  populateMcpCache,
-  _clearCache,
-} from './temporal-mcp-client';
+import { buildCallToolActivity, buildListToolsActivity, populateMcpCache, _clearCache } from './temporal-mcp-client';
 
 /**
  * Options for {@link StrandsPlugin}.
@@ -52,6 +47,11 @@ export class StrandsPlugin extends SimplePlugin {
     if (modelFactories === undefined) {
       modelFactories = { bedrock: () => new BedrockModel({}) };
       defaultName = 'bedrock';
+    } else {
+      const names = Object.keys(modelFactories);
+      if (names.length === 1) {
+        defaultName = names[0];
+      }
     }
 
     const modelActivity = new ModelActivity(modelFactories, defaultName);
@@ -94,14 +94,24 @@ export class StrandsPlugin extends SimplePlugin {
   /**
    * Extend the bundler config so workflow code can bundle `@strands-agents/sdk`:
    *
-   * - Ignore `fs` (statically imported by the SDK's `vended-plugins` and
-   *   `vended-tools` modules, which are reachable from the index but
-   *   unreachable from workflow code).
+   * - Ignore worker-only / non-workflow-safe modules that the SDK index
+   *   transitively pulls in but that are unreachable from workflow code.
+   *   This covers:
+   *   - `fs` (statically imported by `vended-plugins` and `vended-tools`).
+   *   - Every `@strands-agents/sdk` model provider's HTTP SDK
+   *     (`@aws-sdk/client-bedrock-runtime`, `@anthropic-ai/sdk`, `openai`,
+   *     `@google/genai`, `ai`). The workers constructs models worker-side;
+   *     workflow code only goes through {@link TemporalModel}.
+   *   - `@temporalio/activity` and `@temporalio/client`, which the
+   *     worker-only halves of {@link TemporalMCPClient}, {@link autoHeartbeat},
+   *     and `@temporalio/workflow-streams/client` import.
+   *   - `path` / `crypto`, pulled in transitively by the same worker-only code.
    *
    * - Replace the dynamic-imported MCP transport helpers
-   *   (`@modelcontextprotocol/sdk/client/stdio.js`/`sse.js` and their `node:*`
-   *   dependencies) with an empty module. They live in `mcp-config.js`'s
-   *   server-only code paths.
+   *   (`@modelcontextprotocol/sdk/client/{stdio,sse,streamableHttp}.js` and
+   *   their `node:*` dependencies, plus `eventsource-parser/stream` which
+   *   `streamableHttp.js` reaches) with an empty module. They live in
+   *   `mcp-config.js`'s server-only code paths.
    *
    * - Inline async chunks so the bundle stays a single file — webpack's
    *   default JSONP chunk loader references `self`/`document`, neither of
@@ -110,7 +120,20 @@ export class StrandsPlugin extends SimplePlugin {
   override configureBundler(options: BundleOptions): BundleOptions {
     const base = super.configureBundler(options);
     const prevHook = base.webpackConfigHook;
-    const ignoreModules = [...(base.ignoreModules ?? []), 'fs'];
+    const ignoreModules = [
+      ...(base.ignoreModules ?? []),
+      'fs',
+      'path',
+      'crypto',
+      '@temporalio/activity',
+      '@temporalio/client',
+      '@aws-sdk/client-bedrock-runtime',
+      '@aws-sdk/middleware-websocket',
+      '@anthropic-ai/sdk',
+      'openai',
+      '@google/genai',
+      'ai',
+    ];
     return {
       ...base,
       ignoreModules,
@@ -127,7 +150,7 @@ export class StrandsPlugin extends SimplePlugin {
           const NormalModuleReplacementPlugin = existing.constructor;
           const empty = require.resolve('./empty-module');
           const ignorePattern =
-            /^(?:node:(?:fs\/promises|os|path|process|stream)|@modelcontextprotocol\/sdk\/client\/(?:stdio|sse)\.js)$/;
+            /^(?:node:(?:fs\/promises|os|path|process|stream)|@modelcontextprotocol\/sdk\/client\/(?:stdio|sse|streamableHttp)\.js|eventsource-parser\/stream)$/;
           // Cast through `unknown` because the strands plugin doesn't list
           // webpack as a dependency and therefore lacks its types.
           config.plugins = (config.plugins ?? []).concat(
