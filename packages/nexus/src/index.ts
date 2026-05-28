@@ -11,10 +11,13 @@ export {
   metricMeter,
   operationInfo,
   type OperationInfo,
+  type TemporalNexusCancelOperationContext,
+  type TemporalNexusStartOperationContext,
 } from './context';
 
 export {
   startWorkflow,
+  type CancelWorkflowRunOptions,
   type TemporalOperationHandlerOptions,
   TemporalOperationHandler,
   TemporalOperationResult,

@@ -173,8 +173,8 @@ test('TemporalOperationHandler cancel delegates to provided cancelWorkflowRun ha
               workflowId,
             });
           },
-          async cancelWorkflowRun(_ctx, client, workflowId) {
-            const handle = client.workflow.getHandle(workflowId);
+          async cancelWorkflowRun(_ctx, { workflowId }) {
+            const handle = temporalnexus.getClient().workflow.getHandle(workflowId);
             await handle.cancel();
             customCancelCalled = true;
           },
@@ -217,7 +217,7 @@ test('TemporalOperationHandler.cancel rejects invalid operation token type befor
       return temporalnexus.TemporalOperationResult.sync(undefined);
     },
 
-    async cancelWorkflowRun(_ctx, _client, _workflowId) {
+    async cancelWorkflowRun(_ctx, _options) {
       throw new Error('cancelWorkflowRun should not be called');
     },
   });

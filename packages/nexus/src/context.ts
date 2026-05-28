@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type * as nexus from 'nexus-rpc';
 import type { Logger, LogLevel, LogMetadata, MetricMeter } from '@temporalio/common';
 import type { Client } from '@temporalio/client';
 
@@ -56,6 +57,24 @@ export interface OperationInfo {
    */
   readonly endpoint: string;
 }
+
+/**
+ * Context received by a {@link TemporalOperationHandler}'s start handler when a Nexus Operation is
+ * started.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface TemporalNexusStartOperationContext extends nexus.StartOperationContext {}
+
+/**
+ * Context received by a {@link TemporalOperationHandler}'s cancel handler when a Nexus Operation is
+ * canceled.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface TemporalNexusCancelOperationContext extends nexus.CancelOperationContext {}
 
 // Basic APIs //////////////////////////////////////////////////////////////////////////////////////
 
