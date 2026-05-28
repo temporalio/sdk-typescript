@@ -64,7 +64,6 @@ class ActivatorRandomStream implements WorkflowRandomStream {
   ) {}
 
   random(): number {
-    // TODO: Cache the resolved RNG on this wrapper once named-stream reseeding can refresh cached streams safely.
     return this.activator.getNamedRandom(this.name)();
   }
 
