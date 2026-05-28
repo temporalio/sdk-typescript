@@ -1,5 +1,5 @@
-import { temporal } from '@temporalio/proto';
 import Long from 'long';
+import { temporal } from '@temporalio/proto';
 import { decode, encode } from '../encoding';
 import { ValueError } from '../errors';
 import type { Payload } from '../interfaces';
