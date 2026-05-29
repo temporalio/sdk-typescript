@@ -1,20 +1,9 @@
 import type { TestFn } from 'ava';
 import { McpClient, Message, Model, TextBlock } from '@strands-agents/sdk';
-import type {
-  BaseModelConfig,
-  JSONValue,
-  ModelStreamEvent,
-  StreamOptions,
-  Tool,
-} from '@strands-agents/sdk';
+import type { BaseModelConfig, JSONValue, ModelStreamEvent, StreamOptions, Tool } from '@strands-agents/sdk';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { BaseContext } from '@temporalio/test-helpers';
-import {
-  test as anyTest,
-  createBaseBundlerOptions,
-  helpers,
-  TestWorkflowEnvironment,
-} from '@temporalio/test-helpers';
+import { test as anyTest, createBaseBundlerOptions, helpers, TestWorkflowEnvironment } from '@temporalio/test-helpers';
 import { bundleWorkflowCode, DefaultLogger, Worker } from '@temporalio/worker';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 import { StrandsPlugin } from '..';
@@ -182,10 +171,6 @@ test('TemporalAgent dispatches model.stream() through invokeModel activity', asy
 });
 
 test('TemporalAgent without `model:` resolves to the single registered factory', async (t) => {
-  // Fix for the case where the caller registered exactly one model factory
-  // but omitted `model:` on the agent. Previously this raised inside
-  // ModelActivity.getModel because `defaultName` was only set on the
-  // implicit-Bedrock branch; now the plugin uses the single key as default.
   t.timeout(60_000);
   const { createWorker, executeWorkflow } = helpers(t);
 
@@ -250,12 +235,23 @@ test('invokeModel reconstructs Message instances from wire data', async (t) => {
 test('activityAsTool dispatches a registered activity from the agent loop', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
+  // The final string is the stub's scripted second turn, so it can't prove the
+  // activity ran. Instead capture the second stream() call
+  let secondCallMessages: Message[] | undefined;
+  class WeatherStub extends StubModel {
+    private call = 0;
+    override async *stream(messages: Message[], options?: StreamOptions): AsyncIterable<ModelStreamEvent> {
+      if (this.call++ === 1) secondCallMessages = messages;
+      yield* super.stream(messages, options);
+    }
+  }
+
   const worker = await createWorker({
     plugins: [
       new StrandsPlugin({
         models: {
           test: () =>
-            new StubModel([
+            new WeatherStub([
               toolCallTurn('getWeather', 'call_1', { location: 'Tokyo' }),
               textTurn('the weather is sunny'),
             ]),
@@ -269,6 +265,8 @@ test('activityAsTool dispatches a registered activity from the agent loop', asyn
     const result = await executeWorkflow(activityToolAgent, { args: ['weather in Tokyo?'] });
     t.is(result, 'the weather is sunny');
   });
+
+  t.true(JSON.stringify(secondCallMessages).includes('Sunny.'));
 });
 
 test('TemporalMCPClient lists and calls tools through per-server activities', async (t) => {
@@ -283,15 +281,22 @@ test('TemporalMCPClient lists and calls tools through per-server activities', as
       },
     ]);
 
+  // The final string is the stub's scripted second turn, so it can't prove the
+  // MCP tool ran. Instead capture the second stream() call
+  let secondCallMessages: Message[] | undefined;
+  class CapturingStub extends StubModel {
+    private call = 0;
+    override async *stream(messages: Message[], options?: StreamOptions): AsyncIterable<ModelStreamEvent> {
+      if (this.call++ === 1) secondCallMessages = messages;
+      yield* super.stream(messages, options);
+    }
+  }
+
   const worker = await createWorker({
     plugins: [
       new StrandsPlugin({
         models: {
-          test: () =>
-            new StubModel([
-              toolCallTurn('listFiles', 'call_1', { path: '/' }),
-              textTurn('found files'),
-            ]),
+          test: () => new CapturingStub([toolCallTurn('listFiles', 'call_1', { path: '/' }), textTurn('found files')]),
         },
         mcpClients: { testServer: factory },
       }),
@@ -302,17 +307,30 @@ test('TemporalMCPClient lists and calls tools through per-server activities', as
     const result = await executeWorkflow(mcpAgent, { args: ['list files'] });
     t.is(result, 'found files');
   });
+
+  t.true(JSON.stringify(secondCallMessages).includes('mcp:listFiles'));
 });
 
 test('in-workflow tool() runs inside the workflow sandbox', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
+
+  // The final string is the stub's scripted second turn, so it can't prove the
+  // in-workflow tool ran. Instead capture the second stream() call
+  let secondCallMessages: Message[] | undefined;
+  class CapturingStub extends StubModel {
+    private call = 0;
+    override async *stream(messages: Message[], options?: StreamOptions): AsyncIterable<ModelStreamEvent> {
+      if (this.call++ === 1) secondCallMessages = messages;
+      yield* super.stream(messages, options);
+    }
+  }
 
   const worker = await createWorker({
     plugins: [
       new StrandsPlugin({
         models: {
           test: () =>
-            new StubModel([
+            new CapturingStub([
               toolCallTurn('echo', 'call_1', { text: 'hi from in-workflow tool' }),
               textTurn('echoed'),
             ]),
@@ -325,6 +343,9 @@ test('in-workflow tool() runs inside the workflow sandbox', async (t) => {
     const result = await executeWorkflow(inWorkflowToolAgent, { args: ['say hi'] });
     t.is(result, 'echoed');
   });
+
+  const occurrences = JSON.stringify(secondCallMessages).split('hi from in-workflow tool').length - 1;
+  t.true(occurrences >= 2);
 });
 
 test('activityAsHook dispatches a registered activity on AfterToolCallEvent', async (t) => {
@@ -335,11 +356,7 @@ test('activityAsHook dispatches a registered activity on AfterToolCallEvent', as
     plugins: [
       new StrandsPlugin({
         models: {
-          test: () =>
-            new StubModel([
-              toolCallTurn('echo', 'call_1', { text: 'hello' }),
-              textTurn('done'),
-            ]),
+          test: () => new StubModel([toolCallTurn('echo', 'call_1', { text: 'hello' }), textTurn('done')]),
         },
       }),
     ],
@@ -384,11 +401,7 @@ test('activity-tool interrupt round-trips through failure converter and resume',
     plugins: [
       new StrandsPlugin({
         models: {
-          test: () =>
-            new StubModel([
-              toolCallTurn('deleteThing', 'call_1', { name: 'foo' }),
-              textTurn('done'),
-            ]),
+          test: () => new StubModel([toolCallTurn('deleteThing', 'call_1', { name: 'foo' }), textTurn('done')]),
         },
       }),
     ],
