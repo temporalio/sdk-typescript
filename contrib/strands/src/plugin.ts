@@ -3,6 +3,7 @@ import { BedrockModel, type Model } from '@strands-agents/sdk';
 import type { BundleOptions } from '@temporalio/worker';
 import { SimplePlugin } from '@temporalio/plugin';
 import { ModelActivity } from './model-activity';
+import type { InvokeModelInput, InvokeModelStreamingInput } from './model-activity';
 import { buildCallToolActivity, buildListToolsActivity, populateMcpCache, _clearCache } from './temporal-mcp-client';
 
 /**
@@ -56,16 +57,16 @@ export class StrandsPlugin extends SimplePlugin {
 
     const modelActivity = new ModelActivity(modelFactories, defaultName);
     const activities: Record<string, (...args: never[]) => unknown> = {
-      invokeModel: (input: never) => modelActivity.invokeModel(input),
-      invokeModelStreaming: (input: never) => modelActivity.invokeModelStreaming(input),
+      invokeModel: (input: InvokeModelInput) => modelActivity.invokeModel(input),
+      invokeModelStreaming: (input: InvokeModelStreamingInput) => modelActivity.invokeModelStreaming(input),
     };
 
     const mcpClients = options.mcpClients ?? {};
     for (const [server, factory] of Object.entries(mcpClients)) {
       const list = buildListToolsActivity(server);
       const call = buildCallToolActivity(server, factory);
-      activities[`${server}-listTools`] = list as (...args: never[]) => unknown;
-      activities[`${server}-callTool`] = call as (...args: never[]) => unknown;
+      activities[`${server}-listTools`] = list;
+      activities[`${server}-callTool`] = call;
     }
 
     const runContext = async (next: () => Promise<void>): Promise<void> => {

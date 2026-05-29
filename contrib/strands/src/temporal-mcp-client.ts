@@ -1,5 +1,5 @@
 import { McpClient } from '@strands-agents/sdk';
-import type { JSONValue } from '@strands-agents/sdk';
+import type { JSONSchema, JSONValue } from '@strands-agents/sdk';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
@@ -9,7 +9,7 @@ import { activityInfo, Context as ActivityContext } from '@temporalio/activity';
 export interface McpToolInfo {
   name: string;
   description: string;
-  inputSchema: unknown;
+  inputSchema?: JSONSchema;
 }
 
 /** Activity input for the per-server `{server}-callTool` activity. */

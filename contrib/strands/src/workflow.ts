@@ -53,7 +53,7 @@ export function activityAsHook<E extends HookableEvent, I>(
   };
   return async function activityHookCallback(event: E): Promise<void> {
     const activities = workflow.proxyActivities<{
-      [key: string]: (input: unknown) => Promise<unknown>;
+      [key: string]: (input: I) => Promise<unknown>;
     }>(activityOptions);
     await activities[activityName]!(options.activityInput(event));
   };

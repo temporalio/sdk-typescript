@@ -31,7 +31,7 @@ export class TemporalMCPTool extends Tool {
     this.toolSpec = {
       name: info.name,
       description: this.description,
-      inputSchema: info.inputSchema as never,
+      inputSchema: info.inputSchema,
     };
     this.activityOptions = activityOptions;
   }
@@ -84,5 +84,5 @@ function mapMcpContent(item: unknown): TextBlock | JsonBlock {
       return new TextBlock(obj.text);
     }
   }
-  return new JsonBlock({ json: item as never });
+  return new JsonBlock({ json: item as JSONValue });
 }

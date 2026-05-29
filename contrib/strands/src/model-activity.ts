@@ -1,5 +1,5 @@
 import { Message } from '@strands-agents/sdk';
-import type { Model, ModelStreamEvent } from '@strands-agents/sdk';
+import type { Model, ModelStreamEvent, StreamOptions } from '@strands-agents/sdk';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 import type { Duration } from '@temporalio/common/lib/time';
 import { autoHeartbeat } from './heartbeat';
@@ -36,8 +36,8 @@ function rebuildMessages(messages: unknown): Message[] {
  */
 export interface InvokeModelInput {
   modelName?: string;
-  messages: unknown;
-  options?: unknown;
+  messages: Message[];
+  options?: StreamOptions;
 }
 
 /**
@@ -97,7 +97,7 @@ export class ModelActivity {
     const model = this.getModel(input.modelName);
     const messages = rebuildMessages(input.messages);
     const events: ModelStreamEvent[] = [];
-    for await (const event of model.stream(messages, input.options as never)) {
+    for await (const event of model.stream(messages, input.options)) {
       events.push(event);
     }
     return events;
@@ -112,7 +112,7 @@ export class ModelActivity {
     const topic = stream.topic(input.streamingTopic);
     const events: ModelStreamEvent[] = [];
     try {
-      for await (const event of model.stream(messages, input.options as never)) {
+      for await (const event of model.stream(messages, input.options)) {
         events.push(event);
         topic.publish(event);
       }

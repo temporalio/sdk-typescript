@@ -24,10 +24,10 @@ function isInterruptError(err: unknown): err is { interrupts: InterruptLike[] } 
   return typeof first?.toJSON === 'function';
 }
 
-const TERMINAL_ERROR_TYPES: Array<{ ctor: new (...args: never[]) => Error; name: string }> = [
-  { ctor: ContextWindowOverflowError as never, name: 'ContextWindowOverflowError' },
-  { ctor: MaxTokensError as never, name: 'MaxTokensError' },
-  { ctor: StructuredOutputError as never, name: 'StructuredOutputError' },
+const TERMINAL_ERROR_TYPES = [
+  { ctor: ContextWindowOverflowError, name: 'ContextWindowOverflowError' },
+  { ctor: MaxTokensError, name: 'MaxTokensError' },
+  { ctor: StructuredOutputError, name: 'StructuredOutputError' },
 ];
 
 function rewriteError(err: unknown): unknown {

@@ -3,6 +3,8 @@ import {
   TextBlock,
   Tool,
   ToolResultBlock,
+  type JSONSchema,
+  type JSONValue,
   type ToolContext,
   type ToolSpec,
   type ToolStreamGenerator,
@@ -25,7 +27,7 @@ import { STRANDS_INTERRUPT_TYPE } from './failure-converter';
 export interface ActivityAsToolOptions {
   name?: string;
   description?: string;
-  inputSchema?: unknown;
+  inputSchema?: JSONSchema;
   activityOptions?: ActivityOptions;
 }
 
@@ -48,7 +50,7 @@ export class TemporalActivityTool extends Tool {
 
   constructor(
     activityName: string,
-    options: { name?: string; description?: string; inputSchema?: unknown; activityOptions?: ActivityOptions }
+    options: { name?: string; description?: string; inputSchema?: JSONSchema; activityOptions?: ActivityOptions }
   ) {
     super();
     this.activityName = activityName;
@@ -57,7 +59,7 @@ export class TemporalActivityTool extends Tool {
     this.toolSpec = {
       name: this.name,
       description: this.description,
-      inputSchema: (options.inputSchema ?? { type: 'object', properties: {} }) as never,
+      inputSchema: options.inputSchema ?? { type: 'object', properties: {} },
     };
     this.activityOptions = options.activityOptions ?? {};
   }
@@ -66,7 +68,7 @@ export class TemporalActivityTool extends Tool {
   async *stream(toolContext: ToolContext): ToolStreamGenerator {
     const { toolUseId, input } = toolContext.toolUse;
     const activities = workflow.proxyActivities<{
-      [key: string]: (input: unknown) => Promise<unknown>;
+      [key: string]: (input: JSONValue) => Promise<unknown>;
     }>({
       startToCloseTimeout: '10 minutes',
       summary: this.name,
@@ -91,7 +93,7 @@ export class TemporalActivityTool extends Tool {
         // halt on first call, returns the user's response on resume.
         const response = toolContext.interrupt<unknown>({
           name: first?.name ?? 'interrupt',
-          reason: first?.reason as never,
+          reason: first?.reason as JSONValue,
         });
         return new ToolResultBlock({
           toolUseId,
@@ -115,5 +117,5 @@ export class TemporalActivityTool extends Tool {
 
 function toResultContent(value: unknown): TextBlock | JsonBlock {
   if (typeof value === 'string') return new TextBlock(value);
-  return new JsonBlock({ json: value as never });
+  return new JsonBlock({ json: value as JSONValue });
 }
