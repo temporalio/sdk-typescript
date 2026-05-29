@@ -4,7 +4,7 @@ import {
   uuid4,
   workflowInfo,
   workflowRandom,
-  WorkflowInterceptors,
+  type WorkflowInterceptors,
 } from '@temporalio/workflow';
 
 const pluginNamedStreamDoesNotConsumeMain = 'randomStreamPluginNamedStreamDoesNotConsumeMain';

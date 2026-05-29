@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import asyncRetry from 'async-retry';
-import Long from 'long';
+import type Long from 'long';
 import type { WorkflowHandle, WorkflowHandleWithFirstExecutionRunId } from '@temporalio/client';
 import type { temporal } from '@temporalio/proto';
 import { helpers, makeTestFunction } from './helpers-integration';

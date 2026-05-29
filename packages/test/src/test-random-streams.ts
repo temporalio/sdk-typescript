@@ -1,13 +1,13 @@
 import path from 'node:path';
-import vm from 'node:vm';
-import anyTest, { TestFn } from 'ava';
+import type * as vm from 'node:vm';
+import anyTest, { type TestFn } from 'ava';
 import Long from 'long';
 import { TypedSearchAttributes } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
-import { ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
-import { VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import { type ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
+import { type VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
 import type { WorkflowBundleWithSourceMapAndFilename } from '@temporalio/worker/lib/workflow/workflow-worker-thread/input';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import { REUSE_V8_CONTEXT } from './helpers';
