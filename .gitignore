@@ -12,7 +12,10 @@ packages/*/package-lock.json
 contrib/*/package-lock.json
 /sdk-node.iml
 *~
+
+# tooling
 .claude/settings.local.json
+mise.toml
 
 # One test creates persisted SQLite DBs; they should normally be deleted automatically,
 # but may be left behind in some error scenarios.
