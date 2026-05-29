@@ -12,7 +12,7 @@ const SNAPSHOT_DISABLED =
 
 const RETRY_STRATEGY_DISABLED =
   'TemporalAgent disables Strands retries; configure retries via retryPolicy ' +
-  "in the model activity options on TemporalAgent, and on the activity options " +
+  'in the model activity options on TemporalAgent, and on the activity options ' +
   'passed to workflow.activityAsTool, workflow.activityAsHook, or TemporalMCPClient. ' +
   'Remove retryStrategy from TemporalAgent(...) or pass retryStrategy: null.';
 

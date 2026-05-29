@@ -85,9 +85,7 @@ export class ModelActivity {
     if (model === undefined) {
       const factory = this.factories[resolved];
       if (factory === undefined) {
-        throw new Error(
-          `Unknown model name '${resolved}'. Known: ${Object.keys(this.factories).sort().join(', ')}`
-        );
+        throw new Error(`Unknown model name '${resolved}'. Known: ${Object.keys(this.factories).sort().join(', ')}`);
       }
       model = factory();
       this.models.set(resolved, model);

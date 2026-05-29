@@ -11,9 +11,6 @@ export {
   type CallToolInput,
 } from './temporal-mcp-client';
 export { TemporalMCPTool } from './temporal-mcp-tool';
-export {
-  TemporalActivityTool,
-  type ActivityAsToolOptions,
-} from './temporal-activity-tool';
+export { TemporalActivityTool, type ActivityAsToolOptions } from './temporal-activity-tool';
 export { STRANDS_INTERRUPT_TYPE, StrandsFailureConverter } from './failure-converter';
 export * as workflow from './workflow';

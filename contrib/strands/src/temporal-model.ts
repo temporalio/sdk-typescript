@@ -1,19 +1,10 @@
 import { Model } from '@strands-agents/sdk';
-import type {
-  BaseModelConfig,
-  Message,
-  ModelStreamEvent,
-  StreamOptions,
-} from '@strands-agents/sdk';
+import type { BaseModelConfig, Message, ModelStreamEvent, StreamOptions } from '@strands-agents/sdk';
 import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
 import { ApplicationFailure } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
-import type {
-  InvokeModelInput,
-  InvokeModelStreamingInput,
-  ModelActivity,
-} from './model-activity';
+import type { InvokeModelInput, InvokeModelStreamingInput, ModelActivity } from './model-activity';
 
 const STRUCTURED_OUTPUT_DISABLED =
   'TemporalModel.structuredOutput is not supported. Use ' +
@@ -66,10 +57,7 @@ export class TemporalModel extends Model<BaseModelConfig> {
     return {};
   }
 
-  override async *stream(
-    messages: Message[],
-    options?: StreamOptions
-  ): AsyncIterable<ModelStreamEvent> {
+  override async *stream(messages: Message[], options?: StreamOptions): AsyncIterable<ModelStreamEvent> {
     const proxiedActivities = workflow.proxyActivities<{
       invokeModel(input: InvokeModelInput): Promise<ModelStreamEvent[]>;
       invokeModelStreaming(input: InvokeModelStreamingInput): Promise<ModelStreamEvent[]>;
