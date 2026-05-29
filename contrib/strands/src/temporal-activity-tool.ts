@@ -9,25 +9,26 @@ import {
   type ToolSpec,
   type ToolStreamGenerator,
 } from '@strands-agents/sdk';
+import type { z } from 'zod';
 import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
 import { ActivityFailure, ApplicationFailure } from '@temporalio/common';
 import { STRANDS_INTERRUPT_TYPE } from './failure-converter';
+import { toJsonSchema } from './json-schema';
 
 /**
  * Options accepted by {@link activityAsTool}.
  *
  * `name` defaults to the activity function's `.name`. `description` defaults
  * to an empty string and SHOULD be supplied so the model has signal about
- * when to call the tool. `inputSchema` is the JSON Schema that describes
- * the activity's single argument; pass a literal JSON Schema object, or use
- * a Zod schema with {@link https://github.com/StefanTerdell/zod-to-json-schema | zod-to-json-schema}
- * to derive one.
+ * when to call the tool. `inputSchema` describes the activity's single
+ * argument; pass either a literal JSON Schema object or a Zod schema, which
+ * is converted to JSON Schema for you.
  */
 export interface ActivityAsToolOptions {
   name?: string;
   description?: string;
-  inputSchema?: JSONSchema;
+  inputSchema?: JSONSchema | z.ZodType;
   activityOptions?: ActivityOptions;
 }
 
@@ -50,7 +51,12 @@ export class TemporalActivityTool extends Tool {
 
   constructor(
     activityName: string,
-    options: { name?: string; description?: string; inputSchema?: JSONSchema; activityOptions?: ActivityOptions }
+    options: {
+      name?: string;
+      description?: string;
+      inputSchema?: JSONSchema | z.ZodType;
+      activityOptions?: ActivityOptions;
+    }
   ) {
     super();
     this.activityName = activityName;
@@ -59,7 +65,7 @@ export class TemporalActivityTool extends Tool {
     this.toolSpec = {
       name: this.name,
       description: this.description,
-      inputSchema: options.inputSchema ?? { type: 'object', properties: {} },
+      inputSchema: toJsonSchema(options.inputSchema) ?? { type: 'object', properties: {} },
     };
     this.activityOptions = options.activityOptions ?? {};
   }

@@ -4,6 +4,7 @@ import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
 import type { CallToolInput, McpToolInfo } from './temporal-mcp-client';
 import { callToolActivityName } from './temporal-mcp-client';
+import { toJsonSchema } from './json-schema';
 
 /**
  * Workflow-side stub for a single MCP tool. Each invocation dispatches the
@@ -31,7 +32,7 @@ export class TemporalMCPTool extends Tool {
     this.toolSpec = {
       name: info.name,
       description: this.description,
-      inputSchema: info.inputSchema,
+      inputSchema: toJsonSchema(info.inputSchema),
     };
     this.activityOptions = activityOptions;
   }
