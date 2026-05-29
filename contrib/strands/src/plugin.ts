@@ -11,6 +11,7 @@ import {
   listToolsActivityName,
   populateMcpCache,
   _clearCache,
+  _evictConnection,
 } from './temporal-mcp-client';
 
 /**
@@ -84,6 +85,7 @@ export class StrandsPlugin extends SimplePlugin {
         await next();
       } finally {
         for (const server of Object.keys(mcpClients)) {
+          await _evictConnection(server);
           _clearCache(server);
         }
       }

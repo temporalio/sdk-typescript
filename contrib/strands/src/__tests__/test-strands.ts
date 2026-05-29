@@ -311,6 +311,65 @@ test('TemporalMCPClient lists and calls tools through per-server activities', as
   t.true(JSON.stringify(secondCallMessages).includes('mcp:listFiles'));
 });
 
+test('successive MCP tool calls reuse one cached worker-side connection', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const counters = { factoryCalls: 0, connects: 0, disconnects: 0, callTools: 0 };
+  class CountingMcpClient extends StubMcpClient {
+    override async connect(): Promise<void> {
+      counters.connects++;
+    }
+    override async disconnect(): Promise<void> {
+      counters.disconnects++;
+    }
+    override async callTool(tool: { name: string }, args: JSONValue): Promise<JSONValue> {
+      counters.callTools++;
+      return super.callTool(tool, args);
+    }
+  }
+  const factory = (): McpClient => {
+    counters.factoryCalls++;
+    return new CountingMcpClient([
+      { name: 'listFiles', description: 'List files', inputSchema: { type: 'object', properties: {} } },
+    ]);
+  };
+
+  const worker = await createWorker({
+    plugins: [
+      new StrandsPlugin({
+        models: {
+          // Two tool-call turns in one workflow → two callTool activities.
+          test: () =>
+            new StubModel([
+              toolCallTurn('listFiles', 'call_1', { path: '/a' }),
+              toolCallTurn('listFiles', 'call_2', { path: '/b' }),
+              textTurn('done'),
+            ]),
+        },
+        // Distinct server name so the worker-process connection cache can't be
+        // shared with the sibling MCP test running in the same process.
+        mcpClients: { cachingServer: factory },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(mcpAgent, { args: ['list files', 'cachingServer'] });
+    t.is(result, 'done');
+    // Both tool calls ran, but only the startup-discovery connection plus a
+    // single lazily-cached call connection were opened — the second call
+    // reused the first. (No caching would mean factoryCalls/connects === 3.)
+    t.is(counters.callTools, 2);
+    t.is(counters.factoryCalls, 2);
+    t.is(counters.connects, 2);
+    // Discovery disconnected; the cached call connection is still open mid-run.
+    t.is(counters.disconnects, 1);
+  });
+
+  // Worker shutdown evicts the cached connection.
+  t.is(counters.disconnects, 2);
+});
+
 test('in-workflow tool() runs inside the workflow sandbox', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 

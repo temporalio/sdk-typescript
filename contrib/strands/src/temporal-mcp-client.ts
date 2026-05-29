@@ -133,10 +133,75 @@ export function buildListToolsActivity(server: string): (input: { server: string
   return fn;
 }
 
+/** A live MCP session held open in the activity worker process. */
+interface CachedConnection {
+  client: McpClient;
+  tools: Awaited<ReturnType<McpClient['listTools']>>;
+}
+
 /**
- * Builds the per-server `{server}-callTool` activity. Opens an MCP session
- * through the user-supplied factory, invokes the named tool, and returns
- * the raw result for the workflow to forward as a Strands tool result.
+ * How long an idle MCP connection is kept open before it's disconnected. The
+ * timer resets on every {@link callToolActivityName | callTool} that reuses the
+ * connection. Exported for tests.
+ */
+export const MCP_CONNECTION_IDLE_MS = 5 * 60 * 1000;
+
+// Worker-process caches, keyed by server name. Activities run in the worker's
+// Node process, so this module state is shared across every activity invocation on the worker.
+const CONNECTIONS: Map<string, Promise<CachedConnection>> = new Map();
+const IDLE_TIMERS: Map<string, NodeJS.Timeout> = new Map();
+
+function resetIdleTimer(server: string): void {
+  const existing = IDLE_TIMERS.get(server);
+  if (existing !== undefined) clearTimeout(existing);
+  const timer = setTimeout(() => void _evictConnection(server), MCP_CONNECTION_IDLE_MS);
+  // Don't let an idle MCP connection keep the worker process alive.
+  timer.unref?.();
+  IDLE_TIMERS.set(server, timer);
+}
+
+export async function _evictConnection(server: string): Promise<void> {
+  const timer = IDLE_TIMERS.get(server);
+  if (timer !== undefined) {
+    clearTimeout(timer);
+    IDLE_TIMERS.delete(server);
+  }
+  const entry = CONNECTIONS.get(server);
+  if (entry === undefined) return;
+  CONNECTIONS.delete(server);
+  try {
+    const { client } = await entry;
+    await client.disconnect();
+  } catch {
+    // Best-effort; the session may already be broken.
+  }
+}
+
+function getConnection(server: string, factory: () => McpClient): Promise<CachedConnection> {
+  let entry = CONNECTIONS.get(server);
+  if (entry === undefined) {
+    entry = (async () => {
+      const client = factory();
+      await client.connect();
+      const tools = await client.listTools();
+      return { client, tools };
+    })();
+    CONNECTIONS.set(server, entry);
+    // If the connect/listTools handshake fails, drop the rejected promise so
+    // the next call retries instead of caching the failure forever.
+    entry.catch(() => {
+      if (CONNECTIONS.get(server) === entry) CONNECTIONS.delete(server);
+    });
+  }
+  resetIdleTimer(server);
+  return entry;
+}
+
+/**
+ * Builds the per-server `{server}-callTool` activity. Reuses a worker-process
+ * MCP session opened lazily through the user-supplied factory — successive
+ * calls share one connection rather than reconnecting per call. Idle
+ * connections are disconnected after {@link MCP_CONNECTION_IDLE_MS}.
  */
 export function buildCallToolActivity(
   server: string,
@@ -147,17 +212,17 @@ export function buildCallToolActivity(
     ActivityContext.current().log.debug(`Calling MCP tool ${input.toolName} on server ${server}`, {
       activityId: activityInfo().activityId,
     });
-    const client = factory();
+    const { client, tools } = await getConnection(server, factory);
+    const tool = tools.find((t) => t.name === input.toolName);
+    if (tool === undefined) {
+      throw new Error(`MCP tool '${input.toolName}' not found on server '${server}'`);
+    }
     try {
-      await client.connect();
-      const tools = await client.listTools();
-      const tool = tools.find((t) => t.name === input.toolName);
-      if (tool === undefined) {
-        throw new Error(`MCP tool '${input.toolName}' not found on server '${server}'`);
-      }
       return await client.callTool(tool, input.args);
-    } finally {
-      await client.disconnect();
+    } catch (err) {
+      // The session may be broken; drop it so the next call reconnects.
+      await _evictConnection(server);
+      throw err;
     }
   };
   Object.defineProperty(fn, 'name', { value: name });
