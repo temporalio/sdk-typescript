@@ -4,7 +4,14 @@ import type { BundleOptions } from '@temporalio/worker';
 import { SimplePlugin } from '@temporalio/plugin';
 import { ModelActivity } from './model-activity';
 import type { InvokeModelInput, InvokeModelStreamingInput } from './model-activity';
-import { buildCallToolActivity, buildListToolsActivity, populateMcpCache, _clearCache } from './temporal-mcp-client';
+import {
+  buildCallToolActivity,
+  buildListToolsActivity,
+  callToolActivityName,
+  listToolsActivityName,
+  populateMcpCache,
+  _clearCache,
+} from './temporal-mcp-client';
 
 /**
  * Options for {@link StrandsPlugin}.
@@ -65,8 +72,8 @@ export class StrandsPlugin extends SimplePlugin {
     for (const [server, factory] of Object.entries(mcpClients)) {
       const list = buildListToolsActivity(server);
       const call = buildCallToolActivity(server, factory);
-      activities[`${server}-listTools`] = list;
-      activities[`${server}-callTool`] = call;
+      activities[listToolsActivityName(server)] = list;
+      activities[callToolActivityName(server)] = call;
     }
 
     const runContext = async (next: () => Promise<void>): Promise<void> => {
