@@ -32,7 +32,6 @@ minimumReleaseAge: 20160
 minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
-  - '@strands-agents/sdk'
 
 peerDependencyRules:
   ignoreMissing:
