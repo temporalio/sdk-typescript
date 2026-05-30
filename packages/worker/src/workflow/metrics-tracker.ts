@@ -3,6 +3,7 @@ import type { MetricSinks } from '@temporalio/workflow/lib/metrics';
 import type { InjectedSinks } from '../sinks';
 
 interface TrackedContribution {
+  runId: string;
   metricName: string;
   unit: string | undefined;
   description: string | undefined;
@@ -13,7 +14,11 @@ interface TrackedContribution {
 export function stableTagsKey(tags: MetricTags): string {
   const keys = Object.keys(tags).sort();
   if (keys.length === 0) return '';
-  return keys.map((k) => `${k}=${tags[k]}`).join(',');
+  return JSON.stringify(keys.map((k) => [k, tags[k]]));
+}
+
+function metricDescriptorKey(name: string, unit: string | undefined, description: string | undefined): string {
+  return JSON.stringify([name, unit ?? null, description ?? null]);
 }
 
 export class WorkflowMetricsTracker {
@@ -66,11 +71,24 @@ export class WorkflowMetricsTracker {
         },
         addMetricUpDownCounterValue: {
           fn: (workflowInfo, metricName, unit, description, netValue, attrs) => {
-            const key = `${workflowInfo.runId} ${metricName} ${stableTagsKey(attrs)}`;
+            const key = JSON.stringify([
+              workflowInfo.runId,
+              metricName,
+              unit ?? null,
+              description ?? null,
+              stableTagsKey(attrs),
+            ]);
             const existing = this.perWorkflowUpDownCounters.get(key);
             const oldNet = existing?.netValue ?? 0;
             const delta = netValue - oldNet;
-            this.perWorkflowUpDownCounters.set(key, { metricName, unit, description, tags: attrs, netValue });
+            this.perWorkflowUpDownCounters.set(key, {
+              runId: workflowInfo.runId,
+              metricName,
+              unit,
+              description,
+              tags: attrs,
+              netValue,
+            });
             if (delta !== 0) {
               this.getUpDownCounter(metricName, unit, description).add(delta, attrs);
             }
@@ -82,9 +100,8 @@ export class WorkflowMetricsTracker {
   }
 
   notifyWorkflowEvicted(runId: string): void {
-    const prefix = `${runId} `;
     for (const [key, contribution] of this.perWorkflowUpDownCounters) {
-      if (!key.startsWith(prefix)) continue;
+      if (contribution.runId !== runId) continue;
       if (contribution.netValue !== 0) {
         this.getUpDownCounter(contribution.metricName, contribution.unit, contribution.description).add(
           -contribution.netValue,
@@ -100,10 +117,11 @@ export class WorkflowMetricsTracker {
     unit: string | undefined,
     description: string | undefined
   ): MetricUpDownCounter {
-    let counter = this.upDownCounterCache.get(name);
+    const key = metricDescriptorKey(name, unit, description);
+    let counter = this.upDownCounterCache.get(key);
     if (counter === undefined) {
       counter = this.metricMeter.createUpDownCounter!(name, unit, description);
-      this.upDownCounterCache.set(name, counter);
+      this.upDownCounterCache.set(key, counter);
     }
     return counter;
   }

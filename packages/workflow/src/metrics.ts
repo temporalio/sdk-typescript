@@ -18,11 +18,15 @@ import type { Activator } from './internals';
 function stableTagsKey(tags: MetricTags): string {
   const keys = Object.keys(tags).sort();
   if (keys.length === 0) return '';
-  return keys.map((k) => `${k}=${tags[k]}`).join(',');
+  return JSON.stringify(keys.map((k) => [k, tags[k]]));
+}
+
+function metricDescriptorKey(name: string, unit: string | undefined, description: string | undefined): string {
+  return JSON.stringify([name, unit ?? null, description ?? null]);
 }
 
 // Per-workflow cache keyed by Activator. Each workflow execution gets its
-// own singleton instances per metric name. Required so that `add` calls
+// own singleton instances per metric descriptor. Required so that `add` calls
 // against `metricMeter.createUpDownCounter('foo')` from multiple call
 // sites accumulate against one canonical net-value map.
 const upDownCounterCaches = new WeakMap<Activator, Map<string, WorkflowMetricUpDownCounter>>();
@@ -38,10 +42,11 @@ function getOrCreateUpDownCounter(
     cache = new Map();
     upDownCounterCaches.set(activator, cache);
   }
-  let counter = cache.get(name);
+  const key = metricDescriptorKey(name, unit, description);
+  let counter = cache.get(key);
   if (counter === undefined) {
     counter = new WorkflowMetricUpDownCounter(name, unit, description);
-    cache.set(name, counter);
+    cache.set(key, counter);
   }
   return counter;
 }

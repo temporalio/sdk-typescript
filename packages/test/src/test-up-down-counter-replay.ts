@@ -16,6 +16,12 @@ interface RecordedAdd {
   tags: MetricTags;
 }
 
+interface RecordedInstrument {
+  name: string;
+  unit: string | undefined;
+  description: string | undefined;
+}
+
 class FakeUpDownCounter implements MetricUpDownCounter {
   public readonly kind = 'up-down-counter' as const;
   public readonly valueType = 'int' as const;
@@ -35,21 +41,18 @@ class FakeUpDownCounter implements MetricUpDownCounter {
 
 class FakeMetricMeter implements MetricMeter {
   public readonly recorded: RecordedAdd[] = [];
+  public readonly instruments: RecordedInstrument[] = [];
   createCounter(_n: string, _u?: string, _d?: string): MetricCounter {
     throw new Error('unused');
   }
-  createHistogram(
-    _n: string,
-    _v?: NumericMetricValueType,
-    _u?: string,
-    _d?: string
-  ): MetricHistogram {
+  createHistogram(_n: string, _v?: NumericMetricValueType, _u?: string, _d?: string): MetricHistogram {
     throw new Error('unused');
   }
   createGauge(_n: string, _v?: NumericMetricValueType, _u?: string, _d?: string): MetricGauge {
     throw new Error('unused');
   }
   createUpDownCounter(name: string, unit?: string, description?: string): MetricUpDownCounter {
+    this.instruments.push({ name, unit, description });
     return new FakeUpDownCounter(name, unit, description, this.recorded);
   }
   withTags(_t: MetricTags): MetricMeter {
@@ -94,6 +97,36 @@ test('different tag combinations are tracked independently', (t) => {
     { name: 'inflight', value: 1, tags: { region: 'us' } },
     { name: 'inflight', value: 1, tags: { region: 'eu' } },
     { name: 'inflight', value: 2, tags: { region: 'us' } },
+  ]);
+});
+
+test('tag keys do not collide when tag values contain separators', (t) => {
+  const meter = new FakeMetricMeter();
+  const tracker = new WorkflowMetricsTracker(meter);
+  callUpDownCounterSink(tracker, 'run-1', 'inflight', 1, { a: 'b,c=d' });
+  callUpDownCounterSink(tracker, 'run-1', 'inflight', 1, { a: 'b', c: 'd' });
+  t.deepEqual(meter.recorded, [
+    { name: 'inflight', value: 1, tags: { a: 'b,c=d' } },
+    { name: 'inflight', value: 1, tags: { a: 'b', c: 'd' } },
+  ]);
+});
+
+test('same metric name with different descriptors creates independent instruments', (t) => {
+  const meter = new FakeMetricMeter();
+  const tracker = new WorkflowMetricsTracker(meter);
+  const sinks = tracker.getInjectedSinks();
+  const fn = sinks.__temporal_metrics.addMetricUpDownCounterValue.fn;
+
+  void fn({ runId: 'run-1' } as any, 'inflight', 'items', 'Item count', 1, {});
+  void fn({ runId: 'run-1' } as any, 'inflight', 'bytes', 'Byte count', 2, {});
+
+  t.deepEqual(meter.instruments, [
+    { name: 'inflight', unit: 'items', description: 'Item count' },
+    { name: 'inflight', unit: 'bytes', description: 'Byte count' },
+  ]);
+  t.deepEqual(meter.recorded, [
+    { name: 'inflight', value: 1, tags: {} },
+    { name: 'inflight', value: 2, tags: {} },
   ]);
 });
 
@@ -148,24 +181,40 @@ test('Counter sink applies values to the underlying meter', (t) => {
   class FakeCounter {
     public readonly kind = 'counter' as const;
     public readonly valueType = 'int' as const;
-    constructor(public readonly name: string, public readonly unit?: string, public readonly description?: string) {}
-    add(value: number, tags: MetricTags = {}) { counterAdds.push({ name: this.name, value, tags }); }
-    withTags(): any { throw new Error('unused'); }
+    constructor(
+      public readonly name: string,
+      public readonly unit?: string,
+      public readonly description?: string
+    ) {}
+    add(value: number, tags: MetricTags = {}) {
+      counterAdds.push({ name: this.name, value, tags });
+    }
+    withTags(): any {
+      throw new Error('unused');
+    }
   }
 
   const meter: MetricMeter = {
     createCounter: (name, unit, description) => new FakeCounter(name, unit, description),
-    createHistogram: () => { throw new Error('unused'); },
-    createGauge: () => { throw new Error('unused'); },
-    createUpDownCounter: () => { throw new Error('unused'); },
-    withTags: () => { throw new Error('unused'); },
+    createHistogram: () => {
+      throw new Error('unused');
+    },
+    createGauge: () => {
+      throw new Error('unused');
+    },
+    createUpDownCounter: () => {
+      throw new Error('unused');
+    },
+    withTags: () => {
+      throw new Error('unused');
+    },
   };
 
   const tracker = new WorkflowMetricsTracker(meter);
   const sinks = tracker.getInjectedSinks();
-  sinks.__temporal_metrics.addMetricCounterValue.fn(
-    { runId: 'r' } as any, 'requests', undefined, undefined, 3, { region: 'us' }
-  );
+  sinks.__temporal_metrics.addMetricCounterValue.fn({ runId: 'r' } as any, 'requests', undefined, undefined, 3, {
+    region: 'us',
+  });
   t.deepEqual(counterAdds, [{ name: 'requests', value: 3, tags: { region: 'us' } }]);
   t.is(sinks.__temporal_metrics.addMetricCounterValue.callDuringReplay, false);
 });
