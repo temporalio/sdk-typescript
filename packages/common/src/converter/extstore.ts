@@ -4,7 +4,6 @@ import { patchProtobufRoot } from '@temporalio/proto/lib/patch-protobuf-root';
 import { decode } from '../encoding';
 import { ValueError } from '../errors';
 import type { Payload } from '../interfaces';
-import type { SerializationContext } from './serialization-context';
 import { ProtobufJsonPayloadConverter } from './protobuf-payload-converters';
 import { encodingTypes, METADATA_ENCODING_KEY, METADATA_MESSAGE_TYPE_KEY } from './types';
 
@@ -102,30 +101,11 @@ export interface StorageDriver {
 
 /**
  * User-supplied function that picks the destination driver for a given
- * payload, or returns `null` to keep the payload inline. Required when
- * more than one driver is registered.
+ * payload, or returns `null` to keep the payload inline.
  *
  * @experimental
  */
-export type StorageDriverSelector = (
-  context: StorageDriverStoreContext,
-  payload: Payload
-) => StorageDriver | null;
-
-/**
- * Build a {@link StorageDriverTarget} from a codec-layer {@link SerializationContext}.
- * Bridges the codec pipeline (which threads `SerializationContext`) into the storage
- * driver API (which expects the narrower, extstore-specific target shape).
- *
- * @internal
- * @experimental
- */
-export function storageTargetFromContext(ctx: SerializationContext | undefined): StorageDriverTarget | undefined {
-  if (!ctx) return undefined;
-  return ctx.type === 'workflow'
-    ? { kind: 'workflow', namespace: ctx.namespace, id: ctx.workflowId }
-    : { kind: 'activity', namespace: ctx.namespace, id: ctx.activityId };
-}
+export type StorageDriverSelector = (context: StorageDriverStoreContext, payload: Payload) => StorageDriver | null;
 
 // ============================================================================
 // Configuration
@@ -141,7 +121,8 @@ const DEFAULT_PAYLOAD_SIZE_THRESHOLD = 256 * 1024;
 /**
  * Configuration for external storage. Holds the registered drivers, an
  * optional selector, and the size threshold above which payloads are
- * eligible for offloading.
+ * eligible for offloading to external storage. A selector function is 
+ * required when more than one driver is registered.
  *
  * Mounted on {@link DataConverter.externalStorage}.
  *
@@ -149,7 +130,11 @@ const DEFAULT_PAYLOAD_SIZE_THRESHOLD = 256 * 1024;
  */
 export class ExternalStorage {
   readonly drivers: StorageDriver[];
-  readonly driverSelector?: StorageDriverSelector;
+  /**
+   * Selects the destination driver for each payload, or returns `null` to keep
+   * the payload inline. 
+   */
+  readonly driverSelector: StorageDriverSelector;
   readonly payloadSizeThreshold: number;
   private readonly driversByName: ReadonlyMap<string, StorageDriver>;
 
@@ -163,8 +148,8 @@ export class ExternalStorage {
     /** Omit for default (256 KiB). Set `0` to consider all payloads regardless of size. */
     payloadSizeThreshold?: number;
   }) {
-    // TODO: use the new stable error codes here
     if (!Array.isArray(drivers) || drivers.length === 0) {
+      // TODO: use the new stable error codes here
       throw new ValueError('ExternalStorage requires at least one driver');
     }
     if (
@@ -172,6 +157,7 @@ export class ExternalStorage {
       !Number.isFinite(payloadSizeThreshold) ||
       payloadSizeThreshold < 0
     ) {
+      // TODO: use the new stable error codes here
       throw new ValueError(
         `ExternalStorage.payloadSizeThreshold must be a non-negative finite number, got ${String(payloadSizeThreshold)}`
       );
@@ -180,9 +166,11 @@ export class ExternalStorage {
     const driversByName = new Map<string, StorageDriver>();
     for (const driver of drivers) {
       if (typeof driver?.name !== 'string' || driver.name.length === 0) {
+        // TODO: use the new stable error codes here
         throw new ValueError("Storage driver 'name' must be a non-empty string");
       }
       if (driversByName.has(driver.name)) {
+        // TODO: use the new stable error codes here
         throw new ValueError(`Duplicate storage driver name: '${driver.name}'`);
       }
       driversByName.set(driver.name, driver);
@@ -199,9 +187,9 @@ export class ExternalStorage {
     this.driversByName = driversByName;
   }
 
-  /** Look up a registered driver by name. Returns `undefined` if no driver with that name is registered. */
-  getDriver(name: string): StorageDriver | undefined {
-    return this.driversByName.get(name);
+  /** Look up a registered driver by name. Returns `null` if no driver with that name is registered. */
+  getDriver(name: string): StorageDriver | null {
+    return this.driversByName.get(name) ?? null;
   }
 }
 
@@ -215,18 +203,13 @@ const EXTSTORE_REFERENCE_MESSAGE_TYPE = 'temporal.api.sdk.v1.ExternalStorageRefe
 /** @internal @experimental */
 const EXTSTORE_REFERENCE_ENCODING = encodingTypes.METADATA_ENCODING_PROTOBUF_JSON;
 
-const EXTSTORE_REFERENCE_MESSAGE_TYPE_BYTES = encode(EXTSTORE_REFERENCE_MESSAGE_TYPE);
-
-/** 
- * True if the payload is a External Storage reference:
- * temporal.api.sdk.v1.ExternalStorageReference
- * 
- * @internal @experimental 
- * */
+/**
+ * True if the payload is an External Storage reference:
+ * `temporal.api.sdk.v1.ExternalStorageReference`.
+ *
+ * @internal @experimental
+ */
 export function isReferencePayload(payload: Payload): boolean {
-  if (payload.externalPayloads && payload.externalPayloads.length > 0) {
-    return true;
-  }
   const encodingValue = readMetadataString(payload, METADATA_ENCODING_KEY);
   if (encodingValue === EXTSTORE_REFERENCE_ENCODING) {
     return readMetadataString(payload, METADATA_MESSAGE_TYPE_KEY) === EXTSTORE_REFERENCE_MESSAGE_TYPE;

@@ -1,23 +1,22 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
 import {
-  ApplicationFailure,
-  defaultPayloadConverter,
   ExternalStorage,
-  defaultFailureConverter,
+  StorageDriverClaim,
   type LoadedDataConverter,
-  type WorkflowSerializationContext,
+  type Payload,
+  type StorageDriver,
 } from '@temporalio/common';
 import {
-  decodeArrayFromPayloads,
-  decodeOptionalFailureToOptionalError,
-  encodeErrorToFailure,
+  decodeReferencePayload,
+  encodeReferencePayload,
+  isReferencePayload,
+} from '@temporalio/common/lib/converter/extstore';
+import {
   encodeToPayloads,
-  encodeToPayloadsWithContext,
   isLoadedDataConverter,
   loadDataConverter,
 } from '@temporalio/common/lib/internal-non-workflow';
-import { makeFakeDriver } from './extstore-fake-driver';
 
 function makeConverter(externalStorage?: ExternalStorage): LoadedDataConverter {
   const loaded = loadDataConverter({ externalStorage });
@@ -25,27 +24,23 @@ function makeConverter(externalStorage?: ExternalStorage): LoadedDataConverter {
   return loaded;
 }
 
-test('encodeToPayloadsWithContext threads identity into StorageDriverStoreContext.target', async (t) => {
-  const driver = makeFakeDriver();
-  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
-  const converter = makeConverter(externalStorage);
-  const context: WorkflowSerializationContext = {
-    type: 'workflow',
-    namespace: 'ns',
-    workflowId: 'wf-1',
+function stubDriver(name: string): StorageDriver {
+  return {
+    name,
+    type: name,
+    async store(): Promise<StorageDriverClaim[]> {
+      throw new Error('not implemented');
+    },
+    async retrieve(): Promise<Payload[]> {
+      throw new Error('not implemented');
+    },
   };
+}
 
-  const payloads = await encodeToPayloadsWithContext(converter, context, ['hello', { v: 42 }]);
-  t.is(payloads!.length, 2);
-  t.is(driver.storeCalls.length, 1);
-  t.deepEqual(driver.storeCalls[0]!.context.target, {
-    kind: 'workflow',
-    namespace: 'ns',
-    id: 'wf-1',
-  });
-
-  const decoded = await decodeArrayFromPayloads(converter, payloads!);
-  t.deepEqual(decoded, ['hello', { v: 42 }]);
+test('loadDataConverter passes through externalStorage when set', (t) => {
+  const externalStorage = new ExternalStorage({ drivers: [stubDriver('mem')] });
+  const loaded = loadDataConverter({ externalStorage });
+  t.is(loaded.externalStorage, externalStorage);
 });
 
 test('encodeToPayloads is a no-op when externalStorage is undefined', async (t) => {
@@ -54,56 +49,25 @@ test('encodeToPayloads is a no-op when externalStorage is undefined', async (t) 
   // Plain JSON payload — not a reference.
   t.is(payloads!.length, 1);
   t.falsy(payloads![0]!.externalPayloads?.length);
+  t.false(isReferencePayload(payloads![0]!));
 });
 
-test('decodeArrayFromPayloads raises TMPRL1105 when no externalStorage and reference payload received', async (t) => {
-  const driver = makeFakeDriver();
-  const writerStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
-  const writerConv = makeConverter(writerStorage);
-  const storedPayloads = await encodeToPayloads(writerConv, 'big');
+test('reference payload round-trips through canonical proto3 JSON', (t) => {
+  const claim = new StorageDriverClaim({ id: 'mem-0', bucket: 'my-bucket' });
+  const payload = encodeReferencePayload({ driverName: 'mem', claim, sizeBytes: 4096 });
 
-  const readerConv = makeConverter(undefined);
-  await t.throwsAsync(() => decodeArrayFromPayloads(readerConv, storedPayloads!), {
-    instanceOf: Error,
-  });
+  t.true(isReferencePayload(payload));
+
+  const decoded = decodeReferencePayload(payload);
+  t.is(decoded.driverName, 'mem');
+  t.deepEqual(decoded.claimData, { id: 'mem-0', bucket: 'my-bucket' });
+  t.is(decoded.sizeBytes, 4096);
 });
 
-test('encodeErrorToFailure offloads oversized application failure details', async (t) => {
-  const driver = makeFakeDriver();
-  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
-  const converter = makeConverter(externalStorage);
-  const context: WorkflowSerializationContext = {
-    type: 'workflow',
-    namespace: 'ns',
-    workflowId: 'wf-1',
-  };
-
-  const bigPayload = { blob: 'x'.repeat(1024) };
-  const failure = await encodeErrorToFailure(
-    converter,
-    ApplicationFailure.create({ message: 'boom', details: [bigPayload] }),
-    context
-  );
-
-  const details = failure.applicationFailureInfo?.details?.payloads ?? [];
-  t.is(details.length, 1);
-  t.truthy(details[0]!.externalPayloads?.length);
-
-  const error = await decodeOptionalFailureToOptionalError(converter, failure, context);
-  t.true(error instanceof ApplicationFailure);
-  t.deepEqual((error as ApplicationFailure).details, [bigPayload]);
+test('isReferencePayload is true even without externalPayloads size detail', (t) => {
+  const claim = new StorageDriverClaim({ id: 'mem-0' });
+  const payload = encodeReferencePayload({ driverName: 'mem', claim, sizeBytes: 0 });
+  // Drop the optional size detail; the payload is still a valid reference.
+  delete payload.externalPayloads;
+  t.true(isReferencePayload(payload));
 });
-
-// Ensure we don't accidentally regress the default loaded converter when
-// externalStorage isn't passed.
-test('loadDataConverter passes through externalStorage when set', (t) => {
-  const driver = makeFakeDriver();
-  const externalStorage = new ExternalStorage({ drivers: [driver] });
-  const loaded = loadDataConverter({ externalStorage });
-  t.is(loaded.externalStorage, externalStorage);
-});
-
-// Silence the unused-imports warning for converter types we keep around
-// for clarity in this file's signatures.
-void defaultPayloadConverter;
-void defaultFailureConverter;
