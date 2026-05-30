@@ -18,7 +18,7 @@ export type {
   StorageDriverRetrieveContext,
   StorageDriverSelector,
   StorageDriverStoreContext,
-  StorageDriverTarget,
+  StorageDriverTargetInfo,
   StorageDriverWorkflowInfo,
 } from './converter/extstore';
 export * from './converter/failure-converter';
