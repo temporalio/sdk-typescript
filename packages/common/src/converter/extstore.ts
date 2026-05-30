@@ -188,14 +188,13 @@ export class ExternalStorage {
       driversByName.set(driver.name, driver);
     }
 
-    if (driversByName.size > 1 && driverSelector === undefined) {
-      throw new ValueError(
-        'ExternalStorage.driverSelector is required when more than one driver is registered'
-      );
+    if (driverSelector === undefined && driversByName.size > 1) {
+      // TODO: use the new stable error codes here
+      throw new ValueError('ExternalStorage.driverSelector is required when more than one driver is registered');
     }
 
     this.drivers = [...drivers];
-    this.driverSelector = driverSelector;
+    this.driverSelector = driverSelector ?? (() => drivers[0] as StorageDriver);
     this.payloadSizeThreshold = payloadSizeThreshold;
     this.driversByName = driversByName;
   }
