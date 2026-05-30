@@ -1,13 +1,16 @@
 import Long from 'long';
-import { temporal } from '@temporalio/proto';
-import { decode, encode } from '../encoding';
+import * as proto from '@temporalio/proto';
+import { patchProtobufRoot } from '@temporalio/proto/lib/patch-protobuf-root';
+import { decode } from '../encoding';
 import { ValueError } from '../errors';
 import type { Payload } from '../interfaces';
 import type { SerializationContext } from './serialization-context';
-import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, METADATA_MESSAGE_TYPE_KEY } from './types';
+import { ProtobufJsonPayloadConverter } from './protobuf-payload-converters';
+import { encodingTypes, METADATA_ENCODING_KEY, METADATA_MESSAGE_TYPE_KEY } from './types';
 
-const ExternalStorageReferenceProto = temporal.api.sdk.v1.ExternalStorageReference;
-const PayloadProto = temporal.api.common.v1.Payload;
+const ExternalStorageReferenceProto = proto.temporal.api.sdk.v1.ExternalStorageReference;
+const PayloadProto = proto.temporal.api.common.v1.Payload;
+const claimConverter = new ProtobufJsonPayloadConverter(patchProtobufRoot(proto));
 
 /**
  * Reference returned from {@link StorageDriver.store}. `claimData` is an
@@ -240,45 +243,17 @@ export interface DecodedReferencePayload {
 }
 
 /**
- * Decode a reference payload (v1 proto encoding or legacy JSON encoding). Throws
- * {@link ValueError} if the payload is not a reference or is malformed; callers
- * should gate on {@link isReferencePayload} first.
+ * Decode a reference payload from the wire format {@link ExternalStorageReference}. 
+ * Throws {@link ValueError} if the payload is not a reference or is malformed. 
+ * Callers should gate on {@link isReferencePayload} first.
  *
  * @internal
  * @experimental
  */
 export function decodeReferencePayload(payload: Payload): DecodedReferencePayload {
-  const encodingValue = readMetadataString(payload, METADATA_ENCODING_KEY);
-
-  if (encodingValue !== EXTSTORE_REFERENCE_ENCODING) {
-    throw new ValueError(
-      `Reference payload has unexpected encoding '${encodingValue ?? '<missing>'}'; expected '${EXTSTORE_REFERENCE_ENCODING}'`
-    );
-  }
-
-  const messageType = readMetadataString(payload, METADATA_MESSAGE_TYPE_KEY);
-  if (messageType !== EXTSTORE_REFERENCE_MESSAGE_TYPE) {
-    throw new ValueError(
-      `Reference payload has unexpected messageType '${messageType ?? '<missing>'}'; expected '${EXTSTORE_REFERENCE_MESSAGE_TYPE}'`
-    );
-  }
-
-  if (!payload.data) {
-    throw new ValueError('Reference payload is missing data');
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(decode(payload.data));
-  } catch (err) {
-    throw new ValueError(`Reference payload data is not valid JSON: ${(err as Error).message}`);
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new ValueError('Reference payload data must be a JSON object');
-  }
-
-  const ref = ExternalStorageReferenceProto.fromObject(parsed as Record<string, unknown>);
+  const ref = claimConverter.fromPayload<proto.temporal.api.sdk.v1.IExternalStorageReference>(payload);
   if (!ref.driverName) {
+    // TODO: use the new stable error codes here
     throw new ValueError("Reference payload field 'driverName' must be a non-empty string");
   }
   return {
@@ -288,7 +263,7 @@ export function decodeReferencePayload(payload: Payload): DecodedReferencePayloa
   };
 }
 
-/** Encode a reference payload in the v1 wire format. @internal @experimental */
+/** Encode a reference payload to wire format. @internal @experimental */
 export function encodeReferencePayload({
   driverName,
   claim,
@@ -299,15 +274,14 @@ export function encodeReferencePayload({
   sizeBytes: number;
 }): Payload {
   const ref = ExternalStorageReferenceProto.create({ driverName, claimData: claim.claimData });
+  const payload = claimConverter.toPayload(ref);
+  if (payload === undefined) {
+    // TODO: use the new stable error codes here
+    throw new ValueError('Failed to serialize ExternalStorageReference');
+  }
   return {
-    metadata: {
-      [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_PROTOBUF_JSON,
-      [METADATA_MESSAGE_TYPE_KEY]: EXTSTORE_REFERENCE_MESSAGE_TYPE_BYTES,
-    },
-    data: encode(JSON.stringify(ref.toJSON())),
-    externalPayloads: [
-      PayloadProto.ExternalPayloadDetails.create({ sizeBytes: Long.fromNumber(sizeBytes) }),
-    ],
+    ...payload,
+    externalPayloads: [PayloadProto.ExternalPayloadDetails.create({ sizeBytes: Long.fromNumber(sizeBytes) })],
   };
 }
 
