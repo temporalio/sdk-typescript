@@ -136,7 +136,7 @@ export function storageTargetFromContext(ctx: SerializationContext | undefined):
  *
  * @experimental
  */
-export const DEFAULT_PAYLOAD_SIZE_THRESHOLD = 256 * 1024;
+const DEFAULT_PAYLOAD_SIZE_THRESHOLD = 256 * 1024;
 
 /**
  * Configuration for external storage. Holds the registered drivers, an
