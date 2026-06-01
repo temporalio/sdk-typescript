@@ -133,12 +133,6 @@ export function buildListToolsActivity(server: string): (input: { server: string
   return fn;
 }
 
-/** A live MCP session held open in the activity worker process. */
-interface CachedConnection {
-  client: McpClient;
-  tools: Awaited<ReturnType<McpClient['listTools']>>;
-}
-
 /**
  * Default for how long an idle MCP connection is kept open before it's
  * disconnected. The timer resets on every {@link callToolActivityName |
@@ -149,7 +143,7 @@ export const MCP_CONNECTION_IDLE_MS = 5 * 60 * 1000;
 
 // Worker-process caches, keyed by server name. Activities run in the worker's
 // Node process, so this module state is shared across every activity invocation on the worker.
-const CONNECTIONS: Map<string, Promise<CachedConnection>> = new Map();
+const CONNECTIONS: Map<string, Promise<McpClient>> = new Map();
 const IDLE_TIMERS: Map<string, NodeJS.Timeout> = new Map();
 
 function resetIdleTimer(server: string, idleMs: number): void {
@@ -171,25 +165,24 @@ export async function _evictConnection(server: string): Promise<void> {
   if (entry === undefined) return;
   CONNECTIONS.delete(server);
   try {
-    const { client } = await entry;
+    const client = await entry;
     await client.disconnect();
   } catch {
     // Best-effort; the session may already be broken.
   }
 }
 
-function getConnection(server: string, factory: () => McpClient, idleMs: number): Promise<CachedConnection> {
+function getConnection(server: string, factory: () => McpClient, idleMs: number): Promise<McpClient> {
   let entry = CONNECTIONS.get(server);
   if (entry === undefined) {
     entry = (async () => {
       const client = factory();
       await client.connect();
-      const tools = await client.listTools();
-      return { client, tools };
+      return client;
     })();
     CONNECTIONS.set(server, entry);
-    // If the connect/listTools handshake fails, drop the rejected promise so
-    // the next call retries instead of caching the failure forever.
+    // If the connect handshake fails, drop the rejected promise so the next
+    // call retries instead of caching the failure forever.
     entry.catch(() => {
       if (CONNECTIONS.get(server) === entry) CONNECTIONS.delete(server);
     });
@@ -215,11 +208,12 @@ export function buildCallToolActivity(
     ActivityContext.current().log.debug(`Calling MCP tool ${input.toolName} on server ${server}`, {
       activityId: activityInfo().activityId,
     });
-    const { client, tools } = await getConnection(server, factory, idleMs);
-    const tool = tools.find((t) => t.name === input.toolName);
-    if (tool === undefined) {
-      throw new Error(`MCP tool '${input.toolName}' not found on server '${server}'`);
-    }
+    const client = await getConnection(server, factory, idleMs);
+    // Dispatch by name rather than re-listing tools on the connection: the tool
+    // schema is already discovered at worker startup, and `McpClient.callTool`
+    // only reads `tool.name` to build the request. A minimal `{ name }` matches
+    // the by-name dispatch the Python SDK does via `session.call_tool`.
+    const tool = { name: input.toolName } as unknown as Parameters<McpClient['callTool']>[0];
     try {
       return await client.callTool(tool, input.args);
     } catch (err) {
