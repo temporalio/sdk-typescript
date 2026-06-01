@@ -1,4 +1,10 @@
+// Module-level sink: records the args getWeather was invoked with so tests can
+// assert the activity actually ran, rather than relying on the stub model's
+// scripted reply (which would pass even if the activity were never dispatched).
+export const getWeatherCalls: Array<{ location: string }> = [];
+
 export async function getWeather(input: { location: string }): Promise<{ city: string; conditions: string }> {
+  getWeatherCalls.push(input);
   return {
     city: input.location,
     conditions: 'Sunny.',

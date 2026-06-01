@@ -68,7 +68,9 @@ const echoTool = tool({
   name: 'echo',
   description: 'Echo back the input text',
   inputSchema: z.object({ text: z.string() }),
-  callback: ({ text }) => text,
+  // Prefix the result with a marker the stub model never emits, so a test can
+  // tell the callback's output apart from the scripted tool-call input.
+  callback: ({ text }) => `echoed: ${text}`,
 });
 
 export async function inWorkflowToolAgent(prompt: string): Promise<string> {

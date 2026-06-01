@@ -7,7 +7,7 @@ import { test as anyTest, createBaseBundlerOptions, helpers, TestWorkflowEnviron
 import { bundleWorkflowCode, DefaultLogger, Worker } from '@temporalio/worker';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 import { StrandsPlugin } from '..';
-import { auditLog, auditTool, deleteState, deleteThing, getWeather } from './activities/strands';
+import { auditLog, auditTool, deleteState, deleteThing, getWeather, getWeatherCalls } from './activities/strands';
 import {
   activityToolAgent,
   approveSignal,
@@ -235,23 +235,12 @@ test('invokeModel reconstructs Message instances from wire data', async (t) => {
 test('activityAsTool dispatches a registered activity from the agent loop', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
-  // The final string is the stub's scripted second turn, so it can't prove the
-  // activity ran. Instead capture the second stream() call
-  let secondCallMessages: Message[] | undefined;
-  class WeatherStub extends StubModel {
-    private call = 0;
-    override async *stream(messages: Message[], options?: StreamOptions): AsyncIterable<ModelStreamEvent> {
-      if (this.call++ === 1) secondCallMessages = messages;
-      yield* super.stream(messages, options);
-    }
-  }
-
   const worker = await createWorker({
     plugins: [
       new StrandsPlugin({
         models: {
           test: () =>
-            new WeatherStub([
+            new StubModel([
               toolCallTurn('getWeather', 'call_1', { location: 'Tokyo' }),
               textTurn('the weather is sunny'),
             ]),
@@ -266,14 +255,32 @@ test('activityAsTool dispatches a registered activity from the agent loop', asyn
     t.is(result, 'the weather is sunny');
   });
 
-  t.true(JSON.stringify(secondCallMessages).includes('Sunny.'));
+  // Assert the activity was actually invoked with the model's tool input — this
+  // would fail if the plugin returned the scripted reply without dispatching it.
+  // `getWeatherCalls` is a process-wide sink shared with other tests that ava may
+  // run concurrently, so filter to this test's unique location ('Tokyo'); no
+  // other test invokes getWeather with it.
+  t.deepEqual(
+    getWeatherCalls.filter((c) => c.location === 'Tokyo'),
+    [{ location: 'Tokyo' }]
+  );
 });
 
 test('TemporalMCPClient lists and calls tools through per-server activities', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
+  // Record the args the MCP client's callTool was actually invoked with, so the
+  // assertion proves the per-server callTool activity ran rather than relying on
+  // the stub model's scripted reply.
+  const callToolArgs: Array<{ name: string; args: JSONValue }> = [];
+  class CapturingMcpClient extends StubMcpClient {
+    override async callTool(tool: { name: string }, args: JSONValue): Promise<JSONValue> {
+      callToolArgs.push({ name: tool.name, args });
+      return super.callTool(tool, args);
+    }
+  }
   const factory = (): McpClient =>
-    new StubMcpClient([
+    new CapturingMcpClient([
       {
         name: 'listFiles',
         description: 'List files',
@@ -281,22 +288,11 @@ test('TemporalMCPClient lists and calls tools through per-server activities', as
       },
     ]);
 
-  // The final string is the stub's scripted second turn, so it can't prove the
-  // MCP tool ran. Instead capture the second stream() call
-  let secondCallMessages: Message[] | undefined;
-  class CapturingStub extends StubModel {
-    private call = 0;
-    override async *stream(messages: Message[], options?: StreamOptions): AsyncIterable<ModelStreamEvent> {
-      if (this.call++ === 1) secondCallMessages = messages;
-      yield* super.stream(messages, options);
-    }
-  }
-
   const worker = await createWorker({
     plugins: [
       new StrandsPlugin({
         models: {
-          test: () => new CapturingStub([toolCallTurn('listFiles', 'call_1', { path: '/' }), textTurn('found files')]),
+          test: () => new StubModel([toolCallTurn('listFiles', 'call_1', { path: '/' }), textTurn('found files')]),
         },
         mcpClients: { testServer: factory },
       }),
@@ -308,13 +304,14 @@ test('TemporalMCPClient lists and calls tools through per-server activities', as
     t.is(result, 'found files');
   });
 
-  t.true(JSON.stringify(secondCallMessages).includes('mcp:listFiles'));
+  t.deepEqual(callToolArgs, [{ name: 'listFiles', args: { path: '/' } }]);
 });
 
 test('successive MCP tool calls reuse one cached worker-side connection', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const counters = { factoryCalls: 0, connects: 0, disconnects: 0, callTools: 0 };
+  const callToolArgs: Array<{ name: string; args: JSONValue }> = [];
   class CountingMcpClient extends StubMcpClient {
     override async connect(): Promise<void> {
       counters.connects++;
@@ -324,6 +321,7 @@ test('successive MCP tool calls reuse one cached worker-side connection', async 
     }
     override async callTool(tool: { name: string }, args: JSONValue): Promise<JSONValue> {
       counters.callTools++;
+      callToolArgs.push({ name: tool.name, args });
       return super.callTool(tool, args);
     }
   }
@@ -364,6 +362,11 @@ test('successive MCP tool calls reuse one cached worker-side connection', async 
     t.is(counters.connects, 2);
     // Discovery disconnected; the cached call connection is still open mid-run.
     t.is(counters.disconnects, 1);
+    // Both tool calls reached the client with the model's scripted inputs.
+    t.deepEqual(callToolArgs, [
+      { name: 'listFiles', args: { path: '/a' } },
+      { name: 'listFiles', args: { path: '/b' } },
+    ]);
   });
 
   // Worker shutdown evicts the cached connection.
@@ -373,8 +376,9 @@ test('successive MCP tool calls reuse one cached worker-side connection', async 
 test('in-workflow tool() runs inside the workflow sandbox', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
-  // The final string is the stub's scripted second turn, so it can't prove the
-  // in-workflow tool ran. Instead capture the second stream() call
+  // Capture the follow-up model call's messages: the tool's result carries an
+  // `echoed:` marker the stub model never emits, so seeing it proves the
+  // callback actually ran (not just that the scripted reply was returned).
   let secondCallMessages: Message[] | undefined;
   class CapturingStub extends StubModel {
     private call = 0;
@@ -403,8 +407,7 @@ test('in-workflow tool() runs inside the workflow sandbox', async (t) => {
     t.is(result, 'echoed');
   });
 
-  const occurrences = JSON.stringify(secondCallMessages).split('hi from in-workflow tool').length - 1;
-  t.true(occurrences >= 2);
+  t.true(JSON.stringify(secondCallMessages).includes('echoed: hi from in-workflow tool'));
 });
 
 test('activityAsHook dispatches a registered activity on AfterToolCallEvent', async (t) => {
@@ -534,7 +537,7 @@ test('captured history replays deterministically', async (t) => {
       models: {
         test: () =>
           new StubModel([
-            toolCallTurn('getWeather', 'call_1', { location: 'Tokyo' }),
+            toolCallTurn('getWeather', 'call_1', { location: 'Kyoto' }),
             textTurn('the weather is sunny'),
           ]),
       },
