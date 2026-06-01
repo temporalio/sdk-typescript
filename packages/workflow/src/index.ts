@@ -136,6 +136,8 @@ export {
   WorkflowInfo,
 } from './interfaces';
 export { proxySinks, Sink, SinkCall, SinkFunction, Sinks } from './sinks';
+export type { WorkflowRandomStream } from './random-streams';
+export { getRandomStream, workflowRandom } from './random-streams';
 export { log } from './logs';
 export { Trigger } from './trigger';
 export * from './workflow';

@@ -1,3 +1,4 @@
+import type { AsyncLocalStorage as ALS } from 'node:async_hooks';
 import type { RawSourceMap } from 'source-map';
 import type {
   ActivitySerializationContext,
@@ -33,7 +34,6 @@ import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';
 import {
@@ -44,7 +44,9 @@ import {
 import type { RNG } from './alea';
 import { alea } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
-import { UpdateScope } from './update-scope';
+import { composeInterceptors } from './interceptor-composition';
+import { AsyncLocalStorage, UpdateScope } from './update-scope';
+import { deriveAleaSeed } from './random-stream-seed';
 import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
 import type {
   QueryInput,
@@ -141,6 +143,10 @@ interface MessageHandlerExecution {
 }
 
 type InferMapValue<T> = T extends Map<number, infer V> ? V : never;
+
+interface ScopedWorkflowRandomSource {
+  random(): number;
+}
 
 /**
  * Keeps all of the Workflow runtime state like pending completions for activities and timers.
@@ -438,9 +444,23 @@ export class Activator implements ActivationHandler {
   public info: WorkflowInfo;
 
   /**
-   * A deterministic RNG, used by the isolate's overridden Math.random
+   * The main deterministic RNG for this workflow execution.
+   *
+   * Scoped overrides used by `WorkflowRandomStream.with(...)` are layered on top of this RNG.
    */
   public random: RNG;
+
+  /**
+   * The current seed material for this workflow execution's deterministic RNGs.
+   */
+  public randomnessSeed: number[];
+
+  /**
+   * Additional deterministic RNG streams keyed by stable stream name.
+   */
+  public readonly namedRandomStreams = new Map<string, RNG>();
+
+  protected currentRandomStorage?: ALS<ScopedWorkflowRandomSource | undefined>;
 
   public payloadConverter: PayloadConverter = defaultPayloadConverter;
   public failureConverter: FailureConverter = defaultFailureConverter;
@@ -498,10 +518,48 @@ export class Activator implements ActivationHandler {
     this.now = now;
     this.showStackTraceSources = showStackTraceSources;
     this.sourceMap = sourceMap;
-    this.random = alea(randomnessSeed);
+    this.randomnessSeed = [...randomnessSeed];
+    this.random = alea(this.randomnessSeed);
     this.registeredActivityNames = registeredActivityNames;
     this.stackTracesEnabled = stackTracesEnabled;
     this.failureExceptionTypeNames = failureExceptionTypeNames ?? [];
+  }
+
+  protected setRandomnessSeed(randomnessSeed: number[]): void {
+    this.randomnessSeed = [...randomnessSeed];
+    this.random = alea(this.randomnessSeed);
+    this.namedRandomStreams.clear();
+  }
+
+  public getNamedRandom(name: string): RNG {
+    const cached = this.namedRandomStreams.get(name);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const random = alea(deriveAleaSeed(this.randomnessSeed, name));
+    this.namedRandomStreams.set(name, random);
+    return random;
+  }
+
+  protected withRandomSource<T>(randomSource: ScopedWorkflowRandomSource | undefined, fn: () => T): T {
+    return (this.currentRandomStorage ??= new AsyncLocalStorage<ScopedWorkflowRandomSource | undefined>()).run(
+      randomSource,
+      fn
+    );
+  }
+
+  public withCurrentRandom<T>(randomSource: ScopedWorkflowRandomSource, fn: () => T): T {
+    return this.withRandomSource(randomSource, fn);
+  }
+
+  public bindCurrentRandom<T extends (...args: any[]) => any>(fn: T): T {
+    const randomSource = this.currentRandomStorage?.getStore();
+    return ((...args: Parameters<T>) => this.withRandomSource(randomSource, () => fn(...args))) as T;
+  }
+
+  public currentRandom(): number {
+    return this.currentRandomStorage?.getStore()?.random() ?? this.random();
   }
 
   /**
@@ -1127,7 +1185,7 @@ export class Activator implements ActivationHandler {
     if (!activation.randomnessSeed) {
       throw new TypeError('Expected activation with randomnessSeed attribute');
     }
-    this.random = alea(activation.randomnessSeed.toBytes());
+    this.setRandomnessSeed(activation.randomnessSeed.toBytes());
   }
 
   public notifyHasPatch(activation: coresdk.workflow_activation.INotifyHasPatch): void {
