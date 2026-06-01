@@ -65,7 +65,7 @@ export interface OperationInfo {
  * @experimental Nexus support in Temporal SDK is experimental.
  */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface TemporalNexusStartOperationContext extends nexus.StartOperationContext {}
+export interface TemporalStartOperationContext extends nexus.StartOperationContext {}
 
 /**
  * Context received by a {@link TemporalOperationHandler}'s cancel handler when a Nexus Operation is
@@ -74,7 +74,7 @@ export interface TemporalNexusStartOperationContext extends nexus.StartOperation
  * @experimental Nexus support in Temporal SDK is experimental.
  */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface TemporalNexusCancelOperationContext extends nexus.CancelOperationContext {}
+export interface TemporalCancelOperationContext extends nexus.CancelOperationContext {}
 
 // Basic APIs //////////////////////////////////////////////////////////////////////////////////////
 

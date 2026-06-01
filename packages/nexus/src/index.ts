@@ -11,8 +11,8 @@ export {
   metricMeter,
   operationInfo,
   type OperationInfo,
-  type TemporalNexusCancelOperationContext,
-  type TemporalNexusStartOperationContext,
+  type TemporalCancelOperationContext,
+  type TemporalStartOperationContext,
 } from './context';
 
 export {

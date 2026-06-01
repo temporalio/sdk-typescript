@@ -17,8 +17,8 @@ import {
   getClient,
   getHandlerContext,
   log,
-  type TemporalNexusCancelOperationContext,
-  type TemporalNexusStartOperationContext,
+  type TemporalCancelOperationContext,
+  type TemporalStartOperationContext,
 } from './context';
 
 declare const isNexusWorkflowHandle: unique symbol;
@@ -223,7 +223,7 @@ export interface TemporalNexusClient {
 class TemporalNexusClientImpl implements TemporalNexusClient {
   private asyncOperationStarted = false;
 
-  constructor(private readonly startOperationContext: TemporalNexusStartOperationContext) {}
+  constructor(private readonly startOperationContext: TemporalStartOperationContext) {}
 
   /**
    * The Temporal Client for the active Nexus Operation.
@@ -274,7 +274,7 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
  * @experimental Nexus support in Temporal SDK is experimental.
  */
 export type TemporalOperationStartHandler<I, O> = (
-  ctx: TemporalNexusStartOperationContext,
+  ctx: TemporalStartOperationContext,
   client: TemporalNexusClient,
   input: I
 ) => Promise<TemporalOperationResult<O>>;
@@ -298,7 +298,7 @@ export interface CancelWorkflowRunOptions {
  * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface TemporalOperationHandlerOptions {
-  cancelWorkflowRun?: (ctx: TemporalNexusCancelOperationContext, options: CancelWorkflowRunOptions) => Promise<void>;
+  cancelWorkflowRun?: (ctx: TemporalCancelOperationContext, options: CancelWorkflowRunOptions) => Promise<void>;
 }
 
 /**
@@ -348,6 +348,6 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
   }
 }
 
-async function defaultCancelWorkflowRun(_ctx: TemporalNexusCancelOperationContext, options: CancelWorkflowRunOptions) {
+async function defaultCancelWorkflowRun(_ctx: TemporalCancelOperationContext, options: CancelWorkflowRunOptions) {
   await getClient().workflow.getHandle(options.workflowId).cancel();
 }
