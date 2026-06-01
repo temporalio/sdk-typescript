@@ -438,7 +438,7 @@ export class NexusClient extends BaseClient {
           throw cachedResult.failure;
         }
       },
-      async describe(options?: DescribeNexusOperationOptions): Promise<NexusOperationExecutionDescription> {
+      async describe(_options?: DescribeNexusOperationOptions): Promise<NexusOperationExecutionDescription> {
         return await this.client.describeNexusOperation({
           operationId: this.operationId,
           runId: this.runId,

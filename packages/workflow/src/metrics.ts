@@ -7,7 +7,7 @@ import type {
   NumericMetricValueType,
 } from '@temporalio/common';
 import { MetricMeterWithComposedTags } from '@temporalio/common';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import { composeInterceptors } from './interceptor-composition';
 import type { Sink, Sinks } from './sinks';
 import { proxySinks } from './sinks';
 import { workflowInfo } from './workflow';
