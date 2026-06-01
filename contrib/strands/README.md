@@ -206,13 +206,10 @@ export async function persistToolCall(toolName: string): Promise<void> {
 import { workflow as strandsWorkflow } from '@temporalio/strands-agents';
 import { AfterToolCallEvent } from '@strands-agents/sdk';
 
-const auditCallback = strandsWorkflow.activityAsHook<AfterToolCallEvent, string>(
-  'persistToolCall',
-  {
-    activityInput: (event) => event.toolUse.name,
-    activityOptions: { startToCloseTimeout: '10 seconds' },
-  }
-);
+const auditCallback = strandsWorkflow.activityAsHook<AfterToolCallEvent, string>('persistToolCall', {
+  activityInput: (event) => event.toolUse.name,
+  activityOptions: { startToCloseTimeout: '10 seconds' },
+});
 
 agent.addHook(AfterToolCallEvent, auditCallback);
 ```
