@@ -22,9 +22,19 @@ export interface OperationToken {
   ns: string;
 
   /**
-   * ID of the workflow.
+   * ID of a workflow for OperationTokenType.WORKFLOW_RUN.
    */
   wid?: string;
+
+  /**
+   * ID of an activity for OperationTokenType.ACTIVITY.
+   */
+  aid?: string;
+
+  /**
+   * Run ID of an activity for OperationTokenType.ACTIVITY.
+   */
+  rid?: string;
 }
 
 /**
@@ -57,6 +67,18 @@ export interface UpdateWorkflowOperationToken extends OperationToken {
 }
 
 /**
+ * An OperationToken that identifies an Activity operation.
+ *
+ * @internal
+ * @hidden
+ */
+export interface ActivityOperationToken extends OperationToken {
+  t: typeof OperationTokenType.ACTIVITY;
+  aid: string;
+  rid: string;
+}
+
+/**
  * OperationTokenType is used to identify the type of Operation token, following the Nexus Operation
  * Token Format: Reserved = 0, WorkflowRun = 1, Activity = 2, UpdateWorkflow = 3.
  *
@@ -68,14 +90,12 @@ export type OperationTokenType = (typeof OperationTokenType)[keyof typeof Operat
 /**
  * Known, currently-supported Operation token types.
  *
- * Activity (2) is intentionally omitted: it is a reserved value in the token format spec but is not
- * yet supported by this SDK, so tokens carrying that type are rejected as unknown.
- *
  * @internal
  * @hidden
  */
 export const OperationTokenType = {
   WORKFLOW_RUN: 1,
+  ACTIVITY: 2,
   UPDATE_WORKFLOW: 3,
 } as const;
 
@@ -119,6 +139,19 @@ export function generateUpdateWorkflowOperationToken(
     // `rid` is optional, so omit it if not present
     rid: runId ? runId : undefined,
     uid: updateId,
+  };
+  return base64URLEncodeNoPadding(JSON.stringify(token));
+}
+
+/**
+ * Generate an activity Operation token.
+ */
+export function generateActivityOperationToken(namespace: string, activityId: string, runId: string): string {
+  const token: ActivityOperationToken = {
+    t: OperationTokenType.ACTIVITY,
+    ns: namespace,
+    aid: activityId,
+    rid: runId,
   };
   return base64URLEncodeNoPadding(JSON.stringify(token));
 }
@@ -211,6 +244,21 @@ export function assertUpdateWorkflowOperationToken(
   const uid = (token as UpdateWorkflowOperationToken).uid;
   if (!uid || typeof uid !== 'string') {
     throw new TypeError('invalid update workflow token: missing update ID (uid)');
+  }
+}
+
+/**
+ * Assert that an OperationToken identifies an activity.
+ */
+export function assertActivityOperationToken(token: OperationToken): asserts token is ActivityOperationToken {
+  if (token.t !== OperationTokenType.ACTIVITY) {
+    throw new TypeError(`invalid activity token type: ${token.t}, expected: ${OperationTokenType.ACTIVITY}`);
+  }
+  if (!token.aid || typeof token.aid !== 'string') {
+    throw new TypeError('invalid activity token: missing activity ID (aid)');
+  }
+  if (!token.rid || typeof token.rid !== 'string') {
+    throw new TypeError('invalid activity token: missing activity run ID (rid)');
   }
 }
 

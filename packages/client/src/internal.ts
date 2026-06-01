@@ -1,6 +1,7 @@
 import type { temporal } from '@temporalio/proto';
 import type { UpdateDefinition } from '@temporalio/common';
 import type { WorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
+import type { ActivityOptions } from './activity-client';
 import type { WorkflowHandle, WorkflowUpdateHandle } from './workflow-client';
 import type { WorkflowUpdateStage } from './workflow-update-stage';
 import type { WorkflowSignalInput } from './interceptors';
@@ -162,3 +163,20 @@ export type InternalWorkflowHandle = WorkflowHandle &
       } & InternalWorkflowUpdateOptions
     ): Promise<WorkflowUpdateHandle<Ret>>;
   };
+
+/**
+ * A symbol used to attach Nexus-specific options to an `ActivityClient.start()` call.
+ *
+ * @internal
+ * @hidden
+ */
+export const InternalActivityStartOptionsSymbol = Symbol.for('__temporal_internal_client_activity_start_options');
+export interface InternalActivityStartOptions extends ActivityOptions {
+  [InternalActivityStartOptionsSymbol]?: {
+    requestId?: string;
+    completionCallbacks?: temporal.api.common.v1.ICallback[];
+    links?: temporal.api.common.v1.ILink[];
+    responseLink?: temporal.api.common.v1.ILink;
+    onConflictOptions?: temporal.api.workflow.v1.IOnConflictOptions;
+  };
+}

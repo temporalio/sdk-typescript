@@ -14,6 +14,7 @@ import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { innermostHandlerError } from './helpers-nexus';
 import { waitUntil } from './helpers';
+import { echo, throwAnError } from './activities';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -39,6 +40,7 @@ const temporalOpService = nexus.service('temporalOperationService', {
   syncOp: nexus.operation<string, string>(),
   doubleStartOp: nexus.operation<string, void>(),
   retryAfterFailedStartOp: nexus.operation<string, string>(),
+  echoActivity: nexus.operation<string, string>(),
 });
 
 const temporalCancelOpService = nexus.service('temporalCancelOperationService', {
@@ -62,6 +64,7 @@ function makeTemporalOpServiceHandler(overrides: Partial<TemporalOpServiceHandle
     syncOp: unusedTemporalOperationHandler(),
     doubleStartOp: unusedTemporalOperationHandler(),
     retryAfterFailedStartOp: unusedTemporalOperationHandler(),
+    echoActivity: unusedTemporalOperationHandler(),
     ...overrides,
   };
   return nexus.serviceHandler(temporalOpService, handlers);
@@ -221,7 +224,7 @@ test('TemporalOperationHandler.cancel rejects invalid operation token type befor
       throw new Error('cancelWorkflowRun should not be called');
     },
   });
-  const token = base64URLEncodeNoPadding(JSON.stringify({ t: 2, ns: 'test-namespace' }));
+  const token = base64URLEncodeNoPadding(JSON.stringify({ t: 99, ns: 'test-namespace' }));
 
   const err = await asyncLocalStorage.run(
     {
@@ -451,5 +454,72 @@ test('TemporalOperationHandler workflow run has Nexus-Operation-Token Header', a
 
     const opToken = desc.raw.callbacks?.[0].callback?.nexus?.header?.['nexus-operation-token'];
     t.is(opToken, generateWorkflowRunOperationToken(client.options.namespace, targetHandle.workflowId));
+  });
+});
+
+const activities = {
+  echo,
+  throwAnError,
+};
+
+test('TemporalOperationHandler start typed standalone activity', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const { client } = t.context.env;
+
+  const worker = await createWorker({
+    activities,
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        echoActivity: new temporalnexus.TemporalOperationHandler({
+          async start(_ctx, client, input) {
+            return await client.typedActivity<typeof activities>().startActivity('echo', {
+              id: randomUUID(),
+              args: [input],
+              scheduleToCloseTimeout: '10s',
+            });
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const nexusSvc = client.nexus.createServiceClient({ endpoint: endpointName, service: temporalOpService });
+    const result = await nexusSvc.executeOperation(temporalOpService.operations.echoActivity, 'foo', {
+      id: randomUUID(),
+    });
+    t.is(result, 'foo');
+  });
+});
+
+test('TemporalOperationHandler start untyped standalone activity', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const { client } = t.context.env;
+
+  const worker = await createWorker({
+    activities,
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        echoActivity: new temporalnexus.TemporalOperationHandler({
+          async start(_ctx, client, input) {
+            return await client.startActivity('echo', {
+              id: randomUUID(),
+              args: [input],
+              scheduleToCloseTimeout: '10s',
+            });
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const nexusSvc = client.nexus.createServiceClient({ endpoint: endpointName, service: temporalOpService });
+    const result = await nexusSvc.executeOperation(temporalOpService.operations.echoActivity, 'foo', {
+      id: randomUUID(),
+    });
+    t.is(result, 'foo');
   });
 });
