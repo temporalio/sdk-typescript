@@ -27,8 +27,10 @@ import {
  *   `TemporalMCPClient({ server: 'name' })` selects a factory by name; the
  *   per-server `{name}-listTools` and `{name}-callTool` activities reuse one
  *   lazily-opened worker-process connection. Tools are enumerated live on each
- *   `listTools`, so the agent picks up MCP-server changes (including redeploys)
- *   without restarting the worker.
+ *   `listTools`. By default (`TemporalMCPClient`'s `cacheTools: false`) the
+ *   agent re-lists on each turn, so it picks up MCP-server changes (including
+ *   redeploys) mid-workflow without restarting the worker; set `cacheTools:
+ *   true` to list once at the start of the workflow instead.
  *
  * - `mcpConnectionIdleTimeout` — how long a worker-process MCP connection is
  *   kept open between `callTool` activities before it's disconnected. The timer

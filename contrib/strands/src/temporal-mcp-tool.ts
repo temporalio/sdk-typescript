@@ -21,7 +21,7 @@ export class TemporalMCPTool extends Tool {
   readonly name: string;
   readonly description: string;
   readonly toolSpec: ToolSpec;
-  private readonly server: string;
+  readonly server: string;
   private readonly activityOptions: ActivityOptions;
 
   constructor(server: string, info: McpToolInfo, activityOptions: ActivityOptions) {

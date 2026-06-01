@@ -1,8 +1,9 @@
-import { Agent } from '@strands-agents/sdk';
+import { Agent, AfterToolsEvent } from '@strands-agents/sdk';
 import type { AgentConfig } from '@strands-agents/sdk';
 import type { ActivityOptions } from '@temporalio/workflow';
 import type { Duration } from '@temporalio/common/lib/time';
 import { TemporalModel } from './temporal-model';
+import { TemporalMCPClient } from './temporal-mcp-client';
 
 const SNAPSHOT_DISABLED =
   'TemporalAgent disables takeSnapshot()/loadSnapshot(). Temporal workflows ' +
@@ -66,6 +67,17 @@ export class TemporalAgent extends Agent {
       model: temporalModel,
       retryStrategy: null,
     });
+
+    // Strands lists each MCP client's tools once at agent initialization and
+    // reuses that list for every turn. For clients with `cacheTools: false`,
+    // re-list on each turn so a mid-workflow MCP-server restart is picked up.
+    // `AfterToolsEvent` fires after a tool round completes, before the next
+    // model call reads the tool registry — so the refresh lands on that call.
+    for (const client of collectMcpClients(rest.tools)) {
+      if (!client.cacheTools) {
+        this.addHook(AfterToolsEvent, (event) => client.refreshTools(event.agent.toolRegistry));
+      }
+    }
   }
 
   override takeSnapshot(): never {
@@ -75,4 +87,17 @@ export class TemporalAgent extends Agent {
   override loadSnapshot(): never {
     throw new Error(SNAPSHOT_DISABLED);
   }
+}
+
+/** Collect every {@link TemporalMCPClient} in a (possibly nested) tool list. */
+function collectMcpClients(tools: AgentConfig['tools']): TemporalMCPClient[] {
+  const found: TemporalMCPClient[] = [];
+  const walk = (items: NonNullable<AgentConfig['tools']>): void => {
+    for (const item of items) {
+      if (Array.isArray(item)) walk(item);
+      else if (item instanceof TemporalMCPClient) found.push(item);
+    }
+  };
+  if (tools) walk(tools);
+  return found;
 }

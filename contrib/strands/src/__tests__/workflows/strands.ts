@@ -50,10 +50,11 @@ export async function activityToolAgent(prompt: string): Promise<string> {
   return result.toString();
 }
 
-export async function mcpAgent(prompt: string, server = 'testServer'): Promise<string> {
+export async function mcpAgent(prompt: string, server = 'testServer', cacheTools?: boolean): Promise<string> {
   const mcp = new TemporalMCPClient({
     server,
     activityOptions: { startToCloseTimeout: '10 seconds' },
+    cacheTools,
   });
   const agent = new TemporalAgent({
     model: 'test',

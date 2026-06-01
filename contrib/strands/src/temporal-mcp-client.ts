@@ -35,10 +35,33 @@ const STUB_TRANSPORT: Transport = {
  *
  * The {@link ActivityOptions} apply to every per-tool activity invocation
  * the agent makes for this MCP server.
+ *
+ * `cacheTools` controls how often the agent re-lists this server's tools.
+ * Strands lists an MCP client's tools once when the agent initializes and then
+ * reuses that list for every turn, so the list is otherwise frozen for the
+ * whole workflow.
+ *
+ * - `false` (default) — re-list the tools on each agent turn, so the agent
+ *   picks up an MCP server that's restarted or redeployed mid-workflow. Costs
+ *   one extra `{server}-listTools` activity per tool round.
+ * - `true` — list once at the beginning of the workflow and reuse for all
+ *   turns. Cheaper, but the tool list is fixed for the workflow's lifetime.
  */
 export interface TemporalMCPClientOptions {
   server: string;
   activityOptions?: ActivityOptions;
+  cacheTools?: boolean;
+}
+
+/**
+ * Minimal view of Strands' `ToolRegistry` used by {@link
+ * TemporalMCPClient.refreshTools}. Typed structurally because `ToolRegistry`
+ * isn't re-exported from `@strands-agents/sdk`'s public index.
+ */
+export interface ToolRegistryView {
+  list(): { name: string }[];
+  remove(name: string): void;
+  addOrReplace(tools: never[]): void;
 }
 
 /**
@@ -59,11 +82,14 @@ export interface TemporalMCPClientOptions {
 export class TemporalMCPClient extends McpClient {
   private readonly server: string;
   private readonly activityOptions: ActivityOptions;
+  /** Whether the agent lists this server's tools once or re-lists each turn. */
+  readonly cacheTools: boolean;
 
   constructor(options: TemporalMCPClientOptions) {
     super({ transport: STUB_TRANSPORT });
     this.server = options.server;
     this.activityOptions = options.activityOptions ?? {};
+    this.cacheTools = options.cacheTools ?? false;
   }
 
   override async connect(): Promise<void> {
@@ -91,6 +117,26 @@ export class TemporalMCPClient extends McpClient {
     });
     const infos = await activities[listToolsActivityName(this.server)]!({ server: this.server });
     return infos.map((info) => new TemporalMCPTool(this.server, info, this.activityOptions)) as never[];
+  }
+
+  /**
+   * Re-list this server's tools and reconcile them into the agent's tool
+   * registry, dropping tools that no longer exist and adding new ones.
+   * {@link TemporalAgent} calls this on each agent turn when `cacheTools` is
+   * `false` so a mid-workflow MCP-server restart is reflected in the next call.
+   */
+  async refreshTools(registry: ToolRegistryView): Promise<void> {
+    // Imported lazily to avoid a circular module cycle with TemporalMCPTool.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { TemporalMCPTool } = require('./temporal-mcp-tool') as typeof import('./temporal-mcp-tool');
+    const fresh = await this.listTools();
+    const freshNames = new Set((fresh as unknown as { name: string }[]).map((t) => t.name));
+    for (const tool of registry.list()) {
+      if (tool instanceof TemporalMCPTool && tool.server === this.server && !freshNames.has(tool.name)) {
+        registry.remove(tool.name);
+      }
+    }
+    registry.addOrReplace(fresh);
   }
 }
 

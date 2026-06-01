@@ -418,6 +418,101 @@ test('mcpConnectionIdleTimeout evicts the cached connection while the worker run
   });
 });
 
+test('TemporalMCPClient re-lists tools each turn by default and picks up mid-run additions', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const counters = { listCalls: 0 };
+  const callToolNames: string[] = [];
+  const schema = { type: 'object', properties: { path: { type: 'string' } } };
+  const stubTool = (name: string): Tool =>
+    ({ name, description: name, toolSpec: { name, description: name, inputSchema: schema } }) as unknown as Tool;
+
+  // The server only exposes `readFile` after the first listing, so the agent
+  // can dispatch it on the second turn only if the per-turn refresh ran.
+  class GrowingMcpClient extends StubMcpClient {
+    constructor() {
+      super([{ name: 'listFiles', description: 'List files', inputSchema: schema }]);
+    }
+    override async listTools(): Promise<never> {
+      counters.listCalls++;
+      const tools = counters.listCalls === 1 ? [stubTool('listFiles')] : [stubTool('listFiles'), stubTool('readFile')];
+      return tools as never;
+    }
+    override async callTool(tool: { name: string }, args: JSONValue): Promise<JSONValue> {
+      callToolNames.push(tool.name);
+      return super.callTool(tool, args);
+    }
+  }
+
+  const worker = await createWorker({
+    plugins: [
+      new StrandsPlugin({
+        models: {
+          test: () =>
+            new StubModel([
+              toolCallTurn('listFiles', 'call_1', { path: '/' }),
+              // `readFile` only exists after the mid-run refresh adds it.
+              toolCallTurn('readFile', 'call_2', { path: '/a' }),
+              textTurn('done'),
+            ]),
+        },
+        mcpClients: { growingServer: () => new GrowingMcpClient() },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(mcpAgent, { args: ['list files', 'growingServer'] });
+    t.is(result, 'done');
+  });
+
+  // listTools ran more than once: the agent-init listing plus a refresh per tool round.
+  t.true(counters.listCalls > 1, `expected multiple listTools calls, got ${counters.listCalls}`);
+  // The agent dispatched `readFile`, proving the mid-run refresh registered it.
+  t.deepEqual(callToolNames, ['listFiles', 'readFile']);
+});
+
+test('cacheTools: true lists tools once for the whole workflow', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const counters = { listCalls: 0 };
+  class CountingListMcpClient extends StubMcpClient {
+    override async listTools(): Promise<never> {
+      counters.listCalls++;
+      return super.listTools();
+    }
+  }
+  const factory = (): McpClient =>
+    new CountingListMcpClient([
+      { name: 'listFiles', description: 'List files', inputSchema: { type: 'object', properties: {} } },
+    ]);
+
+  const worker = await createWorker({
+    plugins: [
+      new StrandsPlugin({
+        models: {
+          // Two tool-call turns: with caching off this would re-list each turn.
+          test: () =>
+            new StubModel([
+              toolCallTurn('listFiles', 'call_1', { path: '/a' }),
+              toolCallTurn('listFiles', 'call_2', { path: '/b' }),
+              textTurn('done'),
+            ]),
+        },
+        mcpClients: { cachedServer: factory },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    // Third arg enables cacheTools on the workflow's TemporalMCPClient.
+    const result = await executeWorkflow(mcpAgent, { args: ['list files', 'cachedServer', true] });
+    t.is(result, 'done');
+  });
+
+  t.is(counters.listCalls, 1);
+});
+
 test('in-workflow tool() runs inside the workflow sandbox', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
