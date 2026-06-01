@@ -373,6 +373,53 @@ test('successive MCP tool calls reuse one cached worker-side connection', async 
   t.is(counters.disconnects, 2);
 });
 
+test('mcpConnectionIdleTimeout evicts the cached connection while the worker runs', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const counters = { connects: 0, disconnects: 0 };
+  class CountingMcpClient extends StubMcpClient {
+    override async connect(): Promise<void> {
+      counters.connects++;
+    }
+    override async disconnect(): Promise<void> {
+      counters.disconnects++;
+    }
+  }
+  const factory = (): McpClient =>
+    new CountingMcpClient([
+      { name: 'listFiles', description: 'List files', inputSchema: { type: 'object', properties: {} } },
+    ]);
+
+  const worker = await createWorker({
+    plugins: [
+      new StrandsPlugin({
+        models: {
+          test: () => new StubModel([toolCallTurn('listFiles', 'call_1', { path: '/' }), textTurn('done')]),
+        },
+        // Distinct server name so the worker-process connection cache can't be
+        // shared with the sibling MCP tests running in the same process.
+        mcpClients: { idleServer: factory },
+        // Short idle window (duration string form) so the cached call connection
+        // is evicted mid-run rather than only at worker shutdown.
+        mcpConnectionIdleTimeout: '100ms',
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(mcpAgent, { args: ['list files', 'idleServer'] });
+    t.is(result, 'done');
+    // Startup discovery connected+disconnected; the call opened a second
+    // connection that the short idle timer then evicts on its own. Asserting
+    // this inside runUntil (worker still alive) proves the eviction came from
+    // the idle timer, not worker shutdown. With the default 5-minute window the
+    // call connection would still be cached here (disconnects === 1).
+    t.is(counters.connects, 2);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    t.is(counters.disconnects, 2);
+  });
+});
+
 test('in-workflow tool() runs inside the workflow sandbox', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 

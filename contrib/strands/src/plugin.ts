@@ -1,5 +1,7 @@
 import type { McpClient } from '@strands-agents/sdk';
 import { BedrockModel, type Model } from '@strands-agents/sdk';
+import type { Duration } from '@temporalio/common';
+import { msOptionalToNumber } from '@temporalio/common/lib/time';
 import type { BundleOptions } from '@temporalio/worker';
 import { SimplePlugin } from '@temporalio/plugin';
 import { ModelActivity } from './model-activity';
@@ -28,10 +30,17 @@ import {
  *   `TemporalMCPClient({ server: 'name' })` reads from that cache. The
  *   schema is frozen for the worker's lifetime; restart workers to pick up
  *   MCP-server changes.
+ *
+ * - `mcpConnectionIdleTimeout` — how long a worker-process MCP connection is
+ *   kept open between `callTool` activities before it's disconnected. The timer
+ *   resets on every reuse. Accepts a millisecond number or a duration string
+ *   (e.g. `'5 minutes'`), like `startToCloseTimeout`. Defaults to
+ *   {@link MCP_CONNECTION_IDLE_MS} (5 minutes).
  */
 export interface StrandsPluginOptions {
   models?: Record<string, () => Model>;
   mcpClients?: Record<string, () => McpClient>;
+  mcpConnectionIdleTimeout?: Duration;
 }
 
 /**
@@ -72,7 +81,7 @@ export class StrandsPlugin extends SimplePlugin {
     const mcpClients = options.mcpClients ?? {};
     for (const [server, factory] of Object.entries(mcpClients)) {
       const list = buildListToolsActivity(server);
-      const call = buildCallToolActivity(server, factory);
+      const call = buildCallToolActivity(server, factory, msOptionalToNumber(options.mcpConnectionIdleTimeout));
       activities[listToolsActivityName(server)] = list;
       activities[callToolActivityName(server)] = call;
     }

@@ -140,9 +140,10 @@ interface CachedConnection {
 }
 
 /**
- * How long an idle MCP connection is kept open before it's disconnected. The
- * timer resets on every {@link callToolActivityName | callTool} that reuses the
- * connection. Exported for tests.
+ * Default for how long an idle MCP connection is kept open before it's
+ * disconnected. The timer resets on every {@link callToolActivityName |
+ * callTool} that reuses the connection. Override per worker via
+ * `StrandsPlugin({ mcpConnectionIdleMs })`.
  */
 export const MCP_CONNECTION_IDLE_MS = 5 * 60 * 1000;
 
@@ -151,10 +152,10 @@ export const MCP_CONNECTION_IDLE_MS = 5 * 60 * 1000;
 const CONNECTIONS: Map<string, Promise<CachedConnection>> = new Map();
 const IDLE_TIMERS: Map<string, NodeJS.Timeout> = new Map();
 
-function resetIdleTimer(server: string): void {
+function resetIdleTimer(server: string, idleMs: number): void {
   const existing = IDLE_TIMERS.get(server);
   if (existing !== undefined) clearTimeout(existing);
-  const timer = setTimeout(() => void _evictConnection(server), MCP_CONNECTION_IDLE_MS);
+  const timer = setTimeout(() => void _evictConnection(server), idleMs);
   // Don't let an idle MCP connection keep the worker process alive.
   timer.unref?.();
   IDLE_TIMERS.set(server, timer);
@@ -177,7 +178,7 @@ export async function _evictConnection(server: string): Promise<void> {
   }
 }
 
-function getConnection(server: string, factory: () => McpClient): Promise<CachedConnection> {
+function getConnection(server: string, factory: () => McpClient, idleMs: number): Promise<CachedConnection> {
   let entry = CONNECTIONS.get(server);
   if (entry === undefined) {
     entry = (async () => {
@@ -193,7 +194,7 @@ function getConnection(server: string, factory: () => McpClient): Promise<Cached
       if (CONNECTIONS.get(server) === entry) CONNECTIONS.delete(server);
     });
   }
-  resetIdleTimer(server);
+  resetIdleTimer(server, idleMs);
   return entry;
 }
 
@@ -201,18 +202,20 @@ function getConnection(server: string, factory: () => McpClient): Promise<Cached
  * Builds the per-server `{server}-callTool` activity. Reuses a worker-process
  * MCP session opened lazily through the user-supplied factory — successive
  * calls share one connection rather than reconnecting per call. Idle
- * connections are disconnected after {@link MCP_CONNECTION_IDLE_MS}.
+ * connections are disconnected after `idleMs` (defaults to
+ * {@link MCP_CONNECTION_IDLE_MS}).
  */
 export function buildCallToolActivity(
   server: string,
-  factory: () => McpClient
+  factory: () => McpClient,
+  idleMs: number = MCP_CONNECTION_IDLE_MS
 ): (input: CallToolInput) => Promise<JSONValue> {
   const name = callToolActivityName(server);
   const fn = async (input: CallToolInput): Promise<JSONValue> => {
     ActivityContext.current().log.debug(`Calling MCP tool ${input.toolName} on server ${server}`, {
       activityId: activityInfo().activityId,
     });
-    const { client, tools } = await getConnection(server, factory);
+    const { client, tools } = await getConnection(server, factory, idleMs);
     const tool = tools.find((t) => t.name === input.toolName);
     if (tool === undefined) {
       throw new Error(`MCP tool '${input.toolName}' not found on server '${server}'`);

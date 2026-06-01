@@ -266,3 +266,12 @@ new Worker({
 ```
 
 Each factory returns a fully configured `McpClient`. The plugin connects to each MCP server once at worker startup to enumerate tools. The schema is frozen for the worker's lifetime; restart workers to pick up MCP-server changes. If a server is unavailable at startup, the worker fails to start.
+
+To amortize connection setup, the `{name}-callTool` activity keeps a worker-process MCP connection open between calls and reuses it. The connection is disconnected after it sits idle for `mcpConnectionIdleTimeout` (default 5 minutes); the timer resets on every reuse. `mcpConnectionIdleTimeout` accepts a millisecond number or a duration string (e.g. `'30 seconds'`), like `startToCloseTimeout`:
+
+```ts
+new StrandsPlugin({
+  mcpClients: { echo: () => new McpClient({ url: 'http://localhost:8765/mcp' }) },
+  mcpConnectionIdleTimeout: '30 seconds',
+});
+```
