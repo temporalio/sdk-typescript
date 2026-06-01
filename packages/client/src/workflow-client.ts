@@ -94,7 +94,7 @@ import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
 import { WorkflowUpdateStage, encodeWorkflowUpdateStage } from './workflow-update-stage';
 import type { InternalWorkflowStartOptions } from './internal';
-import { InternalWorkflowStartOptionsSymbol } from './internal';
+import { InternalNexusStartOptionsSymbol } from './internal';
 import { adaptWorkflowClientInterceptor } from './interceptor-adapters';
 
 const UpdateWorkflowExecutionLifecycleStage = temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
@@ -1293,7 +1293,7 @@ export class WorkflowClient extends BaseClient {
   protected async _startWorkflowHandler(input: WorkflowStartInput): Promise<WorkflowStartOutput> {
     const req = await this.createStartWorkflowRequest(input);
     const { options: opts, workflowType } = input;
-    const internalOptions = (opts as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
+    const internalOptions = (opts as InternalWorkflowStartOptions)[InternalNexusStartOptionsSymbol];
     try {
       const response = await this.workflowService.startWorkflowExecution(req);
       if (internalOptions != null) {
@@ -1320,7 +1320,7 @@ export class WorkflowClient extends BaseClient {
     const { identity, namespace } = this.options;
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(opts.workflowId);
-    const internalOptions = (opts as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
+    const internalOptions = (opts as InternalWorkflowStartOptions)[InternalNexusStartOptionsSymbol];
     const supportsEagerStart = (this.connection as InternalConnectionLike)?.[InternalConnectionLikeSymbol]
       ?.supportsEagerStart;
 

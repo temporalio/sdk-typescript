@@ -17,11 +17,15 @@ export {
 
 export {
   startWorkflow,
+  type ActivityOptions as ActivityStartOptions,
+  type ActivityOptionsFor as ActivityStartOptionsFor,
+  type CancelActivityOptions,
   type CancelWorkflowRunOptions,
   type TemporalOperationHandlerOptions,
   TemporalOperationHandler,
   TemporalOperationResult,
   type TemporalNexusClient,
+  type NexusTypedActivityClient,
   type TemporalOperationStartHandler,
   WorkflowHandle,
   WorkflowRunOperationHandler,

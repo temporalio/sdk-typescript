@@ -1,14 +1,24 @@
 import * as nexus from 'nexus-rpc';
 import type { Workflow, WorkflowResultType } from '@temporalio/common';
 import type { Replace } from '@temporalio/common/lib/type-helpers';
-import type { Client, WorkflowStartOptions as ClientWorkflowStartOptions } from '@temporalio/client';
+import type {
+  ActivityHandle,
+  ActivityName,
+  ActivityOptions as ClientActivityOptions,
+  ActivityOptionsFor as ClientActivityOptionsFor,
+  ActivityResult,
+  Client,
+  WorkflowStartOptions as ClientWorkflowStartOptions,
+} from '@temporalio/client';
 import { type temporal } from '@temporalio/proto';
-import type { InternalWorkflowStartOptions } from '@temporalio/client/lib/internal';
-import { InternalWorkflowStartOptionsSymbol } from '@temporalio/client/lib/internal';
+import type { InternalActivityStartOptions, InternalNexusStartOptions } from '@temporalio/client/lib/internal';
+import { InternalNexusStartOptionsSymbol } from '@temporalio/client/lib/internal';
 import { convertNexusLinkToTemporalLink, convertTemporalLinkToNexusLink } from './link-converter';
 import {
+  assertActivityOperationToken,
   assertWorkflowRunOperationToken,
   generateWorkflowRunOperationToken,
+  generateActivityOperationToken,
   loadOperationToken,
   loadWorkflowRunOperationToken,
   OperationTokenType,
@@ -23,6 +33,52 @@ import {
 
 declare const isNexusWorkflowHandle: unique symbol;
 declare const workflowResultType: unique symbol;
+
+async function startWithNexusOptions<T>(
+  ctx: nexus.StartOperationContext,
+  handler: (opts: InternalNexusStartOptions[typeof InternalNexusStartOptionsSymbol]) => Promise<T>
+) {
+  const links = Array<temporal.api.common.v1.ILink>();
+  if (ctx.inboundLinks?.length > 0) {
+    for (const l of ctx.inboundLinks) {
+      try {
+        links.push(convertNexusLinkToTemporalLink(l));
+      } catch (error) {
+        log.warn('failed to convert Nexus link to Workflow event link', { error });
+      }
+    }
+  }
+
+  const internalOptions: InternalNexusStartOptions[typeof InternalNexusStartOptionsSymbol] = {
+    links,
+    requestId: ctx.requestId,
+    onConflictOptions: {
+      attachLinks: true,
+      attachCompletionCallbacks: true,
+      attachRequestId: true,
+    },
+  };
+
+  if (ctx.callbackUrl) {
+    internalOptions.completionCallbacks = [
+      {
+        nexus: { url: ctx.callbackUrl, header: ctx.callbackHeaders },
+        links, // pass in links here as well for older servers, newer servers dedupe them.
+      },
+    ];
+  }
+
+  const result = await handler(internalOptions);
+  if (internalOptions.backLink != null) {
+    try {
+      ctx.outboundLinks.push(convertTemporalLinkToNexusLink(internalOptions.backLink));
+    } catch (error) {
+      log.warn('failed to convert temporal link to Nexus link', { error });
+    }
+  }
+
+  return result;
+}
 
 /**
  * A handle to a running workflow that is returned by the {@link startWorkflow} helper.
@@ -84,57 +140,23 @@ export async function startWorkflow<T extends Workflow>(
   workflowTypeOrFunc: string | T,
   workflowOptions: WorkflowStartOptions<T>
 ): Promise<WorkflowHandle<WorkflowResultType<T>>> {
-  const { client, taskQueue } = getHandlerContext();
-  const links = Array<temporal.api.common.v1.ILink>();
-  if (ctx.inboundLinks?.length > 0) {
-    for (const l of ctx.inboundLinks) {
-      try {
-        links.push(convertNexusLinkToTemporalLink(l));
-      } catch (error) {
-        log.warn('failed to convert Nexus link to Workflow event link', { error });
-      }
-    }
-  }
-  const internalOptions: InternalWorkflowStartOptions[typeof InternalWorkflowStartOptionsSymbol] = {
-    links,
-    requestId: ctx.requestId,
-  };
+  return await startWithNexusOptions(ctx, async (internalOptions) => {
+    const { client, taskQueue } = getHandlerContext();
 
-  internalOptions.onConflictOptions = {
-    attachLinks: true,
-    attachCompletionCallbacks: true,
-    attachRequestId: true,
-  };
+    const { taskQueue: userSpecifiedTaskQueue, ...rest } = workflowOptions;
+    const startOptions: ClientWorkflowStartOptions = {
+      ...rest,
+      taskQueue: userSpecifiedTaskQueue || taskQueue,
+      [InternalNexusStartOptionsSymbol]: internalOptions,
+    };
 
-  if (ctx.callbackUrl) {
-    internalOptions.completionCallbacks = [
-      {
-        nexus: { url: ctx.callbackUrl, header: ctx.callbackHeaders },
-        links, // pass in links here as well for older servers, newer servers dedupe them.
-      },
-    ];
-  }
+    const handle = await client.workflow.start(workflowTypeOrFunc, startOptions);
 
-  const { taskQueue: userSpecifiedTaskQueue, ...rest } = workflowOptions;
-  const startOptions: ClientWorkflowStartOptions = {
-    ...rest,
-    taskQueue: userSpecifiedTaskQueue || taskQueue,
-    [InternalWorkflowStartOptionsSymbol]: internalOptions,
-  };
-
-  const handle = await client.workflow.start(workflowTypeOrFunc, startOptions);
-  if (internalOptions.backLink != null) {
-    try {
-      ctx.outboundLinks.push(convertTemporalLinkToNexusLink(internalOptions.backLink));
-    } catch (error) {
-      log.warn('failed to convert temporal link to Nexus link', { error });
-    }
-  }
-
-  return {
-    workflowId: handle.workflowId,
-    runId: handle.firstExecutionRunId,
-  } as WorkflowHandle<WorkflowResultType<T>>;
+    return {
+      workflowId: handle.workflowId,
+      runId: handle.firstExecutionRunId,
+    } as WorkflowHandle<WorkflowResultType<T>>;
+  });
 }
 
 /**
@@ -165,6 +187,66 @@ export class WorkflowRunOperationHandler<I, O> implements nexus.OperationHandler
     const decoded = loadWorkflowRunOperationToken(token);
     await getClient().workflow.getHandle(decoded.wid).cancel();
   }
+}
+
+/**
+ * Options for starting an untyped activity using {@link TemporalNexusClient.startActivity}, this type is identical to the
+ * client's `ActivityOptions` with the exception that `taskQueue` is optional and defaults
+ * to the current worker's task queue.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export type ActivityOptions = Replace<ClientActivityOptions, { taskQueue?: string }>;
+
+/**
+ * Options for starting a typed activity using {@link NexusTypedActivityClient.startActivity}, this type is identical to the
+ * client's `ActivityOptionsFor` with the exception that `taskQueue` is optional and defaults
+ * to the current worker's task queue.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export type ActivityOptionsFor<T, N extends ActivityName<T>> = Replace<
+  ClientActivityOptionsFor<T, N>,
+  { taskQueue?: string }
+>;
+
+/**
+ * Starts an activity for a {@link TemporalNexusClient.startActivity}, linking the execution chain
+ * to a Nexus Operation. Automatically propagates the callback, request ID, and back and forward
+ * links from the Nexus options to the Activity.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+async function startActivity<R>(
+  ctx: TemporalStartOperationContext,
+  activity: string,
+  activityOptions: ActivityOptions
+): Promise<ActivityHandle<R>> {
+  return await startWithNexusOptions(ctx, async (internalOptions) => {
+    const { client, taskQueue } = getHandlerContext();
+
+    const { taskQueue: userSpecifiedTaskQueue, ...rest } = activityOptions;
+    const startOptions: InternalActivityStartOptions = {
+      ...rest,
+      taskQueue: userSpecifiedTaskQueue || taskQueue,
+      [InternalNexusStartOptionsSymbol]: internalOptions,
+    };
+
+    try {
+      return await client.activity.start<R>(activity, startOptions);
+    } catch (err) {
+      // ActivityClient.validateActivityOptions throws TypeError if there are bad options specified.
+      // e.g. missing startToCloseTimeout or scheduleToCloseTimeout
+      // If uncaught, causes Nexus operations to retry until timeout or circuit breaker trips and
+      // reason is not easily discoverable.
+      if (err instanceof TypeError) {
+        throw new nexus.HandlerError(nexus.HandlerErrorType.BAD_REQUEST, `Failed to start activity: ${err.message}`, {
+          cause: err,
+        });
+      }
+      throw err;
+    }
+  });
 }
 
 /**
@@ -218,6 +300,34 @@ export interface TemporalNexusClient {
     workflowTypeOrFunc: string | T,
     workflowOptions: WorkflowStartOptions<T>
   ): Promise<TemporalOperationResult<WorkflowResultType<T>>>;
+
+  startActivity<R = any>(activity: string, options: ActivityOptions): Promise<TemporalOperationResult<R>>;
+
+  /**
+   * Returns this client as a {@link NexusTypedActivityClient}. It enables strong type checking of Activity name, arguments
+   * and result based on the provided Activity interface. Note that no new client object is created - this method only
+   * affects type annotations.
+   * @template T Activity interface to use for type checking. The returned client can only start activities present in
+   * this interface.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  typedActivity<T>(): NexusTypedActivityClient<T>;
+}
+
+/**
+ * Sub-interface of {@link TemporalNexusClient} that provides a strongly-typed interface for executing Activities.
+ * Argument types in the provided options must match the argument types of the specified Activity as defined in provided
+ * interface
+ * @template T Activity interface
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface NexusTypedActivityClient<T> {
+  startActivity<N extends ActivityName<T>>(
+    activity: N,
+    options: ActivityOptionsFor<T, N>
+  ): Promise<TemporalOperationResult<ActivityResult<T, N>>>;
 }
 
 class TemporalNexusClientImpl implements TemporalNexusClient {
@@ -248,6 +358,25 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
       const { namespace } = getHandlerContext();
       return TemporalOperationResult.async(generateWorkflowRunOperationToken(namespace, handle.workflowId));
     });
+  }
+
+  public async startActivity<R = any>(
+    activity: string,
+    options: Replace<ActivityOptions, { taskQueue?: string }>
+  ): Promise<TemporalOperationResult<R>> {
+    return await this.withAsyncOperationStartReservation(async () => {
+      const handle = await startActivity(this.startOperationContext, activity, options);
+      const { namespace } = getHandlerContext();
+
+      // handle.runId is always populated when starting an activity
+      // it's safe to use non-null assertion
+      const token = generateActivityOperationToken(namespace, handle.activityId, handle.runId!);
+      return TemporalOperationResult.async(token);
+    });
+  }
+
+  public typedActivity<T>(): NexusTypedActivityClient<T> {
+    return this;
   }
 
   private async withAsyncOperationStartReservation<T>(fn: () => Promise<T>): Promise<T> {
@@ -293,12 +422,31 @@ export interface CancelWorkflowRunOptions {
 }
 
 /**
+ * Options passed to a {@link TemporalOperationHandlerOptions.cancelActivity} handler describing
+ * the activity to cancel.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface CancelActivityOptions {
+  /**
+   * The ID of the activity backing the Nexus Operation that is being canceled.
+   */
+  readonly activityId: string;
+
+  /**
+   * The run ID of the activity backing the Nexus Operation that is being canceled.
+   */
+  readonly runId: string;
+}
+
+/**
  * Options for customizing a {@link TemporalOperationHandler}.
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface TemporalOperationHandlerOptions {
   cancelWorkflowRun?: (ctx: TemporalCancelOperationContext, options: CancelWorkflowRunOptions) => Promise<void>;
+  cancelActivity?: (ctx: TemporalCancelOperationContext, options: CancelActivityOptions) => Promise<void>;
 }
 
 /**
@@ -309,10 +457,12 @@ export interface TemporalOperationHandlerOptions {
 export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I, O> {
   private readonly startHandler: TemporalOperationStartHandler<I, O>;
   private readonly cancelWorkflowRunHandler: NonNullable<TemporalOperationHandlerOptions['cancelWorkflowRun']>;
+  private readonly cancelActivityHandler: NonNullable<TemporalOperationHandlerOptions['cancelActivity']>;
 
   constructor(options: { start: TemporalOperationStartHandler<I, O> } & TemporalOperationHandlerOptions) {
     this.startHandler = options.start;
     this.cancelWorkflowRunHandler = options.cancelWorkflowRun ?? defaultCancelWorkflowRun;
+    this.cancelActivityHandler = options.cancelActivity ?? defaultCancelActivity;
   }
 
   async start(ctx: nexus.StartOperationContext, input: I): Promise<nexus.HandlerStartOperationResult<O>> {
@@ -339,6 +489,16 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
         }
         await this.cancelWorkflowRunHandler(ctx, { workflowId: opToken.wid });
         return;
+      case OperationTokenType.ACTIVITY:
+        try {
+          assertActivityOperationToken(opToken);
+        } catch (err) {
+          throw new nexus.HandlerError(nexus.HandlerErrorType.BAD_REQUEST, 'invalid activity operation token', {
+            cause: err,
+          });
+        }
+        await this.cancelActivityHandler(ctx, { activityId: opToken.aid, runId: opToken.rid });
+        return;
       default:
         throw new nexus.HandlerError(
           nexus.HandlerErrorType.BAD_REQUEST,
@@ -350,4 +510,11 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
 
 async function defaultCancelWorkflowRun(_ctx: TemporalCancelOperationContext, options: CancelWorkflowRunOptions) {
   await getClient().workflow.getHandle(options.workflowId).cancel();
+}
+
+async function defaultCancelActivity(
+  _ctx: TemporalCancelOperationContext,
+  { activityId, runId }: CancelActivityOptions
+) {
+  await getClient().activity.getHandle(activityId, runId).cancel(`Nexus Operation cancellation requested`);
 }
