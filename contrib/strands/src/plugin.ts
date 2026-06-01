@@ -11,8 +11,6 @@ import {
   buildListToolsActivity,
   callToolActivityName,
   listToolsActivityName,
-  populateMcpCache,
-  _clearCache,
   _evictConnection,
 } from './temporal-mcp-client';
 
@@ -25,11 +23,12 @@ import {
  *   If omitted, the plugin registers a single `BedrockModel` factory under
  *   the name `'bedrock'` to match Strands' own implicit default.
  *
- * - `mcpClients` — name → MCP client factory map. The plugin connects to
- *   each server once at worker startup to enumerate tools; workflow-side
- *   `TemporalMCPClient({ server: 'name' })` reads from that cache. The
- *   schema is frozen for the worker's lifetime; restart workers to pick up
- *   MCP-server changes.
+ * - `mcpClients` — name → MCP client factory map. Workflow-side
+ *   `TemporalMCPClient({ server: 'name' })` selects a factory by name; the
+ *   per-server `{name}-listTools` and `{name}-callTool` activities reuse one
+ *   lazily-opened worker-process connection. Tools are enumerated live on each
+ *   `listTools`, so the agent picks up MCP-server changes (including redeploys)
+ *   without restarting the worker.
  *
  * - `mcpConnectionIdleTimeout` — how long a worker-process MCP connection is
  *   kept open between `callTool` activities before it's disconnected. The timer
@@ -79,23 +78,20 @@ export class StrandsPlugin extends SimplePlugin {
     };
 
     const mcpClients = options.mcpClients ?? {};
+    const idleMs = msOptionalToNumber(options.mcpConnectionIdleTimeout);
     for (const [server, factory] of Object.entries(mcpClients)) {
-      const list = buildListToolsActivity(server);
-      const call = buildCallToolActivity(server, factory, msOptionalToNumber(options.mcpConnectionIdleTimeout));
-      activities[listToolsActivityName(server)] = list;
-      activities[callToolActivityName(server)] = call;
+      activities[listToolsActivityName(server)] = buildListToolsActivity(server, factory, idleMs);
+      activities[callToolActivityName(server)] = buildCallToolActivity(server, factory, idleMs);
     }
 
     const runContext = async (next: () => Promise<void>): Promise<void> => {
-      for (const [server, factory] of Object.entries(mcpClients)) {
-        await populateMcpCache(server, factory);
-      }
       try {
         await next();
       } finally {
+        // Close any worker-process MCP connections opened lazily by the
+        // listTools/callTool activities.
         for (const server of Object.keys(mcpClients)) {
           await _evictConnection(server);
-          _clearCache(server);
         }
       }
     };

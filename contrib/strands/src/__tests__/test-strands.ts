@@ -87,8 +87,8 @@ function toolCallTurn(toolName: string, toolUseId: string, input: object): Model
 
 /**
  * Subclass of `McpClient` that returns a fixed tool list and a fixed call
- * result, with no real transport I/O. The plugin's `populateMcpCache` and the
- * per-server `{server}-callTool` activity both call into this client.
+ * result, with no real transport I/O. The per-server `{server}-listTools` and
+ * `{server}-callTool` activities both call into this client.
  *
  * The plugin only reads `name`/`description`/`toolSpec.inputSchema` from the
  * returned tools and only uses `tool.name` when dispatching `callTool`, so the
@@ -354,14 +354,14 @@ test('successive MCP tool calls reuse one cached worker-side connection', async 
   await worker.runUntil(async () => {
     const result = await executeWorkflow(mcpAgent, { args: ['list files', 'cachingServer'] });
     t.is(result, 'done');
-    // Both tool calls ran, but only the startup-discovery connection plus a
-    // single lazily-cached call connection were opened — the second call
-    // reused the first. (No caching would mean factoryCalls/connects === 3.)
+    // The initial listTools opens one connection that both tool calls then
+    // reuse — a single factory/connect for the whole workflow. (No caching
+    // would mean factoryCalls/connects === 3: listTools plus each call.)
     t.is(counters.callTools, 2);
-    t.is(counters.factoryCalls, 2);
-    t.is(counters.connects, 2);
-    // Discovery disconnected; the cached call connection is still open mid-run.
-    t.is(counters.disconnects, 1);
+    t.is(counters.factoryCalls, 1);
+    t.is(counters.connects, 1);
+    // The cached connection stays open mid-run; nothing has disconnected yet.
+    t.is(counters.disconnects, 0);
     // Both tool calls reached the client with the model's scripted inputs.
     t.deepEqual(callToolArgs, [
       { name: 'listFiles', args: { path: '/a' } },
@@ -370,17 +370,14 @@ test('successive MCP tool calls reuse one cached worker-side connection', async 
   });
 
   // Worker shutdown evicts the cached connection.
-  t.is(counters.disconnects, 2);
+  t.is(counters.disconnects, 1);
 });
 
 test('mcpConnectionIdleTimeout evicts the cached connection while the worker runs', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
-  const counters = { connects: 0, disconnects: 0 };
+  const counters = { disconnects: 0 };
   class CountingMcpClient extends StubMcpClient {
-    override async connect(): Promise<void> {
-      counters.connects++;
-    }
     override async disconnect(): Promise<void> {
       counters.disconnects++;
     }
@@ -409,14 +406,15 @@ test('mcpConnectionIdleTimeout evicts the cached connection while the worker run
   await worker.runUntil(async () => {
     const result = await executeWorkflow(mcpAgent, { args: ['list files', 'idleServer'] });
     t.is(result, 'done');
-    // Startup discovery connected+disconnected; the call opened a second
-    // connection that the short idle timer then evicts on its own. Asserting
-    // this inside runUntil (worker still alive) proves the eviction came from
-    // the idle timer, not worker shutdown. With the default 5-minute window the
-    // call connection would still be cached here (disconnects === 1).
-    t.is(counters.connects, 2);
+    // Wait past the short idle window: the cached connection should be
+    // disconnected by the idle timer on its own. Observing a disconnect inside
+    // runUntil (worker still alive) proves the eviction came from the timer, not
+    // worker shutdown — with the default 5-minute window nothing would have
+    // disconnected here. (The exact connect/disconnect counts aren't asserted:
+    // the timer may also fire between the listTools and callTool activities,
+    // forcing a reconnect, which is itself valid idle-eviction behavior.)
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    t.is(counters.disconnects, 2);
+    t.true(counters.disconnects >= 1, 'expected the idle timer to evict the connection mid-run');
   });
 });
 

@@ -230,7 +230,7 @@ const client = new Client({ /* ... */, plugins: [new StrandsPlugin({ models })] 
 
 ## MCP
 
-`new StrandsPlugin({ mcpClients })` takes a mapping of `name → McpClient factory`, mirroring the `models` pattern. The plugin registers per-server `{name}-listTools` and `{name}-callTool` activities and connects at worker startup to enumerate tools. Workflow-side, `new TemporalMCPClient({ server: 'name' })` is a thin handle: it references the server by name and carries the per-call activity options.
+`new StrandsPlugin({ mcpClients })` takes a mapping of `name → McpClient factory`, mirroring the `models` pattern. The plugin registers per-server `{name}-listTools` and `{name}-callTool` activities. Workflow-side, `new TemporalMCPClient({ server: 'name' })` is a thin handle: it references the server by name and carries the per-call activity options.
 
 ```ts
 import { McpClient } from '@strands-agents/sdk';
@@ -262,9 +262,9 @@ new Worker({
 });
 ```
 
-Each factory returns a fully configured `McpClient`. The plugin connects to each MCP server once at worker startup to enumerate tools. The schema is frozen for the worker's lifetime; restart workers to pick up MCP-server changes. If a server is unavailable at startup, the worker fails to start.
+Each factory returns a fully configured `McpClient`. Tools are enumerated live each time the agent calls `{name}-listTools`, so the agent sees the server's current tools — including after a redeploy — without restarting the worker. The connection is opened lazily on first use rather than at worker startup.
 
-To amortize connection setup, the `{name}-callTool` activity keeps a worker-process MCP connection open between calls and reuses it. The connection is disconnected after it sits idle for `mcpConnectionIdleTimeout` (default 5 minutes); the timer resets on every reuse. `mcpConnectionIdleTimeout` accepts a millisecond number or a duration string (e.g. `'30 seconds'`), like `startToCloseTimeout`:
+To amortize connection setup, the `{name}-listTools` and `{name}-callTool` activities share one worker-process MCP connection and reuse it across calls. The connection is disconnected after it sits idle for `mcpConnectionIdleTimeout` (default 5 minutes); the timer resets on every reuse. `mcpConnectionIdleTimeout` accepts a millisecond number or a duration string (e.g. `'30 seconds'`), like `startToCloseTimeout`:
 
 ```ts
 new StrandsPlugin({

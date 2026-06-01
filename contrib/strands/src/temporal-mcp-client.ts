@@ -5,7 +5,7 @@ import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
 import { activityInfo, Context as ActivityContext } from '@temporalio/activity';
 
-/** Cached tool descriptor; one per MCP tool, populated at worker startup. */
+/** Tool descriptor returned by the per-server `{server}-listTools` activity. */
 export interface McpToolInfo {
   name: string;
   description: string;
@@ -16,23 +16,6 @@ export interface McpToolInfo {
 export interface CallToolInput {
   toolName: string;
   args: JSONValue;
-}
-
-const TOOL_CACHE: Record<string, McpToolInfo[]> = {};
-
-/** @internal */
-export function _populateCache(server: string, infos: McpToolInfo[]): void {
-  TOOL_CACHE[server] = infos;
-}
-
-/** @internal */
-export function _clearCache(server: string): void {
-  delete TOOL_CACHE[server];
-}
-
-/** @internal */
-export function _readCache(server: string): McpToolInfo[] {
-  return TOOL_CACHE[server] ?? [];
 }
 
 const STUB_TRANSPORT: Transport = {
@@ -120,14 +103,32 @@ export function callToolActivityName(server: string): string {
 }
 
 /**
- * Builds the per-server `{server}-listTools` activity. Returns the tool list
- * cached at worker startup; runs on every workflow that calls
- * {@link TemporalMCPClient.listTools}.
+ * Builds the per-server `{server}-listTools` activity. Enumerates the server's
+ * tools live over the shared worker-process connection on every call, so the
+ * agent sees the server's current tools even if it is redeployed mid-workflow.
+ * Runs whenever a workflow calls {@link TemporalMCPClient.listTools}.
  */
-export function buildListToolsActivity(server: string): (input: { server: string }) => Promise<McpToolInfo[]> {
+export function buildListToolsActivity(
+  server: string,
+  factory: () => McpClient,
+  idleMs: number = MCP_CONNECTION_IDLE_MS
+): (input: { server: string }) => Promise<McpToolInfo[]> {
   const name = listToolsActivityName(server);
   const fn = async (_input: { server: string }): Promise<McpToolInfo[]> => {
-    return _readCache(server);
+    const client = await getConnection(server, factory, idleMs);
+    try {
+      const tools = await client.listTools();
+      return tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.toolSpec.inputSchema,
+      }));
+    } catch (err) {
+      // The session may be broken (e.g. the server was redeployed); drop it so
+      // the next call reconnects to the current deployment.
+      await _evictConnection(server);
+      throw err;
+    }
   };
   Object.defineProperty(fn, 'name', { value: name });
   return fn;
@@ -209,10 +210,10 @@ export function buildCallToolActivity(
       activityId: activityInfo().activityId,
     });
     const client = await getConnection(server, factory, idleMs);
-    // Dispatch by name rather than re-listing tools on the connection: the tool
-    // schema is already discovered at worker startup, and `McpClient.callTool`
-    // only reads `tool.name` to build the request. A minimal `{ name }` matches
-    // the by-name dispatch the Python SDK does via `session.call_tool`.
+    // Dispatch by name without re-listing tools on the connection: the agent
+    // already has the schema from `listTools`, and `McpClient.callTool` only
+    // reads `tool.name` to build the request. A minimal `{ name }` matches the
+    // by-name dispatch the Python SDK does via `session.call_tool`.
     const tool = { name: input.toolName } as unknown as Parameters<McpClient['callTool']>[0];
     try {
       return await client.callTool(tool, input.args);
@@ -224,27 +225,4 @@ export function buildCallToolActivity(
   };
   Object.defineProperty(fn, 'name', { value: name });
   return fn;
-}
-
-/**
- * Called at worker startup (via the plugin's `runContext`) to connect to the
- * MCP server, list its tools, and stash the descriptors in the worker-process
- * cache. The `{server}-listTools` activity reads from this cache.
- */
-export async function populateMcpCache(server: string, factory: () => McpClient): Promise<void> {
-  const client = factory();
-  try {
-    await client.connect();
-    const tools = await client.listTools();
-    _populateCache(
-      server,
-      tools.map((t) => ({
-        name: t.name,
-        description: t.description,
-        inputSchema: t.toolSpec.inputSchema,
-      }))
-    );
-  } finally {
-    await client.disconnect();
-  }
 }
