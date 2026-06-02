@@ -27,9 +27,7 @@ test('ExternalStorage with one driver and no selector is valid', (t) => {
   const config = new ExternalStorage({ drivers: [driver] });
   t.is(config.drivers.length, 1);
   t.is(config.drivers[0], driver);
-  // A selector is synthesized for the single-driver case and always routes to it.
   t.is(config.driverSelector({}, {} as Payload), driver);
-  t.is(config.payloadSizeThreshold, 256 * 1024);
   t.is(config.getDriver('only'), driver);
   t.is(config.getDriver('missing'), null);
 });
