@@ -21,4 +21,16 @@ if (inWorkflowContext()) {
   if (typeof globalThis.crypto?.randomUUID !== 'function') {
     globalThis.crypto = { ...(globalThis.crypto ?? {}), randomUUID: uuid4 } as never;
   }
+
+  // Strands' agent loop uses `using`/`await using` (downleveled to
+  // `Symbol.dispose`/`Symbol.asyncDispose`), which Node <22 lacks in the
+  // workflow VM. `Symbol.for` gives a stable global key so the SDK's
+  // producer and the downlevel helper agree on the same symbol.
+  const sym = Symbol as { dispose?: symbol; asyncDispose?: symbol };
+  if (typeof sym.dispose !== 'symbol') {
+    sym.dispose = Symbol.for('nodejs.dispose');
+  }
+  if (typeof sym.asyncDispose !== 'symbol') {
+    sym.asyncDispose = Symbol.for('nodejs.asyncDispose');
+  }
 }
