@@ -11,7 +11,7 @@ export { agentAsTool } from './workflow/agent-tools';
 export type { AgentAsToolOptions } from './workflow/agent-tools';
 export { statelessMcpServer } from './workflow/mcp-client';
 export type { StatelessMcpServerOptions } from './workflow/mcp-client';
-export type { MCPPromptDefinition, StatefulTemporalMCPServer, TemporalMCPServer } from './common/mcp-types';
+export type { StatefulTemporalMCPServer } from './common/mcp-types';
 export { DEDICATED_WORKER_FAILURE_TYPE } from './common/mcp-types';
 export { statefulMcpServer } from './workflow/stateful-mcp-client';
 export type { StatefulMcpServerOptions } from './workflow/stateful-mcp-client';

@@ -1,23 +1,36 @@
-import {
-  MCP_CALL_TOOL_SUFFIX,
-  MCP_GET_PROMPT_SUFFIX,
-  MCP_LIST_PROMPTS_SUFFIX,
-  MCP_LIST_TOOLS_SUFFIX,
-  type StatelessMCPServerFactory,
-} from '../common/mcp-types';
+import type { MCPServer } from '@openai/agents-core';
+import { MCP_CALL_TOOL_SUFFIX, MCP_LIST_TOOLS_SUFFIX } from '../common/mcp-types';
 
 export class StatelessMCPServerProvider {
   constructor(
     public readonly name: string,
-    private factory: StatelessMCPServerFactory
+    private serverFactory: (factoryArgument?: unknown) => MCPServer
   ) {}
 
   _getActivities(): Record<string, (...args: any[]) => Promise<unknown>> {
     return {
-      [`${this.name}${MCP_LIST_TOOLS_SUFFIX}`]: (input: unknown) => this.factory.listTools(input),
-      [`${this.name}${MCP_CALL_TOOL_SUFFIX}`]: (input: any) => this.factory.callTool(input),
-      [`${this.name}${MCP_LIST_PROMPTS_SUFFIX}`]: (input: unknown) => this.factory.listPrompts(input),
-      [`${this.name}${MCP_GET_PROMPT_SUFFIX}`]: (input: any) => this.factory.getPrompt(input),
+      [`${this.name}${MCP_LIST_TOOLS_SUFFIX}`]: async (input?: { factoryArgument?: unknown }) => {
+        const s = this.serverFactory(input?.factoryArgument);
+        try {
+          await s.connect();
+          return await s.listTools();
+        } finally {
+          await s.close();
+        }
+      },
+      [`${this.name}${MCP_CALL_TOOL_SUFFIX}`]: async (input: {
+        toolName: string;
+        args: Record<string, unknown> | null;
+        factoryArgument?: unknown;
+      }) => {
+        const s = this.serverFactory(input.factoryArgument);
+        try {
+          await s.connect();
+          return await s.callTool(input.toolName, input.args);
+        } finally {
+          await s.close();
+        }
+      },
     };
   }
 }

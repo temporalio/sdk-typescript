@@ -1,17 +1,12 @@
 import { ApplicationFailure } from '@temporalio/common';
 import { Context, activityInfo } from '@temporalio/activity';
 import type { NativeConnection } from '@temporalio/worker';
+import type { MCPServer } from '@openai/agents-core';
 import {
   MCP_CALL_TOOL_SUFFIX,
-  MCP_GET_PROMPT_SUFFIX,
-  MCP_LIST_PROMPTS_SUFFIX,
   MCP_LIST_TOOLS_SUFFIX,
   MCP_SERVER_SESSION_SUFFIX,
   MCP_STATEFUL_SUFFIX,
-  type MCPCallToolResult,
-  type MCPPromptDefinition,
-  type MCPToolDefinition,
-  type StatefulMCPServer,
   type StatefulMcpServerSessionArgs,
 } from '../common/mcp-types';
 import { startAdaptiveHeartbeat } from './heartbeat';
@@ -27,11 +22,6 @@ interface CallToolArgs {
   args: Record<string, unknown> | null;
 }
 
-interface GetPromptArgs {
-  name: string;
-  arguments: Record<string, unknown> | null;
-}
-
 /**
  * Stateful MCP server provider. Maintains a persistent MCP connection per
  * Workflow run via a dedicated in-process Worker on a per-run Task Queue.
@@ -41,8 +31,8 @@ interface GetPromptArgs {
  */
 export class StatefulMCPServerProvider {
   private readonly _name: string;
-  private readonly _servers: Map<string, StatefulMCPServer> = new Map();
-  private readonly _serverFactory: (factoryArgument: unknown | undefined) => StatefulMCPServer;
+  private readonly _servers: Map<string, MCPServer> = new Map();
+  private readonly _serverFactory: (factoryArgument?: unknown) => MCPServer;
   private readonly _nativeConnection: NativeConnection;
 
   /**
@@ -52,7 +42,7 @@ export class StatefulMCPServerProvider {
    */
   constructor(
     name: string,
-    serverFactory: (factoryArgument: unknown | undefined) => StatefulMCPServer,
+    serverFactory: (factoryArgument?: unknown) => MCPServer,
     nativeConnection: NativeConnection
   ) {
     this._name = `${name}${MCP_STATEFUL_SUFFIX}`;
@@ -72,7 +62,7 @@ export class StatefulMCPServerProvider {
       return `${this._name}@${info.workflowExecution!.runId}`;
     };
 
-    const getServerOrThrow = (): StatefulMCPServer => {
+    const getServerOrThrow = (): MCPServer => {
       const id = serverId();
       const server = this._servers.get(id);
       if (!server) {
@@ -86,15 +76,9 @@ export class StatefulMCPServerProvider {
     };
 
     // Operation Activities — registered on the per-run Task Queue.
-    const listTools = async (): Promise<MCPToolDefinition[]> => getServerOrThrow().listTools();
+    const listTools = async () => getServerOrThrow().listTools();
 
-    const callTool = async (input: CallToolArgs): Promise<MCPCallToolResult[]> =>
-      getServerOrThrow().callTool(input.toolName, input.args);
-
-    const listPrompts = async (): Promise<MCPPromptDefinition[]> => getServerOrThrow().listPrompts?.() ?? [];
-
-    const getPrompt = async (input: GetPromptArgs): Promise<unknown> =>
-      getServerOrThrow().getPrompt?.(input.name, input.arguments) ?? null;
+    const callTool = async (input: CallToolArgs) => getServerOrThrow().callTool(input.toolName, input.args);
 
     // Long-running session Activity on the MAIN Worker's Task Queue. Creates
     // a server, connects it, spins up a dedicated per-run Worker, then awaits
@@ -129,12 +113,10 @@ export class StatefulMCPServerProvider {
           const dedicatedActivities: Record<string, (...args: any[]) => Promise<unknown>> = {
             [`${this._name}${MCP_LIST_TOOLS_SUFFIX}`]: listTools,
             [`${this._name}${MCP_CALL_TOOL_SUFFIX}`]: callTool,
-            [`${this._name}${MCP_LIST_PROMPTS_SUFFIX}`]: listPrompts,
-            [`${this._name}${MCP_GET_PROMPT_SUFFIX}`]: getPrompt,
           };
 
           // Wire the Activity interceptor identically to the main Worker so
-          // tool/prompt Activities still restore trace context and emit
+          // tool Activities still restore trace context and emit
           // `temporal:executeActivity:*` spans. Options are forwarded per-run
           // via input. Lazy import to avoid pulling the Worker package
           // unnecessarily.
@@ -158,7 +140,7 @@ export class StatefulMCPServerProvider {
 
           await dedicatedWorker.run();
         } finally {
-          await server.cleanup();
+          await server.close();
           this._servers.delete(sid);
         }
       } finally {

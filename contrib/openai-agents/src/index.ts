@@ -7,12 +7,6 @@ export type {
 export { StatelessMCPServerProvider } from './worker/mcp-provider';
 export { StatefulMCPServerProvider } from './worker/stateful-mcp-provider';
 export type {
-  MCPCallToolResult,
-  MCPToolDefinition,
-  StatefulMCPServer,
-  StatelessMCPServerFactory,
-} from './common/mcp-types';
-export type {
   ModelActivityOptions,
   ModelSummaryProvider,
   SerializableModelActivityOptions,

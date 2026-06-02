@@ -1,12 +1,7 @@
+import type { MCPServer } from '@openai/agents-core';
 import type { Duration, RetryPolicy } from '@temporalio/common';
 import { proxyActivities } from '@temporalio/workflow';
-import {
-  MCP_CALL_TOOL_SUFFIX,
-  MCP_GET_PROMPT_SUFFIX,
-  MCP_LIST_PROMPTS_SUFFIX,
-  MCP_LIST_TOOLS_SUFFIX,
-  type TemporalMCPServer,
-} from '../common/mcp-types';
+import { MCP_CALL_TOOL_SUFFIX, MCP_LIST_TOOLS_SUFFIX } from '../common/mcp-types';
 
 export interface StatelessMcpServerOptions {
   cacheToolsList?: boolean;
@@ -17,7 +12,7 @@ export interface StatelessMcpServerOptions {
   factoryArgument?: unknown;
 }
 
-export function statelessMcpServer(name: string, options?: StatelessMcpServerOptions): TemporalMCPServer {
+export function statelessMcpServer(name: string, options?: StatelessMcpServerOptions): MCPServer {
   const activities = proxyActivities<Record<string, (...args: any[]) => Promise<any>>>({
     startToCloseTimeout: options?.startToCloseTimeout ?? '1 minute',
     heartbeatTimeout: options?.heartbeatTimeout,
@@ -27,8 +22,6 @@ export function statelessMcpServer(name: string, options?: StatelessMcpServerOpt
 
   const listToolsActivityName = `${name}${MCP_LIST_TOOLS_SUFFIX}`;
   const callToolActivityName = `${name}${MCP_CALL_TOOL_SUFFIX}`;
-  const listPromptsActivityName = `${name}${MCP_LIST_PROMPTS_SUFFIX}`;
-  const getPromptActivityName = `${name}${MCP_GET_PROMPT_SUFFIX}`;
 
   let cachedTools: any[] | undefined;
   const shouldCache = options?.cacheToolsList ?? true;
@@ -60,18 +53,6 @@ export function statelessMcpServer(name: string, options?: StatelessMcpServerOpt
         toolName,
         args,
         ...(factoryArg !== undefined ? { factoryArgument: factoryArg } : {}),
-      });
-    },
-    async listPrompts(overrideFactoryArg?: unknown) {
-      const fa = overrideFactoryArg ?? factoryArg;
-      return activities[listPromptsActivityName]!(fa !== undefined ? { factoryArgument: fa } : undefined);
-    },
-    async getPrompt(promptName: string, args?: Record<string, unknown> | null, overrideFactoryArg?: unknown) {
-      const fa = overrideFactoryArg ?? factoryArg;
-      return activities[getPromptActivityName]!({
-        promptName,
-        promptArguments: args ?? null,
-        ...(fa !== undefined ? { factoryArgument: fa } : {}),
       });
     },
     async invalidateToolsCache() {

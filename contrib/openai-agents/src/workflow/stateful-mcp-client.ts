@@ -11,19 +11,16 @@ import { CancellationScope, isCancellation, scheduleActivity, workflowInfo } fro
 import {
   DEDICATED_WORKER_FAILURE_TYPE,
   MCP_CALL_TOOL_SUFFIX,
-  MCP_GET_PROMPT_SUFFIX,
-  MCP_LIST_PROMPTS_SUFFIX,
   MCP_LIST_TOOLS_SUFFIX,
   MCP_SERVER_SESSION_SUFFIX,
   MCP_STATEFUL_SUFFIX,
-  type MCPPromptDefinition,
   type StatefulMcpServerSessionArgs,
   type StatefulTemporalMCPServer,
 } from '../common/mcp-types';
 import { getCurrentPluginConfig } from './plugin-config-store';
 
 export interface StatefulMcpServerOptions {
-  /** Activity options for tool/prompt operation Activities on the dedicated Worker. */
+  /** Activity options for tool operation Activities on the dedicated Worker. */
   config?: {
     startToCloseTimeout?: Duration;
     scheduleToStartTimeout?: Duration;
@@ -76,9 +73,9 @@ async function handleWorkerFailure<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Workflow-side handle for a stateful MCP server connection. Tool and prompt
- * operations route to a dedicated in-process Worker on a per-run Task Queue,
- * preserving server state across calls.
+ * Workflow-side handle for a stateful MCP server connection. Tool operations
+ * route to a dedicated in-process Worker on a per-run Task Queue, preserving
+ * server state across calls.
  */
 export class StatefulMCPServerReference implements StatefulTemporalMCPServer {
   private readonly _name: string;
@@ -124,7 +121,7 @@ export class StatefulMCPServerReference implements StatefulTemporalMCPServer {
 
     // Forward this Workflow's trace-interceptor settings to the session
     // Activity so the dedicated per-run Worker wires its Activity interceptor
-    // identically — otherwise tool/prompt Activities would skip trace-context
+    // identically — otherwise tool Activities would skip trace-context
     // restoration and the `temporal:executeActivity:*` span.
     const pluginConfig = getCurrentPluginConfig();
     const args: StatefulMcpServerSessionArgs = {
@@ -180,22 +177,6 @@ export class StatefulMCPServerReference implements StatefulTemporalMCPServer {
     this.assertConnected();
     return handleWorkerFailure(() =>
       scheduleActivity(this._name + MCP_CALL_TOOL_SUFFIX, [{ toolName, args }], this._operationConfig)
-    );
-  }
-
-  async listPrompts(): Promise<MCPPromptDefinition[]> {
-    this.assertConnected();
-    return handleWorkerFailure(() => scheduleActivity(this._name + MCP_LIST_PROMPTS_SUFFIX, [], this._operationConfig));
-  }
-
-  async getPrompt(promptName: string, args?: Record<string, unknown> | null): Promise<unknown> {
-    this.assertConnected();
-    return handleWorkerFailure(() =>
-      scheduleActivity(
-        this._name + MCP_GET_PROMPT_SUFFIX,
-        [{ name: promptName, arguments: args ?? null }],
-        this._operationConfig
-      )
     );
   }
 

@@ -4,10 +4,15 @@ import { setTracingDisabled } from '@openai/agents-core';
 import { WorkflowClient } from '@temporalio/client';
 import { temporal } from '@temporalio/proto';
 import { helpers } from '@temporalio/test-helpers';
-import { OpenAIAgentsPlugin, OpenAIAgentsTraceClientInterceptor, StatefulMCPServerProvider } from '..';
+import type { MCPServer } from '@openai/agents-core';
+import {
+  OpenAIAgentsPlugin,
+  OpenAIAgentsTraceClientInterceptor,
+  StatefulMCPServerProvider,
+  StatelessMCPServerProvider,
+} from '..';
 import {
   localActivityAgentWorkflow,
-  mcpPromptsWorkflow,
   mcpFactoryArgWorkflow,
   summaryOverrideStringWorkflow,
   statefulMcpNotConnectedWorkflow,
@@ -90,63 +95,6 @@ test('Local activity mode uses local activities for model calls', async (t) => {
   });
 });
 
-test('MCP listPrompts and getPrompt delegate to activities', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
-
-  const worker = await createWorker({
-    plugins: [
-      new OpenAIAgentsPlugin({
-        modelProvider: new FakeModelProvider([textResponse('unused')]),
-      }),
-    ],
-    activities: {
-      'testMcp-list-tools': async () => [],
-      'testMcp-call-tool': async () => [],
-      'testMcp-list-prompts': async () => {
-        return [
-          { name: 'greeting', description: 'A greeting prompt' },
-          { name: 'farewell', description: 'A farewell prompt' },
-        ];
-      },
-      'testMcp-get-prompt': async (input: { promptName: string; promptArguments: Record<string, unknown> | null }) => {
-        return {
-          messages: [{ role: 'user', content: `Hello, ${(input.promptArguments as any)?.name ?? 'stranger'}!` }],
-        };
-      },
-    },
-  });
-
-  await worker.runUntil(async () => {
-    const handle = await startWorkflow(mcpPromptsWorkflow, {
-      args: ['test'],
-      workflowExecutionTimeout: '30 seconds',
-    });
-
-    const result = await handle.result();
-
-    t.is((result.prompts as any[]).length, 2, 'Expected 2 prompts from listPrompts');
-    t.is((result.prompts as any[])[0].name, 'greeting');
-    t.truthy(result.promptResult, 'Expected getPrompt to return data');
-    t.is((result.promptResult as any).messages[0].content, 'Hello, World!');
-
-    const { events } = await handle.fetchHistory();
-    const activityScheduledEvents =
-      events?.filter((e) => e.eventType === EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED) ?? [];
-    const activityTypes = activityScheduledEvents.map(
-      (e) => e?.activityTaskScheduledEventAttributes?.activityType?.name
-    );
-
-    t.true(
-      activityTypes.includes('testMcp-list-prompts'),
-      `testMcp-list-prompts should be in history, got: ${activityTypes.join(', ')}`
-    );
-    t.true(
-      activityTypes.includes('testMcp-get-prompt'),
-      `testMcp-get-prompt should be in history, got: ${activityTypes.join(', ')}`
-    );
-  });
-});
-
 function* mcpFactoryArgGenerator() {
   yield toolCallResponse('get_time', {});
   yield textResponse('The time for tenant-42 is 2026-01-01.');
@@ -156,33 +104,44 @@ test('factoryArgument is passed through to MCP activities', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
 
   let receivedFactoryArg: unknown;
+  const testMcp = new StatelessMCPServerProvider(
+    'testMcp',
+    (factoryArgument?: unknown): MCPServer => {
+      receivedFactoryArg = factoryArgument;
+      return {
+        cacheToolsList: false,
+        name: 'testMcp',
+        async connect() {},
+        async close() {},
+        async listTools() {
+          return [
+            {
+              name: 'get_time',
+              description: 'Returns current time',
+              inputSchema: {
+                type: 'object' as const,
+                properties: {},
+                required: [] as string[],
+                additionalProperties: false,
+              },
+            },
+          ];
+        },
+        async callTool(_toolName: string, _args: Record<string, unknown> | null) {
+          t.deepEqual(factoryArgument, { tenantId: 'tenant-42' }, 'factoryArgument should be passed to callTool');
+          return [{ type: 'text', text: '2026-01-01' }];
+        },
+        async invalidateToolsCache() {},
+      };
+    }
+  );
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
         modelProvider: new FakeModelProvider(() => mcpFactoryArgGenerator()),
+        mcpServerProviders: [testMcp],
       }),
     ],
-    activities: {
-      'testMcp-list-tools': async (input: any) => {
-        receivedFactoryArg = input?.factoryArgument;
-        return [
-          {
-            name: 'get_time',
-            description: 'Returns current time',
-            inputSchema: {
-              type: 'object' as const,
-              properties: {},
-              required: [] as string[],
-              additionalProperties: false,
-            },
-          },
-        ];
-      },
-      'testMcp-call-tool': async (input: any) => {
-        t.deepEqual(input.factoryArgument, { tenantId: 'tenant-42' }, 'factoryArgument should be passed to callTool');
-        return [{ type: 'text', text: '2026-01-01' }];
-      },
-    },
   });
 
   await worker.runUntil(async () => {
@@ -286,9 +245,11 @@ test('Stateful MCP: multi-run isolation under reuseV8Context', async (t) => {
     'isolationTest',
     () => {
       const marker = `server-${++callCount}`;
-      return {
+      const server: MCPServer = {
+        cacheToolsList: false,
+        name: 'isolationTest',
         async connect() {},
-        async cleanup() {},
+        async close() {},
         async listTools() {
           return [
             {
@@ -306,7 +267,9 @@ test('Stateful MCP: multi-run isolation under reuseV8Context', async (t) => {
         async callTool() {
           return [{ type: 'text', text: marker }];
         },
+        async invalidateToolsCache() {},
       };
+      return server;
     },
     t.context.env.nativeConnection
   );
@@ -340,9 +303,11 @@ test('Stateful MCP: heartbeat timeout produces DedicatedWorkerFailure', async (t
 
   const mcpProvider = new StatefulMCPServerProvider(
     'heartbeatTest',
-    () => ({
+    (): MCPServer => ({
+      cacheToolsList: false,
+      name: 'heartbeatTest',
       async connect() {},
-      async cleanup() {},
+      async close() {},
       async listTools(): Promise<any[]> {
         // Block longer than the 1-second heartbeatTimeout below to trigger the timeout.
         await new Promise((resolve) => setTimeout(resolve, 10_000));
@@ -351,6 +316,7 @@ test('Stateful MCP: heartbeat timeout produces DedicatedWorkerFailure', async (t
       async callTool() {
         return [];
       },
+      async invalidateToolsCache() {},
     }),
     t.context.env.nativeConnection
   );
@@ -385,12 +351,14 @@ test('Stateful MCP: slow connect heartbeat regression', async (t) => {
   let connectCallCount = 0;
   const mcpProvider = new StatefulMCPServerProvider(
     'slowConnectTest',
-    () => ({
+    (): MCPServer => ({
+      cacheToolsList: false,
+      name: 'slowConnectTest',
       async connect() {
         connectCallCount++;
         await new Promise((resolve) => setTimeout(resolve, 1500));
       },
-      async cleanup() {},
+      async close() {},
       async listTools() {
         return [
           {
@@ -408,6 +376,7 @@ test('Stateful MCP: slow connect heartbeat regression', async (t) => {
       async callTool() {
         return [];
       },
+      async invalidateToolsCache() {},
     }),
     t.context.env.nativeConnection
   );

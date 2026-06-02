@@ -1,5 +1,6 @@
 import {
   withCustomSpan,
+  type MCPServer,
   type Model,
   type ModelProvider,
   type ModelRequest,
@@ -8,7 +9,6 @@ import {
 } from '@openai/agents-core';
 import { APIError } from 'openai';
 import * as nexus from 'nexus-rpc';
-import type { StatelessMCPServerFactory, StatefulMCPServer, MCPToolDefinition, MCPCallToolResult } from '../..';
 import { compNexusService } from '../workflows/openai-agents-comprehensive';
 import { textResponse } from './openai-agents-fakes';
 
@@ -87,14 +87,18 @@ export class ErrorModelProvider implements ModelProvider {
  * returns canned text per query argument. Used by Agent A in the
  * comprehensive scenario and exercised again after handoff by Agent B.
  */
-export const mockStatelessMcpFactory: StatelessMCPServerFactory = {
-  async listTools(): Promise<MCPToolDefinition[]> {
+export const mockStatelessMcpFactory = (_factoryArgument?: unknown): MCPServer => ({
+  cacheToolsList: false,
+  name: 'mockStatelessMcp',
+  async connect() {},
+  async close() {},
+  async listTools() {
     return [
       {
         name: 'searchDocs',
         description: 'Search internal docs',
         inputSchema: {
-          type: 'object',
+          type: 'object' as const,
           properties: { query: { type: 'string' } },
           required: ['query'],
           additionalProperties: false,
@@ -102,23 +106,15 @@ export const mockStatelessMcpFactory: StatelessMCPServerFactory = {
       },
     ];
   },
-
-  async callTool(input: { toolName: string; args: Record<string, unknown> | null }): Promise<MCPCallToolResult[]> {
-    if (input.toolName === 'searchDocs') {
-      const q = String((input.args ?? {}).query ?? '');
+  async callTool(toolName: string, args: Record<string, unknown> | null) {
+    if (toolName === 'searchDocs') {
+      const q = String((args ?? {}).query ?? '');
       return [{ type: 'text', text: `[stateless] result for "${q}"` }];
     }
-    throw new Error(`Unknown tool: ${input.toolName}`);
+    throw new Error(`Unknown tool: ${toolName}`);
   },
-
-  async listPrompts(): Promise<never[]> {
-    return [];
-  },
-
-  async getPrompt(): Promise<unknown> {
-    return null;
-  },
-};
+  async invalidateToolsCache() {},
+});
 
 /**
  * Stateful MCP server backed by per-instance counter. Each tool call
@@ -128,7 +124,9 @@ export const mockStatelessMcpFactory: StatelessMCPServerFactory = {
  * Returned by `mockStatefulMcpFactory` (the function the
  * `StatefulMCPServerProvider` invokes once per run).
  */
-class CountingStatefulMcpServer implements StatefulMCPServer {
+class CountingStatefulMcpServer implements MCPServer {
+  cacheToolsList = false;
+  readonly name = 'mockStatefulMcp';
   private connected = false;
   private callCount = 0;
 
@@ -136,18 +134,18 @@ class CountingStatefulMcpServer implements StatefulMCPServer {
     this.connected = true;
   }
 
-  async cleanup(): Promise<void> {
+  async close(): Promise<void> {
     this.connected = false;
   }
 
-  async listTools(): Promise<MCPToolDefinition[]> {
+  async listTools() {
     if (!this.connected) throw new Error('not connected');
     return [
       {
         name: 'runDbQuery',
         description: 'Run a database query (session-stateful)',
         inputSchema: {
-          type: 'object',
+          type: 'object' as const,
           properties: { sql: { type: 'string' } },
           required: ['sql'],
           additionalProperties: false,
@@ -156,7 +154,7 @@ class CountingStatefulMcpServer implements StatefulMCPServer {
     ];
   }
 
-  async callTool(toolName: string, args: Record<string, unknown> | null): Promise<MCPCallToolResult[]> {
+  async callTool(toolName: string, args: Record<string, unknown> | null) {
     if (!this.connected) throw new Error('not connected');
     if (toolName === 'runDbQuery') {
       this.callCount++;
@@ -165,9 +163,11 @@ class CountingStatefulMcpServer implements StatefulMCPServer {
     }
     throw new Error(`Unknown tool: ${toolName}`);
   }
+
+  async invalidateToolsCache(): Promise<void> {}
 }
 
-export function mockStatefulMcpFactory(_factoryArgument: unknown): StatefulMCPServer {
+export function mockStatefulMcpFactory(_factoryArgument?: unknown): MCPServer {
   return new CountingStatefulMcpServer();
 }
 
@@ -176,7 +176,7 @@ export function mockStatefulMcpFactory(_factoryArgument: unknown): StatefulMCPSe
  * Test 3 to verify the dedicated-worker startup failure path produces a
  * `DedicatedWorkerFailure` `ApplicationFailure`.
  */
-export function brokenStatefulMcpFactory(_factoryArgument: unknown): StatefulMCPServer {
+export function brokenStatefulMcpFactory(_factoryArgument?: unknown): MCPServer {
   throw new Error('intentionally broken stateful MCP factory');
 }
 
@@ -189,14 +189,18 @@ export function brokenStatefulMcpFactory(_factoryArgument: unknown): StatefulMCP
  * Agent B initializes and emit no `mcp_tools` span; a B-only server
  * has a fresh cache key and DOES emit `mcp_tools` for Agent B's setup.
  */
-export const mockStatelessMcpBOnlyFactory: StatelessMCPServerFactory = {
-  async listTools(): Promise<MCPToolDefinition[]> {
+export const mockStatelessMcpBOnlyFactory = (_factoryArgument?: unknown): MCPServer => ({
+  cacheToolsList: false,
+  name: 'mockStatelessMcpBOnly',
+  async connect() {},
+  async close() {},
+  async listTools() {
     return [
       {
         name: 'agentBOnlyTool',
         description: 'A tool only Agent B has access to',
         inputSchema: {
-          type: 'object',
+          type: 'object' as const,
           properties: {},
           required: [],
           additionalProperties: false,
@@ -204,20 +208,12 @@ export const mockStatelessMcpBOnlyFactory: StatelessMCPServerFactory = {
       },
     ];
   },
-
-  async callTool(_input: { toolName: string; args: Record<string, unknown> | null }): Promise<MCPCallToolResult[]> {
+  async callTool(_toolName: string, _args: Record<string, unknown> | null) {
     // The test's fake model script never invokes `agentBOnlyTool`; the
     // server exists purely to drive a post-handoff `listTools` activity
     // for trace-shape coverage. If the model script changes to call it,
     // this returns canned text so callers don't see an undefined-result.
     return [{ type: 'text', text: '[stateless-b] agentBOnlyTool was called' }];
   },
-
-  async listPrompts(): Promise<never[]> {
-    return [];
-  },
-
-  async getPrompt(): Promise<unknown> {
-    return null;
-  },
-};
+  async invalidateToolsCache() {},
+});

@@ -359,35 +359,15 @@ The integration supports stateless and stateful [Model Context Protocol](https:/
 Use stateless servers when each tool call is independent. Register a provider on the Worker:
 
 ```ts
+import { MCPServerStreamableHttp } from '@openai/agents-core';
 import { OpenAIProvider } from '@openai/agents-openai';
 import { OpenAIAgentsPlugin, StatelessMCPServerProvider } from '@temporalio/openai-agents';
 
-const unitConversionMcp = new StatelessMCPServerProvider('unitConversion', {
-  async listTools() {
-    return [
-      {
-        name: 'celsiusToFahrenheit',
-        description: 'Convert Celsius to Fahrenheit',
-        inputSchema: {
-          type: 'object',
-          properties: { celsius: { type: 'number' } },
-          required: ['celsius'],
-          additionalProperties: false,
-        },
-      },
-    ];
-  },
-  async callTool({ args }) {
-    const fahrenheit = ((Number(args.celsius) * 9) / 5 + 32).toFixed(1);
-    return [{ type: 'text', text: `${fahrenheit} F` }];
-  },
-  async listPrompts() {
-    return [];
-  },
-  async getPrompt() {
-    return null;
-  },
-});
+const unitConversionMcp = new StatelessMCPServerProvider(
+  'unitConversion',
+  (factoryArgument?) =>
+    new MCPServerStreamableHttp({ name: 'unitConversion', url: 'https://mcp.example.com/unit-conversion' })
+);
 
 const plugin = new OpenAIAgentsPlugin({
   modelProvider: new OpenAIProvider(),
@@ -419,6 +399,7 @@ export async function mcpWorkflow(query: string): Promise<string> {
 Use stateful servers when a persistent connection or session is required. The plugin starts a dedicated in-process Worker pinned to a per-run Task Queue and routes MCP operations to it.
 
 ```ts
+import { MCPServerStreamableHttp } from '@openai/agents-core';
 import { OpenAIProvider } from '@openai/agents-openai';
 import { OpenAIAgentsPlugin, StatefulMCPServerProvider } from '@temporalio/openai-agents';
 import { NativeConnection } from '@temporalio/worker';
@@ -426,20 +407,7 @@ import { NativeConnection } from '@temporalio/worker';
 const connection = await NativeConnection.connect();
 const dbMcp = new StatefulMCPServerProvider(
   'database',
-  () => ({
-    async connect() {
-      // Open DB session.
-    },
-    async cleanup() {
-      // Close DB session.
-    },
-    async listTools() {
-      return [];
-    },
-    async callTool() {
-      return [];
-    },
-  }),
+  (factoryArgument?) => new MCPServerStreamableHttp({ name: 'database', url: 'https://mcp.example.com/database' }),
   connection
 );
 
@@ -572,7 +540,7 @@ Most applications use two import paths: `@temporalio/openai-agents` in Worker an
 | `@temporalio/openai-agents/otel`                 | Worker or Client | Replay-safe OpenTelemetry setup                             |
 | `@temporalio/openai-agents/workflow-interceptor` | Worker bundling  | Manual `workflowInterceptorModules` wiring without a plugin |
 
-`@temporalio/openai-agents` exports `OpenAIAgentsPlugin`, MCP provider classes, MCP data types, model option types, and `DEDICATED_WORKER_FAILURE_TYPE`. `OpenAIAgentsTraceClientInterceptor` is also public for Clients that need manual interceptor wiring instead of plugin registration.
+`@temporalio/openai-agents` exports `OpenAIAgentsPlugin`, MCP provider classes, model option types, and `DEDICATED_WORKER_FAILURE_TYPE`. `OpenAIAgentsTraceClientInterceptor` is also public for Clients that need manual interceptor wiring instead of plugin registration.
 
 `@temporalio/openai-agents/workflow` exports Workflow-safe APIs: `TemporalOpenAIRunner`, `WorkflowSafeMemorySession`, `activityAsTool`, `nexusOperationAsTool`, `agentAsTool`, `statelessMcpServer`, `statefulMcpServer`, related option/definition types, and `DEDICATED_WORKER_FAILURE_TYPE`.
 

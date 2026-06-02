@@ -1,6 +1,6 @@
 import { Agent } from '@openai/agents-core';
 import { ApplicationFailure } from '@temporalio/workflow';
-import { TemporalOpenAIRunner, statelessMcpServer, statefulMcpServer, type TemporalMCPServer } from '../../workflow';
+import { TemporalOpenAIRunner, statelessMcpServer, statefulMcpServer } from '../../workflow';
 
 export async function localActivityAgentWorkflow(prompt: string): Promise<string> {
   const agent = new Agent({
@@ -11,16 +11,6 @@ export async function localActivityAgentWorkflow(prompt: string): Promise<string
   const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, prompt);
   return result.finalOutput ?? '';
-}
-
-export async function mcpPromptsWorkflow(_prompt: string): Promise<{
-  prompts: unknown[];
-  promptResult: unknown;
-}> {
-  const mcpServer = statelessMcpServer('testMcp') as TemporalMCPServer;
-  const prompts = await mcpServer.listPrompts();
-  const promptResult = await mcpServer.getPrompt('greeting', { name: 'World' });
-  return { prompts, promptResult };
 }
 
 export async function mcpFactoryArgWorkflow(prompt: string): Promise<string> {
