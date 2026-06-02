@@ -228,6 +228,44 @@ This relies on the plugin's failure converter, which is installed via the client
 const client = new Client({ /* ... */, plugins: [new StrandsPlugin({ models })] });
 ```
 
+## Continue-as-new
+
+A chat-style workflow accumulates history with every turn and will eventually hit Temporal's per-workflow history limit. `workflowInfo().continueAsNewSuggested` flips true once the server decides history has grown large enough; check it after each turn and hand off to a fresh run, carrying `agent.messages` as input:
+
+```ts
+import { defineSignal, setHandler, condition, continueAsNew, workflowInfo } from '@temporalio/workflow';
+import { TemporalAgent } from '@temporalio/strands-agents';
+import type { Message } from '@strands-agents/sdk';
+
+export const userSays = defineSignal<[string]>('userSays');
+export const endChat = defineSignal('endChat');
+
+export interface ChatInput {
+  messages?: Message[];
+}
+
+export async function chatWorkflow(input: ChatInput = {}): Promise<void> {
+  const agent = new TemporalAgent({
+    activityOptions: { startToCloseTimeout: '60 seconds' },
+    messages: input.messages,
+  });
+
+  const pending: string[] = [];
+  let done = false;
+  setHandler(userSays, (prompt) => void pending.push(prompt));
+  setHandler(endChat, () => void (done = true));
+
+  while (true) {
+    await condition(() => pending.length > 0 || done);
+    if (done) return;
+    await agent.invoke(pending.shift()!);
+    if (workflowInfo().continueAsNewSuggested) {
+      await continueAsNew<typeof chatWorkflow>({ messages: agent.messages });
+    }
+  }
+}
+```
+
 ## MCP
 
 `new StrandsPlugin({ mcpClients })` takes a mapping of `name → McpClient factory`, mirroring the `models` pattern. The plugin registers per-server `{name}-listTools` and `{name}-callTool` activities. Workflow-side, `new TemporalMCPClient({ server: 'name' })` is a thin handle: it references the server by name and carries the per-call activity options.
@@ -262,7 +300,17 @@ new Worker({
 });
 ```
 
-Each factory returns a fully configured `McpClient`. Tools are enumerated live each time the agent calls `{name}-listTools`, so the agent sees the server's current tools — including after a redeploy — without restarting the worker. The connection is opened lazily on first use rather than at worker startup.
+Each factory returns a fully configured `McpClient`. The connection is opened lazily on first use rather than at worker startup.
+
+By default, `TemporalMCPClient` re-lists the server's tools (via `{name}-listTools`) on every agent turn, so an MCP server that is restarted or redeployed mid-workflow — with tools added, removed, or renamed — is picked up. To list the tools just once at the beginning of the workflow and reuse that schema for the workflow's lifetime (one fewer activity per turn), set `cacheTools: true`:
+
+```ts
+const echo = new TemporalMCPClient({
+  server: 'echo',
+  cacheTools: true,
+  activityOptions: { startToCloseTimeout: '30 seconds' },
+});
+```
 
 To amortize connection setup, the `{name}-listTools` and `{name}-callTool` activities share one worker-process MCP connection and reuse it across calls. The connection is disconnected after it sits idle for `mcpConnectionIdleTimeout` (default 5 minutes); the timer resets on every reuse. `mcpConnectionIdleTimeout` accepts a millisecond number or a duration string (e.g. `'30 seconds'`), like `startToCloseTimeout`:
 
@@ -272,3 +320,32 @@ new StrandsPlugin({
   mcpConnectionIdleTimeout: '30 seconds',
 });
 ```
+
+## Observability
+
+`StrandsPlugin` composes cleanly with [`OpenTelemetryPlugin`](../interceptors-opentelemetry). Register both on the client and the worker. You'll get OTel spans around the model, tool, and MCP activities the plugin schedules, plus any spans Strands itself emits inside `invoke`:
+
+```ts
+import { OpenTelemetryPlugin } from '@temporalio/interceptors-opentelemetry';
+import { Resource } from '@opentelemetry/resources';
+import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
+
+const otel = new OpenTelemetryPlugin({
+  resource: new Resource({ 'service.name': 'strands-worker' }),
+  spanProcessor: new SimpleSpanProcessor(new OTLPTraceExporter()),
+});
+
+// client
+const client = new Client({ plugins: [otel] });
+
+// worker
+const worker = await Worker.create({
+  connection,
+  taskQueue: 'strands',
+  workflowsPath: require.resolve('./workflow'),
+  plugins: [otel, new StrandsPlugin({ models })],
+});
+```
+
+See the [OpenTelemetry interceptor README](../interceptors-opentelemetry) for exporter setup.
