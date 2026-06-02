@@ -46,7 +46,6 @@ test('loadDataConverter passes through externalStorage when set', (t) => {
 test('encodeToPayloads is a no-op when externalStorage is undefined', async (t) => {
   const converter = makeConverter(undefined);
   const payloads = await encodeToPayloads(converter, 'hello');
-  // Plain JSON payload — not a reference.
   t.is(payloads!.length, 1);
   t.falsy(payloads![0]!.externalPayloads?.length);
   t.false(isReferencePayload(payloads![0]!));
@@ -67,7 +66,6 @@ test('reference payload round-trips through canonical proto3 JSON', (t) => {
 test('isReferencePayload is true even without externalPayloads size detail', (t) => {
   const claim = new StorageDriverClaim({ id: 'mem-0' });
   const payload = encodeReferencePayload({ driverName: 'mem', claim, sizeBytes: 0 });
-  // Drop the optional size detail; the payload is still a valid reference.
   delete payload.externalPayloads;
   t.true(isReferencePayload(payload));
 });
