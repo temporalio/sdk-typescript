@@ -77,12 +77,13 @@ export function withRestoredAgentsTraceContext<T>(header: AgentsSpanHeader, fn: 
 }
 
 /**
- * Fresh ALS scope preserving current trace, clearing current span. Used by
- * inbound handlers (Signal/Query/Update) on the no-header path to prevent
- * outbound-span bleed: if the Workflow body is suspended inside an outbound
- * interceptor's `await next(input)`, the agent-SDK ALS frame still has that
- * outbound span as current, and an inbound handler firing then would emit
- * its `temporal:handle*` span as a child of the outbound Activity span.
+ * Fresh AsyncLocalStorage scope preserving current trace, clearing current
+ * span. Used by inbound handlers (Signal/Query/Update) on the no-header
+ * path to prevent outbound-span bleed: if the Workflow body is suspended
+ * inside an outbound interceptor's `await next(input)`, the agent-SDK
+ * AsyncLocalStorage frame still has that outbound span as current, and an
+ * inbound handler firing then would emit its `temporal:handle*` span as a
+ * child of the outbound Activity span.
  */
 export function withIsolatedAgentsTraceContext<T>(fn: () => T): T {
   const trace = getCurrentTrace();

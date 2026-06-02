@@ -14,8 +14,9 @@ let processorRegistered = false;
 // `generateTracingId` is registered once with the agent SDK's global
 // tracing-ID generator, so it can't accept a per-Workflow random source
 // as a parameter. Each interceptor entry point installs its own random
-// source into this ALS for the duration of `next()`; `generateTracingId`
-// then reads from whichever scope it was called within.
+// source into this AsyncLocalStorage for the duration of `next()`;
+// `generateTracingId` then reads from whichever scope it was
+// called within.
 const AsyncLocalStorageCtor: new <T>() => ALS<T> = (globalThis as any).AsyncLocalStorage ?? class {};
 
 const tracingRandomStorage = new AsyncLocalStorageCtor<() => number>();
