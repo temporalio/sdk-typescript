@@ -8,7 +8,7 @@ Run [OpenAI Agents SDK](https://github.com/openai/openai-agents-js) agents as Te
 
 ```bash
 # Or `pnpm add`/`yarn add`
-npm install --save @temporalio/openai-agents @openai/agents-core @openai/agents-openai openai
+npm install @temporalio/openai-agents @openai/agents-core @openai/agents-openai openai
 ```
 
 `@openai/agents-core`, `@openai/agents-openai`, and `openai` are peer dependencies.
@@ -465,7 +465,7 @@ Install `@opentelemetry/sdk-trace-base` before importing the OTel subpath:
 
 ```bash
 # Or `pnpm add`/`yarn add`
-npm install --save @opentelemetry/sdk-trace-base
+npm install @opentelemetry/sdk-trace-base
 ```
 
 ```ts
