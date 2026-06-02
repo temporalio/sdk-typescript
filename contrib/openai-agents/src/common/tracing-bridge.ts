@@ -53,7 +53,6 @@ export function spanNameFromData(data: SpanData): string {
     case 'guardrail':
       return `guardrail:${data.name}`;
     case 'custom':
-      if (data.name.startsWith('temporal:')) return data.name;
       return data.name;
     case 'transcription':
       return 'transcription';
