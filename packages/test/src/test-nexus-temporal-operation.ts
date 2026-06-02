@@ -15,6 +15,7 @@ import { helpers, makeTestFunction } from './helpers-integration';
 import { innermostHandlerError } from './helpers-nexus';
 import { waitUntil } from './helpers';
 import { echo, throwAnError } from './activities';
+import { Context } from '@temporalio/activity';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -41,6 +42,7 @@ const temporalOpService = nexus.service('temporalOperationService', {
   doubleStartOp: nexus.operation<string, void>(),
   retryAfterFailedStartOp: nexus.operation<string, string>(),
   echoActivity: nexus.operation<string, string>(),
+  blockingActivity: nexus.operation<string, void>(),
 });
 
 const temporalCancelOpService = nexus.service('temporalCancelOperationService', {
@@ -65,6 +67,7 @@ function makeTemporalOpServiceHandler(overrides: Partial<TemporalOpServiceHandle
     doubleStartOp: unusedTemporalOperationHandler(),
     retryAfterFailedStartOp: unusedTemporalOperationHandler(),
     echoActivity: unusedTemporalOperationHandler(),
+    blockingActivity: unusedTemporalOperationHandler(),
     ...overrides,
   };
   return nexus.serviceHandler(temporalOpService, handlers);
@@ -422,6 +425,13 @@ test('TemporalOperationHandler default cancelWorkflowRun cancels backing workflo
 const activities = {
   echo,
   throwAnError,
+  async waitForCancellation() {
+    const cx = Context.current();
+    while (true) {
+      await cx.sleep(300);
+      await cx.heartbeat();
+    }
+  },
 };
 
 test('TemporalOperationHandler start typed standalone activity', async (t) => {
@@ -483,5 +493,101 @@ test('TemporalOperationHandler start untyped standalone activity', async (t) => 
       id: randomUUID(),
     });
     t.is(result, 'foo');
+  });
+});
+
+test('TemporalOperationHandler cancels backing activity', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const { client } = t.context.env;
+
+  let startedActivity = false;
+
+  const worker = await createWorker({
+    activities,
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        blockingActivity: new temporalnexus.TemporalOperationHandler({
+          async start(_ctx, client, input) {
+            const result = await client.typedActivity<typeof activities>().startActivity('waitForCancellation', {
+              id: input,
+              scheduleToCloseTimeout: '10s',
+            });
+            startedActivity = true;
+            return result;
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const nexusSvc = client.nexus.createServiceClient({ endpoint: endpointName, service: temporalOpService });
+    const targetActivityId = `wait-for-cancel-${randomUUID()}`;
+    const handle = await nexusSvc.startOperation(temporalOpService.operations.blockingActivity, targetActivityId, {
+      id: randomUUID(),
+    });
+    await waitUntil(async () => startedActivity, 4000);
+
+    const activityHandle = client.activity.getHandle(targetActivityId);
+
+    await handle.cancel();
+
+    await waitUntil(async () => (await handle.describe()).status === 'CANCELED', 4000);
+    await waitUntil(async () => (await activityHandle.describe()).status === 'CANCELED', 4000);
+
+    // Assertions built into the waitUntils
+    t.pass();
+  });
+});
+
+test('TemporalOperationHandler invokes custom cancel', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const { client } = t.context.env;
+
+  let activityStarted = false;
+  let customCancelCalled = false;
+
+  const worker = await createWorker({
+    activities,
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        blockingActivity: new temporalnexus.TemporalOperationHandler({
+          async start(_ctx, client, input) {
+            const result = await client.typedActivity<typeof activities>().startActivity('waitForCancellation', {
+              id: input,
+              scheduleToCloseTimeout: '10s',
+            });
+            activityStarted = true;
+            return result;
+          },
+          async cancelActivity(ctx, { activityId, runId }) {
+            console.log('activityId', activityId);
+            console.log('runId', runId);
+            const handle = temporalnexus.getClient().activity.getHandle(activityId, runId);
+            await handle.cancel('test custom cancellation');
+            customCancelCalled = true;
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const nexusSvc = client.nexus.createServiceClient({ endpoint: endpointName, service: temporalOpService });
+    const targetActivityId = `wait-for-cancel-${randomUUID()}`;
+    const result = await nexusSvc.startOperation(temporalOpService.operations.blockingActivity, targetActivityId, {
+      id: randomUUID(),
+    });
+
+    await waitUntil(async () => activityStarted, 4000);
+
+    const activityHandle = client.activity.getHandle(targetActivityId);
+    await result.cancel();
+
+    await waitUntil(async () => (await result.describe()).status === 'CANCELED', 4000);
+    await waitUntil(async () => (await activityHandle.describe()).status === 'CANCELED', 4000);
+    t.true(customCancelCalled, 'expected custom cancel to be called');
   });
 });
