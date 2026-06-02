@@ -159,6 +159,19 @@ export function injectGlobals(context: vm.Context): void {
     enumerable: true,
     configurable: false,
   });
+
+  // Provide Symbol.dispose / Symbol.asyncDispose on runtimes that predate them
+  // (Node < 22), so that downleveled `using` / `await using` declarations — as
+  // emitted by TypeScript and shipped by some dependencies — work inside the
+  // workflow sandbox. This must run before the global scope is frozen.
+  // `Symbol.for` yields a stable registry symbol, keeping replay deterministic.
+  const SymbolCtor = sandboxGlobalThis.Symbol as { dispose?: symbol; asyncDispose?: symbol };
+  if (typeof SymbolCtor.dispose !== 'symbol') {
+    SymbolCtor.dispose = Symbol.for('nodejs.dispose');
+  }
+  if (typeof SymbolCtor.asyncDispose !== 'symbol') {
+    SymbolCtor.asyncDispose = Symbol.for('nodejs.asyncDispose');
+  }
 }
 
 /**
