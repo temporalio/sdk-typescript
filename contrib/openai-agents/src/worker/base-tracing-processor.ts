@@ -76,8 +76,10 @@ export abstract class BaseAgentTracingProcessor implements TracingProcessor {
       );
       ctx = otel.trace.setSpan(parentEntry.context, otelSpan);
     } else if (!span.parentId) {
-      // Workflow-side spans arrive on end, so a child span may surface before its trace's
-      // onTraceStart; synthesize the parent from the deterministic root-span ID.
+      // One activation's sink calls are dispatched via Promise.all on the host, which interleaves
+      // on await and gives no ordering guarantee, so a span_started may be processed before its
+      // trace's trace_start registers the root span; synthesize the parent from the deterministic
+      // root-span ID.
       const parentCtx = syntheticParentContext(
         agentTraceIdToOtelTraceId(span.traceId),
         agentTraceIdToOtelRootSpanId(span.traceId)
@@ -87,7 +89,8 @@ export abstract class BaseAgentTracingProcessor implements TracingProcessor {
       );
       ctx = otel.trace.setSpan(parentCtx, otelSpan);
     } else {
-      // Parent span still open Workflow-side (ships only when it ends); synthesize from the derived OTel ID.
+      // Same unordered Promise.all dispatch: this span_started may be processed before its parent's
+      // span_started registers the parent entry; synthesize from the derived OTel ID.
       const parentCtx = syntheticParentContext(
         agentTraceIdToOtelTraceId(span.traceId),
         agentSpanIdToOtelSpanId(span.parentId)

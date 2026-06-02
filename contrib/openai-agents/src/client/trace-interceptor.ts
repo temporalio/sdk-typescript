@@ -1,5 +1,7 @@
 import { getCurrentTrace, withCustomSpan } from '@openai/agents-core';
 import type {
+  Next,
+  WorkflowClientInterceptor,
   WorkflowStartInput,
   WorkflowStartOutput,
   WorkflowSignalInput,
@@ -27,20 +29,7 @@ export interface OpenAIAgentsTraceClientInterceptorOptions {
   modelParams?: SerializableModelActivityOptions;
 }
 
-// Concrete `next` types: avoid the circular `Next<this, ...>` resolution that
-// triggers when a class method's own signature feeds back into `Next`.
-type NextStartWithDetails = (input: WorkflowStartInput) => Promise<WorkflowStartOutput>;
-type NextSignal = (input: WorkflowSignalInput) => Promise<void>;
-type NextQuery = (input: WorkflowQueryInput) => Promise<unknown>;
-type NextStartUpdate = (input: WorkflowStartUpdateInput) => Promise<WorkflowStartUpdateOutput>;
-type NextSignalWithStart = (input: WorkflowSignalWithStartInput) => Promise<string>;
-type NextStartUpdateWithStart = (
-  input: WorkflowStartUpdateWithStartInput
-) => Promise<WorkflowStartUpdateWithStartOutput>;
-
-// Structural typing — satisfies WorkflowClientInterceptor without `implements`,
-// avoiding the same circular `Next<this, ...>` resolution noted above.
-export class OpenAIAgentsTraceClientInterceptor {
+export class OpenAIAgentsTraceClientInterceptor implements WorkflowClientInterceptor {
   private readonly addTemporalSpans: boolean;
   private readonly configHeader: AgentsConfigHeader;
 
@@ -74,7 +63,10 @@ export class OpenAIAgentsTraceClientInterceptor {
     return this.maybeSpan(spanName, doRun, spanData);
   }
 
-  async startWithDetails(input: WorkflowStartInput, next: NextStartWithDetails): Promise<WorkflowStartOutput> {
+  async startWithDetails(
+    input: WorkflowStartInput,
+    next: Next<WorkflowClientInterceptor, 'startWithDetails'>
+  ): Promise<WorkflowStartOutput> {
     const headers = injectAgentsConfigHeader(input.headers, this.configHeader);
     return this.withSpanAndHeader(
       `temporal:startWorkflow:${input.workflowType}`,
@@ -83,7 +75,7 @@ export class OpenAIAgentsTraceClientInterceptor {
     );
   }
 
-  async signal(input: WorkflowSignalInput, next: NextSignal): Promise<void> {
+  async signal(input: WorkflowSignalInput, next: Next<WorkflowClientInterceptor, 'signal'>): Promise<void> {
     return this.withSpanAndHeader(
       `temporal:signalWorkflow:${input.signalName}`,
       { workflowId: input.workflowExecution.workflowId, signalName: input.signalName },
@@ -91,7 +83,7 @@ export class OpenAIAgentsTraceClientInterceptor {
     );
   }
 
-  async query(input: WorkflowQueryInput, next: NextQuery): Promise<unknown> {
+  async query(input: WorkflowQueryInput, next: Next<WorkflowClientInterceptor, 'query'>): Promise<unknown> {
     return this.withSpanAndHeader(
       `temporal:queryWorkflow:${input.queryType}`,
       { workflowId: input.workflowExecution.workflowId, queryType: input.queryType },
@@ -99,7 +91,10 @@ export class OpenAIAgentsTraceClientInterceptor {
     );
   }
 
-  async startUpdate(input: WorkflowStartUpdateInput, next: NextStartUpdate): Promise<WorkflowStartUpdateOutput> {
+  async startUpdate(
+    input: WorkflowStartUpdateInput,
+    next: Next<WorkflowClientInterceptor, 'startUpdate'>
+  ): Promise<WorkflowStartUpdateOutput> {
     return this.withSpanAndHeader(
       `temporal:updateWorkflow:${input.updateName}`,
       { workflowId: input.workflowExecution.workflowId, updateName: input.updateName },
@@ -107,7 +102,10 @@ export class OpenAIAgentsTraceClientInterceptor {
     );
   }
 
-  async signalWithStart(input: WorkflowSignalWithStartInput, next: NextSignalWithStart): Promise<string> {
+  async signalWithStart(
+    input: WorkflowSignalWithStartInput,
+    next: Next<WorkflowClientInterceptor, 'signalWithStart'>
+  ): Promise<string> {
     const headers = injectAgentsConfigHeader(input.headers, this.configHeader);
     return this.withSpanAndHeader(
       `temporal:signalWithStartWorkflow:${input.workflowType}`,
@@ -118,7 +116,7 @@ export class OpenAIAgentsTraceClientInterceptor {
 
   async startUpdateWithStart(
     input: WorkflowStartUpdateWithStartInput,
-    next: NextStartUpdateWithStart
+    next: Next<WorkflowClientInterceptor, 'startUpdateWithStart'>
   ): Promise<WorkflowStartUpdateWithStartOutput> {
     const workflowStartHeaders = injectAgentsConfigHeader(input.workflowStartHeaders, this.configHeader);
     return this.withSpanAndHeader(
