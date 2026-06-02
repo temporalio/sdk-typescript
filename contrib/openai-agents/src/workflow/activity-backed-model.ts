@@ -73,22 +73,17 @@ export class ActivityBackedModel implements Model {
       const localOpts: LocalActivityOptions = {
         startToCloseTimeout: modelParams.startToCloseTimeout ?? '60s',
         scheduleToCloseTimeout: modelParams.scheduleToCloseTimeout,
-        retry: modelParams.retryPolicy,
+        retry: modelParams.retry,
         cancellationType: modelParams.cancellationType,
-        summary: typeof modelParams.summaryOverride === 'string' ? modelParams.summaryOverride : undefined,
+        summary: typeof modelParams.summary === 'string' ? modelParams.summary : undefined,
       };
       this.activities = proxyLocalActivities<ModelActivities>(localOpts);
     } else {
+      const { useLocalActivity: _useLocalActivity, summary, ...rest } = modelParams;
       const opts: ActivityOptions = {
+        ...rest,
         startToCloseTimeout: modelParams.startToCloseTimeout ?? '60s',
-        heartbeatTimeout: modelParams.heartbeatTimeout,
-        taskQueue: modelParams.taskQueue,
-        scheduleToCloseTimeout: modelParams.scheduleToCloseTimeout,
-        scheduleToStartTimeout: modelParams.scheduleToStartTimeout,
-        retry: modelParams.retryPolicy,
-        cancellationType: modelParams.cancellationType,
-        summary: typeof modelParams.summaryOverride === 'string' ? modelParams.summaryOverride : undefined,
-        priority: modelParams.priority,
+        summary: typeof summary === 'string' ? summary : undefined,
       };
       this.activities = proxyActivities<ModelActivities>(opts);
     }
@@ -109,9 +104,9 @@ export class ActivityBackedModel implements Model {
         request: wire,
       };
 
-      const summaryOverride = this.modelParams.summaryOverride;
-      if (summaryOverride && typeof summaryOverride !== 'string') {
-        const provider = summaryOverride as ModelSummaryProvider;
+      const modelSummary = this.modelParams.summary;
+      if (modelSummary && typeof modelSummary !== 'string') {
+        const provider = modelSummary as ModelSummaryProvider;
         const systemInstructions = request.systemInstructions;
         const summary = provider.provide(this.agent, systemInstructions, request.input);
         const wireResponse = await this.activities.invokeModelActivity.executeWithOptions({ summary }, [input]);

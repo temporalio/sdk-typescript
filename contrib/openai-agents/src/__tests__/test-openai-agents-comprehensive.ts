@@ -623,7 +623,7 @@ test('Retryable model error eventually succeeds', async (t) => {
     const plugin = new OpenAIAgentsPlugin({
       modelProvider,
       modelParams: {
-        retryPolicy: { maximumAttempts: 5, initialInterval: '50ms', backoffCoefficient: 1.5 },
+        retry: { maximumAttempts: 5, initialInterval: '50ms', backoffCoefficient: 1.5 },
       },
     });
     const worker = await Worker.create({

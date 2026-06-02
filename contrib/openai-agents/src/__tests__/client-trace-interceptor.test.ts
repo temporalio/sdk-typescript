@@ -111,7 +111,7 @@ test('interceptor: config header round-trips all three options (addTemporalSpans
   const modelParams = {
     startToCloseTimeout: '60s' as const,
     useLocalActivity: true,
-    summaryOverride: 'Custom summary',
+    summary: 'Custom summary',
   };
   const interceptor = makeInterceptor({
     addTemporalSpans: true,

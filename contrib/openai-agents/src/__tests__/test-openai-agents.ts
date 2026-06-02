@@ -22,13 +22,13 @@ import EventType = temporal.api.enums.v1.EventType;
 // Upstream auto-disables agent-SDK tracing under NODE_ENV=test; opt back in for the integration tests.
 setTracingDisabled(false);
 
-// Compile-time check: plugin + client-interceptor modelParams reject function/object summaryOverride.
+// Compile-time check: plugin + client-interceptor modelParams reject function/object summary.
 {
   const _provider = null! as FakeModelProvider;
-  // @ts-expect-error — modelParams.summaryOverride must be string, not function/object
-  new OpenAIAgentsPlugin({ modelProvider: _provider, modelParams: { summaryOverride: { provide: () => 'x' } } });
-  // @ts-expect-error — modelParams.summaryOverride must be string, not function/object
-  new OpenAIAgentsTraceClientInterceptor({ modelParams: { summaryOverride: { provide: () => 'x' } } });
+  // @ts-expect-error — modelParams.summary must be string, not function/object
+  new OpenAIAgentsPlugin({ modelProvider: _provider, modelParams: { summary: { provide: () => 'x' } } });
+  // @ts-expect-error — modelParams.summary must be string, not function/object
+  new OpenAIAgentsTraceClientInterceptor({ modelParams: { summary: { provide: () => 'x' } } });
 }
 
 const test = makeTestFunction({
@@ -198,14 +198,14 @@ test('factoryArgument is passed through to MCP activities', async (t) => {
   });
 });
 
-test('summaryOverride string is passed through to model activity', async (t) => {
+test('summary string is passed through to model activity', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
 
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
         modelProvider: new FakeModelProvider([textResponse('Summary test response')]),
-        modelParams: { summaryOverride: 'Custom model summary' },
+        modelParams: { summary: 'Custom model summary' },
       }),
     ],
   });
@@ -215,7 +215,7 @@ test('summaryOverride string is passed through to model activity', async (t) => 
     connection: (t.context as any).env.connection,
     interceptors: [
       new OpenAIAgentsTraceClientInterceptor({
-        modelParams: { summaryOverride: 'Custom model summary' },
+        modelParams: { summary: 'Custom model summary' },
       }),
     ],
   });

@@ -207,13 +207,13 @@ const plugin = new OpenAIAgentsPlugin({
   modelProvider: new OpenAIProvider(),
   modelParams: {
     startToCloseTimeout: '30s',
-    retryPolicy: { maximumAttempts: 5, initialInterval: '1s' },
+    retry: { maximumAttempts: 5, initialInterval: '1s' },
     useLocalActivity: false,
   },
 });
 ```
 
-See `ModelActivityOptions` for the public field list. `summaryOverride` can be a string in plugin config; `ModelSummaryProvider` functions are intentionally not serialized into Workflow headers.
+See `ModelActivityOptions` for the public field list. `summary` can be a string in plugin config; `ModelSummaryProvider` functions are intentionally not serialized into Workflow headers.
 
 ## Tools
 
