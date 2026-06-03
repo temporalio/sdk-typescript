@@ -452,12 +452,15 @@ OpenAI Agents SDK tracing works across Client, Workflow, Activity, Nexus, and MC
 Enable the upstream hosted exporter before constructing the plugin:
 
 ```ts
-import { setDefaultOpenAITracingExporter } from '@openai/agents-openai';
+import { OpenAITracingExporter } from '@openai/agents-openai';
+import { addTraceProcessor, BatchTraceProcessor } from '@openai/agents-core';
 
-setDefaultOpenAITracingExporter();
+addTraceProcessor(new BatchTraceProcessor(new OpenAITracingExporter()));
 ```
 
-**Calling `setDefaultOpenAITracingExporter()` after constructing the plugin resets and breaks the plugin's tracing configurations.**
+**Register this processor in the Worker process, not inside Workflow code.**
+
+**Warning**: Using `setDefaultOpenAITracingExporter()` after constructing the plugin will break plugin internals. Either call it before constructing the plugin, or use `addTraceProcessor` as described above.
 
 ### OpenTelemetry
 
