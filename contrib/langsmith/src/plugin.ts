@@ -245,7 +245,7 @@ export class LangSmithPlugin extends SimplePlugin {
       // which is backed by the same deterministic context manager the
       // interceptors use — this is what lets a native `traceable` call inside a
       // workflow body nest under the workflow run with no user code changes.
-      return aliasAsyncHooks(withDefine);
+      return aliasLangSmithNodeUtils(aliasAsyncHooks(withDefine));
     };
     return { ...base, workflowInterceptorModules, ignoreModules, webpackConfigHook };
   }
@@ -323,6 +323,62 @@ function aliasAsyncHooks(config: WebpackConfiguration): WebpackConfiguration {
       new webpack.NormalModuleReplacementPlugin(/^node:async_hooks$/, (resource) => {
         resource.request = WORKFLOW_INTERCEPTOR_MODULE;
       }) as (typeof plugins)[number],
+    );
+  } catch {
+    /* webpack unavailable: leave plugins untouched (build will surface it) */
+  }
+  return { ...config, plugins };
+}
+
+/**
+ * Redirect langsmith's node-only CJS utilities (`utils/fs.cjs`,
+ * `utils/worker_threads.cjs`) to its own isolate-safe `.browser.cjs` siblings, so
+ * the workflow bundle does not pull `node:fs`/`node:path`/`node:worker_threads`
+ * into the V8 isolate. langsmith's `browser` field declares this same swap but
+ * only for its ESM modules, not the `.cjs` files webpack resolves here. Scoped to
+ * langsmith so a user's own `fs.cjs` is never rewritten.
+ */
+function aliasLangSmithNodeUtils(config: WebpackConfiguration): WebpackConfiguration {
+  const plugins = [...(config.plugins ?? [])];
+  const swap = (s: string): string => s.replace(/\.cjs$/, '.browser.cjs');
+  try {
+    const webpack = require('webpack') as {
+      NormalModuleReplacementPlugin: new (
+        re: RegExp,
+        cb: (resource: {
+          request: string;
+          context?: string;
+          createData?: { resource?: string; userRequest?: string; request?: string };
+        }) => void,
+      ) => unknown;
+    };
+    plugins.push(
+      new webpack.NormalModuleReplacementPlugin(
+        /[/\\]utils[/\\](?:fs|worker_threads)\.cjs$/,
+        (resource) => {
+          // Resolved sibling-relative requires (`./fs.cjs`) carry the absolute
+          // path on `createData.resource`; raw `beforeResolve` requests carry it
+          // on `request`.
+          const createData = resource.createData;
+          if (createData && typeof createData.resource === 'string') {
+            if (!createData.resource.includes('langsmith') || createData.resource.includes('.browser.cjs')) {
+              return;
+            }
+            createData.resource = swap(createData.resource);
+            if (typeof createData.userRequest === 'string') {
+              createData.userRequest = swap(createData.userRequest);
+            }
+            if (typeof createData.request === 'string') {
+              createData.request = swap(createData.request);
+            }
+            return;
+          }
+          if (!resource.context || !resource.context.includes('langsmith') || resource.request.includes('.browser.cjs')) {
+            return;
+          }
+          resource.request = swap(resource.request);
+        },
+      ) as (typeof plugins)[number],
     );
   } catch {
     /* webpack unavailable: leave plugins untouched (build will surface it) */
