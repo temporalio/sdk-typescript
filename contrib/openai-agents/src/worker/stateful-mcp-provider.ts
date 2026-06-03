@@ -1,7 +1,7 @@
+import type { MCPServer } from '@openai/agents-core';
 import { ApplicationFailure } from '@temporalio/common';
 import { Context, activityInfo } from '@temporalio/activity';
 import type { NativeConnection } from '@temporalio/worker';
-import type { MCPServer } from '@openai/agents-core';
 import {
   MCP_CALL_TOOL_SUFFIX,
   MCP_LIST_TOOLS_SUFFIX,

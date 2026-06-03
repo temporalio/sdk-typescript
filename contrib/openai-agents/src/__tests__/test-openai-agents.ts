@@ -1,10 +1,10 @@
 // Integration tests that need a real Worker. Pure-function tests live in
 // the sibling `*.test.ts` files.
 import { setTracingDisabled } from '@openai/agents-core';
+import type { MCPServer } from '@openai/agents-core';
 import { WorkflowClient } from '@temporalio/client';
 import { temporal } from '@temporalio/proto';
 import { helpers } from '@temporalio/test-helpers';
-import type { MCPServer } from '@openai/agents-core';
 import {
   OpenAIAgentsPlugin,
   OpenAIAgentsTraceClientInterceptor,
@@ -104,37 +104,34 @@ test('factoryArgument is passed through to MCP activities', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
 
   let receivedFactoryArg: unknown;
-  const testMcp = new StatelessMCPServerProvider(
-    'testMcp',
-    (factoryArgument?: unknown): MCPServer => {
-      receivedFactoryArg = factoryArgument;
-      return {
-        cacheToolsList: false,
-        name: 'testMcp',
-        async connect() {},
-        async close() {},
-        async listTools() {
-          return [
-            {
-              name: 'get_time',
-              description: 'Returns current time',
-              inputSchema: {
-                type: 'object' as const,
-                properties: {},
-                required: [] as string[],
-                additionalProperties: false,
-              },
+  const testMcp = new StatelessMCPServerProvider('testMcp', (factoryArgument?: unknown): MCPServer => {
+    receivedFactoryArg = factoryArgument;
+    return {
+      cacheToolsList: false,
+      name: 'testMcp',
+      async connect() {},
+      async close() {},
+      async listTools() {
+        return [
+          {
+            name: 'get_time',
+            description: 'Returns current time',
+            inputSchema: {
+              type: 'object' as const,
+              properties: {},
+              required: [] as string[],
+              additionalProperties: false,
             },
-          ];
-        },
-        async callTool(_toolName: string, _args: Record<string, unknown> | null) {
-          t.deepEqual(factoryArgument, { tenantId: 'tenant-42' }, 'factoryArgument should be passed to callTool');
-          return [{ type: 'text', text: '2026-01-01' }];
-        },
-        async invalidateToolsCache() {},
-      };
-    }
-  );
+          },
+        ];
+      },
+      async callTool(_toolName: string, _args: Record<string, unknown> | null) {
+        t.deepEqual(factoryArgument, { tenantId: 'tenant-42' }, 'factoryArgument should be passed to callTool');
+        return [{ type: 'text', text: '2026-01-01' }];
+      },
+      async invalidateToolsCache() {},
+    };
+  });
   const worker = await createWorker({
     plugins: [
       new OpenAIAgentsPlugin({
