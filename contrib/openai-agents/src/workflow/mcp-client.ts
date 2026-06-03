@@ -1,7 +1,7 @@
 import type { MCPServer } from '@openai/agents-core';
 import type { Duration, RetryPolicy } from '@temporalio/common';
 import { proxyActivities } from '@temporalio/workflow';
-import { MCP_CALL_TOOL_SUFFIX, MCP_LIST_TOOLS_SUFFIX } from '../common/mcp-types';
+import { MCP_CALL_TOOL_SUFFIX, MCP_LIST_TOOLS_SUFFIX, MCP_STATELESS_SUFFIX } from '../common/mcp-types';
 
 export interface StatelessMcpServerOptions {
   cacheToolsList?: boolean;
@@ -20,8 +20,9 @@ export function statelessMcpServer(name: string, options?: StatelessMcpServerOpt
     retry: options?.retryPolicy,
   });
 
-  const listToolsActivityName = `${name}${MCP_LIST_TOOLS_SUFFIX}`;
-  const callToolActivityName = `${name}${MCP_CALL_TOOL_SUFFIX}`;
+  const internalName = `${name}${MCP_STATELESS_SUFFIX}`;
+  const listToolsActivityName = `${internalName}${MCP_LIST_TOOLS_SUFFIX}`;
+  const callToolActivityName = `${internalName}${MCP_CALL_TOOL_SUFFIX}`;
 
   let cachedTools: any[] | undefined;
   const shouldCache = options?.cacheToolsList ?? true;

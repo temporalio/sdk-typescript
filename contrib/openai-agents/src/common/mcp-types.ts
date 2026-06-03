@@ -4,6 +4,7 @@ export const MCP_LIST_TOOLS_SUFFIX = '-list-tools';
 export const MCP_CALL_TOOL_SUFFIX = '-call-tool';
 export const MCP_SERVER_SESSION_SUFFIX = '-server-session';
 export const MCP_STATEFUL_SUFFIX = '-stateful';
+export const MCP_STATELESS_SUFFIX = '-stateless';
 
 /** Error type for dedicated-Worker scheduling and heartbeat failures. */
 export const DEDICATED_WORKER_FAILURE_TYPE = 'DedicatedWorkerFailure';

@@ -2,7 +2,10 @@ import type { Agent, AgentInputItem } from '@openai/agents-core';
 import type { ActivityOptions } from '@temporalio/common';
 
 export interface ModelSummaryProvider {
-  /** Generate a human-readable summary for the model Activity shown in the Temporal UI. */
+  /**
+   * Generate a human-readable summary for the model Activity shown in the Temporal UI.
+   * Runs inside the Workflow sandbox, so it must be deterministic and perform no non-deterministic I/O.
+   */
   provide(
     agent: Agent<any, any> | undefined,
     instructions: string | undefined,
