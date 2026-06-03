@@ -189,6 +189,18 @@ export async function chatWorkflow(prompts: string[]): Promise<string[]> {
 }
 ```
 
+`WorkflowSafeMemorySession` history lives on the Workflow heap and is rebuilt by replay within a single run. It does **not** automatically survive `continueAsNew` — a continued run starts with an empty session. To carry history across a continue-as-new boundary, capture the items and re-seed the new run's session via the constructor's `initialItems`:
+
+```ts
+// 1. Before continuing, capture the current history:
+const items = await session.getItems();
+await continueAsNew(/* ...your Workflow args..., */ items);
+
+// 2. The continued run declares a Workflow parameter to receive those items,
+//    and re-seeds the session from them:
+const session = new WorkflowSafeMemorySession({ initialItems: items });
+```
+
 ## Worker and Client plugin setup
 
 The Worker plugin does four things:
