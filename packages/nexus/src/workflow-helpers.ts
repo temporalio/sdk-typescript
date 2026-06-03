@@ -106,10 +106,17 @@ export async function startWorkflow<T extends Workflow>(
     attachRequestId: true,
   };
 
+  // Add nexus-operation-token header to solve for race between Workflow completion
+  // and Nexus Operation start recording
+  const callbackHeaders = {
+    ...ctx.callbackHeaders,
+    'nexus-operation-token': generateWorkflowRunOperationToken(client.options.namespace, workflowOptions.workflowId),
+  };
+
   if (ctx.callbackUrl) {
     internalOptions.completionCallbacks = [
       {
-        nexus: { url: ctx.callbackUrl, header: ctx.callbackHeaders },
+        nexus: { url: ctx.callbackUrl, header: callbackHeaders },
         links, // pass in links here as well for older servers, newer servers dedupe them.
       },
     ];
