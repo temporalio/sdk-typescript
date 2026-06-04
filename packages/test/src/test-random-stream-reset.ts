@@ -1,15 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import asyncRetry from 'async-retry';
-import { format as formatWithPrettier } from 'prettier';
 import type Long from 'long';
-import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 import type { WorkflowHandle, WorkflowHandleWithFirstExecutionRunId } from '@temporalio/client';
 import type { temporal } from '@temporalio/proto';
+import { createTestWorkflowBundle } from '@temporalio/test-helpers';
+import { Worker } from '@temporalio/worker';
 import { helpers, makeTestFunction } from './helpers-integration';
 import * as workflows from './workflows';
-import { saveHistory } from '@temporalio/test-helpers';
+import { loadHistory } from './helpers';
 
 const test = makeTestFunction({ workflowsPath: path.join(__dirname, 'workflows') });
 
@@ -17,8 +16,6 @@ type RandomStreamResetWorkflow = typeof workflows.randomStreamResetWorkflow;
 type RandomStreamResetHandle = WorkflowHandle<RandomStreamResetWorkflow>;
 type StartedRandomStreamResetHandle = WorkflowHandleWithFirstExecutionRunId<RandomStreamResetWorkflow>;
 type RandomStreamResetCapture = workflows.RandomStreamResetCapture;
-type DirectRandomAndUuidResetWorkflow = typeof workflows.directRandomAndUuidResetWorkflow;
-type StartedDirectRandomAndUuidResetHandle = WorkflowHandleWithFirstExecutionRunId<DirectRandomAndUuidResetWorkflow>;
 
 async function waitForCaptures(handle: RandomStreamResetHandle, count: number): Promise<RandomStreamResetCapture[]> {
   return await asyncRetry(
@@ -107,42 +104,15 @@ test.serial('named random streams are reseeded after workflow reset', async (t) 
 });
 
 test.serial('can replay history with randoms from 1.17.2', async (t) => {
-  const { env } = t.context;
-  const { createWorker, startWorkflow } = helpers(t);
-  const worker = await createWorker();
-  let initialCaptures: RandomStreamResetCapture[] | undefined;
-  const handle: StartedDirectRandomAndUuidResetHandle = await worker.runUntil(async () => {
-    const handle = await startWorkflow(workflows.directRandomAndUuidResetWorkflow);
-    initialCaptures = await waitForCaptures(handle, 3);
-    return handle;
+  const hist = await loadHistory('random-replay-1.17.2.json');
+  await t.notThrowsAsync(async () => {
+    await Worker.runReplayHistory(
+      {
+        workflowBundle: await createTestWorkflowBundle({
+          workflowsPath: require.resolve('./workflows/random-streams'),
+        }),
+      },
+      hist
+    );
   });
-
-  const history = await handle.fetchHistory();
-  const workflowTaskFinishEventId = getFirstTimerWorkflowTaskCompletedEventId(history);
-  const reset = await env.client.workflowService.resetWorkflowExecution({
-    namespace: env.client.options.namespace,
-    workflowExecution: {
-      workflowId: handle.workflowId,
-      runId: handle.firstExecutionRunId,
-    },
-    workflowTaskFinishEventId,
-    reason: 'test direct Math.random and uuid4 reset behavior',
-    requestId: randomUUID(),
-    identity: 'typescript-sdk-test',
-  });
-  if (reset.runId == null || reset.runId === '') {
-    throw new Error('Workflow reset did not return a new run id');
-  }
-
-  const resetHandle = env.client.workflow.getHandle<DirectRandomAndUuidResetWorkflow>(handle.workflowId, reset.runId);
-  const resetWorker = await createWorker();
-  await resetWorker.runUntil(async () => {
-    await waitForCaptures(resetHandle, 4);
-    await resetHandle.signal(workflows.randomStreamResetUnblockSignal);
-    await resetHandle.result();
-  });
-
-  const resetHistory = await resetHandle.fetchHistory();
-  await saveHistory(path.resolve(__dirname, '../history_files/random-replay-1.17.2'), resetHistory);
-  t.pass();
 });
