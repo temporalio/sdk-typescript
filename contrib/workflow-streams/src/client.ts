@@ -16,7 +16,7 @@
 import { randomUUID } from 'crypto';
 import { Context as ActivityContext } from '@temporalio/activity';
 import type { Client, WorkflowHandle } from '@temporalio/client';
-import { WorkflowUpdateFailedError, WorkflowUpdateRPCTimeoutOrCancelledError } from '@temporalio/client';
+import { WorkflowUpdateFailedError, WorkflowUpdateRPCTimeoutOrCancelledError, WorkflowUpdateStage } from '@temporalio/client';
 import {
   ApplicationFailure,
   defaultPayloadConverter,
@@ -117,6 +117,10 @@ export class WorkflowStreamClient {
   private handle: WorkflowHandle;
   private client: Client | undefined;
   private readonly workflowId: string;
+  // Run id the most recent poll's update was admitted to. Captured before
+  // awaiting the outcome so a mid-poll continue-as-new can be detected by
+  // describing that specific run. Undefined until the first poll is admitted.
+  private polledRunId: string | undefined;
   private readonly batchIntervalMs: number;
   private readonly maxBatchSize: number | undefined;
   private readonly maxRetryDurationMs: number;
@@ -447,9 +451,19 @@ export class WorkflowStreamClient {
     while (true) {
       let result: PollResult;
       try {
-        result = await this.handle.executeUpdate<PollResult, [PollInput]>('__temporal_workflow_stream_poll', {
-          args: [{ topics: topicFilter, from_offset: offset }],
-        });
+        // Wait only for ACCEPTED so the handle (and the run id it was admitted
+        // to) is available before we await the outcome; if the run
+        // continues-as-new mid-poll, result() rejects but we still know which
+        // run to inspect.
+        const updateHandle = await this.handle.startUpdate<PollResult, [PollInput]>(
+          '__temporal_workflow_stream_poll',
+          {
+            args: [{ topics: topicFilter, from_offset: offset }],
+            waitForStage: WorkflowUpdateStage.ACCEPTED,
+          }
+        );
+        this.polledRunId = updateHandle.workflowRunId;
+        result = await updateHandle.result();
       } catch (err) {
         if (err instanceof WorkflowUpdateFailedError) {
           const cause = err.cause;
@@ -514,13 +528,29 @@ export class WorkflowStreamClient {
   }
 
   /**
-   * Check if the workflow continued-as-new and re-target the handle.
-   * Returns true if the handle was updated (caller should retry).
+   * Describe the specific run the most recent poll was admitted to. Describing
+   * that run (rather than the latest) is what lets a continue-as-new be
+   * detected: a rolled-over run is closed with status CONTINUED_AS_NEW, whereas
+   * the latest run would report RUNNING. Falls back to the latest run when no
+   * run id has been captured yet, or when no client is available to target one.
+   */
+  private describePolledRun() {
+    const handle = this.client
+      ? this.client.workflow.getHandle(this.workflowId, this.polledRunId)
+      : this.handle;
+    return handle.describe();
+  }
+
+  /**
+   * Check if the polled run continued-as-new and re-target the handle. Returns
+   * true if the handle was updated (caller should retry). The successor run id
+   * is not needed — re-targeting to an unpinned handle makes the next poll
+   * address the latest (successor) run.
    */
   private async followContinueAsNew(): Promise<boolean> {
     if (!this.client) return false;
     try {
-      const desc = await this.handle.describe();
+      const desc = await this.describePolledRun();
       if (desc.status.name === 'CONTINUED_AS_NEW') {
         this.handle = this.client.workflow.getHandle(this.workflowId);
         return true;
@@ -532,13 +562,13 @@ export class WorkflowStreamClient {
   }
 
   /**
-   * Return true if the workflow has reached a terminal state. Used by
+   * Return true if the polled run has reached a terminal state. Used by
    * `subscribe()` to distinguish "workflow finished — stream is done" from
    * "wrong workflow id" when a poll surfaces `WorkflowNotFoundError`.
    */
   private async isInTerminalState(): Promise<boolean> {
     try {
-      const desc = await this.handle.describe();
+      const desc = await this.describePolledRun();
       const name = desc.status.name;
       return (
         name === 'COMPLETED' ||

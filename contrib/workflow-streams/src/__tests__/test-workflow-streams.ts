@@ -657,6 +657,63 @@ test('continue_as_new_helper — log and offsets survive CAN via WorkflowStream.
   });
 });
 
+test('follow_continue_as_new — describes the polled run, not the latest', async (t) => {
+  // Regression test for continue-as-new detection. followContinueAsNew must
+  // describe the specific run a poll was admitted to — a rolled-over run is
+  // closed with status CONTINUED_AS_NEW, whereas the latest (successor) run
+  // reports RUNNING. The previous implementation described the latest run, so
+  // the check never fired and a poll failure during a rollover stopped the
+  // subscription instead of following it.
+  //
+  // Driving the exact poll-failure race deterministically is impractical (the
+  // workflow drains in-flight polls before continuing-as-new), so this asserts
+  // the helper's decision directly against a real post-rollover run.
+  const { createWorker, startWorkflow } = helpers(t);
+  const { env } = t.context;
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const workflowId = `stream-can-follow-${randomUUID()}`;
+    const handle = await startWorkflow(continueAsNewHelperWorkflow, {
+      args: [{}],
+      workflowId,
+    });
+    await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
+      items: [entry('events', 'item-0')],
+      publisher_id: 'pub',
+      sequence: 1,
+    });
+    const oldRunId = handle.firstExecutionRunId;
+
+    await handle.signal('triggerContinue');
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      const desc = await env.client.workflow.getHandle(workflowId).describe();
+      if (desc.runId !== oldRunId) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+
+    // The fix's premise: the polled (old) run reports CONTINUED_AS_NEW; the
+    // latest run reports RUNNING.
+    const oldDesc = await env.client.workflow.getHandle(workflowId, oldRunId).describe();
+    t.is(oldDesc.status.name, 'CONTINUED_AS_NEW');
+    const latestDesc = await env.client.workflow.getHandle(workflowId).describe();
+    t.is(latestDesc.status.name, 'RUNNING');
+
+    // The client follows the rollover when it describes the polled run, but the
+    // previous latest-run behavior (polledRunId unset) would not.
+    type Internals = { polledRunId?: string; followContinueAsNew(): Promise<boolean> };
+    const following = WorkflowStreamClient.create(env.client, workflowId) as unknown as Internals;
+    following.polledRunId = oldRunId;
+    t.true(await following.followContinueAsNew());
+
+    const latestOnly = WorkflowStreamClient.create(env.client, workflowId) as unknown as Internals;
+    latestOnly.polledRunId = undefined; // describes the latest run, as the bug did
+    t.false(await latestOnly.followContinueAsNew());
+
+    await env.client.workflow.getHandle(workflowId).signal('close');
+  });
+});
+
 test('poll_more_ready_when_response_exceeds_size_limit — 1MB cap', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
   const { env } = t.context;
