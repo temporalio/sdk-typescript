@@ -10,6 +10,8 @@ import test from 'ava';
 import { withTrace, withCustomSpan } from '@openai/agents-core';
 import { Client, WorkflowFailedError } from '@temporalio/client';
 import { ApplicationFailure } from '@temporalio/common';
+import type { WorkflowBundleWithSourceMap } from '@temporalio/worker';
+import { bundleWorkflowCode } from '@temporalio/worker';
 import type { TestWorkflowEnvironment } from '@temporalio/test-helpers';
 import { Worker, createTestWorkflowEnvironment } from '@temporalio/test-helpers';
 import {
@@ -47,6 +49,14 @@ import {
 } from './stubs/openai-agents-comprehensive';
 
 const workflowsPath = require.resolve('./workflows/openai-agents-comprehensive');
+
+// The plugin's bundle contribution is the same for every config used here, so build once and reuse.
+let sharedWorkflowBundle: WorkflowBundleWithSourceMap;
+
+test.before(async () => {
+  const bundlerPlugin = new OpenAIAgentsPlugin({ modelProvider: new FakeModelProvider([]) });
+  sharedWorkflowBundle = await bundleWorkflowCode({ workflowsPath, plugins: [bundlerPlugin] });
+});
 
 function* bigAgentInitialScript(): Generator<ReturnType<typeof textResponse>> {
   yield toolCallResponse('getWeather', { location: 'Tokyo' });
@@ -144,7 +154,7 @@ async function runComprehensive(opts: RunComprehensiveOptions): Promise<void> {
       const worker = await Worker.create({
         connection: env.nativeConnection,
         plugins: [plugin],
-        workflowsPath,
+        workflowBundle: sharedWorkflowBundle,
         activities,
         nexusServices: [compNexusServiceHandler],
         taskQueue,
@@ -179,7 +189,7 @@ async function runComprehensive(opts: RunComprehensiveOptions): Promise<void> {
       const worker1 = await Worker.create({
         connection: env.nativeConnection,
         plugins: [plugin],
-        workflowsPath,
+        workflowBundle: sharedWorkflowBundle,
         activities,
         nexusServices: [compNexusServiceHandler],
         taskQueue,
@@ -218,7 +228,7 @@ async function runComprehensive(opts: RunComprehensiveOptions): Promise<void> {
       const worker2 = await Worker.create({
         connection: env.nativeConnection,
         plugins: [plugin],
-        workflowsPath,
+        workflowBundle: sharedWorkflowBundle,
         activities,
         nexusServices: [compNexusServiceHandler],
         taskQueue,
@@ -629,7 +639,7 @@ test('Retryable model error eventually succeeds', async (t) => {
     const worker = await Worker.create({
       connection: env.nativeConnection,
       plugins: [plugin],
-      workflowsPath,
+      workflowBundle: sharedWorkflowBundle,
       taskQueue,
     });
     const client = new Client({ connection: env.connection, plugins: [plugin] });
@@ -653,7 +663,7 @@ test('Non-retryable model error fails workflow with classified ApplicationFailur
     const worker = await Worker.create({
       connection: env.nativeConnection,
       plugins: [plugin],
-      workflowsPath,
+      workflowBundle: sharedWorkflowBundle,
       taskQueue,
     });
     const client = new Client({ connection: env.connection, plugins: [plugin] });
@@ -693,7 +703,7 @@ test('Activity-backed tool failure crashes workflow with AgentsWorkflowError (Py
     const worker = await Worker.create({
       connection: env.nativeConnection,
       plugins: [plugin],
-      workflowsPath,
+      workflowBundle: sharedWorkflowBundle,
       activities,
       taskQueue,
     });
@@ -728,7 +738,7 @@ test('Stateful MCP dedicated-worker failure produces DedicatedWorkerFailure', as
     const worker = await Worker.create({
       connection: env.nativeConnection,
       plugins: [plugin],
-      workflowsPath,
+      workflowBundle: sharedWorkflowBundle,
       taskQueue,
     });
     const client = new Client({ connection: env.connection, plugins: [plugin] });
