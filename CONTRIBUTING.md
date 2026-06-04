@@ -17,6 +17,7 @@
     - [test-npm-init](#test-npm-init)
   - [Style Guide](#style-guide)
 - [Updating and pruning dependencies](#updating-and-pruning-dependencies)
+- [Changelog](#changelog)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -205,3 +206,16 @@ done
 ```
 
 To install both tools: `npm i -g npm-check npm-check-updates`.
+
+## Changelog
+
+User-facing changes are recorded in [`CHANGELOG.md`](CHANGELOG.md), loosely following the
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
+
+If your PR includes a user-facing change (new feature, behavior change, deprecation, breaking
+change, notable bug fix, or security fix), add a short, high-level entry to the `## [Unreleased]`
+section at the top of `CHANGELOG.md` under the appropriate heading, creating it if needed:
+Added, Changed, Deprecated, Breaking Changes, Fixed, or Security.
+
+Keep entries high-level and written for users. The full commit log is appended at release time,
+so internal-only changes (refactors, tests, CI, docs) don't need an entry.
