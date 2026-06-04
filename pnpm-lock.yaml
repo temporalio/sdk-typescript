@@ -287,8 +287,8 @@ importers:
         version: 11.1.1
     devDependencies:
       protobufjs:
-        specifier: ^7.5.8
-        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
+        specifier: ^8.2.0
+        version: 8.2.0
 
   packages/cloud:
     dependencies:
@@ -306,8 +306,8 @@ importers:
         version: link:../proto
     devDependencies:
       protobufjs:
-        specifier: ^7.5.8
-        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
+        specifier: ^8.2.0
+        version: 8.2.0
 
   packages/common:
     dependencies:
@@ -331,8 +331,8 @@ importers:
         specifier: ^5.3.1
         version: 5.3.1
       protobufjs:
-        specifier: ^7.5.8
-        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
+        specifier: ^8.2.0
+        version: 8.2.0
 
   packages/core-bridge:
     dependencies:
@@ -589,15 +589,15 @@ importers:
         specifier: ^5.2.3
         version: 5.2.3
       protobufjs:
-        specifier: 7.5.8
-        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
+        specifier: 8.2.0
+        version: 8.2.0
     devDependencies:
       glob:
         specifier: ^10.3.10
         version: 10.5.0
       protobufjs-cli:
         specifier: ^1.2.2
-        version: 1.2.2(protobufjs@7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b))
+        version: 1.2.2(protobufjs@8.2.0)
 
   packages/test:
     dependencies:
@@ -704,11 +704,11 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       protobufjs:
-        specifier: 7.5.8
-        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
+        specifier: 8.2.0
+        version: 8.2.0
       protobufjs-cli:
         specifier: ^1.2.2
-        version: 1.2.2(protobufjs@7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b))
+        version: 1.2.2(protobufjs@8.2.0)
       rxjs:
         specifier: 7.8.1
         version: 7.8.1
@@ -827,8 +827,8 @@ importers:
         specifier: ^0.0.2
         version: 0.0.2
       protobufjs:
-        specifier: ^7.5.8
-        version: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
+        specifier: ^8.2.0
+        version: 8.2.0
       rxjs:
         specifier: ^7.8.1
         version: 7.8.1
@@ -1880,6 +1880,7 @@ packages:
 
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
+    deprecated: Potential CWE-502 - Update to 1.3.1 or higher
 
   '@vercel/oidc@3.0.5':
     resolution: {integrity: sha512-fnYhv671l+eTTp48gB4zEsTW/YtRgRPnkI2nT7x6qw5rkI1Lq2hTmQIpHPgyThI0znLK+vX2n9XxKdXZ7BUbbw==}
@@ -4263,6 +4264,10 @@ packages:
 
   protobufjs@7.5.8:
     resolution: {integrity: sha512-dvpCIeLPbXZS/Ete7yLaO7RenOdken2NHKykBXbsaGxZT0UTltcarBciw+A78SRQs9iMAAVpsYA+l8b1hTePIA==}
+    engines: {node: '>=12.0.0'}
+
+  protobufjs@8.2.0:
+    resolution: {integrity: sha512-oI+GC9iPxrQEr6wragljFKH46/r3rNsm6eg7F2fp6kBUMnf6/mesDRdBuF4gK+OyaKJ8N4C1B9s9cCeYdqFikg==}
     engines: {node: '>=12.0.0'}
 
   proxy-addr@2.0.7:
@@ -8794,7 +8799,7 @@ snapshots:
     dependencies:
       protobufjs: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
 
-  protobufjs-cli@1.2.2(protobufjs@7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)):
+  protobufjs-cli@1.2.2(protobufjs@8.2.0):
     dependencies:
       chalk: 4.1.2
       escodegen: 1.14.3
@@ -8803,7 +8808,7 @@ snapshots:
       glob: 8.1.0
       jsdoc: 4.0.2
       minimist: 1.2.8
-      protobufjs: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
+      protobufjs: 8.2.0
       semver: 7.7.4
       tmp: 0.2.5
       uglify-js: 3.19.3
@@ -8820,6 +8825,11 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
+      '@types/node': 20.19.39
+      long: 5.2.3
+
+  protobufjs@8.2.0:
+    dependencies:
       '@types/node': 20.19.39
       long: 5.2.3
 
