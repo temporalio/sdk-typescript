@@ -19,6 +19,7 @@ packages:
   - packages/workflow
   - contrib/ai-sdk
   - contrib/interceptors-opentelemetry
+  - contrib/langsmith
   - contrib/workflow-streams
   - scripts
 
