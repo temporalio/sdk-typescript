@@ -16,7 +16,11 @@
 import { randomUUID } from 'crypto';
 import { Context as ActivityContext } from '@temporalio/activity';
 import type { Client, WorkflowHandle } from '@temporalio/client';
-import { WorkflowUpdateFailedError, WorkflowUpdateRPCTimeoutOrCancelledError, WorkflowUpdateStage } from '@temporalio/client';
+import {
+  WorkflowUpdateFailedError,
+  WorkflowUpdateRPCTimeoutOrCancelledError,
+  WorkflowUpdateStage,
+} from '@temporalio/client';
 import {
   ApplicationFailure,
   defaultPayloadConverter,
@@ -455,13 +459,10 @@ export class WorkflowStreamClient {
         // to) is available before we await the outcome; if the run
         // continues-as-new mid-poll, result() rejects but we still know which
         // run to inspect.
-        const updateHandle = await this.handle.startUpdate<PollResult, [PollInput]>(
-          '__temporal_workflow_stream_poll',
-          {
-            args: [{ topics: topicFilter, from_offset: offset }],
-            waitForStage: WorkflowUpdateStage.ACCEPTED,
-          }
-        );
+        const updateHandle = await this.handle.startUpdate<PollResult, [PollInput]>('__temporal_workflow_stream_poll', {
+          args: [{ topics: topicFilter, from_offset: offset }],
+          waitForStage: WorkflowUpdateStage.ACCEPTED,
+        });
         this.polledRunId = updateHandle.workflowRunId;
         result = await updateHandle.result();
       } catch (err) {
@@ -472,6 +473,14 @@ export class WorkflowStreamClient {
             // the mixin treats as "from the beginning of whatever exists"
             // (i.e., from baseOffset).
             offset = 0;
+            continue;
+          }
+          if (cause instanceof ApplicationFailure && cause.type === 'StreamDraining') {
+            // Workflow is detaching for continue-as-new. Back off and retry; the
+            // poll lands on the successor run once the rollover completes.
+            if (pollCooldownMs > 0) {
+              await sleep(pollCooldownMs);
+            }
             continue;
           }
           if (cause instanceof ApplicationFailure && cause.type === 'AcceptedUpdateCompletedWorkflow') {
@@ -535,9 +544,7 @@ export class WorkflowStreamClient {
    * run id has been captured yet, or when no client is available to target one.
    */
   private describePolledRun() {
-    const handle = this.client
-      ? this.client.workflow.getHandle(this.workflowId, this.polledRunId)
-      : this.handle;
+    const handle = this.client ? this.client.workflow.getHandle(this.workflowId, this.polledRunId) : this.handle;
     return handle.describe();
   }
 

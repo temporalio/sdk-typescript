@@ -31,6 +31,7 @@ import {
   binaryPublishWorkflow,
   continueAsNewHelperWorkflow,
   continueAsNewTypedWorkflow,
+  drainingGateWorkflow,
   flushOnExitWorkflow,
   getStateWithTtlQuery,
   maxBatchWorkflow,
@@ -711,6 +712,82 @@ test('follow_continue_as_new — describes the polled run, not the latest', asyn
     t.false(await latestOnly.followContinueAsNew());
 
     await env.client.workflow.getHandle(workflowId).signal('close');
+  });
+});
+
+test('subscribe_retries_while_draining — draining poll rejection is retried, not surfaced', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const { env } = t.context;
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const workflowId = `stream-draining-${randomUUID()}`;
+    const handle = await startWorkflow(drainingGateWorkflow, { args: [{}], workflowId });
+    await handle.signal<[PublishInput]>(workflowStreamPublishSignal, {
+      items: [entry('events', 'item-0')],
+      publisher_id: 'pub',
+      sequence: 1,
+    });
+
+    const stream = WorkflowStreamClient.create(env.client, workflowId);
+    const received: WorkflowStreamItem[] = [];
+    let consumeError: unknown;
+    const consume = (async () => {
+      for await (const item of stream.subscribe(undefined, 0, { pollCooldown: 0 })) {
+        received.push(item);
+      }
+    })().catch((err) => {
+      consumeError = err;
+    });
+
+    const waitFor = async (pred: () => boolean, timeoutMs = 10_000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (!pred() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
+    };
+
+    try {
+      await waitFor(() => received.length >= 1);
+      t.is(received.length, 1);
+
+      // Detach; the subscriber's polls are now rejected with StreamDraining.
+      // The subscription must keep retrying, not error out.
+      await handle.signal('triggerContinue');
+      await new Promise((r) => setTimeout(r, 1000));
+      t.is(consumeError, undefined, 'draining rejection must not end the subscription');
+
+      // Release: the workflow continues-as-new; the subscription resumes on the
+      // successor run and receives an item published there.
+      await handle.signal('release');
+      let newRun = false;
+      const deadline = Date.now() + 10_000;
+      while (!newRun && Date.now() < deadline) {
+        const desc = await env.client.workflow.getHandle(workflowId).describe();
+        newRun = desc.runId !== handle.firstExecutionRunId;
+        if (!newRun) await new Promise((r) => setTimeout(r, 100));
+      }
+      t.true(newRun, 'CAN should produce a new run id');
+
+      const newHandle = env.client.workflow.getHandle(workflowId);
+      await newHandle.signal<[PublishInput]>(workflowStreamPublishSignal, {
+        items: [entry('events', 'item-1')],
+        publisher_id: 'pub',
+        sequence: 2,
+      });
+
+      await waitFor(() => received.length >= 2);
+      t.deepEqual(
+        received.map((i) => payloadString(i.data)),
+        ['item-0', 'item-1']
+      );
+      t.deepEqual(
+        received.map((i) => i.offset),
+        [0, 1]
+      );
+    } finally {
+      // Closing the (successor) run ends the stream cleanly, so subscribe()
+      // returns and the consume loop completes.
+      await env.client.workflow.getHandle(workflowId).signal('close');
+      await consume;
+    }
   });
 });
 
