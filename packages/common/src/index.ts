@@ -11,16 +11,6 @@ export * from './activity-options';
 export { ActivityCancellationDetailsOptions, ActivityCancellationDetails } from './activity-cancellation-details';
 export { SuggestContinueAsNewReason } from './continue-as-new';
 export * from './converter/data-converter';
-export { ExternalStorage, StorageDriverClaim } from './converter/extstore';
-export type {
-  StorageDriver,
-  StorageDriverActivityInfo,
-  StorageDriverRetrieveContext,
-  StorageDriverSelector,
-  StorageDriverStoreContext,
-  StorageDriverTargetInfo,
-  StorageDriverWorkflowInfo,
-} from './converter/extstore';
 export * from './converter/failure-converter';
 export * from './converter/payload-codec';
 export * from './converter/payload-converter';

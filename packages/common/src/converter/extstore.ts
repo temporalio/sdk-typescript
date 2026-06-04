@@ -124,8 +124,6 @@ const DEFAULT_PAYLOAD_SIZE_THRESHOLD = 256 * 1024;
  * eligible for offloading to external storage. A selector function is 
  * required when more than one driver is registered.
  *
- * Mounted on {@link DataConverter.externalStorage}.
- *
  * @experimental
  */
 export class ExternalStorage {

@@ -1,13 +1,8 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
+import type { LoadedDataConverter } from '@temporalio/common';
 import {
-  ExternalStorage,
   StorageDriverClaim,
-  type LoadedDataConverter,
-  type Payload,
-  type StorageDriver,
-} from '@temporalio/common';
-import {
   decodeReferencePayload,
   encodeReferencePayload,
   isReferencePayload,
@@ -18,33 +13,14 @@ import {
   loadDataConverter,
 } from '@temporalio/common/lib/internal-non-workflow';
 
-function makeConverter(externalStorage?: ExternalStorage): LoadedDataConverter {
-  const loaded = loadDataConverter({ externalStorage });
+function makeConverter(): LoadedDataConverter {
+  const loaded = loadDataConverter();
   if (!isLoadedDataConverter(loaded)) throw new Error('unreachable');
   return loaded;
 }
 
-function stubDriver(name: string): StorageDriver {
-  return {
-    name,
-    type: name,
-    async store(): Promise<StorageDriverClaim[]> {
-      throw new Error('not implemented');
-    },
-    async retrieve(): Promise<Payload[]> {
-      throw new Error('not implemented');
-    },
-  };
-}
-
-test('loadDataConverter passes through externalStorage when set', (t) => {
-  const externalStorage = new ExternalStorage({ drivers: [stubDriver('mem')] });
-  const loaded = loadDataConverter({ externalStorage });
-  t.is(loaded.externalStorage, externalStorage);
-});
-
-test('encodeToPayloads is a no-op when externalStorage is undefined', async (t) => {
-  const converter = makeConverter(undefined);
+test('encodeToPayloads is a no-op with default data converter', async (t) => {
+  const converter = makeConverter();
   const payloads = await encodeToPayloads(converter, 'hello');
   t.is(payloads!.length, 1);
   t.falsy(payloads![0]!.externalPayloads?.length);
