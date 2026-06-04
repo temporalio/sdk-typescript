@@ -307,7 +307,7 @@ test('Stateful MCP: heartbeat timeout produces DedicatedWorkerFailure', async (t
       async close() {},
       async listTools(): Promise<any[]> {
         // Block longer than the 1-second heartbeatTimeout below to trigger the timeout.
-        await new Promise((resolve) => setTimeout(resolve, 10_000));
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
         return [];
       },
       async callTool() {
