@@ -19,6 +19,7 @@ import {
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import { CancelledFailure, TerminatedFailure, ApplicationFailure, SearchAttributeType } from '@temporalio/common';
+import { generateWorkflowRunOperationToken } from '@temporalio/nexus/lib/token';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';
 
@@ -491,5 +492,40 @@ test('interceptor integration', async (t) => {
     t.true(calls.includes('terminate'), 'terminate called');
     t.true(calls.includes('list'), 'list called');
     t.true(calls.includes('count'), 'count called');
+  });
+});
+
+test('WorkflowRunOperation workflow run has Nexus-Operation-Token Header', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const { handler, workflowStarted } = makeTestHandler();
+  const worker = await createWorker({ nexusServices: [handler] });
+  const { client } = t.context.env;
+
+  await worker.runUntil(async () => {
+    const svc = client.nexus.createServiceClient({ endpoint: endpointName, service: testService });
+    const id = randomUUID();
+    const handle = await svc.startOperation(
+      testService.operations.blockingAsync,
+      { echo: 'async-hello', wfId: id },
+      {
+        id: `op-${id}`,
+        scheduleToCloseTimeout: '10s',
+      }
+    );
+
+    // wait for workflow to start
+    await workflowStarted;
+
+    // unblock workflow
+    const wfHandle = client.workflow.getHandle(id);
+    await wfHandle.executeUpdate(unblockEcho);
+
+    const result = await handle.result();
+    t.is(result, 'async-hello');
+
+    const desc = await wfHandle.describe();
+    const opToken = desc.raw.callbacks?.[0].callback?.nexus?.header?.['nexus-operation-token'];
+    t.is(opToken, generateWorkflowRunOperationToken(client.options.namespace, wfHandle.workflowId));
   });
 });

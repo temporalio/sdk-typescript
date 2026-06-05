@@ -22,6 +22,7 @@ import {
   loadOperationToken,
   loadWorkflowRunOperationToken,
   OperationTokenType,
+  encodeOperationToken,
 } from './token';
 import {
   getClient,
@@ -36,6 +37,7 @@ declare const workflowResultType: unique symbol;
 
 async function startWithNexusOptions<T>(
   ctx: nexus.StartOperationContext,
+  token: string,
   handler: (opts: InternalNexusStartOptions[typeof InternalNexusStartOptionsSymbol]) => Promise<T>
 ) {
   const links = Array<temporal.api.common.v1.ILink>();
@@ -59,10 +61,16 @@ async function startWithNexusOptions<T>(
     },
   };
 
+  // Add nexus-operation-token header to solve for race between Workflow completion
+  // and Nexus Operation start recording
+  const callbackHeaders = {
+    ...ctx.callbackHeaders,
+    'nexus-operation-token': token,
+  };
   if (ctx.callbackUrl) {
     internalOptions.completionCallbacks = [
       {
-        nexus: { url: ctx.callbackUrl, header: ctx.callbackHeaders },
+        nexus: { url: ctx.callbackUrl, header: callbackHeaders },
         links, // pass in links here as well for older servers, newer servers dedupe them.
       },
     ];
@@ -140,9 +148,9 @@ export async function startWorkflow<T extends Workflow>(
   workflowTypeOrFunc: string | T,
   workflowOptions: WorkflowStartOptions<T>
 ): Promise<WorkflowHandle<WorkflowResultType<T>>> {
-  return await startWithNexusOptions(ctx, async (internalOptions) => {
-    const { client, taskQueue } = getHandlerContext();
-
+  const { client, taskQueue } = getHandlerContext();
+  const token = generateWorkflowRunOperationToken(client.options.namespace, workflowOptions.workflowId);
+  return await startWithNexusOptions(ctx, token, async (internalOptions) => {
     const { taskQueue: userSpecifiedTaskQueue, ...rest } = workflowOptions;
     const startOptions: ClientWorkflowStartOptions = {
       ...rest,
@@ -222,9 +230,18 @@ async function startActivity<R>(
   activity: string,
   activityOptions: ActivityOptions
 ): Promise<ActivityHandle<R>> {
-  return await startWithNexusOptions(ctx, async (internalOptions) => {
-    const { client, taskQueue } = getHandlerContext();
+  const { client, taskQueue } = getHandlerContext();
 
+  // Activity tokens included in nexus callback headers cannot have
+  // run ID as it's unknown until the activity has been started so we
+  // manually construct the token.
+  const token = encodeOperationToken({
+    t: OperationTokenType.ACTIVITY,
+    ns: client.options.namespace,
+    aid: activityOptions.id,
+  });
+
+  return await startWithNexusOptions(ctx, token, async (internalOptions) => {
     const { taskQueue: userSpecifiedTaskQueue, ...rest } = activityOptions;
     const startOptions: InternalActivityStartOptions = {
       ...rest,

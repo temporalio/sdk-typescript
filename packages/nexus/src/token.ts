@@ -86,7 +86,7 @@ export function generateWorkflowRunOperationToken(namespace: string, workflowId:
     ns: namespace,
     wid: workflowId,
   };
-  return base64URLEncodeNoPadding(JSON.stringify(token));
+  return encodeOperationToken(token);
 }
 
 /**
@@ -99,6 +99,13 @@ export function generateActivityOperationToken(namespace: string, activityId: st
     aid: activityId,
     rid: runId,
   };
+  return encodeOperationToken(token);
+}
+
+/**
+ * Encode an OPerationToken as a string.
+ */
+export function encodeOperationToken(token: OperationToken): string {
   return base64URLEncodeNoPadding(JSON.stringify(token));
 }
 

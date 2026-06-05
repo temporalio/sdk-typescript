@@ -141,3 +141,26 @@ export async function randomStreamResetWorkflow(): Promise<RandomStreamResetCapt
 
   return captures;
 }
+
+export async function directRandomAndUuidResetWorkflow(): Promise<RandomStreamResetCapture[]> {
+  const captures: RandomStreamResetCapture[] = [];
+  let unblocked = false;
+
+  setHandler(randomStreamResetCapturesQuery, () => captures);
+  setHandler(randomStreamResetUnblockSignal, () => void (unblocked = true));
+
+  for (let iteration = 0; iteration < 4; iteration++) {
+    captures.push(await captureDirectRandomAndUuidResetValues());
+    await sleep(1);
+  }
+  await condition(() => unblocked);
+
+  return captures;
+}
+
+async function captureDirectRandomAndUuidResetValues(): Promise<RandomStreamResetCapture> {
+  const random = Math.random();
+  const uuid = uuid4();
+  const child = await startChild(randomStreamResetChild);
+  return { random, uuid, childWorkflowId: child.workflowId };
+}
