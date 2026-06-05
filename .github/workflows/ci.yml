@@ -108,7 +108,7 @@ jobs:
   # Run integration tests.
   # Uses the native binaries built in compile-native-binaries, but build `@temporalio/*` packages locally.
   integration-tests:
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.platform == 'windows-x64' && 30 || 20 }}
     needs:
       - compile-native-binaries-debug
     strategy:
