@@ -1,9 +1,10 @@
 import assert from 'assert';
 import { randomUUID } from 'crypto';
 import * as nexus from 'nexus-rpc';
-import { NexusOperationFailure } from '@temporalio/common';
+import { ApplicationFailure, NexusOperationFailure } from '@temporalio/common';
 import {
   NexusOperationExecutionStatus,
+  NexusOperationFailureError,
   WorkflowExecutionAlreadyStartedError,
   WorkflowFailedError,
 } from '@temporalio/client';
@@ -47,6 +48,7 @@ const temporalOpService = nexus.service('temporalOperationService', {
   doubleStartOp: nexus.operation<string, void>(),
   retryAfterFailedStartOp: nexus.operation<string, string>(),
   echoActivity: nexus.operation<string, string>(),
+  failingActivity: nexus.operation<string, void>(),
   blockingActivity: nexus.operation<string, void>(),
 });
 
@@ -72,6 +74,7 @@ function makeTemporalOpServiceHandler(overrides: Partial<TemporalOpServiceHandle
     doubleStartOp: unusedTemporalOperationHandler(),
     retryAfterFailedStartOp: unusedTemporalOperationHandler(),
     echoActivity: unusedTemporalOperationHandler(),
+    failingActivity: unusedTemporalOperationHandler(),
     blockingActivity: unusedTemporalOperationHandler(),
     ...overrides,
   };
@@ -175,6 +178,58 @@ test('TemporalOperationHandler infers correct output type from typed workflow fu
       return await client.startWorkflow(echoWorkflow, {
         args: [input],
         workflowId: 'test',
+      });
+    },
+  });
+
+  // This test only checks for compile-time errors.
+  t.pass();
+});
+
+test('TemporalOperationHandler infers correct output type from typed activity', async (t) => {
+  // echo(message?: string): Promise<string>, so typedActivity().startActivity('echo', ...)
+  // resolves to TemporalOperationResult<string> and the operation output type infers as string.
+  const _activityStringOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler({
+    async start(_ctx, client, input: string) {
+      return await client.typedActivity<typeof activities>().startActivity('echo', {
+        id: 'test',
+        args: [input],
+        scheduleToCloseTimeout: '10s',
+      });
+    },
+  });
+
+  // @ts-expect-error - Output type should be string (echo returns string), not number
+  const _activityMismatchedOp: nexus.OperationHandler<string, number> = new temporalnexus.TemporalOperationHandler({
+    async start(_ctx, client, input: string) {
+      return await client.typedActivity<typeof activities>().startActivity('echo', {
+        id: 'test',
+        args: [input],
+        scheduleToCloseTimeout: '10s',
+      });
+    },
+  });
+
+  const _activityWrongArgsOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler({
+    async start(_ctx, client, _input: string) {
+      return await client.typedActivity<typeof activities>().startActivity('echo', {
+        id: 'test',
+        // @ts-expect-error - echo expects a string argument, not a number
+        args: [42],
+        scheduleToCloseTimeout: '10s',
+      });
+    },
+  });
+
+  const _explicitActivityStringOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler<
+    string,
+    string
+  >({
+    async start(_ctx, client, input) {
+      return await client.typedActivity<typeof activities>().startActivity('echo', {
+        id: 'test',
+        args: [input],
+        scheduleToCloseTimeout: '10s',
       });
     },
   });
@@ -658,6 +713,91 @@ test('TemporalOperationHandler start untyped standalone activity', async (t) => 
   });
 });
 
+test('TemporalOperationHandler converts invalid activity options to BAD_REQUEST', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const { client } = t.context.env;
+
+  const worker = await createWorker({
+    activities,
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        echoActivity: new temporalnexus.TemporalOperationHandler({
+          async start(_ctx, client, input) {
+            // Intentionally omit scheduleToCloseTimeout/startToCloseTimeout. Activity option
+            // validation throws a TypeError, which startActivity converts into a BAD_REQUEST
+            // HandlerError so the caller gets an actionable, non-retryable error instead of the
+            // operation silently retrying until it times out.
+            return await client.startActivity('echo', {
+              id: randomUUID(),
+              args: [input],
+            });
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const nexusSvc = client.nexus.createServiceClient({ endpoint: endpointName, service: temporalOpService });
+    const err = await t.throwsAsync(
+      nexusSvc.executeOperation(temporalOpService.operations.echoActivity, 'foo', {
+        id: randomUUID(),
+      }),
+      { instanceOf: NexusOperationFailureError }
+    );
+    assert(err?.cause instanceof nexus.HandlerError);
+    const inner = innermostHandlerError(err.cause);
+    t.is(inner.type, 'BAD_REQUEST');
+    t.regex(
+      inner.message,
+      /Failed to start activity: Either scheduleToCloseTimeout or startToCloseTimeout is required/
+    );
+  });
+});
+
+test('TemporalOperationHandler propagates backing activity failure', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const { client } = t.context.env;
+
+  const worker = await createWorker({
+    activities,
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        failingActivity: new temporalnexus.TemporalOperationHandler<string, void>({
+          async start(_ctx, client, message) {
+            // throwAnError(true, message) throws a non-retryable ApplicationFailure, so the
+            // backing activity fails permanently and the failure propagates to the Nexus caller.
+            return await client.typedActivity<typeof activities>().startActivity('throwAnError', {
+              id: randomUUID(),
+              args: [true, message],
+              scheduleToCloseTimeout: '10s',
+            });
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const nexusSvc = client.nexus.createServiceClient({ endpoint: endpointName, service: temporalOpService });
+    const err = await t.throwsAsync(
+      nexusSvc.executeOperation(temporalOpService.operations.failingActivity, 'activity failed', {
+        id: randomUUID(),
+      }),
+      { instanceOf: NexusOperationFailureError }
+    );
+
+    assert(err?.cause instanceof ApplicationFailure);
+    const activityFailure = err.cause.cause;
+    assert(activityFailure instanceof ApplicationFailure);
+    t.is(activityFailure.message, 'activity failed');
+    t.is(activityFailure.type, 'Error');
+    t.true(activityFailure.nonRetryable);
+  });
+});
+
 test('TemporalOperationHandler cancels backing activity', async (t) => {
   const { createWorker, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
@@ -725,8 +865,6 @@ test('TemporalOperationHandler invokes custom cancelActivity', async (t) => {
             return result;
           },
           async cancelActivity(ctx, { activityId, runId }) {
-            console.log('activityId', activityId);
-            console.log('runId', runId);
             const handle = temporalnexus.getClient().activity.getHandle(activityId, runId);
             await handle.cancel('test custom cancellation');
             customCancelCalled = true;
