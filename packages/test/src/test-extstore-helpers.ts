@@ -1,15 +1,13 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
 import type { LoadedDataConverter } from '@temporalio/common';
+import { StorageDriverClaim } from '@temporalio/common/lib/converter/extstore';
 import {
-  StorageDriverClaim,
   decodeReferencePayload,
   encodeReferencePayload,
-  isReferencePayload,
-} from '@temporalio/common/lib/converter/extstore';
-import {
   encodeToPayloads,
   isLoadedDataConverter,
+  isReferencePayload,
   loadDataConverter,
 } from '@temporalio/common/lib/internal-non-workflow';
 
