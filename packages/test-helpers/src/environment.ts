@@ -86,6 +86,7 @@ export async function createTestWorkflowEnvironment(
   if (process.env.TEMPORAL_SERVICE_ADDRESS) {
     env = await TestWorkflowEnvironment.createFromExistingServer({
       address: process.env.TEMPORAL_SERVICE_ADDRESS,
+      plugins: opts?.plugins,
     });
   } else {
     env = await createLocalTestEnvironment(opts);
