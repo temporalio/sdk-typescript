@@ -154,7 +154,14 @@ export class WorkflowStream {
     setHandler(workflowStreamPollUpdate, (input: PollInput) => this.onPoll(input), {
       validator: (_input: PollInput) => {
         if (this.draining) {
-          throw new Error('Workflow is draining for continue-as-new');
+          // Well-known type so a subscriber recognizes the rollover-in-progress
+          // and retries until its poll lands on the successor run, rather than
+          // surfacing the rejection as an error.
+          throw ApplicationFailure.create({
+            message: 'Workflow is draining for continue-as-new',
+            type: 'StreamDraining',
+            nonRetryable: true,
+          });
         }
       },
     });
