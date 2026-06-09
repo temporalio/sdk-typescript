@@ -149,5 +149,17 @@ export default tseslint.config(
       'import/no-unassigned-import': 'error',
       'import/no-named-default': 'error',
     },
+  },
+  {
+    files: ['contrib/openai-agents/src/**/*.ts'],
+    ignores: ['contrib/openai-agents/src/__tests__/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: ['@temporalio/*/src/*', '**/__tests__/**', '**/*.test'],
+        },
+      ],
+    },
   }
 );
