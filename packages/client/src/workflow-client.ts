@@ -93,8 +93,8 @@ import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
 import { WorkflowUpdateStage, encodeWorkflowUpdateStage } from './workflow-update-stage';
-import type { InternalWorkflowStartOptions } from './internal';
-import { InternalWorkflowStartOptionsSymbol } from './internal';
+import type { InternalWorkflowSignalOptions, InternalWorkflowStartOptions } from './internal';
+import { InternalWorkflowSignalOptionsSymbol, InternalWorkflowStartOptionsSymbol } from './internal';
 import { adaptWorkflowClientInterceptor } from './interceptor-adapters';
 
 const UpdateWorkflowExecutionLifecycleStage = temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
@@ -1211,6 +1211,9 @@ export class WorkflowClient extends BaseClient {
   protected async _signalWorkflowHandler(input: WorkflowSignalInput): Promise<void> {
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(input.workflowExecution.workflowId!);
+    const internalOptions = input[InternalWorkflowSignalOptionsSymbol];
+    // Server currently only supports workflow_event and batch_job link types.
+    const links = internalOptions?.links?.filter((link) => link.workflowEvent != null || link.batchJob != null);
     const req: temporal.api.workflowservice.v1.ISignalWorkflowExecutionRequest = {
       identity: this.options.identity,
       namespace: this.options.namespace,
@@ -1220,12 +1223,47 @@ export class WorkflowClient extends BaseClient {
       signalName: input.signalName,
       header: { fields: input.headers },
       input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args) },
+      links,
     };
     try {
-      await this.workflowService.signalWorkflowExecution(req);
+      const response = await this.workflowService.signalWorkflowExecution(req);
+      if (internalOptions != null) {
+        // Servers that support CHASM signal backlinks (1.31 and up) return a backlink pointing at
+        // the WorkflowExecutionSignaled event; older servers leave it unset.
+        internalOptions.backLink = response.link ?? undefined;
+      }
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to signal Workflow', input.workflowExecution);
     }
+  }
+
+  /**
+   * Signal a Workflow Execution, forwarding the given links onto the request and returning the
+   * backlink the server attached to the response (if any). Used by the Temporal Nexus helpers to
+   * link the caller and callee Workflows; not part of the public API.
+   *
+   * @internal
+   * @hidden
+   */
+  public async _signalWorkflowWithNexusLinks(
+    workflowExecution: WorkflowExecution,
+    signalName: string,
+    args: unknown[],
+    links: temporal.api.common.v1.ILink[]
+  ): Promise<temporal.api.common.v1.ILink | undefined> {
+    const interceptors = this.getOrMakeInterceptors(workflowExecution.workflowId);
+    const internalOptions: NonNullable<InternalWorkflowSignalOptions[typeof InternalWorkflowSignalOptionsSymbol]> = {
+      links,
+    };
+    const fn = composeInterceptors(interceptors, 'signal', this._signalWorkflowHandler.bind(this));
+    await fn({
+      workflowExecution,
+      signalName,
+      args,
+      headers: {},
+      [InternalWorkflowSignalOptionsSymbol]: internalOptions,
+    });
+    return internalOptions.backLink;
   }
 
   /**
@@ -1238,6 +1276,9 @@ export class WorkflowClient extends BaseClient {
     const { options, workflowType, signalName, signalArgs, headers } = input;
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(options.workflowId);
+    const internalOptions = (options as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
+    // Server currently only supports workflow_event and batch_job link types.
+    const links = internalOptions?.links?.filter((link) => link.workflowEvent != null || link.batchJob != null);
     const req: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest = {
       namespace: this.options.namespace,
       identity,
@@ -1270,9 +1311,16 @@ export class WorkflowClient extends BaseClient {
       userMetadata: await encodeUserMetadata(dataConverter, options.staticSummary, options.staticDetails, context),
       priority: options.priority ? compilePriority(options.priority) : undefined,
       versioningOverride: options.versioningOverride ?? undefined,
+      links,
     };
     try {
-      return (await this.workflowService.signalWithStartWorkflowExecution(req)).runId;
+      const response = await this.workflowService.signalWithStartWorkflowExecution(req);
+      if (internalOptions != null) {
+        // Servers that support CHASM signal backlinks (1.31 and up) return a backlink pointing at
+        // the WorkflowExecutionSignaled event; older servers leave it unset.
+        internalOptions.signalBackLink = response.signalLink ?? undefined;
+      }
+      return response.runId;
     } catch (err: any) {
       if (err.code === grpcStatus.ALREADY_EXISTS) {
         throw new WorkflowExecutionAlreadyStartedError(

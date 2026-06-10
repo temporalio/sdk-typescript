@@ -15,6 +15,7 @@ import type {
   NexusOperationIdConflictPolicy,
   NexusOperationIdReusePolicy,
 } from './nexus-types';
+import type { InternalWorkflowSignalOptions, InternalWorkflowSignalOptionsSymbol } from './internal';
 import type { CompiledScheduleOptions } from './schedule-types';
 import type {
   ActivityExecutionDescription,
@@ -89,6 +90,14 @@ export interface WorkflowSignalInput {
   readonly args: unknown[];
   readonly workflowExecution: WorkflowExecution;
   readonly headers: Headers;
+  /**
+   * SDK-internal options used by the Temporal Nexus helpers to forward inbound Nexus links onto
+   * the signal request and to capture the backlink returned on the response.
+   *
+   * @internal
+   * @hidden
+   */
+  readonly [InternalWorkflowSignalOptionsSymbol]?: InternalWorkflowSignalOptions[typeof InternalWorkflowSignalOptionsSymbol];
 }
 
 /** Input for WorkflowClientInterceptor.signalWithStart */

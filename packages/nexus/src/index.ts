@@ -17,6 +17,8 @@ export {
 
 export {
   startWorkflow,
+  signalWorkflow,
+  signalWithStartWorkflow,
   type CancelWorkflowRunOptions,
   type TemporalOperationHandlerOptions,
   TemporalOperationHandler,
@@ -27,4 +29,5 @@ export {
   WorkflowRunOperationHandler,
   WorkflowRunOperationStartHandler,
   WorkflowStartOptions,
+  WorkflowSignalWithStartOptions,
 } from './workflow-helpers';
