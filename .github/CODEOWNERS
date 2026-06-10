@@ -5,5 +5,6 @@
 * @temporalio/sdk
 
 /contrib/ai-sdk/           @temporalio/sdk @temporalio/ai-sdk
+/contrib/openai-agents/    @temporalio/sdk @temporalio/ai-sdk
 /contrib/strands/          @temporalio/sdk @temporalio/ai-sdk
 /contrib/workflow-streams/ @temporalio/sdk @temporalio/ai-sdk

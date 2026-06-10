@@ -1,0 +1,107 @@
+import { Agent } from '@openai/agents-core';
+import { ApplicationFailure } from '@temporalio/workflow';
+import { TemporalOpenAIRunner, statelessMcpServer, statefulMcpServer } from '../../workflow';
+
+export async function localActivityAgentWorkflow(prompt: string): Promise<string> {
+  const agent = new Agent({
+    name: 'LocalActivityAgent',
+    instructions: 'You are a helpful assistant.',
+    model: 'gpt-4o-mini',
+  });
+  const runner = new TemporalOpenAIRunner();
+  const result = await runner.run(agent, prompt);
+  return result.finalOutput ?? '';
+}
+
+export async function mcpFactoryArgWorkflow(prompt: string): Promise<string> {
+  const mcpServer = statelessMcpServer('testMcp', {
+    factoryArgument: { tenantId: 'tenant-42' },
+  });
+  const agent = new Agent({
+    name: 'McpFactoryArgAgent',
+    instructions: 'You have access to MCP tools.',
+    model: 'gpt-4o-mini',
+    mcpServers: [mcpServer],
+  });
+  const runner = new TemporalOpenAIRunner();
+  const result = await runner.run(agent, prompt, { maxTurns: 5 });
+  return result.finalOutput ?? '';
+}
+
+export async function summaryOverrideStringWorkflow(prompt: string): Promise<string> {
+  const agent = new Agent({
+    name: 'SummaryAgent',
+    instructions: 'You are a helpful assistant.',
+    model: 'gpt-4o-mini',
+  });
+  const runner = new TemporalOpenAIRunner();
+  const result = await runner.run(agent, prompt);
+  return result.finalOutput ?? '';
+}
+
+export async function statefulMcpNotConnectedWorkflow(): Promise<string> {
+  const server = statefulMcpServer('testStateful');
+  try {
+    await server.listTools();
+    return 'unexpected-success';
+  } catch (err: unknown) {
+    if (err instanceof ApplicationFailure) {
+      return err.message;
+    }
+    throw err;
+  }
+}
+
+export async function statefulMcpIsolationWorkflow(): Promise<string> {
+  const server = statefulMcpServer('isolationTest');
+  await server.connect();
+  try {
+    const tools = await server.listTools();
+    if (tools.length === 0) return 'no-tools';
+    const result = await server.callTool(tools[0]!.name, null);
+    return JSON.stringify(result);
+  } finally {
+    await server.cleanup();
+  }
+}
+
+export async function statefulMcpHeartbeatTimeoutWorkflow(): Promise<string> {
+  const server = statefulMcpServer('heartbeatTest', {
+    config: {
+      startToCloseTimeout: '30 seconds',
+      heartbeatTimeout: '1 second',
+      retryPolicy: { maximumAttempts: 1 },
+    },
+  });
+  await server.connect();
+  try {
+    await server.listTools();
+    return 'unexpected-success';
+  } catch (err: unknown) {
+    if (err instanceof ApplicationFailure) {
+      return `${err.type}: ${err.message}`;
+    }
+    throw err;
+  } finally {
+    await server.cleanup();
+  }
+}
+
+export async function statefulMcpSlowConnectHeartbeatWorkflow(): Promise<string> {
+  const server = statefulMcpServer('slowConnectTest', {
+    serverSessionConfig: {
+      heartbeatTimeout: '3 seconds',
+      startToCloseTimeout: '30 seconds',
+    },
+    config: {
+      startToCloseTimeout: '10 seconds',
+    },
+  });
+  await server.connect();
+  try {
+    const tools = await server.listTools();
+    return `connected:${tools.length}`;
+  } finally {
+    await server.cleanup();
+  }
+}

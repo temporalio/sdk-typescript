@@ -1,39 +1,57 @@
 /**
- * OperationTokenType is used to identify the type of Operation token.
- * Currently, we only have one type of Operation token: WorkflowRun.
+ * Serializable token identifying a Nexus operation target.
  *
  * @internal
  * @hidden
  */
-export interface WorkflowRunOperationToken {
+export interface OperationToken {
   /**
-   * Version of the token, by default we assume we're on version 1, this field is not emitted as part of the output,
+   * Version of the token, by default we assume we're on version 0, this field is not emitted as part of the output,
    * it's only used to reject newer token versions on load.
    */
   v?: number;
 
   /**
-   * Type of the Operation. Must be OPERATION_TOKEN_TYPE_WORKFLOW_RUN.
+   * Type of the Operation.
    */
   t: OperationTokenType;
 
   /**
-   * Namespace of the workflow.
+   * Namespace of the operation.
    */
   ns: string;
 
   /**
    * ID of the workflow.
    */
+  wid?: string;
+}
+
+/**
+ * An OperationToken that identifies a WorkflowRun operation.
+ *
+ * @internal
+ * @hidden
+ */
+export interface WorkflowRunOperationToken extends OperationToken {
+  t: typeof OperationTokenType.WORKFLOW_RUN;
   wid: string;
 }
-type OperationTokenType = (typeof OperationTokenType)[keyof typeof OperationTokenType];
+
+/**
+ * OperationTokenType is used to identify the type of Operation token.
+ * Currently, we only have one type of Operation token: WorkflowRun.
+ *
+ * @internal
+ * @hidden
+ */
+export type OperationTokenType = (typeof OperationTokenType)[keyof typeof OperationTokenType];
 
 /**
  * @internal
  * @hidden
  */
-const OperationTokenType = {
+export const OperationTokenType = {
   WORKFLOW_RUN: 1,
 } as const;
 
@@ -50,11 +68,11 @@ export function generateWorkflowRunOperationToken(namespace: string, workflowId:
 }
 
 /**
- * Load and validate a workflow run Operation token.
+ * Load and validate the common fields of an Operation token.
  */
-export function loadWorkflowRunOperationToken(data: string): WorkflowRunOperationToken {
+export function loadOperationToken(data: string): OperationToken {
   if (!data) {
-    throw new TypeError('invalid workflow run token: token is empty');
+    throw new TypeError('invalid operation token: token is empty');
   }
 
   let decoded: string;
@@ -64,24 +82,55 @@ export function loadWorkflowRunOperationToken(data: string): WorkflowRunOperatio
     throw new TypeError('failed to decode token', { cause: err });
   }
 
-  let token: WorkflowRunOperationToken;
+  let token: OperationToken;
   try {
     token = JSON.parse(decoded);
   } catch (err) {
-    throw new TypeError('failed to unmarshal workflow run Operation token', { cause: err });
+    throw new TypeError('failed to unmarshal Operation token', { cause: err });
   }
 
-  if (token.t !== OperationTokenType.WORKFLOW_RUN) {
-    throw new TypeError(`invalid workflow token type: ${token.t}, expected: ${OperationTokenType.WORKFLOW_RUN}`);
+  if (typeof token !== 'object' || token == null) {
+    throw new TypeError(`invalid operation token: expected object, got ${typeof token}`);
   }
   if (token.v !== undefined && token.v !== 0) {
-    throw new TypeError('invalid workflow run token: "v" field should not be present');
+    throw new TypeError('invalid operation token: "v" field should not be present');
   }
-  if (!token.wid) {
-    throw new TypeError('invalid workflow run token: missing workflow ID (wid)');
+  if (typeof token.t !== 'number') {
+    throw new TypeError(`invalid operation token: expected token type to be a number, got ${typeof token.t}`);
+  }
+  if (!isOperationTokenType(token.t)) {
+    throw new TypeError(`invalid operation token: unknown token type: ${token.t}`);
+  }
+  if (typeof token.ns !== 'string') {
+    throw new TypeError(`invalid operation token: expected namespace to be a string, got ${typeof token.ns}`);
   }
 
   return token;
+}
+
+/**
+ * Load and validate a workflow run Operation token.
+ */
+export function loadWorkflowRunOperationToken(data: string): WorkflowRunOperationToken {
+  const token = loadOperationToken(data);
+  assertWorkflowRunOperationToken(token);
+  return token;
+}
+
+/**
+ * Assert that an OperationToken identifies a workflow run.
+ */
+export function assertWorkflowRunOperationToken(token: OperationToken): asserts token is WorkflowRunOperationToken {
+  if (token.t !== OperationTokenType.WORKFLOW_RUN) {
+    throw new TypeError(`invalid workflow token type: ${token.t}, expected: ${OperationTokenType.WORKFLOW_RUN}`);
+  }
+  if (!token.wid || typeof token.wid !== 'string') {
+    throw new TypeError('invalid workflow run token: missing workflow ID (wid)');
+  }
+}
+
+function isOperationTokenType(value: number): value is OperationTokenType {
+  return Object.values(OperationTokenType).includes(value as OperationTokenType);
 }
 
 // Exported for use in tests.

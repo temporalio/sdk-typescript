@@ -1,11 +1,14 @@
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import asyncRetry from 'async-retry';
 import type Long from 'long';
 import type { WorkflowHandle, WorkflowHandleWithFirstExecutionRunId } from '@temporalio/client';
 import type { temporal } from '@temporalio/proto';
+import { createTestWorkflowBundle } from '@temporalio/test-helpers';
+import { Worker } from '@temporalio/worker';
 import { helpers, makeTestFunction } from './helpers-integration';
 import * as workflows from './workflows';
+import { loadHistory } from './helpers';
 
 const test = makeTestFunction({ workflowsPath: path.join(__dirname, 'workflows') });
 
@@ -98,4 +101,18 @@ test.serial('named random streams are reseeded after workflow reset', async (t) 
   t.not(d.random, b.random);
   t.not(d.uuid, b.uuid);
   t.not(d.childWorkflowId, b.childWorkflowId);
+});
+
+test.serial('can replay history with randoms from 1.17.2', async (t) => {
+  const hist = await loadHistory('random-replay-1.17.2.json');
+  await t.notThrowsAsync(async () => {
+    await Worker.runReplayHistory(
+      {
+        workflowBundle: await createTestWorkflowBundle({
+          workflowsPath: require.resolve('./workflows/random-streams'),
+        }),
+      },
+      hist
+    );
+  });
 });
