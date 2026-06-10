@@ -4,12 +4,21 @@
     "paths": {
       "@temporalio/ai-sdk": ["contrib/ai-sdk"],
       "@temporalio/interceptors-opentelemetry": ["contrib/interceptors-opentelemetry"],
+      "@temporalio/openai-agents": ["contrib/openai-agents"],
+      "@temporalio/openai-agents/otel": ["contrib/openai-agents/src/otel"],
+      "@temporalio/openai-agents/workflow": ["contrib/openai-agents/src/workflow"],
+      "@temporalio/openai-agents/workflow-interceptor": ["contrib/openai-agents/src/workflow/trace-interceptor"],
+      "@temporalio/openai-agents/*": ["contrib/openai-agents/src/*"],
       "@temporalio/*": ["packages/*"]
     }
   },
   "files": [
     "./packages/activity/src/index.ts",
     "./contrib/ai-sdk/src/index.ts",
+    "./contrib/openai-agents/src/index.ts",
+    "./contrib/openai-agents/src/otel.ts",
+    "./contrib/openai-agents/src/workflow.ts",
+    "./contrib/openai-agents/src/workflow/trace-interceptor.ts",
     "./packages/client/src/index.ts",
     "./packages/cloud/src/index.ts",
     "./packages/common/src/index.ts",
