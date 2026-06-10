@@ -1059,13 +1059,13 @@ export class Worker {
                         `Got start event for an already running activity: ${base64TaskToken}`
                       );
                     }
-                    info = await extractActivityInfo(
+                    info = await extractActivityInfo({
                       task,
-                      loadedDataConverter,
-                      this.options.namespace,
-                      this.options.taskQueue,
-                      context
-                    );
+                      dataConverter: loadedDataConverter,
+                      taskQueue: this.options.taskQueue,
+                      activityNamespace: this.options.namespace,
+                      context,
+                    });
 
                     const { activityType } = info;
                     // Use the corresponding activity if it exists, otherwise, fallback to default activity function (if exists)
@@ -2202,13 +2202,19 @@ function extractSourceMap(code: string): [string, string] {
 /**
  * Transform an ActivityTask into ActivityInfo to pass on into an Activity
  */
-async function extractActivityInfo(
-  task: coresdk.activity_task.ActivityTask,
-  dataConverter: LoadedDataConverter,
-  taskQueue: string,
-  activityNamespace: string,
-  context: ActivitySerializationContext
-): Promise<ActivityInfo> {
+async function extractActivityInfo({
+  task,
+  dataConverter,
+  taskQueue,
+  activityNamespace,
+  context,
+}: {
+  task: coresdk.activity_task.ActivityTask;
+  dataConverter: LoadedDataConverter;
+  taskQueue: string;
+  activityNamespace: string;
+  context: ActivitySerializationContext;
+}): Promise<ActivityInfo> {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
@@ -2236,7 +2242,7 @@ async function extractActivityInfo(
     workflowType: inWorkflow ? start.workflowType : undefined,
     heartbeatTimeoutMs: optionalTsToMs(start.heartbeatTimeout),
     heartbeatDetails,
-    activityNamespace: start.workflowNamespace,
+    activityNamespace,
     workflowNamespace: inWorkflow ? start.workflowNamespace : undefined,
     scheduledTimestampMs: requiredTsToMs(start.scheduledTime, 'scheduledTime'),
     startToCloseTimeoutMs: requiredTsToMs(start.startToCloseTimeout, 'startToCloseTimeout'),
@@ -2247,7 +2253,7 @@ async function extractActivityInfo(
     ),
     priority: decodePriority(start.priority),
     retryPolicy: decompileRetryPolicy(start.retryPolicy),
-    namespace: start.workflowNamespace,
+    namespace: activityNamespace,
     activityRunId: !inWorkflow ? start.runId : undefined,
     inWorkflow,
   };
