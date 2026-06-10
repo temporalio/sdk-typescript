@@ -2253,7 +2253,7 @@ async function extractActivityInfo({
     ),
     priority: decodePriority(start.priority),
     retryPolicy: decompileRetryPolicy(start.retryPolicy),
-    namespace: activityNamespace,
+    namespace: start.workflowNamespace || activityNamespace,
     activityRunId: !inWorkflow ? start.runId : undefined,
     inWorkflow,
   };

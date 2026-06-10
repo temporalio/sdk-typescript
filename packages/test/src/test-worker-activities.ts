@@ -107,7 +107,7 @@ test('Worker activity info does not confuse task queue and namespace', async (t)
       completed: {
         result: defaultPayloadConverter.toPayload({
           taskQueue: 'activity-task-queue',
-          namespace: 'activity-namespace',
+          namespace: 'workflow-namespace',
           activityNamespace: 'activity-namespace',
           workflowNamespace: 'workflow-namespace',
         }),
