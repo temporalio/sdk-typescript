@@ -10,7 +10,7 @@
     "lib/"
   ],
   "scripts": {
-    "build": "pnpm run \"/^build:.*/\"",
+    "build": "pnpm run build:protos && pnpm run build:ts",
     "build:ts": "tsc --build",
     "build:protos": "tsx ./scripts/compile-proto.ts"
   },
