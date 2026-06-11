@@ -1007,7 +1007,7 @@ if (RUN_INTEGRATION_TESTS) {
             activityType: 'emitOtelPluginMetric',
             namespace: 'default',
             source: 'activity',
-            taskQueue: 'default',
+            taskQueue,
           },
         },
         {
