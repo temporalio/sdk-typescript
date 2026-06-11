@@ -27,7 +27,7 @@ import type {
 } from '@temporalio/worker';
 import { bundleWorkflowCode, DefaultLogger, MetricsBuffer, Runtime, Worker } from '@temporalio/worker';
 import type { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
-import type { Context as ActivityContext, Info } from '@temporalio/activity';
+import type { Info } from '@temporalio/activity';
 import {
   RUN_INTEGRATION_TESTS,
   loadHistory as loadHistoryBase,
@@ -39,12 +39,11 @@ import {
 import type * as workflowImportStub from '../workflow/workflow-imports';
 import type * as workflowImportImpl from '../workflow/workflow-imports-impl';
 import { instrument, instrumentSync, NEXUS_SERVICE_ATTR_KEY, NEXUS_OPERATION_ATTR_KEY } from '../instrumentation';
-import type { OpenTelemetryNexusInboundInterceptor } from '../worker';
+import type { OpenTelemetryNexusInboundInterceptor, OpenTelemetryNexusOutboundInterceptor } from '../worker';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
   OpenTelemetryActivityOutboundInterceptor,
-  OpenTelemetryNexusOutboundInterceptor,
 } from '../worker';
 import type {
   OpenTelemetrySinks,
@@ -53,7 +52,7 @@ import type {
 } from '../workflow';
 import { SpanName, SPAN_DELIMITER } from '../workflow';
 import { OpenTelemetryWorkflowClientInterceptor } from '../client';
-import { OpenTelemetryPlugin, type OpenTelemetryPluginOptions } from '..';
+import { OpenTelemetryPlugin } from '..';
 import * as activities from './activities';
 import { createActivities as createAsyncActivities } from './activities/async-completer';
 import * as workflows from './workflows';
