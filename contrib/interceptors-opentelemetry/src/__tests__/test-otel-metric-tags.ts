@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import * as otelApi from '@opentelemetry/api';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
@@ -12,28 +13,6 @@ import {
 import { OpenTelemetryPlugin } from '..';
 import * as activities from './activities';
 import * as workflows from './workflows';
-
-class OtelSdkContext {
-  private readonly sdk: opentelemetry.NodeSDK;
-
-  constructor({
-    resource,
-    traceExporter,
-  }: {
-    resource: opentelemetry.resources.Resource;
-    traceExporter: opentelemetry.tracing.SpanExporter;
-  }) {
-    this.sdk = new opentelemetry.NodeSDK({ resource, traceExporter });
-  }
-
-  start(): void {
-    this.sdk.start();
-  }
-
-  async shutdown(): Promise<void> {
-    await this.sdk.shutdown();
-  }
-}
 
 const metricTagsTest = RUN_INTEGRATION_TESTS ? test.serial : test.skip;
 const sdkMetricAttributeKeys = new Set(['activityType', 'taskQueue', 'workflowType']);
@@ -50,7 +29,7 @@ metricTagsTest('OpenTelemetryPlugin does not attach trace context to metric tags
   const staticResource = new opentelemetry.resources.Resource({
     [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-metric-tags-worker',
   });
-  const otel = new OtelSdkContext({ resource: staticResource, traceExporter });
+  const otel = new opentelemetry.NodeSDK({ resource: staticResource, traceExporter });
   let env: TestWorkflowEnvironment | undefined;
 
   try {
@@ -111,6 +90,7 @@ metricTagsTest('OpenTelemetryPlugin does not attach trace context to metric tags
   } finally {
     await env?.teardown();
     await otel.shutdown();
+    otelApi.trace.disable();
     await Runtime._instance?.shutdown();
   }
 });
