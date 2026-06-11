@@ -133,12 +133,12 @@ test('decode update workflow Operation token errors', (t) => {
 test('decode activity Operation token errors', (t) => {
   const missingAIDToken = base64URLEncodeNoPadding('{"t":2,"ns":"ns","rid":"r"}');
   t.throws(() => assertActivityOperationToken(loadOperationToken(missingAIDToken)), {
-    message: /invalid activity token: missing activity ID \(aid\)/,
+    message: /invalid activity token: missing or invalid activity ID \(aid\)/,
   });
 
   const missingRIDToken = base64URLEncodeNoPadding('{"t":2,"ns":"ns","aid":"a"}');
   t.throws(() => assertActivityOperationToken(loadOperationToken(missingRIDToken)), {
-    message: /invalid activity token: missing activity run ID \(rid\)/,
+    message: /invalid activity token: missing or invalid activity run ID \(rid\)/,
   });
 });
 

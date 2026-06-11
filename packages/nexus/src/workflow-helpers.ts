@@ -163,7 +163,7 @@ export async function startWorkflow<T extends Workflow>(
   workflowTypeOrFunc: string | T,
   workflowOptions: WorkflowStartOptions<T>
 ): Promise<WorkflowHandle<WorkflowResultType<T>>> {
-  const { client, taskQueue } = getHandlerContext();
+  const { client, taskQueue, namespace } = getHandlerContext();
   const links = requestLinksToTemporalLinks(ctx);
   const internalOptions: InternalWorkflowStartOptions[typeof InternalWorkflowStartOptionsSymbol] = {
     links,
@@ -180,7 +180,7 @@ export async function startWorkflow<T extends Workflow>(
   // and Nexus Operation start recording
   const callbackHeaders = {
     ...ctx.callbackHeaders,
-    'nexus-operation-token': generateWorkflowRunOperationToken(client.options.namespace, workflowOptions.workflowId),
+    'nexus-operation-token': generateWorkflowRunOperationToken(namespace, workflowOptions.workflowId),
   };
 
   if (ctx.callbackUrl) {
@@ -695,10 +695,7 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
     await signalWithStartWorkflow(this.startOperationContext, workflowTypeOrFunc, workflowOptions);
   }
 
-  public async startActivity<R = any>(
-    activity: string,
-    options: ActivityOptions
-  ): Promise<TemporalOperationResult<R>> {
+  public async startActivity<R = any>(activity: string, options: ActivityOptions): Promise<TemporalOperationResult<R>> {
     return await this.withAsyncOperationStartReservation(async () => {
       const handle = await startActivity(this.startOperationContext, activity, options);
       const { namespace } = getHandlerContext();

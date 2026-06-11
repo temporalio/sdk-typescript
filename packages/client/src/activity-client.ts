@@ -399,7 +399,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       });
       const externalStorage = this.dataConverter.externalStorage;
       await visit(resp, walkDescribeActivityExecutionResponse, extstoreInboundOptions(externalStorage));
-      return buildActivityDescription(resp.info!, this.dataConverter);
+      return buildActivityDescription(resp.info!, resp.callbacks, this.dataConverter);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe activity');
     }
@@ -646,6 +646,7 @@ function buildActivityExecutionInfo(info: temporal.api.activity.v1.IActivityExec
 
 function buildActivityDescription(
   info: temporal.api.activity.v1.IActivityExecutionInfo,
+  callbacks: temporal.api.activity.v1.ICallbackInfo[],
   dataConverter: LoadedDataConverter
 ): ActivityExecutionDescription {
   const getHeartbeatDetails: <T>() => Promise<T | undefined> = async <T>() => {
@@ -664,6 +665,7 @@ function buildActivityDescription(
   return {
     ...buildActivityExecutionInfoCommonPart(info),
     rawInfo: info,
+    rawCallbacks: callbacks,
     runState: decodePendingActivityState(info.runState),
     scheduleToCloseTimeoutMs: optionalTsToMs(info.scheduleToCloseTimeout),
     scheduleToStartTimeoutMs: optionalTsToMs(info.scheduleToStartTimeout),
