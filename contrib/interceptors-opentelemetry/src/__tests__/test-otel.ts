@@ -25,7 +25,7 @@ import type {
   NexusInboundCallsInterceptor,
   NexusOutboundCallsInterceptor,
 } from '@temporalio/worker';
-import { bundleWorkflowCode, DefaultLogger, Runtime, Worker } from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, MetricsBuffer, Runtime, Worker } from '@temporalio/worker';
 import type { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
 import type { Context as ActivityContext, Info } from '@temporalio/activity';
 import {
@@ -34,6 +34,7 @@ import {
   createBaseBundlerOptions,
   createTestWorkflowBundle as createTestWorkflowBundleBase,
   createTestWorkflowEnvironment,
+  type TestWorkflowEnvironment,
 } from '@temporalio/test-helpers';
 import type * as workflowImportStub from '../workflow/workflow-imports';
 import type * as workflowImportImpl from '../workflow/workflow-imports-impl';
@@ -948,81 +949,86 @@ if (RUN_INTEGRATION_TESTS) {
   });
 }
 
-async function getPluginMetricTraceContext(options: OpenTelemetryPluginOptions) {
-  const otel = new OtelSdkContext({ resource: options.resource, traceExporter: new InMemorySpanExporter() });
-  otel.start();
-
-  try {
-    const tracer = otelApi.trace.getTracer('test-trace-context-metric-tags');
-    const plugin = new OpenTelemetryPlugin(options);
-    const activityOutbound = new OpenTelemetryActivityOutboundInterceptor({} as ActivityContext, options);
-    const nexusOutbound = new OpenTelemetryNexusOutboundInterceptor({} as nexus.OperationContext, options);
-    const next = <T>(input: T): T => input;
-
-    const tags = await tracer.startActiveSpan('active-span', async (span) => {
-      try {
-        const spanContext = span.spanContext();
-        const traceContext = {
-          trace_id: spanContext.traceId,
-          span_id: spanContext.spanId,
-          trace_flags: `0${spanContext.traceFlags.toString(16)}`,
-        };
-
-        return {
-          traceContext,
-          activityTags: activityOutbound.getMetricTags({ existing: 'activity' }, next),
-          nexusTags: nexusOutbound.getMetricTags({ existing: 'nexus' }, next),
-          logAttributes: activityOutbound.getLogAttributes({ existing: 'attribute' }, next),
-        };
-      } finally {
-        span.end();
-      }
+if (RUN_INTEGRATION_TESTS) {
+  test.serial('OpenTelemetryPlugin does not attach trace context to metric tags', async (t) => {
+    const buffer = new MetricsBuffer({ maxBufferSize: 1000 });
+    Runtime.install({
+      telemetryOptions: {
+        metrics: { buffer },
+      },
     });
 
-    return {
-      ...tags,
-      workflowInterceptorModuleNames: (
-        plugin.configureBundler({ workflowsPath: __filename }).workflowInterceptorModules ?? []
-      ).map((module) => path.basename(module, path.extname(module))),
-    };
-  } finally {
-    await otel.shutdown();
-  }
-}
+    const traceExporter = new InMemorySpanExporter();
+    const staticResource = new opentelemetry.resources.Resource({
+      [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-metric-tags-worker',
+    });
+    const otel = new OtelSdkContext({ resource: staticResource, traceExporter });
+    let env: TestWorkflowEnvironment | undefined;
 
-test.serial('OpenTelemetryPlugin adds trace context to metric tags by default', async (t) => {
-  const { activityTags, nexusTags, traceContext, workflowInterceptorModuleNames } = await getPluginMetricTraceContext({
-    resource: new opentelemetry.resources.Resource({}),
-    spanProcessor: new SimpleSpanProcessor(new InMemorySpanExporter()),
+    try {
+      otel.start();
+
+      const plugin = new OpenTelemetryPlugin({
+        resource: staticResource,
+        spanProcessor: new SimpleSpanProcessor(traceExporter),
+      });
+      env = await createTestWorkflowEnvironment({ plugins: [plugin] });
+      const taskQueue = `test-otel-metric-tags-${randomUUID()}`;
+      const worker = await Worker.create({
+        connection: env.nativeConnection,
+        workflowsPath: require.resolve('./workflows'),
+        activities,
+        taskQueue,
+        plugins: [plugin],
+      });
+
+      await worker.runUntil(
+        env.client.workflow.execute(workflows.metricTraceTags, {
+          taskQueue,
+          workflowId: randomUUID(),
+        })
+      );
+
+      const metricAssertions = Array.from(buffer.retrieveUpdates())
+        .filter((update) =>
+          ['otel-plugin-workflow-counter', 'otel-plugin-activity-counter'].includes(update.metric.name)
+        )
+        .map((update) => ({
+          metricName: update.metric.name,
+          value: update.value,
+          attributes: update.attributes,
+        }))
+        .sort((a, b) => a.metricName.localeCompare(b.metricName));
+
+      t.deepEqual(metricAssertions, [
+        {
+          metricName: 'otel-plugin-activity-counter',
+          value: 1,
+          attributes: {
+            activityType: 'emitOtelPluginMetric',
+            namespace: 'default',
+            source: 'activity',
+            taskQueue: 'default',
+          },
+        },
+        {
+          metricName: 'otel-plugin-workflow-counter',
+          value: 1,
+          attributes: {
+            namespace: 'default',
+            source: 'workflow',
+            taskQueue,
+            workflowType: 'metricTraceTags',
+          },
+        },
+      ]);
+    } finally {
+      await env?.teardown();
+      await otel.shutdown();
+      await Runtime._instance?.shutdown();
+    }
   });
-
-  t.deepEqual(activityTags, { ...traceContext, existing: 'activity' });
-  t.deepEqual(nexusTags, { ...traceContext, existing: 'nexus' });
-
-  t.deepEqual(workflowInterceptorModuleNames, ['workflow-interceptors']);
-});
-
-test.serial('OpenTelemetryPlugin disables trace context in metric tags when configured', async (t) => {
-  const { activityTags, nexusTags, logAttributes, traceContext, workflowInterceptorModuleNames } =
-    await getPluginMetricTraceContext({
-      resource: new opentelemetry.resources.Resource({}),
-      spanProcessor: new SimpleSpanProcessor(new InMemorySpanExporter()),
-      disableTraceContextInMetricTags: true,
-    });
-
-  t.deepEqual(activityTags, { existing: 'activity' });
-  t.deepEqual(nexusTags, { existing: 'nexus' });
-  t.false('trace_id' in activityTags);
-  t.false('span_id' in activityTags);
-  t.false('trace_flags' in activityTags);
-  t.false('trace_id' in nexusTags);
-  t.false('span_id' in nexusTags);
-  t.false('trace_flags' in nexusTags);
-
-  t.deepEqual(logAttributes, { ...traceContext, existing: 'attribute' });
-
-  t.deepEqual(workflowInterceptorModuleNames, ['workflow-interceptors-no-metric-trace-context']);
-});
+}
 
 test('Can replay otel history from 1.11.3', async (t) => {
   const hist = await loadHistory('otel_1_11_3.json');

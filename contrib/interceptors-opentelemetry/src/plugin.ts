@@ -23,12 +23,6 @@ export interface OpenTelemetryPluginOptions extends InterceptorOptions {
   readonly resource: Resource;
   /** Exporter used to send spans to a tracing backend */
   readonly spanProcessor: SpanProcessor;
-  /**
-   * Disable attaching active OpenTelemetry trace context to custom metric tags.
-   *
-   * Trace context is still attached to log attributes when available.
-   */
-  readonly disableTraceContextInMetricTags?: boolean;
 }
 
 /**
@@ -41,15 +35,8 @@ export interface OpenTelemetryPluginOptions extends InterceptorOptions {
  */
 export class OpenTelemetryPlugin extends SimplePlugin {
   constructor(readonly otelOptions: OpenTelemetryPluginOptions) {
-    const workflowInterceptorsPath = require.resolve(
-      otelOptions.disableTraceContextInMetricTags
-        ? './workflow-interceptors-no-metric-trace-context'
-        : './workflow-interceptors'
-    );
+    const workflowInterceptorsPath = require.resolve('./workflow-interceptors');
     const interceptorOptions = otelOptions.tracer ? { tracer: otelOptions.tracer } : {};
-    const outboundOptions = {
-      disableTraceContextInMetricTags: otelOptions.disableTraceContextInMetricTags,
-    };
     super({
       name: 'OpenTelemetryPlugin',
       clientInterceptors: {
@@ -63,13 +50,13 @@ export class OpenTelemetryPlugin extends SimplePlugin {
         activity: [
           (ctx) => ({
             inbound: new OpenTelemetryActivityInboundInterceptor(ctx, interceptorOptions),
-            outbound: new OpenTelemetryActivityOutboundInterceptor(ctx, outboundOptions),
+            outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
           }),
         ],
         nexus: [
           (ctx) => ({
             inbound: new OpenTelemetryNexusInboundInterceptor(ctx, interceptorOptions),
-            outbound: new OpenTelemetryNexusOutboundInterceptor(ctx, outboundOptions),
+            outbound: new OpenTelemetryNexusOutboundInterceptor(ctx),
           }),
         ],
       },
