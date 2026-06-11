@@ -38,11 +38,11 @@ import {
 import type * as workflowImportStub from '../workflow/workflow-imports';
 import type * as workflowImportImpl from '../workflow/workflow-imports-impl';
 import { instrument, instrumentSync, NEXUS_SERVICE_ATTR_KEY, NEXUS_OPERATION_ATTR_KEY } from '../instrumentation';
+import type { OpenTelemetryNexusInboundInterceptor } from '../worker'
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
   OpenTelemetryActivityOutboundInterceptor,
-  OpenTelemetryNexusInboundInterceptor,
   OpenTelemetryNexusOutboundInterceptor,
 } from '../worker';
 import type {
