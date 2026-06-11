@@ -93,7 +93,11 @@ import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
 import { WorkflowUpdateStage, encodeWorkflowUpdateStage } from './workflow-update-stage';
-import type { InternalWorkflowSignalOptions, InternalWorkflowStartOptions } from './internal';
+import type {
+  InternalWorkflowClientWithNexusLinks,
+  InternalWorkflowSignalOptions,
+  InternalWorkflowStartOptions,
+} from './internal';
 import { InternalWorkflowSignalOptionsSymbol, InternalWorkflowStartOptionsSymbol } from './internal';
 import { adaptWorkflowClientInterceptor } from './interceptor-adapters';
 
@@ -502,7 +506,7 @@ export class WithStartWorkflowOperation<T extends Workflow> {
  * Typically this client should not be instantiated directly, instead create the high level {@link Client} and use
  * {@link Client.workflow} to interact with Workflows.
  */
-export class WorkflowClient extends BaseClient {
+export class WorkflowClient extends BaseClient implements InternalWorkflowClientWithNexusLinks {
   public readonly options: LoadedWorkflowClientOptions;
 
   constructor(options?: WorkflowClientOptions) {

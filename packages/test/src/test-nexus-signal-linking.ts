@@ -14,8 +14,9 @@
  *    onto the StartOperationResponse so the caller's NexusOperationCompleted (sync) or
  *    NexusOperationStarted (async) event links to the callee's WorkflowExecutionSignaled event.
  *    The backlink is only produced by servers that support CHASM signal backlinks
- *    (`history.enableCHASMSignalBacklinks=true`, requires `history.enableChasm=true`, server 1.31+);
- *    older servers omit it, so the backward assertions only run when a backlink is present.
+ *    (`history.enableCHASMSignalBacklinks=true`, requires `history.enableChasm=true`, server 1.31+).
+ *    The test server below is launched with both flags enabled, so the backward assertions are
+ *    unconditional: a dropped backlink must fail the test.
  *
  * Mirrors the Java SDK's `SignalOperationLinkingTest`.
  */
@@ -64,7 +65,7 @@ const MODE_ASYNC_SIGNAL_WITH_START = 'asyncSignalWithStart';
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Workflows
 
-export async function signalCalleeWorkflow(expectedSignals: number): Promise<string> {
+export async function callee(expectedSignals: number): Promise<string> {
   const received: string[] = [];
   workflow.setHandler(pingSignal, (msg: string) => {
     received.push(msg);
@@ -75,7 +76,7 @@ export async function signalCalleeWorkflow(expectedSignals: number): Promise<str
 
 export const pingSignal = workflow.defineSignal<[string]>('ping');
 
-export async function signalCallerWorkflow(endpoint: string, input: string): Promise<string> {
+export async function caller(endpoint: string, input: string): Promise<string> {
   const client = workflow.createNexusServiceClient({ endpoint, service: signalingService });
   const [mode, rest] = splitFirst(input, ':');
 
@@ -108,7 +109,7 @@ function makeSignalingServiceHandler(taskQueue: string) {
         const [mode, rest] = splitFirst(input, ':');
         switch (mode) {
           case MODE_SIGNAL_WITH_START:
-            await client.signalWithStartWorkflow<typeof signalCalleeWorkflow, [string]>(signalCalleeWorkflow, {
+            await client.signalWithStartWorkflow<typeof callee, [string]>(callee, {
               workflowId: rest,
               taskQueue,
               args: [2],
@@ -121,7 +122,7 @@ function makeSignalingServiceHandler(taskQueue: string) {
             return temporalnexus.TemporalOperationResult.sync(`ok:${MODE_SIGNAL}`);
           case MODE_MULTI_SIGNAL_WITH_START:
             for (const id of rest.split(',')) {
-              await client.signalWithStartWorkflow<typeof signalCalleeWorkflow, [string]>(signalCalleeWorkflow, {
+              await client.signalWithStartWorkflow<typeof callee, [string]>(callee, {
                 workflowId: id,
                 taskQueue,
                 args: [1],
@@ -131,7 +132,7 @@ function makeSignalingServiceHandler(taskQueue: string) {
             }
             return temporalnexus.TemporalOperationResult.sync(`ok:multi:${rest}`);
           case MODE_ASYNC_SIGNAL_WITH_START:
-            await client.signalWithStartWorkflow<typeof signalCalleeWorkflow, [string]>(signalCalleeWorkflow, {
+            await client.signalWithStartWorkflow<typeof callee, [string]>(callee, {
               workflowId: rest,
               taskQueue,
               args: [1],
@@ -204,14 +205,14 @@ test('signal and signalWithStart from a Nexus handler forward links and propagat
   const { createWorker, startWorkflow, registerNexusEndpoint, taskQueue } = helpers(t);
   const { client } = t.context.env;
   const { endpointName } = await registerNexusEndpoint();
-  const calleeWorkflowId = `signal-callee-${randomUUID()}`;
+  const calleeWorkflowId = `callee-${randomUUID()}`;
 
   const worker = await createWorker({
     nexusServices: [makeSignalingServiceHandler(taskQueue)],
   });
 
   await worker.runUntil(async () => {
-    const callerHandle = await startWorkflow(signalCallerWorkflow, {
+    const callerHandle = await startWorkflow(caller, {
       args: [endpointName, `twoSync:${calleeWorkflowId}`],
     });
     const callerWorkflowId = callerHandle.workflowId;
@@ -227,12 +228,10 @@ test('signal and signalWithStart from a Nexus handler forward links and propagat
 
     const completedEvents = getAllEventsOfType(callerHistory, EventType.EVENT_TYPE_NEXUS_OPERATION_COMPLETED);
     t.is(completedEvents.length, 2, 'expected two NexusOperationCompleted events on the caller');
-    // Backlinks are only present on servers that support CHASM signal backlinks; assert them when
-    // the server returned them.
+    // The test server runs with CHASM signal backlinks enabled, so a backlink must be present on
+    // every NexusOperationCompleted event.
     for (const completed of completedEvents) {
-      if ((completed.links?.length ?? 0) >= 1) {
-        t.is(assertBacklink(t, completed), calleeWorkflowId);
-      }
+      t.is(assertBacklink(t, completed), calleeWorkflowId);
     }
   });
 });
@@ -241,6 +240,7 @@ test('async Nexus operation that signals propagates the backlink onto NexusOpera
   const { createWorker, startWorkflow, registerNexusEndpoint, taskQueue } = helpers(t);
   const { client } = t.context.env;
   const { endpointName } = await registerNexusEndpoint();
+  const callerWorkflowId = `async-caller-${randomUUID()}`;
   const calleeWorkflowId = `async-callee-${randomUUID()}`;
 
   const worker = await createWorker({
@@ -248,7 +248,8 @@ test('async Nexus operation that signals propagates the backlink onto NexusOpera
   });
 
   await worker.runUntil(async () => {
-    const callerHandle = await startWorkflow(signalCallerWorkflow, {
+    const callerHandle = await startWorkflow(caller, {
+      workflowId: callerWorkflowId,
       args: [endpointName, `${MODE_ASYNC_SIGNAL_WITH_START}:${calleeWorkflowId}`],
     });
     t.is(await callerHandle.result(), 'async-started');
@@ -263,9 +264,9 @@ test('async Nexus operation that signals propagates the backlink onto NexusOpera
 
     const startedEvents = getAllEventsOfType(callerHistory, EventType.EVENT_TYPE_NEXUS_OPERATION_STARTED);
     t.is(startedEvents.length, 1, 'expected exactly one NexusOperationStarted event for the async op');
-    if ((startedEvents[0].links?.length ?? 0) >= 1) {
-      t.is(assertBacklink(t, startedEvents[0]), calleeWorkflowId);
-    }
+    // The test server runs with CHASM signal backlinks enabled, so the backlink must be present on
+    // the NexusOperationStarted event.
+    t.is(assertBacklink(t, startedEvents[0]), calleeWorkflowId);
   });
 });
 
@@ -273,21 +274,18 @@ test('one Nexus operation signaling multiple callees lands a backlink per callee
   const { createWorker, startWorkflow, registerNexusEndpoint, taskQueue } = helpers(t);
   const { client } = t.context.env;
   const { endpointName } = await registerNexusEndpoint();
-  const calleeIds = [
-    `multi-callee-a-${randomUUID()}`,
-    `multi-callee-b-${randomUUID()}`,
-    `multi-callee-c-${randomUUID()}`,
-  ];
+  const callerWorkflowId = `multicaller-${randomUUID()}`;
+  const calleeIds = [`multicallee-a-${randomUUID()}`, `multicallee-b-${randomUUID()}`, `multicallee-c-${randomUUID()}`];
 
   const worker = await createWorker({
     nexusServices: [makeSignalingServiceHandler(taskQueue)],
   });
 
   await worker.runUntil(async () => {
-    const callerHandle = await startWorkflow(signalCallerWorkflow, {
+    const callerHandle = await startWorkflow(caller, {
+      workflowId: callerWorkflowId,
       args: [endpointName, `${MODE_MULTI_SIGNAL_WITH_START}:${calleeIds.join(',')}`],
     });
-    const callerWorkflowId = callerHandle.workflowId;
     t.is(await callerHandle.result(), `ok:multi:${calleeIds.join(',')}`);
 
     for (const calleeId of calleeIds) {
@@ -304,12 +302,12 @@ test('one Nexus operation signaling multiple callees lands a backlink per callee
     const completedEvents = getAllEventsOfType(callerHistory, EventType.EVENT_TYPE_NEXUS_OPERATION_COMPLETED);
     t.is(completedEvents.length, 1, 'expected exactly one NexusOperationCompleted event');
     const completed = completedEvents[0];
-    if ((completed.links?.length ?? 0) >= 1) {
-      t.is(completed.links!.length, calleeIds.length, 'expected one backlink per signaled callee');
-      const backlinkWorkflowIds = completed.links!.map((l) => l.workflowEvent?.workflowId);
-      for (const calleeId of calleeIds) {
-        t.true(backlinkWorkflowIds.includes(calleeId), `expected a backlink referencing callee ${calleeId}`);
-      }
+    // The test server runs with CHASM signal backlinks enabled, so one backlink per signaled callee
+    // must be present on the NexusOperationCompleted event.
+    t.is(completed.links!.length, calleeIds.length, 'expected one backlink per signaled callee');
+    const backlinkWorkflowIds = completed.links!.map((l) => l.workflowEvent?.workflowId);
+    for (const calleeId of calleeIds) {
+      t.true(backlinkWorkflowIds.includes(calleeId), `expected a backlink referencing callee ${calleeId}`);
     }
   });
 });

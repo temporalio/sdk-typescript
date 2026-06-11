@@ -7,7 +7,10 @@ import type {
   WorkflowSignalWithStartOptions as ClientWorkflowSignalWithStartOptions,
 } from '@temporalio/client';
 import { type temporal } from '@temporalio/proto';
-import type { InternalWorkflowStartOptions } from '@temporalio/client/lib/internal';
+import type {
+  InternalWorkflowClientWithNexusLinks,
+  InternalWorkflowStartOptions,
+} from '@temporalio/client/lib/internal';
 import { InternalWorkflowStartOptionsSymbol } from '@temporalio/client/lib/internal';
 import { convertNexusLinkToTemporalLink, convertTemporalLinkToNexusLink } from './link-converter';
 import {
@@ -185,12 +188,8 @@ export async function signalWorkflow(
 ): Promise<void> {
   const { client } = getHandlerContext();
   const links = inboundLinksToTemporalLinks(ctx);
-  const backLink = await (client.workflow as any)._signalWorkflowWithNexusLinks(
-    { workflowId },
-    signalName,
-    args,
-    links
-  );
+  const workflowClient: InternalWorkflowClientWithNexusLinks = client.workflow;
+  const backLink = await workflowClient._signalWorkflowWithNexusLinks({ workflowId }, signalName, args, links);
   pushBacklink(ctx, backLink);
 }
 

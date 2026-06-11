@@ -1,5 +1,6 @@
 import type { temporal } from '@temporalio/proto';
 import type { WorkflowOptions } from './workflow-options';
+import type { WorkflowExecution } from './types';
 
 /**
  * A symbol used to attach extra, SDK-internal options to the `WorkflowClient.start()` call.
@@ -75,4 +76,28 @@ export interface InternalWorkflowSignalOptions {
      */
     backLink?: temporal.api.common.v1.ILink;
   };
+}
+
+/**
+ * The SDK-internal surface of `WorkflowClient` used by the Temporal Nexus helpers to send a Signal
+ * while forwarding inbound Nexus task links and capturing the backlink the server returns.
+ *
+ * This mirrors the typed-symbol approach used by the start / signalWithStart paths (see
+ * {@link InternalWorkflowStartOptionsSymbol}), letting the Nexus helpers call the internal method
+ * type-safely instead of casting through `any`.
+ *
+ * @internal
+ * @hidden
+ */
+export interface InternalWorkflowClientWithNexusLinks {
+  /**
+   * Signal a Workflow Execution, forwarding the given links onto the request and returning the
+   * backlink the server attached to the response (if any). Not part of the public API.
+   */
+  _signalWorkflowWithNexusLinks(
+    workflowExecution: WorkflowExecution,
+    signalName: string,
+    args: unknown[],
+    links: temporal.api.common.v1.ILink[]
+  ): Promise<temporal.api.common.v1.ILink | undefined>;
 }
