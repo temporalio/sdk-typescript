@@ -148,8 +148,8 @@ export async function startWorkflow<T extends Workflow>(
   workflowTypeOrFunc: string | T,
   workflowOptions: WorkflowStartOptions<T>
 ): Promise<WorkflowHandle<WorkflowResultType<T>>> {
-  const { client, taskQueue } = getHandlerContext();
-  const token = generateWorkflowRunOperationToken(client.options.namespace, workflowOptions.workflowId);
+  const { client, taskQueue, namespace } = getHandlerContext();
+  const token = generateWorkflowRunOperationToken(namespace, workflowOptions.workflowId);
   return await startWithNexusOptions(ctx, token, async (internalOptions) => {
     const { taskQueue: userSpecifiedTaskQueue, ...rest } = workflowOptions;
     const startOptions: ClientWorkflowStartOptions = {
@@ -230,14 +230,14 @@ async function startActivity<R>(
   activity: string,
   activityOptions: ActivityOptions
 ): Promise<ActivityHandle<R>> {
-  const { client, taskQueue } = getHandlerContext();
+  const { client, taskQueue, namespace } = getHandlerContext();
 
   // Activity tokens included in nexus callback headers cannot have
   // run ID as it's unknown until the activity has been started so we
   // manually construct the token.
   const token = encodeOperationToken({
     t: OperationTokenType.ACTIVITY,
-    ns: client.options.namespace,
+    ns: namespace,
     aid: activityOptions.id,
   });
 

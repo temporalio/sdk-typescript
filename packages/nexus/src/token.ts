@@ -103,7 +103,7 @@ export function generateActivityOperationToken(namespace: string, activityId: st
 }
 
 /**
- * Encode an OPerationToken as a string.
+ * Encode an OperationToken as a string.
  */
 export function encodeOperationToken(token: OperationToken): string {
   return base64URLEncodeNoPadding(JSON.stringify(token));
@@ -179,10 +179,10 @@ export function assertActivityOperationToken(token: OperationToken): asserts tok
     throw new TypeError(`invalid activity token type: ${token.t}, expected: ${OperationTokenType.ACTIVITY}`);
   }
   if (!token.aid || typeof token.aid !== 'string') {
-    throw new TypeError('invalid activity token: missing activity ID (aid)');
+    throw new TypeError('invalid activity token: missing or invalid activity ID (aid)');
   }
   if (!token.rid || typeof token.rid !== 'string') {
-    throw new TypeError('invalid activity token: missing activity run ID (rid)');
+    throw new TypeError('invalid activity token: missing or invalid activity run ID (rid)');
   }
 }
 
