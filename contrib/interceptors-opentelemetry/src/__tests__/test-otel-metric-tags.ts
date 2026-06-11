@@ -57,9 +57,7 @@ metricTagsTest('OpenTelemetryPlugin does not attach trace context to metric tags
     );
 
     const metricAssertions = Array.from(buffer.retrieveUpdates())
-      .filter((update) =>
-        ['otel-plugin-workflow-counter', 'otel-plugin-activity-counter'].includes(update.metric.name)
-      )
+      .filter((update) => ['otel-plugin-workflow-counter', 'otel-plugin-activity-counter'].includes(update.metric.name))
       .map((update) => ({
         metricName: update.metric.name,
         value: update.value,
