@@ -43,6 +43,15 @@ export * from './definitions';
 let tracer: undefined | otel.Tracer = undefined;
 let contextManager: undefined | ContextManager = undefined;
 
+export interface OpenTelemetryWorkflowOutboundInterceptorOptions {
+  /**
+   * Disable attaching active OpenTelemetry trace context to custom metric tags.
+   *
+   * Trace context is still attached to log attributes when available.
+   */
+  readonly disableTraceContextInMetricTags?: boolean;
+}
+
 function getTracer(): otel.Tracer {
   if (contextManager === undefined) {
     contextManager = new ContextManager();
@@ -161,6 +170,8 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
  */
 export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsInterceptor {
   protected readonly tracer = getTracer();
+
+  constructor(protected readonly options: OpenTelemetryWorkflowOutboundInterceptorOptions = {}) {}
 
   public async scheduleActivity(
     input: ActivityInput,
@@ -302,6 +313,10 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     input: GetMetricTagsInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'getMetricTags'>
   ): GetMetricTagsInput {
+    if (this.options.disableTraceContextInMetricTags) {
+      return next(input);
+    }
+
     const span = otel.trace.getSpan(otel.context.active());
     const spanContext = span?.spanContext();
     if (spanContext && otel.isSpanContextValid(spanContext)) {

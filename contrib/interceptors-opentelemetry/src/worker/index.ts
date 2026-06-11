@@ -40,6 +40,15 @@ export interface InterceptorOptions {
   readonly tracer?: otel.Tracer;
 }
 
+export interface OpenTelemetryWorkerOutboundInterceptorOptions {
+  /**
+   * Disable attaching active OpenTelemetry trace context to custom metric tags.
+   *
+   * Trace context is still attached to log attributes when available.
+   */
+  readonly disableTraceContextInMetricTags?: boolean;
+}
+
 /**
  * Intercepts calls to start an Activity.
  *
@@ -82,7 +91,10 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
  * Attach OpenTelemetry context tracing attributes to emitted log messages and metrics, if appropriate.
  */
 export class OpenTelemetryActivityOutboundInterceptor implements ActivityOutboundCallsInterceptor {
-  constructor(protected readonly ctx: ActivityContext) {}
+  constructor(
+    protected readonly ctx: ActivityContext,
+    protected readonly options: OpenTelemetryWorkerOutboundInterceptorOptions = {}
+  ) {}
 
   public getLogAttributes(
     input: GetLogAttributesInput,
@@ -106,6 +118,10 @@ export class OpenTelemetryActivityOutboundInterceptor implements ActivityOutboun
     input: GetMetricTagsInput,
     next: Next<ActivityOutboundCallsInterceptor, 'getMetricTags'>
   ): GetMetricTagsInput {
+    if (this.options.disableTraceContextInMetricTags) {
+      return next(input);
+    }
+
     const span = otel.trace.getSpan(otel.context.active());
     const spanContext = span?.spanContext();
     if (spanContext && otel.isSpanContextValid(spanContext)) {
@@ -180,7 +196,10 @@ export class OpenTelemetryNexusInboundInterceptor implements NexusInboundCallsIn
  * Attaches OpenTelemetry context tracing attributes to emitted log messages and metrics.
  */
 export class OpenTelemetryNexusOutboundInterceptor implements NexusOutboundCallsInterceptor {
-  constructor(protected readonly ctx: nexus.OperationContext) {}
+  constructor(
+    protected readonly ctx: nexus.OperationContext,
+    protected readonly options: OpenTelemetryWorkerOutboundInterceptorOptions = {}
+  ) {}
 
   public getLogAttributes(
     input: GetLogAttributesInput,
@@ -204,6 +223,10 @@ export class OpenTelemetryNexusOutboundInterceptor implements NexusOutboundCalls
     input: GetMetricTagsInput,
     next: Next<NexusOutboundCallsInterceptor, 'getMetricTags'>
   ): GetMetricTagsInput {
+    if (this.options.disableTraceContextInMetricTags) {
+      return next(input);
+    }
+
     const span = otel.trace.getSpan(otel.context.active());
     const spanContext = span?.spanContext();
     if (spanContext && otel.isSpanContextValid(spanContext)) {
