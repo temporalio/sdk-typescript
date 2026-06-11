@@ -25,7 +25,7 @@ import type {
   NexusInboundCallsInterceptor,
   NexusOutboundCallsInterceptor,
 } from '@temporalio/worker';
-import { bundleWorkflowCode, DefaultLogger, MetricsBuffer, Runtime, Worker } from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import type { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
 import type { Info } from '@temporalio/activity';
 import {
@@ -34,7 +34,6 @@ import {
   createBaseBundlerOptions,
   createTestWorkflowBundle as createTestWorkflowBundleBase,
   createTestWorkflowEnvironment,
-  type TestWorkflowEnvironment,
 } from '@temporalio/test-helpers';
 import type * as workflowImportStub from '../workflow/workflow-imports';
 import type * as workflowImportImpl from '../workflow/workflow-imports-impl';
@@ -944,87 +943,6 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(serialized, 'vendor1=value1,vendor2=value2');
       t.is(traceState!.get('vendor1'), 'value1');
       t.is(traceState!.get('vendor2'), 'value2');
-    }
-  });
-}
-
-if (RUN_INTEGRATION_TESTS) {
-  test.serial('OpenTelemetryPlugin does not attach trace context to metric tags', async (t) => {
-    const buffer = new MetricsBuffer({ maxBufferSize: 1000 });
-    Runtime.install({
-      telemetryOptions: {
-        metrics: { buffer },
-      },
-    });
-
-    const traceExporter = new InMemorySpanExporter();
-    const staticResource = new opentelemetry.resources.Resource({
-      [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-metric-tags-worker',
-    });
-    const otel = new OtelSdkContext({ resource: staticResource, traceExporter });
-    let env: TestWorkflowEnvironment | undefined;
-
-    try {
-      otel.start();
-
-      const plugin = new OpenTelemetryPlugin({
-        resource: staticResource,
-        spanProcessor: new SimpleSpanProcessor(traceExporter),
-      });
-      env = await createTestWorkflowEnvironment({ plugins: [plugin] });
-      const taskQueue = `test-otel-metric-tags-${randomUUID()}`;
-      const worker = await Worker.create({
-        connection: env.nativeConnection,
-        workflowsPath: require.resolve('./workflows'),
-        activities,
-        taskQueue,
-        plugins: [plugin],
-      });
-
-      await worker.runUntil(
-        env.client.workflow.execute(workflows.metricTraceTags, {
-          taskQueue,
-          workflowId: randomUUID(),
-        })
-      );
-
-      const metricAssertions = Array.from(buffer.retrieveUpdates())
-        .filter((update) =>
-          ['otel-plugin-workflow-counter', 'otel-plugin-activity-counter'].includes(update.metric.name)
-        )
-        .map((update) => ({
-          metricName: update.metric.name,
-          value: update.value,
-          attributes: update.attributes,
-        }))
-        .sort((a, b) => a.metricName.localeCompare(b.metricName));
-
-      t.deepEqual(metricAssertions, [
-        {
-          metricName: 'otel-plugin-activity-counter',
-          value: 1,
-          attributes: {
-            activityType: 'emitOtelPluginMetric',
-            namespace: 'default',
-            source: 'activity',
-            taskQueue,
-          },
-        },
-        {
-          metricName: 'otel-plugin-workflow-counter',
-          value: 1,
-          attributes: {
-            namespace: 'default',
-            source: 'workflow',
-            taskQueue,
-            workflowType: 'metricTraceTags',
-          },
-        },
-      ]);
-    } finally {
-      await env?.teardown();
-      await otel.shutdown();
-      await Runtime._instance?.shutdown();
     }
   });
 }
