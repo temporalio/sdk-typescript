@@ -18,6 +18,7 @@ packages:
   - packages/worker
   - packages/workflow
   - contrib/ai-sdk
+  - contrib/google-adk-agents
   - contrib/interceptors-opentelemetry
   - contrib/interceptors-opentelemetry-v2
   - contrib/langsmith
