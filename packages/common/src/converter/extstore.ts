@@ -142,7 +142,6 @@ export class ExternalStorage {
     payloadSizeThreshold?: number;
   }) {
     if (!Array.isArray(drivers) || drivers.length === 0) {
-      // TODO: use the new stable error codes here
       throw new ValueError('ExternalStorage requires at least one driver');
     }
     if (
@@ -150,7 +149,6 @@ export class ExternalStorage {
       !Number.isFinite(payloadSizeThreshold) ||
       payloadSizeThreshold < 0
     ) {
-      // TODO: use the new stable error codes here
       throw new ValueError(
         `ExternalStorage.payloadSizeThreshold must be a non-negative finite number, got ${String(payloadSizeThreshold)}`
       );
@@ -159,18 +157,15 @@ export class ExternalStorage {
     const driversByName = new Map<string, StorageDriver>();
     for (const driver of drivers) {
       if (typeof driver?.name !== 'string' || driver.name.length === 0) {
-        // TODO: use the new stable error codes here
         throw new ValueError("Storage driver 'name' must be a non-empty string");
       }
       if (driversByName.has(driver.name)) {
-        // TODO: use the new stable error codes here
         throw new ValueError(`Duplicate storage driver name: '${driver.name}'`);
       }
       driversByName.set(driver.name, driver);
     }
 
     if (driverSelector === undefined && driversByName.size > 1) {
-      // TODO: use the new stable error codes here
       throw new ValueError('ExternalStorage.driverSelector is required when more than one driver is registered');
     }
 
