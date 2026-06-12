@@ -1,0 +1,56 @@
+{
+  "name": "@temporalio/google-adk-agents",
+  "version": "0.1.0",
+  "description": "Temporal plugin for the Google Agent Development Kit (@google/adk): run ADK agents as durable Temporal Workflows.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    },
+    "./testing": {
+      "types": "./lib/testing.d.ts",
+      "import": "./lib/testing.js"
+    }
+  },
+  "files": ["lib", "src"],
+  "scripts": {
+    "build": "tsc --build",
+    "build.watch": "tsc --build --watch",
+    "test": "vitest run"
+  },
+  "keywords": ["temporal", "google", "adk", "agents", "ai", "durable", "workflow"],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@temporalio/activity": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/plugin": "workspace:*",
+    "@temporalio/workflow": "workspace:*",
+    "@temporalio/workflow-streams": "workspace:*",
+    "@ungap/structured-clone": "^1.2.0",
+    "headers-polyfill": "^4.0.0",
+    "web-streams-polyfill": "^4.0.0"
+  },
+  "peerDependencies": {
+    "@google/adk": "^1.2.0",
+    "@google/genai": "*"
+  },
+  "devDependencies": {
+    "@google/adk": "^1.2.0",
+    "@google/genai": "*",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/testing": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": ">= 20.0.0"
+  }
+}
