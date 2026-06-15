@@ -91,8 +91,8 @@ export interface WorkflowSignalInput {
   readonly workflowExecution: WorkflowExecution;
   readonly headers: Headers;
   /**
-   * SDK-internal options used by the Temporal Nexus helpers to forward inbound Nexus links onto
-   * the signal request and to capture the backlink returned on the response.
+   * SDK-internal options used by the Temporal Nexus helpers to forward request links onto
+   * the signal request and to capture the response link returned on the response.
    *
    * @internal
    * @hidden

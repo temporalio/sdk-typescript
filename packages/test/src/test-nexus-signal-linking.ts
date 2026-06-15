@@ -16,7 +16,7 @@
  *    The backlink is only produced by servers that support CHASM signal backlinks
  *    (`history.enableCHASMSignalBacklinks=true`, requires `history.enableChasm=true`, server 1.31+).
  *    The test server below is launched with both flags enabled, so the backward assertions are
- *    unconditional: a dropped backlink must fail the test.
+ *    unconditional: a dropped response link must fail the test.
  *
  * Mirrors the Java SDK's `SignalOperationLinkingTest`.
  */
@@ -180,16 +180,18 @@ function assertForwardLinks(
 }
 
 /**
- * Assert that a single caller-side event carries a backlink to a callee's WorkflowExecutionSignaled
- * event. The server may key these via either an EventReference or a RequestIdReference; accept
- * either oneof variant. Returns the referenced callee workflowId.
+ * Assert that a single caller-side event carries a response link to a callee's
+ * WorkflowExecutionSignaled event. The server may key these via either an EventReference or a
+ * RequestIdReference; accept either oneof variant. Returns the referenced callee workflowId.
  */
-function assertBacklink(t: any, event: temporal.api.history.v1.IHistoryEvent): string {
-  t.true((event.links?.length ?? 0) >= 1, `expected a signal-event backlink on ${event.eventType}`);
-  const backlink = event.links![0].workflowEvent;
-  const backlinkEventType = backlink?.requestIdRef ? backlink.requestIdRef.eventType : backlink?.eventRef?.eventType;
-  t.is(backlinkEventType, EventType.EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED);
-  return backlink?.workflowId ?? '';
+function assertResponseLink(t: any, event: temporal.api.history.v1.IHistoryEvent): string {
+  t.true((event.links?.length ?? 0) >= 1, `expected a signal-event response link on ${event.eventType}`);
+  const responseLink = event.links![0].workflowEvent;
+  const responseLinkEventType = responseLink?.requestIdRef
+    ? responseLink.requestIdRef.eventType
+    : responseLink?.eventRef?.eventType;
+  t.is(responseLinkEventType, EventType.EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED);
+  return responseLink?.workflowId ?? '';
 }
 
 function splitFirst(s: string, sep: string): [string, string] {
@@ -201,7 +203,7 @@ function splitFirst(s: string, sep: string): [string, string] {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Tests
 
-test('signal and signalWithStart from a Nexus handler forward links and propagate backlinks', async (t) => {
+test('signal and signalWithStart from a Nexus handler forward links and propagate response links', async (t) => {
   const { createWorker, startWorkflow, registerNexusEndpoint, taskQueue } = helpers(t);
   const { client } = t.context.env;
   const { endpointName } = await registerNexusEndpoint();
@@ -228,15 +230,15 @@ test('signal and signalWithStart from a Nexus handler forward links and propagat
 
     const completedEvents = getAllEventsOfType(callerHistory, EventType.EVENT_TYPE_NEXUS_OPERATION_COMPLETED);
     t.is(completedEvents.length, 2, 'expected two NexusOperationCompleted events on the caller');
-    // The test server runs with CHASM signal backlinks enabled, so a backlink must be present on
-    // every NexusOperationCompleted event.
+    // The test server runs with CHASM signal backlinks enabled, so a response link must be present
+    // on every NexusOperationCompleted event.
     for (const completed of completedEvents) {
-      t.is(assertBacklink(t, completed), calleeWorkflowId);
+      t.is(assertResponseLink(t, completed), calleeWorkflowId);
     }
   });
 });
 
-test('async Nexus operation that signals propagates the backlink onto NexusOperationStarted', async (t) => {
+test('async Nexus operation that signals propagates the response link onto NexusOperationStarted', async (t) => {
   const { createWorker, startWorkflow, registerNexusEndpoint, taskQueue } = helpers(t);
   const { client } = t.context.env;
   const { endpointName } = await registerNexusEndpoint();
@@ -264,13 +266,13 @@ test('async Nexus operation that signals propagates the backlink onto NexusOpera
 
     const startedEvents = getAllEventsOfType(callerHistory, EventType.EVENT_TYPE_NEXUS_OPERATION_STARTED);
     t.is(startedEvents.length, 1, 'expected exactly one NexusOperationStarted event for the async op');
-    // The test server runs with CHASM signal backlinks enabled, so the backlink must be present on
-    // the NexusOperationStarted event.
-    t.is(assertBacklink(t, startedEvents[0]), calleeWorkflowId);
+    // The test server runs with CHASM signal backlinks enabled, so the response link must be present
+    // on the NexusOperationStarted event.
+    t.is(assertResponseLink(t, startedEvents[0]), calleeWorkflowId);
   });
 });
 
-test('one Nexus operation signaling multiple callees lands a backlink per callee', async (t) => {
+test('one Nexus operation signaling multiple callees lands a response link per callee', async (t) => {
   const { createWorker, startWorkflow, registerNexusEndpoint, taskQueue } = helpers(t);
   const { client } = t.context.env;
   const { endpointName } = await registerNexusEndpoint();
@@ -302,12 +304,12 @@ test('one Nexus operation signaling multiple callees lands a backlink per callee
     const completedEvents = getAllEventsOfType(callerHistory, EventType.EVENT_TYPE_NEXUS_OPERATION_COMPLETED);
     t.is(completedEvents.length, 1, 'expected exactly one NexusOperationCompleted event');
     const completed = completedEvents[0];
-    // The test server runs with CHASM signal backlinks enabled, so one backlink per signaled callee
-    // must be present on the NexusOperationCompleted event.
-    t.is(completed.links!.length, calleeIds.length, 'expected one backlink per signaled callee');
-    const backlinkWorkflowIds = completed.links!.map((l) => l.workflowEvent?.workflowId);
+    // The test server runs with CHASM signal backlinks enabled, so one response link per signaled
+    // callee must be present on the NexusOperationCompleted event.
+    t.is(completed.links!.length, calleeIds.length, 'expected one response link per signaled callee');
+    const responseLinkWorkflowIds = completed.links!.map((l) => l.workflowEvent?.workflowId);
     for (const calleeId of calleeIds) {
-      t.true(backlinkWorkflowIds.includes(calleeId), `expected a backlink referencing callee ${calleeId}`);
+      t.true(responseLinkWorkflowIds.includes(calleeId), `expected a response link referencing callee ${calleeId}`);
     }
   });
 });

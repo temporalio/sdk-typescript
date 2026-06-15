@@ -31,17 +31,17 @@ export interface InternalWorkflowStartOptions extends WorkflowOptions {
     links?: temporal.api.common.v1.ILink[];
 
     /**
-     * Backlink copied by the client from the StartWorkflowExecutionResponse.
+     * Response link copied by the client from the StartWorkflowExecutionResponse.
      * Only populated in servers newer than 1.27.
      */
-    backLink?: temporal.api.common.v1.ILink;
+    responseLink?: temporal.api.common.v1.ILink;
 
     /**
-     * Backlink copied by the client from the SignalWithStartWorkflowExecutionResponse.
-     * Only populated by servers that support CHASM signal backlinks (1.31 and up); left unset
+     * Response link copied by the client from the SignalWithStartWorkflowExecutionResponse.
+     * Only populated by servers that support CHASM signal response links (1.31 and up); left unset
      * otherwise.
      */
-    signalBackLink?: temporal.api.common.v1.ILink;
+    signalResponseLink?: temporal.api.common.v1.ILink;
 
     /**
      * Conflict options for when USE_EXISTING is specified.
@@ -55,8 +55,8 @@ export interface InternalWorkflowStartOptions extends WorkflowOptions {
 /**
  * A symbol used to attach extra, SDK-internal options to a `WorkflowHandle.signal()` call.
  *
- * Used by the Temporal Nexus helpers to forward inbound Nexus task links onto the signal request
- * and to capture the backlink returned on the SignalWorkflowExecutionResponse.
+ * Used by the Temporal Nexus helpers to forward request links onto the signal request
+ * and to capture the response link returned on the SignalWorkflowExecutionResponse.
  *
  * @internal
  * @hidden
@@ -70,17 +70,17 @@ export interface InternalWorkflowSignalOptions {
     links?: temporal.api.common.v1.ILink[];
 
     /**
-     * Backlink copied by the client from the SignalWorkflowExecutionResponse.
-     * Only populated by servers that support CHASM signal backlinks (1.31 and up); left unset
+     * Response link copied by the client from the SignalWorkflowExecutionResponse.
+     * Only populated by servers that support CHASM signal response links (1.31 and up); left unset
      * otherwise.
      */
-    backLink?: temporal.api.common.v1.ILink;
+    responseLink?: temporal.api.common.v1.ILink;
   };
 }
 
 /**
  * The SDK-internal surface of `WorkflowClient` used by the Temporal Nexus helpers to send a Signal
- * while forwarding inbound Nexus task links and capturing the backlink the server returns.
+ * while forwarding request links and capturing the response link the server returns.
  *
  * This mirrors the typed-symbol approach used by the start / signalWithStart paths (see
  * {@link InternalWorkflowStartOptionsSymbol}), letting the Nexus helpers call the internal method
@@ -92,7 +92,7 @@ export interface InternalWorkflowSignalOptions {
 export interface InternalWorkflowClientWithNexusLinks {
   /**
    * Signal a Workflow Execution, forwarding the given links onto the request and returning the
-   * backlink the server attached to the response (if any). Not part of the public API.
+   * response link the server attached to the response (if any). Not part of the public API.
    */
   _signalWorkflowWithNexusLinks(
     workflowExecution: WorkflowExecution,

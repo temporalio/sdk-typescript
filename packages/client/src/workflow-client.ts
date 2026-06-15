@@ -1232,9 +1232,9 @@ export class WorkflowClient extends BaseClient implements InternalWorkflowClient
     try {
       const response = await this.workflowService.signalWorkflowExecution(req);
       if (internalOptions != null) {
-        // Servers that support CHASM signal backlinks (1.31 and up) return a backlink pointing at
-        // the WorkflowExecutionSignaled event; older servers leave it unset.
-        internalOptions.backLink = response.link ?? undefined;
+        // Servers that support CHASM signal response links (1.31 and up) return a response link
+        // pointing at the WorkflowExecutionSignaled event; older servers leave it unset.
+        internalOptions.responseLink = response.link ?? undefined;
       }
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to signal Workflow', input.workflowExecution);
@@ -1243,8 +1243,8 @@ export class WorkflowClient extends BaseClient implements InternalWorkflowClient
 
   /**
    * Signal a Workflow Execution, forwarding the given links onto the request and returning the
-   * backlink the server attached to the response (if any). Used by the Temporal Nexus helpers to
-   * link the caller and callee Workflows; not part of the public API.
+   * response link the server attached to the response (if any). Used by the Temporal Nexus helpers
+   * to link the caller and callee Workflows; not part of the public API.
    *
    * @internal
    * @hidden
@@ -1267,7 +1267,7 @@ export class WorkflowClient extends BaseClient implements InternalWorkflowClient
       headers: {},
       [InternalWorkflowSignalOptionsSymbol]: internalOptions,
     });
-    return internalOptions.backLink;
+    return internalOptions.responseLink;
   }
 
   /**
@@ -1320,9 +1320,9 @@ export class WorkflowClient extends BaseClient implements InternalWorkflowClient
     try {
       const response = await this.workflowService.signalWithStartWorkflowExecution(req);
       if (internalOptions != null) {
-        // Servers that support CHASM signal backlinks (1.31 and up) return a backlink pointing at
-        // the WorkflowExecutionSignaled event; older servers leave it unset.
-        internalOptions.signalBackLink = response.signalLink ?? undefined;
+        // Servers that support CHASM signal response links (1.31 and up) return a response link
+        // pointing at the WorkflowExecutionSignaled event; older servers leave it unset.
+        internalOptions.signalResponseLink = response.signalLink ?? undefined;
       }
       return response.runId;
     } catch (err: any) {
@@ -1349,7 +1349,7 @@ export class WorkflowClient extends BaseClient implements InternalWorkflowClient
     try {
       const response = await this.workflowService.startWorkflowExecution(req);
       if (internalOptions != null) {
-        internalOptions.backLink = response.link ?? undefined;
+        internalOptions.responseLink = response.link ?? undefined;
       }
       return {
         runId: response.runId,

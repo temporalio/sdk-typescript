@@ -81,7 +81,7 @@ export type WorkflowStartOptions<T extends Workflow> = Replace<ClientWorkflowSta
 /**
  * Starts a workflow run for a {@link WorkflowRunOperationStartHandler}, linking the execution chain
  * to a Nexus Operation (subsequent runs started from continue-as-new and retries). Automatically
- * propagates the callback, request ID, and back and forward links from the Nexus options to the
+ * propagates the callback, request ID, and request and response links from the Nexus options to the
  * Workflow.
  *
  * @experimental Nexus support in Temporal SDK is experimental.
@@ -92,7 +92,7 @@ export async function startWorkflow<T extends Workflow>(
   workflowOptions: WorkflowStartOptions<T>
 ): Promise<WorkflowHandle<WorkflowResultType<T>>> {
   const { client, taskQueue } = getHandlerContext();
-  const links = inboundLinksToTemporalLinks(ctx);
+  const links = requestLinksToTemporalLinks(ctx);
   const internalOptions: InternalWorkflowStartOptions[typeof InternalWorkflowStartOptionsSymbol] = {
     links,
     requestId: ctx.requestId,
@@ -128,7 +128,7 @@ export async function startWorkflow<T extends Workflow>(
   };
 
   const handle = await client.workflow.start(workflowTypeOrFunc, startOptions);
-  pushBacklink(ctx, internalOptions.backLink);
+  pushResponseLink(ctx, internalOptions.responseLink);
 
   return {
     workflowId: handle.workflowId,
@@ -137,11 +137,11 @@ export async function startWorkflow<T extends Workflow>(
 }
 
 /**
- * Converts the inbound Nexus links carried on the operation start context into Temporal links so
+ * Converts the request links carried on the operation start context into Temporal links so
  * they can be forwarded onto an outgoing Workflow RPC (signal, signalWithStart, start). Links that
  * fail to convert are logged and dropped.
  */
-function inboundLinksToTemporalLinks(ctx: nexus.StartOperationContext): temporal.api.common.v1.ILink[] {
+function requestLinksToTemporalLinks(ctx: nexus.StartOperationContext): temporal.api.common.v1.ILink[] {
   const links = Array<temporal.api.common.v1.ILink>();
   if (ctx.inboundLinks?.length > 0) {
     for (const l of ctx.inboundLinks) {
@@ -156,27 +156,30 @@ function inboundLinksToTemporalLinks(ctx: nexus.StartOperationContext): temporal
 }
 
 /**
- * Pushes a backlink returned by an outbound Workflow RPC onto the operation's outbound links so the
- * Nexus task handler attaches it to the StartOperationResponse, linking the caller Workflow's
+ * Pushes a response link returned by an outbound Workflow RPC onto the operation's outbound links so
+ * the Nexus task handler attaches it to the StartOperationResponse, linking the caller Workflow's
  * NexusOperation history event back to the callee Workflow's event. No-op when the server did not
- * return a backlink (older servers, or CHASM signal backlinks disabled).
+ * return a response link (older servers, or CHASM signal response links disabled).
  */
-function pushBacklink(ctx: nexus.StartOperationContext, backLink: temporal.api.common.v1.ILink | undefined): void {
-  if (backLink == null) {
+function pushResponseLink(
+  ctx: nexus.StartOperationContext,
+  responseLink: temporal.api.common.v1.ILink | undefined
+): void {
+  if (responseLink == null) {
     return;
   }
   try {
-    ctx.outboundLinks.push(convertTemporalLinkToNexusLink(backLink));
+    ctx.outboundLinks.push(convertTemporalLinkToNexusLink(responseLink));
   } catch (error) {
     log.warn('failed to convert temporal link to Nexus link', { error });
   }
 }
 
 /**
- * Sends a Signal to a Workflow as part of a Nexus Operation, forwarding the inbound Nexus links onto
- * the Signal request and propagating the backlink the server returns (when supported) so the caller
- * Workflow's NexusOperation history event links to the WorkflowExecutionSignaled event on the
- * callee.
+ * Sends a Signal to a Workflow as part of a Nexus Operation, forwarding the request links onto
+ * the Signal request and propagating the response link the server returns (when supported) so the
+ * caller Workflow's NexusOperation history event links to the WorkflowExecutionSignaled event on
+ * the callee.
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
@@ -187,10 +190,10 @@ export async function signalWorkflow(
   args: unknown[] = []
 ): Promise<void> {
   const { client } = getHandlerContext();
-  const links = inboundLinksToTemporalLinks(ctx);
+  const links = requestLinksToTemporalLinks(ctx);
   const workflowClient: InternalWorkflowClientWithNexusLinks = client.workflow;
-  const backLink = await workflowClient._signalWorkflowWithNexusLinks({ workflowId }, signalName, args, links);
-  pushBacklink(ctx, backLink);
+  const responseLink = await workflowClient._signalWorkflowWithNexusLinks({ workflowId }, signalName, args, links);
+  pushResponseLink(ctx, responseLink);
 }
 
 /**
@@ -207,8 +210,9 @@ export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> = Repl
 /**
  * Signals a Workflow, starting it first if it is not already running, as part of a Nexus Operation.
  * Forwards the inbound Nexus links onto both the WorkflowExecutionStarted and
- * WorkflowExecutionSignaled events and propagates the backlink the server returns (when supported)
- * so the caller Workflow's NexusOperation history event links to the callee's signal event.
+ * WorkflowExecutionSignaled events and propagates the response link the server returns (when
+ * supported) so the caller Workflow's NexusOperation history event links to the callee's signal
+ * event.
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
@@ -218,7 +222,7 @@ export async function signalWithStartWorkflow<T extends Workflow, SignalArgs ext
   workflowOptions: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SignalArgs>>
 ): Promise<WorkflowHandle<WorkflowResultType<T>>> {
   const { client, taskQueue } = getHandlerContext();
-  const links = inboundLinksToTemporalLinks(ctx);
+  const links = requestLinksToTemporalLinks(ctx);
   const internalOptions: NonNullable<InternalWorkflowStartOptions[typeof InternalWorkflowStartOptionsSymbol]> = {
     links,
   };
@@ -231,7 +235,7 @@ export async function signalWithStartWorkflow<T extends Workflow, SignalArgs ext
   } as unknown as WithWorkflowArgs<T, ClientWorkflowSignalWithStartOptions<SignalArgs>>;
 
   const handle = await client.workflow.signalWithStart(workflowTypeOrFunc, signalWithStartOptions);
-  pushBacklink(ctx, internalOptions.signalBackLink);
+  pushResponseLink(ctx, internalOptions.signalResponseLink);
 
   return {
     workflowId: handle.workflowId,
@@ -322,8 +326,8 @@ export interface TemporalNexusClient {
   ): Promise<TemporalOperationResult<WorkflowResultType<T>>>;
 
   /**
-   * Sends a Signal to a Workflow, forwarding the Nexus Operation's inbound links onto the Signal
-   * request and propagating the backlink the server returns (when supported).
+   * Sends a Signal to a Workflow, forwarding the Nexus Operation's request links onto the Signal
+   * request and propagating the response link the server returns (when supported).
    *
    * @experimental Nexus support in Temporal SDK is experimental.
    */
@@ -331,7 +335,7 @@ export interface TemporalNexusClient {
 
   /**
    * Signals a Workflow, starting it first if it is not already running, forwarding the Nexus
-   * Operation's inbound links and propagating the backlink the server returns (when supported).
+   * Operation's request links and propagating the response link the server returns (when supported).
    *
    * @experimental Nexus support in Temporal SDK is experimental.
    */
@@ -372,8 +376,8 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
   }
 
   /**
-   * Sends a Signal to a Workflow, forwarding the Nexus Operation's inbound links and propagating the
-   * backlink the server returns (when supported).
+   * Sends a Signal to a Workflow, forwarding the Nexus Operation's request links and propagating the
+   * response link the server returns (when supported).
    *
    * @experimental Nexus support in Temporal SDK is experimental.
    */
@@ -383,7 +387,7 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
 
   /**
    * Signals a Workflow, starting it first if it is not already running, forwarding the Nexus
-   * Operation's inbound links and propagating the backlink the server returns (when supported).
+   * Operation's request links and propagating the response link the server returns (when supported).
    *
    * @experimental Nexus support in Temporal SDK is experimental.
    */
