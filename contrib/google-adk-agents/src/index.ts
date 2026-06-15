@@ -9,6 +9,7 @@
 
 // Side-effect import: install Workflow-sandbox polyfills (gated internally on
 // `inWorkflowContext()`) before any ADK code runs in the bundle.
+// eslint-disable-next-line import/no-unassigned-import
 import './load-polyfills.js';
 
 export { GoogleAdkPlugin } from './plugin.js';

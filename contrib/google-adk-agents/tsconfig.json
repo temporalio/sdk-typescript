@@ -1,20 +1,24 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
+    "outDir": "./lib",
+    "rootDir": "./src",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2022", "ESNext.Disposable", "DOM"],
-    "types": ["node"],
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "./lib",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "composite": true
+    "target": "ES2022"
   },
+  "references": [
+    { "path": "../../packages/plugin" },
+    { "path": "../../packages/worker" },
+    { "path": "../../packages/workflow" },
+    { "path": "../../packages/activity" },
+    { "path": "../../packages/client" },
+    { "path": "../../packages/common" },
+    { "path": "../../packages/proto" },
+    { "path": "../../packages/test-helpers" },
+    { "path": "../../packages/testing" },
+    { "path": "../workflow-streams" }
+  ],
   "include": ["./src/**/*.ts"]
 }

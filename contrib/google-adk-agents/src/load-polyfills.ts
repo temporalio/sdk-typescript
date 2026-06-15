@@ -19,15 +19,18 @@ if (inWorkflowContext()) {
   const globals = globalThis as Record<string, unknown>;
 
   if (typeof globals.Headers === 'undefined') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Headers } = require('headers-polyfill');
     globals.Headers = Headers;
   }
 
   if (typeof globals.structuredClone === 'undefined') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     globals.structuredClone = require('@ungap/structured-clone').default;
   }
 
   if (typeof globals.ReadableStream === 'undefined') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports,import/no-unassigned-import
     require('web-streams-polyfill/polyfill');
   }
 }
