@@ -23,6 +23,18 @@ test('moduleMatches works', (t) => {
   t.false(moduleMatches('fs', ['foo']));
 });
 
+test('An error is thrown when workflow references the process global', async (t) => {
+  await t.throwsAsync(
+    bundleWorkflowCode({
+      workflowsPath: require.resolve('./mocks/workflows-with-process-global'),
+    }),
+    {
+      instanceOf: Error,
+      message: /is importing the following disallowed modules.*process/s,
+    }
+  );
+});
+
 async function runPreloadSharedCounter(
   t: ExecutionContext,
   workerOptions: Pick<WorkerOptions, 'bundlerOptions' | 'workflowBundle' | 'workflowsPath'>

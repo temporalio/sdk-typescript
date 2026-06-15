@@ -238,6 +238,22 @@ exports.importInterceptors = function importInterceptors() {
         },
       },
       plugins: [
+        {
+          apply: (compiler) => {
+            compiler.hooks.normalModuleFactory.tap('WorkflowCodeBundler', (normalModuleFactory) => {
+              for (const moduleType of ['javascript/auto', 'javascript/dynamic', 'javascript/esm']) {
+                normalModuleFactory.hooks.parser.for(moduleType).tap('WorkflowCodeBundler', (parser) => {
+                  const javascriptParser = parser as any;
+                  javascriptParser.hooks.expression.for('process').tap('WorkflowCodeBundler', () => {
+                    if (!javascriptParser.isVariableDefined('process')) {
+                      this.foundProblematicModules.add('process');
+                    }
+                  });
+                });
+              }
+            });
+          },
+        },
         // `@temporalio/interceptors-opentelemetry` only requires `@temporalio/workflow` for interceptors that run in workflow context.
         // In order to keep `@temporalio/workflow` as an optional peer dependency for `@temporalio/interceptors-opentelemetry`
         // we use `workflow-imports` to reexport all required imports from `@temporalio/workflow`.
