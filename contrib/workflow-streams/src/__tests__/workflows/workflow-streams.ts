@@ -3,6 +3,7 @@
  */
 
 import {
+  allHandlersFinished,
   condition,
   continueAsNew,
   defineQuery,
@@ -28,6 +29,7 @@ const {
 
 export const closeSignal = defineSignal('close');
 export const triggerContinueSignal = defineSignal('triggerContinue');
+export const releaseSignal = defineSignal('release');
 export const truncateUpdate = defineUpdate<void, [number]>('truncate');
 export const getStateWithTtlQuery = defineQuery<WorkflowStreamState, [number]>('getStateWithTtl');
 export const publisherSequencesQuery = defineQuery<Record<string, number>>('publisherSequences');
@@ -191,4 +193,33 @@ export async function continueAsNewHelperWorkflow(input: CANWorkflowInput): Prom
   await condition(() => shouldContinue || closed);
   if (closed) return;
   await stream.continueAsNew<typeof continueAsNewHelperWorkflow>((state) => [{ streamState: state }]);
+}
+
+/**
+ * CAN workflow that detaches pollers and then *holds* in the draining state
+ * until released, so a subscriber deterministically hits the draining poll
+ * rejection before the rollover completes.
+ */
+export async function drainingGateWorkflow(input: CANWorkflowInput): Promise<void> {
+  const stream = new WorkflowStream(input.streamState);
+  let closed = false;
+  let shouldContinue = false;
+  let released = false;
+  setHandler(closeSignal, () => {
+    closed = true;
+  });
+  setHandler(triggerContinueSignal, () => {
+    shouldContinue = true;
+  });
+  setHandler(releaseSignal, () => {
+    released = true;
+  });
+  await condition(() => shouldContinue || closed);
+  if (closed) return;
+  // Detach but stay open until released, so new polls are rejected with
+  // StreamDraining for a deterministic window.
+  stream.detachPollers();
+  await condition(() => released);
+  await condition(() => allHandlersFinished());
+  await continueAsNew<typeof drainingGateWorkflow>({ streamState: stream.getState() });
 }

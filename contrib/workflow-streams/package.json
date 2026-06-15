@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/workflow-streams",
-  "version": "1.17.0",
+  "version": "1.18.1",
   "description": "Temporal.io SDK Workflow Streams contrib module",
   "exports": {
     "./workflow": {
