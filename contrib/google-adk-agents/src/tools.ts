@@ -80,7 +80,11 @@ export class ActivityTool extends BaseTool {
     const activities = proxyActivities<Record<string, (args: Record<string, unknown>) => Promise<unknown>>>(
       activityOptionsFrom(this.activityOptions, `adk.tool ${this.name}`),
     );
-    return activities[this.name](request.args);
+    // `proxyActivities` returns a Proxy that materializes a stub for any name,
+    // so the indexed access is always defined; `noUncheckedIndexedAccess`
+    // widens the static type to `| undefined`, hence the assertion.
+    const activity = activities[this.name]!;
+    return activity(request.args);
   }
 }
 

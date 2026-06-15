@@ -14,6 +14,7 @@ import {
   stringifyContent,
   type LlmRequest,
 } from '@google/adk';
+import type { Duration } from '@temporalio/common';
 import {
   condition,
   defineSignal,
@@ -21,7 +22,7 @@ import {
   setHandler,
 } from '@temporalio/workflow';
 
-import { TemporalLlm, TemporalMcpToolset, activityAsTool } from '../src/index.js';
+import { TemporalLlm, TemporalMcpToolset, activityAsTool } from '../index.js';
 
 /** Build a minimal, serializable LlmRequest for a single user turn. */
 function makeRequest(text: string): LlmRequest {
@@ -101,7 +102,7 @@ export async function modelCallWithSummary(prompt: string): Promise<string> {
 
 /** Streaming (SSE) model call; returns concatenated chunk text + chunk count. */
 export async function streamingModelCall(
-  batchInterval = '50 milliseconds',
+  batchInterval: Duration = '50 milliseconds',
 ): Promise<{ text: string; chunks: number }> {
   const llm = new TemporalLlm('fake-model', {
     streamingTopic: 'adk-test-stream',
