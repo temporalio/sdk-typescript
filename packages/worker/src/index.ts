@@ -65,6 +65,7 @@ export { DataConverter, defaultPayloadConverter, State, Worker, WorkerStatus } f
 export {
   CompiledWorkerOptions,
   ReplayWorkerOptions,
+  WebpackConfiguration,
   WorkerDeploymentOptions,
   WorkerOptions,
   WorkerPlugin,
