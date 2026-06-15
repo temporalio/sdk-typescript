@@ -19,20 +19,21 @@
  * the reconstructed objects and never travel in activity inputs.
  */
 
-import { ApplicationFailure } from '@temporalio/common';
-import { Context as ActivityContext } from '@temporalio/activity';
-import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 import {
-  BaseToolset,
   LLMRegistry,
   MCPToolset,
   isBaseToolset,
   type BaseLlm,
+  type BaseToolset,
   type Context as AdkToolContext,
   type LlmRequest,
   type LlmResponse,
 } from '@google/adk';
 import type { FunctionDeclaration } from '@google/genai';
+import type { Duration } from '@temporalio/common';
+import { ApplicationFailure } from '@temporalio/common';
+import { Context as ActivityContext } from '@temporalio/activity';
+import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 
 import type {
   InvokeModelArgs,
@@ -94,18 +95,24 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
       // The stream client is an explicit async resource — disposing it flushes
       // any buffered items. We dispose it in `finally` rather than via the TC39
       // `await using` declaration: `await using` is not parseable on this
-      // package's Node floor (`engines.node >= 20`), and the vitest/esbuild
-      // transform passes the syntax through un-downleveled, so it would throw a
+      // package's Node floor (`engines.node >= 20`), so it would throw a
       // load-time `SyntaxError` and break every module import. Manual disposal
       // is the documented fallback (`await client[Symbol.asyncDispose]()`).
       // Chunks are published for external observers; the full, ordered
       // transcript is still returned to the Workflow (the deterministic,
       // replay-safe channel).
-      const stream = WorkflowStreamClient.fromWithinActivity({
-        batchInterval: args.batchInterval ?? DEFAULT_STREAM_BATCH_INTERVAL,
-      });
-      const events = stream.topic<LlmResponse>(args.streamingTopic);
+      //
+      // Install the adaptive heartbeat (as `invokeModel`/`listTools`/`callTool`
+      // do) so a slow first token or a between-chunk stall does not exceed the
+      // `heartbeatTimeout` and get the Activity cancelled; the explicit
+      // per-chunk heartbeat below still fires promptly while chunks flow.
+      const stopHeartbeat = startAdaptiveHeartbeat();
+      let stream: ReturnType<typeof WorkflowStreamClient.fromWithinActivity> | undefined;
       try {
+        stream = WorkflowStreamClient.fromWithinActivity({
+          batchInterval: args.batchInterval ?? DEFAULT_STREAM_BATCH_INTERVAL,
+        });
+        const events = stream.topic<LlmResponse>(args.streamingTopic);
         const model = resolveModel(args.model);
         const request = fromWireRequest(args.request);
         const abortSignal = ActivityContext.current().cancellationSignal;
@@ -121,7 +128,8 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
       } catch (err) {
         throw toApplicationFailure(err);
       } finally {
-        await stream[Symbol.asyncDispose]();
+        await stream?.[Symbol.asyncDispose]();
+        stopHeartbeat();
       }
     },
   };
@@ -334,11 +342,11 @@ function readHeaders(err: unknown): Record<string, string> | undefined {
 }
 
 /** Reads `retry-after-ms` / `retry-after` into a Temporal `Duration`. */
-function parseRetryAfter(headers: Record<string, string> | undefined): string | undefined {
+function parseRetryAfter(headers: Record<string, string> | undefined): Duration | undefined {
   if (!headers) return undefined;
   const ms = headers['retry-after-ms'];
-  if (ms && /^\d+$/.test(ms)) return `${Number(ms)} milliseconds`;
+  if (ms && /^\d+$/.test(ms)) return `${Number(ms)} milliseconds` as Duration;
   const seconds = headers['retry-after'];
-  if (seconds && /^\d+$/.test(seconds)) return `${Number(seconds)} seconds`;
+  if (seconds && /^\d+$/.test(seconds)) return `${Number(seconds)} seconds` as Duration;
   return undefined;
 }

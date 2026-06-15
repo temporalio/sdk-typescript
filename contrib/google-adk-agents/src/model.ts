@@ -19,9 +19,6 @@
  * `./activities.ts`, which only `plugin.ts` imports.
  */
 
-import type { ActivityOptions, Duration, RetryPolicy } from '@temporalio/common';
-import { ApplicationFailure } from '@temporalio/common';
-import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 import {
   BaseLlm,
   LLMRegistry,
@@ -29,6 +26,9 @@ import {
   type LlmRequest,
   type LlmResponse,
 } from '@google/adk';
+import type { ActivityOptions, Duration, RetryPolicy } from '@temporalio/common';
+import { ApplicationFailure } from '@temporalio/common';
+import { inWorkflowContext, log, proxyActivities } from '@temporalio/workflow';
 
 /**
  * Per-call Temporal Activity options shared by the model and MCP boundaries.
@@ -133,6 +133,8 @@ const DEFAULT_MODEL_START_TO_CLOSE: Duration = '10 minutes';
  */
 export class TemporalLlm extends BaseLlm {
   private readonly options: TemporalLlmOptions;
+  /** Guards the streaming-without-`streamingTopic` warning to once per instance. */
+  private streamingFallbackWarned = false;
 
   /**
    * @param model   A model name registered in the ADK {@link LLMRegistry}
@@ -180,6 +182,18 @@ export class TemporalLlm extends BaseLlm {
         batchInterval: this.options.streamingBatchInterval,
       });
     } else {
+      // Streaming was requested but no `streamingTopic` is configured, so the
+      // call silently runs as a non-streaming Activity. Surface that once (per
+      // instance) instead of leaving the user to wonder why no chunks appear.
+      // `log` is replay-safe (suppressed by the SDK on replay).
+      if (stream && !this.options.streamingTopic && !this.streamingFallbackWarned) {
+        this.streamingFallbackWarned = true;
+        log.warn(
+          `TemporalLlm('${this.model}'): streaming was requested but no 'streamingTopic' is ` +
+            'configured — falling back to a non-streaming model Activity. Set ' +
+            "TemporalLlmOptions.streamingTopic to publish incremental chunks.",
+        );
+      }
       responses = await activities.invokeModel({ model: this.model, request: wire });
     }
 

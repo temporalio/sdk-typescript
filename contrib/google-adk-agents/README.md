@@ -169,8 +169,9 @@ Workflow bundle imports `@google/adk`. The ADK barrel eagerly pulls in node-only
 service code (DB session services, stdio MCP transport, google-cloud telemetry)
 that imports `node:`-prefixed builtins — which the Workflow sandbox bundler does
 not handle out of the box (it would fail with `UnhandledSchemeError` for
-`node:url` / `node:util` / `node:zlib`). `GoogleAdkPlugin.configureWorker`
-(and `configureReplayWorker`) transparently augment `bundlerOptions.webpackConfigHook`
+`node:url` / `node:util` / `node:zlib`). `GoogleAdkPlugin.configureBundler`
+— the single canonical bundling hook the Worker runs for both live execution
+and replay — transparently augments `bundlerOptions.webpackConfigHook`
 to strip the `node:` scheme **before** webpack's scheme detection, after which
 the sandbox's normal builtin policy applies (the three polyfilled builtins
 `assert`/`url`/`util` resolve to the sandbox overrides; all others alias to
