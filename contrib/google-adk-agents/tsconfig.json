@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./lib",
+    "rootDir": "./src",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "ESNext.Disposable", "DOM"],
+    "target": "ES2022"
+  },
+  "references": [
+    { "path": "../../packages/plugin" },
+    { "path": "../../packages/worker" },
+    { "path": "../../packages/workflow" },
+    { "path": "../../packages/activity" },
+    { "path": "../../packages/client" },
+    { "path": "../../packages/common" },
+    { "path": "../../packages/proto" },
+    { "path": "../../packages/test-helpers" },
+    { "path": "../../packages/testing" },
+    { "path": "../workflow-streams" }
+  ],
+  "include": ["./src/**/*.ts"]
+}
