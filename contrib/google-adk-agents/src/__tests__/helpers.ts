@@ -12,20 +12,26 @@ import {
   type LlmRequest,
   type LlmResponse,
 } from '@google/adk';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
+import type { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
 
-import { FakeLlm } from '../src/testing.js';
+import { FakeLlm } from '../testing.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-/** Absolute path to the test workflows bundle. */
-export const workflowsPath = path.join(here, 'workflows.ts');
+// The Worker bundles the workflow code from its TypeScript source (webpack
+// tree-shakes the worker-only `node:module`/`builtinModules` import out of the
+// workflow-reachable graph before resolution, which a pre-compiled `.js` entry
+// would not). `here` is `lib/__tests__` at runtime, so resolve back to the
+// `src/__tests__` source that ships alongside it.
+/** Absolute path to the test workflows source bundled into the sandbox. */
+export const workflowsPath = path.resolve(here, '../../src/__tests__/workflows.ts');
 
 /** A model that always raises a non-retryable (HTTP 400) error. */
 export class ThrowingLlm extends BaseLlm {
   static override readonly supportedModels: Array<string | RegExp> = ['boom'];
 
+  // eslint-disable-next-line require-yield -- a model double that always throws before yielding
   override async *generateContentAsync(
     _llmRequest: LlmRequest,
     _stream?: boolean,
@@ -92,9 +98,7 @@ export async function withWorker<T>(
     connection: env.nativeConnection,
     taskQueue: options.taskQueue,
     workflowsPath,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     plugins: options.plugins as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     activities: options.activities as any,
     maxCachedWorkflows: options.maxCachedWorkflows,
   });
@@ -119,7 +123,6 @@ export function countScheduledActivities(
  */
 export function findInCauseChain<T>(
   err: unknown,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ctor: new (...args: any[]) => T,
 ): T | undefined {
   let current: unknown = err;

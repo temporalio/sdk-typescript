@@ -15,13 +15,18 @@
       "import": "./lib/testing.js"
     }
   },
-  "files": ["lib", "src"],
   "scripts": {
     "build": "tsc --build",
     "build.watch": "tsc --build --watch",
-    "test": "vitest run"
+    "test": "ava ./lib/__tests__/*.test.js"
+  },
+  "ava": {
+    "timeout": "120s",
+    "concurrency": 1,
+    "workerThreads": false
   },
   "keywords": ["temporal", "google", "adk", "agents", "ai", "durable", "workflow"],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -38,19 +43,34 @@
   },
   "peerDependencies": {
     "@google/adk": "^1.2.0",
-    "@google/genai": "*"
+    "@google/genai": "^2.8.0"
   },
   "devDependencies": {
     "@google/adk": "^1.2.0",
-    "@google/genai": "*",
+    "@google/genai": "^2.8.0",
     "@temporalio/client": "workspace:*",
     "@temporalio/testing": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "@types/node": "^20.0.0",
-    "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "ava": "^5.3.1",
+    "typescript": "^5.4.0"
   },
   "engines": {
     "node": ">= 20.0.0"
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "contrib/google-adk-agents"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/contrib/google-adk-agents",
+  "files": [
+    "src",
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
+  ]
 }

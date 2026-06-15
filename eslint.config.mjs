@@ -161,5 +161,17 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  {
+    files: ['contrib/google-adk-agents/src/**/*.ts'],
+    ignores: ['contrib/google-adk-agents/src/__tests__/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: ['@temporalio/*/src/*', '**/__tests__/**', '**/*.test'],
+        },
+      ],
+    },
   }
 );

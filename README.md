@@ -115,6 +115,7 @@ This monorepo contains the following packages:
 | [`packages/nexus/`](packages/nexus/)                                         | [`@temporalio/nexus`](https://www.npmjs.com/package/@temporalio/nexus)                                           |
 | [`contrib/interceptors-opentelemetry/`](contrib/interceptors-opentelemetry/) | [`@temporalio/interceptors-opentelemetry`](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry) |
 | [`contrib/ai-sdk/`](contrib/ai-sdk/)                                         | [`@temporalio/ai-sdk`](https://www.npmjs.com/package/@temporalio/ai-sdk)                                         |
+| [`contrib/google-adk-agents/`](contrib/google-adk-agents/)                   | [`@temporalio/google-adk-agents`](https://www.npmjs.com/package/@temporalio/google-adk-agents)                   |
 
 ## Contributing
 

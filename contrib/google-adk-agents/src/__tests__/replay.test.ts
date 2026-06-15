@@ -11,13 +11,13 @@
  * determinism violation rejects `Worker.runReplayHistory`.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import test from 'ava';
+import { Type } from '@google/genai';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker, type ReplayWorkerOptions } from '@temporalio/worker';
-import { Type } from '@google/genai';
 
-import { GoogleAdkPlugin } from '../src/index.js';
-import { mockMcpToolset, type MockMcpToolDefinition } from '../src/testing.js';
+import { GoogleAdkPlugin } from '../index.js';
+import { mockMcpToolset, type MockMcpToolDefinition } from '../testing.js';
 import { defaultTestProvider, withWorker, workflowsPath } from './helpers.js';
 import { replayScenario } from './workflows.js';
 
@@ -43,11 +43,11 @@ function makePlugin(): GoogleAdkPlugin {
 
 let env: TestWorkflowEnvironment;
 
-beforeAll(async () => {
+test.before(async () => {
   env = await TestWorkflowEnvironment.createLocal();
 });
 
-afterAll(async () => {
+test.after.always(async () => {
   await env?.teardown();
 });
 
@@ -55,29 +55,29 @@ function uid(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
 
-describe('Replay determinism with plugin (E2E)', () => {
-  it('replayWithPlugin', async () => {
-    const taskQueue = uid('adk-replay');
-    const workflowId = uid('wf-replay');
+// Replay determinism with plugin (E2E)
+test.serial('replayWithPlugin', async (t) => {
+  const taskQueue = uid('adk-replay');
+  const workflowId = uid('wf-replay');
 
-    const result = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
-      env.client.workflow.execute(replayScenario, { taskQueue, workflowId }),
-    );
-    expect(result).toContain('world');
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
+    env.client.workflow.execute(replayScenario, { taskQueue, workflowId }),
+  );
+  t.true(result.includes('world'));
 
-    const history = await env.client.workflow.getHandle(workflowId).fetchHistory();
+  const history = await env.client.workflow.getHandle(workflowId).fetchHistory();
 
-    // Replay the recorded history with the plugin registered (not just the
-    // workflows). Resolves on success; rejects on a determinism violation.
-    // `plugins` is a first-class `ReplayWorkerOptions` field (it is not in the
-    // `Omit` list that derives the type from `WorkerOptions`, and
-    // `Worker.runReplayHistory` invokes each plugin's `configureReplayWorker`),
-    // and `GoogleAdkPlugin` is a `WorkerPlugin` via `SimplePlugin` — so this is
-    // fully type-checked, no cast.
-    const replayOptions: ReplayWorkerOptions = {
-      workflowsPath,
-      plugins: [makePlugin()],
-    };
-    await Worker.runReplayHistory(replayOptions, history);
-  });
+  // Replay the recorded history with the plugin registered (not just the
+  // workflows). Resolves on success; rejects on a determinism violation.
+  // `plugins` is a first-class `ReplayWorkerOptions` field (it is not in the
+  // `Omit` list that derives the type from `WorkerOptions`, and
+  // `Worker.runReplayHistory` invokes each plugin's `configureBundler`),
+  // and `GoogleAdkPlugin` is a `WorkerPlugin` via `SimplePlugin` — so this is
+  // fully type-checked, no cast.
+  const replayOptions: ReplayWorkerOptions = {
+    workflowsPath,
+    plugins: [makePlugin()],
+  };
+  await Worker.runReplayHistory(replayOptions, history);
+  t.pass();
 });
