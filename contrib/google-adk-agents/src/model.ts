@@ -22,7 +22,7 @@
 import { BaseLlm, LLMRegistry, type BaseLlmConnection, type LlmRequest, type LlmResponse } from '@google/adk';
 import type { ActivityOptions, Duration } from '@temporalio/common';
 import { ApplicationFailure } from '@temporalio/common';
-import { inWorkflowContext, log, proxyActivities } from '@temporalio/workflow';
+import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
 /**
  * Options for {@link TemporalModel}.
@@ -82,7 +82,7 @@ export interface ModelActivities {
   invokeModelStreaming(args: InvokeModelStreamingArgs): Promise<LlmResponse[]>;
 }
 
-const DEFAULT_MODEL_START_TO_CLOSE: Duration = '10 minutes';
+const DEFAULT_MODEL_START_TO_CLOSE: Duration = '1 minute';
 
 /**
  * A {@link BaseLlm} whose inference is durable under Temporal.
@@ -96,8 +96,6 @@ const DEFAULT_MODEL_START_TO_CLOSE: Duration = '10 minutes';
  */
 export class TemporalModel extends BaseLlm {
   private readonly options: TemporalModelOptions;
-  /** Guards the streaming-without-`streamingTopic` warning to once per instance. */
-  private streamingFallbackWarned = false;
 
   /**
    * @param model   A model name registered in the ADK {@link LLMRegistry}
@@ -132,28 +130,24 @@ export class TemporalModel extends BaseLlm {
     });
 
     const wire = toWireRequest(llmRequest);
+    const streamingTopic = this.options.streamingTopic;
 
     let responses: LlmResponse[];
-    if (stream && this.options.streamingTopic) {
+    if (stream) {
+      if (!streamingTopic) {
+        throw ApplicationFailure.nonRetryable(
+          `TemporalModel('${this.model}'): streaming was requested but no 'streamingTopic' is ` +
+            'configured. Set TemporalModelOptions.streamingTopic to publish incremental chunks.',
+          'GoogleAdkStreamingTopicRequired'
+        );
+      }
       responses = await activities.invokeModelStreaming({
         model: this.model,
         request: wire,
-        streamingTopic: this.options.streamingTopic,
+        streamingTopic,
         batchInterval: this.options.streamingBatchInterval,
       });
     } else {
-      // Streaming was requested but no `streamingTopic` is configured, so the
-      // call silently runs as a non-streaming Activity. Surface that once (per
-      // instance) instead of leaving the user to wonder why no chunks appear.
-      // `log` is replay-safe (suppressed by the SDK on replay).
-      if (stream && !this.options.streamingTopic && !this.streamingFallbackWarned) {
-        this.streamingFallbackWarned = true;
-        log.warn(
-          `TemporalModel('${this.model}'): streaming was requested but no 'streamingTopic' is ` +
-            'configured — falling back to a non-streaming model Activity. Set ' +
-            'TemporalModelOptions.streamingTopic to publish incremental chunks.'
-        );
-      }
       responses = await activities.invokeModel({ model: this.model, request: wire });
     }
 
@@ -188,6 +182,10 @@ export class TemporalModel extends BaseLlm {
     if (typeof summary === 'string') {
       return summary;
     }
+    const agentName = req.config?.labels?.['adk_agent_name'];
+    if (agentName) {
+      return agentName;
+    }
     return `adk.invokeModel ${this.model}`;
   }
 }
@@ -211,7 +209,7 @@ export function toWireRequest(llmRequest: LlmRequest): WireLlmRequest {
 export function activityOptionsFrom(options: ActivityOptions | undefined, summary: string): ActivityOptions {
   return {
     ...options,
-    startToCloseTimeout: options?.startToCloseTimeout ?? '5 minutes',
+    startToCloseTimeout: options?.startToCloseTimeout ?? '1 minute',
     summary,
   };
 }

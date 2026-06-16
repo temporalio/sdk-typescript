@@ -18,11 +18,13 @@ import { GoogleAdkPlugin, TemporalModel } from '../index.js';
 import { FakeLlm, fakeModelProvider } from '../testing.js';
 import { countScheduledActivities, defaultTestProvider, findInCauseChain, withWorker } from './helpers.js';
 import {
+  agentRunnerWorkflow,
   countModelCalls,
   modelCallError,
   modelCallWithSummary,
   modelCallWithTimeout,
   singleModelCall,
+  streamingModelCallNoTopic,
 } from './workflows.js';
 
 let env: TestWorkflowEnvironment;
@@ -118,6 +120,29 @@ test.serial('appliesActivitySummary', async (t) => {
   t.is(summary, 'custom-model-summary');
 });
 
+test.serial('defaultsActivitySummaryToAgentName', async (t) => {
+  const taskQueue = uid('adk-summary-agent');
+  const workflowId = uid('wf-summary-agent');
+  const plugin = new GoogleAdkPlugin({ modelProvider: fakeModelProvider() });
+  await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
+    env.client.workflow.execute(agentRunnerWorkflow, {
+      taskQueue,
+      workflowId,
+      args: ['hi'],
+    })
+  );
+
+  const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
+  const scheduled = (events ?? []).find(
+    (e) => e.activityTaskScheduledEventAttributes?.activityType?.name === 'invokeModel'
+  );
+  const summaryPayload = (scheduled as { userMetadata?: { summary?: unknown } } | undefined)?.userMetadata?.summary;
+  t.not(summaryPayload, undefined);
+  const summary = defaultPayloadConverter.fromPayload(summaryPayload as never);
+  // No explicit `summary`; the runner stamps `adk_agent_name` = the agent name.
+  t.is(summary, 'assistant');
+});
+
 test.serial('modelErrorPropagatesAsApplicationFailure', async (t) => {
   const taskQueue = uid('adk-error');
   const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
@@ -137,6 +162,29 @@ test.serial('modelErrorPropagatesAsApplicationFailure', async (t) => {
     // HTTP 400 → non-retryable, typed by status (never string-matched).
     t.is(appFailure?.type, 'GoogleAdkModelError.400');
     t.is(appFailure?.nonRetryable, true);
+  });
+});
+
+test.serial('streamingWithoutTopicFails', async (t) => {
+  const taskQueue = uid('adk-stream-notopic');
+  const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
+  await withWorker(env, { taskQueue, plugins: [plugin] }, async () => {
+    const handle = await env.client.workflow.start(streamingModelCallNoTopic, {
+      taskQueue,
+      workflowId: uid('wf-stream-notopic'),
+    });
+    let caught: unknown;
+    try {
+      await handle.result();
+    } catch (err) {
+      caught = err;
+    }
+    // Streaming requested with no `streamingTopic` must throw, not fall back.
+    const appFailure = findInCauseChain(caught, ApplicationFailure);
+    t.not(appFailure, undefined);
+    t.is(appFailure?.type, 'GoogleAdkStreamingTopicRequired');
+    t.is(appFailure?.nonRetryable, true);
+    t.regex(appFailure?.message ?? '', /streamingTopic/);
   });
 });
 
