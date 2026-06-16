@@ -21,7 +21,7 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@grpc/grpc-js": "^1.12.4",
+    "@grpc/grpc-js": "^1.12.7",
     "@temporalio/common": "workspace:*"
   },
   "devDependencies": {

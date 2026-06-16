@@ -335,8 +335,8 @@ importers:
   packages/client:
     dependencies:
       '@grpc/grpc-js':
-        specifier: ^1.12.4
-        version: 1.12.4
+        specifier: ^1.12.7
+        version: 1.12.7
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
@@ -363,8 +363,8 @@ importers:
   packages/cloud:
     dependencies:
       '@grpc/grpc-js':
-        specifier: ^1.12.4
-        version: 1.12.4
+        specifier: ^1.12.7
+        version: 1.12.7
       '@temporalio/client':
         specifier: workspace:*
         version: link:../client
@@ -407,8 +407,8 @@ importers:
   packages/core-bridge:
     dependencies:
       '@grpc/grpc-js':
-        specifier: ^1.12.4
-        version: 1.12.4
+        specifier: ^1.12.7
+        version: 1.12.7
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
@@ -678,8 +678,8 @@ importers:
   packages/test:
     dependencies:
       '@grpc/grpc-js':
-        specifier: ^1.12.4
-        version: 1.12.4
+        specifier: ^1.12.7
+        version: 1.12.7
       '@grpc/proto-loader':
         specifier: ^0.7.10
         version: 0.7.13
@@ -867,8 +867,8 @@ importers:
   packages/worker:
     dependencies:
       '@grpc/grpc-js':
-        specifier: ^1.12.4
-        version: 1.12.4
+        specifier: ^1.12.7
+        version: 1.12.7
       '@swc/core':
         specifier: ^1.3.102
         version: 1.3.102
@@ -1384,8 +1384,17 @@ packages:
     resolution: {integrity: sha512-NBhrxEWnFh0FxeA0d//YP95lRFsSx2TNLEUQg4/W+5f/BMxcCjgOOIT24iD+ZB/tZw057j44DaIxja7w4XMrhg==}
     engines: {node: '>=12.10.0'}
 
+  '@grpc/grpc-js@1.12.7':
+    resolution: {integrity: sha512-Tugep4V4GCsN9dSAVkXoBWqJXDoH+NSXd50kFGsm7ZG1tBXFEAnLoxzkGUIksTrDjiaMwlpsbC24oWbESGHpIQ==}
+    engines: {node: '>=12.10.0'}
+
   '@grpc/proto-loader@0.7.13':
     resolution: {integrity: sha512-AiXO/bfe9bmxBjxxtYxFAXGZvMaN5s8kO+jBHAJCON8rJoB5YS/D6X7ZNc6XQkuHNmyl4CYaMI1fJ/Gn27RGGw==}
+    engines: {node: '>=6'}
+    hasBin: true
+
+  '@grpc/proto-loader@0.7.15':
+    resolution: {integrity: sha512-tMXdRCfYVixjuFK+Hk0Q1s38gV9zDiDJfWL3h1rv4Qc39oILCu1TRTDt7+fGUI8K4G1Fj125Hx/ru3azECWTyQ==}
     engines: {node: '>=6'}
     hasBin: true
 
@@ -5642,10 +5651,22 @@ snapshots:
 
   '@grpc/grpc-js@1.12.4':
     dependencies:
-      '@grpc/proto-loader': 0.7.13
+      '@grpc/proto-loader': 0.7.15
+      '@js-sdsl/ordered-map': 4.4.2
+
+  '@grpc/grpc-js@1.12.7':
+    dependencies:
+      '@grpc/proto-loader': 0.7.15
       '@js-sdsl/ordered-map': 4.4.2
 
   '@grpc/proto-loader@0.7.13':
+    dependencies:
+      lodash.camelcase: 4.3.0
+      long: 5.2.3
+      protobufjs: 7.5.8(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
+      yargs: 17.7.2
+
+  '@grpc/proto-loader@0.7.15':
     dependencies:
       lodash.camelcase: 4.3.0
       long: 5.2.3
@@ -5861,7 +5882,7 @@ snapshots:
 
   '@opentelemetry/otlp-grpc-exporter-base@0.52.1(@opentelemetry/api@1.9.0)':
     dependencies:
-      '@grpc/grpc-js': 1.12.4
+      '@grpc/grpc-js': 1.12.7
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/otlp-exporter-base': 0.52.1(@opentelemetry/api@1.9.0)
