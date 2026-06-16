@@ -45,17 +45,14 @@ test.serial('wrapsActivityAsTool', async (t) => {
     {
       taskQueue,
       plugins: [new GoogleAdkPlugin()],
-      activities: activities as unknown as Record<
-        string,
-        (...a: never[]) => Promise<unknown>
-      >,
+      activities: activities as unknown as Record<string, (...a: never[]) => Promise<unknown>>,
     },
     () =>
       env.client.workflow.execute(activityToolCall, {
         taskQueue,
         workflowId: uid('wf-tool'),
         args: ['order-42'],
-      }),
+      })
   );
 
   t.deepEqual(result, { orderId: 'order-42', status: 'shipped' });

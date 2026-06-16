@@ -14,15 +14,13 @@
 
 import { type FunctionDeclaration, type Schema, Type } from '@google/genai';
 import { BaseTool, type RunAsyncToolRequest } from '@google/adk';
-import { ApplicationFailure } from '@temporalio/common';
+import { ApplicationFailure, type ActivityOptions } from '@temporalio/common';
 import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
-import { activityOptionsFrom, type TemporalActivityOptions } from './model.js';
+import { activityOptionsFrom } from './model.js';
 
 /**
  * Options for {@link activityAsTool}.
- *
- * @experimental
  */
 export interface ActivityAsToolOptions {
   /**
@@ -39,17 +37,15 @@ export interface ActivityAsToolOptions {
    */
   parameters?: Schema;
   /** Per-call Activity configuration (timeouts, retry, task queue). */
-  activity?: TemporalActivityOptions;
+  activity?: ActivityOptions;
 }
 
 /**
  * A {@link BaseTool} that dispatches a registered Temporal Activity.
- *
- * @experimental
  */
-export class ActivityTool extends BaseTool {
+class ActivityTool extends BaseTool {
   private readonly parameters?: Schema;
-  private readonly activityOptions?: TemporalActivityOptions;
+  private readonly activityOptions?: ActivityOptions;
 
   /**
    * @param options Tool configuration. `name` is the Activity to dispatch.
@@ -74,11 +70,11 @@ export class ActivityTool extends BaseTool {
     if (!inWorkflowContext()) {
       throw ApplicationFailure.nonRetryable(
         `activityAsTool('${this.name}') can only run inside a Temporal Workflow.`,
-        'GoogleAdkActivityToolOutsideWorkflow',
+        'GoogleAdkActivityToolOutsideWorkflow'
       );
     }
     const activities = proxyActivities<Record<string, (args: Record<string, unknown>) => Promise<unknown>>>(
-      activityOptionsFrom(this.activityOptions, `adk.tool ${this.name}`),
+      activityOptionsFrom(this.activityOptions, `adk.tool ${this.name}`)
     );
     // `proxyActivities` returns a Proxy that materializes a stub for any name,
     // so the indexed access is always defined; `noUncheckedIndexedAccess`

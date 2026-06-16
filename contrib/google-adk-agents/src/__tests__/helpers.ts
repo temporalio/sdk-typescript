@@ -6,12 +6,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import {
-  BaseLlm,
-  type BaseLlmConnection,
-  type LlmRequest,
-  type LlmResponse,
-} from '@google/adk';
+import { BaseLlm, type BaseLlmConnection, type LlmRequest, type LlmResponse } from '@google/adk';
 import type { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
 
@@ -35,7 +30,7 @@ export class ThrowingLlm extends BaseLlm {
   override async *generateContentAsync(
     _llmRequest: LlmRequest,
     _stream?: boolean,
-    _abortSignal?: AbortSignal,
+    _abortSignal?: AbortSignal
   ): AsyncGenerator<LlmResponse, void> {
     throw Object.assign(new Error('bad request'), { status: 400 });
   }
@@ -52,7 +47,7 @@ export class SlowLlm extends BaseLlm {
   override async *generateContentAsync(
     _llmRequest: LlmRequest,
     _stream?: boolean,
-    _abortSignal?: AbortSignal,
+    _abortSignal?: AbortSignal
   ): AsyncGenerator<LlmResponse, void> {
     await new Promise((resolve) => setTimeout(resolve, 10_000));
     yield { content: { role: 'model', parts: [{ text: 'too late' }] }, turnComplete: true };
@@ -92,7 +87,7 @@ export interface WithWorkerOptions {
 export async function withWorker<T>(
   env: TestWorkflowEnvironment,
   options: WithWorkerOptions,
-  fn: () => Promise<T>,
+  fn: () => Promise<T>
 ): Promise<T> {
   const worker = await Worker.create({
     connection: env.nativeConnection,
@@ -108,11 +103,9 @@ export async function withWorker<T>(
 /** Counts `ActivityTaskScheduled` history events by activity type name. */
 export function countScheduledActivities(
   events: Array<{ activityTaskScheduledEventAttributes?: { activityType?: { name?: string | null } | null } | null }>,
-  activityTypeName: string,
+  activityTypeName: string
 ): number {
-  return events.filter(
-    (e) => e.activityTaskScheduledEventAttributes?.activityType?.name === activityTypeName,
-  ).length;
+  return events.filter((e) => e.activityTaskScheduledEventAttributes?.activityType?.name === activityTypeName).length;
 }
 
 /**
@@ -121,10 +114,7 @@ export function countScheduledActivities(
  * `ApplicationFailure` / `TimeoutFailure`), so tests use this to assert on the
  * underlying typed failure regardless of nesting depth.
  */
-export function findInCauseChain<T>(
-  err: unknown,
-  ctor: new (...args: any[]) => T,
-): T | undefined {
+export function findInCauseChain<T>(err: unknown, ctor: new (...args: any[]) => T): T | undefined {
   let current: unknown = err;
   while (current) {
     if (current instanceof ctor) {

@@ -5,64 +5,31 @@
  *
  * Workflow-side model boundary for the Google ADK Temporal plugin.
  *
- * `TemporalLlm` is a drop-in `BaseLlm` (from `@google/adk`) that a user places
- * on their agent (`model: new TemporalLlm('gemini-2.5-flash')`). Inside a
+ * `TemporalModel` is a drop-in `BaseLlm` (from `@google/adk`) that a user places
+ * on their agent (`model: new TemporalModel('gemini-2.5-flash')`). Inside a
  * Temporal Workflow it routes inference to the `invokeModel` /
  * `invokeModelStreaming` Activities; outside a Workflow it delegates to the
  * real model resolved from the ADK `LLMRegistry`, so the same agent object
  * works in tests and in direct (non-Temporal) ADK use.
  *
  * IMPORTANT: this module is part of the Workflow-sandbox import graph (the
- * public barrel re-exports it and user Workflows import `TemporalLlm`). It must
+ * public barrel re-exports it and user Workflows import `TemporalModel`). It must
  * therefore NOT import any worker-only module (`@temporalio/activity`,
  * `@temporalio/workflow-streams`). The Activity *implementations* live in
  * `./activities.ts`, which only `plugin.ts` imports.
  */
 
-import {
-  BaseLlm,
-  LLMRegistry,
-  type BaseLlmConnection,
-  type LlmRequest,
-  type LlmResponse,
-} from '@google/adk';
-import type { ActivityOptions, Duration, RetryPolicy } from '@temporalio/common';
+import { BaseLlm, LLMRegistry, type BaseLlmConnection, type LlmRequest, type LlmResponse } from '@google/adk';
+import type { ActivityOptions, Duration } from '@temporalio/common';
 import { ApplicationFailure } from '@temporalio/common';
 import { inWorkflowContext, log, proxyActivities } from '@temporalio/workflow';
 
 /**
- * Per-call Temporal Activity options shared by the model and MCP boundaries.
- *
- * These are read on the **workflow side** when proxying the Activity, so they
- * live on the workflow-side wrapper (`TemporalLlm` / `TemporalMcpToolset`)
- * rather than on the worker-side plugin options.
- *
- * @experimental
+ * Options for {@link TemporalModel}.
  */
-export interface TemporalActivityOptions {
-  /** Maximum execution time for a single model/tool Activity attempt. */
-  startToCloseTimeout?: Duration;
-  /** Maximum total time across retries for the Activity. */
-  scheduleToCloseTimeout?: Duration;
-  /**
-   * Heartbeat timeout. When set, the Activity auto-heartbeats at ~half this
-   * interval so a slow (thinking-mode) model is not mistaken for a stuck
-   * worker and cancelled.
-   */
-  heartbeatTimeout?: Duration;
-  /** Temporal {@link RetryPolicy} governing model/tool retries. */
-  retry?: RetryPolicy;
-  /** Route the Activity to a dedicated task queue (e.g. a GPU pool). */
-  taskQueue?: string;
-}
-
-/**
- * Options for {@link TemporalLlm}. Extends {@link TemporalActivityOptions}
- * with model-specific knobs (UI summary + streaming).
- *
- * @experimental
- */
-export interface TemporalLlmOptions extends TemporalActivityOptions {
+export interface TemporalModelOptions {
+  /** Per-call Temporal Activity configuration (timeouts, retry, task queue). */
+  activity?: ActivityOptions;
   /**
    * A Temporal-UI summary for each model Activity. A function receives the
    * outgoing {@link LlmRequest} so callers can derive a label from it; keep
@@ -81,7 +48,7 @@ export interface TemporalLlmOptions extends TemporalActivityOptions {
   streamingBatchInterval?: Duration;
 }
 
-/** Arguments for the `invokeModel` Activity. @experimental */
+/** Arguments for the `invokeModel` Activity. */
 export interface InvokeModelArgs {
   /** Registered model name; reconstructed on the worker. */
   model: string;
@@ -89,7 +56,7 @@ export interface InvokeModelArgs {
   request: WireLlmRequest;
 }
 
-/** Arguments for the `invokeModelStreaming` Activity. @experimental */
+/** Arguments for the `invokeModelStreaming` Activity. */
 export interface InvokeModelStreamingArgs extends InvokeModelArgs {
   /** Stream topic to publish chunks to. */
   streamingTopic: string;
@@ -102,15 +69,11 @@ export interface InvokeModelStreamingArgs extends InvokeModelArgs {
  * Activity boundary. ADK's `toolsDict` (live `BaseTool` objects) and
  * `liveConnectConfig` are stripped; the model still sees tool schemas via
  * `config.tools[].functionDeclarations`.
- *
- * @experimental
  */
 export type WireLlmRequest = Omit<LlmRequest, 'toolsDict' | 'liveConnectConfig'>;
 
 /**
- * The Activity interface proxied by {@link TemporalLlm} inside a Workflow.
- *
- * @experimental
+ * The Activity interface proxied by {@link TemporalModel} inside a Workflow.
  */
 export interface ModelActivities {
   /** Non-streaming inference; returns the full response transcript. */
@@ -125,14 +88,14 @@ const DEFAULT_MODEL_START_TO_CLOSE: Duration = '10 minutes';
  * A {@link BaseLlm} whose inference is durable under Temporal.
  *
  * Swap a user's `model: 'gemini-2.5-flash'` for
- * `model: new TemporalLlm('gemini-2.5-flash')` — every model call inside the
+ * `model: new TemporalModel('gemini-2.5-flash')` — every model call inside the
  * Workflow becomes a retriable, observable Activity, while the surrounding
  * ADK agent loop replays deterministically.
  *
  * @experimental
  */
-export class TemporalLlm extends BaseLlm {
-  private readonly options: TemporalLlmOptions;
+export class TemporalModel extends BaseLlm {
+  private readonly options: TemporalModelOptions;
   /** Guards the streaming-without-`streamingTopic` warning to once per instance. */
   private streamingFallbackWarned = false;
 
@@ -141,7 +104,7 @@ export class TemporalLlm extends BaseLlm {
    *                (or resolvable by a custom `modelProvider` on the plugin).
    * @param options Per-model Activity configuration.
    */
-  constructor(model: string, options: TemporalLlmOptions = {}) {
+  constructor(model: string, options: TemporalModelOptions = {}) {
     super({ model });
     this.options = options;
   }
@@ -154,7 +117,7 @@ export class TemporalLlm extends BaseLlm {
   override async *generateContentAsync(
     llmRequest: LlmRequest,
     stream = false,
-    abortSignal?: AbortSignal,
+    abortSignal?: AbortSignal
   ): AsyncGenerator<LlmResponse, void> {
     if (!inWorkflowContext()) {
       const real = LLMRegistry.newLlm(this.model);
@@ -163,11 +126,8 @@ export class TemporalLlm extends BaseLlm {
     }
 
     const activities = proxyActivities<ModelActivities>({
-      startToCloseTimeout: this.options.startToCloseTimeout ?? DEFAULT_MODEL_START_TO_CLOSE,
-      scheduleToCloseTimeout: this.options.scheduleToCloseTimeout,
-      heartbeatTimeout: this.options.heartbeatTimeout,
-      retry: this.options.retry,
-      taskQueue: this.options.taskQueue,
+      ...this.options.activity,
+      startToCloseTimeout: this.options.activity?.startToCloseTimeout ?? DEFAULT_MODEL_START_TO_CLOSE,
       summary: this.resolveSummary(llmRequest),
     });
 
@@ -189,9 +149,9 @@ export class TemporalLlm extends BaseLlm {
       if (stream && !this.options.streamingTopic && !this.streamingFallbackWarned) {
         this.streamingFallbackWarned = true;
         log.warn(
-          `TemporalLlm('${this.model}'): streaming was requested but no 'streamingTopic' is ` +
+          `TemporalModel('${this.model}'): streaming was requested but no 'streamingTopic' is ` +
             'configured — falling back to a non-streaming model Activity. Set ' +
-            "TemporalLlmOptions.streamingTopic to publish incremental chunks.",
+            'TemporalModelOptions.streamingTopic to publish incremental chunks.'
         );
       }
       responses = await activities.invokeModel({ model: this.model, request: wire });
@@ -210,10 +170,10 @@ export class TemporalLlm extends BaseLlm {
   override async connect(llmRequest: LlmRequest): Promise<BaseLlmConnection> {
     if (inWorkflowContext()) {
       throw ApplicationFailure.nonRetryable(
-        'TemporalLlm.connect (BIDI live streaming) is not supported inside a Temporal ' +
+        'TemporalModel.connect (BIDI live streaming) is not supported inside a Temporal ' +
           'Workflow. Use StreamingMode.SSE (streamingTopic) for streaming, or run live ' +
           'connections outside the Workflow.',
-        'GoogleAdkUnsupported',
+        'GoogleAdkUnsupported'
       );
     }
     const real = LLMRegistry.newLlm(this.model);
@@ -236,8 +196,6 @@ export class TemporalLlm extends BaseLlm {
  * Strips the non-serializable fields (`toolsDict`, `liveConnectConfig`) from an
  * {@link LlmRequest} so it can cross the Activity boundary. Tool *schemas*
  * survive in `config.tools`.
- *
- * @experimental
  */
 export function toWireRequest(llmRequest: LlmRequest): WireLlmRequest {
   // Destructure to drop the live-object fields; the rest is JSON-serializable.
@@ -246,22 +204,14 @@ export function toWireRequest(llmRequest: LlmRequest): WireLlmRequest {
 }
 
 /**
- * Builds {@link ActivityOptions} from {@link TemporalActivityOptions} plus a
+ * Builds {@link ActivityOptions} from per-call {@link ActivityOptions} plus a
  * UI summary, defaulting `startToCloseTimeout`. Shared by the MCP and
  * `activityAsTool` boundaries so every Activity carries a `summary`.
- *
- * @experimental
  */
-export function activityOptionsFrom(
-  options: TemporalActivityOptions | undefined,
-  summary: string,
-): ActivityOptions {
+export function activityOptionsFrom(options: ActivityOptions | undefined, summary: string): ActivityOptions {
   return {
+    ...options,
     startToCloseTimeout: options?.startToCloseTimeout ?? '5 minutes',
-    scheduleToCloseTimeout: options?.scheduleToCloseTimeout,
-    heartbeatTimeout: options?.heartbeatTimeout,
-    retry: options?.retry,
-    taskQueue: options?.taskQueue,
     summary,
   };
 }
