@@ -15,23 +15,11 @@ import './load-polyfills.js';
 export { GoogleAdkPlugin } from './plugin.js';
 export type { GoogleAdkPluginOptions } from './plugin.js';
 
-export { TemporalLlm } from './model.js';
-export type {
-  TemporalLlmOptions,
-  TemporalActivityOptions,
-  ModelActivities,
-  InvokeModelArgs,
-  InvokeModelStreamingArgs,
-  WireLlmRequest,
-} from './model.js';
+export { TemporalModel } from './model.js';
+export type { TemporalModelOptions } from './model.js';
 
-export { TemporalMcpToolset, TemporalMcpTool } from './mcp.js';
-export type {
-  TemporalMcpToolsetOptions,
-  McpToolsetFactory,
-  McpCallToolArgs,
-  McpActivities,
-} from './mcp.js';
+export { TemporalMcpToolSet } from './mcp.js';
+export type { TemporalMcpToolSetOptions, McpToolsetFactory } from './mcp.js';
 
-export { activityAsTool, ActivityTool } from './tools.js';
+export { activityAsTool } from './tools.js';
 export type { ActivityAsToolOptions } from './tools.js';

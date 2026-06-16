@@ -46,7 +46,7 @@ test.serial('streamsPartialResponses', async (t) => {
     env.client.workflow.execute(streamingModelCall, {
       taskQueue,
       workflowId: uid('wf-stream'),
-    }),
+    })
   );
   t.is(result.chunks, 3);
   t.is(result.text, 'Hello streaming world');
@@ -62,7 +62,7 @@ test.serial('coalescesChunks', async (t) => {
       taskQueue,
       workflowId: uid('wf-stream-coalesce'),
       args: ['500 milliseconds'],
-    }),
+    })
   );
   t.is(result.chunks, 3);
   t.is(result.text, 'Hello streaming world');

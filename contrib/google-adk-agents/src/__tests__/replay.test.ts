@@ -61,7 +61,7 @@ test.serial('replayWithPlugin', async (t) => {
   const workflowId = uid('wf-replay');
 
   const result = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
-    env.client.workflow.execute(replayScenario, { taskQueue, workflowId }),
+    env.client.workflow.execute(replayScenario, { taskQueue, workflowId })
   );
   t.true(result.includes('world'));
 
