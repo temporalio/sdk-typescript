@@ -8,6 +8,7 @@ import { getActivator } from './global-attributes';
 import { composeInterceptors } from './interceptor-composition';
 import { untrackPromise } from './stack-helpers';
 import type { StartNexusOperationInput, StartNexusOperationOutput, StartNexusOperationOptions } from './interceptors';
+import { trySerializeSystemNexusInputToJsonPayload } from './nexus/system/payload-converter';
 
 /**
  * A Nexus client for invoking Nexus Operations for a specific service from a Workflow.
@@ -221,6 +222,12 @@ function startNexusOperationNextHandler({
       );
     }
 
+    const encodedInput =
+      trySerializeSystemNexusInputToJsonPayload(service, operation, input) ??
+      activator.payloadConverter.toPayload(input, context);
+    const userMetadata = userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context);
+    activator.nexusOperationContexts.set(seq, { service, operation });
+
     activator.pushCommand({
       scheduleNexusOperation: {
         seq,
@@ -228,13 +235,13 @@ function startNexusOperationNextHandler({
         service,
         operation,
         nexusHeader: headers,
-        input: activator.payloadConverter.toPayload(input, context),
+        input: encodedInput,
         scheduleToCloseTimeout: msOptionalToTs(options?.scheduleToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options?.scheduleToStartTimeout),
         startToCloseTimeout: msOptionalToTs(options?.startToCloseTimeout),
         cancellationType: encodeNexusOperationCancellationType(options?.cancellationType),
       },
-      userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context),
+      userMetadata,
     });
 
     activator.completions.nexusOperationStart.set(seq, {

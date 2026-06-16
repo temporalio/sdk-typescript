@@ -19,6 +19,11 @@ import {
   noopEncodeSearchAttrs,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { coresdk } from '@temporalio/proto';
+import {
+  isSystemNexusOperation,
+  tryConvertSystemNexusInputJsonToProtoBinaryPayload,
+  tryConvertSystemNexusOutputProtoBinaryToJsonPayload,
+} from './system-nexus-payload-converter';
 
 /**
  * Helper class for decoding Workflow activations and encoding Workflow completions.
@@ -30,6 +35,7 @@ export class WorkflowCodecRunner {
     childWorkflowComplete: new Map<number, WorkflowSerializationContext>(),
     signalWorkflow: new Map<number, WorkflowSerializationContext>(),
     cancelWorkflow: new Map<number, WorkflowSerializationContext>(),
+    nexusOperation: new Map<number, { service: string; operation: string }>(),
   };
 
   constructor(
@@ -37,10 +43,7 @@ export class WorkflowCodecRunner {
     private readonly workflowContext: WorkflowSerializationContext
   ) {}
 
-  private consumeContext<TContext extends SerializationContext>(
-    map: Map<number, TContext>,
-    seq: number | null | undefined
-  ): TContext | undefined {
+  private consumeContext<TContext>(map: Map<number, TContext>, seq: number | null | undefined): TContext | undefined {
     if (seq == null) return undefined;
     const context = map.get(seq);
     if (context !== undefined) {
@@ -141,6 +144,9 @@ export class WorkflowCodecRunner {
                     this.pendingCompletionContexts.cancelWorkflow,
                     job.resolveRequestCancelExternalWorkflow.seq
                   )
+                : undefined;
+              const resolveNexusOperationContext = job.resolveNexusOperation
+                ? this.consumeContext(this.pendingCompletionContexts.nexusOperation, job.resolveNexusOperation.seq)
                 : undefined;
 
               return {
@@ -306,11 +312,18 @@ export class WorkflowCodecRunner {
                       ...job.resolveNexusOperation,
                       result: {
                         completed: job.resolveNexusOperation.result?.completed
-                          ? await decodeOptionalSingle(
+                          ? (await tryConvertSystemNexusOutputProtoBinaryToJsonPayload(
+                              this.codecs,
+                              resolveNexusOperationContext?.service,
+                              resolveNexusOperationContext?.operation,
+                              job.resolveNexusOperation.result.completed,
+                              this.workflowContext
+                            )) ??
+                            (await decodeOptionalSingle(
                               this.codecs,
                               job.resolveNexusOperation.result.completed,
                               this.workflowContext
-                            )
+                            ))
                           : null,
                         failed: job.resolveNexusOperation.result?.failed
                           ? await decodeOptionalFailure(
@@ -440,6 +453,18 @@ export class WorkflowCodecRunner {
                         command.requestCancelExternalWorkflowExecution.seq,
                         cancelWorkflowContext
                       );
+                    }
+                    if (
+                      command.scheduleNexusOperation?.seq != null &&
+                      isSystemNexusOperation(
+                        command.scheduleNexusOperation.service,
+                        command.scheduleNexusOperation.operation
+                      )
+                    ) {
+                      this.pendingCompletionContexts.nexusOperation.set(command.scheduleNexusOperation.seq, {
+                        service: command.scheduleNexusOperation.service!,
+                        operation: command.scheduleNexusOperation.operation!,
+                      });
                     }
 
                     return <Encoded<coresdk.workflow_commands.IWorkflowCommand>>{
@@ -579,11 +604,19 @@ export class WorkflowCodecRunner {
                       scheduleNexusOperation: command.scheduleNexusOperation
                         ? {
                             ...command.scheduleNexusOperation,
-                            input: await encodeOptionalSingle(
-                              this.codecs,
-                              command.scheduleNexusOperation.input,
-                              this.workflowContext
-                            ),
+                            input:
+                              (await tryConvertSystemNexusInputJsonToProtoBinaryPayload(
+                                this.codecs,
+                                command.scheduleNexusOperation.service,
+                                command.scheduleNexusOperation.operation,
+                                command.scheduleNexusOperation.input,
+                                this.workflowContext
+                              )) ??
+                              (await encodeOptionalSingle(
+                                this.codecs,
+                                command.scheduleNexusOperation.input,
+                                this.workflowContext
+                              )),
                           }
                         : undefined,
                       modifyWorkflowProperties: command.modifyWorkflowProperties

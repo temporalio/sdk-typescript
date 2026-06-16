@@ -66,6 +66,9 @@ importers:
       prettier:
         specifier: ^3.1.1
         version: 3.1.1
+      protobufjs:
+        specifier: 7.5.5
+        version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
       ts-prune:
         specifier: ^0.10.3
         version: 0.10.3
@@ -1006,6 +1009,9 @@ importers:
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
+      long:
+        specifier: ^5.2.3
+        version: 5.2.3
       nexus-rpc:
         specifier: ^0.0.2
         version: 0.0.2

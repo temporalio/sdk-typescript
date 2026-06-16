@@ -32,6 +32,7 @@
   "dependencies": {
     "@temporalio/common": "workspace:*",
     "@temporalio/proto": "workspace:*",
+    "long": "^5.2.3",
     "nexus-rpc": "^0.0.2"
   },
   "devDependencies": {

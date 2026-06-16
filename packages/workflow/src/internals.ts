@@ -75,6 +75,7 @@ import pkg from './pkg';
 import type { SdkFlag } from './flags';
 import { assertValidFlag } from './flags';
 import { executeWithLifecycleLogging, log } from './logs';
+import { tryDeserializeSystemNexusOutputFromJsonPayload } from './nexus/system/payload-converter';
 
 const StartChildWorkflowExecutionFailedCause = {
   WORKFLOW_ALREADY_EXISTS: 'WORKFLOW_ALREADY_EXISTS',
@@ -142,6 +143,11 @@ interface MessageHandlerExecution {
   id?: string;
 }
 
+interface NexusOperationContext {
+  service: string;
+  operation: string;
+}
+
 type InferMapValue<T> = T extends Map<number, infer V> ? V : never;
 
 interface ScopedWorkflowRandomSource {
@@ -185,6 +191,8 @@ export class Activator implements ActivationHandler {
     signalWorkflow: new Map<number, Completion<void, WorkflowSerializationContext>>(),
     cancelWorkflow: new Map<number, Completion<void, WorkflowSerializationContext>>(),
   };
+
+  readonly nexusOperationContexts = new Map<number, NexusOperationContext>();
 
   /**
    * Holds buffered Update calls until a handler is registered
@@ -781,6 +789,7 @@ export class Activator implements ActivationHandler {
 
       resolve({ token: activation.operationToken!, result: completePromise });
     } else {
+      this.nexusOperationContexts.delete(seq);
       reject(this.failureToError(activation.failed));
     }
   }
@@ -788,9 +797,16 @@ export class Activator implements ActivationHandler {
   public resolveNexusOperation(activation: coresdk.workflow_activation.IResolveNexusOperation): void {
     const seq = getSeq(activation);
     const context = this.workflowSerializationContext();
+    const operationContext = this.nexusOperationContexts.get(seq);
+    this.nexusOperationContexts.delete(seq);
 
     if (activation.result?.completed) {
-      const result = this.payloadConverter.fromPayload(activation.result.completed, context);
+      const result =
+        tryDeserializeSystemNexusOutputFromJsonPayload(
+          operationContext?.service,
+          operationContext?.operation,
+          activation.result.completed
+        ) ?? this.payloadConverter.fromPayload(activation.result.completed, context);
 
       // It is possible for ResolveNexusOperation to be received without a prior ResolveNexusOperationStart,
       // e.g. because the handler completed the Operation synchronously.
