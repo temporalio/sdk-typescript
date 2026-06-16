@@ -5,7 +5,7 @@
  *
  * Test helpers for users adopting the Google ADK Temporal plugin.
  *
- * These let you unit-test Workflows that use `TemporalLlm` / `TemporalMcpToolset`
+ * These let you unit-test Workflows that use `TemporalModel` / `TemporalMcpToolSet`
  * without booting a worker against a real Gemini endpoint or a real MCP server.
  * Import from the `./testing` subpath:
  *
@@ -53,7 +53,7 @@ export class FakeLlm extends BaseLlm {
   override async *generateContentAsync(
     _llmRequest: LlmRequest,
     _stream = false,
-    _abortSignal?: AbortSignal,
+    _abortSignal?: AbortSignal
   ): AsyncGenerator<LlmResponse, void> {
     const out: LlmResponse[] = this.responses ?? [
       {
@@ -78,9 +78,7 @@ export class FakeLlm extends BaseLlm {
  *
  * @experimental
  */
-export function fakeModelProvider(
-  responses?: LlmResponse[],
-): (model: string) => BaseLlm {
+export function fakeModelProvider(responses?: LlmResponse[]): (model: string) => BaseLlm {
   return (model: string) => new FakeLlm({ model }, responses);
 }
 
@@ -95,10 +93,8 @@ export interface MockMcpToolDefinition {
 /**
  * An in-memory {@link BaseToolset} test double for MCP. Use via
  * {@link mockMcpToolset} as a `GoogleAdkPluginOptions.mcpToolsets` factory.
- *
- * @experimental
  */
-export class MockMcpToolset extends BaseToolset {
+class MockMcpToolset extends BaseToolset {
   private readonly definitions: MockMcpToolDefinition[];
 
   /** @param definitions The tools this mock server exposes. */

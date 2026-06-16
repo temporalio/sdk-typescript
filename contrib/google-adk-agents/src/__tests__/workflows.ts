@@ -1,7 +1,7 @@
 /**
  * Workflow definitions used by the E2E tests. These run inside the Temporal
  * Workflow sandbox: they construct real `@google/adk` objects (the ADK
- * `BaseLlm` subclass `TemporalLlm`, `BaseToolset` subclass `TemporalMcpToolset`,
+ * `BaseLlm` subclass `TemporalModel`, `BaseToolset` subclass `TemporalMcpToolSet`,
  * `LongRunningFunctionTool`) and invoke their native entry points. The plugin
  * routes the model/MCP I/O to Activities.
  */
@@ -15,14 +15,9 @@ import {
   type LlmRequest,
 } from '@google/adk';
 import type { Duration } from '@temporalio/common';
-import {
-  condition,
-  defineSignal,
-  defineUpdate,
-  setHandler,
-} from '@temporalio/workflow';
+import { condition, defineSignal, defineUpdate, setHandler } from '@temporalio/workflow';
 
-import { TemporalLlm, TemporalMcpToolset, activityAsTool } from '../index.js';
+import { TemporalModel, TemporalMcpToolSet, activityAsTool } from '../index.js';
 
 /** Build a minimal, serializable LlmRequest for a single user turn. */
 function makeRequest(text: string): LlmRequest {
@@ -45,7 +40,7 @@ function collectText(parts: Array<{ text?: string }> | undefined): string {
 
 /** One model call through the plugin; returns the concatenated text. */
 export async function singleModelCall(prompt: string): Promise<string> {
-  const llm = new TemporalLlm('fake-model');
+  const llm = new TemporalModel('fake-model');
   let text = '';
   for await (const response of llm.generateContentAsync(makeRequest(prompt))) {
     text += collectText(response.content?.parts);
@@ -55,7 +50,7 @@ export async function singleModelCall(prompt: string): Promise<string> {
 
 /** N sequential model calls; returns how many responses were produced. */
 export async function countModelCalls(n: number): Promise<number> {
-  const llm = new TemporalLlm('fake-model');
+  const llm = new TemporalModel('fake-model');
   let responses = 0;
   for (let i = 0; i < n; i++) {
     for await (const _response of llm.generateContentAsync(makeRequest(`turn-${i}`))) {
@@ -69,9 +64,11 @@ export async function countModelCalls(n: number): Promise<number> {
 export async function modelCallWithTimeout(): Promise<string> {
   // `maximumAttempts: 1` so the start-to-close timeout fails the Workflow on the
   // first attempt instead of retrying forever.
-  const llm = new TemporalLlm('slow-model', {
-    startToCloseTimeout: '1 second',
-    retry: { maximumAttempts: 1 },
+  const llm = new TemporalModel('slow-model', {
+    activity: {
+      startToCloseTimeout: '1 second',
+      retry: { maximumAttempts: 1 },
+    },
   });
   let text = '';
   for await (const response of llm.generateContentAsync(makeRequest('hi'))) {
@@ -82,7 +79,7 @@ export async function modelCallWithTimeout(): Promise<string> {
 
 /** A model call whose backing model raises a non-retryable (4xx) error. */
 export async function modelCallError(): Promise<string> {
-  const llm = new TemporalLlm('boom', { retry: { maximumAttempts: 1 } });
+  const llm = new TemporalModel('boom', { activity: { retry: { maximumAttempts: 1 } } });
   let text = '';
   for await (const response of llm.generateContentAsync(makeRequest('explode'))) {
     text += collectText(response.content?.parts);
@@ -92,7 +89,7 @@ export async function modelCallError(): Promise<string> {
 
 /** A model call with a custom summary set on the Activity. */
 export async function modelCallWithSummary(prompt: string): Promise<string> {
-  const llm = new TemporalLlm('fake-model', { summary: 'custom-model-summary' });
+  const llm = new TemporalModel('fake-model', { summary: 'custom-model-summary' });
   let text = '';
   for await (const response of llm.generateContentAsync(makeRequest(prompt))) {
     text += collectText(response.content?.parts);
@@ -102,12 +99,12 @@ export async function modelCallWithSummary(prompt: string): Promise<string> {
 
 /** Streaming (SSE) model call; returns concatenated chunk text + chunk count. */
 export async function streamingModelCall(
-  batchInterval: Duration = '50 milliseconds',
+  batchInterval: Duration = '50 milliseconds'
 ): Promise<{ text: string; chunks: number }> {
-  const llm = new TemporalLlm('fake-model', {
+  const llm = new TemporalModel('fake-model', {
     streamingTopic: 'adk-test-stream',
     streamingBatchInterval: batchInterval,
-    heartbeatTimeout: '5 seconds',
+    activity: { heartbeatTimeout: '5 seconds' },
   });
   let text = '';
   let chunks = 0;
@@ -124,7 +121,7 @@ export async function mcpListTools(): Promise<{
   firstName: string;
   hasParameters: boolean;
 }> {
-  const toolset = new TemporalMcpToolset({ name: 'testServer' });
+  const toolset = new TemporalMcpToolSet({ name: 'testServer' });
   const tools = await toolset.getTools();
   const first = tools[0];
   const declaration = first?._getDeclaration();
@@ -137,7 +134,7 @@ export async function mcpListTools(): Promise<{
 
 /** Call an MCP tool through the plugin; returns the tool result. */
 export async function mcpCallTool(value: string): Promise<unknown> {
-  const toolset = new TemporalMcpToolset({ name: 'testServer' });
+  const toolset = new TemporalMcpToolSet({ name: 'testServer' });
   const tools = await toolset.getTools();
   const tool = tools.find((t) => t.name === 'echo');
   if (!tool) {
@@ -148,7 +145,7 @@ export async function mcpCallTool(value: string): Promise<unknown> {
 
 /** MCP discovery with a toolFilter restricting to a subset of tools. */
 export async function mcpFilteredTools(): Promise<string[]> {
-  const toolset = new TemporalMcpToolset({ name: 'testServer', toolFilter: ['echo'] });
+  const toolset = new TemporalMcpToolSet({ name: 'testServer', toolFilter: ['echo'] });
   const tools = await toolset.getTools();
   return tools.map((t) => t.name);
 }
@@ -199,7 +196,7 @@ export async function hitlWorkflow(): Promise<string> {
  * boundaries against a single recorded history.
  */
 export async function replayScenario(): Promise<string> {
-  const llm = new TemporalLlm('fake-model');
+  const llm = new TemporalModel('fake-model');
   let text = '';
   for (let i = 0; i < 2; i++) {
     for await (const response of llm.generateContentAsync(makeRequest(`turn-${i}`))) {
@@ -207,7 +204,7 @@ export async function replayScenario(): Promise<string> {
     }
   }
 
-  const toolset = new TemporalMcpToolset({ name: 'testServer' });
+  const toolset = new TemporalMcpToolSet({ name: 'testServer' });
   const tools = await toolset.getTools();
   const echo = tools.find((t) => t.name === 'echo');
   if (echo) {
@@ -222,7 +219,7 @@ export async function replayScenario(): Promise<string> {
 
 /**
  * Native ADK integration: build a real `LlmAgent` whose model is a
- * `TemporalLlm`, then drive it with the SDK's own `InMemoryRunner.runEphemeral`
+ * `TemporalModel`, then drive it with the SDK's own `InMemoryRunner.runEphemeral`
  * loop inside the Workflow and return the agent's final text response. The user
  * writes ordinary ADK code — the plugin transparently routes every model turn
  * the runner makes through the `invokeModel` Activity, so durability requires
@@ -231,7 +228,7 @@ export async function replayScenario(): Promise<string> {
 export async function agentRunnerWorkflow(prompt: string): Promise<string> {
   const agent = new LlmAgent({
     name: 'assistant',
-    model: new TemporalLlm('fake-model'),
+    model: new TemporalModel('fake-model'),
     instruction: 'You are a helpful assistant.',
   });
   const runner = new InMemoryRunner({ agent });

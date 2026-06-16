@@ -234,10 +234,7 @@ function disallowedBuiltins(): readonly string[] {
  * modules" build error names it), which aliases them to `false` in the Workflow
  * bundle; they are defined but never dereferenced at Workflow runtime.
  */
-const WORKER_ONLY_TEMPORAL_PACKAGES: readonly string[] = [
-  '@temporalio/activity',
-  '@temporalio/client',
-];
+const WORKER_ONLY_TEMPORAL_PACKAGES: readonly string[] = ['@temporalio/activity', '@temporalio/client'];
 
 /**
  * `@google/adk`'s node-only **service** subtrees (telemetry, Cloud
@@ -342,9 +339,7 @@ const ADK_NODE_ONLY_SERVICE_PACKAGES: readonly string[] = [
 function googleAdkSandboxCompatPlugin(): unknown {
   // Built worker-side only (this factory is called from `configureBundler`), so
   // `Buffer` is the real Node global here, not the sandbox stub.
-  const shimUris = REQUEST_SHIM_SOURCES.map(
-    ([request, source]) => [request, toDataUri(source)] as const,
-  );
+  const shimUris = REQUEST_SHIM_SOURCES.map(([request, source]) => [request, toDataUri(source)] as const);
   const shimByRequest = new Map<string, string>(shimUris);
   const processShimUri = toDataUri(PROCESS_SHIM_SOURCE);
   return {
@@ -377,7 +372,7 @@ function googleAdkSandboxCompatPlugin(): unknown {
  * after any user-supplied hook so their customizations are preserved.
  */
 function addSandboxCompat(
-  existing: BundleOptions['webpackConfigHook'],
+  existing: BundleOptions['webpackConfigHook']
 ): NonNullable<BundleOptions['webpackConfigHook']> {
   return (config: WebpackConfig): WebpackConfig => {
     const cfg = existing ? existing(config) : config;
@@ -394,8 +389,6 @@ function addSandboxCompat(
  * API keys are NOT configured here — the model Activities read them from the
  * worker environment (e.g. `GOOGLE_API_KEY` / `GEMINI_API_KEY`) or via a
  * custom `modelProvider`. They never enter workflow or activity inputs.
- *
- * @experimental
  */
 export interface GoogleAdkPluginOptions {
   /**
@@ -408,7 +401,7 @@ export interface GoogleAdkPluginOptions {
    * Named MCP toolset factories. Each key `name` becomes a
    * `<name>-listTools` / `<name>-callTool` Activity pair; the factory opens
    * the real MCP session on the worker. The matching workflow-side handle is
-   * `new TemporalMcpToolset({ name })`.
+   * `new TemporalMcpToolSet({ name })`.
    */
   mcpToolsets?: Record<string, McpToolsetFactory>;
 }

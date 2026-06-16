@@ -3,7 +3,7 @@
  * Copyright 2025 Temporal Technologies Inc.
  * SPDX-License-Identifier: MIT
  *
- * E2E tests for the `TemporalMcpToolset` boundary: tool discovery and tool
+ * E2E tests for the `TemporalMcpToolSet` boundary: tool discovery and tool
  * calls route through named Activities, the FULL `FunctionDeclaration` (incl.
  * parameter schema) round-trips, the named factory resolves on the worker, and
  * `toolFilter` is honored. Uses the in-memory `mockMcpToolset` test double.
@@ -63,14 +63,14 @@ function uid(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
 
-// TemporalMcpToolset (E2E)
+// TemporalMcpToolSet (E2E)
 test.serial('listToolsReturnsFullSchema', async (t) => {
   const taskQueue = uid('adk-mcp-list');
   const result = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
     env.client.workflow.execute(mcpListTools, {
       taskQueue,
       workflowId: uid('wf-mcp-list'),
-    }),
+    })
   );
   t.is(result.count, 2);
   t.is(result.firstName, 'echo');
@@ -85,7 +85,7 @@ test.serial('callToolRoutesToActivity', async (t) => {
       taskQueue,
       workflowId: uid('wf-mcp-call'),
       args: ['hello'],
-    }),
+    })
   );
   t.deepEqual(result, { echoed: 'hello' });
 });
@@ -94,7 +94,7 @@ test.serial('resolvesNamedToolsetFactory', async (t) => {
   const taskQueue = uid('adk-mcp-named');
   const workflowId = uid('wf-mcp-named');
   await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
-    env.client.workflow.execute(mcpListTools, { taskQueue, workflowId }),
+    env.client.workflow.execute(mcpListTools, { taskQueue, workflowId })
   );
   // The toolset name selects a `<name>-listTools` Activity registered by the
   // plugin from the named factory.
@@ -108,7 +108,7 @@ test.serial('appliesToolFilter', async (t) => {
     env.client.workflow.execute(mcpFilteredTools, {
       taskQueue,
       workflowId: uid('wf-mcp-filter'),
-    }),
+    })
   );
   // `toolFilter: ['echo']` drops `reverse`.
   t.deepEqual(result, ['echo']);

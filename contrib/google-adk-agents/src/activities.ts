@@ -35,12 +35,7 @@ import { ApplicationFailure } from '@temporalio/common';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 
-import type {
-  InvokeModelArgs,
-  InvokeModelStreamingArgs,
-  ModelActivities,
-  WireLlmRequest,
-} from './model.js';
+import type { InvokeModelArgs, InvokeModelStreamingArgs, ModelActivities, WireLlmRequest } from './model.js';
 import type { McpCallToolArgs, McpToolsetFactory } from './mcp.js';
 
 /** Default coalescing interval for streamed model chunks. */
@@ -53,8 +48,6 @@ const RETRYABLE_STATUS = new Set([408, 409, 429]);
  * Worker-side reconstruction options consumed by {@link createModelActivities}.
  * Structurally compatible with `GoogleAdkPluginOptions` so the plugin passes
  * its options straight through (kept local to avoid a `plugin.ts` import cycle).
- *
- * @experimental
  */
 export interface ModelActivitiesOptions {
   /** Reconstructs a `BaseLlm` from a model name; defaults to the ADK registry. */
@@ -65,12 +58,9 @@ export interface ModelActivitiesOptions {
  * Builds the `invokeModel` / `invokeModelStreaming` Activities. Each call
  * reconstructs the real model from its name and runs inference on the worker;
  * the surrounding ADK agent loop stays in the (deterministic) Workflow.
- *
- * @experimental
  */
 export function createModelActivities(options: ModelActivitiesOptions = {}): ModelActivities {
-  const resolveModel = (model: string): BaseLlm =>
-    options.modelProvider?.(model) ?? LLMRegistry.newLlm(model);
+  const resolveModel = (model: string): BaseLlm => options.modelProvider?.(model) ?? LLMRegistry.newLlm(model);
 
   return {
     async invokeModel(args: InvokeModelArgs): Promise<LlmResponse[]> {
@@ -139,11 +129,9 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
  * Builds the `<name>-listTools` / `<name>-callTool` Activity pairs for every
  * registered MCP toolset factory. Each pair opens a real MCP session on the
  * worker (session-per-call), lists/executes, then closes it.
- *
- * @experimental
  */
 export function createMcpActivities(
-  toolsets: Record<string, McpToolsetFactory> = {},
+  toolsets: Record<string, McpToolsetFactory> = {}
 ): Record<string, (args: never) => Promise<unknown>> {
   const activities: Record<string, (args: never) => Promise<unknown>> = {};
   for (const [name, factory] of Object.entries(toolsets)) {
@@ -154,7 +142,7 @@ export function createMcpActivities(
 
 function mcpActivitiesForName(
   name: string,
-  factory: McpToolsetFactory,
+  factory: McpToolsetFactory
 ): Record<string, (args: never) => Promise<unknown>> {
   const resolveToolset = (): BaseToolset => {
     const produced = factory();
@@ -167,9 +155,7 @@ function mcpActivitiesForName(
       const toolset = resolveToolset();
       try {
         const tools = await toolset.getTools();
-        return tools
-          .map((tool) => tool._getDeclaration())
-          .filter((d): d is FunctionDeclaration => d !== undefined);
+        return tools.map((tool) => tool._getDeclaration()).filter((d): d is FunctionDeclaration => d !== undefined);
       } catch (err) {
         throw toApplicationFailure(err);
       } finally {
@@ -187,7 +173,7 @@ function mcpActivitiesForName(
         if (!tool) {
           throw ApplicationFailure.retryable(
             `Tool '${args.toolName}' not found on MCP server '${name}'.`,
-            'GoogleAdkMcpToolNotFound',
+            'GoogleAdkMcpToolNotFound'
           );
         }
         // The MCP tool reads `toolContext.abortSignal`; supply the Activity's
@@ -293,8 +279,7 @@ export function toApplicationFailure(err: unknown): ApplicationFailure {
   const headers = readHeaders(err);
   const message = err instanceof Error ? err.message : String(err);
 
-  let retryable =
-    status === undefined ? true : RETRYABLE_STATUS.has(status) || (status >= 500 && status < 600);
+  let retryable = status === undefined ? true : RETRYABLE_STATUS.has(status) || (status >= 500 && status < 600);
   const shouldRetry = headers?.['x-should-retry'];
   if (shouldRetry === 'false') {
     retryable = false;
@@ -337,7 +322,7 @@ function readHeaders(err: unknown): Record<string, string> | undefined {
     return out;
   }
   return Object.fromEntries(
-    Object.entries(raw as Record<string, unknown>).map(([k, v]) => [k.toLowerCase(), String(v)]),
+    Object.entries(raw as Record<string, unknown>).map(([k, v]) => [k.toLowerCase(), String(v)])
   );
 }
 
