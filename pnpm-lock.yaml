@@ -618,6 +618,9 @@ importers:
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
+      '@temporalio/strands-agents':
+        specifier: workspace:*
+        version: link:../../contrib/strands
       '@temporalio/testing':
         specifier: workspace:*
         version: link:../testing
