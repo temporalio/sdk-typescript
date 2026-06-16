@@ -115,6 +115,16 @@ export async function streamingModelCall(
   return { text, chunks };
 }
 
+/** A streaming model call with no `streamingTopic` configured (must fail). */
+export async function streamingModelCallNoTopic(): Promise<string> {
+  const llm = new TemporalModel('fake-model');
+  let text = '';
+  for await (const response of llm.generateContentAsync(makeRequest('stream please'), true)) {
+    text += collectText(response.content?.parts);
+  }
+  return text;
+}
+
 /** Discover MCP tools and assert the full schema crossed the boundary. */
 export async function mcpListTools(): Promise<{
   count: number;
