@@ -13,6 +13,7 @@ export const defaultDynamicConfigOptions = [
   'activity.enableStandalone=true',
   'history.enableChasm=true',
   'history.enableTransitionHistory=true',
+  'history.enableSignalWithStartFromWorkflow=true',
 ];
 
 export const defaultSAKeys = {
