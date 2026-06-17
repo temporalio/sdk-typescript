@@ -118,8 +118,11 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
       } catch (err) {
         throw toApplicationFailure(err);
       } finally {
-        await stream?.[Symbol.asyncDispose]();
-        stopHeartbeat();
+        try {
+          await stream?.[Symbol.asyncDispose]();
+        } finally {
+          stopHeartbeat();
+        }
       }
     },
   };
@@ -171,7 +174,7 @@ function mcpActivitiesForName(
         const tools = await toolset.getTools();
         const tool = tools.find((t) => t.name === args.toolName);
         if (!tool) {
-          throw ApplicationFailure.retryable(
+          throw ApplicationFailure.nonRetryable(
             `Tool '${args.toolName}' not found on MCP server '${name}'.`,
             'GoogleAdkMcpToolNotFound'
           );
@@ -302,6 +305,11 @@ function readStatus(err: unknown): number | undefined {
     if (typeof e.status === 'number') return e.status;
     if (typeof e.code === 'number') return e.code;
     if (typeof e.status === 'string' && /^\d+$/.test(e.status)) return Number(e.status);
+    const response = e.response as Record<string, unknown> | undefined;
+    if (response && typeof response === 'object') {
+      if (typeof response.status === 'number') return response.status;
+      if (typeof response.status === 'string' && /^\d+$/.test(response.status)) return Number(response.status);
+    }
   }
   return undefined;
 }
