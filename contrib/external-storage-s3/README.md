@@ -48,6 +48,7 @@ const myClient: S3StorageDriverClient = {
   },
 };
 ```
+
 ## Dynamic bucket selection
 
 Pass a callable as `bucket` to choose the destination per payload:
@@ -55,8 +56,7 @@ Pass a callable as `bucket` to choose the destination per payload:
 ```ts
 const driver = new S3StorageDriver({
   client: new AwsSdkS3StorageDriverClient(s3Client),
-  bucket: (_context, payload) =>
-    (payload.data?.length ?? 0) > 10 * 1024 * 1024 ? 'large-payloads' : 'small-payloads',
+  bucket: (_context, payload) => ((payload.data?.length ?? 0) > 10 * 1024 * 1024 ? 'large-payloads' : 'small-payloads'),
 });
 ```
 
@@ -81,16 +81,19 @@ All Temporal S3 drivers generate S3 keys in a consistent manner.
 ### Key format
 
 Workflow key:
+
 ```text
 v0/ns/{namespace}/wt/{workflow-type}/wi/{workflow-id}/ri/{run-id}/d/{hash-algorithm}/{hex-digest}
 ```
 
 Activity key:
+
 ```text
 v0/ns/{namespace}/at/{activity-type}/ai/{activity-id}/ri/{run-id}/d/{hash-algorithm}/{hex-digest}
 ```
 
 Fallback key (unknown target):
+
 ```text
 v0/d/{hash-algorithm}/{hex-digest}
 ```
@@ -105,13 +108,14 @@ v0/d/{hash-algorithm}/{hex-digest}
 The Temporal SDKs escape anything that isn't listed in S3's safe character set: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
 
 Safe Characters:
+
 ```text
-Alphanumeric characters	
+Alphanumeric characters
   0-9
   a-z
   A-Z
 
-Special characters	
+Special characters
   Exclamation point (!)
   Hyphen (-)
   Underscore (_)

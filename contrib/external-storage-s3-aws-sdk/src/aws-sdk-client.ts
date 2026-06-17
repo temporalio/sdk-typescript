@@ -20,7 +20,9 @@ export class AwsSdkS3StorageDriverClient implements S3StorageDriverClient {
 
   async objectExists(bucket: string, key: string, options?: S3RequestOptions): Promise<boolean> {
     try {
-      await this.client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }), { abortSignal: options?.abortSignal });
+      await this.client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }), {
+        abortSignal: options?.abortSignal,
+      });
       return true;
     } catch (err) {
       if (isNotFound(err)) {

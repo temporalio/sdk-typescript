@@ -35,7 +35,9 @@ test('objectExists returns true when the head succeeds', async (t) => {
 
 test('getObject reads the response body as bytes', async (t) => {
   const bytes = new Uint8Array([1, 2, 3]);
-  const client = new AwsSdkS3StorageDriverClient(fakeS3Client(() => Promise.resolve({ Body: { transformToByteArray: async () => bytes } })));
+  const client = new AwsSdkS3StorageDriverClient(
+    fakeS3Client(() => Promise.resolve({ Body: { transformToByteArray: async () => bytes } }))
+  );
   t.deepEqual(await client.getObject('b', 'k'), bytes);
 });
 
