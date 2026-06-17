@@ -115,7 +115,7 @@ const DEFAULT_PAYLOAD_SIZE_THRESHOLD = 256 * 1024;
 /**
  * Configuration for external storage. Holds the registered drivers, an
  * optional selector, and the size threshold above which payloads are
- * eligible for offloading to external storage. A selector function is 
+ * eligible for offloading to external storage. A selector function is
  * required when more than one driver is registered.
  *
  * @internal
@@ -125,7 +125,7 @@ export class ExternalStorage {
   readonly drivers: StorageDriver[];
   /**
    * Selects the destination driver for each payload, or returns `null` to keep
-   * the payload inline. 
+   * the payload inline.
    */
   readonly driverSelector: StorageDriverSelector;
   readonly payloadSizeThreshold: number;
