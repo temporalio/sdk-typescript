@@ -161,6 +161,19 @@ importers:
         specifier: ^3.25.76
         version: 3.25.76
 
+  contrib/external-storage-s3:
+    dependencies:
+      '@temporalio/common':
+        specifier: workspace:*
+        version: link:../../packages/common
+      '@temporalio/proto':
+        specifier: workspace:*
+        version: link:../../packages/proto
+    devDependencies:
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
+
   contrib/interceptors-opentelemetry:
     dependencies:
       '@opentelemetry/api':
