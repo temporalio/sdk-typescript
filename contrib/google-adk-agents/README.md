@@ -28,19 +28,19 @@ Gemini credentials to the **worker** as usual (e.g. `GOOGLE_API_KEY` /
 ## Hello world
 
 Take an agent you already have and change **one line** — wrap its model in
-`TemporalLlm` — then register the plugin.
+`TemporalModel` — then register the plugin.
 
 ### `workflows.ts`
 
 ```typescript
 import { InMemoryRunner, LlmAgent, isFinalResponse, stringifyContent } from '@google/adk';
-import { TemporalLlm } from '@temporalio/google-adk-agents';
+import { TemporalModel } from '@temporalio/google-adk-agents';
 
 export async function askAgent(prompt: string): Promise<string> {
   const agent = new LlmAgent({
     name: 'assistant',
     // The only change from a vanilla ADK agent:
-    model: new TemporalLlm('gemini-2.5-flash'),
+    model: new TemporalModel('gemini-2.5-flash'),
     instruction: 'You are a helpful assistant.',
   });
 
@@ -94,11 +94,11 @@ console.log(result);
 ## What this plugin gives you
 
 - **Durable model calls.** Swap `model: 'gemini-2.5-flash'` for
-  `model: new TemporalLlm('gemini-2.5-flash')` and each inference runs as a
+  `model: new TemporalModel('gemini-2.5-flash')` and each inference runs as a
   Temporal Activity with a per-model `RetryPolicy`, `startToCloseTimeout`, and
   auto-heartbeat for slow / thinking-mode calls. Upstream `429`/`5xx` and
   `retry-after` headers are honored; non-retryable `4xx` fail fast.
-- **Durable MCP tools.** `new TemporalMcpToolset({ name })` routes tool
+- **Durable MCP tools.** `new TemporalMcpToolSet({ name })` routes tool
   discovery and tool calls through Activities. The full tool schema (name,
   description, **parameters**) round-trips, so the model still sees argument
   schemas. MCP connection params stay on the worker:
@@ -117,8 +117,8 @@ console.log(result);
   // workflow / agent
   const agent = new LlmAgent({
     name: 'fs',
-    model: new TemporalLlm('gemini-2.5-flash'),
-    tools: [new TemporalMcpToolset({ name: 'filesystem' })],
+    model: new TemporalModel('gemini-2.5-flash'),
+    tools: [new TemporalMcpToolSet({ name: 'filesystem' })],
   });
   ```
 
@@ -136,9 +136,11 @@ console.log(result);
   });
   ```
 
-- **Streaming (SSE).** Set `streamingTopic` on `TemporalLlm` to publish
-  incremental `LlmResponse` chunks via `@temporalio/workflow-streams` while the
-  Workflow still receives the full transcript.
+- **Streaming (SSE).** Streaming requires `streamingTopic` on `TemporalModel`:
+  set it to publish incremental `LlmResponse` chunks via
+  `@temporalio/workflow-streams` while the Workflow still receives the full
+  transcript. Requesting streaming without a `streamingTopic` throws a
+  non-retryable `GoogleAdkStreamingTopicRequired` error.
 - **Human-in-the-loop.** Because the agent loop runs in the Workflow body, a
   `LongRunningFunctionTool` can `await` a Temporal Signal or Update carrying a
   human's result — no special shim required.
@@ -193,7 +195,7 @@ Temporal's `RetryPolicy` is the **sole** retry authority for model calls. Inside
 loop *inside* each Activity attempt (which would multiply latency/request volume
 and hide the real failure from Temporal). One Activity attempt is exactly one
 model request; Temporal owns backoff, `retry-after` handling, and the retry
-budget. Tune it per model via `TemporalLlmOptions.retry`.
+budget. Tune it per model via `TemporalModelOptions.activity.retry`.
 
 ## Composing with other plugins
 
