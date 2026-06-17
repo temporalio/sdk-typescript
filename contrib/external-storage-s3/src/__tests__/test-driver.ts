@@ -62,10 +62,7 @@ test('key is content-addressed and segmented by the store context', async (t) =>
 
   const [claim] = await driver.store(workflowContext, [makePayload('"hello"')]);
 
-  t.regex(
-    claim!.claimData.key!,
-    /^v0\/ns\/my-ns\/wt\/MyWorkflow\/wi\/wf-1\/ri\/run-1\/d\/sha256\/[0-9a-f]{64}$/
-  );
+  t.regex(claim!.claimData.key!, /^v0\/ns\/my-ns\/wt\/MyWorkflow\/wi\/wf-1\/ri\/run-1\/d\/sha256\/[0-9a-f]{64}$/);
   t.is(claim!.claimData.hashAlgorithm, 'sha256');
   t.is(claim!.claimData.bucket, 'b');
 });

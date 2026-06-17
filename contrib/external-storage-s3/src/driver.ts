@@ -129,7 +129,7 @@ export class S3StorageDriver implements StorageDriver {
       throw new ValueError(`maxPayloadSize must be a positive finite number, got ${String(maxPayloadSize)}`);
     }
     this.client = client;
-    this.bucket = (typeof bucket === 'string') ? () => bucket : bucket;
+    this.bucket = typeof bucket === 'string' ? () => bucket : bucket;
     this.name = driverName || DRIVER_TYPE;
     this.maxPayloadSize = maxPayloadSize;
   }
@@ -142,9 +142,7 @@ export class S3StorageDriver implements StorageDriver {
   }
 
   async retrieve(context: StorageDriverRetrieveContext, claims: StorageDriverClaim[]): Promise<Payload[]> {
-    return gatherWithCancellation(context.abortSignal, (signal) =>
-      claims.map((claim) => this.download(claim, signal))
-    );
+    return gatherWithCancellation(context.abortSignal, (signal) => claims.map((claim) => this.download(claim, signal)));
   }
 
   private async upload(
@@ -183,8 +181,7 @@ export class S3StorageDriver implements StorageDriver {
     const { bucket, key, hashAlgorithm, hashValue: expectedHash } = claim.claimData;
     if (!bucket || !key) {
       throw new ValueError(
-        `S3StorageDriver claim is missing required location information: ` +
-          `claimData must contain 'bucket' and 'key'`
+        `S3StorageDriver claim is missing required location information: ` + `claimData must contain 'bucket' and 'key'`
       );
     }
     if (!hashAlgorithm || !expectedHash) {
