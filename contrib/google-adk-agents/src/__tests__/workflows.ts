@@ -15,7 +15,7 @@ import {
   type LlmRequest,
 } from '@google/adk';
 import type { Duration } from '@temporalio/common';
-import { condition, defineSignal, defineUpdate, setHandler } from '@temporalio/workflow';
+import { condition, defineSignal, defineUpdate, proxyActivities, setHandler } from '@temporalio/workflow';
 
 import { TemporalModel, TemporalMcpToolSet, activityAsTool } from '../index.js';
 
@@ -151,6 +151,20 @@ export async function mcpCallTool(value: string): Promise<unknown> {
     throw new Error('echo tool not found');
   }
   return tool.runAsync({ args: { value }, toolContext: {} as never });
+}
+
+/**
+ * Calls the `testServer-callTool` Activity directly with a tool name the server
+ * does not expose, exercising the Activity-side not-found path.
+ */
+export async function mcpCallUnknownTool(): Promise<unknown> {
+  const activities = proxyActivities<{
+    'testServer-callTool': (args: { toolName: string; args: Record<string, unknown> }) => Promise<unknown>;
+  }>({
+    startToCloseTimeout: '1 minute',
+    retry: { maximumAttempts: 1 },
+  });
+  return activities['testServer-callTool']({ toolName: 'does-not-exist', args: {} });
 }
 
 /** MCP discovery with a toolFilter restricting to a subset of tools. */

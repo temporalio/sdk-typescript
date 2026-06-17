@@ -12,11 +12,12 @@
 import test from 'ava';
 import { Type } from '@google/genai';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
+import { ApplicationFailure } from '@temporalio/common';
 
 import { GoogleAdkPlugin } from '../index.js';
 import { mockMcpToolset, type MockMcpToolDefinition } from '../testing.js';
-import { countScheduledActivities, withWorker } from './helpers.js';
-import { mcpCallTool, mcpFilteredTools, mcpListTools } from './workflows.js';
+import { countScheduledActivities, findInCauseChain, withWorker } from './helpers.js';
+import { mcpCallTool, mcpCallUnknownTool, mcpFilteredTools, mcpListTools } from './workflows.js';
 
 const echoDef: MockMcpToolDefinition = {
   declaration: {
@@ -100,6 +101,26 @@ test.serial('resolvesNamedToolsetFactory', async (t) => {
   // plugin from the named factory.
   const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
   t.is(countScheduledActivities(events ?? [], 'testServer-listTools'), 1);
+});
+
+test.serial('unknownToolFailsNonRetryably', async (t) => {
+  const taskQueue = uid('adk-mcp-unknown');
+  await withWorker(env, { taskQueue, plugins: [makePlugin()] }, async () => {
+    const handle = await env.client.workflow.start(mcpCallUnknownTool, {
+      taskQueue,
+      workflowId: uid('wf-mcp-unknown'),
+    });
+    let caught: unknown;
+    try {
+      await handle.result();
+    } catch (err) {
+      caught = err;
+    }
+    const appFailure = findInCauseChain(caught, ApplicationFailure);
+    t.not(appFailure, undefined);
+    t.is(appFailure?.type, 'GoogleAdkMcpToolNotFound');
+    t.is(appFailure?.nonRetryable, true);
+  });
 });
 
 test.serial('appliesToolFilter', async (t) => {
