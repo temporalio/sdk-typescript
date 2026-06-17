@@ -196,7 +196,6 @@ export class TemporalModel extends BaseLlm {
  * survive in `config.tools`.
  */
 export function toWireRequest(llmRequest: LlmRequest): WireLlmRequest {
-  // Destructure to drop the live-object fields; the rest is JSON-serializable.
   const { toolsDict: _toolsDict, liveConnectConfig: _liveConnectConfig, ...wire } = llmRequest;
   return wire;
 }

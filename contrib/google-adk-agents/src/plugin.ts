@@ -25,20 +25,13 @@ type WebpackConfig = Parameters<NonNullable<BundleOptions['webpackConfigHook']>>
 const NODE_SCHEME = 'node:';
 
 /**
- * ESM source for the `module` builtin shim.
- *
- * Every `@google/adk` compiled ESM file carries an esbuild interop banner —
- * `import {createRequire} from 'module'; const require = createRequire(import.meta.url);`
- * — that *calls* `createRequire` at module load. On every workflow-reached path
- * the resulting `require` is dead (only `sessions/db/operations` and
- * `tools/skill/run_skill_script_tool` ever invoke it, and neither runs inside a
- * Workflow). Aliasing `module` to `false` — the bundler's default for a
- * disallowed builtin — makes `createRequire` `undefined`, so the banner's
- * top-level call throws `createRequire is not a function` at Workflow load.
- *
- * This shim supplies a `createRequire` that returns a `require` which throws
- * *only if actually invoked*. The harmless banner runs; the determinism
- * guarantee (no real `require()` resolution inside a Workflow) is preserved.
+ * ESM source for the `module` builtin shim. Every `@google/adk` compiled ESM
+ * file carries an esbuild interop banner that *calls* `createRequire` at module
+ * load. Aliasing `module` to `false` would make `createRequire` `undefined`, so
+ * the banner's top-level call throws at Workflow load. This shim supplies a
+ * `createRequire` returning a `require` that throws only if actually invoked,
+ * so the banner runs harmlessly and no real `require()` resolution reaches a
+ * Workflow.
  */
 const MODULE_SHIM_SOURCE =
   "export function createRequire(){return function(){throw new Error('require() is not available inside a Temporal Workflow sandbox');};}\n" +
@@ -46,14 +39,11 @@ const MODULE_SHIM_SOURCE =
 
 /**
  * ESM source for the `winston` shim. ADK's `utils/logger.js` eagerly constructs
- * a `winston.createLogger(...)` at module load (`let currentLogger = new
- * SimpleLogger()`), which drags `logform` → `@colors/colors` → `os` into the
- * Workflow bundle; `@colors`' color-support probe touches `process`/`os` at load
- * and throws in the sandbox. Logging is irrelevant inside a Workflow (Temporal
- * supplies the Workflow logger), so the whole logging subtree is severed here
- * with a no-op `winston` surface covering exactly what `logger.js` touches:
- * `createLogger`, the callable `format` plus its `combine`/`label`/`colorize`/
- * `timestamp`/`printf` statics, and `transports.Console`.
+ * a `winston.createLogger(...)` at module load, dragging in `@colors/colors`
+ * whose color-support probe touches `process`/`os` at load and throws in the
+ * sandbox. Logging is irrelevant inside a Workflow (Temporal supplies the
+ * Workflow logger), so a no-op `winston` surface severs the whole logging
+ * subtree.
  */
 const WINSTON_SHIM_SOURCE =
   'function noop(){}' +
@@ -71,14 +61,11 @@ const WINSTON_SHIM_SOURCE =
 
 /**
  * ESM source for the `process` global shim, injected via webpack `ProvidePlugin`
- * wherever `process` is a free variable. Twelve ADK *core* files
- * (`runner.js`, `llm_agent.js`, `env_aware_utils.js`, `models/google_llm.js`, …)
- * read `process.env` / `process.platform` at module load on workflow-reached
- * paths; the Workflow sandbox has no `process` global, so those reads throw
- * `process is not defined`. This shim provides a deterministic, side-effect-free
- * `process`: a frozen-empty `env` (so reads are constant across original run and
- * replay), no-TTY streams, and microtask-based `nextTick` — nothing that
- * performs real I/O or introduces nondeterminism.
+ * wherever `process` is a free variable. ADK core reads `process.env` /
+ * `process.platform` at module load on workflow-reached paths, and the Workflow
+ * sandbox has no `process` global. This shim provides a deterministic,
+ * side-effect-free `process` (empty `env`, no-TTY streams, microtask `nextTick`)
+ * — nothing that performs real I/O or introduces nondeterminism.
  */
 const PROCESS_SHIM_SOURCE =
   'function noop(){}' +
@@ -97,16 +84,12 @@ const PROCESS_SHIM_SOURCE =
 
 /**
  * ESM source for the `os` builtin shim. ADK's `code_executors/
- * unsafe_local_code_executor.js` evaluates `const IS_WINDOWS = os.platform() ===
- * "win32";` at **module load** (the only module-scope Node-builtin dereference in
- * the entire `@google/adk` dist — verified by scanning every compiled file). The
- * bundler aliases the disallowed `os` builtin to an empty module, so `os.platform`
- * is `undefined` and that top-level call throws `os.platform is not a function` at
- * Workflow load. The local code executor never runs inside a Workflow (it spawns
- * child processes, which the sandbox forbids), so this shim only needs to make its
- * *load* inert: it returns deterministic, side-effect-free constants (`platform()
- * → "linux"`, `tmpdir() → "/tmp"`, …) — no real OS introspection, nothing that
- * could differ between the original execution and a replay.
+ * unsafe_local_code_executor.js` evaluates `os.platform()` at **module load**.
+ * The bundler aliases the disallowed `os` builtin to an empty module, so
+ * `os.platform` is `undefined` and that top-level call throws at Workflow load.
+ * This shim returns deterministic, side-effect-free constants so the load is
+ * inert — no real OS introspection, nothing that could differ between the
+ * original execution and a replay.
  */
 const OS_SHIM_SOURCE =
   'function constFn(v){return function(){return v;};}' +
@@ -126,18 +109,12 @@ const OS_SHIM_SOURCE =
   'uptime:uptime,networkInterfaces:networkInterfaces,userInfo:userInfo,constants:constants};\n';
 
 /**
- * ESM source for the `@mikro-orm/core` shim. ADK's DB session subtree references
- * this ORM's exports at **module load**, so it can't be aliased to an empty
- * module like the other node-only service packages: `sessions/db/schema.js`
- * does `class CamelCaseToSnakeCaseJsonType extends JsonType {…}` (needs `JsonType`
- * to be a constructor) and applies `Entity`/`PrimaryKey`/`Property` decorators via
- * the esbuild `__decorateClass` helper at top level (needs each to be a
- * decorator-returning factory); `sessions/database_session_service.js` imports
- * `LockMode`/`MikroORM`. The `DatabaseSessionService` performs real database I/O
- * and therefore can never run inside a Workflow (sessions there are in-memory), so
- * this shim only has to make the subtree's *load* succeed: `JsonType`/`MikroORM`
- * are inert classes, the three decorators are no-op factories, `LockMode` is an
- * empty enum. Any actual use throws a clear sandbox error.
+ * ESM source for the `@mikro-orm/core` shim. ADK's DB session subtree
+ * subclasses (`class … extends JsonType`) and decorates
+ * (`Entity`/`PrimaryKey`/`Property`) with this ORM's exports at **module load**,
+ * so it can't be aliased to an empty module like the other node-only service
+ * packages. This shim supplies an inert load surface: `JsonType`/`MikroORM` are
+ * inert classes, the decorators are no-op factories, `LockMode` is an empty enum.
  */
 const MIKRO_ORM_SHIM_SOURCE =
   'class JsonType {}' +
@@ -152,10 +129,8 @@ const MIKRO_ORM_SHIM_SOURCE =
   'PrimaryKey:PrimaryKey,Property:Property,LockMode:LockMode};\n';
 
 /**
- * Requests redirected (in `beforeResolve`) to an inline `data:` URI shim instead
- * of being resolved normally / aliased to `false`. See each shim's doc above.
- *
- * These are the packages/builtins ADK *dereferences at module load* (subclasses,
+ * Requests redirected (in `beforeResolve`) to an inline `data:` URI shim. These
+ * are the packages/builtins ADK *dereferences at module load* (subclasses,
  * decorates, or calls a member of) and so cannot be aliased to an empty module —
  * each shim supplies exactly the inert surface ADK touches at load. Everything
  * ADK only touches *inside function bodies* stays in the `alias → false` lists
@@ -188,10 +163,6 @@ interface WebpackCompilerLike {
   };
   /** webpack 5 exposes its own exports here, so we never `import 'webpack'`. */
   webpack: {
-    // A `[request, ...path]` value injects a *specific* export, e.g.
-    // `[uri, 'default']` injects the module's default export rather than its
-    // namespace object — required so the injected `process` is the shim object
-    // itself, not `{ default: shim }`.
     ProvidePlugin: new (definitions: Record<string, string | string[]>) => ProvidePluginLike;
   };
 }
@@ -224,15 +195,11 @@ function disallowedBuiltins(): readonly string[] {
 /**
  * `@temporalio/*` packages that are worker-only and must never execute in the
  * Workflow sandbox. They enter the Workflow bundle's import graph only
- * transitively: the public barrel value-exports {@link GoogleAdkPlugin}, which
- * imports the Activity implementations (`./activities.ts`), which import
- * `@temporalio/activity` (the Activity `Context`) and, via
- * `@temporalio/workflow-streams/client`, `@temporalio/client`. None of that
- * code path runs inside a Workflow — the Activities execute worker-side and the
- * plugin is only ever *constructed* on the worker. The Worker bundler's own
- * remediation for exactly this case is `ignoreModules` (its "disallowed
- * modules" build error names it), which aliases them to `false` in the Workflow
- * bundle; they are defined but never dereferenced at Workflow runtime.
+ * transitively (the public barrel value-exports {@link GoogleAdkPlugin}, which
+ * imports the Activity implementations in `./activities.ts`); none of that code
+ * path runs inside a Workflow. `ignoreModules` (the Worker bundler's own
+ * remediation for this case) aliases them to `false` in the Workflow bundle;
+ * they are defined but never dereferenced at Workflow runtime.
  */
 const WORKER_ONLY_TEMPORAL_PACKAGES: readonly string[] = ['@temporalio/activity', '@temporalio/client'];
 
@@ -244,34 +211,24 @@ const WORKER_ONLY_TEMPORAL_PACKAGES: readonly string[] = ['@temporalio/activity'
  * web globals (`Event`, `Buffer`) the sandbox lacks. None of these run inside a
  * Workflow — model and MCP I/O execute worker-side in Activities — so they are
  * stubbed (`alias → false`, i.e. resolved to an empty module) in the Workflow
- * bundle.
+ * bundle. The cut is at the **third-party-package** boundary (rather than ADK's
+ * own service modules) because every one of these is dereferenced by ADK only
+ * inside function bodies that never run in a Workflow, so aliasing them to an
+ * empty module is load-safe and severs the whole transitive node-only graph.
  *
- * Why cut at the **third-party-package** boundary rather than stubbing ADK's own
- * service *modules* (`telemetry/google_cloud.js`, `sessions/database_session_service.js`,
- * …)? Two reasons. (1) Correctness margin: this exact set is ADK's node-only
- * runtime dependencies (verified against its `package.json`), and every one of
- * them is dereferenced by ADK *only inside function bodies* that never execute in
- * a Workflow (the agent loop calls neither the GCP exporters nor the DB session
- * store), so aliasing them to an empty module is load-safe and severs the whole
- * transitive node-only graph. (2) Version-robustness: these are
- * capability-defining packages (network/disk/child-process I/O) that a Workflow
- * must never invoke — a precise, self-documenting cut — whereas ADK's internal
- * file layout shifts more across releases than its dependency list does. The two
- * packages ADK dereferences *at module load* are handled as shims instead, not
- * here: `@mikro-orm/core` (subclassed/decorated in `sessions/db/schema.js`) and
- * `winston` (constructed in `utils/logger.js`) — see {@link REQUEST_SHIM_SOURCES}.
- * `@opentelemetry/api` and `@opentelemetry/api-logs` are deliberately *absent*
- * (kept real): they are pure-JS API packages with no node builtins, and
- * `telemetry/tracing.js` calls `trace.getTracer(...)` from them at module load on
- * the in-Workflow path.
+ * The two packages ADK dereferences *at module load* are handled as shims
+ * instead, not here: `@mikro-orm/core` and `winston` — see
+ * {@link REQUEST_SHIM_SOURCES}. `@opentelemetry/api` and `@opentelemetry/api-logs`
+ * are deliberately *absent* (kept real): they are pure-JS API packages with no
+ * node builtins, and `telemetry/tracing.js` calls `trace.getTracer(...)` from
+ * them at module load on the in-Workflow path.
  */
 const ADK_NODE_ONLY_SERVICE_PACKAGES: readonly string[] = [
   'google-auth-library',
   'gaxios',
   'node-fetch',
-  // NOTE: `@mikro-orm/core` is NOT here — ADK subclasses/decorates with its
-  // exports at module load, so it gets an inert *shim* (see MIKRO_ORM_SHIM_SOURCE
-  // / REQUEST_SHIM_SOURCES) rather than an empty-module alias.
+  // NOTE: `@mikro-orm/core` is NOT here — it gets an inert *shim* (see
+  // REQUEST_SHIM_SOURCES), not an empty-module alias.
   '@mikro-orm/knex',
   '@mikro-orm/reflection',
   '@google-cloud/storage',
@@ -282,11 +239,9 @@ const ADK_NODE_ONLY_SERVICE_PACKAGES: readonly string[] = [
   'googleapis',
   // OpenTelemetry node-only SDK/exporter/detector packages. ADK's
   // `telemetry/{setup,google_cloud}.js` import these but use them only inside
-  // setup functions (`maybeSetOtelProviders`, `getGcpExporters`, …) that never
-  // run in a Workflow; the GCP resource detector in particular drags in
-  // `gcp-metadata` → `google-logging-utils` (a `class extends`-at-load chain).
-  // Aliasing to an empty module is load-safe. (`@opentelemetry/api` +
-  // `api-logs` are intentionally kept real — see the doc comment above.)
+  // setup functions that never run in a Workflow, so aliasing to an empty module
+  // is load-safe. (`@opentelemetry/api` + `api-logs` are intentionally kept
+  // real — see the doc comment above.)
   '@opentelemetry/exporter-logs-otlp-http',
   '@opentelemetry/exporter-metrics-otlp-http',
   '@opentelemetry/exporter-trace-otlp-http',
@@ -296,16 +251,12 @@ const ADK_NODE_ONLY_SERVICE_PACKAGES: readonly string[] = [
   '@opentelemetry/sdk-metrics',
   '@opentelemetry/sdk-trace-base',
   '@opentelemetry/sdk-trace-node',
-  // The A2A (agent-to-agent) protocol subtree: ADK's `a2a/*` reach
-  // `@a2a-js/sdk` (and, via `@a2a-js/sdk/server/express`, `express`). Its server
-  // entry references the web `Event` global at load, which the sandbox lacks.
-  // ADK's a2a files dereference these only inside methods, so aliasing the
-  // package (webpack prefix-matches `/server`, `/client`, `/server/express`) to
-  // `false` is load-safe and severs the whole a2a + express subtree.
+  // The A2A (agent-to-agent) protocol subtree: ADK's `a2a/*` reach `@a2a-js/sdk`
+  // and `express`, whose server/buffer code touches the web `Event` global /
+  // `Buffer.from` at load (both absent in the sandbox). ADK dereferences them
+  // only inside methods, so alias → false is load-safe and severs the subtree
+  // (webpack prefix-matches `/server`, `/client`, `/server/express`).
   '@a2a-js/sdk',
-  // `a2a/agent_to_a2a.js` *also* imports `express` directly; express →
-  // `safe-buffer` touches `Buffer.from` at load (no `Buffer` in the sandbox).
-  // Used only inside route-builder functions, so alias → false is load-safe.
   'express',
 ];
 
@@ -314,27 +265,16 @@ const ADK_NODE_ONLY_SERVICE_PACKAGES: readonly string[] = [
  * Workflow sandbox. It does three things:
  *
  *  1. **Shim redirects** ({@link REQUEST_SHIM_SOURCES}): in `beforeResolve`,
- *     `module`/`node:module` → a `createRequire` shim ({@link MODULE_SHIM_SOURCE})
- *     and `winston` → a no-op logging shim ({@link WINSTON_SHIM_SOURCE}), each as
- *     an inline `data:` URI module. Aliasing these to `false` would throw at load
- *     because ADK *calls* into them eagerly (`createRequire(...)`,
- *     `new SimpleLogger()`).
+ *     redirect the load-dereferenced requests to their inline `data:` URI shims.
  *  2. **`node:` scheme strip**: every other `node:<name>` → bare `<name>`. The
  *     Worker bundler aliases each disallowed builtin to `false` by its **bare**
- *     name (`fs`, `zlib`, …); a `node:`-prefixed request never reaches
- *     `resolve.alias` — webpack's scheme handler intercepts it first and, on a
- *     non-node target, throws `UnhandledSchemeError` (a hard *build* failure).
- *     Stripping the scheme converts `node:zlib` → `zlib`, after which the
- *     bundler's bare-name policy takes over (polyfill trio → sandbox overrides,
- *     the rest → `false`).
- *  3. **`process` provide**: a `ProvidePlugin` injects a deterministic `process`
- *     shim ({@link PROCESS_SHIM_SOURCE}) wherever `process` is a free variable —
- *     ADK core reads `process.env`/`process.platform` at load and the sandbox
- *     has no `process`.
- *
- * The redirects and strip are dependency-agnostic and version-robust — they
- * complete webpack's own builtin handling rather than enumerating which
- * transitive dep uses the `node:` form.
+ *     name; a `node:`-prefixed request never reaches `resolve.alias` — webpack's
+ *     scheme handler intercepts it first and throws `UnhandledSchemeError` (a
+ *     hard *build* failure). Stripping the scheme lets the bundler's bare-name
+ *     policy take over.
+ *  3. **`process` provide**: a `ProvidePlugin` injects the deterministic
+ *     `process` shim ({@link PROCESS_SHIM_SOURCE}) wherever `process` is a free
+ *     variable.
  */
 function googleAdkSandboxCompatPlugin(): unknown {
   // Built worker-side only (this factory is called from `configureBundler`), so
@@ -444,42 +384,24 @@ export class GoogleAdkPlugin extends SimplePlugin {
    * recipe applies identically on both paths and there is no separate
    * `configureWorker`/`configureReplayWorker` bundler override.
    *
-   * The recipe has two parts; both are required and were verified by booting a
-   * real Worker against the `@google/adk` barrel through `Worker.create`:
+   * The recipe has two parts, both required:
    *
-   *  1. **`webpackConfigHook`** adds {@link googleAdkSandboxCompatPlugin}, which
-   *     (a) strips the `node:` scheme so disallowed builtins hit the bundler's
-   *     bare-name alias policy instead of raising `UnhandledSchemeError` (a hard
-   *     *build* failure) for ADK's transitive node-only imports
-   *     (`node:zlib` via `node-fetch`→`gaxios`→`google-auth-library`, etc.);
-   *     (b) redirects `module`/`winston` to inline `data:` URI shims that ADK
-   *     calls into eagerly at load; and (c) provides a deterministic `process`
-   *     global ADK core reads at load. Without it the bundle fails to build or
-   *     throws at Workflow load.
+   *  1. **`webpackConfigHook`** adds {@link googleAdkSandboxCompatPlugin} (the
+   *     `node:` strip, shim redirects, and `process` provide).
    *  2. **`ignoreModules`** stubs (`alias → false`) three groups: ADK's heavy
-   *     node-only *service* packages ({@link ADK_NODE_ONLY_SERVICE_PACKAGES}),
-   *     which cuts the bulk of the node-only graph at the package boundary; the
-   *     worker-only `@temporalio/*` packages the Activity implementations pull in
-   *     ({@link WORKER_ONLY_TEMPORAL_PACKAGES}), which enter the bundle only
-   *     because the public barrel value-exports this plugin; and every
-   *     disallowed Node builtin ({@link disallowedBuiltins}). ADK *core*
-   *     itself references a few builtins (`fs/promises`, `os`, `path`, `events`,
-   *     `process`) on paths that never run in a Workflow; without listing them
-   *     the bundler's determinism guard records the *reached* builtin and
-   *     rejects the build. The builtins are already aliased to `false` by the
-   *     bundler — adding them to `ignoreModules` additionally tells the guard
-   *     "expected, don't fail."
+   *     node-only *service* packages ({@link ADK_NODE_ONLY_SERVICE_PACKAGES});
+   *     the worker-only `@temporalio/*` packages
+   *     ({@link WORKER_ONLY_TEMPORAL_PACKAGES}); and every disallowed Node
+   *     builtin ({@link disallowedBuiltins}). The builtins are already aliased to
+   *     `false` by the bundler — listing them additionally tells its determinism
+   *     guard "expected, don't fail" for the few ADK *core* reaches on paths that
+   *     never run in a Workflow.
    *
-   * Deviation note (tradeoff): putting **all** disallowed builtins in
-   * `ignoreModules` globally suppresses the bundler's friendly
-   * "you imported a Node builtin in your Workflow" build-time error — for the
-   * user's own Workflow code too, not just ADK's. This is an accepted tradeoff:
-   * a static list of "exactly the builtins ADK core reaches" is neither
-   * complete nor stable across `@google/adk` releases, and the Workflow sandbox
-   * still enforces determinism at **runtime** (a real `fs` call from Workflow
-   * code throws there). We trade a friendlier build-time message for a
-   * version-robust bundle; the safety property (no nondeterministic I/O in the
-   * Workflow) is preserved by the runtime sandbox.
+   * Tradeoff: putting **all** disallowed builtins in `ignoreModules` suppresses
+   * the bundler's friendly "you imported a Node builtin in your Workflow"
+   * build-time error (for the user's own Workflow code too). Runtime determinism
+   * is still enforced by the sandbox — a real `fs` call from Workflow code throws
+   * there — so the safety property is preserved.
    */
   override configureBundler(options: BundleOptions): BundleOptions {
     const base = super.configureBundler(options);
