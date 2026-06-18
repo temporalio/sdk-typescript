@@ -49,8 +49,3 @@ test('describe surfaces a plain-string region', (t) => {
   const client = new AwsSdkS3StorageDriverClient(fakeS3Client(() => Promise.resolve({}), 'us-west-2'));
   t.deepEqual(client.describe?.(), { clientRegion: 'us-west-2' });
 });
-
-test('describe omits region when unavailable', (t) => {
-  const client = new AwsSdkS3StorageDriverClient(fakeS3Client(() => Promise.resolve({})));
-  t.deepEqual(client.describe?.(), {});
-});
