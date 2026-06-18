@@ -1,4 +1,5 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
+import { createHash } from 'node:crypto';
 import test from 'ava';
 import * as proto from '@temporalio/proto';
 import { ValueError } from '@temporalio/common';
@@ -16,6 +17,10 @@ function makePayload(value: string): Payload {
 
 function payloadBytes(p: Payload): Uint8Array {
   return PayloadProto.encode(p).finish();
+}
+
+function sha256Hex(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
 }
 
 class FakeS3Client implements S3StorageDriverClient {
@@ -59,12 +64,22 @@ test('store then retrieve round-trips the payload bytes', async (t) => {
 
 test('key is content-addressed and segmented by the store context', async (t) => {
   const driver = new S3StorageDriver({ client: new FakeS3Client(), bucket: 'b' });
+  const payload = makePayload('"hello"');
 
-  const [claim] = await driver.store(workflowContext, [makePayload('"hello"')]);
+  const [claim] = await driver.store(workflowContext, [payload]);
 
-  t.regex(claim!.claimData.key!, /^v0\/ns\/my-ns\/wt\/MyWorkflow\/wi\/wf-1\/ri\/run-1\/d\/sha256\/[0-9a-f]{64}$/);
+  // Content-addressed: the digest segment is the SHA-256 of the serialized payload
+  // bytes, and the store context fields form the preceding path segments in order.
+  const digest = sha256Hex(payloadBytes(payload));
+  t.is(claim!.claimData.key, `v0/ns/my-ns/wt/MyWorkflow/wi/wf-1/ri/run-1/d/sha256/${digest}`);
+  t.is(claim!.claimData.hashValue, digest);
   t.is(claim!.claimData.hashAlgorithm, 'sha256');
   t.is(claim!.claimData.bucket, 'b');
+
+  // Different content under the same context changes only the trailing digest segment.
+  const [other] = await driver.store(workflowContext, [makePayload('"world"')]);
+  t.not(other!.claimData.key, claim!.claimData.key);
+  t.is(other!.claimData.key!.replace(/[0-9a-f]{64}$/, ''), claim!.claimData.key!.replace(/[0-9a-f]{64}$/, ''));
 });
 
 test('key segments percent-encode anything outside the S3 safe set', async (t) => {
@@ -168,7 +183,6 @@ test('store aborts in-flight sibling uploads when one fails', async (t) => {
       if (bucket === 'fail') {
         throw new Error('boom');
       }
-      // The surviving sibling resolves only once the shared signal aborts.
       await new Promise<void>((resolve) => {
         options?.abortSignal?.addEventListener('abort', () => {
           siblingAborted = true;
