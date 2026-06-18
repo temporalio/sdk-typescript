@@ -1,6 +1,7 @@
 import type { temporal } from '@temporalio/proto';
 import type { WorkflowOptions } from './workflow-options';
 import type { WorkflowHandle } from './workflow-client';
+import type { WorkflowSignalInput } from './interceptors';
 
 /**
  * A symbol used to attach extra, SDK-internal options to the `WorkflowClient.start()` call.
@@ -31,17 +32,13 @@ export interface InternalWorkflowStartOptions extends WorkflowOptions {
     links?: temporal.api.common.v1.ILink[];
 
     /**
-     * Response link copied by the client from the StartWorkflowExecutionResponse.
-     * Only populated in servers newer than 1.27.
+     * Response link copied by the client from the start RPC's response: the `link` on a
+     * StartWorkflowExecutionResponse (populated by servers newer than 1.27), or the `signalLink` on a
+     * SignalWithStartWorkflowExecutionResponse (populated by servers that support CHASM signal
+     * response links, 1.31 and up). A given options object only ever flows through one of those RPCs,
+     * so at most one source can populate this; left unset otherwise.
      */
     responseLink?: temporal.api.common.v1.ILink;
-
-    /**
-     * Response link copied by the client from the SignalWithStartWorkflowExecutionResponse.
-     * Only populated by servers that support CHASM signal response links (1.31 and up); left unset
-     * otherwise.
-     */
-    signalResponseLink?: temporal.api.common.v1.ILink;
 
     /**
      * Conflict options for when USE_EXISTING is specified.
@@ -76,6 +73,19 @@ export interface InternalWorkflowSignalOptions {
      */
     responseLink?: temporal.api.common.v1.ILink;
   };
+}
+
+/**
+ * The SDK-internal variant of {@link WorkflowSignalInput} that carries the
+ * {@link InternalWorkflowSignalOptionsSymbol} payload used by the Temporal Nexus helpers to forward
+ * request links and capture the response link. Kept off the public `WorkflowSignalInput` so the
+ * symbol does not leak onto the interceptor surface.
+ *
+ * @internal
+ * @hidden
+ */
+export interface InternalWorkflowSignalInput extends WorkflowSignalInput {
+  readonly [InternalWorkflowSignalOptionsSymbol]?: InternalWorkflowSignalOptions[typeof InternalWorkflowSignalOptionsSymbol];
 }
 
 /**

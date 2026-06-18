@@ -12,7 +12,10 @@ import type {
   InternalWorkflowSignalOptions,
   InternalWorkflowStartOptions,
 } from '@temporalio/client/lib/internal';
-import { InternalWorkflowSignalOptionsSymbol, InternalWorkflowStartOptionsSymbol } from '@temporalio/client/lib/internal';
+import {
+  InternalWorkflowSignalOptionsSymbol,
+  InternalWorkflowStartOptionsSymbol,
+} from '@temporalio/client/lib/internal';
 import { convertNexusLinkToTemporalLink, convertTemporalLinkToNexusLink } from './link-converter';
 import {
   assertWorkflowRunOperationToken,
@@ -129,7 +132,9 @@ export async function startWorkflow<T extends Workflow>(
   };
 
   const handle = await client.workflow.start(workflowTypeOrFunc, startOptions);
-  pushResponseLink(ctx, internalOptions.responseLink);
+  if (internalOptions.responseLink != null) {
+    pushResponseLink(ctx, internalOptions.responseLink);
+  }
 
   return {
     workflowId: handle.workflowId,
@@ -159,16 +164,11 @@ function requestLinksToTemporalLinks(ctx: nexus.StartOperationContext): temporal
 /**
  * Pushes a response link returned by an outbound Workflow RPC onto the operation's outbound links so
  * the Nexus task handler attaches it to the StartOperationResponse, linking the caller Workflow's
- * NexusOperation history event back to the callee Workflow's event. No-op when the server did not
- * return a response link (older servers, or CHASM signal response links disabled).
+ * NexusOperation history event back to the callee Workflow's event. Callers only invoke this when the
+ * server returned a response link; older servers (or CHASM signal response links disabled) leave it
+ * unset, in which case there is nothing to push.
  */
-function pushResponseLink(
-  ctx: nexus.StartOperationContext,
-  responseLink: temporal.api.common.v1.ILink | undefined
-): void {
-  if (responseLink == null) {
-    return;
-  }
+function pushResponseLink(ctx: nexus.StartOperationContext, responseLink: temporal.api.common.v1.ILink): void {
   try {
     ctx.outboundLinks.push(convertTemporalLinkToNexusLink(responseLink));
   } catch (error) {
@@ -203,7 +203,9 @@ export async function signalWorkflow(
   };
   handle[InternalWorkflowSignalOptionsSymbol] = internalOptions;
   await handle.signal(signalName, ...args);
-  pushResponseLink(ctx, internalOptions.responseLink);
+  if (internalOptions.responseLink != null) {
+    pushResponseLink(ctx, internalOptions.responseLink);
+  }
 }
 
 /**
@@ -245,7 +247,9 @@ export async function signalWithStartWorkflow<T extends Workflow, SignalArgs ext
   } as unknown as WithWorkflowArgs<T, ClientWorkflowSignalWithStartOptions<SignalArgs>>;
 
   const handle = await client.workflow.signalWithStart(workflowTypeOrFunc, signalWithStartOptions);
-  pushResponseLink(ctx, internalOptions.signalResponseLink);
+  if (internalOptions.responseLink != null) {
+    pushResponseLink(ctx, internalOptions.responseLink);
+  }
 
   return {
     workflowId: handle.workflowId,
