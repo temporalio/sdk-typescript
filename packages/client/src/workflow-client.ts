@@ -93,11 +93,7 @@ import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
 import { WorkflowUpdateStage, encodeWorkflowUpdateStage } from './workflow-update-stage';
-import type {
-  InternalWorkflowClientWithNexusLinks,
-  InternalWorkflowSignalOptions,
-  InternalWorkflowStartOptions,
-} from './internal';
+import type { InternalWorkflowHandle, InternalWorkflowStartOptions } from './internal';
 import { InternalWorkflowSignalOptionsSymbol, InternalWorkflowStartOptionsSymbol } from './internal';
 import { adaptWorkflowClientInterceptor } from './interceptor-adapters';
 
@@ -506,7 +502,7 @@ export class WithStartWorkflowOperation<T extends Workflow> {
  * Typically this client should not be instantiated directly, instead create the high level {@link Client} and use
  * {@link Client.workflow} to interact with Workflows.
  */
-export class WorkflowClient extends BaseClient implements InternalWorkflowClientWithNexusLinks {
+export class WorkflowClient extends BaseClient {
   public readonly options: LoadedWorkflowClientOptions;
 
   constructor(options?: WorkflowClientOptions) {
@@ -1242,35 +1238,6 @@ export class WorkflowClient extends BaseClient implements InternalWorkflowClient
   }
 
   /**
-   * Signal a Workflow Execution, forwarding the given links onto the request and returning the
-   * response link the server attached to the response (if any). Used by the Temporal Nexus helpers
-   * to link the caller and callee Workflows; not part of the public API.
-   *
-   * @internal
-   * @hidden
-   */
-  public async _signalWorkflowWithNexusLinks(
-    workflowExecution: WorkflowExecution,
-    signalName: string,
-    args: unknown[],
-    links: temporal.api.common.v1.ILink[]
-  ): Promise<temporal.api.common.v1.ILink | undefined> {
-    const interceptors = this.getOrMakeInterceptors(workflowExecution.workflowId);
-    const internalOptions: NonNullable<InternalWorkflowSignalOptions[typeof InternalWorkflowSignalOptionsSymbol]> = {
-      links,
-    };
-    const fn = composeInterceptors(interceptors, 'signal', this._signalWorkflowHandler.bind(this));
-    await fn({
-      workflowExecution,
-      signalName,
-      args,
-      headers: {},
-      [InternalWorkflowSignalOptionsSymbol]: internalOptions,
-    });
-    return internalOptions.responseLink;
-  }
-
-  /**
    * Use given input to make a signalWithStartWorkflowExecution call to the service
    *
    * Used as the final function of the signalWithStart interceptor chain
@@ -1622,6 +1589,9 @@ export class WorkflowClient extends BaseClient implements InternalWorkflowClient
           signalName: typeof def === 'string' ? def : def.name,
           args,
           headers: {},
+          // Forward any SDK-internal signal options (e.g. Nexus request links) that were attached to
+          // this handle, and let the signal handler write the response link back onto the same payload.
+          [InternalWorkflowSignalOptionsSymbol]: (this as InternalWorkflowHandle)[InternalWorkflowSignalOptionsSymbol],
         });
       },
       async query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {

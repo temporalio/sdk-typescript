@@ -8,10 +8,11 @@ import type {
 } from '@temporalio/client';
 import { type temporal } from '@temporalio/proto';
 import type {
-  InternalWorkflowClientWithNexusLinks,
+  InternalWorkflowHandle,
+  InternalWorkflowSignalOptions,
   InternalWorkflowStartOptions,
 } from '@temporalio/client/lib/internal';
-import { InternalWorkflowStartOptionsSymbol } from '@temporalio/client/lib/internal';
+import { InternalWorkflowSignalOptionsSymbol, InternalWorkflowStartOptionsSymbol } from '@temporalio/client/lib/internal';
 import { convertNexusLinkToTemporalLink, convertTemporalLinkToNexusLink } from './link-converter';
 import {
   assertWorkflowRunOperationToken,
@@ -191,9 +192,18 @@ export async function signalWorkflow(
 ): Promise<void> {
   const { client } = getHandlerContext();
   const links = requestLinksToTemporalLinks(ctx);
-  const workflowClient: InternalWorkflowClientWithNexusLinks = client.workflow;
-  const responseLink = await workflowClient._signalWorkflowWithNexusLinks({ workflowId }, signalName, args, links);
-  pushResponseLink(ctx, responseLink);
+
+  // Signal through a regular WorkflowHandle rather than a dedicated client method, so the Nexus
+  // link-forwarding plumbing stays off the public WorkflowClient surface. We attach the request
+  // links to the handle via the SDK-internal symbol; the signal handler reads them and writes the
+  // server's response link back onto the same payload.
+  const handle = client.workflow.getHandle(workflowId) as InternalWorkflowHandle;
+  const internalOptions: NonNullable<InternalWorkflowSignalOptions[typeof InternalWorkflowSignalOptionsSymbol]> = {
+    links,
+  };
+  handle[InternalWorkflowSignalOptionsSymbol] = internalOptions;
+  await handle.signal(signalName, ...args);
+  pushResponseLink(ctx, internalOptions.responseLink);
 }
 
 /**
