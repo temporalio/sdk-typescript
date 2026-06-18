@@ -1,6 +1,7 @@
 {
   "name": "@temporalio/external-storage-s3-aws-sdk",
-  "version": "1.17.2",
+  "version": "1.18.1",
+  "private": true,
   "description": "AWS SDK (@aws-sdk/client-s3) client for the Temporal S3 external storage driver",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
