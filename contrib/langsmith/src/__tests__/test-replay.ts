@@ -7,10 +7,6 @@
  * emits zero LangSmith runs — so the user's observability backend is never
  * flooded with duplicates on replay.
  *
- * This boots a real environment to record a `SimpleWorkflow` history, then
- * replays that history through a fresh plugin + collector and asserts nothing
- * was emitted.
- *
  * @module
  */
 
@@ -41,15 +37,8 @@ test('replay safety: emits no runs when replaying recorded history', async (t) =
     },
   });
 
-  // Sanity: the live run actually produced the workflow span we will replay.
   t.truthy(live.byName('RunWorkflow:SimpleWorkflow'));
 
-  // Pass the plugin through the *typed* replay entry point — `ReplayWorkerOptions`
-  // inherits `plugins` from `WorkerOptions`, so no cast is needed. This proves
-  // the replay worker accepts (and applies) the plugin the same way
-  // `Worker.create` does; the live run above emitted `RunWorkflow:` under the
-  // identical plugin config, so the empty replay result below is genuine
-  // suppression, not a silently-dropped plugin.
   const replay = new InMemoryRunCollector();
   const replayOptions: ReplayWorkerOptions = {
     workflowsPath: WORKFLOWS_PATH,

@@ -1,8 +1,6 @@
 /**
- * The client interceptor must capture each call's args into the emitted marker
- * run from the SDK's real input shape: start args live at `input.options.args`,
- * signal-with-start uses `input.signalArgs`, update uses `input.args`. Reading a
- * flat `input.args` off a start input silently captured `[]`.
+ * The client interceptor captures each call's args from the SDK's real input shape
+ * (`input.options.args` for start, `input.signalArgs`, `input.args`).
  *
  * @module
  */

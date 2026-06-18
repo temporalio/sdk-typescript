@@ -1,11 +1,6 @@
 /**
  * Live Nexus service + handler for the comprehensive trace-tree test.
  *
- * The handler body runs an unchanged native `traceable` (`nexus_inner_call`) so
- * the test proves trace context propagates from the workflow into the Nexus
- * operation handler and that the handler-body run nests under
- * `RunStartNexusOperationHandler:`.
- *
  * @module
  */
 

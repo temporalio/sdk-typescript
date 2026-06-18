@@ -1,6 +1,6 @@
 /**
  * Continue-as-new state machine touching every instrumented Temporal boundary, raw and
- * `traceable`-wrapped, so test-comprehensive.ts can assert the exact emitted run hierarchy.
+ * `traceable`-wrapped.
  *
  * @module
  */
@@ -47,7 +47,7 @@ const updateInnerCall = traceable(async (input: string): Promise<string> => `upd
   name: 'update_inner_call',
 });
 
-/** Synchronously emit a nested user run under the current run, for sync handlers that can't use async `traceable`; no-op when there's no current run. */
+/** Synchronously emit a nested user run under the current run; no-op when there's no current run. */
 function syncInnerRun(name: string): void {
   const parent = getCurrentRunTree(true);
   if (!parent) {
@@ -135,12 +135,10 @@ export async function ComprehensiveWorkflow(iteration: number): Promise<string> 
 
     await workflowInnerCall('h');
 
-    // Release the driver to issue handler calls, then await its completion signal before continue-as-new.
     await notifyReady();
     await condition(() => state.done);
     await continueAsNew<typeof ComprehensiveWorkflow>(iteration + 1);
   }
 
-  // The continue-as-new successor: returns immediately; its RunWorkflow: shares the trace.
   return state.lastSignal;
 }

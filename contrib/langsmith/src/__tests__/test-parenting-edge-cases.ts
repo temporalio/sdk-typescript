@@ -55,16 +55,16 @@ test('root workflow-body traceable (no propagated parent) does not crash and emi
   t.deepEqual(dumpTraces(collector.records), WORKFLOW_BODY_ROOT_TREE);
 });
 
-test('plugin options are carried onto emitted runs: applies projectName, defaultTags, and (scrubbed) defaultMetadata', async (t) => {
+test('plugin options are carried onto emitted runs: applies projectName, tags, and (scrubbed) metadata', async (t) => {
   const collector = new InMemoryRunCollector();
   await withTracingWorker({
     collector,
     options: {
       addTemporalRuns: true,
       projectName: 'my-project',
-      defaultTags: ['env:test'],
+      tags: ['env:test'],
       // The api_key entry must be scrubbed before it reaches the backend.
-      defaultMetadata: { team: 'platform', api_key: 'should-be-removed' },
+      metadata: { team: 'platform', api_key: 'should-be-removed' },
     },
     activities: ALL_ACTIVITIES,
     body: async ({ client, taskQueue }) => {
@@ -84,13 +84,13 @@ test('plugin options are carried onto emitted runs: applies projectName, default
   t.false('api_key' in (metadata ?? {}));
 });
 
-test('emitter-side activity run scrubs credential-looking defaultMetadata (path that never hits serializeRun)', async (t) => {
+test('emitter-side activity run scrubs credential-looking metadata (path that never hits serializeRun)', async (t) => {
   const collector = new InMemoryRunCollector();
   await withTracingWorker({
     collector,
     options: {
       addTemporalRuns: true,
-      defaultMetadata: { team: 'platform', api_key: 'should-be-removed' },
+      metadata: { team: 'platform', api_key: 'should-be-removed' },
     },
     activities: ALL_ACTIVITIES,
     body: async ({ client, taskQueue }) => {

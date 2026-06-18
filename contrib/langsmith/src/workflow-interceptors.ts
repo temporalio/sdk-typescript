@@ -38,7 +38,14 @@ import {
 import { getActivator } from '@temporalio/workflow/lib/global-attributes';
 
 import { prngFromInputId } from './prng';
-import { HEADER_KEY, encodeContextString, isInternalQuery, readContextHeader, withContextHeader } from './propagation';
+import {
+  HEADER_KEY,
+  encodeContextString,
+  isInternalQuery,
+  readContextHeader,
+  scrubSensitive,
+  withContextHeader,
+} from './propagation';
 import {
   ReplaySafeRunTree,
   _RootReplaySafeRunTreeFactory,
@@ -63,6 +70,8 @@ import {
 // Temporal Core hard-codes queryId === 'legacy_query' on the legacy single-Query
 // Workflow Task path. Each legacy Query rides its own Task, so queryName plus the
 // per-Task wall-clock distinguishes them across their separate Tasks.
+// The `getTimeOfDay()` non-determinism is intentional and inconsequential: read-only
+// query handlers never advance the main Workflow PRNG and never emit on replay.
 function resolveQueryKey(input: QueryInput): string {
   return input.queryId !== 'legacy_query' ? input.queryId : `${input.queryName}:${getActivator().getTimeOfDay()}`;
 }
@@ -77,8 +86,8 @@ function resolveQueryKey(input: QueryInput): string {
 export interface WorkflowLangSmithConfig {
   addTemporalRuns: boolean;
   projectName?: string;
-  defaultTags?: string[];
-  defaultMetadata?: Record<string, unknown>;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
 }
 
 // Injected at bundle time by the plugin's DefinePlugin. Declared so the bare
@@ -257,8 +266,8 @@ function buildReplaySafeRunTree(
       run_type: params.runType,
       parent_run: params.parent,
       project_name: config.projectName,
-      tags: config.defaultTags,
-      extra: { metadata: config.defaultMetadata },
+      tags: config.tags,
+      extra: { metadata: scrubSensitive(config.metadata) ?? {} },
       inputs: params.inputs,
     },
     params.random

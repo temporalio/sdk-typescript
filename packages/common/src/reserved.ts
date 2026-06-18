@@ -18,6 +18,8 @@ const INTERNAL_HANDLER_NAME_ALLOWLIST: ReadonlyMap<string, ReservedNameEntityTyp
   ['__temporal_workflow_stream_publish', 'signal'],
   ['__temporal_workflow_stream_poll', 'update'],
   ['__temporal_workflow_stream_offset', 'query'],
+  // @temporalio/langsmith
+  ['__temporal_langsmith', 'sink'],
 ]);
 
 /**
