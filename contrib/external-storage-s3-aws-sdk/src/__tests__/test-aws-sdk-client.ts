@@ -2,7 +2,6 @@ import test from 'ava';
 import type { S3Client } from '@aws-sdk/client-s3';
 import { AwsSdkS3StorageDriverClient } from '../aws-sdk-client';
 
-/** Minimal S3Client stand-in: only `send` and `config.region` are exercised. */
 function fakeS3Client(send: (command: unknown) => Promise<unknown>, region?: string): S3Client {
   return { send, config: { region } } as unknown as S3Client;
 }

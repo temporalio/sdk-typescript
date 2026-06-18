@@ -12,8 +12,6 @@ export class AwsSdkS3StorageDriverClient implements S3StorageDriverClient {
   constructor(private readonly client: AwsS3Client) {}
 
   describe(): Record<string, string> {
-    // v3 normalizes `region` to an async provider, so it is usually unavailable
-    // synchronously here; surface it only when it was supplied as a plain string.
     const region = this.client.config?.region;
     return typeof region === 'string' && region ? { clientRegion: region } : {};
   }

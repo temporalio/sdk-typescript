@@ -1,6 +1,7 @@
 {
   "name": "@temporalio/external-storage-s3",
-  "version": "1.17.2",
+  "version": "1.18.1",
+  "private": true,
   "description": "Amazon S3 external storage driver for the Temporal TypeScript SDK",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
