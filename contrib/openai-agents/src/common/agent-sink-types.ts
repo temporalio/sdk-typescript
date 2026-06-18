@@ -31,8 +31,8 @@ export type AgentTracingSinkEvent =
   | { kind: 'span_started'; span: SerializedAgentSpan; forwardToOtel: boolean }
   | { kind: 'span_complete'; span: SerializedAgentSpan; forwardToOtel: boolean };
 
-export interface AgentTracingSinks extends Sinks {
-  agentTracing: AgentTracingSink;
-}
+export const AGENT_TRACING_SINK_NAME = '__temporal_openaiAgentsTracing' as const;
 
-export const AGENT_TRACING_SINK_NAME = 'agentTracing';
+export interface AgentTracingSinks extends Sinks {
+  [AGENT_TRACING_SINK_NAME]: AgentTracingSink;
+}

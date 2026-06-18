@@ -2,6 +2,7 @@ import test from 'ava';
 import type { Span as AgentSpan, SpanData } from '@openai/agents-core';
 import { setActivator } from '@temporalio/workflow/lib/global-attributes';
 import type { SinkCall } from '@temporalio/workflow/lib/sinks';
+import { AGENT_TRACING_SINK_NAME } from '../common/agent-sink-types';
 import { WorkflowAgentSinkProcessor, flushOpenSpans } from '../workflow/agent-sink-processor';
 
 interface StubActivator {
@@ -46,7 +47,7 @@ test.serial('flushOpenSpans dispatches span_complete for unended spans and clear
     await processor.onSpanStart(span);
     t.is(stub.sinkCalls.length, 1, 'onSpanStart must dispatch exactly one span_started');
     const startCall = stub.sinkCalls[0]!;
-    t.is(startCall.ifaceName, 'agentTracing');
+    t.is(startCall.ifaceName, AGENT_TRACING_SINK_NAME);
     t.is(startCall.fnName, 'dispatch');
     const startEvent = startCall.args[0] as {
       kind: string;
@@ -62,7 +63,7 @@ test.serial('flushOpenSpans dispatches span_complete for unended spans and clear
 
   t.is(stub.sinkCalls.length, 2, 'flushOpenSpans must dispatch exactly one span_complete after the span_started');
   const call = stub.sinkCalls[1]!;
-  t.is(call.ifaceName, 'agentTracing');
+  t.is(call.ifaceName, AGENT_TRACING_SINK_NAME);
   t.is(call.fnName, 'dispatch');
   const event = call.args[0] as { kind: string; span: { spanId: string }; forwardToOtel: boolean };
   t.is(event.kind, 'span_complete');
