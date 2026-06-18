@@ -294,7 +294,7 @@ test('one Nexus operation signaling multiple callees lands a response link per c
       t.is(await client.workflow.getHandle(calleeId).result(), 'multi-signal');
     }
 
-    const callerHistory = await fetchHistory(client, callerWorkflowId);
+    const callerHistory = await callerHandler.fetchHistory();
 
     for (const calleeId of calleeIds) {
       const calleeHistory = await fetchHistory(client, calleeId);
