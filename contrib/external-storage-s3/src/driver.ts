@@ -91,7 +91,7 @@ function formatClientContext(client: S3StorageDriverClient): string {
  * shared signal so in-flight sibling requests are cancelled, then waits for them
  * to settle before propagating the original error.
  */
-async function gatherWithCancellation<T>(
+async function runAllWithAbortOnError<T>(
   external: AbortSignal | undefined,
   makeTasks: (signal: AbortSignal) => Promise<T>[]
 ): Promise<T[]> {
@@ -136,16 +136,18 @@ export class S3StorageDriver implements StorageDriver {
 
   async store(context: StorageDriverStoreContext, payloads: Payload[]): Promise<StorageDriverClaim[]> {
     const contextSegments = buildContextSegments(context.target);
-    return gatherWithCancellation(context.abortSignal, (signal) =>
-      payloads.map((payload) => this.upload(context, payload, contextSegments, signal))
+    return runAllWithAbortOnError(context.abortSignal, (signal) =>
+      payloads.map((payload) => this.storePayload(context, payload, contextSegments, signal))
     );
   }
 
   async retrieve(context: StorageDriverRetrieveContext, claims: StorageDriverClaim[]): Promise<Payload[]> {
-    return gatherWithCancellation(context.abortSignal, (signal) => claims.map((claim) => this.download(claim, signal)));
+    return runAllWithAbortOnError(context.abortSignal, (signal) =>
+      claims.map((claim) => this.retrievePayload(claim, signal))
+    );
   }
 
-  private async upload(
+  private async storePayload(
     context: StorageDriverStoreContext,
     payload: Payload,
     contextSegments: string,
@@ -177,7 +179,7 @@ export class S3StorageDriver implements StorageDriver {
     return new StorageDriverClaim({ bucket, key, hashAlgorithm: 'sha256', hashValue });
   }
 
-  private async download(claim: StorageDriverClaim, abortSignal: AbortSignal): Promise<Payload> {
+  private async retrievePayload(claim: StorageDriverClaim, abortSignal: AbortSignal): Promise<Payload> {
     const { bucket, key, hashAlgorithm, hashValue: expectedHash } = claim.claimData;
     if (!bucket || !key) {
       throw new ValueError(
