@@ -151,8 +151,8 @@ user_pipeline
 | `client`          | `new Client()`    | The LangSmith client runs are emitted to. Lives only in the worker/client process — it is never serialized or sent across a Temporal boundary. |
 | `addTemporalRuns` | `false`           | Emit first-class runs for Temporal operations (`StartWorkflow:`, `RunActivity:`, `HandleSignal:`, …) in addition to your `traceable` runs.     |
 | `projectName`     | LangSmith default | Target LangSmith project for emitted runs.                                                                                                     |
-| `defaultTags`     | —                 | Tags attached to every run the plugin emits.                                                                                                   |
-| `defaultMetadata` | —                 | Metadata merged into every run the plugin emits. Credential-looking keys are scrubbed before emission.                                         |
+| `tags`            | —                 | Tags attached to every run the plugin emits.                                                                                                   |
+| `metadata`        | —                 | Metadata merged into every run the plugin emits. Credential-looking keys are scrubbed before emission.                                         |
 
 The LangSmith API key is never accepted as a plugin option and never crosses a
 Temporal boundary. Supply a pre-constructed `Client` (which reads

@@ -31,7 +31,7 @@ test('read-only handlers do not perturb the main random sequence', async (t) => 
         workflowId: `readonly-determinism-${Date.now()}`,
       });
 
-      // The always-rejecting validator runs the read-only path on the live cached instance, then fails.
+      // Runs the read-only validator path on the live cached instance.
       await t.throwsAsync(handle.executeUpdate(workflows.readonlyUpdate, { args: ['x'] }));
 
       await handle.signal(workflows.releaseSignal);

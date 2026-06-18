@@ -32,17 +32,17 @@ const workflowInnerCall = traceable(async (input: string): Promise<string> => `w
   name: 'workflow_inner_call',
 });
 
-/** Single plain activity — the minimal "happy path" used by the basic tree, replay, and side-effect tests. */
+/** Single plain activity. */
 export async function SimpleWorkflow(input: string): Promise<string> {
   return simpleActivity(input);
 }
 
-/** Calls native `traceable` directly in the workflow body; exercises the in-isolate context provider. */
+/** Calls native `traceable` directly in the workflow body. */
 export async function WorkflowBodyTraceableWorkflow(input: string): Promise<string> {
   return workflowInnerCall(input);
 }
 
-/** No `traceable` anywhere; the tracing gate test proves emission is fully suppressed. */
+/** No `traceable` anywhere. */
 export async function PlainWorkflow(input: string): Promise<string> {
   return plainActivity(input);
 }
@@ -51,7 +51,7 @@ export const mySignal = defineSignal<[string]>('my_signal');
 export const completeSignal = defineSignal('complete');
 export const myQuery = defineQuery<string>('my_query');
 
-/** Sets a query handler and a releasing signal, then waits; used by the internal-query-filter test. */
+/** Sets a query handler and a releasing signal, then waits. */
 export async function HandlersWorkflow(): Promise<string> {
   let done = false;
 
@@ -64,7 +64,7 @@ export async function HandlersWorkflow(): Promise<string> {
   return 'done';
 }
 
-/** Child target of {@link SignalChildWorkflow}; waits for a signal to exercise the `signalWorkflow` interceptor. */
+/** Child target of {@link SignalChildWorkflow}; waits for a signal. */
 export async function SignalReceiverWorkflow(): Promise<string> {
   let value = '';
   setHandler(mySignal, (v: string) => {
@@ -74,7 +74,7 @@ export async function SignalReceiverWorkflow(): Promise<string> {
   return value;
 }
 
-/** Starts a child and signals it from the workflow body, firing the outbound `signalWorkflow` interceptor. */
+/** Starts a child and signals it from the workflow body. */
 export async function SignalChildWorkflow(input: string): Promise<string> {
   const child = await startChild(SignalReceiverWorkflow, {
     workflowId: `${workflowInfo().workflowId}-signal-child`,
@@ -83,17 +83,17 @@ export async function SignalChildWorkflow(input: string): Promise<string> {
   return child.result();
 }
 
-/** Calls an activity that fails with a non-benign error, to assert error marking on the run. */
+/** Calls an activity that fails with a non-benign error. */
 export async function ErrorWorkflow(): Promise<void> {
   await failingActivity();
 }
 
-/** Calls an activity that fails with a BENIGN-category error, which must NOT mark the run errored. */
+/** Calls an activity that fails with a BENIGN-category error. */
 export async function BenignWorkflow(): Promise<void> {
   await benignFailingActivity();
 }
 
-/** Continues as new once, then returns; asserts the successor run continues the same LangSmith trace. */
+/** Continues as new once, then returns. */
 export async function ContinueAsNewWorkflow(iteration: number): Promise<number> {
   if (iteration === 0) {
     await continueAsNew<typeof ContinueAsNewWorkflow>(iteration + 1);
@@ -101,7 +101,7 @@ export async function ContinueAsNewWorkflow(iteration: number): Promise<number> 
   return iteration;
 }
 
-/** Continues as new, then runs a workflow-body `traceable` in the successor; it must stay a proper root. */
+/** Continues as new, then runs a workflow-body `traceable` in the successor. */
 export async function ContinueAsNewTraceableWorkflow(iteration: number): Promise<string> {
   if (iteration === 0) {
     await continueAsNew<typeof ContinueAsNewTraceableWorkflow>(iteration + 1);
@@ -112,10 +112,10 @@ export async function ContinueAsNewTraceableWorkflow(iteration: number): Promise
 export const readonlyUpdate = defineUpdate<string, [string]>('readonly_update');
 export const releaseSignal = defineSignal('release');
 
-/** Returns immediately; child target of {@link ReadonlyDeterminismWorkflow}, fast to complete. */
+/** Child target of {@link ReadonlyDeterminismWorkflow}. */
 export async function ReadonlyDeterminismChildWorkflow(): Promise<void> {}
 
-/** Draws `uuid4()` post-validator and embeds it verbatim in a child `workflowId`, so any PRNG perturbation surfaces on replay. */
+/** Draws `uuid4()` post-validator and embeds it in a child `workflowId`, so any PRNG perturbation surfaces on replay. */
 export async function ReadonlyDeterminismWorkflow(): Promise<string> {
   let released = false;
   setHandler(readonlyUpdate, (value: string) => `updated:${value}`, {
@@ -137,7 +137,7 @@ export async function ReadonlyDeterminismWorkflow(): Promise<string> {
   return id;
 }
 
-/** Fails directly with a BENIGN failure; asserts the workflow-inbound error path leaves `RunWorkflow:` unmarked. */
+/** Fails directly with a BENIGN failure. */
 export async function BenignWorkflowDirect(): Promise<void> {
   throw ApplicationFailure.create({
     message: 'benign-control',

@@ -83,6 +83,7 @@ export function createActivityInboundInterceptor(config: EmitterConfig): Activit
       if (!config.addTemporalRuns) {
         // Propagation only: nest the user's body `traceable` runs under the
         // reconstructed parent without emitting a Temporal-operation run.
+        // No propagated parent: run the body with no ambient run by design (nothing to attach to).
         return parent ? withRunTree(parent, () => next(input)) : next(input);
       }
       const activityType = ctx.info.activityType;

@@ -1,9 +1,6 @@
 /**
  * Activities for the comprehensive trace-tree test.
  *
- * `comprehensiveActivity`'s body runs an unchanged native `traceable` so the test
- * proves the plugin nests user runs under the `RunActivity:` run with no edits.
- *
  * @module
  */
 
@@ -25,10 +22,9 @@ export async function comprehensiveLocalActivity(input: string): Promise<string>
   return `local:${input}`;
 }
 
-// The worker runs in-process under TestWorkflowEnvironment, so a module-level
-// promise lets the workflow tell the driver it has finished its outbound
-// boundaries and is ready for handler calls — see the test for why this keeps the
-// emitted tree deterministic.
+// A module-level promise lets the workflow signal the driver that it has finished
+// its outbound boundaries and is ready for handler calls, keeping the emitted tree
+// deterministic.
 let readyResolve: (() => void) | undefined;
 
 /** Called by the test before starting the workflow; returns a fresh "ready" promise. */
@@ -38,7 +34,7 @@ export function resetReady(): Promise<void> {
   });
 }
 
-/** Run by the workflow once its outbound boundaries are done, to release the driver. */
+/** Run by the workflow once its outbound boundaries are done. */
 export async function notifyReady(): Promise<void> {
   readyResolve?.();
 }

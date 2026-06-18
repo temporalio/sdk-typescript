@@ -7,10 +7,6 @@
  * show as perpetually running in LangSmith, while still being propagated as the
  * parent of the signalled workflow's run.
  *
- * This boots a real environment, runs a parent workflow that starts a child and
- * signals it, and asserts the marker run was closed and nests under the parent
- * `RunWorkflow:` run.
- *
  * @module
  */
 
@@ -41,10 +37,6 @@ test('signal-child: emits a closed SignalChildWorkflow marker nested under the w
 
   const marker = collector.byName('SignalChildWorkflow:my_signal');
   t.truthy(marker, 'a SignalChildWorkflow: marker run was emitted');
-
-  // (a) the marker was CLOSED: end_time is recorded via end()/patchRun().
   t.not(marker!.end_time, undefined, 'marker run has an end_time (was closed)');
-
-  // (b) it nests under the parent workflow run.
   t.is(collector.parentNameOf('SignalChildWorkflow:my_signal'), 'RunWorkflow:SignalChildWorkflow');
 });

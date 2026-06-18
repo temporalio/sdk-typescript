@@ -39,6 +39,5 @@ test('replay side effects: emits each run exactly once even when the workflow is
   });
 
   t.is(dumpTraces(collector.records), SIMPLE_TREE);
-  // No run was created more than once: raw calls == distinct ids.
   t.is(rawCreate, collector.createOrder.length);
 });

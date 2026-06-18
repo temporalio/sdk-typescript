@@ -24,7 +24,7 @@ import { proxySinks, uuid4, workflowInfo } from '@temporalio/workflow';
 
 import { uuid4FromRandom } from './prng';
 import { scrubSensitive, type LangSmithTraceContext } from './propagation';
-import type { EmitterConfig, LangSmithSinks, SerializedRun } from './sinks';
+import { LANGSMITH_SINK_NAME, type EmitterConfig, type LangSmithSinks, type SerializedRun } from './sinks';
 
 /** LangSmith run-type constants used for Temporal-operation runs. */
 export const RUN_TYPE = {
@@ -137,8 +137,8 @@ function serializeRun(run: RunTree): SerializedRun {
  * benign-failure category.
  *
  * A `BENIGN`-category `ApplicationFailure` is an expected, non-alarming outcome
- * (e.g. a control-flow signal), so it leaves the run's `error` unset — matching
- * the Python plugin. All other failures produce `"<type>: <message>"`.
+ * (e.g. a control-flow signal), so it leaves the run's `error` unset. All other
+ * failures produce `"<type>: <message>"`.
  */
 export function describeError(err: unknown): string | undefined {
   if (err instanceof ApplicationFailure) {
@@ -179,7 +179,7 @@ export function runTreeFromContext(ctx: LangSmithTraceContext | undefined): RunT
     return undefined;
   }
   try {
-    return RunTree.fromHeaders(ctx as unknown as Record<string, string>) ?? undefined;
+    return RunTree.fromHeaders(ctx) ?? undefined;
   } catch {
     return undefined;
   }
@@ -204,8 +204,8 @@ export function buildRunTree(config: EmitterConfig, params: RunTreeParams): RunT
     parent_run: params.parent,
     client: config.client,
     project_name: config.projectName ?? params.parent?.project_name,
-    tags: config.defaultTags,
-    extra: { metadata: scrubSensitive(config.defaultMetadata) ?? {} },
+    tags: config.tags,
+    extra: { metadata: scrubSensitive(config.metadata) ?? {} },
     tracingEnabled: true,
   });
 }
@@ -276,7 +276,7 @@ export class ReplaySafeRunTree extends RunTree {
     if (isReplaying()) {
       return;
     }
-    sinks().langsmith.createRun(serializeRun(this));
+    sinks()[LANGSMITH_SINK_NAME].createRun(serializeRun(this));
   }
 
   /** Record outputs/end-time locally then emit an `updateRun` via the Sink, unless replaying. */
@@ -284,7 +284,7 @@ export class ReplaySafeRunTree extends RunTree {
     if (isReplaying()) {
       return;
     }
-    sinks().langsmith.updateRun(serializeRun(this));
+    sinks()[LANGSMITH_SINK_NAME].updateRun(serializeRun(this));
   }
 
   /** Record end-time / outputs / error on the run object (pure, replay-safe). */

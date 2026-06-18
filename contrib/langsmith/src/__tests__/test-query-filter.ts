@@ -4,8 +4,7 @@
  * Temporal issues internal queries (`__stack_trace`, `__temporal_*`) against
  * running workflows for tooling and stack inspection. The inbound query
  * interceptor must NOT emit a LangSmith run for those — only for genuine user
- * queries. This boots a real environment, queries both a user query and the
- * built-in `__stack_trace`, and asserts only the user query produced a run.
+ * queries.
  *
  * @module
  */
@@ -29,11 +28,8 @@ test('internal-query filtering: traces user queries but not Temporal-internal qu
         taskQueue,
         workflowId: `qf-${Date.now()}`,
       });
-      // A real user query — should produce a HandleQuery run.
       await handle.query(workflows.myQuery);
-      // A Temporal-internal query — must be filtered out.
       await handle.query('__stack_trace');
-      // Release the workflow's wait and let it complete.
       await handle.signal(workflows.completeSignal);
       await handle.result();
     },

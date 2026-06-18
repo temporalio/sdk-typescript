@@ -38,14 +38,17 @@ export interface EmitterConfig {
   /** Target LangSmith project. */
   projectName?: string;
   /** Tags attached to every emitted run. */
-  defaultTags?: string[];
+  tags?: string[];
   /** Metadata merged into every emitted run. */
-  defaultMetadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 }
+
+/** The injected sink's wire name. Reserved-prefixed; allowlisted in `@temporalio/common`. */
+export const LANGSMITH_SINK_NAME = '__temporal_langsmith' as const;
 
 /** The Temporal sink surface this plugin injects. */
 export interface LangSmithSinks extends Sinks {
-  langsmith: {
+  [LANGSMITH_SINK_NAME]: {
     /** Emit a `createRun` for a newly started run. */
     createRun(run: SerializedRun): void;
     /** Emit an `updateRun` (end / outputs / error / events) for a run. */
@@ -87,7 +90,7 @@ function toUpdateParams(run: SerializedRun): Parameters<Client['updateRun']>[1] 
 /** Build the worker-side {@link InjectedSinks} routing serialized runs to a real LangSmith client. */
 export function createLangSmithSinks(client: Client): InjectedSinks<LangSmithSinks> {
   return {
-    langsmith: {
+    [LANGSMITH_SINK_NAME]: {
       createRun: {
         fn: (_info, run) => {
           // Honor the LangSmith tracing gate at the real-env emission point.

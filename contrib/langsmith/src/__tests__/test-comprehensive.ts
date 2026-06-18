@@ -86,7 +86,6 @@ async function runComprehensive(addTemporalRuns: boolean): Promise<InMemoryRunCo
   return collector;
 }
 
-/** addTemporalRuns: true — Temporal-operation runs interleave with the user `traceable` runs. */
 const EXPECTED_TRUE: string[] = [
   'user_pipeline',
   '  StartWorkflow:ComprehensiveWorkflow',
@@ -155,7 +154,6 @@ const EXPECTED_TRUE: string[] = [
   '    HandleSignal:complete',
 ];
 
-/** addTemporalRuns: false — only the user `traceable` runs, still parented across every boundary. */
 const EXPECTED_FALSE: string[] = [
   'user_pipeline',
   '  comprehensive_activity',

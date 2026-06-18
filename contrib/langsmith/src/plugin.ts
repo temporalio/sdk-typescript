@@ -69,14 +69,13 @@ export interface LangSmithPluginOptions {
    * (`StartWorkflow:`, `RunActivity:`, `HandleSignal:`, …) in addition to the
    * user's `traceable` runs. When `false` (default), only the user's
    * `traceable` runs are emitted — trace context still propagates across
-   * boundaries so they nest correctly. Mirrors the Python plugin's
-   * `add_temporal_runs`.
+   * boundaries so they nest correctly.
    */
   addTemporalRuns?: boolean;
   /** Tags attached to every run the plugin emits. */
-  defaultTags?: string[];
+  tags?: string[];
   /** Metadata merged into every run the plugin emits (credential keys scrubbed). */
-  defaultMetadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -107,14 +106,14 @@ export class LangSmithPlugin extends SimplePlugin {
       client: this.client,
       addTemporalRuns,
       projectName: options.projectName,
-      defaultTags: options.defaultTags,
-      defaultMetadata: options.defaultMetadata,
+      tags: options.tags,
+      metadata: options.metadata,
     };
     this.workflowConfig = {
       addTemporalRuns,
       projectName: options.projectName,
-      defaultTags: options.defaultTags,
-      defaultMetadata: options.defaultMetadata,
+      tags: options.tags,
+      metadata: options.metadata,
     };
   }
 
@@ -149,8 +148,8 @@ export class LangSmithPlugin extends SimplePlugin {
     const nexusInterceptors = [...(interceptors.nexus ?? [])];
     nexusInterceptors.push((_ctx: nexus.OperationContext) => ({ inbound: nexusInbound }));
 
-    // Merge our sink without clobbering any sink the user already configured.
-    const sinks = { ...(options.sinks ?? {}), ...createLangSmithSinks(this.client) };
+    // The user's own Worker sinks take precedence on any key collision.
+    const sinks = { ...createLangSmithSinks(this.client), ...(options.sinks ?? {}) };
 
     return {
       ...options,

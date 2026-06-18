@@ -34,7 +34,7 @@ export const HEADER_KEY = '_temporal-langsmith-context';
  * plain JSON object lets the same value ride either the Payload transport or
  * the Nexus plain-string transport unchanged.
  */
-export interface LangSmithTraceContext {
+export interface LangSmithTraceContext extends Record<string, string> {
   /** The parent run's dotted order — the LangSmith trace pointer. */
   'langsmith-trace': string;
   /** LangSmith baggage (metadata / tags / project), comma-encoded. */
@@ -76,9 +76,13 @@ export function scrubSensitive<T = unknown>(record: Record<string, T> | undefine
   return out;
 }
 
-/** Encode a trace context into a Temporal `Payload` for the binary header transport. */
-function encodeContextPayload(context: LangSmithTraceContext): Payload {
-  return defaultPayloadConverter.toPayload(context);
+/** Encode a trace context into a Temporal `Payload`; never throws (failure → undefined, header omitted). */
+function encodeContextPayload(context: LangSmithTraceContext): Payload | undefined {
+  try {
+    return defaultPayloadConverter.toPayload(context);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Decode a trace context from a Temporal `Payload`; never throws (malformed → undefined). */
@@ -132,7 +136,8 @@ export function withContextHeader(
   if (context === undefined) {
     return headers;
   }
-  return { ...headers, [HEADER_KEY]: encodeContextPayload(context) };
+  const payload = encodeContextPayload(context);
+  return payload === undefined ? headers : { ...headers, [HEADER_KEY]: payload };
 }
 
 export function readContextHeader(headers: Record<string, Payload> | undefined): LangSmithTraceContext | undefined {
@@ -140,10 +145,8 @@ export function readContextHeader(headers: Record<string, Payload> | undefined):
 }
 
 /**
- * Temporal-internal query names that must NOT produce a LangSmith run.
- *
- * Mirrors the Python plugin: any `__temporal`-prefixed query plus the
- * stack-trace introspection queries are filtered out of tracing.
+ * Temporal-internal query names that must NOT produce a LangSmith run: any
+ * `__temporal`-prefixed query plus the stack-trace introspection queries.
  */
 export function isInternalQuery(queryName: string): boolean {
   return queryName.startsWith('__temporal') || queryName === '__stack_trace' || queryName === '__enhanced_stack_trace';

@@ -1,6 +1,6 @@
 /**
- * Error-marking parity with the Python plugin: a non-benign failure surfaces as
- * `"<type>: <message>"`; a BENIGN `ApplicationFailure` leaves `error` unset.
+ * Error-marking: a non-benign failure surfaces as `"<type>: <message>"`; a
+ * BENIGN `ApplicationFailure` leaves `error` unset.
  *
  * @module
  */
@@ -56,7 +56,7 @@ test('error marking on activity runs: does NOT mark a BENIGN-category failure as
 
   const run = collector.byName('RunActivity:benignFailingActivity');
   t.truthy(run);
-  // Benign failures leave `error` unset (undefined or null), matching Python.
+  // Benign failures leave `error` unset (undefined or null).
   t.is(run?.error == null, true);
 });
 
