@@ -10,6 +10,7 @@
       "@temporalio/openai-agents/workflow-interceptor": ["contrib/openai-agents/src/workflow/trace-interceptor"],
       "@temporalio/openai-agents/*": ["contrib/openai-agents/src/*"],
       "@temporalio/external-storage-gcs": ["contrib/external-storage-gcs"],
+      "@temporalio/external-storage-gcs-google-sdk": ["contrib/external-storage-gcs-google-sdk"],
       "@temporalio/*": ["packages/*"]
     }
   },
@@ -28,6 +29,7 @@
     "./packages/envconfig/src/index.ts",
     "./contrib/interceptors-opentelemetry/src/index.ts",
     "./contrib/external-storage-gcs/src/index.ts",
+    "./contrib/external-storage-gcs-google-sdk/src/index.ts",
     "./packages/nyc-test-coverage/src/index.ts",
     "./packages/meta/src/index.ts",
     "./packages/plugin/src/index.ts",
