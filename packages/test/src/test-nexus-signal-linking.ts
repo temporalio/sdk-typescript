@@ -256,11 +256,12 @@ test('async Nexus operation that signals propagates the response link onto Nexus
     });
     t.is(await callerHandle.result(), 'async-started');
 
-    const calleeResult = await client.workflow.getHandle(calleeWorkflowId).result();
+    const calleeHandle = client.workflow.getHandle(calleeWorkflowId);
+    const calleeResult = await calleeHandle.result();
     t.is(calleeResult, 'async-signal');
 
-    const callerHistory = await fetchHistory(client, callerHandle.workflowId);
-    const calleeHistory = await fetchHistory(client, calleeWorkflowId);
+    const callerHistory = await callerHandle.fetchHistory();
+    const calleeHistory = await calleeHandle.fetchHistory();
 
     assertForwardLinks(t, calleeHistory, callerHandle.workflowId, 1);
 
