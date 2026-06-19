@@ -4,6 +4,7 @@ import type {
   MetricHistogram,
   MetricMeter,
   MetricTags,
+  MetricUpDownCounter,
   NumericMetricValueType,
 } from '@temporalio/common';
 import { MetricMeterWithComposedTags } from '@temporalio/common';
@@ -12,6 +13,43 @@ import type { Sink, Sinks } from './sinks';
 import { proxySinks } from './sinks';
 import { workflowInfo } from './workflow';
 import { assertInWorkflowContext } from './global-attributes';
+import type { Activator } from './internals';
+
+function stableTagsKey(tags: MetricTags): string {
+  const keys = Object.keys(tags).sort();
+  if (keys.length === 0) return '';
+  return JSON.stringify(keys.map((k) => [k, tags[k]]));
+}
+
+function metricDescriptorKey(name: string, unit: string | undefined, description: string | undefined): string {
+  return JSON.stringify([name, unit ?? null, description ?? null]);
+}
+
+// Per-workflow cache keyed by Activator. Each workflow execution gets its
+// own singleton instances per metric descriptor. Required so that `add` calls
+// against `metricMeter.createUpDownCounter('foo')` from multiple call
+// sites accumulate against one canonical net-value map.
+const upDownCounterCaches = new WeakMap<Activator, Map<string, WorkflowMetricUpDownCounter>>();
+
+function getOrCreateUpDownCounter(
+  activator: Activator,
+  name: string,
+  unit: string | undefined,
+  description: string | undefined
+): WorkflowMetricUpDownCounter {
+  let cache = upDownCounterCaches.get(activator);
+  if (cache === undefined) {
+    cache = new Map();
+    upDownCounterCaches.set(activator, cache);
+  }
+  const key = metricDescriptorKey(name, unit, description);
+  let counter = cache.get(key);
+  if (counter === undefined) {
+    counter = new WorkflowMetricUpDownCounter(name, unit, description);
+    cache.set(key, counter);
+  }
+  return counter;
+}
 
 class WorkflowMetricMeterImpl implements MetricMeter {
   constructor() {}
@@ -39,6 +77,11 @@ class WorkflowMetricMeterImpl implements MetricMeter {
   ): MetricGauge {
     assertInWorkflowContext("Workflow's `metricMeter` can only be used while in Workflow Context");
     return new WorkflowMetricGauge(name, valueType, unit, description);
+  }
+
+  createUpDownCounter(name: string, unit?: string, description?: string): MetricUpDownCounter {
+    const activator = assertInWorkflowContext("Workflow's `metricMeter` can only be used while in Workflow Context");
+    return getOrCreateUpDownCounter(activator, name, unit, description);
   }
 
   withTags(_tags: MetricTags): MetricMeter {
@@ -123,6 +166,37 @@ class WorkflowMetricGauge implements MetricGauge {
   }
 }
 
+class WorkflowMetricUpDownCounter implements MetricUpDownCounter {
+  public readonly kind = 'up-down-counter';
+  public readonly valueType = 'int';
+
+  // Cumulative net value per stable tag-key. Replay rebuilds this map by
+  // re-executing the workflow, so on a fresh sandbox the values match what
+  // they were on the previous worker — emitting the same absolute net.
+  private readonly netValues = new Map<string, number>();
+
+  constructor(
+    public readonly name: string,
+    public readonly unit: string | undefined,
+    public readonly description: string | undefined
+  ) {}
+
+  add(value: number, tags?: MetricTags): void {
+    const resolvedTags = tags ?? {};
+    const key = stableTagsKey(resolvedTags);
+    const newNet = (this.netValues.get(key) ?? 0) + value;
+    this.netValues.set(key, newNet);
+    // Always emit — including during replay. The worker sink applies only
+    // the delta from the previously tracked net, so idempotent replays
+    // produce delta=0 and no native call.
+    metricSink.addMetricUpDownCounterValue(this.name, this.unit, this.description, newNet, resolvedTags);
+  }
+
+  withTags(_tags: MetricTags): MetricUpDownCounter {
+    throw new Error('withTags is not supported directly on WorkflowMetricUpDownCounter');
+  }
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Note: given that forwarding metrics outside of the sanbox can be quite chatty and add non
@@ -174,6 +248,14 @@ export interface WorkflowMetricMeter extends Sink {
     unit: string | undefined,
     description: string | undefined,
     value: number,
+    attrs: MetricTags
+  ): void;
+
+  addMetricUpDownCounterValue(
+    metricName: string,
+    unit: string | undefined,
+    description: string | undefined,
+    netValue: number,
     attrs: MetricTags
   ): void;
 }

@@ -79,6 +79,7 @@ import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeW
 import { WorkflowCodecRunner } from './workflow-codec-runner';
 import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
+import { WorkflowMetricsTracker } from './workflow/metrics-tracker';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
@@ -504,8 +505,9 @@ export class Worker {
       namespace: options.namespace ?? 'default',
       taskQueue: options.taskQueue ?? 'default',
     });
+    const metricsTracker = new WorkflowMetricsTracker(metricMeter);
     const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
-    const compiledOptions = compileWorkerOptions(options, logger, metricMeter);
+    const compiledOptions = compileWorkerOptions(options, logger, metricsTracker);
     logger.debug('Creating worker', {
       options: {
         ...compiledOptions,
@@ -546,6 +548,7 @@ export class Worker {
       compiledOptionsWithBuildId,
       logger,
       metricMeter,
+      metricsTracker,
       options.plugins ?? [],
       connection
     );
@@ -715,7 +718,8 @@ export class Worker {
       namespace: 'default',
       taskQueue: fixedUpOptions.taskQueue,
     });
-    const compiledOptions = compileWorkerOptions(fixedUpOptions, logger, metricMeter);
+    const metricsTracker = new WorkflowMetricsTracker(metricMeter);
+    const compiledOptions = compileWorkerOptions(fixedUpOptions, logger, metricsTracker);
     const bundle = await this.getOrCreateBundle(compiledOptions, logger);
     if (!bundle) {
       throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
@@ -733,6 +737,7 @@ export class Worker {
         compiledOptions,
         logger,
         metricMeter,
+        metricsTracker,
         plugins,
         undefined,
         true
@@ -806,10 +811,15 @@ export class Worker {
     /** Logger bound to 'sdkComponent: worker' */
     protected readonly logger: Logger,
     protected readonly metricMeter: MetricMeter,
+    protected readonly metricsTracker: WorkflowMetricsTracker,
     protected readonly plugins: WorkerPlugin[],
     protected _connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
-  ) {}
+  ) {
+    this.evictionsEmitter.on('eviction', (eviction: EvictionWithRunID) => {
+      this.metricsTracker.notifyWorkflowEvicted(eviction.runId);
+    });
+  }
 
   /**
    * An Observable which emits each time the number of in flight activations changes

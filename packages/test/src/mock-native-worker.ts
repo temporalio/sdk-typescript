@@ -12,6 +12,7 @@ import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
 import type { CompiledWorkerOptions, WorkerOptions } from '@temporalio/worker/lib/worker-options';
 import { compileWorkerOptions } from '@temporalio/worker/lib/worker-options';
 import type { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';
+import { WorkflowMetricsTracker } from '@temporalio/worker/lib/workflow/metrics-tracker';
 import * as activities from './activities';
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -182,7 +183,17 @@ export class Worker extends RealWorker {
       taskQueue: opts.taskQueue,
     });
     const nativeWorker = new MockNativeWorker();
-    super(runtime, nativeWorker, workflowCreator, opts, logger, runtime.metricMeter, opts.plugins ?? []);
+    const metricsTracker = new WorkflowMetricsTracker(runtime.metricMeter);
+    super(
+      runtime,
+      nativeWorker,
+      workflowCreator,
+      opts,
+      logger,
+      runtime.metricMeter,
+      metricsTracker,
+      opts.plugins ?? []
+    );
   }
 
   public runWorkflows(...args: Parameters<Worker['workflow$']>): Promise<void> {
@@ -207,6 +218,7 @@ export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Work
     namespace: options.namespace ?? 'default',
     taskQueue: options.taskQueue ?? 'default',
   });
+  const metricsTracker = new WorkflowMetricsTracker(metricMeter);
   return new Worker(
     {
       async createWorkflow() {
@@ -216,6 +228,6 @@ export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Work
         /* Nothing to destroy */
       },
     },
-    compileWorkerOptions(options, logger, metricMeter)
+    compileWorkerOptions(options, logger, metricsTracker)
   );
 }
