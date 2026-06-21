@@ -165,7 +165,7 @@ async function createWorkflow(
       historySize: 300,
       continueAsNewSuggested: false,
       targetWorkerDeploymentVersionChanged: false,
-      unsafe: { isReplaying: false, isReplayingHistoryEvents: false, now: Date.now },
+      unsafe: { isReplaying: false, isReplayingHistoryEvents: false, now: Date.now, random: Math.random },
       startTime: new Date(),
       runStartTime: new Date(),
     },

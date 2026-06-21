@@ -16,6 +16,7 @@ import { setActivator, getActivator, maybeGetActivator } from './global-attribut
 export { PromiseStackStore } from './internals';
 
 const OriginalDate = globalThis.Date;
+const OriginalMathRandom = Math.random;
 
 /**
  * Initialize the isolate runtime.
@@ -27,7 +28,7 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
     ...options,
     info: fixPrototypes({
       ...options.info,
-      unsafe: { ...options.info.unsafe, now: OriginalDate.now },
+      unsafe: { ...options.info.unsafe, now: OriginalDate.now, random: OriginalMathRandom },
     }),
   });
   // There's one activator per workflow instance, set it globally on the context.

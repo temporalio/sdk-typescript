@@ -56,6 +56,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     function fixWorkflowInfoDates(input: WorkflowInfo): WorkflowInfo {
       delete (input.unsafe as any).now;
+      delete (input.unsafe as any).random;
       return input;
     }
 

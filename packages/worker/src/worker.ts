@@ -1575,6 +1575,7 @@ export class Worker {
       currentDeploymentVersion: convertDeploymentVersion(activation.deploymentVersionForCurrentTask),
       unsafe: {
         now: () => Date.now(), // re-set in initRuntime
+        random: Math.random, // re-set in initRuntime
         isReplaying: activation.isReplaying,
         isReplayingHistoryEvents: activation.isReplaying,
       },

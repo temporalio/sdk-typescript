@@ -126,7 +126,7 @@ async function createWorkflow(
       historySize: 300,
       continueAsNewSuggested: false,
       targetWorkerDeploymentVersionChanged: false,
-      unsafe: { isReplaying: false, isReplayingHistoryEvents: false, now: Date.now },
+      unsafe: { isReplaying: false, isReplayingHistoryEvents: false, now: Date.now, random: Math.random },
       startTime: new Date(),
       runStartTime: new Date(),
     },
@@ -479,6 +479,44 @@ test('random', async (t) => {
     compareCompletion(t, req, makeSuccess());
   }
   t.deepEqual(logs, [[0.8380154962651432], ['a50eca73-ff3e-4445-a512-2330c2f4f86e'], [0.18803317612037063]]);
+});
+
+test('unsafeRandom', async (t) => {
+  const { workflowType } = t.context;
+  {
+    // Start the workflow (sets up query handlers, starts a long timer)
+    const completion = await activate(t, makeStartWorkflow(workflowType));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100_000) })])
+    );
+  }
+  {
+    // Issue queries for both deterministic and nondeterministic random
+    const unsafeCompletion1 = await activate(t, makeQueryWorkflow('q1', 'unsafeRandom', []));
+    const unsafeResult1 = unsafeCompletion1.successful?.commands?.[0]?.respondToQuery?.succeeded?.response;
+    t.truthy(unsafeResult1, 'Expected unsafeRandom query response');
+    const unsafeValue1 = defaultPayloadConverter.fromPayload<number>(unsafeResult1!);
+    t.is(typeof unsafeValue1, 'number');
+    t.true(unsafeValue1 >= 0 && unsafeValue1 < 1, `Expected value between 0 and 1, got ${unsafeValue1}`);
+
+    const unsafeCompletion2 = await activate(t, makeQueryWorkflow('q2', 'unsafeRandom', []));
+    const unsafeResult2 = unsafeCompletion2.successful?.commands?.[0]?.respondToQuery?.succeeded?.response;
+    const unsafeValue2 = defaultPayloadConverter.fromPayload<number>(unsafeResult2!);
+
+    // Nondeterministic: successive calls must produce different values
+    t.not(unsafeValue1, unsafeValue2, 'unsafe.random() should be nondeterministic across queries');
+
+    // Deterministic Math.random() is seeded — verify it returns a known value for seed 1337
+    const detCompletion1 = await activate(t, makeQueryWorkflow('q3', 'deterministicRandom', []));
+    const detResult1 = detCompletion1.successful?.commands?.[0]?.respondToQuery?.succeeded?.response;
+    const detValue1 = defaultPayloadConverter.fromPayload<number>(detResult1!);
+    t.is(typeof detValue1, 'number');
+
+    // The two sources must be independent (different PRNG states)
+    t.not(unsafeValue1, detValue1, 'unsafe.random() and Math.random() should come from independent sources');
+  }
 });
 
 test('successString', async (t) => {

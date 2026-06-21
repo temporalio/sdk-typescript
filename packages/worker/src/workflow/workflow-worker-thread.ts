@@ -93,8 +93,9 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       }
       const calls = await workflow.getAndResetSinkCalls();
       calls.forEach((call) => {
-        // Delete .now because functions can't be serialized / sent to thread.
+        // Delete .now and .random because functions can't be serialized / sent to thread.
         delete (call.workflowInfo.unsafe as any).now;
+        delete (call.workflowInfo.unsafe as any).random;
         // Use structuredClone when available
         // This lets us work around a bug in Bun's postMessage where
         // shared object references get corrupted during serialization.

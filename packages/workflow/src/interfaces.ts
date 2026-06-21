@@ -269,6 +269,30 @@ export interface UnsafeWorkflowInfo {
    * callDuringReplay=false won't get processed.
    */
   readonly isReplayingHistoryEvents: boolean;
+
+  /**
+   * Returns a nondeterministic random number between 0 (inclusive) and 1 (exclusive).
+   *
+   * Unlike `Math.random()` (which is deterministic and seeded from the workflow seed in the
+   * workflow sandbox), this function uses a nondeterministic source of randomness
+   * (independent of the workflow replay seed), similar to how {@link now} provides the
+   * real system time.
+   *
+   * This is useful for generating unique IDs for observability and telemetry in query
+   * handlers and interceptors.
+   *
+   * This function is NOT cryptographically secure. Do not use it for generating tokens,
+   * secrets, or cryptographic nonces.
+   *
+   * **Safe to use in**: query handlers, update validators (for non-decision logic),
+   * interceptors, sinks.
+   *
+   * **NOT safe in**: the main workflow function, signal handlers, or update handlers —
+   * using it there will break deterministic replay.
+   *
+   * @experimental
+   */
+  readonly random: () => number;
 }
 
 /**

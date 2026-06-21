@@ -242,10 +242,11 @@ export class VMWorkflowThreadProxy implements Workflow {
     workerThreadClient: WorkerThreadClient,
     options: WorkflowCreateOptions
   ): Promise<VMWorkflowThreadProxy> {
-    // Delete .now because functions can't be serialized / sent to thread.
-    // Cast to any to avoid type error, since .now is a required field.
-    // Safe to cast since we immediately set it inside the thread in initRuntime.
+    // Delete .now and .random because functions can't be serialized / sent to thread.
+    // Cast to any to avoid type error, since these are required fields.
+    // Safe to cast since we immediately set them inside the thread in initRuntime.
     delete (options.info.unsafe as any).now;
+    delete (options.info.unsafe as any).random;
     await workerThreadClient.send({ type: 'create-workflow', options });
     return new this(workerThreadClient, options.info.runId);
   }
@@ -269,6 +270,7 @@ export class VMWorkflowThreadProxy implements Workflow {
 
     output.calls.forEach((call) => {
       (call.workflowInfo.unsafe.now as any) = Date.now;
+      (call.workflowInfo.unsafe.random as any) = Math.random;
     });
     return output.calls;
   }
