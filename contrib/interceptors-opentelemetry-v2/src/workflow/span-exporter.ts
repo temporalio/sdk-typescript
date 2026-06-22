@@ -28,11 +28,21 @@ export class SpanExporter implements tracing.SpanExporter {
       traceState: traceState?.serialize(),
       ...restSpanContext,
     };
+
+    let serializableParentSpanContext: SerializableSpanContext | undefined;
+    if (span.parentSpanContext) {
+      const { traceState: parentTraceState, ...restParentSpanContext } = span.parentSpanContext;
+      serializableParentSpanContext = {
+        traceState: parentTraceState?.serialize(),
+        ...restParentSpanContext,
+      };
+    }
+
     return {
       name: span.name,
       kind: span.kind,
       spanContext: serializableSpanContext,
-      parentSpanId: span.parentSpanId,
+      parentSpanContext: serializableParentSpanContext,
       startTime: span.startTime,
       endTime: span.endTime,
       status: span.status,
@@ -44,7 +54,7 @@ export class SpanExporter implements tracing.SpanExporter {
       droppedAttributesCount: span.droppedAttributesCount,
       droppedEventsCount: span.droppedEventsCount,
       droppedLinksCount: span.droppedLinksCount,
-      instrumentationLibrary: span.instrumentationLibrary,
+      instrumentationScope: span.instrumentationScope,
     };
   }
 }

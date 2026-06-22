@@ -10,6 +10,7 @@
     "@temporalio/common": "workspace:*",
     "@temporalio/envconfig": "workspace:*",
     "@temporalio/interceptors-opentelemetry": "workspace:*",
+    "@temporalio/interceptors-opentelemetry-v2": "workspace:*",
     "@temporalio/nexus": "workspace:*",
     "@temporalio/openai-agents": "workspace:*",
     "@temporalio/plugin": "workspace:*",

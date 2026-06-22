@@ -1,6 +1,6 @@
 import type * as otel from '@opentelemetry/api';
 import type * as tracing from '@opentelemetry/sdk-trace-base';
-import type { InstrumentationLibrary } from '@opentelemetry/core'; // eslint-disable @typescript-eslint/no-deprecated
+import type { InstrumentationScope } from '@opentelemetry/core';
 import type { Sink, Sinks } from '@temporalio/workflow';
 
 /**
@@ -15,7 +15,7 @@ export interface SerializableSpan {
   readonly name: string;
   readonly kind: otel.SpanKind;
   readonly spanContext: SerializableSpanContext;
-  readonly parentSpanId?: string;
+  readonly parentSpanContext?: SerializableSpanContext;
   readonly startTime: otel.HrTime;
   readonly endTime: otel.HrTime;
   readonly status: otel.SpanStatus;
@@ -28,8 +28,7 @@ export interface SerializableSpan {
   readonly droppedLinksCount: number;
   readonly droppedEventsCount: number;
   // readonly resource: Resource;
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
-  readonly instrumentationLibrary: InstrumentationLibrary;
+  readonly instrumentationScope: InstrumentationScope;
 }
 
 export interface OpenTelemetryWorkflowExporter extends Sink {

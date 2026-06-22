@@ -13,9 +13,8 @@ import type {
   proxySinks as proxySinksT,
   AsyncLocalStorage as AsyncLocalStorageT,
   ContinueAsNew as ContinueAsNewT,
+  getRandomStream as getRandomStreamT,
 } from '@temporalio/workflow';
-import type { getActivator as getActivatorT } from '@temporalio/workflow/lib/global-attributes';
-import type { SdkFlags as SdkFlagsT } from '@temporalio/workflow/lib/flags';
 
 import { IllegalStateError } from '@temporalio/common';
 
@@ -31,12 +30,10 @@ export const ContinueAsNew = class ContinueAsNew {} as unknown as typeof Continu
 
 export const AsyncLocalStorage = class AsyncLocalStorage {} as unknown as typeof AsyncLocalStorageT;
 
-export const getActivator: typeof getActivatorT = () => {
-  throw new IllegalStateError('Workflow uninitialized');
-};
-
 export const proxySinks: typeof proxySinksT = () => {
   throw new IllegalStateError('Proxied sinks functions may only be used from a Workflow Execution.');
 };
 
-export const SdkFlags: typeof SdkFlagsT = {} as typeof SdkFlagsT;
+export const getRandomStream: typeof getRandomStreamT = () => {
+  throw new IllegalStateError('Workflow.getRandomStream(...) may only be used from a Workflow Execution.');
+};

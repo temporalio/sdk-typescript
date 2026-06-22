@@ -11,8 +11,4 @@
 export * from './plugin';
 export * from './workflow';
 export * from './worker';
-export {
-  OpenTelemetryWorkflowClientInterceptor,
-  /** deprecated: Use OpenTelemetryWorkflowClientInterceptor instead */
-  OpenTelemetryWorkflowClientInterceptor as OpenTelemetryWorkflowClientCallsInterceptor,
-} from './client';
+export { OpenTelemetryWorkflowClientInterceptor } from './client';
