@@ -1,3 +1,4 @@
+import type { ReadableStreamDefaultController } from 'node:stream/web';
 import type {
   EmbeddingModelV3,
   EmbeddingModelV3CallOptions,
@@ -13,6 +14,11 @@ import type {
 import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
 import { ApplicationFailure } from '@temporalio/common';
+import type { Duration } from '@temporalio/common/lib/time';
+
+// `ReadableStream` is a sandbox global; type-only import keeps `node:stream/web`
+// out of the workflow bundle (es2023 lib has no DOM types).
+declare const ReadableStream: typeof import('node:stream/web').ReadableStream;
 
 /**
  * Options for configuring the TemporalProvider with per-model activity settings.
@@ -28,7 +34,22 @@ export interface TemporalProviderOptions {
    * Activity options specific to language model calls.
    * Merged with default options, with these taking precedence.
    */
-  languageModel?: ActivityOptions;
+  languageModel?: ActivityOptions & {
+    /**
+     * Topic name on the workflow's stream that streaming model calls publish
+     * raw stream parts to. When set, `doStream` is enabled and routes through
+     * the streaming activity; when unset, `doStream` throws. Pick a unique
+     * name per concurrent streaming call to keep event streams separable.
+     */
+    streamingTopic?: string;
+
+    /**
+     * Batch interval for the per-activity `WorkflowStreamClient` that
+     * publishes stream parts back to the workflow. Lower values reduce
+     * latency at the cost of more signal traffic. Defaults to 100ms.
+     */
+    streamingBatchInterval?: Duration;
+  };
 
   /**
    * Activity options specific to embedding model calls.
@@ -46,11 +67,16 @@ export interface TemporalProviderOptions {
 export class TemporalLanguageModel implements LanguageModelV3 {
   readonly specificationVersion = 'v3';
   readonly provider = 'temporal';
+  private readonly streamingTopic: string | undefined;
+  private readonly streamingBatchInterval: Duration | undefined;
 
   constructor(
     readonly modelId: string,
-    readonly options?: ActivityOptions
-  ) {}
+    readonly options?: ActivityOptions & { streamingTopic?: string; streamingBatchInterval?: Duration }
+  ) {
+    this.streamingTopic = options?.streamingTopic;
+    this.streamingBatchInterval = options?.streamingBatchInterval;
+  }
 
   get supportedUrls(): Record<string, RegExp[]> {
     return {};
@@ -75,8 +101,59 @@ export class TemporalLanguageModel implements LanguageModelV3 {
     return result;
   }
 
-  doStream(_options: LanguageModelV3CallOptions): PromiseLike<LanguageModelV3StreamResult> {
-    throw ApplicationFailure.nonRetryable('Streaming not supported.');
+  async doStream(options: LanguageModelV3CallOptions): Promise<LanguageModelV3StreamResult> {
+    if (this.streamingTopic === undefined) {
+      throw ApplicationFailure.nonRetryable(
+        'Streaming not enabled. Set streamingTopic in languageModel provider options.'
+      );
+    }
+
+    // Call the streaming activity, which publishes tokens via stream
+    // and returns the accumulated result.
+    const activities = workflow.proxyActivities({
+      startToCloseTimeout: '10 minutes',
+      ...this.options,
+    });
+    const result = await activities.invokeModelStreaming!({
+      modelId: this.modelId,
+      options,
+      streamingTopic: this.streamingTopic,
+      streamingBatchInterval: this.streamingBatchInterval,
+    });
+    if (result === undefined) {
+      throw ApplicationFailure.nonRetryable('Received undefined response from streaming model activity.');
+    }
+
+    // Wrap the accumulated result as a ReadableStream that replays the content.
+    // Real-time token streaming already happened via stream in the activity.
+    const stream = new ReadableStream({
+      start(controller: ReadableStreamDefaultController) {
+        controller.enqueue({ type: 'stream-start', warnings: result.warnings ?? [] });
+        let partIndex = 0;
+        for (const item of result.content ?? []) {
+          const id = `part-${partIndex++}`;
+          if (item.type === 'text') {
+            controller.enqueue({ type: 'text-start', id });
+            controller.enqueue({ type: 'text-delta', id, delta: item.text });
+            controller.enqueue({ type: 'text-end', id });
+          } else if (item.type === 'reasoning') {
+            controller.enqueue({ type: 'reasoning-start', id });
+            controller.enqueue({ type: 'reasoning-delta', id, delta: item.text });
+            controller.enqueue({ type: 'reasoning-end', id });
+          } else {
+            controller.enqueue(item);
+          }
+        }
+        controller.enqueue({
+          type: 'finish',
+          finishReason: result.finishReason,
+          usage: result.usage,
+        });
+        controller.close();
+      },
+    });
+
+    return { stream, request: result.request, response: result.response };
   }
 }
 

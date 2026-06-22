@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/interceptors-opentelemetry",
-  "version": "1.17.2",
+  "version": "1.18.1",
   "description": "Temporal.io SDK interceptors bundle for tracing with opentelemetry",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -37,8 +37,7 @@
     "@temporalio/workflow": "workspace:*",
     "ava": "^5.3.1",
     "nexus-rpc": "^0.0.2",
-    "rxjs": "7.8.1",
-    "uuid": "^11.1.0"
+    "rxjs": "7.8.1"
   },
   "peerDependencies": {
     "@temporalio/common": "workspace:*",

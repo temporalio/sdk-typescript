@@ -1,5 +1,5 @@
+import { randomUUID } from 'node:crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { v4 as uuid4 } from 'uuid';
 import type {
   ActivityFunction,
   LoadedDataConverter,
@@ -17,7 +17,7 @@ import {
   decompileRetryPolicy,
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
-import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
+import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import {
   decodeTypedSearchAttributes,
@@ -293,7 +293,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     return {
       namespace: this.options.namespace,
       identity: this.options.identity,
-      requestId: uuid4(),
+      requestId: randomUUID(),
       activityId: input.options.id,
       activityType: { name: input.activityType },
       taskQueue: { name: input.options.taskQueue },
@@ -309,6 +309,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       header: { fields: input.headers },
       userMetadata: await encodeUserMetadata(this.dataConverter, input.options.summary, undefined),
       priority: input.options.priority ? compilePriority(input.options.priority) : undefined,
+      startDelay: msOptionalToTs(input.options.startDelay),
     };
   }
 
@@ -378,7 +379,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         activityId: input.activityId,
         runId: input.activityRunId || undefined,
         identity: this.options.identity,
-        requestId: uuid4(),
+        requestId: randomUUID(),
         reason: input.reason || undefined,
       });
     } catch (err) {
@@ -397,7 +398,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         activityId: input.activityId,
         runId: input.activityRunId || undefined,
         identity: this.options.identity,
-        requestId: uuid4(),
+        requestId: randomUUID(),
         reason: input.reason || undefined,
       });
     } catch (err) {
@@ -547,6 +548,10 @@ export interface ActivityOptions {
    */
   priority?: Priority;
   /**
+   * Time to wait before dispatching the first activity task. This delay is not applied to retry attempts.
+   */
+  startDelay?: Duration;
+  /**
    * Specifies behavior if there's a *closed* activity with the same ID.
    */
   idReusePolicy?: ActivityIdReusePolicy;
@@ -570,6 +575,9 @@ function validateActivityOptions(options: ActivityOptions): void {
   }
   if (!options.scheduleToCloseTimeout && !options.startToCloseTimeout) {
     throw new TypeError('Either scheduleToCloseTimeout or startToCloseTimeout is required');
+  }
+  if (options.startDelay !== undefined && msToNumber(options.startDelay) < 0) {
+    throw new TypeError('startDelay must be non-negative');
   }
 }
 

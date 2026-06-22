@@ -92,6 +92,9 @@ test('Worker deployment based versioning', async (t) => {
   const describeResp1 = await waitUntilWorkerDeploymentVisible(client, w1DeploymentVersion);
   await setCurrentDeploymentVersion(client, describeResp1.conflictToken, w1DeploymentVersion);
 
+  // Wait for v1 routing config to propagate
+  await waitForRoutingConfigPropagation(client, deploymentName, w1DeploymentVersion.buildId);
+
   // Start workflow 1 which will use the 1.0 worker on auto-upgrade
   const wf1 = await client.workflow.start('deploymentVersioning', {
     taskQueue,
@@ -104,6 +107,9 @@ test('Worker deployment based versioning', async (t) => {
   const describeResp2 = await waitUntilWorkerDeploymentVisible(client, w2DeploymentVersion);
   await setCurrentDeploymentVersion(client, describeResp2.conflictToken, w2DeploymentVersion);
 
+  // Wait for v2 routing config to propagate
+  await waitForRoutingConfigPropagation(client, deploymentName, w2DeploymentVersion.buildId);
+
   // Start workflow 2 which will use the 2.0 worker pinned
   const wf2 = await client.workflow.start('deploymentVersioning', {
     taskQueue,
@@ -115,6 +121,9 @@ test('Worker deployment based versioning', async (t) => {
   // Wait for worker 3 to be visible and set as current version
   const describeResp3 = await waitUntilWorkerDeploymentVisible(client, w3DeploymentVersion);
   await setCurrentDeploymentVersion(client, describeResp3.conflictToken, w3DeploymentVersion);
+
+  // Wait for v3 routing config to propagate
+  await waitForRoutingConfigPropagation(client, deploymentName, w3DeploymentVersion.buildId);
 
   // Start workflow 3 which will use the 3.0 worker on auto-upgrade
   const wf3 = await client.workflow.start('deploymentVersioning', {
@@ -199,6 +208,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
   // Set current version to v1 and ramp v2 to 100%
   let conflictToken = (await setCurrentDeploymentVersion(client, describeResp.conflictToken, v1)).conflictToken;
   conflictToken = (await setRampingVersion(client, conflictToken, v2, 100)).conflictToken;
+  await waitForRoutingConfigPropagation(client, deploymentName, v1.buildId, v2.buildId, 100);
 
   // Run workflows and verify they run on v2
   for (let i = 0; i < 3; i++) {
@@ -213,6 +223,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
 
   // Set ramp to 0, expecting workflows to run on v1
   conflictToken = (await setRampingVersion(client, conflictToken, v2, 0)).conflictToken;
+  await waitForRoutingConfigPropagation(client, deploymentName, v1.buildId, v2.buildId, 0);
   for (let i = 0; i < 3; i++) {
     const wf = await client.workflow.start('deploymentVersioning', {
       taskQueue,
@@ -225,6 +236,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
 
   // Set ramp to 50 and eventually verify workflows run on both versions
   await setRampingVersion(client, conflictToken, v2, 50);
+  await waitForRoutingConfigPropagation(client, deploymentName, v1.buildId, v2.buildId, 50);
   const seenResults = new Set<string>();
 
   const runAndRecord = async () => {
@@ -291,6 +303,7 @@ async function testWorkerDeploymentWithDynamicBehavior(
 
   const describeResp = await waitUntilWorkerDeploymentVisible(client, version);
   await setCurrentDeploymentVersion(client, describeResp.conflictToken, version);
+  await waitForRoutingConfigPropagation(client, deploymentName, version.buildId);
 
   const wf = await client.workflow.start(workflowName, {
     taskQueue,
@@ -349,6 +362,7 @@ test('Workflows can use default versioning behavior', async (t) => {
 
   const describeResp = await waitUntilWorkerDeploymentVisible(client, workerV1);
   await setCurrentDeploymentVersion(client, describeResp.conflictToken, workerV1);
+  await waitForRoutingConfigPropagation(client, deploymentName, workerV1.buildId);
 
   const wf = await client.workflow.start('noVersioningAnnotationWorkflow', {
     taskQueue,
@@ -503,7 +517,8 @@ async function waitForRoutingConfigPropagation(
   client: Client,
   deploymentName: string,
   expectedCurrentBuildId: string,
-  expectedRampingBuildId?: string
+  expectedRampingBuildId?: string,
+  expectedRampingPercentage?: number
 ) {
   return await asyncRetry(
     async () => {
@@ -514,12 +529,16 @@ async function waitForRoutingConfigPropagation(
       const routingConfig = resp.workerDeploymentInfo?.routingConfig;
       const currentBuildId = routingConfig?.currentDeploymentVersion?.buildId;
       const rampingBuildId = routingConfig?.rampingDeploymentVersion?.buildId;
+      const rampingPercentage = routingConfig?.rampingVersionPercentage;
 
       if (currentBuildId !== expectedCurrentBuildId) {
         throw new Error(`Current version ${currentBuildId}, expected ${expectedCurrentBuildId}`);
       }
       if (rampingBuildId !== expectedRampingBuildId) {
         throw new Error(`Ramping version ${rampingBuildId}, expected ${expectedRampingBuildId}`);
+      }
+      if (expectedRampingPercentage != null && rampingPercentage !== expectedRampingPercentage) {
+        throw new Error(`Ramping percentage ${rampingPercentage}, expected ${expectedRampingPercentage}`);
       }
 
       const state = resp.workerDeploymentInfo?.routingConfigUpdateState;
@@ -654,7 +673,7 @@ test('ContinueAsNew with ramping version', async (t) => {
 
   await waitUntilWorkerDeploymentVisible(client, v2);
   await setRampingVersion(client, setResp1.conflictToken, v2, 0);
-  await waitForRoutingConfigPropagation(client, deploymentName, v1.buildId, v2.buildId);
+  await waitForRoutingConfigPropagation(client, deploymentName, v1.buildId, v2.buildId, 0);
 
   await handle.signal(unblockSignal);
 
@@ -712,20 +731,20 @@ test('Worker with deployment options and useWorkerVersioning false can run workf
 });
 
 test('WorkerDeploymentOptions with useWorkerVersioning true requires defaultVersioningBehavior', (t) => {
-  const valid: WorkerDeploymentOptions = {
+  const _valid: WorkerDeploymentOptions = {
     version: { buildId: '1.0', deploymentName: 'my-deployment' },
     useWorkerVersioning: true,
     defaultVersioningBehavior: 'AUTO_UPGRADE',
   };
 
-  const validPinned: WorkerDeploymentOptions = {
+  const _validPinned: WorkerDeploymentOptions = {
     version: { buildId: '1.0', deploymentName: 'my-deployment' },
     useWorkerVersioning: true,
     defaultVersioningBehavior: 'PINNED',
   };
 
   // @ts-expect-error defaultVersioningBehavior is required when useWorkerVersioning is true
-  const missingBehavior: WorkerDeploymentOptions = {
+  const _missingBehavior: WorkerDeploymentOptions = {
     version: { buildId: '1.0', deploymentName: 'my-deployment' },
     useWorkerVersioning: true,
   };
@@ -739,7 +758,7 @@ test('WorkerDeploymentOptions with useWorkerVersioning false does not allow defa
     useWorkerVersioning: false,
   };
 
-  const invalidWithBehavior: WorkerDeploymentOptions = {
+  const _invalidWithBehavior: WorkerDeploymentOptions = {
     version: { buildId: '1.0', deploymentName: 'my-deployment' },
     useWorkerVersioning: false,
     // @ts-expect-error defaultVersioningBehavior must not be specified when useWorkerVersioning is false

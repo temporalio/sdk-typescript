@@ -1,5 +1,6 @@
 export * from './async-activity-completion-tester';
 export * from './definitions';
+export * from './metric-trace-tags';
 export * from './nexus-caller-otel';
 export * from './signal-target';
 export * from './smorgasbord';

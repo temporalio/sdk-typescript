@@ -162,6 +162,8 @@ rm -rf ./example "$TMP_DIR"
 
 - Typescript code is linted with [eslint](https://eslint.org/)
 - Files in this repo are formatted with [prettier](https://prettier.io/)
+- Prefer explicit named re-exports and avoid wildcard re-exports where possible (`export * from ...`) in public entrypoint / barrel files.
+- Use `@experimental` and `@internal` to manage API stability and visibility. Mark new or work-in-progress exported APIs `@experimental` to signal their shape may still change. Mark a symbol `@internal` to keep it out of the generated public docs. The two are independent and may be combined. It is fine to ship something `@internal` now and promote it to public later, by removing `@internal` and adding a named re-export, once it is actually usable. The reverse is a breaking change, so prefer starting narrow.
 - Pull request titles SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/), for example:
 
 ```

@@ -38,11 +38,11 @@ import {
 import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { temporal } from '@temporalio/proto';
 import { deepMerge } from '@temporalio/common/lib/internal-workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
+import { composeInterceptors } from './interceptor-composition';
 import { UpdateScope } from './update-scope';
 import type {
   ActivityInput,
@@ -75,6 +75,7 @@ import {
 } from './interfaces';
 import { LocalActivityDoBackoff } from './errors';
 import { assertInWorkflowContext, getActivator, maybeGetActivator } from './global-attributes';
+import { uuid4FromRandom } from './random-helpers';
 import { untrackPromise } from './stack-helpers';
 import type { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 
@@ -243,7 +244,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         headers,
         cancellationType: encodeActivityCancellationType(options.cancellationType),
         doNotEagerlyExecute: !(options.allowEagerDispatch ?? true),
-        versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line @typescript-eslint/no-deprecated
+        versioningIntent: versioningIntentToProto(options.versioningIntent),
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined, context),
@@ -446,11 +447,11 @@ function startChildWorkflowExecutionNextHandler({
         parentClosePolicy: encodeParentClosePolicy(options.parentClosePolicy),
         cronSchedule: options.cronSchedule,
         searchAttributes:
-          options.searchAttributes || options.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
-            ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) } // eslint-disable-line @typescript-eslint/no-deprecated
+          options.searchAttributes || options.typedSearchAttributes
+            ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) }
             : undefined,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
-        versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line @typescript-eslint/no-deprecated
+        versioningIntent: versioningIntentToProto(options.versioningIntent),
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
       userMetadata: userMetadataToPayload(
@@ -574,7 +575,7 @@ export type ActivityFunctionWithOptions<T extends ActivityFunction> = T & {
    * provided options.
    *
    * @param options ActivityOptions
-   * @param args: list of arguments
+   * @param args list of arguments
    * @returns return value of the activity
    *
    * @experimental executeWithOptions is a new method to provide call-site options and is subject to change
@@ -595,7 +596,7 @@ export type LocalActivityFunctionWithOptions<T extends ActivityFunction> = T & {
    * provided options.
    *
    * @param options LocalActivityOptions
-   * @param args: list of arguments
+   * @param args list of arguments
    * @returns return value of the activity
    *
    * @experimental executeWithOptions is a new method to provide call-site options and is subject to change
@@ -1077,12 +1078,12 @@ export function makeContinueAsNewFunc<F extends Workflow>(
         taskQueue: options.taskQueue,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
         searchAttributes:
-          options.searchAttributes || options.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
-            ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) } // eslint-disable-line @typescript-eslint/no-deprecated
+          options.searchAttributes || options.typedSearchAttributes
+            ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) }
             : undefined,
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
-        versioningIntent: versioningIntentToProto(options.versioningIntent), // eslint-disable-line @typescript-eslint/no-deprecated
+        versioningIntent: versioningIntentToProto(options.versioningIntent),
         initialVersioningBehavior: encodeInitialVersioningBehavior(options.initialVersioningBehavior),
       });
     });
@@ -1095,7 +1096,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
 }
 
 /**
- * {@link https://docs.temporal.io/concepts/what-is-continue-as-new/ | Continues-As-New} the current Workflow Execution
+ * {@link https://docs.temporal.io/workflow-execution/continue-as-new#continue-as-new | Continues-As-New} the current Workflow Execution
  * with default options.
  *
  * Shorthand for `makeContinueAsNewFunc<F>()(...args)`. (See: {@link makeContinueAsNewFunc}.)
@@ -1123,24 +1124,8 @@ export function continueAsNew<F extends Workflow>(...args: Parameters<F>): Promi
  * See the {@link https://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid | stackoverflow discussion}.
  */
 export function uuid4(): string {
-  // Return the hexadecimal text representation of number `n`, padded with zeroes to be of length `p`
-  const ho = (n: number, p: number) => n.toString(16).padStart(p, '0');
-  // Create a view backed by a 16-byte buffer
-  const view = new DataView(new ArrayBuffer(16));
-  // Fill buffer with random values
-  view.setUint32(0, (Math.random() * 0x100000000) >>> 0);
-  view.setUint32(4, (Math.random() * 0x100000000) >>> 0);
-  view.setUint32(8, (Math.random() * 0x100000000) >>> 0);
-  view.setUint32(12, (Math.random() * 0x100000000) >>> 0);
-  // Patch the 6th byte to reflect a version 4 UUID
-  view.setUint8(6, (view.getUint8(6) & 0xf) | 0x40);
-  // Patch the 8th byte to reflect a variant 1 UUID (version 4 UUIDs are)
-  view.setUint8(8, (view.getUint8(8) & 0x3f) | 0x80);
-  // Compile the canonical textual form from the array data
-  return `${ho(view.getUint32(0), 8)}-${ho(view.getUint16(4), 4)}-${ho(view.getUint16(6), 4)}-${ho(
-    view.getUint16(8),
-    4
-  )}-${ho(view.getUint32(10), 8)}${ho(view.getUint16(14), 4)}`;
+  const activator = maybeGetActivator();
+  return uuid4FromRandom(activator ? () => activator.currentRandom() : Math.random);
 }
 
 /**
@@ -1569,7 +1554,6 @@ export function setDefaultQueryHandler(handler: DefaultQueryHandler | undefined)
  * If using SearchAttributeUpdatePair[] (preferred), set a value to null to remove the search attribute.
  * If using SearchAttributes (deprecated), set a value to undefined or an empty list to remove the search attribute.
  */
-// eslint-disable-next-line @typescript-eslint/no-deprecated
 export function upsertSearchAttributes(searchAttributes: SearchAttributes | SearchAttributeUpdatePair[]): void {
   const activator = assertInWorkflowContext(
     'Workflow.upsertSearchAttributes(...) may only be used from a Workflow Execution.'
@@ -1591,7 +1575,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
 
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
       // Create a copy of the current state.
-      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes }; // eslint-disable-line @typescript-eslint/no-deprecated
+      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes };
       for (const pair of searchAttributes) {
         if (pair.value == null) {
           // If the value is null, remove the search attribute.
@@ -1600,7 +1584,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
         } else {
           newSearchAttributes[pair.key.name] = Array.isArray(pair.value)
             ? pair.value
-            : ([pair.value] as SearchAttributeValue); // eslint-disable-line @typescript-eslint/no-deprecated
+            : ([pair.value] as SearchAttributeValue);
         }
       }
       return {
@@ -1623,7 +1607,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
       // Create a new copy of the current state.
       let typedSearchAttributes = info.typedSearchAttributes.updateCopy([]);
-      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes }; // eslint-disable-line @typescript-eslint/no-deprecated
+      const newSearchAttributes: SearchAttributes = { ...info.searchAttributes };
 
       // Upsert legacy search attributes into typedSearchAttributes.
       for (const [k, v] of Object.entries(searchAttributes)) {
@@ -1783,7 +1767,10 @@ export function allHandlersFinished(): boolean {
  * @example
  * For example:
  * ```ts
- * setWorkflowOptions({ versioningBehavior: 'PINNED' }, myWorkflow);
+ * setWorkflowOptions({
+ *   versioningBehavior: 'PINNED',
+ *   failureExceptionTypes: [CustomWorkflowError]
+ * }, myWorkflow);
  * export async function myWorkflow(): Promise<string> {
  *   // Workflow code here
  *   return "hi";
@@ -1797,7 +1784,10 @@ export function allHandlersFinished(): boolean {
  *   // Workflow code here
  *   return "hi";
  * }
- * setWorkflowOptions({ versioningBehavior: 'PINNED' }, module.exports.default);
+ * setWorkflowOptions({
+ *   versioningBehavior: 'PINNED',
+ *   failureExceptionTypes: [CustomWorkflowError]
+ * }, module.exports.default);
  * ```
  *
  * @param options Options for the workflow defintion, or a function that returns options. If a

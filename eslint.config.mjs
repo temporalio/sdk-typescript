@@ -28,8 +28,86 @@ export default tseslint.config(
       'no-duplicate-imports': ['error', { allowSeparateTypeImports: true }],
       'object-shorthand': ['error', 'always'],
       'no-restricted-imports': ['error', { patterns: ['@temporalio/*/src/*'] }],
-      // TypeScript rules
-      '@typescript-eslint/no-deprecated': 'warn',
+      '@typescript-eslint/no-deprecated': [
+        'warn',
+        {
+          allow: [
+            // Untyped Search Attributes
+            {
+              from: 'file',
+              name: [
+                'SearchAttributes',
+                'searchAttributes',
+                'searchAttributeValue',
+                'SearchAttributeValue',
+                'SearchAttributeValueOrReadonly',
+              ],
+            },
+
+            // Worker Versioning v2
+            {
+              from: 'file',
+              name: [
+                'AddNewCompatibleVersion',
+                'AddNewIdInNewDefaultSet',
+                'BaseReachabilityOptions',
+                'buildId',
+                'BuildIdNotFoundError',
+                'BuildIdOperation',
+                'BuildIdReachability',
+                'BuildIdVersionSet',
+                'currentBuildId',
+                'getBuildIdCompatability',
+                'getReachability',
+                'LoadedTaskQueueClientOptions',
+                'MergeSets',
+                'PromoteBuildIdWithinSet',
+                'PromoteSetByBuildId',
+                'ReachabilityOptions',
+                'ReachabilityResponse',
+                'ReachabilityType',
+                'ReachabilityTypeResponse',
+                'TaskQueueClient',
+                'TaskQueueClientOptions',
+                'UnversionedBuildId',
+                'updateBuildIdCompatibility',
+                'useVersioning',
+                'versioningIntent',
+                'VersioningIntent',
+                'versioningIntentToProto',
+                'VersioningIntentString',
+                'workerBuildId',
+                'WorkerBuildIdVersionSets',
+              ],
+            },
+
+            // Activity Inbound Calls Interceptors and Workflow Client Calls Interceptor
+            {
+              from: 'file',
+              name: [
+                'activityInbound',
+                'ActivityInboundCallsInterceptorFactory',
+                'WorkflowClientInterceptors',
+                'WorkflowClientCallsInterceptor',
+                'WorkflowClientCallsInterceptorFactory',
+                'WorkflowClientCallsInterceptorFactoryInput',
+              ],
+            },
+
+            // Legacy Log Interceptors / Sinks
+            {
+              from: 'file',
+              name: [
+                'ActivityInboundLogInterceptor',
+                'defaultSinks',
+                'defaultWorkerLogger',
+                'LoggerSinks',
+                'WorkflowLogInterceptor',
+              ],
+            },
+          ],
+        },
+      ],
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/explicit-module-boundary-types': 'error',
@@ -70,6 +148,18 @@ export default tseslint.config(
       'import/newline-after-import': 'error',
       'import/no-unassigned-import': 'error',
       'import/no-named-default': 'error',
+    },
+  },
+  {
+    files: ['contrib/openai-agents/src/**/*.ts'],
+    ignores: ['contrib/openai-agents/src/__tests__/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: ['@temporalio/*/src/*', '**/__tests__/**', '**/*.test'],
+        },
+      ],
     },
   }
 );

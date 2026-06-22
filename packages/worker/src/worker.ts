@@ -168,7 +168,7 @@ interface WorkflowWithLogAttributes {
 }
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
-  const bid = options.buildId; // eslint-disable-line @typescript-eslint/no-deprecated
+  const bid = options.buildId;
   if (bid != null) {
     return options as CompiledWorkerOptionsWithBuildId;
   }
@@ -488,7 +488,7 @@ export class Worker {
     options.plugins = (options.plugins ?? []).concat(options.connection?.plugins ?? []);
     for (const plugin of options.plugins) {
       if (plugin.configureWorker !== undefined) {
-        options = plugin.configureWorker(options);
+        options = await plugin.configureWorker(options);
       }
     }
     if (!options.taskQueue) {
@@ -696,7 +696,7 @@ export class Worker {
     const plugins = options.plugins ?? [];
     for (const plugin of plugins) {
       if (plugin.configureReplayWorker !== undefined) {
-        options = plugin.configureReplayWorker(options);
+        options = await plugin.configureReplayWorker(options);
       }
     }
     const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
@@ -1059,13 +1059,13 @@ export class Worker {
                         `Got start event for an already running activity: ${base64TaskToken}`
                       );
                     }
-                    info = await extractActivityInfo(
+                    info = await extractActivityInfo({
                       task,
-                      loadedDataConverter,
-                      this.options.namespace,
-                      this.options.taskQueue,
-                      context
-                    );
+                      dataConverter: loadedDataConverter,
+                      taskQueue: this.options.taskQueue,
+                      activityNamespace: this.options.namespace,
+                      context,
+                    });
 
                     const { activityType } = info;
                     // Use the corresponding activity if it exists, otherwise, fallback to default activity function (if exists)
@@ -1588,6 +1588,7 @@ export class Worker {
       randomnessSeed: randomnessSeed.toBytes(),
       now: tsToMs(activation.timestamp),
       showStackTraceSources: this.options.showStackTraceSources,
+      failureExceptionTypeNames: resolveFailureExceptionTypeNames(workflowType, this.options.workflowFailureErrorTypes),
     });
 
     this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
@@ -2201,13 +2202,19 @@ function extractSourceMap(code: string): [string, string] {
 /**
  * Transform an ActivityTask into ActivityInfo to pass on into an Activity
  */
-async function extractActivityInfo(
-  task: coresdk.activity_task.ActivityTask,
-  dataConverter: LoadedDataConverter,
-  taskQueue: string,
-  activityNamespace: string,
-  context: ActivitySerializationContext
-): Promise<ActivityInfo> {
+async function extractActivityInfo({
+  task,
+  dataConverter,
+  taskQueue,
+  activityNamespace,
+  context,
+}: {
+  task: coresdk.activity_task.ActivityTask;
+  dataConverter: LoadedDataConverter;
+  taskQueue: string;
+  activityNamespace: string;
+  context: ActivitySerializationContext;
+}): Promise<ActivityInfo> {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
@@ -2235,7 +2242,7 @@ async function extractActivityInfo(
     workflowType: inWorkflow ? start.workflowType : undefined,
     heartbeatTimeoutMs: optionalTsToMs(start.heartbeatTimeout),
     heartbeatDetails,
-    activityNamespace: start.workflowNamespace,
+    activityNamespace,
     workflowNamespace: inWorkflow ? start.workflowNamespace : undefined,
     scheduledTimestampMs: requiredTsToMs(start.scheduledTime, 'scheduledTime'),
     startToCloseTimeoutMs: requiredTsToMs(start.startToCloseTimeout, 'startToCloseTimeout'),
@@ -2246,7 +2253,7 @@ async function extractActivityInfo(
     ),
     priority: decodePriority(start.priority),
     retryPolicy: decompileRetryPolicy(start.retryPolicy),
-    namespace: start.workflowNamespace,
+    namespace: start.workflowNamespace || activityNamespace,
     activityRunId: !inWorkflow ? start.runId : undefined,
     inWorkflow,
   };
@@ -2255,7 +2262,7 @@ async function extractActivityInfo(
 function activitySerializationContextFromInfo(info: ActivityInfo): ActivitySerializationContext {
   return {
     type: 'activity',
-    namespace: info.activityNamespace,
+    namespace: info.activityNamespace, // eslint-disable-line @typescript-eslint/no-deprecated
     activityId: info.activityId,
     workflowId: info.workflowExecution?.workflowId,
     isLocal: info.isLocal,
@@ -2303,4 +2310,24 @@ async function timeoutPromise<R>(promise: Promise<R>, timeout: number): Promise<
  */
 async function setTimeoutUnref(timeout: number): Promise<void> {
   return new Promise((resolve) => setTimeoutCallback(resolve, timeout).unref());
+}
+
+/**
+ * Resolves the list of failure exception type names applicable to a given workflow type,
+ * combining the wildcard `'*'` entry and any entry matching the specific workflow type.
+ *
+ * `NondeterminismError` is passed through as-is (the lang-side matching treats it as an alias
+ * for `DeterminismViolationError`). All other type names are passed through unchanged.
+ */
+function resolveFailureExceptionTypeNames(
+  workflowType: string,
+  workflowFailureErrorTypes: Record<string, string[]> | undefined
+): string[] | undefined {
+  if (!workflowFailureErrorTypes) return undefined;
+
+  const typeNames = new Set<string>();
+  for (const name of workflowFailureErrorTypes['*'] ?? []) typeNames.add(name);
+  for (const name of workflowFailureErrorTypes[workflowType] ?? []) typeNames.add(name);
+
+  return typeNames.size > 0 ? [...typeNames] : undefined;
 }

@@ -1,3 +1,4 @@
+import type { AsyncLocalStorage as ALS } from 'node:async_hooks';
 import type { RawSourceMap } from 'source-map';
 import type {
   ActivitySerializationContext,
@@ -33,7 +34,6 @@ import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';
 import {
@@ -44,7 +44,9 @@ import {
 import type { RNG } from './alea';
 import { alea } from './alea';
 import { RootCancellationScope } from './cancellation-scope';
-import { UpdateScope } from './update-scope';
+import { composeInterceptors } from './interceptor-composition';
+import { AsyncLocalStorage, UpdateScope } from './update-scope';
+import { deriveAleaSeed } from './random-stream-seed';
 import { DeterminismViolationError, LocalActivityDoBackoff, isCancellation } from './errors';
 import type {
   QueryInput,
@@ -147,6 +149,10 @@ interface NexusOperationContext {
 }
 
 type InferMapValue<T> = T extends Map<number, infer V> ? V : never;
+
+interface ScopedWorkflowRandomSource {
+  random(): number;
+}
 
 /**
  * Keeps all of the Workflow runtime state like pending completions for activities and timers.
@@ -278,6 +284,22 @@ export class Activator implements ActivationHandler {
    * the first captured error is preserved).
    */
   public workflowTaskError: unknown;
+
+  /**
+   * Error type _names_ (from {@link WorkerOptions.workflowFailureErrorTypes}) that
+   * should cause Workflow Execution failure rather than WFT failure.
+   *
+   * Set at workflow creation time from the worker options.
+   */
+  public failureExceptionTypeNames: string[] = [];
+
+  /**
+   * Error _types_ (from {@link WorkflowDefinitionOptions.failureExceptionTypes})
+   * that should cause Workflow Execution failure rather than WFT failure.
+   *
+   * Set in `worker-interface.ts` after the workflow definition options are read.
+   */
+  public workflowDefinitionFailureExceptionTypes: Array<new (...args: any[]) => Error> | undefined = undefined;
 
   /**
    * Set to true when running synchronous code (e.g. while processing activation jobs and when calling
@@ -430,9 +452,23 @@ export class Activator implements ActivationHandler {
   public info: WorkflowInfo;
 
   /**
-   * A deterministic RNG, used by the isolate's overridden Math.random
+   * The main deterministic RNG for this workflow execution.
+   *
+   * Scoped overrides used by `WorkflowRandomStream.with(...)` are layered on top of this RNG.
    */
   public random: RNG;
+
+  /**
+   * The current seed material for this workflow execution's deterministic RNGs.
+   */
+  public randomnessSeed: number[];
+
+  /**
+   * Additional deterministic RNG streams keyed by stable stream name.
+   */
+  public readonly namedRandomStreams = new Map<string, RNG>();
+
+  protected currentRandomStorage?: ALS<ScopedWorkflowRandomSource | undefined>;
 
   public payloadConverter: PayloadConverter = defaultPayloadConverter;
   public failureConverter: FailureConverter = defaultFailureConverter;
@@ -483,15 +519,55 @@ export class Activator implements ActivationHandler {
     randomnessSeed,
     registeredActivityNames,
     stackTracesEnabled,
+    failureExceptionTypeNames,
   }: WorkflowCreateOptionsInternal) {
     this.getTimeOfDay = getTimeOfDay;
     this.info = info;
     this.now = now;
     this.showStackTraceSources = showStackTraceSources;
     this.sourceMap = sourceMap;
-    this.random = alea(randomnessSeed);
+    this.randomnessSeed = [...randomnessSeed];
+    this.random = alea(this.randomnessSeed);
     this.registeredActivityNames = registeredActivityNames;
     this.stackTracesEnabled = stackTracesEnabled;
+    this.failureExceptionTypeNames = failureExceptionTypeNames ?? [];
+  }
+
+  protected setRandomnessSeed(randomnessSeed: number[]): void {
+    this.randomnessSeed = [...randomnessSeed];
+    this.random = alea(this.randomnessSeed);
+    this.namedRandomStreams.clear();
+  }
+
+  public getNamedRandom(name: string): RNG {
+    const cached = this.namedRandomStreams.get(name);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const random = alea(deriveAleaSeed(this.randomnessSeed, name));
+    this.namedRandomStreams.set(name, random);
+    return random;
+  }
+
+  protected withRandomSource<T>(randomSource: ScopedWorkflowRandomSource | undefined, fn: () => T): T {
+    return (this.currentRandomStorage ??= new AsyncLocalStorage<ScopedWorkflowRandomSource | undefined>()).run(
+      randomSource,
+      fn
+    );
+  }
+
+  public withCurrentRandom<T>(randomSource: ScopedWorkflowRandomSource, fn: () => T): T {
+    return this.withRandomSource(randomSource, fn);
+  }
+
+  public bindCurrentRandom<T extends (...args: any[]) => any>(fn: T): T {
+    const randomSource = this.currentRandomStorage?.getStore();
+    return ((...args: Parameters<T>) => this.withRandomSource(randomSource, () => fn(...args))) as T;
+  }
+
+  public currentRandom(): number {
+    return this.currentRandomStorage?.getStore()?.random() ?? this.random();
   }
 
   /**
@@ -595,8 +671,10 @@ export class Activator implements ActivationHandler {
           ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter, context)
           : undefined,
     }));
-    if (this.workflowDefinitionOptionsGetter) {
-      this.versioningBehavior = this.workflowDefinitionOptionsGetter().versioningBehavior;
+    const workflowDefinitionOpts = this.workflowDefinitionOptionsGetter?.();
+    if (workflowDefinitionOpts) {
+      this.versioningBehavior = workflowDefinitionOpts.versioningBehavior;
+      this.workflowDefinitionFailureExceptionTypes = workflowDefinitionOpts.failureExceptionTypes;
     }
   }
 
@@ -789,8 +867,14 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing query activation attributes');
     }
 
-    // If query has __temporal_ prefix but no handler exists, throw error
-    if (queryType.startsWith(TEMPORAL_RESERVED_PREFIX) && !this.queryHandlers.has(queryType)) {
+    // Reject __temporal_-prefixed queries that would otherwise be routed to the
+    // user's default handler. A specific registered handler (e.g. from a
+    // contrib package) is allowed through.
+    if (
+      queryType.startsWith(TEMPORAL_RESERVED_PREFIX) &&
+      !this.queryHandlers.has(queryType) &&
+      this.defaultQueryHandler !== undefined
+    ) {
       throw new TypeError(`Cannot use query name: '${queryType}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`);
     }
 
@@ -825,8 +909,15 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing activation update protocolInstanceId');
     }
 
-    // If update has __temporal_ prefix but no handler exists, throw error
-    if (name.startsWith(TEMPORAL_RESERVED_PREFIX) && !this.updateHandlers.get(name)) {
+    // Reject __temporal_-prefixed updates that would otherwise be routed to the
+    // user's default handler. A specific registered handler (e.g. from a
+    // contrib package) is allowed through, and unregistered names without a
+    // default handler fall through to the buffer-then-reject path below.
+    if (
+      name.startsWith(TEMPORAL_RESERVED_PREFIX) &&
+      !this.updateHandlers.has(name) &&
+      this.defaultUpdateHandler !== undefined
+    ) {
       throw new TypeError(`Cannot use update name: '${name}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`);
     }
 
@@ -1005,8 +1096,15 @@ export class Activator implements ActivationHandler {
       throw new TypeError('Missing activation signalName');
     }
 
-    // If signal has __temporal_ prefix but no handler exists, throw error
-    if (signalName.startsWith(TEMPORAL_RESERVED_PREFIX) && !this.signalHandlers.has(signalName)) {
+    // Reject __temporal_-prefixed signals that would otherwise be routed to the
+    // user's default handler. A specific registered handler (e.g. from a
+    // contrib package) is allowed through, and unregistered names without a
+    // default handler fall through to the buffer-then-reject path below.
+    if (
+      signalName.startsWith(TEMPORAL_RESERVED_PREFIX) &&
+      !this.signalHandlers.has(signalName) &&
+      this.defaultSignalHandler !== undefined
+    ) {
       throw new TypeError(
         `Cannot use signal name: '${signalName}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`
       );
@@ -1103,7 +1201,7 @@ export class Activator implements ActivationHandler {
     if (!activation.randomnessSeed) {
       throw new TypeError('Expected activation with randomnessSeed attribute');
     }
-    this.random = alea(activation.randomnessSeed.toBytes());
+    this.setRandomnessSeed(activation.randomnessSeed.toBytes());
   }
 
   public notifyHasPatch(activation: coresdk.workflow_activation.INotifyHasPatch): void {
@@ -1198,7 +1296,7 @@ export class Activator implements ActivationHandler {
       this.pushCommand({ cancelWorkflowExecution: {} }, true);
     } else if (error instanceof ContinueAsNew) {
       this.pushCommand({ continueAsNewWorkflowExecution: error.command }, true);
-    } else if (error instanceof TemporalFailure) {
+    } else if (error instanceof TemporalFailure || this.isConfiguredFailureException(error)) {
       // Fail the workflow. We do not want to issue unfinishedHandlers warnings. To achieve that, we
       // mark all handlers as completed now.
       this.inProgressSignals.clear();
@@ -1206,7 +1304,7 @@ export class Activator implements ActivationHandler {
       this.pushCommand(
         {
           failWorkflowExecution: {
-            failure: this.errorToFailure(error),
+            failure: this.errorToFailure(ensureTemporalFailure(error)),
           },
         },
         true
@@ -1214,6 +1312,42 @@ export class Activator implements ActivationHandler {
     } else {
       this.recordWorkflowTaskError(error);
     }
+  }
+
+  /**
+   * Returns true if the given error matches any of the configured failure exception types
+   * (from {@link WorkerOptions.workflowFailureErrorTypes} or
+   * {@link WorkflowDefinitionOptions.failureExceptionTypes}).
+   */
+  private isConfiguredFailureException(error: unknown): boolean {
+    // Check class references from WorkflowDefinitionOptions (instanceof-based, supports subclasses)
+    if (this.workflowDefinitionFailureExceptionTypes) {
+      // We guarantee that including Error in the list will catch _any_ error.
+      if (this.workflowDefinitionFailureExceptionTypes.includes(Error)) return true;
+
+      for (const errorType of this.workflowDefinitionFailureExceptionTypes) {
+        if (error instanceof errorType) return true;
+      }
+    }
+
+    // Check class name strings from WorkerOptions (prototype-chain-based)
+    if (this.failureExceptionTypeNames.length > 0) {
+      // We guarantee that including 'Error' in the list will catch _any_ error.
+      if (this.failureExceptionTypeNames.includes('Error')) return true;
+
+      if (typeof error === 'object' && error !== null) {
+        let ctor = (error as any).constructor;
+        while (ctor != null && ctor !== Function.prototype) {
+          const name = (ctor as any).name as string | undefined;
+          if (name) {
+            if (this.failureExceptionTypeNames.includes(name)) return true;
+          }
+          ctor = Object.getPrototypeOf(ctor);
+        }
+      }
+    }
+
+    return false;
   }
 
   recordWorkflowTaskError(error: unknown): void {

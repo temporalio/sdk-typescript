@@ -38,41 +38,16 @@
     "docs": "cd packages/docs && pnpm run maybe-install-deps-and-build-docs",
     "ava": "pnpm -C packages/test exec ava"
   },
-  "dependencies": {
-    "@temporalio/ai-sdk": "workspace:*",
-    "@temporalio/client": "workspace:*",
-    "@temporalio/cloud": "workspace:*",
-    "@temporalio/common": "workspace:*",
-    "@temporalio/create": "workspace:*",
-    "@temporalio/envconfig": "workspace:*",
-    "@temporalio/interceptors-opentelemetry": "workspace:*",
-    "@temporalio/nexus": "workspace:*",
-    "@temporalio/nyc-test-coverage": "workspace:*",
-    "@temporalio/plugin": "workspace:*",
-    "@temporalio/proto": "workspace:*",
-    "@temporalio/test": "workspace:*",
-    "@temporalio/testing": "workspace:*",
-    "@temporalio/worker": "workspace:*",
-    "@temporalio/workflow": "workspace:*",
-    "nexus-rpc": "^0.0.2",
-    "temporalio": "file:packages/meta"
-  },
   "devDependencies": {
+    "@commitlint/cli": "^20.0.0",
+    "@commitlint/config-conventional": "^20.0.0",
     "@eslint/js": "^9.26.0",
-    "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/core": "^1.25.1",
-    "@opentelemetry/sdk-node": "^0.52.1",
     "@tsconfig/node20": "^20.1.4",
     "@types/fs-extra": "^11.0.4",
-    "@types/ms": "^0.7.34",
-    "@types/node": "^20.10.8",
-    "@types/stack-utils": "^2.0.3",
-    "@types/supports-color": "^8.1.3",
+    "@types/node": "^20.19.39",
     "@typescript-eslint/eslint-plugin": "^8.10.0",
     "@typescript-eslint/parser": "^8.10.0",
     "arg": "^5.0.2",
-    "@commitlint/cli": "^20.0.0",
-    "@commitlint/config-conventional": "^20.0.0",
     "eslint": "^9.26.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-import-resolver-typescript": "^3.6.1",
@@ -101,7 +76,7 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "protobufjs@7.5.5": "patches/protobufjs@7.5.5.patch"
+      "protobufjs@7.5.8": "patches/protobufjs@7.5.8.patch"
     }
   }
 }

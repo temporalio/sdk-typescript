@@ -47,7 +47,7 @@ export interface WorkflowInfo {
    * This value may change during the lifetime of an Execution.
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  readonly searchAttributes: SearchAttributes; // eslint-disable-line @typescript-eslint/no-deprecated
+  readonly searchAttributes: SearchAttributes;
 
   /**
    * Indexed information attached to the Workflow Execution, exposed through an interface.
@@ -337,7 +337,7 @@ export interface ContinueAsNewOptions {
    * Searchable attributes to attach to next Workflow run
    * @deprecated Use {@link typedSearchAttributes} instead.
    */
-  searchAttributes?: SearchAttributes; // eslint-disable-line @typescript-eslint/no-deprecated
+  searchAttributes?: SearchAttributes;
   /**
    * Specifies additional indexed information to attach to the Workflow Execution. More info:
    * https://docs.temporal.io/docs/typescript/search-attributes
@@ -357,7 +357,7 @@ export interface ContinueAsNewOptions {
    *
    * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
-  versioningIntent?: VersioningIntent; // eslint-disable-line @typescript-eslint/no-deprecated
+  versioningIntent?: VersioningIntent;
   /**
    * Defines the versioning behavior to be used by the first task of a new workflow run in a continue-as-new chain.
    *
@@ -567,7 +567,7 @@ export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workf
    *
    * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
-  versioningIntent?: VersioningIntent; // eslint-disable-line @typescript-eslint/no-deprecated
+  versioningIntent?: VersioningIntent;
 }
 
 export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, 'workflowId' | 'cancellationType'>> & {
@@ -646,6 +646,7 @@ export interface WorkflowCreateOptions {
   randomnessSeed: number[];
   now: number;
   showStackTraceSources: boolean;
+  failureExceptionTypeNames?: string[];
 }
 
 export interface WorkflowCreateOptionsInternal extends WorkflowCreateOptions {

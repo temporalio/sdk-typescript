@@ -1,6 +1,7 @@
 /**
  * Test AI SDK integration with Temporal workflows
  */
+import { randomUUID } from 'crypto';
 import type {
   EmbeddingModelV3,
   EmbeddingModelV3CallOptions,
@@ -18,7 +19,6 @@ import type {
 } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
 import type { TestFn } from 'ava';
-import { v4 as uuid4 } from 'uuid';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { ExportResultCode } from '@opentelemetry/core';
@@ -41,7 +41,13 @@ import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode, DefaultLogger, Runtime } from '@temporalio/worker';
 import type { InjectedSinks } from '@temporalio/worker';
 import type { BaseContext } from '@temporalio/test-helpers';
-import { test as anyTest, helpers, Worker, TestWorkflowEnvironment } from '@temporalio/test-helpers';
+import {
+  test as anyTest,
+  createBaseBundlerOptions,
+  helpers,
+  Worker,
+  TestWorkflowEnvironment,
+} from '@temporalio/test-helpers';
 import { AiSdkPlugin, createActivities } from '..';
 import {
   embeddingWorkflow,
@@ -234,6 +240,7 @@ const test = anyTest as TestFn<BaseContext>;
 test.before(async (t) => {
   const env = await TestWorkflowEnvironment.createLocal();
   const workflowBundle = await bundleWorkflowCode({
+    ...createBaseBundlerOptions(),
     workflowsPath: require.resolve('./workflows/ai-sdk'),
     workflowInterceptorModules,
     logger: new DefaultLogger('WARN'),
@@ -454,7 +461,7 @@ test('Telemetry', async (t) => {
     });
     await otel.start();
     const sinks: InjectedSinks<OpenTelemetrySinks> = {
-      exporter: makeWorkflowExporter(traceExporter, staticResource),
+      exporter: makeWorkflowExporter(traceExporter, staticResource), // eslint-disable-line @typescript-eslint/no-deprecated
     };
 
     const worker = await Worker.create({
@@ -465,6 +472,7 @@ test('Telemetry', async (t) => {
       ],
       taskQueue: 'test-ai-telemetry',
       workflowsPath: require.resolve('./workflows/ai-sdk'),
+      bundlerOptions: createBaseBundlerOptions(),
 
       interceptors: {
         client: {
@@ -487,7 +495,7 @@ test('Telemetry', async (t) => {
     await worker.runUntil(async () => {
       await client.execute(telemetryWorkflow, {
         taskQueue: 'test-ai-telemetry',
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
         args: ['Tell me about recursion'],
       });
     });

@@ -11,7 +11,7 @@
  * ```
  *
  * Any function can be used as an Activity as long as its parameters and return value are serializable using a
- * {@link https://docs.temporal.io/concepts/what-is-a-data-converter/ | DataConverter}.
+ * {@link https://docs.temporal.io/default-custom-data-converters#custom-data-converter | DataConverter}.
  *
  * ### Cancellation
  *
@@ -283,7 +283,7 @@ export interface Info {
  * Activity Context, used to:
  *
  * - Get {@link Info} about the current Activity Execution
- * - Send {@link https://docs.temporal.io/concepts/what-is-an-activity-heartbeat | heartbeats}
+ * - Send {@link https://docs.temporal.io/encyclopedia/detecting-activity-failures#activity-heartbeat | heartbeats}
  * - Get notified of Activity cancellation
  * - Sleep (cancellation-aware)
  *
@@ -382,7 +382,7 @@ export class Context {
   ) {}
 
   /**
-   * Send a {@link https://docs.temporal.io/concepts/what-is-an-activity-heartbeat | heartbeat} from an Activity.
+   * Send a {@link https://docs.temporal.io/encyclopedia/detecting-activity-failures#activity-heartbeat | heartbeat} from an Activity.
    *
    * If an Activity times out, then during the next retry, the last value of `details` is available at
    * {@link Info.heartbeatDetails}. This acts as a periodic checkpoint mechanism for the progress of an Activity.
@@ -498,7 +498,7 @@ export function sleep(ms: Duration): Promise<void> {
 }
 
 /**
- * Send a {@link https://docs.temporal.io/concepts/what-is-an-activity-heartbeat | heartbeat} from an Activity.
+ * Send a {@link https://docs.temporal.io/encyclopedia/detecting-activity-failures#activity-heartbeat | heartbeat} from an Activity.
  *
  * If an Activity times out, then during the next retry, the last value of `details` is available at
  * {@link Info.heartbeatDetails}. This acts as a periodic checkpoint mechanism for the progress of an Activity.

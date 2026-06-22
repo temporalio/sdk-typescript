@@ -5,9 +5,9 @@
  * @module
  */
 
+import { randomUUID } from 'crypto';
 import test from 'ava';
 import dedent from 'dedent';
-import { v4 as uuid4 } from 'uuid';
 import { WorkflowClient, WorkflowFailedError } from '@temporalio/client';
 import { ApplicationFailure, TerminatedFailure } from '@temporalio/common';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
@@ -34,7 +34,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test.serial('Tracing can be implemented using interceptors', async (t) => {
     const taskQueue = 'test-interceptors';
-    const message = uuid4();
+    const message = randomUUID();
 
     const worker = await Worker.create({
       ...defaultOptions,
@@ -108,7 +108,7 @@ if (RUN_INTEGRATION_TESTS) {
       {
         const wf = await client.start(interceptorExample, {
           taskQueue,
-          workflowId: uuid4(),
+          workflowId: randomUUID(),
         });
         // Send both signal and query to more consistently repro https://github.com/temporalio/sdk-node/issues/299
         await Promise.all([
@@ -121,7 +121,7 @@ if (RUN_INTEGRATION_TESTS) {
       {
         const wf = await client.signalWithStart(interceptorExample, {
           taskQueue,
-          workflowId: uuid4(),
+          workflowId: randomUUID(),
           signal: unblockWithSecretSignal,
           signalArgs: ['12345'],
         });
@@ -133,7 +133,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test.serial('(Legacy) WorkflowClientCallsInterceptor intercepts terminate and cancel', async (t) => {
     const taskQueue = 'test-interceptor-term-and-cancel';
-    const message = uuid4();
+    const message = randomUUID();
     // Use these to coordinate with workflow activation to complete only after termination
     const worker = await Worker.create({
       ...defaultOptions,
@@ -157,7 +157,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(async () => {
       const wf = await client.start(unblockOrCancel, {
         taskQueue,
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
       });
       await t.throwsAsync(wf.cancel(), {
         instanceOf: Error,
@@ -177,7 +177,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test.serial('WorkflowClientInterceptor intercepts terminate and cancel', async (t) => {
     const taskQueue = 'test-interceptor-term-and-cancel';
-    const message = uuid4();
+    const message = randomUUID();
     // Use these to coordinate with workflow activation to complete only after termination
     const worker = await Worker.create({
       ...defaultOptions,
@@ -199,7 +199,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(async () => {
       const wf = await client.start(unblockOrCancel, {
         taskQueue,
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
       });
       await t.throwsAsync(wf.cancel(), {
         instanceOf: Error,
@@ -232,7 +232,7 @@ if (RUN_INTEGRATION_TESTS) {
       return (await t.throwsAsync(
         client.execute(continueAsNewToDifferentWorkflow, {
           taskQueue,
-          workflowId: uuid4(),
+          workflowId: randomUUID(),
         }),
         {
           instanceOf: WorkflowFailedError,
@@ -259,6 +259,7 @@ if (RUN_INTEGRATION_TESTS) {
         ApplicationFailure: Expected anything other than 1
             at $CLASS.nonRetryable (common/src/failure.ts)
             at Object.continueAsNew (test/src/workflows/interceptor-example.ts)
+            at composedNext (common/src/interceptors.ts)
             at workflow/src/workflow.ts
             at continueAsNewToDifferentWorkflow (test/src/workflows/continue-as-new-to-different-workflow.ts)
       `;
@@ -291,7 +292,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(
       client.execute(internalsInterceptorExample, {
         taskQueue,
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
       })
     );
     t.deepEqual(events, ['activate: 0', 'concludeActivation: 1', 'activate: 0', 'concludeActivation: 1']);
@@ -311,12 +312,12 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(async () => {
       const disposeFlagSet = await client.execute(initAndResetFlag, {
         taskQueue,
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
       });
       t.false(disposeFlagSet);
       const disposeFlagSetNow = await client.execute(checkDisposeRan, {
         taskQueue,
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
       });
       t.true(disposeFlagSetNow);
     });
@@ -341,17 +342,17 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new WorkflowClient();
     const result = await worker.runUntil(async () => {
       // Fill the cache with workflow that complete immediately
-      await client.execute(successString, { taskQueue, workflowId: uuid4() });
+      await client.execute(successString, { taskQueue, workflowId: randomUUID() });
 
       // Start the condition workflow
       const conditionHandle = await client.start(conditionWithTimeoutAfterDisposal, {
         taskQueue,
-        workflowId: uuid4(),
+        workflowId: randomUUID(),
       });
 
       // Run another workflow to trigger an evictions and disposal() while
       // conditionWithTimeoutAfterDisposal is cached and waiting
-      await client.execute(successString, { taskQueue, workflowId: uuid4() });
+      await client.execute(successString, { taskQueue, workflowId: randomUUID() });
 
       // If dispose incorrectly disables the cancellation scope storage, then it will fail with CancelledFailure: "Workflow cancelled"
       return await conditionHandle.result();

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'crypto';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import asyncRetry from 'async-retry';
@@ -180,7 +180,6 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(describedSchedule.action.type, 'startWorkflow');
       t.is(describedSchedule.action.workflowType, 'dummyWorkflow');
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
       t.deepEqual(describedSchedule.action.searchAttributes, {
         CustomKeywordField: ['test-value2'],
         CustomIntField: [42],
@@ -227,7 +226,6 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(describedSchedule.action.workflowType, 'dummyWorkflowWith2Args');
       t.deepEqual(describedSchedule.action.args, [3, 4]);
       t.deepEqual(describedSchedule.action.memo, { 'my-memo': 'foo' });
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
       t.deepEqual(describedSchedule.action.searchAttributes, {
         CustomKeywordField: ['test-value2'],
         CustomIntField: [42],
@@ -577,7 +575,7 @@ if (RUN_INTEGRATION_TESTS) {
     const expectedIds: string[] = [];
     for (let i = 0; i < 4; i++) {
       const scheduleId = `test-query-${groupId}-${i + 1}`;
-      const searchAttributes: SearchAttributes = {}; // eslint-disable-line @typescript-eslint/no-deprecated
+      const searchAttributes: SearchAttributes = {};
       if (i < 2) {
         searchAttributes['CustomKeywordField'] = ['some-value'];
         expectedIds.push(scheduleId);
@@ -791,7 +789,6 @@ if (RUN_INTEGRATION_TESTS) {
 
     // Check the search attributes are part of the schedule description.
     const desc = await handle.describe();
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
     t.deepEqual(desc.searchAttributes, {
       CustomKeywordField: ['keyword-one'],
       CustomIntField: [1],
@@ -822,7 +819,6 @@ if (RUN_INTEGRATION_TESTS) {
       }));
 
       let desc = await waitForAttributeChange(handle, 'CustomTextField', true);
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
       t.deepEqual(desc.searchAttributes, {
         CustomKeywordField: ['keyword-two'],
         CustomIntField: [2],
@@ -849,7 +845,6 @@ if (RUN_INTEGRATION_TESTS) {
       }));
 
       desc = await waitForAttributeChange(handle, 'CustomTextField', false);
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
       t.deepEqual(desc.searchAttributes, {
         CustomKeywordField: ['keyword-three'],
         CustomIntField: [3],
@@ -870,7 +865,7 @@ if (RUN_INTEGRATION_TESTS) {
       }));
 
       desc = await waitForAttributeChange(handle, 'CustomIntField', false);
-      t.deepEqual(desc.searchAttributes, {}); // eslint-disable-line @typescript-eslint/no-deprecated
+      t.deepEqual(desc.searchAttributes, {});
       t.deepEqual(desc.typedSearchAttributes, new TypedSearchAttributes([]));
     } finally {
       await handle.delete();

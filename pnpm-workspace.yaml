@@ -19,6 +19,8 @@ packages:
   - packages/workflow
   - contrib/ai-sdk
   - contrib/interceptors-opentelemetry
+  - contrib/openai-agents
+  - contrib/workflow-streams
   - scripts
 
 ignoreScripts: true
@@ -43,4 +45,4 @@ overrides:
   handlebars: '>=4.7.9'
 
 patchedDependencies:
-  protobufjs@7.5.5: patches/protobufjs@7.5.5.patch
+  protobufjs@7.5.8: patches/protobufjs@7.5.8.patch

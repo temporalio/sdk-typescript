@@ -1,5 +1,5 @@
+import { randomUUID } from 'node:crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { v4 as uuid4 } from 'uuid';
 import type {
   BaseWorkflowHandle,
   HistoryAndWorkflowId,
@@ -294,7 +294,6 @@ export interface WorkflowClientOptions extends BaseClientOptions {
    *
    * Useful for injecting auth headers and tracing Workflow executions
    */
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
   interceptors?: WorkflowClientInterceptors | WorkflowClientInterceptor[];
 
   /**
@@ -994,7 +993,7 @@ export class WorkflowClient extends BaseClient {
   ): Promise<temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest> {
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(input.workflowExecution.workflowId!);
-    const updateId = input.options?.updateId ?? uuid4();
+    const updateId = input.options?.updateId ?? randomUUID();
     return {
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
@@ -1216,7 +1215,7 @@ export class WorkflowClient extends BaseClient {
       identity: this.options.identity,
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
-      requestId: uuid4(),
+      requestId: randomUUID(),
       // control is unused,
       signalName: input.signalName,
       header: { fields: input.headers },
@@ -1242,7 +1241,7 @@ export class WorkflowClient extends BaseClient {
     const req: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest = {
       namespace: this.options.namespace,
       identity,
-      requestId: uuid4(),
+      requestId: randomUUID(),
       workflowId: options.workflowId,
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(options.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(options.workflowIdConflictPolicy),
@@ -1261,9 +1260,9 @@ export class WorkflowClient extends BaseClient {
       retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
       memo: options.memo ? { fields: await encodeMapToPayloads(dataConverter, options.memo, context) } : undefined,
       searchAttributes:
-        options.searchAttributes || options.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
+        options.searchAttributes || options.typedSearchAttributes
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes), // eslint-disable-line @typescript-eslint/no-deprecated
+              indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes),
             }
           : undefined,
       cronSchedule: options.cronSchedule,
@@ -1332,10 +1331,23 @@ export class WorkflowClient extends BaseClient {
       );
     }
 
+    // Server currently only supports workflow_event and batch_job
+    // link types. This filter should be removed or adapted as
+    // server-side support comes online.
+    // See https://github.com/temporalio/temporal/issues/10345
+    const links = internalOptions?.links?.filter((link) => link.workflowEvent != null || link.batchJob != null);
+
+    const completionCallbacks = internalOptions?.completionCallbacks?.map((cb) => {
+      const links = cb?.links?.filter((link) => link.workflowEvent != null || link.batchJob != null);
+      return { ...cb, links };
+    });
+
+    const resolvedInternalOptions = { ...(internalOptions ?? {}), links, completionCallbacks };
+
     return {
       namespace,
       identity,
-      requestId: internalOptions?.requestId ?? uuid4(),
+      requestId: internalOptions?.requestId ?? randomUUID(),
       workflowId: opts.workflowId,
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(opts.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(opts.workflowIdConflictPolicy),
@@ -1352,9 +1364,9 @@ export class WorkflowClient extends BaseClient {
       retryPolicy: opts.retry ? compileRetryPolicy(opts.retry) : undefined,
       memo: opts.memo ? { fields: await encodeMapToPayloads(dataConverter, opts.memo, context) } : undefined,
       searchAttributes:
-        opts.searchAttributes || opts.typedSearchAttributes // eslint-disable-line @typescript-eslint/no-deprecated
+        opts.searchAttributes || opts.typedSearchAttributes
           ? {
-              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes), // eslint-disable-line @typescript-eslint/no-deprecated
+              indexedFields: encodeUnifiedSearchAttributes(opts.searchAttributes, opts.typedSearchAttributes),
             }
           : undefined,
       cronSchedule: opts.cronSchedule,
@@ -1363,7 +1375,7 @@ export class WorkflowClient extends BaseClient {
       priority: opts.priority ? compilePriority(opts.priority) : undefined,
       versioningOverride: opts.versioningOverride ?? undefined,
       requestEagerExecution: opts.requestEagerStart,
-      ...filterNullAndUndefined(internalOptions ?? {}),
+      ...filterNullAndUndefined(resolvedInternalOptions),
     };
   }
 
@@ -1403,7 +1415,7 @@ export class WorkflowClient extends BaseClient {
       return await this.workflowService.requestCancelWorkflowExecution({
         namespace: this.options.namespace,
         identity: this.options.identity,
-        requestId: uuid4(),
+        requestId: randomUUID(),
         workflowExecution: input.workflowExecution,
         firstExecutionRunId: input.firstExecutionRunId,
       });

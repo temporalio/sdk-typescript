@@ -36,8 +36,8 @@ export * from './workflow-handle';
 export * from './workflow-options';
 export * from './versioning-intent';
 export {
-  SearchAttributes, // eslint-disable-line @typescript-eslint/no-deprecated
-  SearchAttributeValue, // eslint-disable-line @typescript-eslint/no-deprecated
+  SearchAttributes,
+  SearchAttributeValue,
   SearchAttributeType,
   SearchAttributePair,
   SearchAttributeUpdatePair,
