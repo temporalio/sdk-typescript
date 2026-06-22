@@ -1,11 +1,18 @@
-import { defaultPayloadConverter, u8 } from '@temporalio/common';
+import { defaultPayloadConverter } from '@temporalio/common';
 import type { Payload, PayloadCodec, SerializationContext } from '@temporalio/common';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
 import { decode, encode } from '@temporalio/common/lib/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
-import { SYSTEM_NEXUS_OPERATIONS, visitSystemNexusPayloads } from './system-nexus-payload-visitor';
+import type { Type as ProtobufType } from 'protobufjs';
+import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/service';
+import { visitSystemNexusPayloads } from './system-nexus-payload-visitor';
+import type { SystemNexusMessage, SystemNexusMessageByType } from './system-nexus-payload-visitor';
+
+const protobufPayloadConverter = new ProtobufBinaryPayloadConverter(protoRoot);
+const protoRootWithLookup = protoRoot as typeof protoRoot & { lookupType(messageTypeName: string): ProtobufType };
 
 function operationDefinition(service: string, operation: string) {
-  return SYSTEM_NEXUS_OPERATIONS.find((op) => op.service === service && op.operation === operation);
+  return operationRegistry.find((op) => op.service === service && op.operation === operation);
 }
 
 export function isSystemNexusOperation(
@@ -26,16 +33,21 @@ export async function tryConvertSystemNexusInputJsonToProtoBinaryPayload(
   const op = operationDefinition(service, operation);
   if (op == null) return undefined;
 
-  const messageType = lookupMessageClass(op.inputType);
-  const message = messageType.create(defaultPayloadConverter.fromPayload(payload) ?? {});
+  const message = createSystemNexusMessage(op.inputType, payloadProperties(payload));
+  // The workflow side serializes the system Nexus envelope as json/plain, but fields inside that envelope may be
+  // Temporal Payloads with Uint8Array data and metadata values. JSON round-tripping turns those bytes into plain JS
+  // objects/arrays, so restore them before protobuf binary encoding.
   normalizePayloadBytes(message);
   await visitSystemNexusPayloads(
-    op.inputType,
     message,
     (single) => encode(codecs, [single], context).then(([encoded]) => encoded!),
     (payloads) => encode(codecs, payloads, context)
   );
-  return protoBinaryPayload(op.inputType, message);
+  const protoPayload = protobufPayloadConverter.toPayload(message);
+  if (protoPayload == null) {
+    throw new Error('Failed to serialize system Nexus protobuf message');
+  }
+  return protoPayload;
 }
 
 export async function tryConvertSystemNexusOutputProtoBinaryToJsonPayload(
@@ -49,11 +61,8 @@ export async function tryConvertSystemNexusOutputProtoBinaryToJsonPayload(
   const op = operationDefinition(service, operation);
   if (op == null) return undefined;
 
-  assertProtoBinaryPayload(payload, op.outputType);
-  const messageType = lookupMessageClass(op.outputType);
-  const message = messageType.decode(payload.data!);
+  const message = protobufPayloadConverter.fromPayload<SystemNexusMessage>(payload);
   await visitSystemNexusPayloads(
-    op.outputType,
     message,
     (single) => decode(codecs, [single], context).then(([decoded]) => decoded!),
     (payloads) => decode(codecs, payloads, context)
@@ -61,34 +70,20 @@ export async function tryConvertSystemNexusOutputProtoBinaryToJsonPayload(
   return defaultPayloadConverter.toPayload(message)!;
 }
 
-function protoBinaryPayload(messageTypeName: string, message: any): Payload {
-  const messageType = lookupMessageClass(messageTypeName);
-  return {
-    metadata: { encoding: u8('binary/protobuf'), messageType: u8(messageTypeName) },
-    data: messageType.encode(message).finish(),
-  };
+function createSystemNexusMessage<T extends keyof SystemNexusMessageByType>(
+  messageTypeName: T,
+  properties: Record<string, unknown>
+): SystemNexusMessageByType[T] {
+  return protoRootWithLookup.lookupType(messageTypeName).create(properties) as unknown as SystemNexusMessageByType[T];
 }
 
-function assertProtoBinaryPayload(payload: Payload, messageTypeName: string): void {
-  if (payload.data == null) throw new Error('System Nexus protobuf payload is missing data');
-  const metadata = payload.metadata ?? {};
-  if (decodeUtf8(metadata.encoding) !== 'binary/protobuf') {
-    throw new Error('System Nexus envelope must use binary/protobuf encoding');
-  }
-  if (decodeUtf8(metadata.messageType) !== messageTypeName) {
-    throw new Error(`System Nexus envelope type mismatch: expected ${messageTypeName}`);
-  }
+function payloadProperties(payload: Payload): Record<string, unknown> {
+  const value = defaultPayloadConverter.fromPayload(payload);
+  return value != null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
-function lookupMessageClass(messageTypeName: string): any {
-  let current: any = protoRoot;
-  for (const part of messageTypeName.split('.')) {
-    current = current?.[part];
-    if (current == null) throw new Error(`Unknown system Nexus protobuf message type: ${messageTypeName}`);
-  }
-  return current;
-}
-
+// Normalize nested Payload byte fields after json/plain envelope decoding. Protobufjs expects bytes fields to be
+// Uint8Array-compatible when encoding the system Nexus request to binary/protobuf.
 function normalizePayloadBytes(value: unknown, seen = new Set<object>()): void {
   if (value == null || typeof value !== 'object') return;
   if (seen.has(value)) return;
@@ -125,8 +120,4 @@ function bytesFromJson(value: unknown): Uint8Array | unknown {
     return bytes;
   }
   return value;
-}
-
-function decodeUtf8(bytes: Uint8Array | null | undefined): string | undefined {
-  return bytes == null ? undefined : new TextDecoder().decode(bytes);
 }
