@@ -5,14 +5,8 @@
 import { inWorkflowContext } from './workflow-imports';
 
 if (inWorkflowContext()) {
-  // Required by opentelemetry (pretend to be a browser)
+  // OTel uses `window` to detect a browser environment
   Object.assign(globalThis, {
-    performance: {
-      timeOrigin: Date.now(),
-      now() {
-        return Date.now() - this.timeOrigin;
-      },
-    },
     window: globalThis,
   });
 }

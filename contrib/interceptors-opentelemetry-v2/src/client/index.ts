@@ -36,6 +36,8 @@ export interface InterceptorOptions {
  * Intercepts calls to start a Workflow.
  *
  * Wraps the operation in an opentelemetry Span and passes it to the Workflow via headers.
+ *
+ * @experimental This interceptor is experimental and APIs may change without notice.
  */
 export class OpenTelemetryWorkflowClientInterceptor implements WorkflowClientInterceptor {
   protected readonly tracer: otel.Tracer;

@@ -3,18 +3,18 @@
  */
 import * as http2 from 'http2';
 import * as path from 'path';
-import { randomUUID } from 'crypto';
 import * as otelApi from '@opentelemetry/api';
 import { SpanStatusCode, createTraceState } from '@opentelemetry/api';
-import { ExportResultCode } from '@opentelemetry/core';
+import { ExportResultCode, W3CTraceContextPropagator } from '@opentelemetry/core';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
-import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
+import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import test from 'ava';
 import * as nexus from 'nexus-rpc';
 import { Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
+import { v4 as uuid4 } from 'uuid';
 import type { WorkflowClientInterceptor } from '@temporalio/client';
 import { WorkflowClient, WithStartWorkflowOperation, Client, Connection } from '@temporalio/client';
 import type {
@@ -28,45 +28,60 @@ import type {
 import { bundleWorkflowCode, DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import type { WorkflowInboundCallsInterceptor, WorkflowOutboundCallsInterceptor } from '@temporalio/workflow';
 import type { Info } from '@temporalio/activity';
+
 import {
   RUN_INTEGRATION_TESTS,
   loadHistory as loadHistoryBase,
   createBaseBundlerOptions,
-  createTestWorkflowBundle as createTestWorkflowBundleBase,
+  createTestWorkflowBundle,
   createTestWorkflowEnvironment,
 } from '@temporalio/test-helpers';
+
 import type * as workflowImportStub from '../workflow/workflow-imports';
 import type * as workflowImportImpl from '../workflow/workflow-imports-impl';
-import { instrument, instrumentSync, NEXUS_SERVICE_ATTR_KEY, NEXUS_OPERATION_ATTR_KEY } from '../instrumentation';
 import type { OpenTelemetryNexusInboundInterceptor, OpenTelemetryNexusOutboundInterceptor } from '../worker';
-import {
-  makeWorkflowExporter,
-  OpenTelemetryActivityInboundInterceptor,
-  OpenTelemetryActivityOutboundInterceptor,
-} from '../worker';
 import type {
   OpenTelemetrySinks,
   OpenTelemetryOutboundInterceptor,
   OpenTelemetryInboundInterceptor,
 } from '../workflow';
-import { SpanName, SPAN_DELIMITER } from '../workflow';
 import { OpenTelemetryWorkflowClientInterceptor } from '../client';
 import { OpenTelemetryPlugin } from '..';
+import { instrument, instrumentSync, NEXUS_OPERATION_ATTR_KEY, NEXUS_SERVICE_ATTR_KEY } from '../instrumentation';
+import {
+  makeWorkflowExporter,
+  OpenTelemetryActivityInboundInterceptor,
+  OpenTelemetryActivityOutboundInterceptor,
+} from '../worker';
+import { SpanName, SPAN_DELIMITER } from '../workflow';
 import * as activities from './activities';
 import { createActivities as createAsyncActivities } from './activities/async-completer';
 import * as workflows from './workflows';
 
-async function loadHistory(fname: string) {
-  const fpath = path.resolve(__dirname, `../../src/__tests__/history_files/${fname}`);
-  return loadHistoryBase(fpath);
+function historyPath(fname: string): string {
+  return path.resolve(__dirname, `../../src/__tests__/history_files/${fname}`);
 }
 
-async function createTestWorkflowBundle(opts: {
+async function loadHistory(fname: string) {
+  return loadHistoryBase(historyPath(fname));
+}
+
+function createReplayPlugin(serviceName: string): OpenTelemetryPlugin {
+  const resource = opentelemetry.resources.resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: serviceName,
+  });
+  return new OpenTelemetryPlugin({
+    resource,
+    spanProcessor: new SimpleSpanProcessor(new InMemorySpanExporter()),
+  });
+}
+
+async function createOtelTestWorkflowBundle(opts: {
   workflowsPath: string;
   workflowInterceptorModules?: string[];
   plugins?: BundlerPlugin[];
 }) {
-  return createTestWorkflowBundleBase({
+  return createTestWorkflowBundle({
     ...opts,
     additionalIgnoreModules: [require.resolve('./activities')],
   });
@@ -118,29 +133,33 @@ async function withFakeGrpcServer(
   });
 }
 
-// A small wrapper around opentelemetry.NodeSDK to allow  serial tests to execute using the global
-// TracerProvider without collisions
-class OtelSdkContext {
-  private readonly sdk: opentelemetry.NodeSDK;
+test('OpenTelemetryPlugin injects workflow interceptor modules without preloading OTel', (t) => {
+  const resource = opentelemetry.resources.resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: 'ts-test-otel-v2-plugin-options',
+  });
+  const spanProcessor = new SimpleSpanProcessor(new InMemorySpanExporter());
+  const plugin = new OpenTelemetryPlugin({ resource, spanProcessor });
+  const workflowInterceptorsPath = require.resolve('../workflow-interceptors');
 
-  constructor(opts: { resource: opentelemetry.resources.Resource; traceExporter: opentelemetry.tracing.SpanExporter }) {
-    this.sdk = new opentelemetry.NodeSDK({
-      resource: opts.resource,
-      traceExporter: opts.traceExporter,
-    });
-  }
+  const workerOptions = plugin.configureWorker({
+    workflowsPath: require.resolve('./workflows'),
+    taskQueue: 'test-otel-v2-plugin-options',
+  } as any);
+  t.is(workerOptions.bundlerOptions, undefined);
 
-  start(): void {
-    // start sets the global TracerProvider which cannot be overridden without removal
-    this.sdk.start();
-  }
+  const bundledWorkerOptions = plugin.configureWorker({
+    workflowBundle: { code: '' },
+    taskQueue: 'test-otel-v2-plugin-options',
+  } as any);
+  t.is(bundledWorkerOptions.bundlerOptions, undefined);
 
-  async shutdown(): Promise<void> {
-    await this.sdk.shutdown();
-    // disable removes the global TracerProvider so a new instance of `OtelSdkContext` can set it
-    otelApi.trace.disable();
-  }
-}
+  const bundleOptions = plugin.configureBundler({
+    workflowsPath: require.resolve('./workflows'),
+    preloadModules: ['existing-module'],
+  });
+  t.deepEqual(bundleOptions.preloadModules, ['existing-module']);
+  t.deepEqual(bundleOptions.workflowInterceptorModules, [workflowInterceptorsPath]);
+});
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Otel interceptor spans are connected and complete', async (t) => {
@@ -148,8 +167,8 @@ if (RUN_INTEGRATION_TESTS) {
     try {
       const spans = Array<opentelemetry.tracing.ReadableSpan>();
 
-      const staticResource = new opentelemetry.resources.Resource({
-        [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-worker',
+      const staticResource = opentelemetry.resources.resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: 'ts-test-otel-worker',
       });
       const traceExporter: opentelemetry.tracing.SpanExporter = {
         export(spans_, resultCallback) {
@@ -160,7 +179,10 @@ if (RUN_INTEGRATION_TESTS) {
           // Nothing to shutdown
         },
       };
-      const otel = new OtelSdkContext({ resource: staticResource, traceExporter });
+      const otel = new opentelemetry.NodeSDK({
+        resource: staticResource,
+        traceExporter,
+      });
       otel.start();
 
       const plugin = new OpenTelemetryPlugin({
@@ -170,7 +192,7 @@ if (RUN_INTEGRATION_TESTS) {
       const worker = await Worker.create({
         workflowsPath: require.resolve('./workflows'),
         activities,
-        taskQueue: 'test-otel',
+        taskQueue: 'test-otel-v2',
         plugins: [plugin],
       });
 
@@ -178,111 +200,115 @@ if (RUN_INTEGRATION_TESTS) {
         plugins: [plugin],
       });
       await worker.runUntil(
-        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: randomUUID() })
+        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel-v2', workflowId: uuid4() })
       );
       await otel.shutdown();
       const originalSpan = spans.find(({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}smorgasbord`);
       t.true(originalSpan !== undefined);
       t.log(
-        spans.map((span) => ({ name: span.name, parentSpanId: span.parentSpanId, spanId: span.spanContext().spanId }))
+        spans.map((span) => ({
+          name: span.name,
+          parentSpanId: span.parentSpanContext?.spanId,
+          spanId: span.spanContext().spanId,
+        }))
       );
 
       const firstExecuteSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord` &&
-          parentSpanId === originalSpan?.spanContext().spanId
+          parentSpanContext?.spanId === originalSpan?.spanContext().spanId
       );
       t.true(firstExecuteSpan !== undefined);
       t.true(firstExecuteSpan!.status.code === SpanStatusCode.OK);
 
       const continueAsNewSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}smorgasbord` &&
-          parentSpanId === firstExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === firstExecuteSpan?.spanContext().spanId
       );
       t.true(continueAsNewSpan !== undefined);
       t.true(continueAsNewSpan!.status.code === SpanStatusCode.OK);
 
       const parentExecuteSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord` &&
-          parentSpanId === continueAsNewSpan?.spanContext().spanId
+          parentSpanContext?.spanId === continueAsNewSpan?.spanContext().spanId
       );
       t.true(parentExecuteSpan !== undefined);
       const firstActivityStartSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}fakeProgress` &&
-          parentSpanId === parentExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === parentExecuteSpan?.spanContext().spanId
       );
       t.true(firstActivityStartSpan !== undefined);
 
       const firstActivityExecuteSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.ACTIVITY_EXECUTE}${SPAN_DELIMITER}fakeProgress` &&
-          parentSpanId === firstActivityStartSpan?.spanContext().spanId
+          parentSpanContext?.spanId === firstActivityStartSpan?.spanContext().spanId
       );
       t.true(firstActivityExecuteSpan !== undefined);
 
       const secondActivityStartSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}queryOwnWf` &&
-          parentSpanId === parentExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === parentExecuteSpan?.spanContext().spanId
       );
       t.true(secondActivityStartSpan !== undefined);
 
       const secondActivityExecuteSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.ACTIVITY_EXECUTE}${SPAN_DELIMITER}queryOwnWf` &&
-          parentSpanId === secondActivityStartSpan?.spanContext().spanId
+          parentSpanContext?.spanId === secondActivityStartSpan?.spanContext().spanId
       );
       t.true(secondActivityExecuteSpan !== undefined);
 
       const childWorkflowStartSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.CHILD_WORKFLOW_START}${SPAN_DELIMITER}signalTarget` &&
-          parentSpanId === parentExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === parentExecuteSpan?.spanContext().spanId
       );
       t.true(childWorkflowStartSpan !== undefined);
 
       const childWorkflowExecuteSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}signalTarget` &&
-          parentSpanId === childWorkflowStartSpan?.spanContext().spanId
+          parentSpanContext?.spanId === childWorkflowStartSpan?.spanContext().spanId
       );
       t.true(childWorkflowExecuteSpan !== undefined);
 
       const signalChildWithUnblockSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}unblock` &&
-          parentSpanId === parentExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === parentExecuteSpan?.spanContext().spanId
       );
       t.true(signalChildWithUnblockSpan !== undefined);
 
       const localActivityStartSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}echo` &&
-          parentSpanId === parentExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === parentExecuteSpan?.spanContext().spanId
       );
       t.true(localActivityStartSpan !== undefined);
 
       const localActivityExecuteSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.ACTIVITY_EXECUTE}${SPAN_DELIMITER}echo` &&
-          parentSpanId === localActivityStartSpan?.spanContext().spanId
+          parentSpanContext?.spanId === localActivityStartSpan?.spanContext().spanId
       );
       t.true(localActivityExecuteSpan !== undefined);
 
       const activityStartedSignalSpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}activityStarted` &&
-          parentSpanId === firstActivityExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === firstActivityExecuteSpan?.spanContext().spanId
       );
       t.true(activityStartedSignalSpan !== undefined);
 
       const querySpan = spans.find(
-        ({ name, parentSpanId }) =>
+        ({ name, parentSpanContext }) =>
           name === `${SpanName.WORKFLOW_QUERY}${SPAN_DELIMITER}step` &&
-          parentSpanId === secondActivityExecuteSpan?.spanContext().spanId
+          parentSpanContext?.spanId === secondActivityExecuteSpan?.spanContext().spanId
       );
       t.true(querySpan !== undefined);
 
@@ -297,8 +323,8 @@ if (RUN_INTEGRATION_TESTS) {
     Runtime.install({});
     try {
       const spans = Array<opentelemetry.tracing.ReadableSpan>();
-      const staticResource = new opentelemetry.resources.Resource({
-        [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-nexus-worker',
+      const staticResource = opentelemetry.resources.resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: 'ts-test-otel-v2-nexus-worker',
       });
       const traceExporter: opentelemetry.tracing.SpanExporter = {
         export(spans_, resultCallback) {
@@ -307,18 +333,22 @@ if (RUN_INTEGRATION_TESTS) {
         },
         async shutdown() {},
       };
-
-      const otel = new OtelSdkContext({ resource: staticResource, traceExporter });
-      otel.start();
+      const provider = new BasicTracerProvider({
+        resource: staticResource,
+        spanProcessors: [new SimpleSpanProcessor(traceExporter)],
+      });
+      const tracer = provider.getTracer('@temporalio/interceptor-nexus');
+      otelApi.propagation.setGlobalPropagator(new W3CTraceContextPropagator());
 
       const plugin = new OpenTelemetryPlugin({
         resource: staticResource,
         spanProcessor: new SimpleSpanProcessor(traceExporter),
+        tracer,
       });
 
       const env = await createTestWorkflowEnvironment();
       try {
-        const taskQueue = `test-otel-nexus-${randomUUID()}`;
+        const taskQueue = `test-otel-v2-nexus-${uuid4()}`;
         const endpointName = taskQueue.replaceAll('_', '-');
         const endpointIdentifier = await env.createNexusEndpoint(endpointName, taskQueue);
 
@@ -349,26 +379,14 @@ if (RUN_INTEGRATION_TESTS) {
         const res = await worker.runUntil(
           env.client.workflow.execute(workflows.otelNexusCancelCaller, {
             taskQueue,
-            workflowId: randomUUID(),
+            workflowId: uuid4(),
             args: [endpointName, 'asyncOp', 'hello'],
           })
         );
         t.is(res, 'cancelled');
 
         await env.deleteNexusEndpoint(endpointIdentifier);
-        await otel.shutdown();
 
-        t.log(
-          'All spans:',
-          spans.map((s) => ({
-            name: s.name,
-            traceId: s.spanContext().traceId,
-            spanId: s.spanContext().spanId,
-            parentSpanId: s.parentSpanId,
-          }))
-        );
-
-        // Outbound span from workflow
         const startSpan = spans.find(
           ({ name }) => name === `${SpanName.NEXUS_OPERATION_START}${SPAN_DELIMITER}otel-test-service/my-async-op`
         );
@@ -376,7 +394,6 @@ if (RUN_INTEGRATION_TESTS) {
         t.is(startSpan!.attributes[NEXUS_SERVICE_ATTR_KEY], 'otel-test-service');
         t.is(startSpan!.attributes[NEXUS_OPERATION_ATTR_KEY], 'my-async-op');
 
-        // Inbound span on handler
         const inboundStartSpan = spans.find(
           ({ name }) =>
             name === `${SpanName.NEXUS_START_OPERATION_EXECUTE}${SPAN_DELIMITER}otel-test-service/my-async-op`
@@ -385,18 +402,8 @@ if (RUN_INTEGRATION_TESTS) {
         t.is(inboundStartSpan!.status.code, SpanStatusCode.OK);
         t.is(inboundStartSpan!.attributes[NEXUS_SERVICE_ATTR_KEY], 'otel-test-service');
         t.is(inboundStartSpan!.attributes[NEXUS_OPERATION_ATTR_KEY], 'my-async-op');
-
-        // Verify parent-child: inbound handler span should be a child of the outbound start span
-        t.is(
-          inboundStartSpan!.parentSpanId,
-          startSpan!.spanContext().spanId,
-          'RunStartNexusOperation should be a child of StartNexusOperation'
-        );
-        t.is(
-          inboundStartSpan!.spanContext().traceId,
-          startSpan!.spanContext().traceId,
-          'RunStartNexusOperation should share the same trace as StartNexusOperation'
-        );
+        t.is(inboundStartSpan!.parentSpanContext?.spanId, startSpan!.spanContext().spanId);
+        t.is(inboundStartSpan!.spanContext().traceId, startSpan!.spanContext().traceId);
 
         const inboundCancelSpan = spans.find(
           ({ name }) =>
@@ -406,19 +413,11 @@ if (RUN_INTEGRATION_TESTS) {
         t.is(inboundCancelSpan!.status.code, SpanStatusCode.OK);
         t.is(inboundCancelSpan!.attributes[NEXUS_SERVICE_ATTR_KEY], 'otel-test-service');
         t.is(inboundCancelSpan!.attributes[NEXUS_OPERATION_ATTR_KEY], 'my-async-op');
-
-        t.is(
-          inboundCancelSpan!.parentSpanId,
-          startSpan!.spanContext().spanId,
-          'RunCancelNexusOperation should be a child of StartNexusOperation'
-        );
-        t.is(
-          inboundCancelSpan!.spanContext().traceId,
-          startSpan!.spanContext().traceId,
-          'RunCancelNexusOperation should share the same trace as StartNexusOperation'
-        );
+        t.is(inboundCancelSpan!.parentSpanContext?.spanId, startSpan!.spanContext().spanId);
+        t.is(inboundCancelSpan!.spanContext().traceId, startSpan!.spanContext().traceId);
       } finally {
         await env.teardown();
+        await provider.shutdown();
       }
     } finally {
       await Runtime._instance?.shutdown();
@@ -436,11 +435,14 @@ if (RUN_INTEGRATION_TESTS) {
     try {
       const oTelUrl = 'http://127.0.0.1:4317';
       const exporter = new OTLPTraceExporter({ url: oTelUrl });
-      const staticResource = new opentelemetry.resources.Resource({
-        [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-worker',
+      const staticResource = opentelemetry.resources.resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: 'ts-test-otel-worker',
       });
-      const otel = new OtelSdkContext({ resource: staticResource, traceExporter: exporter });
-      otel.start();
+      const otel = new opentelemetry.NodeSDK({
+        resource: staticResource,
+        traceExporter: exporter,
+      });
+      await otel.start();
 
       const sinks: InjectedSinks<OpenTelemetrySinks> = {
         exporter: makeWorkflowExporter(new SimpleSpanProcessor(exporter), staticResource),
@@ -449,7 +451,7 @@ if (RUN_INTEGRATION_TESTS) {
         workflowsPath: require.resolve('./workflows'),
         activities,
         enableSDKTracing: true,
-        taskQueue: 'test-otel',
+        taskQueue: 'test-otel-v2',
         interceptors: {
           workflowModules: [require.resolve('./workflows/otel-interceptors')],
           activity: [(ctx) => ({ inbound: new OpenTelemetryActivityInboundInterceptor(ctx) })],
@@ -460,9 +462,7 @@ if (RUN_INTEGRATION_TESTS) {
       const client = new WorkflowClient({
         interceptors: [new OpenTelemetryWorkflowClientInterceptor()],
       });
-      await worker.runUntil(
-        client.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: randomUUID() })
-      );
+      await worker.runUntil(client.execute(workflows.smorgasbord, { taskQueue: 'test-otel-v2', workflowId: uuid4() }));
       // Allow some time to ensure spans are flushed out to collector
       await new Promise<void>((resolve) => setTimeout(resolve, 5000));
       t.pass();
@@ -479,9 +479,9 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('instrumentation: Error status includes message and records exception', async (t) => {
     const memoryExporter = new InMemorySpanExporter();
-    const provider = new BasicTracerProvider();
-    provider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
-    provider.register();
+    const provider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+    });
     const tracer = provider.getTracer('test-error-tracer');
 
     const errorMessage = 'Test error message';
@@ -512,9 +512,9 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('instrumentation: handles non-Error thrown values without crashing', (t) => {
     const memoryExporter = new InMemorySpanExporter();
-    const provider = new BasicTracerProvider();
-    provider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
-    provider.register();
+    const provider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+    });
     const tracer = provider.getTracer('test-non-error-tracer');
 
     const cases: Array<{ thrown: unknown; expectedMessage: string }> = [
@@ -550,15 +550,15 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Otel workflow omits ApplicationError with BENIGN category', async (t) => {
     const memoryExporter = new InMemorySpanExporter();
-    const provider = new BasicTracerProvider();
-    provider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
-    provider.register();
+    const provider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+    });
     const tracer = provider.getTracer('test-error-tracer');
 
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),
       activities,
-      taskQueue: 'test-otel-benign-err',
+      taskQueue: 'test-otel-v2-benign-err',
       interceptors: {
         activity: [
           (ctx) => {
@@ -572,8 +572,8 @@ if (RUN_INTEGRATION_TESTS) {
 
     await worker.runUntil(
       client.execute(workflows.throwMaybeBenignErr, {
-        taskQueue: 'test-otel-benign-err',
-        workflowId: randomUUID(),
+        taskQueue: 'test-otel-v2-benign-err',
+        workflowId: uuid4(),
         retry: { maximumAttempts: 3 },
       })
     );
@@ -589,13 +589,13 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Otel activity span is not marked as error for CompleteAsyncError', async (t) => {
     const memoryExporter = new InMemorySpanExporter();
-    const provider = new BasicTracerProvider();
-    provider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
-    provider.register();
+    const provider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+    });
     const tracer = provider.getTracer('test-complete-async-tracer');
 
     const infoSubject = new Subject<Info>();
-    const taskQueue = 'test-otel-complete-async';
+    const taskQueue = 'test-otel-v2-complete-async';
 
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),
@@ -611,20 +611,24 @@ if (RUN_INTEGRATION_TESTS) {
     });
 
     const connection = await Connection.connect();
-    const client = new Client({ connection });
-    const workflowId = randomUUID();
+    try {
+      const client = new Client({ connection });
+      const workflowId = uuid4();
 
-    await worker.runUntil(async () => {
-      const handle = await client.workflow.start(workflows.runAnAsyncActivity, {
-        taskQueue,
-        workflowId,
+      await worker.runUntil(async () => {
+        const handle = await client.workflow.start(workflows.runAnAsyncActivity, {
+          taskQueue,
+          workflowId,
+        });
+        const info = await firstValueFrom(
+          infoSubject.pipe(filter((i) => i.workflowExecution?.workflowId === workflowId))
+        );
+        await client.activity.complete(info.taskToken, 'async-result');
+        t.is(await handle.result(), 'async-result');
       });
-      const info = await firstValueFrom(
-        infoSubject.pipe(filter((i) => i.workflowExecution?.workflowId === workflowId))
-      );
-      await client.activity.complete(info.taskToken, 'async-result');
-      t.is(await handle.result(), 'async-result');
-    });
+    } finally {
+      await connection.close();
+    }
 
     const activitySpans = memoryExporter.getFinishedSpans().filter((s) => s.name.startsWith(SpanName.ACTIVITY_EXECUTE));
     t.is(activitySpans.length, 1);
@@ -637,8 +641,8 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('executeUpdateWithStart works correctly with OTEL interceptors', async (t) => {
-    const staticResource = new opentelemetry.resources.Resource({
-      [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-worker',
+    const staticResource = opentelemetry.resources.resourceFromAttributes({
+      [ATTR_SERVICE_NAME]: 'ts-test-otel-worker',
     });
     const traceExporter: opentelemetry.tracing.SpanExporter = {
       export(_spans, resultCallback) {
@@ -652,20 +656,20 @@ if (RUN_INTEGRATION_TESTS) {
       spanProcessor: new SimpleSpanProcessor(traceExporter),
     });
     const worker = await Worker.create({
-      workflowBundle: await createTestWorkflowBundle({
+      workflowBundle: await createOtelTestWorkflowBundle({
         workflowsPath: require.resolve('./workflows'),
         plugins: [plugin],
       }),
       activities,
-      taskQueue: 'test-otel-update-start',
+      taskQueue: 'test-otel-v2-update-start',
       plugins: [plugin],
     });
 
     const client = new WorkflowClient();
 
     const startWorkflowOperation = new WithStartWorkflowOperation(workflows.updateStartOtel, {
-      workflowId: randomUUID(),
-      taskQueue: 'test-otel-update-start',
+      workflowId: uuid4(),
+      taskQueue: 'test-otel-v2-update-start',
       workflowIdConflictPolicy: 'FAIL',
     });
 
@@ -687,86 +691,80 @@ if (RUN_INTEGRATION_TESTS) {
 
   // These tests verify makeWorkflowExporter's handling of async resource attributes:
   // https://github.com/temporalio/sdk-typescript/issues/1779
-  // - Using SpanExporter directly: async attributes are not awaited
-  // - Using SpanProcessor: async attributes are awaited before export
-  for (const useSpanProcessor of [false, true]) {
-    test(`makeWorkflowExporter with ${
-      useSpanProcessor ? 'SpanProcessor does' : 'SpanExporter does not'
-    } await async resource attributes`, async (t) => {
-      const taskQueue = `test-otel-async-${useSpanProcessor ? 'processor' : 'exporter'}`;
-      const serviceName = `ts-test-otel-async-attributes`;
+  test(`makeWorkflowExporter with SpanProcessor does await async resource attributes`, async (t) => {
+    const taskQueue = `test-otel-v2-async-processor`;
+    const serviceName = `ts-test-otel-async-attributes`;
 
-      // Create a promise for async attributes that we control.
-      // If not using a span processor it will never resolve.
-      let resolveAsyncAttrs: (attrs: opentelemetry.resources.ResourceAttributes) => void;
-      const asyncAttributesPromise = new Promise<opentelemetry.resources.ResourceAttributes>((resolve) => {
-        resolveAsyncAttrs = resolve;
-      });
-
-      const resource = new opentelemetry.resources.Resource(
-        { [SEMRESATTRS_SERVICE_NAME]: serviceName },
-        asyncAttributesPromise
-      );
-
-      const spans: opentelemetry.tracing.ReadableSpan[] = [];
-      const traceExporter: opentelemetry.tracing.SpanExporter = {
-        export(spans_, resultCallback) {
-          spans.push(...spans_);
-          resultCallback({ code: ExportResultCode.SUCCESS });
-        },
-        async shutdown() {},
-      };
-
-      // Custom SpanProcessor that resolves async resource attributes after the first onEnd is called.
-      // SpanProcessors are expected to wait on async resource attributes to settle before exporting the span.
-      class TestSpanProcessor extends SimpleSpanProcessor {
-        override onEnd(span: opentelemetry.tracing.ReadableSpan): void {
-          super.onEnd(span);
-          // Resolve async attributes so waitForAsyncAttributes can complete
-          resolveAsyncAttrs({ 'async.attr': 'resolved' });
-        }
-      }
-
-      const sinks: InjectedSinks<OpenTelemetrySinks> = {
-        exporter: useSpanProcessor
-          ? makeWorkflowExporter(new TestSpanProcessor(traceExporter), resource)
-          : makeWorkflowExporter(traceExporter, resource), // eslint-disable-line @typescript-eslint/no-deprecated
-      };
-
-      const worker = await Worker.create({
-        workflowsPath: require.resolve('./workflows'),
-        activities,
-        taskQueue,
-        interceptors: {
-          workflowModules: [require.resolve('./workflows/otel-interceptors')],
-          activity: [
-            (ctx) => ({
-              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
-              outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
-            }),
-          ],
-        },
-        sinks,
-      });
-
-      const client = new WorkflowClient();
-      await worker.runUntil(client.execute(workflows.successString, { taskQueue, workflowId: randomUUID() }));
-
-      t.deepEqual(spans[0]!.resource.attributes, {
-        [SEMRESATTRS_SERVICE_NAME]: serviceName,
-        // If not using a span processor, then we do not expect the async attr to be present
-        ...(useSpanProcessor ? { 'async.attr': 'resolved' } : {}),
-      });
+    // In OTel v2, async resource attributes are created by passing Promise
+    // values as attributes. resourceFromAttributes detects promises via
+    // isPromiseLike and resolves them when waitForAsyncAttributes() is called.
+    let resolveAsyncAttr: (value: string) => void;
+    const asyncAttrPromise = new Promise<string>((resolve) => {
+      resolveAsyncAttr = resolve;
     });
-  }
+
+    // Cast the promise to bypass type restrictions - the runtime supports it
+    const resource = opentelemetry.resources.resourceFromAttributes({
+      [ATTR_SERVICE_NAME]: serviceName,
+      'async.attr': asyncAttrPromise as unknown as string,
+    });
+
+    const spans: opentelemetry.tracing.ReadableSpan[] = [];
+    const traceExporter: opentelemetry.tracing.SpanExporter = {
+      export(spans_, resultCallback) {
+        spans.push(...spans_);
+        resultCallback({ code: ExportResultCode.SUCCESS });
+      },
+      async shutdown() {},
+    };
+
+    // Custom SpanProcessor that resolves async resource attributes after the first onEnd is called.
+    // SpanProcessors are expected to wait on async resource attributes to settle before exporting the span.
+    class TestSpanProcessor extends SimpleSpanProcessor {
+      override onEnd(span: opentelemetry.tracing.ReadableSpan): void {
+        super.onEnd(span);
+        // Resolve async attribute so waitForAsyncAttributes can complete
+        resolveAsyncAttr('resolved');
+      }
+    }
+
+    const sinks: InjectedSinks<OpenTelemetrySinks> = {
+      exporter: makeWorkflowExporter(new TestSpanProcessor(traceExporter), resource),
+    };
+
+    const worker = await Worker.create({
+      workflowsPath: require.resolve('./workflows'),
+      activities,
+      taskQueue,
+      interceptors: {
+        workflowModules: [require.resolve('./workflows/otel-interceptors')],
+        activity: [
+          (ctx) => ({
+            inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
+            outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
+          }),
+        ],
+      },
+      sinks,
+    });
+
+    const client = new WorkflowClient();
+    await worker.runUntil(client.execute(workflows.successString, { taskQueue, workflowId: uuid4() }));
+
+    t.deepEqual(spans[0]!.resource.attributes, {
+      [ATTR_SERVICE_NAME]: serviceName,
+      // If not using a span processor, then we do not expect the async attr to be present
+      'async.attr': 'resolved',
+    });
+  });
 
   test.serial('OpenTelemetryPlugin works with prebundled workflow code', async (t) => {
     Runtime.install({});
     try {
       const spans = Array<opentelemetry.tracing.ReadableSpan>();
 
-      const staticResource = new opentelemetry.resources.Resource({
-        [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-prebundled-worker',
+      const staticResource = opentelemetry.resources.resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: 'ts-test-otel-v2-prebundled-worker',
       });
       const traceExporter: opentelemetry.tracing.SpanExporter = {
         export(spans_, resultCallback) {
@@ -781,8 +779,10 @@ if (RUN_INTEGRATION_TESTS) {
       // Use BasicTracerProvider and get a tracer directly from it.
       // We pass this tracer explicitly to the client interceptor to avoid relying on
       // the global tracer provider, which may have been polluted by previous tests.
-      const provider = new BasicTracerProvider({ resource: staticResource });
-      provider.addSpanProcessor(new SimpleSpanProcessor(traceExporter));
+      const provider = new BasicTracerProvider({
+        resource: staticResource,
+        spanProcessors: [new SimpleSpanProcessor(traceExporter)],
+      });
       const tracer = provider.getTracer('@temporalio/interceptor-client');
 
       const plugin = new OpenTelemetryPlugin({
@@ -802,7 +802,7 @@ if (RUN_INTEGRATION_TESTS) {
       const worker = await Worker.create({
         workflowBundle,
         activities,
-        taskQueue: 'test-otel-prebundled',
+        taskQueue: 'test-otel-v2-prebundled',
         plugins: [plugin],
       });
 
@@ -811,7 +811,7 @@ if (RUN_INTEGRATION_TESTS) {
         plugins: [plugin],
       });
       await worker.runUntil(
-        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel-prebundled', workflowId: randomUUID() })
+        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel-v2-prebundled', workflowId: uuid4() })
       );
       await provider.shutdown();
 
@@ -843,8 +843,8 @@ if (RUN_INTEGRATION_TESTS) {
     const workflowExportedSpans: opentelemetry.tracing.ReadableSpan[] = [];
 
     await withFakeGrpcServer(async (port) => {
-      const staticResource = new opentelemetry.resources.Resource({
-        [SEMRESATTRS_SERVICE_NAME]: 'test-tracestate-issue-1738',
+      const staticResource = opentelemetry.resources.resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: 'test-tracestate-issue-1738',
       });
 
       const traceExporter = new OTLPTraceExporter({ url: `http://127.0.0.1:${port}` });
@@ -877,17 +877,20 @@ if (RUN_INTEGRATION_TESTS) {
         },
       };
 
-      const otel = new OtelSdkContext({ resource: staticResource, traceExporter: wrappedExporter });
+      const otel = new opentelemetry.NodeSDK({
+        resource: staticResource,
+        traceExporter: wrappedExporter,
+      });
       otel.start();
 
       const sinks: InjectedSinks<OpenTelemetrySinks> = {
-        exporter: makeWorkflowExporter(workflowSpanExporter, staticResource), // eslint-disable-line @typescript-eslint/no-deprecated
+        exporter: makeWorkflowExporter(new SimpleSpanProcessor(workflowSpanExporter), staticResource),
       };
 
       const worker = await Worker.create({
         workflowsPath: require.resolve('./workflows'),
         activities,
-        taskQueue: 'test-otel-tracestate',
+        taskQueue: 'test-otel-v2-tracestate',
         interceptors: {
           workflowModules: [require.resolve('./workflows/otel-interceptors')],
         },
@@ -920,8 +923,8 @@ if (RUN_INTEGRATION_TESTS) {
         // Execute the workflow within this context so the traceState is propagated
         await otelApi.context.with(contextWithTraceState, async () => {
           await client.execute(workflows.successString, {
-            taskQueue: 'test-otel-tracestate',
-            workflowId: randomUUID(),
+            taskQueue: 'test-otel-v2-tracestate',
+            workflowId: uuid4(),
           });
         });
 
@@ -945,119 +948,131 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(traceState!.get('vendor2'), 'value2');
     }
   });
+
+  test('DeterministicIdGenerator isolates PRNG and replays correctly', async (t) => {
+    const spans = Array<opentelemetry.tracing.ReadableSpan>();
+    const staticResource = opentelemetry.resources.resourceFromAttributes({
+      [ATTR_SERVICE_NAME]: 'ts-test-otel-v2-idgen',
+    });
+    const traceExporter: opentelemetry.tracing.SpanExporter = {
+      export(spans_, resultCallback) {
+        spans.push(...spans_);
+        resultCallback({ code: ExportResultCode.SUCCESS });
+      },
+      async shutdown() {},
+    };
+
+    const plugin = new OpenTelemetryPlugin({
+      resource: staticResource,
+      spanProcessor: new SimpleSpanProcessor(traceExporter),
+    });
+
+    const taskQueue = 'test-otel-v2-idgen';
+    const worker = await Worker.create({
+      workflowsPath: require.resolve('./workflows'),
+      activities,
+      taskQueue,
+      plugins: [plugin],
+    });
+
+    const client = new Client({ plugins: [plugin] });
+    const workflowId = uuid4();
+
+    await worker.runUntil(client.workflow.execute(workflows.prngIsolation, { taskQueue, workflowId }));
+
+    // Verify span IDs from DeterministicIdGenerator are valid hex
+    t.is(spans.length, 3);
+    for (const span of spans) {
+      const { traceId, spanId } = span.spanContext();
+      t.regex(traceId, /^[0-9a-f]{32}$/);
+      t.regex(spanId, /^[0-9a-f]{16}$/);
+      t.not(traceId, '00000000000000000000000000000000');
+      t.not(spanId, '0000000000000000');
+    }
+
+    // Replay the history to verify child ids remain the same
+    const history = await client.workflow.getHandle(workflowId).fetchHistory();
+    await t.notThrowsAsync(
+      Worker.runReplayHistory(
+        {
+          workflowBundle: await createOtelTestWorkflowBundle({
+            workflowsPath: require.resolve('./workflows'),
+            plugins: [plugin],
+          }),
+        },
+        history
+      )
+    );
+  });
+
+  test('OTel span ID generation does not consume workflow randomness', async (t) => {
+    const staticResource = opentelemetry.resources.resourceFromAttributes({
+      [ATTR_SERVICE_NAME]: 'ts-test-otel-v2-idgen-random-isolation',
+    });
+    const traceExporter: opentelemetry.tracing.SpanExporter = {
+      export(_spans, resultCallback) {
+        resultCallback({ code: ExportResultCode.SUCCESS });
+      },
+      async shutdown() {},
+    };
+
+    const plugin = new OpenTelemetryPlugin({
+      resource: staticResource,
+      spanProcessor: new SimpleSpanProcessor(traceExporter),
+    });
+
+    const taskQueue = 'test-otel-v2-idgen-random-isolation';
+    const worker = await Worker.create({
+      workflowsPath: require.resolve('./workflows'),
+      activities,
+      taskQueue,
+      plugins: [plugin],
+    });
+
+    const client = new Client({ plugins: [plugin] });
+    const workflowId = uuid4();
+
+    await worker.runUntil(client.workflow.execute(workflows.uuidAfterOtelSpan, { taskQueue, workflowId }));
+
+    const history = await client.workflow.getHandle(workflowId).fetchHistory();
+    await t.notThrowsAsync(
+      Worker.runReplayHistory(
+        {
+          workflowBundle: await createOtelTestWorkflowBundle({
+            workflowsPath: require.resolve('./workflows'),
+          }),
+        },
+        history
+      )
+    );
+  });
 }
 
-test('Can replay otel history from 1.11.3', async (t) => {
-  const hist = await loadHistory('otel_1_11_3.json');
+test('Can replay v2 smorgasbord history from 1.18.1', async (t) => {
+  // This catches NDE regressions around yield points for scheduling Activities and Child Workflows.
+  const hist = await loadHistory('otel_v2_smorgasbord_1_18_1.json');
+  const plugin = createReplayPlugin('ts-test-otel-v2-replay-smorgasbord');
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
       {
-        workflowBundle: await createTestWorkflowBundle({
-          workflowsPath: require.resolve('./workflows/signal-start-otel'),
-          workflowInterceptorModules: [require.resolve('./workflows/signal-start-otel')],
-        }),
-        interceptors: {
-          workflowModules: [require.resolve('./workflows/otel-interceptors')],
-          activity: [
-            (ctx) => ({
-              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
-            }),
-          ],
-        },
+        workflowsPath: require.resolve('./workflows'),
+        bundlerOptions: createBaseBundlerOptions([require.resolve('./activities')]),
+        plugins: [plugin],
       },
       hist
     );
   });
 });
 
-test('Can replay otel history from 1.13.1', async (t) => {
-  const hist = await loadHistory('otel_1_13_1.json');
+test('Can replay v2 signal workflow history from 1.18.1', async (t) => {
+  const hist = await loadHistory('otel_v2_signal_workflow_1_18_1.json');
+  const plugin = createReplayPlugin('ts-test-otel-v2-replay-signal-workflow');
   await t.notThrowsAsync(async () => {
     await Worker.runReplayHistory(
       {
-        workflowBundle: await createTestWorkflowBundle({
-          workflowsPath: require.resolve('./workflows/signal-start-otel'),
-          workflowInterceptorModules: [require.resolve('./workflows/signal-start-otel')],
-        }),
-        interceptors: {
-          workflowModules: [require.resolve('./workflows/signal-start-otel')],
-          activity: [
-            (ctx) => ({
-              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
-            }),
-          ],
-        },
-      },
-      hist
-    );
-  });
-});
-
-test('Can replay smorgasbord from 1.13.1', async (t) => {
-  // This test will trigger NDE if yield points for `scheduleActivity` and `startChildWorkflowExecution` are not inserted
-  const hist = await loadHistory('otel_smorgasbord_1_13_1.json');
-  await t.notThrowsAsync(async () => {
-    await Worker.runReplayHistory(
-      {
-        workflowBundle: await createTestWorkflowBundle({
-          workflowsPath: require.resolve('./workflows'),
-          workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
-        }),
-        interceptors: {
-          workflowModules: [require.resolve('./workflows/otel-interceptors')],
-          activity: [
-            (ctx) => ({
-              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
-            }),
-          ],
-        },
-      },
-      hist
-    );
-  });
-});
-
-test('Can replay signal workflow from 1.13.1', async (t) => {
-  const hist = await loadHistory('signal_workflow_1_13_1.json');
-  await t.notThrowsAsync(async () => {
-    await Worker.runReplayHistory(
-      {
-        workflowBundle: await createTestWorkflowBundle({
-          workflowsPath: require.resolve('./workflows/signal-workflow'),
-          workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
-        }),
-        interceptors: {
-          workflowModules: [require.resolve('./workflows/otel-interceptors')],
-          activity: [
-            (ctx) => ({
-              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
-            }),
-          ],
-        },
-      },
-      hist
-    );
-  });
-});
-
-test('Can replay smorgasbord from 1.13.2', async (t) => {
-  const hist = await loadHistory('otel_smorgasbord_1_13_2.json');
-  await t.notThrowsAsync(async () => {
-    await Worker.runReplayHistory(
-      {
-        workflowBundle: await createTestWorkflowBundle({
-          workflowsPath: require.resolve('./workflows'),
-          workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
-        }),
-        interceptors: {
-          workflowModules: [require.resolve('./workflows/otel-interceptors')],
-          activity: [
-            (ctx) => ({
-              inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
-              outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
-            }),
-          ],
-        },
+        workflowsPath: require.resolve('./workflows/signal-workflow'),
+        bundlerOptions: createBaseBundlerOptions(),
+        plugins: [plugin],
       },
       hist
     );
@@ -1079,7 +1094,6 @@ test.skip('otel interceptors are complete', async (t) => {
   const _client = {} as OpenTelemetryWorkflowClientInterceptor satisfies Required<WorkflowClientInterceptor>;
   const _nexus_inbound = {} as OpenTelemetryNexusInboundInterceptor satisfies Required<NexusInboundCallsInterceptor>;
   const _nexus_outbound = {} as OpenTelemetryNexusOutboundInterceptor satisfies Required<NexusOutboundCallsInterceptor>;
-
   t.pass();
 });
 

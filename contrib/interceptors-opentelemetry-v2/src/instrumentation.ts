@@ -141,18 +141,19 @@ export async function instrument<T>({
   acceptableErrors,
 }: InstrumentOptions<T>): Promise<T> {
   if (context) {
-    return await otel.context.with(context, async () => {
-      return await tracer.startActiveSpan(spanName, async (span) => await wrapWithSpan(span, fn, acceptableErrors));
-    });
+    return await tracer.startActiveSpan(
+      spanName,
+      {},
+      context,
+      async (span) => await wrapWithSpan(span, fn, acceptableErrors)
+    );
   }
   return await tracer.startActiveSpan(spanName, async (span) => await wrapWithSpan(span, fn, acceptableErrors));
 }
 
 export function instrumentSync<T>({ tracer, spanName, fn, context, acceptableErrors }: InstrumentOptionsSync<T>): T {
   if (context) {
-    return otel.context.with(context, () => {
-      return tracer.startActiveSpan(spanName, (span) => wrapWithSpanSync(span, fn, acceptableErrors));
-    });
+    return tracer.startActiveSpan(spanName, {}, context, (span) => wrapWithSpanSync(span, fn, acceptableErrors));
   }
   return tracer.startActiveSpan(spanName, (span) => wrapWithSpanSync(span, fn, acceptableErrors));
 }

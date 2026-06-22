@@ -1,7 +1,10 @@
 // eslint-disable-next-line import/no-unassigned-import
+import './performance-polyfill'; // Zero-import polyfill; must run before OTel modules access `performance`
+// eslint-disable-next-line import/no-unassigned-import
 import './runtime'; // Patch the Workflow isolate runtime for opentelemetry
 import * as otel from '@opentelemetry/api';
 import * as tracing from '@opentelemetry/sdk-trace-base';
+import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import type {
   ActivityInput,
   ContinueAsNewInput,
@@ -36,7 +39,8 @@ import {
 import { ContextManager } from './context-manager';
 import { SpanName, SPAN_DELIMITER } from './definitions';
 import { SpanExporter } from './span-exporter';
-import { workflowInfo, ContinueAsNew, getActivator, SdkFlags } from './workflow-imports';
+import { DeterministicIdGenerator } from './id-generator';
+import { workflowInfo, ContinueAsNew } from './workflow-imports';
 
 export * from './definitions';
 
@@ -48,9 +52,13 @@ function getTracer(): otel.Tracer {
     contextManager = new ContextManager();
   }
   if (tracer === undefined) {
-    const provider = new tracing.BasicTracerProvider();
-    provider.addSpanProcessor(new tracing.SimpleSpanProcessor(new SpanExporter()));
-    provider.register({ contextManager });
+    const provider = new tracing.BasicTracerProvider({
+      idGenerator: new DeterministicIdGenerator(),
+      spanProcessors: [new tracing.SimpleSpanProcessor(new SpanExporter())],
+    });
+    otel.propagation.setGlobalPropagator(new W3CTraceContextPropagator());
+    otel.trace.setGlobalTracerProvider(provider);
+    otel.context.setGlobalContextManager(contextManager);
     tracer = provider.getTracer('@temporalio/interceptor-workflow');
   }
   return tracer;
@@ -63,6 +71,8 @@ function getTracer(): otel.Tracer {
  * provided in the Workflow input headers.
  *
  * `@temporalio/workflow` must be provided by host package in order to function.
+ *
+ * @experimental This interceptor is experimental and APIs may change without notice.
  */
 export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInterceptor {
   protected readonly tracer = getTracer();
@@ -72,7 +82,6 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     next: Next<WorkflowInboundCallsInterceptor, 'execute'>
   ): Promise<unknown> {
     const context = extractContextFromHeaders(input.headers);
-    if (!getActivator().hasFlag(SdkFlags.OpenTelemetryInterceporsAvoidsExtraYields)) await Promise.resolve();
 
     return await instrument({
       tracer: this.tracer,
@@ -87,11 +96,7 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     input: SignalInput,
     next: Next<WorkflowInboundCallsInterceptor, 'handleSignal'>
   ): Promise<void> {
-    // Tracing of inbound signals was added in v1.11.5.
-    if (!getActivator().hasFlag(SdkFlags.OpenTelemetryInterceptorsTracesInboundSignals)) return next(input);
-
     const context = extractContextFromHeaders(input.headers);
-    if (!getActivator().hasFlag(SdkFlags.OpenTelemetryInterceporsAvoidsExtraYields)) await Promise.resolve();
 
     return await instrument({
       tracer: this.tracer,
@@ -105,8 +110,6 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     input: UpdateInput,
     next: Next<WorkflowInboundCallsInterceptor, 'handleUpdate'>
   ): Promise<unknown> {
-    if (!getActivator().hasFlag(SdkFlags.OpenTelemetryInterceptorsInstrumentsAllMethods)) return next(input);
-
     const context = extractContextFromHeaders(input.headers);
 
     return await instrument({
@@ -121,8 +124,6 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
   }
 
   public validateUpdate(input: UpdateInput, next: Next<WorkflowInboundCallsInterceptor, 'validateUpdate'>): void {
-    if (!getActivator().hasFlag(SdkFlags.OpenTelemetryInterceptorsInstrumentsAllMethods)) return next(input);
-
     const context = extractContextFromHeaders(input.headers);
     instrumentSync({
       tracer: this.tracer,
@@ -139,8 +140,6 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
     input: QueryInput,
     next: Next<WorkflowInboundCallsInterceptor, 'handleQuery'>
   ): Promise<unknown> {
-    if (!getActivator().hasFlag(SdkFlags.OpenTelemetryInterceptorsInstrumentsAllMethods)) return next(input);
-
     const context = extractContextFromHeaders(input.headers);
 
     return await instrument({
@@ -158,6 +157,8 @@ export class OpenTelemetryInboundInterceptor implements WorkflowInboundCallsInte
  * Wraps the operation in an opentelemetry Span and passes it to the Activity via headers.
  *
  * `@temporalio/workflow` must be provided by host package in order to function.
+ *
+ * @experimental This interceptor is experimental and APIs may change without notice.
  */
 export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsInterceptor {
   protected readonly tracer = getTracer();
@@ -171,7 +172,6 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
       spanName: `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}${input.activityType}`,
       fn: async () => {
         const headers = headersWithContext(input.headers);
-        if (!getActivator().hasFlag(SdkFlags.OpenTelemetryInterceporsAvoidsExtraYields)) await Promise.resolve();
 
         return next({
           ...input,
@@ -185,15 +185,11 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     input: LocalActivityInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'scheduleLocalActivity'>
   ): Promise<unknown> {
-    // Tracing of local activities was added in v1.11.6.
-    if (!getActivator().hasFlag(SdkFlags.OpenTelemetryInterceptorsTracesLocalActivities)) return next(input);
-
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.ACTIVITY_START}${SPAN_DELIMITER}${input.activityType}`,
       fn: async () => {
         const headers = headersWithContext(input.headers);
-        if (!getActivator().hasFlag(SdkFlags.OpenTelemetryInterceporsAvoidsExtraYields)) await Promise.resolve();
 
         return next({
           ...input,
@@ -207,8 +203,6 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     input: StartNexusOperationInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'startNexusOperation'>
   ): Promise<StartNexusOperationOutput> {
-    if (!getActivator().hasFlag(SdkFlags.OpenTelemetryInterceptorsInstrumentsAllMethods)) return next(input);
-
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.NEXUS_OPERATION_START}${SPAN_DELIMITER}${input.service}/${input.operation}`,
@@ -231,7 +225,6 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
       spanName: `${SpanName.CHILD_WORKFLOW_START}${SPAN_DELIMITER}${input.workflowType}`,
       fn: async () => {
         const headers = headersWithContext(input.headers);
-        if (!getActivator().hasFlag(SdkFlags.OpenTelemetryInterceporsAvoidsExtraYields)) await Promise.resolve();
 
         return next({
           ...input,
@@ -250,7 +243,6 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
       spanName: `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}${input.options.workflowType}`,
       fn: async () => {
         const headers = headersWithContext(input.headers);
-        if (!getActivator().hasFlag(SdkFlags.OpenTelemetryInterceporsAvoidsExtraYields)) await Promise.resolve();
 
         return next({
           ...input,
@@ -270,7 +262,6 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
       spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
       fn: async () => {
         const headers = headersWithContext(input.headers);
-        if (!getActivator().hasFlag(SdkFlags.OpenTelemetryInterceporsAvoidsExtraYields)) await Promise.resolve();
 
         return next({
           ...input,
@@ -306,6 +297,11 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
   }
 }
 
+/**
+ * Intercepts Workflow lifecycle internals.
+ *
+ * @experimental This interceptor is experimental and APIs may change without notice.
+ */
 export class OpenTelemetryInternalsInterceptor implements WorkflowInternalsInterceptor {
   async dispose(input: DisposeInput, next: Next<WorkflowInternalsInterceptor, 'dispose'>): Promise<void> {
     if (contextManager !== undefined) {

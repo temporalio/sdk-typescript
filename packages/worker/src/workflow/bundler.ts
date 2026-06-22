@@ -22,6 +22,8 @@ export const disallowedModules = [
   '@temporalio/common/lib/internal-non-workflow',
   '@temporalio/interceptors-opentelemetry/lib/client',
   '@temporalio/interceptors-opentelemetry/lib/worker',
+  '@temporalio/interceptors-opentelemetry-v2/lib/client',
+  '@temporalio/interceptors-opentelemetry-v2/lib/worker',
   '@temporalio/testing',
   '@temporalio/core-bridge',
 ];
@@ -238,13 +240,13 @@ exports.importInterceptors = function importInterceptors() {
         },
       },
       plugins: [
-        // `@temporalio/interceptors-opentelemetry` only requires `@temporalio/workflow` for interceptors that run in workflow context.
-        // In order to keep `@temporalio/workflow` as an optional peer dependency for `@temporalio/interceptors-opentelemetry`
+        // The OpenTelemetry interceptor packages only require `@temporalio/workflow` for interceptors that run in workflow context.
+        // In order to keep `@temporalio/workflow` as an optional peer dependency for those packages
         // we use `workflow-imports` to reexport all required imports from `@temporalio/workflow`.
         // Outside of workflow context the module used only contains stubs that will error if they are used.
         // When creating the workflow bundle we replace the module containing the stubs with a module that reexports the actual implementations.
         new NormalModuleReplacementPlugin(
-          /[\\/](?:@temporalio|contrib)[\\/]interceptors-opentelemetry[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
+          /[\\/](?:@temporalio|contrib)[\\/]interceptors-opentelemetry(?:-v2)?[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
           './workflow-imports-impl.js'
         ),
         // protobufjs 7.6.x resolves optional filesystem support through two package-local shim imports:

@@ -37,8 +37,3 @@ export async function throwMaybeBenign(): Promise<void> {
     throw ApplicationFailure.create({ message: 'benign', category: ApplicationFailureCategory.BENIGN });
   }
 }
-
-export async function emitOtelPluginMetric(): Promise<void> {
-  const counter = Context.current().metricMeter.createCounter('otel-plugin-activity-counter');
-  counter.add(1, { source: 'activity' });
-}

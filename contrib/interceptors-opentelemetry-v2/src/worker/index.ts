@@ -1,7 +1,7 @@
 import * as otel from '@opentelemetry/api';
 import { createTraceState } from '@opentelemetry/api';
 import type { Resource } from '@opentelemetry/resources';
-import type { ReadableSpan, SpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace-base';
+import type { ReadableSpan, SpanProcessor } from '@opentelemetry/sdk-trace-base';
 import type * as nexus from 'nexus-rpc';
 import type { Context as ActivityContext } from '@temporalio/activity';
 import { CompleteAsyncError } from '@temporalio/common';
@@ -45,6 +45,8 @@ export interface InterceptorOptions {
  *
  * Wraps the operation in an opentelemetry Span and links it to a parent Span context if one is
  * provided in the Activity input headers.
+ *
+ * @experimental This interceptor is experimental and APIs may change without notice.
  */
 export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundCallsInterceptor {
   protected readonly tracer: otel.Tracer;
@@ -80,6 +82,8 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
  * Intercepts calls to emit logs and metrics from an Activity.
  *
  * Attach OpenTelemetry context tracing attributes to emitted log messages, if appropriate.
+ *
+ * @experimental This interceptor is experimental and APIs may change without notice.
  */
 export class OpenTelemetryActivityOutboundInterceptor implements ActivityOutboundCallsInterceptor {
   constructor(protected readonly ctx: ActivityContext) {}
@@ -115,6 +119,8 @@ export class OpenTelemetryActivityOutboundInterceptor implements ActivityOutboun
  *
  * Wraps `startOperation` and `cancelOperation` in opentelemetry Spans, linking to a parent Span context
  * if one is provided in the Nexus request headers.
+ *
+ * @experimental This interceptor is experimental and APIs may change without notice.
  */
 export class OpenTelemetryNexusInboundInterceptor implements NexusInboundCallsInterceptor {
   protected readonly tracer: otel.Tracer;
@@ -167,6 +173,8 @@ export class OpenTelemetryNexusInboundInterceptor implements NexusInboundCallsIn
  * Intercepts outbound calls from a Nexus Operation handler.
  *
  * Attaches OpenTelemetry context tracing attributes to emitted log messages.
+ *
+ * @experimental This interceptor is experimental and APIs may change without notice.
  */
 export class OpenTelemetryNexusOutboundInterceptor implements NexusOutboundCallsInterceptor {
   constructor(protected readonly ctx: nexus.OperationContext) {}
@@ -198,29 +206,16 @@ export class OpenTelemetryNexusOutboundInterceptor implements NexusOutboundCalls
 }
 
 /**
- * Takes an opentelemetry SpanExporter and turns it into an injected Workflow span exporter sink
- *
- * @deprecated Do not directly pass a `SpanExporter`. Pass a `SpanProcessor` instead to ensure proper handling of async attributes.
- */
-export function makeWorkflowExporter(
-  spanExporter: SpanExporter,
-  resource: Resource
-): InjectedSink<OpenTelemetryWorkflowExporter>;
-/**
  * Takes an opentelemetry SpanProcessor and turns it into an injected Workflow span exporter sink.
- *
- * For backward compatibility, passing a `SpanExporter` directly is still supported.
  */
 export function makeWorkflowExporter(
   spanProcessor: SpanProcessor,
   resource: Resource
 ): InjectedSink<OpenTelemetryWorkflowExporter>;
 export function makeWorkflowExporter(
-  processorOrExporter: SpanProcessor | SpanExporter,
+  processor: SpanProcessor,
   resource: Resource
 ): InjectedSink<OpenTelemetryWorkflowExporter> {
-  const givenSpanProcessor = isSpanProcessor(processorOrExporter);
-
   return {
     export: {
       fn: (info, spanData) => {
@@ -230,19 +225,10 @@ export function makeWorkflowExporter(
           return extractReadableSpan(serialized, resource);
         });
 
-        if (givenSpanProcessor) {
-          spans.forEach((span) => processorOrExporter.onEnd(span));
-        } else {
-          // Ignore the export result for simplicity
-          processorOrExporter.export(spans, () => undefined);
-        }
+        spans.forEach((span) => processor.onEnd(span));
       },
     },
   };
-}
-
-function isSpanProcessor(obj: SpanProcessor | SpanExporter): obj is SpanProcessor {
-  return 'onEnd' in obj && typeof obj.onEnd === 'function';
 }
 
 /**
@@ -251,6 +237,8 @@ function isSpanProcessor(obj: SpanProcessor | SpanExporter): obj is SpanProcesso
 function extractReadableSpan(serializable: SerializableSpan, resource: Resource): ReadableSpan {
   const {
     spanContext: { traceState, ...restSpanContext },
+    parentSpanContext: serializedParentSpanContext,
+    instrumentationScope,
     ...rest
   } = serializable;
   const spanContext: otel.SpanContext = {
@@ -258,10 +246,22 @@ function extractReadableSpan(serializable: SerializableSpan, resource: Resource)
     traceState: traceState ? createTraceState(traceState) : undefined,
     ...restSpanContext,
   };
+
+  let parentSpanContext: otel.SpanContext | undefined;
+  if (serializedParentSpanContext) {
+    const { traceState: parentTraceState, ...restParentSpanContext } = serializedParentSpanContext;
+    parentSpanContext = {
+      traceState: parentTraceState ? createTraceState(parentTraceState) : undefined,
+      ...restParentSpanContext,
+    };
+  }
+
   return {
     spanContext() {
       return spanContext;
     },
+    parentSpanContext,
+    instrumentationScope,
     resource,
     ...rest,
   };
