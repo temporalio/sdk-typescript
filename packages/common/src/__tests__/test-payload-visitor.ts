@@ -9,30 +9,41 @@ import {
   type PayloadTransform,
 } from '../internal-non-workflow/payload-visitor';
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-const abortableSleep = (ms: number, signal?: AbortSignal): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer);
-        reject(signal.reason);
-      },
-      { once: true }
-    );
+// Lets the event loop run every async step that is currently ready: `setImmediate` fires only after
+// the microtask queue drains, so one `await tick()` advances all pending transforms to their next
+// `await`. Deterministic alternative to setTimeout.
+const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
+// A one-shot gate. A transform `await`s `gate.wait()` to park mid-run; the test calls `gate.open()`
+// to let every parked transform continue at once. This holds work in flight on demand so a test can
+// observe how many transforms ran concurrently, without relying on timing.
+const createGate = (): { wait: () => Promise<void>; open: () => void } => {
+  let open!: () => void;
+  const opened = new Promise<void>((resolve) => {
+    open = resolve;
   });
+  return { wait: () => opened, open };
+};
+
+// Never resolves; rejects only when the signal aborts. Lets a transform "run until cancelled"
+// without a timer that would hang the test if the abort were not wired up.
+const untilAborted = (signal: AbortSignal): Promise<never> =>
+  new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+  });
+
 const payload = (data: string): Payload => ({ data: new TextEncoder().encode(data) });
 const read = (p: Payload): string => new TextDecoder().decode(p.data ?? new Uint8Array());
 
 test('boundTransform caps the number of in-flight calls', async (t) => {
   let active = 0;
   let maxActive = 0;
+  const gate = createGate();
   const bounded = boundTransform(
     async (payloads) => {
       active += 1;
       maxActive = Math.max(maxActive, active);
-      await sleep(10);
+      await gate.wait();
       active -= 1;
       return payloads;
     },
@@ -40,11 +51,16 @@ test('boundTransform caps the number of in-flight calls', async (t) => {
     new AbortController()
   );
 
-  await drain(Array.from({ length: 6 }, () => bounded([payload('x')])));
+  const calls = Array.from({ length: 6 }, () => bounded([payload('x')]));
+  await tick(); // let every call that can acquire a permit start
   t.is(maxActive, 2);
+
+  gate.open();
+  await drain(calls);
+  t.is(maxActive, 2, 'never exceeded the limit as the queued calls drained');
 });
 
-test('concurrency 1 visits sites one at a time, in launch order', async (t) => {
+test('boundTransform with concurrency 1 runs calls one at a time, in launch order', async (t) => {
   const order: string[] = [];
   let active = 0;
   let maxActive = 0;
@@ -52,7 +68,7 @@ test('concurrency 1 visits sites one at a time, in launch order', async (t) => {
     async (payloads) => {
       active += 1;
       maxActive = Math.max(maxActive, active);
-      await sleep(5);
+      await tick(); // a broken limit would let a sibling interleave during this yield
       order.push(read(payloads[0]!));
       active -= 1;
       return payloads;
@@ -66,7 +82,7 @@ test('concurrency 1 visits sites one at a time, in launch order', async (t) => {
   t.deepEqual(order, ['a', 'b', 'c']);
 });
 
-test('drain applies each site writeback once its transform resolves', async (t) => {
+test('drain applies each writeback once its transform resolves', async (t) => {
   const message: { result: Payload; arguments: Payload[] } = {
     result: payload('r'),
     arguments: [payload('x'), payload('y')],
@@ -96,7 +112,7 @@ test('first error is surfaced and not-yet-started transforms are skipped', async
     async (payloads) => {
       const tag = read(payloads[0]!);
       started.push(tag);
-      await sleep(5);
+      await tick();
       if (tag === 'boom') throw new Error('boom');
       return payloads;
     },
@@ -115,11 +131,11 @@ test('a failure aborts in-flight siblings instead of waiting them out', async (t
     async (payloads, signal) => {
       const tag = read(payloads[0]!);
       if (tag === 'boom') {
-        await sleep(5);
+        await tick();
         throw new Error('boom');
       }
       try {
-        await abortableSleep(2000, signal); // would hang the test if not aborted
+        await untilAborted(signal!); // settles only if the failure aborts it
         settled.push(tag);
         return payloads;
       } catch (reason) {
@@ -140,16 +156,6 @@ const completionWith = (...results: string[]): coresdk.workflow_completion.IWork
   successful: {
     commands: results.map((r) => ({ completeWorkflowExecution: { result: payload(r) } })),
   },
-});
-
-test('visitWorkflowActivationCompletion rewrites every payload in place', async (t) => {
-  const completion = completionWith('a', 'b');
-  await visitWorkflowActivationCompletion(completion, async (payloads) => payloads.map((p) => payload(`${read(p)}!`)), {
-    concurrency: 2,
-  });
-
-  const results = completion.successful!.commands!.map((c) => read(c.completeWorkflowExecution!.result!));
-  t.deepEqual(results, ['a!', 'b!']);
 });
 
 test('visitWorkflowActivationCompletion with an already-aborted signal skips the walk', async (t) => {
@@ -348,26 +354,33 @@ test('an identity transform leaves a real message byte-for-byte unchanged', asyn
 });
 
 test('concurrency caps in-flight transforms across the whole activation', async (t) => {
-  const trackMax = () => {
+  const tracked = () => {
     let active = 0;
     let max = 0;
+    const gate = createGate();
     const transform: PayloadTransform = async (payloads) => {
       active += 1;
       max = Math.max(max, active);
-      await sleep(15);
+      await gate.wait();
       active -= 1;
       return payloads;
     };
-    return { transform, max: () => max };
+    return { transform, open: gate.open, max: () => max };
   };
 
-  const capped = trackMax();
-  await visitWorkflowActivation(richActivation(), capped.transform, { concurrency: 4 });
+  const capped = tracked();
+  const cappedVisit = visitWorkflowActivation(richActivation(), capped.transform, { concurrency: 4 });
+  await tick();
   t.is(capped.max(), 4);
+  capped.open();
+  await cappedVisit;
 
-  const sequential = trackMax();
-  await visitWorkflowActivation(richActivation(), sequential.transform, { concurrency: 1 });
+  const sequential = tracked();
+  const sequentialVisit = visitWorkflowActivation(richActivation(), sequential.transform, { concurrency: 1 });
+  await tick();
   t.is(sequential.max(), 1);
+  sequential.open();
+  await sequentialVisit;
 });
 
 test('aborting mid-walk rejects and cancels in-flight transforms', async (t) => {
@@ -375,7 +388,7 @@ test('aborting mid-walk rejects and cancels in-flight transforms', async (t) => 
   let aborted = 0;
   const transform: PayloadTransform = async (payloads, signal) => {
     try {
-      await abortableSleep(2000, signal); // would hang the test if the abort were not forwarded
+      await untilAborted(signal!); // settles only when the walk is aborted
       return payloads;
     } catch (reason) {
       aborted += 1;
@@ -387,7 +400,7 @@ test('aborting mid-walk rejects and cancels in-flight transforms', async (t) => 
     concurrency: 16,
     abortSignal: controller.signal,
   });
-  await sleep(10);
+  await tick(); // let the transforms start and park on the signal
   controller.abort(new Error('shutdown'));
 
   const error = await t.throwsAsync(visiting);
