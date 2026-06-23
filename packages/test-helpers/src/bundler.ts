@@ -22,6 +22,7 @@ export const baseBundlerIgnoreModules = [
   'async-retry',
   'uuid',
   'net',
+  'fs',
   'fs/promises',
   'timers',
   'timers/promises',
