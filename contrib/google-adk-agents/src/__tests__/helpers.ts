@@ -4,7 +4,6 @@
  */
 
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { BaseLlm, type BaseLlmConnection, type LlmRequest, type LlmResponse } from '@google/adk';
 import type { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -12,13 +11,11 @@ import { Worker } from '@temporalio/worker';
 
 import { FakeLlm } from '../testing.js';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
+const here = __dirname;
 
-// The Worker bundles the workflow code from its TypeScript source (webpack
-// tree-shakes the worker-only `node:module`/`builtinModules` import out of the
-// workflow-reachable graph before resolution, which a pre-compiled `.js` entry
-// would not). `here` is `lib/__tests__` at runtime, so resolve back to the
-// `src/__tests__` source that ships alongside it.
+// The Worker bundles the test workflows from their TypeScript source. `here` is
+// `lib/__tests__` at runtime, so resolve back to the `src/__tests__` source that
+// ships alongside it.
 /** Absolute path to the test workflows source bundled into the sandbox. */
 export const workflowsPath = path.resolve(here, '../../src/__tests__/workflows.ts');
 

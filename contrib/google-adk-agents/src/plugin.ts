@@ -31,11 +31,14 @@ const NODE_SCHEME = 'node:';
  * the banner's top-level call throws at Workflow load. This shim supplies a
  * `createRequire` returning a `require` that throws only if actually invoked,
  * so the banner runs harmlessly and no real `require()` resolution reaches a
- * Workflow.
+ * Workflow. `builtinModules` is exported as an empty array purely to satisfy
+ * the named import; it is only read on the worker (real `node:module`), never
+ * inside a Workflow.
  */
 const MODULE_SHIM_SOURCE =
   "export function createRequire(){return function(){throw new Error('require() is not available inside a Temporal Workflow sandbox');};}\n" +
-  'export default {createRequire};\n';
+  'export const builtinModules=[];\n' +
+  'export default {createRequire,builtinModules};\n';
 
 /**
  * ESM source for the `winston` shim. ADK's `utils/logger.js` eagerly constructs
@@ -182,10 +185,9 @@ const POLYFILLED_BUILTINS = new Set(['assert', 'url', 'util']);
 
 /**
  * Every Node builtin the Workflow sandbox does NOT polyfill (bare + `node:`
- * forms). Computed lazily inside {@link GoogleAdkPlugin.configureBundler} — the
- * top-level `import { builtinModules } from 'node:module'` resolves to `false`
- * inside the Workflow sandbox bundle (every Node builtin is aliased away), so
- * touching `builtinModules` at module top level would throw at Workflow load.
+ * forms). Computed lazily inside {@link GoogleAdkPlugin.configureBundler} — in
+ * the Workflow sandbox bundle `node:module` resolves to the inline shim, whose
+ * `builtinModules` is an inert empty array rather than the real list.
  * `configureBundler` only ever runs on the worker, where `node:module` is real.
  */
 function disallowedBuiltins(): readonly string[] {
@@ -231,6 +233,12 @@ const ADK_NODE_ONLY_SERVICE_PACKAGES: readonly string[] = [
   // REQUEST_SHIM_SOURCES), not an empty-module alias.
   '@mikro-orm/knex',
   '@mikro-orm/reflection',
+  '@mikro-orm/postgresql',
+  // `pg` (PostgreSQL driver, reached via `@mikro-orm/postgresql`) optionally
+  // requires the native `pg-native` addon at module load, which webpack cannot
+  // resolve. Severing `pg` from the Workflow bundle silences that warning; it
+  // only runs in the DB-session subtree, never inside a Workflow.
+  'pg',
   '@google-cloud/storage',
   '@google-cloud/vertexai',
   '@google-cloud/opentelemetry-cloud-trace-exporter',
