@@ -4,7 +4,7 @@ import path from 'node:path';
 import util from 'node:util';
 import * as unionfs from 'unionfs';
 import * as memfs from 'memfs';
-import type { Configuration } from 'webpack';
+import type { Configuration, javascript } from 'webpack';
 import { webpack, NormalModuleReplacementPlugin } from 'webpack';
 import type { Logger } from '../logger';
 import { DefaultLogger, hasColorSupport } from '../logger';
@@ -241,15 +241,16 @@ exports.importInterceptors = function importInterceptors() {
         {
           apply: (compiler) => {
             compiler.hooks.normalModuleFactory.tap('WorkflowCodeBundler', (normalModuleFactory) => {
-              for (const moduleType of ['javascript/auto', 'javascript/dynamic', 'javascript/esm']) {
-                normalModuleFactory.hooks.parser.for(moduleType).tap('WorkflowCodeBundler', (parser) => {
-                  const javascriptParser = parser as any;
-                  javascriptParser.hooks.expression.for('process').tap('WorkflowCodeBundler', () => {
-                    if (!javascriptParser.isVariableDefined('process')) {
-                      this.foundProblematicModules.add('process');
-                    }
+              for (const moduleType of ['javascript/auto', 'javascript/dynamic', 'javascript/esm'] as const) {
+                normalModuleFactory.hooks.parser
+                  .for(moduleType)
+                  .tap('WorkflowCodeBundler', (javascriptParser: javascript.JavascriptParser) => {
+                    javascriptParser.hooks.expression.for('process').tap('WorkflowCodeBundler', () => {
+                      if (!javascriptParser.isVariableDefined('process')) {
+                        this.foundProblematicModules.add('process');
+                      }
+                    });
                   });
-                });
               }
             });
           },
