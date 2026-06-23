@@ -1,4 +1,4 @@
-/* eslint @typescript-eslint/no-non-null-assertion: 0 */
+import assert from 'node:assert';
 import { createHash } from 'node:crypto';
 import test from 'ava';
 import * as proto from '@temporalio/proto';
@@ -57,9 +57,11 @@ test('store then retrieve round-trips the payload bytes', async (t) => {
   const original = makePayload('"hello"');
 
   const [claim] = await driver.store(workflowContext, [original]);
-  const [retrieved] = await driver.retrieve({}, [claim!]);
+  assert(claim);
+  const [retrieved] = await driver.retrieve({}, [claim]);
+  assert(retrieved);
 
-  t.deepEqual(payloadBytes(retrieved!), payloadBytes(original));
+  t.deepEqual(payloadBytes(retrieved), payloadBytes(original));
 });
 
 test('key is content-addressed and segmented by the store context', async (t) => {
@@ -67,19 +69,21 @@ test('key is content-addressed and segmented by the store context', async (t) =>
   const payload = makePayload('"hello"');
 
   const [claim] = await driver.store(workflowContext, [payload]);
+  assert(claim?.claimData.key);
 
   // Content-addressed: the digest segment is the SHA-256 of the serialized payload
   // bytes, and the store context fields form the preceding path segments in order.
   const digest = sha256Hex(payloadBytes(payload));
-  t.is(claim!.claimData.key, `v0/ns/my-ns/wt/MyWorkflow/wi/wf-1/ri/run-1/d/sha256/${digest}`);
-  t.is(claim!.claimData.hashValue, digest);
-  t.is(claim!.claimData.hashAlgorithm, 'sha256');
-  t.is(claim!.claimData.bucket, 'b');
+  t.is(claim.claimData.key, `v0/ns/my-ns/wt/MyWorkflow/wi/wf-1/ri/run-1/d/sha256/${digest}`);
+  t.is(claim.claimData.hashValue, digest);
+  t.is(claim.claimData.hashAlgorithm, 'sha256');
+  t.is(claim.claimData.bucket, 'b');
 
   // Different content under the same context changes only the trailing digest segment.
   const [other] = await driver.store(workflowContext, [makePayload('"world"')]);
-  t.not(other!.claimData.key, claim!.claimData.key);
-  t.is(other!.claimData.key!.replace(/[0-9a-f]{64}$/, ''), claim!.claimData.key!.replace(/[0-9a-f]{64}$/, ''));
+  assert(other?.claimData.key);
+  t.not(other.claimData.key, claim.claimData.key);
+  t.is(other.claimData.key.replace(/[0-9a-f]{64}$/, ''), claim.claimData.key.replace(/[0-9a-f]{64}$/, ''));
 });
 
 test('key segments percent-encode anything outside the S3 safe set', async (t) => {
@@ -97,10 +101,11 @@ test('key segments percent-encode anything outside the S3 safe set', async (t) =
     },
     [makePayload('"x"')]
   );
+  assert(claim?.claimData.key);
 
   // space -> %20, / -> %2F, !*'() kept, + -> %2B, = -> %3D, ~ -> %7E
   t.true(
-    claim!.claimData.key!.startsWith(
+    claim.claimData.key.startsWith(
       "v0/ns/payments%20prod/wt/Capture%2FCharge!*'()/wi/order%2B123%3Dabc/ri/r%7E1/d/sha256/"
     )
   );
@@ -110,8 +115,9 @@ test('a target with no identity falls back to a bare digest key', async (t) => {
   const driver = new S3StorageDriver({ client: new FakeS3Client(), bucket: 'b' });
 
   const [claim] = await driver.store({}, [makePayload('"x"')]);
+  assert(claim?.claimData.key);
 
-  t.regex(claim!.claimData.key!, /^v0\/d\/sha256\/[0-9a-f]{64}$/);
+  t.regex(claim.claimData.key, /^v0\/d\/sha256\/[0-9a-f]{64}$/);
 });
 
 test('identical payloads in the same scope deduplicate to one upload', async (t) => {
@@ -129,9 +135,10 @@ test('retrieve rejects when stored bytes fail the integrity check', async (t) =>
   const driver = new S3StorageDriver({ client, bucket: 'b' });
 
   const [claim] = await driver.store(workflowContext, [makePayload('"hello"')]);
-  client.objects.set(`${claim!.claimData.bucket}/${claim!.claimData.key}`, enc('tampered'));
+  assert(claim);
+  client.objects.set(`${claim.claimData.bucket}/${claim.claimData.key}`, enc('tampered'));
 
-  await t.throwsAsync(() => driver.retrieve({}, [claim!]), {
+  await t.throwsAsync(() => driver.retrieve({}, [claim]), {
     instanceOf: ValueError,
     message: /integrity check failed/,
   });
@@ -168,9 +175,11 @@ test('bucket selector chooses the destination per payload', async (t) => {
 
   const [big] = await driver.store(workflowContext, [makePayload('"a-long-value"')]);
   const [small] = await driver.store(workflowContext, [makePayload('"x"')]);
+  assert(big);
+  assert(small);
 
-  t.is(big!.claimData.bucket, 'large');
-  t.is(small!.claimData.bucket, 'small');
+  t.is(big.claimData.bucket, 'large');
+  t.is(small.claimData.bucket, 'small');
 });
 
 test('store aborts in-flight sibling uploads when one fails', async (t) => {
