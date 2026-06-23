@@ -11,12 +11,14 @@
     "@temporalio/envconfig": "workspace:*",
     "@temporalio/interceptors-opentelemetry": "workspace:*",
     "@temporalio/nexus": "workspace:*",
+    "@temporalio/openai-agents": "workspace:*",
     "@temporalio/plugin": "workspace:*",
     "@temporalio/proto": "workspace:*",
     "@temporalio/strands-agents": "workspace:*",
     "@temporalio/testing": "workspace:*",
     "@temporalio/worker": "workspace:*",
-    "@temporalio/workflow": "workspace:*"
+    "@temporalio/workflow": "workspace:*",
+    "@temporalio/workflow-streams": "workspace:*"
   },
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
