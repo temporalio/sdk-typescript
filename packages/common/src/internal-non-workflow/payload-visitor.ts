@@ -1,6 +1,6 @@
 import type { coresdk } from '@temporalio/proto';
-import type { Payload } from '../interfaces';
 import { walkWorkflowActivation, walkWorkflowActivationCompletion } from '@temporalio/proto/lib/payload-visitor.generated';
+import type { Payload } from '../interfaces';
 
 /**
  * Receives the payloads found at one payload-bearing field of a proto message and returns
