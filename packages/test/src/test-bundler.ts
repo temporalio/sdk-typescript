@@ -133,6 +133,15 @@ if (RUN_INTEGRATION_TESTS) {
     );
   });
 
+  test('Workflow bundle handles protobufjs optional fs shim without ignoring fs', async (t) => {
+    await bundleWorkflowCode({
+      workflowsPath: require.resolve('./workflows/protobufs'),
+      payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter'),
+    });
+
+    t.pass();
+  });
+
   test('Workflow bundle can preload modules into the reusable V8 context', async (t) => {
     const workflowBundle = await bundleWorkflowCode({
       workflowsPath: require.resolve('./workflows/preload-shared-counter'),
