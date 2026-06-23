@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/proto",
-  "version": "1.17.2",
+  "version": "1.18.1",
   "description": "Temporal.io SDK compiled protobuf definitions",
   "main": "protos/index.js",
   "types": "protos/index.d.ts",
@@ -10,7 +10,7 @@
     "lib/"
   ],
   "scripts": {
-    "build": "pnpm run \"/^build:.*/\"",
+    "build": "pnpm run build:protos && pnpm run build:ts",
     "build:ts": "tsc --build",
     "build:protos": "tsx ./scripts/compile-proto.ts"
   },
@@ -23,7 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "long": "^5.2.3",
-    "protobufjs": "7.5.8"
+    "protobufjs": "7.6.2"
   },
   "devDependencies": {
     "glob": "^10.3.10",

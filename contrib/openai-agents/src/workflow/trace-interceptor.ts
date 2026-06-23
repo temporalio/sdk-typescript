@@ -58,7 +58,7 @@ function tracingRandom(): number {
 // Workflow Task path, so distinct Queries collide on the spanId/PRNG seed.
 function resolveQueryKey(input: QueryInput): string {
   if (input.queryId !== 'legacy_query') return input.queryId;
-  // Nanosecond wall-clock; Date.now() is constant within a Workflow Task, so two Queries answered in one Task would collide on the spanId.
+  // Legacy queries arrive one at a time with a hardcoded id.
   return `${input.queryName}:${getActivator().getTimeOfDay()}`;
 }
 

@@ -65,7 +65,7 @@ export interface LoadedDataConverter {
 /**
  * The default {@link FailureConverter} used by the SDK.
  *
- * Error messages and stack traces are serizalized as plain text.
+ * Error messages and stack traces are serialized as plain text.
  */
 export const defaultFailureConverter: FailureConverter = new DefaultFailureConverter();
 

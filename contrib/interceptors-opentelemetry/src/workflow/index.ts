@@ -302,18 +302,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
     input: GetMetricTagsInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'getMetricTags'>
   ): GetMetricTagsInput {
-    const span = otel.trace.getSpan(otel.context.active());
-    const spanContext = span?.spanContext();
-    if (spanContext && otel.isSpanContextValid(spanContext)) {
-      return next({
-        trace_id: spanContext.traceId,
-        span_id: spanContext.spanId,
-        trace_flags: `0${spanContext.traceFlags.toString(16)}`,
-        ...input,
-      });
-    } else {
-      return next(input);
-    }
+    return next(input);
   }
 }
 

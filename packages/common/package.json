@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/common",
-  "version": "1.17.2",
+  "version": "1.18.1",
   "description": "Common library for code that's used across the Client, Worker, and/or Workflow",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "ava": "^5.3.1",
-    "protobufjs": "^7.5.8"
+    "protobufjs": "^7.6.2"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import dedent from 'dedent';
+import { activityInfo } from '@temporalio/activity';
 import { TemporalFailure, defaultPayloadConverter, toPayloads, ApplicationFailure } from '@temporalio/common';
 import { coresdk, google } from '@temporalio/proto';
 import { msToTs } from '@temporalio/common/lib/time';
@@ -67,6 +68,50 @@ test('Worker runs an activity and reports completion', async (t) => {
     });
     compareCompletion(t, completion.result, {
       completed: { result: defaultPayloadConverter.toPayload(await httpGet(url)) },
+    });
+  });
+});
+
+test('Worker activity info does not confuse task queue and namespace', async (t) => {
+  const worker = isolateFreeWorker({
+    ...defaultOptions,
+    namespace: 'activity-namespace',
+    taskQueue: 'activity-task-queue',
+    activities: {
+      async getActivityInfo() {
+        const info = activityInfo();
+        return {
+          taskQueue: info.taskQueue,
+          namespace: info.namespace,
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
+          activityNamespace: info.activityNamespace,
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
+          workflowNamespace: info.workflowNamespace,
+        };
+      },
+    },
+  });
+  t.context.worker = worker;
+
+  await runWorker(t, async () => {
+    const taskToken = Buffer.from(randomUUID());
+    const completion = await worker.native.runActivityTask({
+      taskToken,
+      start: {
+        activityType: 'getActivityInfo',
+        workflowNamespace: 'workflow-namespace',
+        workflowExecution: { workflowId: 'wfid', runId: 'runId' },
+      },
+    });
+    compareCompletion(t, completion.result, {
+      completed: {
+        result: defaultPayloadConverter.toPayload({
+          taskQueue: 'activity-task-queue',
+          namespace: 'workflow-namespace',
+          activityNamespace: 'activity-namespace',
+          workflowNamespace: 'workflow-namespace',
+        }),
+      },
     });
   });
 });
