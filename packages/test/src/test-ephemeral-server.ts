@@ -52,6 +52,34 @@ async function runSimpleWorkflow(t: ExecutionContext<Context>, testEnv: TestWork
   t.pass();
 }
 
+// The dev server's gRPC frontend and its Web UI start as independent listeners.
+// createLocal() only waits for the gRPC frontend to become reachable (see the
+// readiness loop in sdk-core's ephemeral_server), so the UI's HTTP server may not
+// be accepting connections yet when the call resolves. Until it is, fetch() rejects
+// with a connection-refused error (Node: `TypeError: fetch failed` with
+// `cause.code === 'ECONNREFUSED'`; Bun: `Error` with `code === 'ConnectionRefused'`).
+//
+// A resolved fetch() only means the socket connected and some response came back, so
+// we additionally require a 2xx status: that confirms the UI is actually serving, not
+// merely listening. Poll until that holds, or fail after a bounded timeout.
+async function fetchUntilReady(url: string, timeoutMs = 10_000): Promise<Response> {
+  const deadline = Date.now() + timeoutMs;
+  let lastError: unknown;
+  for (;;) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return res;
+      lastError = new Error(`${url} responded with HTTP ${res.status}`);
+    } catch (err) {
+      lastError = err;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`Timed out waiting for ${url} to become ready after ${timeoutMs}ms (last error: ${lastError})`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
 testTimeSkipping('TestEnvironment sets up test server and is able to run a single workflow', async (t) => {
   const testEnv = await TestWorkflowEnvironment.createTimeSkipping();
   await runSimpleWorkflow(t, testEnv);
@@ -119,7 +147,7 @@ testMaybeSerial('TestEnvironment sets up dev server with custom port and ui', as
     await connection.ensureConnected();
 
     // With UI enabled but no ui port specified, the UI should be listening on port + 1000.
-    await fetch(`http://127.0.0.1:${port + 1000}/namespaces`);
+    await fetchUntilReady(`http://127.0.0.1:${port + 1000}/namespaces`);
 
     t.pass();
   } finally {
@@ -135,7 +163,7 @@ testMaybeSerial('TestEnvironment sets up dev server with custom ui port', async 
     },
   });
   try {
-    await fetch(`http://127.0.0.1:${port}/namespaces`);
+    await fetchUntilReady(`http://127.0.0.1:${port}/namespaces`);
     t.pass();
   } finally {
     await testEnv.teardown();
