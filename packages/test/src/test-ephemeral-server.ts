@@ -52,16 +52,6 @@ async function runSimpleWorkflow(t: ExecutionContext<Context>, testEnv: TestWork
   t.pass();
 }
 
-// The dev server's gRPC frontend and its Web UI start as independent listeners.
-// createLocal() only waits for the gRPC frontend to become reachable (see the
-// readiness loop in sdk-core's ephemeral_server), so the UI's HTTP server may not
-// be accepting connections yet when the call resolves. Until it is, fetch() rejects
-// with a connection-refused error (Node: `TypeError: fetch failed` with
-// `cause.code === 'ECONNREFUSED'`; Bun: `Error` with `code === 'ConnectionRefused'`).
-//
-// A resolved fetch() only means the socket connected and some response came back, so
-// we additionally require a 2xx status: that confirms the UI is actually serving, not
-// merely listening. Poll until that holds, or fail after a bounded timeout.
 async function fetchUntilReady(url: string, timeoutMs = 10_000): Promise<Response> {
   const deadline = Date.now() + timeoutMs;
   let lastError: unknown;
