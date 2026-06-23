@@ -376,7 +376,9 @@ test('concurrency caps in-flight transforms across the whole activation', async 
   await cappedVisit;
 
   const sequential = tracked();
-  const sequentialVisit = visitWorkflowActivation(activationWithEveryPayloadSite(), sequential.transform, { concurrency: 1 });
+  const sequentialVisit = visitWorkflowActivation(activationWithEveryPayloadSite(), sequential.transform, {
+    concurrency: 1,
+  });
   await tick();
   t.is(sequential.max(), 1);
   sequential.open();

@@ -1,5 +1,8 @@
 import type { coresdk } from '@temporalio/proto';
-import { walkWorkflowActivation, walkWorkflowActivationCompletion } from '@temporalio/proto/lib/payload-visitor.generated';
+import {
+  walkWorkflowActivation,
+  walkWorkflowActivationCompletion,
+} from '@temporalio/proto/lib/payload-visitor.generated';
 import type { Payload } from '../interfaces';
 
 /**
