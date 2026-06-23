@@ -2,17 +2,20 @@
   "name": "@temporalio/google-adk-agents",
   "version": "0.1.0",
   "description": "Temporal plugin for the Google Agent Development Kit (@google/adk): run ADK agents as durable Temporal Workflows.",
-  "type": "module",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
   "exports": {
     ".": {
       "types": "./lib/index.d.ts",
-      "import": "./lib/index.js"
+      "import": "./lib/index.js",
+      "require": "./lib/index.js",
+      "default": "./lib/index.js"
     },
     "./testing": {
       "types": "./lib/testing.d.ts",
-      "import": "./lib/testing.js"
+      "import": "./lib/testing.js",
+      "require": "./lib/testing.js",
+      "default": "./lib/testing.js"
     }
   },
   "scripts": {
@@ -25,7 +28,15 @@
     "concurrency": 1,
     "workerThreads": false
   },
-  "keywords": ["temporal", "google", "adk", "agents", "ai", "durable", "workflow"],
+  "keywords": [
+    "temporal",
+    "google",
+    "adk",
+    "agents",
+    "ai",
+    "durable",
+    "workflow"
+  ],
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "publishConfig": {
