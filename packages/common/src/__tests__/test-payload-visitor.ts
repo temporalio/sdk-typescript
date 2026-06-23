@@ -135,7 +135,7 @@ test('a failure aborts in-flight siblings instead of waiting them out', async (t
         throw new Error('boom');
       }
       try {
-        await untilAborted(signal!); // settles only if the failure aborts it
+        await untilAborted(signal!);
         settled.push(tag);
         return payloads;
       } catch (reason) {
@@ -177,7 +177,7 @@ test('visitWorkflowActivationCompletion with an already-aborted signal skips the
 // An activation exercising every payload-bearing site shape: repeated lists, singular fields,
 // the three map sites (headers / memo / search attributes), a `Payloads`-wrapped field, a oneof,
 // and a Failure with a multi-level cause chain.
-const richActivation = (): coresdk.workflow_activation.IWorkflowActivation => ({
+const activationWithEveryPayloadSite = (): coresdk.workflow_activation.IWorkflowActivation => ({
   jobs: [
     {
       initializeWorkflow: {
@@ -209,7 +209,7 @@ const richActivation = (): coresdk.workflow_activation.IWorkflowActivation => ({
   ],
 });
 
-const RICH_PAYLOADS = [
+const EVERY_SITE_PAYLOAD = [
   'arg0',
   'arg1',
   'hdr',
@@ -229,7 +229,7 @@ const RICH_PAYLOADS = [
 ];
 
 test('visits every payload site exactly once and writes back in place', async (t) => {
-  const activation = richActivation();
+  const activation = activationWithEveryPayloadSite();
 
   const seen: string[] = [];
   await visitWorkflowActivation(
@@ -240,7 +240,7 @@ test('visits every payload site exactly once and writes back in place', async (t
     },
     { concurrency: 3 }
   );
-  t.deepEqual(seen.slice().sort(), RICH_PAYLOADS.slice().sort(), 'sees every site exactly once');
+  t.deepEqual(seen.slice().sort(), EVERY_SITE_PAYLOAD.slice().sort(), 'sees every site exactly once');
 
   // A second walk should observe the first walk's rewrites, proving writeback landed in place
   // at every site (including deep in the cause chain and inside maps).
@@ -251,7 +251,7 @@ test('visits every payload site exactly once and writes back in place', async (t
   });
   t.deepEqual(
     seenAgain.slice().sort(),
-    RICH_PAYLOADS.map((s) => `${s}#`).sort(),
+    EVERY_SITE_PAYLOAD.map((s) => `${s}#`).sort(),
     'in-place rewrites from the first walk are visible to the second'
   );
 });
@@ -345,7 +345,7 @@ test('walks a decoded protobuf message instance, not just object literals', asyn
 
 test('an identity transform leaves a real message byte-for-byte unchanged', async (t) => {
   const Type = coresdk.workflow_activation.WorkflowActivation;
-  const original = Type.encode(richActivation()).finish();
+  const original = Type.encode(activationWithEveryPayloadSite()).finish();
   const decoded = Type.decode(original);
 
   await visitWorkflowActivation(decoded, async (payloads) => payloads);
@@ -369,14 +369,14 @@ test('concurrency caps in-flight transforms across the whole activation', async 
   };
 
   const capped = tracked();
-  const cappedVisit = visitWorkflowActivation(richActivation(), capped.transform, { concurrency: 4 });
+  const cappedVisit = visitWorkflowActivation(activationWithEveryPayloadSite(), capped.transform, { concurrency: 4 });
   await tick();
   t.is(capped.max(), 4);
   capped.open();
   await cappedVisit;
 
   const sequential = tracked();
-  const sequentialVisit = visitWorkflowActivation(richActivation(), sequential.transform, { concurrency: 1 });
+  const sequentialVisit = visitWorkflowActivation(activationWithEveryPayloadSite(), sequential.transform, { concurrency: 1 });
   await tick();
   t.is(sequential.max(), 1);
   sequential.open();
@@ -388,7 +388,7 @@ test('aborting mid-walk rejects and cancels in-flight transforms', async (t) => 
   let aborted = 0;
   const transform: PayloadTransform = async (payloads, signal) => {
     try {
-      await untilAborted(signal!); // settles only when the walk is aborted
+      await untilAborted(signal!);
       return payloads;
     } catch (reason) {
       aborted += 1;
@@ -396,11 +396,11 @@ test('aborting mid-walk rejects and cancels in-flight transforms', async (t) => 
     }
   };
 
-  const visiting = visitWorkflowActivation(richActivation(), transform, {
+  const visiting = visitWorkflowActivation(activationWithEveryPayloadSite(), transform, {
     concurrency: 16,
     abortSignal: controller.signal,
   });
-  await tick(); // let the transforms start and park on the signal
+  await tick();
   controller.abort(new Error('shutdown'));
 
   const error = await t.throwsAsync(visiting);
