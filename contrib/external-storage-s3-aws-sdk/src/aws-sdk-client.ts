@@ -1,5 +1,5 @@
 import { PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
-import type { S3Client as AwsS3Client } from '@aws-sdk/client-s3';
+import type { S3Client } from '@aws-sdk/client-s3';
 import type { S3StorageDriverClient, S3RequestOptions } from '@temporalio/external-storage-s3';
 
 /**
@@ -9,7 +9,7 @@ import type { S3StorageDriverClient, S3RequestOptions } from '@temporalio/extern
  * @experimental
  */
 export class AwsSdkS3StorageDriverClient implements S3StorageDriverClient {
-  constructor(private readonly client: AwsS3Client) {}
+  constructor(private readonly client: S3Client) {}
 
   describe(): Record<string, string> {
     const region = this.client.config?.region;
