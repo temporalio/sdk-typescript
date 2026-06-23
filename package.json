@@ -25,6 +25,7 @@
     "build": "pnpm --recursive --stream run build",
     "build:watch": "pnpm run build:protos && tsc --build --watch packages/*/tsconfig.json",
     "build:protos": "tsx ./packages/proto/scripts/compile-proto.ts",
+    "gen:payload-visitor": "tsx ./packages/proto/scripts/gen-payload-visitor.ts",
     "test": "pnpm --recursive --parallel --workspace-concurrency=1 --stream run test",
     "test:watch": "pnpm --recursive --stream run test:watch",
     "ci-stress": "node ./packages/test/lib/load/run-all-stress-ci-scenarios.js",
