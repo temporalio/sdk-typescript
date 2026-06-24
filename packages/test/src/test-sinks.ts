@@ -56,6 +56,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     function fixWorkflowInfoDates(input: WorkflowInfo): WorkflowInfo {
       delete (input.unsafe as any).now;
+      delete (input.unsafe as any).random;
       return input;
     }
 
@@ -147,7 +148,7 @@ if (RUN_INTEGRATION_TESTS) {
       runStartTime,
       currentBuildId,
       currentDeploymentVersion,
-      // unsafe.now() doesn't make it through serialization, but .now is required, so we need to cast
+      // unsafe.now() and unsafe.random don't survive serialization, but both are required fields, so we cast
       unsafe: {
         isReplaying: false,
         isReplayingHistoryEvents: false,
