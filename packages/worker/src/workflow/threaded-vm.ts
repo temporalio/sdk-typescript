@@ -194,9 +194,25 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
     registeredActivityNames,
     logger,
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
+    // Escape hatch (primarily for tests/CI): cap each workflow worker thread's V8 old space so a
+    // single runaway Workflow fails fast with a clear ERR_WORKER_OUT_OF_MEMORY instead of dragging
+    // the whole process into memory pressure (thrashing, or a native allocator crash). Unset in
+    // production, where worker threads inherit Node's default heap sizing.
+    const maxHeapMb = Number(process.env.TEMPORAL_WORKER_THREAD_MAX_HEAP_MB);
+    const resourceLimits =
+      Number.isFinite(maxHeapMb) && maxHeapMb > 0 ? { maxOldGenerationSizeMb: maxHeapMb } : undefined;
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
-      .map(() => new WorkerThreadClient(new NodeWorker(require.resolve('./workflow-worker-thread')), logger));
+      .map(
+        () =>
+          new WorkerThreadClient(
+            new NodeWorker(
+              require.resolve('./workflow-worker-thread'),
+              resourceLimits ? { resourceLimits } : undefined
+            ),
+            logger
+          )
+      );
     await Promise.all(
       workerThreadClients.map((client) =>
         client.send({
