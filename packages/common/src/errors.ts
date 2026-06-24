@@ -73,3 +73,25 @@ export class NamespaceNotFoundError extends Error {
  */
 @SymbolBasedInstanceOfError('CompleteAsyncError')
 export class CompleteAsyncError extends Error {}
+
+/// -----------------------------------------------------------------------
+/// External Storage Errors
+/// -----------------------------------------------------------------------
+
+/**
+ * Thrown when a driver's `store()` or `retrieve()` raises. Wraps the
+ * underlying error in `cause` (network, auth, rate-limit, S3 5xx, etc).
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('ExternalStorageDriverOperationFailedError')
+export class ExternalStorageDriverOperationFailedError extends Error {
+  constructor(
+    message: string,
+    public readonly driverName: string,
+    public readonly operation: 'store' | 'retrieve',
+    public readonly cause: unknown
+  ) {
+    super(message);
+  }
+}
