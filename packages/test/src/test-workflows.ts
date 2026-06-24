@@ -1837,6 +1837,7 @@ test('continueAsNewSameWorkflow', async (t) => {
             workflowType,
             taskQueue: 'test',
             arguments: toPayloads(defaultPayloadConverter, 'signal'),
+            backoffStartInterval: msToTs('1ms'),
             versioningIntent: coresdk.common.VersioningIntent.UNSPECIFIED,
           },
         },
