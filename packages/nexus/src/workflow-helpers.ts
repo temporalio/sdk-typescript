@@ -168,7 +168,7 @@ function requestLinksToTemporalLinks(ctx: nexus.StartOperationContext): temporal
  * server returned a response link; older servers (or CHASM signal response links disabled) leave it
  * unset, in which case there is nothing to push.
  */
-function pushResponseLink(ctx: nexus.StartOperationContext, responseLink: temporal.api.common.v1.ILink): void {
+function pushResponseLink(ctx: nexus.StartOperationContext, responseLink: temporal.api.common.v1.ILink) {
   try {
     ctx.outboundLinks.push(convertTemporalLinkToNexusLink(responseLink));
   } catch (error) {
@@ -198,7 +198,7 @@ export async function signalWorkflow(
   // links to the handle via the SDK-internal symbol; the signal handler reads them and writes the
   // server's response link back onto the same payload.
   const handle = client.workflow.getHandle(workflowId) as InternalWorkflowHandle;
-  const internalOptions: NonNullable<InternalWorkflowSignalOptions[typeof InternalWorkflowSignalOptionsSymbol]> = {
+  const internalOptions: InternalWorkflowSignalOptions[typeof InternalWorkflowSignalOptionsSymbol] = {
     links,
   };
   handle[InternalWorkflowSignalOptionsSymbol] = internalOptions;

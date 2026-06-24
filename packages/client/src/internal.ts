@@ -84,9 +84,7 @@ export interface InternalWorkflowSignalOptions {
  * @internal
  * @hidden
  */
-export interface InternalWorkflowSignalInput extends WorkflowSignalInput {
-  readonly [InternalWorkflowSignalOptionsSymbol]?: InternalWorkflowSignalOptions[typeof InternalWorkflowSignalOptionsSymbol];
-}
+export type InternalWorkflowSignalInput = WorkflowSignalInput & InternalWorkflowSignalOptions;
 
 /**
  * The SDK-internal surface of a `WorkflowHandle` used by the Temporal Nexus helpers to send a Signal
