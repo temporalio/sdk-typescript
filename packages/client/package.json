@@ -24,7 +24,7 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "protobufjs": "^7.5.8"
+    "protobufjs": "^7.6.2"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
