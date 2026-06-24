@@ -6,6 +6,12 @@
 
 import * as encoding from './encoding';
 import * as helpers from './type-helpers';
+import { version as sdkVersion } from './pkg';
+
+/**
+ * Version of the Temporal TypeScript SDK.
+ */
+export { sdkVersion };
 
 export * from './activity-options';
 export { ActivityCancellationDetailsOptions, ActivityCancellationDetails } from './activity-cancellation-details';
