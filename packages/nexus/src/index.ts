@@ -17,7 +17,6 @@ export {
 
 export {
   startWorkflow,
-  signalWorkflow,
   signalWithStartWorkflow,
   type CancelWorkflowRunOptions,
   type TemporalOperationHandlerOptions,

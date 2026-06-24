@@ -141,7 +141,7 @@ function twoSyncServiceHandler(taskQueue: string) {
     }),
     signal: new temporalnexus.TemporalOperationHandler<{ workflowId: string }, string>({
       async start(ctx, client, input) {
-        await client.signalWorkflow(input.workflowId, pingSignal.name, ['second']);
+        await client.getWorkflowHandle(input.workflowId).signal(pingSignal, 'second');
         return temporalnexus.TemporalOperationResult.sync('ok:signal');
       },
     }),
