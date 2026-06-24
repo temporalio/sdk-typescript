@@ -768,7 +768,7 @@ test.serial('Workflow can read WorkflowInfo', configMacro, async (t, config) => 
     runStartTime: res.runStartTime,
     currentBuildId: res.currentBuildId,
     currentDeploymentVersion: res.currentDeploymentVersion,
-    // unsafe.now is a function, so doesn't make it through serialization, but .now is required, so we need to cast
+    // unsafe.now and unsafe.random don't survive serialization, but both are required fields, so we cast
     unsafe: { isReplaying: false, isReplayingHistoryEvents: false } as UnsafeWorkflowInfo,
     priority: {},
   });

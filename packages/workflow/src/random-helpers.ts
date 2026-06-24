@@ -1,3 +1,5 @@
+import type { UnsafeRandomSource } from './interfaces';
+
 export function fillWithRandom(random: () => number, bytes: Uint8Array): Uint8Array {
   for (let i = 0; i < bytes.length; ++i) {
     bytes[i] = Math.floor(random() * 0x100);
@@ -18,4 +20,12 @@ export function uuid4FromRandom(random: () => number): string {
     view.getUint16(8),
     4
   )}-${ho(view.getUint32(10), 8)}${ho(view.getUint16(14), 4)}`;
+}
+
+export function createUnsafeRandomSource(random: () => number): UnsafeRandomSource {
+  return {
+    random,
+    uuid4: () => uuid4FromRandom(random),
+    fillRandom: (bytes) => fillWithRandom(random, bytes),
+  };
 }

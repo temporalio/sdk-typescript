@@ -46,6 +46,7 @@ import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
 import type { NonNullableObject, OmitFirstParam } from '@temporalio/common/lib/type-helpers';
 import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
+import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
 import { native } from '@temporalio/core-bridge';
 import { Client } from '@temporalio/client';
 import type { temporal } from '@temporalio/proto';
@@ -1577,6 +1578,7 @@ export class Worker {
         now: () => Date.now(), // re-set in initRuntime
         isReplaying: activation.isReplaying,
         isReplayingHistoryEvents: activation.isReplaying,
+        random: createUnsafeRandomSource(Math.random),
       },
       priority: decodePriority(priority),
     };
