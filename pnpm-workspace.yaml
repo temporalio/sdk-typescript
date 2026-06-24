@@ -20,6 +20,7 @@ packages:
   - contrib/ai-sdk
   - contrib/interceptors-opentelemetry
   - contrib/openai-agents
+  - contrib/strands
   - contrib/workflow-streams
   - scripts
 

@@ -1,5 +1,5 @@
 import v8 from 'node:v8';
-import type vm from 'node:vm';
+import vm from 'node:vm';
 import { AsyncLocalStorage as AsyncLocalStorageOriginal } from 'node:async_hooks';
 import assert from 'node:assert';
 import { URL, URLSearchParams } from 'node:url';
@@ -159,6 +159,19 @@ export function injectGlobals(context: vm.Context): void {
     enumerable: true,
     configurable: false,
   });
+
+  // Provide Symbol.dispose / Symbol.asyncDispose on runtimes that predate them
+  // (Node < 22), so that downleveled `using` / `await using` declarations — as
+  // emitted by TypeScript and shipped by some dependencies — work inside the
+  // workflow sandbox. This must run before the global scope is frozen.
+  // `Symbol.for` yields a stable registry symbol, keeping replay deterministic.
+  // The context's built-in `Symbol` isn't reliably reachable from this outer
+  // scope, so run the assignment inside the context.
+  vm.runInContext(
+    `if (typeof Symbol.dispose !== 'symbol') Symbol.dispose = Symbol.for('nodejs.dispose');
+     if (typeof Symbol.asyncDispose !== 'symbol') Symbol.asyncDispose = Symbol.for('nodejs.asyncDispose');`,
+    context
+  );
 }
 
 /**
