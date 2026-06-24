@@ -235,7 +235,7 @@ export async function signalWithStartWorkflow<T extends Workflow, SignalArgs ext
 ): Promise<WorkflowHandle<WorkflowResultType<T>>> {
   const { client, taskQueue } = getHandlerContext();
   const links = requestLinksToTemporalLinks(ctx);
-  const internalOptions: NonNullable<InternalWorkflowStartOptions[typeof InternalWorkflowStartOptionsSymbol]> = {
+  const internalOptions: InternalWorkflowStartOptions[typeof InternalWorkflowStartOptionsSymbol] = {
     links,
   };
 
@@ -390,8 +390,7 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
   }
 
   /**
-   * Sends a Signal to a Workflow, forwarding the Nexus Operation's request links and propagating the
-   * response link the server returns (when supported).
+   * Sends a Signal to a Workflow.
    *
    * @experimental Nexus support in Temporal SDK is experimental.
    */
@@ -400,8 +399,7 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
   }
 
   /**
-   * Signals a Workflow, starting it first if it is not already running, forwarding the Nexus
-   * Operation's request links and propagating the response link the server returns (when supported).
+   * Signals a Workflow, starting it first if it is not already running.
    *
    * @experimental Nexus support in Temporal SDK is experimental.
    */
