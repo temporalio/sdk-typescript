@@ -774,6 +774,12 @@ name = "hashbrown"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
+
+[[package]]
+name = "hashbrown"
+version = "0.17.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 dependencies = [
  "allocator-api2",
  "equivalent",
@@ -1240,11 +1246,11 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
 name = "lru"
-version = "0.16.3"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1dc47f592c06f33f8e3aea9591776ec7c9f9e4124778ff8a3c3b87159f7e593"
+checksum = "8a860605968fce16869fd239cf4237a82f3ac470723415db603b0e8b6c8d4fb9"
 dependencies = [
- "hashbrown 0.16.1",
+ "hashbrown 0.17.1",
 ]
 
 [[package]]
@@ -2132,9 +2138,9 @@ dependencies = [
 
 [[package]]
 name = "ringbuf"
-version = "0.4.8"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe47b720588c8702e34b5979cb3271a8b1842c7cb6f57408efa70c779363488c"
+checksum = "2d3ecbcab081b935fb9c618b07654924f27686b4aac8818e700580a83eedcb7f"
 dependencies = [
  "crossbeam-utils",
  "portable-atomic",
@@ -2565,7 +2571,7 @@ dependencies = [
 
 [[package]]
 name = "temporalio-client"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2586,6 +2592,7 @@ dependencies = [
  "temporalio-common",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-rustls",
  "tonic",
  "tower",
  "tracing",
@@ -2595,11 +2602,10 @@ dependencies = [
 
 [[package]]
 name = "temporalio-common"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "base64",
  "bon",
  "crc32fast",
  "derive_more",
@@ -2614,23 +2620,19 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "parking_lot",
- "pbjson",
- "pbjson-build",
  "prometheus",
  "prost",
  "prost-types",
- "prost-wkt",
- "prost-wkt-types",
- "rand 0.10.1",
+ "reqwest 0.12.28",
  "ringbuf",
  "serde",
  "serde_json",
+ "temporalio-common-wasm",
+ "temporalio-protos",
  "thiserror 2.0.18",
  "tokio",
  "toml",
  "tonic",
- "tonic-prost",
- "tonic-prost-build",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
@@ -2639,8 +2641,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "temporalio-common-wasm"
+version = "0.4.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bon",
+ "crc32fast",
+ "derive_more",
+ "erased-serde",
+ "futures",
+ "parking_lot",
+ "prost",
+ "serde",
+ "serde_json",
+ "temporalio-protos",
+ "thiserror 2.0.18",
+ "tracing",
+ "tracing-core",
+ "tracing-subscriber",
+ "url",
+]
+
+[[package]]
 name = "temporalio-macros"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2648,8 +2673,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "temporalio-protos"
+version = "0.4.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "derive_more",
+ "http",
+ "pbjson",
+ "pbjson-build",
+ "prost",
+ "prost-types",
+ "prost-wkt-types",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
+]
+
+[[package]]
 name = "temporalio-sdk-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2667,6 +2713,7 @@ dependencies = [
  "itertools",
  "lru",
  "mockall",
+ "opentelemetry-otlp",
  "parking_lot",
  "pid",
  "pin-project",
@@ -2877,14 +2924,15 @@ checksum = "756daf9b1013ebe47a8776667b466417e2d4c5679d441c26230efd9ef78692db"
 
 [[package]]
 name = "tonic"
-version = "0.14.3"
+version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a286e33f82f8a1ee2df63f4fa35c0becf4a85a0cb03091a15fd7bf0b402dc94a"
+checksum = "ac2a5518c70fa84342385732db33fb3f44bc4cc748936eb5833d2df34d6445ef"
 dependencies = [
  "async-trait",
  "axum",
  "base64",
  "bytes",
+ "flate2",
  "h2",
  "http",
  "http-body",
@@ -2908,9 +2956,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-build"
-version = "0.14.3"
+version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27aac809edf60b741e2d7db6367214d078856b8a5bff0087e94ff330fb97b6fc"
+checksum = "c68f61875ac5293cf72e6c8cf0158086428c82c37229e98c840878f1706b0322"
 dependencies = [
  "prettyplease",
  "proc-macro2",
@@ -2920,9 +2968,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-prost"
-version = "0.14.3"
+version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6c55a2d6a14174563de34409c9f92ff981d006f56da9c6ecd40d9d4a31500b0"
+checksum = "50849f68853be452acf590cde0b146665b8d507b3b8af17261df47e02c209ea0"
 dependencies = [
  "bytes",
  "prost",
@@ -2931,9 +2979,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-prost-build"
-version = "0.14.3"
+version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4556786613791cfef4ed134aa670b61a85cfcacf71543ef33e8d801abae988f"
+checksum = "654e5643eff75d7f8c99197ce1440ed19a3474eada74c12bbac488b2cafdae27"
 dependencies = [
  "prettyplease",
  "proc-macro2",
