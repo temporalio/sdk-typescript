@@ -128,8 +128,8 @@ importers:
         specifier: ^1.9.0
         version: 1.9.0
       '@opentelemetry/core':
-        specifier: ^1.25.1
-        version: 1.25.1(@opentelemetry/api@1.9.0)
+        specifier: ^2.8.0
+        version: 2.8.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-node':
         specifier: ^0.52.1
         version: 0.52.1(@opentelemetry/api@1.9.0)
@@ -167,8 +167,8 @@ importers:
         specifier: ^1.9.0
         version: 1.9.0
       '@opentelemetry/core':
-        specifier: ^1.25.1
-        version: 1.25.1(@opentelemetry/api@1.9.0)
+        specifier: ^2.8.0
+        version: 2.8.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources':
         specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.9.0)
@@ -259,8 +259,8 @@ importers:
         specifier: ~0.11.6
         version: 0.11.6(zod@4.4.3)
       '@opentelemetry/core':
-        specifier: ^1.25.1
-        version: 1.25.1(@opentelemetry/api@1.9.0)
+        specifier: ^2.8.0
+        version: 2.8.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-node':
         specifier: ^0.52.1
         version: 0.52.1(@opentelemetry/api@1.9.0)
@@ -687,8 +687,8 @@ importers:
         specifier: ^1.9.0
         version: 1.9.0
       '@opentelemetry/core':
-        specifier: ^1.25.1
-        version: 1.25.1(@opentelemetry/api@1.9.0)
+        specifier: ^2.8.0
+        version: 2.8.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/exporter-trace-otlp-grpc':
         specifier: ^0.52.1
         version: 0.52.1(@opentelemetry/api@1.9.0)
@@ -1506,6 +1506,12 @@ packages:
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
+  '@opentelemetry/core@2.8.0':
+    resolution: {integrity: sha512-hd1Lfh8p545nNz+jq1Ejfz+Mn1hyLuxYn1YzTfFNrxr8urEWMNQLPf1Th8kjOH+HxwawCrtgBp8JpBUR4ZSgww==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.0.0 <1.10.0'
+
   '@opentelemetry/exporter-trace-otlp-grpc@0.52.1':
     resolution: {integrity: sha512-pVkSH20crBwMTqB3nIN4jpQKUEoB0Z94drIHpYyEqs7UBr+I0cpYyOR3bqjA/UasQUMROb3GX8ZX4/9cVRqGBQ==}
     engines: {node: '>=14'}
@@ -1604,6 +1610,10 @@ packages:
 
   '@opentelemetry/semantic-conventions@1.25.1':
     resolution: {integrity: sha512-ZDjMJJQRlyk8A1KZFCc+bCbsyrn1wTwdNt56F7twdfUfnHUZUq77/WfONCj8p72NZOyP7pNTdUWSTYC3GTbuuQ==}
+    engines: {node: '>=14'}
+
+  '@opentelemetry/semantic-conventions@1.41.1':
+    resolution: {integrity: sha512-/UhIkaZgPutTFmQ7RnIJGgDXZmtEJ7Dvi86xNTFWcnRxVRNk/aotsqDJYeEvDP+FSMB2SdW+pQzNMcWP0rwuNA==}
     engines: {node: '>=14'}
 
   '@pinojs/redact@0.4.0':
@@ -5815,6 +5825,11 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/semantic-conventions': 1.25.1
 
+  '@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.0)':
+    dependencies:
+      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/semantic-conventions': 1.41.1
+
   '@opentelemetry/exporter-trace-otlp-grpc@0.52.1(@opentelemetry/api@1.9.0)':
     dependencies:
       '@grpc/grpc-js': 1.12.4
@@ -5955,6 +5970,8 @@ snapshots:
       semver: 7.7.4
 
   '@opentelemetry/semantic-conventions@1.25.1': {}
+
+  '@opentelemetry/semantic-conventions@1.41.1': {}
 
   '@pinojs/redact@0.4.0': {}
 
