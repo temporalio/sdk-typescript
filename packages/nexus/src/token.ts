@@ -22,9 +22,19 @@ export interface OperationToken {
   ns: string;
 
   /**
-   * ID of the workflow.
+   * ID of a workflow for OperationTokenType.WORKFLOW_RUN.
    */
   wid?: string;
+
+  /**
+   * ID of an activity for OperationTokenType.ACTIVITY.
+   */
+  aid?: string;
+
+  /**
+   * Run ID of an activity for OperationTokenType.ACTIVITY.
+   */
+  rid?: string;
 }
 
 /**
@@ -39,8 +49,19 @@ export interface WorkflowRunOperationToken extends OperationToken {
 }
 
 /**
+ * An OperationToken that identifies an Activity operation.
+ *
+ * @internal
+ * @hidden
+ */
+export interface ActivityOperationToken extends OperationToken {
+  t: typeof OperationTokenType.ACTIVITY;
+  aid: string;
+  rid: string;
+}
+
+/**
  * OperationTokenType is used to identify the type of Operation token.
- * Currently, we only have one type of Operation token: WorkflowRun.
  *
  * @internal
  * @hidden
@@ -53,6 +74,7 @@ export type OperationTokenType = (typeof OperationTokenType)[keyof typeof Operat
  */
 export const OperationTokenType = {
   WORKFLOW_RUN: 1,
+  ACTIVITY: 2,
 } as const;
 
 /**
@@ -64,6 +86,26 @@ export function generateWorkflowRunOperationToken(namespace: string, workflowId:
     ns: namespace,
     wid: workflowId,
   };
+  return encodeOperationToken(token);
+}
+
+/**
+ * Generate an activity Operation token.
+ */
+export function generateActivityOperationToken(namespace: string, activityId: string, runId: string): string {
+  const token: ActivityOperationToken = {
+    t: OperationTokenType.ACTIVITY,
+    ns: namespace,
+    aid: activityId,
+    rid: runId,
+  };
+  return encodeOperationToken(token);
+}
+
+/**
+ * Encode an OperationToken as a string.
+ */
+export function encodeOperationToken(token: OperationToken): string {
   return base64URLEncodeNoPadding(JSON.stringify(token));
 }
 
@@ -126,6 +168,21 @@ export function assertWorkflowRunOperationToken(token: OperationToken): asserts 
   }
   if (!token.wid || typeof token.wid !== 'string') {
     throw new TypeError('invalid workflow run token: missing workflow ID (wid)');
+  }
+}
+
+/**
+ * Assert that an OperationToken identifies an activity.
+ */
+export function assertActivityOperationToken(token: OperationToken): asserts token is ActivityOperationToken {
+  if (token.t !== OperationTokenType.ACTIVITY) {
+    throw new TypeError(`invalid activity token type: ${token.t}, expected: ${OperationTokenType.ACTIVITY}`);
+  }
+  if (!token.aid || typeof token.aid !== 'string') {
+    throw new TypeError('invalid activity token: missing or invalid activity ID (aid)');
+  }
+  if (!token.rid || typeof token.rid !== 'string') {
+    throw new TypeError('invalid activity token: missing or invalid activity run ID (rid)');
   }
 }
 

@@ -245,6 +245,11 @@ export type RawActivityExecutionInfo = proto.temporal.api.activity.v1.IActivityE
 export type RawActivityExecutionListInfo = proto.temporal.api.activity.v1.IActivityExecutionListInfo;
 
 /**
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export type RawActivityExecutionCallbacks = proto.temporal.api.activity.v1.ICallbackInfo[];
+
+/**
  * Type of elements returned by {@link ActivityClient.list}
  *
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
@@ -268,6 +273,7 @@ export interface ActivityExecutionInfo {
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityExecutionDescription extends ActivityExecutionInfo {
+  rawCallbacks: RawActivityExecutionCallbacks;
   rawInfo: RawActivityExecutionInfo;
   runState?: PendingActivityState;
   scheduleToCloseTimeoutMs?: number;

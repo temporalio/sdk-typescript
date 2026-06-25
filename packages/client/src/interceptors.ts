@@ -26,7 +26,8 @@ import type {
   WorkflowExecution,
 } from './types';
 import type { CompiledWorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
-import type { ActivityHandle, ActivityOptions } from './activity-client';
+import type { ActivityHandle } from './activity-client';
+import type { ActivityOptions } from './activity-options';
 
 export { Headers, Next };
 

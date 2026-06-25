@@ -55,6 +55,7 @@ export * from '@temporalio/common/lib/interfaces';
 export * from '@temporalio/common/lib/workflow-handle';
 export * from './async-completion-client';
 export * from './activity-client';
+export * from './activity-options';
 export * from './client';
 export {
   Connection,

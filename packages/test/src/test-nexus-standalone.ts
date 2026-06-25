@@ -495,7 +495,7 @@ test('interceptor integration', async (t) => {
   });
 });
 
-test('WorkflorRunOperation workflow run has Nexus-Operation-Token Header', async (t) => {
+test('WorkflowRunOperation workflow run has Nexus-Operation-Token Header', async (t) => {
   const { createWorker, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
   const { handler, workflowStarted } = makeTestHandler();
