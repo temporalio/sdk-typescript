@@ -93,8 +93,8 @@ import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
 import { WorkflowUpdateStage, encodeWorkflowUpdateStage } from './workflow-update-stage';
-import type { InternalWorkflowStartOptions } from './internal';
-import { InternalWorkflowStartOptionsSymbol } from './internal';
+import type { InternalWorkflowHandle, InternalWorkflowSignalInput, InternalWorkflowStartOptions } from './internal';
+import { InternalWorkflowSignalOptionsSymbol, InternalWorkflowStartOptionsSymbol } from './internal';
 import { adaptWorkflowClientInterceptor } from './interceptor-adapters';
 
 const UpdateWorkflowExecutionLifecycleStage = temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
@@ -1211,6 +1211,9 @@ export class WorkflowClient extends BaseClient {
   protected async _signalWorkflowHandler(input: WorkflowSignalInput): Promise<void> {
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(input.workflowExecution.workflowId!);
+    const internalOptions = (input as InternalWorkflowSignalInput)[InternalWorkflowSignalOptionsSymbol];
+    // Server currently only supports workflow_event and batch_job link types.
+    const links = internalOptions?.links?.filter((link) => link.workflowEvent != null || link.batchJob != null);
     const req: temporal.api.workflowservice.v1.ISignalWorkflowExecutionRequest = {
       identity: this.options.identity,
       namespace: this.options.namespace,
@@ -1220,9 +1223,15 @@ export class WorkflowClient extends BaseClient {
       signalName: input.signalName,
       header: { fields: input.headers },
       input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args) },
+      links,
     };
     try {
-      await this.workflowService.signalWorkflowExecution(req);
+      const response = await this.workflowService.signalWorkflowExecution(req);
+      if (internalOptions != null) {
+        // Servers that support CHASM signal response links (1.31 and up) return a response link
+        // pointing at the WorkflowExecutionSignaled event; older servers leave it unset.
+        internalOptions.responseLink = response.link ?? undefined;
+      }
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to signal Workflow', input.workflowExecution);
     }
@@ -1238,6 +1247,9 @@ export class WorkflowClient extends BaseClient {
     const { options, workflowType, signalName, signalArgs, headers } = input;
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(options.workflowId);
+    const internalOptions = (options as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
+    // Server currently only supports workflow_event and batch_job link types.
+    const links = internalOptions?.links?.filter((link) => link.workflowEvent != null || link.batchJob != null);
     const req: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest = {
       namespace: this.options.namespace,
       identity,
@@ -1270,9 +1282,16 @@ export class WorkflowClient extends BaseClient {
       userMetadata: await encodeUserMetadata(dataConverter, options.staticSummary, options.staticDetails, context),
       priority: options.priority ? compilePriority(options.priority) : undefined,
       versioningOverride: options.versioningOverride ?? undefined,
+      links,
     };
     try {
-      return (await this.workflowService.signalWithStartWorkflowExecution(req)).runId;
+      const response = await this.workflowService.signalWithStartWorkflowExecution(req);
+      if (internalOptions != null) {
+        // Servers that support CHASM signal response links (1.31 and up) return a response link
+        // pointing at the WorkflowExecutionSignaled event; older servers leave it unset.
+        internalOptions.responseLink = response.signalLink ?? undefined;
+      }
+      return response.runId;
     } catch (err: any) {
       if (err.code === grpcStatus.ALREADY_EXISTS) {
         throw new WorkflowExecutionAlreadyStartedError(
@@ -1297,7 +1316,7 @@ export class WorkflowClient extends BaseClient {
     try {
       const response = await this.workflowService.startWorkflowExecution(req);
       if (internalOptions != null) {
-        internalOptions.backLink = response.link ?? undefined;
+        internalOptions.responseLink = response.link ?? undefined;
       }
       return {
         runId: response.runId,
@@ -1565,12 +1584,16 @@ export class WorkflowClient extends BaseClient {
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
         const next = this.client._signalWorkflowHandler.bind(this.client);
         const fn = composeInterceptors(interceptors, 'signal', next);
-        await fn({
+        const input: InternalWorkflowSignalInput = {
           workflowExecution: { workflowId, runId },
           signalName: typeof def === 'string' ? def : def.name,
           args,
           headers: {},
-        });
+          // Forward any SDK-internal signal options (e.g. Nexus request links) that were attached to
+          // this handle, and let the signal handler write the response link back onto the same payload.
+          [InternalWorkflowSignalOptionsSymbol]: (this as InternalWorkflowHandle)[InternalWorkflowSignalOptionsSymbol],
+        };
+        await fn(input);
       },
       async query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {
         const next = this.client._queryWorkflowHandler.bind(this.client);
