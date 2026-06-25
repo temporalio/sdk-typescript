@@ -40,7 +40,9 @@ function commandExists(command: string): boolean {
 function nexGenCommand(): string {
   if (process.env.NEX_GEN_BIN) return process.env.NEX_GEN_BIN;
   if (!commandExists('nex-gen')) {
-    run('cargo', ['install', '--locked', 'nex-gen', '--force']);
+    throw new Error(
+      'nex-gen is required to generate system Nexus files. Install it with `cargo install --locked nex-gen` or set NEX_GEN_BIN=/path/to/nex-gen.'
+    );
   }
   return 'nex-gen';
 }
@@ -136,6 +138,8 @@ function generateWorkflowExports(): void {
 }
 
 function postProcessGeneratedWorkflowFiles(): void {
+  // The WIT support file is authored as if generated code is an external @temporalio/workflow consumer. Generated
+  // files live inside that package, so rewrite those imports to a local proxy built from workflow/src/index.ts.
   for (const path of [
     resolve(workflowOutputDir, 'index.ts'),
     resolve(workflowOutputDir, 'models.ts'),
@@ -144,7 +148,6 @@ function postProcessGeneratedWorkflowFiles(): void {
     resolve(workflowOutputDir, 'operations/signal-with-start-workflow.ts'),
   ]) {
     let source = readFileSync(path, 'utf8');
-    source = source.replace(/((?:from|export .* from) ['"]\.{1,2}[^'"]*)\.ts(['"])/g, '$1$2');
     source = source.replace(/from ['"]@temporalio\/workflow['"]/g, () =>
       path.includes('/operations/') ? "from '../workflow-exports'" : "from './workflow-exports'"
     );
