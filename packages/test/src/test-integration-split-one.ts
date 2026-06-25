@@ -174,7 +174,7 @@ test.serial('activity-failure with Error', configMacro, async (t, config) => {
     cleanOptionalStackTrace(err.cause.cause.stack)!,
     isBun
       ? dedent`
-    $CLASS
+    Error: Fail me
         at throwAnError (test/lib/activities/index.js)
     `
       : dedent`
@@ -215,7 +215,7 @@ test.serial('activity-failure with ApplicationFailure', configMacro, async (t, c
     cleanOptionalStackTrace(err.cause.cause.stack)!,
     isBun
       ? dedent`
-    $CLASS
+    ApplicationFailure: Fail me
         at nonRetryable (common/lib/failure.js)
         at throwAnError (test/lib/activities/index.js)
     `
@@ -276,7 +276,7 @@ test.serial('child-workflow-failure', configMacro, async (t, config) => {
       cleanOptionalStackTrace(err.cause.cause.stack)!,
       isBun
         ? dedent`
-        $CLASS
+        ApplicationFailure: failure
             at nonRetryable (test/workflow-bundle-$HASH.js)
             at throwAsync (test/workflow-bundle-$HASH.js)
       `

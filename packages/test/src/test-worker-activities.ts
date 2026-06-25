@@ -45,7 +45,7 @@ function compareCompletion(
 ) {
   if (actual?.failed?.failure) {
     // The stack trace's header line varies by engine (e.g. Bun can render a bare `Error`), so pull
-    // `stackTrace` out of both sides and compare it loosely via compareStackTrace ($CLASS header).
+    // `stackTrace` out of both sides and compare it via compareStackTrace, which tolerates that.
     // Everything else on the failure is still compared exactly by the deepEqual below.
     const { stackTrace, ...rest } = actual.failed.failure;
     const { stackTrace: expectedStackTrace, ...expectedRest } = expected.failed?.failure ?? {};
@@ -142,7 +142,7 @@ test('Worker runs an activity and reports failure', async (t) => {
           source: 'TypeScriptSDK',
           stackTrace: isBun
             ? dedent`
-            $CLASS
+            Error: :(
                 at throwAnError (test/lib/activities/index.js)`
             : dedent`
             Error: :(
