@@ -15,11 +15,17 @@ const PayloadProto = proto.temporal.api.common.v1.Payload;
 
 const DRIVER_TYPE = 'gcp.gcsdriver';
 const DEFAULT_MAX_PAYLOAD_SIZE = 50 * 1024 * 1024;
+/** Object name segment written when a context value is empty or absent. */
+const NULL_SEGMENT = 'null';
 
 /** Picks the destination bucket for a given payload. Enables dynamic per-payload routing. */
 export type BucketSelector = (context: StorageDriverStoreContext, payload: Payload) => string;
 
-/** @experimental */
+/**
+ * Configuration for a {@link GcsStorageDriver}.
+ *
+ * @experimental
+ */
 export interface GcsStorageDriverOptions {
   /**
    * A {@link GcsStorageDriverClient} that performs the underlying requests,
@@ -61,7 +67,7 @@ function percentEncodeChar(char: string): string {
 }
 
 function encodeObjectNameSegment(value: string | undefined): string {
-  if (!value) return 'null';
+  if (!value) return NULL_SEGMENT;
   const encoded = value.replace(GCS_UNSAFE_SEGMENT, percentEncodeChar);
   if (encoded === '.') return '%2E';
   if (encoded === '..') return '%2E%2E';
@@ -131,20 +137,21 @@ export class GcsStorageDriver implements StorageDriver {
   private readonly maxPayloadSize: number;
 
   constructor(options: GcsStorageDriverOptions) {
-    const { client, bucket, driverName, maxPayloadSize = DEFAULT_MAX_PAYLOAD_SIZE } = options;
+    const { client, bucket, driverName = DRIVER_TYPE, maxPayloadSize = DEFAULT_MAX_PAYLOAD_SIZE } = options;
     if (!Number.isFinite(maxPayloadSize) || maxPayloadSize <= 0) {
       throw new ValueError(`maxPayloadSize must be a positive finite number, got ${String(maxPayloadSize)}`);
     }
     this.client = client;
     this.bucket = typeof bucket === 'string' ? () => bucket : bucket;
-    this.name = driverName || DRIVER_TYPE;
+    this.name = driverName;
     this.maxPayloadSize = maxPayloadSize;
   }
 
   async store(context: StorageDriverStoreContext, payloads: Payload[]): Promise<StorageDriverClaim[]> {
     const contextSegments = buildContextSegments(context.target);
+    const uploads = new Map<string, Promise<void>>();
     return allSettledOrThrow(
-      payloads.map((payload) => this.storePayload(context, payload, contextSegments, context.abortSignal))
+      payloads.map((payload) => this.storePayload(context, payload, contextSegments, context.abortSignal, uploads))
     );
   }
 
@@ -156,7 +163,8 @@ export class GcsStorageDriver implements StorageDriver {
     context: StorageDriverStoreContext,
     payload: Payload,
     contextSegments: string,
-    abortSignal: AbortSignal | undefined
+    abortSignal: AbortSignal | undefined,
+    uploads: Map<string, Promise<void>>
   ): Promise<StorageDriverClaim> {
     const bucket = this.bucket(context, payload);
 
@@ -171,7 +179,13 @@ export class GcsStorageDriver implements StorageDriver {
     const object = `v0${contextSegments}/d/sha256/${hashValue}`;
 
     try {
-      await this.client.save(bucket, object, payloadBytes, { abortSignal });
+      const dedupeKey = `${bucket} ${object}`;
+      let upload = uploads.get(dedupeKey);
+      if (!upload) {
+        upload = this.client.save(bucket, object, payloadBytes, { abortSignal });
+        uploads.set(dedupeKey, upload);
+      }
+      await upload;
     } catch (err) {
       throw new Error(
         `GcsStorageDriver store failed [bucket=${bucket}, object=${object}${formatClientContext(this.client)}]`,

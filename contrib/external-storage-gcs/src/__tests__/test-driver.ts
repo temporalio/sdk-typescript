@@ -1,4 +1,4 @@
-/* eslint @typescript-eslint/no-non-null-assertion: 0 */
+import assert from 'node:assert';
 import { createHash } from 'node:crypto';
 import test from 'ava';
 import * as proto from '@temporalio/proto';
@@ -50,9 +50,11 @@ test('store then retrieve round-trips the payload bytes', async (t) => {
   const original = makePayload('"hello"');
 
   const [claim] = await driver.store(workflowContext, [original]);
-  const [retrieved] = await driver.retrieve({}, [claim!]);
+  assert(claim);
+  const [retrieved] = await driver.retrieve({}, [claim]);
+  assert(retrieved);
 
-  t.deepEqual(payloadBytes(retrieved!), payloadBytes(original));
+  t.deepEqual(payloadBytes(retrieved), payloadBytes(original));
 });
 
 test('object name is content-addressed and segmented by the store context', async (t) => {
@@ -61,11 +63,12 @@ test('object name is content-addressed and segmented by the store context', asyn
   const expectedHash = createHash('sha256').update(payloadBytes(payload)).digest('hex');
 
   const [claim] = await driver.store(workflowContext, [payload]);
+  assert(claim);
 
-  t.is(claim!.claimData.object, `v0/ns/my-ns/wt/MyWorkflow/wi/wf-1/ri/run-1/d/sha256/${expectedHash}`);
-  t.is(claim!.claimData.hashValue, expectedHash);
-  t.is(claim!.claimData.hashAlgorithm, 'sha256');
-  t.is(claim!.claimData.bucket, 'b');
+  t.is(claim.claimData.object, `v0/ns/my-ns/wt/MyWorkflow/wi/wf-1/ri/run-1/d/sha256/${expectedHash}`);
+  t.is(claim.claimData.hashValue, expectedHash);
+  t.is(claim.claimData.hashAlgorithm, 'sha256');
+  t.is(claim.claimData.bucket, 'b');
 });
 
 test('object name segments percent-encode only GCS-discouraged characters', async (t) => {
@@ -83,22 +86,37 @@ test('object name segments percent-encode only GCS-discouraged characters', asyn
     },
     [makePayload('"x"')]
   );
+  assert(claim?.claimData.object);
 
   // Per Google's recommendations: space, + = ~ ! ' ( ) are left intact;
   // / -> %2F and * -> %2A are escaped.
   t.true(
-    claim!.claimData.object!.startsWith(
+    claim.claimData.object.startsWith(
       "v0/ns/payments prod/wt/Capture%2FCharge!%2A'()/wi/order+123=abc/ri/r~1/d/sha256/"
     )
   );
+});
+
+test('reserved and empty segments are encoded', async (t) => {
+  const driver = new GcsStorageDriver({ client: new FakeGcsClient(), bucket: 'b' });
+
+  // namespace '.' and type '..' are reserved object names; id is absent and runId is
+  // empty. Reserved names escape to %2E / %2E%2E; empty or absent values become 'null'.
+  const [claim] = await driver.store({ target: { kind: 'workflow', namespace: '.', type: '..', runId: '' } }, [
+    makePayload('"x"'),
+  ]);
+  assert(claim?.claimData.object);
+
+  t.true(claim.claimData.object.startsWith('v0/ns/%2E/wt/%2E%2E/wi/null/ri/null/d/sha256/'));
 });
 
 test('a target with no identity falls back to a bare digest object name', async (t) => {
   const driver = new GcsStorageDriver({ client: new FakeGcsClient(), bucket: 'b' });
 
   const [claim] = await driver.store({}, [makePayload('"x"')]);
+  assert(claim?.claimData.object);
 
-  t.regex(claim!.claimData.object!, /^v0\/d\/sha256\/[0-9a-f]{64}$/);
+  t.regex(claim.claimData.object, /^v0\/d\/sha256\/[0-9a-f]{64}$/);
 });
 
 test('identical payloads in the same scope deduplicate to one stored object', async (t) => {
@@ -107,9 +125,23 @@ test('identical payloads in the same scope deduplicate to one stored object', as
 
   const [first] = await driver.store(workflowContext, [makePayload('"hello"')]);
   const [second] = await driver.store(workflowContext, [makePayload('"hello"')]);
+  assert(first);
+  assert(second);
 
   t.is(client.objects.size, 1);
-  t.deepEqual(first!.claimData, second!.claimData);
+  t.deepEqual(first.claimData, second.claimData);
+});
+
+test('concurrent identical payloads in one batch upload once', async (t) => {
+  const client = new FakeGcsClient();
+  const driver = new GcsStorageDriver({ client, bucket: 'b' });
+
+  const [first, second] = await driver.store(workflowContext, [makePayload('"hello"'), makePayload('"hello"')]);
+  assert(first);
+  assert(second);
+
+  t.is(client.saveCount, 1);
+  t.is(first.claimData.object, second.claimData.object);
 });
 
 test('retrieve rejects when stored bytes fail the integrity check', async (t) => {
@@ -117,9 +149,10 @@ test('retrieve rejects when stored bytes fail the integrity check', async (t) =>
   const driver = new GcsStorageDriver({ client, bucket: 'b' });
 
   const [claim] = await driver.store(workflowContext, [makePayload('"hello"')]);
-  client.objects.set(`${claim!.claimData.bucket}/${claim!.claimData.object}`, enc('tampered'));
+  assert(claim);
+  client.objects.set(`${claim.claimData.bucket}/${claim.claimData.object}`, enc('tampered'));
 
-  await t.throwsAsync(() => driver.retrieve({}, [claim!]), {
+  await t.throwsAsync(() => driver.retrieve({}, [claim]), {
     instanceOf: ValueError,
     message: /integrity check failed/,
   });
@@ -156,9 +189,11 @@ test('bucket selector chooses the destination per payload', async (t) => {
 
   const [big] = await driver.store(workflowContext, [makePayload('"a-long-value"')]);
   const [small] = await driver.store(workflowContext, [makePayload('"x"')]);
+  assert(big);
+  assert(small);
 
-  t.is(big!.claimData.bucket, 'large');
-  t.is(small!.claimData.bucket, 'small');
+  t.is(big.claimData.bucket, 'large');
+  t.is(small.claimData.bucket, 'small');
 });
 
 test('store waits for in-flight siblings to settle before surfacing a failure', async (t) => {
