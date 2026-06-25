@@ -6,10 +6,10 @@ import {
   cancellationScopeWithTimeoutScopeGetCancelledOnTimeout,
   cancellationScopeWithTimeoutTimerGetsCancelled,
   nonCancellableScopesBeforeAndAfterWorkflow,
-} from './test-integration-workflows-common';
+} from './integration-workflows-common';
 import { helpers, makeTestFunction } from './helpers-integration';
 
-export * from './test-integration-workflows-common';
+export * from './integration-workflows-common';
 
 const test = makeTestFunction({
   workflowsPath: __filename,

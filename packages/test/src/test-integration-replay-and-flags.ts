@@ -6,11 +6,11 @@ import {
   issue1423Workflow,
   langFlagsReplayCorrectly,
   setAndClearTimeout,
-} from './test-integration-workflows-common';
+} from './integration-workflows-common';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { loadHistory, RUN_TIME_SKIPPING_TESTS } from './helpers';
 
-export * from './test-integration-workflows-common';
+export * from './integration-workflows-common';
 
 const test = makeTestFunction({
   workflowsPath: __filename,

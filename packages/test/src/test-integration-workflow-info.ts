@@ -24,11 +24,11 @@ import {
   upsertAndReadMemo,
   WithChildWorkflow,
   WorkflowWillFail,
-} from './test-integration-workflows-common';
+} from './integration-workflows-common';
 import { createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';
 
-export * from './test-integration-workflows-common';
+export * from './integration-workflows-common';
 
 const test = makeTestFunction({
   workflowsPath: __filename,

@@ -215,10 +215,6 @@ jobs:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
-          # Guardrail: cap each workflow worker thread's V8 old space so a single runaway Workflow
-          # fails fast with a clear error instead of dragging the suite into memory pressure.
-          TEMPORAL_WORKER_THREAD_MAX_HEAP_MB: 1024
-
           # For Temporal Cloud + mTLS tests
           TEMPORAL_CLOUD_MTLS_TEST_TARGET_HOST: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
           TEMPORAL_CLOUD_MTLS_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}

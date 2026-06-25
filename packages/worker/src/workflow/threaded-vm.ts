@@ -194,21 +194,9 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
     registeredActivityNames,
     logger,
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
-    const maxHeapMb = Number(process.env.TEMPORAL_WORKER_THREAD_MAX_HEAP_MB);
-    const resourceLimits =
-      Number.isFinite(maxHeapMb) && maxHeapMb > 0 ? { maxOldGenerationSizeMb: maxHeapMb } : undefined;
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
-      .map(
-        () =>
-          new WorkerThreadClient(
-            new NodeWorker(
-              require.resolve('./workflow-worker-thread'),
-              resourceLimits ? { resourceLimits } : undefined
-            ),
-            logger
-          )
-      );
+      .map(() => new WorkerThreadClient(new NodeWorker(require.resolve('./workflow-worker-thread')), logger));
     await Promise.all(
       workerThreadClients.map((client) =>
         client.send({
