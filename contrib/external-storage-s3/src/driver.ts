@@ -15,11 +15,17 @@ const PayloadProto = proto.temporal.api.common.v1.Payload;
 
 const DRIVER_TYPE = 'aws.s3driver';
 const DEFAULT_MAX_PAYLOAD_SIZE = 50 * 1024 * 1024;
+/** Key segment written when a context value is empty or absent. */
+const NULL_SEGMENT = 'null';
 
 /** Picks the destination bucket for a given payload. Enables dynamic per-payload routing. */
 export type BucketSelector = (context: StorageDriverStoreContext, payload: Payload) => string;
 
-/** @experimental */
+/**
+ * Configuration for an {@link S3StorageDriver}.
+ *
+ * @experimental
+ */
 export interface S3StorageDriverOptions {
   /**
    * An {@link S3StorageDriverClient} that performs the underlying requests,
@@ -47,7 +53,7 @@ export interface S3StorageDriverOptions {
  * literal `null`.
  */
 function encodeKeySegment(value: string | undefined): string {
-  if (!value) return 'null';
+  if (!value) return NULL_SEGMENT;
   return encodeURIComponent(value).replace(/~/g, '%7E');
 }
 
@@ -124,13 +130,13 @@ export class S3StorageDriver implements StorageDriver {
   private readonly maxPayloadSize: number;
 
   constructor(options: S3StorageDriverOptions) {
-    const { client, bucket, driverName, maxPayloadSize = DEFAULT_MAX_PAYLOAD_SIZE } = options;
+    const { client, bucket, driverName = DRIVER_TYPE, maxPayloadSize = DEFAULT_MAX_PAYLOAD_SIZE } = options;
     if (!Number.isFinite(maxPayloadSize) || maxPayloadSize <= 0) {
       throw new ValueError(`maxPayloadSize must be a positive finite number, got ${String(maxPayloadSize)}`);
     }
     this.client = client;
     this.bucket = typeof bucket === 'string' ? () => bucket : bucket;
-    this.name = driverName || DRIVER_TYPE;
+    this.name = driverName;
     this.maxPayloadSize = maxPayloadSize;
   }
 
