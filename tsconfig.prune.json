@@ -9,6 +9,8 @@
       "@temporalio/openai-agents/workflow": ["contrib/openai-agents/src/workflow"],
       "@temporalio/openai-agents/workflow-interceptor": ["contrib/openai-agents/src/workflow/trace-interceptor"],
       "@temporalio/openai-agents/*": ["contrib/openai-agents/src/*"],
+      "@temporalio/external-storage-s3": ["contrib/external-storage-s3"],
+      "@temporalio/external-storage-s3-aws-sdk": ["contrib/external-storage-s3-aws-sdk"],
       "@temporalio/*": ["packages/*"]
     }
   },
@@ -26,6 +28,8 @@
     "./packages/create-project/src/index.ts",
     "./packages/envconfig/src/index.ts",
     "./contrib/interceptors-opentelemetry/src/index.ts",
+    "./contrib/external-storage-s3/src/index.ts",
+    "./contrib/external-storage-s3-aws-sdk/src/index.ts",
     "./packages/nyc-test-coverage/src/index.ts",
     "./packages/meta/src/index.ts",
     "./packages/plugin/src/index.ts",
