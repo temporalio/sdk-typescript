@@ -130,7 +130,7 @@ test.serial('unsafe random source is nondeterministic across replays while named
 
   t.is(first.filled.length, 8);
   t.is(second.filled.length, 8);
-  t.not(first.filled.join(','), second.filled.join(','));
+  t.notDeepEqual(first.filled, second.filled);
   t.true(first.filled.some((b) => b !== 0));
 });
 

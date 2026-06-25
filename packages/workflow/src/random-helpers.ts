@@ -23,9 +23,12 @@ export function uuid4FromRandom(random: () => number): string {
 }
 
 export function createUnsafeRandomSource(random: () => number): UnsafeRandomSource {
-  return {
+  const source: UnsafeRandomSource = {
     random,
     uuid4: () => uuid4FromRandom(random),
     fillRandom: (bytes) => fillWithRandom(random, bytes),
   };
+  // Omit from JSON like `now`: the methods otherwise stringify to a misleading empty {}.
+  Object.defineProperty(source, 'toJSON', { value: () => undefined });
+  return source;
 }
