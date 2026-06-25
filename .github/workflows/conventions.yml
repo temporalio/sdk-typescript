@@ -47,6 +47,9 @@ jobs:
           env-vars: ''
           save-if: false
 
+      - name: Install nex-gen
+        run: cargo install --force --locked nex-gen --version 0.1.4
+
       - name: Generate code
         run: |
           pnpm run build:protos
