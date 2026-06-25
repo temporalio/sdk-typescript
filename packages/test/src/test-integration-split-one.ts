@@ -26,7 +26,9 @@ import type { UnsafeWorkflowInfo, WorkflowInfo } from '@temporalio/workflow/lib/
 
 import {
   CancellationScope,
+  condition,
   defineQuery,
+  defineSignal,
   executeChild,
   proxyActivities,
   setHandler,
@@ -733,6 +735,32 @@ export async function returnWorkflowInfo(): Promise<WorkflowInfo> {
   return workflowInfo();
 }
 
+export const getWorkflowInfoForSerialization = defineQuery<WorkflowInfo>('getWorkflowInfoForSerialization');
+export const completeWorkflowInfoForSerialization = defineSignal('completeWorkflowInfoForSerialization');
+
+export async function queryWorkflowInfoForSerialization(): Promise<void> {
+  let complete = false;
+  setHandler(getWorkflowInfoForSerialization, () => workflowInfo());
+  setHandler(completeWorkflowInfoForSerialization, () => {
+    complete = true;
+  });
+  await condition(() => complete);
+}
+
+function unusableUnsafeRandomIssue(source: string, unsafe: Partial<UnsafeWorkflowInfo>): string | undefined {
+  if (!('random' in unsafe)) {
+    return undefined;
+  }
+  try {
+    unsafe.random!.random();
+  } catch (err) {
+    return `${source} exposes unsafe.random, but unsafe.random.random() is not callable: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
+  }
+  return `${source} exposes a callable unsafe.random after serialization`;
+}
+
 test.serial('Workflow can read WorkflowInfo', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { startWorkflow, taskQueue } = configurableHelpers(t, t.context.workflowBundle, env);
@@ -773,6 +801,37 @@ test.serial('Workflow can read WorkflowInfo', configMacro, async (t, config) => 
     priority: {},
   });
   t.is(res.suggestedContinueAsNewReasons, undefined);
+});
+
+test.serial('Serialized WorkflowInfo does not expose unusable unsafe random source', configMacro, async (t, config) => {
+  const { env, createWorkerWithDefaults } = config;
+  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+  const worker = await createWorkerWithDefaults(t);
+
+  await worker.runUntil(async () => {
+    const failures: string[] = [];
+
+    const resultHandle = await startWorkflow(returnWorkflowInfo);
+    const resultInfo = await resultHandle.result();
+    const resultIssue = unusableUnsafeRandomIssue('workflow result WorkflowInfo', resultInfo.unsafe);
+    if (resultIssue !== undefined) {
+      failures.push(resultIssue);
+    }
+
+    const queryHandle = await startWorkflow(queryWorkflowInfoForSerialization);
+    try {
+      const queryInfo = await queryHandle.query(getWorkflowInfoForSerialization);
+      const queryIssue = unusableUnsafeRandomIssue('workflow query WorkflowInfo', queryInfo.unsafe);
+      if (queryIssue !== undefined) {
+        failures.push(queryIssue);
+      }
+    } finally {
+      await queryHandle.signal(completeWorkflowInfoForSerialization);
+      await queryHandle.result();
+    }
+
+    t.deepEqual(failures, []);
+  });
 });
 
 /**
