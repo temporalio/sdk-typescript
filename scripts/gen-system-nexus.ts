@@ -6,7 +6,7 @@ import * as protobuf from 'protobufjs';
 import * as ts from 'typescript';
 
 const repoRoot = resolve(__dirname, '..');
-const protoBaseDir = resolve(repoRoot, 'packages/core-bridge/sdk-core/crates/common/protos');
+const protoBaseDir = resolve(repoRoot, 'packages/core-bridge/sdk-core/crates/protos/protos');
 const workflowSrcDir = resolve(repoRoot, 'packages/workflow/src');
 const workflowIndexPath = resolve(workflowSrcDir, 'index.ts');
 const workflowSystemNexusDir = resolve(repoRoot, 'packages/workflow/system-nexus');
