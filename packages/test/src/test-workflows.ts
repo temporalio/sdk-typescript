@@ -526,7 +526,7 @@ test('throwAsync', async (t) => {
         'failure',
         isBun
           ? dedent`
-          ApplicationFailure: failure
+          $CLASS
               at nonRetryable (test/workflow-bundle-$HASH.js)
               at throwAsync (test/workflow-bundle-$HASH.js)
           `
@@ -805,7 +805,7 @@ test('invalidOrFailedQueries', async (t) => {
     const completion = cleanWorkflowQueryFailureStackTrace(await activate(t, makeQueryWorkflow('3', 'fail', [])));
     const expectedStackTrace = isBun
       ? dedent`
-          Error: fail
+          $CLASS
               at <anonymous> (test/workflow-bundle-$HASH.js)
         `
       : dedent`
@@ -847,7 +847,7 @@ test('interruptableWorkflow', async (t) => {
     // since the Error stack trace is generated in the constructor.
     const expectedStackTrace = isBun
       ? dedent`
-        ApplicationFailure: just because
+        $CLASS
             at retryable (test/workflow-bundle-$HASH.js)
             at <anonymous> (test/workflow-bundle-$HASH.js)
         `
@@ -877,7 +877,7 @@ test('failSignalWorkflow', async (t) => {
     const req = cleanWorkflowFailureStackTrace(await activate(t, await makeSignalWorkflow('fail', [])));
     const expectedStackTrace = isBun
       ? dedent`
-        ApplicationFailure: Signal failed
+        $CLASS
             at nonRetryable (test/workflow-bundle-$HASH.js)
             at <anonymous> (test/workflow-bundle-$HASH.js)
         `
@@ -918,7 +918,7 @@ test('asyncFailSignalWorkflow', async (t) => {
     const req = cleanWorkflowFailureStackTrace(await activate(t, makeFireTimer(2)));
     const expectedStackTrace = isBun
       ? dedent`
-        ApplicationFailure: Signal failed
+        $CLASS
             at nonRetryable (test/workflow-bundle-$HASH.js)
             at <anonymous> (test/workflow-bundle-$HASH.js)
         `
@@ -1525,7 +1525,7 @@ test('cancellationErrorIsPropagated', async (t) => {
   const req = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(workflowType)), 2);
   const expectedStackTrace = isBun
     ? dedent`
-      CancelledFailure: Cancellation scope cancelled
+      $CLASS
           at cancel (test/workflow-bundle-$HASH.js)
           at <anonymous> (test/workflow-bundle-$HASH.js)
           at runInContext (test/workflow-bundle-$HASH.js)
@@ -1966,7 +1966,7 @@ test('tryToContinueAfterCompletion', async (t) => {
     const completion = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(workflowType)));
     const expectedStackTrace = isBun
       ? dedent`
-        ApplicationFailure: fail before continue
+        $CLASS
             at nonRetryable (test/workflow-bundle-$HASH.js)
             at tryToContinueAfterCompletion (test/workflow-bundle-$HASH.js)
         `

@@ -250,7 +250,7 @@ if (RUN_INTEGRATION_TESTS) {
     const cleanedStack = cleanOptionalStackTrace(err.cause.stack)!;
     const expectedStack = isBun
       ? dedent`
-        ApplicationFailure: Expected anything other than 1
+        $CLASS
             at nonRetryable (test/workflow-bundle-$HASH.js)
             at continueAsNew (test/workflow-bundle-$HASH.js)
             at continueAsNewToDifferentWorkflow (test/workflow-bundle-$HASH.js)

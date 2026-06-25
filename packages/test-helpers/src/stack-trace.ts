@@ -47,14 +47,11 @@ export function cleanStackTrace(ostack: string): string {
  * Bun does not support promise hooks meaning we are currently unable to apply the source map on stack traces and workflow bundles
  * end up in the stack trace.
  *
- * The header line of a stack trace (`<ErrorName>: <message>`) is the most engine- and version-dependent
- * part (V8, JSC and Deno all render it differently; JSC may even drop the name and message), and it is
- * redundant with the callers' own `instanceof`/`message` assertions. We therefore match it loosely and
- * only assert the meaningful call frames. This applies only to multi-line stacks; single-line values
- * (e.g. a function name compared against `$CLASS.all`) are matched as-is.
- *
  * Special:
- * - $CLASS: used to match class names that might be inconsistent
+ * - $CLASS: used to match class names that might be inconsistent. Bun (JSC) does not reliably render
+ *   the error header line (`<ErrorName>: <message>`) the way V8 does and may emit a bare `Error`, so
+ *   Bun expectations use `$CLASS` for the header's error name (the message is asserted separately by
+ *   the caller).
  * - $HASH: used to match bundle hash suffixes in workflow paths
  */
 export function compareStackTrace(t: ExecutionContext, actual: string, expected: string): void {
@@ -63,6 +60,10 @@ export function compareStackTrace(t: ExecutionContext, actual: string, expected:
     .replace(/-/g, '\\x2d')
     .replaceAll('\\$CLASS', '(?:[A-Za-z]+)')
     .replaceAll('\\$HASH', '(?:[A-Za-z0-9]+)');
-  const pattern = escapedTrace.includes('\n') ? escapedTrace.replace(/^[^\n]*/, '[^\\n]*') : escapedTrace;
-  t.regex(actual, RegExp(`^${pattern}$`));
+  t.regex(
+    actual,
+    RegExp(`^${escapedTrace}$`),
+    `Stack trace did not match. Compare the actual call frames to ensure this isn't a real regression.` +
+      `Actual:\n${actual}`
+  );
 }
