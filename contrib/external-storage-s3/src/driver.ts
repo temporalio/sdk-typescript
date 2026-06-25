@@ -142,9 +142,10 @@ export class S3StorageDriver implements StorageDriver {
 
   async store(context: StorageDriverStoreContext, payloads: Payload[]): Promise<StorageDriverClaim[]> {
     const contextSegments = buildContextSegments(context.target);
-    return runAllWithAbortOnError(context.abortSignal, (signal) =>
-      payloads.map((payload) => this.storePayload(context, payload, contextSegments, signal))
-    );
+    return runAllWithAbortOnError(context.abortSignal, (signal) => {
+      const uploads = new Map<string, Promise<void>>();
+      return payloads.map((payload) => this.storePayload(context, payload, contextSegments, signal, uploads));
+    });
   }
 
   async retrieve(context: StorageDriverRetrieveContext, claims: StorageDriverClaim[]): Promise<Payload[]> {
@@ -157,7 +158,8 @@ export class S3StorageDriver implements StorageDriver {
     context: StorageDriverStoreContext,
     payload: Payload,
     contextSegments: string,
-    abortSignal: AbortSignal
+    abortSignal: AbortSignal,
+    uploads: Map<string, Promise<void>>
   ): Promise<StorageDriverClaim> {
     const bucket = this.bucket(context, payload);
 
@@ -172,9 +174,13 @@ export class S3StorageDriver implements StorageDriver {
     const key = `v0${contextSegments}/d/sha256/${hashValue}`;
 
     try {
-      if (!(await this.client.objectExists(bucket, key, { abortSignal }))) {
-        await this.client.putObject(bucket, key, payloadBytes, { abortSignal });
+      const dedupeKey = `${bucket} ${key}`;
+      let upload = uploads.get(dedupeKey);
+      if (!upload) {
+        upload = this.uploadIfAbsent(bucket, key, payloadBytes, abortSignal);
+        uploads.set(dedupeKey, upload);
       }
+      await upload;
     } catch (err) {
       throw new Error(
         `S3StorageDriver store failed [bucket=${bucket}, key=${key}${formatClientContext(this.client)}]`,
@@ -183,6 +189,17 @@ export class S3StorageDriver implements StorageDriver {
     }
 
     return new StorageDriverClaim({ bucket, key, hashAlgorithm: 'sha256', hashValue });
+  }
+
+  private async uploadIfAbsent(
+    bucket: string,
+    key: string,
+    payloadBytes: Uint8Array,
+    abortSignal: AbortSignal
+  ): Promise<void> {
+    if (!(await this.client.objectExists(bucket, key, { abortSignal }))) {
+      await this.client.putObject(bucket, key, payloadBytes, { abortSignal });
+    }
   }
 
   private async retrievePayload(claim: StorageDriverClaim, abortSignal: AbortSignal): Promise<Payload> {

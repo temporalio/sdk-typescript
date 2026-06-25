@@ -136,6 +136,18 @@ test('identical payloads in the same scope deduplicate to one upload', async (t)
   t.is(client.putCount, 1);
 });
 
+test('concurrent identical payloads in one batch upload once', async (t) => {
+  const client = new FakeS3Client();
+  const driver = new S3StorageDriver({ client, bucket: 'b' });
+
+  const [first, second] = await driver.store(workflowContext, [makePayload('"hello"'), makePayload('"hello"')]);
+  assert(first);
+  assert(second);
+
+  t.is(client.putCount, 1);
+  t.is(first.claimData.key, second.claimData.key);
+});
+
 test('retrieve rejects when stored bytes fail the integrity check', async (t) => {
   const client = new FakeS3Client();
   const driver = new S3StorageDriver({ client, bucket: 'b' });
