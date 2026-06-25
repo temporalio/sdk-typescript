@@ -62,7 +62,7 @@
     "verdaccio": "^6.5.0"
   },
   "engines": {
-    "node": ">= 20.0.0",
+    "node": ">= 20.3.0",
     "pnpm": ">= 10.27.0",
     "rustc": ">= 1.53.0"
   },
@@ -75,7 +75,7 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "protobufjs@7.5.8": "patches/protobufjs@7.5.8.patch"
+      "protobufjs@7.6.2": "patches/protobufjs@7.6.2.patch"
     }
   }
 }

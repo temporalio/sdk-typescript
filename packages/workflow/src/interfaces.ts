@@ -330,6 +330,11 @@ export interface ContinueAsNewOptions {
    */
   workflowTaskTimeout?: Duration;
   /**
+   * Delay before the first Workflow Task of the continued run is scheduled
+   * @format {@link https://www.npmjs.com/package/ms | ms-formatted string}
+   */
+  backoffStartInterval?: Duration;
+  /**
    * Non-searchable attributes to attach to next Workflow run
    */
   memo?: Record<string, unknown>;
