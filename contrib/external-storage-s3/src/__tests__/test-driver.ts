@@ -71,15 +71,12 @@ test('key is content-addressed and segmented by the store context', async (t) =>
   const [claim] = await driver.store(workflowContext, [payload]);
   assert(claim?.claimData.key);
 
-  // Content-addressed: the digest segment is the SHA-256 of the serialized payload
-  // bytes, and the store context fields form the preceding path segments in order.
   const digest = sha256Hex(payloadBytes(payload));
   t.is(claim.claimData.key, `v0/ns/my-ns/wt/MyWorkflow/wi/wf-1/ri/run-1/d/sha256/${digest}`);
   t.is(claim.claimData.hashValue, digest);
   t.is(claim.claimData.hashAlgorithm, 'sha256');
   t.is(claim.claimData.bucket, 'b');
 
-  // Different content under the same context changes only the trailing digest segment.
   const [other] = await driver.store(workflowContext, [makePayload('"world"')]);
   assert(other?.claimData.key);
   t.not(other.claimData.key, claim.claimData.key);
@@ -118,6 +115,15 @@ test('a target with no identity falls back to a bare digest key', async (t) => {
   assert(claim?.claimData.key);
 
   t.regex(claim.claimData.key, /^v0\/d\/sha256\/[0-9a-f]{64}$/);
+});
+
+test('missing context segments are encoded as the literal "null"', async (t) => {
+  const driver = new S3StorageDriver({ client: new FakeS3Client(), bucket: 'b' });
+
+  const [claim] = await driver.store({ target: { kind: 'workflow', namespace: 'my-ns' } }, [makePayload('"x"')]);
+  assert(claim?.claimData.key);
+
+  t.true(claim.claimData.key.startsWith('v0/ns/my-ns/wt/null/wi/null/ri/null/d/sha256/'));
 });
 
 test('identical payloads in the same scope deduplicate to one upload', async (t) => {

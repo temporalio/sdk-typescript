@@ -2,7 +2,7 @@
 
 > ⚠️ **This package is experimental and may be subject to change.** ⚠️
 
-`@temporalio/external-storage-s3` stores and retrieves Temporal payloads in Amazon S3 via the [External Storage](../../README.md) feature.
+`@temporalio/external-storage-s3` stores and retrieves Temporal payloads in Amazon S3 via the [External Storage](https://docs.temporal.io/external-storage) feature.
 
 This package has no AWS dependency: it defines the driver and the `S3StorageDriverClient` interface, and you supply the S3 client. Use the companion [`@temporalio/external-storage-s3-aws-sdk`](../external-storage-s3-aws-sdk) package for an [`@aws-sdk/client-s3`](https://www.npmjs.com/package/@aws-sdk/client-s3)-backed client, or implement the interface yourself.
 
