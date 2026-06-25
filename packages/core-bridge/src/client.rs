@@ -342,6 +342,7 @@ async fn client_invoke_workflow_service(
         "ListWorkflowRules" => rpc_call!(connection, call, list_workflow_rules),
         "PatchSchedule" => rpc_call!(connection, call, patch_schedule),
         "PauseActivity" => rpc_call!(connection, call, pause_activity),
+        "PauseActivityExecution" => rpc_call!(connection, call, pause_activity_execution),
         "PauseWorkflowExecution" => rpc_call!(connection, call, pause_workflow_execution),
         "PollActivityExecution" => rpc_call!(connection, call, poll_activity_execution),
         "PollActivityTaskQueue" => rpc_call!(connection, call, poll_activity_task_queue),
@@ -372,6 +373,7 @@ async fn client_invoke_workflow_service(
             rpc_call!(connection, call, request_cancel_workflow_execution)
         }
         "ResetActivity" => rpc_call!(connection, call, reset_activity),
+        "ResetActivityExecution" => rpc_call!(connection, call, reset_activity_execution),
         "ResetStickyTaskQueue" => rpc_call!(connection, call, reset_sticky_task_queue),
         "ResetWorkflowExecution" => rpc_call!(connection, call, reset_workflow_execution),
         "RespondActivityTaskCanceled" => {
@@ -425,7 +427,11 @@ async fn client_invoke_workflow_service(
         "TerminateWorkflowExecution" => rpc_call!(connection, call, terminate_workflow_execution),
         "TriggerWorkflowRule" => rpc_call!(connection, call, trigger_workflow_rule),
         "UnpauseActivity" => rpc_call!(connection, call, unpause_activity),
+        "UnpauseActivityExecution" => rpc_call!(connection, call, unpause_activity_execution),
         "UnpauseWorkflowExecution" => rpc_call!(connection, call, unpause_workflow_execution),
+        "UpdateActivityExecutionOptions" => {
+            rpc_call!(connection, call, update_activity_execution_options)
+        }
         "UpdateActivityOptions" => rpc_call!(connection, call, update_activity_options),
         "UpdateNamespace" => rpc_call!(connection, call, update_namespace),
         "UpdateSchedule" => rpc_call!(connection, call, update_schedule),
@@ -718,6 +724,7 @@ mod config {
                     client_cert: pair.client_cert,
                     client_private_key: pair.client_private_key,
                 }),
+                server_cert_verifier: None,
             }
         }
     }

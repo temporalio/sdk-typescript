@@ -1,5 +1,6 @@
 import type { Span as AgentSpan, SpanData, Trace as AgentTrace, TracingProcessor } from '@openai/agents-core';
 import { proxySinks, workflowInfo } from '@temporalio/workflow';
+import { AGENT_TRACING_SINK_NAME } from '../common/agent-sink-types';
 import type { AgentTracingSinks, SerializedAgentSpan, SerializedAgentTrace } from '../common/agent-sink-types';
 import { getCurrentPluginConfig } from './plugin-config-store';
 
@@ -7,8 +8,8 @@ function isReplayingHistoryEvents(): boolean {
   return workflowInfo().unsafe.isReplayingHistoryEvents;
 }
 
-function agentTracingSink(): AgentTracingSinks['agentTracing'] {
-  return proxySinks<AgentTracingSinks>().agentTracing;
+function agentTracingSink(): AgentTracingSinks[typeof AGENT_TRACING_SINK_NAME] {
+  return proxySinks<AgentTracingSinks>()[AGENT_TRACING_SINK_NAME];
 }
 
 function shouldForwardToOtel(): boolean {

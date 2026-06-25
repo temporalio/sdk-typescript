@@ -22,7 +22,7 @@
     "@temporalio/proto": "workspace:*"
   },
   "devDependencies": {
-    "protobufjs": "^7.5.8"
+    "protobufjs": "^7.6.2"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -34,7 +34,7 @@
   },
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/cloud",
   "engines": {
-    "node": ">= 20.0.0"
+    "node": ">= 20.3.0"
   },
   "publishConfig": {
     "access": "public"

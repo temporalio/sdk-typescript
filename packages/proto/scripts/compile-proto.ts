@@ -10,7 +10,7 @@ const outputDir = resolve(__dirname, '../protos');
 const jsOutputFile = resolve(outputDir, 'json-module.js');
 const tempFile = resolve(outputDir, 'temp.js');
 
-const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos');
+const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/crates/protos/protos');
 
 function mtime(path: string) {
   try {
@@ -87,6 +87,7 @@ async function main() {
     'temporal/api/cloud/cloudservice/v1/service.proto',
     'temporal/api/errordetails/v1/message.proto',
     'temporal/api/sdk/v1/workflow_metadata.proto',
+    'temporal/api/sdk/v1/external_storage.proto',
     'temporal/api/testservice/v1/request_response.proto',
     'temporal/api/testservice/v1/service.proto',
     'grpc/health/v1/health.proto',
