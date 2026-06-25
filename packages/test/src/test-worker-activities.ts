@@ -7,7 +7,7 @@ import { TemporalFailure, defaultPayloadConverter, toPayloads, ApplicationFailur
 import { coresdk, google } from '@temporalio/proto';
 import { msToTs } from '@temporalio/common/lib/time';
 import { httpGet } from './activities';
-import { cleanOptionalStackTrace, isBun } from './helpers';
+import { cleanOptionalStackTrace, compareStackTrace, isBun } from './helpers';
 import type { Worker } from './mock-native-worker';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { withZeroesHTTPServer } from './zeroes-http-server';
@@ -44,8 +44,14 @@ function compareCompletion(
   expected: coresdk.activity_result.IActivityExecutionResult
 ) {
   if (actual?.failed?.failure) {
+    // The stack trace's header line varies by engine (e.g. Bun can render a bare `Error`), so pull
+    // `stackTrace` out of both sides and compare it loosely via compareStackTrace ($CLASS header).
+    // Everything else on the failure is still compared exactly by the deepEqual below.
     const { stackTrace, ...rest } = actual.failed.failure;
-    actual = { failed: { failure: { stackTrace: cleanOptionalStackTrace(stackTrace), ...rest } } };
+    const { stackTrace: expectedStackTrace, ...expectedRest } = expected.failed?.failure ?? {};
+    compareStackTrace(t, cleanOptionalStackTrace(stackTrace) ?? '', (expectedStackTrace as string | undefined) ?? '');
+    actual = { failed: { failure: rest } };
+    expected = { failed: { failure: expectedRest } };
   }
   t.deepEqual(
     coresdk.activity_result.ActivityExecutionResult.create(actual ?? undefined).toJSON(),
@@ -136,7 +142,7 @@ test('Worker runs an activity and reports failure', async (t) => {
           source: 'TypeScriptSDK',
           stackTrace: isBun
             ? dedent`
-            Error: :(
+            $CLASS
                 at throwAnError (test/lib/activities/index.js)`
             : dedent`
             Error: :(
