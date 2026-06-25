@@ -14,7 +14,6 @@ import { untrackPromise } from './stack-helpers';
 
 const global = globalThis as any;
 const OriginalDate = globalThis.Date;
-export const OriginalMathRandom = globalThis.Math.random;
 
 export function overrideGlobals(): void {
   // Mock any weak reference because GC is non-deterministic and the effect is observable from the Workflow.

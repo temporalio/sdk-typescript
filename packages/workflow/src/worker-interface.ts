@@ -11,13 +11,13 @@ import type { WorkflowCreateOptionsInternal } from './interfaces';
 import { Activator } from './internals';
 import { composeInterceptors } from './interceptor-composition';
 import { setActivator, getActivator, maybeGetActivator } from './global-attributes';
-import { OriginalMathRandom } from './global-overrides';
 import { createUnsafeRandomSource } from './random-helpers';
 
 // Export the type for use on the "worker" side
 export { PromiseStackStore } from './internals';
 
 const OriginalDate = globalThis.Date;
+const OriginalMathRandom = globalThis.Math.random;
 
 /**
  * Initialize the isolate runtime.

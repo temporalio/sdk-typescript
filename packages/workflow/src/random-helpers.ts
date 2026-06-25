@@ -29,6 +29,6 @@ export function createUnsafeRandomSource(random: () => number): UnsafeRandomSour
     fillRandom: (bytes) => fillWithRandom(random, bytes),
   };
   // Omit from JSON like `now`: the methods otherwise stringify to a misleading empty {}.
-  Object.defineProperty(source, 'toJSON', { value: () => undefined });
+  Object.defineProperty(source, 'toJSON', { value: () => undefined, enumerable: true });
   return source;
 }
