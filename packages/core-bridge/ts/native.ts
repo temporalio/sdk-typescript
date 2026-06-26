@@ -136,6 +136,7 @@ export interface ClientOptions {
   tls: Option<TlsOptions>;
   httpConnectProxy: Option<HttpConnectProxy>;
   dnsLoadBalancingConfig: Option<DnsLoadBalancingConfig>;
+  grpcCompression: GrpcCompressionConfig;
   headers: Option<Record<string, MetadataValue>>;
   apiKey: Option<string>;
   disableErrorCodeMetricTags: boolean;
@@ -167,6 +168,16 @@ export interface HttpConnectProxyBasicAuth {
 
 export interface DnsLoadBalancingConfig {
   resolutionIntervalMillis: number;
+}
+
+export type GrpcCompressionConfig = GzipGrpcCompressionConfig | NoneGrpcCompressionConfig;
+
+export interface GzipGrpcCompressionConfig {
+  codec: 'gzip';
+}
+
+export interface NoneGrpcCompressionConfig {
+  codec: 'none';
 }
 
 export interface RpcCall {
