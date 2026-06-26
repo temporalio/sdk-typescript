@@ -510,3 +510,13 @@ test('NativeConnection: DNS load balancing config is converted to native millise
   });
   t.deepEqual(options.dnsLoadBalancingConfig, { resolutionIntervalMillis: 5000 });
 });
+
+test('NativeConnection: gRPC compression defaults to gzip', (t) => {
+  const options = toNativeClientOptions({});
+  t.deepEqual(options.grpcCompression, { codec: 'gzip' });
+});
+
+test('NativeConnection: gRPC compression can be disabled', (t) => {
+  const options = toNativeClientOptions({ grpcCompression: { codec: 'none' } });
+  t.deepEqual(options.grpcCompression, { codec: 'none' });
+});
