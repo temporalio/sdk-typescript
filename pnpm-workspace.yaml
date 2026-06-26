@@ -20,6 +20,8 @@ packages:
   - contrib/ai-sdk
   - contrib/interceptors-opentelemetry
   - contrib/openai-agents
+  - contrib/external-storage-gcs
+  - contrib/external-storage-gcs-google-sdk
   - contrib/workflow-streams
   - scripts
 
