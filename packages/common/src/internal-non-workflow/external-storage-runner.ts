@@ -13,7 +13,7 @@ import type {
   StorageDriverStoreContext,
   StorageDriverTargetInfo,
 } from '../converter/extstore';
-import { ExternalStorageDriverOperationFailedError, ValueError } from '../errors';
+import { ValueError } from '../errors';
 import type { Payload } from '../interfaces';
 import { decodeReferencePayload, encodeReferencePayload, isReferencePayload } from './extstore-helpers';
 
@@ -85,11 +85,9 @@ export class ExternalStorageRunner {
 
     const result = payloads.slice();
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
-      const claims = await callDriver(group.driver, 'store', () =>
-        group.driver.store(
-          storeCtx,
-          group.items.map((it) => it.payload)
-        )
+      const claims = await group.driver.store(
+        storeCtx,
+        group.items.map((it) => it.payload)
       );
       if (claims.length !== group.items.length) {
         throw new ValueError(
@@ -144,11 +142,9 @@ export class ExternalStorageRunner {
 
     const result = payloads.slice();
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
-      const retrieved = await callDriver(group.driver, 'retrieve', () =>
-        group.driver.retrieve(
-          retrieveCtx,
-          group.items.map((it) => it.claim)
-        )
+      const retrieved = await group.driver.retrieve(
+        retrieveCtx,
+        group.items.map((it) => it.claim)
       );
       if (retrieved.length !== group.items.length) {
         throw new ValueError(
@@ -181,22 +177,6 @@ function makeBatchSignal(abortSignal?: AbortSignal): { batchSignal: AbortSignal;
   const batchController = new AbortController();
   const batchSignal = abortSignal ? AbortSignal.any([batchController.signal, abortSignal]) : batchController.signal;
   return { batchSignal, batchController };
-}
-
-/** Invoke a driver call, wrapping non-Temporal errors as `ExternalStorageDriverOperationFailedError`. */
-async function callDriver<T>(driver: StorageDriver, operation: 'store' | 'retrieve', fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (cause) {
-    if (cause instanceof ExternalStorageDriverOperationFailedError) throw cause;
-    const message = cause instanceof Error ? cause.message : String(cause);
-    throw new ExternalStorageDriverOperationFailedError(
-      `Driver '${driver.name}' ${operation} failed: ${message}`,
-      driver.name,
-      operation,
-      cause
-    );
-  }
 }
 
 /**
