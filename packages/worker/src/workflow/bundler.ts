@@ -58,6 +58,10 @@ export class WorkflowCodeBundler {
   protected readonly webpackConfigHook: (config: Configuration) => Configuration;
   protected readonly plugins: BundlerPlugin[];
 
+  protected isIgnoredModule(module: string): boolean {
+    return moduleMatches(module, this.ignoreModules);
+  }
+
   constructor(options: BundleOptions) {
     this.plugins = options.plugins ?? [];
     for (const plugin of this.plugins) {
@@ -218,7 +222,7 @@ exports.importInterceptors = function importInterceptors() {
         ? data.request.slice('node:'.length)
         : data.request ?? '';
 
-      if (moduleMatches(module, disallowedModules) && !moduleMatches(module, this.ignoreModules)) {
+      if (moduleMatches(module, disallowedModules) && !this.isIgnoredModule(module)) {
         this.foundProblematicModules.add(module);
       }
 
@@ -246,7 +250,7 @@ exports.importInterceptors = function importInterceptors() {
                   .for(moduleType)
                   .tap('WorkflowCodeBundler', (javascriptParser: javascript.JavascriptParser) => {
                     javascriptParser.hooks.expression.for('process').tap('WorkflowCodeBundler', () => {
-                      if (!javascriptParser.isVariableDefined('process')) {
+                      if (!javascriptParser.isVariableDefined('process') && !this.isIgnoredModule('process')) {
                         this.foundProblematicModules.add('process');
                       }
                     });

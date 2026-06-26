@@ -14,6 +14,7 @@ export const baseBundlerIgnoreModules = [
   '@temporalio/nexus',
   '@temporalio/worker',
   'ava',
+  'process',
   'crypto',
   'module',
   'path',

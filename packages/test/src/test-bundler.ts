@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import test from 'ava';
 import { moduleMatches } from '@temporalio/worker/lib/workflow/bundler';
+import { baseBundlerIgnoreModules } from '@temporalio/test-helpers';
 import type { LogEntry, WorkerOptions } from '@temporalio/worker';
 import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
@@ -32,6 +33,15 @@ test('An error is thrown when workflow references the process global', async (t)
       instanceOf: Error,
       message: /is importing the following disallowed modules.*process/s,
     }
+  );
+});
+
+test('Workflow bundle can be created from code using process global with test helper ignoreModules', async (t) => {
+  await t.notThrowsAsync(
+    bundleWorkflowCode({
+      workflowsPath: require.resolve('./mocks/workflows-with-process-global'),
+      ignoreModules: baseBundlerIgnoreModules,
+    })
   );
 });
 
