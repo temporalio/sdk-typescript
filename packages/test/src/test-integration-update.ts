@@ -162,7 +162,11 @@ test('updateWithStart failure: invalid argument', async (t) => {
   ]) {
     const err = await t.throwsAsync(promise);
     t.true(isGrpcServiceError(err) && err.code === grpcStatus.INVALID_ARGUMENT);
-    t.true(err?.message.startsWith('WorkflowId length exceeds limit.'));
+    // The exact wording of this server-side validation message has changed across server
+    // versions (e.g. 'WorkflowId length exceeds limit.' vs
+    // 'WorkflowId exceeds maximum allowed length (2772/1000)'), so match on the stable parts
+    // rather than an exact prefix.
+    t.regex(err?.message ?? '', /workflowid.*length/i);
   }
 });
 
