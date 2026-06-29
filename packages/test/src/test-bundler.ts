@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import test from 'ava';
 import { moduleMatches } from '@temporalio/worker/lib/workflow/bundler';
+import { baseBundlerIgnoreModules } from '@temporalio/test-helpers';
 import type { LogEntry, WorkerOptions } from '@temporalio/worker';
 import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
@@ -21,6 +22,27 @@ test('moduleMatches works', (t) => {
   t.true(moduleMatches('fs', ['fs']));
   t.true(moduleMatches('fs/lib/foo', ['fs']));
   t.false(moduleMatches('fs', ['foo']));
+});
+
+test('An error is thrown when workflow references the process global', async (t) => {
+  await t.throwsAsync(
+    bundleWorkflowCode({
+      workflowsPath: require.resolve('./mocks/workflows-with-process-global'),
+    }),
+    {
+      instanceOf: Error,
+      message: /is importing the following disallowed modules.*process/s,
+    }
+  );
+});
+
+test('Workflow bundle can be created from code using process global with test helper ignoreModules', async (t) => {
+  await t.notThrowsAsync(
+    bundleWorkflowCode({
+      workflowsPath: require.resolve('./mocks/workflows-with-process-global'),
+      ignoreModules: baseBundlerIgnoreModules,
+    })
+  );
 });
 
 async function runPreloadSharedCounter(

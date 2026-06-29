@@ -4,7 +4,7 @@ import path from 'node:path';
 import util from 'node:util';
 import * as unionfs from 'unionfs';
 import * as memfs from 'memfs';
-import type { Configuration } from 'webpack';
+import type { Configuration, javascript } from 'webpack';
 import { webpack, NormalModuleReplacementPlugin } from 'webpack';
 import type { Logger } from '../logger';
 import { DefaultLogger, hasColorSupport } from '../logger';
@@ -57,6 +57,10 @@ export class WorkflowCodeBundler {
   protected readonly preloadModules: string[];
   protected readonly webpackConfigHook: (config: Configuration) => Configuration;
   protected readonly plugins: BundlerPlugin[];
+
+  protected isIgnoredModule(module: string): boolean {
+    return moduleMatches(module, this.ignoreModules);
+  }
 
   constructor(options: BundleOptions) {
     this.plugins = options.plugins ?? [];
@@ -218,7 +222,7 @@ exports.importInterceptors = function importInterceptors() {
         ? data.request.slice('node:'.length)
         : data.request ?? '';
 
-      if (moduleMatches(module, disallowedModules) && !moduleMatches(module, this.ignoreModules)) {
+      if (moduleMatches(module, disallowedModules) && !this.isIgnoredModule(module)) {
         this.foundProblematicModules.add(module);
       }
 
@@ -238,6 +242,23 @@ exports.importInterceptors = function importInterceptors() {
         },
       },
       plugins: [
+        {
+          apply: (compiler) => {
+            compiler.hooks.normalModuleFactory.tap('WorkflowCodeBundler', (normalModuleFactory) => {
+              for (const moduleType of ['javascript/auto', 'javascript/dynamic', 'javascript/esm'] as const) {
+                normalModuleFactory.hooks.parser
+                  .for(moduleType)
+                  .tap('WorkflowCodeBundler', (javascriptParser: javascript.JavascriptParser) => {
+                    javascriptParser.hooks.expression.for('process').tap('WorkflowCodeBundler', () => {
+                      if (!javascriptParser.isVariableDefined('process') && !this.isIgnoredModule('process')) {
+                        this.foundProblematicModules.add('process');
+                      }
+                    });
+                  });
+              }
+            });
+          },
+        },
         // `@temporalio/interceptors-opentelemetry` only requires `@temporalio/workflow` for interceptors that run in workflow context.
         // In order to keep `@temporalio/workflow` as an optional peer dependency for `@temporalio/interceptors-opentelemetry`
         // we use `workflow-imports` to reexport all required imports from `@temporalio/workflow`.
