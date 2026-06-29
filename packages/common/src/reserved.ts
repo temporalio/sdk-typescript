@@ -13,11 +13,13 @@ export type ReservedNameEntityType = 'query' | 'signal' | 'update' | 'activity' 
  * the {@link TEMPORAL_RESERVED_PREFIX} check at registration time. Registering
  * the same name as a different entity type is still rejected.
  */
-const INTERNAL_HANDLER_NAME_ALLOWLIST: ReadonlyMap<string, ReservedNameEntityType> = new Map([
+const INTERNAL_RESERVED_NAME_ALLOWLIST: ReadonlyMap<string, ReservedNameEntityType> = new Map([
   // @temporalio/workflow-streams
   ['__temporal_workflow_stream_publish', 'signal'],
   ['__temporal_workflow_stream_poll', 'update'],
   ['__temporal_workflow_stream_offset', 'query'],
+  // @temporalio/openai-agents
+  ['__temporal_openai_agents_tracing', 'sink'],
 ]);
 
 /**
@@ -29,7 +31,7 @@ const INTERNAL_HANDLER_NAME_ALLOWLIST: ReadonlyMap<string, ReservedNameEntityTyp
  * @param name The name to check against reserved prefixes/names
  */
 export function throwIfReservedName(type: ReservedNameEntityType, name: string): void {
-  if (name.startsWith(TEMPORAL_RESERVED_PREFIX) && INTERNAL_HANDLER_NAME_ALLOWLIST.get(name) !== type) {
+  if (name.startsWith(TEMPORAL_RESERVED_PREFIX) && INTERNAL_RESERVED_NAME_ALLOWLIST.get(name) !== type) {
     throw new TypeError(`Cannot use ${type} name: '${name}', with reserved prefix: '${TEMPORAL_RESERVED_PREFIX}'`);
   }
 

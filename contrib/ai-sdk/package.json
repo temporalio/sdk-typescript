@@ -59,7 +59,7 @@
     "zod": "^3.25.76"
   },
   "engines": {
-    "node": ">= 20.0.0"
+    "node": ">= 20.3.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
