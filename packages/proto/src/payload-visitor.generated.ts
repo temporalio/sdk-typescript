@@ -3,481 +3,566 @@
 import type { coresdk, temporal } from '../protos/root';
 
 type Payload = temporal.api.common.v1.IPayload;
-type Visit = (payloads: Payload[], abortSignal?: AbortSignal) => Promise<Payload[]>;
+
+export interface WalkEnv<Ctx> {
+  transform(payloads: Payload[], context: Ctx): Promise<Payload[]>;
+  deriveContext?(message: object, typeName: string, context: Ctx): Ctx;
+  skipHeaders: boolean;
+  skipSearchAttributes: boolean;
+}
 
 function one(payloads: Payload[]): Payload {
   if (payloads.length !== 1) {
-    throw new Error(`payload visitor: a singular field transform returned ${payloads.length} payloads, expected 1`);
+    throw new Error(`payload visitor: a single-payload field requires exactly 1 payload, got ${payloads.length}`);
   }
   return payloads[0]!;
 }
 
-function many(payloads: Payload[], expected: number): Payload[] {
-  if (payloads.length !== expected) {
-    throw new Error(
-      `payload visitor: a repeated field transform returned ${payloads.length} payloads, expected ${expected}`
-    );
-  }
-  return payloads;
-}
-
-export function walkWorkflowActivation(
+export function walkWorkflowActivation<Ctx>(
   root: coresdk.workflow_activation.IWorkflowActivation,
-  visit: Visit
+  env: WalkEnv<Ctx>,
+  context: Ctx
 ): Promise<unknown>[] {
   const pending: Promise<unknown>[] = [];
-  walk_coresdk_workflow_activation_WorkflowActivation(root, visit, pending);
+  walk_coresdk_workflow_activation_WorkflowActivation(root, env, context, pending);
   return pending;
 }
 
-export function walkWorkflowActivationCompletion(
+export function walkWorkflowActivationCompletion<Ctx>(
   root: coresdk.workflow_completion.IWorkflowActivationCompletion,
-  visit: Visit
+  env: WalkEnv<Ctx>,
+  context: Ctx
 ): Promise<unknown>[] {
   const pending: Promise<unknown>[] = [];
-  walk_coresdk_workflow_completion_WorkflowActivationCompletion(root, visit, pending);
+  walk_coresdk_workflow_completion_WorkflowActivationCompletion(root, env, context, pending);
   return pending;
 }
 
-function walk_coresdk_activity_result_ActivityResolution(
+function walk_coresdk_activity_result_ActivityResolution<Ctx>(
   o: coresdk.activity_result.IActivityResolution,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.activity_result.ActivityResolution', context) : context;
   {
     const c = o.completed;
-    if (c != null) walk_coresdk_activity_result_Success(c, visit, pending);
+    if (c != null) walk_coresdk_activity_result_Success(c, env, ctx, pending);
   }
   {
     const c = o.failed;
-    if (c != null) walk_coresdk_activity_result_Failure(c, visit, pending);
+    if (c != null) walk_coresdk_activity_result_Failure(c, env, ctx, pending);
   }
   {
     const c = o.cancelled;
-    if (c != null) walk_coresdk_activity_result_Cancellation(c, visit, pending);
+    if (c != null) walk_coresdk_activity_result_Cancellation(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_activity_result_Cancellation(
+function walk_coresdk_activity_result_Cancellation<Ctx>(
   o: coresdk.activity_result.ICancellation,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.activity_result.Cancellation', context) : context;
   {
     const c = o.failure;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_activity_result_Failure(
+function walk_coresdk_activity_result_Failure<Ctx>(
   o: coresdk.activity_result.IFailure,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.activity_result.Failure', context) : context;
   {
     const c = o.failure;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_activity_result_Success(
+function walk_coresdk_activity_result_Success<Ctx>(
   o: coresdk.activity_result.ISuccess,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.activity_result.Success', context) : context;
   {
     const p = o.result;
     if (p != null)
       pending.push(
-        visit([p]).then((r) => {
+        env.transform([p], ctx).then((r) => {
           o.result = one(r);
         })
       );
   }
 }
 
-function walk_coresdk_child_workflow_Cancellation(
+function walk_coresdk_child_workflow_Cancellation<Ctx>(
   o: coresdk.child_workflow.ICancellation,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.child_workflow.Cancellation', context) : context;
   {
     const c = o.failure;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_child_workflow_ChildWorkflowResult(
+function walk_coresdk_child_workflow_ChildWorkflowResult<Ctx>(
   o: coresdk.child_workflow.IChildWorkflowResult,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.child_workflow.ChildWorkflowResult', context) : context;
   {
     const c = o.completed;
-    if (c != null) walk_coresdk_child_workflow_Success(c, visit, pending);
+    if (c != null) walk_coresdk_child_workflow_Success(c, env, ctx, pending);
   }
   {
     const c = o.failed;
-    if (c != null) walk_coresdk_child_workflow_Failure(c, visit, pending);
+    if (c != null) walk_coresdk_child_workflow_Failure(c, env, ctx, pending);
   }
   {
     const c = o.cancelled;
-    if (c != null) walk_coresdk_child_workflow_Cancellation(c, visit, pending);
+    if (c != null) walk_coresdk_child_workflow_Cancellation(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_child_workflow_Failure(
+function walk_coresdk_child_workflow_Failure<Ctx>(
   o: coresdk.child_workflow.IFailure,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.child_workflow.Failure', context) : context;
   {
     const c = o.failure;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_child_workflow_Success(
+function walk_coresdk_child_workflow_Success<Ctx>(
   o: coresdk.child_workflow.ISuccess,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.child_workflow.Success', context) : context;
   {
     const p = o.result;
     if (p != null)
       pending.push(
-        visit([p]).then((r) => {
+        env.transform([p], ctx).then((r) => {
           o.result = one(r);
         })
       );
   }
 }
 
-function walk_coresdk_nexus_NexusOperationResult(
+function walk_coresdk_nexus_NexusOperationResult<Ctx>(
   o: coresdk.nexus.INexusOperationResult,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.nexus.NexusOperationResult', context) : context;
   {
     const p = o.completed;
     if (p != null)
       pending.push(
-        visit([p]).then((r) => {
+        env.transform([p], ctx).then((r) => {
           o.completed = one(r);
         })
       );
   }
   {
     const c = o.failed;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
   {
     const c = o.cancelled;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
   {
     const c = o.timedOut;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_activation_DoUpdate(
+function walk_coresdk_workflow_activation_DoUpdate<Ctx>(
   o: coresdk.workflow_activation.IDoUpdate,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.workflow_activation.DoUpdate', context) : context;
   {
     const a = o.input;
     if (a && a.length)
       pending.push(
-        visit(a).then((r) => {
-          o.input = many(r, a.length);
+        env.transform(a, ctx).then((r) => {
+          o.input = r;
         })
       );
   }
   {
-    const m = o.headers;
-    if (m)
-      for (const [k, v] of Object.entries(m))
-        pending.push(
-          visit([v]).then((r) => {
-            m[k] = one(r);
-          })
-        );
+    if (!env.skipHeaders) {
+      const m = o.headers;
+      if (m)
+        for (const [k, v] of Object.entries(m))
+          pending.push(
+            env.transform([v], ctx).then((r) => {
+              m[k] = one(r);
+            })
+          );
+    }
   }
 }
 
-function walk_coresdk_workflow_activation_InitializeWorkflow(
+function walk_coresdk_workflow_activation_InitializeWorkflow<Ctx>(
   o: coresdk.workflow_activation.IInitializeWorkflow,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_activation.InitializeWorkflow', context)
+    : context;
   {
     const a = o.arguments;
     if (a && a.length)
       pending.push(
-        visit(a).then((r) => {
-          o.arguments = many(r, a.length);
+        env.transform(a, ctx).then((r) => {
+          o.arguments = r;
         })
       );
   }
   {
-    const m = o.headers;
-    if (m)
-      for (const [k, v] of Object.entries(m))
-        pending.push(
-          visit([v]).then((r) => {
-            m[k] = one(r);
-          })
-        );
+    if (!env.skipHeaders) {
+      const m = o.headers;
+      if (m)
+        for (const [k, v] of Object.entries(m))
+          pending.push(
+            env.transform([v], ctx).then((r) => {
+              m[k] = one(r);
+            })
+          );
+    }
   }
   {
     const c = o.continuedFailure;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
   {
     const c = o.lastCompletionResult;
-    if (c != null) walk_temporal_api_common_v1_Payloads(c, visit, pending);
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
   {
     const c = o.memo;
-    if (c != null) walk_temporal_api_common_v1_Memo(c, visit, pending);
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
   }
   {
-    const c = o.searchAttributes;
-    if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, visit, pending);
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
   }
 }
 
-function walk_coresdk_workflow_activation_QueryWorkflow(
+function walk_coresdk_workflow_activation_QueryWorkflow<Ctx>(
   o: coresdk.workflow_activation.IQueryWorkflow,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.workflow_activation.QueryWorkflow', context) : context;
   {
     const a = o.arguments;
     if (a && a.length)
       pending.push(
-        visit(a).then((r) => {
-          o.arguments = many(r, a.length);
+        env.transform(a, ctx).then((r) => {
+          o.arguments = r;
         })
       );
   }
   {
-    const m = o.headers;
-    if (m)
-      for (const [k, v] of Object.entries(m))
-        pending.push(
-          visit([v]).then((r) => {
-            m[k] = one(r);
-          })
-        );
+    if (!env.skipHeaders) {
+      const m = o.headers;
+      if (m)
+        for (const [k, v] of Object.entries(m))
+          pending.push(
+            env.transform([v], ctx).then((r) => {
+              m[k] = one(r);
+            })
+          );
+    }
   }
 }
 
-function walk_coresdk_workflow_activation_ResolveActivity(
+function walk_coresdk_workflow_activation_ResolveActivity<Ctx>(
   o: coresdk.workflow_activation.IResolveActivity,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_activation.ResolveActivity', context)
+    : context;
   {
     const c = o.result;
-    if (c != null) walk_coresdk_activity_result_ActivityResolution(c, visit, pending);
+    if (c != null) walk_coresdk_activity_result_ActivityResolution(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_activation_ResolveChildWorkflowExecution(
+function walk_coresdk_workflow_activation_ResolveChildWorkflowExecution<Ctx>(
   o: coresdk.workflow_activation.IResolveChildWorkflowExecution,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_activation.ResolveChildWorkflowExecution', context)
+    : context;
   {
     const c = o.result;
-    if (c != null) walk_coresdk_child_workflow_ChildWorkflowResult(c, visit, pending);
+    if (c != null) walk_coresdk_child_workflow_ChildWorkflowResult(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_activation_ResolveChildWorkflowExecutionStart(
+function walk_coresdk_workflow_activation_ResolveChildWorkflowExecutionStart<Ctx>(
   o: coresdk.workflow_activation.IResolveChildWorkflowExecutionStart,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_activation.ResolveChildWorkflowExecutionStart', context)
+    : context;
   {
     const c = o.cancelled;
-    if (c != null) walk_coresdk_workflow_activation_ResolveChildWorkflowExecutionStartCancelled(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_activation_ResolveChildWorkflowExecutionStartCancelled(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_activation_ResolveChildWorkflowExecutionStartCancelled(
+function walk_coresdk_workflow_activation_ResolveChildWorkflowExecutionStartCancelled<Ctx>(
   o: coresdk.workflow_activation.IResolveChildWorkflowExecutionStartCancelled,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_activation.ResolveChildWorkflowExecutionStartCancelled', context)
+    : context;
   {
     const c = o.failure;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_activation_ResolveNexusOperation(
+function walk_coresdk_workflow_activation_ResolveNexusOperation<Ctx>(
   o: coresdk.workflow_activation.IResolveNexusOperation,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_activation.ResolveNexusOperation', context)
+    : context;
   {
     const c = o.result;
-    if (c != null) walk_coresdk_nexus_NexusOperationResult(c, visit, pending);
+    if (c != null) walk_coresdk_nexus_NexusOperationResult(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_activation_ResolveNexusOperationStart(
+function walk_coresdk_workflow_activation_ResolveNexusOperationStart<Ctx>(
   o: coresdk.workflow_activation.IResolveNexusOperationStart,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_activation.ResolveNexusOperationStart', context)
+    : context;
   {
     const c = o.failed;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_activation_ResolveRequestCancelExternalWorkflow(
+function walk_coresdk_workflow_activation_ResolveRequestCancelExternalWorkflow<Ctx>(
   o: coresdk.workflow_activation.IResolveRequestCancelExternalWorkflow,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_activation.ResolveRequestCancelExternalWorkflow', context)
+    : context;
   {
     const c = o.failure;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_activation_ResolveSignalExternalWorkflow(
+function walk_coresdk_workflow_activation_ResolveSignalExternalWorkflow<Ctx>(
   o: coresdk.workflow_activation.IResolveSignalExternalWorkflow,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_activation.ResolveSignalExternalWorkflow', context)
+    : context;
   {
     const c = o.failure;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_activation_SignalWorkflow(
+function walk_coresdk_workflow_activation_SignalWorkflow<Ctx>(
   o: coresdk.workflow_activation.ISignalWorkflow,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.workflow_activation.SignalWorkflow', context) : context;
   {
     const a = o.input;
     if (a && a.length)
       pending.push(
-        visit(a).then((r) => {
-          o.input = many(r, a.length);
+        env.transform(a, ctx).then((r) => {
+          o.input = r;
         })
       );
   }
   {
-    const m = o.headers;
-    if (m)
-      for (const [k, v] of Object.entries(m))
-        pending.push(
-          visit([v]).then((r) => {
-            m[k] = one(r);
-          })
-        );
+    if (!env.skipHeaders) {
+      const m = o.headers;
+      if (m)
+        for (const [k, v] of Object.entries(m))
+          pending.push(
+            env.transform([v], ctx).then((r) => {
+              m[k] = one(r);
+            })
+          );
+    }
   }
 }
 
-function walk_coresdk_workflow_activation_WorkflowActivation(
+function walk_coresdk_workflow_activation_WorkflowActivation<Ctx>(
   o: coresdk.workflow_activation.IWorkflowActivation,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_activation.WorkflowActivation', context)
+    : context;
   {
     const a = o.jobs;
-    if (a) for (const v of a) walk_coresdk_workflow_activation_WorkflowActivationJob(v, visit, pending);
+    if (a) for (const v of a) walk_coresdk_workflow_activation_WorkflowActivationJob(v, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_activation_WorkflowActivationJob(
+function walk_coresdk_workflow_activation_WorkflowActivationJob<Ctx>(
   o: coresdk.workflow_activation.IWorkflowActivationJob,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_activation.WorkflowActivationJob', context)
+    : context;
   {
     const c = o.initializeWorkflow;
-    if (c != null) walk_coresdk_workflow_activation_InitializeWorkflow(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_activation_InitializeWorkflow(c, env, ctx, pending);
   }
   {
     const c = o.queryWorkflow;
-    if (c != null) walk_coresdk_workflow_activation_QueryWorkflow(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_activation_QueryWorkflow(c, env, ctx, pending);
   }
   {
     const c = o.signalWorkflow;
-    if (c != null) walk_coresdk_workflow_activation_SignalWorkflow(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_activation_SignalWorkflow(c, env, ctx, pending);
   }
   {
     const c = o.resolveActivity;
-    if (c != null) walk_coresdk_workflow_activation_ResolveActivity(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_activation_ResolveActivity(c, env, ctx, pending);
   }
   {
     const c = o.resolveChildWorkflowExecutionStart;
-    if (c != null) walk_coresdk_workflow_activation_ResolveChildWorkflowExecutionStart(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_activation_ResolveChildWorkflowExecutionStart(c, env, ctx, pending);
   }
   {
     const c = o.resolveChildWorkflowExecution;
-    if (c != null) walk_coresdk_workflow_activation_ResolveChildWorkflowExecution(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_activation_ResolveChildWorkflowExecution(c, env, ctx, pending);
   }
   {
     const c = o.resolveSignalExternalWorkflow;
-    if (c != null) walk_coresdk_workflow_activation_ResolveSignalExternalWorkflow(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_activation_ResolveSignalExternalWorkflow(c, env, ctx, pending);
   }
   {
     const c = o.resolveRequestCancelExternalWorkflow;
-    if (c != null) walk_coresdk_workflow_activation_ResolveRequestCancelExternalWorkflow(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_activation_ResolveRequestCancelExternalWorkflow(c, env, ctx, pending);
   }
   {
     const c = o.doUpdate;
-    if (c != null) walk_coresdk_workflow_activation_DoUpdate(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_activation_DoUpdate(c, env, ctx, pending);
   }
   {
     const c = o.resolveNexusOperationStart;
-    if (c != null) walk_coresdk_workflow_activation_ResolveNexusOperationStart(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_activation_ResolveNexusOperationStart(c, env, ctx, pending);
   }
   {
     const c = o.resolveNexusOperation;
-    if (c != null) walk_coresdk_workflow_activation_ResolveNexusOperation(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_activation_ResolveNexusOperation(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_commands_CompleteWorkflowExecution(
+function walk_coresdk_workflow_commands_CompleteWorkflowExecution<Ctx>(
   o: coresdk.workflow_commands.ICompleteWorkflowExecution,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_commands.CompleteWorkflowExecution', context)
+    : context;
   {
     const p = o.result;
     if (p != null)
       pending.push(
-        visit([p]).then((r) => {
+        env.transform([p], ctx).then((r) => {
           o.result = one(r);
         })
       );
   }
 }
 
-function walk_coresdk_workflow_commands_ContinueAsNewWorkflowExecution(
+function walk_coresdk_workflow_commands_ContinueAsNewWorkflowExecution<Ctx>(
   o: coresdk.workflow_commands.IContinueAsNewWorkflowExecution,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_commands.ContinueAsNewWorkflowExecution', context)
+    : context;
   {
     const a = o.arguments;
     if (a && a.length)
       pending.push(
-        visit(a).then((r) => {
-          o.arguments = many(r, a.length);
+        env.transform(a, ctx).then((r) => {
+          o.arguments = r;
         })
       );
   }
@@ -486,481 +571,567 @@ function walk_coresdk_workflow_commands_ContinueAsNewWorkflowExecution(
     if (m)
       for (const [k, v] of Object.entries(m))
         pending.push(
-          visit([v]).then((r) => {
+          env.transform([v], ctx).then((r) => {
             m[k] = one(r);
           })
         );
   }
   {
-    const m = o.headers;
-    if (m)
-      for (const [k, v] of Object.entries(m))
-        pending.push(
-          visit([v]).then((r) => {
-            m[k] = one(r);
-          })
-        );
+    if (!env.skipHeaders) {
+      const m = o.headers;
+      if (m)
+        for (const [k, v] of Object.entries(m))
+          pending.push(
+            env.transform([v], ctx).then((r) => {
+              m[k] = one(r);
+            })
+          );
+    }
   }
   {
-    const c = o.searchAttributes;
-    if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, visit, pending);
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
   }
 }
 
-function walk_coresdk_workflow_commands_FailWorkflowExecution(
+function walk_coresdk_workflow_commands_FailWorkflowExecution<Ctx>(
   o: coresdk.workflow_commands.IFailWorkflowExecution,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_commands.FailWorkflowExecution', context)
+    : context;
   {
     const c = o.failure;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_commands_ModifyWorkflowProperties(
+function walk_coresdk_workflow_commands_ModifyWorkflowProperties<Ctx>(
   o: coresdk.workflow_commands.IModifyWorkflowProperties,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_commands.ModifyWorkflowProperties', context)
+    : context;
   {
     const c = o.upsertedMemo;
-    if (c != null) walk_temporal_api_common_v1_Memo(c, visit, pending);
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_commands_QueryResult(
+function walk_coresdk_workflow_commands_QueryResult<Ctx>(
   o: coresdk.workflow_commands.IQueryResult,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.workflow_commands.QueryResult', context) : context;
   {
     const c = o.succeeded;
-    if (c != null) walk_coresdk_workflow_commands_QuerySuccess(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_commands_QuerySuccess(c, env, ctx, pending);
   }
   {
     const c = o.failed;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_commands_QuerySuccess(
+function walk_coresdk_workflow_commands_QuerySuccess<Ctx>(
   o: coresdk.workflow_commands.IQuerySuccess,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.workflow_commands.QuerySuccess', context) : context;
   {
     const p = o.response;
     if (p != null)
       pending.push(
-        visit([p]).then((r) => {
+        env.transform([p], ctx).then((r) => {
           o.response = one(r);
         })
       );
   }
 }
 
-function walk_coresdk_workflow_commands_ScheduleActivity(
+function walk_coresdk_workflow_commands_ScheduleActivity<Ctx>(
   o: coresdk.workflow_commands.IScheduleActivity,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.workflow_commands.ScheduleActivity', context) : context;
   {
-    const m = o.headers;
-    if (m)
-      for (const [k, v] of Object.entries(m))
-        pending.push(
-          visit([v]).then((r) => {
-            m[k] = one(r);
-          })
-        );
+    if (!env.skipHeaders) {
+      const m = o.headers;
+      if (m)
+        for (const [k, v] of Object.entries(m))
+          pending.push(
+            env.transform([v], ctx).then((r) => {
+              m[k] = one(r);
+            })
+          );
+    }
   }
   {
     const a = o.arguments;
     if (a && a.length)
       pending.push(
-        visit(a).then((r) => {
-          o.arguments = many(r, a.length);
+        env.transform(a, ctx).then((r) => {
+          o.arguments = r;
         })
       );
   }
 }
 
-function walk_coresdk_workflow_commands_ScheduleLocalActivity(
+function walk_coresdk_workflow_commands_ScheduleLocalActivity<Ctx>(
   o: coresdk.workflow_commands.IScheduleLocalActivity,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_commands.ScheduleLocalActivity', context)
+    : context;
   {
-    const m = o.headers;
-    if (m)
-      for (const [k, v] of Object.entries(m))
-        pending.push(
-          visit([v]).then((r) => {
-            m[k] = one(r);
-          })
-        );
+    if (!env.skipHeaders) {
+      const m = o.headers;
+      if (m)
+        for (const [k, v] of Object.entries(m))
+          pending.push(
+            env.transform([v], ctx).then((r) => {
+              m[k] = one(r);
+            })
+          );
+    }
   }
   {
     const a = o.arguments;
     if (a && a.length)
       pending.push(
-        visit(a).then((r) => {
-          o.arguments = many(r, a.length);
+        env.transform(a, ctx).then((r) => {
+          o.arguments = r;
         })
       );
   }
 }
 
-function walk_coresdk_workflow_commands_ScheduleNexusOperation(
+function walk_coresdk_workflow_commands_ScheduleNexusOperation<Ctx>(
   o: coresdk.workflow_commands.IScheduleNexusOperation,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_commands.ScheduleNexusOperation', context)
+    : context;
   {
     const p = o.input;
     if (p != null)
       pending.push(
-        visit([p]).then((r) => {
+        env.transform([p], ctx).then((r) => {
           o.input = one(r);
         })
       );
   }
 }
 
-function walk_coresdk_workflow_commands_SignalExternalWorkflowExecution(
+function walk_coresdk_workflow_commands_SignalExternalWorkflowExecution<Ctx>(
   o: coresdk.workflow_commands.ISignalExternalWorkflowExecution,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_commands.SignalExternalWorkflowExecution', context)
+    : context;
   {
     const a = o.args;
     if (a && a.length)
       pending.push(
-        visit(a).then((r) => {
-          o.args = many(r, a.length);
+        env.transform(a, ctx).then((r) => {
+          o.args = r;
         })
       );
   }
   {
-    const m = o.headers;
-    if (m)
-      for (const [k, v] of Object.entries(m))
-        pending.push(
-          visit([v]).then((r) => {
-            m[k] = one(r);
-          })
-        );
+    if (!env.skipHeaders) {
+      const m = o.headers;
+      if (m)
+        for (const [k, v] of Object.entries(m))
+          pending.push(
+            env.transform([v], ctx).then((r) => {
+              m[k] = one(r);
+            })
+          );
+    }
   }
 }
 
-function walk_coresdk_workflow_commands_StartChildWorkflowExecution(
+function walk_coresdk_workflow_commands_StartChildWorkflowExecution<Ctx>(
   o: coresdk.workflow_commands.IStartChildWorkflowExecution,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_commands.StartChildWorkflowExecution', context)
+    : context;
   {
     const a = o.input;
     if (a && a.length)
       pending.push(
-        visit(a).then((r) => {
-          o.input = many(r, a.length);
+        env.transform(a, ctx).then((r) => {
+          o.input = r;
         })
       );
   }
   {
-    const m = o.headers;
-    if (m)
-      for (const [k, v] of Object.entries(m))
-        pending.push(
-          visit([v]).then((r) => {
-            m[k] = one(r);
-          })
-        );
+    if (!env.skipHeaders) {
+      const m = o.headers;
+      if (m)
+        for (const [k, v] of Object.entries(m))
+          pending.push(
+            env.transform([v], ctx).then((r) => {
+              m[k] = one(r);
+            })
+          );
+    }
   }
   {
     const m = o.memo;
     if (m)
       for (const [k, v] of Object.entries(m))
         pending.push(
-          visit([v]).then((r) => {
+          env.transform([v], ctx).then((r) => {
             m[k] = one(r);
           })
         );
   }
   {
-    const c = o.searchAttributes;
-    if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, visit, pending);
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
   }
 }
 
-function walk_coresdk_workflow_commands_UpdateResponse(
+function walk_coresdk_workflow_commands_UpdateResponse<Ctx>(
   o: coresdk.workflow_commands.IUpdateResponse,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.workflow_commands.UpdateResponse', context) : context;
   {
     const c = o.rejected;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
   {
     const p = o.completed;
     if (p != null)
       pending.push(
-        visit([p]).then((r) => {
+        env.transform([p], ctx).then((r) => {
           o.completed = one(r);
         })
       );
   }
 }
 
-function walk_coresdk_workflow_commands_UpsertWorkflowSearchAttributes(
+function walk_coresdk_workflow_commands_UpsertWorkflowSearchAttributes<Ctx>(
   o: coresdk.workflow_commands.IUpsertWorkflowSearchAttributes,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_commands.UpsertWorkflowSearchAttributes', context)
+    : context;
   {
-    const c = o.searchAttributes;
-    if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, visit, pending);
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
   }
 }
 
-function walk_coresdk_workflow_commands_WorkflowCommand(
+function walk_coresdk_workflow_commands_WorkflowCommand<Ctx>(
   o: coresdk.workflow_commands.IWorkflowCommand,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.workflow_commands.WorkflowCommand', context) : context;
   {
     const c = o.userMetadata;
-    if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, visit, pending);
+    if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
   }
   {
     const c = o.scheduleActivity;
-    if (c != null) walk_coresdk_workflow_commands_ScheduleActivity(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_commands_ScheduleActivity(c, env, ctx, pending);
   }
   {
     const c = o.respondToQuery;
-    if (c != null) walk_coresdk_workflow_commands_QueryResult(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_commands_QueryResult(c, env, ctx, pending);
   }
   {
     const c = o.completeWorkflowExecution;
-    if (c != null) walk_coresdk_workflow_commands_CompleteWorkflowExecution(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_commands_CompleteWorkflowExecution(c, env, ctx, pending);
   }
   {
     const c = o.failWorkflowExecution;
-    if (c != null) walk_coresdk_workflow_commands_FailWorkflowExecution(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_commands_FailWorkflowExecution(c, env, ctx, pending);
   }
   {
     const c = o.continueAsNewWorkflowExecution;
-    if (c != null) walk_coresdk_workflow_commands_ContinueAsNewWorkflowExecution(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_commands_ContinueAsNewWorkflowExecution(c, env, ctx, pending);
   }
   {
     const c = o.startChildWorkflowExecution;
-    if (c != null) walk_coresdk_workflow_commands_StartChildWorkflowExecution(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_commands_StartChildWorkflowExecution(c, env, ctx, pending);
   }
   {
     const c = o.signalExternalWorkflowExecution;
-    if (c != null) walk_coresdk_workflow_commands_SignalExternalWorkflowExecution(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_commands_SignalExternalWorkflowExecution(c, env, ctx, pending);
   }
   {
     const c = o.scheduleLocalActivity;
-    if (c != null) walk_coresdk_workflow_commands_ScheduleLocalActivity(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_commands_ScheduleLocalActivity(c, env, ctx, pending);
   }
   {
     const c = o.upsertWorkflowSearchAttributes;
-    if (c != null) walk_coresdk_workflow_commands_UpsertWorkflowSearchAttributes(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_commands_UpsertWorkflowSearchAttributes(c, env, ctx, pending);
   }
   {
     const c = o.modifyWorkflowProperties;
-    if (c != null) walk_coresdk_workflow_commands_ModifyWorkflowProperties(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_commands_ModifyWorkflowProperties(c, env, ctx, pending);
   }
   {
     const c = o.updateResponse;
-    if (c != null) walk_coresdk_workflow_commands_UpdateResponse(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_commands_UpdateResponse(c, env, ctx, pending);
   }
   {
     const c = o.scheduleNexusOperation;
-    if (c != null) walk_coresdk_workflow_commands_ScheduleNexusOperation(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_commands_ScheduleNexusOperation(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_completion_Failure(
+function walk_coresdk_workflow_completion_Failure<Ctx>(
   o: coresdk.workflow_completion.IFailure,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.workflow_completion.Failure', context) : context;
   {
     const c = o.failure;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_completion_Success(
+function walk_coresdk_workflow_completion_Success<Ctx>(
   o: coresdk.workflow_completion.ISuccess,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.workflow_completion.Success', context) : context;
   {
     const a = o.commands;
-    if (a) for (const v of a) walk_coresdk_workflow_commands_WorkflowCommand(v, visit, pending);
+    if (a) for (const v of a) walk_coresdk_workflow_commands_WorkflowCommand(v, env, ctx, pending);
   }
 }
 
-function walk_coresdk_workflow_completion_WorkflowActivationCompletion(
+function walk_coresdk_workflow_completion_WorkflowActivationCompletion<Ctx>(
   o: coresdk.workflow_completion.IWorkflowActivationCompletion,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_completion.WorkflowActivationCompletion', context)
+    : context;
   {
     const c = o.successful;
-    if (c != null) walk_coresdk_workflow_completion_Success(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_completion_Success(c, env, ctx, pending);
   }
   {
     const c = o.failed;
-    if (c != null) walk_coresdk_workflow_completion_Failure(c, visit, pending);
+    if (c != null) walk_coresdk_workflow_completion_Failure(c, env, ctx, pending);
   }
 }
 
-function walk_temporal_api_common_v1_Memo(
+function walk_temporal_api_common_v1_Memo<Ctx>(
   o: temporal.api.common.v1.IMemo,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.common.v1.Memo', context) : context;
   {
     const m = o.fields;
     if (m)
       for (const [k, v] of Object.entries(m))
         pending.push(
-          visit([v]).then((r) => {
+          env.transform([v], ctx).then((r) => {
             m[k] = one(r);
           })
         );
   }
 }
 
-function walk_temporal_api_common_v1_Payloads(
+function walk_temporal_api_common_v1_Payloads<Ctx>(
   o: temporal.api.common.v1.IPayloads,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.common.v1.Payloads', context) : context;
   {
     const a = o.payloads;
     if (a && a.length)
       pending.push(
-        visit(a).then((r) => {
-          o.payloads = many(r, a.length);
+        env.transform(a, ctx).then((r) => {
+          o.payloads = r;
         })
       );
   }
 }
 
-function walk_temporal_api_common_v1_SearchAttributes(
+function walk_temporal_api_common_v1_SearchAttributes<Ctx>(
   o: temporal.api.common.v1.ISearchAttributes,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.common.v1.SearchAttributes', context) : context;
   {
     const m = o.indexedFields;
     if (m)
       for (const [k, v] of Object.entries(m))
         pending.push(
-          visit([v]).then((r) => {
+          env.transform([v], ctx).then((r) => {
             m[k] = one(r);
           })
         );
   }
 }
 
-function walk_temporal_api_failure_v1_ApplicationFailureInfo(
+function walk_temporal_api_failure_v1_ApplicationFailureInfo<Ctx>(
   o: temporal.api.failure.v1.IApplicationFailureInfo,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.failure.v1.ApplicationFailureInfo', context)
+    : context;
   {
     const c = o.details;
-    if (c != null) walk_temporal_api_common_v1_Payloads(c, visit, pending);
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
 }
 
-function walk_temporal_api_failure_v1_CanceledFailureInfo(
+function walk_temporal_api_failure_v1_CanceledFailureInfo<Ctx>(
   o: temporal.api.failure.v1.ICanceledFailureInfo,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.failure.v1.CanceledFailureInfo', context)
+    : context;
   {
     const c = o.details;
-    if (c != null) walk_temporal_api_common_v1_Payloads(c, visit, pending);
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
 }
 
-function walk_temporal_api_failure_v1_Failure(
+function walk_temporal_api_failure_v1_Failure<Ctx>(
   o: temporal.api.failure.v1.IFailure,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.failure.v1.Failure', context) : context;
   {
     const p = o.encodedAttributes;
     if (p != null)
       pending.push(
-        visit([p]).then((r) => {
+        env.transform([p], ctx).then((r) => {
           o.encodedAttributes = one(r);
         })
       );
   }
   {
     const c = o.cause;
-    if (c != null) walk_temporal_api_failure_v1_Failure(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
   {
     const c = o.applicationFailureInfo;
-    if (c != null) walk_temporal_api_failure_v1_ApplicationFailureInfo(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_ApplicationFailureInfo(c, env, ctx, pending);
   }
   {
     const c = o.timeoutFailureInfo;
-    if (c != null) walk_temporal_api_failure_v1_TimeoutFailureInfo(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_TimeoutFailureInfo(c, env, ctx, pending);
   }
   {
     const c = o.canceledFailureInfo;
-    if (c != null) walk_temporal_api_failure_v1_CanceledFailureInfo(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_CanceledFailureInfo(c, env, ctx, pending);
   }
   {
     const c = o.resetWorkflowFailureInfo;
-    if (c != null) walk_temporal_api_failure_v1_ResetWorkflowFailureInfo(c, visit, pending);
+    if (c != null) walk_temporal_api_failure_v1_ResetWorkflowFailureInfo(c, env, ctx, pending);
   }
 }
 
-function walk_temporal_api_failure_v1_ResetWorkflowFailureInfo(
+function walk_temporal_api_failure_v1_ResetWorkflowFailureInfo<Ctx>(
   o: temporal.api.failure.v1.IResetWorkflowFailureInfo,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.failure.v1.ResetWorkflowFailureInfo', context)
+    : context;
   {
     const c = o.lastHeartbeatDetails;
-    if (c != null) walk_temporal_api_common_v1_Payloads(c, visit, pending);
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
 }
 
-function walk_temporal_api_failure_v1_TimeoutFailureInfo(
+function walk_temporal_api_failure_v1_TimeoutFailureInfo<Ctx>(
   o: temporal.api.failure.v1.ITimeoutFailureInfo,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.failure.v1.TimeoutFailureInfo', context) : context;
   {
     const c = o.lastHeartbeatDetails;
-    if (c != null) walk_temporal_api_common_v1_Payloads(c, visit, pending);
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
 }
 
-function walk_temporal_api_sdk_v1_UserMetadata(
+function walk_temporal_api_sdk_v1_UserMetadata<Ctx>(
   o: temporal.api.sdk.v1.IUserMetadata,
-  visit: Visit,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
   pending: Promise<unknown>[]
 ): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.sdk.v1.UserMetadata', context) : context;
   {
     const p = o.summary;
     if (p != null)
       pending.push(
-        visit([p]).then((r) => {
+        env.transform([p], ctx).then((r) => {
           o.summary = one(r);
         })
       );
@@ -969,7 +1140,7 @@ function walk_temporal_api_sdk_v1_UserMetadata(
     const p = o.details;
     if (p != null)
       pending.push(
-        visit([p]).then((r) => {
+        env.transform([p], ctx).then((r) => {
           o.details = one(r);
         })
       );

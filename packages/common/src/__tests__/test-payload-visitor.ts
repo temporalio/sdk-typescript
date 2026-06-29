@@ -2,21 +2,17 @@ import test from 'ava';
 import { coresdk } from '@temporalio/proto';
 import type { Payload } from '../interfaces';
 import {
-  boundTransform,
+  boundPayloadTransform,
   drain,
   visitWorkflowActivation,
   visitWorkflowActivationCompletion,
   type PayloadTransform,
 } from '../internal-non-workflow/payload-visitor';
 
-// Lets the event loop run every async step that is currently ready: `setImmediate` fires only after
-// the microtask queue drains, so one `await tick()` advances all pending transforms to their next
-// `await`. Deterministic alternative to setTimeout.
+// Lets the event loop run every async step that is currently ready
 const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
-// A one-shot gate. A transform `await`s `gate.wait()` to park mid-run; the test calls `gate.open()`
-// to let every parked transform continue at once. This holds work in flight on demand so a test can
-// observe how many transforms ran concurrently, without relying on timing.
+// A one-shot gate
 const createGate = (): { wait: () => Promise<void>; open: () => void } => {
   let open!: () => void;
   const opened = new Promise<void>((resolve) => {
@@ -25,8 +21,7 @@ const createGate = (): { wait: () => Promise<void>; open: () => void } => {
   return { wait: () => opened, open };
 };
 
-// Never resolves; rejects only when the signal aborts. Lets a transform "run until cancelled"
-// without a timer that would hang the test if the abort were not wired up.
+// Never resolves; rejects only when the signal aborts
 const untilAborted = (signal: AbortSignal): Promise<never> =>
   new Promise((_resolve, reject) => {
     signal.addEventListener('abort', () => reject(signal.reason), { once: true });
@@ -35,11 +30,11 @@ const untilAborted = (signal: AbortSignal): Promise<never> =>
 const payload = (data: string): Payload => ({ data: new TextEncoder().encode(data) });
 const read = (p: Payload): string => new TextDecoder().decode(p.data ?? new Uint8Array());
 
-test('boundTransform caps the number of in-flight calls', async (t) => {
+test('boundPayloadTransform caps the number of in-flight calls', async (t) => {
   let active = 0;
   let maxActive = 0;
   const gate = createGate();
-  const bounded = boundTransform(
+  const bounded = boundPayloadTransform<void>(
     async (payloads) => {
       active += 1;
       maxActive = Math.max(maxActive, active);
@@ -51,8 +46,8 @@ test('boundTransform caps the number of in-flight calls', async (t) => {
     new AbortController()
   );
 
-  const calls = Array.from({ length: 6 }, () => bounded([payload('x')]));
-  await tick(); // let every call that can acquire a permit start
+  const calls = Array.from({ length: 6 }, () => bounded([payload('x')], undefined));
+  await tick();
   t.is(maxActive, 2);
 
   gate.open();
@@ -60,15 +55,15 @@ test('boundTransform caps the number of in-flight calls', async (t) => {
   t.is(maxActive, 2, 'never exceeded the limit as the queued calls drained');
 });
 
-test('boundTransform with concurrency 1 runs calls one at a time, in launch order', async (t) => {
+test('boundPayloadTransform with concurrency 1 runs calls one at a time, in launch order', async (t) => {
   const order: string[] = [];
   let active = 0;
   let maxActive = 0;
-  const bounded = boundTransform(
+  const bounded = boundPayloadTransform<void>(
     async (payloads) => {
       active += 1;
       maxActive = Math.max(maxActive, active);
-      await tick(); // a broken limit would let a sibling interleave during this yield
+      await tick();
       order.push(read(payloads[0]!));
       active -= 1;
       return payloads;
@@ -77,38 +72,14 @@ test('boundTransform with concurrency 1 runs calls one at a time, in launch orde
     new AbortController()
   );
 
-  await drain(['a', 'b', 'c'].map((tag) => bounded([payload(tag)])));
+  await drain(['a', 'b', 'c'].map((tag) => bounded([payload(tag)], undefined)));
   t.is(maxActive, 1);
   t.deepEqual(order, ['a', 'b', 'c']);
 });
 
-test('drain applies each writeback once its transform resolves', async (t) => {
-  const message: { result: Payload; arguments: Payload[] } = {
-    result: payload('r'),
-    arguments: [payload('x'), payload('y')],
-  };
-  const bounded = boundTransform(
-    async (payloads) => payloads.map((p) => payload(`${read(p)}!`)),
-    4,
-    new AbortController()
-  );
-
-  await drain([
-    bounded([message.result]).then(([replacement]) => {
-      message.result = replacement!;
-    }),
-    bounded(message.arguments).then((replacements) => {
-      message.arguments = replacements;
-    }),
-  ]);
-
-  t.is(read(message.result), 'r!');
-  t.deepEqual(message.arguments.map(read), ['x!', 'y!']);
-});
-
 test('first error is surfaced and not-yet-started transforms are skipped', async (t) => {
   const started: string[] = [];
-  const bounded = boundTransform(
+  const bounded = boundPayloadTransform<void>(
     async (payloads) => {
       const tag = read(payloads[0]!);
       started.push(tag);
@@ -120,15 +91,15 @@ test('first error is surfaced and not-yet-started transforms are skipped', async
     new AbortController()
   );
 
-  const error = await t.throwsAsync(drain(['ok', 'boom', 'never'].map((tag) => bounded([payload(tag)]))));
+  const error = await t.throwsAsync(drain(['ok', 'boom', 'never'].map((tag) => bounded([payload(tag)], undefined))));
   t.is(error?.message, 'boom');
   t.deepEqual(started, ['ok', 'boom'], '"never" is skipped after the failure');
 });
 
 test('a failure aborts in-flight siblings instead of waiting them out', async (t) => {
   const settled: string[] = [];
-  const bounded = boundTransform(
-    async (payloads, signal) => {
+  const bounded = boundPayloadTransform<void>(
+    async (payloads, _context, signal) => {
       const tag = read(payloads[0]!);
       if (tag === 'boom') {
         await tick();
@@ -147,7 +118,7 @@ test('a failure aborts in-flight siblings instead of waiting them out', async (t
     new AbortController()
   );
 
-  const error = await t.throwsAsync(drain(['slow1', 'boom', 'slow2'].map((tag) => bounded([payload(tag)]))));
+  const error = await t.throwsAsync(drain(['slow1', 'boom', 'slow2'].map((tag) => bounded([payload(tag)], undefined))));
   t.is(error?.message, 'boom');
   t.deepEqual(settled.sort(), ['slow1:aborted', 'slow2:aborted']);
 });
@@ -160,13 +131,14 @@ const completionWith = (...results: string[]): coresdk.workflow_completion.IWork
 
 test('visitWorkflowActivationCompletion with an already-aborted signal skips the walk', async (t) => {
   let calls = 0;
-  const transform: PayloadTransform = async (payloads) => {
+  const payloadTransform: PayloadTransform<void> = async (payloads) => {
     calls += 1;
     return payloads;
   };
 
   const error = await t.throwsAsync(
-    visitWorkflowActivationCompletion(completionWith('a', 'b'), transform, {
+    visitWorkflowActivationCompletion(completionWith('a', 'b'), {
+      payloadTransform,
       abortSignal: AbortSignal.abort(new Error('stop')),
     })
   );
@@ -174,9 +146,9 @@ test('visitWorkflowActivationCompletion with an already-aborted signal skips the
   t.is(calls, 0);
 });
 
-// An activation exercising every payload-bearing site shape: repeated lists, singular fields,
-// the three map sites (headers / memo / search attributes), a `Payloads`-wrapped field, a oneof,
-// and a Failure with a multi-level cause chain.
+// An activation exercising every payload-bearing site shape: repeated lists, singular fields, the
+// three map sites (headers / memo / search attributes), a `Payloads`-wrapped field, a oneof, and a
+// Failure with a multi-level cause chain.
 const activationWithEveryPayloadSite = (): coresdk.workflow_activation.IWorkflowActivation => ({
   jobs: [
     {
@@ -232,22 +204,22 @@ test('visits every payload site exactly once and writes back in place', async (t
   const activation = activationWithEveryPayloadSite();
 
   const seen: string[] = [];
-  await visitWorkflowActivation(
-    activation,
-    async (payloads) => {
+  await visitWorkflowActivation(activation, {
+    payloadTransform: async (payloads) => {
       payloads.forEach((p) => seen.push(read(p)));
       return payloads.map((p) => payload(`${read(p)}#`));
     },
-    { concurrency: 3 }
-  );
+    concurrency: 3,
+  });
   t.deepEqual(seen.slice().sort(), EVERY_SITE_PAYLOAD.slice().sort(), 'sees every site exactly once');
 
-  // A second walk should observe the first walk's rewrites, proving writeback landed in place
-  // at every site (including deep in the cause chain and inside maps).
+  // A second walk should observe the first walk's rewrites, proving writeback landed in place.
   const seenAgain: string[] = [];
-  await visitWorkflowActivation(activation, async (payloads) => {
-    payloads.forEach((p) => seenAgain.push(read(p)));
-    return payloads;
+  await visitWorkflowActivation(activation, {
+    payloadTransform: async (payloads) => {
+      payloads.forEach((p) => seenAgain.push(read(p)));
+      return payloads;
+    },
   });
   t.deepEqual(
     seenAgain.slice().sort(),
@@ -258,56 +230,101 @@ test('visits every payload site exactly once and writes back in place', async (t
 
 test('an activation with no payloads makes no transform calls and resolves', async (t) => {
   let calls = 0;
-  const transform: PayloadTransform = async (payloads) => {
+  const payloadTransform: PayloadTransform<void> = async (payloads) => {
     calls += 1;
     return payloads;
   };
 
-  await visitWorkflowActivation({ jobs: [] }, transform);
-  await visitWorkflowActivation({}, transform); // no jobs field at all
+  await visitWorkflowActivation({ jobs: [] }, { payloadTransform });
+  await visitWorkflowActivation({}, { payloadTransform });
   await visitWorkflowActivation(
-    {
-      // Empty repeated / empty map / a non-payload job variant — none should call the transform.
-      jobs: [{ initializeWorkflow: { arguments: [], headers: {} } }, { fireTimer: {} }],
-    },
-    transform
+    { jobs: [{ initializeWorkflow: { arguments: [], headers: {} } }, { fireTimer: {} }] },
+    { payloadTransform }
   );
 
   t.is(calls, 0);
 });
 
-test('a transform that breaks singular cardinality fails loudly', async (t) => {
+test('a single-payload field must come back as exactly one payload', async (t) => {
   const singular = (): coresdk.workflow_activation.IWorkflowActivation => ({
     jobs: [{ resolveActivity: { result: { completed: { result: payload('x') } } } }],
   });
 
   await t.throwsAsync(
-    visitWorkflowActivation(singular(), async () => []),
-    { message: /expected 1/ },
+    visitWorkflowActivation(singular(), { payloadTransform: async () => [] }),
+    { message: /exactly 1/ },
     'returning zero payloads for a singular site throws'
   );
   await t.throwsAsync(
-    visitWorkflowActivation(singular(), async (payloads) => [...payloads, payload('extra')]),
-    { message: /expected 1/ },
+    visitWorkflowActivation(singular(), { payloadTransform: async (payloads) => [...payloads, payload('extra')] }),
+    { message: /exactly 1/ },
     'returning two payloads for a singular site throws'
   );
 });
 
-test('a transform that changes a repeated field length fails loudly', async (t) => {
-  const withArgs = (): coresdk.workflow_activation.IWorkflowActivation => ({
+test('a repeated field may return any count, including zero (matches Java)', async (t) => {
+  const withInput = (): coresdk.workflow_activation.IWorkflowActivation => ({
     jobs: [{ signalWorkflow: { input: [payload('a'), payload('b')] } }],
   });
 
-  await t.throwsAsync(
-    visitWorkflowActivation(withArgs(), async (payloads) => payloads.slice(1)),
-    { message: /expected 2/ },
-    'dropping a payload from a repeated site throws'
-  );
-  await t.throwsAsync(
-    visitWorkflowActivation(withArgs(), async (payloads) => [...payloads, payload('c')]),
-    { message: /expected 2/ },
-    'adding a payload to a repeated site throws'
-  );
+  const emptied = withInput();
+  await visitWorkflowActivation(emptied, { payloadTransform: async () => [] });
+  t.deepEqual(emptied.jobs![0]!.signalWorkflow!.input, [], 'a repeated list can be emptied');
+
+  const reframed = withInput();
+  await visitWorkflowActivation(reframed, { payloadTransform: async () => [payload('merged')] });
+  t.deepEqual(reframed.jobs![0]!.signalWorkflow!.input!.map(read), ['merged'], 'count may shrink');
+});
+
+test('context is derived per message and isolated across sibling jobs', async (t) => {
+  const activation: coresdk.workflow_activation.IWorkflowActivation = {
+    jobs: [{ signalWorkflow: { input: [payload('sig')] } }, { initializeWorkflow: { arguments: [payload('arg')] } }],
+  };
+
+  const seen: Record<string, string> = {};
+  await visitWorkflowActivation<string>(activation, {
+    initialContext: 'root',
+    deriveContext: (_message, typeName, context) =>
+      typeName === 'coresdk.workflow_activation.SignalWorkflow'
+        ? 'signal'
+        : typeName === 'coresdk.workflow_activation.InitializeWorkflow'
+          ? 'init'
+          : context,
+    payloadTransform: async (payloads, context) => {
+      payloads.forEach((p) => {
+        seen[read(p)] = context;
+      });
+      return payloads;
+    },
+  });
+
+  t.deepEqual(seen, { sig: 'signal', arg: 'init' });
+});
+
+test('skipHeaders and skipSearchAttributes omit those sites', async (t) => {
+  const activation: coresdk.workflow_activation.IWorkflowActivation = {
+    jobs: [
+      {
+        initializeWorkflow: {
+          arguments: [payload('arg')],
+          headers: { h: payload('hdr') },
+          searchAttributes: { indexedFields: { s: payload('sa') } },
+        },
+      },
+    ],
+  };
+
+  const seen: string[] = [];
+  await visitWorkflowActivation(activation, {
+    payloadTransform: async (payloads) => {
+      payloads.forEach((p) => seen.push(read(p)));
+      return payloads;
+    },
+    skipHeaders: true,
+    skipSearchAttributes: true,
+  });
+
+  t.deepEqual(seen, ['arg'], 'headers and search attributes are not visited');
 });
 
 test('visits completion command payloads: user metadata and a rejected update', async (t) => {
@@ -321,9 +338,11 @@ test('visits completion command payloads: user metadata and a rejected update', 
   };
 
   const seen: string[] = [];
-  await visitWorkflowActivationCompletion(completion, async (payloads) => {
-    payloads.forEach((p) => seen.push(read(p)));
-    return payloads.map((p) => payload(`${read(p)}!`));
+  await visitWorkflowActivationCompletion(completion, {
+    payloadTransform: async (payloads) => {
+      payloads.forEach((p) => seen.push(read(p)));
+      return payloads.map((p) => payload(`${read(p)}!`));
+    },
   });
 
   t.deepEqual(seen.slice().sort(), ['details', 'rejection', 'summary']);
@@ -337,7 +356,9 @@ test('walks a decoded protobuf message instance, not just object literals', asyn
   const Type = coresdk.workflow_completion.WorkflowActivationCompletion;
   const decoded = Type.decode(Type.encode(completionWith('a', 'b')).finish());
 
-  await visitWorkflowActivationCompletion(decoded, async (payloads) => payloads.map((p) => payload(`${read(p)}!`)));
+  await visitWorkflowActivationCompletion(decoded, {
+    payloadTransform: async (payloads) => payloads.map((p) => payload(`${read(p)}!`)),
+  });
 
   const results = decoded.successful!.commands!.map((c) => read(c.completeWorkflowExecution!.result!));
   t.deepEqual(results, ['a!', 'b!']);
@@ -348,7 +369,7 @@ test('an identity transform leaves a real message byte-for-byte unchanged', asyn
   const original = Type.encode(activationWithEveryPayloadSite()).finish();
   const decoded = Type.decode(original);
 
-  await visitWorkflowActivation(decoded, async (payloads) => payloads);
+  await visitWorkflowActivation(decoded, { payloadTransform: async (payloads) => payloads });
 
   t.deepEqual(Buffer.from(Type.encode(decoded).finish()), Buffer.from(original));
 });
@@ -358,25 +379,29 @@ test('concurrency caps in-flight transforms across the whole activation', async 
     let active = 0;
     let max = 0;
     const gate = createGate();
-    const transform: PayloadTransform = async (payloads) => {
+    const payloadTransform: PayloadTransform<void> = async (payloads) => {
       active += 1;
       max = Math.max(max, active);
       await gate.wait();
       active -= 1;
       return payloads;
     };
-    return { transform, open: gate.open, max: () => max };
+    return { payloadTransform, open: gate.open, max: () => max };
   };
 
   const capped = tracked();
-  const cappedVisit = visitWorkflowActivation(activationWithEveryPayloadSite(), capped.transform, { concurrency: 4 });
+  const cappedVisit = visitWorkflowActivation(activationWithEveryPayloadSite(), {
+    payloadTransform: capped.payloadTransform,
+    concurrency: 4,
+  });
   await tick();
   t.is(capped.max(), 4);
   capped.open();
   await cappedVisit;
 
   const sequential = tracked();
-  const sequentialVisit = visitWorkflowActivation(activationWithEveryPayloadSite(), sequential.transform, {
+  const sequentialVisit = visitWorkflowActivation(activationWithEveryPayloadSite(), {
+    payloadTransform: sequential.payloadTransform,
     concurrency: 1,
   });
   await tick();
@@ -388,7 +413,7 @@ test('concurrency caps in-flight transforms across the whole activation', async 
 test('aborting mid-walk rejects and cancels in-flight transforms', async (t) => {
   const controller = new AbortController();
   let aborted = 0;
-  const transform: PayloadTransform = async (payloads, signal) => {
+  const payloadTransform: PayloadTransform<void> = async (payloads, _context, signal) => {
     try {
       await untilAborted(signal!);
       return payloads;
@@ -398,7 +423,8 @@ test('aborting mid-walk rejects and cancels in-flight transforms', async (t) => 
     }
   };
 
-  const visiting = visitWorkflowActivation(activationWithEveryPayloadSite(), transform, {
+  const visiting = visitWorkflowActivation(activationWithEveryPayloadSite(), {
+    payloadTransform,
     concurrency: 16,
     abortSignal: controller.signal,
   });
