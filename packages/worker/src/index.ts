@@ -35,7 +35,12 @@
  */
 
 export { NativeConnection, NativeConnectionPlugin } from './connection';
-export { DNSLoadBalancingConfig, NativeConnectionOptions, TLSConfig } from './connection-options';
+export {
+  DNSLoadBalancingConfig,
+  GrpcCompressionConfig,
+  NativeConnectionOptions,
+  TLSConfig,
+} from './connection-options';
 export { startDebugReplayer } from './debug-replayer';
 export { IllegalStateError } from '@temporalio/common';
 export {
