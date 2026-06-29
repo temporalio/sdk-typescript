@@ -68,7 +68,7 @@ importers:
         version: 3.1.1
       protobufjs:
         specifier: 7.5.5
-        version: 7.5.5(patch_hash=0ede6d81e4e283d0a44203616b8935211e15e8326841cd4cd7427963385ea3c1)
+        version: 7.5.5
       ts-prune:
         specifier: ^0.10.3
         version: 0.10.3
@@ -4630,6 +4630,10 @@ packages:
     peerDependencies:
       protobufjs: ^7.6.2
 
+  protobufjs@7.5.5:
+    resolution: {integrity: sha512-3wY1AxV+VBNW8Yypfd1yQY9pXnqTAN+KwQxL8iYm3/BjKYMNg4i0owhEe26PWDOMaIrzeeF98Lqd5NGz4omiIg==}
+    engines: {node: '>=12.0.0'}
+
   protobufjs@7.6.2:
     resolution: {integrity: sha512-N9EiLovGEQOJSPF26Ij7qUGvahfEnq0eeYZ02aigIedkmz1qZSwjnP9SBITHJuF/6MYbIW4HDN8zdYjsjqJKXQ==}
     engines: {node: '>=12.0.0'}
@@ -5957,7 +5961,7 @@ snapshots:
   '@grpc/proto-loader@0.8.1':
     dependencies:
       lodash.camelcase: 4.3.0
-      long: 5.2.3
+      long: 5.3.2
       protobufjs: 7.6.2(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
       yargs: 17.7.2
 
@@ -9550,6 +9554,21 @@ snapshots:
       tmp: 0.2.5
       uglify-js: 3.19.3
 
+  protobufjs@7.5.5:
+    dependencies:
+      '@protobufjs/aspromise': 1.1.2
+      '@protobufjs/base64': 1.1.2
+      '@protobufjs/codegen': 2.0.5
+      '@protobufjs/eventemitter': 1.1.1
+      '@protobufjs/fetch': 1.1.1
+      '@protobufjs/float': 1.0.2
+      '@protobufjs/inquire': 1.1.2
+      '@protobufjs/path': 1.1.2
+      '@protobufjs/pool': 1.1.0
+      '@protobufjs/utf8': 1.1.1
+      '@types/node': 20.19.41
+      long: 5.3.2
+
   protobufjs@7.6.2(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b):
     dependencies:
       '@protobufjs/aspromise': 1.1.2
@@ -9578,7 +9597,7 @@ snapshots:
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
       '@types/node': 20.19.41
-      long: 5.2.3
+      long: 5.3.2
 
   proxy-addr@2.0.7:
     dependencies:
