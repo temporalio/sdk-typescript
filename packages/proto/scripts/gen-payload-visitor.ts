@@ -100,7 +100,7 @@ function emitField(field: protobuf.Field): string[] {
 
   let lines: string[];
   if (isPayload) {
-    // Singular and map-value sites must come back as exactly one payload (`one`); a repeated site
+    // Singular and map-value sites must come back as exactly one payload (`one`) but a repeated site
     // is replaced by whatever the visitor returns (any count, including empty).
     if (field.map) {
       lines = [
@@ -129,15 +129,12 @@ function emitField(field: protobuf.Field): string[] {
     }
   }
 
-  // `headers` and `searchAttributes` are skippable via the skipHeaders / skipSearchAttributes options.
   if (field.name === 'headers') return [`if (!env.skipHeaders) {`, ...lines, `}`];
   if (field.name === 'searchAttributes') return [`if (!env.skipSearchAttributes) {`, ...lines, `}`];
   return lines;
 }
 
 function emitWalker(type: protobuf.Type): string {
-  // Each field's statements get their own `{ }` block so the emitted per-field locals don't
-  // collide. Indentation is left to prettier, which formats the generated file afterward.
   const blocks = type.fieldsArray
     .map(emitField)
     .filter((lines) => lines.length > 0)
