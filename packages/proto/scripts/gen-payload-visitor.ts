@@ -3,10 +3,10 @@ import { writeFileSync } from 'node:fs';
 import * as protobuf from 'protobufjs';
 import * as prettier from 'prettier';
 
-// Generates `@temporalio/common`'s `internal-non-workflow/payload-visitor.generated.ts`: a
-// synchronous walk of the WorkflowActivation / WorkflowActivationCompletion message trees that
-// calls a PayloadTransform at every Payload-bearing field.
-// Run explicitly via `pnpm gen:payload-visitor`.
+// Generates `packages/proto/src/payload-visitor.generated.ts`: a synchronous walk of the
+// WorkflowActivation / WorkflowActivationCompletion message trees that invokes a payload visitor at
+// every Payload-bearing field, threading a per-message context. Runs in proto's build (and via
+// `pnpm gen:payload-visitor`).
 
 const PAYLOAD = 'temporal.api.common.v1.Payload';
 const ANY = 'google.protobuf.Any';
@@ -90,7 +90,7 @@ const hasPayload = (type: protobuf.Type): boolean => fqn(type) === PAYLOAD || re
 /** Every reachable message type that needs a walker (i.e. can contain a Payload), sorted by name. */
 const collectWalkers = (): protobuf.Type[] => [...types.values()].filter(hasPayload).sort(byFqn);
 
-/** Lines of the walker body for one field, or [] if the field reaches no payload. */
+/** Statements for one field's payload sites / recursion, or [] if the field reaches no payload. */
 function emitField(field: protobuf.Field): string[] {
   const message = resolvedMessage(field);
   if (!message || !hasPayload(message)) return [];
@@ -98,30 +98,41 @@ function emitField(field: protobuf.Field): string[] {
   const access = `o.${field.name}`;
   const isPayload = fqn(message) === PAYLOAD;
 
+  let lines: string[];
   if (isPayload) {
+    // Singular and map-value sites must come back as exactly one payload (`one`); a repeated site
+    // is replaced by whatever the visitor returns (any count, including empty).
     if (field.map) {
-      return [
+      lines = [
         `const m = ${access};`,
-        `if (m) for (const [k, v] of Object.entries(m)) pending.push(visit([v]).then((r) => { m[k] = one(r); }));`,
+        `if (m) for (const [k, v] of Object.entries(m)) pending.push(env.transform([v], ctx).then((r) => { m[k] = one(r); }));`,
       ];
-    }
-    if (field.repeated) {
-      return [
+    } else if (field.repeated) {
+      lines = [
         `const a = ${access};`,
-        `if (a && a.length) pending.push(visit(a).then((r) => { ${access} = many(r, a.length); }));`,
+        `if (a && a.length) pending.push(env.transform(a, ctx).then((r) => { ${access} = r; }));`,
+      ];
+    } else {
+      lines = [
+        `const p = ${access};`,
+        `if (p != null) pending.push(env.transform([p], ctx).then((r) => { ${access} = one(r); }));`,
       ];
     }
-    return [`const p = ${access};`, `if (p != null) pending.push(visit([p]).then((r) => { ${access} = one(r); }));`];
+  } else {
+    const walk = fnName(message);
+    if (field.map) {
+      lines = [`const m = ${access};`, `if (m) for (const v of Object.values(m)) ${walk}(v, env, ctx, pending);`];
+    } else if (field.repeated) {
+      lines = [`const a = ${access};`, `if (a) for (const v of a) ${walk}(v, env, ctx, pending);`];
+    } else {
+      lines = [`const c = ${access};`, `if (c != null) ${walk}(c, env, ctx, pending);`];
+    }
   }
 
-  const walk = fnName(message);
-  if (field.map) {
-    return [`const m = ${access};`, `if (m) for (const v of Object.values(m)) ${walk}(v, visit, pending);`];
-  }
-  if (field.repeated) {
-    return [`const a = ${access};`, `if (a) for (const v of a) ${walk}(v, visit, pending);`];
-  }
-  return [`const c = ${access};`, `if (c != null) ${walk}(c, visit, pending);`];
+  // `headers` and `searchAttributes` are skippable via the skipHeaders / skipSearchAttributes options.
+  if (field.name === 'headers') return [`if (!env.skipHeaders) {`, ...lines, `}`];
+  if (field.name === 'searchAttributes') return [`if (!env.skipSearchAttributes) {`, ...lines, `}`];
+  return lines;
 }
 
 function emitWalker(type: protobuf.Type): string {
@@ -132,27 +143,23 @@ function emitWalker(type: protobuf.Type): string {
     .filter((lines) => lines.length > 0)
     .map((lines) => `{\n${lines.join('\n')}\n}`);
   return [
-    `function ${fnName(type)}(o: ${tsType(type)}, visit: Visit, pending: Promise<unknown>[]): void {`,
+    `function ${fnName(type)}<Ctx>(o: ${tsType(
+      type
+    )}, env: WalkEnv<Ctx>, context: Ctx, pending: Promise<unknown>[]): void {`,
+    `const ctx = env.deriveContext ? env.deriveContext(o, '${fqn(type)}', context) : context;`,
     ...blocks,
     `}`,
   ].join('\n');
 }
 
-// Prepended to the generated file. `one`/`many` enforce that a transform returns exactly as
-// many payloads as it received, failing loudly instead of silently corrupting the message.
+// Prepended to the generated file. `one` enforces that a single-payload
+// field must come back as exactly one payload.
 const RUNTIME_HELPERS = `
 function one(payloads: Payload[]): Payload {
   if (payloads.length !== 1) {
-    throw new Error(\`payload visitor: a singular field transform returned \${payloads.length} payloads, expected 1\`);
+    throw new Error(\`payload visitor: a single-payload field requires exactly 1 payload, got \${payloads.length}\`);
   }
   return payloads[0]!;
-}
-
-function many(payloads: Payload[], expected: number): Payload[] {
-  if (payloads.length !== expected) {
-    throw new Error(\`payload visitor: a repeated field transform returned \${payloads.length} payloads, expected \${expected}\`);
-  }
-  return payloads;
 }`;
 
 function emit(): string {
@@ -162,9 +169,9 @@ function emit(): string {
   const entries = ROOTS.map(({ type, entry }) => {
     const t = root.lookupType(type);
     return [
-      `export function ${entry}(root: ${tsType(t)}, visit: Visit): Promise<unknown>[] {`,
+      `export function ${entry}<Ctx>(root: ${tsType(t)}, env: WalkEnv<Ctx>, context: Ctx): Promise<unknown>[] {`,
       `  const pending: Promise<unknown>[] = [];`,
-      `  ${fnName(t)}(root, visit, pending);`,
+      `  ${fnName(t)}(root, env, context, pending);`,
       `  return pending;`,
       `}`,
     ].join('\n');
@@ -176,7 +183,13 @@ function emit(): string {
     `import type { ${namespaces.join(', ')} } from '../protos/root';`,
     ``,
     `type Payload = temporal.api.common.v1.IPayload;`,
-    `type Visit = (payloads: Payload[], abortSignal?: AbortSignal) => Promise<Payload[]>;`,
+    ``,
+    `export interface WalkEnv<Ctx> {`,
+    `  transform(payloads: Payload[], context: Ctx): Promise<Payload[]>;`,
+    `  deriveContext?(message: object, typeName: string, context: Ctx): Ctx;`,
+    `  skipHeaders: boolean;`,
+    `  skipSearchAttributes: boolean;`,
+    `}`,
     RUNTIME_HELPERS,
     ``,
     entries.join('\n\n'),
