@@ -509,6 +509,12 @@ export class Worker {
     logger.debug('Creating worker', {
       options: {
         ...compiledOptions,
+        // Avoid dumping NativeConnection which contains Runtime that might have ciruclar references
+        ...(compiledOptions.connection !== undefined
+          ? {
+              connection: '<NativeConnection>',
+            }
+          : {}),
         ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
           ? {
               // Avoid dumping workflow bundle code to the console
