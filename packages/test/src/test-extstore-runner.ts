@@ -202,7 +202,7 @@ test('retrieve raises ValueError when the driver name is unknown', async (t) => 
 test('retrieve raises ValueError on payload arity mismatch', async (t) => {
   const payloadsToStore = [makePayload(1), makePayload(2)];
   const payloadsToRetrieve = [makePayload(1)];
-  
+
   const writerDriver = makeFakeDriver({ name: 's3' });
   const writerRunner = new ExternalStorageRunner(
     new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 })
