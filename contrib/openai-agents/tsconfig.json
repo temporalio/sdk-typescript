@@ -13,7 +13,8 @@
     { "path": "../../packages/common" },
     { "path": "../../packages/proto" },
     { "path": "../../packages/test-helpers" },
-    { "path": "../../packages/testing" }
+    { "path": "../../packages/testing" },
+    { "path": "../workflow-streams" }
   ],
   "include": ["./src/**/*.ts"]
 }

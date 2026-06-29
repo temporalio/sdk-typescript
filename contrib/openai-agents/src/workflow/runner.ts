@@ -13,10 +13,15 @@ import {
   type RunResult,
   type Session,
   type SessionInputCallback,
+  type StreamedRunResult,
   type TracingConfig,
 } from '@openai/agents-core';
 import { ApplicationFailure } from '@temporalio/common';
-import { DEFAULT_MODEL_ACTIVITY_OPTIONS, type ModelActivityOptions } from '../common/model-activity-options';
+import {
+  DEFAULT_MODEL_ACTIVITY_OPTIONS,
+  STREAMING_TOPIC_NOT_CONFIGURED,
+  type ModelActivityOptions,
+} from '../common/model-activity-options';
 import { unwrapTemporalFailure } from '../common/errors';
 import { convertAgent } from './convert-agent';
 import { ensureTracingProcessorRegistered } from './tracing';
@@ -40,6 +45,14 @@ export interface TemporalRunOptions<TContext = undefined> {
   callModelInputFilter?: CallModelInputFilter;
   /** Per-run tracing config override */
   tracing?: TracingConfig;
+  /**
+   * Stream incremental events as the model responds. Requires
+   * `modelParams.streamingTopic` to be configured on the plugin and a hosted
+   * `WorkflowStream` in the Workflow.
+   *
+   * @experimental Streaming support is experimental and may change without notice.
+   */
+  stream?: boolean;
   // signal intentionally omitted — use Temporal CancellationScope for Workflow cancellation
 
   /** Runner-level config overrides */
@@ -72,8 +85,10 @@ export interface TemporalRunOptions<TContext = undefined> {
 /**
  * A Temporal-aware agent runner that delegates model calls to Activities.
  *
- * Streaming is not supported in Temporal Workflows because Activities are
- * request-response. Use run() for all agent invocations.
+ * Use `run(agent, input)` for request-response runs. Pass `{ stream: true }` to
+ * stream incremental events as the model responds — the returned
+ * `StreamedRunResult` is async-iterable. Streaming requires
+ * `modelParams.streamingTopic` and a hosted `WorkflowStream` in the Workflow.
  */
 export class TemporalOpenAIRunner {
   private readonly modelParams: ModelActivityOptions;
@@ -89,17 +104,37 @@ export class TemporalOpenAIRunner {
    * deserialized `RunState` to resume a previous run across `continueAsNew`.
    * Capture the current `RunState` via `result.state.toString()`.
    */
+  run<TAgent extends Agent<any, any>, TContext = undefined>(
+    agent: TAgent,
+    input: string | AgentInputItem[] | RunState<TContext, TAgent>,
+    options?: TemporalRunOptions<TContext> & { stream?: false }
+  ): Promise<RunResult<any, TAgent>>;
+  run<TAgent extends Agent<any, any>, TContext = undefined>(
+    agent: TAgent,
+    input: string | AgentInputItem[] | RunState<TContext, TAgent>,
+    options: TemporalRunOptions<TContext> & { stream: true }
+  ): Promise<StreamedRunResult<TContext, TAgent>>;
   async run<TAgent extends Agent<any, any>, TContext = undefined>(
     agent: TAgent,
     input: string | AgentInputItem[] | RunState<TContext, TAgent>,
     options?: TemporalRunOptions<TContext>
-  ): Promise<RunResult<any, TAgent>> {
+  ): Promise<RunResult<any, TAgent> | StreamedRunResult<TContext, TAgent>> {
     const session = options?.session;
     if (session instanceof MemorySession) {
       throw ApplicationFailure.create({
         message:
           'Pass WorkflowSafeMemorySession to TemporalOpenAIRunner.run({ session }); the upstream MemorySession is not safe inside a Workflow (heap-only state without Temporal Event History backing). See @temporalio/openai-agents/workflow.',
         type: 'UnsafeSessionError',
+        nonRetryable: true,
+      });
+    }
+
+    // Fail fast before the upstream streaming runner starts, so a missing topic
+    // surfaces as a clean error rather than being captured into the streamed result.
+    if (options?.stream === true && this.modelParams.streamingTopic === undefined) {
+      throw ApplicationFailure.create({
+        message: STREAMING_TOPIC_NOT_CONFIGURED.message,
+        type: STREAMING_TOPIC_NOT_CONFIGURED.type,
         nonRetryable: true,
       });
     }
@@ -122,17 +157,25 @@ export class TemporalOpenAIRunner {
 
     const innerRunner = new Runner({ ...runnerConfigOverrides });
 
+    const sharedRunOptions = {
+      maxTurns: options?.maxTurns,
+      context: options?.context,
+      previousResponseId: options?.previousResponseId,
+      conversationId: options?.conversationId,
+      session: options?.session,
+      sessionInputCallback: options?.sessionInputCallback,
+      callModelInputFilter: options?.callModelInputFilter,
+      tracing: options?.tracing,
+    };
+
     try {
-      return (await innerRunner.run(converted, preparedInput as any, {
-        maxTurns: options?.maxTurns,
-        context: options?.context,
-        previousResponseId: options?.previousResponseId,
-        conversationId: options?.conversationId,
-        session: options?.session,
-        sessionInputCallback: options?.sessionInputCallback,
-        callModelInputFilter: options?.callModelInputFilter,
-        tracing: options?.tracing,
-      })) as RunResult<any, TAgent>;
+      if (options?.stream === true) {
+        return (await innerRunner.run(converted, preparedInput as any, {
+          ...sharedRunOptions,
+          stream: true,
+        })) as StreamedRunResult<TContext, TAgent>;
+      }
+      return (await innerRunner.run(converted, preparedInput as any, sharedRunOptions)) as RunResult<any, TAgent>;
     } catch (error) {
       throw normalizeAgentsRunError(error);
     } finally {
