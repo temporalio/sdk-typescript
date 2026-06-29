@@ -93,15 +93,16 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       }
       const calls = await workflow.getAndResetSinkCalls();
       calls.forEach((call) => {
-        // Delete .now because functions can't be serialized / sent to thread.
+        // Copy before stripping to avoid altering the running Workflow.
+        call.workflowInfo = { ...call.workflowInfo, unsafe: { ...call.workflowInfo.unsafe } };
+        // Delete .now and .random because functions can't be serialized / sent to thread.
         delete (call.workflowInfo.unsafe as any).now;
-        // Use structuredClone when available
-        // This lets us work around a bug in Bun's postMessage where
-        // shared object references get corrupted during serialization.
-        call.workflowInfo =
-          'structuredClone' in globalThis
-            ? structuredClone(call.workflowInfo)
-            : { ...call.workflowInfo, unsafe: { ...call.workflowInfo.unsafe } };
+        delete (call.workflowInfo.unsafe as any).random;
+        // Use structuredClone when available to work around a bug in Bun's postMessage
+        // where shared object references get corrupted during serialization.
+        if ('structuredClone' in globalThis) {
+          call.workflowInfo = structuredClone(call.workflowInfo);
+        }
       });
 
       return {

@@ -252,6 +252,7 @@ const GenericConfigs = {
       tls: null,
       httpConnectProxy: null,
       dnsLoadBalancingConfig: null,
+      grpcCompression: { codec: 'gzip' },
       headers: null,
       apiKey: null,
       disableErrorCodeMetricTags: false,
