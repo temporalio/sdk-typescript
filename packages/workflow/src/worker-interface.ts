@@ -11,11 +11,13 @@ import type { WorkflowCreateOptionsInternal } from './interfaces';
 import { Activator } from './internals';
 import { composeInterceptors } from './interceptor-composition';
 import { setActivator, getActivator, maybeGetActivator } from './global-attributes';
+import { createUnsafeRandomSource } from './random-helpers';
 
 // Export the type for use on the "worker" side
 export { PromiseStackStore } from './internals';
 
 const OriginalDate = globalThis.Date;
+const OriginalMathRandom = globalThis.Math.random;
 
 /**
  * Initialize the isolate runtime.
@@ -27,7 +29,11 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
     ...options,
     info: fixPrototypes({
       ...options.info,
-      unsafe: { ...options.info.unsafe, now: OriginalDate.now },
+      unsafe: {
+        ...options.info.unsafe,
+        now: OriginalDate.now,
+        random: createUnsafeRandomSource(OriginalMathRandom),
+      },
     }),
   });
   // There's one activator per workflow instance, set it globally on the context.

@@ -10,6 +10,7 @@ import { type ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/
 import { type VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
 import type { WorkflowBundleWithSourceMapAndFilename } from '@temporalio/worker/lib/workflow/workflow-worker-thread/input';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
+import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
 import { REUSE_V8_CONTEXT } from './helpers';
 
 type TestWorkflowCreator = TestVMWorkflowCreator | TestReusableVMWorkflowCreator;
@@ -165,7 +166,12 @@ async function createWorkflow(
       historySize: 300,
       continueAsNewSuggested: false,
       targetWorkerDeploymentVersionChanged: false,
-      unsafe: { isReplaying: false, isReplayingHistoryEvents: false, now: Date.now },
+      unsafe: {
+        isReplaying: false,
+        isReplayingHistoryEvents: false,
+        now: Date.now,
+        random: createUnsafeRandomSource(Math.random),
+      },
       startTime: new Date(),
       runStartTime: new Date(),
     },
