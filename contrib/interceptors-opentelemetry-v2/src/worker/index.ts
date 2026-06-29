@@ -209,10 +209,6 @@ export class OpenTelemetryNexusOutboundInterceptor implements NexusOutboundCalls
  * Takes an opentelemetry SpanProcessor and turns it into an injected Workflow span exporter sink.
  */
 export function makeWorkflowExporter(
-  spanProcessor: SpanProcessor,
-  resource: Resource
-): InjectedSink<OpenTelemetryWorkflowExporter>;
-export function makeWorkflowExporter(
   processor: SpanProcessor,
   resource: Resource
 ): InjectedSink<OpenTelemetryWorkflowExporter> {
