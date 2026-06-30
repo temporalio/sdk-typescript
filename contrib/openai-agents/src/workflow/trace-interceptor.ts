@@ -21,7 +21,6 @@ import {
   type WorkflowInterceptors,
   type WorkflowOutboundCallsInterceptor,
 } from '@temporalio/workflow';
-import { getActivator } from '@temporalio/workflow/lib/global-attributes';
 import {
   currentAgentsSpanHeader,
   extractAgentsConfigHeader,
@@ -46,20 +45,15 @@ import {
 import { getCurrentPluginConfig, setPluginConfig, clearPluginConfig, type PluginConfig } from './plugin-config-store';
 import { ensureTracingProcessorRegistered, runWithTracingRandom } from './tracing';
 import { clearOpenSpans, flushOpenSpans } from './agent-sink-processor';
-import { prngFromInputId, spanIdFromInputId } from './prng';
 
 const TRACING_STREAM_NAME = 'package-openai-agents-tracing';
 
+// The Workflow body, signals, and updates persist their tracing-ID draws to
+// history, so they must use the replay-seeded stream. Query handlers and update
+// validators are read-only — their draws aren't persisted — so they use
+// `unsafe.random` instead, which is the only safe random source there.
 function tracingRandom(): number {
   return getRandomStream(TRACING_STREAM_NAME).random();
-}
-
-// Temporal Core hard-codes queryId === 'legacy_query' on the legacy single-Query
-// Workflow Task path, so distinct Queries collide on the spanId/PRNG seed.
-function resolveQueryKey(input: QueryInput): string {
-  if (input.queryId !== 'legacy_query') return input.queryId;
-  // Legacy queries arrive one at a time with a hardcoded id.
-  return `${input.queryName}:${getActivator().getTimeOfDay()}`;
 }
 
 /**
@@ -117,49 +111,43 @@ class OpenAIAgentsTraceInboundInterceptor implements WorkflowInboundCallsInterce
   }
 
   async handleQuery(input: QueryInput, next: Next<WorkflowInboundCallsInterceptor, 'handleQuery'>): Promise<unknown> {
-    const keyInput = resolveQueryKey(input);
-    return runWithTracingRandom(prngFromInputId(keyInput), () => {
-      const header = extractAgentsTraceHeader(input.headers);
-      const spanId = spanIdFromInputId(keyInput);
+    return runWithTracingRandom(
+      () => workflowInfo().unsafe.random.random(),
+      () => {
+        const header = extractAgentsTraceHeader(input.headers);
 
-      if (!header?.traceId) {
-        return withIsolatedAgentsTraceContext(() =>
-          maybeTemporalSpan(
-            `temporal:handleQuery:${input.queryName}`,
-            () => next(input),
-            { queryName: input.queryName },
-            spanId
-          )
+        if (!header?.traceId) {
+          return withIsolatedAgentsTraceContext(() =>
+            maybeTemporalSpan(`temporal:handleQuery:${input.queryName}`, () => next(input), {
+              queryName: input.queryName,
+            })
+          );
+        }
+
+        return withRestoredAgentsTraceContext(header, () =>
+          maybeTemporalSpan(`temporal:handleQuery:${input.queryName}`, () => next(input), {
+            queryName: input.queryName,
+          })
         );
       }
-
-      return withRestoredAgentsTraceContext(header, () =>
-        maybeTemporalSpan(
-          `temporal:handleQuery:${input.queryName}`,
-          () => next(input),
-          { queryName: input.queryName },
-          spanId
-        )
-      );
-    });
+    );
   }
 
   validateUpdate(input: UpdateInput, next: Next<WorkflowInboundCallsInterceptor, 'validateUpdate'>): void {
-    return runWithTracingRandom(prngFromInputId(input.updateId), () => {
-      const spanId = spanIdFromInputId(input.updateId);
-      const runValidate = () =>
-        maybeTemporalSpan(
-          `temporal:validateUpdate:${input.name}`,
-          () => next(input),
-          { updateName: input.name },
-          spanId
-        );
-      const header = extractAgentsTraceHeader(input.headers);
-      if (!header?.traceId) {
-        return withIsolatedAgentsTraceContext(runValidate);
+    return runWithTracingRandom(
+      () => workflowInfo().unsafe.random.random(),
+      () => {
+        const runValidate = () =>
+          maybeTemporalSpan(`temporal:validateUpdate:${input.name}`, () => next(input), {
+            updateName: input.name,
+          });
+        const header = extractAgentsTraceHeader(input.headers);
+        if (!header?.traceId) {
+          return withIsolatedAgentsTraceContext(runValidate);
+        }
+        return withRestoredAgentsTraceContext(header, runValidate);
       }
-      return withRestoredAgentsTraceContext(header, runValidate);
-    });
+    );
   }
 
   async handleUpdate(
