@@ -21,6 +21,8 @@ packages:
   - contrib/interceptors-opentelemetry
   - contrib/interceptors-opentelemetry-v2
   - contrib/openai-agents
+  - contrib/external-storage-s3
+  - contrib/external-storage-s3-aws-sdk
   - contrib/workflow-streams
   - scripts
 
