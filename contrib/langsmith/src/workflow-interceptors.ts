@@ -12,7 +12,7 @@
  * @internal
  */
 
-import { RunTree } from 'langsmith/run_trees';
+import type { RunTree } from 'langsmith/run_trees';
 import { AsyncLocalStorageProviderSingleton } from 'langsmith/singletons/traceable';
 import type {
   ContinueAsNewInput,
@@ -35,9 +35,6 @@ import {
   type StartNexusOperationOutput,
   type UpdateInput,
 } from '@temporalio/workflow';
-import { getActivator } from '@temporalio/workflow/lib/global-attributes';
-
-import { prngFromInputId } from './prng';
 import {
   HEADER_KEY,
   encodeContextString,
@@ -66,15 +63,6 @@ import {
   startNexusOperationRunName,
   validateUpdateRunName,
 } from './run-tree';
-
-// Temporal Core hard-codes queryId === 'legacy_query' on the legacy single-Query
-// Workflow Task path. Each legacy Query rides its own Task, so queryName plus the
-// per-Task wall-clock distinguishes them across their separate Tasks.
-// The `getTimeOfDay()` non-determinism is intentional and inconsequential: read-only
-// query handlers never advance the main Workflow PRNG and never emit on replay.
-function resolveQueryKey(input: QueryInput): string {
-  return input.queryId !== 'legacy_query' ? input.queryId : `${input.queryName}:${getActivator().getTimeOfDay()}`;
-}
 
 /**
  * Configuration the worker injects into the workflow bundle via the bundler's
@@ -212,7 +200,10 @@ function reconstructParent(headers: Record<string, unknown> | undefined): RunTre
  * replay-safe children. Carries the same id/trace/dotted so descendants parent
  * under the real propagated run; never emitted itself.
  */
-function asReplaySafeParent(parent: RunTree | undefined, random?: () => number): ReplaySafeRunTree | undefined {
+function asReplaySafeParent(
+  parent: RunTree | undefined,
+  generateNewUuid4?: () => string
+): ReplaySafeRunTree | undefined {
   if (!parent) {
     return undefined;
   }
@@ -226,7 +217,7 @@ function asReplaySafeParent(parent: RunTree | undefined, random?: () => number):
       parent_run_id: parent.parent_run_id,
       project_name: parent.project_name,
     },
-    random
+    generateNewUuid4
   );
 }
 
@@ -235,8 +226,11 @@ function asReplaySafeParent(parent: RunTree | undefined, random?: () => number):
  * so a workflow-body `traceable` always nests via `createChild`; never emitted,
  * and its children are independent roots (see {@link _RootReplaySafeRunTreeFactory}).
  */
-function placeholderRoot(random?: () => number): _RootReplaySafeRunTreeFactory {
-  return new _RootReplaySafeRunTreeFactory({ name: workflowInfo().workflowType, run_type: RUN_TYPE.CHAIN }, random);
+function placeholderRoot(generateNewUuid4?: () => string): _RootReplaySafeRunTreeFactory {
+  return new _RootReplaySafeRunTreeFactory(
+    { name: workflowInfo().workflowType, run_type: RUN_TYPE.CHAIN },
+    generateNewUuid4
+  );
 }
 
 /** Emit a short-lived marker run as a child of `parent`. */
@@ -257,7 +251,7 @@ function buildReplaySafeRunTree(
     runType: string;
     parent: ReplaySafeRunTree | undefined;
     inputs: Record<string, unknown>;
-    random?: () => number;
+    generateNewUuid4?: () => string;
   }
 ): ReplaySafeRunTree {
   return new ReplaySafeRunTree(
@@ -270,7 +264,7 @@ function buildReplaySafeRunTree(
       extra: { metadata: scrubSensitive(config.metadata) ?? {} },
       inputs: params.inputs,
     },
-    params.random
+    params.generateNewUuid4
   );
 }
 
@@ -315,9 +309,9 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
       { args: input.args },
       () => next(input),
       true,
-      // Read-only: seed run-id minting from a per-call PRNG so the handler never
-      // draws from the Workflow main PRNG (which a clean replay would not advance).
-      prngFromInputId(resolveQueryKey(input))
+      // Read-only: mint run ids from the nondeterministic unsafe random source so the
+      // handler never draws from the Workflow main PRNG (which a clean replay would not advance).
+      workflowInfo().unsafe.random.uuid4
     );
   }
 
@@ -337,25 +331,26 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
   }
 
   validateUpdate(input: UpdateInput, next: Next<WorkflowInboundCallsInterceptor, 'validateUpdate'>): void {
-    // Read-only: seed run-id minting from a per-call PRNG so the validator never
-    // draws from the Workflow main PRNG (which a clean replay would not advance).
-    const random = prngFromInputId(input.updateId);
+    // Read-only: mint run ids from the nondeterministic unsafe random source so the validator
+    // never draws from the Workflow main PRNG (which a clean replay would not advance).
+    const generateNewUuid4 = workflowInfo().unsafe.random.uuid4;
     if (!this.config.addTemporalRuns) {
       // Propagation only: install the reconstructed parent (or a placeholder parent
       // when none was propagated, to keep a validator-body `traceable` off the
       // no-parent `crypto` path) so the validator body nests under the update's
       // trace. Validators are synchronous, so install via the stack-based `run`,
       // not the async `withAmbient`.
-      const ambient = asReplaySafeParent(reconstructParent(input.headers), random) ?? placeholderRoot(random);
+      const ambient =
+        asReplaySafeParent(reconstructParent(input.headers), generateNewUuid4) ?? placeholderRoot(generateNewUuid4);
       this.ctx.run(ambient, () => next(input));
       return;
     }
     const run = buildReplaySafeRunTree(this.config, {
       name: validateUpdateRunName(input.name),
       runType: RUN_TYPE.CHAIN,
-      parent: asReplaySafeParent(reconstructParent(input.headers), random),
+      parent: asReplaySafeParent(reconstructParent(input.headers), generateNewUuid4),
       inputs: { args: input.args },
-      random,
+      generateNewUuid4,
     });
     // Validators are synchronous and must not be made async; emit start/end
     // around the synchronous call, with the run installed on the stack so a
@@ -387,7 +382,7 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
     inputs: Record<string, unknown>,
     next: () => Promise<unknown>,
     scoped = false,
-    random?: () => number
+    generateNewUuid4?: () => string
   ): Promise<unknown> {
     if (!this.config.addTemporalRuns) {
       // Propagation only: install the reconstructed parent as the active run so
@@ -396,15 +391,15 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
       // `undefined` so a workflow-body `traceable` takes LangSmith's
       // `createChild` branch (deterministic id) rather than the no-parent branch
       // that mints a uuid via `crypto`, which the isolate lacks.
-      const ambient = asReplaySafeParent(parent, random) ?? placeholderRoot(random);
+      const ambient = asReplaySafeParent(parent, generateNewUuid4) ?? placeholderRoot(generateNewUuid4);
       return scoped ? this.ctx.run(ambient, next) : this.ctx.withAmbient(ambient, next);
     }
     const run = buildReplaySafeRunTree(this.config, {
       name,
       runType,
-      parent: asReplaySafeParent(parent, random),
+      parent: asReplaySafeParent(parent, generateNewUuid4),
       inputs,
-      random,
+      generateNewUuid4,
     });
     await run.postRun();
     const body = async (): Promise<unknown> => {

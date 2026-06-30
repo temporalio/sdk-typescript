@@ -22,7 +22,6 @@ import type { Client } from 'langsmith';
 import { ApplicationFailure, ApplicationFailureCategory } from '@temporalio/common';
 import { proxySinks, uuid4, workflowInfo } from '@temporalio/workflow';
 
-import { uuid4FromRandom } from './prng';
 import { scrubSensitive, type LangSmithTraceContext } from './propagation';
 import { LANGSMITH_SINK_NAME, type EmitterConfig, type LangSmithSinks, type SerializedRun } from './sinks';
 
@@ -220,19 +219,19 @@ export function buildRunTree(config: EmitterConfig, params: RunTreeParams): RunT
  * @internal
  */
 export class ReplaySafeRunTree extends RunTree {
-  // Per-invocation run-id source. Seeded by read-only handlers (queries, update
+  // Per-invocation run-id factory. Supplied by read-only handlers (queries, update
   // validators) so their ids don't draw from the Workflow main PRNG; left
   // undefined on recorded paths, where id minting falls back to the main-PRNG
-  // uuid4. Propagated to every child so the whole subtree draws from one source.
-  protected readonly random?: () => number;
+  // uuid4. Propagated to every child so the whole subtree mints from one factory.
+  protected readonly generateNewUuid4?: () => string;
 
-  constructor(config: RunTreeConfig, random?: () => number) {
-    super(ReplaySafeRunTree.fill(config, random));
-    this.random = random;
+  constructor(config: RunTreeConfig, generateNewUuid4?: () => string) {
+    super(ReplaySafeRunTree.fill(config, generateNewUuid4));
+    this.generateNewUuid4 = generateNewUuid4;
   }
 
-  private static fill(config: RunTreeConfig, random?: () => number): RunTreeConfig {
-    const id = config.id ?? (random ? uuid4FromRandom(random) : uuid4());
+  private static fill(config: RunTreeConfig, generateNewUuid4?: () => string): RunTreeConfig {
+    const id = config.id ?? (generateNewUuid4 ? generateNewUuid4() : uuid4());
     const start_time = config.start_time ?? Date.now();
     const trace_id = config.trace_id ?? config.parent_run?.trace_id ?? id;
     let dotted_order = config.dotted_order;
@@ -265,7 +264,7 @@ export class ReplaySafeRunTree extends RunTree {
         trace_id: this.trace_id,
         project_name: config.project_name ?? this.project_name,
       },
-      this.random
+      this.generateNewUuid4
     );
     this.child_runs.push(child);
     return child;
@@ -316,7 +315,7 @@ export class _RootReplaySafeRunTreeFactory extends ReplaySafeRunTree {
         run_type: config.run_type ?? RUN_TYPE.CHAIN,
         project_name: config.project_name ?? this.project_name,
       },
-      this.random
+      this.generateNewUuid4
     );
   }
 
