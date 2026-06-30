@@ -1212,8 +1212,6 @@ export class WorkflowClient extends BaseClient {
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(input.workflowExecution.workflowId!);
     const internalOptions = (input as InternalWorkflowSignalInput)[InternalWorkflowSignalOptionsSymbol];
-    // Server currently only supports workflow_event and batch_job link types.
-    const links = internalOptions?.links?.filter((link) => link.workflowEvent != null || link.batchJob != null);
     const req: temporal.api.workflowservice.v1.ISignalWorkflowExecutionRequest = {
       identity: this.options.identity,
       namespace: this.options.namespace,
@@ -1223,7 +1221,7 @@ export class WorkflowClient extends BaseClient {
       signalName: input.signalName,
       header: { fields: input.headers },
       input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args) },
-      links,
+      links: internalOptions?.links,
     };
     try {
       const response = await this.workflowService.signalWorkflowExecution(req);
@@ -1248,8 +1246,6 @@ export class WorkflowClient extends BaseClient {
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(options.workflowId);
     const internalOptions = (options as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
-    // Server currently only supports workflow_event and batch_job link types.
-    const links = internalOptions?.links?.filter((link) => link.workflowEvent != null || link.batchJob != null);
     const req: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest = {
       namespace: this.options.namespace,
       identity,
@@ -1282,7 +1278,7 @@ export class WorkflowClient extends BaseClient {
       userMetadata: await encodeUserMetadata(dataConverter, options.staticSummary, options.staticDetails, context),
       priority: options.priority ? compilePriority(options.priority) : undefined,
       versioningOverride: options.versioningOverride ?? undefined,
-      links,
+      links: internalOptions?.links,
     };
     try {
       const response = await this.workflowService.signalWithStartWorkflowExecution(req);
@@ -1350,19 +1346,6 @@ export class WorkflowClient extends BaseClient {
       );
     }
 
-    // Server currently only supports workflow_event and batch_job
-    // link types. This filter should be removed or adapted as
-    // server-side support comes online.
-    // See https://github.com/temporalio/temporal/issues/10345
-    const links = internalOptions?.links?.filter((link) => link.workflowEvent != null || link.batchJob != null);
-
-    const completionCallbacks = internalOptions?.completionCallbacks?.map((cb) => {
-      const links = cb?.links?.filter((link) => link.workflowEvent != null || link.batchJob != null);
-      return { ...cb, links };
-    });
-
-    const resolvedInternalOptions = { ...(internalOptions ?? {}), links, completionCallbacks };
-
     return {
       namespace,
       identity,
@@ -1394,7 +1377,7 @@ export class WorkflowClient extends BaseClient {
       priority: opts.priority ? compilePriority(opts.priority) : undefined,
       versioningOverride: opts.versioningOverride ?? undefined,
       requestEagerExecution: opts.requestEagerStart,
-      ...filterNullAndUndefined(resolvedInternalOptions),
+      ...filterNullAndUndefined(internalOptions ?? {}),
     };
   }
 

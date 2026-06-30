@@ -30,3 +30,8 @@ to docs, or any other relevant information.
 ### Breaking Changes
 
 - `WorkflowHandle.runId` in `@temporalio/nexus` is now an optional property to support creating a handle using only a workflow ID.
+
+### Changed
+
+- Standalone Nexus operation links are now formatted to align with server side support.
+- Standalone Nexus operation links are now forwarded on start workflow and signal requests.
