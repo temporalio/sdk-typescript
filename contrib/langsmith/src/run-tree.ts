@@ -20,10 +20,13 @@
 import { RunTree, convertToDottedOrderFormat, type RunTreeConfig } from 'langsmith/run_trees';
 import type { Client } from 'langsmith';
 import { ApplicationFailure, ApplicationFailureCategory } from '@temporalio/common';
-import { proxySinks, uuid4, workflowInfo } from '@temporalio/workflow';
+import { getRandomStream, proxySinks, workflowInfo } from '@temporalio/workflow';
 
 import { scrubSensitive, type LangSmithTraceContext } from './propagation';
 import { LANGSMITH_SINK_NAME, type EmitterConfig, type LangSmithSinks, type SerializedRun } from './sinks';
+
+/** Named random stream for recorded-path run ids; isolated from the workflow's main RNG. */
+const LANGSMITH_RUN_TREE_STREAM = 'package-langsmith-tracing';
 
 /** LangSmith run-type constants used for Temporal-operation runs. */
 export const RUN_TYPE = {
@@ -221,8 +224,9 @@ export function buildRunTree(config: EmitterConfig, params: RunTreeParams): RunT
 export class ReplaySafeRunTree extends RunTree {
   // Per-invocation run-id factory. Supplied by read-only handlers (queries, update
   // validators) so their ids don't draw from the Workflow main PRNG; left
-  // undefined on recorded paths, where id minting falls back to the main-PRNG
-  // uuid4. Propagated to every child so the whole subtree mints from one factory.
+  // undefined on recorded paths, where id minting falls back to the isolated
+  // LANGSMITH_RUN_TREE_STREAM named stream. Propagated to every child so the whole
+  // subtree mints from one factory.
   protected readonly generateNewUuid4?: () => string;
 
   constructor(config: RunTreeConfig, generateNewUuid4?: () => string) {
@@ -231,7 +235,8 @@ export class ReplaySafeRunTree extends RunTree {
   }
 
   private static fill(config: RunTreeConfig, generateNewUuid4?: () => string): RunTreeConfig {
-    const id = config.id ?? (generateNewUuid4 ? generateNewUuid4() : uuid4());
+    const id =
+      config.id ?? (generateNewUuid4 ? generateNewUuid4() : getRandomStream(LANGSMITH_RUN_TREE_STREAM).uuid4());
     const start_time = config.start_time ?? Date.now();
     const trace_id = config.trace_id ?? config.parent_run?.trace_id ?? id;
     let dotted_order = config.dotted_order;
