@@ -1,0 +1,53 @@
+{
+  "name": "@temporalio/external-storage-gcs-google-sdk",
+  "version": "1.18.1",
+  "private": true,
+  "description": "@google-cloud/storage client for the Temporal GCS external storage driver",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "keywords": [
+    "temporal",
+    "workflow",
+    "external storage",
+    "payload",
+    "gcs",
+    "gcp"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc --build",
+    "test": "ava ./lib/__tests__/test-*.js"
+  },
+  "ava": {
+    "timeout": "60s"
+  },
+  "dependencies": {
+    "@temporalio/external-storage-gcs": "workspace:*"
+  },
+  "peerDependencies": {
+    "@google-cloud/storage": "^7.0.0"
+  },
+  "devDependencies": {
+    "@google-cloud/storage": "^7.0.0",
+    "ava": "^5.3.1"
+  },
+  "engines": {
+    "node": ">= 20.3.0"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "contrib/external-storage-gcs-google-sdk"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/contrib/external-storage-gcs-google-sdk",
+  "files": [
+    "src",
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
+  ]
+}
