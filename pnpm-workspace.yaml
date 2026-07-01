@@ -20,6 +20,7 @@ packages:
   - contrib/ai-sdk
   - contrib/interceptors-opentelemetry
   - contrib/interceptors-opentelemetry-v2
+  - contrib/langsmith
   - contrib/openai-agents
   - contrib/external-storage-s3
   - contrib/external-storage-s3-aws-sdk
