@@ -60,7 +60,7 @@
     "nexus-rpc": "^0.0.2",
     "pidusage": "^3.0.2",
     "protobufjs": "^7.6.4",
-    "protobufjs-cli": "^1.3.2",
+    "protobufjs-cli": "^1.3.3",
     "rxjs": "7.8.1"
   },
   "devDependencies": {
